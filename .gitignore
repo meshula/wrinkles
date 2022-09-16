@@ -1,0 +1,5 @@
+.DS_Store
+zig-out/
+zig-cache/
+libs/zgpu/libs
+
