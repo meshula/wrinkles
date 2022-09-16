@@ -23,6 +23,8 @@ const Vertex = extern struct {
 const Uniforms = extern struct {
     aspect_ratio: f32,
     mip_level: f32,
+    duration: f32,
+    frame_rate: f32,
 };
 
 const DemoState = struct {
@@ -39,6 +41,8 @@ const DemoState = struct {
     sampler: zgpu.SamplerHandle,
 
     mip_level: i32 = 0,
+    duration: f32 = 1.0,
+    frame_rate: i32 = 10,
 };
 
 fn init(allocator: std.mem.Allocator, window: zglfw.Window) !*DemoState {
@@ -205,7 +209,7 @@ fn update(demo: *DemoState) void {
     if (!zgui.begin("Demo Settings", .{})) {
         zgui.end();
         return;
-    } 
+    }
 
     zgui.bulletText(
         "Average : {d:.3} ms/frame ({d:.1} fps)",
@@ -216,6 +220,16 @@ fn update(demo: *DemoState) void {
         .v = &demo.mip_level,
         .min = 0,
         .max = @intCast(i32, demo.gctx.lookupResourceInfo(demo.texture).?.mip_level_count - 1),
+    });
+    _ = zgui.sliderInt("Framerate", .{
+        .v = &demo.frame_rate,
+        .min = 1,
+        .max = 60,
+    });
+    _ = zgui.sliderFloat("Duration", .{
+        .v = &demo.duration,
+        .min = 1.0 / 24.0,
+        .max = 5,
     });
 
     const viewport = zgui.getMainViewport();
@@ -233,12 +247,8 @@ fn update(demo: *DemoState) void {
 
     // outline the tartan plot
     draw_list.addPolyline(
-        &.{ .{center[0] - center[1] * 0.9, center[1] - center[1] * 0.9},
-            .{center[0] + center[1] * 0.9, center[1] - center[1] * 0.9},
-            .{center[0] + center[1] * 0.9, center[1] + center[1] * 0.9},
-            .{center[0] - center[1] * 0.9, center[1] + center[1] * 0.9},
-            .{center[0] - center[1] * 0.9, center[1] - center[1] * 0.9} },
-            .{ .col = 0xff_00_aa_aa, .thickness = 7 },
+        &.{ .{ center[0] - center[1] * 0.9, center[1] - center[1] * 0.9 }, .{ center[0] + center[1] * 0.9, center[1] - center[1] * 0.9 }, .{ center[0] + center[1] * 0.9, center[1] + center[1] * 0.9 }, .{ center[0] - center[1] * 0.9, center[1] + center[1] * 0.9 }, .{ center[0] - center[1] * 0.9, center[1] - center[1] * 0.9 } },
+        .{ .col = 0xff_00_aa_aa, .thickness = 7 },
     );
 
     // draw_list.addRectFilled(.{
@@ -329,6 +339,8 @@ fn draw(demo: *DemoState) void {
             mem.slice[0] = .{
                 .aspect_ratio = @intToFloat(f32, fb_width) / @intToFloat(f32, fb_height),
                 .mip_level = @intToFloat(f32, demo.mip_level),
+                .duration = demo.duration,
+                .frame_rate = @intToFloat(f32, demo.frame_rate),
             };
             pass.setBindGroup(0, bind_group, &.{mem.offset});
             pass.drawIndexed(6, 1, 0, 0, 0);
