@@ -1,4 +1,5 @@
-
+#include "cvector.h"
+#include <math.h>
 #include <stdint.h>
 
 typedef struct {
@@ -15,42 +16,57 @@ typedef struct {
     float frace;   // normalized fraction of end within the end interval
 } ot_interval_t;
 
-typedef struct {
-    ot_frame_t offset;
-    int64_t slopen;
-    int64_t sloped;
-} ot_affine_transform_t;
+typedef enum {
+    ot_op_affine_transform
+} ot_operator_tag;
 
 typedef struct {
-    ot_frame_t origin;
-} ot_continuum_t;
-
-struct ot_topo_node_t;
-typedef void ot_operator_t(struct ot_topo_node_t* to, struct ot_topo_node_t* from);
+    int64_t start;
+    float frac;
+    uint64_t raten, rated;
+} ot_sample_t;
 
 typedef struct {
-    struct ot_topo_node_t* from;
-    ot_operator_t* transfer_function;
-    struct ot_topo_node_t* to;
-} ot_topo_node_t;
+    ot_operator_tag tag;
+    union {
+        struct {
+            // affine transform as slope + offset
+            int64_t slopen, sloped;
+            ot_frame_t offset;
+        };
+    };
+} ot_operator_t;
 
-// example:
-// a 24 fps origin
-ot_frame_t origin24() { return (ot_frame_t) { 0, 0.f, 0.5, 1, 24 }; }
-// a 24 fps presentation continuum
-ot_continuum_t presentation_continuum() { return (ot_continuum_t) { origin24() }; }
-// first frame
-ot_frame_t first_frame() { return (ot_frame_t){ 1, 0.f, 0.5f, 1, 24 } }
-// movie 1, starting at 1, ending but not including 10
-ot_interval_t mov1() { return (ot_interval_t){first_frame(), 10, 0.f} }
-// play the movie at half speed
-ot_affine_transform_t half_speed() { return (ot_affine_transform_t){ first(), 1, 2 }; }
-// map the movie to the timeline at the origin
-ot_topo_node_t topo1() { return (ot_topo_node_t){presentation_continuum(),
-                                       half_speed(),
-                                       mov1()}; }
-// interested in frame 3 of the presentation timeline
-ot_frame_t frame3() { return (ot_frame_t) { 3, 0.f, 0.5, 1, 24 }; }
-// evaluate the topology at that frame
-ot_frame_t mov1_frame3() { return ot_topo_eval(topo1(), frame3()); }
+ot_sample_t ot_sample_at_seconds(double t, uint64_t raten, uint64_t rated) {
+    ot_sample_t result;
+    result.raten = raten;
+    result.rated = rated;
+    double t_rate = t * (double) rated / (double) raten;
+    double int_part;
+    result.frac = (float) modf(t_rate, &int_part);
+    result.start = (int64_t) int_part;
+    return result;
+}
+
+//struct ot_topo_node_t;
+//typedef void ot_operator_t(struct ot_topo_node_t* to, struct ot_topo_node_t* from);
+
+void test_ot() {
+    // first, a presentation timeline 1000 frames long at 24
+    // and a movie, also 1000 frames long at 24
+    ot_interval_t pres_tl = (ot_interval_t) {
+        { 0, 0.f, 0.f, 1, 24 }, 1000, 0.f };
+    ot_interval_t mov_1000 = (ot_interval_t) {
+        { 0, 0.f, 0.f, 1, 24 }, 1000, 0.f };
+
+    ot_operator_t op_identity_24;
+    op_identity_24.tag = ot_op_affine_transform;
+    op_identity_24.slopen = 1;
+    op_identity_24.sloped = 1;
+    op_identity_24.offset = (ot_frame_t) { 0, 0.f, 0.f, 1, 24 };
+
+    // at 0.5 seconds, which frame of mov_1000 is showing on pres_tl?
+    ot_sample_t sample_0_5 = ot_sample_at_seconds(0.5, 1, 24);
+    ot_sample_t mov_sample_0_5 = ot_project(sample_0_5, op_identity_24);
+};
 
