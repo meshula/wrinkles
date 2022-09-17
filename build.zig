@@ -12,6 +12,11 @@ pub const Options = struct {
     target: std.zig.CrossTarget,
 };
 
+const c_args = [_][]const u8{
+    "-std=c11",
+    "-fno-sanitize=undefined",
+};
+
 inline fn thisDir() []const u8 {
     return comptime std.fs.path.dirname(@src().file) orelse ".";
 }
@@ -23,6 +28,8 @@ pub fn build(b: *std.build.Builder) void {
     };
 
     const exe = b.addExecutable("wrinkles", thisDir() ++ "/src/wrinkles.zig");
+    exe.addCSourceFile("src/opentime.c", &c_args);
+
     const exe_options = b.addOptions();
     exe.addOptions("build_options", exe_options);
     exe_options.addOption([]const u8, "content_dir", content_dir);
@@ -52,6 +59,7 @@ pub fn build(b: *std.build.Builder) void {
     zglfw.link(exe);
     zgui.link(exe);
     zstbi.link(exe);
+    exe.linkLibC();
 
     const install = b.step("wrinkles", "Build 'wrinkles'");
     install.dependOn(&b.addInstallArtifact(exe).step);
