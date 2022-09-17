@@ -16,13 +16,17 @@ inline fn thisDir() []const u8 {
     return comptime std.fs.path.dirname(@src().file) orelse ".";
 }
 
-pub fn build(b: *std.build.Builder) void {
+pub fn build_wrinkles_like(
+    b: *std.build.Builder,
+    comptime name:[]const u8,
+    comptime main_file_path:[]const u8
+) void {
     var options = Options{
         .build_mode = b.standardReleaseOptions(),
         .target = b.standardTargetOptions(.{}),
     };
 
-    const exe = b.addExecutable("wrinkles", thisDir() ++ "/src/wrinkles.zig");
+    const exe = b.addExecutable(name, thisDir() ++ main_file_path);
     const exe_options = b.addOptions();
     exe.addOptions("build_options", exe_options);
     exe_options.addOption([]const u8, "content_dir", content_dir);
@@ -30,7 +34,7 @@ pub fn build(b: *std.build.Builder) void {
     const install_content_step = b.addInstallDirectory(.{
         .source_dir = thisDir() ++ "/src/" ++ content_dir,
         .install_dir = .{ .custom = "" },
-        .install_subdir = "bin/wrinkles_content",
+        .install_subdir = "bin/" ++ name ++ "_content",
     });
     exe.step.dependOn(&install_content_step.step);
 
@@ -53,13 +57,18 @@ pub fn build(b: *std.build.Builder) void {
     zgui.link(exe);
     zstbi.link(exe);
 
-    const install = b.step("wrinkles", "Build 'wrinkles'");
+    const install = b.step(name, "Build '"++name++"'");
     install.dependOn(&b.addInstallArtifact(exe).step);
 
-    const run_step = b.step("wrinkles-run", "Run 'wrinkles'");
+    const run_step = b.step(name ++ "-run", "Run '" ++ name ++ "'");
     const run_cmd = exe.run();
     run_cmd.step.dependOn(install);
     run_step.dependOn(&run_cmd.step);
 
     b.getInstallStep().dependOn(install);
+}
+
+pub fn build(b: *std.build.Builder) void {
+    // build_wrinkles_like(b, "wrinkles", "/src/wrinkles.zig");
+    build_wrinkles_like(b, "planetary", "/src/planetary.zig");
 }
