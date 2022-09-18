@@ -1,5 +1,6 @@
 #include "cvector.h"
 #include <math.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 typedef struct {
@@ -48,6 +49,56 @@ ot_sample_t ot_sample_at_seconds(double t, uint64_t raten, uint64_t rated) {
     return result;
 }
 
+ot_sample_t ot_sample_invalid() {
+    return (ot_sample_t) { 0, 0, 0, 0 };
+}
+
+bool ot_sample_is_valid(const ot_sample_t* t) {
+    return t != NULL && t->rated != 0;
+}
+
+ot_sample_t ot_sample_normalize(const ot_sample_t* t) {
+    /// @TODO actually normalize. Need to drop the gcd library in here
+    return *t;
+}
+
+ot_frame_t ot_frame_normalize(const ot_frame_t* f) {
+    /// @TODO actually normalize. Need to drop the gcd library in here
+    return *f;
+}
+
+bool ot_sample_rates_equivalent(const ot_sample_t* t1, const ot_sample_t* t2) {
+    if (!t1 || !t2) {
+        return false;
+    }
+    ot_sample_t t1n = ot_sample_normalize(t1);
+    ot_sample_t t2n = ot_sample_normalize(t2);
+    return t1n.raten == t2n.raten && t1n.rated == t2n.rated;
+}
+
+bool ot_sample_frame_rates_equivalent(const ot_sample_t* t, const ot_frame_t* f) {
+    if (!t || !f) {
+        return false;
+    }
+    ot_sample_t tn = ot_sample_normalize(t);
+    ot_frame_t fn = ot_frame_normalize(f);
+    return tn.raten == fn.raten && tn.rated == fn.rated;
+}
+
+
+
+ot_sample_t ot_project(ot_sample_t* t, ot_operator_t* op) {
+    if (!t || !op || !ot_sample_is_valid(t)) {
+        return ot_sample_invalid();
+    }
+    if (op->tag == ot_op_affine_transform) {
+        if (ot_sample_frame_rates_equivalent(t, &op->offset)) {
+            
+        }
+    }
+    return ot_sample_invalid();
+}
+
 //struct ot_topo_node_t;
 //typedef void ot_operator_t(struct ot_topo_node_t* to, struct ot_topo_node_t* from);
 
@@ -67,6 +118,6 @@ void test_ot() {
 
     // at 0.5 seconds, which frame of mov_1000 is showing on pres_tl?
     ot_sample_t sample_0_5 = ot_sample_at_seconds(0.5, 1, 24);
-    ot_sample_t mov_sample_0_5 = ot_project(sample_0_5, op_identity_24);
+    ot_sample_t mov_sample_0_5 = ot_project(&sample_0_5, &op_identity_24);
 };
 
