@@ -17,6 +17,43 @@ typedef struct {
     uint32_t den;
 } ot_r32_t;
 
+/// @TODO replace all raten, rated with ot_r32_t
+
+typedef struct {
+    int64_t start; // start count of rate units
+    float frac;    // fraction [0, 1) between start and start + rate
+    float kcenter; // sampling kernel center relative to the start count
+    int64_t raten; // rate in seconds; numerator
+    int64_t rated; // rate in seconds; denominator
+} ot_frame_t;
+
+typedef struct {
+    ot_frame_t start; // start of interval
+    int64_t end;   // end count of rate units
+    float frace;   // normalized fraction of end within the end interval
+} ot_interval_t;
+
+typedef enum {
+    ot_op_affine_transform
+} ot_operator_tag;
+
+typedef struct {
+    int64_t start;
+    float frac;
+    uint64_t raten, rated;
+} ot_sample_t;
+
+typedef struct {
+    ot_operator_tag tag;
+    union {
+        struct {
+            // affine transform as slope + offset
+            int64_t slopen, sloped;
+            ot_frame_t offset;
+        };
+    };
+} ot_operator_t;
+
 
 
 // Stein's algorithm
@@ -243,43 +280,6 @@ int32_t ot_r32_floor(ot_r32_t a)
 {
     return a.num / a.den;
 }
-
-
-
-typedef struct {
-    int64_t start; // start count of rate units
-    float frac;    // fraction [0, 1) between start and start + rate
-    float kcenter; // sampling kernel center relative to the start count
-    int64_t raten; // rate in seconds; numerator
-    int64_t rated; // rate in seconds; denominator
-} ot_frame_t;
-
-typedef struct {
-    ot_frame_t start; // start of interval
-    int64_t end;   // end count of rate units
-    float frace;   // normalized fraction of end within the end interval
-} ot_interval_t;
-
-typedef enum {
-    ot_op_affine_transform
-} ot_operator_tag;
-
-typedef struct {
-    int64_t start;
-    float frac;
-    uint64_t raten, rated;
-} ot_sample_t;
-
-typedef struct {
-    ot_operator_tag tag;
-    union {
-        struct {
-            // affine transform as slope + offset
-            int64_t slopen, sloped;
-            ot_frame_t offset;
-        };
-    };
-} ot_operator_t;
 
 ot_sample_t ot_sample_at_seconds(double t, uint64_t raten, uint64_t rated) {
     ot_sample_t result;
