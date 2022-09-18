@@ -5,7 +5,7 @@
 
 typedef struct {
     int64_t start; // start count of rate units
-    float fracs;   // fraction [0, 1) between start and start + rate
+    float frac;    // fraction [0, 1) between start and start + rate
     float kcenter; // sampling kernel center relative to the start count
     int64_t raten; // rate in seconds; numerator
     int64_t rated; // rate in seconds; denominator
@@ -57,6 +57,10 @@ bool ot_sample_is_valid(const ot_sample_t* t) {
     return t != NULL && t->rated != 0;
 }
 
+bool ot_frame_is_valid(const ot_frame_t* f) {
+    return f != NULL & f->rated != 0;
+}
+
 ot_sample_t ot_sample_normalize(const ot_sample_t* t) {
     /// @TODO actually normalize. Need to drop the gcd library in here
     return *t;
@@ -85,16 +89,41 @@ bool ot_sample_frame_rates_equivalent(const ot_sample_t* t, const ot_frame_t* f)
     return tn.raten == fn.raten && tn.rated == fn.rated;
 }
 
+ot_frame_t ot_frame_inv(const ot_frame_t* f) {
+    ot_frame_t result = *f;
+    result.start *= -1;
+    result.frac = 1.f - result.frac;
+    return result;
+}
 
+ot_sample_t ot_sample_add_frame(const ot_sample_t* t, const ot_frame_t* f) {
+    if (!ot_sample_is_valid(t) || !ot_frame_is_valid(f)) {
+        return ot_sample_invalid();
+    }
+    if (ot_sample_frame_rates_equivalent(t, f)) {
+        ot_sample_t result = *t;
+        result.start += f->start;
+        result.frac += f->frac;
+        return ot_sample_normalize(&result);
+    }
+    /// @TODO do rate conversion
+    return ot_sample_invalid();
+}
 
 ot_sample_t ot_project(ot_sample_t* t, ot_operator_t* op) {
-    if (!t || !op || !ot_sample_is_valid(t)) {
+    if (!ot_sample_is_valid(t) || !op) {
         return ot_sample_invalid();
     }
     if (op->tag == ot_op_affine_transform) {
         if (ot_sample_frame_rates_equivalent(t, &op->offset)) {
-            
+            ot_sample_t result = *t;
+            ot_frame_t offset = ot_frame_inv(&op->offset);
+            result = ot_sample_add_frame(&result, &offset);
+            result.start = result.start * op->sloped / op->slopen;
+            return ot_sample_normalize(&result);
         }
+        /// @TODO handle different rates
+        return ot_sample_invalid();
     }
     return ot_sample_invalid();
 }
