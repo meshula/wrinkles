@@ -6,6 +6,9 @@ const wgpu = zgpu.wgpu;
 const zgui = @import("zgui");
 const zm = @import("zmath");
 const zstbi = @import("zstbi");
+const ot = @cImport({
+    @cInclude("opentime.h");
+});
 
 const content_dir = @import("build_options").content_dir;
 const window_title = "zig-gamedev: wrinkles (wgpu)";
@@ -46,6 +49,8 @@ const DemoState = struct {
 };
 
 fn init(allocator: std.mem.Allocator, window: zglfw.Window) !*DemoState {
+    ot.ot_test();
+
     const gctx = try zgpu.GraphicsContext.init(allocator, window);
 
     var arena_state = std.heap.ArenaAllocator.init(allocator);

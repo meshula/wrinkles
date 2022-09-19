@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-
 /*
  * ot_r32_t
  *
@@ -26,7 +25,7 @@ bool     ot_r32_equivalent(ot_r32_t lh, ot_r32_t rh);
 int32_t  ot_r32_floor(ot_r32_t a);
 ot_r32_t ot_r32_force_den(ot_r32_t r, uint32_t den);
 bool     ot_r32_is_inf(ot_r32_t r);
-ot_r32_t ot_r32_inverse(ot_r32_t r);
+ot_r32_t ot_r32_inverse(ot_r32_t r); // multiplicative inverse
 bool     ot_r32_less_than(ot_r32_t lh, ot_r32_t rh);
 bool     ot_r32_less_than_int(ot_r32_t r32, int i);
 ot_r32_t ot_r32_mul(ot_r32_t lh, ot_r32_t rh);
@@ -40,10 +39,10 @@ typedef struct {
     float frac;    // fraction [0, 1) between start and start + rate
     float kcenter; // sampling kernel center relative to the start count
     ot_r32_t rate; // rate, multiply with start to convert to seconds
-} ot_frame_t;
+} ot_sample_t;
 
 typedef struct {
-    ot_frame_t start; // start of interval
+    ot_sample_t start; // start of interval
     int64_t end;      // end count of rate units
     float frace;      // normalized fraction of end within the end interval
 } ot_interval_t;
@@ -53,21 +52,20 @@ typedef enum {
 } ot_operator_tag;
 
 typedef struct {
-    int64_t start;
-    float frac;
-    ot_r32_t rate; // rate, multiply with start to convert to seconds
-} ot_sample_t;
-
-typedef struct {
     ot_operator_tag tag;
     union {
         struct {
             // affine transform as slope + offset
             int64_t slopen, sloped;
-            ot_frame_t offset;
+            ot_sample_t offset;
         };
     };
 } ot_operator_t;
+
+
+//-----------------------------------------------------------------------------
+// implementation starts
+
 
 
 //-----------------------------------------------------------------------------
@@ -270,8 +268,7 @@ ot_r32_t ot_r32_normalize(ot_r32_t r) {
     uint32_t n = r.num < 0 ? -r.num : r.num;
     uint32_t denom = ot_gcd32(n, r.den);
     int32_t sign = r.num < 0 ? -1 : 1;
-    return (ot_r32_t) { 
-        r.num / denom, r.den / denom };
+    return (ot_r32_t) { r.num / denom, r.den / denom };
 }
 
 int32_t ot_r32_sign(ot_r32_t r) {
@@ -292,39 +289,48 @@ ot_sample_t ot_sample_at_seconds(double t, uint64_t raten, uint64_t rated) {
     double int_part;
     result.frac = (float) modf(t_rate, &int_part);
     result.start = (int64_t) int_part;
+    result.kcenter = 0.f;
     return result;
 }
 
 ot_sample_t ot_sample_invalid() {
-    return (ot_sample_t) { 0, 0, 0, 0 };
+    return (ot_sample_t) { 0, 0, 0, 0, 0 };
 }
 
 bool ot_sample_is_valid(const ot_sample_t* t) {
     return t != NULL && t->rate.den != 0;
 }
 
-bool ot_frame_is_valid(const ot_frame_t* f) {
+bool ot_frame_is_valid(const ot_sample_t* f) {
     return f != NULL & f->rate.den != 0;
 }
 
 ot_sample_t ot_sample_normalize(const ot_sample_t* t) {
-    /// @TODO actually normalize. Need to drop the gcd library in here
-    return *t;
-}
+    if (!t) {
+        return ot_sample_invalid();
+    }
 
-ot_frame_t ot_frame_normalize(const ot_frame_t* f) {
-    /// @TODO actually normalize. Need to drop the gcd library in here
-    return *f;
-}
-
-ot_frame_t ot_frame_inv(const ot_frame_t* f) {
-    ot_frame_t result = *f;
-    result.start *= -1;
-    result.frac = 1.f - result.frac;
+    ot_sample_t result = *t;
+    result.rate = ot_r32_normalize(t->rate);
+    while (result.frac < 0.f) {
+        result.frac += 1.f;
+        result.start -= 1;
+    }
+    while (result.frac >= 1.f) {
+        result.frac -= 1.f;
+        result.start += 1;
+    }
     return result;
 }
 
-ot_sample_t ot_sample_add_frame(const ot_sample_t* t, const ot_frame_t* f) {
+ot_sample_t ot_sample_additive_inverse(const ot_sample_t* f) {
+    ot_sample_t result = *f;
+    result.start *= -1;
+    result.frac *= -1.f;
+    return ot_sample_normalize(&result);
+}
+
+ot_sample_t ot_sample_add_sample(const ot_sample_t* t, const ot_sample_t* f) {
     if (!ot_sample_is_valid(t) || !ot_frame_is_valid(f)) {
         return ot_sample_invalid();
     }
@@ -345,8 +351,8 @@ ot_sample_t ot_project(ot_sample_t* t, ot_operator_t* op) {
     if (op->tag == ot_op_affine_transform) {
         if (ot_r32_equal(t->rate, op->offset.rate)) {
             ot_sample_t result = *t;
-            ot_frame_t offset = ot_frame_inv(&op->offset);
-            result = ot_sample_add_frame(&result, &offset);
+            ot_sample_t offset = ot_sample_additive_inverse(&op->offset);
+            result = ot_sample_add_sample(&result, &offset);
             result.start = result.start * op->sloped / op->slopen;
             return ot_sample_normalize(&result);
         }
@@ -359,7 +365,15 @@ ot_sample_t ot_project(ot_sample_t* t, ot_operator_t* op) {
 //struct ot_topo_node_t;
 //typedef void ot_operator_t(struct ot_topo_node_t* to, struct ot_topo_node_t* from);
 
-void test_ot() {
+
+//-----------------------------------------------------------------------------
+// tests
+//
+#include <stdio.h>
+
+
+
+void ot_test() {
     // first, a presentation timeline 1000 frames long at 24
     // and a movie, also 1000 frames long at 24
     ot_interval_t pres_tl = (ot_interval_t) {
@@ -371,10 +385,14 @@ void test_ot() {
     op_identity_24.tag = ot_op_affine_transform;
     op_identity_24.slopen = 1;
     op_identity_24.sloped = 1;
-    op_identity_24.offset = (ot_frame_t) { 0, 0.f, 0.f, 1, 24 };
+    op_identity_24.offset = (ot_sample_t) { 0, 0.f, 0.f, 1, 24 };
 
     // at 0.5 seconds, which frame of mov_1000 is showing on pres_tl?
     ot_sample_t sample_0_5 = ot_sample_at_seconds(0.5, 1, 24);
     ot_sample_t mov_sample_0_5 = ot_project(&sample_0_5, &op_identity_24);
+
+    printf("identity: %lld -> %lld\n", sample_0_5.start, mov_sample_0_5.start);
 };
+
+
 

@@ -28,7 +28,8 @@ pub fn build(b: *std.build.Builder) void {
     };
 
     const exe = b.addExecutable("wrinkles", thisDir() ++ "/src/wrinkles.zig");
-    exe.addCSourceFile("src/opentime.c", &c_args);
+    exe.addIncludeDir("./src");
+    exe.addCSourceFile("./src/opentime.c", &c_args);
 
     const exe_options = b.addOptions();
     exe.addOptions("build_options", exe_options);
