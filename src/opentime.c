@@ -17,20 +17,35 @@ typedef struct {
     uint32_t den;
 } ot_r32_t;
 
-/// @TODO replace all raten, rated with ot_r32_t
+ot_r32_t ot_r32_abs(ot_r32_t r);
+ot_r32_t ot_r32_add(ot_r32_t lh, ot_r32_t rh);
+ot_r32_t ot_r32_create(int32_t n_, int32_t d_);
+ot_r32_t ot_r32_div(ot_r32_t lh, ot_r32_t rh);
+bool     ot_r32_equal(ot_r32_t lh, ot_r32_t rh);
+bool     ot_r32_equivalent(ot_r32_t lh, ot_r32_t rh);
+int32_t  ot_r32_floor(ot_r32_t a);
+ot_r32_t ot_r32_force_den(ot_r32_t r, uint32_t den);
+bool     ot_r32_is_inf(ot_r32_t r);
+ot_r32_t ot_r32_inverse(ot_r32_t r);
+bool     ot_r32_less_than(ot_r32_t lh, ot_r32_t rh);
+bool     ot_r32_less_than_int(ot_r32_t r32, int i);
+ot_r32_t ot_r32_mul(ot_r32_t lh, ot_r32_t rh);
+ot_r32_t ot_r32_negate(ot_r32_t r);
+ot_r32_t ot_r32_normalize(ot_r32_t r);
+int32_t  ot_r32_sign(ot_r32_t r);
+ot_r32_t ot_r32_sub(ot_r32_t lh, ot_r32_t rh);
 
 typedef struct {
     int64_t start; // start count of rate units
     float frac;    // fraction [0, 1) between start and start + rate
     float kcenter; // sampling kernel center relative to the start count
-    int64_t raten; // rate in seconds; numerator
-    int64_t rated; // rate in seconds; denominator
+    ot_r32_t rate; // rate, multiply with start to convert to seconds
 } ot_frame_t;
 
 typedef struct {
     ot_frame_t start; // start of interval
-    int64_t end;   // end count of rate units
-    float frace;   // normalized fraction of end within the end interval
+    int64_t end;      // end count of rate units
+    float frace;      // normalized fraction of end within the end interval
 } ot_interval_t;
 
 typedef enum {
@@ -40,7 +55,7 @@ typedef enum {
 typedef struct {
     int64_t start;
     float frac;
-    uint64_t raten, rated;
+    ot_r32_t rate; // rate, multiply with start to convert to seconds
 } ot_sample_t;
 
 typedef struct {
@@ -55,11 +70,10 @@ typedef struct {
 } ot_operator_t;
 
 
-
+//-----------------------------------------------------------------------------
 // Stein's algorithm
 
-uint32_t gcd32(uint32_t u, uint32_t v) 
-{
+uint32_t ot_gcd32(uint32_t u, uint32_t v) {
     uint32_t shl = 0;
     if (u == 0) return v;
     if (v == 0) return u;
@@ -86,8 +100,7 @@ uint32_t gcd32(uint32_t u, uint32_t v)
     return u << shl;
 }
 
-int32_t lcm32(int32_t u_, int32_t v_) 
-{
+int32_t ot_lcm32(int32_t u_, int32_t v_) {
     // 
     int32_t u = u_;
     int32_t v = v_;
@@ -98,31 +111,32 @@ int32_t lcm32(int32_t u_, int32_t v_)
     int32_t sgn = (u < 0) ? -1 : 1;
     uint64_t uu = (u < 0) ? -u : u;
     uint64_t vu = v;
-    uint64_t div = (uu * vu) / gcd32(uu, vu);
+    uint64_t div = (uu * vu) / ot_gcd32(uu, vu);
     return sgn * (int32_t) div;
 }
 
-uint32_t lcm32u(uint32_t u, uint32_t v) 
-{
+uint32_t ot_lcm32u(uint32_t u, uint32_t v) {
     uint64_t uu = u;
     uint64_t vu = v;
-    return (uint32_t)( (uu * vu) / gcd32(u, v));
+    return (uint32_t)( (uu * vu) / ot_gcd32(u, v));
 }
 
-int32_t ot_r32_sign(ot_r32_t r)
-{
-    return r.num > 0 ? 1 : -1;
-}
-
-ot_r32_t ot_r32_abs(ot_r32_t r)
-{
+ot_r32_t ot_r32_abs(ot_r32_t r) {
     return (ot_r32_t) { r.num > 0 ? r.num : -r.num, r.den };
 }
 
-ot_r32_t ot_r32_create(int32_t n_, int32_t d_)
-{
+ot_r32_t ot_r32_add(ot_r32_t lh, ot_r32_t rh) {
+    uint32_t g = ot_gcd32(lh.den, rh.den);
+    uint32_t den = lh.den / g;
+    uint32_t num = lh.num * (rh.den / g) + rh.num * den;
+    g = ot_gcd32(num, g);
+    return (ot_r32_t) { num / g, den * rh.den / g };
+}
+
+ot_r32_t ot_r32_create(int32_t n_, int32_t d_) {
     if (d_ == 0 || n_ == 0)
         return (ot_r32_t) { n_, d_ };
+
     int32_t n = n_;
     int32_t d = d_;
     if (d_ < 0) {
@@ -132,85 +146,45 @@ ot_r32_t ot_r32_create(int32_t n_, int32_t d_)
     int32_t sign = (n < 0) ? -1 : 1;
     uint32_t nu = (n < 0) ? -n : n;
     uint32_t du = d;
-    uint32_t div = gcd32(nu, du);
+    uint32_t div = ot_gcd32(nu, du);
     return (ot_r32_t) { 
         sign * (int32_t) (nu / div), du / div };
 }
 
-bool ot_r32_is_inf(ot_r32_t r)
-{
-    return r.den == 0;
-}
-
-ot_r32_t ot_r32_normalize(ot_r32_t r)
-{
-    if (r.num == 0 || r.num == 1 || r.den == 1 || r.den == 0) 
-        return r;
-    uint32_t n = r.num < 0 ? -r.num : r.num;
-    uint32_t denom = gcd32(n, r.den);
-    int32_t sign = r.num < 0 ? -1 : 1;
-    return (ot_r32_t) { 
-        r.num / denom, r.den / denom };
-}
-
-ot_r32_t ot_r32_force_den(ot_r32_t r, uint32_t den)
-{
-    return (ot_r32_t) {
-        (r.num * den) / r.den };
-}
-
-ot_r32_t ot_r32_add(ot_r32_t lh, ot_r32_t rh)
-{
-    uint32_t g = gcd32(lh.den, rh.den);
-    uint32_t den = lh.den / g;
-    uint32_t num = lh.num * (rh.den / g) + rh.num * den;
-    g = gcd32(num, g);
-    return (ot_r32_t) { num / g, den * rh.den / g };
-}
-
-ot_r32_t ot_r32_negate(ot_r32_t r)
-{
-    return (ot_r32_t) { -r.num, r.den };
-}
-
-ot_r32_t ot_r32_sub(ot_r32_t lh, ot_r32_t rh)
-{
-    return ot_r32_add(lh, ot_r32_negate(rh));
-}
-
-ot_r32_t ot_r32_mul(ot_r32_t lh, ot_r32_t rh)
-{
-    int32_t sign = ot_r32_sign(lh) * ot_r32_sign(rh);
-    ot_r32_t lhu = ot_r32_abs(lh);
-    ot_r32_t rhu = ot_r32_abs(rh);
-    uint32_t g1 = gcd32(lhu.num, lhu.den);
-    uint32_t g2 = gcd32(rhu.num, rhu.den);
-    return ot_r32_normalize( (ot_r32_t) {
-        sign * ((lhu.num / g1) * rhu.num) / g2,
-               ((lhu.den / g2) * rhu.den) / g1 });
-}
-
-ot_r32_t ot_r32_inverse(ot_r32_t r)
-{
-    return (ot_r32_t) { r.den, r.num };
-}
-
-ot_r32_t ot_r32_div(ot_r32_t lh, ot_r32_t rh)
-{
+ot_r32_t ot_r32_div(ot_r32_t lh, ot_r32_t rh) {
     return ot_r32_mul(lh, ot_r32_inverse(rh));
 }
 
-bool ot_r32_equal(ot_r32_t lh, ot_r32_t rh)
-{
+bool ot_r32_equal(ot_r32_t lh, ot_r32_t rh) {
+    return lh.num == rh.num && lh.den == rh.den;
+}
+
+bool ot_r32_equivalent(ot_r32_t lh, ot_r32_t rh) {
     ot_r32_t a = ot_r32_normalize(lh);
     ot_r32_t b = ot_r32_normalize(rh);
     return a.num == b.num && a.den == b.den;
 }
 
+int32_t ot_r32_floor(ot_r32_t a) {
+    return a.num / a.den;
+}
+
+ot_r32_t ot_r32_force_den(ot_r32_t r, uint32_t den) {
+    return (ot_r32_t) {
+        (r.num * den) / r.den };
+}
+
+bool ot_r32_is_inf(ot_r32_t r) {
+    return r.den == 0;
+}
+
+ot_r32_t ot_r32_inverse(ot_r32_t r) {
+    return (ot_r32_t) { r.den, r.num };
+}
+
 // reference:
 // operator < in https://www.boost.org/doc/libs/1_55_0/boost/rational.hpp
-bool ot_r32_less_than(ot_r32_t lh, ot_r32_t rh)
-{
+bool ot_r32_less_than(ot_r32_t lh, ot_r32_t rh) {
     if (lh.den < 0 || rh.den < 0)
         return false;   // not comparable
 
@@ -262,8 +236,7 @@ bool ot_r32_less_than(ot_r32_t lh, ot_r32_t rh)
     return (r_r != 0) != (reversed == 1);
 }
 
-bool ot_r32_less_than_int(ot_r32_t r32, int i)
-{
+bool ot_r32_less_than_int(ot_r32_t r32, int i) {
     if (r32.den <= 0)
         return false;   // not comparable
 
@@ -276,15 +249,45 @@ bool ot_r32_less_than_int(ot_r32_t r32, int i)
     return q < i;
 }
 
-int32_t ot_r32_floor(ot_r32_t a)
-{
-    return a.num / a.den;
+ot_r32_t ot_r32_mul(ot_r32_t lh, ot_r32_t rh) {
+    int32_t sign = ot_r32_sign(lh) * ot_r32_sign(rh);
+    ot_r32_t lhu = ot_r32_abs(lh);
+    ot_r32_t rhu = ot_r32_abs(rh);
+    uint32_t g1 = ot_gcd32(lhu.num, lhu.den);
+    uint32_t g2 = ot_gcd32(rhu.num, rhu.den);
+    return ot_r32_normalize( (ot_r32_t) {
+        sign * ((lhu.num / g1) * rhu.num) / g2,
+               ((lhu.den / g2) * rhu.den) / g1 });
 }
+
+ot_r32_t ot_r32_negate(ot_r32_t r) {
+    return (ot_r32_t) { -r.num, r.den };
+}
+
+ot_r32_t ot_r32_normalize(ot_r32_t r) {
+    if (r.num == 0 || r.num == 1 || r.den == 1 || r.den == 0) 
+        return r;
+    uint32_t n = r.num < 0 ? -r.num : r.num;
+    uint32_t denom = ot_gcd32(n, r.den);
+    int32_t sign = r.num < 0 ? -1 : 1;
+    return (ot_r32_t) { 
+        r.num / denom, r.den / denom };
+}
+
+int32_t ot_r32_sign(ot_r32_t r) {
+    return r.num > 0 ? 1 : -1;
+}
+
+ot_r32_t ot_r32_sub(ot_r32_t lh, ot_r32_t rh) {
+    return ot_r32_add(lh, ot_r32_negate(rh));
+}
+
+//-----------------------------------------------------------------------------
 
 ot_sample_t ot_sample_at_seconds(double t, uint64_t raten, uint64_t rated) {
     ot_sample_t result;
-    result.raten = raten;
-    result.rated = rated;
+    result.rate.num = raten;
+    result.rate.den = rated;
     double t_rate = t * (double) rated / (double) raten;
     double int_part;
     result.frac = (float) modf(t_rate, &int_part);
@@ -297,11 +300,11 @@ ot_sample_t ot_sample_invalid() {
 }
 
 bool ot_sample_is_valid(const ot_sample_t* t) {
-    return t != NULL && t->rated != 0;
+    return t != NULL && t->rate.den != 0;
 }
 
 bool ot_frame_is_valid(const ot_frame_t* f) {
-    return f != NULL & f->rated != 0;
+    return f != NULL & f->rate.den != 0;
 }
 
 ot_sample_t ot_sample_normalize(const ot_sample_t* t) {
@@ -312,24 +315,6 @@ ot_sample_t ot_sample_normalize(const ot_sample_t* t) {
 ot_frame_t ot_frame_normalize(const ot_frame_t* f) {
     /// @TODO actually normalize. Need to drop the gcd library in here
     return *f;
-}
-
-bool ot_sample_rates_equivalent(const ot_sample_t* t1, const ot_sample_t* t2) {
-    if (!t1 || !t2) {
-        return false;
-    }
-    ot_sample_t t1n = ot_sample_normalize(t1);
-    ot_sample_t t2n = ot_sample_normalize(t2);
-    return t1n.raten == t2n.raten && t1n.rated == t2n.rated;
-}
-
-bool ot_sample_frame_rates_equivalent(const ot_sample_t* t, const ot_frame_t* f) {
-    if (!t || !f) {
-        return false;
-    }
-    ot_sample_t tn = ot_sample_normalize(t);
-    ot_frame_t fn = ot_frame_normalize(f);
-    return tn.raten == fn.raten && tn.rated == fn.rated;
 }
 
 ot_frame_t ot_frame_inv(const ot_frame_t* f) {
@@ -343,7 +328,7 @@ ot_sample_t ot_sample_add_frame(const ot_sample_t* t, const ot_frame_t* f) {
     if (!ot_sample_is_valid(t) || !ot_frame_is_valid(f)) {
         return ot_sample_invalid();
     }
-    if (ot_sample_frame_rates_equivalent(t, f)) {
+    if (ot_r32_equal(t->rate, f->rate)) {
         ot_sample_t result = *t;
         result.start += f->start;
         result.frac += f->frac;
@@ -358,7 +343,7 @@ ot_sample_t ot_project(ot_sample_t* t, ot_operator_t* op) {
         return ot_sample_invalid();
     }
     if (op->tag == ot_op_affine_transform) {
-        if (ot_sample_frame_rates_equivalent(t, &op->offset)) {
+        if (ot_r32_equal(t->rate, op->offset.rate)) {
             ot_sample_t result = *t;
             ot_frame_t offset = ot_frame_inv(&op->offset);
             result = ot_sample_add_frame(&result, &offset);
