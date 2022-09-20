@@ -344,15 +344,37 @@ MunitResult identity_test(const MunitParameter params[], void* user_data_or_fixt
     // at 0.5 seconds, which frame of mov_1000 is showing on pres_tl?
     ot_interval_t sample_0_5 = ot_interval_at_seconds(0.5, 1, 24);
     ot_interval_t mov_sample_0_5 = ot_project(&sample_0_5, &op_identity_24);
-
     munit_assert_int(mov_sample_0_5.start, ==, mov_sample_0_5.start);
-    printf("\nidentity: %lld -> %lld\n", sample_0_5.start, mov_sample_0_5.start);
 
     ot_interval_t sample_1h_plus = ot_interval_at_seconds(3600.f + 600.f + 7.5f, 1, 24);
     ot_interval_t mov_1h_plus = ot_project(&sample_1h_plus, &op_identity_24);
-
     munit_assert_int(sample_1h_plus.start, ==, mov_1h_plus.start);
-    printf("\nidentity: %lld -> %lld\n", sample_1h_plus.start, mov_1h_plus.start);
+    return MUNIT_OK;
+}
+
+MunitResult affine_half_test(const MunitParameter params[], void* user_data_or_fixture) {
+    // first, a presentation timeline 1000 frames long at 24
+    // and a movie, also 1000 frames long at 24
+    ot_interval_t pres_tl = (ot_interval_t) {
+        0, 1000, 0.f, 0.f, 1, 24 };
+    ot_interval_t mov_1000 = (ot_interval_t) {
+        0, 1000, 0.f, 0.f, 1, 24 };
+
+    ot_operator_t op_identity_24;
+    op_identity_24.tag = ot_op_affine_transform;
+    op_identity_24.slope = (ot_r32_t) { 1, 2 };
+    op_identity_24.offset = 0;
+    op_identity_24.offset_frac = 0.f;
+    op_identity_24.offset_rate = (ot_r32_t) { 1, 24 };
+
+    // at 0.5 seconds, which frame of mov_1000 is showing on pres_tl?
+    ot_interval_t sample_0_5 = ot_interval_at_seconds(0.5, 1, 24);
+    ot_interval_t mov_sample_0_5 = ot_project(&sample_0_5, &op_identity_24);
+    munit_assert_int(sample_0_5.start * 2, ==, mov_sample_0_5.start);
+
+    ot_interval_t sample_1h_plus = ot_interval_at_seconds(3600.f + 600.f + 7.5f, 1, 24);
+    ot_interval_t mov_1h_plus = ot_project(&sample_1h_plus, &op_identity_24);
+    munit_assert_int(sample_1h_plus.start * 2, ==, mov_1h_plus.start);
     return MUNIT_OK;
 }
 
@@ -366,12 +388,19 @@ void ot_test() {
             MUNIT_TEST_OPTION_NONE, /* options */
             NULL /* parameters */
         },
-        /* Mark the end of the array with an entry where the test
-         * function is NULL */
+        {
+            "/affine-half-test", /* name */
+            affine_half_test, /* test */
+            NULL, /* setup */
+            NULL, /* tear_down */
+            MUNIT_TEST_OPTION_NONE, /* options */
+            NULL /* parameters */
+        },
+        // end of array mark
         { NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL }
     };
     static const MunitSuite suite = {
-        "/ot-tests", /* name */
+        "/ot-test", /* name */
         tests, /* tests */
         NULL, /* suites */
         1, /* iterations */
