@@ -323,11 +323,10 @@ ot_interval_t ot_project(ot_interval_t* t, ot_operator_t* op) {
 //-----------------------------------------------------------------------------
 // tests
 //
+#include "munit.h"
 #include <stdio.h>
 
-
-
-void ot_test() {
+MunitResult identity_test(const MunitParameter params[], void* user_data_or_fixture) {
     // first, a presentation timeline 1000 frames long at 24
     // and a movie, also 1000 frames long at 24
     ot_interval_t pres_tl = (ot_interval_t) {
@@ -346,15 +345,38 @@ void ot_test() {
     ot_interval_t sample_0_5 = ot_interval_at_seconds(0.5, 1, 24);
     ot_interval_t mov_sample_0_5 = ot_project(&sample_0_5, &op_identity_24);
 
-    printf("identity: %lld -> %lld\n", sample_0_5.start, mov_sample_0_5.start);
+    munit_assert_int(mov_sample_0_5.start, ==, mov_sample_0_5.start);
+    printf("\nidentity: %lld -> %lld\n", sample_0_5.start, mov_sample_0_5.start);
 
     ot_interval_t sample_1h_plus = ot_interval_at_seconds(3600.f + 600.f + 7.5f, 1, 24);
     ot_interval_t mov_1h_plus = ot_project(&sample_1h_plus, &op_identity_24);
 
-    printf("identity: %lld -> %lld\n", sample_1h_plus.start, mov_1h_plus.start);
-
-
+    munit_assert_int(sample_1h_plus.start, ==, mov_1h_plus.start);
+    printf("\nidentity: %lld -> %lld\n", sample_1h_plus.start, mov_1h_plus.start);
+    return MUNIT_OK;
 }
 
-
+void ot_test() {
+    static MunitTest tests[] = {
+        {
+            "/identity-test", /* name */
+            identity_test, /* test */
+            NULL, /* setup */
+            NULL, /* tear_down */
+            MUNIT_TEST_OPTION_NONE, /* options */
+            NULL /* parameters */
+        },
+        /* Mark the end of the array with an entry where the test
+         * function is NULL */
+        { NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL }
+    };
+    static const MunitSuite suite = {
+        "/ot-tests", /* name */
+        tests, /* tests */
+        NULL, /* suites */
+        1, /* iterations */
+        MUNIT_SUITE_OPTION_NONE /* options */
+    };
+    munit_suite_main(&suite, NULL, 0, NULL);
+}
 
