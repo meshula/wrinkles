@@ -216,85 +216,104 @@ ot_r32_t ot_r32_sub(ot_r32_t lh, ot_r32_t rh) {
 
 //-----------------------------------------------------------------------------
 
-ot_sample_t ot_sample_at_seconds(double t, uint64_t raten, uint64_t rated) {
-    ot_sample_t result;
+ot_interval_t ot_interval_at_seconds(double t, uint64_t raten, uint64_t rated) {
+    ot_interval_t result;
     result.rate.num = raten;
     result.rate.den = rated;
     double t_rate = t * (double) rated / (double) raten;
     double int_part;
-    result.frac = (float) modf(t_rate, &int_part);
+    result.start_frac = (float) modf(t_rate, &int_part);
     result.start = (int64_t) int_part;
-    result.kcenter = 0.f;
+    result.end = result.start + 1;
+    result.end_frac = result.start_frac;
     return result;
 }
 
-ot_sample_t ot_sample_invalid() {
-    return (ot_sample_t) { 0, 0, 0, 0, 0 };
+ot_interval_t ot_invalid_interval() {
+    return (ot_interval_t) { 0, 0, 0, 0, 0, 0 };
 }
 
-bool ot_sample_is_valid(const ot_sample_t* t) {
-    return t != NULL && t->rate.den != 0;
+bool ot_interval_is_valid(const ot_interval_t* t) {
+    if ((t == NULL) || (t->rate.den == 0) || (t->end < t->start)) {
+        return false;
+    }
+    if ((t->start == t->end) && (t->start_frac >= t->end_frac)) {
+        return false;
+    }
+    return true;
 }
 
-bool ot_frame_is_valid(const ot_sample_t* f) {
-    return f != NULL & f->rate.den != 0;
-}
-
-ot_sample_t ot_sample_normalize(const ot_sample_t* t) {
-    if (!t) {
-        return ot_sample_invalid();
+ot_interval_t ot_interval_normalize(const ot_interval_t* t) {
+    if (!t || !t->rate.den) {
+        return ot_invalid_interval();
     }
 
-    ot_sample_t result = *t;
+    ot_interval_t result = *t;
     result.rate = ot_r32_normalize(t->rate);
-    while (result.frac < 0.f) {
-        result.frac += 1.f;
+    while (result.start_frac < 0.f) {
+        result.start_frac += 1.f;
         result.start -= 1;
     }
-    while (result.frac >= 1.f) {
-        result.frac -= 1.f;
+    while (result.start_frac >= 1.f) {
+        result.start_frac -= 1.f;
         result.start += 1;
+    }
+     while (result.end_frac < 0.f) {
+        result.end_frac += 1.f;
+        result.end -= 1;
+    }
+    while (result.end_frac >= 1.f) {
+        result.end_frac -= 1.f;
+        result.end += 1;
     }
     return result;
 }
 
-ot_sample_t ot_sample_additive_inverse(const ot_sample_t* f) {
-    ot_sample_t result = *f;
+ot_interval_t ot_interval_additive_inverse(const ot_interval_t* f) {
+    ot_interval_t result = *f;
     result.start *= -1;
-    result.frac *= -1.f;
-    return ot_sample_normalize(&result);
+    result.start_frac *= -1.f;
+    result.end *= -1;
+    result.end_frac *= 1.f;
+    return ot_interval_normalize(&result);
 }
 
-ot_sample_t ot_sample_add_sample(const ot_sample_t* t, const ot_sample_t* f) {
-    if (!ot_sample_is_valid(t) || !ot_frame_is_valid(f)) {
-        return ot_sample_invalid();
+ot_interval_t ot_interval_add(const ot_interval_t* t, const ot_interval_t* addend) {
+    // addend may not be an increasing interval, only test the rate for validity
+    if (!ot_interval_is_valid(t) || !addend || !addend->rate.den) {
+        return ot_invalid_interval();
     }
-    if (ot_r32_equal(t->rate, f->rate)) {
-        ot_sample_t result = *t;
-        result.start += f->start;
-        result.frac += f->frac;
-        return ot_sample_normalize(&result);
+    if (ot_r32_equal(t->rate, addend->rate)) {
+        ot_interval_t result = *t;
+        result.start += addend->start;
+        result.start_frac += addend->start_frac;
+        result.end += addend->end;
+        result.end_frac += addend->end_frac;
+        return ot_interval_normalize(&result);
     }
     /// @TODO do rate conversion
-    return ot_sample_invalid();
+    return ot_invalid_interval();
 }
 
-ot_sample_t ot_project(ot_sample_t* t, ot_operator_t* op) {
-    if (!ot_sample_is_valid(t) || !op) {
-        return ot_sample_invalid();
+ot_interval_t ot_project(ot_interval_t* t, ot_operator_t* op) {
+    if (!ot_interval_is_valid(t) || !op) {
+        return ot_invalid_interval();
     }
     if (op->tag == ot_op_affine_transform) {
-        if (ot_r32_equal(t->rate, op->offset.rate)) {
-            ot_sample_t result = *t;
-            ot_sample_t offset = ot_sample_additive_inverse(&op->offset);
-            result = ot_sample_add_sample(&result, &offset);
-            result.start = result.start * op->sloped / op->slopen;
-            return ot_sample_normalize(&result);
+        if (ot_r32_equal(t->rate, op->offset_rate)) {
+            ot_interval_t result = *t;
+            ot_interval_t offset = { op->offset, op->offset + 1,
+                                     op->offset_frac, op->offset_frac,
+                                     op->offset_rate };
+            offset = ot_interval_additive_inverse(&offset);
+            result = ot_interval_add(&result, &offset);
+            result.start = result.start * op->slope.den / op->slope.num;
+            return ot_interval_normalize(&result);
         }
         /// @TODO handle different rates
-        return ot_sample_invalid();
+        return ot_invalid_interval();
     }
-    return ot_sample_invalid();
+    return ot_invalid_interval();
 }
 
 //struct ot_topo_node_t;
@@ -312,22 +331,30 @@ void ot_test() {
     // first, a presentation timeline 1000 frames long at 24
     // and a movie, also 1000 frames long at 24
     ot_interval_t pres_tl = (ot_interval_t) {
-        { 0, 0.f, 0.f, 1, 24 }, 1000, 0.f };
+        0, 1000, 0.f, 0.f, 1, 24 };
     ot_interval_t mov_1000 = (ot_interval_t) {
-        { 0, 0.f, 0.f, 1, 24 }, 1000, 0.f };
+        0, 1000, 0.f, 0.f, 1, 24 };
 
     ot_operator_t op_identity_24;
     op_identity_24.tag = ot_op_affine_transform;
-    op_identity_24.slopen = 1;
-    op_identity_24.sloped = 1;
-    op_identity_24.offset = (ot_sample_t) { 0, 0.f, 0.f, 1, 24 };
+    op_identity_24.slope = (ot_r32_t) { 1, 1 };
+    op_identity_24.offset = 0;
+    op_identity_24.offset_frac = 0.f;
+    op_identity_24.offset_rate = (ot_r32_t) { 1, 24 };
 
     // at 0.5 seconds, which frame of mov_1000 is showing on pres_tl?
-    ot_sample_t sample_0_5 = ot_sample_at_seconds(0.5, 1, 24);
-    ot_sample_t mov_sample_0_5 = ot_project(&sample_0_5, &op_identity_24);
+    ot_interval_t sample_0_5 = ot_interval_at_seconds(0.5, 1, 24);
+    ot_interval_t mov_sample_0_5 = ot_project(&sample_0_5, &op_identity_24);
 
     printf("identity: %lld -> %lld\n", sample_0_5.start, mov_sample_0_5.start);
-};
+
+    ot_interval_t sample_1h_plus = ot_interval_at_seconds(3600.f + 600.f + 7.5f, 1, 24);
+    ot_interval_t mov_1h_plus = ot_project(&sample_1h_plus, &op_identity_24);
+
+    printf("identity: %lld -> %lld\n", sample_1h_plus.start, mov_1h_plus.start);
+
+
+}
 
 
 

@@ -14,7 +14,7 @@
  */
 
 typedef struct {
-    int32_t num;
+    int32_t  num;
     uint32_t den;
 } ot_r32_t;
 
@@ -37,16 +37,11 @@ int32_t  ot_r32_sign(ot_r32_t r);
 ot_r32_t ot_r32_sub(ot_r32_t lh, ot_r32_t rh);
 
 typedef struct {
-    int64_t start; // start count of rate units
-    float frac;    // fraction [0, 1) between start and start + rate
-    float kcenter; // sampling kernel center relative to the start count
-    ot_r32_t rate; // rate, multiply with start to convert to seconds
-} ot_sample_t;
-
-typedef struct {
-    ot_sample_t start; // start of interval
-    int64_t end;      // end count of rate units
-    float frace;      // normalized fraction of end within the end interval
+    int64_t  start;      // start count of rate units
+    int64_t  end;        // end count
+    float    start_frac; // fraction [0, 1) between start and start + rate
+    float    end_frac;   // end fraction
+    ot_r32_t rate;       // rate, multiply with start to convert to seconds
 } ot_interval_t;
 
 typedef enum {
@@ -58,8 +53,10 @@ typedef struct {
     union {
         struct {
             // affine transform as slope + offset
-            int64_t slopen, sloped;
-            ot_sample_t offset;
+            ot_r32_t    slope;
+            int64_t     offset;
+            float       offset_frac;
+            ot_r32_t    offset_rate;
         };
     };
 } ot_operator_t;
