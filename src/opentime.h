@@ -44,6 +44,9 @@ typedef struct {
     ot_r32_t rate;       // rate, multiply with start to convert to seconds
 } ot_interval_t;
 
+bool ot_interval_is_valid(const ot_interval_t* t);
+ot_interval_t ot_invalid_interval();
+
 typedef enum {
     ot_op_affine_transform
 } ot_operator_tag;

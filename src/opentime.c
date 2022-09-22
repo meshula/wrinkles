@@ -217,16 +217,64 @@ ot_r32_t ot_r32_sub(ot_r32_t lh, ot_r32_t rh) {
 //-----------------------------------------------------------------------------
 
 ot_interval_t ot_interval_at_seconds(double t, uint64_t raten, uint64_t rated) {
+    if (!rated) {
+        if (!raten) {
+            // construct a NAN
+            ot_interval_t ret = ot_invalid_interval();
+            ret.start = t >= 0? 1 : -1;
+            return ret;
+        }
+        return (ot_interval_t) { t >= 0? 1: -1, 0, 0, 0, raten, rated }; // infinity
+    }
+
+    if (isnan(t)) {
+        // construct a signed NAN
+        return (ot_interval_t) { copysign(1.0, t) > 0? 1: -1, 0, 0, 0, 0, 0 };
+    }
+    if (isinf(t)) {
+        // construct a signed INFINITY
+        return (ot_interval_t) { copysign(1.0, t) > 0? 1: -1, 0, 0, 0, 1, 0 };
+    }
+
     ot_interval_t result;
     result.rate.num = raten;
     result.rate.den = rated;
     double t_rate = t * (double) rated / (double) raten;
-    double int_part;
-    result.start_frac = (float) modf(t_rate, &int_part);
+    double int_part = floor(t_rate);
+    result.start_frac = t_rate - int_part;
     result.start = (int64_t) int_part;
     result.end = result.start + 1;
     result.end_frac = result.start_frac;
     return result;
+}
+
+double ot_interval_start_as_seconds(const ot_interval_t* t) {
+    if (!t) {
+        return NAN;
+    }
+    if (!t->rate.den) {
+        if (!t->rate.num) {
+            return t->start < 0? -NAN : NAN;
+        }
+        else {
+            return t->start < 0? -INFINITY : INFINITY;
+        }
+    }
+    if (!ot_interval_is_valid(t)) {
+        return NAN;
+    }
+
+    double ret = ((double) t->start + t->start_frac) 
+                    * (double) t->rate.num / (double) t->rate.den;
+    return ret;
+}
+
+double ot_interval_end_as_seconds(const ot_interval_t* t) {
+    if (!ot_interval_is_valid(t)) {
+        return NAN;
+    }
+    return (double) t->end * (double) t->rate.num / (double) t->rate.den
+               + t->end_frac;
 }
 
 ot_interval_t ot_invalid_interval() {
@@ -326,7 +374,8 @@ ot_interval_t ot_project(ot_interval_t* t, ot_operator_t* op) {
 #include "munit.h"
 #include <stdio.h>
 
-MunitResult identity_test(const MunitParameter params[], void* user_data_or_fixture) {
+MunitResult identity_proj_test(const MunitParameter params[], 
+                               void* user_data_or_fixture) {
     // first, a presentation timeline 1000 frames long at 24
     // and a movie, also 1000 frames long at 24
     ot_interval_t pres_tl = (ot_interval_t) {
@@ -352,7 +401,8 @@ MunitResult identity_test(const MunitParameter params[], void* user_data_or_fixt
     return MUNIT_OK;
 }
 
-MunitResult affine_half_test(const MunitParameter params[], void* user_data_or_fixture) {
+MunitResult affine_half_proj_test(const MunitParameter params[], 
+                                  void* user_data_or_fixture) {
     // first, a presentation timeline 1000 frames long at 24
     // and a movie, also 1000 frames long at 24
     ot_interval_t pres_tl = (ot_interval_t) {
@@ -378,19 +428,69 @@ MunitResult affine_half_test(const MunitParameter params[], void* user_data_or_f
     return MUNIT_OK;
 }
 
+MunitResult seconds_test(const MunitParameter params[], 
+                          void* user_data_or_fixture) {
+
+    static double times[] = {
+        1, 0, -1,
+        1000.123,
+        -1000.123,
+        6804068040.386486,
+        -6804068040.384686,
+        INFINITY, -INFINITY
+    };
+
+    for (int i = 0; i < sizeof(times) / sizeof(double); ++i) {
+        ot_interval_t interval = ot_interval_at_seconds(times[i], 1, 24);
+        printf("seconds %f, frames %lld, frac %f\n",
+                times[i], interval.start, interval.start_frac);
+        double seconds = ot_interval_start_as_seconds(&interval);
+        printf("times[i] %f == %f seconds\n", times[i], seconds);
+        munit_assert_double_equal(times[i], seconds, 6); // precision 1e-6
+    }
+
+    // test NAN
+    ot_interval_t nan_i = ot_interval_at_seconds(33.0, 0, 0);
+    double nan = ot_interval_start_as_seconds(&nan_i);
+    munit_assert(copysign(1, nan) > 0);
+    munit_assert(isnan(nan));
+    nan_i = ot_interval_at_seconds(-33.0, 0, 0);
+    nan = ot_interval_start_as_seconds(&nan_i);
+    munit_assert(copysign(-1, nan) < 0);
+    munit_assert(isnan(nan));
+    nan_i = ot_interval_at_seconds(NAN, 1, 24);
+    nan = ot_interval_start_as_seconds(&nan_i);
+    munit_assert(copysign(1, nan) > 0);
+    munit_assert(isnan(nan));
+    nan_i = ot_interval_at_seconds(-NAN, 1, 24);
+    nan = ot_interval_start_as_seconds(&nan_i);
+    munit_assert(copysign(-1, nan) < 0);
+    munit_assert(isnan(nan));
+  
+    return MUNIT_OK;
+}
+
 void ot_test() {
     static MunitTest tests[] = {
         {
-            "/identity-test", /* name */
-            identity_test, /* test */
+            "/seconds_test", /* name */
+            seconds_test, /* test */
             NULL, /* setup */
             NULL, /* tear_down */
             MUNIT_TEST_OPTION_NONE, /* options */
             NULL /* parameters */
         },
         {
-            "/affine-half-test", /* name */
-            affine_half_test, /* test */
+            "/affine_half_proj_test", /* name */
+            affine_half_proj_test, /* test */
+            NULL, /* setup */
+            NULL, /* tear_down */
+            MUNIT_TEST_OPTION_NONE, /* options */
+            NULL /* parameters */
+        },
+        {
+            "/affine_half_proj_test", /* name */
+            affine_half_proj_test, /* test */
             NULL, /* setup */
             NULL, /* tear_down */
             MUNIT_TEST_OPTION_NONE, /* options */
