@@ -10,7 +10,9 @@
  *
  * a 32 bit signed rational number
  *
- * A denominator of zero indicates infinity
+ * A value of {  0, 0 } indicates NAN
+ * A value of {  N, 0 } where N is >0 indicates +INFINITY
+ * A value of { -N, 0 } indicates -INFINITY
  */
 
 typedef struct {
@@ -27,6 +29,7 @@ bool     ot_r32_equivalent(ot_r32_t lh, ot_r32_t rh);
 int32_t  ot_r32_floor(ot_r32_t a);
 ot_r32_t ot_r32_force_den(ot_r32_t r, uint32_t den);
 bool     ot_r32_is_inf(ot_r32_t r);
+bool     ot_r32_is_nan(ot_r32_t r);
 ot_r32_t ot_r32_inverse(ot_r32_t r); // multiplicative inverse
 bool     ot_r32_less_than(ot_r32_t lh, ot_r32_t rh);
 bool     ot_r32_less_than_int(ot_r32_t r32, int i);

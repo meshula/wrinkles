@@ -108,7 +108,11 @@ ot_r32_t ot_r32_force_den(ot_r32_t r, uint32_t den) {
 }
 
 bool ot_r32_is_inf(ot_r32_t r) {
-    return r.den == 0;
+    return r.num != 0 && r.den == 0;
+}
+
+bool ot_r32_is_nan(ot_r32_t r) {
+    return r.num == 0 && r.den == 0;
 }
 
 ot_r32_t ot_r32_inverse(ot_r32_t r) {
@@ -217,16 +221,13 @@ ot_r32_t ot_r32_sub(ot_r32_t lh, ot_r32_t rh) {
 //-----------------------------------------------------------------------------
 
 ot_interval_t ot_interval_at_seconds(double t, uint64_t raten, uint64_t rated) {
-    if (!rated) {
-        if (!raten) {
-            // construct a NAN
-            ot_interval_t ret = ot_invalid_interval();
-            ret.start = t >= 0? 1 : -1;
-            return ret;
-        }
-        return (ot_interval_t) { t >= 0? 1: -1, 0, 0, 0, raten, rated }; // infinity
+    ot_r32_t rate = (ot_r32_t) { raten, rated };
+    if (ot_r32_is_inf(rate)) {
+        return (ot_interval_t) { t >= 0? 1: -1, 0, 0, 0, 1, 0 }; // infinity
     }
-
+    if (ot_r32_is_nan(rate)) {
+        return (ot_interval_t) { t >= 0? 1: -1, 0, 0, 0, 0, 0 }; // NAN
+    }
     if (isnan(t)) {
         // construct a signed NAN
         return (ot_interval_t) { copysign(1.0, t) > 0? 1: -1, 0, 0, 0, 0, 0 };
@@ -252,13 +253,11 @@ double ot_interval_start_as_seconds(const ot_interval_t* t) {
     if (!t) {
         return NAN;
     }
-    if (!t->rate.den) {
-        if (!t->rate.num) {
-            return t->start < 0? -NAN : NAN;
-        }
-        else {
-            return t->start < 0? -INFINITY : INFINITY;
-        }
+    if (ot_r32_is_inf(t->rate)) {
+        return t->start < 0? -INFINITY : INFINITY;
+    }
+    if (ot_r32_is_nan(t->rate)) {
+        return t->start < 0? -NAN : NAN;
     }
     if (!ot_interval_is_valid(t)) {
         return NAN;
