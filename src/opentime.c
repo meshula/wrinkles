@@ -223,6 +223,19 @@ ot_r32_t ot_r32_sub(ot_r32_t lh, ot_r32_t rh) {
 //-----------------------------------------------------------------------------
 
 ot_interval_t ot_interval_conform(const ot_interval_t *i, ot_r32_t rate) {
+    if (!ot_interval_is_valid(i)) {
+        return ot_invalid_interval();
+    }
+
+    if (ot_r32_equal(i->rate, rate)) {
+        return *i;
+    }
+    if (ot_r32_equivalent(i->rate, rate)) {
+        ot_interval_t result = *i;
+        result.rate = rate;
+        return result;
+    }
+
     double t1 = ot_interval_start_as_seconds(i);
     double t2 = ot_interval_end_as_seconds(i);
     return ot_interval_at_seconds2(t1, t2, rate);
@@ -383,21 +396,19 @@ ot_interval_t ot_interval_additive_inverse(const ot_interval_t* f) {
     return ot_interval_normalize(&result);
 }
 
+// the result will have the same rate as t.
 ot_interval_t ot_interval_add(const ot_interval_t* t, const ot_interval_t* addend) {
-    // addend may not be an increasing interval, only test the rate for validity
+    // since addend may not be an increasing interval, only test the rate for validity
     if (!ot_interval_is_valid(t) || !addend || !addend->rate.den) {
         return ot_invalid_interval();
     }
-    if (ot_r32_equal(t->rate, addend->rate)) {
-        ot_interval_t result = *t;
-        result.start += addend->start;
-        result.start_frac += addend->start_frac;
-        result.end += addend->end;
-        result.end_frac += addend->end_frac;
-        return ot_interval_normalize(&result);
-    }
-    /// @TODO do rate conversion
-    return ot_invalid_interval();
+    ot_interval_t result = *t;
+    ot_interval_t an = ot_interval_conform(addend, result.rate);
+    result.start += an.start;
+    result.start_frac += an.start_frac;
+    result.end += an.end;
+    result.end_frac += an.end_frac;
+    return ot_interval_normalize(&result);
 }
 
 ot_interval_t ot_project(ot_interval_t* t, ot_operator_t* op) {
@@ -449,6 +460,24 @@ MunitResult interval_equality_test(const MunitParameter params[],
     i2.rate.den *= 2;
     munit_assert_false(ot_interval_is_equal(&i1, &i2));
     munit_assert_true(ot_interval_is_equivalent(&i1, &i2));
+    return MUNIT_OK;
+}
+
+MunitResult interval_conform_test(const MunitParameter params[], 
+                            void* user_data_or_fixture) {
+    ot_interval_t i1 = ot_interval_at_seconds(0.5, (ot_r32_t) { 1, 12 });
+   
+    // conform to a different rate
+    ot_interval_t i2 = ot_interval_conform(&i1, (ot_r32_t) { 1, 60 });
+    munit_assert_true(ot_interval_is_equivalent(&i1, &i2));
+   
+    // conform to same rate (special case)
+    ot_interval_t i3 = ot_interval_conform(&i1, (ot_r32_t) { 1, 12 });
+    munit_assert_true(ot_interval_is_equal(&i1, &i3));
+   
+    // conform to equivalent rate (special case)
+    ot_interval_t i4 = ot_interval_conform(&i1, (ot_r32_t) { 10, 120 });
+    munit_assert_true(ot_interval_is_equivalent(&i1, &i3));
     return MUNIT_OK;
 }
 
@@ -557,6 +586,8 @@ MunitResult seconds_test(const MunitParameter params[],
     return MUNIT_OK;
 }
 
+// [] test add an interval, with same and different rates, nan, and inf
+
 void ot_test() {
     static MunitTest tests[] = {
         {
@@ -567,30 +598,18 @@ void ot_test() {
             MUNIT_TEST_OPTION_NONE, /* options */
             NULL /* parameters */
         },
-        {
-            "/seconds_test", /* name */
+        {   "/seconds_test", /* name */
             seconds_test, /* test */
-            NULL, /* setup */
-            NULL, /* tear_down */
-            MUNIT_TEST_OPTION_NONE, /* options */
-            NULL /* parameters */
-        },
-        {
-            "/affine_half_proj_test", /* name */
+            NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
+        {   "/interval_conform_test", interval_conform_test,
+            NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
+        {   "/affine_half_proj_test", /* name */
             affine_half_proj_test, /* test */
-            NULL, /* setup */
-            NULL, /* tear_down */
-            MUNIT_TEST_OPTION_NONE, /* options */
-            NULL /* parameters */
-        },
-        {
-            "/affine_half_proj_test", /* name */
+            NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
+        {   "/affine_half_proj_test", /* name */
             affine_half_proj_test, /* test */
-            NULL, /* setup */
-            NULL, /* tear_down */
-            MUNIT_TEST_OPTION_NONE, /* options */
-            NULL /* parameters */
-        },
+            NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
+        
         // end of array mark
         { NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL }
     };
