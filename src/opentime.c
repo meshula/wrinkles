@@ -220,8 +220,43 @@ ot_r32_t ot_r32_sub(ot_r32_t lh, ot_r32_t rh) {
 
 //-----------------------------------------------------------------------------
 
-ot_interval_t ot_interval_at_seconds(double t, uint64_t raten, uint64_t rated) {
-    ot_r32_t rate = (ot_r32_t) { raten, rated };
+ot_interval_t ot_interval_conform(const ot_interval_t *i, ot_r32_t rate) {
+    double t1 = ot_interval_start_as_seconds(i);
+    double t2 = ot_interval_end_as_seconds(i);
+    return ot_interval_at_seconds2(t1, t2, rate);
+}
+
+ot_interval_t ot_interval_at_seconds2(double t1, double t2, ot_r32_t rate) {
+    if (ot_r32_is_inf(rate)) {
+        return (ot_interval_t) { t1 >= 0? 1: -1, 0, 0, 0, 1, 0 }; // infinity
+    }
+    if (ot_r32_is_nan(rate)) {
+        return (ot_interval_t) { t1 >= 0? 1: -1, 0, 0, 0, 0, 0 }; // NAN
+    }
+    if (isnan(t1) || isnan(t2)) {
+        // construct a signed NAN
+        return (ot_interval_t) { copysign(1.0, t1) > 0? 1: -1, 0, 0, 0, 0, 0 };
+    }
+    if (isinf(t1) || isinf(t2)) {
+        // construct a signed INFINITY
+        return (ot_interval_t) { copysign(1.0, t1) > 0? 1: -1, 0, 0, 0, 1, 0 };
+    }
+
+    ot_interval_t result;
+    result.rate = rate;
+    double t_rate = t1 * (double) rate.den / (double) rate.num;
+    double int_part = floor(t_rate);
+    result.start_frac = t_rate - int_part;
+    result.start = (int64_t) int_part;
+
+    t_rate = t2 * (double) rate.den / (double) rate.num;
+    int_part = floor(t_rate);
+    result.end_frac = t_rate - int_part;
+    result.end = (int64_t) int_part;
+    return result;
+}
+
+ot_interval_t ot_interval_at_seconds(double t, ot_r32_t rate) {
     if (ot_r32_is_inf(rate)) {
         return (ot_interval_t) { t >= 0? 1: -1, 0, 0, 0, 1, 0 }; // infinity
     }
@@ -238,9 +273,8 @@ ot_interval_t ot_interval_at_seconds(double t, uint64_t raten, uint64_t rated) {
     }
 
     ot_interval_t result;
-    result.rate.num = raten;
-    result.rate.den = rated;
-    double t_rate = t * (double) rated / (double) raten;
+    result.rate = rate;
+    double t_rate = t * (double) rate.den / (double) rate.num;
     double int_part = floor(t_rate);
     result.start_frac = t_rate - int_part;
     result.start = (int64_t) int_part;
@@ -397,7 +431,7 @@ ot_interval_t ot_project(ot_interval_t* t, ot_operator_t* op) {
 
 MunitResult interval_equality_test(const MunitParameter params[], 
                             void* user_data_or_fixture) {
-    ot_interval_t i1 = ot_interval_at_seconds(0.5, 1, 12);
+    ot_interval_t i1 = ot_interval_at_seconds(0.5, (ot_r32_t) { 1, 12 });
     munit_assert_int(i1.start, ==, 6);
     ot_interval_t i2 = i1;
     munit_assert_int(i1.start, ==, i2.start);
@@ -409,7 +443,7 @@ MunitResult interval_equality_test(const MunitParameter params[],
     munit_assert_true(ot_interval_is_equal(&i1, &i2));
 
     i2.start *= 2;
-    i2.end = i2.start + 2 * (i1.end - i1.start);
+    i2.end *= 2;
     i2.rate.den *= 2;
     munit_assert_false(ot_interval_is_equal(&i1, &i2));
     munit_assert_true(ot_interval_is_equalivalent(&i1, &i2));
@@ -433,11 +467,11 @@ MunitResult identity_proj_test(const MunitParameter params[],
     op_identity_24.offset_rate = (ot_r32_t) { 1, 24 };
 
     // at 0.5 seconds, which frame of mov_1000 is showing on pres_tl?
-    ot_interval_t sample_0_5 = ot_interval_at_seconds(0.5, 1, 24);
+    ot_interval_t sample_0_5 = ot_interval_at_seconds(0.5, (ot_r32_t) { 1, 24 });
     ot_interval_t mov_sample_0_5 = ot_project(&sample_0_5, &op_identity_24);
     munit_assert_int(mov_sample_0_5.start, ==, mov_sample_0_5.start);
 
-    ot_interval_t sample_1h_plus = ot_interval_at_seconds(3600.f + 600.f + 7.5f, 1, 24);
+    ot_interval_t sample_1h_plus = ot_interval_at_seconds(3600.f + 600.f + 7.5f, (ot_r32_t) { 1, 24 });
     ot_interval_t mov_1h_plus = ot_project(&sample_1h_plus, &op_identity_24);
     munit_assert_int(sample_1h_plus.start, ==, mov_1h_plus.start);
     return MUNIT_OK;
@@ -460,11 +494,11 @@ MunitResult affine_half_proj_test(const MunitParameter params[],
     op_identity_24.offset_rate = (ot_r32_t) { 1, 24 };
 
     // at 0.5 seconds, which frame of mov_1000 is showing on pres_tl?
-    ot_interval_t sample_0_5 = ot_interval_at_seconds(0.5, 1, 24);
+    ot_interval_t sample_0_5 = ot_interval_at_seconds(0.5, (ot_r32_t) { 1, 24 });
     ot_interval_t mov_sample_0_5 = ot_project(&sample_0_5, &op_identity_24);
     munit_assert_int(sample_0_5.start * 2, ==, mov_sample_0_5.start);
 
-    ot_interval_t sample_1h_plus = ot_interval_at_seconds(3600.f + 600.f + 7.5f, 1, 24);
+    ot_interval_t sample_1h_plus = ot_interval_at_seconds(3600.f + 600.f + 7.5f, (ot_r32_t) { 1, 24 });
     ot_interval_t mov_1h_plus = ot_project(&sample_1h_plus, &op_identity_24);
     munit_assert_int(sample_1h_plus.start * 2, ==, mov_1h_plus.start);
     return MUNIT_OK;
@@ -483,7 +517,7 @@ MunitResult seconds_test(const MunitParameter params[],
     };
 
     for (int i = 0; i < sizeof(times) / sizeof(double); ++i) {
-        ot_interval_t interval = ot_interval_at_seconds(times[i], 1, 192000);
+        ot_interval_t interval = ot_interval_at_seconds(times[i], (ot_r32_t) { 1, 192000 });
         //printf("seconds %f, frames %lld, frac %f\n",
         //        times[i], interval.start, interval.start_frac);
         double seconds = ot_interval_start_as_seconds(&interval);
@@ -492,7 +526,7 @@ MunitResult seconds_test(const MunitParameter params[],
     }
 
    for (int i = 0; i < sizeof(times) / sizeof(double); ++i) {
-        ot_interval_t interval = ot_interval_at_seconds(times[i], 1, 24);
+        ot_interval_t interval = ot_interval_at_seconds(times[i], (ot_r32_t) { 1, 24 });
         //printf("seconds %f, frames %lld, frac %f\n",
         //        times[i], interval.start, interval.start_frac);
         double seconds = ot_interval_start_as_seconds(&interval);
@@ -501,19 +535,19 @@ MunitResult seconds_test(const MunitParameter params[],
     }
 
     // test NAN
-    ot_interval_t nan_i = ot_interval_at_seconds(33.0, 0, 0);
+    ot_interval_t nan_i = ot_interval_at_seconds(33.0, (ot_r32_t) { 0, 0 });
     double nan = ot_interval_start_as_seconds(&nan_i);
     munit_assert(copysign(1, nan) > 0);
     munit_assert(isnan(nan));
-    nan_i = ot_interval_at_seconds(-33.0, 0, 0);
+    nan_i = ot_interval_at_seconds(-33.0, (ot_r32_t) { 0, 0 });
     nan = ot_interval_start_as_seconds(&nan_i);
     munit_assert(copysign(-1, nan) < 0);
     munit_assert(isnan(nan));
-    nan_i = ot_interval_at_seconds(NAN, 1, 24);
+    nan_i = ot_interval_at_seconds(NAN, (ot_r32_t) { 1, 24 });
     nan = ot_interval_start_as_seconds(&nan_i);
     munit_assert(copysign(1, nan) > 0);
     munit_assert(isnan(nan));
-    nan_i = ot_interval_at_seconds(-NAN, 1, 24);
+    nan_i = ot_interval_at_seconds(-NAN, (ot_r32_t) { 1, 24 });
     nan = ot_interval_start_as_seconds(&nan_i);
     munit_assert(copysign(-1, nan) < 0);
     munit_assert(isnan(nan));
