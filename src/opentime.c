@@ -346,6 +346,9 @@ bool ot_interval_is_equivalent(const ot_interval_t* t1, const ot_interval_t * t2
     /// rate, conform the intervals to that rate (adjusting fractions as 
     /// necessary), then call interval_is_equal on the conformed intervals.
     /// I haven't written ot_interval_conform(t1, rate) yet
+    /// @TODO needs thought - should rate be equivalent, or are we only 
+    /// measuring bounds? If bounds and bounds + rate are both interesting
+    /// make two different functions
     return ot_interval_start_as_seconds(t1) == ot_interval_start_as_seconds(t2) &&
            ot_interval_end_as_seconds(t1) == ot_interval_end_as_seconds(t2);
 }
@@ -416,7 +419,7 @@ ot_interval_t ot_project(ot_interval_t* t, ot_operator_t* op) {
         return ot_invalid_interval();
     }
     if (op->tag == ot_op_affine_transform) {
-        if (ot_r32_equal(t->rate, op->offset_rate)) {
+        if (ot_r32_equivalent(t->rate, op->offset_rate)) {
             ot_interval_t result = *t;
             ot_interval_t offset = { op->offset, op->offset + 1,
                                      op->offset_frac, op->offset_frac,
@@ -424,6 +427,7 @@ ot_interval_t ot_project(ot_interval_t* t, ot_operator_t* op) {
             offset = ot_interval_additive_inverse(&offset);
             result = ot_interval_add(&result, &offset);
             result.start = result.start * op->slope.den / op->slope.num;
+            result.end = result.end * op->slope.den / op->slope.num;
             return ot_interval_normalize(&result);
         }
         /// @TODO handle different rates
@@ -501,10 +505,12 @@ MunitResult identity_proj_test(const MunitParameter params[],
     ot_interval_t sample_0_5 = ot_interval_at_seconds(0.5, (ot_r32_t) { 1, 24 });
     ot_interval_t mov_sample_0_5 = ot_project(&sample_0_5, &op_identity_24);
     munit_assert_int(mov_sample_0_5.start, ==, mov_sample_0_5.start);
+    munit_assert_int(mov_sample_0_5.end, ==, mov_sample_0_5.end);
 
     ot_interval_t sample_1h_plus = ot_interval_at_seconds(3600.f + 600.f + 7.5f, (ot_r32_t) { 1, 24 });
     ot_interval_t mov_1h_plus = ot_project(&sample_1h_plus, &op_identity_24);
     munit_assert_int(sample_1h_plus.start, ==, mov_1h_plus.start);
+    munit_assert_int(sample_1h_plus.end, ==, mov_1h_plus.end);
     return MUNIT_OK;
 }
 
@@ -587,6 +593,10 @@ MunitResult seconds_test(const MunitParameter params[],
 }
 
 // [] test add an interval, with same and different rates, nan, and inf
+// [] test project with an offset
+// [] test project with a slope
+// [] test project with a slope and an offset
+// [] verify project results with nan and inf in input and transform
 
 void ot_test() {
     static MunitTest tests[] = {
