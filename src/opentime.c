@@ -154,11 +154,13 @@ bool ot_r32_less_than(ot_r32_t lh, ot_r32_t rh) {
             break;
         }
 
-        n_l = d_l; d_l = r_l;
+        n_l = d_l; 
+        d_l = r_l;
         q_l = n_l / d_l;
         r_l = n_l % d_l;
 
-        n_r = d_r; d_r = r_r;
+        n_r = d_r; 
+        d_r = r_r;
         q_r = n_r / d_r;
         r_r = n_r % d_r;
     }
@@ -205,9 +207,9 @@ ot_r32_t ot_r32_normalize(ot_r32_t r) {
     if (r.num == 0 || r.num == 1 || r.den == 1 || r.den == 0) 
         return r;
     uint32_t n = r.num < 0 ? -r.num : r.num;
-    uint32_t denom = ot_gcd32(n, r.den);
+    uint32_t gcd = ot_gcd32(n, r.den);
     int32_t sign = r.num < 0 ? -1 : 1;
-    return (ot_r32_t) { r.num / denom, r.den / denom };
+    return (ot_r32_t) { r.num / gcd, r.den / gcd };
 }
 
 int32_t ot_r32_sign(ot_r32_t r) {
@@ -323,7 +325,7 @@ bool ot_interval_is_equal(const ot_interval_t* t1, const ot_interval_t * t2) {
             ot_r32_equal(t1->rate, t2->rate));
 }
 
-bool ot_interval_is_equalivalent(const ot_interval_t* t1, const ot_interval_t * t2) {
+bool ot_interval_is_equivalent(const ot_interval_t* t1, const ot_interval_t * t2) {
     if (!t1 || !t2) {
         return false;
     }
@@ -446,7 +448,7 @@ MunitResult interval_equality_test(const MunitParameter params[],
     i2.end *= 2;
     i2.rate.den *= 2;
     munit_assert_false(ot_interval_is_equal(&i1, &i2));
-    munit_assert_true(ot_interval_is_equalivalent(&i1, &i2));
+    munit_assert_true(ot_interval_is_equivalent(&i1, &i2));
     return MUNIT_OK;
 }
 

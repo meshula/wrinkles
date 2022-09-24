@@ -52,12 +52,23 @@ ot_interval_t ot_interval_additive_inverse(const ot_interval_t* f);
 ot_interval_t ot_interval_at_seconds(double t, ot_r32_t rate);
 ot_interval_t ot_interval_at_seconds2(double t1, double t2, ot_r32_t rate);
 double        ot_interval_end_as_seconds(const ot_interval_t* t);
-bool          ot_interval_is_equal(const ot_interval_t*, const ot_interval_t*);
-bool          ot_interval_is_equalivalent(const ot_interval_t*, const ot_interval_t*);
-bool          ot_interval_is_valid(const ot_interval_t* t);
 ot_interval_t ot_interval_normalize(const ot_interval_t* t);
 double        ot_interval_start_as_seconds(const ot_interval_t* t);
 ot_interval_t ot_invalid_interval();
+
+bool ot_interval_is_equal(const ot_interval_t*, const ot_interval_t*);
+bool ot_interval_is_equivalent(const ot_interval_t*, const ot_interval_t*);
+bool ot_interval_is_valid(const ot_interval_t* t);
+
+bool ot_interval_precedes(const ot_interval_t* a, const ot_interval_t* b);
+bool ot_interval_meets(const ot_interval_t* a, const ot_interval_t* b);
+bool ot_interval_disjoint(const ot_interval_t* a, const ot_interval_t* b);
+bool ot_interval_starts(const ot_interval_t* a, const ot_interval_t* b);
+bool ot_interval_ends(const ot_interval_t* a, const ot_interval_t* b);
+bool ot_interval_overlaps(const ot_interval_t* a, const ot_interval_t* b);
+bool ot_interval_starts_or_overlaps(const ot_interval_t* a, const ot_interval_t* b);
+bool ot_interval_during(const ot_interval_t* a, const ot_interval_t* b);
+bool ot_interval_within(const ot_interval_t* a, const ot_interval_t* b);
 
 typedef enum {
     ot_op_affine_transform
