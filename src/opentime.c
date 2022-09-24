@@ -280,6 +280,28 @@ ot_interval_t ot_invalid_interval() {
     return (ot_interval_t) { 0, 0, 0, 0, 0, 0 };
 }
 
+bool ot_interval_is_equal(const ot_interval_t* t1, const ot_interval_t * t2) {
+    if (!t1 || !t2) {
+        return false;
+    }
+    return (t1->start == t2->start && t1->end == t2->end &&
+            t1->start_frac == t2->start_frac && t1->end_frac == t2->end_frac &&
+            ot_r32_equal(t1->rate, t2->rate));
+}
+
+bool ot_interval_is_equalivalent(const ot_interval_t* t1, const ot_interval_t * t2) {
+    if (!t1 || !t2) {
+        return false;
+    }
+    /// @TODO the exact math thing to do would be to find the lcm of t1 and t2's
+    /// rate, conform the intervals to that rate (adjusting fractions as 
+    /// necessary), then call interval_is_equal on the conformed intervals.
+    /// I haven't written ot_interval_conform(t1, rate) yet
+    return ot_interval_start_as_seconds(t1) == ot_interval_start_as_seconds(t2) &&
+           ot_interval_end_as_seconds(t1) == ot_interval_end_as_seconds(t2);
+}
+
+
 bool ot_interval_is_valid(const ot_interval_t* t) {
     if ((t == NULL) || (t->rate.den == 0) || (t->end < t->start)) {
         return false;
@@ -373,6 +395,27 @@ ot_interval_t ot_project(ot_interval_t* t, ot_operator_t* op) {
 #include "munit.h"
 #include <stdio.h>
 
+MunitResult interval_equality_test(const MunitParameter params[], 
+                            void* user_data_or_fixture) {
+    ot_interval_t i1 = ot_interval_at_seconds(0.5, 1, 12);
+    munit_assert_int(i1.start, ==, 6);
+    ot_interval_t i2 = i1;
+    munit_assert_int(i1.start, ==, i2.start);
+    munit_assert_int(i1.end, ==, i2.end);
+    munit_assert_float(i1.start_frac, ==, i2.start_frac);
+    munit_assert_float(i1.end_frac, ==, i2.end_frac);
+    munit_assert_int(i1.rate.num, ==, i2.rate.num);
+    munit_assert_int(i1.rate.den, ==, i2.rate.den);
+    munit_assert_true(ot_interval_is_equal(&i1, &i2));
+
+    i2.start *= 2;
+    i2.end = i2.start + 2 * (i1.end - i1.start);
+    i2.rate.den *= 2;
+    munit_assert_false(ot_interval_is_equal(&i1, &i2));
+    munit_assert_true(ot_interval_is_equalivalent(&i1, &i2));
+    return MUNIT_OK;
+}
+
 MunitResult identity_proj_test(const MunitParameter params[], 
                                void* user_data_or_fixture) {
     // first, a presentation timeline 1000 frames long at 24
@@ -429,23 +472,32 @@ MunitResult affine_half_proj_test(const MunitParameter params[],
 
 MunitResult seconds_test(const MunitParameter params[], 
                           void* user_data_or_fixture) {
-
     static double times[] = {
         1, 0, -1,
         1000.123,
         -1000.123,
         6804068040.386486,
         -6804068040.384686,
+        1000000.0 * 365.0 * 24.0 * 3600.0 + 0.5,
         INFINITY, -INFINITY
     };
 
     for (int i = 0; i < sizeof(times) / sizeof(double); ++i) {
-        ot_interval_t interval = ot_interval_at_seconds(times[i], 1, 24);
-        printf("seconds %f, frames %lld, frac %f\n",
-                times[i], interval.start, interval.start_frac);
+        ot_interval_t interval = ot_interval_at_seconds(times[i], 1, 192000);
+        //printf("seconds %f, frames %lld, frac %f\n",
+        //        times[i], interval.start, interval.start_frac);
         double seconds = ot_interval_start_as_seconds(&interval);
-        printf("times[i] %f == %f seconds\n", times[i], seconds);
-        munit_assert_double_equal(times[i], seconds, 6); // precision 1e-6
+        //printf("times[i] %f == %f seconds\n", times[i], seconds);
+        munit_assert_double_equal(times[i], seconds, 9); // precision 1e-6
+    }
+
+   for (int i = 0; i < sizeof(times) / sizeof(double); ++i) {
+        ot_interval_t interval = ot_interval_at_seconds(times[i], 1, 24);
+        //printf("seconds %f, frames %lld, frac %f\n",
+        //        times[i], interval.start, interval.start_frac);
+        double seconds = ot_interval_start_as_seconds(&interval);
+        //printf("times[i] %f == %f seconds\n", times[i], seconds);
+        munit_assert_double_equal(times[i], seconds, 9); // precision 1e-6
     }
 
     // test NAN
@@ -471,6 +523,14 @@ MunitResult seconds_test(const MunitParameter params[],
 
 void ot_test() {
     static MunitTest tests[] = {
+        {
+            "/interval_equality_test", /* name */
+            interval_equality_test, /* test */
+            NULL, /* setup */
+            NULL, /* tear_down */
+            MUNIT_TEST_OPTION_NONE, /* options */
+            NULL /* parameters */
+        },
         {
             "/seconds_test", /* name */
             seconds_test, /* test */

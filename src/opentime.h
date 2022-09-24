@@ -47,7 +47,15 @@ typedef struct {
     ot_r32_t rate;       // rate, multiply with start to convert to seconds
 } ot_interval_t;
 
-bool ot_interval_is_valid(const ot_interval_t* t);
+ot_interval_t ot_interval_add(const ot_interval_t* t, const ot_interval_t* addend);
+ot_interval_t ot_interval_additive_inverse(const ot_interval_t* f);
+ot_interval_t ot_interval_at_seconds(double t, uint64_t raten, uint64_t rated);
+double        ot_interval_end_as_seconds(const ot_interval_t* t);
+bool          ot_interval_is_equal(const ot_interval_t*, const ot_interval_t*);
+bool          ot_interval_is_equalivalent(const ot_interval_t*, const ot_interval_t*);
+bool          ot_interval_is_valid(const ot_interval_t* t);
+ot_interval_t ot_interval_normalize(const ot_interval_t* t);
+double        ot_interval_start_as_seconds(const ot_interval_t* t);
 ot_interval_t ot_invalid_interval();
 
 typedef enum {
@@ -66,6 +74,8 @@ typedef struct {
         };
     };
 } ot_operator_t;
+
+ot_interval_t ot_project(ot_interval_t* t, ot_operator_t* op);
 
 void ot_test();
 
