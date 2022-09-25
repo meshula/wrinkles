@@ -421,13 +421,14 @@ ot_interval_t ot_project(ot_interval_t* t, ot_operator_t* op) {
     if (op->tag == ot_op_affine_transform) {
         if (ot_r32_equivalent(t->rate, op->offset_rate)) {
             ot_interval_t result = *t;
-            ot_interval_t offset = { op->offset, op->offset + 1,
-                                     op->offset_frac, op->offset_frac,
-                                     op->offset_rate };
-            offset = ot_interval_additive_inverse(&offset);
-            result = ot_interval_add(&result, &offset);
-            result.start = result.start * op->slope.den / op->slope.num;
-            result.end = result.end * op->slope.den / op->slope.num;
+            result.start -= op->offset;
+            result.end -= op->offset;
+            result.start_frac -= op->offset_frac;
+            result.end_frac -= op->offset_frac;
+            result.start *= op->slope.num;
+            result.start /= op->slope.den;
+            result.end *= op->slope.num;
+            result.end *= op->slope.den;
             return ot_interval_normalize(&result);
         }
         /// @TODO handle different rates
@@ -485,7 +486,7 @@ MunitResult interval_conform_test(const MunitParameter params[],
     return MUNIT_OK;
 }
 
-MunitResult identity_proj_test(const MunitParameter params[], 
+MunitResult affine_identity_proj_test(const MunitParameter params[], 
                                void* user_data_or_fixture) {
     // first, a presentation timeline 1000 frames long at 24
     // and a movie, also 1000 frames long at 24
@@ -533,11 +534,39 @@ MunitResult affine_half_proj_test(const MunitParameter params[],
     // at 0.5 seconds, which frame of mov_1000 is showing on pres_tl?
     ot_interval_t sample_0_5 = ot_interval_at_seconds(0.5, (ot_r32_t) { 1, 24 });
     ot_interval_t mov_sample_0_5 = ot_project(&sample_0_5, &op_identity_24);
-    munit_assert_int(sample_0_5.start * 2, ==, mov_sample_0_5.start);
+    munit_assert_int(sample_0_5.start, ==, mov_sample_0_5.start * 2);
 
     ot_interval_t sample_1h_plus = ot_interval_at_seconds(3600.f + 600.f + 7.5f, (ot_r32_t) { 1, 24 });
     ot_interval_t mov_1h_plus = ot_project(&sample_1h_plus, &op_identity_24);
-    munit_assert_int(sample_1h_plus.start * 2, ==, mov_1h_plus.start);
+    munit_assert_int(sample_1h_plus.start, ==, mov_1h_plus.start * 2);
+    return MUNIT_OK;
+}
+
+
+MunitResult affine_offset_proj_test(const MunitParameter params[], 
+                                  void* user_data_or_fixture) {
+    // first, a presentation timeline 1000 frames long at 24
+    // and a movie, also 1000 frames long at 24
+    ot_interval_t pres_tl = (ot_interval_t) {
+        0, 1000, 0.f, 0.f, 1, 24 };
+    ot_interval_t mov_1000 = (ot_interval_t) {
+        0, 1000, 0.f, 0.f, 1, 24 };
+
+    ot_operator_t op_identity_24;
+    op_identity_24.tag = ot_op_affine_transform;
+    op_identity_24.slope = (ot_r32_t) { 1, 1 };
+    op_identity_24.offset = -48; // offset into the movie by two seconds
+    op_identity_24.offset_frac = 0.f;
+    op_identity_24.offset_rate = (ot_r32_t) { 1, 24 };
+
+    // at 0.5 seconds, which frame of mov_1000 is showing on pres_tl?
+    ot_interval_t sample_0_5 = ot_interval_at_seconds(0.5, (ot_r32_t) { 1, 24 });
+    ot_interval_t mov_sample_0_5 = ot_project(&sample_0_5, &op_identity_24);
+    munit_assert_int(sample_0_5.start + 48, ==, mov_sample_0_5.start);
+
+    ot_interval_t i2 = ot_interval_at_seconds(3600.f + 600.f + 7.5f, (ot_r32_t) { 1, 24 });
+    ot_interval_t mov_1h_plus = ot_project(&i2, &op_identity_24);
+    munit_assert_int(i2.start + 48, ==, mov_1h_plus.start);
     return MUNIT_OK;
 }
 
@@ -593,8 +622,8 @@ MunitResult seconds_test(const MunitParameter params[],
 }
 
 // [] test add an interval, with same and different rates, nan, and inf
-// [] test project with an offset
-// [] test project with a slope
+// [x] test project with an offset
+// [x] test project with a slope
 // [] test project with a slope and an offset
 // [] verify project results with nan and inf in input and transform
 
@@ -613,11 +642,14 @@ void ot_test() {
             NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
         {   "/interval_conform_test", interval_conform_test,
             NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
-        {   "/affine_half_proj_test", /* name */
-            affine_half_proj_test, /* test */
+        {   "/affine_identity_proj_test", /* name */
+            affine_identity_proj_test, /* test */
             NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
         {   "/affine_half_proj_test", /* name */
             affine_half_proj_test, /* test */
+            NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
+        {   "/affine_offset_proj_test", /* name */
+            affine_offset_proj_test, /* test */
             NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL },
         
         // end of array mark
