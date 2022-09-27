@@ -25,8 +25,8 @@ const Vertex = extern struct {
 
 const Uniforms = extern struct {
     aspect_ratio: f32,
-    mip_level: f32,
     duration: f32,
+    clip_frame_rate: f32,
     frame_rate: f32,
 };
 
@@ -43,8 +43,8 @@ const DemoState = struct {
     texture_view: zgpu.TextureViewHandle,
     sampler: zgpu.SamplerHandle,
 
-    mip_level: i32 = 0,
     duration: f32 = 1.0,
+    clip_frame_rate: i32 = 6,
     frame_rate: i32 = 10,
 };
 
@@ -221,12 +221,12 @@ fn update(demo: *DemoState) void {
         .{ demo.gctx.stats.average_cpu_time, demo.gctx.stats.fps },
     );
     zgui.spacing();
-    _ = zgui.sliderInt("Mipmap Level", .{
-        .v = &demo.mip_level,
-        .min = 0,
-        .max = @intCast(i32, demo.gctx.lookupResourceInfo(demo.texture).?.mip_level_count - 1),
+    _ = zgui.sliderInt("clip framerate", .{
+        .v = &demo.clip_frame_rate,
+        .min = 1,
+        .max = 60,
     });
-    _ = zgui.sliderInt("Framerate", .{
+    _ = zgui.sliderInt("presentation framerate", .{
         .v = &demo.frame_rate,
         .min = 1,
         .max = 60,
@@ -343,8 +343,8 @@ fn draw(demo: *DemoState) void {
             const mem = gctx.uniformsAllocate(Uniforms, 1);
             mem.slice[0] = .{
                 .aspect_ratio = @intToFloat(f32, fb_width) / @intToFloat(f32, fb_height),
-                .mip_level = @intToFloat(f32, demo.mip_level),
                 .duration = demo.duration,
+                .clip_frame_rate = @intToFloat(f32, demo.clip_frame_rate),
                 .frame_rate = @intToFloat(f32, demo.frame_rate),
             };
             pass.setBindGroup(0, bind_group, &.{mem.offset});

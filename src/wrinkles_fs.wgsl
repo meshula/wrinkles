@@ -48,13 +48,12 @@ fn DistanceToFunction(p : vec2<f32>, xDelta: f32) -> f32
     @location(0) uv: vec2<f32>,
 ) -> @location(0) vec4<f32> {
     var output: vec4<f32>;
-    output = textureSampleLevel(image, image_sampler, uv, uniforms.mip_level);
 
     let time = uv.x * uniforms.duration;
 
     let grid_width: f32 = 0.02;
-    let divisions: f32 = uniforms.frame_rate;
-    let gridx = time * divisions - floor(time * divisions);
+    let divisions_x: f32 = uniforms.frame_rate;
+    let gridx = time * divisions_x - floor(time * divisions_x);
     let modx = fract(gridx);
     output[1] = modx * 0.5;
     if (modx > grid_width) {
@@ -64,7 +63,8 @@ fn DistanceToFunction(p : vec2<f32>, xDelta: f32) -> f32
         output[0] = 1.0;
     }
 
-    let gridy = uv.y * divisions - floor(uv.y * divisions);
+    let divisions_y: f32 = uniforms.clip_frame_rate;
+    let gridy = uv.y * divisions_y - floor(uv.y * divisions_y);
     let mody = fract(gridy);
     output[2] = mody * 0.5;
     if (mody < grid_width) {
