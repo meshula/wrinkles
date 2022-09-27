@@ -221,6 +221,7 @@ fn update(demo: *DemoState) void {
         .{ demo.gctx.stats.average_cpu_time, demo.gctx.stats.fps },
     );
     zgui.spacing();
+    zgui.pushItemWidth(zgui.getWindowWidth() - 400);
     _ = zgui.sliderInt("clip framerate", .{
         .v = &demo.clip_frame_rate,
         .min = 1,
@@ -236,6 +237,7 @@ fn update(demo: *DemoState) void {
         .min = 1.0 / 24.0,
         .max = 5,
     });
+    zgui.popItemWidth();
 
     const viewport = zgui.getMainViewport();
     const vsz = viewport.getWorkSize();
