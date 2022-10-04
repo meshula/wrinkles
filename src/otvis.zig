@@ -10,12 +10,18 @@ const ot = @cImport({
     @cInclude("opentime.h");
 });
 
+// curve library
+const opentime = @import("opentime/opentime.zig");
+const curve = opentime.curve;
+
 const content_dir = @import("build_options").otvis_content_dir;
 const window_title = "zig-gamedev: wrinkles (wgpu)";
 
 const wgsl_common = @embedFile("wrinkles_common.wgsl");
 const wgsl_vs = wgsl_common ++ @embedFile("wrinkles_vs.wgsl");
 const wgsl_fs = wgsl_common ++ @embedFile("wrinkles_fs.wgsl");
+
+const ALLOCATOR = @import("opentime/allocator.zig").ALLOCATOR;
 
 // must match wrinkles_common
 const Vertex = extern struct {
@@ -46,6 +52,21 @@ const DemoState = struct {
     duration: f32 = 1.0,
     clip_frame_rate: i32 = 6,
     frame_rate: i32 = 10,
+
+    bezier_curves:std.ArrayList(curve.TimeCurve) = undefined,
+    linear_curves:std.ArrayList(curve.TimeCurveLinear) = (
+        std.ArrayList(curve.TimeCurveLinear).init(ALLOCATOR)
+    ),
+
+    options: struct {
+        // using i32 because microui check_box expects an int32 not a bool
+        animated_splits: i32 = 0, 
+        linearize: i32 = 0,
+        animated_u: i32 = 0,
+        normalize_scale: i32 = 0,
+        draw_knots: i32 = 0,
+        dumped_segments: i32 = 0,
+    } = .{},
 };
 
 fn init(allocator: std.mem.Allocator, window: zglfw.Window) !*DemoState {
@@ -254,7 +275,13 @@ fn update(demo: *DemoState) void {
 
     // outline the tartan plot
     draw_list.addPolyline(
-        &.{ .{ center[0] - center[1] * 0.9, center[1] - center[1] * 0.9 }, .{ center[0] + center[1] * 0.9, center[1] - center[1] * 0.9 }, .{ center[0] + center[1] * 0.9, center[1] + center[1] * 0.9 }, .{ center[0] - center[1] * 0.9, center[1] + center[1] * 0.9 }, .{ center[0] - center[1] * 0.9, center[1] - center[1] * 0.9 } },
+        &.{ 
+            .{ center[0] - center[1] * 0.9, center[1] - center[1] * 0.9 }, 
+            .{ center[0] + center[1] * 0.9, center[1] - center[1] * 0.9 }, 
+            .{ center[0] + center[1] * 0.9, center[1] + center[1] * 0.9 }, 
+            .{ center[0] - center[1] * 0.9, center[1] + center[1] * 0.9 }, 
+            .{ center[0] - center[1] * 0.9, center[1] - center[1] * 0.9 } 
+        },
         .{ .col = 0xff_00_aa_aa, .thickness = 7 },
     );
 
