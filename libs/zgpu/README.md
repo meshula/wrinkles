@@ -1,14 +1,14 @@
-# zgpu v0.2 - Cross-platform graphics layer
+# zgpu v0.9 - Cross-platform graphics library
 
-This library uses wgpu binaries kindly provided by [mach-gpu-dawn](https://github.com/hexops/mach-gpu-dawn) project.
+`zgpu` is a small helper library built on top of native wgpu implementation (Dawn).
 
-`zgpu` is a cross-platform (Windows/Linux/macOS) graphics layer built on top of native wgpu API (Dawn).
+It supports Windows 10+ (DirectX 12), macOS 12+ (Metal) and Linux (Vulkan).
 
 ## Features:
 
 * Zero-overhead wgpu API bindings ([source code](https://github.com/michal-z/zig-gamedev/blob/main/libs/zgpu/src/wgpu.zig))
 * Uniform buffer pool for fast CPU->GPU transfers
-* Resource pools and resources identified by 32-bit integer handles
+* Resource pools and handle-based GPU resources
 * Async shader compilation
 * GPU mipmap generator
 
@@ -20,31 +20,37 @@ Copy `zgpu`, `zpool` and `zglfw` folders to a `libs` subdirectory of the root of
 
 Then in your `build.zig` add:
 ```zig
+const std = @import("std");
 const zgpu = @import("libs/zgpu/build.zig");
 const zpool = @import("libs/zpool/build.zig");
 const zglfw = @import("libs/zglfw/build.zig");
 
 pub fn build(b: *std.build.Builder) void {
-    ...
-    const zgpu_pkg = zgpu.getPkg(&.{ zpool.pkg, zglfw.pkg });
+    const zgpu_options = zgpu.BuildOptionsStep.init(b, .{});
+    const zgpu_pkg = zgpu.getPkg(&.{ zgpu_options.getPkg(), zpool.pkg, zglfw.pkg });
 
     exe.addPackage(zgpu_pkg);
     exe.addPackage(zglfw.pkg);
 
-    zgpu.link(exe);
+    zgpu.link(exe, zgpu_options);
     zglfw.link(exe);
 }
 ```
-Now in your code you may import and use `zgpu` and `zglfw`:
-```zig
-const zglfw = @import("zglfw");
-const zgpu = @import("zgpu");
+------------
+#### NOTE
 
-pub fn main() !void {
-    ...
-}
+`zgpu/libs/dawn` folder contains large binary files - Dawn/WebGPU static libs compiled for several platforms/architectures.
+To avoid storing those files in your repo it is recommended to create a submodule pointing to the [dawn-bin](https://github.com/michal-z/dawn-bin) repo.
+
+To create the submodule run below commands in the root of your project:
 ```
-For sample applications please see:
+rm -rf libs/zgpu/libs
+git submodule add -b main https://github.com/michal-z/dawn-bin libs/zgpu/libs/dawn
+git submodule update --init --remote
+```
+--------------
+## Sample applications
+
 * [gui test (wgpu)](https://github.com/michal-z/zig-gamedev/tree/main/samples/gui_test_wgpu)
 * [physically based rendering (wgpu)](https://github.com/michal-z/zig-gamedev/tree/main/samples/physically_based_rendering_wgpu)
 * [bullet physics test (wgpu)](https://github.com/michal-z/zig-gamedev/tree/main/samples/bullet_physics_test_wgpu)
@@ -56,12 +62,40 @@ For sample applications please see:
 
 Below you can find an overview of main `zgpu` features.
 
-### Init
-```zig
-const gctx = try zgpu.GraphicsContext.init(allocator, window);
+### Compile-time options
 
-// When you are done:
-gctx.deinit(allocator);
+The list of compile-time options with default values:
+
+```zig
+pub const BuildOptions = struct {
+    uniforms_buffer_size: u64 = 4 * 1024 * 1024,
+
+    dawn_skip_validation: bool = false, // Skip expensive Dawn validation
+
+    buffer_pool_size: u32 = 256,
+    texture_pool_size: u32 = 256,
+    texture_view_pool_size: u32 = 256,
+    sampler_pool_size: u32 = 16,
+    render_pipeline_pool_size: u32 = 128,
+    compute_pipeline_pool_size: u32 = 128,
+    bind_group_pool_size: u32 = 32,
+    bind_group_layout_pool_size: u32 = 32,
+    pipeline_layout_pool_size: u32 = 32,
+};
+```
+You can override default values in your `build.zig`:
+```zig
+pub fn build(b: *std.build.Builder) void {
+    ...
+    const zgpu_options = zgpu.BuildOptionsStep.init(b, .{
+        .uniforms_buffer_size = 8 * 1024 * 1024,
+        .dawn_skip_validation = true,
+    });
+    const zgpu_pkg = zgpu.getPkg(&.{ zgpu_options.getPkg(), zpool.pkg, zglfw.pkg });
+
+    zgpu.link(exe, zgpu_options);
+    ...
+}
 ```
 ### Uniforms
 

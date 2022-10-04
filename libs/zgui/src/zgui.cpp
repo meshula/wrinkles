@@ -17,6 +17,13 @@ ZGUI_API float zguiGetFloatMax(void) {
 }
 */
 
+ZGUI_API void zguiSetAllocatorFunctions(
+    void* (*alloc_func)(size_t, void*),
+    void (*free_func)(void*, void*)
+) {
+    ImGui::SetAllocatorFunctions(alloc_func, free_func, nullptr);
+}
+
 ZGUI_API void zguiSetNextWindowPos(float x, float y, ImGuiCond cond, float pivot_x, float pivot_y) {
     ImGui::SetNextWindowPos({ x, y }, cond, { pivot_x, pivot_y });
 }
@@ -175,11 +182,11 @@ ZGUI_API void zguiGetCursorPos(float pos[2]) {
     pos[1] = p.y;
 }
 
-ZGUI_API float zguiGetCursorPosX() {
+ZGUI_API float zguiGetCursorPosX(void) {
     return ImGui::GetCursorPosX();
 }
 
-ZGUI_API float zguiGetCursorPosY() {
+ZGUI_API float zguiGetCursorPosY(void) {
     return ImGui::GetCursorPosY();
 }
 
@@ -211,23 +218,31 @@ ZGUI_API void zguiSetCursorScreenPos(float screen_x, float screen_y) {
     ImGui::SetCursorScreenPos({ screen_x, screen_y });
 }
 
-ZGUI_API void zguiAlignTextToFramePadding() {
+ZGUI_API int zguiGetMouseCursor(void) {
+    return ImGui::GetMouseCursor();
+}
+
+ZGUI_API void zguiSetMouseCursor(int cursor) {
+    ImGui::SetMouseCursor(cursor);
+}
+
+ZGUI_API void zguiAlignTextToFramePadding(void) {
     ImGui::AlignTextToFramePadding();
 }
 
-ZGUI_API float zguiGetTextLineHeight() {
+ZGUI_API float zguiGetTextLineHeight(void) {
     return ImGui::GetTextLineHeight();
 }
 
-ZGUI_API float zguiGetTextLineHeightWithSpacing() {
+ZGUI_API float zguiGetTextLineHeightWithSpacing(void) {
     return ImGui::GetTextLineHeightWithSpacing();
 }
 
-ZGUI_API float zguiGetFrameHeight() {
+ZGUI_API float zguiGetFrameHeight(void) {
     return ImGui::GetFrameHeight();
 }
 
-ZGUI_API float zguiGetFrameHeightWithSpacing() {
+ZGUI_API float zguiGetFrameHeightWithSpacing(void) {
     return ImGui::GetFrameHeightWithSpacing();
 }
 
@@ -605,11 +620,11 @@ ZGUI_API bool zguiSliderAngle(
     return ImGui::SliderAngle(label, v_rad, v_degrees_min, v_degrees_max, format, flags);
 }
 
-ZGUI_API ImGuiInputTextCallbackData zguiInputTextCallbackData_init() {
+ZGUI_API ImGuiInputTextCallbackData zguiInputTextCallbackData_Init(void) {
     return ImGuiInputTextCallbackData();
 }
 
-ZGUI_API void zguiInputTextCallbackData_deleteChars(
+ZGUI_API void zguiInputTextCallbackData_DeleteChars(
     ImGuiInputTextCallbackData* data,
     int pos,
     int bytes_count
@@ -617,7 +632,7 @@ ZGUI_API void zguiInputTextCallbackData_deleteChars(
     data->DeleteChars(pos, bytes_count);
 }
 
-ZGUI_API void zguiInputTextCallbackData_insertChars(
+ZGUI_API void zguiInputTextCallbackData_InsertChars(
     ImGuiInputTextCallbackData* data,
     int pos,
     const char* text,
@@ -955,11 +970,11 @@ ZGUI_API ImGuiStyle* zguiGetStyle(void) {
     return &ImGui::GetStyle();
 }
 
-ZGUI_API ImGuiStyle zguiStyle_init(void) {
+ZGUI_API ImGuiStyle zguiStyle_Init(void) {
     return ImGuiStyle();
 }
 
-ZGUI_API void zguiStyle_scaleAllSizes(ImGuiStyle* style, float scale_factor) {
+ZGUI_API void zguiStyle_ScaleAllSizes(ImGuiStyle* style, float scale_factor) {
     style->ScaleAllSizes(scale_factor);
 }
 
@@ -1131,6 +1146,10 @@ ZGUI_API void zguiIoSetIniFilename(const char* filename) {
     ImGui::GetIO().IniFilename = filename;
 }
 
+ZGUI_API void zguiIoSetConfigFlags(ImGuiConfigFlags flags) {
+    ImGui::GetIO().ConfigFlags = flags;
+}
+
 ZGUI_API void zguiIoSetDisplaySize(float width, float height) {
     ImGui::GetIO().DisplaySize = { width, height };
 }
@@ -1201,31 +1220,39 @@ ZGUI_API void zguiPushTextWrapPos(float wrap_pos_x) {
     ImGui::PushTextWrapPos(wrap_pos_x);
 }
 
-ZGUI_API bool zguiBeginTabBar(const char* string) {
-    return ImGui::BeginTabBar(string, ImGuiTabBarFlags_None);
+ZGUI_API bool zguiBeginTabBar(const char* string, ImGuiTabBarFlags flags) {
+    return ImGui::BeginTabBar(string, flags);
 }
 
-ZGUI_API bool zguiBeginTabItem(const char* string) {
-    return ImGui::BeginTabItem(string);
+ZGUI_API bool zguiBeginTabItem(const char* string, bool* p_open, ImGuiTabItemFlags flags) {
+    return ImGui::BeginTabItem(string, p_open, flags);
 }
 
-ZGUI_API void zguiEndTabItem() {
+ZGUI_API void zguiEndTabItem(void) {
     ImGui::EndTabItem();
 }
 
-ZGUI_API void zguiEndTabBar() {
+ZGUI_API void zguiEndTabBar(void) {
     ImGui::EndTabBar();
 }
 
-ZGUI_API ImDrawList* zguiGetWindowDrawList() {
+ZGUI_API void zguiSetTabItemClosed(const char* tab_or_docked_window_label) {
+    ImGui::SetTabItemClosed(tab_or_docked_window_label);
+}
+//--------------------------------------------------------------------------------------------------
+//
+// DrawList
+//
+//--------------------------------------------------------------------------------------------------
+ZGUI_API ImDrawList* zguiGetWindowDrawList(void) {
     return ImGui::GetWindowDrawList();
 }
 
-ZGUI_API ImDrawList* zguiGetBackgroundDrawList() {
+ZGUI_API ImDrawList* zguiGetBackgroundDrawList(void) {
     return ImGui::GetBackgroundDrawList();
 }
 
-ZGUI_API ImDrawList* zguiGetForegroundDrawList() {
+ZGUI_API ImDrawList* zguiGetForegroundDrawList(void) {
     return ImGui::GetForegroundDrawList();
 }
 
@@ -1605,8 +1632,32 @@ ZGUI_API void zguiDrawList_PathRect(
 ) {
     draw_list->PathRect({ rect_min[0], rect_min[1] }, { rect_max[0], rect_max[1] }, rounding, flags);
 }
+//--------------------------------------------------------------------------------------------------
+//
+// Viewport
+//
+//--------------------------------------------------------------------------------------------------
+ZGUI_API ImGuiViewport* zguiGetMainViewport(void) {
+    return ImGui::GetMainViewport();
+}
 
-ZGUI_API ImPlotContext* zguiPlot_CreateContext() {
+ZGUI_API void zguiViewport_GetWorkPos(ImGuiViewport* viewport, float p[2]) {
+    const ImVec2 pos = viewport->WorkPos;
+    p[0] = pos.x;
+    p[1] = pos.y;
+}
+
+ZGUI_API void zguiViewport_GetWorkSize(ImGuiViewport* viewport, float p[2]) {
+    const ImVec2 sz = viewport->WorkSize;
+    p[0] = sz.x;
+    p[1] = sz.y;
+}
+//--------------------------------------------------------------------------------------------------
+//
+// ImPlot
+//
+//--------------------------------------------------------------------------------------------------
+ZGUI_API ImPlotContext* zguiPlot_CreateContext(void) {
     return ImPlot::CreateContext();
 }
 
@@ -1614,46 +1665,189 @@ ZGUI_API void zguiPlot_DestroyContext(ImPlotContext* ctx) {
     ImPlot::DestroyContext(ctx);
 }
 
-ZGUI_API ImPlotContext* zguiPlot_GetCurrentContext() {
+ZGUI_API ImPlotContext* zguiPlot_GetCurrentContext(void) {
     return ImPlot::GetCurrentContext();
+}
+
+ZGUI_API ImPlotStyle zguiPlotStyle_Init(void) {
+    return ImPlotStyle();
+}
+
+ZGUI_API ImPlotStyle* zguiPlot_GetStyle(void) {
+    return &ImPlot::GetStyle();
+}
+
+ZGUI_API void zguiPlot_PushStyleColor4f(ImPlotCol idx, const float col[4]) {
+    ImPlot::PushStyleColor(idx, { col[0], col[1], col[2], col[3] });
+}
+
+ZGUI_API void zguiPlot_PushStyleColor1u(ImPlotCol idx, unsigned int col) {
+    ImPlot::PushStyleColor(idx, col);
+}
+
+ZGUI_API void zguiPlot_PopStyleColor(int count) {
+    ImPlot::PopStyleColor(count);
+}
+
+ZGUI_API void zguiPlot_PushStyleVar1i(ImPlotStyleVar idx, int var) {
+    ImPlot::PushStyleVar(idx, var);
+}
+
+ZGUI_API void zguiPlot_PushStyleVar1f(ImPlotStyleVar idx, float var) {
+    ImPlot::PushStyleVar(idx, var);
+}
+
+ZGUI_API void zguiPlot_PushStyleVar2f(ImPlotStyleVar idx, const float var[2]) {
+    ImPlot::PushStyleVar(idx, { var[0], var[1] });
+}
+
+ZGUI_API void zguiPlot_PopStyleVar(int count) {
+    ImPlot::PopStyleVar(count);
 }
 
 ZGUI_API void zguiPlot_SetupLegend(ImPlotLocation location, ImPlotLegendFlags flags) {
     ImPlot::SetupLegend(location, flags);
 }
 
-ZGUI_API void zguiPlot_SetupXAxis(const char* label, ImPlotAxisFlags flags) {
-    ImPlot::SetupAxis(ImAxis_X1, label, flags);
+ZGUI_API void zguiPlot_SetupAxis(ImAxis axis, const char* label, ImPlotAxisFlags flags) {
+    ImPlot::SetupAxis(axis, label, flags);
 }
 
-ZGUI_API void zguiPlot_SetupYAxis(const char* label, ImPlotAxisFlags flags) {
-    ImPlot::SetupAxis(ImAxis_Y1, label, flags);
+ZGUI_API void zguiPlot_SetupAxisLimits(ImAxis axis, double v_min, double v_max, ImPlotCond cond) {
+    ImPlot::SetupAxisLimits(axis, v_min, v_max, cond);
+}
+
+ZGUI_API void zguiPlot_SetupFinish(void) {
+    ImPlot::SetupFinish();
 }
 
 ZGUI_API bool zguiPlot_BeginPlot(const char* title_id, float width, float height, ImPlotFlags flags) {
     return ImPlot::BeginPlot(title_id, { width, height }, flags);
 }
 
-ZGUI_API void zguiPlot_PlotLineValues(const char* label_id, const int* values, int count, ImPlotLineFlags flags) {
-    ImPlot::PlotLine(label_id, values, count, 1, 0, flags, 0, sizeof(int));
+ZGUI_API void zguiPlot_PlotLineValues(
+    const char* label_id,
+    ImGuiDataType data_type,
+    const void* values,
+    int count,
+    double xscale,
+    double x0,
+    ImPlotLineFlags flags,
+    int offset,
+    int stride
+) {
+    if (data_type == ImGuiDataType_S8)
+        ImPlot::PlotLine(label_id, (const ImS8*)values, count, xscale, x0, flags, offset, stride);
+    else if (data_type == ImGuiDataType_U8)
+        ImPlot::PlotLine(label_id, (const ImU8*)values, count, xscale, x0, flags, offset, stride);
+    else if (data_type == ImGuiDataType_S16)
+        ImPlot::PlotLine(label_id, (const ImS16*)values, count, xscale, x0, flags, offset, stride);
+    else if (data_type == ImGuiDataType_U16)
+        ImPlot::PlotLine(label_id, (const ImU16*)values, count, xscale, x0, flags, offset, stride);
+    else if (data_type == ImGuiDataType_S32)
+        ImPlot::PlotLine(label_id, (const ImS32*)values, count, xscale, x0, flags, offset, stride);
+    else if (data_type == ImGuiDataType_U32)
+        ImPlot::PlotLine(label_id, (const ImU32*)values, count, xscale, x0, flags, offset, stride);
+    else if (data_type == ImGuiDataType_Float)
+        ImPlot::PlotLine(label_id, (const float*)values, count, xscale, x0, flags, offset, stride);
+    else if (data_type == ImGuiDataType_Double)
+        ImPlot::PlotLine(label_id, (const double*)values, count, xscale, x0, flags, offset, stride);
+    else
+        assert(false);
 }
 
-ZGUI_API void zguiPlot_EndPlot() {
+ZGUI_API void zguiPlot_PlotLine(
+    const char* label_id,
+    ImGuiDataType data_type,
+    const void* xv,
+    const void* yv,
+    int count,
+    ImPlotLineFlags flags,
+    int offset,
+    int stride
+) {
+    if (data_type == ImGuiDataType_S8)
+        ImPlot::PlotLine(label_id, (const ImS8*)xv, (const ImS8*)yv, count, flags, offset, stride);
+    else if (data_type == ImGuiDataType_U8)
+        ImPlot::PlotLine(label_id, (const ImU8*)xv, (const ImU8*)yv, count, flags, offset, stride);
+    else if (data_type == ImGuiDataType_S16)
+        ImPlot::PlotLine(label_id, (const ImS16*)xv, (const ImS16*)yv, count, flags, offset, stride);
+    else if (data_type == ImGuiDataType_U16)
+        ImPlot::PlotLine(label_id, (const ImU16*)xv, (const ImU16*)yv, count, flags, offset, stride);
+    else if (data_type == ImGuiDataType_S32)
+        ImPlot::PlotLine(label_id, (const ImS32*)xv, (const ImS32*)yv, count, flags, offset, stride);
+    else if (data_type == ImGuiDataType_U32)
+        ImPlot::PlotLine(label_id, (const ImU32*)xv, (const ImU32*)yv, count, flags, offset, stride);
+    else if (data_type == ImGuiDataType_Float)
+        ImPlot::PlotLine(label_id, (const float*)xv, (const float*)yv, count, flags, offset, stride);
+    else if (data_type == ImGuiDataType_Double)
+        ImPlot::PlotLine(label_id, (const double*)xv, (const double*)yv, count, flags, offset, stride);
+    else
+        assert(false);
+}
+
+ZGUI_API void zguiPlot_PlotScatter(
+    const char* label_id,
+    ImGuiDataType data_type,
+    const void* xv,
+    const void* yv,
+    int count,
+    ImPlotScatterFlags flags,
+    int offset,
+    int stride
+) {
+    if (data_type == ImGuiDataType_S8)
+        ImPlot::PlotScatter(label_id, (const ImS8*)xv, (const ImS8*)yv, count, flags, offset, stride);
+    else if (data_type == ImGuiDataType_U8)
+        ImPlot::PlotScatter(label_id, (const ImU8*)xv, (const ImU8*)yv, count, flags, offset, stride);
+    else if (data_type == ImGuiDataType_S16)
+        ImPlot::PlotScatter(label_id, (const ImS16*)xv, (const ImS16*)yv, count, flags, offset, stride);
+    else if (data_type == ImGuiDataType_U16)
+        ImPlot::PlotScatter(label_id, (const ImU16*)xv, (const ImU16*)yv, count, flags, offset, stride);
+    else if (data_type == ImGuiDataType_S32)
+        ImPlot::PlotScatter(label_id, (const ImS32*)xv, (const ImS32*)yv, count, flags, offset, stride);
+    else if (data_type == ImGuiDataType_U32)
+        ImPlot::PlotScatter(label_id, (const ImU32*)xv, (const ImU32*)yv, count, flags, offset, stride);
+    else if (data_type == ImGuiDataType_Float)
+        ImPlot::PlotScatter(label_id, (const float*)xv, (const float*)yv, count, flags, offset, stride);
+    else if (data_type == ImGuiDataType_Double)
+        ImPlot::PlotScatter(label_id, (const double*)xv, (const double*)yv, count, flags, offset, stride);
+    else
+        assert(false);
+}
+
+ZGUI_API void zguiPlot_PlotScatterValues(
+    const char* label_id,
+    ImGuiDataType data_type,
+    const void* values,
+    int count,
+    double xscale,
+    double x0,
+    ImPlotScatterFlags flags,
+    int offset,
+    int stride
+) {
+    if (data_type == ImGuiDataType_S8)
+        ImPlot::PlotScatter(label_id, (const ImS8*)values, count, xscale, x0, flags, offset, stride);
+    else if (data_type == ImGuiDataType_U8)
+        ImPlot::PlotScatter(label_id, (const ImU8*)values, count, xscale, x0, flags, offset, stride);
+    else if (data_type == ImGuiDataType_S16)
+        ImPlot::PlotScatter(label_id, (const ImS16*)values, count, xscale, x0, flags, offset, stride);
+    else if (data_type == ImGuiDataType_U16)
+        ImPlot::PlotScatter(label_id, (const ImU16*)values, count, xscale, x0, flags, offset, stride);
+    else if (data_type == ImGuiDataType_S32)
+        ImPlot::PlotScatter(label_id, (const ImS32*)values, count, xscale, x0, flags, offset, stride);
+    else if (data_type == ImGuiDataType_U32)
+        ImPlot::PlotScatter(label_id, (const ImU32*)values, count, xscale, x0, flags, offset, stride);
+    else if (data_type == ImGuiDataType_Float)
+        ImPlot::PlotScatter(label_id, (const float*)values, count, xscale, x0, flags, offset, stride);
+    else if (data_type == ImGuiDataType_Double)
+        ImPlot::PlotScatter(label_id, (const double*)values, count, xscale, x0, flags, offset, stride);
+    else
+        assert(false);
+}
+
+ZGUI_API void zguiPlot_EndPlot(void) {
     ImPlot::EndPlot();
 }
-
-ZGUI_API ImGuiViewport* zguiGetMainViewport() {
-    return ImGui::GetMainViewport();
-}
-
-ZGUI_API void zguiViewport_GetWorkPos(ImGuiViewport* viewport, float p[2]) {
-    ImVec2 pos = viewport->WorkPos;
-    p[0] = pos.x;
-    p[1] = pos.y;
-}
-
-ZGUI_API void zguiViewport_GetWorkSize(ImGuiViewport* viewport, float p[2]) {
-    ImVec2 sz = viewport->WorkSize;
-    p[0] = sz.x;
-    p[1] = sz.y;
-}
+//--------------------------------------------------------------------------------------------------

@@ -21,8 +21,8 @@ pub const pkg = std.build.Pkg{
 };
 
 pub fn link(exe: *std.build.LibExeObjStep) void {
-    exe.addIncludeDir(thisDir() ++ "/libs/glfw/include");
-    exe.linkLibC();
+    exe.addIncludePath(thisDir() ++ "/libs/glfw/include");
+    exe.linkSystemLibraryName("c");
     system_sdk.include(exe.builder, exe, .{});
 
     const target = (std.zig.system.NativeTargetInfo.detect(exe.target) catch unreachable).target;

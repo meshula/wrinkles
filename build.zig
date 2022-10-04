@@ -31,7 +31,7 @@ pub fn build_wrinkles_like(
 ) void {
 
     const exe = b.addExecutable(name, thisDir() ++ main_file_name);
-    exe.addIncludeDir("./src");
+    exe.addIncludePath("./src");
     exe.addCSourceFile("./src/opentime.c", &c_args);
     exe.addCSourceFile("./src/munit.c", &c_args);
 
@@ -58,15 +58,15 @@ pub fn build_wrinkles_like(
     exe.setTarget(options.target);
     exe.want_lto = false;
 
-    const zgpu_pkg = zgpu.getPkg(&.{ zpool.pkg, zglfw.pkg });
-    const zgui_pkg = zgui.getPkg(&.{zglfw.pkg});
+    const zgpu_options = zgpu.BuildOptionsStep.init(b, .{});
+    const zgpu_pkg = zgpu.getPkg(&.{ zgpu_options.getPkg(), zpool.pkg, zglfw.pkg });
 
     exe.addPackage(zgpu_pkg);
-    exe.addPackage(zgui_pkg);
+    exe.addPackage(zgui.pkg);
     exe.addPackage(zglfw.pkg);
     exe.addPackage(zstbi.pkg);
 
-    zgpu.link(exe);
+    zgpu.link(exe, zgpu_options);
     zglfw.link(exe);
     zgui.link(exe);
     zstbi.link(exe);
@@ -94,11 +94,11 @@ pub fn build(b: *std.build.Builder) void {
         "wrinkles_content/",
         options
     );
-    build_wrinkles_like(
-        b,
-        "otvis",
-        "/src/otvis.zig",
-        "wrinkles_content/",
-        options
-    );
+//    build_wrinkles_like(
+//        b,
+//        "otvis",
+//        "/src/otvis.zig",
+//        "wrinkles_content/",
+//        options
+//    );
 }

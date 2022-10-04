@@ -190,6 +190,31 @@ pub const Mods = packed struct(i32) {
 };
 //--------------------------------------------------------------------------------------------------
 //
+// Cursor
+//
+//--------------------------------------------------------------------------------------------------
+pub const CursorShape = enum(i32) {
+    arrow = 0x00036001,
+    ibeam = 0x00036002,
+    crosshair = 0x00036003,
+    hand = 0x00036004,
+    hresize = 0x00036005,
+    vresize = 0x00036006,
+};
+
+pub const Cursor = *opaque {
+    pub const destroy = glfwDestroyCursor;
+    extern fn glfwDestroyCursor(cursor: Cursor) void;
+};
+
+pub fn createStandardCursor(shape: CursorShape) Error!Cursor {
+    if (glfwCreateStandardCursor(shape)) |ptr| return ptr;
+    try maybeError();
+    unreachable;
+}
+extern fn glfwCreateStandardCursor(shape: CursorShape) ?Cursor;
+//--------------------------------------------------------------------------------------------------
+//
 // Error
 //
 //--------------------------------------------------------------------------------------------------
@@ -230,11 +255,11 @@ extern fn glfwGetError(description: ?*?[*:0]const u8) i32;
 //
 //--------------------------------------------------------------------------------------------------
 pub const Monitor = *opaque {
-    pub fn getPos(monitor: Monitor) struct { x: i32, y: i32 } {
+    pub fn getPos(monitor: Monitor) [2]i32 {
         var xpos: i32 = 0;
         var ypos: i32 = 0;
         glfwGetMonitorPos(monitor, &xpos, &ypos);
-        return .{ .x = xpos, .y = ypos };
+        return .{ xpos, ypos };
     }
     extern fn glfwGetMonitorPos(monitor: Monitor, xpos: *i32, ypos: *i32) void;
 };
@@ -278,11 +303,11 @@ pub const Window = *opaque {
         maxheight: i32,
     ) void;
 
-    pub fn getContentScale(window: Window) struct { x: f32, y: f32 } {
+    pub fn getContentScale(window: Window) [2]f32 {
         var xscale: f32 = 0.0;
         var yscale: f32 = 0.0;
         glfwGetWindowContentScale(window, &xscale, &yscale);
-        return .{ .x = xscale, .y = yscale };
+        return .{ xscale, yscale };
     }
     extern fn glfwGetWindowContentScale(window: Window, xscale: *f32, yscale: *f32) void;
 
@@ -292,27 +317,27 @@ pub const Window = *opaque {
     pub const getMouseButton = glfwGetMouseButton;
     extern fn glfwGetMouseButton(window: Window, button: MouseButton) Action;
 
-    pub fn getCursorPos(window: Window) struct { x: f64, y: f64 } {
+    pub fn getCursorPos(window: Window) [2]f64 {
         var xpos: f64 = 0.0;
         var ypos: f64 = 0.0;
         glfwGetCursorPos(window, &xpos, &ypos);
-        return .{ .x = xpos, .y = ypos };
+        return .{ xpos, ypos };
     }
     extern fn glfwGetCursorPos(window: Window, xpos: *f64, ypos: *f64) void;
 
-    pub fn getFramebufferSize(window: Window) struct { w: i32, h: i32 } {
+    pub fn getFramebufferSize(window: Window) [2]i32 {
         var width: i32 = 0.0;
         var height: i32 = 0.0;
         glfwGetFramebufferSize(window, &width, &height);
-        return .{ .w = width, .h = height };
+        return .{ width, height };
     }
     extern fn glfwGetFramebufferSize(window: Window, width: *i32, height: *i32) void;
 
-    pub fn getSize(window: Window) struct { w: i32, h: i32 } {
+    pub fn getSize(window: Window) [2]i32 {
         var width: i32 = 0.0;
         var height: i32 = 0.0;
         glfwGetWindowSize(window, &width, &height);
-        return .{ .w = width, .h = height };
+        return .{ width, height };
     }
     extern fn glfwGetWindowSize(window: Window, width: *i32, height: *i32) void;
 
@@ -349,6 +374,9 @@ pub const Window = *opaque {
             yoffset: f64,
         ) callconv(.C) void,
     ) void;
+
+    pub const setCursor = glfwSetCursor;
+    extern fn glfwSetCursor(window: Window, cursor: ?Cursor) void;
 };
 
 pub fn createWindow(
@@ -472,8 +500,8 @@ test "zglfw.basic" {
         const monitors = getMonitors().?;
         try expect(monitor == monitors[0]);
         const pos = monitor.getPos();
-        _ = pos.x;
-        _ = pos.y;
+        _ = pos[0];
+        _ = pos[1];
 
         const adapter = switch (@import("builtin").target.os.tag) {
             .windows => try getWin32Adapter(monitor),
@@ -495,11 +523,16 @@ test "zglfw.basic" {
     window.setScrollCallback(scrollCallback);
     window.setKeyCallback(null);
 
+    const cursor = try createStandardCursor(.hand);
+    defer cursor.destroy();
+    window.setCursor(cursor);
+    window.setCursor(null);
+
     if (window.getKey(.a) == .press) {}
     if (window.getMouseButton(.right) == .press) {}
     const cursor_pos = window.getCursorPos();
-    _ = cursor_pos.x;
-    _ = cursor_pos.y;
+    _ = cursor_pos[0];
+    _ = cursor_pos[1];
 
     const window_native = try switch (@import("builtin").target.os.tag) {
         .windows => getWin32Window(window),
@@ -511,8 +544,8 @@ test "zglfw.basic" {
 
     window.setSizeLimits(10, 10, 300, 300);
     const content_scale = window.getContentScale();
-    _ = content_scale.x;
-    _ = content_scale.y;
+    _ = content_scale[0];
+    _ = content_scale[1];
     pollEvents();
     try maybeError();
 }

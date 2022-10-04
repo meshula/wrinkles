@@ -1,6 +1,4 @@
-const builtin = @import("builtin");
 const std = @import("std");
-const assert = std.debug.assert;
 
 pub const AdapterType = enum(u32) {
     discrete_gpu,
@@ -502,7 +500,7 @@ pub const VertexStepMode = enum(u32) {
     vertex_buffer_not_used = 0x00000002,
 };
 
-pub const BufferUsage = packed struct {
+pub const BufferUsage = packed struct(u32) {
     map_read: bool = false,
     map_write: bool = false,
     copy_src: bool = false,
@@ -513,70 +511,40 @@ pub const BufferUsage = packed struct {
     storage: bool = false,
     indirect: bool = false,
     query_resolve: bool = false,
-
-    _pad0: u6 = 0,
-    _pad1: u16 = 0,
-
-    comptime {
-        assert(@sizeOf(@This()) == @sizeOf(u32) and @bitSizeOf(@This()) == @bitSizeOf(u32));
-    }
+    _padding: u22 = 0,
 };
 
-pub const ColorWriteMask = packed struct {
+pub const ColorWriteMask = packed struct(u32) {
     red: bool = false,
     green: bool = false,
     blue: bool = false,
     alpha: bool = false,
-
-    _pad0: u12 = 0,
-    _pad1: u16 = 0,
-
-    comptime {
-        assert(@sizeOf(@This()) == @sizeOf(u32) and @bitSizeOf(@This()) == @bitSizeOf(u32));
-    }
+    _padding: u28 = 0,
 
     pub const all = ColorWriteMask{ .red = true, .green = true, .blue = true, .alpha = true };
 };
 
-pub const MapMode = packed struct {
+pub const MapMode = packed struct(u32) {
     read: bool = false,
     write: bool = false,
-
-    _pad0: u14 = 0,
-    _pad1: u16 = 0,
-
-    comptime {
-        assert(@sizeOf(@This()) == @sizeOf(u32) and @bitSizeOf(@This()) == @bitSizeOf(u32));
-    }
+    _padding: u30 = 0,
 };
 
-pub const ShaderStage = packed struct {
+pub const ShaderStage = packed struct(u32) {
     vertex: bool = false,
     fragment: bool = false,
     compute: bool = false,
-
-    _pad0: u13 = 0,
-    _pad1: u16 = 0,
-
-    comptime {
-        assert(@sizeOf(@This()) == @sizeOf(u32) and @bitSizeOf(@This()) == @bitSizeOf(u32));
-    }
+    _padding: u29 = 0,
 };
 
-pub const TextureUsage = packed struct {
+pub const TextureUsage = packed struct(u32) {
     copy_src: bool = false,
     copy_dst: bool = false,
     texture_binding: bool = false,
     storage_binding: bool = false,
     render_attachment: bool = false,
     present: bool = false,
-
-    _pad0: u10 = 0,
-    _pad1: u16 = 0,
-
-    comptime {
-        assert(@sizeOf(@This()) == @sizeOf(u32) and @bitSizeOf(@This()) == @bitSizeOf(u32));
-    }
+    _padding: u26 = 0,
 };
 
 pub const ChainedStruct = extern struct {
@@ -653,72 +621,6 @@ pub const BindGroupLayoutEntry = extern struct {
     sampler: SamplerBindingLayout = .{ .binding_type = .undef },
     texture: TextureBindingLayout = .{ .sample_type = .undef },
     storage_texture: StorageTextureBindingLayout = .{ .access = .undef, .format = .undef },
-
-    /// Helper to create a buffer BindGroupLayoutEntry.
-    pub fn buffer(
-        binding: u32,
-        visibility: ShaderStage,
-        binding_type: BufferBindingType,
-        has_dynamic_offset: bool,
-        min_binding_size: u64,
-    ) BindGroupLayoutEntry {
-        return .{
-            .binding = binding,
-            .visibility = visibility,
-            .buffer = .{
-                .binding_type = binding_type,
-                .has_dynamic_offset = has_dynamic_offset,
-                .min_binding_size = min_binding_size,
-            },
-        };
-    }
-
-    /// Helper to create a sampler BindGroupLayoutEntry.
-    pub fn sampler(binding: u32, visibility: ShaderStage, binding_type: SamplerBindingType) BindGroupLayoutEntry {
-        return .{
-            .binding = binding,
-            .visibility = visibility,
-            .sampler = .{ .binding_type = binding_type },
-        };
-    }
-
-    /// Helper to create a texture BindGroupLayoutEntry.
-    pub fn texture(
-        binding: u32,
-        visibility: ShaderStage,
-        sample_type: TextureSampleType,
-        view_dimension: TextureViewDimension,
-        multisampled: bool,
-    ) BindGroupLayoutEntry {
-        return .{
-            .binding = binding,
-            .visibility = visibility,
-            .texture = .{
-                .sample_type = sample_type,
-                .view_dimension = view_dimension,
-                .multisampled = multisampled,
-            },
-        };
-    }
-
-    /// Helper to create a storage texture BindGroupLayoutEntry.
-    pub fn storageTexture(
-        binding: u32,
-        visibility: ShaderStage,
-        access: StorageTextureAccess,
-        format: TextureFormat,
-        view_dimension: TextureViewDimension,
-    ) BindGroupLayoutEntry {
-        return .{
-            .binding = binding,
-            .visibility = visibility,
-            .storage_texture = .{
-                .access = access,
-                .format = format,
-                .view_dimension = view_dimension,
-            },
-        };
-    }
 };
 
 pub const BindGroupLayoutDescriptor = extern struct {
@@ -998,6 +900,14 @@ pub const QueueDescription = extern struct {
     label: ?[*:0]const u8 = null,
 };
 
+pub const DawnTogglesDeviceDescriptor = extern struct {
+    chain: ChainedStruct,
+    force_enabled_toggles_count: u32 = 0,
+    force_enabled_toggles: ?[*]const [*:0]const u8 = null,
+    force_disabled_toggles_count: u32 = 0,
+    force_disabled_toggles: ?[*]const [*:0]const u8 = null,
+};
+
 pub const DeviceDescriptor = extern struct {
     next_in_chain: ?*const ChainedStruct = null,
     label: ?[*:0]const u8 = null,
@@ -1161,104 +1071,63 @@ pub const RenderBundleDescriptor = extern struct {
     label: ?[*:0]const u8 = null,
 };
 
-pub const CreateComputePipelineAsyncCallback = if (builtin.zig_backend == .stage1) fn (
-    status: CreatePipelineAsyncStatus,
-    pipeline: ComputePipeline,
-    message: ?[*:0]const u8,
-    userdata: ?*anyopaque,
-) callconv(.C) void else *const fn (
+pub const CreateComputePipelineAsyncCallback = *const fn (
     status: CreatePipelineAsyncStatus,
     pipeline: ComputePipeline,
     message: ?[*:0]const u8,
     userdata: ?*anyopaque,
 ) callconv(.C) void;
 
-pub const CreateRenderPipelineAsyncCallback = if (builtin.zig_backend == .stage1) fn (
-    status: CreatePipelineAsyncStatus,
-    pipeline: RenderPipeline,
-    message: ?[*:0]const u8,
-    userdata: ?*anyopaque,
-) callconv(.C) void else *const fn (
+pub const CreateRenderPipelineAsyncCallback = *const fn (
     status: CreatePipelineAsyncStatus,
     pipeline: RenderPipeline,
     message: ?[*:0]const u8,
     userdata: ?*anyopaque,
 ) callconv(.C) void;
 
-pub const ErrorCallback = if (builtin.zig_backend == .stage1) fn (
+pub const ErrorCallback = *const fn (
     err_type: ErrorType,
-    message: [*:0]const u8,
-    userdata: ?*anyopaque,
-) callconv(.C) void else *const fn (
-    err_type: ErrorType,
-    message: [*:0]const u8,
+    message: ?[*:0]const u8,
     userdata: ?*anyopaque,
 ) callconv(.C) void;
 
-pub const LoggingCallback = if (builtin.zig_backend == .stage1) fn (
-    log_type: LoggingType,
-    message: ?[*:0]const u8,
-    userdata: ?*anyopaque,
-) callconv(.C) void else *const fn (
+pub const LoggingCallback = *const fn (
     log_type: LoggingType,
     message: ?[*:0]const u8,
     userdata: ?*anyopaque,
 ) callconv(.C) void;
 
-pub const DeviceLostCallback = if (builtin.zig_backend == .stage1) fn (
-    reason: DeviceLostReason,
-    message: ?[*:0]const u8,
-    userdata: ?*anyopaque,
-) callconv(.C) void else *const fn (
+pub const DeviceLostCallback = *const fn (
     reason: DeviceLostReason,
     message: ?[*:0]const u8,
     userdata: ?*anyopaque,
 ) callconv(.C) void;
 
-pub const RequestAdapterCallback = if (builtin.zig_backend == .stage1) fn (
-    status: RequestAdapterStatus,
-    adapter: Adapter,
-    message: ?[*:0]const u8,
-    userdata: ?*anyopaque,
-) callconv(.C) void else *const fn (
+pub const RequestAdapterCallback = *const fn (
     status: RequestAdapterStatus,
     adapter: Adapter,
     message: ?[*:0]const u8,
     userdata: ?*anyopaque,
 ) callconv(.C) void;
 
-pub const RequestDeviceCallback = if (builtin.zig_backend == .stage1) fn (
-    status: RequestDeviceStatus,
-    device: Device,
-    message: ?[*:0]const u8,
-    userdata: ?*anyopaque,
-) callconv(.C) void else *const fn (
+pub const RequestDeviceCallback = *const fn (
     status: RequestDeviceStatus,
     device: Device,
     message: ?[*:0]const u8,
     userdata: ?*anyopaque,
 ) callconv(.C) void;
 
-pub const BufferMapCallback = if (builtin.zig_backend == .stage1) fn (
-    status: BufferMapAsyncStatus,
-    userdata: ?*anyopaque,
-) callconv(.C) void else *const fn (
+pub const BufferMapCallback = *const fn (
     status: BufferMapAsyncStatus,
     userdata: ?*anyopaque,
 ) callconv(.C) void;
 
-pub const QueueWorkDoneCallback = if (builtin.zig_backend == .stage1) fn (
-    status: QueueWorkDoneStatus,
-    userdata: ?*anyopaque,
-) callconv(.C) void else *const fn (
+pub const QueueWorkDoneCallback = *const fn (
     status: QueueWorkDoneStatus,
     userdata: ?*anyopaque,
 ) callconv(.C) void;
 
-pub const CompilationInfoCallback = if (builtin.zig_backend == .stage1) fn (
-    status: CompilationInfoRequestStatus,
-    userdata: ?*anyopaque,
-) callconv(.C) void else *const fn (
+pub const CompilationInfoCallback = *const fn (
     status: CompilationInfoRequestStatus,
     userdata: ?*anyopaque,
 ) callconv(.C) void;
@@ -1386,11 +1255,11 @@ pub const Buffer = *opaque {
         callback: BufferMapCallback,
         userdata: ?*anyopaque,
     ) void {
-        wgpuBufferMapAsync(buffer, @bitCast(u32, mode), offset, size, callback, userdata);
+        wgpuBufferMapAsync(buffer, mode, offset, size, callback, userdata);
     }
     extern fn wgpuBufferMapAsync(
         buffer: Buffer,
-        mode: u32, // MapMode (extern functions don't like 'packed struct' parameters).
+        mode: MapMode,
         offset: usize,
         size: usize,
         callback: BufferMapCallback,
@@ -2772,12 +2641,12 @@ pub const SwapChain = *opaque {
         width: u32,
         height: u32,
     ) void {
-        wgpuSwapChainConfigure(swap_chain, format, @bitCast(u32, allowed_usage), width, height);
+        wgpuSwapChainConfigure(swap_chain, format, allowed_usage, width, height);
     }
     extern fn wgpuSwapChainConfigure(
         swap_chain: SwapChain,
         format: TextureFormat,
-        allowed_usage: u32, // TextureUsage
+        allowed_usage: TextureUsage,
         width: u32,
         height: u32,
     ) void;
