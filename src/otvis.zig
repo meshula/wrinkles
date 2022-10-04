@@ -13,8 +13,11 @@ const ot = @cImport({
 // curve library
 const opentime = @import("opentime/opentime.zig");
 const curve = opentime.curve;
+const string = opentime.string;
 
-const content_dir = @import("build_options").otvis_content_dir;
+const build_options = @import("build_options");
+const content_dir = build_options.otvis_content_dir;
+const hash = build_options.hash;
 const window_title = "zig-gamedev: wrinkles (wgpu)";
 
 const wgsl_common = @embedFile("wrinkles_common.wgsl");
@@ -22,6 +25,45 @@ const wgsl_vs = wgsl_common ++ @embedFile("wrinkles_vs.wgsl");
 const wgsl_fs = wgsl_common ++ @embedFile("wrinkles_fs.wgsl");
 
 const ALLOCATOR = @import("opentime/allocator.zig").ALLOCATOR;
+
+// constants for indexing into the segment array
+const PROJ_S:usize = 0;
+const PROJ_THR_S:usize = 1;
+
+fn _rescale_val(
+    t: f32,
+    measure_min: f32, measure_max: f32,
+    target_min: f32, target_max: f32
+) f32
+{
+    return (
+        (
+         ((t - measure_min)/(measure_max - measure_min))
+         * (target_max - target_min) 
+        )
+        + target_min
+    );
+}
+
+fn _rescaled_pt(
+    pt:curve.ControlPoint,
+    extents: [2]curve.ControlPoint,
+    target_range: [2]curve.ControlPoint,
+) curve.ControlPoint
+{
+    return .{
+        .time = _rescale_val(
+            pt.time, 
+            extents[0].time, extents[1].time,
+            target_range[0].time, target_range[1].time
+        ),
+        .value = _rescale_val(
+            pt.value,
+            extents[0].value, extents[1].value,
+            target_range[0].value, target_range[1].value
+        ),
+    };
+}
 
 // must match wrinkles_common
 const Vertex = extern struct {
@@ -408,6 +450,233 @@ fn draw(demo: *DemoState) void {
     _ = gctx.present();
 }
 
+fn _parse_args(state:*DemoState) !void {
+    var args = try std.process.argsWithAllocator(ALLOCATOR);
+
+    // ignore the app name, always first in args
+    _ = args.skip();
+
+    // inline for (std.meta.fields(@TypeOf(state))) |field| {
+    //     std.debug.print("{s}: {}\n", .{ field.name, @field(state, field.name) });
+    // }
+
+    var project = false;
+    var project_curves = false;
+
+    var curve_names = std.ArrayList(string.latin_s8).init(ALLOCATOR);
+
+    // read all the filepaths from the commandline
+    while (args.next()) |nextarg| 
+    {
+        var fpath: string.latin_s8 = nextarg;
+
+        if (
+            string.eql_latin_s8(fpath, "--help")
+            or (string.eql_latin_s8(fpath, "-h"))
+        ) {
+            usage();
+        }
+
+        if (string.eql_latin_s8(fpath, "--project"))
+        {
+            if (project) {
+                std.debug.print(
+                    "Error: only one of {{--project, --project-bezier_curves}} is "
+                    ++ "allowed\n",
+                    .{}
+                );
+                usage();
+            }
+
+            project = true;
+            continue;
+        }
+
+        if (string.eql_latin_s8(fpath, "--project-bezier_curves"))
+        {
+            if (project) {
+                std.debug.print(
+                    "Error: only one of {{--project, --project-bezier_curves}} is "
+                    ++ "allowed\n",
+                    .{}
+                );
+                usage();
+            }
+
+            project = true;
+            project_curves = true;
+            continue;
+        }
+
+        if (string.eql_latin_s8(fpath, "--split"))
+        {
+            state.options.animated_splits = 1;
+            continue;
+        }
+
+        if (string.eql_latin_s8(fpath, "--hide-knots"))
+        {
+            state.options.draw_knots = 0;
+            continue;
+        }
+
+        if (string.eql_latin_s8(fpath, "--normalize-scale"))
+        {
+            state.options.normalize_scale = 1;
+            continue;
+        }
+
+
+        if (string.eql_latin_s8(fpath, "--animu"))
+        {
+            state.options.animated_u = 1;
+            continue;
+        }
+
+        if (string.eql_latin_s8(fpath, "--linearize"))
+        {
+            state.options.linearize = 1;
+            continue;
+        }
+
+        std.debug.print("reading curve: {s}\n", .{ fpath });
+        try curve_names.append(fpath);
+
+        var buf: [1024]u8 = undefined;
+        const lower_fpath = std.ascii.lowerString(&buf, fpath);
+        if (std.mem.endsWith(u8, lower_fpath, ".curve.json")) {
+            try state.bezier_curves.append( 
+                curve.read_curve_json(fpath) catch |err| {
+                    std.debug.print(
+                        "Something went wrong reading: '{s}'\n",
+                        .{ fpath }
+                    );
+                    return err;
+                }
+            );
+        } 
+        else 
+        {
+            // pack into a curve
+            try state.bezier_curves.append(
+                curve.TimeCurve{ 
+                    .segments = &.{ try curve.read_segment_json(fpath) }
+                }
+            );
+        }
+    }
+
+    if (state.options.normalize_scale == 1) {
+        const target_range: [2]curve.ControlPoint = .{
+            .{ .time = -0.5, .value = -0.5 },
+            .{ .time = 0.5, .value = 0.5 },
+        };
+
+
+        var extents: [2]curve.ControlPoint = .{
+            // min
+            .{ .time = std.math.inf(f32), .value = std.math.inf(f32) },
+            // max
+            .{ .time = -std.math.inf(f32), .value = -std.math.inf(f32) }
+        };
+        
+        for (state.bezier_curves.items) |crv| {
+            for (crv.segments) |seg| {
+                for (seg.points()) |pt| {
+                    extents = .{
+                        .{ 
+                            .time = std.math.min(extents[0].time, pt.time),
+                            .value = std.math.min(extents[0].value, pt.value),
+                        },
+                        .{ 
+                            .time = std.math.max(extents[1].time, pt.time),
+                            .value = std.math.max(extents[1].value, pt.value),
+                        },
+
+                    };
+                }
+            }
+        }
+
+        var rescaled_curves = std.ArrayList(curve.TimeCurve).init(ALLOCATOR);
+
+        for (state.bezier_curves.items) |crv| {
+            var segments = std.ArrayList(curve.Segment).init(ALLOCATOR);
+
+            for (crv.segments) |seg| {
+                const pts = seg.points();
+
+                var new_pts:[4]curve.ControlPoint = pts;
+
+                for (pts) |pt, index| {
+                    new_pts[index] = _rescaled_pt(pt, extents, target_range);
+                }
+
+                var new_seg = curve.Segment.from_pt_array(new_pts);
+
+                try segments.append(new_seg);
+            }
+
+            try rescaled_curves.append(.{ .segments = segments.items });
+        }
+
+        // empty and replace state.bezier_curves with rescaled segments
+        state.bezier_curves.clearAndFree();
+        try state.bezier_curves.appendSlice(rescaled_curves.items);
+    }
+
+    if (state.bezier_curves.items.len == 0) {
+        usage();
+    }
+
+    if (project) {
+        if (state.bezier_curves.items.len != 2) {
+            std.debug.print(
+                "Error: --project require exactly two "
+                ++ "bezier_curves, got {}.",
+                .{ state.bezier_curves.items.len }
+            );
+            usage();
+        } else {
+            std.debug.print(
+                "Projecting {s} through {s} as bezier_curves\n",
+                .{ curve_names.items[PROJ_S], curve_names.items[PROJ_THR_S] } 
+            );
+
+            const fst = state.bezier_curves.items[PROJ_THR_S];
+            const snd = state.bezier_curves.items[PROJ_S];
+
+            const result = fst.project_curve(snd);
+
+            std.debug.print(
+                "Final projected segments: {d}\n",
+                .{result.len}
+            );
+
+
+            for (result) |crv, index| {
+                const outpath = try std.fmt.allocPrint(
+                    ALLOCATOR,
+                    "/var/tmp/debug.projected.{}.curve.json",
+                    .{ index },
+                );
+                std.debug.print(
+                    "Writing debug json for projected result curve to: {s}\n",
+                    .{ outpath }
+                );
+                curve.write_json_file_curve(crv, outpath) catch {
+                    std.debug.print("Couldn't write to {s}\n", .{ outpath });
+                };
+            }
+
+            try state.linear_curves.appendSlice(result);
+        }
+    }
+
+    const title = "OTIO Bezier Curve Visualizer [" ++ hash[0..6] ++ "]";
+    _ = title;
+}
+
 pub fn main() !void {
     try zglfw.init();
     defer zglfw.terminate();
@@ -431,6 +700,8 @@ pub fn main() !void {
 
     const demo = try init(allocator, window);
     defer deinit(allocator, demo);
+
+    try _parse_args(demo);
 
     const scale_factor = scale_factor: {
         const scale = window.getContentScale();
@@ -459,4 +730,26 @@ pub fn main() !void {
         update(demo);
         draw(demo);
     }
+}
+
+pub fn usage() void {
+    std.debug.print(
+        \\
+        \\usage:
+        \\  visualizer path/to/seg1.json [path/to/seg2.json] [...] [args]
+        \\
+        \\arguments:
+        \\  --project: if two segments are provided, project the second through the first
+        \\  --project-bezier_curves: if two segments are provided, promote both to TimeCurves and project the first through the second
+        \\  --split: animate splitting the segment
+        \\  --linearize: show the linearized segment
+        \\  --animu: animate the u parameter for each spline
+        \\  --normalize-scale: scale the segments so that they fit into [-0.5,0.5)
+        \\  --hide-knots: don't draw curve knots
+        \\  -h --help: print this message and exit
+        \\
+        \\
+        , .{}
+    );
+    std.os.exit(1);
 }

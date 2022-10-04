@@ -6,6 +6,9 @@ const zglfw = @import("libs/zglfw/build.zig");
 const zgui = @import("libs/zgui/build.zig");
 const zstbi = @import("libs/zstbi/build.zig");
 
+var raw = std.heap.GeneralPurposeAllocator(.{}){};
+pub const ALLOCATOR = raw.allocator();
+
 pub const Options = struct {
     build_mode: std.builtin.Mode,
     target: std.zig.CrossTarget,
@@ -20,7 +23,14 @@ const c_args = [_][]const u8{
     "-fno-sanitize=undefined",
 };
 
-
+/// Returns the result of running `git rev-parse HEAD`
+pub fn rev_HEAD(alloc: std.mem.Allocator) ![]const u8 {
+    const max = std.math.maxInt(usize);
+    const dirg = try std.fs.cwd().openDir(".git", .{});
+    const h = std.mem.trim(u8, try dirg.readFileAlloc(alloc, "HEAD", max), "\n");
+    const r = std.mem.trim(u8, try dirg.readFileAlloc(alloc, h[5..], max), "\n");
+    return r;
+}
 
 pub fn build_wrinkles_like(
     b: *std.build.Builder,
@@ -41,6 +51,11 @@ pub fn build_wrinkles_like(
         []const u8,
         name ++ "_content_dir",
         source_dir_path
+    );
+    exe_options.addOption(
+        []const u8,
+        "hash",
+        rev_HEAD(ALLOCATOR) catch "COULDNT READ HASH"
     );
 
     const install_content_step = b.addInstallDirectory(
@@ -87,6 +102,7 @@ pub fn build(b: *std.build.Builder) void {
         .build_mode = b.standardReleaseOptions(),
         .target = b.standardTargetOptions(.{}),
     };
+
     build_wrinkles_like(
         b, 
         "wrinkles",
