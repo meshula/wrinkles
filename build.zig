@@ -15,16 +15,20 @@ inline fn thisDir() []const u8 {
     return comptime std.fs.path.dirname(@src().file) orelse ".";
 }
 
+const c_args = [_][]const u8{
+    "-std=c11",
+    "-fno-sanitize=undefined",
+};
+
+
+
 pub fn build_wrinkles_like(
     b: *std.build.Builder,
     comptime name:[]const u8,
     comptime main_file_name:[]const u8,
     comptime source_dir_path:[]const u8,
+    options: Options,
 ) void {
-    var options = Options{
-        .build_mode = b.standardReleaseOptions(),
-        .target = b.standardTargetOptions(.{}),
-    };
 
     const exe = b.addExecutable(name, thisDir() ++ main_file_name);
     exe.addIncludeDir("./src");
@@ -33,16 +37,22 @@ pub fn build_wrinkles_like(
 
     const exe_options = b.addOptions();
     exe.addOptions("build_options", exe_options);
-    exe_options.addOption([]const u8, name ++ "_content_dir", source_dir_path);
+    exe_options.addOption(
+        []const u8,
+        name ++ "_content_dir",
+        source_dir_path
+    );
 
-    const install_content_step = b.addInstallDirectory(.{
-        .source_dir = thisDir() ++ source_dir_path,
-        .install_dir = .{ .custom = "" },
-        .install_subdir = "bin/" ++ name ++ "_content",
-    });
+    const install_content_step = b.addInstallDirectory(
+        .{
+            .source_dir = thisDir() ++ "/src/" ++ source_dir_path,
+            .install_dir = .{ .custom = "" },
+            .install_subdir = "bin/" ++ name ++ "_content",
+        }
+    );
     exe.step.dependOn(&install_content_step.step);
 
-    std.debug.print("source {s}\n", .{thisDir() ++ source_dir_path});
+    std.debug.print("[build] content source directory path: {s}\n", .{thisDir() ++ source_dir_path});
 
     exe.setBuildMode(options.build_mode);
     exe.setTarget(options.target);
@@ -73,6 +83,22 @@ pub fn build_wrinkles_like(
 }
 
 pub fn build(b: *std.build.Builder) void {
-    build_wrinkles_like(b, "wrinkles", "/src/wrinkles.zig", "/src/wrinkles_content");
-    // build_wrinkles_like(b, "otvis", "/src/otvis.zig", "wrinkles_content");
+    var options = Options{
+        .build_mode = b.standardReleaseOptions(),
+        .target = b.standardTargetOptions(.{}),
+    };
+    build_wrinkles_like(
+        b, 
+        "wrinkles",
+        "/src/wrinkles.zig",
+        "wrinkles_content/",
+        options
+    );
+    build_wrinkles_like(
+        b,
+        "otvis",
+        "/src/otvis.zig",
+        "wrinkles_content/",
+        options
+    );
 }
