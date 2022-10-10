@@ -103,6 +103,8 @@ pub fn build(b: *std.build.Builder) void {
         .target = b.standardTargetOptions(.{}),
     };
 
+    b.prominent_compile_errors = true;
+
     build_wrinkles_like(
         b, 
         "wrinkles",
