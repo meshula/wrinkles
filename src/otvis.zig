@@ -15,6 +15,8 @@ const opentime = @import("opentime/opentime.zig");
 const curve = opentime.curve;
 const string = opentime.string;
 
+const assert = std.debug.assert;
+
 const build_options = @import("build_options");
 const content_dir = build_options.otvis_content_dir;
 const hash = build_options.hash;
@@ -81,15 +83,18 @@ const Uniforms = extern struct {
 const DemoState = struct {
     gctx: *zgpu.GraphicsContext,
 
-    pipeline: zgpu.RenderPipelineHandle = .{},
-    bind_group: zgpu.BindGroupHandle,
+    font_normal: zgui.Font,
+    font_large: zgui.Font,
 
-    vertex_buffer: zgpu.BufferHandle,
-    index_buffer: zgpu.BufferHandle,
+    otvis_pipeline: zgpu.RenderPipelineHandle = .{},
+    otvis_bind_group: zgpu.BindGroupHandle,
 
-    texture: zgpu.TextureHandle,
+    otvis_vertex_buffer: zgpu.BufferHandle,
+    otvis_index_buffer: zgpu.BufferHandle,
+
+    // texture: zgpu.TextureHandle,
     texture_view: zgpu.TextureViewHandle,
-    sampler: zgpu.SamplerHandle,
+    otvis_sampler: zgpu.SamplerHandle,
 
     duration: f32 = 1.0,
     clip_frame_rate: i32 = 6,
@@ -114,19 +119,86 @@ const DemoState = struct {
 fn init(allocator: std.mem.Allocator, window: zglfw.Window) !*DemoState {
     ot.ot_test();
 
-    const gctx = try zgpu.GraphicsContext.init(allocator, window);
+    const gctx = try zgpu.GraphicsContext.create(allocator, window);
 
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
 
-    const bind_group_layout = gctx.createBindGroupLayout(&.{
-        zgpu.bglBuffer(0, .{ .vertex = true, .fragment = true }, .uniform, true, 0),
-        zgpu.bglTexture(1, .{ .fragment = true }, .float, .tvdim_2d, false),
-        zgpu.bglSampler(2, .{ .fragment = true }, .filtering),
-    });
-    defer gctx.releaseResource(bind_group_layout);
+    // Create a texture.
+    zstbi.init(arena);
+    defer zstbi.deinit();
+    var image = try zstbi.Image.init(content_dir ++ "genart_0025_5.png", 4);
+    defer image.deinit();
 
+    const texture = gctx.createTexture(.{
+        .usage = .{ .texture_binding = true, .copy_dst = true },
+        .size = .{
+            .width = image.width,
+            .height = image.height,
+            .depth_or_array_layers = 1,
+        },
+        .format = .rgba8_unorm,
+        .mip_level_count = 1,
+    });
+    const texture_view = gctx.createTextureView(texture, .{});
+
+    gctx.queue.writeTexture(
+        .{ .texture = gctx.lookupResource(texture).? },
+        .{
+            .bytes_per_row = image.bytes_per_row,
+            .rows_per_image = image.height,
+        },
+        .{ .width = image.width, .height = image.height },
+        u8,
+        image.data,
+    );
+
+    zgui.init(allocator);
+    zgui.plot.init();
+    const scale_factor = scale_factor: {
+        const scale = window.getContentScale();
+        break :scale_factor math.max(scale[0], scale[1]);
+    };
+    const font_size = 16.0 * scale_factor;
+    const font_large = zgui.io.addFontFromFile(content_dir ++ "FiraCode-Medium.ttf", font_size * 1.1);
+    const font_normal = zgui.io.addFontFromFile(content_dir ++ "Roboto-Medium.ttf", font_size);
+    assert(zgui.io.getFont(0) == font_large);
+    assert(zgui.io.getFont(1) == font_normal);
+
+    // This needs to be called *after* adding your custom fonts.
+    zgui.backend.init(window, gctx.device, @enumToInt(zgpu.GraphicsContext.swapchain_format));
+
+    // This call is optional. Initially, zgui.io.getFont(0) is a default font.
+    zgui.io.setDefaultFont(font_normal);
+
+    // You can directly manipulate zgui.Style *before* `newFrame()` call.
+    // Once frame is started (after `newFrame()` call) you have to use
+    // zgui.pushStyleColor*()/zgui.pushStyleVar*() functions.
+    const style = zgui.getStyle();
+
+    style.window_min_size = .{ 320.0, 240.0 };
+    style.window_border_size = 8.0;
+    style.scrollbar_size = 6.0;
+    {
+        var color = style.getColor(.scrollbar_grab);
+        color[1] = 0.8;
+        style.setColor(.scrollbar_grab, color);
+    }
+    style.scaleAllSizes(scale_factor);
+
+    // To reset zgui.Style with default values:
+    //zgui.getStyle().* = zgui.Style.init();
+
+    {
+        zgui.plot.getStyle().line_weight = 3.0;
+        const plot_style = zgui.plot.getStyle();
+        plot_style.marker = .circle;
+        plot_style.marker_size = 5.0;
+    }
+
+
+    // tartan specific:
     // Create a vertex buffer.
     const vertex_data = [_]Vertex{
         .{ .position = [2]f32{ -0.9, 0.9 }, .uv = [2]f32{ 0.0, 0.0 } },
@@ -147,77 +219,44 @@ fn init(allocator: std.mem.Allocator, window: zglfw.Window) !*DemoState {
         .size = index_data.len * @sizeOf(u16),
     });
     gctx.queue.writeBuffer(gctx.lookupResource(index_buffer).?, 0, u16, index_data[0..]);
-
-    // Create a texture.
-    var image = try zstbi.Image(u8).init(content_dir ++ "genart_0025_5.png", 4);
-    defer image.deinit();
-
-    const texture = gctx.createTexture(.{
-        .usage = .{ .texture_binding = true, .copy_dst = true },
-        .size = .{
-            .width = image.width,
-            .height = image.height,
-            .depth_or_array_layers = 1,
-        },
-        .format = .rgba8_unorm,
-        .mip_level_count = math.log2_int(u32, math.max(image.width, image.height)) + 1,
-    });
-    const texture_view = gctx.createTextureView(texture, .{});
-
-    gctx.queue.writeTexture(
-        .{ .texture = gctx.lookupResource(texture).? },
-        .{
-            .bytes_per_row = image.width * image.channels_in_memory,
-            .rows_per_image = image.height,
-        },
-        .{ .width = image.width, .height = image.height },
-        u8,
-        image.data,
-    );
-
+ 
     // Create a sampler.
     const sampler = gctx.createSampler(.{});
 
+   const bind_group_layout = gctx.createBindGroupLayout(&.{
+        zgpu.bufferEntry(0, .{ .vertex = true, .fragment = true }, .uniform, true, 0),
+        zgpu.textureEntry(1, .{ .fragment = true }, .float, .tvdim_2d, false),
+        zgpu.samplerEntry(2, .{ .fragment = true }, .filtering),
+    });
+    defer gctx.releaseResource(bind_group_layout);
     const bind_group = gctx.createBindGroup(bind_group_layout, &[_]zgpu.BindGroupEntryInfo{
         .{ .binding = 0, .buffer_handle = gctx.uniforms.buffer, .offset = 0, .size = 256 },
         .{ .binding = 1, .texture_view_handle = texture_view },
         .{ .binding = 2, .sampler_handle = sampler },
     });
-
     const demo = try allocator.create(DemoState);
     demo.* = .{
         .gctx = gctx,
-        .bind_group = bind_group,
-        .vertex_buffer = vertex_buffer,
-        .index_buffer = index_buffer,
-        .texture = texture,
         .texture_view = texture_view,
-        .sampler = sampler,
+        .font_normal = font_normal,
+        .font_large = font_large,
+        .otvis_bind_group = bind_group,
+        .otvis_vertex_buffer = vertex_buffer,
+        .otvis_index_buffer = index_buffer,
+        .otvis_sampler = sampler,
     };
 
-    // Generate mipmaps on the GPU.
-    const commands = commands: {
-        const encoder = gctx.device.createCommandEncoder(null);
-        defer encoder.release();
-
-        gctx.generateMipmaps(arena, encoder, demo.texture);
-
-        break :commands encoder.finish(null);
-    };
-    defer commands.release();
-    gctx.submit(&.{commands});
-
-    // (Async) Create a render pipeline.
+    // (Async) Create the otvis render pipeline.
     {
         const pipeline_layout = gctx.createPipelineLayout(&.{
             bind_group_layout,
         });
         defer gctx.releaseResource(pipeline_layout);
 
-        const vs_module = zgpu.util.createWgslShaderModule(gctx.device, wgsl_vs, "vs");
+        const vs_module = zgpu.createWgslShaderModule(gctx.device, wgsl_vs, "vs");
         defer vs_module.release();
 
-        const fs_module = zgpu.util.createWgslShaderModule(gctx.device, wgsl_fs, "fs");
+        const fs_module = zgpu.createWgslShaderModule(gctx.device, wgsl_fs, "fs");
         defer fs_module.release();
 
         const color_targets = [_]wgpu.ColorTargetState{.{
@@ -254,14 +293,22 @@ fn init(allocator: std.mem.Allocator, window: zglfw.Window) !*DemoState {
                 .targets = &color_targets,
             },
         };
-        gctx.createRenderPipelineAsync(allocator, pipeline_layout, pipeline_descriptor, &demo.pipeline);
+        gctx.createRenderPipelineAsync(
+            allocator,
+            pipeline_layout,
+            pipeline_descriptor,
+            &demo.otvis_pipeline
+        );
     }
 
     return demo;
 }
 
 fn deinit(allocator: std.mem.Allocator, demo: *DemoState) void {
-    demo.gctx.deinit(allocator);
+    zgui.backend.deinit();
+    zgui.plot.deinit();
+    zgui.deinit();
+    demo.gctx.destroy(allocator);
     allocator.destroy(demo);
 }
 
@@ -315,7 +362,7 @@ fn update(demo: *DemoState) void {
 
     draw_list.pushClipRectFullScreen();
 
-    // outline the tartan plot
+    // outline the curve plot
     draw_list.addPolyline(
         &.{ 
             .{ center[0] - center[1] * 0.9, center[1] - center[1] * 0.9 }, 
@@ -364,8 +411,16 @@ fn update(demo: *DemoState) void {
     // _ = draw_list.getClipRectMax();
     draw_list.popClipRect();
 
-    if (zgui.plot.beginPlot("test_plot", .{})) {
-        zgui.plot.plotLineValuesInt("Some data", &.{ 0, 1, 0, 1, 0, 1 }, .{});
+    if (zgui.plot.beginPlot("Line Plot", .{ .h = -1.0 })) {
+        zgui.plot.setupAxis(.x1, .{ .label = "xaxis" });
+        zgui.plot.setupAxisLimits(.x1, .{ .min = 0, .max = 5 });
+        zgui.plot.setupLegend(.{ .south = true, .west = true }, .{});
+        zgui.plot.setupFinish();
+        zgui.plot.plotLineValues("y data", i32, .{ .v = &.{ 0, 1, 0, 1, 0, 1 } });
+        zgui.plot.plotLine("xy data", f32, .{
+            .xv = &.{ 0.1, 0.2, 0.5, 2.5 },
+            .yv = &.{ 0.1, 0.3, 0.5, 0.9 },
+        });
         zgui.plot.endPlot();
     }
 
@@ -386,10 +441,10 @@ fn draw(demo: *DemoState) void {
 
         // Main pass.
         pass: {
-            const vb_info = gctx.lookupResourceInfo(demo.vertex_buffer) orelse break :pass;
-            const ib_info = gctx.lookupResourceInfo(demo.index_buffer) orelse break :pass;
-            const pipeline = gctx.lookupResource(demo.pipeline) orelse break :pass;
-            const bind_group = gctx.lookupResource(demo.bind_group) orelse break :pass;
+            const vb_info = gctx.lookupResourceInfo(demo.otvis_vertex_buffer) orelse break :pass;
+            const ib_info = gctx.lookupResourceInfo(demo.otvis_index_buffer) orelse break :pass;
+            const pipeline = gctx.lookupResource(demo.otvis_pipeline) orelse break :pass;
+            const bind_group = gctx.lookupResource(demo.otvis_bind_group) orelse break :pass;
 
             const color_attachments = [_]wgpu.RenderPassColorAttachment{.{
                 .view = back_buffer_view,
@@ -678,18 +733,27 @@ fn _parse_args(state:*DemoState) !void {
 }
 
 pub fn main() !void {
-    try zglfw.init();
-    defer zglfw.terminate();
-
-    zgpu.checkSystem(content_dir) catch {
-        // In case of error zgpu.checkSystem() will print error message.
+    zglfw.init() catch {
+        std.log.err("GLFW did not initialize properly.", .{});
         return;
     };
+    defer zglfw.terminate();
+
+    // zgpu.checkSystem(content_dir) catch {
+    //     // In case of error zgpu.checkSystem() will print error message.
+    //     return;
+    // };
 
     zglfw.defaultWindowHints();
     zglfw.windowHint(.cocoa_retina_framebuffer, 1);
     zglfw.windowHint(.client_api, 0);
-    const window = try zglfw.createWindow(1600, 1000, window_title, null, null);
+    const window = (
+        zglfw.createWindow(1600, 1000, window_title, null, null) 
+        catch {
+            std.log.err("Could not create a window", .{});
+            return;
+        }
+    );
     defer window.destroy();
     window.setSizeLimits(400, 400, -1, -1);
 
@@ -698,34 +762,16 @@ pub fn main() !void {
 
     const allocator = gpa.allocator();
 
-    const demo = try init(allocator, window);
+    const demo = init(allocator, window) catch {
+        std.log.err("Could not initialize resources", .{});
+        return;
+    };
     defer deinit(allocator, demo);
 
     try _parse_args(demo);
 
-    const scale_factor = scale_factor: {
-        const scale = window.getContentScale();
-        break :scale_factor math.max(scale.x, scale.y);
-    };
 
-    zgui.init();
-    zgui.plot.init();
-    defer zgui.plot.deinit();
-    //defer zgui.backend.deinit(); will be invoked by glfw
-    defer zgui.deinit();
-
-    _ = zgui.io.addFontFromFile(content_dir ++ "Roboto-Medium.ttf", 16.0 * scale_factor);
-
-    zgui.backend.init(
-        window,
-        demo.gctx.device,
-        @enumToInt(zgpu.GraphicsContext.swapchain_format),
-    );
-    defer zgui.backend.deinit();
-
-    zgui.getStyle().scaleAllSizes(scale_factor);
-
-    while (!window.shouldClose()) {
+    while (!window.shouldClose() and window.getKey(.escape) != .press) {
         zglfw.pollEvents();
         update(demo);
         draw(demo);

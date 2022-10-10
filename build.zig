@@ -112,11 +112,11 @@ pub fn build(b: *std.build.Builder) void {
         "wrinkles_content/",
         options
     );
-//    build_wrinkles_like(
-//        b,
-//        "otvis",
-//        "/src/otvis.zig",
-//        "wrinkles_content/",
-//        options
-//    );
+   build_wrinkles_like(
+       b,
+       "otvis",
+       "/src/otvis.zig",
+       "wrinkles_content/",
+       options
+   );
 }
