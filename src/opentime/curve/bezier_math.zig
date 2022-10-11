@@ -208,3 +208,85 @@ test "findU" {
     try expectEqual(@as(f32, 0), findU(-1, 0,1,2,3));
     try expectEqual(@as(f32, 1), findU(4, 0,1,2,3));
 }
+
+fn remap_float(
+    val:f32,
+    in_min:f32, in_max:f32,
+    out_min:f32, out_max:f32,
+) f32 {
+    return ((val-in_min)/(in_max-in_min) * (out_max-out_min) + out_min);
+}
+
+/// return crv normalized into the space provided
+pub fn normalized_to(
+    crv:curve.TimeCurve,
+    min_point:ControlPoint,
+    max_point:ControlPoint,
+) !curve.TimeCurve 
+{
+
+    // return input, curve is empty
+    if (crv.segments.len == 0) {
+        return crv;
+    }
+
+    const extents = crv.extents();
+    const crv_min = extents[0];
+    const crv_max = extents[1];
+
+    // copy the curve
+    var result = crv;
+
+    for (result.segments) |seg, seg_index| {
+        var new_points:[4]ControlPoint = .{};
+        for (seg.points()) |pt, pt_index| {
+            new_points[pt_index] = .{
+                .time = remap_float(
+                    pt.time,
+                    crv_min.time, crv_max.time,
+                    min_point.time, max_point.time
+                ),
+                .value = remap_float(
+                    pt.value,
+                    crv_min.value, crv_max.value,
+                    min_point.value, max_point.value
+                ),
+            };
+        }
+        result.segments[seg_index] = curve.Segment.from_pt_array(new_points);
+    }
+
+    return crv;
+}
+
+test "remap_float" {
+    try expectEqual(
+        remap_float(0.5, 0.25, 1.25, -4, -5),
+        @as(f32, -4.25)
+    );
+}
+
+test "normalized_to" {
+    const input_crv:curve.TimeCurve = .{
+        .segments = &.{
+            curve.create_bezier_segment(
+                .{.time = -500, .value=600},
+                .{.time = -300, .value=-100},
+                .{.time = 200, .value=300},
+                .{.time = 500, .value=700},
+            ),
+        }
+    };
+
+    const min_point = ControlPoint{.time=-100, .value=-300};
+    const max_point = ControlPoint{.time=100, .value=-200};
+
+    const result_crv = try normalized_to(input_crv, min_point, max_point);
+    const result_extents = result_crv.extents();
+
+    try expectEqual(min_point.time, result_extents[0].time);
+    try expectEqual(min_point.value, result_extents[0].value);
+
+    try expectEqual(max_point.time, result_extents[1].time);
+    try expectEqual(max_point.value, result_extents[1].value);
+}

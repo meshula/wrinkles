@@ -1,4 +1,6 @@
 const std = @import("std");
+const allocator = @import("../allocator.zig");
+const ALLOCATOR = allocator.ALLOCATOR;
 const expectEqual = std.testing.expectEqual;
 
 /// control point for curve parameterization
@@ -28,6 +30,17 @@ pub const ControlPoint = struct {
             .time = self.time - rhs.time,
             .value = self.value - rhs.value,
         };
+    }
+    
+    pub fn debug_json_str(
+        self: @This()
+    ) []const u8 
+    {
+        return std.fmt.allocPrint(
+            ALLOCATOR,
+            \\{{ "time": {d:.6}, "value": {d:.6} }}
+            , .{ self.time, self.value, }
+        ) catch unreachable;
     }
 };
 
