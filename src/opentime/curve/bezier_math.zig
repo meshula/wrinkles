@@ -222,7 +222,7 @@ pub fn normalized_to(
     crv:curve.TimeCurve,
     min_point:ControlPoint,
     max_point:ControlPoint,
-) !curve.TimeCurve 
+) curve.TimeCurve 
 {
 
     // return input, curve is empty
@@ -281,7 +281,7 @@ test "normalized_to" {
     const min_point = ControlPoint{.time=-100, .value=-300};
     const max_point = ControlPoint{.time=100, .value=-200};
 
-    const result_crv = try normalized_to(input_crv, min_point, max_point);
+    const result_crv = normalized_to(input_crv, min_point, max_point);
     const result_extents = result_crv.extents();
 
     try expectEqual(min_point.time, result_extents[0].time);

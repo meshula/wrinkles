@@ -364,6 +364,8 @@ fn update(demo: *DemoState) void {
 
     const center: [2]f32 = .{ vsz[0] * 0.5, vsz[1] * 0.5 };
 
+    const half_width = center[1] * 0.9;
+
     const draw_list = zgui.getWindowDrawList();
 
     // draw_list.pushClipRect(.{ .pmin = .{ 0, 0 }, .pmax = .{ 400, 400 } });
@@ -375,26 +377,91 @@ fn update(demo: *DemoState) void {
     // outline the curve plot
     draw_list.addPolyline(
         &.{ 
-            .{ center[0] - center[1] * 0.9, center[1] - center[1] * 0.9 }, 
-            .{ center[0] + center[1] * 0.9, center[1] - center[1] * 0.9 }, 
-            .{ center[0] + center[1] * 0.9, center[1] + center[1] * 0.9 }, 
-            .{ center[0] - center[1] * 0.9, center[1] + center[1] * 0.9 }, 
-            .{ center[0] - center[1] * 0.9, center[1] - center[1] * 0.9 } 
+            .{ center[0] - half_width, center[1] - half_width }, 
+            .{ center[0] + half_width, center[1] - half_width }, 
+            .{ center[0] + half_width, center[1] + half_width }, 
+            .{ center[0] - half_width, center[1] + half_width }, 
+            .{ center[0] - half_width, center[1] - half_width } 
         },
         .{ .col = 0xff_00_aa_aa, .thickness = 7 },
     );
 
+    const min_p = curve.ControlPoint{
+        .time=center[0] + half_width,
+        .value=center[1] + half_width,
+    };
+    const max_p = curve.ControlPoint{
+        .time=center[0] - half_width,
+        .value=center[1] - half_width,
+    };
+
     for (demo.bezier_curves.items) |crv| {
-        for (crv.segments) |seg| {
-            draw_list.addBezierCubic(
-                .{ 
-                    .p1=.{seg.p0.time, seg.p0.value},
-                    .p2=.{seg.p1.time, seg.p1.value},
-                    .p3=.{seg.p2.time, seg.p2.value},
-                    .p4=.{seg.p3.time, seg.p3.value},
-                    .col=0xff_ff_ff_ff,
-                }
+        const draw_crv = curve.normalized_to(crv, min_p, max_p);
+
+        for (draw_crv.segments) |seg| {
+            draw_list.addPolyline(
+                &.{ 
+                    .{seg.p0.time, seg.p0.value},
+                    .{seg.p1.time, seg.p1.value},
+                    .{seg.p2.time, seg.p2.value},
+                    .{seg.p3.time, seg.p3.value},
+                },
+                .{ .col=0xff_ff_ff_ff, .thickness = 3 },
             );
+            // draw_list.addBezierCubic(
+            //     .{ 
+            //         .p1=.{seg.p0.time, seg.p0.value},
+            //         .p2=.{seg.p1.time, seg.p1.value},
+            //         .p3=.{seg.p2.time, seg.p2.value},
+            //         .p4=.{seg.p3.time, seg.p3.value},
+            //         .col=0xff_ff_ff_ff,
+            //     }
+            // );
+            // draw_list.addBezierCubic(
+            //     .{ 
+            //         .p1=.{seg.p0.time, seg.p0.value},
+            //         .p2=.{seg.p1.time, seg.p1.value},
+            //         .p3=.{seg.p2.time, seg.p2.value},
+            //         .p4=.{seg.p3.time, seg.p3.value},
+            //         .col=0xff_ff_ff_ff,
+            //     }
+            // );
+            // draw_list.addBezierCubic(
+            //     .{ 
+            //         .p1=.{seg.p0.time, seg.p0.value},
+            //         .p2=.{seg.p1.time, seg.p1.value},
+            //         .p3=.{seg.p2.time, seg.p2.value},
+            //         .p4=.{seg.p3.time, seg.p3.value},
+            //         .col=0xff_ff_ff_ff,
+            //     }
+            // );
+            // draw_list.addBezierCubic(
+            //     .{ 
+            //         .p1=.{seg.p0.time, seg.p0.value},
+            //         .p2=.{seg.p1.time, seg.p1.value},
+            //         .p3=.{seg.p2.time, seg.p2.value},
+            //         .p4=.{seg.p3.time, seg.p3.value},
+            //         .col=0xff_ff_ff_ff,
+            //     }
+            // );
+            // draw_list.addBezierCubic(
+            //     .{ 
+            //         .p1=.{seg.p0.time, seg.p0.value},
+            //         .p2=.{seg.p1.time, seg.p1.value},
+            //         .p3=.{seg.p2.time, seg.p2.value},
+            //         .p4=.{seg.p3.time, seg.p3.value},
+            //         .col=0xff_ff_ff_ff,
+            //     }
+            // );
+            // draw_list.addBezierCubic(
+            //     .{ 
+            //         .p1=.{seg.p0.time, seg.p0.value},
+            //         .p2=.{seg.p1.time, seg.p1.value},
+            //         .p3=.{seg.p2.time, seg.p2.value},
+            //         .p4=.{seg.p3.time, seg.p3.value},
+            //         .col=0xff_ff_ff_ff,
+            //     }
+            // );
         }
     }
 
@@ -544,10 +611,6 @@ fn _parse_args(state:*DemoState) !void {
 
     var curve_names = std.ArrayList(string.latin_s8).init(ALLOCATOR);
 
-    const test_crv = try curve.read_curve_json("../time_hierarchies/curves/scurve.curve.json");
-
-    try state.bezier_curves.append(test_crv);
-
     // read all the filepaths from the commandline
     while (args.next()) |nextarg| 
     {
@@ -628,14 +691,19 @@ fn _parse_args(state:*DemoState) !void {
         var buf: [1024]u8 = undefined;
         const lower_fpath = std.ascii.lowerString(&buf, fpath);
         if (std.mem.endsWith(u8, lower_fpath, ".curve.json")) {
-            try state.bezier_curves.append( 
-                curve.read_curve_json(fpath) catch |err| {
-                    std.debug.print(
-                        "Something went wrong reading: '{s}'\n",
-                        .{ fpath }
-                    );
-                    return err;
-                }
+            var crv = curve.read_curve_json(fpath) catch |err| {
+                std.debug.print(
+                    "Something went wrong reading: '{s}'\n",
+                    .{ fpath }
+                );
+                return err;
+            };
+            try state.bezier_curves.append(
+                curve.normalized_to(
+                    crv,
+                    .{.time=0, .value=0}, 
+                    .{.time=400, .value=400}
+                )
             );
         } 
         else 
