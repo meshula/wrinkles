@@ -23,6 +23,21 @@ const c_args = [_][]const u8{
     "-fno-sanitize=undefined",
 };
 
+const SOURCES_WITH_TESTS = [_][]const u8{
+    // "./src/opentime/test_topology_projections.zig",
+    "./src/opentime/curve/bezier_math.zig",
+};
+
+pub fn add_test_for_source(b: *std.build.Builder, target: anytype, mode: anytype, test_step: anytype, fpath: []const u8) void {
+    const test_thing = b.addTest(fpath);
+    test_thing.addPackagePath("opentime", "./src/opentime/opentime.zig");
+    // test_thing.addPackagePath("opentimelineio", "./src/opentimelineio/opentimelineio.zig");
+    test_thing.setTarget(target);
+    test_thing.setBuildMode(mode);
+
+    test_step.dependOn(&test_thing.step);
+}
+
 /// Returns the result of running `git rev-parse HEAD`
 pub fn rev_HEAD(alloc: std.mem.Allocator) ![]const u8 {
     const max = std.math.maxInt(usize);
@@ -121,4 +136,10 @@ pub fn build(b: *std.build.Builder) void {
        "/wrinkles_content/",
        options
    );
+
+    const test_step = b.step("test", "run all unit tests");
+
+    for (SOURCES_WITH_TESTS) |fpath| {
+        add_test_for_source(b, options.target, options.build_mode, test_step, fpath);
+    }
 }
