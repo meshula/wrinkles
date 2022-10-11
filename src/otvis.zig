@@ -24,7 +24,7 @@ const window_title = "zig-gamedev: wrinkles (wgpu)";
 
 const wgsl_common = @embedFile("wrinkles_common.wgsl");
 const wgsl_vs = wgsl_common ++ @embedFile("wrinkles_vs.wgsl");
-const wgsl_fs = wgsl_common ++ @embedFile("wrinkles_fs.wgsl");
+const wgsl_fs = wgsl_common ++ @embedFile("blank_fs.wgsl");
 
 const ALLOCATOR = @import("opentime/allocator.zig").ALLOCATOR;
 
@@ -383,6 +383,20 @@ fn update(demo: *DemoState) void {
         },
         .{ .col = 0xff_00_aa_aa, .thickness = 7 },
     );
+
+    for (demo.bezier_curves.items) |crv| {
+        for (crv.segments) |seg| {
+            draw_list.addBezierCubic(
+                .{ 
+                    .p1=.{seg.p0.time, seg.p0.value},
+                    .p2=.{seg.p1.time, seg.p1.value},
+                    .p3=.{seg.p2.time, seg.p2.value},
+                    .p4=.{seg.p3.time, seg.p3.value},
+                    .col=0xff_ff_ff_ff,
+                }
+            );
+        }
+    }
 
     // draw_list.addRectFilled(.{
     //     .pmin = .{ 100, 100 },
