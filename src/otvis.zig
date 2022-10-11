@@ -100,7 +100,9 @@ const DemoState = struct {
     clip_frame_rate: i32 = 6,
     frame_rate: i32 = 10,
 
-    bezier_curves:std.ArrayList(curve.TimeCurve) = undefined,
+    bezier_curves:std.ArrayList(curve.TimeCurve) = (
+        std.ArrayList(curve.TimeCurve).init(ALLOCATOR)
+    ),
     linear_curves:std.ArrayList(curve.TimeCurveLinear) = (
         std.ArrayList(curve.TimeCurveLinear).init(ALLOCATOR)
     ),
@@ -117,7 +119,8 @@ const DemoState = struct {
 };
 
 fn init(allocator: std.mem.Allocator, window: zglfw.Window) !*DemoState {
-    ot.ot_test();
+    // ot.ot_test();
+
 
     const gctx = try zgpu.GraphicsContext.create(allocator, window);
 
@@ -128,7 +131,10 @@ fn init(allocator: std.mem.Allocator, window: zglfw.Window) !*DemoState {
     // Create a texture.
     zstbi.init(arena);
     defer zstbi.deinit();
-    var image = try zstbi.Image.init(content_dir ++ "genart_0025_5.png", 4);
+
+    const font_path = content_dir ++ "genart_0025_5.png";
+
+    var image = try zstbi.Image.init(font_path, 4);
     defer image.deinit();
 
     const texture = gctx.createTexture(.{
@@ -160,9 +166,13 @@ fn init(allocator: std.mem.Allocator, window: zglfw.Window) !*DemoState {
         const scale = window.getContentScale();
         break :scale_factor math.max(scale[0], scale[1]);
     };
+
+    // const fira_font_path = content_dir ++ "FiraCode-Medium.ttf";
+    const robota_font_path = content_dir ++ "Roboto-Medium.ttf";
+
     const font_size = 16.0 * scale_factor;
-    const font_large = zgui.io.addFontFromFile(content_dir ++ "FiraCode-Medium.ttf", font_size * 1.1);
-    const font_normal = zgui.io.addFontFromFile(content_dir ++ "Roboto-Medium.ttf", font_size);
+    const font_large = zgui.io.addFontFromFile(robota_font_path, font_size * 1.1);
+    const font_normal = zgui.io.addFontFromFile(robota_font_path, font_size);
     assert(zgui.io.getFont(0) == font_large);
     assert(zgui.io.getFont(1) == font_normal);
 
@@ -520,6 +530,10 @@ fn _parse_args(state:*DemoState) !void {
 
     var curve_names = std.ArrayList(string.latin_s8).init(ALLOCATOR);
 
+    const test_crv = try curve.read_curve_json("../time_hierarchies/curves/scurve.curve.json");
+
+    try state.bezier_curves.append(test_crv);
+
     // read all the filepaths from the commandline
     while (args.next()) |nextarg| 
     {
@@ -769,7 +783,6 @@ pub fn main() !void {
     defer deinit(allocator, demo);
 
     try _parse_args(demo);
-
 
     while (!window.shouldClose() and window.getKey(.escape) != .press) {
         zglfw.pollEvents();
