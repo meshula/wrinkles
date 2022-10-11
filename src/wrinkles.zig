@@ -99,8 +99,9 @@ fn init(allocator: std.mem.Allocator, window: zglfw.Window) !*DemoState {
         break :scale_factor math.max(scale[0], scale[1]);
     };
     const font_size = 16.0 * scale_factor;
-    const font_large = zgui.io.addFontFromFile(content_dir ++ "FiraCode-Medium.ttf", font_size * 1.1);
-    const font_normal = zgui.io.addFontFromFile(content_dir ++ "Roboto-Medium.ttf", font_size);
+    const roboto_fp = content_dir ++ "Roboto-Medium.ttf";
+    const font_large = zgui.io.addFontFromFile(roboto_fp, font_size * 1.1);
+    const font_normal = zgui.io.addFontFromFile(roboto_fp, font_size);
     assert(zgui.io.getFont(0) == font_large);
     assert(zgui.io.getFont(1) == font_normal);
 

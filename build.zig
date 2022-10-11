@@ -47,10 +47,12 @@ pub fn build_wrinkles_like(
 
     const exe_options = b.addOptions();
     exe.addOptions("build_options", exe_options);
+
+    // @TODO: should this be in the install directory instead of `thisDir()`?
     exe_options.addOption(
         []const u8,
         name ++ "_content_dir",
-        source_dir_path
+        thisDir() ++ "/src" ++ source_dir_path
     );
     exe_options.addOption(
         []const u8,
@@ -109,14 +111,14 @@ pub fn build(b: *std.build.Builder) void {
         b, 
         "wrinkles",
         "/src/wrinkles.zig",
-        "wrinkles_content/",
+        "/wrinkles_content/",
         options
     );
    build_wrinkles_like(
        b,
        "otvis",
        "/src/otvis.zig",
-       "wrinkles_content/",
+       "/wrinkles_content/",
        options
    );
 }
