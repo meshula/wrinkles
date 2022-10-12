@@ -106,6 +106,9 @@ const DemoState = struct {
     linear_curves:std.ArrayList(curve.TimeCurveLinear) = (
         std.ArrayList(curve.TimeCurveLinear).init(ALLOCATOR)
     ),
+    curve_names:std.ArrayList(string.latin_s8) = (
+        std.ArrayList(string.latin_s8).init(ALLOCATOR)
+    ),
 
     options: struct {
         // using i32 because microui check_box expects an int32 not a bool
@@ -359,6 +362,26 @@ fn update(demo: *DemoState) void {
     });
     zgui.popItemWidth();
 
+    if (zgui.collapsingHeader("Curves", .{})) {
+        for (demo.bezier_curves.items) |crv, crv_index| {
+            if (
+                zgui.collapsingHeader(
+                    @ptrCast([:0]const u8, demo.curve_names.items[crv_index]),
+                    .{}
+                ) 
+            )
+            {
+                // state.curve_draw_switch.items[crv_index] = zgui.checkbox(
+                //     "enabled",
+                //     Checkbox{ enabled = state.curve_draw_switch.items[crv_index] },
+                // );
+                for (crv.segments) |seg| {
+                    zgui.bulletText("{s}", .{seg.debug_json_str()});
+                }
+            }
+        }
+    }
+
     const viewport = zgui.getMainViewport();
     const vsz = viewport.getWorkSize();
 
@@ -609,8 +632,6 @@ fn _parse_args(state:*DemoState) !void {
     var project = false;
     var project_curves = false;
 
-    var curve_names = std.ArrayList(string.latin_s8).init(ALLOCATOR);
-
     // read all the filepaths from the commandline
     while (args.next()) |nextarg| 
     {
@@ -686,7 +707,7 @@ fn _parse_args(state:*DemoState) !void {
         }
 
         std.debug.print("reading curve: {s}\n", .{ fpath });
-        try curve_names.append(fpath);
+        try state.curve_names.append(fpath);
 
         var buf: [1024]u8 = undefined;
         const lower_fpath = std.ascii.lowerString(&buf, fpath);
@@ -791,7 +812,7 @@ fn _parse_args(state:*DemoState) !void {
         } else {
             std.debug.print(
                 "Projecting {s} through {s} as bezier_curves\n",
-                .{ curve_names.items[PROJ_S], curve_names.items[PROJ_THR_S] } 
+                .{ state.curve_names.items[PROJ_S], state.curve_names.items[PROJ_THR_S] } 
             );
 
             const fst = state.bezier_curves.items[PROJ_THR_S];
