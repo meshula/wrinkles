@@ -362,6 +362,15 @@ fn update(demo: *DemoState) void {
     });
     zgui.popItemWidth();
 
+    var times:std.ArrayList(f32) = (
+        std.ArrayList(f32).init(ALLOCATOR)
+    );
+    defer times.deinit();
+    var values:std.ArrayList(f32) = (
+        std.ArrayList(f32).init(ALLOCATOR)
+    );
+    defer values.deinit();
+
     if (zgui.collapsingHeader("Curves", .{})) {
         for (demo.bezier_curves.items) |crv, crv_index| {
             if (
@@ -448,12 +457,8 @@ fn update(demo: *DemoState) void {
 
                     const linearized_crv = crv.linearized();
 
-                    var times:std.ArrayList(f32) = (
-                        std.ArrayList(f32).init(ALLOCATOR)
-                    );
-                    var values:std.ArrayList(f32) = (
-                        std.ArrayList(f32).init(ALLOCATOR)
-                    );
+                    times.clearAndFree();
+                    values.clearAndFree();
                     for (linearized_crv.knots) |knot| {
                         times.append(knot.time) catch unreachable;
                         values.append(knot.value) catch unreachable;
@@ -508,6 +513,22 @@ fn update(demo: *DemoState) void {
         .time=center[0] - half_width,
         .value=center[1] - half_width,
     };
+
+    // var times:std.ArrayList(f32) = (
+    //     std.ArrayList(f32).init(ALLOCATOR)
+    // );
+    // var values:std.ArrayList(f32) = (
+    //     std.ArrayList(f32).init(ALLOCATOR)
+    // );
+    // for (demo.linear_curves.items) |crv| {
+    //     for (linear_crv.knots) |knot| {
+    //         times.append(knot.time) catch unreachable;
+    //         values.append(knot.value) catch unreachable;
+    //     }
+    //     draw_list.addPolyline(
+    //
+    //     );
+    // }
 
     for (demo.bezier_curves.items) |crv| {
         const draw_crv = curve.normalized_to(crv, min_p, max_p);
@@ -739,7 +760,7 @@ fn _parse_args(state:*DemoState) !void {
         {
             if (project) {
                 std.debug.print(
-                    "Error: only one of {{--project, --project-bezier_curves}} is "
+                    "Error: only one of {{--project, --project-bezier-curves}} is "
                     ++ "allowed\n",
                     .{}
                 );
@@ -750,11 +771,11 @@ fn _parse_args(state:*DemoState) !void {
             continue;
         }
 
-        if (string.eql_latin_s8(fpath, "--project-bezier_curves"))
+        if (string.eql_latin_s8(fpath, "--project-bezier-curves"))
         {
             if (project) {
                 std.debug.print(
-                    "Error: only one of {{--project, --project-bezier_curves}} is "
+                    "Error: only one of {{--project, --project-bezier-curves}} is "
                     ++ "allowed\n",
                     .{}
                 );
@@ -993,7 +1014,7 @@ pub fn usage() void {
         \\
         \\arguments:
         \\  --project: if two segments are provided, project the second through the first
-        \\  --project-bezier_curves: if two segments are provided, promote both to TimeCurves and project the first through the second
+        \\  --project-bezier-curves: if two segments are provided, promote both to TimeCurves and project the first through the second
         \\  --split: animate splitting the segment
         \\  --linearize: show the linearized segment
         \\  --animu: animate the u parameter for each spline
