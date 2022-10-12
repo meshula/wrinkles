@@ -445,6 +445,28 @@ fn update(demo: *DemoState) void {
                             }
                         );
                     }
+
+                    const linearized_crv = crv.linearized();
+
+                    var times:std.ArrayList(f32) = (
+                        std.ArrayList(f32).init(ALLOCATOR)
+                    );
+                    var values:std.ArrayList(f32) = (
+                        std.ArrayList(f32).init(ALLOCATOR)
+                    );
+                    for (linearized_crv.knots) |knot| {
+                        times.append(knot.time) catch unreachable;
+                        values.append(knot.value) catch unreachable;
+                    }
+                    zgui.plot.plotLine(
+                        "linearized curve hull",
+                        f32,
+                        .{
+                            .xv = times.items,
+                            .yv = values.items,
+                        }
+                    );
+
                     zgui.plot.endPlot();
                 }
             }
