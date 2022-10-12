@@ -381,36 +381,22 @@ fn update(demo: *DemoState) void {
                 if (zgui.collapsingHeader("Points", .{})) {
                     if (zgui.collapsingHeader("Hull Points", .{})) {
                         for (crv.segments) |seg| {
-                            zgui.bulletText(
-                                \\ p0: {{ {d:.6}, {d:.6} }},
-                                \\ p1: {{ {d:.6}, {d:.6} }},
-                                \\ p2: {{ {d:.6}, {d:.6} }},
-                                \\ p3: {{ {d:.6}, {d:.6} }}
-                                ,
-                                .{
-                                    seg.p0.time, seg.p0.value,
-                                    seg.p1.time, seg.p1.value,
-                                    seg.p2.time, seg.p2.value,
-                                    seg.p3.time, seg.p3.value,
-                                }
-                            );
+                            for (seg.points()) |pt, pt_index| {
+                                zgui.bulletText(
+                                    "{d}: {{ {d:.6}, {d:.6} }}",
+                                    .{ pt_index, pt.time, pt.value }
+                                );
+                            }
                         }
                     }
                     if (zgui.collapsingHeader("Normalized Hull Points", .{})) {
                         for (norm_crv.segments) |seg| {
-                            zgui.bulletText(
-                                \\ p0: {{ {d:.6}, {d:.6} }},
-                                \\ p1: {{ {d:.6}, {d:.6} }},
-                                \\ p2: {{ {d:.6}, {d:.6} }},
-                                \\ p3: {{ {d:.6}, {d:.6} }}
-                                ,
-                                .{
-                                    seg.p0.time, seg.p0.value,
-                                    seg.p1.time, seg.p1.value,
-                                    seg.p2.time, seg.p2.value,
-                                    seg.p3.time, seg.p3.value,
-                                }
-                            );
+                            for (seg.points()) |pt, pt_index| {
+                                zgui.bulletText(
+                                    "{d}: {{ {d:.6}, {d:.6} }}",
+                                    .{ pt_index, pt.time, pt.value }
+                                );
+                            }
                         }
                     }
                 }
