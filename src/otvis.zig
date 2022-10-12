@@ -372,6 +372,48 @@ fn update(demo: *DemoState) void {
             )
             {
                 const extents = crv.extents();
+                const norm_crv = curve.normalized_to(
+                    crv,
+                    .{.time=-1, .value=-1},
+                    .{.time=1, .value=1}
+                );
+
+                if (zgui.collapsingHeader("Points", .{})) {
+                    if (zgui.collapsingHeader("Hull Points", .{})) {
+                        for (crv.segments) |seg| {
+                            zgui.bulletText(
+                                \\ p0: {{ {d:.6}, {d:.6} }},
+                                \\ p1: {{ {d:.6}, {d:.6} }},
+                                \\ p2: {{ {d:.6}, {d:.6} }},
+                                \\ p3: {{ {d:.6}, {d:.6} }}
+                                ,
+                                .{
+                                    seg.p0.time, seg.p0.value,
+                                    seg.p1.time, seg.p1.value,
+                                    seg.p2.time, seg.p2.value,
+                                    seg.p3.time, seg.p3.value,
+                                }
+                            );
+                        }
+                    }
+                    if (zgui.collapsingHeader("Normalized Hull Points", .{})) {
+                        for (norm_crv.segments) |seg| {
+                            zgui.bulletText(
+                                \\ p0: {{ {d:.6}, {d:.6} }},
+                                \\ p1: {{ {d:.6}, {d:.6} }},
+                                \\ p2: {{ {d:.6}, {d:.6} }},
+                                \\ p3: {{ {d:.6}, {d:.6} }}
+                                ,
+                                .{
+                                    seg.p0.time, seg.p0.value,
+                                    seg.p1.time, seg.p1.value,
+                                    seg.p2.time, seg.p2.value,
+                                    seg.p3.time, seg.p3.value,
+                                }
+                            );
+                        }
+                    }
+                }
 
                 if (zgui.plot.beginPlot("Curve Plot", .{ .h = -1.0 })) {
                     zgui.plot.setupAxis(.x1, .{ .label = "times" });
@@ -393,7 +435,17 @@ fn update(demo: *DemoState) void {
                     // );
                     for (crv.segments) |seg| {
                         zgui.plot.plotLine(
-                            "curve",
+                            "control hull",
+                            f32,
+                            .{
+                                .xv = &.{ seg.p0.time, seg.p1.time, seg.p2.time, seg.p3.time },
+                                .yv = &.{ seg.p0.value, seg.p1.value, seg.p2.value, seg.p3.value },
+                            }
+                        );
+                    }
+                    for (norm_crv.segments) |seg| {
+                        zgui.plot.plotLine(
+                            "normalized hull",
                             f32,
                             .{
                                 .xv = &.{ seg.p0.time, seg.p1.time, seg.p2.time, seg.p3.time },
