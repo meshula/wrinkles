@@ -371,12 +371,37 @@ fn update(demo: *DemoState) void {
                 ) 
             )
             {
-                // state.curve_draw_switch.items[crv_index] = zgui.checkbox(
-                //     "enabled",
-                //     Checkbox{ enabled = state.curve_draw_switch.items[crv_index] },
-                // );
-                for (crv.segments) |seg| {
-                    zgui.bulletText("{s}", .{seg.debug_json_str()});
+                const extents = crv.extents();
+
+                if (zgui.plot.beginPlot("Curve Plot", .{ .h = -1.0 })) {
+                    zgui.plot.setupAxis(.x1, .{ .label = "times" });
+                    zgui.plot.setupAxisLimits(
+                        .x1,
+                        .{ .min = extents[0].time, .max = extents[1].time  }
+                    );
+                    zgui.plot.setupAxis(.y1, .{ .label = "values" });
+                    zgui.plot.setupAxisLimits(
+                        .y1,
+                        .{ .min = extents[0].value, .max = extents[1].value  }
+                    );
+                    zgui.plot.setupLegend(.{ .south = true, .west = true }, .{});
+                    zgui.plot.setupFinish();
+                    // zgui.plot.plotLineValues("values", i32, .{ .v = &.{ 0, 1, 0, 1, 0, 1 } });
+                    // state.curve_draw_switch.items[crv_index] = zgui.checkbox(
+                    //     "enabled",
+                    //     Checkbox{ enabled = state.curve_draw_switch.items[crv_index] },
+                    // );
+                    for (crv.segments) |seg| {
+                        zgui.plot.plotLine(
+                            "curve",
+                            f32,
+                            .{
+                                .xv = &.{ seg.p0.time, seg.p1.time, seg.p2.time, seg.p3.time },
+                                .yv = &.{ seg.p0.value, seg.p1.value, seg.p2.value, seg.p3.value },
+                            }
+                        );
+                    }
+                    zgui.plot.endPlot();
                 }
             }
         }
@@ -525,18 +550,18 @@ fn update(demo: *DemoState) void {
     // _ = draw_list.getClipRectMax();
     draw_list.popClipRect();
 
-    if (zgui.plot.beginPlot("Line Plot", .{ .h = -1.0 })) {
-        zgui.plot.setupAxis(.x1, .{ .label = "xaxis" });
-        zgui.plot.setupAxisLimits(.x1, .{ .min = 0, .max = 5 });
-        zgui.plot.setupLegend(.{ .south = true, .west = true }, .{});
-        zgui.plot.setupFinish();
-        zgui.plot.plotLineValues("y data", i32, .{ .v = &.{ 0, 1, 0, 1, 0, 1 } });
-        zgui.plot.plotLine("xy data", f32, .{
-            .xv = &.{ 0.1, 0.2, 0.5, 2.5 },
-            .yv = &.{ 0.1, 0.3, 0.5, 0.9 },
-        });
-        zgui.plot.endPlot();
-    }
+    // if (zgui.plot.beginPlot("Line Plot", .{ .h = -1.0 })) {
+    //     zgui.plot.setupAxis(.x1, .{ .label = "xaxis" });
+    //     zgui.plot.setupAxisLimits(.x1, .{ .min = 0, .max = 5 });
+    //     zgui.plot.setupLegend(.{ .south = true, .west = true }, .{});
+    //     zgui.plot.setupFinish();
+    //     zgui.plot.plotLineValues("y data", i32, .{ .v = &.{ 0, 1, 0, 1, 0, 1 } });
+    //     zgui.plot.plotLine("xy data", f32, .{
+    //         .xv = &.{ 0.1, 0.2, 0.5, 2.5 },
+    //         .yv = &.{ 0.1, 0.3, 0.5, 0.9 },
+    //     });
+    //     zgui.plot.endPlot();
+    // }
 
     zgui.end();
 }
