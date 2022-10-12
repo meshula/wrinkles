@@ -402,12 +402,18 @@ fn update(demo: *DemoState) void {
                 }
 
                 if (zgui.plot.beginPlot("Curve Plot", .{ .h = -1.0 })) {
-                    zgui.plot.setupAxis(.x1, .{ .label = "times" });
+                    zgui.plot.setupAxis(
+                        .x1,
+                        .{ .label = "times", .flags = .{ .auto_fit = true } }
+                    );
                     zgui.plot.setupAxisLimits(
                         .x1,
                         .{ .min = extents[0].time, .max = extents[1].time  }
                     );
-                    zgui.plot.setupAxis(.y1, .{ .label = "values" });
+                    zgui.plot.setupAxis(
+                        .y1,
+                        .{ .label = "values", .flags = .{ .auto_fit = true } }
+                    );
                     zgui.plot.setupAxisLimits(
                         .y1,
                         .{ .min = extents[0].value, .max = extents[1].value  }
