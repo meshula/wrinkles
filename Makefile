@@ -7,4 +7,3 @@ test:
 
 debug:
 	lldb -o run -- $(mkfile_dir)otio_test.out $(shell readlink $(shell which zig))
-
