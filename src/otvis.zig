@@ -103,6 +103,9 @@ const DemoState = struct {
     bezier_curves:std.ArrayList(curve.TimeCurve) = (
         std.ArrayList(curve.TimeCurve).init(ALLOCATOR)
     ),
+    normalized_curves:std.ArrayList(curve.TimeCurve) = (
+        std.ArrayList(curve.TimeCurve).init(ALLOCATOR)
+    ),
     linear_curves:std.ArrayList(curve.TimeCurveLinear) = (
         std.ArrayList(curve.TimeCurveLinear).init(ALLOCATOR)
     ),
@@ -372,7 +375,7 @@ fn update(demo: *DemoState) void {
     defer values.deinit();
 
     if (zgui.collapsingHeader("Curves", .{})) {
-        for (demo.bezier_curves.items) |crv, crv_index| {
+        for (demo.normalized_curves.items) |crv, crv_index| {
             if (
                 zgui.collapsingHeader(
                     @ptrCast([:0]const u8, demo.curve_names.items[crv_index]),
@@ -388,9 +391,11 @@ fn update(demo: *DemoState) void {
                 );
 
                 if (zgui.collapsingHeader("Points", .{})) {
-                    if (zgui.collapsingHeader("Hull Points", .{})) {
-                        for (crv.segments) |seg| {
-                            for (seg.points()) |pt, pt_index| {
+                    if (zgui.collapsingHeader("Original Points", .{})) {
+                        const orig_crv = demo.bezier_curves.items[crv_index];
+                        for (orig_crv.segments) |seg| {
+                            const pts = seg.points();
+                            for (pts) |pt, pt_index| {
                                 zgui.bulletText(
                                     "{d}: {{ {d:.6}, {d:.6} }}",
                                     .{ pt_index, pt.time, pt.value }
@@ -400,7 +405,8 @@ fn update(demo: *DemoState) void {
                     }
                     if (zgui.collapsingHeader("Normalized Hull Points", .{})) {
                         for (norm_crv.segments) |seg| {
-                            for (seg.points()) |pt, pt_index| {
+                            const pts = seg.points();
+                            for (pts) |pt, pt_index| {
                                 zgui.bulletText(
                                     "{d}: {{ {d:.6}, {d:.6} }}",
                                     .{ pt_index, pt.time, pt.value }
@@ -530,7 +536,7 @@ fn update(demo: *DemoState) void {
     //     );
     // }
 
-    for (demo.bezier_curves.items) |crv| {
+    for (demo.normalized_curves.items) |crv| {
         const draw_crv = curve.normalized_to(crv, min_p, max_p);
 
         for (draw_crv.segments) |seg| {
@@ -831,18 +837,23 @@ fn _parse_args(state:*DemoState) !void {
                 );
                 return err;
             };
-            try state.bezier_curves.append(
+
+            try state.bezier_curves.append(crv);
+            std.debug.print("original curve: {s}\n", .{crv.debug_json_str()});
+
+            try state.normalized_curves.append(
                 curve.normalized_to(
                     crv,
                     .{.time=0, .value=0}, 
                     .{.time=400, .value=400}
                 )
             );
+            std.debug.print("modified(?) curve: {s}\n", .{crv.debug_json_str()});
         } 
         else 
         {
             // pack into a curve
-            try state.bezier_curves.append(
+            try state.normalized_curves.append(
                 curve.TimeCurve{ 
                     .segments = &.{ try curve.read_segment_json(fpath) }
                 }
@@ -864,9 +875,10 @@ fn _parse_args(state:*DemoState) !void {
             .{ .time = -std.math.inf(f32), .value = -std.math.inf(f32) }
         };
         
-        for (state.bezier_curves.items) |crv| {
+        for (state.normalized_curves.items) |crv| {
             for (crv.segments) |seg| {
-                for (seg.points()) |pt| {
+                const pts = seg.points();
+                for (pts) |pt| {
                     extents = .{
                         .{ 
                             .time = std.math.min(extents[0].time, pt.time),
@@ -884,7 +896,7 @@ fn _parse_args(state:*DemoState) !void {
 
         var rescaled_curves = std.ArrayList(curve.TimeCurve).init(ALLOCATOR);
 
-        for (state.bezier_curves.items) |crv| {
+        for (state.normalized_curves.items) |crv| {
             var segments = std.ArrayList(curve.Segment).init(ALLOCATOR);
 
             for (crv.segments) |seg| {
@@ -904,31 +916,31 @@ fn _parse_args(state:*DemoState) !void {
             try rescaled_curves.append(.{ .segments = segments.items });
         }
 
-        // empty and replace state.bezier_curves with rescaled segments
-        state.bezier_curves.clearAndFree();
-        try state.bezier_curves.appendSlice(rescaled_curves.items);
+        // empty and replace state.normalized_curves with rescaled segments
+        state.normalized_curves.clearAndFree();
+        try state.normalized_curves.appendSlice(rescaled_curves.items);
     }
 
-    if (state.bezier_curves.items.len == 0) {
+    if (state.normalized_curves.items.len == 0) {
         usage();
     }
 
     if (project) {
-        if (state.bezier_curves.items.len != 2) {
+        if (state.normalized_curves.items.len != 2) {
             std.debug.print(
                 "Error: --project require exactly two "
-                ++ "bezier_curves, got {}.",
-                .{ state.bezier_curves.items.len }
+                ++ "normalized_curves, got {}.",
+                .{ state.normalized_curves.items.len }
             );
             usage();
         } else {
             std.debug.print(
-                "Projecting {s} through {s} as bezier_curves\n",
+                "Projecting {s} through {s} as normalized_curves\n",
                 .{ state.curve_names.items[PROJ_S], state.curve_names.items[PROJ_THR_S] } 
             );
 
-            const fst = state.bezier_curves.items[PROJ_THR_S];
-            const snd = state.bezier_curves.items[PROJ_S];
+            const fst = state.normalized_curves.items[PROJ_THR_S];
+            const snd = state.normalized_curves.items[PROJ_S];
 
             const result = fst.project_curve(snd);
 
