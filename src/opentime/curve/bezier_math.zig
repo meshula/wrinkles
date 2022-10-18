@@ -5,6 +5,9 @@ const ControlPoint = control_point.ControlPoint;
 const curve = @import("./bezier_curve.zig");
 const expectEqual = std.testing.expectEqual;
 
+const allocator = @import("../allocator.zig");
+const ALLOCATOR = allocator.ALLOCATOR;
+
 /// could build an anytype version of this function if we needed
 pub fn lerp_cp(u: f32, a: ControlPoint, b: ControlPoint) ControlPoint {
     return .{
@@ -236,6 +239,7 @@ pub fn normalized_to(
 
     // copy the curve
     var result = crv;
+    result.segments = ALLOCATOR.dupe(curve.Segment, crv.segments) catch unreachable;
 
     for (result.segments) |seg, seg_index| {
         var new_points:[4]ControlPoint = .{};
