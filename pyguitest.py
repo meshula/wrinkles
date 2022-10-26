@@ -32,14 +32,6 @@ def _parse_args():
         help='Curve files to open'
     )
     return parser.parse_args()
-    # parser.add_argument(
-    #     "-p",
-    #     "--pos",
-    #     nargs=2,
-    #     default=[],
-    #     action="append",
-    #     help="position then letter starting at 0, ie --pos 3 i"
-    # )
 
 
 def _open_curve(fp):
@@ -279,12 +271,11 @@ def curve_editor_ui(curves, points, series_data_per_curve):
         with dpg.menu_bar():
             with dpg.menu(label="File"):
                 dpg.add_menu_item(label="Open Curve")
+                # @TODO: "save" button
+                # @TODO: "quit" button
+                # @TODO: "diff" button?
             with dpg.menu(label="Debug"):
                 dpg.add_menu_item(label="Show Demo", callback=demo.show_demo)
-        # dpg.add_text("Hello world")
-        # dpg.add_button(label="Save", callback=demo_func)
-        # dpg.add_input_text(label="string")
-        # dpg.add_slider_float(label="float")
         with dpg.group(horizontal=True):
             with dpg.child_window(width=0.3*width):
                 with dpg.collapsing_header(label="Curves", default_open=True):
@@ -317,8 +308,6 @@ def curve_editor_ui(curves, points, series_data_per_curve):
                                         indent=4
                                     )
                                 )
-
-
 
             with dpg.child_window():
                 with dpg.plot(label="Curve Editor", height=-1, width=-1) as p:
@@ -366,8 +355,6 @@ def curve_editor_ui(curves, points, series_data_per_curve):
                                 callback=update_point,
                             )
                             dpg.set_item_user_data(w, [w_t, i, s, s_i])
-
-
 
 
 if __name__ == "__main__":
