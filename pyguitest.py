@@ -3,7 +3,6 @@
 import math
 import argparse
 import json
-import sys
 
 import dearpygui.dearpygui as dpg
 import dearpygui.demo as demo
@@ -56,15 +55,13 @@ def main():
 
 
 def _lerp_cp(u, a, b):
-    if any(t is None for t in (u, a, b)):
-        import ipdb; ipdb.set_trace()
     return (
         a[0] * (1 - u) + b[0] * u,
         a[1] * (1 - u) + b[1] * u,
     )
 
 
-def _segment_reduce4(u: float, seg:[[float, float]]) -> [[float, float]]:
+def _segment_reduce4(u: float, seg: [[float, float]]) -> [[float, float]]:
     return [
         _lerp_cp(u, seg[0], seg[1]),
         _lerp_cp(u, seg[1], seg[2]),
@@ -72,18 +69,18 @@ def _segment_reduce4(u: float, seg:[[float, float]]) -> [[float, float]]:
     ]
 
 
-def _segment_reduce3(u: float, seg:[[float, float]]) -> [[float, float]]:
-    if len(seg) < 3:
-        import ipdb ; ipdb.set_trace()
+def _segment_reduce3(u: float, seg: [[float, float]]) -> [[float, float]]:
     return [
         _lerp_cp(u, seg[0], seg[1]),
         _lerp_cp(u, seg[1], seg[2]),
     ]
 
-def _segment_reduce2(u: float, seg:[[float, float]]) -> [[float, float]]:
+
+def _segment_reduce2(u: float, seg: [[float, float]]) -> [[float, float]]:
     return [
         _lerp_cp(u, seg[0], seg[1]),
     ]
+
 
 def _eval_curve_at(unorm, segment):
     seg4 = [p[1] for p in segment]
@@ -112,7 +109,7 @@ def _bezier0(unorm, p2, p3, p4):
     zmo3 = zmo2*zmo
 
     return (
-        (p4 * z3) 
+        (p4 * z3)
         - (p3 * (3.0*z2*zmo))
         + (p2 * (3.0*z*zmo2))
         - (p1 * zmo3)
@@ -130,7 +127,7 @@ def _find_u_dist(x, p1, p2, p3):
         return 1
 
     _u1 = 0
-    _ur = 0
+    _u2 = 0
     x1 = -x
     x2 = p3 - x
 
