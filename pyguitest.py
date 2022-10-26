@@ -295,19 +295,19 @@ def curve_editor_ui(curves):
                             dpg.set_item_user_data(w, w_t)
 
                         # Nick look here, this is what broken
-                        with dpg.drawlist(width=-1, height=-1):
-                            t_last = s[0][1]
-                            t = t_last[0]
-                            while t < s[-1][1][0]:
-                                new_p = _eval_curve_at_x(t, s)
-                                dpg.draw_line(
-                                    t_last,
-                                    new_p,
-                                    color=(128, 128, 0, 255),
-                                    thickness= 0.05,
-                                )
-                                t_last = new_p
-                                t += 0.001
+                        # with dpg.drawlist(width=-1, height=-1):
+                        t_last = s[0][1]
+                        t = t_last[0]
+                        while t < s[-1][1][0]:
+                            new_p = _eval_curve_at_x(t, s)
+                            dpg.draw_line(
+                                t_last,
+                                new_p,
+                                color=(128, 128, 0, 255),
+                                thickness= 0.05,
+                            )
+                            t_last = new_p
+                            t += 0.001
 
 
     dpg.show_viewport()
