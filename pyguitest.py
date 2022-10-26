@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import math
 import argparse
 import json
 
@@ -9,6 +8,10 @@ import dearpygui.demo as demo
 
 
 """Parametric Curve IO Curve Viewer/Editor"""
+
+
+CURVE_POINTS = 1000
+CURVE_INC = 1.0/CURVE_POINTS
 
 
 def demo_func():
@@ -51,7 +54,43 @@ def main():
     for fp in args.filepath:
         curves.append(_open_curve(fp))
 
-    curve_editor_ui(curves)
+    knot_positions = knot_positions_from(curves)
+    curve_positions = []
+    for c in knot_positions:
+        # curves
+        curve_positions.append([])
+        for s in c:
+            # segment
+            curve_positions[-1].append([])
+
+            # t and v lists
+            curve_positions[-1][-1].append([])
+            curve_positions[-1][-1].append([])
+            for _ in range(CURVE_POINTS+1):
+                curve_positions[-1][-1][0].append(0)
+                curve_positions[-1][-1][1].append(0)
+
+    computed_curve_positions(knot_positions, curve_positions)
+
+    dpg.create_context()
+    dpg.create_viewport(title="Parameteric Curve IO Curve Editor")
+    dpg.setup_dearpygui()
+
+    print("building")
+    curve_editor_ui(curves, knot_positions, curve_positions)
+
+    dpg.set_primary_window("Curve Editor", True)
+    dpg.show_viewport()
+
+    while dpg.is_dearpygui_running():
+        computed_curve_positions(knot_positions, curve_positions)
+        for c_i, c in enumerate(curve_positions):
+            for s_i, s in enumerate(c):
+                tag = f"curve_{c_i}_segment_{s_i}"
+                dpg.set_value(tag, s)
+        dpg.render_dearpygui_frame()
+
+    dpg.destroy_context()
 
 
 def _lerp_cp(u, a, b):
@@ -194,23 +233,10 @@ def _find_u_dist(x, p1, p2, p3):
 
 
 def _eval_curve_at_x(x, seg):
-    return _eval_curve_at(_find_u(x, [p[1][0] for p in seg]), seg )
+    return _eval_curve_at(_find_u(x, [p[1][0] for p in seg]), seg)
 
 
-def curve_editor_ui(curves):
-    # Create Data
-    sindatax = []
-    sindatay = []
-    for i in range(0, 500):
-        sindatax.append(i / 1000)
-        sindatay.append(0.5 + 0.5 * math.sin(50 * i / 1000))
-
-    dpg.create_context()
-    dpg.create_viewport(title="Parameteric Curve IO Curve Editor")
-    width = dpg.get_viewport_width()
-
-    dpg.setup_dearpygui()
-
+def knot_positions_from(curves):
     points = []
     for c in curves:
         crv = []
@@ -222,6 +248,32 @@ def curve_editor_ui(curves):
             crv.append(s)
         points.append(crv)
 
+    return points
+
+
+def computed_curve_positions(knot_positions, curve_positions):
+    for i, c in enumerate(knot_positions):
+        for s_i, s in enumerate(c):
+            start_t = s[0][1][0]
+            end_t = s[-1][1][0]
+            t = start_t
+            t_inc = (end_t - start_t)/CURVE_POINTS
+            count = 0
+            seg = curve_positions[i][s_i]
+            while t < end_t:
+                new_p = _eval_curve_at_x(t, s)
+                try:
+                    seg[0][count] = new_p[0]
+                    seg[1][count] = new_p[1]
+                except Exception as err:
+                    import ipdb; ipdb.set_trace()
+
+                t += t_inc
+                count += 1
+
+
+def curve_editor_ui(curves, points, series_data_per_curve):
+    width = dpg.get_viewport_width()
 
     with dpg.window(tag="Curve Editor"):
         with dpg.menu_bar():
@@ -236,13 +288,13 @@ def curve_editor_ui(curves):
         with dpg.group(horizontal=True):
             with dpg.child_window(width=0.3*width):
                 with dpg.collapsing_header(label="Curves", default_open=True):
-                    for i, c in enumerate(points):
-                        base_crv = curves[i]
+                    for c_i, c in enumerate(points):
+                        base_crv = curves[c_i]
                         with dpg.collapsing_header(
                                 label=base_crv["filepath"],
                                 default_open=True
                         ):
-                            for seg_index, seg in enumerate(points[i]):
+                            for seg_index, seg in enumerate(points[c_i]):
                                 with dpg.collapsing_header(
                                         label=f"Segment {seg_index}",
                                         default_open=True,
@@ -251,7 +303,7 @@ def curve_editor_ui(curves):
                                         with dpg.group(horizontal=True):
                                             p.append(
                                                 dpg.add_input_floatx(
-                                                    label=f"{i}.{seg_index}.{p[0]}",
+                                                    label=f"{c_i}.{seg_index}.{p[0]}",
                                                     default_value=p[1],
                                                     size=2,
                                                 ),
@@ -266,6 +318,8 @@ def curve_editor_ui(curves):
                                     )
                                 )
 
+
+
             with dpg.child_window():
                 with dpg.plot(label="Curve Editor", height=-1, width=-1) as p:
                     dpg.add_plot_legend()
@@ -278,6 +332,23 @@ def curve_editor_ui(curves):
                     )
 
                     for s_i, s in enumerate(c):
+                        tag = f"curve_{c_i}_segment_{s_i}"
+                        if dpg.does_item_exist(tag):
+                            dpg.delete_item(tag)
+
+                        if (
+                                s_i >= len(series_data_per_curve[c_i])
+                                or c_i >= len(series_data_per_curve)
+                        ):
+                            import ipdb; ipdb.set_trace()
+
+                        dpg.add_line_series(
+                            series_data_per_curve[c_i][s_i][0],
+                            series_data_per_curve[c_i][s_i][1],
+                            label=f"Curve {c_i} Segment {s_i}",
+                            parent="y_axis",
+                            tag=tag,
+                        )
                         for i, (label, (p_t, p_v), (w_t)) in enumerate(s):
                             def update_point(sender, app_data, user_data):
                                 value = dpg.get_value(sender)
@@ -296,25 +367,7 @@ def curve_editor_ui(curves):
                             )
                             dpg.set_item_user_data(w, [w_t, i, s, s_i])
 
-                        # Nick look here, this is what broken
-                        # with dpg.drawlist(width=-1, height=-1):
-                        t_last = s[0][1]
-                        t = t_last[0]
-                        while t < s[-1][1][0]:
-                            new_p = _eval_curve_at_x(t, s)
-                            dpg.draw_line(
-                                t_last,
-                                new_p,
-                                color=(128, 128, 0, 255),
-                                thickness=0.05,
-                            )
-                            t_last = new_p
-                            t += 0.001
 
-    dpg.show_viewport()
-    dpg.set_primary_window("Curve Editor", True)
-    dpg.start_dearpygui()
-    dpg.destroy_context()
 
 
 if __name__ == "__main__":
