@@ -280,11 +280,16 @@ def curve_editor_ui(curves):
                         tag="y_axis"
                     )
 
-                    for s in c:
-                        for (label, (p_t, p_v), (w_t)) in s:
+                    for s_i, s in enumerate(c):
+                        for i, (label, (p_t, p_v), (w_t)) in enumerate(s):
                             def update_point(sender, app_data, user_data):
                                 value = dpg.get_value(sender)
-                                widget = user_data
+                                widget = user_data[0]
+                                p_index = user_data[1]
+                                seg = user_data[2]
+                                s_i = user_data[3]
+                                seg[p_index][1] = (value[0], value[1])
+                                print(f"{points[0][s_i][p_index]}")
                                 dpg.set_value(widget, (value[0], value[1]))
 
                             w = dpg.add_drag_point(
@@ -292,7 +297,7 @@ def curve_editor_ui(curves):
                                 default_value=(p_t, p_v),
                                 callback=update_point,
                             )
-                            dpg.set_item_user_data(w, w_t)
+                            dpg.set_item_user_data(w, [w_t, i, s, s_i])
 
                         # Nick look here, this is what broken
                         # with dpg.drawlist(width=-1, height=-1):
@@ -304,11 +309,10 @@ def curve_editor_ui(curves):
                                 t_last,
                                 new_p,
                                 color=(128, 128, 0, 255),
-                                thickness= 0.05,
+                                thickness=0.05,
                             )
                             t_last = new_p
                             t += 0.001
-
 
     dpg.show_viewport()
     dpg.set_primary_window("Curve Editor", True)
