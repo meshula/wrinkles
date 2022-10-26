@@ -294,7 +294,7 @@ def curve_editor_ui(curves):
                             )
                             dpg.set_item_user_data(w, w_t)
 
-                        # XXX: Nick look here, this is what broken
+                        # Nick look here, this is what broken
                         with dpg.drawlist(width=-1, height=-1):
                             t_last = s[0][1]
                             t = t_last[0]
