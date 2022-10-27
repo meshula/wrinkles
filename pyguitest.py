@@ -322,8 +322,6 @@ def curve_editor_ui(curves, points, series_data_per_curve):
 
                     for s_i, s in enumerate(c):
                         tag = f"curve_{c_i}_segment_{s_i}"
-                        if dpg.does_item_exist(tag):
-                            dpg.delete_item(tag)
 
                         if (
                                 s_i >= len(series_data_per_curve[c_i])
@@ -338,7 +336,8 @@ def curve_editor_ui(curves, points, series_data_per_curve):
                             parent="y_axis",
                             tag=tag,
                         )
-                        for i, (label, (p_t, p_v), (w_t)) in enumerate(s):
+
+                        for pt_i, (label, (p_t, p_v), (w_t)) in enumerate(s):
                             def update_point(sender, app_data, user_data):
                                 value = dpg.get_value(sender)
                                 widget = user_data[0]
@@ -354,7 +353,7 @@ def curve_editor_ui(curves, points, series_data_per_curve):
                                 default_value=(p_t, p_v),
                                 callback=update_point,
                             )
-                            dpg.set_item_user_data(w, [w_t, i, s, s_i])
+                            dpg.set_item_user_data(w, [w_t, pt_i, s, s_i])
 
 
 if __name__ == "__main__":
