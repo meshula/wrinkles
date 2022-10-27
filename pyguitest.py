@@ -232,11 +232,15 @@ def knot_positions_from(curves):
     points = []
     for c in curves:
         crv = []
+
+        # # hermitian curves have a single segment over the entire 
+        # if c.get("interpolant", "bezier") == "hermitian":
+
         # import ipdb; ipdb.set_trace()
         for seg_index, seg in enumerate(c["data"]["segments"]):
             s = []
             for p_name, p_value in sorted(seg.items()):
-                s.append([p_name, (p_value["time"], p_value["value"])])
+                s.append([p_name, [p_value["time"], p_value["value"]]])
             crv.append(s)
         points.append(crv)
 
@@ -266,6 +270,31 @@ def computed_curve_positions(knot_positions, curve_positions):
 
 def curve_editor_ui(curves, points, series_data_per_curve):
     width = dpg.get_viewport_width()
+
+    def update_point(sender, app_data, user_data):
+        """callback for updating knots when they get dragged in the plot"""
+
+        value = dpg.get_value(sender)
+        widget, p_index, seg, s_i, c_i = user_data
+
+        seg[p_index][1] = [value[0], value[1]]
+        print(f"{s_i}.{p_index}: {points[0][s_i][p_index]}")
+
+        tgt_s_i = None
+        tgt_p_i = None
+        if p_index == 0 and s_i - 1 >= 0:
+            tgt_s_i = s_i - 1
+            tgt_p_i = -1
+        if p_index == 3 and s_i + 1 < len(c):
+            tgt_s_i = s_i + 1
+            tgt_p_i = 0
+
+        if tgt_s_i is not None and tgt_p_i is not None:
+            c[tgt_s_i][tgt_p_i][1][0] = value[0]
+            dpg.set_value(c[tgt_s_i][tgt_p_i][3], c[tgt_s_i][tgt_p_i][1])
+            print(f"{tgt_s_i}.{tgt_p_i}: {points[0][tgt_s_i][tgt_p_i]}")
+
+        dpg.set_value(widget, (value[0], value[1]))
 
     with dpg.window(tag="Curve Editor"):
         with dpg.menu_bar():
@@ -338,22 +367,13 @@ def curve_editor_ui(curves, points, series_data_per_curve):
                         )
 
                         for pt_i, (label, (p_t, p_v), (w_t)) in enumerate(s):
-                            def update_point(sender, app_data, user_data):
-                                value = dpg.get_value(sender)
-                                widget = user_data[0]
-                                p_index = user_data[1]
-                                seg = user_data[2]
-                                s_i = user_data[3]
-                                seg[p_index][1] = (value[0], value[1])
-                                print(f"{points[0][s_i][p_index]}")
-                                dpg.set_value(widget, (value[0], value[1]))
-
                             w = dpg.add_drag_point(
                                 label=label,
                                 default_value=(p_t, p_v),
                                 callback=update_point,
                             )
-                            dpg.set_item_user_data(w, [w_t, pt_i, s, s_i])
+                            s[pt_i].append(w)
+                            dpg.set_item_user_data(w, [w_t, pt_i, s, s_i, c])
 
 
 if __name__ == "__main__":
