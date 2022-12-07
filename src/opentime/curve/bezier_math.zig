@@ -293,3 +293,28 @@ test "normalized_to" {
     try expectEqual(max_point.time, result_extents[1].time);
     try expectEqual(max_point.value, result_extents[1].value);
 }
+
+test "normalize_to_screen_coords" {
+    const input_crv:curve.TimeCurve = .{
+        .segments = &.{
+            curve.create_bezier_segment(
+                .{.time = -500, .value=600},
+                .{.time = -300, .value=-100},
+                .{.time = 200, .value=300},
+                .{.time = 500, .value=700},
+            ),
+        }
+    };
+
+    const min_point = ControlPoint{.time=700, .value=100};
+    const max_point = ControlPoint{.time=2500, .value=1900};
+
+    const result_crv = normalized_to(input_crv, min_point, max_point);
+    const result_extents = result_crv.extents();
+
+    try expectEqual(min_point.time, result_extents[0].time);
+    try expectEqual(min_point.value, result_extents[0].value);
+
+    try expectEqual(max_point.time, result_extents[1].time);
+    try expectEqual(max_point.value, result_extents[1].value);
+}

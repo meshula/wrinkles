@@ -6,9 +6,6 @@ const wgpu = zgpu.wgpu;
 const zgui = @import("zgui");
 const zm = @import("zmath");
 const zstbi = @import("zstbi");
-const ot = @cImport({
-    @cInclude("opentime.h");
-});
 
 // curve library
 const opentime = @import("opentime/opentime.zig");
@@ -80,6 +77,21 @@ const Uniforms = extern struct {
     frame_rate: f32,
 };
 
+const CurveOpts = struct {
+    name:string.latin_s8,
+    draw_hull:bool = true,
+    draw_curve:bool = true,
+    draw_imgui_curve:bool = false,
+};
+
+fn arrayListInit(comptime T: type) std.ArrayList(T) {
+    return std.ArrayList(T).init(ALLOCATOR);
+}
+
+fn curveName(state: *DemoState, index: usize) string.latin_s8 {
+    return state.curve_options.items[index].name;
+}
+
 const DemoState = struct {
     gctx: *zgpu.GraphicsContext,
 
@@ -100,18 +112,13 @@ const DemoState = struct {
     clip_frame_rate: i32 = 6,
     frame_rate: i32 = 10,
 
-    bezier_curves:std.ArrayList(curve.TimeCurve) = (
-        std.ArrayList(curve.TimeCurve).init(ALLOCATOR)
-    ),
-    normalized_curves:std.ArrayList(curve.TimeCurve) = (
-        std.ArrayList(curve.TimeCurve).init(ALLOCATOR)
-    ),
-    linear_curves:std.ArrayList(curve.TimeCurveLinear) = (
-        std.ArrayList(curve.TimeCurveLinear).init(ALLOCATOR)
-    ),
-    curve_names:std.ArrayList(string.latin_s8) = (
-        std.ArrayList(string.latin_s8).init(ALLOCATOR)
-    ),
+    /// original bezier curves read from json
+    bezier_curves:std.ArrayList(curve.TimeCurve) = arrayListInit(curve.TimeCurve),
+    /// list of curves normalized into the space of the display
+    normalized_curves:std.ArrayList(curve.TimeCurve) = arrayListInit(curve.TimeCurve),
+    /// list of linearized curves
+    linear_curves:std.ArrayList(curve.TimeCurveLinear) = arrayListInit(curve.TimeCurveLinear),
+    curve_options:std.ArrayList(CurveOpts) = arrayListInit(CurveOpts),
 
     options: struct {
         // using i32 because microui check_box expects an int32 not a bool
@@ -125,9 +132,6 @@ const DemoState = struct {
 };
 
 fn init(allocator: std.mem.Allocator, window: zglfw.Window) !*DemoState {
-    // ot.ot_test();
-
-
     const gctx = try zgpu.GraphicsContext.create(allocator, window);
 
     var arena_state = std.heap.ArenaAllocator.init(allocator);
@@ -374,15 +378,43 @@ fn update(demo: *DemoState) void {
     );
     defer values.deinit();
 
+
+    const viewport = zgui.getMainViewport();
+    const vsz = viewport.getWorkSize();
+    const center: [2]f32 = .{ vsz[0] * 0.5, vsz[1] * 0.5 };
+    const half_width = center[1] * 0.9;
+    const min_p = curve.ControlPoint{
+        .time=center[0] + half_width,
+        .value=center[1] + half_width,
+    };
+    const max_p = curve.ControlPoint{
+        .time=center[0] - half_width,
+        .value=center[1] - half_width,
+    };
+
+    const t_stops = 100;
+    const t_start = min_p.time;
+    const t_end = max_p.time;
+    const t_inc = (t_end - t_start) / t_stops;
+    const points = [t_stops]([2]f32);
+
     if (zgui.collapsingHeader("Curves", .{})) {
         for (demo.normalized_curves.items) |crv, crv_index| {
             if (
                 zgui.collapsingHeader(
-                    @ptrCast([:0]const u8, demo.curve_names.items[crv_index]),
+                    @ptrCast([:0]const u8, curveName(demo, crv_index)),
                     .{}
                 ) 
             )
             {
+                var opts = &demo.curve_options.items[crv_index];
+                _ = zgui.checkbox("Draw Hull", .{ .v = &opts.draw_hull },);
+                _ = zgui.checkbox("Draw Curve", .{ .v = &opts.draw_curve },);
+                _ = zgui.checkbox(
+                    "Draw Curve With Imgui",
+                    .{ .v = &opts.draw_imgui_curve },
+                );
+
                 const extents = crv.extents();
                 const norm_crv = curve.normalized_to(
                     crv,
@@ -478,18 +510,25 @@ fn update(demo: *DemoState) void {
                         }
                     );
 
+                    var t = t_start;
+                    var index:usize = 0;
+                    while (t < t_end) : ({t += t_inc; index += 1;}) {
+                        points[index] = .{t, crv.evaluate(t) catch unreachable};
+                    }
+                    zgui.plot.plotLine(
+                        "evaluated curve",
+                        f32,
+                        .{
+                            .xy = points
+                        },
+                    );
+
                     zgui.plot.endPlot();
                 }
             }
         }
     }
 
-    const viewport = zgui.getMainViewport();
-    const vsz = viewport.getWorkSize();
-
-    const center: [2]f32 = .{ vsz[0] * 0.5, vsz[1] * 0.5 };
-
-    const half_width = center[1] * 0.9;
 
     const draw_list = zgui.getWindowDrawList();
 
@@ -511,14 +550,9 @@ fn update(demo: *DemoState) void {
         .{ .col = 0xff_00_aa_aa, .thickness = 7 },
     );
 
-    const min_p = curve.ControlPoint{
-        .time=center[0] + half_width,
-        .value=center[1] + half_width,
-    };
-    const max_p = curve.ControlPoint{
-        .time=center[0] - half_width,
-        .value=center[1] - half_width,
-    };
+    // for a debug origin
+    // draw_list.addCircleFilled(.{ .p = .{ min_p.time, min_p.value }, .r = 50, .col = 0xff_00_00_ff });
+    // draw_list.addCircleFilled(.{ .p = .{ max_p.time, max_p.value }, .r = 50, .col = 0xff_00_ff_ff });
 
     // var times:std.ArrayList(f32) = (
     //     std.ArrayList(f32).init(ALLOCATOR)
@@ -536,73 +570,56 @@ fn update(demo: *DemoState) void {
     //     );
     // }
 
-    for (demo.normalized_curves.items) |crv| {
-        const draw_crv = curve.normalized_to(crv, min_p, max_p);
+    // draw the curves themselves
 
+    var pts:std.ArrayList([2]f32) = arrayListInit([2]f32);
+    defer pts.deinit();
+
+    for (demo.bezier_curves.items) |crv, index| {
+        const draw_crv = curve.normalized_to(crv, min_p, max_p);
+        const opts = &demo.curve_options.items[index];
+        
         for (draw_crv.segments) |seg| {
-            draw_list.addPolyline(
-                &.{ 
-                    .{seg.p0.time, seg.p0.value},
-                    .{seg.p1.time, seg.p1.value},
-                    .{seg.p2.time, seg.p2.value},
-                    .{seg.p3.time, seg.p3.value},
-                },
-                .{ .col=0xff_ff_ff_ff, .thickness = 3 },
-            );
-            // draw_list.addBezierCubic(
-            //     .{ 
-            //         .p1=.{seg.p0.time, seg.p0.value},
-            //         .p2=.{seg.p1.time, seg.p1.value},
-            //         .p3=.{seg.p2.time, seg.p2.value},
-            //         .p4=.{seg.p3.time, seg.p3.value},
-            //         .col=0xff_ff_ff_ff,
-            //     }
-            // );
-            // draw_list.addBezierCubic(
-            //     .{ 
-            //         .p1=.{seg.p0.time, seg.p0.value},
-            //         .p2=.{seg.p1.time, seg.p1.value},
-            //         .p3=.{seg.p2.time, seg.p2.value},
-            //         .p4=.{seg.p3.time, seg.p3.value},
-            //         .col=0xff_ff_ff_ff,
-            //     }
-            // );
-            // draw_list.addBezierCubic(
-            //     .{ 
-            //         .p1=.{seg.p0.time, seg.p0.value},
-            //         .p2=.{seg.p1.time, seg.p1.value},
-            //         .p3=.{seg.p2.time, seg.p2.value},
-            //         .p4=.{seg.p3.time, seg.p3.value},
-            //         .col=0xff_ff_ff_ff,
-            //     }
-            // );
-            // draw_list.addBezierCubic(
-            //     .{ 
-            //         .p1=.{seg.p0.time, seg.p0.value},
-            //         .p2=.{seg.p1.time, seg.p1.value},
-            //         .p3=.{seg.p2.time, seg.p2.value},
-            //         .p4=.{seg.p3.time, seg.p3.value},
-            //         .col=0xff_ff_ff_ff,
-            //     }
-            // );
-            // draw_list.addBezierCubic(
-            //     .{ 
-            //         .p1=.{seg.p0.time, seg.p0.value},
-            //         .p2=.{seg.p1.time, seg.p1.value},
-            //         .p3=.{seg.p2.time, seg.p2.value},
-            //         .p4=.{seg.p3.time, seg.p3.value},
-            //         .col=0xff_ff_ff_ff,
-            //     }
-            // );
-            // draw_list.addBezierCubic(
-            //     .{ 
-            //         .p1=.{seg.p0.time, seg.p0.value},
-            //         .p2=.{seg.p1.time, seg.p1.value},
-            //         .p3=.{seg.p2.time, seg.p2.value},
-            //         .p4=.{seg.p3.time, seg.p3.value},
-            //         .col=0xff_ff_ff_ff,
-            //     }
-            // );
+            if (opts.draw_hull) {
+                draw_list.addPolyline(
+                    &.{ 
+                        .{seg.p0.time, seg.p0.value},
+                        .{seg.p1.time, seg.p1.value},
+                        .{seg.p2.time, seg.p2.value},
+                        .{seg.p3.time, seg.p3.value},
+                    },
+                    .{ .col=0xff_ff_ff_ff, .thickness = 3 },
+                );
+            }
+
+            if (opts.draw_imgui_curve) {
+                draw_list.addBezierCubic(
+                    .{ 
+                        .p1=.{seg.p0.time, seg.p0.value},
+                        .p2=.{seg.p1.time, seg.p1.value},
+                        .p3=.{seg.p2.time, seg.p2.value},
+                        .p4=.{seg.p3.time, seg.p3.value},
+                        .thickness = 6,
+                        .col=0xff_ff_ff_ff,
+                    }
+                );
+            }
+
+            pts.clearAndFree();
+
+            // draw curve with opentime evaluator
+            if (opts.draw_curve) {
+                var t = t_start;
+                while (t < t_end) : ({t += t_inc;}) {
+                    pts.append(
+                        .{t, draw_crv.evaluate(t) catch unreachable}
+                    ) catch unreachable;
+                }
+                draw_list.addPolyline(
+                    pts.items,
+                    .{ .col=0xff_ff_ff_ff, .thickness = 30 },
+                );
+            }
         }
     }
 
@@ -825,7 +842,7 @@ fn _parse_args(state:*DemoState) !void {
         }
 
         std.debug.print("reading curve: {s}\n", .{ fpath });
-        try state.curve_names.append(fpath);
+        try state.curve_options.append(.{.name=fpath});
 
         var buf: [1024]u8 = undefined;
         const lower_fpath = std.ascii.lowerString(&buf, fpath);
@@ -839,7 +856,6 @@ fn _parse_args(state:*DemoState) !void {
             };
 
             try state.bezier_curves.append(crv);
-            std.debug.print("original curve: {s}\n", .{crv.debug_json_str()});
 
             try state.normalized_curves.append(
                 curve.normalized_to(
@@ -848,7 +864,6 @@ fn _parse_args(state:*DemoState) !void {
                     .{.time=400, .value=400}
                 )
             );
-            std.debug.print("modified(?) curve: {s}\n", .{crv.debug_json_str()});
         } 
         else 
         {
@@ -878,22 +893,17 @@ fn _parse_args(state:*DemoState) !void {
         };
         
         for (state.normalized_curves.items) |crv| {
-            for (crv.segments) |seg| {
-                const pts = seg.points();
-                for (pts) |pt| {
-                    extents = .{
-                        .{ 
-                            .time = std.math.min(extents[0].time, pt.time),
-                            .value = std.math.min(extents[0].value, pt.value),
-                        },
-                        .{ 
-                            .time = std.math.max(extents[1].time, pt.time),
-                            .value = std.math.max(extents[1].value, pt.value),
-                        },
-
-                    };
-                }
-            }
+            const crv_extents = crv.extents();
+            extents = .{
+                .{ 
+                    .time = std.math.min(extents[0].time, crv_extents[0].time),
+                    .value = std.math.min(extents[0].value, crv_extents[0].value),
+                },
+                .{ 
+                    .time = std.math.max(extents[1].time, crv_extents[1].time),
+                    .value = std.math.max(extents[1].value, crv_extents[1].value),
+                },
+            };
         }
 
         var rescaled_curves = std.ArrayList(curve.TimeCurve).init(ALLOCATOR);
@@ -938,7 +948,7 @@ fn _parse_args(state:*DemoState) !void {
         } else {
             std.debug.print(
                 "Projecting {s} through {s} as normalized_curves\n",
-                .{ state.curve_names.items[PROJ_S], state.curve_names.items[PROJ_THR_S] } 
+                .{ curveName(state, PROJ_S), curveName(state, PROJ_THR_S) } 
             );
 
             const fst = state.normalized_curves.items[PROJ_THR_S];
