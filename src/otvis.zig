@@ -855,7 +855,9 @@ fn _parse_args(state:*DemoState) !void {
             // pack into a curve
             try state.normalized_curves.append(
                 curve.TimeCurve{ 
-                    .segments = &.{ try curve.read_segment_json(fpath) }
+                    .segments = &[1]curve.Segment{
+                        try curve.read_segment_json(fpath) 
+                    }
                 }
             );
         }
