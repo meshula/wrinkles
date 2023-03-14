@@ -822,7 +822,7 @@ test "Segment: projected_segment to 1/2" {
 
 test "TimeCurve: positive length 1 linear segment test" {
     const xform_curve: TimeCurve = .{
-        .segments = &.{
+        .segments = &[1]Segment{
             create_linear_segment(
                 .{ .time = 1, .value = 0, },
                 .{ .time = 2, .value = 1, },
@@ -848,22 +848,21 @@ test "TimeCurve: positive length 1 linear segment test" {
 }
 
 test "TimeCurve: projection_test - compose to identity" {
-    const fst: TimeCurve = .{
-        .segments = &.{
-            create_linear_segment(
-                .{ .time = 0, .value = 0, },
-                .{ .time = 4, .value = 8, },
-            )
-        }
+    var seg_0_4 = [_]Segment{
+        create_linear_segment(
+            .{ .time = 0, .value = 0, },
+            .{ .time = 4, .value = 8, },
+        ) 
     };
-    const snd: TimeCurve = .{
-        .segments = &.{
-            create_linear_segment(
-                .{ .time = 0, .value = 0, },
-                .{ .time = 8, .value = 4, },
-            )
-        }
+    const fst: TimeCurve = .{ .segments = &seg_0_4 };
+
+    var seg_0_8 = [_]Segment{
+        create_linear_segment(
+            .{ .time = 0, .value = 0, },
+            .{ .time = 8, .value = 4, },
+        )
     };
+    const snd: TimeCurve = .{ .segments = &seg_0_8 };
 
     // check linearization first
     const fst_lin = fst.linearized();
@@ -887,17 +886,16 @@ test "TimeCurve: projection_test - compose to identity" {
 }
 
 test "TimeCurve: projection_test non-overlapping" {
-    const fst: TimeCurve = .{
-        .segments = &.{ create_identity_segment(0, 1) }
+    var seg_0_1 = [_]Segment{ create_identity_segment(0, 1) };
+    const fst: TimeCurve = .{ .segments = &seg_0_1 };
+
+    var seg_1_9 = [_]Segment{ 
+        create_linear_segment(
+            .{ .time = 1, .value = 1, },
+            .{ .time = 9, .value = 5, },
+        )
     };
-    const snd: TimeCurve = .{
-        .segments = &.{
-            create_linear_segment(
-                .{ .time = 1, .value = 1, },
-                .{ .time = 9, .value = 5, },
-            )
-        }
-    };
+    const snd: TimeCurve = .{ .segments = &seg_1_9 };
 
     const result = fst.project_curve(snd);
 
@@ -905,14 +903,13 @@ test "TimeCurve: projection_test non-overlapping" {
 }
 
 test "positive slope 2 linear segment test" {
-    const xform_curve: TimeCurve = .{
-        .segments = &.{ 
-            create_linear_segment(
-                .{ .time = 1, .value = 0, },
-                .{ .time = 2, .value = 2, },
-            )
-        }
+    var test_segment_arr = [_]Segment{
+        create_linear_segment(
+            .{ .time = 1, .value = 0, },
+            .{ .time = 2, .value = 2, },
+        )
     };
+    const xform_curve = TimeCurve{ .segments = &test_segment_arr };
 
     try expectEqual(@as(f32, 0),   try xform_curve.evaluate(1));
     try expectEqual(@as(f32, 0.5), try xform_curve.evaluate(1.25));
@@ -921,14 +918,15 @@ test "positive slope 2 linear segment test" {
 }
 
 test "negative length 1 linear segment test" {
-    const xform_curve: TimeCurve = .{
-        .segments = &.{
-            create_linear_segment(
-                .{ .time = -2, .value = 0, },
-                .{ .time = -1, .value = 1, },
-            )
-        } 
+    // declaring the segment here means that the memory management is handled
+    // by stack unwinding
+    var segments_xform = [_]Segment{
+        create_linear_segment(
+            .{ .time = -2, .value = 0, },
+            .{ .time = -1, .value = 1, },
+        )
     };
+    const xform_curve = TimeCurve{ .segments = &segments_xform };
 
     // outside of the range should return the original result
     // (identity transform)
@@ -1012,9 +1010,8 @@ test "convex hull test" {
 
 
 test "Segment: eval_at for out of range u" {
-    const tc = TimeCurve{
-        .segments = &.{ create_identity_segment(3, 4) }
-    };
+    var seg = [1]Segment{create_identity_segment(3, 4)};
+    const tc = TimeCurve{ .segments = &seg};
 
     try expectError(error.OutOfBounds, tc.evaluate(0));
     // right open intervals means the end point is out
@@ -1072,7 +1069,7 @@ test "segment: findU_value" {
 }
 
 test "TimeCurve: project u loop bug" {
-    const simple_s_segments: []Segment = &.{
+    const simple_s_segments = [_]Segment{
         create_linear_segment(
             .{ .time = 0, .value = 0},
             .{ .time = 30, .value = 10},
@@ -1086,15 +1083,17 @@ test "TimeCurve: project u loop bug" {
             .{ .time = 100, .value = 100},
         ),
     };
-    const simple_s = try TimeCurve.init(simple_s_segments);
+    const simple_s = try TimeCurve.init(&simple_s_segments);
 
-    var u_seg = Segment{
-        .p0 = .{ .time = 0, .value = 0 },
-        .p1 = .{ .time = 0, .value = 100 },
-        .p2 = .{ .time = 100, .value = 100 },
-        .p3 = .{ .time = 100, .value = 0 },
+    const u_seg = [_]Segment{
+        Segment{
+            .p0 = .{ .time = 0, .value = 0 },
+            .p1 = .{ .time = 0, .value = 100 },
+            .p2 = .{ .time = 100, .value = 100 },
+            .p3 = .{ .time = 100, .value = 0 },
+        }
     }; 
-    const upside_down_u = TimeCurve{ .segments = &.{ u_seg } };
+    const upside_down_u = try TimeCurve.init(&u_seg);
 
     // const lin_simple_s = simple_s.linearized();
     // const lin_upside_down_u = upside_down_u.linearized();
