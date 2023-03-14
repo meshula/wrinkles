@@ -260,7 +260,7 @@ pub fn normalized_to(
         result.segments[seg_index] = curve.Segment.from_pt_array(new_points);
     }
 
-    return crv;
+    return result;
 }
 
 test "remap_float" {
