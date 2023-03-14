@@ -44,8 +44,3 @@ pub fn generate_spaces(count: i32) ![]const u8 {
     }
     return result;
 }
-
-pub fn eql_latin_s8(fst: latin_s8, snd: latin_s8) bool
-{
-    return std.mem.eql(u8, fst, snd);
-}

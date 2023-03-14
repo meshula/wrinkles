@@ -253,6 +253,7 @@ pub fn main() !void {
 const expect = @import("std").testing.expect;
 const expectError = @import("std").testing.expectError;
 const expectEqual = @import("std").testing.expectEqual;
+const expectEqualStrings = @import("std").testing.expectEqualStrings;
 
 test "generated_timeline_test" {
     const tl = try otio.build_single_track_timeline();
@@ -292,8 +293,8 @@ test "active union field" {
     //     }
     // };
 
-    try expect(std.mem.eql(u8, test1.simple.name, "simple_test"));
-    try expect(std.mem.eql(u8, test1.fetched_name(), "simple_test"));
+    try expectEqualStrings(test1.simple.name, "simple_test");
+    try expectEqualStrings(test1.fetched_name(), "simple_test");
 
     // is there a way to say test1.<ACTIVE_FIELD>.name?  Because both 
     // possibilities have a "name" field.  Or alternatively can I unpack the
