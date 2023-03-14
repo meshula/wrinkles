@@ -3,6 +3,7 @@ const debug_panic = @import("std").debug.panic;
 
 const assert = std.debug.assert;
 const expectEqual = std.testing.expectEqual;
+const expectEqualStrings = std.testing.expectEqualStrings;
 const expectError = std.testing.expectError;
 const expect = std.testing.expect;
 
@@ -401,14 +402,7 @@ test "Segment: debug_str test" {
         \\
     ;
 
-    try expect(
-        std.mem.eql(
-            u8,
-            result
-        ,
-        seg.debug_json_str()
-        )
-    );
+    try expectEqualStrings(result, seg.debug_json_str());
 }
 
 fn _is_approximately_linear(
@@ -1048,7 +1042,7 @@ test "json writer: curve" {
     try file.seekTo(0);
     const bytes_read = try file.readAll(&buffer);
 
-    try expect(std.mem.eql(u8, buffer[0..bytes_read], ident.debug_json_str()));
+    try expectEqualStrings(buffer[0..bytes_read], ident.debug_json_str());
 }
 
 test "segment: findU_value" {
