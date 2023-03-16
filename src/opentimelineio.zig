@@ -82,11 +82,9 @@ pub fn build_projection_operator(
     return .{ .args = args };
 }
 
-test "Basic" {
-    // sketching
-    var cl = Clip {};
-
+test "Track with clip with identity transform" {
     var tr = Track {};
+    var cl = Clip {};
     try tr.append(.{ .clip = cl });
 
     const track_to_clip = try build_projection_operator(
