@@ -295,15 +295,16 @@ test "normalized_to" {
 }
 
 test "normalize_to_screen_coords" {
+    var segments = [_]curve.Segment{
+        curve.create_bezier_segment(
+            .{.time = -500, .value=600},
+            .{.time = -300, .value=-100},
+            .{.time = 200, .value=300},
+            .{.time = 500, .value=700},
+        )
+    };
     const input_crv:curve.TimeCurve = .{
-        .segments = &.{
-            curve.create_bezier_segment(
-                .{.time = -500, .value=600},
-                .{.time = -300, .value=-100},
-                .{.time = 200, .value=300},
-                .{.time = 500, .value=700},
-            ),
-        }
+        .segments = &segments
     };
 
     const min_point = ControlPoint{.time=700, .value=100};
