@@ -1,8 +1,10 @@
 const std = @import("std");
 const expectApproxEqAbs= std.testing.expectApproxEqAbs;
+const expectError= std.testing.expectError;
 
 const opentime = @import("opentime/opentime.zig");
-pub const string = opentime.string;
+const time_topology = @import("opentime/time_topology.zig");
+const string = opentime.string;
 
 const util = @import("opentime/util.zig");
 
@@ -67,11 +69,10 @@ const ProjectionOperatorArgs = struct {
 
 const ProjectionOperator = struct {
     args: ProjectionOperatorArgs,
+    crv: opentime.TimeTopology,
 
     pub fn project_ordinate(self: @This(), ord_to_project: f32) !f32 {
-        _ = self;
-        _ = ord_to_project;
-        return error.NotImplemented;
+        return self.crv.project_seconds(ord_to_project);
     }
 };
 
@@ -79,7 +80,12 @@ pub fn build_projection_operator(
     args: ProjectionOperatorArgs
 ) !ProjectionOperator
 {
-    return .{ .args = args };
+    return .{
+        .args = args,
+        .crv = time_topology.TimeTopology.init_identity(
+            .{.start_seconds = 0, .end_seconds = 10}
+        )
+    };
 }
 
 test "Track with clip with identity transform" {
@@ -100,6 +106,24 @@ test "Track with clip with identity transform" {
         util.EPSILON,
     );
 }
+
+// test "Track with clip with identity transform and bounds" {
+//     var tr = Track {};
+//     var cl = Clip { .source_range = .{ .start_seconds = 0, .end_seconds = 2 } };
+//     try tr.append(.{ .clip = cl });
+//
+//     const track_to_clip = try build_projection_operator(
+//         .{
+//             .source = try tr.space("output"),
+//             .destination =  try cl.space("media")
+//         }
+//     );
+//
+//     try expectError(
+//         time_topology.TimeTopology.ProjectionError.OutOfBounds,
+//         track_to_clip.project_ordinate(3)
+//     );
+// }
 
 // test "Single Clip With Transform" {
 //     // add an xform
