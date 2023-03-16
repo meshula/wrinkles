@@ -29,7 +29,7 @@ const ALLOCATOR = @import("opentime/allocator.zig").ALLOCATOR;
 const PROJ_S:usize = 0;
 const PROJ_THR_S:usize = 1;
 
-fn _rescale_val(
+fn _rescaledValue(
     t: f32,
     measure_min: f32, measure_max: f32,
     target_min: f32, target_max: f32
@@ -44,19 +44,19 @@ fn _rescale_val(
     );
 }
 
-fn _rescaled_pt(
+fn _rescaledPoint(
     pt:curve.ControlPoint,
     extents: [2]curve.ControlPoint,
     target_range: [2]curve.ControlPoint,
 ) curve.ControlPoint
 {
     return .{
-        .time = _rescale_val(
+        .time = _rescaledValue(
             pt.time, 
             extents[0].time, extents[1].time,
             target_range[0].time, target_range[1].time
         ),
-        .value = _rescale_val(
+        .value = _rescaledValue(
             pt.value,
             extents[0].value, extents[1].value,
             target_range[0].value, target_range[1].value
@@ -396,7 +396,8 @@ fn update(demo: *DemoState) void {
     const t_start = min_p.time;
     const t_end = max_p.time;
     const t_inc = (t_end - t_start) / t_stops;
-    const points = [t_stops]([2]f32);
+    var points_x = std.mem.zeroes([t_stops]f32);
+    var points_y = std.mem.zeroes([t_stops]f32);
 
     if (zgui.collapsingHeader("Curves", .{})) {
         for (demo.normalized_curves.items) |crv, crv_index| {
@@ -513,13 +514,15 @@ fn update(demo: *DemoState) void {
                     var t = t_start;
                     var index:usize = 0;
                     while (t < t_end) : ({t += t_inc; index += 1;}) {
-                        points[index] = .{t, crv.evaluate(t) catch unreachable};
+                        points_x[index] = t;
+                        points_y[index] = crv.evaluate(t) catch unreachable;
                     }
                     zgui.plot.plotLine(
                         "evaluated curve",
                         f32,
                         .{
-                            .xy = points
+                            .xv = &points_x,
+                            .yv = &points_y,
                         },
                     );
 
@@ -917,7 +920,11 @@ fn _parse_args(state:*DemoState) !void {
                 var new_pts:[4]curve.ControlPoint = pts;
 
                 for (pts) |pt, index| {
-                    new_pts[index] = _rescaled_pt(pt, extents, target_range);
+                    new_pts[index] = _rescaledPoint(
+                        pt,
+                        extents,
+                        target_range
+                    );
                 }
 
                 var new_seg = curve.Segment.from_pt_array(new_pts);
