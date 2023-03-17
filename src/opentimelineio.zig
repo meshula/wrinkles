@@ -16,7 +16,9 @@ const ALLOCATOR = allocator.ALLOCATOR;
 // just for roughing tests in
 pub const Clip = struct {
     name: ?string = null,
+
     source_range: ?opentime.ContinuousTimeInterval = null,
+    transform: ?time_topology.TimeTopology = null,
 
     pub fn space(self: *Clip, label: string.latin_s8) !SpaceReference {
         return .{
@@ -265,22 +267,27 @@ test "Track with clip with identity transform and bounds" {
     );
 }
 
-// test "Single Clip With Transform" {
-//     // add an xform
-//     const topology = opentime.curve.read_curve_json(
-//         "curves/reverse_identity.curve.json"
-//     );
-//     var cl = Clip { .topology = topology };
-//
-//     var tr = Track {};
-//     try tr.append(.{ .clip = cl });
-//
-//     const track_to_clip = ProjectionOperator.init(
-//         try Track.space("output"),
-//         try Clip.space("media")
-//     );
-//
-//     cl.topology_from_curve(topology);
-//
-//     try expectApproxEqAbs(@as(f32, 5), try track_to_clip.project_ordinate(3));
-// }
+// @TODO: START HERE ---------------------------------------------vvvvvvvv-----
+test "Single Clip With Transform" {
+    const crv = time_topology.TimeTopology.init_linear(
+        -1,
+        .{ .start_seconds = 0, .end_seconds = 10 }
+    );
+    var cl = Clip { .transform = crv };
+
+    var tr = Track {};
+    try tr.append(.{ .clip = cl });
+
+    const track_to_clip = try build_projection_operator(
+        .{
+            .source = try tr.space("output"),
+            .destination =  try cl.space("media")
+        }
+    );
+
+    try expectApproxEqAbs(
+        @as(f32, 5),
+        try track_to_clip.project_ordinate(3),
+        util.EPSILON,
+    );
+}
