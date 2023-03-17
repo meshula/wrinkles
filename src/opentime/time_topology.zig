@@ -215,7 +215,7 @@ pub const TimeTopology = struct {
         return TimeTopology.init_from_single_curve(crv);
     }
 
-    const ProjectionError = error {
+    pub const ProjectionError = error {
         OutOfBounds,
     };
 
