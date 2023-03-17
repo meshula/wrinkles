@@ -247,6 +247,7 @@ pub const TimeTopology = struct {
         return TimeTopology.init(result.items);
     }
 
+    // @TODO: should this be `project_ordinate`?
     pub fn project_seconds(self: @This(), seconds: f32) !f32 {
         const transformed_s = self.transform.applied_to_seconds(seconds);
 
