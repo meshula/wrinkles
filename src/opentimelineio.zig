@@ -46,6 +46,14 @@ pub const Item = union(enum) {
     clip: Clip,
     gap: Gap,
     track: Track,
+
+    pub fn topology(self: @This()) time_topology.TimeTopology {
+        return switch (self) {
+            .clip => |cl| cl.topology(),
+            .gap => |gp| gp.topology(),
+            .track => |tr| tr.topology(),
+        };
+    }
 };
 
 pub const ItemPtr = union(enum) {
