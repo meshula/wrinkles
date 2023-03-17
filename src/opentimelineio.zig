@@ -233,6 +233,38 @@ test "Track with clip with identity transform projection" {
         util.EPSILON,
     );
 }
+
+test "Track with clip with identity transform and bounds" {
+    var tr = Track {};
+    var cl = Clip { .source_range = .{ .start_seconds = 0, .end_seconds = 2 } };
+    try tr.append(.{ .clip = cl });
+
+    const track_to_clip = try build_projection_operator(
+        .{
+            .source = try tr.space("output"),
+            .destination =  try cl.space("media")
+        }
+    );
+
+    // check the bounds
+    try expectApproxEqAbs(
+        (cl.source_range orelse interval.ContinuousTimeInterval{}).start_seconds,
+        track_to_clip.topology.bounds.start_seconds,
+        util.EPSILON,
+    );
+
+    try expectApproxEqAbs(
+        (cl.source_range orelse interval.ContinuousTimeInterval{}).end_seconds,
+        track_to_clip.topology.bounds.end_seconds,
+        util.EPSILON,
+    );
+
+    try expectError(
+        time_topology.TimeTopology.ProjectionError.OutOfBounds,
+        track_to_clip.project_ordinate(3)
+    );
+}
+
 // test "Single Clip With Transform" {
 //     // add an xform
 //     const topology = opentime.curve.read_curve_json(
