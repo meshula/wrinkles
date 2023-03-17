@@ -66,6 +66,30 @@ pub fn extend(
     };
 }
 
+pub fn any_overlap(
+    fst: ContinuousTimeInterval,
+    snd: ContinuousTimeInterval
+) bool {
+    return (
+        fst.start_seconds < snd.end_seconds
+        and fst.end_seconds > snd.start_seconds
+    );
+}
+
+pub fn intersect(
+    fst: ContinuousTimeInterval,
+    snd: ContinuousTimeInterval
+) ?ContinuousTimeInterval {
+    if (!any_overlap(fst, snd)) {
+        return null;
+    }
+
+    return .{
+        .start_seconds = std.math.min(fst.start_seconds, snd.start_seconds),
+        .end_seconds = std.math.max(fst.end_seconds, snd.end_seconds),
+    };
+}
+
 const INF_CTI: ContinuousTimeInterval = .{
     .start_seconds = -util.inf, 
     .end_seconds = util.inf
