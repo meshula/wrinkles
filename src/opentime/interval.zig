@@ -55,6 +55,17 @@ pub const ContinuousTimeInterval = struct {
     }
 };
 
+/// return a new interval that spans the duration of both argument intervals
+pub fn extend(
+    fst: ContinuousTimeInterval,
+    snd: ContinuousTimeInterval
+) ContinuousTimeInterval {
+    return .{
+        .start_seconds = std.math.min(fst.start_seconds, snd.start_seconds),
+        .end_seconds = std.math.max(fst.end_seconds, snd.end_seconds),
+    };
+}
+
 const INF_CTI: ContinuousTimeInterval = .{
     .start_seconds = -util.inf, 
     .end_seconds = util.inf

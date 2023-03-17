@@ -3,6 +3,7 @@ const expectApproxEqAbs= std.testing.expectApproxEqAbs;
 const expectError= std.testing.expectError;
 
 const opentime = @import("opentime/opentime.zig");
+const interval = @import("opentime/interval.zig");
 const time_topology = @import("opentime/time_topology.zig");
 const string = opentime.string;
 
@@ -87,8 +88,25 @@ pub const Track = struct {
     }
 
     pub fn topology(self: @This()) time_topology.TimeTopology {
-        _  = self;
-        return .{};
+
+        // build the bounds
+        var bounds: ?interval.ContinuousTimeInterval = null;
+        for (self.children.items) |it| {
+            const it_bound = it.topology().bounds;
+            if (bounds) |b| {
+                bounds = interval.extend(b, it_bound);
+            } else {
+                bounds = it_bound;
+            }
+        }
+
+        // unpack the optional
+        const result_bound:interval.ContinuousTimeInterval = bounds orelse .{
+            .start_seconds = 0,
+            .end_seconds = 0,
+        };
+
+        return time_topology.TimeTopology.init_identity(result_bound);
     }
 };
 
@@ -126,40 +144,55 @@ pub fn build_projection_operator(
     };
 }
 
-test "Track with clip with identity transform" {
-    var tr = Track {};
-    var cl = Clip {};
-    try tr.append(.{ .clip = cl });
-
-    const track_to_clip = try build_projection_operator(
-        .{
-            .source = try tr.space("output"),
-            .destination =  try cl.space("media")
+test "clip topology construction" {
+    const start_seconds:f32 = 1;
+    const end_seconds:f32 = 10;
+    const cl = Clip {
+        .source_range = .{
+            .start_seconds = start_seconds,
+            .end_seconds = end_seconds 
         }
+    };
+
+    const topo = cl.topology();
+
+    try expectApproxEqAbs(
+        start_seconds,
+        topo.bounds.start_seconds,
+        util.EPSILON,
     );
 
     try expectApproxEqAbs(
-        @as(f32, 3),
-        try track_to_clip.project_ordinate(3),
+        end_seconds,
+        topo.bounds.end_seconds,
         util.EPSILON,
     );
 }
 
-test "Track with clip with identity transform and bounds" {
+test "track topology construction" {
     var tr = Track {};
-    var cl = Clip { .source_range = .{ .start_seconds = 0, .end_seconds = 2 } };
+    const start_seconds:f32 = 1;
+    const end_seconds:f32 = 10;
+    const cl = Clip {
+        .source_range = .{
+            .start_seconds = start_seconds,
+            .end_seconds = end_seconds 
+        }
+    };
     try tr.append(.{ .clip = cl });
 
-    const track_to_clip = try build_projection_operator(
-        .{
-            .source = try tr.space("output"),
-            .destination =  try cl.space("media")
-        }
+    const topo =  tr.topology();
+
+    try expectApproxEqAbs(
+        start_seconds,
+        topo.bounds.start_seconds,
+        util.EPSILON,
     );
 
-    try expectError(
-        time_topology.TimeTopology.ProjectionError.OutOfBounds,
-        track_to_clip.project_ordinate(3)
+    try expectApproxEqAbs(
+        end_seconds,
+        topo.bounds.end_seconds,
+        util.EPSILON,
     );
 }
 
