@@ -20,7 +20,7 @@ pub const Clip = struct {
 
     pub fn space(self: *Clip, label: string.latin_s8) !SpaceReference {
         return .{
-            .target = ItemPtr{ .clip_ptr = self },
+            .item = ItemPtr{ .clip_ptr = self },
             .label= label,
         };
     }
@@ -82,7 +82,7 @@ pub const Track = struct {
 
     pub fn space(self: *Track, label: string.latin_s8) !SpaceReference {
         return .{
-            .target = ItemPtr{ .track_ptr = self },
+            .item = ItemPtr{ .track_ptr = self },
             .label= label,
         };
     }
@@ -111,7 +111,7 @@ pub const Track = struct {
 };
 
 const SpaceReference = struct {
-    target: ItemPtr,
+    item: ItemPtr,
     label: string.latin_s8 = "output",
 };
 
@@ -133,14 +133,12 @@ pub fn build_projection_operator(
     args: ProjectionOperatorArgs
 ) !ProjectionOperator
 {
-    const source_topology = args.source.target.topology();
-    const destination_topology = args.destination.target.topology();
-
-    const source_to_dest_topo = source_topology.project_topology(destination_topology);
+    const source_topology = args.source.item.topology();
+    const destination_topology = args.destination.item.topology();
 
     return .{
         .args = args,
-        .topology = source_to_dest_topo,
+        .topology = source_topology.project_topology(destination_topology),
     };
 }
 
@@ -196,6 +194,45 @@ test "track topology construction" {
     );
 }
 
+test "Track with clip with identity transform projection" {
+    var tr = Track {};
+    const start_seconds:f32 = 1;
+    const end_seconds:f32 = 10;
+    var cl = Clip {
+        .source_range = .{
+            .start_seconds = start_seconds,
+            .end_seconds = end_seconds 
+        }
+    };
+    try tr.append(.{ .clip = cl });
+
+    const track_to_clip = try build_projection_operator(
+        .{
+            .source = try tr.space("output"),
+            .destination =  try cl.space("media")
+        }
+    );
+
+    // check the bounds
+    try expectApproxEqAbs(
+        start_seconds,
+        track_to_clip.topology.bounds.start_seconds,
+        util.EPSILON,
+    );
+
+    try expectApproxEqAbs(
+        end_seconds,
+        track_to_clip.topology.bounds.end_seconds,
+        util.EPSILON,
+    );
+
+    // check the projection
+    try expectApproxEqAbs(
+        @as(f32, 3),
+        try track_to_clip.project_ordinate(3),
+        util.EPSILON,
+    );
+}
 // test "Single Clip With Transform" {
 //     // add an xform
 //     const topology = opentime.curve.read_curve_json(

@@ -244,7 +244,10 @@ pub const TimeTopology = struct {
             }
         }
 
-        return TimeTopology.init(result.items);
+        return .{
+            .mapping = result.items,
+            .bounds = interval.intersect(self.bounds, other.bounds) orelse .{},
+        };
     }
 
     // @TODO: should this be `project_ordinate`?
