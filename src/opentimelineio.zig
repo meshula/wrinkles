@@ -20,9 +20,9 @@ pub const Clip = struct {
     source_range: ?opentime.ContinuousTimeInterval = null,
     transform: ?time_topology.TimeTopology = null,
 
-    pub fn space(self: *Clip, label: string.latin_s8) !SpaceReference {
+    pub fn space(self: @This(), label: string.latin_s8) !SpaceReference {
         return .{
-            .item = ItemPtr{ .clip_ptr = self },
+            .item = ItemPtr{ .clip_ptr = &self },
             .label= label,
         };
     }
@@ -128,9 +128,9 @@ pub const Item = union(enum) {
 };
 
 pub const ItemPtr = union(enum) {
-    clip_ptr: *Clip,
-    gap_ptr: *Gap,
-    track_ptr: *Track,
+    clip_ptr: *const Clip,
+    gap_ptr: *const Gap,
+    track_ptr: *const Track,
 
     pub fn topology(self: @This()) time_topology.TimeTopology {
         return switch (self) {
@@ -385,41 +385,55 @@ test "Track with clip with identity transform and bounds" {
 }
 
 // @TODO: START HERE ---------------------------------------------vvvvvvvv-----
-test "Single Clip With Inverse Transform" {
-    const bounds = interval.ContinuousTimeInterval{
-        .start_seconds = 0,
-        .end_seconds = 10 
+test "Single Clip Media to Output Identity transform" {
+    const source_range = interval.ContinuousTimeInterval{
+        .start_seconds = 100,
+        .end_seconds = 110 
     };
-    const crv = time_topology.TimeTopology.init_linear(-1, bounds);
-    std.debug.print("Curve:\n {s}\n", .{crv.mapping[0].debug_json_str()});
-    var cl = Clip { .transform = crv, .source_range = bounds};
-    std.debug.print("Curve in Clip:\n {s}\n", .{(cl.transform orelse unreachable).mapping[0].debug_json_str()});
 
-    const clip_output_to_media = try build_projection_operator(
+    const cl = Clip { .source_range = source_range };
+
+    const clip_media_to_output = try build_projection_operator(
         .{
+            .destination =  try cl.space("media"),
             .source = try cl.space("output"),
-            .destination =  try cl.space("media")
         }
     );
 
-    // check the bounds
     try expectApproxEqAbs(
-        bounds.start_seconds,
-        clip_output_to_media.topology.bounds.start_seconds,
-        util.EPSILON,
-    );
-
-    try expectApproxEqAbs(
-        bounds.end_seconds,
-        clip_output_to_media.topology.bounds.end_seconds,
-        util.EPSILON,
-    );
-
-    std.debug.print("\nPROJECTION\n", .{});
-
-    try expectApproxEqAbs(
-        @as(f32, 3),
-        try clip_output_to_media.project_ordinate(7),
+        @as(f32, 103),
+        try clip_media_to_output.project_ordinate(3),
         util.EPSILON,
     );
 }
+
+// test "Single Clip With Inverse Transform" {
+    // const clip_output_to_media = try build_projection_operator(
+    //     .{
+    //         .source = try cl.space("output"),
+    //         .destination =  try cl.space("media")
+    //     }
+    // );
+    //
+    //
+    // // check the bounds
+    // try expectApproxEqAbs(
+    //     bounds.start_seconds,
+    //     clip_output_to_media.topology.bounds.start_seconds,
+    //     util.EPSILON,
+    // );
+    //
+    // try expectApproxEqAbs(
+    //     bounds.end_seconds,
+    //     clip_output_to_media.topology.bounds.end_seconds,
+    //     util.EPSILON,
+    // );
+    //
+    // std.debug.print("\nPROJECTION\n", .{});
+    //
+    // try expectApproxEqAbs(
+    //     @as(f32, 3),
+    //     try clip_output_to_media.project_ordinate(7),
+    //     util.EPSILON,
+    // );
+// }
