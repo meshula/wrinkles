@@ -20,6 +20,15 @@ pub const Clip = struct {
     source_range: ?opentime.ContinuousTimeInterval = null,
     transform: ?time_topology.TimeTopology = null,
 
+    pub fn trimmed_range(self: @This()) !opentime.ContinuousTimeInterval {
+        if (self.source_range) |rng| {
+            return rng;
+        }
+
+        // normally the available range check would go here
+        return error.NoSourceRangeSet;
+    }
+
     pub fn space(self: @This(), label: string.latin_s8) !SpaceReference {
         return .{
             .item = ItemPtr{ .clip_ptr = &self },
