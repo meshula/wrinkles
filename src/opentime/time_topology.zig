@@ -363,7 +363,6 @@ test "TimeTopology: coordinate space test"
                 expected_result[index],
                 util.EPSILON
             ) catch |this_err| {
-                std.debug.print("Err projecting sample: {}\n", .{ s });
                 // @breakpoint();
                 _ = (try tp.project_sample(s)).ordinate_seconds;
                 return this_err;
