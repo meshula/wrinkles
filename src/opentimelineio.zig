@@ -34,6 +34,62 @@ pub const Clip = struct {
             return .{};
         }
     }
+
+    pub const SPACES = enum(i8) {
+        media = 0,
+        output = 1,
+    };
+
+    pub fn build_projection_operator(
+        self: @This(),
+        source_label: string.latin_s8,
+        destination_label: string.latin_s8,
+    ) !ProjectionOperator {
+        const source = std.meta.stringToEnum(SPACES, source_label);
+        const destin = std.meta.stringToEnum(SPACES, destination_label);
+
+        _ = self;
+
+        // Clip spaces and transformations
+        //
+        // key: 
+        //   + space
+        //   * transformation
+        //
+        // +--- OUTPUT
+        // |
+        // *--- (implicit) post transform->OUTPUT space (reset start time to 0)
+        // |
+        // +--- (implicit) post effects space
+        // |
+        // *--- .transform field (in real OTIO this would be relevant EFFECTS)
+        // |
+        // +--- (implicit) intrinsic
+        // |
+        // *--- (implicit) media->intrinsic xform: set the start time to 0
+        // |
+        // +--- MEDIA
+        //
+        // initially only exposing the MEDIA and OUTPUT spaces
+        //
+
+        // no projection
+        if (source == destin) {
+            // return time_topology.TimeTopology.init_identity(
+            //     // ... but maintain bounds?  @NOTE @TODO feedback?
+            //     self.topology().bounds
+            // );
+        }
+
+        if (source == SPACES.output) {
+            // output -> post transform
+            // inverted transforms
+            // intrinsic -> media
+            return error.NotImplemented;
+        } else {
+            return error.NotImplemented;
+        }
+    }
 };
 
 pub const Gap = struct {
@@ -42,6 +98,18 @@ pub const Gap = struct {
     pub fn topology(self: @This()) time_topology.TimeTopology {
         _ = self;
         return .{};
+    }
+
+    pub fn build_projection_operator(
+        self: @This(),
+        source_label: string.latin_s8,
+        destination_label: string.latin_s8,
+    ) !ProjectionOperator {
+        _ = self;
+        _ = source_label;
+        _ = destination_label;
+
+        return error.NotImplemented;
     }
 };
 
@@ -69,6 +137,37 @@ pub const ItemPtr = union(enum) {
             .clip_ptr => |cl| cl.topology(),
             .gap_ptr => |gp| gp.topology(),
             .track_ptr => |tr| tr.topology(),
+        };
+    }
+
+    /// builds a projection operator within a single item
+    pub fn build_projection_operator(
+        self: @This(),
+        source_label: string.latin_s8,
+        destination_label: string.latin_s8,
+    ) !ProjectionOperator {
+        return switch (self) {
+            .clip_ptr => |cl| cl.build_projection_operator(
+                source_label,
+                destination_label
+            ),
+            .gap_ptr => |gp| gp.build_projection_operator(
+                source_label,
+                destination_label
+            ),
+            .track_ptr => |tr| tr.build_projection_operator(
+                source_label,
+                destination_label
+            ),
+        };
+    }
+
+    /// == impl
+    pub fn equivalent_to(self: @This(), other: ItemPtr) bool {
+        return switch(self) {
+            .clip_ptr => |cl| cl == other.clip_ptr,
+            .gap_ptr => |gp| gp == other.gap_ptr,
+            .track_ptr => |tr| tr == other.track_ptr,
         };
     }
 };
@@ -110,6 +209,18 @@ pub const Track = struct {
 
         return time_topology.TimeTopology.init_identity(result_bound);
     }
+
+    pub fn build_projection_operator(
+        self: @This(),
+        source_label: string.latin_s8,
+        destination_label: string.latin_s8,
+    ) !ProjectionOperator {
+        _ = self;
+        _ = source_label;
+        _ = destination_label;
+
+        return error.NotImplemented;
+    }
 };
 
 const SpaceReference = struct {
@@ -135,13 +246,19 @@ pub fn build_projection_operator(
     args: ProjectionOperatorArgs
 ) !ProjectionOperator
 {
-    const source_topology = args.source.item.topology();
-    const destination_topology = args.destination.item.topology();
+    if (std.meta.eql(args.source.item, args.destination.item)) {
+    // if (args.source.item.equivalent_to(args.destination.item)) {
+        if (std.meta.eql(args.source.label, args.destination.label)) {
+            return error.APIUnavailable;
+        }
 
-    return .{
-        .args = args,
-        .topology = source_topology.project_topology(destination_topology),
-    };
+        return args.source.item.build_projection_operator(
+            args.source.label,
+            args.destination.label
+        );
+    }
+    
+    return error.NotImplemented;
 }
 
 test "clip topology construction" {
@@ -268,26 +385,41 @@ test "Track with clip with identity transform and bounds" {
 }
 
 // @TODO: START HERE ---------------------------------------------vvvvvvvv-----
-test "Single Clip With Transform" {
-    const crv = time_topology.TimeTopology.init_linear(
-        -1,
-        .{ .start_seconds = 0, .end_seconds = 10 }
-    );
-    var cl = Clip { .transform = crv };
+test "Single Clip With Inverse Transform" {
+    const bounds = interval.ContinuousTimeInterval{
+        .start_seconds = 0,
+        .end_seconds = 10 
+    };
+    const crv = time_topology.TimeTopology.init_linear(-1, bounds);
+    std.debug.print("Curve:\n {s}\n", .{crv.mapping[0].debug_json_str()});
+    var cl = Clip { .transform = crv, .source_range = bounds};
+    std.debug.print("Curve in Clip:\n {s}\n", .{(cl.transform orelse unreachable).mapping[0].debug_json_str()});
 
-    var tr = Track {};
-    try tr.append(.{ .clip = cl });
-
-    const track_to_clip = try build_projection_operator(
+    const clip_output_to_media = try build_projection_operator(
         .{
-            .source = try tr.space("output"),
+            .source = try cl.space("output"),
             .destination =  try cl.space("media")
         }
     );
 
+    // check the bounds
     try expectApproxEqAbs(
-        @as(f32, 5),
-        try track_to_clip.project_ordinate(3),
+        bounds.start_seconds,
+        clip_output_to_media.topology.bounds.start_seconds,
+        util.EPSILON,
+    );
+
+    try expectApproxEqAbs(
+        bounds.end_seconds,
+        clip_output_to_media.topology.bounds.end_seconds,
+        util.EPSILON,
+    );
+
+    std.debug.print("\nPROJECTION\n", .{});
+
+    try expectApproxEqAbs(
+        @as(f32, 3),
+        try clip_output_to_media.project_ordinate(7),
         util.EPSILON,
     );
 }
