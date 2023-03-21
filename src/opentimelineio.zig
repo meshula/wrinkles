@@ -93,10 +93,15 @@ pub const Clip = struct {
         }
 
         if (source == SPACES.output) {
-            // output -> post transform
-            // inverted transforms
-            // intrinsic -> media
-            return error.NotImplemented;
+            const bounds = try self.trimmed_range();
+
+            // @TODO: currently output to intrinsic is an identity
+
+            const intrinsic_to_media = opentime.TimeTopology.init_identity(
+                bounds
+            );
+
+            return .{ .args = proj_args, .topology = intrinsic_to_media};
         } else {
             const bounds = try self.trimmed_range();
 
@@ -113,8 +118,8 @@ pub const Clip = struct {
                 intrinsic_bounds
             );
 
-            /// @TODO: the transform (if present) would go here and further 
-            ///        transform this.
+            // @TODO: the transform (if present) would go here and further 
+            //        transform this.
 
             return .{ .args = proj_args, .topology = media_to_intrinsic, };
         }
@@ -413,7 +418,6 @@ test "Track with clip with identity transform and bounds" {
     );
 }
 
-// @TODO: START HERE ---------------------------------------------vvvvvvvv-----
 test "Single Clip Media to Output Identity transform" {
     const source_range = interval.ContinuousTimeInterval{
         .start_seconds = 100,
@@ -422,20 +426,40 @@ test "Single Clip Media to Output Identity transform" {
 
     const cl = Clip { .source_range = source_range };
 
-    const clip_media_to_output = try build_projection_operator(
-        .{
-            .source =  try cl.space("media"),
-            .destination = try cl.space("output"),
-        }
-    );
+    // media->output
+    {
+        const clip_media_to_output = try build_projection_operator(
+            .{
+                .source =  try cl.space("media"),
+                .destination = try cl.space("output"),
+            }
+        );
 
-    try expectApproxEqAbs(
-        @as(f32, 3),
-        try clip_media_to_output.project_ordinate(103),
-        util.EPSILON,
-    );
+        try expectApproxEqAbs(
+            @as(f32, 3),
+            try clip_media_to_output.project_ordinate(103),
+            util.EPSILON,
+        );
+    }
+
+    // output->media
+    {
+        const clip_output_to_media = try build_projection_operator(
+            .{
+                .source =  try cl.space("output"),
+                .destination = try cl.space("media"),
+            }
+        );
+
+        try expectApproxEqAbs(
+            @as(f32, 103),
+            try clip_output_to_media.project_ordinate(3),
+            util.EPSILON,
+        );
+    }
 }
 
+// @TODO: START HERE ---------------------------------------------vvvvvvvv-----
 // test "Single Clip With Inverse Transform" {
     // const clip_output_to_media = try build_projection_operator(
     //     .{
