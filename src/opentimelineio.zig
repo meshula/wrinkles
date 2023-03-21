@@ -56,8 +56,10 @@ pub const Clip = struct {
     ) !ProjectionOperator {
         const source = std.meta.stringToEnum(SPACES, source_label);
         const destin = std.meta.stringToEnum(SPACES, destination_label);
-
-        _ = self;
+        const proj_args = ProjectionOperatorArgs{
+            .source = .{.item = ItemPtr{ .clip_ptr = &self}, .label = source_label},
+            .destination = .{.item = ItemPtr{ .clip_ptr =&self}, .label = destination_label},
+        };
 
         // Clip spaces and transformations
         //
@@ -96,7 +98,25 @@ pub const Clip = struct {
             // intrinsic -> media
             return error.NotImplemented;
         } else {
-            return error.NotImplemented;
+            const bounds = try self.trimmed_range();
+
+            // @TODO this inversion kind of surprised me.  The projection fn in
+            //       the topology is in "intrinsic" space, so to get a media
+            //       -> output prpjection topology you need to do this inversion.
+            //       not saying thats wrong, just saying we should 2x check this.
+            const intrinsic_bounds = opentime.ContinuousTimeInterval {
+                .start_seconds = -bounds.start_seconds,
+                .end_seconds = bounds.end_seconds - bounds.start_seconds,
+            };
+
+            const media_to_intrinsic = opentime.TimeTopology.init_identity(
+                intrinsic_bounds
+            );
+
+            /// @TODO: the transform (if present) would go here and further 
+            ///        transform this.
+
+            return .{ .args = proj_args, .topology = media_to_intrinsic, };
         }
     }
 };
@@ -404,14 +424,14 @@ test "Single Clip Media to Output Identity transform" {
 
     const clip_media_to_output = try build_projection_operator(
         .{
-            .destination =  try cl.space("media"),
-            .source = try cl.space("output"),
+            .source =  try cl.space("media"),
+            .destination = try cl.space("output"),
         }
     );
 
     try expectApproxEqAbs(
-        @as(f32, 103),
-        try clip_media_to_output.project_ordinate(3),
+        @as(f32, 3),
+        try clip_media_to_output.project_ordinate(103),
         util.EPSILON,
     );
 }
