@@ -45,10 +45,10 @@ const expectApproxEqAbs = std.testing.expectApproxEqAbs;
 //
 // or maybe the transform is LOCKED to -bounds.start_seconds?
 //
-//              0     36                      50 (duration of the bounds)
-// output       |-----*-----------------------|
-// internal     |-----*-----------------------|
-//              100   72                      200
+//              0                 36          50 (duration of the bounds)
+// output       |-----------------*-----------|
+// internal     |-----------------*-----------|
+//              100               176         200
 //
 pub const TimeTopology = struct {
     // represents the basis of the topology
