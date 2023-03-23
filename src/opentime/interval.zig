@@ -90,7 +90,7 @@ pub fn intersect(
     };
 }
 
-const INF_CTI: ContinuousTimeInterval = .{
+pub const INF_CTI: ContinuousTimeInterval = .{
     .start_seconds = -util.inf, 
     .end_seconds = util.inf
 };
