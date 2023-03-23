@@ -50,6 +50,8 @@ const expectApproxEqAbs = std.testing.expectApproxEqAbs;
 // internal     |-----------------*-----------|
 //              100               176         200
 //
+//
+//
 pub const TimeTopology = struct {
     // represents the basis of the topology
     transform: transform.AffineTransform1D = .{},
@@ -78,6 +80,14 @@ pub const TimeTopology = struct {
 
     pub fn init(mappings: []curve.TimeCurve) TimeTopology {
         return .{ .mapping = mappings };
+    }
+
+    pub fn init_empty() TimeTopology {
+        return .{};
+    }
+
+    pub fn init_inf_identity() TimeTopology {
+        return TimeTopology.init_identity(interval.INF_CTI);
     }
 
     /// generate a Topology with a single segment identity curve in it that is
@@ -145,6 +155,40 @@ pub const TimeTopology = struct {
                 &.{ 
                     curve.create_linear_segment(
                         .{ .time = bounds.start_seconds, .value = bounds.start_seconds },
+                        .{ .time = bounds.end_seconds, .value = end_value }, 
+                    )
+                }
+            ) catch curve.TimeCurve{}
+        };
+
+        const mapping : []curve.TimeCurve = allocator.ALLOCATOR.dupe(
+                curve.TimeCurve,  
+                &crv
+        ) catch &.{};
+
+        return TimeTopology{
+            .transform = .{
+                .offset_seconds = bounds.start_seconds,
+                .scale = 1,
+            },
+            .bounds = bounds,
+            .mapping = mapping,
+        };
+    }
+
+    /// build a topology with a single curve with a single lienar segment with
+    /// the given slope
+    pub fn init_linear_start_end(
+        bounds: interval.ContinuousTimeInterval,
+        start_value: f32,
+        end_value: f32,
+    ) TimeTopology
+    {
+        const crv: [1]curve.TimeCurve = .{
+            curve.TimeCurve.init(
+                &.{ 
+                    curve.create_linear_segment(
+                        .{ .time = bounds.start_seconds, .value = start_value },
                         .{ .time = bounds.end_seconds, .value = end_value }, 
                     )
                 }
@@ -319,6 +363,11 @@ pub const TimeTopology = struct {
         }
 
         return null;
+    }
+
+    pub fn inverted(self: @This()) !TimeTopology {
+        _ = self;
+        return error.NotImplemented;
     }
 };
 
