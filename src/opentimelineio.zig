@@ -86,42 +86,39 @@ pub const Clip = struct {
 
         // no projection
         if (source == destin) {
-            // return time_topology.TimeTopology.init_identity(
-            //     // ... but maintain bounds?  @NOTE @TODO feedback?
-            //     self.topology().bounds
-            // );
+            return .{
+                .args = proj_args,
+                .topology = opentime.TimeTopology.init_inf_identity() 
+            };
         }
 
+        var output_to_intrinsic = opentime.TimeTopology{};
+
+        if (self.transform) |post_transform_to_intrinsic| {
+            output_to_intrinsic = (
+                post_transform_to_intrinsic.project_topology(
+                    output_to_intrinsic
+                )
+            );
+        }
+
+        const bounds = try self.trimmed_range();
+
+        const intrinsic_to_media = opentime.TimeTopology.init_identity(
+            bounds
+        );
+
+        const output_to_media = intrinsic_to_media.project_topology(
+            output_to_intrinsic
+        );
+
         if (source == SPACES.output) {
-            const bounds = try self.trimmed_range();
-
-            // @TODO: currently output to intrinsic is an identity
-
-            const intrinsic_to_media = opentime.TimeTopology.init_identity(
-                bounds
-            );
-
-            return .{ .args = proj_args, .topology = intrinsic_to_media};
+            return .{ .args = proj_args, .topology = output_to_media};
         } else {
-            const bounds = try self.trimmed_range();
-
-            // @TODO this inversion kind of surprised me.  The projection fn in
-            //       the topology is in "intrinsic" space, so to get a media
-            //       -> output prpjection topology you need to do this inversion.
-            //       not saying thats wrong, just saying we should 2x check this.
-            const intrinsic_bounds = opentime.ContinuousTimeInterval {
-                .start_seconds = -bounds.start_seconds,
-                .end_seconds = bounds.end_seconds - bounds.start_seconds,
+            return .{
+                .args = proj_args,
+                .topology = try output_to_media.inverted(), 
             };
-
-            const media_to_intrinsic = opentime.TimeTopology.init_identity(
-                intrinsic_bounds
-            );
-
-            // @TODO: the transform (if present) would go here and further 
-            //        transform this.
-
-            return .{ .args = proj_args, .topology = media_to_intrinsic, };
         }
     }
 };
@@ -419,12 +416,34 @@ test "Track with clip with identity transform and bounds" {
 }
 
 test "Single Clip Media to Output Identity transform" {
+    //
+    //              0                 7           10
+    // output space [-----------------*-----------)
+    // media space  [-----------------*-----------)
+    //              100               107         110 (seconds)
+    //              
     const source_range = interval.ContinuousTimeInterval{
         .start_seconds = 100,
         .end_seconds = 110 
     };
 
     const cl = Clip { .source_range = source_range };
+
+    // output->media
+    {
+        const clip_output_to_media = try build_projection_operator(
+            .{
+                .source =  try cl.space("output"),
+                .destination = try cl.space("media"),
+            }
+        );
+
+        try expectApproxEqAbs(
+            @as(f32, 103),
+            try clip_output_to_media.project_ordinate(3),
+            util.EPSILON,
+        );
+    }
 
     // media->output
     {
@@ -442,6 +461,30 @@ test "Single Clip Media to Output Identity transform" {
         );
     }
 
+}
+
+test "Single Clip Media to Output Inverse transform" {
+    //
+    // xform: reverse (linear w/ -1 slope)
+    //
+    //              0                 7           10
+    // output       [-----------------*-----------)
+    // media        [-----------------*-----------)
+    //              110               103         100 (seconds)
+    //              
+    const source_range = interval.ContinuousTimeInterval{
+        .start_seconds = 100,
+        .end_seconds = 110 
+    };
+
+    const inv_tx = time_topology.TimeTopology.init_linear_start_end(
+        source_range, 
+        source_range.end_seconds,
+        source_range.start_seconds,
+    );
+
+    const cl = Clip { .source_range = source_range, .transform = inv_tx };
+
     // output->media
     {
         const clip_output_to_media = try build_projection_operator(
@@ -452,8 +495,24 @@ test "Single Clip Media to Output Identity transform" {
         );
 
         try expectApproxEqAbs(
-            @as(f32, 103),
+            @as(f32, 107),
             try clip_output_to_media.project_ordinate(3),
+            util.EPSILON,
+        );
+    }
+
+    // media->output
+    {
+        const clip_media_to_output = try build_projection_operator(
+            .{
+                .source =  try cl.space("media"),
+                .destination = try cl.space("output"),
+            }
+        );
+
+        try expectApproxEqAbs(
+            @as(f32, 3),
+            try clip_media_to_output.project_ordinate(107),
             util.EPSILON,
         );
     }
