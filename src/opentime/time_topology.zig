@@ -87,7 +87,28 @@ pub const TimeTopology = struct {
     }
 
     pub fn init_inf_identity() TimeTopology {
-        return TimeTopology.init_identity(interval.INF_CTI);
+
+        const identity_curve = curve.TimeCurve.init();
+
+        const identity_curve: curve.TimeCurve = curve.TimeCurve.init(
+            &.{ 
+                curve.create_identity_segment(
+                    interval.INF_CTI.start_seconds,
+                    interval.INF_CTI.end_seconds,
+                )
+            }
+        ) catch curve.TimeCurve{};
+
+        const mapping: []curve.TimeCurve = allocator.ALLOCATOR.dupe(
+            curve.TimeCurve,
+            &.{ identity_curve }
+        ) catch &.{};
+
+        return TimeTopology{
+            .transform = .{},
+            .bounds = interval.INF_CTI,
+            .mapping = mapping,
+        };
     }
 
     /// generate a Topology with a single segment identity curve in it that is
@@ -304,6 +325,8 @@ pub const TimeTopology = struct {
             return ProjectionError.OutOfBounds;
         }
 
+        std.debug.print("seconds: {any} transformed: {any}\n", .{ seconds, transformed_s });
+
         const relevant_curve = self.find_curve(transformed_s);
 
         if (relevant_curve) |crv| {
@@ -512,6 +535,7 @@ test "TimeTopology: single linear"
 
     // @breakpoint();
     const out = try identity_tp.project_sample(s);
+
 
     try expectApproxEqAbs(slope*s.ordinate_seconds, out.ordinate_seconds, util.EPSILON);
     try expectApproxEqAbs(s.support_negative_seconds, out.support_negative_seconds, util.EPSILON);

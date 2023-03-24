@@ -410,6 +410,7 @@ fn _is_approximately_linear(
     tolerance: f32
 ) bool 
 {
+    @breakpoint();
     const u = (segment.p1.mul(3.0)).sub(segment.p0.mul(2.0)).sub(segment.p3);
     var ux = u.time * u.time;
     var uy = u.value * u.value;
@@ -462,23 +463,61 @@ pub fn linearize_segment(
 
 test "segment: linearize basic test" {
     const segment = try read_segment_json("segments/upside_down_u.json");
-    var linearized_konts = try linearize_segment(segment, 0.01);
+    var linearized_knots = try linearize_segment(segment, 0.01);
 
-    try expectEqual(@as(usize, 8*2), linearized_konts.items.len);
+    try expectEqual(@as(usize, 8*2), linearized_knots.items.len);
 
-    linearized_konts = try linearize_segment(segment, 0.000001);
-    try expectEqual(@as(usize, 68*2), linearized_konts.items.len);
+    linearized_knots = try linearize_segment(segment, 0.000001);
+    try expectEqual(@as(usize, 68*2), linearized_knots.items.len);
 
-    linearized_konts = try linearize_segment(segment, 0.00000001);
-    try expectEqual(@as(usize, 256*2), linearized_konts.items.len);
+    linearized_knots = try linearize_segment(segment, 0.00000001);
+    try expectEqual(@as(usize, 256*2), linearized_knots.items.len);
+}
+
+test "segment from point array" {
+
+    const original_knots_ident: [4]ControlPoint = .{
+            .{ .time = -0.5,     .value = -0.5},
+            .{ .time = -0.16666, .value = -0.16666},
+            .{ .time = 0.166666, .value = 0.16666},
+            .{ .time = 0.5,      .value = 0.5}
+    };
+    const ident = Segment.from_pt_array(original_knots_ident);
+
+    try expectApproxEql(@as(f32, 0), ident.eval_at(0.5).value);
+
+    const linearized_ident_knots = try linearize_segment(ident, 0.01);
+    try expectEqual(@as(usize, 2), linearized_ident_knots.items.len);
+
+    try expectApproxEql(original_knots_ident[0].time, linearized_ident_knots.items[0].time);
+    try expectApproxEql(original_knots_ident[0].value, linearized_ident_knots.items[0].value);
+
+    try expectApproxEql(original_knots_ident[3].time, linearized_ident_knots.items[3].time);
+    try expectApproxEql(original_knots_ident[1].value, linearized_ident_knots.items[1].value);
+}
+
+test "segment: linearize infinite segment" {
+    const segment = Segment.from_pt_array(
+        .{
+            .{ .time = -inf, .value = -inf },
+            .{ .time = -inf, .value = -inf },
+            .{ .time = inf, .value = inf },
+            .{ .time = inf, .value = inf },
+        }
+    );
+
+    const linearized_knots = try linearize_segment(segment, 0.01);
+
+    // already linear!
+    try expectEqual(@as(usize, 2), linearized_knots.items.len);
 }
 
 test "segment: linearize already linearized curve" {
     const segment = try read_segment_json("segments/linear.json");
-    const linearized_konts = try linearize_segment(segment, 0.01);
+    const linearized_knots = try linearize_segment(segment, 0.01);
 
     // already linear!
-    try expectEqual(@as(usize, 2), linearized_konts.items.len);
+    try expectEqual(@as(usize, 2), linearized_knots.items.len);
 }
 
 pub fn read_segment_json(file_path: latin_s8) !Segment {
@@ -674,11 +713,11 @@ pub const TimeCurve = struct {
     }
 
     pub fn linearized(self: @This()) linear_curve.TimeCurveLinear {
-        var linearized_konts = std.ArrayList(ControlPoint).init(ALLOCATOR);
+        var linearized_knots = std.ArrayList(ControlPoint).init(ALLOCATOR);
 
         for (self.segments) |seg| {
             // @TODO: expose the tolerance as a parameter(?)
-            linearized_konts.appendSlice(
+            linearized_knots.appendSlice(
                 (
                  linearize_segment(seg, 0.000001) catch unreachable
                 ).items
@@ -686,7 +725,7 @@ pub const TimeCurve = struct {
         }
 
         return .{
-            .knots = linearized_konts.items
+            .knots = linearized_knots.items
         };
     }
 
@@ -776,10 +815,10 @@ test "Curve: read_curve_json" {
     // first segment should already be linear
     const segment = curve.segments[0];
 
-    const linearized_konts = try linearize_segment(segment, 0.01);
+    const linearized_knots = try linearize_segment(segment, 0.01);
 
     // already linear!
-    try expectEqual(@as(usize, 2), linearized_konts.items.len);
+    try expectEqual(@as(usize, 2), linearized_knots.items.len);
 }
 
 test "Segment: projected_segment to 1/2" {

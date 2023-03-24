@@ -1,15 +1,45 @@
 const std = @import("std");
-const opentime = @import("opentime");
+const opentime = @import("opentime.zig");
 const util = @import("util.zig");
 const EPSILON = @import("util.zig").EPSILON;
+const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const expectApproxEqAbs= std.testing.expectApproxEqAbs;
+
+pub fn expectNotNan(val: f32) !void {
+    return try expect(std.math.isNan(val) == false);
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 //
 // test harness for functionality based on presentation notes
 //
 ///////////////////////////////////////////////////////////////////////////////
+
+test "identity projections" {
+    const identity_inf = opentime.TimeTopology.init_inf_identity();
+    try expectEqual(@as(usize, 1), identity_inf.mapping.len);
+
+    // look for NaN points
+    for (identity_inf.mapping[0].segments[0].points()) |pt| {
+        try expectNotNan(pt.time);
+        try expectNotNan(pt.value);
+    }
+
+    const bounds = opentime.ContinuousTimeInterval{
+        .start_seconds = 12,
+        .end_seconds = 20,
+    };
+    const identity_bounded = opentime.TimeTopology.init_identity(bounds);
+    try expectEqual(@as(usize, 1), identity_bounded.mapping.len);
+
+    std.debug.print("projecting...\n", .{});
+    @breakpoint();
+
+    const inf_through_bounded = identity_bounded.project_topology(identity_inf);
+
+    try expectEqual(@as(usize, 1), inf_through_bounded.mapping.len);
+}
 
 test "projection test: linear_through_linear" {
     const first = opentime.TimeTopology.init_linear(

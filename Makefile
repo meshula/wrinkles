@@ -2,6 +2,7 @@ all:
 	zig build
 
 test:
+	zig test -femit-bin=$(mkfile_dir)otio_test.out src/opentime/test_topology_projections.zig
 	zig test -femit-bin=$(mkfile_dir)otio_test.out src/opentime/opentime.zig
 	# zig build test
 
