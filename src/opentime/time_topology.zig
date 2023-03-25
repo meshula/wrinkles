@@ -28,6 +28,11 @@ const expectApproxEqAbs = std.testing.expectApproxEqAbs;
 // of 0 with a duration equivalent to the duration of the bounds of the 
 // TimeTopology.
 //
+// There are several special cases of Topology that are implemented by Kind.
+// Empty: a topology that maps nowhere on the timeline
+// Identity_infinite: a topology that is identity everywhere on the timeline
+// finite: a topology with finite bounds
+//
 // @QUESTION: should a TimeTopology have a local origin for the intrinsic
 //            coordinate system of some kind?  That would allow someone to
 //            specify that the external coordinate system starts at 86400, for
@@ -39,6 +44,7 @@ const expectApproxEqAbs = std.testing.expectApproxEqAbs;
 //   .transform  = { offset = 10, scale = 2 }
 //   .bounds = 100, 200
 //   .mapping = indentity
+//   .kind = finite
 // 
 // maybe its just a scale, bounds and a mapping?  and the `transform' is 
 // transient?
@@ -50,9 +56,15 @@ const expectApproxEqAbs = std.testing.expectApproxEqAbs;
 // internal     |-----------------*-----------|
 //              100               176         200
 //
-//
-//
 pub const TimeTopology = struct {
+
+    const Kind = enum(i8) {
+        empty,  // any evaluation returns none (no bounds, transform or mapping)
+        finite, // evaluation uses the segments and curves (bounds, transform, mapping)
+        infinite_identity, // any evaluation returns the parameter (mapping and transform)
+    };
+
+    // @TODO: should this be a tree rather than a sequence?
     // represents the basis of the topology
     transform: transform.AffineTransform1D = .{},
     // @QUESTION: should a transform with a scale of 0 be an error?
@@ -60,6 +72,9 @@ pub const TimeTopology = struct {
 
     // in the space of the topology
     bounds: interval.ContinuousTimeInterval = .{},
+
+    // @TODO: the default should maybe not be finite? 
+    kind:Kind = Kind.finite,
 
     // @QUESTION: I think this should be a list of TimeCurves possibly?  or do 
     //            we only keep one?  How do we map a section of a topology to a
@@ -70,7 +85,7 @@ pub const TimeTopology = struct {
         s: Sample
     ) TimeTopology
     {
-        return TimeTopology.init_identity(
+        return TimeTopology.init_identity_finite(
             .{
                 .start_seconds=s.ordinate_seconds - s.support_negative_seconds,
                 .end_seconds=s.ordinate_seconds + s.support_positive_seconds
@@ -79,41 +94,22 @@ pub const TimeTopology = struct {
     }
 
     pub fn init(mappings: []curve.TimeCurve) TimeTopology {
-        return .{ .mapping = mappings };
+        return .{ .mapping = mappings, .kind=Kind.finite };
     }
 
     pub fn init_empty() TimeTopology {
-        return .{};
+        return .{ .kind = Kind.empty };
     }
 
     pub fn init_inf_identity() TimeTopology {
-
-        const identity_curve = curve.TimeCurve.init();
-
-        const identity_curve: curve.TimeCurve = curve.TimeCurve.init(
-            &.{ 
-                curve.create_identity_segment(
-                    interval.INF_CTI.start_seconds,
-                    interval.INF_CTI.end_seconds,
-                )
-            }
-        ) catch curve.TimeCurve{};
-
-        const mapping: []curve.TimeCurve = allocator.ALLOCATOR.dupe(
-            curve.TimeCurve,
-            &.{ identity_curve }
-        ) catch &.{};
-
         return TimeTopology{
-            .transform = .{},
-            .bounds = interval.INF_CTI,
-            .mapping = mapping,
+            .kind = Kind.infinite_identity,
         };
     }
 
     /// generate a Topology with a single segment identity curve in it that is
-    /// defined over the bounds
-    pub fn init_identity(
+    /// defined over the finite bounds
+    pub fn init_identity_finite(
         bounds: interval.ContinuousTimeInterval
     ) TimeTopology 
     {
@@ -138,6 +134,7 @@ pub const TimeTopology = struct {
             },
             .bounds = bounds,
             .mapping = mapping,
+            .kind = Kind.finite,
         };
     }
 
@@ -156,6 +153,7 @@ pub const TimeTopology = struct {
             },
             .bounds = bounds,
             .mapping = mapping,
+            .kind = Kind.finite,
         };
     }
 
@@ -194,6 +192,7 @@ pub const TimeTopology = struct {
             },
             .bounds = bounds,
             .mapping = mapping,
+            .kind = Kind.finite,
         };
     }
 
@@ -228,6 +227,7 @@ pub const TimeTopology = struct {
             },
             .bounds = bounds,
             .mapping = mapping,
+            .kind = Kind.finite,
         };
     }
 
@@ -290,64 +290,121 @@ pub const TimeTopology = struct {
         other: TimeTopology
     ) TimeTopology 
     {
-        // @TODO: we need an enum to wrap the kinds of time curves we can work 
-        //        with
-        var result = std.ArrayList(curve.TimeCurve).init(allocator.ALLOCATOR);
+        if (other.kind == Kind.empty) {
+            // if other is empty, it doesn't matter what self is, the result is
+            // an empty topology
+            return other;
+        }
 
-        // @TODO: these curves need to have their respective transformations
-        //        applied (if we stick with that model)
-        for (other.mapping) 
+        if (self.kind == Kind.empty) {
+            return .{ .kind = Kind.empty };
+        }
+
+        if (self.kind == Kind.infinite_identity) {
+            return other;
+        }
+
+        // if (self.kind == Kind.finite) 
+        const other_wrapped = (
+            if (other.kind == Kind.infinite_identity) (
+                TimeTopology.init_identity_finite(self.bounds)
+            ) else (
+                other
+            )
+        );
+
+        var result = (
+            std.ArrayList(curve.TimeCurve).init(allocator.ALLOCATOR)
+        );
+
+        // @TODO: these curves need to have their respective
+        //        transformations applied (if we stick with that model)
+        for (other_wrapped.mapping) 
             |other_crv|
         {
             for (self.mapping) 
                 |self_crv|
             {
-                const resulting_curves = self_crv.project_curve(other_crv);
-                for (resulting_curves) |crv| {
-                    result.append(curve.TimeCurve.init_from_linear_curve(crv)) catch unreachable;
+                const resulting_curves = (
+                    self_crv.project_curve(other_crv)
+                );
+                for (resulting_curves) 
+                    |crv| 
+                {
+                    result.append(
+                        curve.TimeCurve.init_from_linear_curve(crv)
+                    ) catch unreachable;
                 }
             }
         }
 
         return .{
             .mapping = result.items,
-            .bounds = interval.intersect(self.bounds, other.bounds) orelse .{},
+            // if its finite, even if other has no segments, is empty
+            .bounds = interval.intersect(
+                self.bounds,
+                other_wrapped.bounds
+            ) orelse .{},
+            .kind = Kind.finite,
         };
     }
 
     // @TODO: should this be `project_ordinate`?
-    pub fn project_seconds(self: @This(), seconds: f32) !f32 {
-        const transformed_s = self.transform.applied_to_seconds(seconds);
+    pub fn project_seconds(
+        self: @This(),
+        seconds: f32
+    ) !f32 
+    {
+        return switch (self.kind) {
+            Kind.empty => ProjectionError.OutOfBounds,
+            Kind.infinite_identity => seconds,
+            Kind.finite => {
+                const transformed_s = self.transform.applied_to_seconds(
+                    seconds
+                );
 
-        if (!self.bounds.overlaps_seconds(transformed_s)) {
-            // @TODO if this is the only place where an error can emerge,
-            //       this should be an optional rather than an error.
-            return ProjectionError.OutOfBounds;
-        }
+                if (!self.bounds.overlaps_seconds(transformed_s)) {
+                    // @TODO if this is the only place where an error can
+                    //       emerge, this should be an optional rather than an 
+                    //       error.
+                    return ProjectionError.OutOfBounds;
+                }
 
-        std.debug.print("seconds: {any} transformed: {any}\n", .{ seconds, transformed_s });
+                const relevant_curve = self.find_curve(transformed_s);
 
-        const relevant_curve = self.find_curve(transformed_s);
+                if (relevant_curve) |crv| {
+                    return crv.evaluate(transformed_s);
+                }
 
-        if (relevant_curve) |crv| {
-            return crv.evaluate(transformed_s);
-        }
-
-        return ProjectionError.OutOfBounds;
+                return ProjectionError.OutOfBounds;
+            }
+        };
     }
 
     pub fn project_sample(self: @This(), sample: Sample) !Sample {
-        const t_seconds = try self.project_seconds(sample.ordinate_seconds);
+        return switch (self.kind) {
+            Kind.empty => ProjectionError.OutOfBounds,
+            Kind.infinite_identity => sample,
+            Kind.finite => {
+                const t_seconds = try self.project_seconds(
+                    sample.ordinate_seconds
+                );
 
-        // @TODO: what is the width?
-        return Sample {
-            .ordinate_seconds = t_seconds,
-            .support_negative_seconds = sample.support_negative_seconds,
-            .support_positive_seconds = sample.support_positive_seconds,
+                // @TODO: what is the width?
+                return Sample {
+                    .ordinate_seconds = t_seconds,
+                    .support_negative_seconds = sample.support_negative_seconds,
+                    .support_positive_seconds = sample.support_positive_seconds,
+                };
+            }
         };
     }
 
     pub fn find_curve_index(self: @This(), t_arg: f32) ?usize {
+        if (self.kind == Kind.empty or self.kind == Kind.infinite_identity) {
+            return null;
+        }
+
         // @TODO: better would be a specific start time accessor in curve
         const start_time = self.mapping[0].extents_time().start_seconds;
 
@@ -381,6 +438,10 @@ pub const TimeTopology = struct {
     }
 
     pub fn find_curve(self: @This(), t_arg: f32) ?*curve.TimeCurve {
+        if (self.kind == Kind.empty or self.kind == Kind.infinite_identity) {
+            return null;
+        }
+
         if (self.find_curve_index(t_arg)) |ind| {
             return &self.mapping[ind];
         }
@@ -396,7 +457,7 @@ pub const TimeTopology = struct {
 
 test "TimeTopology: coordinate space test" 
 {
-    const tp = TimeTopology.init_identity(
+    const tp = TimeTopology.init_identity_finite(
          .{
             .start_seconds = 100,
             .end_seconds = 103
@@ -435,7 +496,6 @@ test "TimeTopology: coordinate space test"
                 expected_result[index],
                 util.EPSILON
             ) catch |this_err| {
-                // @breakpoint();
                 _ = (try tp.project_sample(s)).ordinate_seconds;
                 return this_err;
         };
@@ -500,7 +560,7 @@ test "TimeTopology: intrinsic_space_bounds test"
 }
 
 test "TimeTopology: curve length init test" {
-    const tt= TimeTopology.init_identity(
+    const tt= TimeTopology.init_identity_finite(
         .{ .start_seconds = 0, .end_seconds = 10 }
     );
 
@@ -510,7 +570,7 @@ test "TimeTopology: curve length init test" {
 
 test "TimeTopology: single identity" 
 {
-    const identity_tp = TimeTopology.init_identity(
+    const identity_tp = TimeTopology.init_identity_finite(
         .{ .start_seconds = 0, .end_seconds = 103 }
     );
 

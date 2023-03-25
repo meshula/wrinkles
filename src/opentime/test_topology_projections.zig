@@ -5,6 +5,7 @@ const EPSILON = @import("util.zig").EPSILON;
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const expectApproxEqAbs= std.testing.expectApproxEqAbs;
+const expectError = @import("std").testing.expectError;
 
 pub fn expectNotNan(val: f32) !void {
     return try expect(std.math.isNan(val) == false);
@@ -18,27 +19,29 @@ pub fn expectNotNan(val: f32) !void {
 
 test "identity projections" {
     const identity_inf = opentime.TimeTopology.init_inf_identity();
-    try expectEqual(@as(usize, 1), identity_inf.mapping.len);
-
-    // look for NaN points
-    for (identity_inf.mapping[0].segments[0].points()) |pt| {
-        try expectNotNan(pt.time);
-        try expectNotNan(pt.value);
-    }
 
     const bounds = opentime.ContinuousTimeInterval{
         .start_seconds = 12,
         .end_seconds = 20,
     };
-    const identity_bounded = opentime.TimeTopology.init_identity(bounds);
+    const identity_bounded = opentime.TimeTopology.init_identity_finite(bounds);
     try expectEqual(@as(usize, 1), identity_bounded.mapping.len);
-
-    std.debug.print("projecting...\n", .{});
-    @breakpoint();
+    try expectError(
+        opentime.TimeTopology.ProjectionError.OutOfBounds, 
+        identity_bounded.project_seconds(10),
+    );
+    try expectApproxEqAbs(
+        @as(f32, 13),
+        try identity_bounded.project_seconds(1),
+        EPSILON
+    );
 
     const inf_through_bounded = identity_bounded.project_topology(identity_inf);
 
+    // no segments because identity_inf has no segments
     try expectEqual(@as(usize, 1), inf_through_bounded.mapping.len);
+
+    try expectEqual(inf_through_bounded.bounds, bounds);
 }
 
 test "projection test: linear_through_linear" {
@@ -63,8 +66,15 @@ test "projection test: linear_through_linear" {
 
     // project one through the other
     const second_through_first_topo = first.project_topology(second);
-    try expectEqual(@as(f32, 0), try second_through_first_topo.project_seconds(0));
-    try expectApproxEqAbs(@as(f32, 16), try second_through_first_topo.project_seconds(2), EPSILON);
+    try expectEqual(
+        @as(f32, 0),
+        try second_through_first_topo.project_seconds(0)
+    );
+    try expectApproxEqAbs(
+        @as(f32, 16),
+        try second_through_first_topo.project_seconds(2),
+        EPSILON
+    );
 }
 
 test "projection test: linear_through_linear with boundary" {

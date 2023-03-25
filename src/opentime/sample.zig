@@ -115,7 +115,7 @@ test "StepSampleGenerator: sample over identity topology"
             .rate_hz = sample_rate,
     };
 
-    const target_topology = time_topology.TimeTopology.init_identity(
+    const target_topology = time_topology.TimeTopology.init_identity_finite(
         .{ .start_seconds = 100, .end_seconds = 103 }
     );
     var result = try sample_generator.sample_over(target_topology);

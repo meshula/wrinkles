@@ -410,7 +410,6 @@ fn _is_approximately_linear(
     tolerance: f32
 ) bool 
 {
-    @breakpoint();
     const u = (segment.p1.mul(3.0)).sub(segment.p0.mul(2.0)).sub(segment.p3);
     var ux = u.time * u.time;
     var uy = u.value * u.value;
@@ -435,6 +434,8 @@ const LinearizeError = error { OutOfMemory };
 /// Based on this paper:
 /// https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.86.162&rep=rep1&type=pdf
 /// return a list of segments that approximate the segment with the given tolerance
+///
+/// ASSUMES THAT ALL POINTS ARE FINITE
 pub fn linearize_segment(
     segment: Segment,
     tolerance:f32,
@@ -489,27 +490,23 @@ test "segment from point array" {
     const linearized_ident_knots = try linearize_segment(ident, 0.01);
     try expectEqual(@as(usize, 2), linearized_ident_knots.items.len);
 
-    try expectApproxEql(original_knots_ident[0].time, linearized_ident_knots.items[0].time);
-    try expectApproxEql(original_knots_ident[0].value, linearized_ident_knots.items[0].value);
-
-    try expectApproxEql(original_knots_ident[3].time, linearized_ident_knots.items[3].time);
-    try expectApproxEql(original_knots_ident[1].value, linearized_ident_knots.items[1].value);
-}
-
-test "segment: linearize infinite segment" {
-    const segment = Segment.from_pt_array(
-        .{
-            .{ .time = -inf, .value = -inf },
-            .{ .time = -inf, .value = -inf },
-            .{ .time = inf, .value = inf },
-            .{ .time = inf, .value = inf },
-        }
+    try expectApproxEql(
+        original_knots_ident[0].time,
+        linearized_ident_knots.items[0].time
+    );
+    try expectApproxEql(
+        original_knots_ident[0].value,
+        linearized_ident_knots.items[0].value
     );
 
-    const linearized_knots = try linearize_segment(segment, 0.01);
-
-    // already linear!
-    try expectEqual(@as(usize, 2), linearized_knots.items.len);
+    try expectApproxEql(
+        original_knots_ident[3].time,
+        linearized_ident_knots.items[1].time
+    );
+    try expectApproxEql(
+        original_knots_ident[3].value,
+        linearized_ident_knots.items[1].value
+    );
 }
 
 test "segment: linearize already linearized curve" {
