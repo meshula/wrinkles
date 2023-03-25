@@ -338,13 +338,19 @@ pub const TimeTopology = struct {
             }
         }
 
+        const result_bounds = interval.intersect(
+            self.bounds,
+            other_wrapped.bounds
+        ) orelse interval.ContinuousTimeInterval{};
+
         return .{
+            .transform = .{
+                .offset_seconds = result_bounds.start_seconds,
+                .scale = 1
+            },
+            .bounds = result_bounds,
             .mapping = result.items,
             // if its finite, even if other has no segments, is empty
-            .bounds = interval.intersect(
-                self.bounds,
-                other_wrapped.bounds
-            ) orelse .{},
             .kind = Kind.finite,
         };
     }
