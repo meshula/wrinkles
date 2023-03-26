@@ -463,6 +463,8 @@ test "Single Clip Media to Output Identity transform" {
         );
     }
 
+    // @TODO: NEXT HERE --- either inversion or cross-object projection
+
     // media->output
     // {
     //     const clip_media_to_output = try build_projection_operator(
