@@ -16,7 +16,8 @@ const ALLOCATOR = allocator.ALLOCATOR;
 
 // just for roughing tests in
 pub const Clip = struct {
-    name: ?string = null,
+    name: ?string.latin_s8 = null,
+    parent: ?ItemPtr = null,
 
     source_range: ?opentime.ContinuousTimeInterval = null,
     transform: ?time_topology.TimeTopology = null,
@@ -206,6 +207,22 @@ pub const ItemPtr = union(enum) {
             .track_ptr => |tr| tr == other.track_ptr,
         };
     }
+
+    /// fetch the contained parent pointer
+    pub fn parent(self: @This()) ?ItemPtr {
+        return switch(self) {
+            .clip_ptr => self.clip_ptr.parent,
+            .gap_ptr => null,
+            .track_ptr => null,
+        };
+    }
+
+    pub fn child_index_of(self: @This(), child: ItemPtr) !i32 {
+        return switch(self) {
+            .track_ptr => self.track_ptr.child_index_of(child),
+            else => error.NotAContainer,
+        };
+    }
 };
 
 pub const Track = struct {
@@ -215,6 +232,7 @@ pub const Track = struct {
 
     pub fn append(self: *Track, item: Item) !void {
         try self.children.append(item);
+        // item.set_parent(self);
     }
 
     pub fn space(self: *Track, label: string.latin_s8) !SpaceReference {
@@ -257,7 +275,30 @@ pub const Track = struct {
 
         return error.NotImplemented;
     }
+
+    pub fn child_index_of(self: @This(), child_to_find: ItemPtr) !i32 {
+        return for (self.children.items) |current, index| {
+            if (std.meta.eql(current, child_to_find)) {
+                break index;
+            }
+        } else null;
+    }
 };
+
+test "add clip to track and check parent pointer" {
+    var tr = Track {};
+    const start_seconds:f32 = 1;
+    const end_seconds:f32 = 10;
+    var cl = Clip {
+        .source_range = .{
+            .start_seconds = start_seconds,
+            .end_seconds = end_seconds 
+        }
+    };
+    try tr.append(.{ .clip = cl });
+
+    // try expectEqual(cl.parent.?, tr);
+}
 
 const SpaceReference = struct {
     item: ItemPtr,
@@ -278,6 +319,45 @@ const ProjectionOperator = struct {
     }
 };
 
+const TopologicalMap = struct {
+    root_item: ItemPtr,
+    // map:std.HashMap(ItemPtr, u128),
+
+};
+
+pub fn build_topological_map(root_item: ItemPtr) !TopologicalMap {
+    _ = root_item;
+    return error.NotImplemented;
+
+    // var map = std.HashMap(ItemPtr, u128).init(allocator.ALLOCATOR);
+    //
+    // var current_path_hash:u128 = 0;
+    //
+    // var stack = std.ArrayList(ItemPtr).init(allocator.ALLOCATOR);
+    // defer stack.deinit();
+    //
+    // stack.append(root_item);
+    //
+    // while (stack.items.len > 0) {
+    //     
+    // }
+}
+
+///
+/// Forward Projection is from the output of the container (Track) to the input
+/// space of the contained item (Clip).
+///
+/// This assertion is domain specific; the resulting document must be viewable
+/// within the natural world in a monotonic temporal space.
+///
+/// example:
+/// Track with a clip in it
+/// Track has a 0.5 slowdown on it, clip has another 0.5 slowdown on it
+///
+/// Track.output: source
+/// Clip.media: destination
+///
+///
 pub fn build_projection_operator(
     args: ProjectionOperatorArgs
 ) !ProjectionOperator
@@ -285,6 +365,8 @@ pub fn build_projection_operator(
     if (std.meta.eql(args.source.item, args.destination.item)) {
     // if (args.source.item.equivalent_to(args.destination.item)) {
         if (std.meta.eql(args.source.label, args.destination.label)) {
+            // when the source space and destination space are identical,
+            // should be some kind of bounded identity
             return error.APIUnavailable;
         }
 
@@ -293,8 +375,21 @@ pub fn build_projection_operator(
             args.destination.label
         );
     }
-    
+
+    // @TODO: start here
     return error.NotImplemented;
+
+    // // different objects
+    // const topological_map = build_topological_map(args.source.item);
+    //
+    // // errors: can't find a path
+    // const topological_path = try topological_map.find_path(
+    //     args.source.item, 
+    //     args.destination.item
+    // );
+    //
+    // // errors: can't invert, not projectible path
+    // return try build_projection_operator(topological_path);
 }
 
 test "clip topology construction" {
@@ -394,8 +489,6 @@ test "Track with clip with identity transform projection" {
 }
 
 test "Track with clip with identity transform and bounds" {
-    try util.skip_test();
-
     var tr = Track {};
     var cl = Clip { .source_range = .{ .start_seconds = 0, .end_seconds = 2 } };
     try tr.append(.{ .clip = cl });
