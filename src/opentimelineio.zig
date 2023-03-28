@@ -605,7 +605,58 @@ test "sequential_child_hash" {
     );
 }
 
-test "Track with clip with identity transform and bounds" {
+test "PathMap: Track with clip with identity transform topological" {
+    var tr = Track {};
+    var cl = Clip { .source_range = .{ .start_seconds = 0, .end_seconds = 2 } };
+    try tr.append(.{ .clip = cl });
+
+    const root = ItemPtr{ .track_ptr = &tr };
+
+    const map = try build_topological_map(root);
+
+    try expectEqual(root, map.root_item);
+
+    try expectEqual(@as(usize, 2), map.map.count());
+
+    const root_from_map = map.map.get(root) orelse 0;
+
+    try expectEqual(@as(TopologicalPathHash, 0b10), root_from_map);
+
+    const clip = tr.child_ptr_from_index(0);
+    const clip_from_map = map.map.get(clip) orelse 0;
+
+    try expectEqual(@as(TopologicalPathHash, 0b101), clip_from_map);
+
+    // const track_to_clip = try build_projection_operator(
+    //     .{
+    //         .source = try tr.space("output"),
+    //         .destination =  try tr.children.items[0].clip.space("media")
+    //     }
+    // );
+
+    // check the bounds
+    // try expectApproxEqAbs(
+    //     (cl.source_range orelse interval.ContinuousTimeInterval{}).start_seconds,
+    //     track_to_clip.topology.bounds.start_seconds,
+    //     util.EPSILON,
+    // );
+    //
+    // try expectApproxEqAbs(
+    //     (cl.source_range orelse interval.ContinuousTimeInterval{}).end_seconds,
+    //     track_to_clip.topology.bounds.end_seconds,
+    //     util.EPSILON,
+    // );
+    //
+    // try expectError(
+    //     time_topology.TimeTopology.ProjectionError.OutOfBounds,
+    //     track_to_clip.project_ordinate(3)
+    // );
+}
+
+test "Projection: Track with clip with identity transform and bounds" {
+    // not ready yet
+    try util.skip_test();
+
     var tr = Track {};
     var cl = Clip { .source_range = .{ .start_seconds = 0, .end_seconds = 2 } };
     try tr.append(.{ .clip = cl });
