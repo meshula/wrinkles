@@ -321,26 +321,115 @@ const ProjectionOperator = struct {
 
 const TopologicalMap = struct {
     root_item: ItemPtr,
-    // map:std.HashMap(ItemPtr, u128),
+    map:std.AutoHashMap(ItemPtr, TopologicalPathHash),
 
+    pub fn find_path(
+        self: @This(),
+        source: ItemPtr,
+        destination: ItemPtr
+    ) !TopologialPath {
+        const source_hash = if (self.map.get(source)) |s| s else return error.NoPathAvailalbeInMap;
+        const destination_hash = if (self.map.get(destination)) |d| d else return error.NoPathAvailalbeInMap;
+
+        // @TODO:
+        // only handle forward traversal at the moment
+        if (source_hash > destination_hash) {
+            return error.NotAForwardTraversal;
+        }
+
+        return error.NotImplemented;
+    }
 };
 
-pub fn build_topological_map(root_item: ItemPtr) !TopologicalMap {
-    _ = root_item;
-    return error.NotImplemented;
+const TopologialPath = struct {
+     map: TopologicalMap,
+     hash: TopologicalPathHash,
+     // probably needs a start and finish object?
 
-    // var map = std.HashMap(ItemPtr, u128).init(allocator.ALLOCATOR);
-    //
-    // var current_path_hash:u128 = 0;
-    //
-    // var stack = std.ArrayList(ItemPtr).init(allocator.ALLOCATOR);
-    // defer stack.deinit();
-    //
-    // stack.append(root_item);
-    //
-    // while (stack.items.len > 0) {
-    //     
-    // }
+     pub fn build_projection_operator(self: @This()) !ProjectionOperator {
+         _ = self;
+         return error.NotImplemented;
+     }
+ };
+
+// for now using a u128 for encoded the paths
+const TopologicalPathHash = u128;
+
+///
+/// append (child_index + 1) 1's to the end of the parent_hash:
+///
+/// parent hash: 0b10 (the starting hash for the root node) 
+/// child index 2:
+/// result: 0b10111
+///
+///  parent hash: 0b100
+///  child index: 0
+///  result: 0b1001
+///
+///  each "0" means a stack (go _down_ the tree) each 1 means a sequential (go
+///  across the tree)
+///
+fn sequential_child_hash(
+    parent_hash:TopologicalPathHash,
+    child_index:usize
+) TopologicalPathHash 
+{
+    const ind_offset = child_index + 1;
+    return (
+        std.math.shl(TopologicalPathHash, parent_hash, ind_offset) 
+        | (std.math.shl(TopologicalPathHash, 2 , ind_offset - 1) - 1)
+    );
+}
+
+pub fn build_topological_map(
+    root_item: ItemPtr
+) !TopologicalMap 
+{
+    var map = std.AutoHashMap(ItemPtr, TopologicalPathHash).init(allocator.ALLOCATOR);
+
+    const Node = struct {
+        path_hash: TopologicalPathHash,
+        object: ItemPtr,
+    };
+
+    var stack = std.ArrayList(Node).init(allocator.ALLOCATOR);
+    defer stack.deinit();
+
+    const start_hash = 0b10;
+
+    // root node
+    try stack.append(.{.object = root_item, .path_hash = start_hash});
+
+    while (stack.items.len > 0) {
+        const current = stack.pop();
+
+        try map.put(current.object, current.path_hash);
+
+        switch (current.object) {
+            .track_ptr => |tr| { 
+                for (tr.children.items) 
+                    |*child, index| 
+                {
+                    const child_hash = sequential_child_hash(
+                        current.path_hash,
+                        index
+                    );
+                    const item_ptr:ItemPtr = switch (child.*) {
+                        .clip => |*cl| .{ .clip_ptr = cl },
+                        .gap => |*gp| .{ .gap_ptr = gp },
+                        .track => |*tr_p| .{ .track_ptr = tr_p },
+                    };
+                    try stack.append(.{ .object= item_ptr, .path_hash = child_hash});
+                }
+            },
+            else => {}
+        }
+    }
+
+    return .{
+        .map = map,
+        .root_item = root_item,
+    };
 }
 
 ///
@@ -376,20 +465,17 @@ pub fn build_projection_operator(
         );
     }
 
-    // @TODO: start here
-    return error.NotImplemented;
+    // different objects
+    const topological_map = try build_topological_map(args.source.item);
 
-    // // different objects
-    // const topological_map = build_topological_map(args.source.item);
-    //
-    // // errors: can't find a path
-    // const topological_path = try topological_map.find_path(
-    //     args.source.item, 
-    //     args.destination.item
-    // );
-    //
-    // // errors: can't invert, not projectible path
-    // return try build_projection_operator(topological_path);
+    // errors: can't find a path
+    const topological_path = try topological_map.find_path(
+        args.source.item, 
+        args.destination.item
+    );
+
+    // errors: can't invert, not projectible path
+    return try topological_path.build_projection_operator();
 }
 
 test "clip topology construction" {
@@ -485,6 +571,25 @@ test "Track with clip with identity transform projection" {
         @as(f32, 3),
         try track_to_clip.project_ordinate(3),
         util.EPSILON,
+    );
+}
+
+test "sequential_child_hash" {
+    const start_hash:TopologicalPathHash = 0b10;
+
+    try expectEqual(
+        @as(TopologicalPathHash, 0b10111),
+        sequential_child_hash(start_hash, 2)
+    );
+
+    try expectEqual(
+        @as(TopologicalPathHash, 0b101),
+        sequential_child_hash(start_hash, 0)
+    );
+
+    try expectEqual(
+        @as(TopologicalPathHash, 0b10111111111111111111111),
+        sequential_child_hash(start_hash, 20)
     );
 }
 
