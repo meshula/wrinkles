@@ -431,6 +431,9 @@ pub fn build_topological_map(
         try map_itemptr_to_hash.put(current.object, current.path_hash);
         try map_hash_to_itemptr.put(current.path_hash, current.object);
 
+        // @TODO: internal spaces ? fine grained or no
+
+        // children
         switch (current.object) {
             .track_ptr => |tr| { 
                 for (tr.children.items) 
@@ -728,6 +731,23 @@ test "PathMap: Track with clip with identity transform topological" {
 
     try expectEqual(@as(TopologicalPathHash, 0b101), clip_hash);
 
+    try expectEqual(true, path_exists_hash(clip_hash, root_hash));
+
+    // const items_on_path = try map.items_on_path(root, clip);
+    //
+    // try expectEqual([]ItemPtr{root,clip}, items_on_path);
+
+    // @TODO debate here:
+    // (track (track clip (track (clip clip))))
+
+   //  const projector = try build_projection_operator_for_items(
+   //      .{
+   //          .source = try tr.space("output"),
+   //          .destination =  try tr.children.items[0].clip.space("media")
+   //      },
+   //      items_on_path,
+   // );
+
     // const track_to_clip = try build_projection_operator(
     //     .{
     //         .source = try tr.space("output"),
@@ -789,6 +809,17 @@ test "Projection: Track with clip with identity transform and bounds" {
 }
 
 test "Single Clip Media to Output Identity transform" {
+    //
+    //                  0                 7           10
+    // output space       [-----------------*-----------)
+    //                               ....n.....
+    //
+    //                  0                 7           10
+    // output space       [-----------------*-----------)
+    // intrinsic space    [-----------------*-----------)
+    // clip output space  [---)[---------)[-*------)[---)
+    //                    0   1 0        5 0       3 0  1
+    //
     //
     //              0                 7           10
     // output space [-----------------*-----------)
