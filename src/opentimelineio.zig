@@ -399,6 +399,22 @@ fn sequential_child_hash(
     );
 }
 
+fn depth_child_hash(
+    parent_hash: TopologicalPathHash,
+    child_index:usize
+) TopologicalPathHash
+{
+    const ind_offset = child_index + 1;
+    return std.math.shl(TopologicalPathHash, parent_hash, ind_offset);
+}
+
+test "depth_child_hash: math" {
+    const start_hash:TopologicalPathHash = 0b10;
+    
+    try expectEqual(@as(TopologicalPathHash, 0b100), depth_child_hash(start_hash, 0));
+    try expectEqual(@as(TopologicalPathHash, 0b100000), depth_child_hash(start_hash, 3));
+}
+
 pub fn build_topological_map(
     root_item: ItemPtr
 ) !TopologicalMap 
