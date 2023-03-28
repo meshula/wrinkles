@@ -608,6 +608,8 @@ test "sequential_child_hash" {
 test "PathMap: Track with clip with identity transform topological" {
     var tr = Track {};
     var cl = Clip { .source_range = .{ .start_seconds = 0, .end_seconds = 2 } };
+
+    // a copy -- which is why we can't use `cl` in our searches.
     try tr.append(.{ .clip = cl });
 
     const root = ItemPtr{ .track_ptr = &tr };
