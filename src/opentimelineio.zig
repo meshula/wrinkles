@@ -169,6 +169,14 @@ pub const ItemPtr = union(enum) {
     gap_ptr: *const Gap,
     track_ptr: *const Track,
 
+    pub fn init_Item(item: *Item) ItemPtr {
+        return switch (item.*) {
+            .clip => |*cp | .{ .clip_ptr = cp },
+            .gap => |*gp| .{ .gap_ptr= gp },
+            .track => |*tr| .{ .track_ptr = tr},
+        };
+    }
+
     pub fn topology(self: @This()) time_topology.TimeTopology {
         return switch (self) {
             .clip_ptr => |cl| cl.topology(),
