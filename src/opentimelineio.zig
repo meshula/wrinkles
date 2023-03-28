@@ -366,6 +366,8 @@ const TopologialPath = struct {
 
 // for now using a u128 for encoded the paths
 const TopologicalPathHash = u128;
+const TopologicalPathHashMask = u64;
+const TopologicalPathHashMaskTopBitCount = u8;
 
 ///
 /// append (child_index + 1) 1's to the end of the parent_hash:
@@ -586,7 +588,7 @@ test "Track with clip with identity transform projection" {
     );
 }
 
-test "sequential_child_hash" {
+test "sequential_child_hash: math" {
     const start_hash:TopologicalPathHash = 0b10;
 
     try expectEqual(
@@ -603,6 +605,90 @@ test "sequential_child_hash" {
         @as(TopologicalPathHash, 0b10111111111111111111111),
         sequential_child_hash(start_hash, 20)
     );
+}
+
+
+fn top_bits(
+    n: TopologicalPathHashMaskTopBitCount
+) TopologicalPathHash
+{
+    // Handle edge cases
+    const tmp:TopologicalPathHash = 0;
+    if (n == 64) {
+        return ~ tmp;
+    }
+
+    // Create a mask with all bits set
+    var mask: TopologicalPathHash = ~tmp;
+
+    // Shift the mask right by n bits
+
+    mask = std.math.shl(TopologicalPathHash, mask, n);
+
+    return ~mask;
+}
+
+pub fn path_exists_hash(
+    in_a: TopologicalPathHash,
+    in_b: TopologicalPathHash
+) bool 
+{
+    var a = in_a;
+    var b = in_b;
+
+    if ((a == 0) or (b == 0)) {
+        return false;
+    }
+
+    if (b>a) { 
+        a = in_b;
+        b = in_a;
+    }
+
+    const r = @clz(b) - @clz(a);
+    if (r == 0) {
+        return (a == b);
+    }
+
+    // line b up with a
+    // eg: b=101 and a1010, b -> 1010
+    b <<= @intCast(u7,r);
+
+    var mask : TopologicalPathHash = 0;
+    mask = ~mask;
+
+    mask = std.math.shl(TopologicalPathHash, mask, r);
+
+    return ((a & mask) == (b & mask));
+}
+
+test "sequential_child_hash: path tests" {
+    // 0 never has a path
+    try expectEqual(false, path_exists_hash(0b0, 0b101));
+
+    // different bitwidths
+    try expectEqual(true, path_exists_hash(0b10, 0b101));
+    try expectEqual(true, path_exists_hash(0b101, 0b10));
+    try expectEqual(true, path_exists_hash(0b101, 0b1011101010111000));
+    try expectEqual(true, path_exists_hash(0b10111010101110001111111, 0b1011101010111000));
+
+    // test maximum width
+    var mask : TopologicalPathHash = 0;
+    mask = ~mask;
+    try expectEqual(false, path_exists_hash(0, mask));
+    try expectEqual(true, path_exists_hash(mask, mask));
+    try expectEqual(true, path_exists_hash(mask/2, mask));
+    try expectEqual(true, path_exists_hash(mask, mask/2));
+    try expectEqual(false, path_exists_hash(mask - 1, mask));
+    try expectEqual(false, path_exists_hash(mask, mask - 1));
+
+    // mismatch
+    // same width
+    try expectEqual(false, path_exists_hash(0b100, 0b101));
+    // different width
+    try expectEqual(false, path_exists_hash(0b10, 0b110));
+    try expectEqual(false, path_exists_hash(0b11, 0b101));
+    try expectEqual(false, path_exists_hash(0b100, 0b101110));
 }
 
 test "PathMap: Track with clip with identity transform topological" {
