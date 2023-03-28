@@ -291,6 +291,10 @@ pub const Track = struct {
             }
         } else null;
     }
+
+    pub fn child_ptr_from_index(self: @This(), index: usize) ItemPtr {
+        return ItemPtr.init_Item(&self.children.items[index]);
+    }
 };
 
 test "add clip to track and check parent pointer" {
