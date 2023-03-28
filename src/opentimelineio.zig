@@ -332,16 +332,20 @@ const ProjectionOperator = struct {
 };
 
 const TopologicalMap = struct {
-    root_item: ItemPtr,
-    map:std.AutoHashMap(ItemPtr, TopologicalPathHash),
+    map_itemptr_to_hash:std.AutoHashMap(ItemPtr, TopologicalPathHash),
+    map_hash_to_itemptr:std.AutoHashMap(TopologicalPathHash, ItemPtr),
+
+    pub fn root(self: @This()) ItemPtr {
+        return self.map_hash_to_itemptr.get(0b10) orelse unreachable;
+    }
 
     pub fn find_path(
         self: @This(),
         source: ItemPtr,
         destination: ItemPtr
     ) !TopologialPath {
-        const source_hash = if (self.map.get(source)) |s| s else return error.NoPathAvailalbeInMap;
-        const destination_hash = if (self.map.get(destination)) |d| d else return error.NoPathAvailalbeInMap;
+        const source_hash = if (self.map_itemptr_to_hash.get(source)) |s| s else return error.NoPathAvailalbeInMap;
+        const destination_hash = if (self.map_itemptr_to_hash.get(destination)) |d| d else return error.NoPathAvailalbeInMap;
 
         // @TODO:
         // only handle forward traversal at the moment
@@ -399,7 +403,14 @@ pub fn build_topological_map(
     root_item: ItemPtr
 ) !TopologicalMap 
 {
-    var map = std.AutoHashMap(ItemPtr, TopologicalPathHash).init(allocator.ALLOCATOR);
+    var map_itemptr_to_hash = std.AutoHashMap(
+        ItemPtr,
+        TopologicalPathHash,
+    ).init(allocator.ALLOCATOR);
+    var map_hash_to_itemptr = std.AutoHashMap(
+        TopologicalPathHash,
+        ItemPtr,
+    ).init(allocator.ALLOCATOR);
 
     const Node = struct {
         path_hash: TopologicalPathHash,
@@ -417,7 +428,8 @@ pub fn build_topological_map(
     while (stack.items.len > 0) {
         const current = stack.pop();
 
-        try map.put(current.object, current.path_hash);
+        try map_itemptr_to_hash.put(current.object, current.path_hash);
+        try map_hash_to_itemptr.put(current.path_hash, current.object);
 
         switch (current.object) {
             .track_ptr => |tr| { 
@@ -441,8 +453,8 @@ pub fn build_topological_map(
     }
 
     return .{
-        .map = map,
-        .root_item = root_item,
+        .map_itemptr_to_hash = map_itemptr_to_hash,
+        .map_hash_to_itemptr = map_hash_to_itemptr,
     };
 }
 
@@ -702,18 +714,19 @@ test "PathMap: Track with clip with identity transform topological" {
 
     const map = try build_topological_map(root);
 
-    try expectEqual(root, map.root_item);
+    try expectEqual(root, map.root());
 
-    try expectEqual(@as(usize, 2), map.map.count());
+    try expectEqual(@as(usize, 2), map.map_hash_to_itemptr.count());
+    try expectEqual(@as(usize, 2), map.map_itemptr_to_hash.count());
 
-    const root_from_map = map.map.get(root) orelse 0;
+    const root_hash = map.map_itemptr_to_hash.get(root) orelse 0;
 
-    try expectEqual(@as(TopologicalPathHash, 0b10), root_from_map);
+    try expectEqual(@as(TopologicalPathHash, 0b10), root_hash);
 
     const clip = tr.child_ptr_from_index(0);
-    const clip_from_map = map.map.get(clip) orelse 0;
+    const clip_hash = map.map_itemptr_to_hash.get(clip) orelse 0;
 
-    try expectEqual(@as(TopologicalPathHash, 0b101), clip_from_map);
+    try expectEqual(@as(TopologicalPathHash, 0b101), clip_hash);
 
     // const track_to_clip = try build_projection_operator(
     //     .{
@@ -752,7 +765,7 @@ test "Projection: Track with clip with identity transform and bounds" {
     const track_to_clip = try build_projection_operator(
         .{
             .source = try tr.space("output"),
-            .destination =  try cl.space("media")
+            .destination =  try tr.children.items[0].clip.space("media")
         }
     );
 
