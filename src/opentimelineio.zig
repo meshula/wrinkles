@@ -31,7 +31,7 @@ pub const Clip = struct {
         return error.NoSourceRangeSet;
     }
 
-    pub fn space(self: @This(), label: string.latin_s8) !SpaceReference {
+    pub fn space(self: @This(), label: SpaceLabel) !SpaceReference {
         return .{
             .item = ItemPtr{ .clip_ptr = &self },
             .label= label,
@@ -53,11 +53,9 @@ pub const Clip = struct {
 
     pub fn build_projection_operator(
         self: @This(),
-        source_label: string.latin_s8,
-        destination_label: string.latin_s8,
+        source_label: SpaceLabel,
+        destination_label: SpaceLabel,
     ) !ProjectionOperator {
-        const source = std.meta.stringToEnum(SPACES, source_label);
-        const destin = std.meta.stringToEnum(SPACES, destination_label);
         const proj_args = ProjectionOperatorArgs{
             .source = .{.item = ItemPtr{ .clip_ptr = &self}, .label = source_label},
             .destination = .{.item = ItemPtr{ .clip_ptr =&self}, .label = destination_label},
@@ -87,7 +85,7 @@ pub const Clip = struct {
         //
 
         // no projection
-        if (source == destin) {
+        if (source_label == destination_label) {
             return .{
                 .args = proj_args,
                 .topology = opentime.TimeTopology.init_inf_identity() 
@@ -118,7 +116,7 @@ pub const Clip = struct {
             output_to_intrinsic
         );
 
-        if (source == SPACES.output) {
+        if (source_label == SpaceLabel.output) {
             return .{ .args = proj_args, .topology = output_to_media};
         } else {
             return .{
@@ -127,6 +125,7 @@ pub const Clip = struct {
             };
         }
     }
+
 };
 
 pub const Gap = struct {
@@ -139,8 +138,8 @@ pub const Gap = struct {
 
     pub fn build_projection_operator(
         self: @This(),
-        source_label: string.latin_s8,
-        destination_label: string.latin_s8,
+        source_label: SpaceLabel,
+        destination_label: SpaceLabel,
     ) !ProjectionOperator {
         _ = self;
         _ = source_label;
@@ -188,8 +187,8 @@ pub const ItemPtr = union(enum) {
     /// builds a projection operator within a single item
     pub fn build_projection_operator(
         self: @This(),
-        source_label: string.latin_s8,
-        destination_label: string.latin_s8,
+        source_label: SpaceLabel,
+        destination_label: SpaceLabel,
     ) !ProjectionOperator {
         return switch (self) {
             .clip_ptr => |cl| cl.build_projection_operator(
@@ -231,6 +230,30 @@ pub const ItemPtr = union(enum) {
             else => error.NotAContainer,
         };
     }
+
+    // return list of SpaceReference for this object
+    pub fn spaces(self: @This()) ![]SpaceReference {
+        var result = std.ArrayList(SpaceReference).init(allocator.ALLOCATOR);
+
+        switch (self) {
+            .clip_ptr => {
+                try result.append( .{ .item = self, .label = SpaceLabel.output});
+                try result.append( .{ .item = self, .label = SpaceLabel.media});
+            },
+            .track_ptr => {
+                try result.append( .{ .item = self, .label = SpaceLabel.output});
+                try result.append( .{ .item = self, .label = SpaceLabel.intrinsic});
+                try result.append( .{ .item = self, .label = SpaceLabel.child});
+            },
+            else => {}
+        }
+
+        return result.items;
+    }
+
+    pub fn space(self: @This(), label: SpaceLabel) !SpaceReference {
+        return .{ .item = self, .label = label };
+    }
 };
 
 pub const Track = struct {
@@ -243,7 +266,7 @@ pub const Track = struct {
         // item.set_parent(self);
     }
 
-    pub fn space(self: *Track, label: string.latin_s8) !SpaceReference {
+    pub fn space(self: *Track, label: SpaceLabel) !SpaceReference {
         return .{
             .item = ItemPtr{ .track_ptr = self },
             .label= label,
@@ -274,8 +297,8 @@ pub const Track = struct {
 
     pub fn build_projection_operator(
         self: @This(),
-        source_label: string.latin_s8,
-        destination_label: string.latin_s8,
+        source_label: SpaceLabel,
+        destination_label: SpaceLabel,
     ) !ProjectionOperator {
         _ = self;
         _ = source_label;
@@ -312,9 +335,16 @@ test "add clip to track and check parent pointer" {
     // try expectEqual(cl.parent.?, tr);
 }
 
+const SpaceLabel = enum(i8) {
+    output = 0,
+    intrinsic,
+    media,
+    child,
+};
+
 const SpaceReference = struct {
     item: ItemPtr,
-    label: string.latin_s8 = "output",
+    label: SpaceLabel,
 };
 
 const ProjectionOperatorArgs = struct {
@@ -332,20 +362,20 @@ const ProjectionOperator = struct {
 };
 
 const TopologicalMap = struct {
-    map_itemptr_to_hash:std.AutoHashMap(ItemPtr, TopologicalPathHash),
-    map_hash_to_itemptr:std.AutoHashMap(TopologicalPathHash, ItemPtr),
+    map_space_to_hash:std.AutoHashMap(SpaceReference, TopologicalPathHash),
+    map_hash_to_space:std.AutoHashMap(TopologicalPathHash, SpaceReference),
 
-    pub fn root(self: @This()) ItemPtr {
-        return self.map_hash_to_itemptr.get(0b10) orelse unreachable;
+    pub fn root(self: @This()) SpaceReference {
+        return self.map_hash_to_space.get(0b10) orelse unreachable;
     }
 
     pub fn find_path(
         self: @This(),
-        source: ItemPtr,
-        destination: ItemPtr
+        source: SpaceReference,
+        destination: SpaceReference
     ) !TopologialPath {
-        const source_hash = if (self.map_itemptr_to_hash.get(source)) |s| s else return error.NoPathAvailalbeInMap;
-        const destination_hash = if (self.map_itemptr_to_hash.get(destination)) |d| d else return error.NoPathAvailalbeInMap;
+        const source_hash = if (self.map_space_to_hash.get(source)) |s| s else return error.NoPathAvailalbeInMap;
+        const destination_hash = if (self.map_space_to_hash.get(destination)) |d| d else return error.NoPathAvailalbeInMap;
 
         // @TODO:
         // only handle forward traversal at the moment
@@ -409,23 +439,25 @@ fn depth_child_hash(
 }
 
 test "depth_child_hash: math" {
-    const start_hash:TopologicalPathHash = 0b10;
+    const start_hash:TopologicalPathHash = 0b1;
     
-    try expectEqual(@as(TopologicalPathHash, 0b100), depth_child_hash(start_hash, 0));
-    try expectEqual(@as(TopologicalPathHash, 0b100000), depth_child_hash(start_hash, 3));
+    try expectEqual(@as(TopologicalPathHash, 0b10), depth_child_hash(start_hash, 0));
+    try expectEqual(@as(TopologicalPathHash, 0b100), depth_child_hash(start_hash, 1));
+    try expectEqual(@as(TopologicalPathHash, 0b1000), depth_child_hash(start_hash, 2));
+    try expectEqual(@as(TopologicalPathHash, 0b10000), depth_child_hash(start_hash, 3));
 }
 
 pub fn build_topological_map(
     root_item: ItemPtr
 ) !TopologicalMap 
 {
-    var map_itemptr_to_hash = std.AutoHashMap(
-        ItemPtr,
+    var map_space_to_hash = std.AutoHashMap(
+        SpaceReference,
         TopologicalPathHash,
     ).init(allocator.ALLOCATOR);
-    var map_hash_to_itemptr = std.AutoHashMap(
+    var map_hash_to_space = std.AutoHashMap(
         TopologicalPathHash,
-        ItemPtr,
+        SpaceReference,
     ).init(allocator.ALLOCATOR);
 
     const Node = struct {
@@ -436,7 +468,7 @@ pub fn build_topological_map(
     var stack = std.ArrayList(Node).init(allocator.ALLOCATOR);
     defer stack.deinit();
 
-    const start_hash = 0b10;
+    const start_hash = 0b1;
 
     // root node
     try stack.append(.{.object = root_item, .path_hash = start_hash});
@@ -444,19 +476,34 @@ pub fn build_topological_map(
     while (stack.items.len > 0) {
         const current = stack.pop();
 
-        try map_itemptr_to_hash.put(current.object, current.path_hash);
-        try map_hash_to_itemptr.put(current.path_hash, current.object);
+        var current_hash = current.path_hash;
 
-        // @TODO: internal spaces ? fine grained or no
+        // object intermediate spaces
+        const spaces = try current.object.spaces();
+        defer ALLOCATOR.free(spaces);
 
-        // children
+        for (spaces) |space_ref, index| {
+            const child_hash = depth_child_hash(current_hash, index);
+            std.debug.print(
+                "[{d}] adding space: '{s}' with hash {b}\n",
+                .{index, @tagName(space_ref.label), child_hash }
+            );
+            try map_space_to_hash.put(space_ref, child_hash);
+            try map_hash_to_space.put(child_hash, space_ref);
+
+            if (index == (spaces.len - 1)) {
+                current_hash = child_hash;
+            }
+        }
+
+        // transforms to children
         switch (current.object) {
             .track_ptr => |tr| { 
                 for (tr.children.items) 
                     |*child, index| 
                 {
                     const child_hash = sequential_child_hash(
-                        current.path_hash,
+                        current_hash,
                         index
                     );
                     const item_ptr:ItemPtr = switch (child.*) {
@@ -472,8 +519,8 @@ pub fn build_topological_map(
     }
 
     return .{
-        .map_itemptr_to_hash = map_itemptr_to_hash,
-        .map_hash_to_itemptr = map_hash_to_itemptr,
+        .map_space_to_hash = map_space_to_hash,
+        .map_hash_to_space = map_hash_to_space,
     };
 }
 
@@ -515,8 +562,8 @@ pub fn build_projection_operator(
 
     // errors: can't find a path
     const topological_path = try topological_map.find_path(
-        args.source.item, 
-        args.destination.item
+        args.source, 
+        args.destination
     );
 
     // errors: can't invert, not projectible path
@@ -593,8 +640,8 @@ test "Track with clip with identity transform projection" {
 
     const track_to_clip = try build_projection_operator(
         .{
-            .source = try tr.space("output"),
-            .destination =  try cl.space("media")
+            .source = try tr.space(SpaceLabel.output),
+            .destination =  try cl.space(SpaceLabel.media)
         }
     );
 
@@ -733,19 +780,19 @@ test "PathMap: Track with clip with identity transform topological" {
 
     const map = try build_topological_map(root);
 
-    try expectEqual(root, map.root());
+    try expectEqual(@as(usize, 5), map.map_hash_to_space.count());
+    try expectEqual(@as(usize, 5), map.map_space_to_hash.count());
 
-    try expectEqual(@as(usize, 2), map.map_hash_to_itemptr.count());
-    try expectEqual(@as(usize, 2), map.map_itemptr_to_hash.count());
+    try expectEqual(root, map.root().item);
 
-    const root_hash = map.map_itemptr_to_hash.get(root) orelse 0;
+    const root_hash = map.map_space_to_hash.get(try root.space(SpaceLabel.output)) orelse 0;
 
     try expectEqual(@as(TopologicalPathHash, 0b10), root_hash);
 
     const clip = tr.child_ptr_from_index(0);
-    const clip_hash = map.map_itemptr_to_hash.get(clip) orelse 0;
+    const clip_hash = map.map_space_to_hash.get(try clip.space(SpaceLabel.media)) orelse 0;
 
-    try expectEqual(@as(TopologicalPathHash, 0b101), clip_hash);
+    try expectEqual(@as(TopologicalPathHash, 0b1000100), clip_hash);
 
     try expectEqual(true, path_exists_hash(clip_hash, root_hash));
 
@@ -800,8 +847,8 @@ test "Projection: Track with clip with identity transform and bounds" {
 
     const track_to_clip = try build_projection_operator(
         .{
-            .source = try tr.space("output"),
-            .destination =  try tr.children.items[0].clip.space("media")
+            .source = try tr.space(SpaceLabel.output),
+            .destination =  try tr.children.items[0].clip.space(SpaceLabel.media)
         }
     );
 
@@ -853,8 +900,8 @@ test "Single Clip Media to Output Identity transform" {
     {
         const clip_output_to_media = try build_projection_operator(
             .{
-                .source =  try cl.space("output"),
-                .destination = try cl.space("media"),
+                .source =  try cl.space(SpaceLabel.output),
+                .destination = try cl.space(SpaceLabel.media),
             }
         );
 
