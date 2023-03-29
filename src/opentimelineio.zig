@@ -369,34 +369,112 @@ const TopologicalMap = struct {
         return self.map_hash_to_space.get(0b10) orelse unreachable;
     }
 
-    pub fn find_path(
+    pub fn build_projection_operator(
         self: @This(),
-        source: SpaceReference,
-        destination: SpaceReference
-    ) !TopologialPath {
-        const source_hash = if (self.map_space_to_hash.get(source)) |s| s else return error.NoPathAvailalbeInMap;
-        const destination_hash = if (self.map_space_to_hash.get(destination)) |d| d else return error.NoPathAvailalbeInMap;
+        args: ProjectionOperatorArgs,
+    ) !ProjectionOperator {
+        const source_hash = if (self.map_space_to_hash.get(args.source)) |hash| hash else return error.SourceNotInMap;
+        const destination_hash = if (self.map_space_to_hash.get(args.destination)) |hash| hash else return error.DestinationNotInMap;
 
-        // @TODO:
-        // only handle forward traversal at the moment
+        if (path_exists_hash(source_hash, destination_hash) == false) {
+            return error.NoPathBetweenSpaces;
+        }
+
+        // only supporting forward projection at the moment
         if (source_hash > destination_hash) {
-            return error.NotAForwardTraversal;
+            return error.ReverseProjectionNotYetSupported;
         }
 
         return error.NotImplemented;
     }
+
+    fn label_for_node(
+        ref: SpaceReference,
+        hash: TopologicalPathHash
+    ) !string.latin_s8 
+    {
+        const item_kind = switch(ref.item) {
+            .track_ptr => "track",
+            .clip_ptr => "clip",
+            .gap_ptr => "gap",
+        };
+        return std.fmt.allocPrint(
+            allocator.ALLOCATOR,
+            "{s}_{s}_{b}", 
+            .{
+                item_kind,
+                @tagName(ref.label),
+                hash
+            }
+        );
+    }
+
+    pub fn write_dot_graph(self:@This(), filepath: string.latin_s8) !void {
+        const root_space = self.root(); 
+
+        // open the file
+        const file = try std.fs.createFileAbsolute(filepath,.{});
+        defer file.close();
+
+        try file.writeAll("digraph OTIO_TopologicalMap {\n");
+
+        const Node = struct { space: SpaceReference, hash: TopologicalPathHash };
+
+        var stack = std.ArrayList(Node).init(allocator.ALLOCATOR);
+
+        try stack.append(.{ .space = root_space, .hash = 0b10});
+
+        while (stack.items.len > 0) {
+            const current = stack.pop();
+            const current_label = try label_for_node(current.space, current.hash);
+
+            const left = current.hash << 1;
+
+            if (self.map_hash_to_space.get(left)) |next| {
+                const next_label = try label_for_node(next, left);
+                try file.writeAll(
+                    try std.fmt.allocPrint(
+                        allocator.ALLOCATOR,
+                        "  {s} -> {s}\n",
+                        .{current_label, next_label}
+                    )
+                );
+                try stack.append(.{.space = next, .hash = left});
+            } else {
+                try file.writeAll(
+                    try std.fmt.allocPrint(
+                        allocator.ALLOCATOR,
+                        "  {b} \n  [shape=point]{s} -> {b}\n",
+                        .{left, current_label, left }
+                    )
+                );
+            }
+
+            const right = ((current.hash << 1) + 1) << 1;
+            if (self.map_hash_to_space.get(right)) |next| {
+                const next_label = try label_for_node(next, right);
+                try file.writeAll(
+                    try std.fmt.allocPrint(
+                        allocator.ALLOCATOR,
+                        "  {s} -> {s}\n",
+                        .{current_label, next_label}
+                    )
+                );
+                try stack.append(.{.space = next, .hash = right});
+            } else {
+                try file.writeAll(
+                    try std.fmt.allocPrint(
+                        allocator.ALLOCATOR,
+                        "  {b} [shape=point]\n  {s} -> {b}\n",
+                        .{right, current_label, right }
+                    )
+                );
+            }
+        }
+
+        try file.writeAll("}\n");
+    }
 };
-
-const TopologialPath = struct {
-     map: TopologicalMap,
-     hash: TopologicalPathHash,
-     // probably needs a start and finish object?
-
-     pub fn build_projection_operator(self: @This()) !ProjectionOperator {
-         _ = self;
-         return error.NotImplemented;
-     }
- };
 
 // for now using a u128 for encoded the paths
 const TopologicalPathHash = u128;
@@ -524,52 +602,6 @@ pub fn build_topological_map(
     };
 }
 
-///
-/// Forward Projection is from the output of the container (Track) to the input
-/// space of the contained item (Clip).
-///
-/// This assertion is domain specific; the resulting document must be viewable
-/// within the natural world in a monotonic temporal space.
-///
-/// example:
-/// Track with a clip in it
-/// Track has a 0.5 slowdown on it, clip has another 0.5 slowdown on it
-///
-/// Track.output: source
-/// Clip.media: destination
-///
-///
-pub fn build_projection_operator(
-    args: ProjectionOperatorArgs
-) !ProjectionOperator
-{
-    if (std.meta.eql(args.source.item, args.destination.item)) {
-    // if (args.source.item.equivalent_to(args.destination.item)) {
-        if (std.meta.eql(args.source.label, args.destination.label)) {
-            // when the source space and destination space are identical,
-            // should be some kind of bounded identity
-            return error.APIUnavailable;
-        }
-
-        return args.source.item.build_projection_operator(
-            args.source.label,
-            args.destination.label
-        );
-    }
-
-    // different objects
-    const topological_map = try build_topological_map(args.source.item);
-
-    // errors: can't find a path
-    const topological_path = try topological_map.find_path(
-        args.source, 
-        args.destination
-    );
-
-    // errors: can't invert, not projectible path
-    return try topological_path.build_projection_operator();
-}
-
 test "clip topology construction" {
     const start_seconds:f32 = 1;
     const end_seconds:f32 = 10;
@@ -625,11 +657,11 @@ test "track topology construction" {
 }
 
 test "Track with clip with identity transform projection" {
-    try util.skip_test();
 
     var tr = Track {};
     const start_seconds:f32 = 1;
     const end_seconds:f32 = 10;
+
     var cl = Clip {
         .source_range = .{
             .start_seconds = start_seconds,
@@ -638,7 +670,24 @@ test "Track with clip with identity transform projection" {
     };
     try tr.append(.{ .clip = cl });
 
-    const track_to_clip = try build_projection_operator(
+    var i:i32 = 0;
+    while (i < 10) {
+        var cl2 = Clip {
+            .source_range = .{
+                .start_seconds = start_seconds,
+                .end_seconds = end_seconds 
+            }
+        };
+        try tr.append(.{ .clip = cl2 });
+        i+=1;
+    }
+
+    const map = try build_topological_map(.{ .track_ptr = &tr });
+
+    try map.write_dot_graph("/var/tmp/test.dot");
+
+    try util.skip_test();
+    const track_to_clip = try map.build_projection_operator(
         .{
             .source = try tr.space(SpaceLabel.output),
             .destination =  try cl.space(SpaceLabel.media)
@@ -704,6 +753,63 @@ fn top_bits(
     mask = std.math.shl(TopologicalPathHash, mask, n);
 
     return ~mask;
+}
+
+pub fn path_between_hash(
+    in_a: TopologicalPathHash,
+    in_b: TopologicalPathHash,
+) !TopologicalPathHash
+{
+    var a = in_a;
+    var b = in_b;
+    
+    if (a < b) {
+        a = in_b;
+        b = in_a;
+    }
+
+    if (path_exists_hash(a, b) == false) {
+        return error.NoPathBetweenSpaces;
+    }
+
+    const r = @clz(b) - @clz(a);
+    if (r == 0) {
+        return 0;
+    }
+
+    // line b up with a
+    // eg: b=101 and a1010, b -> 1010
+    b <<= @intCast(u7,r);
+
+    const path = a ^ b;
+
+    return path;
+}
+
+test "path_between_hash: math" {
+    const TestData = struct{
+        source: TopologicalPathHash,
+        dest: TopologicalPathHash,
+        expect: TopologicalPathHash,
+    };
+
+    const test_data = [_]TestData{
+        .{ .source = 0b10, .dest = 0b101, .expect = 0b1 },
+        .{ .source = 0b101, .dest = 0b10, .expect = 0b1 },
+        .{ .source = 0b10, .dest = 0b10, .expect = 0b0 },
+        .{ .source = 0b10, .dest = 0b1011, .expect = 0b11 },
+        .{ .source = 0b1011, .dest = 0b10, .expect = 0b11 },
+        .{ .source = 0b10, .dest = 0b10111010101110001111111, .expect = 0b111010101110001111111 },
+    };
+
+    for (test_data) |t, i| {
+        errdefer std.log.err(
+            "[{d}] source: {b} dest: {b} expected: {b}",
+            .{ i, t.source, t.dest, t.expect }
+        );
+
+        try expectEqual(t.expect, try path_between_hash(t.source, t.dest));
+    }
 }
 
 pub fn path_exists_hash(
@@ -796,29 +902,48 @@ test "PathMap: Track with clip with identity transform topological" {
 
     try expectEqual(true, path_exists_hash(clip_hash, root_hash));
 
-    // const items_on_path = try map.items_on_path(root, clip);
+    const root_output_to_clip_media = try map.build_projection_operator(
+        .{
+            .source = try root.space(SpaceLabel.output),
+            .destination = try clip.space(SpaceLabel.media)
+        }
+    );
+
+    try expectError(
+        time_topology.TimeTopology.ProjectionError.OutOfBounds,
+        root_output_to_clip_media.project_ordinate(3)
+    );
+
+    try expectApproxEqAbs(
+        @as(f32, 1),
+        try root_output_to_clip_media.project_ordinate(1),
+        util.EPSILON,
+    );
+}
+
+test "Projection: Track with clip with identity transform and bounds" {
+    // not ready yet
+    try util.skip_test();
     //
-    // try expectEqual([]ItemPtr{root,clip}, items_on_path);
-
-    // @TODO debate here:
-    // (track (track clip (track (clip clip))))
-
-   //  const projector = try build_projection_operator_for_items(
-   //      .{
-   //          .source = try tr.space("output"),
-   //          .destination =  try tr.children.items[0].clip.space("media")
-   //      },
-   //      items_on_path,
-   // );
-
-    // const track_to_clip = try build_projection_operator(
+    // var tr = Track {};
+    // var cl = Clip { .source_range = .{ .start_seconds = 0, .end_seconds = 2 } };
+    // try tr.append(.{ .clip = cl });
+    //
+    // const map = try build_topological_map(root);
+    //
+    // const root_output_to_clip_media = try map.build_projection_operator(
+    //     try root.space(SpaceLabel.output),
+    //     try clip.space(SpaceLabel.media)
+    // );
+    //
+    // const track_to_clip = try root_output_to_clip_media.build_projection_operator(
     //     .{
-    //         .source = try tr.space("output"),
-    //         .destination =  try tr.children.items[0].clip.space("media")
+    //         .source = try tr.space(SpaceLabel.output),
+    //         .destination =  try tr.children.items[0].clip.space(SpaceLabel.media)
     //     }
     // );
-
-    // check the bounds
+    //
+    // // check the bounds
     // try expectApproxEqAbs(
     //     (cl.source_range orelse interval.ContinuousTimeInterval{}).start_seconds,
     //     track_to_clip.topology.bounds.start_seconds,
@@ -835,40 +960,6 @@ test "PathMap: Track with clip with identity transform topological" {
     //     time_topology.TimeTopology.ProjectionError.OutOfBounds,
     //     track_to_clip.project_ordinate(3)
     // );
-}
-
-test "Projection: Track with clip with identity transform and bounds" {
-    // not ready yet
-    try util.skip_test();
-
-    var tr = Track {};
-    var cl = Clip { .source_range = .{ .start_seconds = 0, .end_seconds = 2 } };
-    try tr.append(.{ .clip = cl });
-
-    const track_to_clip = try build_projection_operator(
-        .{
-            .source = try tr.space(SpaceLabel.output),
-            .destination =  try tr.children.items[0].clip.space(SpaceLabel.media)
-        }
-    );
-
-    // check the bounds
-    try expectApproxEqAbs(
-        (cl.source_range orelse interval.ContinuousTimeInterval{}).start_seconds,
-        track_to_clip.topology.bounds.start_seconds,
-        util.EPSILON,
-    );
-
-    try expectApproxEqAbs(
-        (cl.source_range orelse interval.ContinuousTimeInterval{}).end_seconds,
-        track_to_clip.topology.bounds.end_seconds,
-        util.EPSILON,
-    );
-
-    try expectError(
-        time_topology.TimeTopology.ProjectionError.OutOfBounds,
-        track_to_clip.project_ordinate(3)
-    );
 }
 
 test "Single Clip Media to Output Identity transform" {
@@ -896,9 +987,11 @@ test "Single Clip Media to Output Identity transform" {
 
     const cl = Clip { .source_range = source_range };
 
+    const map = try build_topological_map(.{ .clip_ptr = &cl});
+
     // output->media
     {
-        const clip_output_to_media = try build_projection_operator(
+        const clip_output_to_media = try map.build_projection_operator(
             .{
                 .source =  try cl.space(SpaceLabel.output),
                 .destination = try cl.space(SpaceLabel.media),
