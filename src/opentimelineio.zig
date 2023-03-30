@@ -1038,45 +1038,41 @@ test "PathMap: Track with clip with identity transform topological" {
     );
 }
 
-test "Projection: Track with clip with identity transform and bounds" {
-    // not ready yet
-    try util.skip_test();
-    //
-    // var tr = Track {};
-    // var cl = Clip { .source_range = .{ .start_seconds = 0, .end_seconds = 2 } };
-    // try tr.append(.{ .clip = cl });
-    //
-    // const map = try build_topological_map(root);
-    //
-    // const root_output_to_clip_media = try map.build_projection_operator(
-    //     try root.space(SpaceLabel.output),
-    //     try clip.space(SpaceLabel.media)
-    // );
-    //
-    // const track_to_clip = try root_output_to_clip_media.build_projection_operator(
-    //     .{
-    //         .source = try tr.space(SpaceLabel.output),
-    //         .destination =  try tr.children.items[0].clip.space(SpaceLabel.media)
-    //     }
-    // );
-    //
-    // // check the bounds
-    // try expectApproxEqAbs(
-    //     (cl.source_range orelse interval.ContinuousTimeInterval{}).start_seconds,
-    //     track_to_clip.topology.bounds.start_seconds,
-    //     util.EPSILON,
-    // );
-    //
-    // try expectApproxEqAbs(
-    //     (cl.source_range orelse interval.ContinuousTimeInterval{}).end_seconds,
-    //     track_to_clip.topology.bounds.end_seconds,
-    //     util.EPSILON,
-    // );
-    //
-    // try expectError(
-    //     time_topology.TimeTopology.ProjectionError.OutOfBounds,
-    //     track_to_clip.project_ordinate(3)
-    // );
+test "Projection: Track with single clip with identity transform and bounds" {
+    var tr = Track {};
+    const root = ItemPtr{ .track_ptr = &tr };
+
+    var cl = Clip { .source_range = .{ .start_seconds = 0, .end_seconds = 2 } };
+    try tr.append(.{ .clip = cl });
+
+    const clip = tr.child_ptr_from_index(0);
+
+    const map = try build_topological_map(root);
+
+    const root_output_to_clip_media = try map.build_projection_operator(
+        .{ 
+            .source = try root.space(SpaceLabel.output),
+            .destination = try clip.space(SpaceLabel.media),
+        }
+    );
+
+    // check the bounds
+    try expectApproxEqAbs(
+        (cl.source_range orelse interval.ContinuousTimeInterval{}).start_seconds,
+        root_output_to_clip_media.topology.bounds.start_seconds,
+        util.EPSILON,
+    );
+
+    try expectApproxEqAbs(
+        (cl.source_range orelse interval.ContinuousTimeInterval{}).end_seconds,
+        root_output_to_clip_media.topology.bounds.end_seconds,
+        util.EPSILON,
+    );
+
+    try expectError(
+        time_topology.TimeTopology.ProjectionError.OutOfBounds,
+        root_output_to_clip_media.project_ordinate(3)
+    );
 }
 
 test "Single Clip Media to Output Identity transform" {
