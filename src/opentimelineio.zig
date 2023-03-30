@@ -50,82 +50,6 @@ pub const Clip = struct {
         media = 0,
         output = 1,
     };
-
-    pub fn build_projection_operator(
-        self: @This(),
-        source_label: SpaceLabel,
-        destination_label: SpaceLabel,
-    ) !ProjectionOperator {
-        const proj_args = ProjectionOperatorArgs{
-            .source = .{.item = ItemPtr{ .clip_ptr = &self}, .label = source_label},
-            .destination = .{.item = ItemPtr{ .clip_ptr =&self}, .label = destination_label},
-        };
-
-        // Clip spaces and transformations
-        //
-        // key: 
-        //   + space
-        //   * transformation
-        //
-        // +--- OUTPUT
-        // |
-        // *--- (implicit) post transform->OUTPUT space (reset start time to 0)
-        // |
-        // +--- (implicit) post effects space
-        // |
-        // *--- .transform field (in real OTIO this would be relevant EFFECTS)
-        // |
-        // +--- (implicit) intrinsic
-        // |
-        // *--- (implicit) media->intrinsic xform: set the start time to 0
-        // |
-        // +--- MEDIA
-        //
-        // initially only exposing the MEDIA and OUTPUT spaces
-        //
-
-        // no projection
-        if (source_label == destination_label) {
-            return .{
-                .args = proj_args,
-                .topology = opentime.TimeTopology.init_inf_identity() 
-            };
-        }
-
-        const output_to_post_transform = (
-            opentime.TimeTopology.init_inf_identity()
-        );
-
-        const post_transform_to_intrinsic = (
-            self.transform 
-            orelse opentime.TimeTopology.init_inf_identity()
-        );
-
-        const output_to_intrinsic = (
-            post_transform_to_intrinsic.project_topology(
-                output_to_post_transform
-            )
-        );
-
-        const intrinsic_bounds = try self.trimmed_range();
-        const intrinsic_to_media = opentime.TimeTopology.init_identity_finite(
-            intrinsic_bounds
-        );
-
-        const output_to_media = intrinsic_to_media.project_topology(
-            output_to_intrinsic
-        );
-
-        if (source_label == SpaceLabel.output) {
-            return .{ .args = proj_args, .topology = output_to_media};
-        } else {
-            return .{
-                .args = proj_args,
-                .topology = try output_to_media.inverted(), 
-            };
-        }
-    }
-
 };
 
 pub const Gap = struct {
@@ -134,18 +58,6 @@ pub const Gap = struct {
     pub fn topology(self: @This()) time_topology.TimeTopology {
         _ = self;
         return .{};
-    }
-
-    pub fn build_projection_operator(
-        self: @This(),
-        source_label: SpaceLabel,
-        destination_label: SpaceLabel,
-    ) !ProjectionOperator {
-        _ = self;
-        _ = source_label;
-        _ = destination_label;
-
-        return error.NotImplemented;
     }
 };
 
@@ -181,28 +93,6 @@ pub const ItemPtr = union(enum) {
             .clip_ptr => |cl| cl.topology(),
             .gap_ptr => |gp| gp.topology(),
             .track_ptr => |tr| tr.topology(),
-        };
-    }
-
-    /// builds a projection operator within a single item
-    pub fn build_projection_operator(
-        self: @This(),
-        source_label: SpaceLabel,
-        destination_label: SpaceLabel,
-    ) !ProjectionOperator {
-        return switch (self) {
-            .clip_ptr => |cl| cl.build_projection_operator(
-                source_label,
-                destination_label
-            ),
-            .gap_ptr => |gp| gp.build_projection_operator(
-                source_label,
-                destination_label
-            ),
-            .track_ptr => |tr| tr.build_projection_operator(
-                source_label,
-                destination_label
-            ),
         };
     }
 
@@ -254,6 +144,81 @@ pub const ItemPtr = union(enum) {
     pub fn space(self: @This(), label: SpaceLabel) !SpaceReference {
         return .{ .item = self, .label = label };
     }
+
+    pub fn build_transform(
+        self: @This(),
+        from_space: SpaceLabel,
+        to_space: SpaceReference,
+        step: u1
+    ) !time_topology.TimeTopology 
+    {
+        // for now are implicit, will need them for the child scope traversal
+        _ = to_space;
+        _ = step;
+
+        return switch (self) {
+            .track_ptr => { return opentime.TimeTopology.init_inf_identity(); },
+            .clip_ptr => |*cl| {
+                // Clip spaces and transformations
+                //
+                // key: 
+                //   + space
+                //   * transformation
+                //
+                // +--- OUTPUT
+                // |
+                // *--- (implicit) post transform->OUTPUT space (reset start time to 0)
+                // |
+                // +--- (implicit) post effects space
+                // |
+                // *--- .transform field (in real OTIO this would be relevant EFFECTS)
+                // |
+                // +--- (implicit) intrinsic
+                // |
+                // *--- (implicit) media->intrinsic xform: set the start time to 0
+                // |
+                // +--- MEDIA
+                //
+                // initially only exposing the MEDIA and OUTPUT spaces
+                //
+
+                return switch (from_space) {
+                    SpaceLabel.output => {
+                        // goes to media
+                        const output_to_post_transform = (
+                            opentime.TimeTopology.init_inf_identity()
+                        );
+
+                        const post_transform_to_intrinsic = (
+                            cl.*.transform 
+                            orelse opentime.TimeTopology.init_inf_identity()
+                        );
+
+                        const output_to_intrinsic = (
+                            post_transform_to_intrinsic.project_topology(
+                                output_to_post_transform
+                            )
+                        );
+
+                        const intrinsic_bounds = try cl.*.trimmed_range();
+                        const intrinsic_to_media = opentime.TimeTopology.init_identity_finite(
+                            intrinsic_bounds
+                        );
+
+                        const output_to_media = intrinsic_to_media.project_topology(
+                            output_to_intrinsic
+                        );
+
+                        return output_to_media;
+                    },
+                    else => time_topology.TimeTopology.init_identity_finite(
+                        try cl.*.trimmed_range()
+                    )
+                };
+            },
+            .gap_ptr => opentime.TimeTopology.init_inf_identity(),
+        };
+    }
 };
 
 pub const Track = struct {
@@ -293,18 +258,6 @@ pub const Track = struct {
         };
 
         return time_topology.TimeTopology.init_identity_finite(result_bound);
-    }
-
-    pub fn build_projection_operator(
-        self: @This(),
-        source_label: SpaceLabel,
-        destination_label: SpaceLabel,
-    ) !ProjectionOperator {
-        _ = self;
-        _ = source_label;
-        _ = destination_label;
-
-        return error.NotImplemented;
     }
 
     pub fn child_index_of(self: @This(), child_to_find: ItemPtr) !i32 {
@@ -373,8 +326,14 @@ const TopologicalMap = struct {
         self: @This(),
         args: ProjectionOperatorArgs,
     ) !ProjectionOperator {
-        const source_hash = if (self.map_space_to_hash.get(args.source)) |hash| hash else return error.SourceNotInMap;
-        const destination_hash = if (self.map_space_to_hash.get(args.destination)) |hash| hash else return error.DestinationNotInMap;
+        const source_hash = (
+            if (self.map_space_to_hash.get(args.source)) |hash| hash 
+            else return error.SourceNotInMap
+        );
+        const destination_hash = (
+            if (self.map_space_to_hash.get(args.destination)) |hash| hash 
+            else return error.DestinationNotInMap
+        );
 
         if (path_exists_hash(source_hash, destination_hash) == false) {
             return error.NoPathBetweenSpaces;
@@ -384,8 +343,47 @@ const TopologicalMap = struct {
         if (source_hash > destination_hash) {
             return error.ReverseProjectionNotYetSupported;
         }
+        //
+        // const complete_path_hash = path_between_hash(
+        //     source_hash,
+        //     destination_hash
+        // );
 
-        return error.NotImplemented;
+        var current_hash = source_hash;
+        var current = args.source;
+
+        var proj = time_topology.TimeTopology.init_inf_identity();
+
+        std.debug.print(
+            "starting walk from: {b} to: {b}\n",
+            .{ current_hash, destination_hash }
+        );
+        while (current_hash != destination_hash) {
+            const next_step = next_branch_along_path_hash(
+                current_hash,
+                destination_hash
+            );
+            const next_hash = (current_hash << 1) + next_step;
+
+            // path has already been verified
+            var next = self.map_hash_to_space.get(next_hash) orelse unreachable;
+            std.debug.print("  step {b} to next hash: {b}\n", .{ next_step, next_hash });
+
+            var next_proj = try current.item.build_transform(
+                current.label,
+                next,
+                next_step
+            );
+            proj = next_proj.project_topology(proj);
+
+            current_hash = next_hash;
+            current = next;
+        }
+
+        return .{
+            .args = args,
+            .topology = proj,
+        };
     }
 
     fn label_for_node(
@@ -851,6 +849,7 @@ test "path_between_hash: math" {
         .{ .source = 0b10, .dest = 0b101, .expect = 0b1 },
         .{ .source = 0b101, .dest = 0b10, .expect = 0b1 },
         .{ .source = 0b10, .dest = 0b10, .expect = 0b0 },
+        .{ .source = 0b10, .dest = 0b100, .expect = 0b0 },
         .{ .source = 0b10, .dest = 0b1011, .expect = 0b11 },
         .{ .source = 0b1011, .dest = 0b10, .expect = 0b11 },
         .{ 
@@ -867,6 +866,64 @@ test "path_between_hash: math" {
         );
 
         try expectEqual(t.expect, try path_between_hash(t.source, t.dest));
+    }
+}
+
+pub fn next_branch_along_path_hash(
+    source: TopologicalPathHash,
+    destination: TopologicalPathHash,
+) u1 
+{
+    var start = source;
+    var end = destination;
+
+    if (start < end) {
+        start = destination;
+        end = source;
+    }
+
+    const r = @clz(end) - @clz(start);
+    if (r == 0) {
+        return 0;
+    }
+
+    // line b up with a
+    // eg: b=101 and a1010, b -> 1010
+    end <<= @intCast(u7,r);
+
+    const path = start ^ end;
+
+    return @truncate(u1, path >> @intCast(u7, (r - 1)) );
+}
+
+test "next_branch_along_path_hash: math" {
+    const TestData = struct{
+        source: TopologicalPathHash,
+        dest: TopologicalPathHash,
+        expect: u1,
+    };
+
+    const test_data = [_]TestData{
+        .{ .source = 0b10, .dest = 0b101, .expect = 0b1 },
+        .{ .source = 0b10, .dest = 0b100, .expect = 0b0 },
+        .{ .source = 0b10, .dest = 0b10011101, .expect = 0b0 },
+        .{ .source = 0b10, .dest = 0b10001101, .expect = 0b0 },
+        .{ .source = 0b10, .dest = 0b10111101, .expect = 0b1 },
+        .{ .source = 0b10, .dest = 0b10101101, .expect = 0b1 },
+        .{ .source = 0b101, .dest = 0b10111101, .expect = 0b1 },
+        .{ .source = 0b101, .dest = 0b10101101, .expect = 0b0 },
+    };
+
+    for (test_data) |t, i| {
+        errdefer std.log.err(
+            "[{d}] source: {b} dest: {b} expected: {b}",
+            .{ i, t.source, t.dest, t.expect }
+        );
+
+        try expectEqual(
+            t.expect,
+            next_branch_along_path_hash(t.source, t.dest)
+        );
     }
 }
 
@@ -1023,8 +1080,6 @@ test "Projection: Track with clip with identity transform and bounds" {
 }
 
 test "Single Clip Media to Output Identity transform" {
-    try util.skip_test();
-
     //
     //                  0                 7           10
     // output space       [-----------------*-----------)
@@ -1092,7 +1147,6 @@ test "Single Clip Media to Output Identity transform" {
     //         util.EPSILON,
     //     );
     // }
-
 }
 
 // test "Single Clip Media to Output Inverse transform" {
