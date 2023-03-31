@@ -4,6 +4,8 @@ const expectEqual = std.testing.expectEqual;
 const expectError= std.testing.expectError;
 
 const opentime = @import("opentime/opentime.zig");
+const Duration = f32;
+
 const interval = @import("opentime/interval.zig");
 const time_topology = @import("opentime/time_topology.zig");
 const string = opentime.string;
@@ -13,6 +15,7 @@ const util = @import("opentime/util.zig");
 const allocator = @import("opentime/allocator.zig");
 const ALLOCATOR = allocator.ALLOCATOR;
 
+const GRAPH_CONSTRUCTION_TRACE_MESSAGES = false;
 
 // just for roughing tests in
 pub const Clip = struct {
@@ -71,6 +74,17 @@ pub const Item = union(enum) {
             .clip => |cl| cl.topology(),
             .gap => |gp| gp.topology(),
             .track => |tr| tr.topology(),
+        };
+    }
+
+    pub fn duration(
+        self: @This()
+    ) error{NotImplemented,NoSourceRangeSet}!Duration 
+    {
+        return switch (self) {
+            .clip => |cl| (try cl.trimmed_range()).duration_seconds(),
+            .gap => error.NotImplemented,
+            .track => |tr| try tr.duration(),
         };
     }
 };
@@ -133,7 +147,6 @@ pub const ItemPtr = union(enum) {
             .track_ptr => {
                 try result.append( .{ .item = self, .label = SpaceLabel.output});
                 try result.append( .{ .item = self, .label = SpaceLabel.intrinsic});
-                try result.append( .{ .item = self, .label = SpaceLabel.child});
             },
             else => {}
         }
@@ -149,15 +162,52 @@ pub const ItemPtr = union(enum) {
         self: @This(),
         from_space: SpaceLabel,
         to_space: SpaceReference,
+        current_hash: TopologicalPathHash,
         step: u1
     ) !time_topology.TimeTopology 
     {
         // for now are implicit, will need them for the child scope traversal
         _ = to_space;
-        _ = step;
+
+        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
+            std.debug.print(
+                "transform from space: {s}\n",
+                .{ @tagName(from_space) }
+            );
+        }
 
         return switch (self) {
-            .track_ptr => { return opentime.TimeTopology.init_inf_identity(); },
+            .track_ptr => |*tr| {
+                switch (from_space) {
+                    SpaceLabel.output => return opentime.TimeTopology.init_inf_identity(),
+                    SpaceLabel.child => {
+                        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
+                            std.debug.print("CHILD {b}\n", .{ step});
+                        }
+
+                        if (step == 0) {
+                            return opentime.TimeTopology.init_inf_identity();
+                        } 
+                        else {
+                            // [child 1][child 2]
+                            const child_index = track_child_index_from_hash(current_hash);
+                            const child = tr.*.child_ptr_from_index(child_index);
+                            const child_range = try child.clip_ptr.trimmed_range();
+                            const duration = child_range.duration_seconds();
+
+                            // @TODO: GROSSSSSSSS
+                            const track_duration = try tr.*.duration();
+
+                            return opentime.TimeTopology.init_linear_start_end(
+                                .{ .start_seconds=0, .end_seconds=track_duration },
+                                 -duration, -duration + track_duration
+                            );
+                        }
+
+                    },
+                    else => return opentime.TimeTopology.init_inf_identity(),
+                }
+            },
             .clip_ptr => |*cl| {
                 // Clip spaces and transformations
                 //
@@ -225,6 +275,17 @@ pub const Track = struct {
     name: ?string = null,
 
     children: std.ArrayList(Item) = std.ArrayList(Item).init(ALLOCATOR),
+
+    pub fn duration(
+        self: @This()
+    ) !Duration  {
+        var total_duration: Duration = 0;
+        for (self.children.items) |c| {
+            total_duration += try c.duration();
+        }
+
+        return total_duration;
+    }
 
     pub fn append(self: *Track, item: Item) !void {
         try self.children.append(item);
@@ -343,21 +404,18 @@ const TopologicalMap = struct {
         if (source_hash > destination_hash) {
             return error.ReverseProjectionNotYetSupported;
         }
-        //
-        // const complete_path_hash = path_between_hash(
-        //     source_hash,
-        //     destination_hash
-        // );
 
         var current_hash = source_hash;
         var current = args.source;
 
         var proj = time_topology.TimeTopology.init_inf_identity();
 
-        std.debug.print(
-            "starting walk from: {b} to: {b}\n",
-            .{ current_hash, destination_hash }
-        );
+        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
+            std.debug.print(
+                "starting walk from: {b} to: {b}\n",
+                .{ current_hash, destination_hash }
+            );
+        }
         while (current_hash != destination_hash) {
             const next_step = next_branch_along_path_hash(
                 current_hash,
@@ -367,11 +425,18 @@ const TopologicalMap = struct {
 
             // path has already been verified
             var next = self.map_hash_to_space.get(next_hash) orelse unreachable;
-            std.debug.print("  step {b} to next hash: {b}\n", .{ next_step, next_hash });
+            if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) { 
+                std.debug.print(
+                    "  step {b} to next hash: {b}\n",
+                    .{ next_step, next_hash }
+                );
+            }
 
             var next_proj = try current.item.build_transform(
                 current.label,
                 next,
+                // identifies the current child
+                current_hash,
                 next_step
             );
             proj = next_proj.project_topology(proj);
@@ -553,7 +618,9 @@ pub fn build_topological_map(
     // root node
     try stack.append(.{.object = root_item, .path_hash = start_hash});
 
-    std.debug.print("starting graph...\n", .{});
+    if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
+        std.debug.print("starting graph...\n", .{});
+    }
 
     while (stack.items.len > 0) {
         const current = stack.pop();
@@ -566,10 +633,12 @@ pub fn build_topological_map(
 
         for (spaces) |space_ref, index| {
             const child_hash = depth_child_hash(current_hash, index);
-            std.debug.print(
-                "[{d}] hash: {b} adding space: '{s}'\n",
-                .{index, child_hash, @tagName(space_ref.label)}
-            );
+            if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
+                std.debug.print(
+                    "[{d}] hash: {b} adding space: '{s}'\n",
+                    .{index, child_hash, @tagName(space_ref.label)}
+                );
+            }
             try map_space_to_hash.put(space_ref, child_hash);
             try map_hash_to_space.put(child_hash, space_ref);
 
@@ -584,16 +653,39 @@ pub fn build_topological_map(
                 for (tr.children.items) 
                     |*child, index| 
                 {
-                    const child_hash = sequential_child_hash(
-                        current_hash,
-                        index
-                    );
                     const item_ptr:ItemPtr = switch (child.*) {
                         .clip => |*cl| .{ .clip_ptr = cl },
                         .gap => |*gp| .{ .gap_ptr = gp },
                         .track => |*tr_p| .{ .track_ptr = tr_p },
                     };
-                    try stack.insert(0, .{ .object= item_ptr, .path_hash = child_hash});
+
+
+                    const child_space_hash = sequential_child_hash(
+                        current_hash,
+                        index
+                    );
+
+                    // insert the child scope
+                    const space_ref = SpaceReference{
+                        .item = current.object,
+                        .label = SpaceLabel.child,
+                    };
+
+                    if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
+                        std.debug.print(
+                            "[{d}] hash: {b} adding child space: '{s}'\n",
+                            .{index, child_space_hash, @tagName(space_ref.label)}
+                        );
+                    }
+                    try map_space_to_hash.put(space_ref, child_space_hash);
+                    try map_hash_to_space.put(child_space_hash, space_ref);
+
+                    const child_hash = depth_child_hash(child_space_hash, 1);
+
+                    try stack.insert(
+                        0,
+                        .{ .object= item_ptr, .path_hash = child_hash}
+                    );
                 }
             },
             else => {}
@@ -632,8 +724,6 @@ test "clip topology construction" {
 }
 
 test "track topology construction" {
-    try util.skip_test();
-
     var tr = Track {};
     const start_seconds:f32 = 1;
     const end_seconds:f32 = 10;
@@ -689,9 +779,10 @@ test "path_hash: graph test" {
 
     const TestData = struct { ind: usize, expect: TopologicalPathHash };
     const test_data = [_]TestData{
-        .{.ind = 0, .expect= 0b10001 },
-        .{.ind = 1, .expect= 0b100011 },
+        .{.ind = 0, .expect= 0b10010 },
+        .{.ind = 1, .expect= 0b100110 },
     };
+    try map.write_dot_graph("/var/tmp/test.dot");
 
     for (test_data) |t, t_i| {
         const space = try tr.child_ptr_from_index(t.ind).space(SpaceLabel.output);
@@ -705,7 +796,6 @@ test "path_hash: graph test" {
         );
         try expectEqual(t.expect, result);
     }
-    try map.write_dot_graph("/var/tmp/test.dot");
 }
 
 test "Track with clip with identity transform projection" {
@@ -738,11 +828,11 @@ test "Track with clip with identity transform projection" {
 
     try map.write_dot_graph("/var/tmp/test.dot");
 
-    try util.skip_test();
+    const clip = tr.child_ptr_from_index(0);
     const track_to_clip = try map.build_projection_operator(
         .{
             .source = try tr.space(SpaceLabel.output),
-            .destination =  try cl.space(SpaceLabel.media)
+            .destination =  try clip.space(SpaceLabel.media)
         }
     );
 
@@ -761,7 +851,7 @@ test "Track with clip with identity transform projection" {
 
     // check the projection
     try expectApproxEqAbs(
-        @as(f32, 3),
+        @as(f32, 4),
         try track_to_clip.project_ordinate(3),
         util.EPSILON,
     );
@@ -866,6 +956,39 @@ test "path_between_hash: math" {
         );
 
         try expectEqual(t.expect, try path_between_hash(t.source, t.dest));
+    }
+}
+
+pub fn track_child_index_from_hash(hash: TopologicalPathHash) usize {
+    var index: usize = 0;
+    var current_hash = hash;
+
+    // count the trailing 1s
+    while (current_hash > 0 and 0b1 & current_hash == 1) {
+        index += 1;
+        current_hash >>= 1;
+    }
+
+    return index;
+}
+
+test "track_child_index_from_hash: math" {
+    const TestData = struct{source: TopologicalPathHash, expect: usize };
+
+    const test_data = [_]TestData{
+        .{ .source = 0b10, .expect = 0 },
+        .{ .source = 0b101, .expect = 1 },
+        .{ .source = 0b1011, .expect = 2 },
+        .{ .source = 0b10111101111, .expect = 4 },
+    };
+
+    for (test_data) |t, i| {
+        errdefer std.log.err(
+            "[{d}] source: {b} expected: {b}",
+            .{ i, t.source, t.expect }
+        );
+
+        try expectEqual(t.expect, track_child_index_from_hash(t.source));
     }
 }
 
@@ -1013,11 +1136,9 @@ test "PathMap: Track with clip with identity transform topological" {
     const clip = tr.child_ptr_from_index(0);
     const clip_hash = map.map_space_to_hash.get(try clip.space(SpaceLabel.media)) orelse 0;
 
-    try expectEqual(@as(TopologicalPathHash, 0b100010), clip_hash);
+    try expectEqual(@as(TopologicalPathHash, 0b100100), clip_hash);
 
     try expectEqual(true, path_exists_hash(clip_hash, root_hash));
-
-    try util.skip_test();
 
     const root_output_to_clip_media = try map.build_projection_operator(
         .{
@@ -1048,6 +1169,79 @@ test "Projection: Track with single clip with identity transform and bounds" {
     const clip = tr.child_ptr_from_index(0);
 
     const map = try build_topological_map(root);
+
+    const root_output_to_clip_media = try map.build_projection_operator(
+        .{ 
+            .source = try root.space(SpaceLabel.output),
+            .destination = try clip.space(SpaceLabel.media),
+        }
+    );
+
+    // check the bounds
+    try expectApproxEqAbs(
+        (cl.source_range orelse interval.ContinuousTimeInterval{}).start_seconds,
+        root_output_to_clip_media.topology.bounds.start_seconds,
+        util.EPSILON,
+    );
+
+    try expectApproxEqAbs(
+        (cl.source_range orelse interval.ContinuousTimeInterval{}).end_seconds,
+        root_output_to_clip_media.topology.bounds.end_seconds,
+        util.EPSILON,
+    );
+
+    try expectError(
+        time_topology.TimeTopology.ProjectionError.OutOfBounds,
+        root_output_to_clip_media.project_ordinate(3)
+    );
+}
+
+test "Projection: Track with multiple clips with identity transform and bounds" {
+    var tr = Track {};
+    const root = ItemPtr{ .track_ptr = &tr };
+
+    var cl = Clip { .source_range = .{ .start_seconds = 0, .end_seconds = 2 } };
+
+    // add three copies
+    try tr.append(.{ .clip = cl });
+    try tr.append(.{ .clip = cl });
+    try tr.append(.{ .clip = cl });
+
+    const TestData = struct {
+        ind: usize,
+        t_ord: f32,
+        m_ord: f32,
+        err: bool
+    };
+
+    const map = try build_topological_map(root);
+
+    const tests = [_]TestData{
+        .{ .ind = 1, .t_ord = 3, .m_ord = 1, .err = false },
+        .{ .ind = 0, .t_ord = 1, .m_ord = 1, .err = false },
+        .{ .ind = 2, .t_ord = 5, .m_ord = 1, .err = false },
+    };
+
+    for (tests) |t, t_i| {
+        const child = tr.child_ptr_from_index(t.ind);
+
+        const test_proj = try map.build_projection_operator(
+            .{
+                .source = try root.space(SpaceLabel.output),
+                .destination = try child.space(SpaceLabel.media),
+            }
+        );
+
+        errdefer std.log.err(
+            "[{d}] index: {d} track ordinate: {any} expected: {any} error: {any}\n",
+            .{t_i, t.ind, t.t_ord, t.m_ord, t.err}
+        );
+        const result = try test_proj.project_ordinate(t.t_ord);
+
+        try expectApproxEqAbs(result, t.m_ord, util.EPSILON);
+    }
+
+    const clip = tr.child_ptr_from_index(0);
 
     const root_output_to_clip_media = try map.build_projection_operator(
         .{ 

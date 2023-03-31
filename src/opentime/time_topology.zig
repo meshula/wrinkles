@@ -363,7 +363,8 @@ pub const TimeTopology = struct {
     {
         return switch (self.kind) {
             Kind.empty => ProjectionError.OutOfBounds,
-            Kind.infinite_identity => seconds,
+            // @TODO: what do you think of this?
+            Kind.infinite_identity => self.transform.applied_to_seconds(seconds),
             Kind.finite => {
                 const transformed_s = self.transform.applied_to_seconds(
                     seconds
@@ -623,5 +624,22 @@ test "TimeTopology: single from sample"
     try expectEqual(@as(f32, 18), tp.bounds.end_seconds,);
     try expectEqual(@as(f32, 1), tp.transform.scale,);
     try expectEqual(@as(f32, 6), tp.transform.offset_seconds,);
+}
+
+test "TimeTopology: infinite with transform" {
+    var tp = TimeTopology.init_inf_identity();
+    tp.transform = .{ .offset_seconds = -100, .scale = 1 };
+    try expectEqual(
+        @as(f32, 8),
+        try tp.project_seconds(@as(f32, 108)),
+    );
+
+    // var tp2 = TimeTopology.init_inf_identity();
+    // const result = tp.project_topology(tp2);
+    // try expectEqual(
+    //     @as(f32, 8),
+    //     try tp.project_seconds(@as(f32, 108)),
+    // );
+
 }
 // @}
