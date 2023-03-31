@@ -1339,90 +1339,61 @@ test "Single Clip Media to Output Identity transform" {
     // }
 }
 
-// test "Single Clip Media to Output Inverse transform" {
-//     //
-//     // xform: reverse (linear w/ -1 slope)
-//     //
-//     //              0                 7           10
-//     // output       [-----------------*-----------)
-//     // media        [-----------------*-----------)
-//     //              110               103         100 (seconds)
-//     //              
-//     const source_range = interval.ContinuousTimeInterval{
-//         .start_seconds = 100,
-//         .end_seconds = 110 
-//     };
-//
-//     const inv_tx = time_topology.TimeTopology.init_linear_start_end(
-//         source_range, 
-//         source_range.end_seconds,
-//         source_range.start_seconds,
-//     );
-//
-//     const cl = Clip { .source_range = source_range, .transform = inv_tx };
-//
-//     // output->media
-//     {
-//         const clip_output_to_media = try build_projection_operator(
-//             .{
-//                 .source =  try cl.space("output"),
-//                 .destination = try cl.space("media"),
-//             }
-//         );
-//
-//         std.debug.print("\n", .{});
-//         try expectApproxEqAbs(
-//             @as(f32, 107),
-//             try clip_output_to_media.project_ordinate(3),
-//             util.EPSILON,
-//         );
-//     }
-//
-//     // media->output
-//     {
-//         const clip_media_to_output = try build_projection_operator(
-//             .{
-//                 .source =  try cl.space("media"),
-//                 .destination = try cl.space("output"),
-//             }
-//         );
-//
-//         try expectApproxEqAbs(
-//             @as(f32, 3),
-//             try clip_media_to_output.project_ordinate(107),
-//             util.EPSILON,
-//         );
-//     }
-// }
+test "Single Clip Inverse transform" {
+    //
+    // xform: reverse (linear w/ -1 slope)
+    //
+    //              0                 7           10
+    // output       [-----------------*-----------)
+    // media        [-----------------*-----------)
+    //              110               103         100 (seconds)
+    //              
+    const source_range = interval.ContinuousTimeInterval{
+        .start_seconds = 100,
+        .end_seconds = 110 
+    };
 
-// @TODO: START HERE ---------------------------------------------vvvvvvvv-----
-// test "Single Clip With Inverse Transform" {
-    // const clip_output_to_media = try build_projection_operator(
-    //     .{
-    //         .source = try cl.space("output"),
-    //         .destination =  try cl.space("media")
-    //     }
-    // );
+    const inv_tx = time_topology.TimeTopology.init_linear_start_end(
+        source_range, 
+        source_range.end_seconds,
+        source_range.start_seconds,
+    );
+
+    const cl = Clip { .source_range = source_range, .transform = inv_tx };
+    const cl_ptr : ItemPtr = .{ .clip_ptr = &cl};
+
+    const map = try build_topological_map(cl_ptr);
+
+    // output->media
+    {
+        const clip_output_to_media = try map.build_projection_operator(
+            .{
+                .source =  try cl_ptr.space(SpaceLabel.output),
+                .destination = try cl_ptr.space(SpaceLabel.media),
+            }
+        );
+
+        std.debug.print("\n", .{});
+        try expectApproxEqAbs(
+            @as(f32, 107),
+            try clip_output_to_media.project_ordinate(3),
+            util.EPSILON,
+        );
+    }
+
+    // media->output
+    // {
+    //     const clip_media_to_output = try build_projection_operator(
+    //         .{
+    //             .source =  try cl.space("media"),
+    //             .destination = try cl.space("output"),
+    //         }
+    //     );
     //
-    //
-    // // check the bounds
-    // try expectApproxEqAbs(
-    //     bounds.start_seconds,
-    //     clip_output_to_media.topology.bounds.start_seconds,
-    //     util.EPSILON,
-    // );
-    //
-    // try expectApproxEqAbs(
-    //     bounds.end_seconds,
-    //     clip_output_to_media.topology.bounds.end_seconds,
-    //     util.EPSILON,
-    // );
-    //
-    // std.debug.print("\nPROJECTION\n", .{});
-    //
-    // try expectApproxEqAbs(
-    //     @as(f32, 3),
-    //     try clip_output_to_media.project_ordinate(7),
-    //     util.EPSILON,
-    // );
-// }
+    //     try expectApproxEqAbs(
+    //         @as(f32, 3),
+    //         try clip_media_to_output.project_ordinate(107),
+    //         util.EPSILON,
+    //     );
+    // }
+}
