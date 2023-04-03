@@ -1373,7 +1373,6 @@ test "Single Clip Inverse transform" {
             }
         );
 
-        std.debug.print("\n", .{});
         try expectApproxEqAbs(
             @as(f32, 107),
             try clip_output_to_media.project_ordinate(3),
