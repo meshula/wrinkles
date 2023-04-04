@@ -6,6 +6,7 @@ const curve = @import("./bezier_curve.zig");
 const linear_curve = @import("./linear_curve.zig");
 const generic_curve = @import("./generic_curve.zig");
 const expectEqual = std.testing.expectEqual;
+const expect = std.testing.expect;
 fn expectApproxEql(expected: anytype, actual: @TypeOf(expected)) !void {
     return std.testing.expectApproxEqAbs(expected, actual, generic_curve.EPSILON);
 }
@@ -325,8 +326,16 @@ test "normalize_to_screen_coords" {
     try expectEqual(max_point.value, result_extents[1].value);
 }
 
-pub fn inverted_linear(crv: linear_curve.TimeCurveLinear) linear_curve.TimeCurveLinear {
-    if (crv.knots.len == 0) {
+pub fn _compute_slope(p1: ControlPoint, p2: ControlPoint) f32 {
+    return (p2.value - p1.value) / (p2.time - p1.time); 
+}
+
+pub fn inverted_linear(
+    crv: linear_curve.TimeCurveLinear
+) linear_curve.TimeCurveLinear 
+{
+    // require two points to define a line
+    if (crv.knots.len < 2) {
         return crv;
     }
 
@@ -336,12 +345,26 @@ pub fn inverted_linear(crv: linear_curve.TimeCurveLinear) linear_curve.TimeCurve
         crv.knots
     ) catch unreachable;
 
-   for (result.knots) |knot, index| {
-        result.knots[index] = .{ .time = knot.value, .value = knot.time, };
+
+    // check the slope
+    const slope = _compute_slope(crv.knots[0], crv.knots[1]);
+
+    const needs_reversal = slope < 0;
+    const knot_count = crv.knots.len;
+
+    for (crv.knots) |knot, index| {
+        const real_index : usize = index;
+        const real_knot:ControlPoint = knot;
+        const target_index = (
+            if (needs_reversal) knot_count - real_index - 1 else real_index
+        );
+        result.knots[target_index] = .{
+            .time = real_knot.value,
+            .value = real_knot.time, 
+        };
     }
 
     return result;
-
 }
 
 pub fn inverted_bezier(
@@ -361,7 +384,17 @@ test "inverted: invert linear" {
         )
     };
     const forward_crv:curve.TimeCurve = .{ .segments = &slope2 };
+
     const inverse_crv = inverted_bezier(forward_crv);
+
+    // ensure that temporal ordering is correct
+    { 
+        errdefer std.log.err(
+            "knot0.time ({any}) < knot1.time ({any})",
+            .{inverse_crv.knots[0].time, inverse_crv.knots[1].time}
+        );
+        try expect(inverse_crv.knots[0].time < inverse_crv.knots[1].time);
+    }
 
     var identity_seg = [_]curve.Segment{
         // slope of 2

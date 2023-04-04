@@ -457,8 +457,23 @@ pub const TimeTopology = struct {
     }
 
     pub fn inverted(self: @This()) !TimeTopology {
-        _ = self;
-        return error.NotImplemented;
+        var result = self;
+        result.mapping = allocator.ALLOCATOR.dupe(
+            curve.TimeCurve,
+            self.mapping
+        ) catch unreachable;
+
+        for (self.mapping) |crv, index| {
+            const inverted_crv = curve.inverted(crv);
+
+            result.mapping[index] = curve.TimeCurve.init_from_linear_curve(
+                inverted_crv
+            );
+        }
+
+        result.transform = self.transform.inverted();
+
+        return result;
     }
 };
 

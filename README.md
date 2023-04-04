@@ -9,6 +9,11 @@
 
 ### Clean up the Topology Math
 
+- Add in holodrome types and checking.  Holodromes can help with linearization,
+  since critical points could be expensive for the algorithm to find otherwise.
+  They definitely help with inversion.  I think we should just model them
+  directly under the hood as an optimization
+
 - Right now the topology has bounds, transform and curves.  This is
   inconsistent because the curves _inside_ the topology also represent a
   transformation, and implicitly define bounds (in that they're finite lists of

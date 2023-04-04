@@ -387,11 +387,11 @@ const TopologicalMap = struct {
         self: @This(),
         args: ProjectionOperatorArgs,
     ) !ProjectionOperator {
-        const source_hash = (
+        var source_hash = (
             if (self.map_space_to_hash.get(args.source)) |hash| hash 
             else return error.SourceNotInMap
         );
-        const destination_hash = (
+        var destination_hash = (
             if (self.map_space_to_hash.get(args.destination)) |hash| hash 
             else return error.DestinationNotInMap
         );
@@ -400,13 +400,20 @@ const TopologicalMap = struct {
             return error.NoPathBetweenSpaces;
         }
 
+        const needs_inversion = (source_hash > destination_hash);
+
+        var current = args.source;
+
         // only supporting forward projection at the moment
-        if (source_hash > destination_hash) {
-            return error.ReverseProjectionNotYetSupported;
+        if (needs_inversion) {
+            const tmp = source_hash;
+            source_hash = destination_hash;
+            destination_hash = tmp;
+
+            current = args.destination;
         }
 
         var current_hash = source_hash;
-        var current = args.source;
 
         var proj = time_topology.TimeTopology.init_inf_identity();
 
@@ -443,6 +450,10 @@ const TopologicalMap = struct {
 
             current_hash = next_hash;
             current = next;
+        }
+
+        if (needs_inversion) {
+            proj = try proj.inverted();
         }
 
         return .{
@@ -1320,23 +1331,21 @@ test "Single Clip Media to Output Identity transform" {
         );
     }
 
-    // @TODO: NEXT HERE --- either inversion or cross-object projection
-
     // media->output
-    // {
-    //     const clip_media_to_output = try build_projection_operator(
-    //         .{
-    //             .source =  try cl.space("media"),
-    //             .destination = try cl.space("output"),
-    //         }
-    //     );
-    //
-    //     try expectApproxEqAbs(
-    //         @as(f32, 3),
-    //         try clip_media_to_output.project_ordinate(103),
-    //         util.EPSILON,
-    //     );
-    // }
+    {
+        const clip_output_to_media = try map.build_projection_operator(
+            .{
+                .source =  try cl_ptr.space(SpaceLabel.output),
+                .destination = try cl_ptr.space(SpaceLabel.media),
+            }
+        );
+
+        try expectApproxEqAbs(
+            @as(f32, 103),
+            try clip_output_to_media.project_ordinate(3),
+            util.EPSILON,
+        );
+    }
 }
 
 test "Single Clip Inverse transform" {
@@ -1347,7 +1356,7 @@ test "Single Clip Inverse transform" {
     // output       [-----------------*-----------)
     // media        [-----------------*-----------)
     //              110               103         100 (seconds)
-    //              
+    //
     const source_range = interval.ContinuousTimeInterval{
         .start_seconds = 100,
         .end_seconds = 110 
@@ -1381,18 +1390,20 @@ test "Single Clip Inverse transform" {
     }
 
     // media->output
-    // {
-    //     const clip_media_to_output = try build_projection_operator(
-    //         .{
-    //             .source =  try cl.space("media"),
-    //             .destination = try cl.space("output"),
-    //         }
-    //     );
-    //
-    //     try expectApproxEqAbs(
-    //         @as(f32, 3),
-    //         try clip_media_to_output.project_ordinate(107),
-    //         util.EPSILON,
-    //     );
-    // }
+    {
+        const clip_media_to_output = try map.build_projection_operator(
+            .{
+                .source =  try cl_ptr.space(SpaceLabel.media),
+                .destination = try cl_ptr.space(SpaceLabel.output),
+            }
+        );
+
+        const result = try clip_media_to_output.project_ordinate(107);
+
+        try expectApproxEqAbs(
+            @as(f32, 3),
+            result,
+            util.EPSILON,
+        );
+    }
 }
