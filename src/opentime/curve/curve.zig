@@ -17,6 +17,8 @@ pub const read_segment_json = bezier_curve.read_segment_json;
 pub const read_curve_json = bezier_curve.read_curve_json;
 pub const write_json_file_curve = bezier_curve.write_json_file_curve;
 pub const normalized_to = bezier_math.normalized_to;
+pub const inverted = bezier_math.inverted_bezier;
+pub const inverted_linear = bezier_math.inverted_linear;
 
 test "all curve" {
     _ = bezier_math;

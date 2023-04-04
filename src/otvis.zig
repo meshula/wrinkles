@@ -511,6 +511,26 @@ fn update(demo: *DemoState) void {
                         }
                     );
 
+                    const linearized_inverted_crv = curve.inverted_linear(
+                        linearized_crv
+                    );
+
+                    times.clearAndFree();
+                    values.clearAndFree();
+                    for (linearized_inverted_crv.knots) |knot| {
+                        times.append(knot.time) catch unreachable;
+                        values.append(knot.value) catch unreachable;
+                    }
+                    zgui.plot.plotLine(
+                        "inverted linear curve",
+                        f32,
+                        .{
+                            .xv = times.items,
+                            .yv = values.items,
+                        }
+                    );
+
+
                     var t = t_start;
                     var index:usize = 0;
                     while (t < t_end) : ({t += t_inc; index += 1;}) {

@@ -3,7 +3,12 @@ const std = @import("std");
 const control_point = @import("./control_point.zig");
 const ControlPoint = control_point.ControlPoint;
 const curve = @import("./bezier_curve.zig");
+const linear_curve = @import("./linear_curve.zig");
+const generic_curve = @import("./generic_curve.zig");
 const expectEqual = std.testing.expectEqual;
+fn expectApproxEql(expected: anytype, actual: @TypeOf(expected)) !void {
+    return std.testing.expectApproxEqAbs(expected, actual, generic_curve.EPSILON);
+}
 
 const allocator = @import("../allocator.zig");
 const ALLOCATOR = allocator.ALLOCATOR;
@@ -271,7 +276,7 @@ test "remap_float" {
 }
 
 test "normalized_to" {
-    var bz_test_segs = [_]curve.Segment{
+    var slope2 = [_]curve.Segment{
         curve.create_bezier_segment(
             .{.time = -500, .value=600},
             .{.time = -300, .value=-100},
@@ -279,7 +284,7 @@ test "normalized_to" {
             .{.time = 500, .value=700},
         )
     };
-    const input_crv:curve.TimeCurve = .{ .segments = &bz_test_segs };
+    const input_crv:curve.TimeCurve = .{ .segments = &slope2 };
 
     const min_point = ControlPoint{.time=-100, .value=-300};
     const max_point = ControlPoint{.time=100, .value=-200};
@@ -319,3 +324,100 @@ test "normalize_to_screen_coords" {
     try expectEqual(max_point.time, result_extents[1].time);
     try expectEqual(max_point.value, result_extents[1].value);
 }
+
+pub fn inverted_linear(crv: linear_curve.TimeCurveLinear) linear_curve.TimeCurveLinear {
+    if (crv.knots.len == 0) {
+        return crv;
+    }
+
+    var result = crv;
+    result.knots = ALLOCATOR.dupe(
+        ControlPoint,
+        crv.knots
+    ) catch unreachable;
+
+   for (result.knots) |knot, index| {
+        result.knots[index] = .{ .time = knot.value, .value = knot.time, };
+    }
+
+    return result;
+
+}
+
+pub fn inverted_bezier(
+    crv: curve.TimeCurve
+) linear_curve.TimeCurveLinear 
+{
+    const lin_crv = crv.linearized();
+    return inverted_linear(lin_crv);
+}
+
+test "inverted: invert linear" {
+    var slope2 = [_]curve.Segment{
+        // slope of 2
+        curve.create_linear_segment(
+            .{.time = -1, .value = -3},
+            .{.time = 1, .value = 1}
+        )
+    };
+    const forward_crv:curve.TimeCurve = .{ .segments = &slope2 };
+    const inverse_crv = inverted_bezier(forward_crv);
+
+    var identity_seg = [_]curve.Segment{
+        // slope of 2
+        curve.create_identity_segment(-3, 1)
+    };
+    const identity_crv:curve.TimeCurve = .{ .segments = &identity_seg };
+
+    var t :f32 = 0;
+    while (t<1) : (t += 0.01) {
+        const idntity_p = try identity_crv.evaluate(t);
+        const forward_p = try forward_crv.evaluate(t);
+        const inverse_p = try inverse_crv.evaluate(forward_p);
+
+        errdefer std.log.err(
+            "[t: {any}] ident: {any} forwd: {any} inv: {any}",
+            .{t, idntity_p, forward_p, inverse_p}
+        );
+
+        // A * A-1 => 1
+        try expectApproxEql(idntity_p, inverse_p);
+    }
+}
+
+// test "inverted: invert bezier" {
+//     const forward_crv = try curve.read_curve_json("curves/scurve.curve.json");
+//     const inverse_crv = inverted_bezier(forward_crv);
+//
+//     var identity_seg = [_]curve.Segment{
+//         // slope of 2
+//         curve.create_identity_segment(-3, 1)
+//     };
+//     const identity_crv:curve.TimeCurve = .{ .segments = &identity_seg };
+//
+//     var t :f32 = 0;
+//     while (t<1) : (t += 0.01) {
+//         errdefer std.log.err(
+//             "[t: {any}]",
+//             .{t}
+//         );
+//         const idntity_p = try identity_crv.evaluate(t);
+//         errdefer std.log.err(
+//             " ident: {any}",
+//             .{idntity_p}
+//         );
+//         const forward_p = try forward_crv.evaluate(t);
+//         errdefer std.log.err(
+//             " forwd: {any}",
+//             .{forward_p}
+//         );
+//         const inverse_p = try inverse_crv.evaluate(forward_p);
+//         errdefer std.log.err(
+//             " inv: {any}\n",
+//             .{inverse_p}
+//         );
+//
+//         // A * A-1 => 1
+//         try expectApproxEql(idntity_p, inverse_p);
+//     }
+// }

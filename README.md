@@ -2,6 +2,11 @@
 
 ## Todo
 
+### Path System
+
+* support arbitrary path lengths
+    * use an array list of u128 to encode arbitrarily long paths
+
 ### Clean up the Topology Math
 
 - Right now the topology has bounds, transform and curves.  This is
@@ -27,6 +32,10 @@ Two options:
 ### Inversion
 
 * need to add inversion functions to the topologies
+* add error when a function isn't trivially invertible
+* if we do something with the mappings, when things aren't trivially
+  invertible, we still know how to invert them and how the mapping functions.
+  Can we exploit this? Or is the juice not worth the squeeze for this project
 
 ### Sampling Tools
 
