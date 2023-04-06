@@ -43,6 +43,23 @@ const AffineTopology = struct {
 
         return self.transform.applied_to_seconds(ordinate);
     }
+
+    pub fn inverted(self: @This()) !TimeTopology {
+        var start = self.bounds.start_seconds;
+        if (start != interval.INF_CTI.start_seconds) {
+            start = try self.project_ordinate(start);
+        }
+        var end = self.bounds.end_seconds;
+        if (end != interval.INF_CTI.end_seconds) {
+            end = self.transform.applied_to_seconds(end);
+        }
+        return .{
+            .affine = .{
+                .bounds = .{ .start_seconds = start, .end_seconds = end },
+                .transform = self.transform.inverted()
+            },
+        };
+    }
 };
 
 // TEMPORAL TOPOLOGY PROTOTYPE V2
@@ -118,6 +135,12 @@ pub const TimeTopology = union (enum) {
         };
     }
     // @}
+    
+    pub fn inverted(self: @This()) !TimeTopology {
+        return switch (self) {
+            inline else => |contained| try contained.inverted(),
+        };
+    }
 
     // @{ ERRORS
     pub const ProjectionError = error { OutOfBounds };
@@ -231,5 +254,45 @@ test "TimeTopology: finite Affine" {
             );
         }
     }
+}
 
+test "TimeTopology: Affine Projected Through inverted Affine" {
+    const tp = TimeTopology.init_affine(
+        .{ 
+            // @NICK: should we express bounds in the input space?  Or the
+            //        output space?
+            //        if so, I wonder if the .bounds field should be named
+            //        "input bounds" (my guess: yes and yes)
+            .bounds = .{ .start_seconds = 0, .end_seconds = 10 },
+            .transform = .{ .offset_seconds = 10, .scale = 2 },
+        }
+    );
+
+    const tp_inv = try tp.inverted();
+
+    const expected_bounds = interval.ContinuousTimeInterval{
+        .start_seconds = 10,
+        .end_seconds = 30
+    };
+    try expectApproxEqAbs(
+        expected_bounds.start_seconds,
+        tp_inv.bounds().start_seconds,
+        util.EPSILON
+    );
+    try expectApproxEqAbs(
+        expected_bounds.end_seconds,
+        tp_inv.bounds().end_seconds,
+        util.EPSILON
+    );
+
+    // projecting ordinates through both should result in the original argument
+    var time:Ordinate = 0;
+    const end_point = tp.bounds().end_seconds;
+    while (time < end_point) : (time += 0.1) {
+        const result = try tp_inv.project_ordinate(try tp.project_ordinate(time));
+
+        errdefer std.log.err("time: {any} result: {any}", .{time, result});
+
+        try expectApproxEqAbs(time, result, util.EPSILON);
+    }
 }
