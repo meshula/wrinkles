@@ -67,8 +67,6 @@ pub const TimeTopology = struct {
     // @TODO: should this be a tree rather than a sequence?
     // represents the basis of the topology
     transform: transform.AffineTransform1D = .{},
-    // @QUESTION: should a transform with a scale of 0 be an error?
-    // @QUESTION: should the offset be locked to -bounds.start_seconds?
 
     // in the space of the topology
     bounds: interval.ContinuousTimeInterval = .{},
