@@ -30,7 +30,9 @@ const AffineTopology = struct {
 
     pub fn project_sample(self: @This(), sample: Sample) !Sample {
         var result = sample;
-        result.ordinate_seconds = try self.project_ordinate(sample.ordinate_seconds);
+        result.ordinate_seconds = try self.project_ordinate(
+            sample.ordinate_seconds
+        );
         return result;
     }
 
@@ -188,7 +190,7 @@ test "TimeTopology: finite Affine" {
             //        if so, I wonder if the .bounds field should be named
             //        "input bounds" (my guess: yes and yes)
             .bounds = .{ .start_seconds = 0, .end_seconds = 10 },
-            .transform = .{ .offset_seconds = 10, .scale = 1 },
+            .transform = .{ .offset_seconds = 10, .scale = 2 },
         }
     );
 
@@ -200,10 +202,11 @@ test "TimeTopology: finite Affine" {
 
     const tests = [_]TestData{
         .{ .seconds = 0, .expected=10, .err = false },
-        .{ .seconds = 5, .expected=15, .err = false },
-        .{ .seconds = -1, .expected=-1, .err = true },
-        .{ .seconds = 10, .expected=10, .err = true },
-        .{ .seconds = 100, .expected=100, .err = true },
+        .{ .seconds = 5, .expected=20, .err = false },
+        .{ .seconds = 9, .expected=28, .err = false },
+        .{ .seconds = -1, .expected=-2, .err = true },
+        .{ .seconds = 10, .expected=20, .err = true },
+        .{ .seconds = 100, .expected=200, .err = true },
     };
 
     for (tests) |t, index| {
@@ -222,8 +225,8 @@ test "TimeTopology: finite Affine" {
         else 
         {
             try expectApproxEqAbs(
-                try tp.project_ordinate(t.seconds),
                 t.expected,
+                try tp.project_ordinate(t.seconds),
                 util.EPSILON
             );
         }
