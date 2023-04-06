@@ -259,10 +259,6 @@ test "TimeTopology: finite Affine" {
 test "TimeTopology: Affine Projected Through inverted Affine" {
     const tp = TimeTopology.init_affine(
         .{ 
-            // @NICK: should we express bounds in the input space?  Or the
-            //        output space?
-            //        if so, I wonder if the .bounds field should be named
-            //        "input bounds" (my guess: yes and yes)
             .bounds = .{ .start_seconds = 0, .end_seconds = 10 },
             .transform = .{ .offset_seconds = 10, .scale = 2 },
         }
