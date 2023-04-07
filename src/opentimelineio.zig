@@ -7,6 +7,8 @@ const opentime = @import("opentime/opentime.zig");
 const Duration = f32;
 
 const interval = @import("opentime/interval.zig");
+const transform = @import("opentime/transform.zig");
+const curve = @import("opentime/curve/curve.zig");
 const time_topology = @import("opentime/time_topology.zig");
 const string = opentime.string;
 
@@ -41,11 +43,11 @@ pub const Clip = struct {
         };
     }
 
-    pub fn topology(self: @This()) time_topology.TimeTopology {
+    pub fn topology(self: @This()) !time_topology.TimeTopology {
         if (self.source_range) |range| {
-            return time_topology.TimeTopology.init_identity_finite(range);
+            return time_topology.TimeTopology.init_identity(.{.bounds=range});
         } else {
-            return .{};
+            return error.NotImplemented;
         }
     }
 
@@ -58,9 +60,9 @@ pub const Clip = struct {
 pub const Gap = struct {
     name: ?string = null,
 
-    pub fn topology(self: @This()) time_topology.TimeTopology {
+    pub fn topology(self: @This()) !time_topology.TimeTopology {
         _ = self;
-        return .{};
+        return error.NotImplemented;
     }
 };
 
@@ -80,8 +82,8 @@ pub const Item = union(enum) {
     ) error{NotImplemented,NoSourceRangeSet}!Duration 
     {
         return switch (self) {
-            .clip => |cl| (try cl.trimmed_range()).duration_seconds(),
             .gap => error.NotImplemented,
+            .clip => |cl| (try cl.trimmed_range()).duration_seconds(),
             .track => |tr| try tr.duration(),
         };
     }
@@ -175,33 +177,25 @@ pub const ItemPtr = union(enum) {
         return switch (self) {
             .track_ptr => |*tr| {
                 switch (from_space) {
-                    SpaceLabel.output => return opentime.TimeTopology.init_inf_identity(),
+                    SpaceLabel.output => (
+                        return opentime.TimeTopology.init_identity_infinite()
+                    ),
                     SpaceLabel.child => {
                         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
                             std.debug.print("CHILD {b}\n", .{ step});
                         }
 
                         if (step == 0) {
-                            return opentime.TimeTopology.init_inf_identity();
+                            return (
+                                opentime.TimeTopology.init_identity_infinite()
+                            );
                         } 
                         else {
-                            // [child 1][child 2]
-                            const child_index = track_child_index_from_hash(current_hash);
-                            const child = tr.*.child_ptr_from_index(child_index);
-                            const child_range = try child.clip_ptr.trimmed_range();
-                            const duration = child_range.duration_seconds();
-
-                            // @TODO: GROSSSSSSSS
-                            const track_duration = try tr.*.duration();
-
-                            return opentime.TimeTopology.init_linear_start_end(
-                                .{ .start_seconds=0, .end_seconds=track_duration },
-                                 -duration, -duration + track_duration
-                            );
+                            return try tr.*.transform_to_child(current_hash);
                         }
 
                     },
-                    else => return opentime.TimeTopology.init_inf_identity(),
+                    else => return opentime.TimeTopology.init_identity_infinite(),
                 }
             },
             .clip_ptr => |*cl| {
@@ -232,12 +226,12 @@ pub const ItemPtr = union(enum) {
                     SpaceLabel.output => {
                         // goes to media
                         const output_to_post_transform = (
-                            opentime.TimeTopology.init_inf_identity()
+                            opentime.TimeTopology.init_identity_infinite()
                         );
 
                         const post_transform_to_intrinsic = (
                             cl.*.transform 
-                            orelse opentime.TimeTopology.init_inf_identity()
+                            orelse opentime.TimeTopology.init_identity_infinite()
                         );
 
                         const output_to_intrinsic = (
@@ -246,9 +240,22 @@ pub const ItemPtr = union(enum) {
                             )
                         );
 
-                        const intrinsic_bounds = try cl.*.trimmed_range();
-                        const intrinsic_to_media = opentime.TimeTopology.init_identity_finite(
-                            intrinsic_bounds
+                        const media_bounds = try cl.*.trimmed_range();
+                        const intrinsic_to_media_xform = transform.AffineTransform1D{
+                            .offset_seconds = media_bounds.start_seconds,
+                            .scale = 1,
+                        };
+                        const intrinsic_bounds = .{
+                            .start_seconds = 0,
+                            .end_seconds = media_bounds.duration_seconds()
+                        };
+                        const intrinsic_to_media = (
+                            opentime.TimeTopology.init_affine(
+                                .{
+                                    .transform = intrinsic_to_media_xform,
+                                    .bounds = intrinsic_bounds,
+                                }
+                            )
                         );
 
                         const output_to_media = intrinsic_to_media.project_topology(
@@ -257,12 +264,14 @@ pub const ItemPtr = union(enum) {
 
                         return output_to_media;
                     },
-                    else => time_topology.TimeTopology.init_identity_finite(
-                        try cl.*.trimmed_range()
-                    )
+                    else => time_topology.TimeTopology.init_identity(
+                        .{
+                            .bounds = try cl.*.trimmed_range()
+                        }
+                    ),
                 };
             },
-            .gap_ptr => opentime.TimeTopology.init_inf_identity(),
+            .gap_ptr => opentime.TimeTopology.init_identity_infinite(),
         };
     }
 };
@@ -295,12 +304,11 @@ pub const Track = struct {
         };
     }
 
-    pub fn topology(self: @This()) time_topology.TimeTopology {
-
+    pub fn topology(self: @This()) !time_topology.TimeTopology {
         // build the bounds
         var bounds: ?interval.ContinuousTimeInterval = null;
         for (self.children.items) |it| {
-            const it_bound = it.topology().bounds;
+            const it_bound = (try it.topology()).bounds();
             if (bounds) |b| {
                 bounds = interval.extend(b, it_bound);
             } else {
@@ -314,7 +322,7 @@ pub const Track = struct {
             .end_seconds = 0,
         };
 
-        return time_topology.TimeTopology.init_identity_finite(result_bound);
+        return time_topology.TimeTopology.init_identity(.{.bounds=result_bound});
     }
 
     pub fn child_index_of(self: @This(), child_to_find: ItemPtr) !i32 {
@@ -327,6 +335,30 @@ pub const Track = struct {
 
     pub fn child_ptr_from_index(self: @This(), index: usize) ItemPtr {
         return ItemPtr.init_Item(&self.children.items[index]);
+    }
+
+    pub fn transform_to_child(
+        self: @This(),
+        child_hash:TopologicalPathHash
+    ) !time_topology.TimeTopology {
+        // [child 1][child 2]
+        const child_index = track_child_index_from_hash(child_hash);
+        const child = self.child_ptr_from_index(child_index);
+        const child_range = try child.clip_ptr.trimmed_range();
+        const child_duration = child_range.duration_seconds();
+
+        return opentime.TimeTopology.init_affine(
+            .{
+                .bounds = .{
+                    .start_seconds = child_range.start_seconds + child_duration,
+                    .end_seconds = util.inf
+                },
+                .transform = .{
+                    .offset_seconds = -child_duration,
+                    .scale = 1,
+                }
+            }
+        );
     }
 };
 
@@ -367,7 +399,7 @@ const ProjectionOperator = struct {
     topology: opentime.TimeTopology,
 
     pub fn project_ordinate(self: @This(), ord_to_project: f32) !f32 {
-        return self.topology.project_seconds(ord_to_project);
+        return self.topology.project_ordinate(ord_to_project);
     }
 };
 
@@ -411,7 +443,7 @@ const TopologicalMap = struct {
 
         var current_hash = source_hash;
 
-        var proj = time_topology.TimeTopology.init_inf_identity();
+        var proj = time_topology.TimeTopology.init_identity_infinite();
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
             std.debug.print(
@@ -442,10 +474,12 @@ const TopologicalMap = struct {
                 current_hash,
                 next_step
             );
-            proj = next_proj.project_topology(proj);
+
+            const current_proj = next_proj.project_topology(proj);
 
             current_hash = next_hash;
             current = next;
+            proj = current_proj;
         }
 
         if (needs_inversion) {
@@ -715,17 +749,17 @@ test "clip topology construction" {
         }
     };
 
-    const topo = cl.topology();
+    const topo = try cl.topology();
 
     try expectApproxEqAbs(
         start_seconds,
-        topo.bounds.start_seconds,
+        topo.bounds().start_seconds,
         util.EPSILON,
     );
 
     try expectApproxEqAbs(
         end_seconds,
-        topo.bounds.end_seconds,
+        topo.bounds().end_seconds,
         util.EPSILON,
     );
 }
@@ -742,17 +776,17 @@ test "track topology construction" {
     };
     try tr.append(.{ .clip = cl });
 
-    const topo =  tr.topology();
+    const topo =  try tr.topology();
 
     try expectApproxEqAbs(
         start_seconds,
-        topo.bounds.start_seconds,
+        topo.bounds().start_seconds,
         util.EPSILON,
     );
 
     try expectApproxEqAbs(
         end_seconds,
-        topo.bounds.end_seconds,
+        topo.bounds().end_seconds,
         util.EPSILON,
     );
 }
@@ -845,14 +879,14 @@ test "Track with clip with identity transform projection" {
 
     // check the bounds
     try expectApproxEqAbs(
-        start_seconds,
-        track_to_clip.topology.bounds.start_seconds,
+        @as(f32, 0),
+        track_to_clip.topology.bounds().start_seconds,
         util.EPSILON,
     );
 
     try expectApproxEqAbs(
-        end_seconds,
-        track_to_clip.topology.bounds.end_seconds,
+        end_seconds - start_seconds,
+        track_to_clip.topology.bounds().end_seconds,
         util.EPSILON,
     );
 
@@ -1187,13 +1221,13 @@ test "Projection: Track with single clip with identity transform and bounds" {
     // check the bounds
     try expectApproxEqAbs(
         (cl.source_range orelse interval.ContinuousTimeInterval{}).start_seconds,
-        root_output_to_clip_media.topology.bounds.start_seconds,
+        root_output_to_clip_media.topology.bounds().start_seconds,
         util.EPSILON,
     );
 
     try expectApproxEqAbs(
         (cl.source_range orelse interval.ContinuousTimeInterval{}).end_seconds,
-        root_output_to_clip_media.topology.bounds.end_seconds,
+        root_output_to_clip_media.topology.bounds().end_seconds,
         util.EPSILON,
     );
 
@@ -1204,8 +1238,15 @@ test "Projection: Track with single clip with identity transform and bounds" {
 }
 
 test "Projection: Track with multiple clips with identity transform and bounds" {
+    //
+    //                          0               3             6
+    // track.output space       [---------------*-------------)
+    // track.intrinsic space    [---------------*-------------)
+    // child.clip output space  [--------)[-----*---)[-*------)
+    //                          0        2 0    1   2 0       2 
+    //
     var tr = Track {};
-    const root = ItemPtr{ .track_ptr = &tr };
+    const track_ptr = ItemPtr{ .track_ptr = &tr };
 
     var cl = Clip { .source_range = .{ .start_seconds = 0, .end_seconds = 2 } };
 
@@ -1221,20 +1262,21 @@ test "Projection: Track with multiple clips with identity transform and bounds" 
         err: bool
     };
 
-    const map = try build_topological_map(root);
+    const map = try build_topological_map(track_ptr);
 
     const tests = [_]TestData{
-        .{ .ind = 1, .t_ord = 3, .m_ord = 1, .err = false },
+        .{ .ind = 1, .t_ord = 3, .m_ord = 1, .err = false},
         .{ .ind = 0, .t_ord = 1, .m_ord = 1, .err = false },
         .{ .ind = 2, .t_ord = 5, .m_ord = 1, .err = false },
+        .{ .ind = 0, .t_ord = 7, .m_ord = 1, .err = true },
     };
 
     for (tests) |t, t_i| {
         const child = tr.child_ptr_from_index(t.ind);
 
-        const test_proj = try map.build_projection_operator(
+        const tr_output_to_clip_media = try map.build_projection_operator(
             .{
-                .source = try root.space(SpaceLabel.output),
+                .source = try track_ptr.space(SpaceLabel.output),
                 .destination = try child.space(SpaceLabel.media),
             }
         );
@@ -1243,16 +1285,25 @@ test "Projection: Track with multiple clips with identity transform and bounds" 
             "[{d}] index: {d} track ordinate: {any} expected: {any} error: {any}\n",
             .{t_i, t.ind, t.t_ord, t.m_ord, t.err}
         );
-        const result = try test_proj.project_ordinate(t.t_ord);
+        if (t.err)
+        {
+            try expectError(
+                time_topology.TimeTopology.ProjectionError.OutOfBounds,
+                tr_output_to_clip_media.project_ordinate(t.t_ord)
+            );
+        }
+        else{
+            const result = try tr_output_to_clip_media.project_ordinate(t.t_ord);
 
-        try expectApproxEqAbs(result, t.m_ord, util.EPSILON);
+            try expectApproxEqAbs(result, t.m_ord, util.EPSILON);
+        }
     }
 
     const clip = tr.child_ptr_from_index(0);
 
     const root_output_to_clip_media = try map.build_projection_operator(
         .{ 
-            .source = try root.space(SpaceLabel.output),
+            .source = try track_ptr.space(SpaceLabel.output),
             .destination = try clip.space(SpaceLabel.media),
         }
     );
@@ -1260,13 +1311,13 @@ test "Projection: Track with multiple clips with identity transform and bounds" 
     // check the bounds
     try expectApproxEqAbs(
         (cl.source_range orelse interval.ContinuousTimeInterval{}).start_seconds,
-        root_output_to_clip_media.topology.bounds.start_seconds,
+        root_output_to_clip_media.topology.bounds().start_seconds,
         util.EPSILON,
     );
 
     try expectApproxEqAbs(
         (cl.source_range orelse interval.ContinuousTimeInterval{}).end_seconds,
-        root_output_to_clip_media.topology.bounds.end_seconds,
+        root_output_to_clip_media.topology.bounds().end_seconds,
         util.EPSILON,
     );
 
@@ -1277,17 +1328,6 @@ test "Projection: Track with multiple clips with identity transform and bounds" 
 }
 
 test "Single Clip Media to Output Identity transform" {
-    //
-    //                  0                 7           10
-    // output space       [-----------------*-----------)
-    //                               ....n.....
-    //
-    //                  0                 7           10
-    // output space       [-----------------*-----------)
-    // intrinsic space    [-----------------*-----------)
-    // clip output space  [---)[---------)[-*------)[---)
-    //                    0   1 0        5 0       3 0  1
-    //
     //
     //              0                 7           10
     // output space [-----------------*-----------)
@@ -1304,6 +1344,8 @@ test "Single Clip Media to Output Identity transform" {
 
     const map = try build_topological_map(cl_ptr);
 
+    try map.write_dot_graph("/var/tmp/single.dot");
+
     // output->media
     {
         const clip_output_to_media = try map.build_projection_operator(
@@ -1313,16 +1355,21 @@ test "Single Clip Media to Output Identity transform" {
             }
         );
 
-        // given only a boundary, expect an identity topology over the bounds
-        // with a single segment
-        try expectEqual(
-            @as(usize, 1),
-            clip_output_to_media.topology.mapping.len
-        );
-
         try expectApproxEqAbs(
             @as(f32, 103),
             try clip_output_to_media.project_ordinate(3),
+            util.EPSILON,
+        );
+
+        try expectApproxEqAbs(
+            @as(f32,0),
+            clip_output_to_media.topology.bounds().start_seconds,
+            util.EPSILON,
+        );
+
+        try expectApproxEqAbs(
+            source_range.duration_seconds(),
+            clip_output_to_media.topology.bounds().end_seconds,
             util.EPSILON,
         );
     }
@@ -1353,16 +1400,14 @@ test "Single Clip Inverse transform" {
     // media        [-----------------*-----------)
     //              110               103         100 (seconds)
     //
-    const source_range = interval.ContinuousTimeInterval{
-        .start_seconds = 100,
-        .end_seconds = 110 
+    const start = curve.ControlPoint{ .time = 0, .value = 110 };
+    const end = curve.ControlPoint{ .time = 10, .value = 100 };
+    const source_range:interval.ContinuousTimeInterval = .{
+        .start_seconds = start.time,
+        .end_seconds = end.time
     };
 
-    const inv_tx = time_topology.TimeTopology.init_linear_start_end(
-        source_range, 
-        source_range.end_seconds,
-        source_range.start_seconds,
-    );
+    const inv_tx = time_topology.TimeTopology.init_linear_start_end(start, end);
 
     const cl = Clip { .source_range = source_range, .transform = inv_tx };
     const cl_ptr : ItemPtr = .{ .clip_ptr = &cl};
@@ -1376,6 +1421,17 @@ test "Single Clip Inverse transform" {
                 .source =  try cl_ptr.space(SpaceLabel.output),
                 .destination = try cl_ptr.space(SpaceLabel.media),
             }
+        );
+
+        try expectApproxEqAbs(
+            @as(f32, 0),
+            clip_output_to_media.topology.bounds().start_seconds,
+            util.EPSILON,
+        );
+        try expectApproxEqAbs(
+            @as(f32, 10),
+            clip_output_to_media.topology.bounds().end_seconds,
+            util.EPSILON,
         );
 
         try expectApproxEqAbs(
