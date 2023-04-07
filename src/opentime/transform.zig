@@ -34,6 +34,23 @@ pub const AffineTransform1D = struct {
         };
     }
 
+    // if the scale of the transform is negative, the ends will flip during
+    // projection.  For bounds, this isn't meaningful and can cause problems.
+    // This function makes sure that result.start_seconds < result.end_seconds
+    pub fn applied_to_bounds(
+        self: @This(),
+        bnds: ContinuousTimeInterval,
+    ) ContinuousTimeInterval {
+        if (self.scale < 0) {
+            return .{
+                .start_seconds = self.applied_to_seconds(bnds.end_seconds),
+                .end_seconds = self.applied_to_seconds(bnds.start_seconds),
+            };
+        }
+
+        return self.applied_to_cti(bnds);
+    }
+
     pub fn applied_to_transform(
         self: @This(),
         rhs: AffineTransform1D,
@@ -180,4 +197,16 @@ test "AffineTransform1D: invert test" {
 
     try expectEqual(pt, result);
 }
-// @}
+
+test "AffineTransform1D: applied_to_bounds" {
+    const xform = AffineTransform1D {
+        .offset_seconds = 10,
+        .scale = -1,
+    };
+    const bounds = ContinuousTimeInterval{.start_seconds = 10, .end_seconds = 20};
+    const result = xform.applied_to_bounds(bounds);
+
+    // errdefer std.log.err("test name: {s}", .{ @src().fn_name });
+
+    try std.testing.expect(result.start_seconds < result.end_seconds);
+}
