@@ -76,7 +76,7 @@ pub fn any_overlap(
     );
 }
 
-pub fn intersect(
+pub fn union_of(
     fst: ContinuousTimeInterval,
     snd: ContinuousTimeInterval
 ) ?ContinuousTimeInterval {
@@ -88,6 +88,73 @@ pub fn intersect(
         .start_seconds = std.math.min(fst.start_seconds, snd.start_seconds),
         .end_seconds = std.math.max(fst.end_seconds, snd.end_seconds),
     };
+}
+
+pub fn intersect(
+    fst: ContinuousTimeInterval,
+    snd: ContinuousTimeInterval
+) ?ContinuousTimeInterval {
+    if (!any_overlap(fst, snd)) {
+        return null;
+    }
+
+    return .{
+        .start_seconds = std.math.max(fst.start_seconds, snd.start_seconds),
+        .end_seconds = std.math.min(fst.end_seconds, snd.end_seconds),
+    };
+}
+
+test "intersection test" {
+    {
+        const int1 = ContinuousTimeInterval{.start_seconds = 0, .end_seconds = 10};
+        const int2 = ContinuousTimeInterval{.start_seconds = 1, .end_seconds = 3};
+        const res = intersect(int1, int2) orelse ContinuousTimeInterval{};
+
+        try std.testing.expectApproxEqAbs(
+            res.start_seconds,
+            int2.start_seconds,
+            util.EPSILON
+        );
+        try std.testing.expectApproxEqAbs(
+            res.end_seconds,
+            int2.end_seconds,
+            util.EPSILON
+        );
+    }
+
+    {
+        const int1 = INF_CTI;
+        const int2 = ContinuousTimeInterval{.start_seconds = 1, .end_seconds = 3};
+        const res = intersect(int1, int2) orelse ContinuousTimeInterval{};
+
+        try std.testing.expectApproxEqAbs(
+            res.start_seconds,
+            int2.start_seconds,
+            util.EPSILON
+        );
+        try std.testing.expectApproxEqAbs(
+            res.end_seconds,
+            int2.end_seconds,
+            util.EPSILON
+        );
+    }
+
+    {
+        const int1 = INF_CTI;
+        const int2 = ContinuousTimeInterval{.start_seconds = 1, .end_seconds = 3};
+        const res = intersect(int2, int1) orelse ContinuousTimeInterval{};
+
+        try std.testing.expectApproxEqAbs(
+            res.start_seconds,
+            int2.start_seconds,
+            util.EPSILON
+        );
+        try std.testing.expectApproxEqAbs(
+            res.end_seconds,
+            int2.end_seconds,
+            util.EPSILON
+        );
+    }
 }
 
 pub const INF_CTI: ContinuousTimeInterval = .{
