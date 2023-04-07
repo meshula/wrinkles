@@ -69,11 +69,9 @@ pub const Item = union(enum) {
     gap: Gap,
     track: Track,
 
-    pub fn topology(self: @This()) time_topology.TimeTopology {
+    pub fn topology(self: @This()) error{NotImplemented}!time_topology.TimeTopology {
         return switch (self) {
-            .clip => |cl| cl.topology(),
-            .gap => |gp| gp.topology(),
-            .track => |tr| tr.topology(),
+            inline else => |it| try it.topology(),
         };
     }
 
@@ -102,11 +100,9 @@ pub const ItemPtr = union(enum) {
         };
     }
 
-    pub fn topology(self: @This()) time_topology.TimeTopology {
+    pub fn topology(self: @This()) !time_topology.TimeTopology {
         return switch (self) {
-            .clip_ptr => |cl| cl.topology(),
-            .gap_ptr => |gp| gp.topology(),
-            .track_ptr => |tr| tr.topology(),
+            inline else => |it_ptr| try it_ptr.toplogy(),
         };
     }
 
