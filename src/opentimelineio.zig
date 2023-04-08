@@ -1287,7 +1287,7 @@ test "Projection: Track with multiple clips with identity transform and bounds" 
         );
 
         errdefer std.log.err(
-            "[{d}] index: {d} track ordinate: {any} expected: {any} error: {any}\n",
+            "[{d}] index: {d} track ordinate: {d} expected: {d} error: {any}\n",
             .{t_i, t.ind, t.t_ord, t.m_ord, t.err}
         );
         if (t.err)
