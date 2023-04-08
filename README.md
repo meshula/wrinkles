@@ -2,6 +2,13 @@
 
 ## Todo
 
+### NEXT
+
+* add back in linear and bezier curve topologies
+* JSON OTIO parsing
+* arbitrary path lengths
+* holodromes
+
 ### Path System
 
 * support arbitrary path lengths
@@ -14,6 +21,7 @@
   They definitely help with inversion.  I think we should just model them
   directly under the hood as an optimization
 
+### DONE
 - Right now the topology has bounds, transform and curves.  This is
   inconsistent because the curves _inside_ the topology also represent a
   transformation, and implicitly define bounds (in that they're finite lists of
