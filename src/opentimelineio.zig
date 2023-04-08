@@ -475,6 +475,11 @@ const TopologicalMap = struct {
                 next_step
             );
 
+
+            // transformation spaces:
+            // proj:         input   -> current
+            // next_proj:    current -> next
+            // current_proj: input   -> next
             const current_proj = next_proj.project_topology(proj);
 
             current_hash = next_hash;
@@ -1391,22 +1396,23 @@ test "Single Clip Media to Output Identity transform" {
     }
 }
 
-test "Single Clip Inverse transform" {
+test "Single Clip reverse transform" {
     //
     // xform: reverse (linear w/ -1 slope)
     //
     //              0                 7           10
     // output       [-----------------*-----------)
+    // (transform)  10                3           0
     // media        [-----------------*-----------)
     //              110               103         100 (seconds)
     //
-    const start = curve.ControlPoint{ .time = 0, .value = 110 };
-    const end = curve.ControlPoint{ .time = 10, .value = 100 };
     const source_range:interval.ContinuousTimeInterval = .{
-        .start_seconds = start.time,
-        .end_seconds = end.time
+        .start_seconds = 100,
+        .end_seconds = 110,
     };
 
+    const start = curve.ControlPoint{ .time = 0, .value = 10 };
+    const end = curve.ControlPoint{ .time = 10, .value = 0 };
     const inv_tx = time_topology.TimeTopology.init_linear_start_end(start, end);
 
     const cl = Clip { .source_range = source_range, .transform = inv_tx };
@@ -1416,27 +1422,28 @@ test "Single Clip Inverse transform" {
 
     // output->media
     {
-        const clip_output_to_media = try map.build_projection_operator(
+        const clip_output_to_media_topo = try map.build_projection_operator(
             .{
                 .source =  try cl_ptr.space(SpaceLabel.output),
                 .destination = try cl_ptr.space(SpaceLabel.media),
             }
         );
-
+        
         try expectApproxEqAbs(
             @as(f32, 0),
-            clip_output_to_media.topology.bounds().start_seconds,
+            clip_output_to_media_topo.topology.bounds().start_seconds,
             util.EPSILON,
         );
+
         try expectApproxEqAbs(
             @as(f32, 10),
-            clip_output_to_media.topology.bounds().end_seconds,
+            clip_output_to_media_topo.topology.bounds().end_seconds,
             util.EPSILON,
         );
 
         try expectApproxEqAbs(
             @as(f32, 107),
-            try clip_output_to_media.project_ordinate(3),
+            try clip_output_to_media_topo.project_ordinate(3),
             util.EPSILON,
         );
     }

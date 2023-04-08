@@ -77,7 +77,7 @@ pub const AffineTransform1D = struct {
     //     | C D |   | 0 1 | = | 0 1 |
     //     =>
     //     A*S = 1 => A = 1/S
-    //     A*O + B = 0 => B = -O/S
+    //     A*O + B = 0 => B = -O*A => B = -O/S
     //     C * S = 0 => C = 0
     //     C * O + D = 1 => D = 1
     pub fn inverted(

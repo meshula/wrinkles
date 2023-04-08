@@ -70,62 +70,43 @@ const AffineTopology = struct {
 
     pub fn project_topology(self: @This(), other: TimeTopology) TimeTopology {
         return switch (other) {
-           .affine => |aff| {
-               // @TODO
+           .affine => |other_aff| {
                // A->B (bounds are in A
                // B->C (bounds are in B
                // B->C.project(A->B) => A->C, bounds are in A
                //
-               // const xformed_self_bounds = self.transform.inverted().applied_to_bounds(
-               //     self.bounds
-               //  );
+               // self: self.input -> self.output
+               // other:other.input -> other.output
                //
-               // const bounds = interval.intersect(
-               //     aff.bounds,
-               //     xformed_self_bounds
-               // );
+               // self.project_topology(other) => other.input -> self.output
+               // result.bounds -> other.input
                //
-               // if (bounds) |k| {
-               //     return .{
-               //         .affine = .{ 
-               //             .bounds = b,
-               //             .transform = (
-               //                 self.transform.applied_to_transform(
-               //                     aff.transform
-               //                 )
-               //             )
-               //         },
-               //     };
-               // }
-               // else {
-               //     return .{ .empty = .{} };
-               // }
+                const inv_xform = other_aff.transform.inverted();
 
-               const xformed_aff_bounds = self.transform.applied_to_bounds(
-                   aff.bounds
-                );
-               const my_bounds = self.bounds;
+               const self_bounds_in_input_space = (
+                   inv_xform.applied_to_bounds(self.bounds)
+               );
 
                const bounds = interval.intersect(
-                   my_bounds,
-                   xformed_aff_bounds
-                   // @TODO: this case makes the test pass but is incorrect
-               ) orelse interval.ContinuousTimeInterval{};
+                   self_bounds_in_input_space,
+                   other_aff.bounds,
+               );
 
-               // if (bounds) |b| {
+               if (bounds) |b| {
                    return .{
                        .affine = .{ 
-                           // .bounds = b,
-                           .bounds = bounds,
+                           .bounds = b,
                            .transform = (
-                               self.transform.applied_to_transform(aff.transform) 
+                               self.transform.applied_to_transform(
+                                   other_aff.transform
+                               )
                            )
                        },
                    };
-               // }
-               // else {
-               //     return .{ .empty = .{} };
-               // }
+               }
+               else {
+                   return .{ .empty = .{} };
+               }
            },
            else => .{ .empty = .{} },
         };
@@ -250,7 +231,7 @@ pub const TimeTopology = union (enum) {
     ) TimeTopology 
     {
         return switch(self) {
-            .affine => |aff| aff.project_topology(other),
+            .affine => |other_aff| other_aff.project_topology(other),
             .empty => .{ .empty = .{} },
             // others: might require promotion into curves
         };
@@ -410,24 +391,6 @@ test "TimeTopology: Affine Projected Through inverted Affine" {
     }
 }
 
-test "from code" {
-    const tp = TimeTopology.init_affine(
-        .{ 
-            .bounds = .{ .start_seconds = 0, .end_seconds = 10 },
-            .transform = .{ .offset_seconds = 0, .scale = 1 },
-        }
-    );
-    const tp_inf = TimeTopology.init_identity_infinite();
-
-    const result = tp.project_topology(tp_inf);
-
-    try expectApproxEqAbs(@as(f32, 0), result.affine.bounds.start_seconds, util.EPSILON);
-    try expectApproxEqAbs(@as(f32, 10), result.affine.bounds.end_seconds, util.EPSILON);
-
-    try expectApproxEqAbs(@as(f32, 0), result.affine.transform.offset_seconds, util.EPSILON);
-    try expectApproxEqAbs(@as(f32, 1), result.affine.transform.scale, util.EPSILON);
-}
-
 test "TimeTopology: Affine Projected Through infinite Affine" {
     const tp = TimeTopology.init_affine(
         .{ 
@@ -487,5 +450,73 @@ test "TimeTopology: Affine Projected Through infinite Affine" {
 
         try expectApproxEqAbs(expected, result_inf, util.EPSILON);
         try expectApproxEqAbs(expected, result_tp, util.EPSILON);
+    }
+}
+
+test "TimeTopology: Affine through Affine w/ negative scale" {
+//
+//                         0                 6           10 (duration of the bounds)
+// output_to_intrinsic     |-----------------*-----------|
+//                         10                4           0
+//
+//                         0                             10
+// intrinsic_to_media      |-----------------*-----------|
+//                         90                6           100
+//
+    const output_to_intrinsic = TimeTopology.init_affine(
+        .{ 
+            .bounds = .{ .start_seconds = 0, .end_seconds = 10 },
+
+            // @TODO: why does this need an offset of 10? that seems weird
+            .transform = .{ .offset_seconds = 10, .scale = -1 },
+        }
+    );
+
+    const intrinsic_to_media = TimeTopology.init_affine(
+        .{ 
+            .bounds = .{ .start_seconds = 0, .end_seconds = 10 },
+            .transform = .{ .offset_seconds = 90, .scale = 1 },
+        }
+    );
+
+    const output_to_media = intrinsic_to_media.project_topology(
+        output_to_intrinsic
+    );
+
+    const TestData = struct {
+        output_s: f32,
+        media_s: f32,
+        err: bool,
+    };
+
+    const output_to_media_tests = [_]TestData{
+        .{ .output_s = 0, .media_s=100, .err = false },
+        .{ .output_s = 3, .media_s=97, .err = false },
+        .{ .output_s = 6, .media_s=94, .err = false },
+        .{ .output_s = 9, .media_s=91, .err = false },
+        .{ .output_s = 10, .media_s=100, .err = true },
+    };
+
+    for (output_to_media_tests) |t, index| {
+        errdefer std.log.err(
+            "[{d}] time: {d} expected: {d} err: {any}",
+            .{index, t.output_s, t.media_s, t.err}
+        );
+
+        if (t.err) 
+        {
+            try expectError(
+                TimeTopology.ProjectionError.OutOfBounds,
+                output_to_media.project_ordinate(t.output_s),
+            );
+        } 
+        else 
+        {
+            try expectApproxEqAbs(
+                t.media_s,
+                try output_to_media.project_ordinate(t.output_s),
+                util.EPSILON
+            );
+        }
     }
 }
