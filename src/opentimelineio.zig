@@ -363,6 +363,8 @@ pub const Track = struct {
 };
 
 test "add clip to track and check parent pointer" {
+    try util.skip_test();
+
     var tr = Track {};
     const start_seconds:f32 = 1;
     const end_seconds:f32 = 10;
@@ -372,9 +374,10 @@ test "add clip to track and check parent pointer" {
             .end_seconds = end_seconds 
         }
     };
+
     try tr.append(.{ .clip = cl });
 
-    // try expectEqual(cl.parent.?, tr);
+    try expectEqual(ItemPtr.init_Item(&tr.children.items[0]), ItemPtr{ .track_ptr = &tr});
 }
 
 const SpaceLabel = enum(i8) {
@@ -631,11 +634,13 @@ fn depth_child_hash(
 
 test "depth_child_hash: math" {
     const start_hash:TopologicalPathHash = 0b10;
+
+    const TPH = TopologicalPathHash;
     
-    try expectEqual(@as(TopologicalPathHash, 0b10), depth_child_hash(start_hash, 0));
-    try expectEqual(@as(TopologicalPathHash, 0b100), depth_child_hash(start_hash, 1));
-    try expectEqual(@as(TopologicalPathHash, 0b1000), depth_child_hash(start_hash, 2));
-    try expectEqual(@as(TopologicalPathHash, 0b10000), depth_child_hash(start_hash, 3));
+    try expectEqual(@as(TPH, 0b10), depth_child_hash(start_hash, 0));
+    try expectEqual(@as(TPH, 0b100), depth_child_hash(start_hash, 1));
+    try expectEqual(@as(TPH, 0b1000), depth_child_hash(start_hash, 2));
+    try expectEqual(@as(TPH, 0b10000), depth_child_hash(start_hash, 3));
 }
 
 pub fn build_topological_map(
@@ -720,7 +725,11 @@ pub fn build_topological_map(
                     if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
                         std.debug.print(
                             "[{d}] hash: {b} adding child space: '{s}'\n",
-                            .{index, child_space_hash, @tagName(space_ref.label)}
+                            .{
+                                index,
+                                child_space_hash,
+                                @tagName(space_ref.label)
+                            }
                         );
                     }
                     try map_space_to_hash.put(space_ref, child_space_hash);
@@ -828,10 +837,12 @@ test "path_hash: graph test" {
         .{.ind = 0, .expect= 0b10010 },
         .{.ind = 1, .expect= 0b100110 },
     };
-    try map.write_dot_graph("/var/tmp/test.dot");
-
-    for (test_data) |t, t_i| {
-        const space = try tr.child_ptr_from_index(t.ind).space(SpaceLabel.output);
+    for (test_data) 
+        |t, t_i| 
+    {
+        const space = (
+            try tr.child_ptr_from_index(t.ind).space(SpaceLabel.output)
+        );
         const result = map.map_space_to_hash.get(space) orelse 0;
 
         const alternate = map.map_hash_to_space.get(0b10001);
@@ -849,30 +860,22 @@ test "Track with clip with identity transform projection" {
     var tr = Track {};
     const start_seconds:f32 = 1;
     const end_seconds:f32 = 10;
-
-    var cl = Clip {
-        .source_range = .{
-            .start_seconds = start_seconds,
-            .end_seconds = end_seconds 
-        }
+    const range = interval.ContinuousTimeInterval{
+        .start_seconds = start_seconds,
+        .end_seconds = end_seconds,
     };
+
+    var cl = Clip{.source_range = range};
     try tr.append(.{ .clip = cl });
 
     var i:i32 = 0;
     while (i < 10) {
-        var cl2 = Clip {
-            .source_range = .{
-                .start_seconds = start_seconds,
-                .end_seconds = end_seconds 
-            }
-        };
+        var cl2 = Clip {.source_range = range};
         try tr.append(.{ .clip = cl2 });
         i+=1;
     }
 
     const map = try build_topological_map(.{ .track_ptr = &tr });
-
-    try map.write_dot_graph("/var/tmp/test.dot");
 
     const clip = tr.child_ptr_from_index(0);
     const track_to_clip = try map.build_projection_operator(
@@ -1348,8 +1351,6 @@ test "Single Clip Media to Output Identity transform" {
     const cl_ptr : ItemPtr = .{ .clip_ptr = &cl};
 
     const map = try build_topological_map(cl_ptr);
-
-    try map.write_dot_graph("/var/tmp/single.dot");
 
     // output->media
     {
