@@ -1406,21 +1406,22 @@ test "Single Clip reverse transform" {
     // media        [-----------------*-----------)
     //              110               103         100 (seconds)
     //
-    const source_range:interval.ContinuousTimeInterval = .{
-        .start_seconds = 100,
-        .end_seconds = 110,
-    };
 
     const start = curve.ControlPoint{ .time = 0, .value = 10 };
     const end = curve.ControlPoint{ .time = 10, .value = 0 };
     const inv_tx = time_topology.TimeTopology.init_linear_start_end(start, end);
+
+    const source_range:interval.ContinuousTimeInterval = .{
+        .start_seconds = 100,
+        .end_seconds = 110,
+    };
 
     const cl = Clip { .source_range = source_range, .transform = inv_tx };
     const cl_ptr : ItemPtr = .{ .clip_ptr = &cl};
 
     const map = try build_topological_map(cl_ptr);
 
-    // output->media
+    // output->media (forward projection)
     {
         const clip_output_to_media_topo = try map.build_projection_operator(
             .{
@@ -1430,13 +1431,13 @@ test "Single Clip reverse transform" {
         );
         
         try expectApproxEqAbs(
-            @as(f32, 0),
+            start.time,
             clip_output_to_media_topo.topology.bounds().start_seconds,
             util.EPSILON,
         );
 
         try expectApproxEqAbs(
-            @as(f32, 10),
+            end.time,
             clip_output_to_media_topo.topology.bounds().end_seconds,
             util.EPSILON,
         );
@@ -1448,7 +1449,7 @@ test "Single Clip reverse transform" {
         );
     }
 
-    // media->output
+    // media->output (reverse projection)
     {
         const clip_media_to_output = try map.build_projection_operator(
             .{
@@ -1457,11 +1458,9 @@ test "Single Clip reverse transform" {
             }
         );
 
-        const result = try clip_media_to_output.project_ordinate(107);
-
         try expectApproxEqAbs(
             @as(f32, 3),
-            result,
+            try clip_media_to_output.project_ordinate(107),
             util.EPSILON,
         );
     }
