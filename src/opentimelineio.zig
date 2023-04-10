@@ -1466,3 +1466,67 @@ test "Single Clip reverse transform" {
         );
     }
 }
+
+test "Single Clip bezier transform" {
+    try util.skip_test();
+
+    //
+    // xform: reverse (linear w/ -1 slope)
+    //
+    //              0                 7           10
+    // output       [-----------------*-----------)
+    // (transform)  10                3           0
+    // media        [-----------------*-----------)
+    //              110               103         100 (seconds)
+    //
+
+    const xform_curve = try curve.read_curve_json("curves/scurve.curve.json");
+
+    const curve_topo = time_topology.TimeTopology.init_bezier_cubic(xform_curve);
+
+    const source_range:interval.ContinuousTimeInterval = .{
+        .start_seconds = 100,
+        .end_seconds = 110,
+    };
+
+    const cl = Clip { .source_range = source_range, .transform = curve_topo };
+    const cl_ptr : ItemPtr = .{ .clip_ptr = &cl};
+
+    const map = try build_topological_map(cl_ptr);
+
+    // output->media (forward projection)
+    {
+        const clip_output_to_media_topo = try map.build_projection_operator(
+            .{
+                .source =  try cl_ptr.space(SpaceLabel.output),
+                .destination = try cl_ptr.space(SpaceLabel.media),
+            }
+        );
+
+        // @TODO this should work
+        var time = source_range.start_seconds;
+        while (time < source_range.end_seconds) : (time += 0.01) {
+            try expectApproxEqAbs(
+                try curve_topo.bezier_curve.bezier_curve.evaluate(time),
+                try clip_output_to_media_topo.project_ordinate(time),
+                util.EPSILON
+            );
+        }
+    }
+
+    // media->output (reverse projection)
+    {
+        const clip_media_to_output = try map.build_projection_operator(
+            .{
+                .source =  try cl_ptr.space(SpaceLabel.media),
+                .destination = try cl_ptr.space(SpaceLabel.output),
+            }
+        );
+
+        try expectApproxEqAbs(
+            @as(f32, 3),
+            try clip_media_to_output.project_ordinate(107),
+            util.EPSILON,
+        );
+    }
+}

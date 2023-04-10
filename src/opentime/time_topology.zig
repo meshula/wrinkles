@@ -113,6 +113,83 @@ const AffineTopology = struct {
     }
 };
 
+pub const BezierTopology = struct {
+    bezier_curve: curve.TimeCurve,
+
+    pub fn compute_bounds(self: @This()) interval.ContinuousTimeInterval {
+        const extents = self.bezier_curve.extents();
+
+        return .{
+            .start_seconds = extents[0].time,
+            .end_seconds = extents[1].time,
+        };
+    }
+
+    pub fn project_sample(self: @This(), sample: Sample) !Sample {
+        var result = sample;
+        result.ordinate_seconds = try self.project_ordinate(
+            sample.ordinate_seconds
+        );
+        return result;
+    }
+
+    pub fn project_ordinate(self: @This(), ordinate: Ordinate) !Ordinate {
+        return self.bezier_curve.evaluate(ordinate);
+    }
+
+    pub fn inverted(self: @This()) !TimeTopology {
+        _ = self;
+        return error.NotImplemented;
+    }
+
+    pub fn project_topology(self: @This(), other: TimeTopology) TimeTopology {
+        _ = self;
+        _ = other;
+        return error.NotImplemented;
+        // return switch (other) {
+        //    .affine => |other_aff| {
+        //        // A->B (bounds are in A
+        //        // B->C (bounds are in B
+        //        // B->C.project(A->B) => A->C, bounds are in A
+        //        //
+        //        // self: self.input -> self.output
+        //        // other:other.input -> other.output
+        //        //
+        //        // self.project_topology(other) => other.input -> self.output
+        //        // result.bounds -> other.input
+        //        //
+        //         const inv_xform = other_aff.transform.inverted();
+        //
+        //        const self_bounds_in_input_space = (
+        //            inv_xform.applied_to_bounds(self.bounds)
+        //        );
+        //
+        //        const bounds = interval.intersect(
+        //            self_bounds_in_input_space,
+        //            other_aff.bounds,
+        //        );
+        //
+        //        if (bounds) |b| {
+        //            return .{
+        //                .affine = .{ 
+        //                    .bounds = b,
+        //                    .transform = (
+        //                        self.transform.applied_to_transform(
+        //                            other_aff.transform
+        //                        )
+        //                    )
+        //                },
+        //            };
+        //        }
+        //        else {
+        //            return .{ .empty = .{} };
+        //        }
+        //    },
+        //    else => .{ .empty = .{} },
+        // };
+    }
+};
+
 pub const EmptyTopology = struct {
     pub fn project_ordinate(_: @This(), _: Ordinate) !Ordinate {
         return error.OutOfBounds;
@@ -145,22 +222,11 @@ pub const TimeTopology = union (enum) {
     affine: AffineTopology,
     empty: EmptyTopology,
 
-    // @TODO: turn these on
     // linear_curve: curve.TimeCurveLinear,
-    // bezier_curve: curve.TimeCurve,
+    bezier_curve: BezierTopology,
 
     // linear_holodrome_curve: curve.TimeCurveLinearHolodrome,
     // bezier_holodrome_curve: curve.TimeCurveBezierHolodrome,
-
-    pub fn is_holodrome(self: @This()) bool {
-        return switch (self) {
-            .affine, => true,
-            // @NICK: this can tell if things are already holodromes or need to
-            //        be converted
-            // .affine, .linear_holodrome_curve, .bezier_holodrome_curve => true,
-            // else => false
-        };
-    }
 
     // default to an infinite identity
     const IdentityArgs = struct {
@@ -204,6 +270,10 @@ pub const TimeTopology = union (enum) {
             }
         );
     }
+    
+    pub fn init_bezier_cubic(btc: curve.TimeCurve) TimeTopology {
+        return .{.bezier_curve = .{.bezier_curve = btc}};
+    }
     // @}
 
     pub fn bounds(self: @This()) interval.ContinuousTimeInterval {
@@ -233,6 +303,7 @@ pub const TimeTopology = union (enum) {
         return switch(self) {
             .affine => |other_aff| other_aff.project_topology(other),
             .empty => .{ .empty = .{} },
+            inline else => .{ .empty = .{} },
             // others: might require promotion into curves
         };
     }
