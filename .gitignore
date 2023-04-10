@@ -3,3 +3,4 @@ zig-cache/
 *.out
 *.o
 imgui.ini
+otvis
