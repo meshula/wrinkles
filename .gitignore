@@ -3,4 +3,5 @@ zig-cache/
 *.out
 *.o
 imgui.ini
+# symlink to otvis executable
 otvis
