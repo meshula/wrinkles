@@ -274,6 +274,10 @@ pub const TimeTopology = union (enum) {
     pub fn init_bezier_cubic(btc: curve.TimeCurve) TimeTopology {
         return .{.bezier_curve = .{.bezier_curve = btc}};
     }
+    
+    pub fn init_empty() TimeTopology {
+        return .{ .empty = EmptyTopology{} };
+    }
     // @}
 
     pub fn bounds(self: @This()) interval.ContinuousTimeInterval {
