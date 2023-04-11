@@ -58,7 +58,7 @@ pub const Clip = struct {
 };
 
 pub const Gap = struct {
-    name: ?string = null,
+    name: ?string.latin_s8 = null,
 
     pub fn topology(self: @This()) !time_topology.TimeTopology {
         _ = self;
@@ -277,7 +277,7 @@ pub const ItemPtr = union(enum) {
 };
 
 pub const Track = struct {
-    name: ?string = null,
+    name: ?string.latin_s8 = null,
 
     children: std.ArrayList(Item) = std.ArrayList(Item).init(ALLOCATOR),
 
