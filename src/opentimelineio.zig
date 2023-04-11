@@ -70,6 +70,7 @@ pub const Item = union(enum) {
     clip: Clip,
     gap: Gap,
     track: Track,
+    stack: Stack,
 
     pub fn topology(self: @This()) error{NotImplemented}!time_topology.TimeTopology {
         return switch (self) {
@@ -93,12 +94,15 @@ pub const ItemPtr = union(enum) {
     clip_ptr: *const Clip,
     gap_ptr: *const Gap,
     track_ptr: *const Track,
+    timeline_ptr: *const Timeline,
+    stack_ptr: *const Stack,
 
     pub fn init_Item(item: *Item) ItemPtr {
         return switch (item.*) {
-            .clip => |*cp | .{ .clip_ptr = cp },
-            .gap => |*gp| .{ .gap_ptr= gp },
-            .track => |*tr| .{ .track_ptr = tr},
+            .clip  => |*cp| .{ .clip_ptr = cp  },
+            .gap   => |*gp| .{ .gap_ptr= gp    },
+            .track => |*tr| .{ .track_ptr = tr },
+            .stack => |*st| .{ .stack_ptr = st },
         };
     }
 
@@ -114,6 +118,8 @@ pub const ItemPtr = union(enum) {
             .clip_ptr => |cl| cl == other.clip_ptr,
             .gap_ptr => |gp| gp == other.gap_ptr,
             .track_ptr => |tr| tr == other.track_ptr,
+            .stack_ptr => |st| st == other.stack_ptr,
+            .timeline_ptr => |tl| tl == other.timeline_ptr,
         };
     }
 
@@ -123,6 +129,8 @@ pub const ItemPtr = union(enum) {
             .clip_ptr => self.clip_ptr.parent,
             .gap_ptr => null,
             .track_ptr => null,
+            .stack_ptr => null,
+            .timeline_ptr => null,
         };
     }
 
@@ -146,7 +154,11 @@ pub const ItemPtr = union(enum) {
                 try result.append( .{ .item = self, .label = SpaceLabel.output});
                 try result.append( .{ .item = self, .label = SpaceLabel.intrinsic});
             },
-            else => {}
+            .timeline_ptr => {
+                try result.append( .{ .item = self, .label = SpaceLabel.output});
+                try result.append( .{ .item = self, .label = SpaceLabel.intrinsic});
+            },
+            else => { return error.NotImplemented; }
         }
 
         return result.items;
@@ -271,15 +283,27 @@ pub const ItemPtr = union(enum) {
                     ),
                 };
             },
-            .gap_ptr => opentime.TimeTopology.init_identity_infinite(),
+            // wrapped as identity
+            .gap_ptr, .timeline_ptr => opentime.TimeTopology.init_identity_infinite(),
+            else => |case| { 
+                std.log.err("Not Implemented: {any}\n", .{ case });
+
+                // return error.NotImplemented;
+                return opentime.TimeTopology.init_identity_infinite();
+            },
         };
     }
 };
 
 pub const Track = struct {
     name: ?string.latin_s8 = null,
+    children: std.ArrayList(Item),
 
-    children: std.ArrayList(Item) = std.ArrayList(Item).init(ALLOCATOR),
+    pub fn init() Track { 
+        return .{
+            .children = std.ArrayList(Item).init(ALLOCATOR)
+        };
+    }
 
     pub fn duration(
         self: @This()
@@ -365,7 +389,7 @@ pub const Track = struct {
 test "add clip to track and check parent pointer" {
     try util.skip_test();
 
-    var tr = Track {};
+    var tr = Track.init();
     const start_seconds:f32 = 1;
     const end_seconds:f32 = 10;
     var cl = Clip {
@@ -699,51 +723,53 @@ pub fn build_topological_map(
         }
 
         // transforms to children
-        switch (current.object) {
-            .track_ptr => |tr| { 
-                for (tr.children.items) 
-                    |*child, index| 
-                {
-                    const item_ptr:ItemPtr = switch (child.*) {
-                        .clip => |*cl| .{ .clip_ptr = cl },
-                        .gap => |*gp| .{ .gap_ptr = gp },
-                        .track => |*tr_p| .{ .track_ptr = tr_p },
-                    };
+        const children = switch (current.object) {
+            inline .track_ptr, .stack_ptr => |st_or_tr|  st_or_tr.children.items,
+            .timeline_ptr => |tl|  tl.tracks.children.items,
+            else => &[_]Item{},
+        };
+
+        for (children) 
+            |*child, index| 
+        {
+            const item_ptr:ItemPtr = switch (child.*) {
+                .clip => |*cl| .{ .clip_ptr = cl },
+                .gap => |*gp| .{ .gap_ptr = gp },
+                .track => |*tr_p| .{ .track_ptr = tr_p },
+                .stack => |*st_p| .{ .stack_ptr = st_p },
+            };
 
 
-                    const child_space_hash = sequential_child_hash(
-                        current_hash,
-                        index
-                    );
+            const child_space_hash = sequential_child_hash(
+                current_hash,
+                index
+            );
 
-                    // insert the child scope
-                    const space_ref = SpaceReference{
-                        .item = current.object,
-                        .label = SpaceLabel.child,
-                    };
+            // insert the child scope
+            const space_ref = SpaceReference{
+                .item = current.object,
+                .label = SpaceLabel.child,
+            };
 
-                    if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
-                        std.debug.print(
-                            "[{d}] hash: {b} adding child space: '{s}'\n",
-                            .{
-                                index,
-                                child_space_hash,
-                                @tagName(space_ref.label)
-                            }
-                        );
+            if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
+                std.debug.print(
+                    "[{d}] hash: {b} adding child space: '{s}'\n",
+                    .{
+                        index,
+                        child_space_hash,
+                        @tagName(space_ref.label)
                     }
-                    try map_space_to_hash.put(space_ref, child_space_hash);
-                    try map_hash_to_space.put(child_space_hash, space_ref);
+                );
+            }
+            try map_space_to_hash.put(space_ref, child_space_hash);
+            try map_hash_to_space.put(child_space_hash, space_ref);
 
-                    const child_hash = depth_child_hash(child_space_hash, 1);
+            const child_hash = depth_child_hash(child_space_hash, 1);
 
-                    try stack.insert(
-                        0,
-                        .{ .object= item_ptr, .path_hash = child_hash}
-                    );
-                }
-            },
-            else => {}
+            try stack.insert(
+                0,
+                .{ .object= item_ptr, .path_hash = child_hash}
+            );
         }
     }
 
@@ -779,7 +805,7 @@ test "clip topology construction" {
 }
 
 test "track topology construction" {
-    var tr = Track {};
+    var tr = Track.init();
     const start_seconds:f32 = 1;
     const end_seconds:f32 = 10;
     const cl = Clip {
@@ -806,7 +832,7 @@ test "track topology construction" {
 }
 
 test "path_hash: graph test" {
-    var tr = Track {};
+    var tr = Track.init();
     const start_seconds:f32 = 1;
     const end_seconds:f32 = 10;
 
@@ -857,7 +883,7 @@ test "path_hash: graph test" {
 
 test "Track with clip with identity transform projection" {
 
-    var tr = Track {};
+    var tr = Track.init();
     const start_seconds:f32 = 1;
     const end_seconds:f32 = 10;
     const range = interval.ContinuousTimeInterval{
@@ -1163,7 +1189,7 @@ test "sequential_child_hash: path tests" {
 }
 
 test "PathMap: Track with clip with identity transform topological" {
-    var tr = Track {};
+    var tr = Track.init();
     var cl = Clip { .source_range = .{ .start_seconds = 0, .end_seconds = 2 } };
 
     // a copy -- which is why we can't use `cl` in our searches.
@@ -1209,7 +1235,7 @@ test "PathMap: Track with clip with identity transform topological" {
 }
 
 test "Projection: Track with single clip with identity transform and bounds" {
-    var tr = Track {};
+    var tr = Track.init();
     const root = ItemPtr{ .track_ptr = &tr };
 
     var cl = Clip { .source_range = .{ .start_seconds = 0, .end_seconds = 2 } };
@@ -1253,7 +1279,7 @@ test "Projection: Track with multiple clips with identity transform and bounds" 
     // child.clip output space  [--------)[-----*---)[-*------)
     //                          0        2 0    1   2 0       2 
     //
-    var tr = Track {};
+    var tr = Track.init();
     const track_ptr = ItemPtr{ .track_ptr = &tr };
 
     var cl = Clip { .source_range = .{ .start_seconds = 0, .end_seconds = 2 } };
@@ -1529,4 +1555,253 @@ test "Single Clip bezier transform" {
             util.EPSILON,
         );
     }
+}
+
+// top level object
+pub const Timeline = struct {
+    tracks:Stack = Stack.init(),
+};
+
+pub const Stack = struct {
+    name: ?string.latin_s8 = null,
+    children: std.ArrayList(Item),
+
+    pub fn init() Stack { 
+        return .{
+            .children = std.ArrayList(Item).init(ALLOCATOR)
+        };
+    }
+
+    pub fn topology(self: @This()) !time_topology.TimeTopology {
+        // build the bounds
+        var bounds: ?interval.ContinuousTimeInterval = null;
+        for (self.children.items) |it| {
+            const it_bound = (try it.topology()).bounds();
+            if (bounds) |b| {
+                bounds = interval.extend(b, it_bound);
+            } else {
+                bounds = it_bound;
+            }
+        }
+
+        if (bounds) |b| {
+            return time_topology.TimeTopology.init_affine(.{ .bounds = b });
+        } else {
+            return time_topology.TimeTopology.init_empty();
+        }
+    }
+};
+
+pub const SerializableObjectTypes = enum {
+    Timeline,
+    Stack,
+    Track,
+    Clip,
+    Gap,
+};
+
+pub const SerializableObject = union(SerializableObjectTypes) {
+    Timeline:Timeline,
+    Stack:Stack,
+    Track:Track,
+    Clip:Clip,
+    Gap:Gap,
+};
+
+pub const IntrinsicSchema = enum {
+    TimeRange,
+    RationalTime,
+};
+
+pub fn read_float(obj:std.json.Value) time_topology.Ordinate {
+    return switch (obj) {
+        .Integer => |i| @intToFloat(time_topology.Ordinate, i),
+        .Float => |f| @floatCast(time_topology.Ordinate, f),
+        else => 0,
+    };
+}
+
+pub fn read_ordinate_from_rt(obj:?std.json.ObjectMap) ?time_topology.Ordinate {
+    if (obj) |o| {
+        const value = read_float(o.get("value").?);
+        const rate = read_float(o.get("rate").?);
+
+        return @floatCast(time_topology.Ordinate, value/rate);
+    } else {
+        return null;
+    }
+}
+
+pub fn read_time_range(obj:?std.json.ObjectMap) ?interval.ContinuousTimeInterval {
+    if (obj) |o| {
+        const start_time = read_ordinate_from_rt(o.get("start_time").?.Object).?;
+        const duration = read_ordinate_from_rt(o.get("duration").?.Object).?;
+        return .{ .start_seconds = start_time, .end_seconds = start_time + duration };
+    } else {
+        return null;
+    }
+}
+
+pub fn read_otio_object(
+    obj:std.json.ObjectMap
+) !SerializableObject 
+{
+    const maybe_schema_and_version_str = obj.get("OTIO_SCHEMA");
+
+    if (maybe_schema_and_version_str == null) {
+        return error.NotAnOtioSchemaObject;
+    }
+
+    const full_string = maybe_schema_and_version_str.?.String;
+
+    var split_schema_string = std.mem.split(
+        u8,
+        full_string,
+        "."
+    );
+
+    const maybe_schema_str = split_schema_string.next();
+    if (maybe_schema_str == null) {
+        return error.MalformedSchemaString;
+    }
+    const schema_str = maybe_schema_str.?;
+
+    const maybe_schema_enum = std.meta.stringToEnum(
+        SerializableObjectTypes,
+        schema_str
+    );
+    if (maybe_schema_enum == null) {
+        errdefer std.log.err("No schema: {s}\n", .{schema_str});
+        return error.NoSuchSchema;
+    }
+
+    const schema_enum = maybe_schema_enum.?;
+
+    const name = if (obj.get("name")) |n| switch (n) {
+        .String => |s| s,
+        else => null
+    } else null;
+
+    switch (schema_enum) {
+        .Timeline => { 
+            var st_json = try read_otio_object(obj.get("tracks").?.Object);
+            const st = Stack{
+                .name = st_json.Stack.name,
+                .children = try st_json.Stack.children.clone(),
+            };
+            var tl = Timeline{ .tracks = st };
+            return .{ .Timeline = tl };
+        },
+        .Stack => {
+
+            var st = Stack.init();
+            st.name = name;
+
+            for (obj.get("children").?.Array.items) |track| {
+                try st.children.append(
+                    .{ .track = (try read_otio_object(track.Object)).Track }
+                );
+            }
+
+            return .{ .Stack = st };
+        },
+        .Track => {
+            var tr = Track.init();
+            tr.name = name;
+
+            for (obj.get("children").?.Array.items) |child| {
+                switch (try read_otio_object(child.Object)) {
+                    .Clip => |cl| { try tr.children.append( .{ .clip = cl }); },
+                    .Gap => |gp| { try tr.children.append( .{ .gap = gp }); },
+                    else => return error.NotImplemented,
+                }
+            }
+
+            return .{ .Track = tr };
+        },
+        .Clip => {
+            const source_range = (
+                if (obj.get("source_range")) 
+                |sr| switch (sr) {
+                    .Object => |o| read_time_range(o),
+                    else => null,
+                }
+                else null
+            );
+
+            var cl = Clip{
+                .name=name,
+                .source_range = source_range,
+            };
+
+            return .{ .Clip = cl };
+        },
+        else => { 
+            errdefer std.log.err("Not implemented yet: {s}\n", .{ schema_str });
+            return error.NotImplemented; 
+        }
+    }
+
+    return error.NotImplemented;
+}
+
+pub fn read_from_file(file_path: string.latin_s8) !Timeline {
+    var parser = std.json.Parser.init(allocator.ALLOCATOR, false);
+    defer parser.deinit();
+
+    const fi = try std.fs.cwd().openFile(file_path, .{});
+    defer fi.close();
+
+    const source = try fi.readToEndAlloc(ALLOCATOR, std.math.maxInt(u32));
+
+    var tree = try parser.parse(source);
+    defer tree.deinit();
+
+    const tl_json = tree.root.Object;
+
+    const hopefully_timeline = try read_otio_object(tl_json);
+
+    if (hopefully_timeline == SerializableObject.Timeline) {
+        return hopefully_timeline.Timeline;
+    }
+
+    // could be some other kind of top level object -- for now zig only reads
+    // things that are topped with the timeline.
+
+    return error.NotImplemented;
+}
+
+test "read_from_file test" {
+    const tl = try read_from_file(
+        "/Users/stephan/Documents/workspace/OpenTimelineIO/tests/sample_data/simple_cut.otio"
+    );
+
+    try expectEqual(@as(usize, 1), tl.tracks.children.items.len);
+
+    const track0 = tl.tracks.children.items[0].track;
+    try expectEqual(@as(usize, 4), track0.children.items.len);
+    try std.testing.expectEqualStrings(
+        "Clip-001",
+        track0.children.items[0].clip.name.?
+    );
+
+    const tl_ptr = ItemPtr{ .timeline_ptr = &tl };
+    const target_clip_ptr = (
+        track0.child_ptr_from_index(0)
+    );
+
+    const map = try build_topological_map(tl_ptr);
+
+    const tl_output_to_clip_media = try map.build_projection_operator(
+        .{
+            .source = try tl_ptr.space(SpaceLabel.output),
+            .destination = try target_clip_ptr.space(SpaceLabel.media),
+        }
+    );
+
+    try expectApproxEqAbs(
+        @as(time_topology.Ordinate, 0.175),
+        try tl_output_to_clip_media.project_ordinate(0.05),
+        util.EPSILON
+    );
 }
