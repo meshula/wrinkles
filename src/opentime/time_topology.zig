@@ -14,7 +14,7 @@ const expectEqual = std.testing.expectEqual;
 const expectError = std.testing.expectError;
 const expectApproxEqAbs = std.testing.expectApproxEqAbs;
 
-const Ordinate = f32;
+pub const Ordinate = f32;
 
 const AffineTopology = struct {
     // defaults to an infinite identity
