@@ -59,6 +59,7 @@ pub const Clip = struct {
 
 pub const Gap = struct {
     name: ?string.latin_s8 = null,
+    duration: time_topology.Ordinate,
 
     pub fn topology(self: @This()) !time_topology.TimeTopology {
         _ = self;
@@ -146,19 +147,18 @@ pub const ItemPtr = union(enum) {
         var result = std.ArrayList(SpaceReference).init(allocator.ALLOCATOR);
 
         switch (self) {
-            .clip_ptr => {
+            .clip_ptr, => {
                 try result.append( .{ .item = self, .label = SpaceLabel.output});
                 try result.append( .{ .item = self, .label = SpaceLabel.media});
             },
-            .track_ptr => {
+            .track_ptr, .timeline_ptr, .stack_ptr => {
                 try result.append( .{ .item = self, .label = SpaceLabel.output});
                 try result.append( .{ .item = self, .label = SpaceLabel.intrinsic});
             },
-            .timeline_ptr => {
+            .gap_ptr => {
                 try result.append( .{ .item = self, .label = SpaceLabel.output});
-                try result.append( .{ .item = self, .label = SpaceLabel.intrinsic});
             },
-            else => { return error.NotImplemented; }
+            // else => { return error.NotImplemented; }
         }
 
         return result.items;
@@ -284,13 +284,13 @@ pub const ItemPtr = union(enum) {
                 };
             },
             // wrapped as identity
-            .gap_ptr, .timeline_ptr => opentime.TimeTopology.init_identity_infinite(),
-            else => |case| { 
-                std.log.err("Not Implemented: {any}\n", .{ case });
-
-                // return error.NotImplemented;
-                return opentime.TimeTopology.init_identity_infinite();
-            },
+            .gap_ptr, .timeline_ptr, .stack_ptr => opentime.TimeTopology.init_identity_infinite(),
+            // else => |case| { 
+            //     std.log.err("Not Implemented: {any}\n", .{ case });
+            //
+            //     // return error.NotImplemented;
+            //     return opentime.TimeTopology.init_identity_infinite();
+            // },
         };
     }
 };
@@ -533,6 +533,8 @@ const TopologicalMap = struct {
             .track_ptr => "track",
             .clip_ptr => "clip",
             .gap_ptr => "gap",
+            .timeline_ptr => "timeline",
+            .stack_ptr => "stack",
         };
         return std.fmt.allocPrint(
             allocator.ALLOCATOR,
@@ -725,7 +727,7 @@ pub fn build_topological_map(
         // transforms to children
         const children = switch (current.object) {
             inline .track_ptr, .stack_ptr => |st_or_tr|  st_or_tr.children.items,
-            .timeline_ptr => |tl|  tl.tracks.children.items,
+            .timeline_ptr => |tl|  &[_]Item{ .{ .stack = tl.tracks } },
             else => &[_]Item{},
         };
 
@@ -1736,10 +1738,27 @@ pub fn read_otio_object(
 
             return .{ .Clip = cl };
         },
-        else => { 
-            errdefer std.log.err("Not implemented yet: {s}\n", .{ schema_str });
-            return error.NotImplemented; 
-        }
+        .Gap => {
+            const source_range = (
+                if (obj.get("source_range")) 
+                |sr| switch (sr) {
+                    .Object => |o| read_time_range(o),
+                    else => null,
+                }
+                else null
+            );
+
+            var gp = Gap{
+                .name=name,
+                .duration = source_range.?.duration_seconds(),
+            };
+
+            return .{ .Gap = gp };
+        },
+        // else => { 
+        //     errdefer std.log.err("Not implemented yet: {s}\n", .{ schema_str });
+        //     return error.NotImplemented; 
+        // }
     }
 
     return error.NotImplemented;
@@ -1772,18 +1791,25 @@ pub fn read_from_file(file_path: string.latin_s8) !Timeline {
 }
 
 test "read_from_file test" {
-    const tl = try read_from_file(
-        "/Users/stephan/Documents/workspace/OpenTimelineIO/tests/sample_data/simple_cut.otio"
-    );
+    const root = "simple_cut";
+    // const root = "multiple_track";
+    const otio_fpath = root ++ ".otio";
+    const dot_fpath = root ++ ".dot";
 
-    try expectEqual(@as(usize, 1), tl.tracks.children.items.len);
+    const tl = try read_from_file("sample_otio_files/"++otio_fpath);
 
     const track0 = tl.tracks.children.items[0].track;
-    try expectEqual(@as(usize, 4), track0.children.items.len);
-    try std.testing.expectEqualStrings(
-        "Clip-001",
-        track0.children.items[0].clip.name.?
-    );
+
+    if (std.mem.eql(u8, root, "simple_cut"))
+    {
+        try expectEqual(@as(usize, 1), tl.tracks.children.items.len);
+
+        try expectEqual(@as(usize, 4), track0.children.items.len);
+        try std.testing.expectEqualStrings(
+            "Clip-001",
+            track0.children.items[0].clip.name.?
+        );
+    }
 
     const tl_ptr = ItemPtr{ .timeline_ptr = &tl };
     const target_clip_ptr = (
@@ -1798,6 +1824,8 @@ test "read_from_file test" {
             .destination = try target_clip_ptr.space(SpaceLabel.media),
         }
     );
+    
+    try map.write_dot_graph("/var/tmp/" ++ dot_fpath);
 
     try expectApproxEqAbs(
         @as(time_topology.Ordinate, 0.175),
