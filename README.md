@@ -25,12 +25,13 @@ const Ordinate = union(enum) {
 ```
 
 ### short term
-* fix the simple_cut test
+* fix the simple_cut
 * replacing `f32` with `opentime.Ordinate`
     * struct/union with add/mul/div/sub
     * rational object as an entry in the union (i32/i32)
 * add back in linear and bezier curve topologies
     * with linearizing
+* project_topology in the projection operator (whoops)
 
 ### bg
 * `graphviz` viewer for otio files
