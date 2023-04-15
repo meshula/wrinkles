@@ -22,6 +22,8 @@ pub const Domain = @import("domain.zig").Domain;
 pub const curve = @import("curve/curve.zig");
 // @}
 
+pub const ordinate = @import("ordinate.zig").Ordinate;
+
 test "all" {
     _ = curve;
 }

@@ -59,7 +59,7 @@ pub const Clip = struct {
 
 pub const Gap = struct {
     name: ?string.latin_s8 = null,
-    duration: time_topology.Ordinate,
+    duration: opentime.Ordinate,
 
     pub fn topology(self: @This()) !time_topology.TimeTopology {
         _ = self;
@@ -1615,20 +1615,20 @@ pub const IntrinsicSchema = enum {
     RationalTime,
 };
 
-pub fn read_float(obj:std.json.Value) time_topology.Ordinate {
+pub fn read_float(obj:std.json.Value) opentime.Ordinate {
     return switch (obj) {
-        .Integer => |i| @intToFloat(time_topology.Ordinate, i),
-        .Float => |f| @floatCast(time_topology.Ordinate, f),
+        .Integer => |i| @intToFloat(opentime.Ordinate, i),
+        .Float => |f| @floatCast(opentime.Ordinate, f),
         else => 0,
     };
 }
 
-pub fn read_ordinate_from_rt(obj:?std.json.ObjectMap) ?time_topology.Ordinate {
+pub fn read_ordinate_from_rt(obj:?std.json.ObjectMap) ?opentime.Ordinate {
     if (obj) |o| {
         const value = read_float(o.get("value").?);
         const rate = read_float(o.get("rate").?);
 
-        return @floatCast(time_topology.Ordinate, value/rate);
+        return opentime.Ordinate{ .rational = .{ .numerator = value, .denominator = rate } };
     } else {
         return null;
     }
@@ -1828,7 +1828,7 @@ test "read_from_file test" {
     try map.write_dot_graph("/var/tmp/" ++ dot_fpath);
 
     try expectApproxEqAbs(
-        @as(time_topology.Ordinate, 0.175),
+        @as(std.meta.TagPayload(opentime.Ordinate, opentime.Ordinate.f32),  0.175),
         try tl_output_to_clip_media.project_ordinate(0.05),
         util.EPSILON
     );

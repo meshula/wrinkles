@@ -1,6 +1,7 @@
 const std = @import("std"); 
 
 const interval = @import("interval.zig");
+const Ordinate = @import("ordinate.zig").Ordinate;
 const ContinuousTimeInterval = interval.ContinuousTimeInterval; 
 
 const expectEqual = std.testing.expectEqual;
@@ -99,10 +100,12 @@ pub const AffineTransform1D = struct {
 
 
 test "AffineTransform1D: offset test" {
-    const cti = ContinuousTimeInterval {
-        .start_seconds = 10,
-        .end_seconds = 20,
-    };
+    const cti = ContinuousTimeInterval.init_f32(
+        .{
+            .start_seconds = 10,
+            .end_seconds = 20,
+        }
+    );
 
     const xform = AffineTransform1D {
         .offset_seconds = 10,
@@ -112,15 +115,17 @@ test "AffineTransform1D: offset test" {
     const result: ContinuousTimeInterval = xform.applied_to_cti(cti);
     
     try expectEqual(
-        ContinuousTimeInterval {
-            .start_seconds = 20,
-            .end_seconds = 30
-        },
+        ContinuousTimeInterval.init_f32(
+            .{
+                .start_seconds = 20,
+                .end_seconds = 30,
+            }
+        ),
         result
     );
 
     try expectEqual(
-        @as(f32, 10),
+        Ordinate{ .f32 = 10},
         result.duration_seconds()
     );
 
@@ -141,10 +146,12 @@ test "AffineTransform1D: offset test" {
 }
 
 test "AffineTransform1D: scale test" {
-    const cti = ContinuousTimeInterval {
-        .start_seconds = 10,
-        .end_seconds = 20,
-    };
+    const cti = ContinuousTimeInterval.init_f32( 
+        .{
+            .start_seconds = 10,
+            .end_seconds = 20,
+        }
+    );
 
     const xform = AffineTransform1D {
         .offset_seconds = 10,
@@ -154,16 +161,18 @@ test "AffineTransform1D: scale test" {
     const result = xform.applied_to_cti(cti);
 
     try expectEqual(
-        ContinuousTimeInterval {
-            .start_seconds = 30,
-            .end_seconds = 50
-        },
+        ContinuousTimeInterval.init_f32(
+            .{ 
+                .start_seconds = 30,
+                .end_seconds = 50
+            }
+        ),
         result
     );
 
     try expectEqual(
         result.duration_seconds(),
-        cti.duration_seconds() * xform.scale
+        cti.duration_seconds().mul(.{ .f32 = xform.scale })
     );
 
     const result_xform = xform.applied_to_transform(xform);
@@ -203,10 +212,15 @@ test "AffineTransform1D: applied_to_bounds" {
         .offset_seconds = 10,
         .scale = -1,
     };
-    const bounds = ContinuousTimeInterval{.start_seconds = 10, .end_seconds = 20};
+    const bounds = ContinuousTimeInterval.init_f32(
+        .{ 
+            .start_seconds = 10,
+            .end_seconds = 20 
+        }
+    );
     const result = xform.applied_to_bounds(bounds);
 
     // errdefer std.log.err("test name: {s}", .{ @src().fn_name });
 
-    try std.testing.expect(result.start_seconds < result.end_seconds);
+    try std.testing.expect(result.start_seconds.lessthan(result.end_seconds));
 }

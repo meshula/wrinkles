@@ -4,34 +4,14 @@
 
 ### NEXT
 
-```zig
-const Ordinate = union(enum) {
-    f32: f32,
-    rational: rational,
-
-    // math
-    pub fn add() Ordinate {}
-    pub fn addWithOverflow() Ordinate {}
-    pub fn sub() Ordinate {}
-    pub fn subWithOverflow() Ordinate {}
-    pub fn mul() Ordinate {}
-    pub fn mulWithOverflow() Ordinate {}
-    pub fn divExact() Ordinate {}
-    pub fn divFloor() Ordinate {}
-    pub fn divTrunc() Ordinate {}
-
-    pub fn to_float() f32 {}
-};
-```
-
 ### short term
-* fix the simple_cut
 * replacing `f32` with `opentime.Ordinate`
     * struct/union with add/mul/div/sub
     * rational object as an entry in the union (i32/i32)
 * add back in linear and bezier curve topologies
     * with linearizing
 * project_topology in the projection operator (whoops)
+* fix the simple_cut
 
 ### bg
 * `graphviz` viewer for otio files
@@ -120,3 +100,29 @@ Two options:
 
 * MxN track related time stuff - the map should cache those kinds of intermediates
 * Can the map also cache optimizations like linearizing curves?
+
+## Design Notes
+
+### OpenTime - Scalar/Ordinate Design
+
+**QUESTION: Why have polymorphism in the leaf datatypes for Scalar/Intervals?**
+
+I can imagine three paths forward here:
+
+1. fully polymorphic and adaptive API (which would be the design we just worked
+   out).  You can have one range have scalars expressed as rationals and
+   another as floats, and you can do math across them seamlessly.
+2. Different types, but the types don’t mix directly.  There is a
+   ContinuousInterval_rational and ContinuousInterval_f32, but no union of
+   them.  You can convert one into the other to do math across them, but they
+   don’t do that seamlessly, and generally assume that an API built on top of
+   this math library will pick one representation and plumb it all the way
+   through
+3. Only Rational (or only float) scalars.  We say “our use case (OTIO) will
+   likely want to be exclusively rational, so we want to only support rational
+   math in this library.  All of the math primitives require the rational form
+   and we don’t provide any additional implementation”.
+
+Before we go down the road of 1 (where it feels like we’re headed right now) I
+want to make sure we ask why - do we have a good reason to take on that
+additional complexity?

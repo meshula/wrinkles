@@ -7,14 +7,13 @@ const sample_lib = @import("sample.zig");
 const Sample = sample_lib.Sample; 
 const util = @import("util.zig"); 
 
+pub const Ordinate = @import("ordinate.zig").Ordinate;
 
 // assertions
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const expectError = std.testing.expectError;
 const expectApproxEqAbs = std.testing.expectApproxEqAbs;
-
-pub const Ordinate = f32;
 
 const AffineTopology = struct {
     // defaults to an infinite identity
@@ -41,7 +40,7 @@ const AffineTopology = struct {
             return TimeTopology.ProjectionError.OutOfBounds;
         }
 
-        return self.transform.applied_to_seconds(ordinate);
+        return self.transform.applied_to_seconds(ordinate.to_float());
     }
 
     pub fn inverted(self: @This()) !TimeTopology {
@@ -128,7 +127,7 @@ pub const BezierTopology = struct {
     pub fn project_sample(self: @This(), sample: Sample) !Sample {
         var result = sample;
         result.ordinate_seconds = try self.project_ordinate(
-            sample.ordinate_seconds
+            .{ .f32 = sample.ordinate_seconds }
         );
         return result;
     }
@@ -582,14 +581,14 @@ test "TimeTopology: Affine through Affine w/ negative scale" {
         {
             try expectError(
                 TimeTopology.ProjectionError.OutOfBounds,
-                output_to_media.project_ordinate(t.output_s),
+                output_to_media.project_ordinate(.{ .f32 = t.output_s }),
             );
         } 
         else 
         {
             try expectApproxEqAbs(
                 t.media_s,
-                try output_to_media.project_ordinate(t.output_s),
+                try output_to_media.project_ordinate(.{ .f32 = t.output_s }),
                 util.EPSILON
             );
         }
