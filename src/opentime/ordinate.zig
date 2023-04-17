@@ -1,5 +1,7 @@
 const std = @import("std"); 
 
+const util = @import("util.zig"); 
+
 pub const Rational = struct {
     numerator: i32,
     denominator: i32,
@@ -56,6 +58,9 @@ pub const Ordinate = union(OrdinateKinds) {
     ) bool 
     {
         return @mulWithOverflow(f32, self.to_f32(), other.to_f32(), result);
+    }
+    pub fn div(self: @This(), other: Ordinate) Ordinate {
+        return .{ .f32 = self.to_f32() / other.to_f32() };
     }
     pub fn divExact(self: @This(), other: Ordinate) Ordinate {
         return .{ .f32 = @divExact(self.to_f32(),other.to_f32()) };
@@ -125,8 +130,14 @@ test "to_float" {
     const o_mul_r = o.mul(r);
     try std.testing.expectEqual(@as(f32, 1.5), o_mul_r.to_f32());
 
-    const o_divExact_r = o.divExact(r);
-    try std.testing.expectEqual(@as(f32, 6), o_divExact_r.to_f32());
+    {
+        const o_divExact_r = o.divExact(r);
+        try std.testing.expectEqual(@as(f32, 6), o_divExact_r.to_f32());
 
-    // @TODO: divFloor/Trunc tests
+        const start = Ordinate{ .rational = .{ .numerator = 10, .denominator = 24 } };
+        const end   = Ordinate{ .rational = .{ .numerator = 20, .denominator = 24 } };
+        const mid = start.add(end).div(.{ .f32 = 2 });
+
+        try std.testing.expectApproxEqAbs(mid.to_f32(), mid.to_f32(), util.EPSILON);
+    }
 }

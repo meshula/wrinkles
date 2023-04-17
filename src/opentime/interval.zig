@@ -170,15 +170,16 @@ pub const ContinuousInterval = union(ot_ord.OrdinateKinds) {
         }
     }
 
-    // pub fn overlaps_ordinate(self: @This(), t_seconds: Ordinate) bool {
-    //     return (
-    //         (t_seconds.to_f32() >= self.start_sc.to_f32())
-    //         and (t_seconds.to_f32() < self.end_sc.to_f32())
-    //     );
-    // }
+    pub fn overlaps_ordinate(self: @This(), ord: Ordinate) bool {
+        return (
+            (ord.to_f32() >= self.start().to_f32())
+            and (ord.to_f32() < self.end().to_f32())
+        );
+    }
 };
 
-test "ContinuousInterval: Initializers and accesesors" {
+test "ContinuousInterval: Initializers and accesesors" 
+{
     {
         const start = Ordinate{ .f32 = 10 };
         const end = Ordinate{ .f32 =  20 };
@@ -207,6 +208,57 @@ test "ContinuousInterval: Initializers and accesesors" {
     }
 }
 
+test "ContinuousInterval: Overlap" 
+{
+    {
+        const start = Ordinate{ .f32 = 10 };
+        const end = Ordinate{ .f32 =  20 };
+        const mid = start.add(end).divExact(.{ .f32 = 2 });
+
+        // f32
+        {
+            const ci = ContinuousInterval.init(start.f32, end.f32);
+
+            try expect(ci.overlaps_ordinate(start));
+            try expect(ci.overlaps_ordinate(mid));
+            try expect(ci.overlaps_ordinate(end) == false);
+        }
+
+        // Ordinate / f32
+        {
+            const ci = ContinuousInterval.init(start, end);
+
+            try expect(ci.overlaps_ordinate(start));
+            try expect(ci.overlaps_ordinate(mid));
+            try expect(ci.overlaps_ordinate(end) == false);
+        }
+    }
+
+    // rational
+    {
+        const start = Ordinate{ .rational = .{ .numerator = 10, .denominator = 24 } };
+        const end   = Ordinate{ .rational = .{ .numerator = 20, .denominator = 24 } };
+        const mid   = start.add(end).div(.{ .f32 = 2 });
+
+        // rational
+        {
+            const ci = ContinuousInterval.init(start.rational, end.rational);
+
+            try expect(ci.overlaps_ordinate(start));
+            try expect(ci.overlaps_ordinate(mid));
+            try expect(ci.overlaps_ordinate(end) == false);
+        }
+
+        // Ordinate / rational
+        {
+            const ci = ContinuousInterval.init(start, end);
+
+            try expect(ci.overlaps_ordinate(start));
+            try expect(ci.overlaps_ordinate(mid));
+            try expect(ci.overlaps_ordinate(end) == false);
+        }
+    }
+}
 // return a new interval that spans the duration of both argument intervals
 // pub fn extend(
 //     fst: ContinuousTimeInterval,
