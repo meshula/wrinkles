@@ -112,34 +112,28 @@ pub const ContinuousInterval = union(ot_ord.OrdinateKinds) {
 
     // compute the duration of the interval, if either boundary is not finite,
     // the duration is infinite.
-    pub fn duration_seconds(self: @This()) Ordinate 
+    pub fn duration(self: @This()) Ordinate 
     {
-        _ = self;
-        @panic("not implemented");
-        // switch(self) {
-        //     .f32 => |value| {
-        //         if (
-        //             !std.math.isFinite(value.start_sc) or 
-        //             !std.math.isFinite(value.end_sc)
-        //         ) {
-        //             return .{ .f32 = util.inf };
-        //         }
-        //
-        //         return .{ .f32 = value.end_sc - value.start_sc };
-        //     },
-        //     .rational => |value| {
-        //         if (!value.start_sc.isFinite() or !value.end_sc.isFinite()) {
-        //             return .{ .f32 = util.inf };
-        //         }
-        //
-        //         return .{
-        //             .rational = .{
-        //                 .numerator = value.end_sc-value.start_sc,
-        //                 .denominator = value.denominator
-        //             }
-        //         };
-        //     }
-        // }
+        switch(self) {
+            .f32 => |value| {
+                if (
+                    !std.math.isFinite(value.start_sc) or 
+                    !std.math.isFinite(value.end_sc)
+                ) {
+                    return .{ .f32 = util.inf };
+                }
+
+                return .{ .f32 = value.end_sc - value.start_sc };
+            },
+            .rational => |value| {
+                return .{
+                    .rational = .{
+                        .numerator = value.end_sc-value.start_sc,
+                        .denominator = value.denominator
+                    }
+                };
+            }
+        }
     }
     // @}
 
@@ -348,22 +342,33 @@ test "ContinuousInterval: Initializers and accesesors" {
 //     .end_sc = .{ .f32 = util.inf },
 // };
 //
-// test "ContinuousTimeInterval Tests" {
-//     const ival = ContinuousTimeInterval.init_f32(
-//         .{
-//             .start_sc = 10,
-//             .end_sc = 20,
-//         }
-//     );
-//
-//     try expectEqual(
-//         ival,
-//         ContinuousTimeInterval.from_start_duration_seconds(
-//             ival.start_sc,
-//             ival.duration_seconds()
-//         )
-//     );
-// }
+
+test "ContinuousTimeInterval Duration Tests" {
+    // f32
+    {
+        const ci = ContinuousInterval.init(@as(f32, 10), @as(f32, 20));
+
+        try expectEqual(@as(f32, 10), ci.duration().f32);
+    }
+
+    // rational
+    {
+        const rat1 = ot_ord.Rational{ .numerator = 10, .denominator = 24 };
+        const rat2 = ot_ord.Rational{ .numerator = 20, .denominator = 24 };
+        const ci = ContinuousInterval.init(rat1, rat2);
+
+        try expectEqual(rat1.numerator, ci.duration().rational.numerator);
+        try expectEqual(rat1.denominator, ci.duration().rational.denominator);
+    }
+
+    // try expectEqual(
+    //     ival,
+    //     ContinuousInterval.from_start_duration_seconds(
+    //         ival.start_sc,
+    //         ival.duration_seconds()
+    //     )
+    // );
+}
 //
 // test "ContinuousTimeInterval: Overlap tests" {
 //     const ival = ContinuousTimeInterval.init_f32(
