@@ -109,7 +109,7 @@ pub const Ordinate = union(OrdinateKinds) {
             f32,
             self.to_f32(),
             other.to_f32(),
-            tolerance
+            tolerance.to_f32()
         );
     }
 };
