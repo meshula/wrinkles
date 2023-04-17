@@ -13,12 +13,59 @@ const expect = std.testing.expect;
 const ContinuousInterval_f32 = struct {
     start_sc: f32,
     end_sc: f32,
+
+    // @TODO: should this do checks for end after start, etc?
+    pub fn init(in_start: f32, in_end: f32) ContinuousInterval {
+        return .{ .f32 = .{ .start_sc = in_start, .end_sc = in_end } };
+    }
+
+    pub fn start(self: @This()) Ordinate {
+        return .{ .f32 = self.start_sc };
+    }
+
+    pub fn end(self: @This()) Ordinate {
+        return .{ .f32 = self.end_sc };
+    }
 };
 
 const ContinuousInterval_rational = struct {
-    start_sc:f32,
-    end_sc:f32,
-    denominator: f32,
+    start_sc:i32,
+    end_sc:i32,
+    denominator: i32,
+
+    // @TODO: should this do checks for end after start, etc?
+    //        ... or consistent denominator
+    pub fn init(
+        in_start: ot_ord.Rational,
+        in_end: ot_ord.Rational
+    ) ContinuousInterval 
+    {
+        return .{
+            .rational = .{ 
+                .start_sc = in_start.numerator,
+                .end_sc = in_end.numerator,
+                .denominator = in_start.denominator,
+            } 
+        };
+    }
+
+    pub fn start(self: @This()) Ordinate {
+        return .{
+            .rational = .{
+                .numerator = self.start_sc,
+                .denominator = self.denominator 
+            } 
+        };
+    }
+
+    pub fn end(self: @This()) Ordinate {
+        return .{
+            .rational = .{
+                .numerator = self.end_sc,
+                .denominator = self.denominator 
+            } 
+        };
+    }
 };
 
 // right open interval on the time continuum
@@ -27,46 +74,39 @@ pub const ContinuousInterval = union(ot_ord.OrdinateKinds) {
     f32: ContinuousInterval_f32,
     rational: ContinuousInterval_rational,
 
+    // @{ Initializers
     pub fn init(
-        k: ot_ord.OrdinateKinds,
-        start_ord: anytype,
-        end_ord: @TypeOf(start_ord)
+        in_start: anytype,
+        in_end: @TypeOf(in_start)
     ) ContinuousInterval 
     {
-        return switch (k) {
-            .rational => .{
-                .start_sc = start_ord.numerator,
-                .end_sc = end_ord.numerator,
-                .denominator = start_ord.denominator,
-            },
-            inline else => @unionInit(
-                ContinuousInterval,
-                @tagName(k),
-                .{ 
-                    .start_sc = start_ord,
-                    .end_sc = end_ord
+        return switch(@TypeOf(in_start)) {
+            f32 => ContinuousInterval_f32.init(in_start, in_end),
+            ot_ord.Rational => ContinuousInterval_rational.init(in_start, in_end),
+            Ordinate => {
+                if (std.meta.activeTag(in_start) != std.meta.activeTag(in_end)) {
+                    unreachable;
                 }
-            )
+                switch (in_start) {
+                    .f32 => return ContinuousInterval.init(in_start.f32, in_end.f32),
+                    .rational => return ContinuousInterval.init(in_start.rational, in_end.rational),
+                }
+            },
+            else => unreachable,
         };
     }
+    // @}
 
+    // @{ accessors
     pub fn start(self: @This()) Ordinate {
         return switch (self) {
-            inline else => |value, tag| @unionInit(
-                Ordinate,
-                @tagName(tag),
-                value.start_sc
-            )
+            inline else => |value| value.start()
         };
     }
 
     pub fn end(self: @This()) Ordinate {
         return switch (self) {
-            inline else => |value, tag| @unionInit(
-                Ordinate,
-                @tagName(tag),
-                value.end_sc
-            )
+            inline else => |value| value.end() 
         };
     }
 
@@ -74,222 +114,269 @@ pub const ContinuousInterval = union(ot_ord.OrdinateKinds) {
     // the duration is infinite.
     pub fn duration_seconds(self: @This()) Ordinate 
     {
-        switch(self) {
-            .f32 => |value| {
-                if (
-                    !std.math.isFinite(value.start_sc) or 
-                    !std.math.isFinite(value.end_sc)
-                ) {
-                    return .{ .f32 = util.inf };
-                }
-
-                return .{ .f32 = value.end_sc - value.start_sc };
-            },
-            .rational => |value| {
-                if (!value.start_sc.isFinite() or !value.end_sc.isFinite()) {
-                    return .{ .f32 = util.inf };
-                }
-
-                return .{
-                    .rational = .{
-                        .numerator = value.end_sc-value.start_sc,
-                        .denominator = value.denominator
-                    }
-                };
-            }
-        }
+        _ = self;
+        @panic("not implemented");
+        // switch(self) {
+        //     .f32 => |value| {
+        //         if (
+        //             !std.math.isFinite(value.start_sc) or 
+        //             !std.math.isFinite(value.end_sc)
+        //         ) {
+        //             return .{ .f32 = util.inf };
+        //         }
+        //
+        //         return .{ .f32 = value.end_sc - value.start_sc };
+        //     },
+        //     .rational => |value| {
+        //         if (!value.start_sc.isFinite() or !value.end_sc.isFinite()) {
+        //             return .{ .f32 = util.inf };
+        //         }
+        //
+        //         return .{
+        //             .rational = .{
+        //                 .numerator = value.end_sc-value.start_sc,
+        //                 .denominator = value.denominator
+        //             }
+        //         };
+        //     }
+        // }
     }
+    // @}
 
-    pub fn from_start_duration_seconds(
-        start_seconds: Ordinate,
-        in_duration_seconds: Ordinate
-    ) ContinuousTimeInterval
+    // pub fn init_start_duration(
+    //     in_start: anytype,
+    //     in_duration: @TypeOf(in_start),
+    // ) ContinuousInterval
+    // {
+    //     switch (@TypeOf(in_start)) {
+    //         .rational => {
+    //             if (in_duration.to_f32() <= 0)
+    //             {
+    //                 @panic("duration <= 0");
+    //             }
+    //
+    //             return .{
+    //                 .start_sc = in_start,
+    //                 .end_sc = in_start.add(in_duration)
+    //             };
+    //         },
+    //         inline else => {
+    //             if (in_duration.to_f32() <= 0)
+    //             {
+    //                 @panic("duration <= 0");
+    //             }
+    //
+    //             return .{
+    //                 .start_sc = in_start,
+    //                 .end_sc = in_start + in_duration,
+    //             };
+    //         }
+    //     }
+    // }
+
+    // pub fn overlaps_ordinate(self: @This(), t_seconds: Ordinate) bool {
+    //     return (
+    //         (t_seconds.to_f32() >= self.start_sc.to_f32())
+    //         and (t_seconds.to_f32() < self.end_sc.to_f32())
+    //     );
+    // }
+};
+
+test "ContinuousInterval: Initializers and accesesors" {
     {
-        if (in_duration_seconds.to_f32() <= 0)
+        const start = Ordinate{ .f32 = 10 };
+        const end = Ordinate{ .f32 =  20 };
+
+        // f32
         {
-            @panic("duration <= 0");
+            const ci = ContinuousInterval.init(start.f32, end.f32);
+
+            try expectEqual(ci.start().f32, start.f32);
+            try expectEqual(ci.end().f32, end.f32);
+
+            try expectEqual(ci.f32.start_sc, start.f32);
+            try expectEqual(ci.f32.end_sc, end.f32);
         }
 
-        return .{
-            .start_seconds = start_seconds,
-            .end_seconds = start_seconds.add(in_duration_seconds)
-        };
-    }
+        // Ordinate / f32
+        {
+            const ci = ContinuousInterval.init(start, end);
 
-    pub fn overlaps_ordinate(self: @This(), t_seconds: Ordinate) bool {
-        return (
-            (t_seconds.to_f32() >= self.start_seconds.to_f32())
-            and (t_seconds.to_f32() < self.end_seconds.to_f32())
-        );
-    }
-};
+            try expectEqual(ci.start().f32, start.f32);
+            try expectEqual(ci.end().f32, end.f32);
 
-/// return a new interval that spans the duration of both argument intervals
-pub fn extend(
-    fst: ContinuousTimeInterval,
-    snd: ContinuousTimeInterval
-) ContinuousTimeInterval {
-    return .{
-        .start_seconds = Ordinate{ 
-            .f32 = std.math.min(
-                fst.start_seconds.to_f32(),
-                snd.start_seconds.to_f32()
-            )
-        },
-        .end_seconds = Ordinate{ 
-            .f32 = std.math.max(
-                fst.end_seconds.to_f32(),
-                snd.end_seconds.to_f32()
-            ),
+            try expectEqual(ci.f32.start_sc, start.f32);
+            try expectEqual(ci.f32.end_sc, end.f32);
         }
-    };
-}
-
-pub fn any_overlap(
-    fst: ContinuousTimeInterval,
-    snd: ContinuousTimeInterval
-) bool {
-    return (
-        fst.start_seconds < snd.end_seconds
-        and fst.end_seconds > snd.start_seconds
-    );
-}
-
-pub fn union_of(
-    fst: ContinuousTimeInterval,
-    snd: ContinuousTimeInterval
-) ?ContinuousTimeInterval {
-    if (!any_overlap(fst, snd)) {
-        return null;
-    }
-
-    return .{
-        .start_seconds = std.math.min(fst.start_seconds, snd.start_seconds),
-        .end_seconds = std.math.max(fst.end_seconds, snd.end_seconds),
-    };
-}
-
-pub fn intersect(
-    fst: ContinuousTimeInterval,
-    snd: ContinuousTimeInterval
-) ?ContinuousTimeInterval {
-    if (!any_overlap(fst, snd)) {
-        return null;
-    }
-
-    return .{
-        .start_seconds = std.math.max(fst.start_seconds, snd.start_seconds),
-        .end_seconds = std.math.min(fst.end_seconds, snd.end_seconds),
-    };
-}
-
-test "intersection test" {
-    {
-        const int1 = ContinuousTimeInterval.init_f32(
-            .{
-                .start_seconds = 0,
-                .end_seconds = 10
-            }
-        );
-        const int2 = ContinuousTimeInterval.init_f32(
-            .{
-                .start_seconds = 1,
-                .end_seconds = 3
-            }
-        );
-        const res = intersect(int1, int2) orelse ContinuousTimeInterval{};
-
-        try std.testing.expectApproxEqAbs(
-            res.start_seconds.f32,
-            int2.start_seconds.f32,
-            util.EPSILON
-        );
-        try std.testing.expectApproxEqAbs(
-            res.end_seconds.f32,
-            int2.end_seconds.f32,
-            util.EPSILON
-        );
-    }
-
-    {
-        const int1 = INF_CTI;
-        const int2 = ContinuousTimeInterval.init_f32(
-            .{
-                .start_seconds = 1,
-                .end_seconds = 3
-            }
-        );
-        const res = intersect(int1, int2) orelse ContinuousTimeInterval{};
-
-        try std.testing.expectApproxEqAbs(
-            res.start_seconds.f32,
-            int2.start_seconds.f32,
-            util.EPSILON
-        );
-        try std.testing.expectApproxEqAbs(
-            res.end_seconds.f32,
-            int2.end_seconds.f32,
-            util.EPSILON
-        );
-    }
-
-    {
-        const int1 = INF_CTI;
-        const int2 = ContinuousTimeInterval.init_f32(
-            .{
-                .start_seconds = 1,
-                .end_seconds = 3
-            }
-        );
-        const res = intersect(int2, int1) orelse ContinuousTimeInterval{};
-
-        try std.testing.expectApproxEqAbs(
-            res.start_seconds.f32,
-            int2.start_seconds.f32,
-            util.EPSILON
-        );
-        try std.testing.expectApproxEqAbs(
-            res.end_seconds.f32,
-            int2.end_seconds.f32,
-            util.EPSILON
-        );
     }
 }
 
-pub const INF_CTI: ContinuousTimeInterval = .{
-    .start_seconds = .{ .f32 = -util.inf }, 
-    .end_seconds = .{ .f32 = util.inf },
-};
-
-test "ContinuousTimeInterval Tests" {
-    const ival = ContinuousTimeInterval.init_f32(
-        .{
-            .start_seconds = 10,
-            .end_seconds = 20,
-        }
-    );
-
-    try expectEqual(
-        ival,
-        ContinuousTimeInterval.from_start_duration_seconds(
-            ival.start_seconds,
-            ival.duration_seconds()
-        )
-    );
-}
-
-test "ContinuousTimeInterval: Overlap tests" {
-    const ival = ContinuousTimeInterval.init_f32(
-        .{
-            .start_seconds = 10,
-            .end_seconds = 20,
-        }
-    );
-
-    try expect(!ival.overlaps_ordinate(.{ .f32 = 0}));
-    try expect(ival.overlaps_ordinate(.{ .f32 = 10}));
-    try expect(ival.overlaps_ordinate(.{ .f32 = 15}));
-    try expect(!ival.overlaps_ordinate(.{ .f32 = 20}));
-    try expect(!ival.overlaps_ordinate(.{ .f32 = 30}));
-}
-// @}
+// return a new interval that spans the duration of both argument intervals
+// pub fn extend(
+//     fst: ContinuousTimeInterval,
+//     snd: ContinuousTimeInterval
+// ) ContinuousTimeInterval {
+//     return .{
+//         .start_sc = Ordinate{ 
+//             .f32 = std.math.min(
+//                 fst.start_sc.to_f32(),
+//                 snd.start_sc.to_f32()
+//             )
+//         },
+//         .end_sc = Ordinate{ 
+//             .f32 = std.math.max(
+//                 fst.end_sc.to_f32(),
+//                 snd.end_sc.to_f32()
+//             ),
+//         }
+//     };
+// }
+//
+// pub fn any_overlap(
+//     fst: ContinuousTimeInterval,
+//     snd: ContinuousTimeInterval
+// ) bool {
+//     return (
+//         fst.start_sc < snd.end_sc
+//         and fst.end_sc > snd.start_sc
+//     );
+// }
+//
+// pub fn union_of(
+//     fst: ContinuousTimeInterval,
+//     snd: ContinuousTimeInterval
+// ) ?ContinuousTimeInterval {
+//     if (!any_overlap(fst, snd)) {
+//         return null;
+//     }
+//
+//     return .{
+//         .start_sc = std.math.min(fst.start_sc, snd.start_sc),
+//         .end_sc = std.math.max(fst.end_sc, snd.end_sc),
+//     };
+// }
+//
+// pub fn intersect(
+//     fst: ContinuousTimeInterval,
+//     snd: ContinuousTimeInterval
+// ) ?ContinuousTimeInterval {
+//     if (!any_overlap(fst, snd)) {
+//         return null;
+//     }
+//
+//     return .{
+//         .start_sc = std.math.max(fst.start_sc, snd.start_sc),
+//         .end_sc = std.math.min(fst.end_sc, snd.end_sc),
+//     };
+// }
+//
+// test "intersection test" {
+//     {
+//         const int1 = ContinuousTimeInterval.init_f32(
+//             .{
+//                 .start_sc = 0,
+//                 .end_sc = 10
+//             }
+//         );
+//         const int2 = ContinuousTimeInterval.init_f32(
+//             .{
+//                 .start_sc = 1,
+//                 .end_sc = 3
+//             }
+//         );
+//         const res = intersect(int1, int2) orelse ContinuousTimeInterval{};
+//
+//         try std.testing.expectApproxEqAbs(
+//             res.start_sc.f32,
+//             int2.start_sc.f32,
+//             util.EPSILON
+//         );
+//         try std.testing.expectApproxEqAbs(
+//             res.end_sc.f32,
+//             int2.end_sc.f32,
+//             util.EPSILON
+//         );
+//     }
+//
+//     {
+//         const int1 = INF_CTI;
+//         const int2 = ContinuousTimeInterval.init_f32(
+//             .{
+//                 .start_sc = 1,
+//                 .end_sc = 3
+//             }
+//         );
+//         const res = intersect(int1, int2) orelse ContinuousTimeInterval{};
+//
+//         try std.testing.expectApproxEqAbs(
+//             res.start_sc.f32,
+//             int2.start_sc.f32,
+//             util.EPSILON
+//         );
+//         try std.testing.expectApproxEqAbs(
+//             res.end_sc.f32,
+//             int2.end_sc.f32,
+//             util.EPSILON
+//         );
+//     }
+//
+//     {
+//         const int1 = INF_CTI;
+//         const int2 = ContinuousTimeInterval.init_f32(
+//             .{
+//                 .start_sc = 1,
+//                 .end_sc = 3
+//             }
+//         );
+//         const res = intersect(int2, int1) orelse ContinuousTimeInterval{};
+//
+//         try std.testing.expectApproxEqAbs(
+//             res.start_sc.f32,
+//             int2.start_sc.f32,
+//             util.EPSILON
+//         );
+//         try std.testing.expectApproxEqAbs(
+//             res.end_sc.f32,
+//             int2.end_sc.f32,
+//             util.EPSILON
+//         );
+//     }
+// }
+//
+// pub const INF_CTI: ContinuousTimeInterval = .{
+//     .start_sc = .{ .f32 = -util.inf }, 
+//     .end_sc = .{ .f32 = util.inf },
+// };
+//
+// test "ContinuousTimeInterval Tests" {
+//     const ival = ContinuousTimeInterval.init_f32(
+//         .{
+//             .start_sc = 10,
+//             .end_sc = 20,
+//         }
+//     );
+//
+//     try expectEqual(
+//         ival,
+//         ContinuousTimeInterval.from_start_duration_seconds(
+//             ival.start_sc,
+//             ival.duration_seconds()
+//         )
+//     );
+// }
+//
+// test "ContinuousTimeInterval: Overlap tests" {
+//     const ival = ContinuousTimeInterval.init_f32(
+//         .{
+//             .start_sc = 10,
+//             .end_sc = 20,
+//         }
+//     );
+//
+//     try expect(!ival.overlaps_ordinate(.{ .f32 = 0}));
+//     try expect(ival.overlaps_ordinate(.{ .f32 = 10}));
+//     try expect(ival.overlaps_ordinate(.{ .f32 = 15}));
+//     try expect(!ival.overlaps_ordinate(.{ .f32 = 20}));
+//     try expect(!ival.overlaps_ordinate(.{ .f32 = 30}));
+// }
+// // @}

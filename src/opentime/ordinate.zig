@@ -1,6 +1,6 @@
 const std = @import("std"); 
 
-const Rational = struct {
+pub const Rational = struct {
     numerator: i32,
     denominator: i32,
 };
@@ -13,6 +13,14 @@ pub const OrdinateKinds = enum {
 pub const Ordinate = union(OrdinateKinds) {
     f32: f32,
     rational: Rational,
+
+    pub fn init(v: anytype) Ordinate {
+        return switch (@TypeOf(v)) {
+            f32 => .{ .f32 = v },
+            Rational => .{ .rational = v },
+            else => unreachable
+        };
+    }
 
     // math
     // @{
@@ -78,6 +86,24 @@ pub const Ordinate = union(OrdinateKinds) {
         return (self.to_f32() < other.to_f32());
     }
 };
+
+test "init" {
+    // @f32
+    {
+        const o = Ordinate.init( @as(f32, 3) );
+
+        try std.testing.expectEqual(@as(f32, 3), o.to_f32());
+        try std.testing.expectEqual(@as(f64, 3), o.to_float(f64));
+    }
+
+    // @rational
+    {
+        const r = Ordinate.init(Rational{ .numerator = 12, .denominator = 24 });
+
+        try std.testing.expectEqual(@as(f32, 0.5), r.to_f32());
+        try std.testing.expectEqual(@as(f64, 0.5), r.to_float(f64));
+    }
+}
 
 test "to_float" {
     const o = Ordinate{ .f32 = 3 };
