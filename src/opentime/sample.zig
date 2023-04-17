@@ -45,7 +45,7 @@ pub const StepSampleGenerator = struct {
         // -- Or the ratinoal time engine?
         var increment: f32 = 1/self.rate_hz;
         var current_coord = self.start_offset;
-        const end_seconds = topology.intrinsic_space_bounds().end_seconds;
+        const end_seconds = topology.bounds().end_seconds;
 
         // @breakpoint();
 
@@ -77,7 +77,7 @@ test "StepSampleGenerator: sample over step function topology" {
     const sample_generator = StepSampleGenerator{
         // should this be an absolute coordinate origin instead of an
         // offset?
-        .start_offset = 0,
+        .start_offset = 100,
         .rate_hz = sample_rate,
     };
 
@@ -93,7 +93,7 @@ test "StepSampleGenerator: sample over step function topology" {
     );
 
     var result = try sample_generator.sample_over(target_topology);
-    var expected = target_topology.bounds.duration_seconds() * sample_rate;
+    var expected = target_topology.bounds().duration_seconds() * sample_rate;
 
     try expectApproxEqAbs(
         @as(f32, 102),
@@ -112,16 +112,17 @@ test "StepSampleGenerator: sample over identity topology"
     var sample_rate: f32 = 24;
 
     const sample_generator = StepSampleGenerator{
-            .rate_hz = sample_rate,
+        .start_offset = 100,
+        .rate_hz = sample_rate,
     };
 
-    const target_topology = time_topology.TimeTopology.init_identity_finite(
-        .{ .start_seconds = 100, .end_seconds = 103 }
+    const target_topology = time_topology.TimeTopology.init_identity(
+        .{ .bounds = .{ .start_seconds = 100, .end_seconds = 103 } }
     );
     var result = try sample_generator.sample_over(target_topology);
 
     var expected_last_coord = (
-        target_topology.bounds.end_seconds 
+        target_topology.bounds().end_seconds 
         - 1/@as(f32, 24)
     );
 
@@ -133,7 +134,7 @@ test "StepSampleGenerator: sample over identity topology"
         util.EPSILON
     ) catch @breakpoint();
 
-    var expected = target_topology.bounds.duration_seconds() * sample_rate;
+    var expected = target_topology.bounds().duration_seconds() * sample_rate;
     try expectEqual(
         @floatToInt(i32, @floor(expected)),
         @intCast(i32, result.len),

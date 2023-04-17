@@ -6,6 +6,7 @@ const curve = @import("curve/curve.zig");
 const sample_lib = @import("sample.zig");
 const Sample = sample_lib.Sample; 
 const util = @import("util.zig"); 
+const allocator = @import("allocator.zig"); 
 
 
 // assertions
@@ -277,6 +278,42 @@ pub const TimeTopology = union (enum) {
     
     pub fn init_empty() TimeTopology {
         return .{ .empty = EmptyTopology{} };
+    }
+
+    // builds a TimeTopology out with a mapping that contains a step function
+    // @TODO: should include a phase offset
+    pub fn init_step_mapping(
+        in_bounds: interval.ContinuousTimeInterval,
+        // the value of the function at the initial sample (f(0))
+        start_value: f32,
+        held_duration: f32,
+        increment: f32,
+    ) !TimeTopology
+    {
+        var segments = std.ArrayList(curve.Segment).init(allocator.ALLOCATOR);
+        var t_seconds = in_bounds.start_seconds;
+        var current_value = start_value;
+        while (t_seconds < in_bounds.end_seconds) {
+            try segments.append(
+                curve.create_linear_segment(
+                    .{
+                        .time = t_seconds,
+                        .value = current_value
+                    },
+                    .{
+                        .time = t_seconds + held_duration,
+                        .value = current_value
+                    }
+                )
+            );
+
+            t_seconds += held_duration;
+            current_value += increment;
+        }
+
+        const crv = curve.TimeCurve.init(segments.items) catch curve.TimeCurve{};
+
+        return TimeTopology.init_bezier_cubic(crv);
     }
     // @}
 
@@ -594,4 +631,39 @@ test "TimeTopology: Affine through Affine w/ negative scale" {
             );
         }
     }
+}
+
+test "TimeTopology: staircase constructor" {
+    const increment:f32 = 2;
+    const tp = try TimeTopology.init_step_mapping(
+        .{
+            .start_seconds = 10,
+            .end_seconds = 20
+        },
+        0,
+        2,
+        increment
+    );
+
+    try expectEqual(
+        @as(usize, 5),
+        tp.bezier_curve.bezier_curve.segments.len
+    );
+
+    var value:f32 = 0;
+    for (tp.bezier_curve.bezier_curve.segments) |seg| {
+        try expectEqual(value, seg.p0.value);
+        value += increment;
+    }
+
+    // evaluate the curve via the external coordinate system
+    try expectEqual(
+        @as(f32, 20),
+        tp.bounds().end_seconds
+    );
+
+    try expectEqual(
+        @as(f32, 8),
+        try tp.project_ordinate(@as(f32, 19)),
+    );
 }
