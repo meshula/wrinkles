@@ -137,36 +137,38 @@ pub const ContinuousInterval = union(ot_ord.OrdinateKinds) {
     }
     // @}
 
-    // pub fn init_start_duration(
-    //     in_start: anytype,
-    //     in_duration: @TypeOf(in_start),
-    // ) ContinuousInterval
-    // {
-    //     switch (@TypeOf(in_start)) {
-    //         .rational => {
-    //             if (in_duration.to_f32() <= 0)
-    //             {
-    //                 @panic("duration <= 0");
-    //             }
-    //
-    //             return .{
-    //                 .start_sc = in_start,
-    //                 .end_sc = in_start.add(in_duration)
-    //             };
-    //         },
-    //         inline else => {
-    //             if (in_duration.to_f32() <= 0)
-    //             {
-    //                 @panic("duration <= 0");
-    //             }
-    //
-    //             return .{
-    //                 .start_sc = in_start,
-    //                 .end_sc = in_start + in_duration,
-    //             };
-    //         }
-    //     }
-    // }
+    pub fn init_start_duration(
+        in_start: anytype,
+        in_duration: @TypeOf(in_start),
+    ) ContinuousInterval
+    {
+        switch (@TypeOf(in_start)) {
+            ot_ord.Rational => {
+                if (in_duration.to_f32() <= 0)
+                {
+                    @panic("duration <= 0");
+                }
+
+                return .{
+                    .start_sc = in_start,
+                    .end_sc = in_start.add(in_duration)
+                };
+            },
+            inline else => {
+                if (in_duration <= 0)
+                {
+                    @panic("duration <= 0");
+                }
+
+                return .{
+                    .f32 = .{
+                        .start_sc = in_start,
+                        .end_sc = in_start + in_duration,
+                    }
+                };
+            }
+        }
+    }
 
     // pub fn overlaps_ordinate(self: @This(), t_seconds: Ordinate) bool {
     //     return (
@@ -361,13 +363,19 @@ test "ContinuousTimeInterval Duration Tests" {
         try expectEqual(rat1.denominator, ci.duration().rational.denominator);
     }
 
-    // try expectEqual(
-    //     ival,
-    //     ContinuousInterval.from_start_duration_seconds(
-    //         ival.start_sc,
-    //         ival.duration_seconds()
-    //     )
-    // );
+    // from duration
+    {
+        const ci = ContinuousInterval.init(@as(f32, 10), @as(f32, 20));
+
+        try expectEqual(
+            ci,
+            ContinuousInterval.init_start_duration(
+                ci.f32.start_sc,
+                ci.duration().f32,
+            )
+        );
+    }
+
 }
 //
 // test "ContinuousTimeInterval: Overlap tests" {
