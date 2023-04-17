@@ -2,6 +2,8 @@ const std = @import("std");
 
 const util = @import("util.zig"); 
 
+const EPSILON_ORD = Ordinate{ .f32 = util.EPSILON };
+
 pub const Rational = struct {
     numerator: i32,
     denominator: i32,
@@ -27,7 +29,7 @@ pub const Ordinate = union(OrdinateKinds) {
     // math
     // @{
     pub fn add(self: @This(), other: Ordinate) Ordinate {
-        return Ordinate{ .f32 = self.to_f32() + other.to_f32()};
+       return Ordinate{ .f32 = self.to_f32() + other.to_f32()};
     }
     pub fn addWithOverflow(
         self: @This(),
@@ -59,9 +61,13 @@ pub const Ordinate = union(OrdinateKinds) {
     {
         return @mulWithOverflow(f32, self.to_f32(), other.to_f32(), result);
     }
+
+    // float div
     pub fn div(self: @This(), other: Ordinate) Ordinate {
         return .{ .f32 = self.to_f32() / other.to_f32() };
     }
+
+    // integer divs
     pub fn divExact(self: @This(), other: Ordinate) Ordinate {
         return .{ .f32 = @divExact(self.to_f32(),other.to_f32()) };
     }
@@ -71,6 +77,7 @@ pub const Ordinate = union(OrdinateKinds) {
     pub fn divTrunc(self: @This(), other: Ordinate) Ordinate {
         return .{ .f32 = @divTrunc(self.to_f32(),other.to_f32()) };
     }
+
     // @}
 
     pub fn to_float(self: @This(), comptime T: type) T {
@@ -89,6 +96,21 @@ pub const Ordinate = union(OrdinateKinds) {
 
     pub fn lessthan(self: @This(), other: Ordinate) bool {
         return (self.to_f32() < other.to_f32());
+    }
+
+    pub fn equal_approx(
+        self: @This(),
+        other: Ordinate,
+        tolerance: Ordinate
+    ) bool 
+    {
+        // @TODO: check types and preserver the rational
+        return std.math.approxEqAbs(
+            f32,
+            self.to_f32(),
+            other.to_f32(),
+            tolerance
+        );
     }
 };
 
@@ -117,6 +139,9 @@ test "to_float" {
     try std.testing.expectEqual(@as(f64, 3), o.to_float(f64));
 
     const r = Ordinate{ .rational = .{ .numerator = 12, .denominator = 24 } };
+    const f = Ordinate{ .f32 = 0.5 };
+
+    try std.testing.expect(r.equal_approx(f, EPSILON_ORD));
 
     try std.testing.expectEqual(@as(f32, 0.5), r.to_f32());
     try std.testing.expectEqual(@as(f64, 0.5), r.to_float(f64));
@@ -140,4 +165,5 @@ test "to_float" {
 
         try std.testing.expectApproxEqAbs(mid.to_f32(), mid.to_f32(), util.EPSILON);
     }
+ 
 }
