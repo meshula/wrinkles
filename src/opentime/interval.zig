@@ -380,21 +380,105 @@ test "ContinuousInterval: any overlap" {
 }
 
 
-//
-// pub fn union_of(
-//     fst: ContinuousTimeInterval,
-//     snd: ContinuousTimeInterval
-// ) ?ContinuousTimeInterval {
-//     if (!any_overlap(fst, snd)) {
-//         return null;
-//     }
-//
-//     return .{
-//         .start_sc = std.math.min(fst.start_sc, snd.start_sc),
-//         .end_sc = std.math.max(fst.end_sc, snd.end_sc),
-//     };
-// }
-//
+
+pub fn union_of(
+    fst: ContinuousInterval,
+    snd: ContinuousInterval
+) ?ContinuousInterval {
+    if (!any_overlap(fst, snd)) {
+        return null;
+    }
+
+    return .{
+        .f32 = .{ 
+            .start_sc = std.math.min(fst.start().to_f32(), snd.start().to_f32()),
+            .end_sc = std.math.max(fst.end().to_f32(), snd.end().to_f32()),
+        }
+    };
+}
+
+test "ContinuousInterval: union_of" {
+    const TestData = struct{
+        fst: ContinuousInterval,
+        snd: ContinuousInterval,
+        res: ?ContinuousInterval,
+    };
+
+    const tests = [_]TestData {
+        // 2 overlaps the front of 1
+        .{
+            .fst = ContinuousInterval.init(@as(f32, 10), @as(f32, 20)),
+            .snd = ContinuousInterval.init(@as(f32, 5), @as(f32, 15)),
+            .res = ContinuousInterval.init(@as(f32, 5), @as(f32, 20)),
+        },
+        // 2 overlaps the end of 1
+        .{
+            .fst = ContinuousInterval.init(@as(f32, 10), @as(f32, 20)),
+            .snd = ContinuousInterval.init(@as(f32, 15), @as(f32, 25)),
+            .res = ContinuousInterval.init(@as(f32, 10), @as(f32, 25)),
+        },
+        // 2 within 1
+        .{
+            .fst = ContinuousInterval.init(@as(f32, 10), @as(f32, 20)),
+            .snd = ContinuousInterval.init(@as(f32, 15), @as(f32, 17)),
+            .res = ContinuousInterval.init(@as(f32, 10), @as(f32, 20)),
+        },
+        // 1 within 2
+        .{
+            .fst = ContinuousInterval.init(@as(f32, 10), @as(f32, 20)),
+            .snd = ContinuousInterval.init(@as(f32, 5), @as(f32, 30)),
+            .res = ContinuousInterval.init(@as(f32, 5), @as(f32, 30)),
+        },
+        // 2 meets start of 1
+        .{
+            .fst = ContinuousInterval.init(@as(f32, 10), @as(f32, 20)),
+            .snd = ContinuousInterval.init(@as(f32, 5), @as(f32, 10)),
+            .res = null,
+        },
+        // 2 meets end of 1
+        .{
+            .fst = ContinuousInterval.init(@as(f32, 10), @as(f32, 20)),
+            .snd = ContinuousInterval.init(@as(f32, 20), @as(f32, 25)),
+            .res = null,
+        },
+        // 2 > 1
+        .{
+            .fst = ContinuousInterval.init(@as(f32, 10), @as(f32, 20)),
+            .snd = ContinuousInterval.init(@as(f32, 21), @as(f32, 25)),
+            .res = null,
+        },
+        // 2 < 1
+        .{
+            .fst = ContinuousInterval.init(@as(f32, 10), @as(f32, 20)),
+            .snd = ContinuousInterval.init(@as(f32, 1), @as(f32, 5)),
+            .res = null,
+        },
+        // 2 == 1
+        .{
+            .fst = ContinuousInterval.init(@as(f32, 10), @as(f32, 20)),
+            .snd = ContinuousInterval.init(@as(f32, 10), @as(f32, 20)),
+            .res = ContinuousInterval.init(@as(f32, 10), @as(f32, 20)),
+        },
+    };
+
+    for (tests) |t, index| {
+        errdefer std.log.err(
+            "Index: {d}, fst: [{d}, {d}), snd: [{d}, {d}), res: {any}\n",
+            .{ 
+                index,
+                t.fst.start().f32, t.fst.end().f32,
+                t.snd.start().f32, t.snd.end().f32,
+                t.res 
+            }
+        );
+
+        try expectEqual(t.res, union_of(t.fst, t.snd));
+        try expectEqual(t.res, union_of(t.snd, t.fst));
+    }
+}
+
+
+
 // pub fn intersect(
 //     fst: ContinuousTimeInterval,
 //     snd: ContinuousTimeInterval
