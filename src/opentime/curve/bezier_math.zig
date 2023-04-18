@@ -418,6 +418,98 @@ test "inverted: invert linear" {
     }
 }
 
+fn _rescale_val(
+    t: f32,
+    measure_min: f32, measure_max: f32,
+    target_min: f32, target_max: f32
+) f32
+{
+    return (
+        (
+         ((t - measure_min)/(measure_max - measure_min))
+         * (target_max - target_min) 
+        )
+        + target_min
+    );
+}
+
+fn _rescaled_pt(
+    pt:ControlPoint,
+    extents: [2]ControlPoint,
+    target_range: [2]ControlPoint,
+) ControlPoint
+{
+    return .{
+        .time = _rescale_val(
+            pt.time, 
+            extents[0].time, extents[1].time,
+            target_range[0].time, target_range[1].time
+        ),
+        .value = _rescale_val(
+            pt.value,
+            extents[0].value, extents[1].value,
+            target_range[0].value, target_range[1].value
+        ),
+    };
+}
+
+// return a new curve rescaled over the domain
+pub fn rescaled_curve(
+    crv: curve.TimeCurve,
+    target_range: [2]ControlPoint,
+) !curve.TimeCurve
+{
+    const extents = crv.extents();
+
+    var segments = std.ArrayList(curve.Segment).init(ALLOCATOR);
+    defer segments.deinit();
+
+    for (crv.segments) |seg| {
+        const pts = seg.points();
+
+        var new_pts:[4]ControlPoint = pts;
+
+        for (pts) |pt, index| {
+            new_pts[index] = _rescaled_pt(pt, extents, target_range);
+        }
+
+        var new_seg = curve.Segment.from_pt_array(new_pts);
+
+        try segments.append(new_seg);
+    }
+
+    return curve.TimeCurve.init(segments.items);
+}
+
+test "TimeCurve: rescaled parameter" {
+    const crv = try curve.read_curve_json("curves/scurve.curve.json");
+
+    const start_extents = crv.extents();
+
+    try expectApproxEql(@as(f32, -0.5), start_extents[0].time);
+    try expectApproxEql(@as(f32,  0.5), start_extents[1].time);
+
+    try expectApproxEql(@as(f32, -0.5), start_extents[0].value);
+    try expectApproxEql(@as(f32,  0.5), start_extents[1].value);
+
+    const result = try rescaled_curve(
+        crv,
+        .{
+            .{ .time = 100, .value = 0 },
+            .{ .time = 200, .value = 10 },
+        }
+    );
+
+    const end_extents = result.extents();
+
+    try expectApproxEql(@as(f32, 100), end_extents[0].time);
+    try expectApproxEql(@as(f32, 200), end_extents[1].time);
+
+    try expectApproxEql(@as(f32, 0),  end_extents[0].value);
+    try expectApproxEql(@as(f32, 10), end_extents[1].value);
+
+}
+
 // test "inverted: invert bezier" {
 //     const forward_crv = try curve.read_curve_json("curves/scurve.curve.json");
 //     const inverse_crv = inverted_bezier(forward_crv);
