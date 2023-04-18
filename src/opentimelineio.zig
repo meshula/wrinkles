@@ -247,16 +247,18 @@ pub const ItemPtr = union(enum) {
                         );
 
                         const output_to_intrinsic = (
-                            post_transform_to_intrinsic.project_topology(
+                            try post_transform_to_intrinsic.project_topology(
                                 output_to_post_transform
                             )
                         );
 
                         const media_bounds = try cl.*.trimmed_range();
-                        const intrinsic_to_media_xform = transform.AffineTransform1D{
-                            .offset_seconds = media_bounds.start_seconds,
-                            .scale = 1,
-                        };
+                        const intrinsic_to_media_xform = (
+                            transform.AffineTransform1D{
+                                .offset_seconds = media_bounds.start_seconds,
+                                .scale = 1,
+                            }
+                        );
                         const intrinsic_bounds = .{
                             .start_seconds = 0,
                             .end_seconds = media_bounds.duration_seconds()
@@ -270,7 +272,7 @@ pub const ItemPtr = union(enum) {
                             )
                         );
 
-                        const output_to_media = intrinsic_to_media.project_topology(
+                        const output_to_media = try intrinsic_to_media.project_topology(
                             output_to_intrinsic
                         );
 
@@ -507,7 +509,7 @@ const TopologicalMap = struct {
             // proj:         input   -> current
             // next_proj:    current -> next
             // current_proj: input   -> next
-            const current_proj = next_proj.project_topology(proj);
+            const current_proj = try next_proj.project_topology(proj);
 
             current_hash = next_hash;
             current = next;
@@ -1496,8 +1498,6 @@ test "Single Clip reverse transform" {
 }
 
 test "Single Clip bezier transform" {
-    try util.skip_test();
-
     //
     // xform: reverse (linear w/ -1 slope)
     //
@@ -1507,15 +1507,26 @@ test "Single Clip bezier transform" {
     // media        [-----------------*-----------)
     //              110               103         100 (seconds)
     //
-
-    const xform_curve = try curve.read_curve_json("curves/scurve.curve.json");
-
-    const curve_topo = time_topology.TimeTopology.init_bezier_cubic(xform_curve);
-
     const source_range:interval.ContinuousTimeInterval = .{
         .start_seconds = 100,
         .end_seconds = 110,
     };
+
+    const xform_curve = try curve.rescaled_curve(
+        try curve.read_curve_json("curves/scurve.curve.json"),
+        .{
+            .{ .time = 100, .value = 0, },
+            .{ .time = 110, .value = 10, },
+        }
+    );
+
+    const curve_topo = time_topology.TimeTopology.init_bezier_cubic(
+        xform_curve
+    );
+
+    try std.testing.expect(
+        std.meta.activeTag(curve_topo) != time_topology.TimeTopology.empty
+    );
 
     const cl = Clip { .source_range = source_range, .transform = curve_topo };
     const cl_ptr : ItemPtr = .{ .clip_ptr = &cl};
@@ -1531,14 +1542,50 @@ test "Single Clip bezier transform" {
             }
         );
 
+        try std.testing.expect(
+            std.meta.activeTag(clip_output_to_media_topo.topology) 
+            != time_topology.TimeTopology.empty
+        );
+
         // @TODO this should work
         var time = source_range.start_seconds;
         while (time < source_range.end_seconds) : (time += 0.01) {
+
+            const curve_bounds = curve_topo.bounds();
+
+            errdefer std.log.err(
+                "\nERR\n  time: {any} \n  source_range: {any}\n  extents: {any} \n",
+                .{
+                    time,
+                    source_range,
+                    curve_bounds,
+                }
+            );
+
+            const curve_eval = (
+                try curve_topo.bezier_curve.bezier_curve.evaluate(time)
+            ); 
+
             try expectApproxEqAbs(
-                try curve_topo.bezier_curve.bezier_curve.evaluate(time),
-                try clip_output_to_media_topo.project_ordinate(time),
+                @as(f32, time - source_range.start_seconds),
+                curve_eval,
                 util.EPSILON
             );
+
+            try expectApproxEqAbs(
+                @as(f32, 100),
+                curve_bounds.start_seconds, util.EPSILON
+            );
+            try expectApproxEqAbs(
+                @as(f32, 110),
+                curve_bounds.end_seconds, util.EPSILON
+            );
+
+            const projected = (
+                try clip_output_to_media_topo.project_ordinate(time)
+            );
+
+            try expectApproxEqAbs(curve_eval, projected, util.EPSILON);
         }
     }
 
