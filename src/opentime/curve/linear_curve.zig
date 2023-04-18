@@ -255,6 +255,10 @@ pub const TimeCurveLinear = struct {
             }
         }
 
+        if (curves_to_project.items.len > 1) {
+            @panic("AAAAAH MORe THAN ONE CURVE");
+        }
+
         return curves_to_project.items;
     }
 
