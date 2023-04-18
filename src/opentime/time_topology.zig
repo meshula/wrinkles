@@ -3,6 +3,7 @@ const std = @import("std");
 const interval = @import("interval.zig"); 
 const transform = @import("transform.zig"); 
 const curve = @import("curve/curve.zig"); 
+const control_point = @import("curve/control_point.zig"); 
 const sample_lib = @import("sample.zig");
 const Sample = sample_lib.Sample; 
 const util = @import("util.zig"); 
@@ -17,16 +18,53 @@ const expectApproxEqAbs = std.testing.expectApproxEqAbs;
 
 pub const Ordinate = f32;
 
+const IDENTITY_TRANSFORM = transform.AffineTransform1D{
+    .offset_seconds = 0,
+    .scale = 1,
+};
+
 const AffineTopology = struct {
     // defaults to an infinite identity
     bounds: interval.ContinuousTimeInterval = interval.INF_CTI,
-    transform: transform.AffineTransform1D = .{
-        .offset_seconds = 0,
-        .scale = 1,
-    },
+    transform: transform.AffineTransform1D =IDENTITY_TRANSFORM, 
 
     pub fn compute_bounds(self: @This()) interval.ContinuousTimeInterval {
         return self.bounds;
+    }
+
+    pub fn as_linear_curve_over_output_range(
+        self: @This(),
+        output_interval: interval.ContinuousTimeInterval
+    ) !curve.TimeCurveLinear 
+    {
+        const self_inverted = self.transform.inverted();
+
+        const other_bounds_in_input_space = self_inverted.applied_to_bounds(
+            output_interval
+        );
+
+        const result_bounds = interval.intersect(
+            other_bounds_in_input_space,
+            self.bounds
+        );
+
+        if (result_bounds) |b| 
+        {
+            const bound_points = [2]control_point.ControlPoint{
+                .{
+                    .time = b.start_seconds,
+                    .value = try self.project_ordinate(b.start_seconds) 
+                },
+                .{ 
+                    .time = b.end_seconds,
+                    .value = try self.project_ordinate(b.end_seconds) 
+                },
+            };
+
+            return curve.TimeCurveLinear.init(&bound_points);
+        } else {
+            return curve.TimeCurveLinear.init(&[_]control_point.ControlPoint{});
+        }
     }
 
     pub fn project_sample(self: @This(), sample: Sample) !Sample {
@@ -82,7 +120,7 @@ const AffineTopology = struct {
                // self.project_topology(other) => other.input -> self.output
                // result.bounds -> other.input
                //
-                const inv_xform = other_aff.transform.inverted();
+               const inv_xform = other_aff.transform.inverted();
 
                const self_bounds_in_input_space = (
                    inv_xform.applied_to_bounds(self.bounds)
@@ -143,51 +181,107 @@ pub const BezierTopology = struct {
         return error.NotImplemented;
     }
 
-    pub fn project_topology(self: @This(), other: TimeTopology) TimeTopology {
-        _ = self;
-        _ = other;
-        return error.NotImplemented;
-        // return switch (other) {
-        //    .affine => |other_aff| {
-        //        // A->B (bounds are in A
-        //        // B->C (bounds are in B
-        //        // B->C.project(A->B) => A->C, bounds are in A
-        //        //
-        //        // self: self.input -> self.output
-        //        // other:other.input -> other.output
-        //        //
-        //        // self.project_topology(other) => other.input -> self.output
-        //        // result.bounds -> other.input
-        //        //
-        //         const inv_xform = other_aff.transform.inverted();
-        //
-        //        const self_bounds_in_input_space = (
-        //            inv_xform.applied_to_bounds(self.bounds)
-        //        );
-        //
-        //        const bounds = interval.intersect(
-        //            self_bounds_in_input_space,
-        //            other_aff.bounds,
-        //        );
-        //
-        //        if (bounds) |b| {
-        //            return .{
-        //                .affine = .{ 
-        //                    .bounds = b,
-        //                    .transform = (
-        //                        self.transform.applied_to_transform(
-        //                            other_aff.transform
-        //                        )
-        //                    )
-        //                },
-        //            };
-        //        }
-        //        else {
-        //            return .{ .empty = .{} };
-        //        }
-        //    },
-        //    else => .{ .empty = .{} },
-        // };
+    // pub fn project_topology(
+    //     self: @This(),
+    //     other: TimeTopology
+    // ) TimeTopology 
+    // {
+    //     if (other.kind == Kind.empty) {
+    //         // if other is empty, it doesn't matter what self is, the result is
+    //         // an empty topology
+    //         return other;
+    //     }
+    //
+    //     if (self.kind == Kind.empty) {
+    //         return .{ .kind = Kind.empty };
+    //     }
+    //
+    //     if (self.kind == Kind.infinite_identity) {
+    //         return other;
+    //     }
+    //
+    //     // if (self.kind == Kind.finite) 
+    //     const other_wrapped = (
+    //         if (other.kind == Kind.infinite_identity) (
+    //             TimeTopology.init_identity_finite(self.bounds)
+    //         ) else (
+    //             other
+    //         )
+    //     );
+    //
+    //     var result = (
+    //         std.ArrayList(curve.TimeCurve).init(allocator.ALLOCATOR)
+    //     );
+    //
+    //     // @TODO: these curves need to have their respective
+    //     //        transformations applied (if we stick with that model)
+    //     for (other_wrapped.mapping) 
+    //         |other_crv|
+    //     {
+    //         for (self.mapping) 
+    //             |self_crv|
+    //         {
+    //             const resulting_curves = (
+    //                 self_crv.project_curve(other_crv)
+    //             );
+    //             for (resulting_curves) 
+    //                 |crv| 
+    //             {
+    //                 result.append(
+    //                     curve.TimeCurve.init_from_linear_curve(crv)
+    //                 ) catch unreachable;
+    //             }
+    //         }
+    //     }
+    //
+    //     const result_bounds = interval.intersect(
+    //         self.bounds,
+    //         other_wrapped.bounds
+    //     ) orelse interval.ContinuousTimeInterval{};
+    //
+    //     return .{
+    //         .transform = .{
+    //             .offset_seconds = result_bounds.start_seconds,
+    //             .scale = 1
+    //         },
+    //         .bounds = result_bounds,
+    //         .mapping = result.items,
+    //         // if its finite, even if other has no segments, is empty
+    //         .kind = Kind.finite,
+    //     };
+    // }
+
+    pub fn project_topology(self: @This(), other: TimeTopology) !TimeTopology 
+    {
+        return switch (other) {
+            .affine => |aff| {
+                const aff_linearized = try aff.as_linear_curve_over_output_range(
+                    self.compute_bounds()
+                );
+
+                const projected_curve = (
+                    self.bezier_curve.linearized().project_curve(
+                        aff_linearized
+                    )
+                );
+
+                return .{
+                    .bezier_curve = .{
+                        .bezier_curve = curve.TimeCurve.init_from_linear_curve(
+                            projected_curve[0]
+                        )
+                    }
+                };
+            },
+            .bezier_curve => |bez| .{
+                .bezier_curve = .{
+                    .bezier_curve = curve.TimeCurve.init_from_linear_curve(
+                        self.bezier_curve.project_curve(bez.bezier_curve)[0]
+                    )
+                }
+            },
+            .empty => .{ .empty = EmptyTopology{} },
+        };
     }
 };
 
@@ -339,13 +433,26 @@ pub const TimeTopology = union (enum) {
     pub fn project_topology(
         self: @This(),
         other: TimeTopology
-    ) TimeTopology 
+    ) !TimeTopology 
     {
+        const self_tag = std.meta.activeTag(self) == .empty;
+        const other_tag = std.meta.activeTag(other) == .empty;
+
+        std.debug.print(
+            "self_tag: {any} other_tag: {any}\n",
+            .{ self_tag, other_tag }
+        );
+
+        if (self_tag or other_tag) 
+        {
+            @breakpoint();
+
+            return .{ .empty = .{} };
+        }
+
         return switch(self) {
-            .affine => |other_aff| other_aff.project_topology(other),
+            inline .affine, .bezier_curve => |v| v.project_topology(other),
             .empty => .{ .empty = .{} },
-            inline else => .{ .empty = .{} },
-            // others: might require promotion into curves
         };
     }
     // @}
@@ -513,9 +620,9 @@ test "TimeTopology: Affine Projected Through infinite Affine" {
     const tp_inf = TimeTopology.init_identity_infinite();
 
 
-    const tp_through_tp_inf = tp_inf.project_topology(tp);
+    const tp_through_tp_inf = try tp_inf.project_topology(tp);
 
-    const tp_inf_through_tp = tp.project_topology(tp_inf);
+    const tp_inf_through_tp = try tp.project_topology(tp_inf);
 
     const expected_bounds = interval.ContinuousTimeInterval{
         .start_seconds = 0,
@@ -591,7 +698,7 @@ test "TimeTopology: Affine through Affine w/ negative scale" {
         }
     );
 
-    const output_to_media = intrinsic_to_media.project_topology(
+    const output_to_media = try intrinsic_to_media.project_topology(
         output_to_intrinsic
     );
 
