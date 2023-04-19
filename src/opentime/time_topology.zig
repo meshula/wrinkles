@@ -445,8 +445,6 @@ pub const TimeTopology = union (enum) {
 
         if (self_tag or other_tag) 
         {
-            @breakpoint();
-
             return .{ .empty = .{} };
         }
 
