@@ -192,6 +192,9 @@ pub const ItemPtr = union(enum) {
                     SpaceLabel.output => (
                         return opentime.TimeTopology.init_identity_infinite()
                     ),
+                    SpaceLabel.intrinsic => (
+                        return opentime.TimeTopology.init_identity_infinite()
+                    ),
                     SpaceLabel.child => {
                         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
                             std.debug.print("CHILD {b}\n", .{ step});
@@ -207,7 +210,8 @@ pub const ItemPtr = union(enum) {
                         }
 
                     },
-                    else => return opentime.TimeTopology.init_identity_infinite(),
+                    // track supports no other spaces
+                    else => unreachable,
                 }
             },
             .clip_ptr => |*cl| {
@@ -286,7 +290,9 @@ pub const ItemPtr = union(enum) {
                 };
             },
             // wrapped as identity
-            .gap_ptr, .timeline_ptr, .stack_ptr => opentime.TimeTopology.init_identity_infinite(),
+            .gap_ptr, .timeline_ptr, .stack_ptr => (
+                opentime.TimeTopology.init_identity_infinite()
+            ),
             // else => |case| { 
             //     std.log.err("Not Implemented: {any}\n", .{ case });
             //
@@ -423,6 +429,7 @@ const ProjectionOperatorArgs = struct {
     destination: SpaceReference,
 };
 
+// @TODO: might boil out over time
 const ProjectionOperator = struct {
     args: ProjectionOperatorArgs,
     topology: opentime.TimeTopology,
@@ -540,11 +547,18 @@ const TopologicalMap = struct {
         };
         return std.fmt.allocPrint(
             allocator.ALLOCATOR,
+            // @TODO: add a print for the enum of the transform on the node
+            //        that at least lets you spot empty/bezier/affine etc
+            //        transforms
+            //
             "{s}_{s}_{b}", 
             .{
                 item_kind,
                 @tagName(ref.label),
-                hash
+                hash,
+                // build the next transfomr
+                // const xform = ref.item.build_transform(from_space: SpaceLabel, to_space: SpaceReference, current_hash: TopologicalPathHash, step: u1)
+                // @tagName(std.meta.activeTag(xform))
             }
         );
     }
@@ -620,6 +634,7 @@ const TopologicalMap = struct {
     }
 };
 
+// @TODO: TopologicalPathHash => std.bit_set.DynamicBitSet
 // for now using a u128 for encoded the paths
 const TopologicalPathHash = u128;
 const TopologicalPathHashMask = u64;
@@ -1414,14 +1429,14 @@ test "Single Clip Media to Output Identity transform" {
     {
         const clip_output_to_media = try map.build_projection_operator(
             .{
-                .source =  try cl_ptr.space(SpaceLabel.output),
-                .destination = try cl_ptr.space(SpaceLabel.media),
+                .source =  try cl_ptr.space(SpaceLabel.media),
+                .destination = try cl_ptr.space(SpaceLabel.output),
             }
         );
 
         try expectApproxEqAbs(
-            @as(f32, 103),
-            try clip_output_to_media.project_ordinate(3),
+            @as(f32, 3),
+            try clip_output_to_media.project_ordinate(103),
             util.EPSILON,
         );
     }
@@ -1513,7 +1528,10 @@ test "Single Clip bezier transform" {
     };
 
     const xform_curve = try curve.rescaled_curve(
+        // this curve is [-0.5, 0.5), so needs to be rescaled into the space
+        // of the test/data that we want to do.
         try curve.read_curve_json("curves/scurve.curve.json"),
+        //  the range of the clip for testing - rescale factors
         .{
             .{ .time = 100, .value = 0, },
             .{ .time = 110, .value = 10, },

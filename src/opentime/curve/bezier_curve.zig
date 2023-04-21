@@ -100,6 +100,7 @@ test "distance: 345 triangle" {
     );
 }
 
+/// @TODO: time should be an ordinate
 
 pub const Segment = struct {
     // time coordinate of each control point is expressed in the coordinate
@@ -442,6 +443,8 @@ pub fn linearize_segment(
     // @TODO this shouldn't return an arraylist
 ) error{OutOfMemory}!std.ArrayList(ControlPoint) 
 {
+    // @TODO: this function should compute and preserve the derivatives on the
+    //        bezier segments
     var result: std.ArrayList(ControlPoint) = (
         std.ArrayList(ControlPoint).init(ALLOCATOR)
     );
@@ -712,6 +715,11 @@ pub const TimeCurve = struct {
     pub fn linearized(self: @This()) linear_curve.TimeCurveLinear {
         var linearized_knots = std.ArrayList(ControlPoint).init(ALLOCATOR);
 
+        // @NOTE NICK: this is a good place to start adding in the holodromes
+
+        // @TODO: find the holodromes first, then linearize the holodromes
+        //        ...because any critical point will want a linearized knot
+
         for (self.segments) |seg| {
             // @TODO: expose the tolerance as a parameter(?)
             linearized_knots.appendSlice(
@@ -753,8 +761,11 @@ pub const TimeCurve = struct {
     pub fn project_curve(
         self: @This(),
         other: TimeCurve
+        // should return []TimeCurve
     ) []linear_curve.TimeCurveLinear
     {
+        // @TODO: should use holodromes for projection rather than
+        //        linearization
         const l_proj_thru = self.linearized();
         const l_to_proj = other.linearized();
 

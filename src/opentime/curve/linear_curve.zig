@@ -169,6 +169,9 @@ pub const TimeCurveLinear = struct {
         other: TimeCurveLinear
     ) []TimeCurveLinear 
     {
+        // @TODO: if there are preserved derivatives, project and compose them
+        //        as well
+        //
         const other_bounds = other.extents();
         var other_copy = TimeCurveLinear.init(other.knots) catch unreachable;
 
@@ -255,6 +258,7 @@ pub const TimeCurveLinear = struct {
             }
         }
 
+        // @TODO: we should write a test that exersizes this case
         if (curves_to_project.items.len > 1) {
             @panic("AAAAAH MORe THAN ONE CURVE");
         }
@@ -325,7 +329,6 @@ test "TimeCurveLinear: extents" {
 
 test "TimeCurveLinear: proj_ident" 
 {
-    // @TODO: the next thing to fix -- START HERE
     const ident = try TimeCurveLinear.init_identity(&.{0, 100});
 
     {
@@ -343,6 +346,8 @@ test "TimeCurveLinear: proj_ident"
 
         try expectEqual(@as(f32, 30), result[0].knots[1].time);
         try expectEqual(@as(f32, 10), result[0].knots[1].value);
+
+        // @TODO: check the obviously out of bounds results as well
     }
 
     {
@@ -363,6 +368,8 @@ test "TimeCurveLinear: proj_ident"
         try expectEqual(@as(f32, 95),  result[0].knots[1].time);
         try expectEqual(@as(f32, 100), result[0].knots[1].value);
     }
+
+    // @TODO: add third test case, with right AND left overhang
 }
 
 test "TimeCurveLinear: project s" {

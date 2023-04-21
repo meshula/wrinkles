@@ -251,7 +251,14 @@ pub const BezierTopology = struct {
     //     };
     // }
 
-    pub fn project_topology(self: @This(), other: TimeTopology) !TimeTopology 
+    // @TODO: needs to return a list of topologies (imagine a line projected
+    //        through a u)
+    pub fn project_topology(
+        self: @This(),
+        other: TimeTopology,
+        // @TODO: should fill a list of TimeTopology
+        // out: *std.ArrayList(TimeTopology),
+    ) !TimeTopology 
     {
         return switch (other) {
             .affine => |aff| {
@@ -771,4 +778,44 @@ test "TimeTopology: staircase constructor" {
         @as(f32, 8),
         try tp.project_ordinate(@as(f32, 19)),
     );
+}
+
+test "TimeTopology: project affine through bezier" {
+    const aff_transform = (
+        transform.AffineTransform1D{
+            .offset_seconds = 100,
+            .scale = 1,
+        }
+    );
+    const aff_bounds = .{
+        .start_seconds = 0,
+        .end_seconds = 10,
+    };
+    const aff_Topo = (
+        TimeTopology.init_affine(
+            .{
+                .transform = aff_transform,
+                .bounds = aff_bounds,
+            }
+        )
+    );
+
+    const xform_curve = try curve.rescaled_curve(
+        // this curve is [-0.5, 0.5), so needs to be rescaled into the space
+        // of the test/data that we want to do.
+        try curve.read_curve_json("curves/scurve.curve.json"),
+        //  the range of the clip for testing - rescale factors
+        .{
+            .{ .time = 100, .value = 0, },
+            .{ .time = 110, .value = 10, },
+        }
+    );
+
+    const curve_topo = TimeTopology.init_bezier_cubic(
+        xform_curve
+    );
+
+    const result = try aff_Topo.project_topology(curve_topo);
+
+    try std.testing.expect(std.meta.activeTag(result) != TimeTopology.empty);
 }
