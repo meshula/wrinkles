@@ -28,6 +28,33 @@ pub fn value_to_bitset(
     }
 }
 
+pub fn bitset_to_char_array(
+    bitset: std.bit_set.DynamicBitSet,
+    target_char_array: *std.ArrayList(u8)
+) !void
+{
+    var iter = bitset.iterator(.{});
+
+    try target_char_array.appendNTimes('0', bitset.count() + 1);
+
+    while (iter.next()) |b| {
+        target_char_array.items[target_char_array.items.len - b - 1] = '1';
+    }
+}
+
+pub fn bitset_to_number(
+    bits: std.bit_set.DynamicBitSet,
+    target_number: anytype
+) void
+{
+    var iter = bits.iterator(.{});
+    target_number.* = 0;
+
+    while (iter.next()) |bit_index| {
+        target_number.* |= std.math.shl(@TypeOf(target_number.*), 1, bit_index);
+    }
+}
+
 ///
 /// append (child_index + 1) 1's to the end of the parent_hash:
 ///
@@ -337,16 +364,22 @@ test "DynamicBitSet test" {
     );
     defer dbs.deinit();
 
-    const known:u128 = 0b11101;
+    const known:u128 = 0b111011;
     value_to_bitset(known, &dbs);
 
     // read it back into a number
-    var iter = dbs.iterator(.{});
     var result: u128 = 0;
+    bitset_to_number(dbs, &result);
 
-    while (iter.next()) |b| {
-        result |= std.math.shl(@TypeOf(result), 1, b);
-    }
+    var str = std.ArrayList(u8).init(std.testing.allocator);
+    defer str.deinit();
+
+    try bitset_to_char_array(dbs, &str);
+
+    std.debug.print(
+        "number: {b} str: {s} capacity: {d} \n",
+        .{ result, str.items, dbs.capacity()}
+    );
 
     {
         var hasher = std.hash.Wyhash.init(0);
