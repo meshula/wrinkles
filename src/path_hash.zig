@@ -1,6 +1,8 @@
 const std = @import("std");
 const expectEqual = std.testing.expectEqual;
 
+const allocator = @import("opentime/allocator.zig");
+
 // @TODO: TopologicalPathHash => std.bit_set.DynamicBitSet
 // for now using a u128 for encoded the paths
 pub const TopologicalPathHash = u128;
@@ -306,4 +308,45 @@ test "sequential_child_hash: math" {
         @as(TopologicalPathHash, 0b10111111111111111111111),
         sequential_child_hash(start_hash, 20)
     );
+}
+
+test "DynamicBitSet test" {
+    var dbs = try std.bit_set.DynamicBitSet.initEmpty(
+        std.testing.allocator,
+        // default length
+        128 
+    );
+    defer dbs.deinit();
+
+    const test_value:u128 = 0b11101;
+    var current = test_value;
+
+    var index : usize = 0;
+    while (current > 0) {
+        if (current & 1 == 1) {
+            dbs.set(index);
+        }
+
+        index += 1;
+        current >>= 1;
+    }
+
+    var iter = dbs.iterator(.{});
+    var result: u128 = 0;
+
+    while (iter.next()) |b| {
+        result |= std.math.shl(@TypeOf(result), 1, b);
+    }
+
+    {
+        var hasher = std.hash.Wyhash.init(0);
+        std.hash.autoHash(&hasher, dbs);
+
+        var hasher2 = std.hash.Wyhash.init(0);
+        std.hash.autoHash(&hasher2, dbs);
+
+        try expectEqual(hasher.final(), hasher2.final());
+    }
+
+    try expectEqual(test_value, result);
 }
