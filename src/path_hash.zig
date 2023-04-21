@@ -6,8 +6,27 @@ const allocator = @import("opentime/allocator.zig");
 // @TODO: TopologicalPathHash => std.bit_set.DynamicBitSet
 // for now using a u128 for encoded the paths
 pub const TopologicalPathHash = u128;
+// pub const TopologicalPathHash = std.bit_set.DynamicBitSet;
 pub const TopologicalPathHashMask = u64;
 pub const TopologicalPathHashMaskTopBitCount = u8;
+
+pub fn value_to_bitset(
+    in_value: anytype,
+    target_bitset: *std.bit_set.DynamicBitSet
+) void 
+{
+    var current = in_value;
+
+    var index : usize = 0;
+    while (current > 0) {
+        if (current & 1 == 1) {
+            target_bitset.*.set(index);
+        }
+
+        index += 1;
+        current >>= 1;
+    }
+}
 
 ///
 /// append (child_index + 1) 1's to the end of the parent_hash:
@@ -318,19 +337,10 @@ test "DynamicBitSet test" {
     );
     defer dbs.deinit();
 
-    const test_value:u128 = 0b11101;
-    var current = test_value;
+    const known:u128 = 0b11101;
+    value_to_bitset(known, &dbs);
 
-    var index : usize = 0;
-    while (current > 0) {
-        if (current & 1 == 1) {
-            dbs.set(index);
-        }
-
-        index += 1;
-        current >>= 1;
-    }
-
+    // read it back into a number
     var iter = dbs.iterator(.{});
     var result: u128 = 0;
 
@@ -348,5 +358,5 @@ test "DynamicBitSet test" {
         try expectEqual(hasher.final(), hasher2.final());
     }
 
-    try expectEqual(test_value, result);
+    try expectEqual(known, result);
 }
