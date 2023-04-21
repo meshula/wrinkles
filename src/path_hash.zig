@@ -10,6 +10,8 @@ pub const TopologicalPathHash = u128;
 pub const TopologicalPathHashMask = u64;
 pub const TopologicalPathHashMaskTopBitCount = u8;
 
+// => TopologicalPathCode
+
 pub fn value_to_bitset(
     in_value: anytype,
     target_bitset: *std.bit_set.DynamicBitSet
@@ -378,6 +380,71 @@ pub fn path_hash_hash(bitset: std.bit_set.DynamicBitSet) u64 {
     return hasher.final();
 }
 
+pub fn getBitSetEqlFn(comptime t: type) (fn (t, std.bit_set.DynamicBitSet, std.bit_set.DynamicBitSet) bool) {
+    return struct {
+        fn _eql(_: t, a: std.bit_set.DynamicBitSet, b: std.bit_set.DynamicBitSet) bool {
+            return eql(a, b);
+        }
+    }._eql;
+}
+
+pub fn eql(
+    fst: std.bit_set.DynamicBitSet,
+    snd: std.bit_set.DynamicBitSet
+) bool 
+{
+    var fst_iter = fst.iterator(.{});
+    var snd_iter = snd.iterator(.{});
+
+    var fst_current = fst_iter.next();
+    var snd_current = snd_iter.next();
+
+    while (fst_current != null and snd_current != null) {
+        if (fst_current != snd_current) {
+            return false;
+        }
+
+        fst_current = fst_iter.next();
+        snd_current = snd_iter.next();
+    }
+
+    return true;
+}
+
+test "TopologicalPathCode eql" {
+    const known:u128 = 0b101010111101;
+
+    var dbs = try std.bit_set.DynamicBitSet.initEmpty(std.testing.allocator, 128);
+    defer dbs.deinit();
+
+    value_to_bitset(known, &dbs);
+
+    var dbs2 = try std.bit_set.DynamicBitSet.initEmpty(std.testing.allocator, 128);
+    defer dbs2.deinit();
+
+    value_to_bitset(known, &dbs2);
+
+    try std.testing.expect(eql(dbs, dbs2));
+}
+
+pub fn DynamicBitSetHashMapContext() type {
+    return struct {
+        pub fn hash(_:@This(), key: std.bit_set.DynamicBitSet) u64 {
+            return path_hash_hash(key);
+        }
+        pub const eql = getBitSetEqlFn(@This());
+    };
+}
+
+pub fn BitSetHashMap(comptime V: type) type {
+    return std.hash_map.HashMap(
+        std.bit_set.DynamicBitSet,
+        V,
+        DynamicBitSetHashMapContext(),
+        std.hash_map.default_max_load_percentage
+    );
+}
+
 test "DynamicBitSet test" {
     var dbs = try std.bit_set.DynamicBitSet.initEmpty(
         std.testing.allocator,
@@ -408,4 +475,27 @@ test "DynamicBitSet test" {
     bitset_to_number(dbs, &result);
 
     try expectEqual(known, result);
+
+    try std.testing.expect(eql(dbs, dbs2));
+}
+
+test "DynamicBitSet/Map Test" {
+    var dbs = try std.bit_set.DynamicBitSet.initEmpty(std.testing.allocator, 128);
+    defer dbs.deinit();
+
+    const known:u128 = 0b111011011;
+    value_to_bitset(known, &dbs);
+
+    var map = BitSetHashMap(u8).init(std.testing.allocator);
+    defer map.deinit();
+
+    try map.put(dbs, 3);
+
+    try expectEqual(@as(?u8, 3), map.get(dbs));
+
+    var dbs2 = try std.bit_set.DynamicBitSet.initEmpty(std.testing.allocator, 128);
+    defer dbs2.deinit();
+
+    value_to_bitset(known, &dbs2);
+    try expectEqual(@as(?u8, 3), map.get(dbs2));
 }
