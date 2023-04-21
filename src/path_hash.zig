@@ -28,6 +28,15 @@ pub fn value_to_bitset(
     }
 }
 
+pub fn highest_set_bit(
+    bitset: std.bit_set.DynamicBitSet
+) ?usize
+{
+    var set = bitset.iterator(.{ .direction = .reverse });
+
+    return set.next();
+}
+
 pub fn bitset_to_char_array(
     bitset: std.bit_set.DynamicBitSet,
     target_char_array: *std.ArrayList(u8)
@@ -35,7 +44,13 @@ pub fn bitset_to_char_array(
 {
     var iter = bitset.iterator(.{});
 
-    try target_char_array.appendNTimes('0', bitset.count() + 1);
+    const high_bit = highest_set_bit(bitset);
+
+    if (high_bit == null) {
+        return;
+    }
+
+    try target_char_array.appendNTimes('0', high_bit.? + 1);
 
     while (iter.next()) |b| {
         target_char_array.items[target_char_array.items.len - b - 1] = '1';
@@ -356,6 +371,13 @@ test "sequential_child_hash: math" {
     );
 }
 
+pub fn path_hash_hash(bitset: std.bit_set.DynamicBitSet) u64 {
+    var hasher = std.hash.Wyhash.init(0);
+    std.hash.autoHashStrat(&hasher, bitset.iterator(.{}), .DeepRecursive);
+
+    return hasher.final();
+}
+
 test "DynamicBitSet test" {
     var dbs = try std.bit_set.DynamicBitSet.initEmpty(
         std.testing.allocator,
@@ -364,32 +386,26 @@ test "DynamicBitSet test" {
     );
     defer dbs.deinit();
 
-    const known:u128 = 0b111011;
+    const known:u128 = 0b111011011;
     value_to_bitset(known, &dbs);
-
-    // read it back into a number
-    var result: u128 = 0;
-    bitset_to_number(dbs, &result);
 
     var str = std.ArrayList(u8).init(std.testing.allocator);
     defer str.deinit();
 
     try bitset_to_char_array(dbs, &str);
 
-    std.debug.print(
-        "number: {b} str: {s} capacity: {d} \n",
-        .{ result, str.items, dbs.capacity()}
+    var dbs2 = try std.bit_set.DynamicBitSet.initEmpty(
+        std.testing.allocator,
+        128
     );
+    defer dbs2.deinit();
 
-    {
-        var hasher = std.hash.Wyhash.init(0);
-        std.hash.autoHash(&hasher, dbs);
+    value_to_bitset(known, &dbs2);
+    try expectEqual(path_hash_hash(dbs), path_hash_hash(dbs2));
 
-        var hasher2 = std.hash.Wyhash.init(0);
-        std.hash.autoHash(&hasher2, dbs);
-
-        try expectEqual(hasher.final(), hasher2.final());
-    }
+    // read it back into a number
+    var result: u128 = 0;
+    bitset_to_number(dbs, &result);
 
     try expectEqual(known, result);
 }
