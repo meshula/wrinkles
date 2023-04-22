@@ -1,4 +1,4 @@
-# zgpu v0.9 - Cross-platform graphics library
+# zgpu v0.9.0 - Cross-platform graphics library
 
 `zgpu` is a small helper library built on top of native wgpu implementation (Dawn).
 
@@ -16,7 +16,7 @@ For more details please see below.
 
 ## Getting started
 
-Copy `zgpu`, `zpool` and `zglfw` folders to a `libs` subdirectory of the root of your project.
+Copy `zgpu`, `zpool`, `zglfw` and `system-sdk` folders to a `libs` subdirectory of the root of your project.
 
 Then in your `build.zig` add:
 ```zig
@@ -25,15 +25,19 @@ const zgpu = @import("libs/zgpu/build.zig");
 const zpool = @import("libs/zpool/build.zig");
 const zglfw = @import("libs/zglfw/build.zig");
 
-pub fn build(b: *std.build.Builder) void {
-    const zgpu_options = zgpu.BuildOptionsStep.init(b, .{});
-    const zgpu_pkg = zgpu.getPkg(&.{ zgpu_options.getPkg(), zpool.pkg, zglfw.pkg });
+pub fn build(b: *std.Build) void {
+    ...
+    const optimize = b.standardOptimizeOption(.{});
+    const target = b.standardTargetOptions(.{});
 
-    exe.addPackage(zgpu_pkg);
-    exe.addPackage(zglfw.pkg);
+    const zglfw_pkg = zglfw.package(b, target, optimize, .{});
+    const zpool_pkg = zpool.package(b, target, optimize, .{});
+    const zgpu_pkg = zgpu.package(b, target, optimize, .{
+        .deps = .{ .zpool = zpool_pkg.zpool, .zglfw = zglfw_pkg.zglfw },
+    });
 
-    zgpu.link(exe, zgpu_options);
-    zglfw.link(exe);
+    zgpu_pkg.link(exe);
+    zglfw_pkg.link(exe);
 }
 ```
 ------------
@@ -85,7 +89,7 @@ pub const BuildOptions = struct {
 ```
 You can override default values in your `build.zig`:
 ```zig
-pub fn build(b: *std.build.Builder) void {
+pub fn build(b: *std.Build) void {
     ...
     const zgpu_options = zgpu.BuildOptionsStep.init(b, .{
         .uniforms_buffer_size = 8 * 1024 * 1024,
