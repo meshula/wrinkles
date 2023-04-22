@@ -1,6 +1,5 @@
+pub const version = @import("std").SemanticVersion{ .major = 0, .minor = 9, .patch = 0 };
 //--------------------------------------------------------------------------------------------------
-// zgpu v0.9
-//
 // zgpu is a small helper library built on top of native wgpu implementation (Dawn).
 //
 // It supports Windows 10+ (DirectX 12), macOS 12+ (Metal) and Linux (Vulkan).
@@ -18,7 +17,7 @@ pub const wgpu = @import("wgpu.zig");
 pub const GraphicsContext = struct {
     pub const swapchain_format = wgpu.TextureFormat.bgra8_unorm;
 
-    window: zglfw.Window,
+    window: *zglfw.Window,
     stats: FrameStats = .{},
 
     native_instance: DawnNativeInstance,
@@ -52,14 +51,14 @@ pub const GraphicsContext = struct {
         } = .{},
     } = .{},
 
-    pub fn create(allocator: std.mem.Allocator, window: zglfw.Window) !*GraphicsContext {
+    pub fn create(allocator: std.mem.Allocator, window: *zglfw.Window) !*GraphicsContext {
         const checkGraphicsApiSupport = (struct {
             fn impl() error{VulkanNotSupported}!void {
                 // TODO: On Windows we should check if DirectX 12 is supported (Windows 10+).
 
                 // On Linux we require Vulkan support.
                 if (@import("builtin").target.os.tag == .linux) {
-                    if (!zglfw.vulkanSupported()) {
+                    if (!zglfw.isVulkanSupported()) {
                         return error.VulkanNotSupported;
                     }
                     _ = zglfw.getRequiredInstanceExtensions() catch return error.VulkanNotSupported;
@@ -130,6 +129,7 @@ pub const GraphicsContext = struct {
         errdefer adapter.release();
 
         var properties: wgpu.AdapterProperties = undefined;
+        properties.next_in_chain = null;
         adapter.getProperties(&properties);
         std.log.info("[zgpu] High-performance device has been selected:", .{});
         std.log.info("[zgpu]   Name: {s}", .{properties.name});
@@ -192,7 +192,7 @@ pub const GraphicsContext = struct {
         const framebuffer_size = window.getFramebufferSize();
 
         const swapchain_descriptor = wgpu.SwapChainDescriptor{
-            .label = "main window swap chain",
+            .label = "zig-gamedev-gctx-swapchain",
             .usage = .{ .render_attachment = true },
             .format = swapchain_format,
             .width = @intCast(u32, framebuffer_size[0]),
@@ -436,17 +436,19 @@ pub const GraphicsContext = struct {
         if (gctx.swapchain_descriptor.width != fb_size[0] or
             gctx.swapchain_descriptor.height != fb_size[1])
         {
-            gctx.swapchain_descriptor.width = @intCast(u32, fb_size[0]);
-            gctx.swapchain_descriptor.height = @intCast(u32, fb_size[1]);
-            gctx.swapchain.release();
+            if (fb_size[0] != 0 and fb_size[1] != 0) {
+                gctx.swapchain_descriptor.width = @intCast(u32, fb_size[0]);
+                gctx.swapchain_descriptor.height = @intCast(u32, fb_size[1]);
+                gctx.swapchain.release();
 
-            gctx.swapchain = gctx.device.createSwapChain(gctx.surface, gctx.swapchain_descriptor);
+                gctx.swapchain = gctx.device.createSwapChain(gctx.surface, gctx.swapchain_descriptor);
 
-            std.log.info(
-                "[zgpu] Window has been resized to: {d}x{d}.",
-                .{ gctx.swapchain_descriptor.width, gctx.swapchain_descriptor.height },
-            );
-            return .swap_chain_resized;
+                std.log.info(
+                    "[zgpu] Window has been resized to: {d}x{d}.",
+                    .{ gctx.swapchain_descriptor.width, gctx.swapchain_descriptor.height },
+                );
+                return .swap_chain_resized;
+            }
         }
 
         return .normal_execution;
@@ -657,7 +659,7 @@ pub const GraphicsContext = struct {
         var bind_group_info = BindGroupInfo{ .num_entries = @intCast(u32, entries.len) };
         var gpu_bind_group_entries: [max_num_bindings_per_group]wgpu.BindGroupEntry = undefined;
 
-        for (entries) |entry, i| {
+        for (entries, 0..) |entry, i| {
             bind_group_info.entries[i] = entry;
 
             if (entries[i].buffer_handle) |handle| {
@@ -710,7 +712,7 @@ pub const GraphicsContext = struct {
             }),
             .num_entries = @intCast(u32, entries.len),
         };
-        for (entries) |entry, i| {
+        for (entries, 0..) |entry, i| {
             bind_group_layout_info.entries[i] = entry;
             bind_group_layout_info.entries[i].next_in_chain = null;
             bind_group_layout_info.entries[i].buffer.next_in_chain = null;
@@ -739,7 +741,7 @@ pub const GraphicsContext = struct {
         var info: PipelineLayoutInfo = .{ .num_bind_group_layouts = @intCast(u32, bind_group_layouts.len) };
         var gpu_bind_group_layouts: [max_num_bind_groups_per_pipeline]wgpu.BindGroupLayout = undefined;
 
-        for (bind_group_layouts) |bgl, i| {
+        for (bind_group_layouts, 0..) |bgl, i| {
             info.bind_group_layouts[i] = bgl;
             gpu_bind_group_layouts[i] = gctx.lookupResource(bgl).?;
         }
@@ -933,7 +935,7 @@ pub const GraphicsContext = struct {
                 .sample_count = 1,
             });
 
-            for (mipgen.scratch_texture_views) |*view, i| {
+            for (&mipgen.scratch_texture_views, 0..) |*view, i| {
                 view.* = gctx.createTextureView(mipgen.scratch_texture, .{
                     .base_mip_level = @intCast(u32, i),
                     .mip_level_count = 1,
@@ -1229,6 +1231,28 @@ pub fn createWgslShaderModule(
     return device.createShaderModule(desc);
 }
 
+pub fn imageInfoToTextureFormat(num_components: u32, bytes_per_component: u32, is_hdr: bool) wgpu.TextureFormat {
+    assert(num_components == 1 or num_components == 2 or num_components == 4);
+    assert(bytes_per_component == 1 or bytes_per_component == 2);
+    assert(if (is_hdr and bytes_per_component != 2) false else true);
+
+    if (is_hdr) {
+        if (num_components == 1) return .r16_float;
+        if (num_components == 2) return .rg16_float;
+        if (num_components == 4) return .rgba16_float;
+    } else {
+        if (bytes_per_component == 1) {
+            if (num_components == 1) return .r8_unorm;
+            if (num_components == 2) return .rg8_unorm;
+            if (num_components == 4) return .rgba8_unorm;
+        } else {
+            // TODO: Looks like wgpu does not support 16 bit unorm formats.
+            unreachable;
+        }
+    }
+    unreachable;
+}
+
 pub const BufferInfo = struct {
     gpuobj: ?wgpu.Buffer = null,
     size: usize = 0,
@@ -1503,23 +1527,23 @@ const SurfaceDescriptor = union(SurfaceDescriptorTag) {
     },
 };
 
-fn createSurfaceForWindow(instance: wgpu.Instance, window: zglfw.Window) wgpu.Surface {
+fn createSurfaceForWindow(instance: wgpu.Instance, window: *zglfw.Window) wgpu.Surface {
     const os_tag = @import("builtin").target.os.tag;
 
     const descriptor = if (os_tag == .windows) SurfaceDescriptor{
         .windows_hwnd = .{
             .label = "basic surface",
             .hinstance = std.os.windows.kernel32.GetModuleHandleW(null).?,
-            .hwnd = zglfw.getWin32Window(window) catch unreachable,
+            .hwnd = zglfw.native.getWin32Window(window) catch unreachable,
         },
     } else if (os_tag == .linux) SurfaceDescriptor{
         .xlib = .{
             .label = "basic surface",
-            .display = zglfw.getX11Display() catch unreachable,
-            .window = zglfw.getX11Window(window) catch unreachable,
+            .display = zglfw.native.getX11Display() catch unreachable,
+            .window = zglfw.native.getX11Window(window) catch unreachable,
         },
     } else if (os_tag == .macos) blk: {
-        const ns_window = zglfw.getCocoaWindow(window) catch unreachable;
+        const ns_window = zglfw.native.getCocoaWindow(window) catch unreachable;
         const ns_view = msgSend(ns_window, "contentView", .{}, *anyopaque); // [nsWindow contentView]
 
         // Create a CAMetalLayer that covers the whole window that will be passed to CreateSurface.
@@ -1590,27 +1614,27 @@ fn msgSend(obj: anytype, sel_name: [:0]const u8, args: anytype, comptime ReturnT
 
     const FnType = switch (args_meta.len) {
         0 => *const fn (@TypeOf(obj), objc.SEL) callconv(.C) ReturnType,
-        1 => *const fn (@TypeOf(obj), objc.SEL, args_meta[0].field_type) callconv(.C) ReturnType,
+        1 => *const fn (@TypeOf(obj), objc.SEL, args_meta[0].type) callconv(.C) ReturnType,
         2 => *const fn (
             @TypeOf(obj),
             objc.SEL,
-            args_meta[0].field_type,
-            args_meta[1].field_type,
+            args_meta[0].type,
+            args_meta[1].type,
         ) callconv(.C) ReturnType,
         3 => *const fn (
             @TypeOf(obj),
             objc.SEL,
-            args_meta[0].field_type,
-            args_meta[1].field_type,
-            args_meta[2].field_type,
+            args_meta[0].type,
+            args_meta[1].type,
+            args_meta[2].type,
         ) callconv(.C) ReturnType,
         4 => *const fn (
             @TypeOf(obj),
             objc.SEL,
-            args_meta[0].field_type,
-            args_meta[1].field_type,
-            args_meta[2].field_type,
-            args_meta[3].field_type,
+            args_meta[0].type,
+            args_meta[1].type,
+            args_meta[2].type,
+            args_meta[3].type,
         ) callconv(.C) ReturnType,
         else => @compileError("[zgpu] Unsupported number of args"),
     };
@@ -1618,7 +1642,7 @@ fn msgSend(obj: anytype, sel_name: [:0]const u8, args: anytype, comptime ReturnT
     const func = @ptrCast(FnType, &objc.objc_msgSend);
     const sel = objc.sel_getUid(sel_name.ptr);
 
-    return @call(.{}, func, .{ obj, sel } ++ args);
+    return @call(.never_inline, func, .{ obj, sel } ++ args);
 }
 
 fn logUnhandledError(
@@ -1632,6 +1656,7 @@ fn logUnhandledError(
         .validation => std.log.err("[zgpu] Validation: {?s}", .{message}),
         .out_of_memory => std.log.err("[zgpu] Out of memory: {?s}", .{message}),
         .device_lost => std.log.err("[zgpu] Device lost: {?s}", .{message}),
+        .internal => std.log.err("[zgpu] Internal error: {?s}", .{message}),
         .unknown => std.log.err("[zgpu] Unknown error: {?s}", .{message}),
     }
 
@@ -1679,93 +1704,4 @@ fn formatToShaderFormat(format: wgpu.TextureFormat) []const u8 {
         .rgba32_float => "rgba32float",
         else => unreachable,
     };
-}
-
-const expect = std.testing.expect;
-
-test "zgpu.wgpu.init" {
-    dawnProcSetProcs(dnGetProcs());
-
-    const native_instance = dniCreate();
-    defer dniDestroy(native_instance);
-
-    dniDiscoverDefaultAdapters(native_instance);
-
-    const instance = dniGetWgpuInstance(native_instance).?;
-
-    instance.reference();
-    instance.release();
-
-    const adapter = adapter: {
-        const Response = struct {
-            status: wgpu.RequestAdapterStatus = .unknown,
-            adapter: wgpu.Adapter = undefined,
-        };
-
-        const callback = (struct {
-            fn callback(
-                status: wgpu.RequestAdapterStatus,
-                adapter: wgpu.Adapter,
-                message: ?[*:0]const u8,
-                userdata: ?*anyopaque,
-            ) callconv(.C) void {
-                _ = message;
-                var response = @ptrCast(*Response, @alignCast(@sizeOf(usize), userdata));
-                response.status = status;
-                response.adapter = adapter;
-            }
-        }).callback;
-
-        var response = Response{};
-        instance.requestAdapter(
-            .{ .power_preference = .high_performance },
-            callback,
-            @ptrCast(*anyopaque, &response),
-        );
-        try expect(response.status == .success);
-
-        const adapter = response.adapter;
-
-        var features: [32]wgpu.FeatureName = undefined;
-        const num_adapter_features = std.math.min(adapter.enumerateFeatures(null), features.len);
-        _ = adapter.enumerateFeatures(&features);
-        _ = num_adapter_features;
-
-        var properties: wgpu.AdapterProperties = undefined;
-        adapter.getProperties(&properties);
-
-        break :adapter adapter;
-    };
-    defer adapter.release();
-
-    const device = device: {
-        const Response = struct {
-            status: wgpu.RequestDeviceStatus = .unknown,
-            device: wgpu.Device = undefined,
-        };
-
-        const callback = (struct {
-            fn callback(
-                status: wgpu.RequestDeviceStatus,
-                device: wgpu.Device,
-                message: ?[*:0]const u8,
-                userdata: ?*anyopaque,
-            ) callconv(.C) void {
-                _ = message;
-                var response = @ptrCast(*Response, @alignCast(@sizeOf(usize), userdata));
-                response.status = status;
-                response.device = device;
-            }
-        }).callback;
-
-        var response = Response{};
-        adapter.requestDevice(
-            wgpu.DeviceDescriptor{},
-            callback,
-            @ptrCast(*anyopaque, &response),
-        );
-        try expect(response.status == .success);
-        break :device response.device;
-    };
-    defer device.release();
 }
