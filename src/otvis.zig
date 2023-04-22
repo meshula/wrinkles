@@ -26,41 +26,21 @@ const wgsl_fs = wgsl_common ++ @embedFile("blank_fs.wgsl");
 const ALLOCATOR = @import("opentime/allocator.zig").ALLOCATOR;
 
 // constants for indexing into the segment array
-const PROJ_S:usize = 0;
-const PROJ_THR_S:usize = 1;
+const PROJ_S: usize = 0;
+const PROJ_THR_S: usize = 1;
 
-fn _rescaledValue(
-    t: f32,
-    measure_min: f32, measure_max: f32,
-    target_min: f32, target_max: f32
-) f32
-{
-    return (
-        (
-         ((t - measure_min)/(measure_max - measure_min))
-         * (target_max - target_min) 
-        )
-        + target_min
-    );
+fn _rescaledValue(t: f32, measure_min: f32, measure_max: f32, target_min: f32, target_max: f32) f32 {
+    return ((((t - measure_min) / (measure_max - measure_min)) * (target_max - target_min)) + target_min);
 }
 
 fn _rescaledPoint(
-    pt:curve.ControlPoint,
+    pt: curve.ControlPoint,
     extents: [2]curve.ControlPoint,
     target_range: [2]curve.ControlPoint,
-) curve.ControlPoint
-{
+) curve.ControlPoint {
     return .{
-        .time = _rescaledValue(
-            pt.time, 
-            extents[0].time, extents[1].time,
-            target_range[0].time, target_range[1].time
-        ),
-        .value = _rescaledValue(
-            pt.value,
-            extents[0].value, extents[1].value,
-            target_range[0].value, target_range[1].value
-        ),
+        .time = _rescaledValue(pt.time, extents[0].time, extents[1].time, target_range[0].time, target_range[1].time),
+        .value = _rescaledValue(pt.value, extents[0].value, extents[1].value, target_range[0].value, target_range[1].value),
     };
 }
 
@@ -78,10 +58,10 @@ const Uniforms = extern struct {
 };
 
 const CurveOpts = struct {
-    name:string.latin_s8,
-    draw_hull:bool = true,
-    draw_curve:bool = true,
-    draw_imgui_curve:bool = false,
+    name: string.latin_s8,
+    draw_hull: bool = true,
+    draw_curve: bool = true,
+    draw_imgui_curve: bool = false,
 };
 
 fn arrayListInit(comptime T: type) std.ArrayList(T) {
@@ -113,16 +93,16 @@ const DemoState = struct {
     frame_rate: i32 = 10,
 
     /// original bezier curves read from json
-    bezier_curves:std.ArrayList(curve.TimeCurve) = arrayListInit(curve.TimeCurve),
+    bezier_curves: std.ArrayList(curve.TimeCurve) = arrayListInit(curve.TimeCurve),
     /// list of curves normalized into the space of the display
-    normalized_curves:std.ArrayList(curve.TimeCurve) = arrayListInit(curve.TimeCurve),
+    normalized_curves: std.ArrayList(curve.TimeCurve) = arrayListInit(curve.TimeCurve),
     /// list of linearized curves
-    linear_curves:std.ArrayList(curve.TimeCurveLinear) = arrayListInit(curve.TimeCurveLinear),
-    curve_options:std.ArrayList(CurveOpts) = arrayListInit(CurveOpts),
+    linear_curves: std.ArrayList(curve.TimeCurveLinear) = arrayListInit(curve.TimeCurveLinear),
+    curve_options: std.ArrayList(CurveOpts) = arrayListInit(CurveOpts),
 
     options: struct {
         // using i32 because microui check_box expects an int32 not a bool
-        animated_splits: i32 = 0, 
+        animated_splits: i32 = 0,
         linearize: i32 = 0,
         animated_u: i32 = 0,
         normalize_scale: i32 = 0,
@@ -217,7 +197,6 @@ fn init(allocator: std.mem.Allocator, window: zglfw.Window) !*DemoState {
         plot_style.marker_size = 5.0;
     }
 
-
     // tartan specific:
     // Create a vertex buffer.
     const vertex_data = [_]Vertex{
@@ -239,11 +218,11 @@ fn init(allocator: std.mem.Allocator, window: zglfw.Window) !*DemoState {
         .size = index_data.len * @sizeOf(u16),
     });
     gctx.queue.writeBuffer(gctx.lookupResource(index_buffer).?, 0, u16, index_data[0..]);
- 
+
     // Create a sampler.
     const sampler = gctx.createSampler(.{});
 
-   const bind_group_layout = gctx.createBindGroupLayout(&.{
+    const bind_group_layout = gctx.createBindGroupLayout(&.{
         zgpu.bufferEntry(0, .{ .vertex = true, .fragment = true }, .uniform, true, 0),
         zgpu.textureEntry(1, .{ .fragment = true }, .float, .tvdim_2d, false),
         zgpu.samplerEntry(2, .{ .fragment = true }, .filtering),
@@ -313,12 +292,7 @@ fn init(allocator: std.mem.Allocator, window: zglfw.Window) !*DemoState {
                 .targets = &color_targets,
             },
         };
-        gctx.createRenderPipelineAsync(
-            allocator,
-            pipeline_layout,
-            pipeline_descriptor,
-            &demo.otvis_pipeline
-        );
+        gctx.createRenderPipelineAsync(allocator, pipeline_layout, pipeline_descriptor, &demo.otvis_pipeline);
     }
 
     return demo;
@@ -369,27 +343,22 @@ fn update(demo: *DemoState) void {
     });
     zgui.popItemWidth();
 
-    var times:std.ArrayList(f32) = (
-        std.ArrayList(f32).init(ALLOCATOR)
-    );
+    var times: std.ArrayList(f32) = (std.ArrayList(f32).init(ALLOCATOR));
     defer times.deinit();
-    var values:std.ArrayList(f32) = (
-        std.ArrayList(f32).init(ALLOCATOR)
-    );
+    var values: std.ArrayList(f32) = (std.ArrayList(f32).init(ALLOCATOR));
     defer values.deinit();
-
 
     const viewport = zgui.getMainViewport();
     const vsz = viewport.getWorkSize();
     const center: [2]f32 = .{ vsz[0] * 0.5, vsz[1] * 0.5 };
     const half_width = center[1] * 0.9;
     const min_p = curve.ControlPoint{
-        .time=center[0] + half_width,
-        .value=center[1] + half_width,
+        .time = center[0] + half_width,
+        .value = center[1] + half_width,
     };
     const max_p = curve.ControlPoint{
-        .time=center[0] - half_width,
-        .value=center[1] - half_width,
+        .time = center[0] - half_width,
+        .value = center[1] - half_width,
     };
 
     const t_stops = 100;
@@ -400,72 +369,50 @@ fn update(demo: *DemoState) void {
     var points_y = std.mem.zeroes([t_stops]f32);
 
     if (zgui.collapsingHeader("Curves", .{})) {
-        for (demo.normalized_curves.items) |crv, crv_index| {
-            if (
-                zgui.collapsingHeader(
-                    @ptrCast([:0]const u8, curveName(demo, crv_index)),
-                    .{}
-                ) 
-            )
-            {
+        for (demo.normalized_curves.items, 0..) |crv, crv_index| {
+            if (zgui.collapsingHeader(@ptrCast([:0]const u8, curveName(demo, crv_index)), .{})) {
                 var opts = &demo.curve_options.items[crv_index];
-                _ = zgui.checkbox("Draw Hull", .{ .v = &opts.draw_hull },);
-                _ = zgui.checkbox("Draw Curve", .{ .v = &opts.draw_curve },);
+                _ = zgui.checkbox(
+                    "Draw Hull",
+                    .{ .v = &opts.draw_hull },
+                );
+                _ = zgui.checkbox(
+                    "Draw Curve",
+                    .{ .v = &opts.draw_curve },
+                );
                 _ = zgui.checkbox(
                     "Draw Curve With Imgui",
                     .{ .v = &opts.draw_imgui_curve },
                 );
 
                 const extents = crv.extents();
-                const norm_crv = curve.normalized_to(
-                    crv,
-                    .{.time=-1, .value=-1},
-                    .{.time=1, .value=1}
-                );
+                const norm_crv = curve.normalized_to(crv, .{ .time = -1, .value = -1 }, .{ .time = 1, .value = 1 });
 
                 if (zgui.collapsingHeader("Points", .{})) {
                     if (zgui.collapsingHeader("Original Points", .{})) {
                         const orig_crv = demo.bezier_curves.items[crv_index];
                         for (orig_crv.segments) |seg| {
                             const pts = seg.points();
-                            for (pts) |pt, pt_index| {
-                                zgui.bulletText(
-                                    "{d}: {{ {d:.6}, {d:.6} }}",
-                                    .{ pt_index, pt.time, pt.value }
-                                );
+                            for (pts, 0..) |pt, pt_index| {
+                                zgui.bulletText("{d}: {{ {d:.6}, {d:.6} }}", .{ pt_index, pt.time, pt.value });
                             }
                         }
                     }
                     if (zgui.collapsingHeader("Normalized Hull Points", .{})) {
                         for (norm_crv.segments) |seg| {
                             const pts = seg.points();
-                            for (pts) |pt, pt_index| {
-                                zgui.bulletText(
-                                    "{d}: {{ {d:.6}, {d:.6} }}",
-                                    .{ pt_index, pt.time, pt.value }
-                                );
+                            for (pts, 0..) |pt, pt_index| {
+                                zgui.bulletText("{d}: {{ {d:.6}, {d:.6} }}", .{ pt_index, pt.time, pt.value });
                             }
                         }
                     }
                 }
 
                 if (zgui.plot.beginPlot("Curve Plot", .{ .h = -1.0 })) {
-                    zgui.plot.setupAxis(
-                        .x1,
-                        .{ .label = "times", .flags = .{ .auto_fit = true } }
-                    );
-                    zgui.plot.setupAxisLimits(
-                        .x1,
-                        .{ .min = extents[0].time, .max = extents[1].time  }
-                    );
-                    zgui.plot.setupAxis(
-                        .y1,
-                        .{ .label = "values", .flags = .{ .auto_fit = true } }
-                    );
-                    zgui.plot.setupAxisLimits(
-                        .y1,
-                        .{ .min = extents[0].value, .max = extents[1].value  }
-                    );
+                    zgui.plot.setupAxis(.x1, .{ .label = "times", .flags = .{ .auto_fit = true } });
+                    zgui.plot.setupAxisLimits(.x1, .{ .min = extents[0].time, .max = extents[1].time });
+                    zgui.plot.setupAxis(.y1, .{ .label = "values", .flags = .{ .auto_fit = true } });
+                    zgui.plot.setupAxisLimits(.y1, .{ .min = extents[0].value, .max = extents[1].value });
                     zgui.plot.setupLegend(.{ .south = true, .west = true }, .{});
                     zgui.plot.setupFinish();
                     // zgui.plot.plotLineValues("values", i32, .{ .v = &.{ 0, 1, 0, 1, 0, 1 } });
@@ -474,24 +421,16 @@ fn update(demo: *DemoState) void {
                     //     Checkbox{ enabled = state.curve_draw_switch.items[crv_index] },
                     // );
                     for (crv.segments) |seg| {
-                        zgui.plot.plotLine(
-                            "control hull",
-                            f32,
-                            .{
-                                .xv = &.{ seg.p0.time, seg.p1.time, seg.p2.time, seg.p3.time },
-                                .yv = &.{ seg.p0.value, seg.p1.value, seg.p2.value, seg.p3.value },
-                            }
-                        );
+                        zgui.plot.plotLine("control hull", f32, .{
+                            .xv = &.{ seg.p0.time, seg.p1.time, seg.p2.time, seg.p3.time },
+                            .yv = &.{ seg.p0.value, seg.p1.value, seg.p2.value, seg.p3.value },
+                        });
                     }
                     for (norm_crv.segments) |seg| {
-                        zgui.plot.plotLine(
-                            "normalized hull",
-                            f32,
-                            .{
-                                .xv = &.{ seg.p0.time, seg.p1.time, seg.p2.time, seg.p3.time },
-                                .yv = &.{ seg.p0.value, seg.p1.value, seg.p2.value, seg.p3.value },
-                            }
-                        );
+                        zgui.plot.plotLine("normalized hull", f32, .{
+                            .xv = &.{ seg.p0.time, seg.p1.time, seg.p2.time, seg.p3.time },
+                            .yv = &.{ seg.p0.value, seg.p1.value, seg.p2.value, seg.p3.value },
+                        });
                     }
 
                     const linearized_crv = crv.linearized();
@@ -502,18 +441,12 @@ fn update(demo: *DemoState) void {
                         times.append(knot.time) catch unreachable;
                         values.append(knot.value) catch unreachable;
                     }
-                    zgui.plot.plotLine(
-                        "linearized curve hull",
-                        f32,
-                        .{
-                            .xv = times.items,
-                            .yv = values.items,
-                        }
-                    );
+                    zgui.plot.plotLine("linearized curve hull", f32, .{
+                        .xv = times.items,
+                        .yv = values.items,
+                    });
 
-                    const linearized_inverted_crv = curve.inverted_linear(
-                        linearized_crv
-                    );
+                    const linearized_inverted_crv = curve.inverted_linear(linearized_crv);
 
                     times.clearAndFree();
                     values.clearAndFree();
@@ -521,19 +454,17 @@ fn update(demo: *DemoState) void {
                         times.append(knot.time) catch unreachable;
                         values.append(knot.value) catch unreachable;
                     }
-                    zgui.plot.plotLine(
-                        "inverted linear curve",
-                        f32,
-                        .{
-                            .xv = times.items,
-                            .yv = values.items,
-                        }
-                    );
-
+                    zgui.plot.plotLine("inverted linear curve", f32, .{
+                        .xv = times.items,
+                        .yv = values.items,
+                    });
 
                     var t = t_start;
-                    var index:usize = 0;
-                    while (t < t_end) : ({t += t_inc; index += 1;}) {
+                    var index: usize = 0;
+                    while (t < t_end) : ({
+                        t += t_inc;
+                        index += 1;
+                    }) {
                         points_x[index] = t;
                         points_y[index] = crv.evaluate(t) catch unreachable;
                     }
@@ -552,7 +483,6 @@ fn update(demo: *DemoState) void {
         }
     }
 
-
     const draw_list = zgui.getWindowDrawList();
 
     // draw_list.pushClipRect(.{ .pmin = .{ 0, 0 }, .pmax = .{ 400, 400 } });
@@ -563,13 +493,7 @@ fn update(demo: *DemoState) void {
 
     // outline the curve plot
     draw_list.addPolyline(
-        &.{ 
-            .{ center[0] - half_width, center[1] - half_width }, 
-            .{ center[0] + half_width, center[1] - half_width }, 
-            .{ center[0] + half_width, center[1] + half_width }, 
-            .{ center[0] - half_width, center[1] + half_width }, 
-            .{ center[0] - half_width, center[1] - half_width } 
-        },
+        &.{ .{ center[0] - half_width, center[1] - half_width }, .{ center[0] + half_width, center[1] - half_width }, .{ center[0] + half_width, center[1] + half_width }, .{ center[0] - half_width, center[1] + half_width }, .{ center[0] - half_width, center[1] - half_width } },
         .{ .col = 0xff_00_aa_aa, .thickness = 7 },
     );
 
@@ -595,37 +519,35 @@ fn update(demo: *DemoState) void {
 
     // draw the curves themselves
 
-    var pts:std.ArrayList([2]f32) = arrayListInit([2]f32);
+    var pts: std.ArrayList([2]f32) = arrayListInit([2]f32);
     defer pts.deinit();
 
-    for (demo.bezier_curves.items) |crv, index| {
+    for (demo.bezier_curves.items, 0..) |crv, index| {
         const draw_crv = curve.normalized_to(crv, min_p, max_p);
         const opts = &demo.curve_options.items[index];
-        
+
         for (draw_crv.segments) |seg| {
             if (opts.draw_hull) {
                 draw_list.addPolyline(
-                    &.{ 
-                        .{seg.p0.time, seg.p0.value},
-                        .{seg.p1.time, seg.p1.value},
-                        .{seg.p2.time, seg.p2.value},
-                        .{seg.p3.time, seg.p3.value},
+                    &.{
+                        .{ seg.p0.time, seg.p0.value },
+                        .{ seg.p1.time, seg.p1.value },
+                        .{ seg.p2.time, seg.p2.value },
+                        .{ seg.p3.time, seg.p3.value },
                     },
-                    .{ .col=0xff_ff_ff_ff, .thickness = 3 },
+                    .{ .col = 0xff_ff_ff_ff, .thickness = 3 },
                 );
             }
 
             if (opts.draw_imgui_curve) {
-                draw_list.addBezierCubic(
-                    .{ 
-                        .p1=.{seg.p0.time, seg.p0.value},
-                        .p2=.{seg.p1.time, seg.p1.value},
-                        .p3=.{seg.p2.time, seg.p2.value},
-                        .p4=.{seg.p3.time, seg.p3.value},
-                        .thickness = 6,
-                        .col=0xff_ff_ff_ff,
-                    }
-                );
+                draw_list.addBezierCubic(.{
+                    .p1 = .{ seg.p0.time, seg.p0.value },
+                    .p2 = .{ seg.p1.time, seg.p1.value },
+                    .p3 = .{ seg.p2.time, seg.p2.value },
+                    .p4 = .{ seg.p3.time, seg.p3.value },
+                    .thickness = 6,
+                    .col = 0xff_ff_ff_ff,
+                });
             }
 
             pts.clearAndFree();
@@ -633,14 +555,14 @@ fn update(demo: *DemoState) void {
             // draw curve with opentime evaluator
             if (opts.draw_curve) {
                 var t = t_start;
-                while (t < t_end) : ({t += t_inc;}) {
-                    pts.append(
-                        .{t, draw_crv.evaluate(t) catch unreachable}
-                    ) catch unreachable;
+                while (t < t_end) : ({
+                    t += t_inc;
+                }) {
+                    pts.append(.{ t, draw_crv.evaluate(t) catch unreachable }) catch unreachable;
                 }
                 draw_list.addPolyline(
                     pts.items,
-                    .{ .col=0xff_ff_ff_ff, .thickness = 30 },
+                    .{ .col = 0xff_ff_ff_ff, .thickness = 30 },
                 );
             }
         }
@@ -777,7 +699,7 @@ fn draw(demo: *DemoState) void {
     _ = gctx.present();
 }
 
-fn _parse_args(state:*DemoState) !void {
+fn _parse_args(state: *DemoState) !void {
     var args = try std.process.argsWithAllocator(ALLOCATOR);
 
     // ignore the app name, always first in args
@@ -791,25 +713,16 @@ fn _parse_args(state:*DemoState) !void {
     var project_curves = false;
 
     // read all the filepaths from the commandline
-    while (args.next()) |nextarg| 
-    {
+    while (args.next()) |nextarg| {
         var fpath: string.latin_s8 = nextarg;
 
-        if (
-            string.eql_latin_s8(fpath, "--help")
-            or (string.eql_latin_s8(fpath, "-h"))
-        ) {
+        if (string.eql_latin_s8(fpath, "--help") or (string.eql_latin_s8(fpath, "-h"))) {
             usage();
         }
 
-        if (string.eql_latin_s8(fpath, "--project"))
-        {
+        if (string.eql_latin_s8(fpath, "--project")) {
             if (project) {
-                std.debug.print(
-                    "Error: only one of {{--project, --project-bezier-curves}} is "
-                    ++ "allowed\n",
-                    .{}
-                );
+                std.debug.print("Error: only one of {{--project, --project-bezier-curves}} is " ++ "allowed\n", .{});
                 usage();
             }
 
@@ -817,14 +730,9 @@ fn _parse_args(state:*DemoState) !void {
             continue;
         }
 
-        if (string.eql_latin_s8(fpath, "--project-bezier-curves"))
-        {
+        if (string.eql_latin_s8(fpath, "--project-bezier-curves")) {
             if (project) {
-                std.debug.print(
-                    "Error: only one of {{--project, --project-bezier-curves}} is "
-                    ++ "allowed\n",
-                    .{}
-                );
+                std.debug.print("Error: only one of {{--project, --project-bezier-curves}} is " ++ "allowed\n", .{});
                 usage();
             }
 
@@ -833,71 +741,48 @@ fn _parse_args(state:*DemoState) !void {
             continue;
         }
 
-        if (string.eql_latin_s8(fpath, "--split"))
-        {
+        if (string.eql_latin_s8(fpath, "--split")) {
             state.options.animated_splits = 1;
             continue;
         }
 
-        if (string.eql_latin_s8(fpath, "--hide-knots"))
-        {
+        if (string.eql_latin_s8(fpath, "--hide-knots")) {
             state.options.draw_knots = 0;
             continue;
         }
 
-        if (string.eql_latin_s8(fpath, "--normalize-scale"))
-        {
+        if (string.eql_latin_s8(fpath, "--normalize-scale")) {
             state.options.normalize_scale = 1;
             continue;
         }
 
-
-        if (string.eql_latin_s8(fpath, "--animu"))
-        {
+        if (string.eql_latin_s8(fpath, "--animu")) {
             state.options.animated_u = 1;
             continue;
         }
 
-        if (string.eql_latin_s8(fpath, "--linearize"))
-        {
+        if (string.eql_latin_s8(fpath, "--linearize")) {
             state.options.linearize = 1;
             continue;
         }
 
-        std.debug.print("reading curve: {s}\n", .{ fpath });
-        try state.curve_options.append(.{.name=fpath});
+        std.debug.print("reading curve: {s}\n", .{fpath});
+        try state.curve_options.append(.{ .name = fpath });
 
         var buf: [1024]u8 = undefined;
         const lower_fpath = std.ascii.lowerString(&buf, fpath);
         if (std.mem.endsWith(u8, lower_fpath, ".curve.json")) {
             var crv = curve.read_curve_json(fpath) catch |err| {
-                std.debug.print(
-                    "Something went wrong reading: '{s}'\n",
-                    .{ fpath }
-                );
+                std.debug.print("Something went wrong reading: '{s}'\n", .{fpath});
                 return err;
             };
 
             try state.bezier_curves.append(crv);
 
-            try state.normalized_curves.append(
-                curve.normalized_to(
-                    crv,
-                    .{.time=0, .value=0}, 
-                    .{.time=400, .value=400}
-                )
-            );
-        } 
-        else 
-        {
+            try state.normalized_curves.append(curve.normalized_to(crv, .{ .time = 0, .value = 0 }, .{ .time = 400, .value = 400 }));
+        } else {
             // pack into a curve
-            try state.normalized_curves.append(
-                curve.TimeCurve{ 
-                    .segments = &[1]curve.Segment{
-                        try curve.read_segment_json(fpath) 
-                    }
-                }
-            );
+            try state.normalized_curves.append(curve.TimeCurve{ .segments = &[1]curve.Segment{try curve.read_segment_json(fpath)} });
         }
     }
 
@@ -907,22 +792,21 @@ fn _parse_args(state:*DemoState) !void {
             .{ .time = 0.5, .value = 0.5 },
         };
 
-
         var extents: [2]curve.ControlPoint = .{
             // min
             .{ .time = std.math.inf(f32), .value = std.math.inf(f32) },
             // max
-            .{ .time = -std.math.inf(f32), .value = -std.math.inf(f32) }
+            .{ .time = -std.math.inf(f32), .value = -std.math.inf(f32) },
         };
-        
+
         for (state.normalized_curves.items) |crv| {
             const crv_extents = crv.extents();
             extents = .{
-                .{ 
+                .{
                     .time = std.math.min(extents[0].time, crv_extents[0].time),
                     .value = std.math.min(extents[0].value, crv_extents[0].value),
                 },
-                .{ 
+                .{
                     .time = std.math.max(extents[1].time, crv_extents[1].time),
                     .value = std.math.max(extents[1].value, crv_extents[1].value),
                 },
@@ -937,14 +821,10 @@ fn _parse_args(state:*DemoState) !void {
             for (crv.segments) |seg| {
                 const pts = seg.points();
 
-                var new_pts:[4]curve.ControlPoint = pts;
+                var new_pts: [4]curve.ControlPoint = pts;
 
-                for (pts) |pt, index| {
-                    new_pts[index] = _rescaledPoint(
-                        pt,
-                        extents,
-                        target_range
-                    );
+                for (pts, 0..) |pt, index| {
+                    new_pts[index] = _rescaledPoint(pt, extents, target_range);
                 }
 
                 var new_seg = curve.Segment.from_pt_array(new_pts);
@@ -966,41 +846,27 @@ fn _parse_args(state:*DemoState) !void {
 
     if (project) {
         if (state.normalized_curves.items.len != 2) {
-            std.debug.print(
-                "Error: --project require exactly two "
-                ++ "normalized_curves, got {}.",
-                .{ state.normalized_curves.items.len }
-            );
+            std.debug.print("Error: --project require exactly two " ++ "normalized_curves, got {}.", .{state.normalized_curves.items.len});
             usage();
         } else {
-            std.debug.print(
-                "Projecting {s} through {s} as normalized_curves\n",
-                .{ curveName(state, PROJ_S), curveName(state, PROJ_THR_S) } 
-            );
+            std.debug.print("Projecting {s} through {s} as normalized_curves\n", .{ curveName(state, PROJ_S), curveName(state, PROJ_THR_S) });
 
             const fst = state.normalized_curves.items[PROJ_THR_S];
             const snd = state.normalized_curves.items[PROJ_S];
 
             const result = fst.project_curve(snd);
 
-            std.debug.print(
-                "Final projected segments: {d}\n",
-                .{result.len}
-            );
+            std.debug.print("Final projected segments: {d}\n", .{result.len});
 
-
-            for (result) |crv, index| {
+            for (result, 0..) |crv, index| {
                 const outpath = try std.fmt.allocPrint(
                     ALLOCATOR,
                     "/var/tmp/debug.projected.{}.curve.json",
-                    .{ index },
+                    .{index},
                 );
-                std.debug.print(
-                    "Writing debug json for projected result curve to: {s}\n",
-                    .{ outpath }
-                );
+                std.debug.print("Writing debug json for projected result curve to: {s}\n", .{outpath});
                 curve.write_json_file_curve(crv, outpath) catch {
-                    std.debug.print("Couldn't write to {s}\n", .{ outpath });
+                    std.debug.print("Couldn't write to {s}\n", .{outpath});
                 };
             }
 
@@ -1027,13 +893,10 @@ pub fn main() !void {
     zglfw.defaultWindowHints();
     zglfw.windowHint(.cocoa_retina_framebuffer, 1);
     zglfw.windowHint(.client_api, 0);
-    const window = (
-        zglfw.createWindow(1600, 1000, window_title, null, null) 
-        catch {
-            std.log.err("Could not create a window", .{});
-            return;
-        }
-    );
+    const window = (zglfw.createWindow(1600, 1000, window_title, null, null) catch {
+        std.log.err("Could not create a window", .{});
+        return;
+    });
     defer window.destroy();
     window.setSizeLimits(400, 400, -1, -1);
 
@@ -1074,7 +937,6 @@ pub fn usage() void {
         \\  -h --help: print this message and exit
         \\
         \\
-        , .{}
-    );
+    , .{});
     std.os.exit(1);
 }

@@ -13,8 +13,8 @@ pub const ControlPoint = struct {
     // multiply with float
     pub fn mul(self: @This(), val: f32) ControlPoint {
         return .{
-            .time = val*self.time,
-            .value = val*self.value,
+            .time = val * self.time,
+            .value = val * self.value,
         };
     }
 
@@ -31,16 +31,14 @@ pub const ControlPoint = struct {
             .value = self.value - rhs.value,
         };
     }
-    
-    pub fn debug_json_str(
-        self: @This()
-    ) []const u8 
-    {
-        return std.fmt.allocPrint(
-            ALLOCATOR,
+
+    pub fn debug_json_str(self: @This()) []const u8 {
+        return std.fmt.allocPrint(ALLOCATOR,
             \\{{ "time": {d:.6}, "value": {d:.6} }}
-            , .{ self.time, self.value, }
-        ) catch unreachable;
+        , .{
+            self.time,
+            self.value,
+        }) catch unreachable;
     }
 };
 
@@ -52,7 +50,7 @@ pub fn expectControlPointEqual(lhs: ControlPoint, rhs: ControlPoint) !void {
 }
 
 // @{ TESTS
-test "ControlPoint: add" { 
+test "ControlPoint: add" {
     const cp1 = ControlPoint{ .time = 0, .value = 10 };
     const cp2 = ControlPoint{ .time = 20, .value = -10 };
 
@@ -61,7 +59,7 @@ test "ControlPoint: add" {
     try expectControlPointEqual(cp1.add(cp2), result);
 }
 
-test "ControlPoint: sub" { 
+test "ControlPoint: sub" {
     const cp1 = ControlPoint{ .time = 0, .value = 10 };
     const cp2 = ControlPoint{ .time = 20, .value = -10 };
 
@@ -70,7 +68,7 @@ test "ControlPoint: sub" {
     try expectControlPointEqual(cp1.sub(cp2), result);
 }
 
-test "ControlPoint: mul" { 
+test "ControlPoint: mul" {
     const cp1 = ControlPoint{ .time = 0, .value = 10 };
     const scale = -10;
 
