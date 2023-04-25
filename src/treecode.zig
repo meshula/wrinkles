@@ -4,6 +4,9 @@ const Allocator = std.mem.Allocator;
 
 const treecode_128 = u128;
 
+const print = std.debug.print;
+//    std.debug.print("u128: {any}\n", .{ self.treecode_array[0] });
+
 pub const Treecode = struct {
     sz: usize,
     treecode_array: []treecode_128,
@@ -23,16 +26,16 @@ pub const Treecode = struct {
             count
         );
 
-        treecode_array[count - 1] = input;
+        var i:usize = count - 1;
+        treecode_array[i] = input;
 
-        var i:usize = 0;
-        while (i < count - 1) : (i += 1) {
+        while (i <= 0) : (i -= 1) {
             treecode_array[i] = 0;
         }
 
         return .{
             .allocator = allocator,
-            .sz = 1,
+            .sz = count,
             .treecode_array = treecode_array 
         };
     }
@@ -67,18 +70,21 @@ pub const Treecode = struct {
         if (self.sz == 0) {
             return 0;
         }
-        if (self.sz == 1) {
-            return @as(usize, 128) - @clz(@as(u128,self.treecode_array[0])) - 1;
-        }
-        var count: usize = 0;
-        var i = self.sz;
-        while (i < 1) {
+        var occupied_words : usize = 0;
+        var i : usize = 0;
+
+        while (i < self.sz) {
             if (self.treecode_array[i] != 0) {
-                count = 127 - @clz(@as(u128,(self.treecode_array[i])));
-                return count + i * 128;
+                occupied_words = i;
             }
+            i += 1;
         }
-        return 127 - @clz(@as(u128, self.treecode_array[0]));
+
+        var count = 127 - @clz(@as(u128, (self.treecode_array[occupied_words])));
+        if (occupied_words == 0) {
+            return count;
+        }
+        return count + (occupied_words) * 128;
     }
 };
 
@@ -105,24 +111,25 @@ test "treecode: code_length" {
     }
 
     {
+        // top word is 1, lower word is 0, therefore codelength is 128
         var tc  = try Treecode.init_fill_count(std.testing.allocator, 2, 0b1);
         defer tc.deinit();
 
-        try std.testing.expectEqual(@as(usize, 256), tc.code_length());
+        try std.testing.expectEqual(@as(usize, 128), tc.code_length());
     }
 
     {
         var tc  = try Treecode.init_fill_count(std.testing.allocator, 8, 0b1);
         defer tc.deinit();
 
-        try std.testing.expectEqual(@as(usize, 8*128), tc.code_length());
+        try std.testing.expectEqual(@as(usize, 7*128), tc.code_length());
     }
 
     {
         var tc  = try Treecode.init_fill_count(std.testing.allocator, 8, 0b11);
         defer tc.deinit();
 
-        try std.testing.expectEqual(@as(usize, 8*128 + 1), tc.code_length());
+        try std.testing.expectEqual(@as(usize, 7*128 + 1), tc.code_length());
     }
 }
 
@@ -153,7 +160,7 @@ test "treecode: @clz" {
     var i: u128 = 0;
 
     while (i < 128) : (i += 1) {
-        try std.testing.expectEqual(i, @clz(x));
+        try std.testing.expectEqual(i, 128 - @clz(x));
         x = (x << 1) | 1;
     }
 }
@@ -232,13 +239,14 @@ test "treecode: treecode_is_equal" {
 }
 
 pub fn treecode128_append(a: u128, l_or_r_branch: u8) u128 {
-    const leading_zeros:u8 = @clz(a);
+    const signficant_bits:u8 = 127 - @clz(a);
+
     // strip leading bit
-    const leading_bit = @as(u128, 1) << @intCast(u7, (@as(u8, 128) - leading_zeros));
+    const leading_bit = @as(u128, 1) << @intCast(u7, @as(u8, signficant_bits));
     return (
         (a - leading_bit) 
         | (leading_bit << 1) 
-        | (@intCast(u128, l_or_r_branch) << @intCast(u7, (@as(u8, 128) - leading_zeros - 1)))
+        | (@intCast(u128, l_or_r_branch) << @intCast(u7, (@as(u8, signficant_bits + 1))))
     );
 }
 
@@ -252,7 +260,7 @@ pub fn treecode_append(
     }
 
     const len = a.code_length();
-    if (len < 128) {
+    if (len < 127) {
         a.treecode_array[0] = treecode128_append(
             a.treecode_array[0],
             l_or_r_branch
@@ -260,9 +268,8 @@ pub fn treecode_append(
         return;
     }
 
-    const index = len / 128;
-
-    if (index >= a.sz) 
+    const index = len / 128 + 1;
+    if (index >= a.sz)
     {
         // in this case, the array is full.
         try a.realloc(index + 1);
