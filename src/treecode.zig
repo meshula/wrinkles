@@ -328,7 +328,7 @@ test "treecode_128: is a subset" {
         }
 }
 
-test "treecode: is a subset" {
+test "treecode: is a superset" {
     // positive case, ending in 1
     {
         const tc_superset = try Treecode.init_128(std.testing.allocator, 0b11001101);
@@ -350,24 +350,22 @@ test "treecode: is a subset" {
     }
 
     // positive case, very long
-    {
-        var tc_superset = try Treecode.init_fill_count(
+    {  
+        var tc_superset  = try Treecode.init_128(
             std.testing.allocator,
-            3,
-            0xDEADBEEF11010
+            0x11011010101
         );
-        for (tc_superset.treecode_array[0..1]) |*tc| {
-            tc.* = 0xDEADBEEF11010;
-        }
-
-        const tc_subset = try Treecode.init_128(std.testing.allocator, 0b11010);
+        var tc_subset  = try Treecode.init_128(std.testing.allocator, 0b101);
         defer tc_superset.deinit();
         defer tc_subset.deinit();
 
-        try std.testing.expect(tc_superset.is_superset_of(tc_subset));
-
-        // stamp DEADBEEF into each word and ensure its still a subset
-        // ...until the == condition
+        var i:u128 = 0;
+        while (i < 1000)  : (i += 1) {
+            errdefer std.debug.print("iteration: {}\n", .{i});
+            try std.testing.expect(tc_superset.is_superset_of(tc_subset));
+            try tc_superset.append(1);
+            try tc_subset.append(1);
+        }
     }
 
     // negative case 
