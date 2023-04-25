@@ -50,25 +50,35 @@ pub const Treecode = struct {
         };
     }
 
+    fn realloc(self: *@This(), new_size: usize) !void {
+        self.treecode_array = try self.allocator.realloc(
+            self.treecode_array,
+            new_size
+        );
+        self.sz = new_size;
+    }
+
     pub fn deinit(self: @This()) void {
         self.allocator.free(self.treecode_array);
     }
 
     // sentinel bit is not included in the code_length (hence the 127 - )
     pub fn code_length(self: @This()) usize {
-        if (self.sz == 0)
+        if (self.sz == 0) {
             return 0;
-        if (self.sz == 1)
-            return @clz(u128(self.treecode_array[0]));
+        }
+        if (self.sz == 1) {
+            return @as(usize, 128) - @clz(@as(u128,self.treecode_array[0])) - 1;
+        }
         var count: usize = 0;
         var i = self.sz;
         while (i < 1) {
             if (self.treecode_array[i] != 0) {
-                count = 127 - @clz(u128(self.treecode_array[i]));
+                count = 127 - @clz(@as(u128,(self.treecode_array[i])));
                 return count + i * 128;
             }
         }
-        return 127 - @clz(u128(self.treecode_array[0]));
+        return 127 - @clz(@as(u128, self.treecode_array[0]));
     }
 };
 
