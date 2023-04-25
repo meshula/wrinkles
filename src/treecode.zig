@@ -81,6 +81,24 @@ pub const Treecode = struct {
         }
         return count + (occupied_words) * 128;
     }
+
+    pub fn eql(self: @This(), other: Treecode) bool {
+        var len_self: usize = self.code_length();
+        var len_other: usize = other.code_length();
+        if (len_self != len_other) {
+            return false;
+        }
+
+        var greatest_nozero_index: usize = len_self / 128;
+        var i:usize = 0;
+        while (i < greatest_nozero_index): (i += 1) {
+            if (self.treecode_array[i] != other.treecode_array[i]) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 };
 
 test "treecode: code_length" {
@@ -263,32 +281,8 @@ test "treecode: is a subset" {
 }
 
 
-fn treecode_is_equal(maybe_a: ?Treecode, maybe_b: ?Treecode) bool {
-    if (maybe_a == null or maybe_b == null) {
-        return false;
-    }
 
-    const a = maybe_a.?;
-    const b = maybe_b.?;
-
-    var len_a: usize = a.code_length();
-    var len_b: usize = b.code_length();
-    if (len_a != len_b) {
-        return false;
-    }
-
-    var greatest_nozero_index: usize = len_a / 128;
-    var i:usize = 0;
-    while (i < greatest_nozero_index): (i += 1) {
-        if (a.treecode_array[i] != b.treecode_array[i]) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-test "treecode: treecode_is_equal" {
+test "treecode: Treecode.eql" {
     var a  = try Treecode.init_128(std.testing.allocator, 1);
     defer a.deinit();
     var b  = try Treecode.init_128(std.testing.allocator, 1);
@@ -296,7 +290,7 @@ test "treecode: treecode_is_equal" {
 
     var i:u128 = 0;
     while (i < 1000)  : (i += 1) {
-        try std.testing.expect(treecode_is_equal(a, b));
+        try std.testing.expect(a.eql(b));
         try treecode_append(&a, 1);
         try treecode_append(&b, 1);
     }
