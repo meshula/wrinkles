@@ -99,6 +99,46 @@ pub const Treecode = struct {
 
         return true;
     }
+
+    // will realloc if needed
+    pub fn append(
+        self: *@This(),
+        l_or_r_branch: u8,
+    ) !void
+    {
+        if (self.sz == 0) {
+            return error.InvalidTreecode;
+        }
+
+        const len = self.code_length();
+        if (len < 127) {
+            self.treecode_array[0] = treecode128_append(
+                self.treecode_array[0],
+                l_or_r_branch
+            );
+            return;
+        }
+
+        const index = len / 128 + 1;
+        if (index >= self.sz)
+        {
+            // in this case, the array is full.
+            try self.realloc(index + 1);
+
+            self.treecode_array[index] = 1;
+
+            // clear highest bit
+            self.treecode_array[index-1] &= ~((@as(u128,1)) << 127);
+            self.treecode_array[index-1] |= (@intCast(u128, (l_or_r_branch)) << 127);
+
+            return;
+        }
+
+        self.treecode_array[index] = treecode128_append(
+            self.treecode_array[index],
+            l_or_r_branch
+        );
+    }
 };
 
 test "treecode: code_length" {
@@ -291,8 +331,8 @@ test "treecode: Treecode.eql" {
     var i:u128 = 0;
     while (i < 1000)  : (i += 1) {
         try std.testing.expect(a.eql(b));
-        try treecode_append(&a, 1);
-        try treecode_append(&b, 1);
+        try a.append(1);
+        try b.append(1);
     }
 }
 
@@ -308,38 +348,3 @@ pub fn treecode128_append(a: u128, l_or_r_branch: u8) u128 {
     );
 }
 
-pub fn treecode_append(
-    a: *Treecode,
-    l_or_r_branch: u8,
-) !void
-{
-    if (a.sz == 0) {
-        return error.InvalidTreecode;
-    }
-
-    const len = a.code_length();
-    if (len < 127) {
-        a.treecode_array[0] = treecode128_append(
-            a.treecode_array[0],
-            l_or_r_branch
-        );
-        return;
-    }
-
-    const index = len / 128 + 1;
-    if (index >= a.sz)
-    {
-        // in this case, the array is full.
-        try a.realloc(index + 1);
-
-        a.treecode_array[index] = 1;
-
-        // clear highest bit
-        a.treecode_array[index-1] &= ~((@as(u128,1)) << 127);
-        a.treecode_array[index-1] |= (@intCast(u128, (l_or_r_branch)) << 127);
-
-        return;
-    }
-
-    a.treecode_array[index] = treecode128_append(a.treecode_array[index], l_or_r_branch);
-}
