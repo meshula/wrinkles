@@ -387,9 +387,61 @@ test "treecode: is a superset" {
     // ...until the == condition
 }
 
+test "treecode: append" {
+    {
+        try std.testing.expectEqual(
+            @as(treecode_128, 0b10),
+            treecode128_append(0b1, 0)
+        );
+        try std.testing.expectEqual(
+            @as(treecode_128, 0b11),
+            treecode128_append(0b1, 1)
+        );
+
+        try std.testing.expectEqual(
+            @as(treecode_128, 0b1101),
+            treecode128_append(@as(treecode_128, 0b101), 1)
+        );
+        try std.testing.expectEqual(
+            @as(treecode_128, 0b1001),
+            treecode128_append(@as(treecode_128, 0b101), 0)
+        );
+    }
+
+    // Variable size flavor
+    {
+        var tc = try Treecode.init_128(std.testing.allocator, 0b1);
+        defer tc.deinit();
+
+        var buf_tc = std.ArrayList(u8).init(std.testing.allocator);
+        defer buf_tc.deinit();
+
+        var buf_known = std.ArrayList(u8).init(std.testing.allocator);
+        defer buf_known.deinit();
+        try buf_known.append(1);
+
+        var i:usize = 0;
+        while (i < 1000)  : (i += 1) {
+
+            buf_tc.clearAndFree();
+            try tc.to_str(&buf_tc);
+
+            errdefer std.debug.print(
+                "iteration: {} \n  buf_tc: {b}\n  buf_known: {b}\n",
+                .{i, buf_tc.items, buf_known.items}
+            );
+
+            try std.testing.expectEqualSlices(u8, buf_known.items, buf_tc.items);
+            const next:u1 = if (@rem(i, 5) == 0) 0 else 1;
+            try tc.append(next);
+            try buf_known.insert(1, next);
+        }
+    }
+}
 
 
 test "treecode: Treecode.eql" {
+    // positive tests
     {
         var a  = try Treecode.init_128(std.testing.allocator, 1);
         defer a.deinit();
@@ -397,15 +449,20 @@ test "treecode: Treecode.eql" {
         var b  = try Treecode.init_128(std.testing.allocator, 1);
         defer b.deinit();
 
-        var i:u128 = 0;
+        var i:usize = 0;
         while (i < 1000)  : (i += 1) {
-            const next:u1 = if (i & 5 != 0) 0 else 1;
+            errdefer std.debug.print(
+                "iteration: {} a: {b} b: {b}\n",
+                .{i, a.treecode_array[0], b.treecode_array[0]}
+            );
             try std.testing.expect(a.eql(b));
+            const next:u1 = if (@rem(i, 5) == 0) 0 else 1;
             try a.append(next);
             try b.append(next);
         }
     }
 
+    // negative tests
     {
         const tc_fst = try Treecode.init_128(std.testing.allocator, 0b1101);
         defer tc_fst.deinit();
@@ -414,7 +471,7 @@ test "treecode: Treecode.eql" {
 
         try std.testing.expect(tc_fst.eql(tc_snd) == false);
         try std.testing.expect(tc_snd.eql(tc_fst) == false);
-   }
+    }
 
     {
         const tc_fst = try Treecode.init_128(std.testing.allocator, 0b1101);
@@ -447,15 +504,42 @@ test "treecode: Treecode.eql" {
     }
 }
 
-pub fn treecode128_append(a: u128, l_or_r_branch: u8) u128 {
+fn treecode128_append(a: u128, l_or_r_branch: u8) u128 {
     const signficant_bits:u8 = 127 - @clz(a);
 
     // strip leading bit
     const leading_bit = @as(u128, 1) << @intCast(u7, @as(u8, signficant_bits));
-    return (
-        (a - leading_bit) 
-        | (leading_bit << 1) 
-        | (@intCast(u128, l_or_r_branch) << @intCast(u7, (@as(u8, signficant_bits + 1))))
+
+    const a_without_leading_bit = (a - leading_bit) ;
+    const leading_bit_shifted = (leading_bit << 1);
+    const l_or_r_branch_shifted = (@intCast(u128, l_or_r_branch) << @intCast(u7, (@as(u8, signficant_bits))));
+
+    const result = (
+       a_without_leading_bit 
+       | leading_bit_shifted
+       | l_or_r_branch_shifted
     );
+
+    // std.debug.print(
+    //     "input tc: {b}, " ++
+    //     "input l_or_r_branch: u8: {b}, " ++
+    //     "signficant_bits: {}, " ++
+    //     "a_without_leading_bit: {b}," ++
+    //     " leading_bit_shifted: {b}," ++
+    //     " l_or_r_branch_shifted: {b}, " ++
+    //     " result: {b}, " ++
+    //     "\n",
+    //     .{
+    //         a,
+    //         l_or_r_branch,
+    //         signficant_bits,
+    //         a_without_leading_bit,
+    //         leading_bit_shifted,
+    //         l_or_r_branch_shifted,
+    //         result,
+    //     }
+    // );
+
+    return result;
 }
 
