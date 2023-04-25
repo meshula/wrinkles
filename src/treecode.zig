@@ -85,13 +85,14 @@ pub const Treecode = struct {
     pub fn eql(self: @This(), other: Treecode) bool {
         var len_self: usize = self.code_length();
         var len_other: usize = other.code_length();
+
         if (len_self != len_other) {
             return false;
         }
 
         var greatest_nozero_index: usize = len_self / 128;
         var i:usize = 0;
-        while (i < greatest_nozero_index): (i += 1) {
+        while (i <= greatest_nozero_index): (i += 1) {
             if (self.treecode_array[i] != other.treecode_array[i]) {
                 return false;
             }
@@ -340,16 +341,40 @@ test "treecode: is a subset" {
 
 
 test "treecode: Treecode.eql" {
-    var a  = try Treecode.init_128(std.testing.allocator, 1);
-    defer a.deinit();
-    var b  = try Treecode.init_128(std.testing.allocator, 1);
-    defer b.deinit();
+    {
+        var a  = try Treecode.init_128(std.testing.allocator, 1);
+        defer a.deinit();
 
-    var i:u128 = 0;
-    while (i < 1000)  : (i += 1) {
-        try std.testing.expect(a.eql(b));
-        try a.append(1);
-        try b.append(1);
+        var b  = try Treecode.init_128(std.testing.allocator, 1);
+        defer b.deinit();
+
+        var i:u128 = 0;
+        while (i < 1000)  : (i += 1) {
+            const next:u1 = if (i & 5 != 0) 0 else 1;
+            try std.testing.expect(a.eql(b));
+            try a.append(next);
+            try b.append(next);
+        }
+    }
+
+    {
+        const tc_fst = try Treecode.init_128(std.testing.allocator, 0b1101);
+        defer tc_fst.deinit();
+        const tc_snd = try Treecode.init_128(std.testing.allocator, 0b1011);
+        defer tc_snd.deinit();
+
+        try std.testing.expect(tc_fst.eql(tc_snd) == false);
+        try std.testing.expect(tc_snd.eql(tc_fst) == false);
+   }
+
+    {
+        const tc_fst = try Treecode.init_128(std.testing.allocator, 0b1101);
+        defer tc_fst.deinit();
+        const tc_snd = try Treecode.init_128(std.testing.allocator, 0b1010);
+        defer tc_snd.deinit();
+
+        try std.testing.expect(tc_fst.eql(tc_snd) == false);
+        try std.testing.expect(tc_snd.eql(tc_fst) == false);
     }
 }
 
