@@ -408,6 +408,23 @@ test "treecode: append" {
         );
     }
 
+    {
+        var tc = try Treecode.init_128(std.testing.allocator, 0b1);
+        defer tc.deinit();
+
+        var i:usize = 0;
+        while (i < 130) : (i += 1) {
+            try tc.append(1);
+        }
+
+        // std.debug.print(
+        //     "tc[1]: {b} tc[0]: {b}\n",
+        //     .{ tc.treecode_array[1], tc.treecode_array[0] }
+        // );
+
+        try std.testing.expectEqual(@as(u128, 0b11), tc.treecode_array[1]);
+    }
+
     // Variable size flavor
     {
         var tc = try Treecode.init_128(std.testing.allocator, 0b1);
