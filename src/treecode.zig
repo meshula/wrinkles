@@ -1,19 +1,14 @@
 const std = @import("std");
 
-const Allocator = std.mem.Allocator;
-
 const treecode_128 = u128;
-
-const print = std.debug.print;
-//    std.debug.print("u128: {any}\n", .{ self.treecode_array[0] });
 
 pub const Treecode = struct {
     sz: usize,
     treecode_array: []treecode_128,
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
 
     pub fn init_fill_count(
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
         count: usize,
         input: treecode_128,
     ) !Treecode {
@@ -41,7 +36,7 @@ pub const Treecode = struct {
     }
 
     pub fn init_128(
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
         input: treecode_128,
     ) !Treecode {
         var treecode_array:[]treecode_128 = try allocator.alloc(treecode_128, 1);
@@ -166,7 +161,9 @@ test "treecode: @clz" {
 }
 
 fn treecode128_mask(leading_zeros: usize) treecode_128 {
-    return (@bitCast(treecode_128, 1) << (128 - leading_zeros)) - 1;
+    return (
+        @intCast(treecode_128, 1) << @intCast(u7, (128 - leading_zeros))
+    ) - 1;
 }
 
 fn treecode128_b_is_a_subset(a: treecode_128, b: treecode_128) bool {
@@ -181,9 +178,7 @@ fn treecode128_b_is_a_subset(a: treecode_128, b: treecode_128) bool {
     return (a & mask) == (b & mask);
 }
 
-fn treecode_b_is_a_subset(a: *Treecode, b: *Treecode) bool {
-    if (a == null or b == null) return false;
-    if (a == b) return true;
+fn treecode_b_is_a_subset(a: Treecode, b: Treecode) bool {
     var len_a: usize = a.code_length();
     var len_b: usize = b.code_length();
     if (len_a == 0 or len_b == 0 or len_b > len_a) return false;
@@ -191,13 +186,86 @@ fn treecode_b_is_a_subset(a: *Treecode, b: *Treecode) bool {
         return treecode128_b_is_a_subset(a.treecode_array[0], b.treecode_array[0]);
     }
     var greatest_nozero_b_index: usize = len_b / 128;
-    var i = 0;
+    var i:usize = 0;
     while (i < greatest_nozero_b_index) : (i += 1) {
         if (a.treecode_array[i] != b.treecode_array[i]) return false;
     }
     var mask: treecode_128 = treecode128_mask(128 - ((len_b - 1) % 128));
     return (a.treecode_array[greatest_nozero_b_index] & mask) == (b.treecode_array[greatest_nozero_b_index] & mask);
 }
+
+test "treecode_128: is a subset" {
+        // positive case, ending in 1
+        {
+            const tc_128_superset:treecode_128 = 0b11001101;
+            const tc_128_subset:treecode_128 = 0b1101;
+
+            try std.testing.expect(
+                treecode128_b_is_a_subset(tc_128_superset, tc_128_subset)
+            );
+        }
+
+        // positive case, ending in 0
+        {
+            const tc_128_superset:treecode_128 = 0b110011010;
+            const tc_128_subset:treecode_128 = 0b11010;
+
+            try std.testing.expect(
+                treecode128_b_is_a_subset(tc_128_superset, tc_128_subset)
+            );
+        }
+
+        // negative case 
+        {
+            const tc_128_superset:treecode_128 = 0b11001101;
+            const tc_128_subset:treecode_128 = 0b11001;
+
+            try std.testing.expectEqual(
+                treecode128_b_is_a_subset(tc_128_superset, tc_128_subset),
+                false
+            );
+        }
+}
+
+test "treecode: is a subset" {
+    // positive case, ending in 1
+    {
+        const tc_superset = try Treecode.init_128(std.testing.allocator, 0b11001101);
+        const tc_subset = try Treecode.init_128(std.testing.allocator, 0b1101);
+        defer tc_superset.deinit();
+        defer tc_subset.deinit();
+
+        try std.testing.expect(
+            treecode_b_is_a_subset(tc_superset, tc_subset)
+        );
+    }
+
+    // positive case, ending in 0
+    {
+        const tc_superset = try Treecode.init_128(std.testing.allocator, 0b110011010);
+        const tc_subset = try Treecode.init_128(std.testing.allocator, 0b11010);
+        defer tc_superset.deinit();
+        defer tc_subset.deinit();
+
+        try std.testing.expect(
+            treecode_b_is_a_subset(tc_superset, tc_subset)
+        );
+    }
+
+    // negative case 
+    {
+        const tc_superset = try Treecode.init_128(std.testing.allocator, 0b11001101);
+        const tc_subset = try Treecode.init_128(std.testing.allocator, 0b11001);
+        defer tc_superset.deinit();
+        defer tc_subset.deinit();
+
+        try std.testing.expectEqual(
+            treecode_b_is_a_subset(tc_superset, tc_subset),
+            false
+        );
+    }
+}
+
 
 fn treecode_is_equal(maybe_a: ?Treecode, maybe_b: ?Treecode) bool {
     if (maybe_a == null or maybe_b == null) {
