@@ -252,6 +252,22 @@ test "treecode: is a subset" {
         );
     }
 
+    // positive case, very long
+    {
+        var tc_superset = try Treecode.init_fill_count(
+            std.testing.allocator,
+            3,
+            0xDEADBEEF11010
+        );
+        for (tc_superset.treecode_array[0..1]) |*tc| {
+            tc.* = 0xDEADBEEF11010;
+        }
+
+        const tc_subset = try Treecode.init_128(std.testing.allocator, 0b11010);
+        defer tc_superset.deinit();
+        defer tc_subset.deinit();
+    }
+
     // negative case 
     {
         const tc_superset = try Treecode.init_128(std.testing.allocator, 0b11001101);
