@@ -425,6 +425,26 @@ test "treecode: Treecode.eql" {
         try std.testing.expect(tc_fst.eql(tc_snd) == false);
         try std.testing.expect(tc_snd.eql(tc_fst) == false);
     }
+
+    {
+        var a  = try Treecode.init_128(std.testing.allocator, 1);
+        defer a.deinit();
+
+        var b  = try Treecode.init_128(std.testing.allocator, 10);
+        defer b.deinit();
+
+        var i:usize = 0;
+        while (i < 1000)  : (i += 1) {
+            errdefer std.debug.print(
+                "iteration: {} a: {b} b: {b}\n",
+                .{i, a.treecode_array[0], b.treecode_array[0]}
+            );
+            try std.testing.expect(a.eql(b) == false);
+            const next:u1 = if (@rem(i, 5) == 0) 0 else 1;
+            try a.append(next);
+            try b.append(next);
+        }
+    }
 }
 
 pub fn treecode128_append(a: u128, l_or_r_branch: u8) u128 {
