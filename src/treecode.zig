@@ -127,14 +127,10 @@ test "treecode: code_length" {
 }
 
 
-fn nlz128(_x: u128) !usize {
-    return @clz(_x);
-}
-
 fn nlz(tc: *Treecode) usize {
     if (tc == null or tc.treecode_array == null or tc.sz == 0) return 0;
 
-    if (tc.sz == 1) return try nlz128(tc.treecode_array[0]);
+    if (tc.sz == 1) return @clz(tc.treecode_array[0]);
 
     var n: usize = 0;
     var i = tc.sz;
@@ -142,7 +138,7 @@ fn nlz(tc: *Treecode) usize {
         if (tc.treecode_array[i] == 0) {
             n += 128;
         } else {
-            n += try nlz128(tc.treecode_array[i]);
+            n += @clz(tc.treecode_array[i]);
             break;
         }
     }
@@ -150,14 +146,14 @@ fn nlz(tc: *Treecode) usize {
     return n;
 }
 
-test "treecode: nlz128" {
+test "treecode: @clz" {
     var x: u128 = 0;
-    try std.testing.expectEqual(@as(u128, 128), try nlz128(x));
+    try std.testing.expectEqual(@as(u128, 128), @clz(x));
 
     var i: u128 = 0;
 
     while (i < 128) : (i += 1) {
-        try std.testing.expectEqual(i, try nlz128(x));
+        try std.testing.expectEqual(i, @clz(x));
         x = (x << 1) | 1;
     }
 }
@@ -173,7 +169,7 @@ fn treecode128_b_is_a_subset(a: treecode_128, b: treecode_128) bool {
     if (a == 0 or b == 0) {
         return false;
     }
-    var leading_zeros: usize = try nlz128(b) - 1;
+    var leading_zeros: usize = @clz(b) - 1;
     var mask: treecode_128 = treecode128_mask(leading_zeros);
     return (a & mask) == (b & mask);
 }
@@ -196,17 +192,28 @@ fn treecode_b_is_a_subset(a: *Treecode, b: *Treecode) bool {
     return (a.treecode_array[greatest_nozero_b_index] & mask) == (b.treecode_array[greatest_nozero_b_index] & mask);
 }
 
-fn treecode_is_equal(a: ?Treecode, b: ?Treecode) bool {
-    if (a == null or b == null) return false;
-    if (a == b) return true;
+fn treecode_is_equal(maybe_a: ?Treecode, maybe_b: ?Treecode) bool {
+    if (maybe_a == null or maybe_b == null) {
+        return false;
+    }
+
+    const a = maybe_a.?;
+    const b = maybe_b.?;
+
     var len_a: usize = a.code_length();
     var len_b: usize = b.code_length();
-    if (len_a != len_b) return false;
-    var greatest_nozero_index: usize = len_a / 128;
-    var i:u128 = 0;
-    while (i < greatest_nozero_index): (i += 1) {
-        if (a.?.treecode_array[i] != b.?.treecode_array[i]) return false;
+    if (len_a != len_b) {
+        return false;
     }
+
+    var greatest_nozero_index: usize = len_a / 128;
+    var i:usize = 0;
+    while (i < greatest_nozero_index): (i += 1) {
+        if (a.treecode_array[i] != b.treecode_array[i]) {
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -220,19 +227,18 @@ test "treecode: treecode_is_equal" {
     while (i < 1000)  : (i += 1) {
         try std.testing.expect(treecode_is_equal(a, b));
         try treecode_append(&a, 1);
-        a = (a << 1) | 1;
-        b = (b << 1) | 1;
+        try treecode_append(&b, 1);
     }
 }
 
 pub fn treecode128_append(a: u128, l_or_r_branch: u8) u128 {
-    const leading_zeros = @clz(a);
+    const leading_zeros:u8 = @clz(a);
     // strip leading bit
-    const leading_bit = u128(1) << (128 - leading_zeros);
+    const leading_bit = @as(u128, 1) << @intCast(u7, (@as(u8, 128) - leading_zeros));
     return (
         (a - leading_bit) 
         | (leading_bit << 1) 
-        | (u128(l_or_r_branch) << (128 - leading_zeros - 1))
+        | (@intCast(u128, l_or_r_branch) << @intCast(u7, (@as(u8, 128) - leading_zeros - 1)))
     );
 }
 
@@ -259,16 +265,16 @@ pub fn treecode_append(
     if (index >= a.sz) 
     {
         // in this case, the array is full.
-        try a.realloc(a, index + 1);
+        try a.realloc(index + 1);
 
         a.treecode_array[index] = 1;
 
         // clear highest bit
-        a.treecode_array[index-1] &= ~((u128(1)) << 127);
-        a.treecode_array[index-1] |= (u128(l_or_r_branch) << 127);
+        a.treecode_array[index-1] &= ~((@as(u128,1)) << 127);
+        a.treecode_array[index-1] |= (@intCast(u128, (l_or_r_branch)) << 127);
 
         return;
     }
 
-    a.treecode_array[index] = treecode128_append(a.treecode_array[index]);
+    a.treecode_array[index] = treecode128_append(a.treecode_array[index], l_or_r_branch);
 }
