@@ -53,6 +53,9 @@ pub const Treecode = struct {
             self.treecode_array,
             new_size
         );
+
+        std.mem.set(treecode_128, self.treecode_array[self.sz..], 0);
+
         self.sz = new_size;
     }
 
@@ -75,7 +78,7 @@ pub const Treecode = struct {
             i += 1;
         }
 
-        var count = 127 - @clz(@as(u128, (self.treecode_array[occupied_words])));
+        var count = 127 - @clz(@as(treecode_128, (self.treecode_array[occupied_words])));
         if (occupied_words == 0) {
             return count;
         }
@@ -104,7 +107,7 @@ pub const Treecode = struct {
     // will realloc if needed
     pub fn append(
         self: *@This(),
-        l_or_r_branch: u8,
+        l_or_r_branch: u1,
     ) !void
     {
         if (self.sz == 0) {
@@ -112,7 +115,8 @@ pub const Treecode = struct {
         }
 
         const len = self.code_length();
-        if (len < 127) {
+
+        if (len < (@bitSizeOf(treecode_128) - 1)) {
             self.treecode_array[0] = treecode128_append(
                 self.treecode_array[0],
                 l_or_r_branch
@@ -120,25 +124,28 @@ pub const Treecode = struct {
             return;
         }
 
-        const index = len / 128 + 1;
-        if (index >= self.sz)
-        {
-            // in this case, the array is full.
-            try self.realloc(index + 1);
+        var space_available = self.sz * @bitSizeOf(treecode_128) - 1;
+        const next_index = len + 1;
 
-            self.treecode_array[index] = 1;
-
-            // clear highest bit
-            self.treecode_array[index-1] &= ~((@as(u128,1)) << 127);
-            self.treecode_array[index-1] |= (@intCast(u128, (l_or_r_branch)) << 127);
-
-            return;
+        if (next_index >= space_available) {
+            // double the size
+            try self.realloc(self.sz*2);
+            space_available = self.sz * @bitSizeOf(treecode_128) - 1;
         }
 
-        self.treecode_array[index] = treecode128_append(
-            self.treecode_array[index],
-            l_or_r_branch
-        );
+        const new_marker_location_abs = len + 1;
+        const new_marker_slot = new_marker_location_abs / @bitSizeOf(treecode_128);
+        const new_marker_location_in_slot = @rem(new_marker_location_abs, @bitSizeOf(treecode_128));
+
+        self.treecode_array[new_marker_slot] |= (std.math.shl(treecode_128, 1, new_marker_location_in_slot));
+
+        const new_data_location_abs = len; 
+        const new_data_slot = new_data_location_abs / @bitSizeOf(treecode_128);
+        const new_data_location_in_slot = @rem(new_data_location_abs, @bitSizeOf(treecode_128));
+
+        self.treecode_array[new_data_slot] |= (std.math.shl(treecode_128, l_or_r_branch, new_data_location_in_slot));
+
+        return;
     }
 
     fn is_superset_of(self: @This(), rhs: Treecode) bool {
@@ -171,7 +178,7 @@ pub const Treecode = struct {
         for (self.treecode_array) |tc| {
             var tc_current = tc;
             while (tc_current > 0) : (tc_current >>= 1) {
-                try buf.insert(0, @intCast(u8, tc_current & @as(u128, 1)));
+                try buf.insert(0, @intCast(u8, tc_current & @as(treecode_128, 1)));
             }
         }
     }
@@ -223,10 +230,10 @@ test "treecode: code_length" {
 }
 
 test "treecode: @clz" {
-    var x: u128 = 0;
-    try std.testing.expectEqual(@as(u128, 128), @clz(x));
+    var x: treecode_128 = 0;
+    try std.testing.expectEqual(@as(treecode_128, 128), @clz(x));
 
-    var i: u128 = 0;
+    var i: treecode_128 = 0;
 
     while (i < 128) : (i += 1) {
         try std.testing.expectEqual(i, 128 - @clz(x));
@@ -359,7 +366,7 @@ test "treecode: is a superset" {
         defer tc_superset.deinit();
         defer tc_subset.deinit();
 
-        var i:u128 = 0;
+        var i:treecode_128 = 0;
         while (i < 1000)  : (i += 1) {
             errdefer std.debug.print("iteration: {}\n", .{i});
             try std.testing.expect(tc_superset.is_superset_of(tc_subset));
@@ -417,12 +424,13 @@ test "treecode: append" {
             try tc.append(1);
         }
 
-        // std.debug.print(
-        //     "tc[1]: {b} tc[0]: {b}\n",
-        //     .{ tc.treecode_array[1], tc.treecode_array[0] }
-        // );
+        errdefer std.debug.print(
+            "tc[1]: {b} tc[0]: {b}\n",
+            .{ tc.treecode_array[1], tc.treecode_array[0] }
+        );
 
-        try std.testing.expectEqual(@as(u128, 0b11), tc.treecode_array[1]);
+        try std.testing.expectEqual(@as(treecode_128, 0b111), tc.treecode_array[1]);
+        try std.testing.expectEqual(@as(treecode_128, 130), tc.code_length());
     }
 
     // Variable size flavor
@@ -521,15 +529,15 @@ test "treecode: Treecode.eql" {
     }
 }
 
-fn treecode128_append(a: u128, l_or_r_branch: u8) u128 {
+fn treecode128_append(a: treecode_128, l_or_r_branch: u8) treecode_128 {
     const signficant_bits:u8 = 127 - @clz(a);
 
     // strip leading bit
-    const leading_bit = @as(u128, 1) << @intCast(u7, @as(u8, signficant_bits));
+    const leading_bit = @as(treecode_128, 1) << @intCast(u7, @as(u8, signficant_bits));
 
     const a_without_leading_bit = (a - leading_bit) ;
     const leading_bit_shifted = (leading_bit << 1);
-    const l_or_r_branch_shifted = (@intCast(u128, l_or_r_branch) << @intCast(u7, (@as(u8, signficant_bits))));
+    const l_or_r_branch_shifted = (@intCast(treecode_128, l_or_r_branch) << @intCast(u7, (@as(u8, signficant_bits))));
 
     const result = (
        a_without_leading_bit 
