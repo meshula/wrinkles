@@ -128,26 +128,6 @@ test "treecode: code_length" {
     }
 }
 
-
-fn nlz(tc: *Treecode) usize {
-    if (tc == null or tc.treecode_array == null or tc.sz == 0) return 0;
-
-    if (tc.sz == 1) return @clz(tc.treecode_array[0]);
-
-    var n: usize = 0;
-    var i = tc.sz;
-    while (i > 0) : (i -= 1) {
-        if (tc.treecode_array[i] == 0) {
-            n += 128;
-        } else {
-            n += @clz(tc.treecode_array[i]);
-            break;
-        }
-    }
-
-    return n;
-}
-
 test "treecode: @clz" {
     var x: u128 = 0;
     try std.testing.expectEqual(@as(u128, 128), @clz(x));
