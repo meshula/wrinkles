@@ -166,6 +166,15 @@ pub const Treecode = struct {
             == (rhs.treecode_array[greatest_nonzero_rhs_index] & mask
         );
     }
+
+    pub fn to_str(self: @This(), buf:*std.ArrayList(u8)) !void {
+        for (self.treecode_array) |tc| {
+            var tc_current = tc;
+            while (tc_current > 0) : (tc_current >>= 1) {
+                try buf.insert(0, @intCast(u8, tc_current & @as(u128, 1)));
+            }
+        }
+    }
 };
 
 test "treecode: code_length" {
@@ -241,6 +250,48 @@ fn treecode128_b_is_a_subset(a: treecode_128, b: treecode_128) bool {
     var leading_zeros: usize = @clz(b) - 1;
     var mask: treecode_128 = treecode128_mask(leading_zeros);
     return (a & mask) == (b & mask);
+}
+
+test "to_string" {
+    var tc = try Treecode.init_128(std.testing.allocator, 0b1);
+    defer tc.deinit();
+
+    var known = std.ArrayList(u8).init(std.testing.allocator);
+    defer known.deinit();
+    try known.append(1);
+
+
+    var buf = std.ArrayList(u8).init(std.testing.allocator);
+    defer buf.deinit();
+    try tc.to_str(&buf);
+
+    try std.testing.expectEqualStrings(known.items, buf.items);
+    std.debug.print("known: {b} buf: {b} \n", .{ known.items, buf.items } );
+
+    try tc.append(0);
+    try known.append(1);
+
+    buf.clearAndFree();
+    try tc.to_str(&buf);
+
+    std.debug.print("known: {b} buf: {b} \n", .{ known.items, buf.items } );
+    try std.testing.expectEqualStrings(known.items, buf.items);
+
+    var i : usize= 0;
+    while (i < 10) : (i += 1) {
+        // const next:u1 = if (i & 5 != 0) 0 else 1;
+        const next:u1 = 1;
+
+        try known.append(next);
+
+        try tc.append(next);
+        buf.clearAndFree();
+        try tc.to_str(&buf);
+
+        std.debug.print("iteration: {} known: {b} buf: {b} \n", .{ i, known.items, buf.items } );
+
+        try std.testing.expectEqualStrings(known.items, buf.items);
+    }
 }
 
 
