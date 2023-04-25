@@ -139,6 +139,32 @@ pub const Treecode = struct {
             l_or_r_branch
         );
     }
+
+    fn is_superset_of(self: @This(), rhs: Treecode) bool {
+        var len_self: usize = self.code_length();
+        var len_rhs: usize = rhs.code_length();
+
+        if (len_self == 0 or len_rhs == 0 or len_rhs > len_self) {
+            return false;
+        }
+
+        if (len_self <= 128) {
+            return treecode128_b_is_a_subset(
+                self.treecode_array[0],
+                rhs.treecode_array[0]
+            );
+        }
+        var greatest_nonzero_rhs_index: usize = len_rhs / 128;
+        var i:usize = 0;
+        while (i < greatest_nonzero_rhs_index) : (i += 1) {
+            if (self.treecode_array[i] != rhs.treecode_array[i]) return false;
+        }
+        var mask: treecode_128 = treecode128_mask(128 - ((len_rhs - 1) % 128));
+        return (
+            self.treecode_array[greatest_nonzero_rhs_index] & mask) 
+            == (rhs.treecode_array[greatest_nonzero_rhs_index] & mask
+        );
+    }
 };
 
 test "treecode: code_length" {
@@ -216,21 +242,6 @@ fn treecode128_b_is_a_subset(a: treecode_128, b: treecode_128) bool {
     return (a & mask) == (b & mask);
 }
 
-fn treecode_b_is_a_subset(a: Treecode, b: Treecode) bool {
-    var len_a: usize = a.code_length();
-    var len_b: usize = b.code_length();
-    if (len_a == 0 or len_b == 0 or len_b > len_a) return false;
-    if (len_a <= 128) {
-        return treecode128_b_is_a_subset(a.treecode_array[0], b.treecode_array[0]);
-    }
-    var greatest_nozero_b_index: usize = len_b / 128;
-    var i:usize = 0;
-    while (i < greatest_nozero_b_index) : (i += 1) {
-        if (a.treecode_array[i] != b.treecode_array[i]) return false;
-    }
-    var mask: treecode_128 = treecode128_mask(128 - ((len_b - 1) % 128));
-    return (a.treecode_array[greatest_nozero_b_index] & mask) == (b.treecode_array[greatest_nozero_b_index] & mask);
-}
 
 test "treecode_128: is a subset" {
         // positive case, ending in 1
@@ -273,9 +284,7 @@ test "treecode: is a subset" {
         defer tc_superset.deinit();
         defer tc_subset.deinit();
 
-        try std.testing.expect(
-            treecode_b_is_a_subset(tc_superset, tc_subset)
-        );
+        try std.testing.expect(tc_superset.is_superset_of(tc_subset));
     }
 
     // positive case, ending in 0
@@ -285,9 +294,7 @@ test "treecode: is a subset" {
         defer tc_superset.deinit();
         defer tc_subset.deinit();
 
-        try std.testing.expect(
-            treecode_b_is_a_subset(tc_superset, tc_subset)
-        );
+        try std.testing.expect(tc_superset.is_superset_of(tc_subset));
     }
 
     // positive case, very long
@@ -304,6 +311,11 @@ test "treecode: is a subset" {
         const tc_subset = try Treecode.init_128(std.testing.allocator, 0b11010);
         defer tc_superset.deinit();
         defer tc_subset.deinit();
+
+        try std.testing.expect(tc_superset.is_superset_of(tc_subset));
+
+        // stamp DEADBEEF into each word and ensure its still a subset
+        // ...until the == condition
     }
 
     // negative case 
@@ -314,10 +326,15 @@ test "treecode: is a subset" {
         defer tc_subset.deinit();
 
         try std.testing.expectEqual(
-            treecode_b_is_a_subset(tc_superset, tc_subset),
+            tc_superset.is_superset_of(tc_subset),
             false
         );
+
     }
+
+    // write very long negative test
+    // stamp DEADBEEF into each word and ensure its not a subset
+    // ...until the == condition
 }
 
 
