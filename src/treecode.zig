@@ -46,7 +46,7 @@ pub const Treecode = struct {
         };
     }
 
-    pub fn init_128(
+    pub fn init_single(
         allocator: std.mem.Allocator,
         input: treecode_128,
     ) !Treecode {
@@ -89,11 +89,16 @@ pub const Treecode = struct {
             i += 1;
         }
 
-        var count = 127 - @clz(@as(treecode_128, (self.treecode_array[occupied_words])));
+        var count = (
+            (@bitSizeOf(treecode_128) - 1)
+            - @clz(self.treecode_array[occupied_words])
+        );
+
         if (occupied_words == 0) {
             return count;
         }
-        return count + (occupied_words) * 128;
+
+        return count + (occupied_words) * @bitSizeOf(treecode_128);
     }
 
     pub fn eql(self: @This(), other: Treecode) bool {
@@ -104,7 +109,7 @@ pub const Treecode = struct {
             return false;
         }
 
-        var greatest_nozero_index: usize = len_self / 128;
+        var greatest_nozero_index: usize = len_self / @bitSizeOf(treecode_128);
         var i:usize = 0;
         while (i <= greatest_nozero_index): (i += 1) {
             if (self.treecode_array[i] != other.treecode_array[i]) {
@@ -145,14 +150,24 @@ pub const Treecode = struct {
         }
 
         const new_marker_location_abs = len + 1;
-        const new_marker_slot = new_marker_location_abs / @bitSizeOf(treecode_128);
-        const new_marker_location_in_slot = @rem(new_marker_location_abs, @bitSizeOf(treecode_128));
+        const new_marker_slot = (
+            new_marker_location_abs / @bitSizeOf(treecode_128)
+        );
+        const new_marker_location_in_slot = (
+            @rem(new_marker_location_abs, @bitSizeOf(treecode_128))
+        );
 
-        self.treecode_array[new_marker_slot] |= (std.math.shl(treecode_128, 1, new_marker_location_in_slot));
+        self.treecode_array[new_marker_slot] |= std.math.shl(
+            treecode_128,
+            1,
+            new_marker_location_in_slot
+        );
 
         const new_data_location_abs = len; 
         const new_data_slot = new_data_location_abs / @bitSizeOf(treecode_128);
-        const new_data_location_in_slot = @rem(new_data_location_abs, @bitSizeOf(treecode_128));
+        const new_data_location_in_slot = (
+            @rem(new_data_location_abs, @bitSizeOf(treecode_128))
+        );
 
         const old_marker_bit = std.math.shl(
             treecode_128,
@@ -190,7 +205,9 @@ pub const Treecode = struct {
             );
         }
 
-        var greatest_nonzero_rhs_index: usize = len_rhs / @bitSizeOf(treecode_128);
+        var greatest_nonzero_rhs_index: usize = (
+            len_rhs / @bitSizeOf(treecode_128)
+        );
         var i:usize = 0;
         while (i < greatest_nonzero_rhs_index) : (i += 1) {
             if (self.treecode_array[i] != rhs.treecode_array[i]) {
@@ -199,7 +216,7 @@ pub const Treecode = struct {
         }
 
         const mask_location_local = @rem(len_rhs, @bitSizeOf(treecode_128));
-        const mask_bits = 128 - mask_location_local;
+        const mask_bits = @bitSizeOf(treecode_128) - mask_location_local;
 
         // already checked all the other locations
         if (mask_location_local == 0) {
@@ -208,10 +225,12 @@ pub const Treecode = struct {
 
         var mask: treecode_128 = treecode128_mask(mask_bits);
 
-        const self_masked = self.treecode_array[greatest_nonzero_rhs_index] & mask;
-        const rhs_masked = (rhs.treecode_array[greatest_nonzero_rhs_index] & mask);
-
-        // @breakpoint();
+        const self_masked = (
+            self.treecode_array[greatest_nonzero_rhs_index] & mask
+        );
+        const rhs_masked = (
+            rhs.treecode_array[greatest_nonzero_rhs_index] & mask
+        );
 
         return (self_masked == rhs_masked);
     }
@@ -249,21 +268,21 @@ pub const Treecode = struct {
 
 test "treecode: code_length" {
     {
-        var tc  = try Treecode.init_128(std.testing.allocator, 1);
+        var tc  = try Treecode.init_single(std.testing.allocator, 1);
         defer tc.deinit();
 
         try std.testing.expectEqual(@as(usize, 0), tc.code_length());
     }
 
     {
-        var tc  = try Treecode.init_128(std.testing.allocator, 0b11);
+        var tc  = try Treecode.init_single(std.testing.allocator, 0b11);
         defer tc.deinit();
 
         try std.testing.expectEqual(@as(usize, 1), tc.code_length());
     }
 
     {
-        var tc  = try Treecode.init_128(std.testing.allocator, 0b1111111);
+        var tc  = try Treecode.init_single(std.testing.allocator, 0b1111111);
         defer tc.deinit();
 
         try std.testing.expectEqual(@as(usize, 6), tc.code_length());
@@ -274,39 +293,53 @@ test "treecode: code_length" {
         var tc  = try Treecode.init_fill_count(std.testing.allocator, 2, 0b1);
         defer tc.deinit();
 
-        try std.testing.expectEqual(@as(usize, 128), tc.code_length());
+        try std.testing.expectEqual(
+            @as(usize, @bitSizeOf(treecode_128)),
+            tc.code_length()
+        );
     }
 
     {
         var tc  = try Treecode.init_fill_count(std.testing.allocator, 8, 0b1);
         defer tc.deinit();
 
-        try std.testing.expectEqual(@as(usize, 7*128), tc.code_length());
+        try std.testing.expectEqual(
+            @as(usize, 7*@bitSizeOf(treecode_128)),
+            tc.code_length()
+        );
     }
 
     {
         var tc  = try Treecode.init_fill_count(std.testing.allocator, 8, 0b11);
         defer tc.deinit();
 
-        try std.testing.expectEqual(@as(usize, 7*128 + 1), tc.code_length());
+        try std.testing.expectEqual(
+            @as(usize, 7*@bitSizeOf(treecode_128) + 1),
+            tc.code_length()
+        );
     }
 }
 
 test "treecode: @clz" {
     var x: treecode_128 = 0;
-    try std.testing.expectEqual(@as(treecode_128, 128), @clz(x));
+    try std.testing.expectEqual(
+        @as(treecode_128, @bitSizeOf(treecode_128)),
+        @clz(x)
+    );
 
     var i: treecode_128 = 0;
 
-    while (i < 128) : (i += 1) {
-        try std.testing.expectEqual(i, 128 - @clz(x));
+    while (i < @bitSizeOf(treecode_128)) : (i += 1) {
+        try std.testing.expectEqual(i, @bitSizeOf(treecode_128) - @clz(x));
         x = (x << 1) | 1;
     }
 }
 
 fn treecode128_mask(leading_zeros: usize) treecode_128 {
     return (
-        @intCast(treecode_128, 1) << @intCast(u7, (128 - leading_zeros))
+        @intCast(treecode_128, 1) << (
+            @intCast(u7, (@bitSizeOf(treecode_128) - leading_zeros))
+        )
     ) - 1;
 }
 
@@ -329,7 +362,7 @@ fn treecode128_b_is_a_subset(a: treecode_128, b: treecode_128) bool {
 }
 
 test "to_string" {
-    var tc = try Treecode.init_128(std.testing.allocator, 0b1);
+    var tc = try Treecode.init_single(std.testing.allocator, 0b1);
     defer tc.deinit();
 
     var known = std.ArrayList(u8).init(std.testing.allocator);
@@ -342,7 +375,10 @@ test "to_string" {
     try tc.to_str(&buf);
 
     try std.testing.expectEqualStrings(known.items, buf.items);
-    errdefer std.debug.print("known: {b} buf: {b} \n", .{ known.items, buf.items } );
+    errdefer std.debug.print(
+        "known: {b} buf: {b} \n",
+        .{ known.items, buf.items } 
+    );
 
     try tc.append(1);
     try known.append(1);
@@ -350,7 +386,10 @@ test "to_string" {
     buf.clearAndFree();
     try tc.to_str(&buf);
 
-    errdefer std.debug.print("known: {b} buf: {b} \n", .{ known.items, buf.items } );
+    errdefer std.debug.print(
+        "known: {b} buf: {b} \n",
+        .{ known.items, buf.items } 
+    );
     try std.testing.expectEqualStrings(known.items, buf.items);
 
     var i : usize= 0;
@@ -364,7 +403,10 @@ test "to_string" {
         buf.clearAndFree();
         try tc.to_str(&buf);
 
-        errdefer std.debug.print("iteration: {} known: {b} buf: {b} \n", .{ i, known.items, buf.items } );
+        errdefer std.debug.print(
+            "iteration: {} known: {b} buf: {b} \n",
+            .{ i, known.items, buf.items } 
+        );
 
         try std.testing.expectEqualStrings(known.items, buf.items);
     }
@@ -374,31 +416,31 @@ test "to_string" {
 test "treecode_128: is a subset" {
         // positive case, ending in 1
         {
-            const tc_128_superset:treecode_128 = 0b11001101;
-            const tc_128_subset:treecode_128 = 0b1101;
+            const tc_single_superset:treecode_128 = 0b11001101;
+            const tc_single_subset:treecode_128 = 0b1101;
 
             try std.testing.expect(
-                treecode128_b_is_a_subset(tc_128_superset, tc_128_subset)
+                treecode128_b_is_a_subset(tc_single_superset, tc_single_subset)
             );
         }
 
         // positive case, ending in 0
         {
-            const tc_128_superset:treecode_128 = 0b110011010;
-            const tc_128_subset:treecode_128 = 0b11010;
+            const tc_single_superset:treecode_128 = 0b110011010;
+            const tc_single_subset:treecode_128 = 0b11010;
 
             try std.testing.expect(
-                treecode128_b_is_a_subset(tc_128_superset, tc_128_subset)
+                treecode128_b_is_a_subset(tc_single_superset, tc_single_subset)
             );
         }
 
         // negative case 
         {
-            const tc_128_superset:treecode_128 = 0b11001101;
-            const tc_128_subset:treecode_128 = 0b11001;
+            const tc_single_superset:treecode_128 = 0b11001101;
+            const tc_single_subset:treecode_128 = 0b11001;
 
             try std.testing.expectEqual(
-                treecode128_b_is_a_subset(tc_128_superset, tc_128_subset),
+                treecode128_b_is_a_subset(tc_single_superset, tc_single_subset),
                 false
             );
         }
@@ -407,9 +449,13 @@ test "treecode_128: is a subset" {
 test "treecode: is a superset" {
     // positive case, ending in 1
     {
-        const tc_superset = try Treecode.init_128(std.testing.allocator, 0b11001101);
-        const tc_subset = try Treecode.init_128(std.testing.allocator, 0b1101);
+        const tc_superset = try Treecode.init_single(
+            std.testing.allocator, 0b11001101
+        );
         defer tc_superset.deinit();
+        const tc_subset = try Treecode.init_single(
+            std.testing.allocator, 0b1101
+        );
         defer tc_subset.deinit();
 
         try std.testing.expect(tc_superset.is_superset_of(tc_subset));
@@ -417,9 +463,14 @@ test "treecode: is a superset" {
 
     // positive case, ending in 0
     {
-        const tc_superset = try Treecode.init_128(std.testing.allocator, 0b110011010);
-        const tc_subset = try Treecode.init_128(std.testing.allocator, 0b11010);
+        const tc_superset = try Treecode.init_single(
+            std.testing.allocator, 0b110011010
+        );
         defer tc_superset.deinit();
+        const tc_subset = try Treecode.init_single(
+            std.testing.allocator,
+            0b11010
+        );
         defer tc_subset.deinit();
 
         try std.testing.expect(tc_superset.is_superset_of(tc_subset));
@@ -427,14 +478,14 @@ test "treecode: is a superset" {
 
     // positive case, very long
     {  
-        var tc_superset  = try Treecode.init_128(
+        var tc_superset  = try Treecode.init_single(
             std.testing.allocator,
             0b111111101
             //   0x1101
         );
         defer tc_superset.deinit();
 
-        var tc_subset  = try Treecode.init_128(
+        var tc_subset  = try Treecode.init_single(
             std.testing.allocator,
             0b11101
         );
@@ -469,9 +520,16 @@ test "treecode: is a superset" {
 
     // negative case 
     {
-        const tc_superset = try Treecode.init_128(std.testing.allocator, 0b11001101);
-        const tc_subset = try Treecode.init_128(std.testing.allocator, 0b11001);
+        const tc_superset = try Treecode.init_single(
+            std.testing.allocator,
+            0b11001101
+        );
         defer tc_superset.deinit();
+
+        const tc_subset = try Treecode.init_single(
+            std.testing.allocator,
+            0b11001
+        );
         defer tc_subset.deinit();
 
         try std.testing.expectEqual(
@@ -508,7 +566,7 @@ test "treecode: append" {
     }
 
     {
-        var tc = try Treecode.init_128(std.testing.allocator, 0b1);
+        var tc = try Treecode.init_single(std.testing.allocator, 0b1);
         defer tc.deinit();
 
         var i:usize = 0;
@@ -521,17 +579,23 @@ test "treecode: append" {
             .{ tc.treecode_array[1], tc.treecode_array[0] }
         );
 
-        try std.testing.expectEqual(@as(treecode_128, 0b100), tc.treecode_array[1]);
+        try std.testing.expectEqual(
+            @as(treecode_128, 0b100),
+            tc.treecode_array[1]
+        );
         try std.testing.expectEqual(@as(treecode_128, 130), tc.code_length());
 
         try tc.append(0);
 
-        try std.testing.expectEqual(@as(treecode_128, 0b1000), tc.treecode_array[1]);
+        try std.testing.expectEqual(
+            @as(treecode_128, 0b1000),
+            tc.treecode_array[1]
+        );
         try std.testing.expectEqual(@as(treecode_128, 131), tc.code_length());
     }
 
     {
-        var tc = try Treecode.init_128(std.testing.allocator, 0b1);
+        var tc = try Treecode.init_single(std.testing.allocator, 0b1);
         defer tc.deinit();
 
         var i:usize = 0;
@@ -544,17 +608,23 @@ test "treecode: append" {
             .{ tc.treecode_array[1], tc.treecode_array[0] }
         );
 
-        try std.testing.expectEqual(@as(treecode_128, 0b111), tc.treecode_array[1]);
+        try std.testing.expectEqual(
+            @as(treecode_128, 0b111),
+            tc.treecode_array[1]
+        );
         try std.testing.expectEqual(@as(treecode_128, 130), tc.code_length());
 
         try tc.append(0);
 
-        try std.testing.expectEqual(@as(treecode_128, 0b1011), tc.treecode_array[1]);
+        try std.testing.expectEqual(
+            @as(treecode_128, 0b1011),
+            tc.treecode_array[1]
+        );
         try std.testing.expectEqual(@as(treecode_128, 131), tc.code_length());
     }
 
     {
-        var tc = try Treecode.init_128(std.testing.allocator, 0b1);
+        var tc = try Treecode.init_single(std.testing.allocator, 0b1);
         defer tc.deinit();
 
         var i:usize = 0;
@@ -567,17 +637,23 @@ test "treecode: append" {
             .{ tc.treecode_array[2] }
         );
 
-        try std.testing.expectEqual(@as(treecode_128, 0b111), tc.treecode_array[2]);
+        try std.testing.expectEqual(
+            @as(treecode_128, 0b111),
+            tc.treecode_array[2]
+        );
         try std.testing.expectEqual(@as(treecode_128, 258), tc.code_length());
 
         try tc.append(0);
 
-        try std.testing.expectEqual(@as(treecode_128, 0b1011), tc.treecode_array[2]);
+        try std.testing.expectEqual(
+            @as(treecode_128, 0b1011),
+            tc.treecode_array[2]
+        );
         try std.testing.expectEqual(@as(treecode_128, 259), tc.code_length());
     }
 
     {
-        var tc = try Treecode.init_128(std.testing.allocator, 0b1);
+        var tc = try Treecode.init_single(std.testing.allocator, 0b1);
         defer tc.deinit();
 
         var i:usize = 0;
@@ -590,17 +666,23 @@ test "treecode: append" {
             .{ tc.treecode_array[2] }
         );
 
-        try std.testing.expectEqual(@as(treecode_128, 0b100), tc.treecode_array[2]);
+        try std.testing.expectEqual(
+            @as(treecode_128, 0b100),
+            tc.treecode_array[2]
+        );
         try std.testing.expectEqual(@as(treecode_128, 258), tc.code_length());
 
         try tc.append(1);
 
-        try std.testing.expectEqual(@as(treecode_128, 0b1100), tc.treecode_array[2]);
+        try std.testing.expectEqual(
+            @as(treecode_128, 0b1100),
+            tc.treecode_array[2]
+        );
         try std.testing.expectEqual(@as(treecode_128, 259), tc.code_length());
     }
 
     {   
-        var tc = try Treecode.init_128(std.testing.allocator, 0b1);
+        var tc = try Treecode.init_single(std.testing.allocator, 0b1);
         defer tc.deinit();
 
         var buf_tc = std.ArrayList(u8).init(std.testing.allocator);
@@ -645,7 +727,7 @@ test "treecode: append" {
 
     // Variable size flavor, adding a mix of 0s and 1s
     {
-        var tc = try Treecode.init_128(std.testing.allocator, 0b1);
+        var tc = try Treecode.init_single(std.testing.allocator, 0b1);
         defer tc.deinit();
 
         var buf_tc = std.ArrayList(u8).init(std.testing.allocator);
@@ -659,7 +741,10 @@ test "treecode: append" {
         var i:usize = 0;
         while (i < 1000)  : (i += 1) 
         {
-            try std.testing.expectEqual(buf_known.items.len - 1, tc.code_length());
+            try std.testing.expectEqual(
+                buf_known.items.len - 1,
+                tc.code_length()
+            );
             buf_tc.clearAndFree();
             try tc.to_str(&buf_tc);
 
@@ -670,7 +755,10 @@ test "treecode: append" {
                 .{i, buf_tc.items, buf_known.items}
             );
 
-            try std.testing.expectEqual(buf_known.items.len - 1, tc.code_length());
+            try std.testing.expectEqual(
+                buf_known.items.len - 1,
+                tc.code_length()
+            );
             try std.testing.expectEqualStrings(buf_known.items, buf_tc.items);
 
             const next:u1 = if (@rem(i, 5) == 0) 0 else 1;
@@ -682,7 +770,10 @@ test "treecode: append" {
                 .{ tc.treecode_array[0] }
             );
 
-            try std.testing.expectEqual(buf_known.items.len - 1, tc.code_length());
+            try std.testing.expectEqual(
+                buf_known.items.len - 1,
+                tc.code_length()
+            );
         }
     }
 }
@@ -691,10 +782,10 @@ test "treecode: append" {
 test "treecode: Treecode.eql" {
     // positive tests
     {
-        var a  = try Treecode.init_128(std.testing.allocator, 1);
+        var a  = try Treecode.init_single(std.testing.allocator, 1);
         defer a.deinit();
 
-        var b  = try Treecode.init_128(std.testing.allocator, 1);
+        var b  = try Treecode.init_single(std.testing.allocator, 1);
         defer b.deinit();
 
         var i:usize = 0;
@@ -712,9 +803,9 @@ test "treecode: Treecode.eql" {
 
     // negative tests
     {
-        const tc_fst = try Treecode.init_128(std.testing.allocator, 0b1101);
+        const tc_fst = try Treecode.init_single(std.testing.allocator, 0b1101);
         defer tc_fst.deinit();
-        const tc_snd = try Treecode.init_128(std.testing.allocator, 0b1011);
+        const tc_snd = try Treecode.init_single(std.testing.allocator, 0b1011);
         defer tc_snd.deinit();
 
         try std.testing.expect(tc_fst.eql(tc_snd) == false);
@@ -722,9 +813,9 @@ test "treecode: Treecode.eql" {
     }
 
     {
-        const tc_fst = try Treecode.init_128(std.testing.allocator, 0b1101);
+        const tc_fst = try Treecode.init_single(std.testing.allocator, 0b1101);
         defer tc_fst.deinit();
-        const tc_snd = try Treecode.init_128(std.testing.allocator, 0b1010);
+        const tc_snd = try Treecode.init_single(std.testing.allocator, 0b1010);
         defer tc_snd.deinit();
 
         try std.testing.expect(tc_fst.eql(tc_snd) == false);
@@ -732,10 +823,10 @@ test "treecode: Treecode.eql" {
     }
 
     {
-        var a  = try Treecode.init_128(std.testing.allocator, 1);
+        var a  = try Treecode.init_single(std.testing.allocator, 1);
         defer a.deinit();
 
-        var b  = try Treecode.init_128(std.testing.allocator, 10);
+        var b  = try Treecode.init_single(std.testing.allocator, 10);
         defer b.deinit();
 
         var i:usize = 0;
@@ -752,15 +843,21 @@ test "treecode: Treecode.eql" {
     }
 }
 
-fn treecode128_append(a: treecode_128, l_or_r_branch: u8) treecode_128 {
-    const signficant_bits:u8 = 127 - @clz(a);
+fn treecode128_append(a: treecode_128, l_or_r_branch: u1) treecode_128 {
+    const signficant_bits:u8 = @bitSizeOf(treecode_128) - 1 - @clz(a);
 
     // strip leading bit
-    const leading_bit = @as(treecode_128, 1) << @intCast(u7, @as(u8, signficant_bits));
+    const leading_bit = (
+        @as(treecode_128, 1) << @intCast(u7, @as(u8, signficant_bits))
+    );
 
     const a_without_leading_bit = (a - leading_bit) ;
     const leading_bit_shifted = (leading_bit << 1);
-    const l_or_r_branch_shifted = (@intCast(treecode_128, l_or_r_branch) << @intCast(u7, (@as(u8, signficant_bits))));
+
+    const l_or_r_branch_shifted = (
+        @intCast(treecode_128, l_or_r_branch) 
+        << @intCast(u7, (@as(u8, signficant_bits)))
+    );
 
     const result = (
        a_without_leading_bit 
