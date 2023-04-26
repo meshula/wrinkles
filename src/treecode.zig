@@ -314,6 +314,7 @@ fn treecode128_b_is_a_subset(a: treecode_128, b: treecode_128) bool {
     if (a == b) {
         return true;
     }
+
     if (a == 0 or b == 0) {
         return false;
     }
@@ -428,21 +429,36 @@ test "treecode: is a superset" {
     {  
         var tc_superset  = try Treecode.init_128(
             std.testing.allocator,
-            0x1011010101
+            0b111111101
+            //   0x1101
         );
         defer tc_superset.deinit();
 
         var tc_subset  = try Treecode.init_128(
             std.testing.allocator,
-            0b101
+            0b11101
         );
         defer tc_subset.deinit();
 
         var i:usize = 0;
+        // walk exactly off the end of one span
+        while (i < 124)  : (i += 1) {
+            try tc_superset.append(1);
+            try tc_subset.append(1);
+        }
+
+        errdefer std.debug.print(
+            "\n\niteration: {}\n superset: {b} \n subset:   {b}\n\n",
+            .{i, tc_superset.treecode_array[1], tc_subset.treecode_array[1]}
+        );
+
+        try std.testing.expect(tc_superset.is_superset_of(tc_subset));
+
+        i = 4;
         while (i < 1000)  : (i += 1) {
             errdefer std.debug.print(
                 "\n\niteration: {}\n superset: {b} \n subset:   {b}\n\n",
-                .{i, tc_superset.treecode_array[0], tc_subset.treecode_array[0]}
+                .{i, tc_superset.treecode_array[1], tc_subset.treecode_array[1]}
             );
             try std.testing.expect(tc_superset.is_superset_of(tc_subset));
 
@@ -508,10 +524,10 @@ test "treecode: append" {
         try std.testing.expectEqual(@as(treecode_128, 0b100), tc.treecode_array[1]);
         try std.testing.expectEqual(@as(treecode_128, 130), tc.code_length());
 
-        // try tc.append(0);
-        //
-        // try std.testing.expectEqual(@as(treecode_128, 0b1011), tc.treecode_array[1]);
-        // try std.testing.expectEqual(@as(treecode_128, 131), tc.code_length());
+        try tc.append(0);
+
+        try std.testing.expectEqual(@as(treecode_128, 0b1000), tc.treecode_array[1]);
+        try std.testing.expectEqual(@as(treecode_128, 131), tc.code_length());
     }
 
     {
