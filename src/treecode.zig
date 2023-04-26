@@ -183,22 +183,37 @@ pub const Treecode = struct {
             return false;
         }
 
-        if (len_self <= 128) {
+        if (len_self <= @bitSizeOf(treecode_128)) {
             return treecode128_b_is_a_subset(
                 self.treecode_array[0],
-                rhs.treecode_array[0]
+                rhs.treecode_array[0],
             );
         }
-        var greatest_nonzero_rhs_index: usize = len_rhs / 128;
+
+        var greatest_nonzero_rhs_index: usize = len_rhs / @bitSizeOf(treecode_128);
         var i:usize = 0;
         while (i < greatest_nonzero_rhs_index) : (i += 1) {
-            if (self.treecode_array[i] != rhs.treecode_array[i]) return false;
+            if (self.treecode_array[i] != rhs.treecode_array[i]) {
+                return false;
+            }
         }
-        var mask: treecode_128 = treecode128_mask(128 - ((len_rhs - 1) % 128));
-        return (
-            self.treecode_array[greatest_nonzero_rhs_index] & mask) 
-            == (rhs.treecode_array[greatest_nonzero_rhs_index] & mask
-        );
+
+        const mask_location_local = @rem(len_rhs, @bitSizeOf(treecode_128));
+        const mask_bits = 128 - mask_location_local;
+
+        // already checked all the other locations
+        if (mask_location_local == 0) {
+            return true;
+        }
+
+        var mask: treecode_128 = treecode128_mask(mask_bits);
+
+        const self_masked = self.treecode_array[greatest_nonzero_rhs_index] & mask;
+        const rhs_masked = (rhs.treecode_array[greatest_nonzero_rhs_index] & mask);
+
+        // @breakpoint();
+
+        return (self_masked == rhs_masked);
     }
 
     pub fn to_str(self: @This(), buf:*std.ArrayList(u8)) !void {
