@@ -317,9 +317,14 @@ fn treecode128_b_is_a_subset(a: treecode_128, b: treecode_128) bool {
     if (a == 0 or b == 0) {
         return false;
     }
-    var leading_zeros: usize = @clz(b) - 1;
-    var mask: treecode_128 = treecode128_mask(leading_zeros);
-    return (a & mask) == (b & mask);
+
+    const leading_zeros: usize = @clz(b) + 1;
+    const mask: treecode_128 = treecode128_mask(leading_zeros);
+
+    const a_masked = (a & mask);
+    const b_masked = (b & mask);
+
+    return a_masked == b_masked;
 }
 
 test "to_string" {
