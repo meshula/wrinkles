@@ -2,6 +2,17 @@ const std = @import("std");
 
 const treecode_128 = u128;
 
+/// tree code encodes the path through a binary tree.  The root bit is the right
+/// side of a number, and the directions are read right to left.  
+///
+/// The directions:
+/// - 0: left child
+/// - 1: right child
+///
+/// Examples:
+/// - 0b1001 => right, left, left
+/// - 0b111001 => right, left, left, right, right
+/// - 0b1010 => left, right, left
 pub const Treecode = struct {
     sz: usize,
     treecode_array: []treecode_128,
