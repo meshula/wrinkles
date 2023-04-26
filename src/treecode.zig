@@ -205,14 +205,25 @@ pub const Treecode = struct {
 
         try buf.ensureTotalCapacity(self.code_length());
 
+        const marker_pos_abs = self.code_length();
+        const last_index = (marker_pos_abs / @bitSizeOf(treecode_128));
+
         for (self.treecode_array) |tc, index| {
-            var this_tc = tc;
-            var mask : treecode_128 = 1 << (@bitSizeOf(treecode_128) - 1);
-            if (index == self.sz - 1) {
-                mask = @as(treecode_128, 1) << @intCast(u7, @rem(self.code_length(), @bitSizeOf(treecode_128)));
+            if (index > last_index) {
+                break;
             }
+
+            var this_tc = tc;
+            var end_at:usize = @bitSizeOf(treecode_128);
+
+            if (index == last_index) {
+                end_at = @rem(marker_pos_abs, @bitSizeOf(treecode_128)) + 1;
+            }
+
             var bits_shifted:usize = 0;
-            while (bits_shifted > @bitSizeOf(treecode_128)) : (bits_shifted += 1) {
+
+            // scoot each bit of this treecode over and see if its 1
+            while (bits_shifted < end_at) : (bits_shifted += 1) {
                 var result = this_tc & 1;
                 try buf.insert(0, @intCast(u8, result));
                 this_tc >>= 1;
