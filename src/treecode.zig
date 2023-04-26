@@ -268,6 +268,17 @@ pub const Treecode = struct {
             }
         }
     }
+
+    pub fn hash(self: @This()) u64 {
+        var hasher = std.hash.Wyhash.init(0);
+        for (self.treecode_array) |tc| {
+            if (tc > 0) {
+                std.hash.autoHash(&hasher, tc);
+            }
+        }
+
+        return hasher.final();
+    }
 };
 
 test "treecode: code_length" {
@@ -893,3 +904,47 @@ fn treecode_word_append(a: treecode_word, l_or_r_branch: u1) treecode_word {
     return result;
 }
 
+test "treecode: hash" {
+    {
+        var tc1 = try Treecode.init_word(std.testing.allocator, 0b101);
+        defer tc1.deinit();
+
+        var tc2 = try Treecode.init_word(std.testing.allocator, 0b101);
+        defer tc2.deinit();
+
+        try std.testing.expectEqual(tc1.hash(), tc2.hash());
+
+        try tc1.append(1);
+        try tc2.append(1);
+
+        try std.testing.expectEqual(tc1.hash(), tc2.hash());
+
+        try tc1.append(0);
+        try tc2.append(0);
+
+        try std.testing.expectEqual(tc1.hash(), tc2.hash());
+
+        try tc1.realloc(1024);
+        try std.testing.expectEqual(tc1.hash(), tc2.hash());
+
+        try tc2.append(0);
+        try std.testing.expect(tc1.hash() != tc2.hash());
+
+        try tc1.append(0);
+        try std.testing.expectEqual(tc1.hash(), tc2.hash());
+    }
+
+    {
+        var tc1 = try Treecode.init_fill_count(std.testing.allocator, 2, 0b1);
+        defer tc1.deinit();
+
+        var tc2 = try Treecode.init_fill_count(std.testing.allocator, 2, 0b1);
+        defer tc2.deinit();
+
+        errdefer std.debug.print("\ntc1: {b}\ntc2: {b}\n\n",
+            .{ tc1.treecode_array[1], tc2.treecode_array[1] }
+        );
+
+        try std.testing.expectEqual(tc1.hash(), tc2.hash());
+    }
+}
