@@ -563,6 +563,50 @@ test "treecode: append" {
         try std.testing.expectEqual(@as(treecode_128, 259), tc.code_length());
     }
 
+    {   
+        var tc = try Treecode.init_128(std.testing.allocator, 0b1);
+        defer tc.deinit();
+
+        var buf_tc = std.ArrayList(u8).init(std.testing.allocator);
+        defer buf_tc.deinit();
+
+        var buf_known = std.ArrayList(u8).init(std.testing.allocator);
+        defer buf_known.deinit();
+        try buf_known.ensureTotalCapacity(1024);
+        try buf_known.append(1);
+
+        var i:usize = 0;
+        while (i < 256)  : (i += 1) 
+        {
+
+            errdefer std.debug.print("iteration: {} \n", .{i});
+
+            const next:u1 = if (@rem(i, 5) == 0) 0 else 1;
+
+            try tc.append(next);
+            try buf_known.insert(1, next);
+        }
+
+        errdefer std.debug.print(
+            "iteration: {} \n  buf_tc:    {any}\n  buf_known: {any}\n",
+            .{256, buf_tc.items, buf_known.items}
+        );
+
+
+        errdefer std.debug.print(
+            "tc: {b} \n",
+            .{ tc.treecode_array[1] }
+        );
+
+        buf_tc.clearAndFree();
+        try tc.to_str(&buf_tc);
+
+        try std.testing.expectEqual(buf_known.items.len - 1, tc.code_length());
+        try std.testing.expectEqualStrings(buf_known.items, buf_tc.items);
+
+        try std.testing.expectEqual(buf_known.items.len - 1, tc.code_length());
+    }
+
     // Variable size flavor, adding a mix of 0s and 1s
     {
         var tc = try Treecode.init_128(std.testing.allocator, 0b1);
