@@ -343,7 +343,7 @@ test "to_string" {
         buf.clearAndFree();
         try tc.to_str(&buf);
 
-        std.debug.print("iteration: {} known: {b} buf: {b} \n", .{ i, known.items, buf.items } );
+        errdefer std.debug.print("iteration: {} known: {b} buf: {b} \n", .{ i, known.items, buf.items } );
 
         try std.testing.expectEqualStrings(known.items, buf.items);
     }
@@ -421,7 +421,7 @@ test "treecode: is a superset" {
         var i:usize = 0;
         while (i < 1000)  : (i += 1) {
             errdefer std.debug.print(
-                "iteration: {}\n superset: {b} \n subset:   {b}\n",
+                "\n\niteration: {}\n superset: {b} \n subset:   {b}\n\n",
                 .{i, tc_superset.treecode_array[0], tc_subset.treecode_array[0]}
             );
             try std.testing.expect(tc_superset.is_superset_of(tc_subset));
