@@ -1045,14 +1045,14 @@ test "treecode: next_step_towards" {
         };
 
         const test_data = [_]TestData{
-            .{ .source = 0b11,  .dest = 0b101,      .expect = 0b0 },
-            .{ .source = 0b11,  .dest = 0b111,      .expect = 0b1 },
-            .{ .source = 0b10,  .dest = 0b10011100, .expect = 0b0 },
-            .{ .source = 0b10,  .dest = 0b10001100, .expect = 0b0 },
-            .{ .source = 0b10,  .dest = 0b10111110, .expect = 0b1 },
-            .{ .source = 0b11,  .dest = 0b10101111, .expect = 0b1 },
-            .{ .source = 0b101, .dest = 0b10111101, .expect = 0b1 },
-            .{ .source = 0b101, .dest = 0b10101001, .expect = 0b0 },
+            .{ .source = 0b11,      .dest = 0b101,      .expect = 0b0 },
+            .{ .source = 0b11,      .dest = 0b111,      .expect = 0b1 },
+            .{ .source = 0b10,      .dest = 0b10011100, .expect = 0b0 },
+            .{ .source = 0b10,      .dest = 0b10001100, .expect = 0b0 },
+            .{ .source = 0b10,      .dest = 0b10111110, .expect = 0b1 },
+            .{ .source = 0b11,      .dest = 0b10101111, .expect = 0b1 },
+            .{ .source = 0b101,     .dest = 0b10111101, .expect = 0b1 },
+            .{ .source = 0b101,     .dest = 0b10101001, .expect = 0b0 },
             .{ .source = 0b1101001, .dest = 0b10101001, .expect = 0b0 },
         };
 
