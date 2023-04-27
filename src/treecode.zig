@@ -272,9 +272,11 @@ pub const Treecode = struct {
 
     pub fn hash(self: @This()) u64 {
         var hasher = std.hash.Wyhash.init(0);
-        for (self.treecode_array) |tc| {
+        
+        for (self.treecode_array) |tc, index| {
             if (tc > 0) {
-                std.hash.autoHash(&hasher, tc);
+                std.hash.autoHash(&hasher, index + 1);
+                std.hash.autoHash(&hasher, tc + 1);
             }
         }
 
@@ -948,4 +950,66 @@ test "treecode: hash" {
 
         try std.testing.expectEqual(tc1.hash(), tc2.hash());
     }
+
+    {
+        var tc1 = try Treecode.init_word(std.testing.allocator, 0b1);
+        defer tc1.deinit();
+
+        var tc2 = try Treecode.init_word(std.testing.allocator, 0b1);
+        defer tc2.deinit();
+
+        try tc1.realloc(1024);
+        var i:usize = 0;
+        while (i < 128) : (i+=1) {
+            try tc1.append(0);
+        }
+
+        errdefer std.debug.print("\ntc1: {b}{b}\ntc2: {b}\n\n",
+            .{ tc1.treecode_array[1], tc1.treecode_array[0], tc2.treecode_array[0] }
+        );
+
+        try std.testing.expect(tc1.eql(tc2) == false);
+        try std.testing.expect(tc1.hash() != tc2.hash());
+
+        i = 0;
+        while (i < 128) : (i+=1) {
+            try tc2.append(0);
+        }
+
+        try std.testing.expectEqual(tc1.hash(), tc2.hash());
+
+        i = 0;
+        while (i < 122) : (i+=1) {
+            try tc2.append(0);
+        }
+
+        try std.testing.expect(tc1.hash() != tc2.hash());
+
+        i = 0;
+        while (i < 122) : (i+=1) {
+            try tc1.append(0);
+        }
+
+        try std.testing.expect(tc1.hash() == tc2.hash());
+    }
 }
+
+test "treecode: init_fill_count" {
+    {
+        const tc = try Treecode.init_fill_count(std.testing.allocator, 2, 0b1);
+        defer tc.deinit();
+
+        try std.testing.expectEqual(
+            @as(treecode_word, 0b0),
+            tc.treecode_array[0]
+        );
+        try std.testing.expectEqual(
+            @as(treecode_word, 0b1),
+            tc.treecode_array[1]
+        );
+
+        // NOT
+        // try std.testing.expectEqual(@as(treecode_word, 0b11), tc.treecode_array[1]);
+    }
+}
+
