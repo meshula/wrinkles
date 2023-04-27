@@ -19,6 +19,14 @@ pub const Treecode = struct {
     treecode_array: []treecode_word,
     allocator: std.mem.Allocator,
 
+    pub fn init_empty(allocator: std.mem.Allocator) !Treecode {
+        return .{
+            .sz = 0,
+            .treecode_array = try allocator.alloc(treecode_word, 0),
+            .allocator = allocator,
+        };
+    }
+
     pub fn init_fill_count(
         allocator: std.mem.Allocator,
         count: usize,
