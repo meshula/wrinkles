@@ -33,12 +33,11 @@ pub const Treecode = struct {
             count
         );
 
-        var i:usize = count - 1;
-        treecode_array[i] = input;
+        // zero everything out
+        std.mem.set(treecode_word, treecode_array, 0);
 
-        while (i <= 0) : (i -= 1) {
-            treecode_array[i] = 0;
-        }
+        // set the argument in the LSB
+        treecode_array[count - 1] = input;
 
         return .{
             .allocator = allocator,
