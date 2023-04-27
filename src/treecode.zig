@@ -280,6 +280,19 @@ pub const Treecode = struct {
 
         return hasher.final();
     }
+
+    pub fn next_step_towards(self: @This(), dest: Treecode) !u1 {
+        const self_len = self.code_length();
+
+        const self_len_pos_local = @rem(self_len, WORD_BIT_COUNT);
+        const self_len_word = self_len / WORD_BIT_COUNT;
+
+        const mask = std.math.shl(treecode_word, 1, self_len_pos_local);
+
+        const masked_val = dest.treecode_array[self_len_word] & mask;
+
+        return @intCast(u1, std.math.shr(treecode_word, masked_val, self_len_pos_local));
+    }
 };
 
 test "treecode: code_length" {
@@ -1008,3 +1021,86 @@ test "treecode: init_fill_count" {
     }
 }
 
+test "treecode: next_step_towards" {
+    // single word size
+    {
+        const TestData = struct{
+            source: treecode_word,
+            dest: treecode_word,
+            expect: u1,
+        };
+
+        const test_data = [_]TestData{
+            .{ .source = 0b11,  .dest = 0b101,      .expect = 0b0 },
+            .{ .source = 0b11,  .dest = 0b111,      .expect = 0b1 },
+            .{ .source = 0b10,  .dest = 0b10011100, .expect = 0b0 },
+            .{ .source = 0b10,  .dest = 0b10001100, .expect = 0b0 },
+            .{ .source = 0b10,  .dest = 0b10111110, .expect = 0b1 },
+            .{ .source = 0b11,  .dest = 0b10101111, .expect = 0b1 },
+            .{ .source = 0b101, .dest = 0b10111101, .expect = 0b1 },
+            .{ .source = 0b101, .dest = 0b10101001, .expect = 0b0 },
+            .{ .source = 0b1101001, .dest = 0b10101001, .expect = 0b0 },
+        };
+
+        for (test_data) |t, i| {
+            errdefer std.log.err(
+                "[{d}] source: {b} dest: {b} expected: {b}",
+                .{ i, t.source, t.dest, t.expect }
+            );
+
+            const tc_src = try Treecode.init_word(std.testing.allocator, t.source);
+            defer tc_src.deinit();
+
+            const tc_dst = try Treecode.init_word(std.testing.allocator, t.dest);
+            defer tc_dst.deinit();
+
+            try std.testing.expectEqual(
+                t.expect,
+                try tc_src.next_step_towards(tc_dst),
+            );
+        }
+    }
+
+    // codes longer than a single word
+    {
+        var tc_src = try Treecode.init_word(std.testing.allocator, 0b1);
+        defer tc_src.deinit();
+        var tc_dst = try Treecode.init_word(std.testing.allocator, 0b1);
+        defer tc_dst.deinit();
+
+        // straddle the word boundary
+        var i:usize = 0;
+        while (i < WORD_BIT_COUNT - 1) : (i += 1) {
+            try tc_src.append(0);
+            try tc_dst.append(0);
+        }
+
+        try std.testing.expectEqual(
+            @as(usize, WORD_BIT_COUNT) - 1,
+            tc_src.code_length()
+        );
+
+        try tc_dst.append(1);
+
+        try std.testing.expectEqual(
+            @as(u1, 0b1),
+            try tc_src.next_step_towards(tc_dst)
+        );
+
+        try tc_src.append(1);
+
+        // add a bunch of values
+        i = 0;
+        while (i < 1000) : (i += 1) {
+            try tc_src.append(0);
+            try tc_dst.append(0);
+        }
+
+        try tc_dst.append(1);
+
+        try std.testing.expectEqual(
+            @as(u1, 0b1),
+            try tc_src.next_step_towards(tc_dst)
+        );
+    }
+}
