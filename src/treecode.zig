@@ -74,6 +74,20 @@ pub const Treecode = struct {
         self.sz = new_size;
     }
 
+    pub fn clone(self: @This()) !Treecode {
+        var result_array = try self.allocator.alloc(treecode_word, self.sz);
+
+        for (self.treecode_array) |tc, index| {
+            result_array[index] = tc;
+        }
+
+        return .{
+            .sz = self.sz,
+            .treecode_array = result_array,
+            .allocator = self.allocator,
+        };
+    }
+
     pub fn deinit(self: @This()) void {
         self.allocator.free(self.treecode_array);
     }
@@ -1102,5 +1116,29 @@ test "treecode: next_step_towards" {
             @as(u1, 0b1),
             try tc_src.next_step_towards(tc_dst)
         );
+    }
+}
+
+test "treecode: clone" {
+    {
+        const tc_src = try Treecode.init_word(std.testing.allocator, 0b1);
+        defer tc_src.deinit();
+        const tc_cln = try tc_src.clone();
+        defer tc_cln.deinit();
+
+        try std.testing.expect(tc_src.eql(tc_cln));
+    }
+
+    {
+        var tc_src = try Treecode.init_word(std.testing.allocator, 0b1);
+        defer tc_src.deinit();
+        var tc_cln = try tc_src.clone();
+        defer tc_cln.deinit();
+
+        try std.testing.expect(tc_src.eql(tc_cln));
+
+        try tc_src.append(1);
+
+        try std.testing.expect(tc_src.eql(tc_cln) == false);
     }
 }
