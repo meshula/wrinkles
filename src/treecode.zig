@@ -215,7 +215,7 @@ pub const Treecode = struct {
         return;
     }
 
-    fn is_superset_of(self: @This(), rhs: Treecode) bool {
+    pub fn is_superset_of(self: @This(), rhs: Treecode) bool {
         var len_self: usize = self.code_length();
         var len_rhs: usize = rhs.code_length();
 
