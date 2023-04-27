@@ -1153,3 +1153,63 @@ test "treecode: clone" {
         try std.testing.expect(tc_src.eql(tc_cln) == false);
     }
 }
+
+pub fn BidirectionalTreecodeHashMap(comptime T: type) type {
+    return struct{
+        map_thing_to_hash:std.AutoHashMap(T, Hash),
+        map_hash_to_thing:std.AutoHashMap(Hash, T),
+        map_hash_to_treecode:std.AutoHashMap(Hash, Treecode),
+
+        pub fn init(allocator: std.mem.Allocator) @This() {
+            return .{
+                .map_thing_to_hash = std.AutoHashMap(T, Hash).init(allocator),
+                .map_hash_to_thing = std.AutoHashMap(Hash, T).init(allocator),
+                .map_hash_to_treecode = std.AutoHashMap(Hash, Treecode).init(allocator),
+            };
+        }
+
+        pub fn deinit(self: *@This()) void {
+            self.map_hash_to_thing.deinit();
+            self.map_thing_to_hash.deinit();
+            self.map_hash_to_treecode.deinit();
+        }
+
+        pub fn get_key(self: @This(), value: T) ?Treecode {
+            const maybe_hash = self.map_thing_to_hash.get(value);
+            if (maybe_hash) |hash| {
+                return self.map_hash_to_treecode.get(hash);
+            } else {
+                return null;
+            }
+        }
+
+        pub fn get_value(self: @This(), code: Treecode) ?T {
+            return self.map_hash_to_thing.get(code.hash());
+        }
+
+        pub fn put(self: *@This(), code: Treecode, value: T) !void {
+            try self.map_hash_to_thing.put(code.hash(), value);
+            try self.map_thing_to_hash.put(value, code.hash());
+            try self.map_hash_to_treecode.put(code.hash(), code);
+        }
+    };
+}
+
+test "treecode: BidirectionalTreecodeHashMap" {
+    const allocator = std.testing.allocator;
+    {
+        const this_type = u64;
+        var map = BidirectionalTreecodeHashMap(this_type).init(allocator);
+        defer map.deinit();
+
+        var tc = try Treecode.init_word(allocator, 0b1101);
+        defer tc.deinit();
+
+        const value: this_type = 3651;
+
+        try map.put(tc, value);
+
+        try std.testing.expectEqual(@as(?this_type, value), map.get_value(tc));
+        try std.testing.expectEqual(@as(?Treecode, tc), map.get_key(value));
+    }
+}
