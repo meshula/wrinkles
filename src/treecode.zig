@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const treecode_word = u128;
+const WORD_BIT_COUNT = @bitSizeOf(treecode_word);
 
 /// An encoding of a path through a binary tree.  The root bit is the right
 /// side of a number, and the directions are read right to left.  
