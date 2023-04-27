@@ -105,8 +105,8 @@ pub const Treecode = struct {
     }
 
     pub fn eql(self: @This(), other: Treecode) bool {
-        var len_self: usize = self.code_length();
-        var len_other: usize = other.code_length();
+        const len_self = self.code_length();
+        const len_other = other.code_length();
 
         if (len_self != len_other) {
             return false;
