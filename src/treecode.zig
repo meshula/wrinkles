@@ -94,15 +94,14 @@ pub const Treecode = struct {
         }
 
         var count = (
-            (@bitSizeOf(treecode_word) - 1)
-            - @clz(self.treecode_array[occupied_words])
+            (WORD_BIT_COUNT - 1) - @clz(self.treecode_array[occupied_words])
         );
 
         if (occupied_words == 0) {
             return count;
         }
 
-        return count + (occupied_words) * @bitSizeOf(treecode_word);
+        return count + (occupied_words) * WORD_BIT_COUNT;
     }
 
     pub fn eql(self: @This(), other: Treecode) bool {
@@ -113,7 +112,7 @@ pub const Treecode = struct {
             return false;
         }
 
-        var greatest_nozero_index: usize = len_self / @bitSizeOf(treecode_word);
+        var greatest_nozero_index: usize = len_self / WORD_BIT_COUNT;
         var i:usize = 0;
         while (i <= greatest_nozero_index): (i += 1) {
             if (self.treecode_array[i] != other.treecode_array[i]) {
@@ -136,7 +135,7 @@ pub const Treecode = struct {
 
         const len = self.code_length();
 
-        if (len < (@bitSizeOf(treecode_word) - 1)) {
+        if (len < (WORD_BIT_COUNT - 1)) {
             self.treecode_array[0] = treecode_word_append(
                 self.treecode_array[0],
                 l_or_r_branch
@@ -144,21 +143,21 @@ pub const Treecode = struct {
             return;
         }
 
-        var space_available = self.sz * @bitSizeOf(treecode_word) - 1;
+        var space_available = self.sz * WORD_BIT_COUNT - 1;
         const next_index = len + 1;
 
         if (next_index >= space_available) {
             // double the size
             try self.realloc(self.sz*2);
-            space_available = self.sz * @bitSizeOf(treecode_word) - 1;
+            space_available = self.sz * WORD_BIT_COUNT - 1;
         }
 
         const new_marker_location_abs = len + 1;
         const new_marker_slot = (
-            new_marker_location_abs / @bitSizeOf(treecode_word)
+            new_marker_location_abs / WORD_BIT_COUNT
         );
         const new_marker_location_in_slot = (
-            @rem(new_marker_location_abs, @bitSizeOf(treecode_word))
+            @rem(new_marker_location_abs, WORD_BIT_COUNT)
         );
 
         self.treecode_array[new_marker_slot] |= std.math.shl(
@@ -168,9 +167,9 @@ pub const Treecode = struct {
         );
 
         const new_data_location_abs = len; 
-        const new_data_slot = new_data_location_abs / @bitSizeOf(treecode_word);
+        const new_data_slot = new_data_location_abs / WORD_BIT_COUNT;
         const new_data_location_in_slot = (
-            @rem(new_data_location_abs, @bitSizeOf(treecode_word))
+            @rem(new_data_location_abs, WORD_BIT_COUNT)
         );
 
         const old_marker_bit = std.math.shl(
@@ -202,7 +201,7 @@ pub const Treecode = struct {
             return false;
         }
 
-        if (len_self <= @bitSizeOf(treecode_word)) {
+        if (len_self <= WORD_BIT_COUNT) {
             return treecode_word_b_is_a_subset(
                 self.treecode_array[0],
                 rhs.treecode_array[0],
@@ -210,7 +209,7 @@ pub const Treecode = struct {
         }
 
         var greatest_nonzero_rhs_index: usize = (
-            len_rhs / @bitSizeOf(treecode_word)
+            len_rhs / WORD_BIT_COUNT
         );
         var i:usize = 0;
         while (i < greatest_nonzero_rhs_index) : (i += 1) {
@@ -219,8 +218,8 @@ pub const Treecode = struct {
             }
         }
 
-        const mask_location_local = @rem(len_rhs, @bitSizeOf(treecode_word));
-        const mask_bits = @bitSizeOf(treecode_word) - mask_location_local;
+        const mask_location_local = @rem(len_rhs, WORD_BIT_COUNT);
+        const mask_bits = WORD_BIT_COUNT - mask_location_local;
 
         // already checked all the other locations
         if (mask_location_local == 0) {
@@ -244,7 +243,7 @@ pub const Treecode = struct {
         try buf.ensureTotalCapacity(self.code_length());
 
         const marker_pos_abs = self.code_length();
-        const last_index = (marker_pos_abs / @bitSizeOf(treecode_word));
+        const last_index = (marker_pos_abs / WORD_BIT_COUNT);
 
         for (self.treecode_array) |tc, index| {
             if (index > last_index) {
@@ -252,10 +251,10 @@ pub const Treecode = struct {
             }
 
             var this_tc = tc;
-            var end_at:usize = @bitSizeOf(treecode_word);
+            var end_at:usize = WORD_BIT_COUNT;
 
             if (index == last_index) {
-                end_at = @rem(marker_pos_abs, @bitSizeOf(treecode_word)) + 1;
+                end_at = @rem(marker_pos_abs, WORD_BIT_COUNT) + 1;
             }
 
             var bits_shifted:usize = 0;
@@ -307,12 +306,12 @@ test "treecode: code_length" {
 
     {
         // top word is 1, lower word is 0, therefore codelength is 
-        // @bitSizeOf(treecode_word)
+        // WORD_BIT_COUNT
         var tc  = try Treecode.init_fill_count(std.testing.allocator, 2, 0b1);
         defer tc.deinit();
 
         try std.testing.expectEqual(
-            @as(usize, @bitSizeOf(treecode_word)),
+            @as(usize, WORD_BIT_COUNT),
             tc.code_length()
         );
     }
@@ -322,7 +321,7 @@ test "treecode: code_length" {
         defer tc.deinit();
 
         try std.testing.expectEqual(
-            @as(usize, 7*@bitSizeOf(treecode_word)),
+            @as(usize, 7*WORD_BIT_COUNT),
             tc.code_length()
         );
     }
@@ -332,7 +331,7 @@ test "treecode: code_length" {
         defer tc.deinit();
 
         try std.testing.expectEqual(
-            @as(usize, 7*@bitSizeOf(treecode_word) + 1),
+            @as(usize, 7*WORD_BIT_COUNT + 1),
             tc.code_length()
         );
     }
@@ -340,15 +339,12 @@ test "treecode: code_length" {
 
 test "treecode: @clz" {
     var x: treecode_word = 0;
-    try std.testing.expectEqual(
-        @as(treecode_word, @bitSizeOf(treecode_word)),
-        @clz(x)
-    );
+    try std.testing.expectEqual(@as(usize, WORD_BIT_COUNT), @clz(x));
 
     var i: treecode_word = 0;
 
-    while (i < @bitSizeOf(treecode_word)) : (i += 1) {
-        try std.testing.expectEqual(i, @bitSizeOf(treecode_word) - @clz(x));
+    while (i < WORD_BIT_COUNT) : (i += 1) {
+        try std.testing.expectEqual(i, WORD_BIT_COUNT - @clz(x));
         x = (x << 1) | 1;
     }
 }
@@ -356,7 +352,7 @@ test "treecode: @clz" {
 fn treecode_word_mask(leading_zeros: usize) treecode_word {
     return (
         @intCast(treecode_word, 1) << (
-            @intCast(u7, (@bitSizeOf(treecode_word) - leading_zeros))
+            @intCast(u7, (WORD_BIT_COUNT - leading_zeros))
         )
     ) - 1;
 }
@@ -862,7 +858,7 @@ test "treecode: Treecode.eql" {
 }
 
 fn treecode_word_append(a: treecode_word, l_or_r_branch: u1) treecode_word {
-    const signficant_bits:u8 = @bitSizeOf(treecode_word) - 1 - @clz(a);
+    const signficant_bits:u8 = WORD_BIT_COUNT - 1 - @clz(a);
 
     // strip leading bit
     const leading_bit = (
