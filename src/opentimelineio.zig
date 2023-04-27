@@ -647,6 +647,108 @@ const TopologicalMap = struct {
     }
 };
 
+pub fn path_exists(fst: treecode.Treecode, snd: treecode.Treecode) bool {
+    return fst.eql(snd) or (fst.is_superset_of(snd) or snd.is_superset_of(fst));
+}
+
+pub fn depth_child_code(
+    parent_code:treecode.Treecode,
+    index: usize
+) !treecode.Treecode 
+{
+    var result = try parent_code.clone();
+    var i:usize = 0;
+    while (i <= index):(i+=1) {
+        try result.append(0);
+    }
+    return result;
+}
+
+test "depth_child_hash: math" {
+    var root = try treecode.Treecode.init_word(std.testing.allocator, 0b1000);
+    defer root.deinit();
+
+    var i:usize = 0;
+
+    var expected_root:treecode.TreecodeWord = 0b10000;
+
+    while (i<4) : (i+=1) {
+        var result = try depth_child_code(root, i);
+        defer result.deinit();
+
+        var expected = std.math.shl(treecode.TreecodeWord, expected_root, i); 
+
+        errdefer std.debug.print(
+            "iteration: {d}, expected: {b} got: {b}\n",
+            .{ i, expected, result.treecode_array[0] }
+        );
+
+        try expectEqual(expected, result.treecode_array[0]);
+    }
+}
+
+// get the index of the child by how many times the child is a "right" from the
+// parent.
+//
+// examples:
+// 0b11101 2
+// 0b1011111 1
+// 0b11100 3
+// 0b00111111 0
+pub fn right_child_index(
+    child_code:treecode.Treecode
+) usize {
+
+    _ = child_code;
+
+    return 0;
+}
+
+test "right_child_index" {
+    const TestData = struct {
+        leading_ones: usize,
+        trailing_ones: usize,
+        middle_zeros: usize,
+    };
+
+    const tests = [_]TestData{
+        .{ .leading_ones = 1, .trailing_ones = 1, .middle_zeros = 1 },
+        .{ .leading_ones = 1, .trailing_ones = 10, .middle_zeros = 1 },
+        .{ .leading_ones = 0, .trailing_ones = 10, .middle_zeros = 1 },
+        .{ .leading_ones = 128, .trailing_ones = 32, .middle_zeros = 1 },
+        .{ .leading_ones = 1, .trailing_ones = 2, .middle_zeros = 126 },
+        .{ .leading_ones = 1024, .trailing_ones = 1, .middle_zeros = 1024 },
+        .{ .leading_ones = 1024, .trailing_ones = 1, .middle_zeros = 1 },
+        .{ .leading_ones = 1, .trailing_ones = 1024, .middle_zeros = 1 },
+    };
+
+    for (tests) |t, index| {
+        errdefer std.debug.print(
+            "\niteration: {d}\n leading: {d} zeros: {d} trailing: {d}\n",
+            .{ index, t.leading_ones, t.middle_zeros, t.trailing_ones },
+        );
+
+        var tc = try treecode.Treecode.init_empty(std.testing.allocator);
+        defer tc.deinit();
+
+        var i:usize = 0;
+        while (i < t.leading_ones) : (i += 1) {
+            try tc.append(1);
+        }
+
+        i = 0;
+        while (i < t.middle_zeros) : (i += 1) {
+            try tc.append(0);
+        }
+
+        i = 0;
+        while (i < t.trailing_ones) : (i += 1) {
+            try tc.append(1);
+        }
+        
+        try std.testing.expectEqual(t.trailing_ones, right_child_index(tc));
+    }
+}
 
 pub fn build_topological_map(
     root_item: ItemPtr
@@ -1609,4 +1711,38 @@ test "read_from_file test" {
         try tl_output_to_clip_media.project_ordinate(0.05),
         util.EPSILON
     );
+}
+
+fn sequential_child_code(src: treecode.Treecode, index: usize) !treecode.Treecode {
+    var result = try src.clone();
+    var i:usize = 0;
+    while (i <= index):(i+=1) {
+        try result.append(1);
+    }
+    return result;
+}
+
+test "sequential_child_hash: math" {
+    var root = try treecode.Treecode.init_word(std.testing.allocator, 0b1000);
+    defer root.deinit();
+
+    var i:usize = 0;
+
+    var test_code = try root.clone();
+    defer test_code.deinit();
+
+    while (i<4) : (i+=1) {
+        var result = try sequential_child_code(root, i);
+        defer result.deinit();
+
+        try test_code.append(1);
+
+        errdefer std.debug.print(
+            "iteration: {d}, expected: {b} got: {b}\n",
+            .{ i, test_code.treecode_array[0], result.treecode_array[0] }
+        );
+
+        try std.testing.expect(test_code.eql(result));
+    }
+
 }
