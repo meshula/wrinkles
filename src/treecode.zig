@@ -1,7 +1,7 @@
 const std = @import("std");
 
-const treecode_word = u128;
-const WORD_BIT_COUNT = @bitSizeOf(treecode_word);
+pub const TreecodeWord = u128;
+pub const WORD_BIT_COUNT = @bitSizeOf(TreecodeWord);
 pub const Hash = u64;
 
 /// An encoding of a path through a binary tree.  The root bit is the right
@@ -17,13 +17,13 @@ pub const Hash = u64;
 /// - 0b1010 => left, right, left
 pub const Treecode = struct {
     sz: usize,
-    treecode_array: []treecode_word,
+    treecode_array: []TreecodeWord,
     allocator: std.mem.Allocator,
 
     pub fn init_empty(allocator: std.mem.Allocator) !Treecode {
         return .{
             .sz = 0,
-            .treecode_array = try allocator.alloc(treecode_word, 0),
+            .treecode_array = try allocator.alloc(TreecodeWord, 0),
             .allocator = allocator,
         };
     }
@@ -31,19 +31,19 @@ pub const Treecode = struct {
     pub fn init_fill_count(
         allocator: std.mem.Allocator,
         count: usize,
-        input: treecode_word,
+        input: TreecodeWord,
     ) !Treecode {
         if (count == 0) {
             return error.InvalidCount;
         }
 
-        var treecode_array:[]treecode_word = try allocator.alloc(
-            treecode_word,
+        var treecode_array:[]TreecodeWord = try allocator.alloc(
+            TreecodeWord,
             count
         );
 
         // zero everything out
-        std.mem.set(treecode_word, treecode_array, 0);
+        std.mem.set(TreecodeWord, treecode_array, 0);
 
         // set the argument in the LSB
         treecode_array[count - 1] = input;
@@ -57,10 +57,10 @@ pub const Treecode = struct {
 
     pub fn init_word(
         allocator: std.mem.Allocator,
-        input: treecode_word,
+        input: TreecodeWord,
     ) !Treecode {
-        var treecode_array:[]treecode_word = try allocator.alloc(
-            treecode_word,
+        var treecode_array:[]TreecodeWord = try allocator.alloc(
+            TreecodeWord,
             1
         );
 
@@ -78,13 +78,13 @@ pub const Treecode = struct {
             new_size
         );
 
-        std.mem.set(treecode_word, self.treecode_array[self.sz..], 0);
+        std.mem.set(TreecodeWord, self.treecode_array[self.sz..], 0);
 
         self.sz = new_size;
     }
 
     pub fn clone(self: @This()) !Treecode {
-        var result_array = try self.allocator.alloc(treecode_word, self.sz);
+        var result_array = try self.allocator.alloc(TreecodeWord, self.sz);
 
         for (self.treecode_array) |tc, index| {
             result_array[index] = tc;
@@ -184,7 +184,7 @@ pub const Treecode = struct {
         );
 
         self.treecode_array[new_marker_slot] |= std.math.shl(
-            treecode_word,
+            TreecodeWord,
             1,
             new_marker_location_in_slot
         );
@@ -196,7 +196,7 @@ pub const Treecode = struct {
         );
 
         const old_marker_bit = std.math.shl(
-            treecode_word,
+            TreecodeWord,
             1,
             new_data_location_in_slot
         );
@@ -208,7 +208,7 @@ pub const Treecode = struct {
         );
 
         self.treecode_array[new_data_slot] |= std.math.shl(
-            treecode_word,
+            TreecodeWord,
             l_or_r_branch,
             new_data_location_in_slot
         );
@@ -249,7 +249,7 @@ pub const Treecode = struct {
             return true;
         }
 
-        var mask: treecode_word = treecode_word_mask(mask_bits);
+        var mask: TreecodeWord = treecode_word_mask(mask_bits);
 
         const self_masked = (
             self.treecode_array[greatest_nonzero_rhs_index] & mask
@@ -310,11 +310,11 @@ pub const Treecode = struct {
         const self_len_pos_local = @rem(self_len, WORD_BIT_COUNT);
         const self_len_word = self_len / WORD_BIT_COUNT;
 
-        const mask = std.math.shl(treecode_word, 1, self_len_pos_local);
+        const mask = std.math.shl(TreecodeWord, 1, self_len_pos_local);
 
         const masked_val = dest.treecode_array[self_len_word] & mask;
 
-        return @intCast(u1, std.math.shr(treecode_word, masked_val, self_len_pos_local));
+        return @intCast(u1, std.math.shr(TreecodeWord, masked_val, self_len_pos_local));
     }
 
 
@@ -376,10 +376,10 @@ test "treecode: code_length" {
 }
 
 test "treecode: @clz" {
-    var x: treecode_word = 0;
+    var x: TreecodeWord = 0;
     try std.testing.expectEqual(@as(usize, WORD_BIT_COUNT), @clz(x));
 
-    var i: treecode_word = 0;
+    var i: TreecodeWord = 0;
 
     while (i < WORD_BIT_COUNT) : (i += 1) {
         try std.testing.expectEqual(i, WORD_BIT_COUNT - @clz(x));
@@ -387,15 +387,15 @@ test "treecode: @clz" {
     }
 }
 
-fn treecode_word_mask(leading_zeros: usize) treecode_word {
+fn treecode_word_mask(leading_zeros: usize) TreecodeWord {
     return (
-        @intCast(treecode_word, 1) << (
+        @intCast(TreecodeWord, 1) << (
             @intCast(u7, (WORD_BIT_COUNT - leading_zeros))
         )
     ) - 1;
 }
 
-fn treecode_word_b_is_a_subset(a: treecode_word, b: treecode_word) bool {
+fn treecode_word_b_is_a_subset(a: TreecodeWord, b: TreecodeWord) bool {
     if (a == b) {
         return true;
     }
@@ -405,7 +405,7 @@ fn treecode_word_b_is_a_subset(a: treecode_word, b: treecode_word) bool {
     }
 
     const leading_zeros: usize = @clz(b) + 1;
-    const mask: treecode_word = treecode_word_mask(leading_zeros);
+    const mask: TreecodeWord = treecode_word_mask(leading_zeros);
 
     const a_masked = (a & mask);
     const b_masked = (b & mask);
@@ -465,11 +465,11 @@ test "to_string" {
 }
 
 
-test "treecode_word: is a subset" {
+test "TreecodeWord: is a subset" {
         // positive case, ending in 1
         {
-            const tc_word_superset:treecode_word = 0b11001101;
-            const tc_word_subset:treecode_word = 0b1101;
+            const tc_word_superset:TreecodeWord = 0b11001101;
+            const tc_word_subset:TreecodeWord = 0b1101;
 
             try std.testing.expect(
                 treecode_word_b_is_a_subset(tc_word_superset, tc_word_subset)
@@ -478,8 +478,8 @@ test "treecode_word: is a subset" {
 
         // positive case, ending in 0
         {
-            const tc_word_superset:treecode_word = 0b110011010;
-            const tc_word_subset:treecode_word = 0b11010;
+            const tc_word_superset:TreecodeWord = 0b110011010;
+            const tc_word_subset:TreecodeWord = 0b11010;
 
             try std.testing.expect(
                 treecode_word_b_is_a_subset(tc_word_superset, tc_word_subset)
@@ -488,8 +488,8 @@ test "treecode_word: is a subset" {
 
         // negative case 
         {
-            const tc_word_superset:treecode_word = 0b11001101;
-            const tc_word_subset:treecode_word = 0b11001;
+            const tc_word_superset:TreecodeWord = 0b11001101;
+            const tc_word_subset:TreecodeWord = 0b11001;
 
             try std.testing.expectEqual(
                 treecode_word_b_is_a_subset(tc_word_superset, tc_word_subset),
@@ -599,21 +599,21 @@ test "treecode: is a superset" {
 test "treecode: append" {
     {
         try std.testing.expectEqual(
-            @as(treecode_word, 0b10),
+            @as(TreecodeWord, 0b10),
             treecode_word_append(0b1, 0)
         );
         try std.testing.expectEqual(
-            @as(treecode_word, 0b11),
+            @as(TreecodeWord, 0b11),
             treecode_word_append(0b1, 1)
         );
 
         try std.testing.expectEqual(
-            @as(treecode_word, 0b1101),
-            treecode_word_append(@as(treecode_word, 0b101), 1)
+            @as(TreecodeWord, 0b1101),
+            treecode_word_append(@as(TreecodeWord, 0b101), 1)
         );
         try std.testing.expectEqual(
-            @as(treecode_word, 0b1001),
-            treecode_word_append(@as(treecode_word, 0b101), 0)
+            @as(TreecodeWord, 0b1001),
+            treecode_word_append(@as(TreecodeWord, 0b101), 0)
         );
     }
 
@@ -632,18 +632,18 @@ test "treecode: append" {
         );
 
         try std.testing.expectEqual(
-            @as(treecode_word, 0b100),
+            @as(TreecodeWord, 0b100),
             tc.treecode_array[1]
         );
-        try std.testing.expectEqual(@as(treecode_word, 130), tc.code_length());
+        try std.testing.expectEqual(@as(TreecodeWord, 130), tc.code_length());
 
         try tc.append(0);
 
         try std.testing.expectEqual(
-            @as(treecode_word, 0b1000),
+            @as(TreecodeWord, 0b1000),
             tc.treecode_array[1]
         );
-        try std.testing.expectEqual(@as(treecode_word, 131), tc.code_length());
+        try std.testing.expectEqual(@as(TreecodeWord, 131), tc.code_length());
     }
 
     {
@@ -661,18 +661,18 @@ test "treecode: append" {
         );
 
         try std.testing.expectEqual(
-            @as(treecode_word, 0b111),
+            @as(TreecodeWord, 0b111),
             tc.treecode_array[1]
         );
-        try std.testing.expectEqual(@as(treecode_word, 130), tc.code_length());
+        try std.testing.expectEqual(@as(TreecodeWord, 130), tc.code_length());
 
         try tc.append(0);
 
         try std.testing.expectEqual(
-            @as(treecode_word, 0b1011),
+            @as(TreecodeWord, 0b1011),
             tc.treecode_array[1]
         );
-        try std.testing.expectEqual(@as(treecode_word, 131), tc.code_length());
+        try std.testing.expectEqual(@as(TreecodeWord, 131), tc.code_length());
     }
 
     {
@@ -690,18 +690,18 @@ test "treecode: append" {
         );
 
         try std.testing.expectEqual(
-            @as(treecode_word, 0b111),
+            @as(TreecodeWord, 0b111),
             tc.treecode_array[2]
         );
-        try std.testing.expectEqual(@as(treecode_word, 258), tc.code_length());
+        try std.testing.expectEqual(@as(TreecodeWord, 258), tc.code_length());
 
         try tc.append(0);
 
         try std.testing.expectEqual(
-            @as(treecode_word, 0b1011),
+            @as(TreecodeWord, 0b1011),
             tc.treecode_array[2]
         );
-        try std.testing.expectEqual(@as(treecode_word, 259), tc.code_length());
+        try std.testing.expectEqual(@as(TreecodeWord, 259), tc.code_length());
     }
 
     {
@@ -719,18 +719,18 @@ test "treecode: append" {
         );
 
         try std.testing.expectEqual(
-            @as(treecode_word, 0b100),
+            @as(TreecodeWord, 0b100),
             tc.treecode_array[2]
         );
-        try std.testing.expectEqual(@as(treecode_word, 258), tc.code_length());
+        try std.testing.expectEqual(@as(TreecodeWord, 258), tc.code_length());
 
         try tc.append(1);
 
         try std.testing.expectEqual(
-            @as(treecode_word, 0b1100),
+            @as(TreecodeWord, 0b1100),
             tc.treecode_array[2]
         );
-        try std.testing.expectEqual(@as(treecode_word, 259), tc.code_length());
+        try std.testing.expectEqual(@as(TreecodeWord, 259), tc.code_length());
     }
 
     {   
@@ -895,19 +895,19 @@ test "treecode: Treecode.eql" {
     }
 }
 
-fn treecode_word_append(a: treecode_word, l_or_r_branch: u1) treecode_word {
+fn treecode_word_append(a: TreecodeWord, l_or_r_branch: u1) TreecodeWord {
     const signficant_bits:u8 = WORD_BIT_COUNT - 1 - @clz(a);
 
     // strip leading bit
     const leading_bit = (
-        @as(treecode_word, 1) << @intCast(u7, @as(u8, signficant_bits))
+        @as(TreecodeWord, 1) << @intCast(u7, @as(u8, signficant_bits))
     );
 
     const a_without_leading_bit = (a - leading_bit) ;
     const leading_bit_shifted = (leading_bit << 1);
 
     const l_or_r_branch_shifted = (
-        @intCast(treecode_word, l_or_r_branch) 
+        @intCast(TreecodeWord, l_or_r_branch) 
         << @intCast(u7, (@as(u8, signficant_bits)))
     );
 
@@ -1033,16 +1033,16 @@ test "treecode: init_fill_count" {
         defer tc.deinit();
 
         try std.testing.expectEqual(
-            @as(treecode_word, 0b0),
+            @as(TreecodeWord, 0b0),
             tc.treecode_array[0]
         );
         try std.testing.expectEqual(
-            @as(treecode_word, 0b1),
+            @as(TreecodeWord, 0b1),
             tc.treecode_array[1]
         );
 
         // NOT
-        // try std.testing.expectEqual(@as(treecode_word, 0b11), tc.treecode_array[1]);
+        // try std.testing.expectEqual(@as(TreecodeWord, 0b11), tc.treecode_array[1]);
     }
 }
 
@@ -1050,8 +1050,8 @@ test "treecode: next_step_towards" {
     // single word size
     {
         const TestData = struct{
-            source: treecode_word,
-            dest: treecode_word,
+            source: TreecodeWord,
+            dest: TreecodeWord,
             expect: u1,
         };
 
@@ -1154,62 +1154,45 @@ test "treecode: clone" {
     }
 }
 
-pub fn BidirectionalTreecodeHashMap(comptime T: type) type {
-    return struct{
-        map_thing_to_hash:std.AutoHashMap(T, Hash),
-        map_hash_to_thing:std.AutoHashMap(Hash, T),
-        map_hash_to_treecode:std.AutoHashMap(Hash, Treecode),
 
-        pub fn init(allocator: std.mem.Allocator) @This() {
-            return .{
-                .map_thing_to_hash = std.AutoHashMap(T, Hash).init(allocator),
-                .map_hash_to_thing = std.AutoHashMap(Hash, T).init(allocator),
-                .map_hash_to_treecode = std.AutoHashMap(Hash, Treecode).init(allocator),
-            };
-        }
-
-        pub fn deinit(self: *@This()) void {
-            self.map_hash_to_thing.deinit();
-            self.map_thing_to_hash.deinit();
-            self.map_hash_to_treecode.deinit();
-        }
-
-        pub fn get_key(self: @This(), value: T) ?Treecode {
-            const maybe_hash = self.map_thing_to_hash.get(value);
-            if (maybe_hash) |hash| {
-                return self.map_hash_to_treecode.get(hash);
-            } else {
-                return null;
+// pub fn BidirectionalTreecodeHashMap(comptime T: type) type {
+pub fn TreecodeHashMap(comptime V: type) type {
+    return std.HashMap(
+        Treecode,
+        V,
+        struct{
+            pub fn hash(_: @This(), key: Treecode) u64 {
+                return key.hash();
             }
-        }
 
-        pub fn get_value(self: @This(), code: Treecode) ?T {
-            return self.map_hash_to_thing.get(code.hash());
-        }
-
-        pub fn put(self: *@This(), code: Treecode, value: T) !void {
-            try self.map_hash_to_thing.put(code.hash(), value);
-            try self.map_thing_to_hash.put(value, code.hash());
-            try self.map_hash_to_treecode.put(code.hash(), code);
-        }
-    };
+            pub fn eql(_:@This(), fst: Treecode, snd: Treecode) bool {
+                return fst.eql(snd);
+            }
+        },
+        std.hash_map.default_max_load_percentage
+    );
 }
 
 test "treecode: BidirectionalTreecodeHashMap" {
     const allocator = std.testing.allocator;
     {
         const this_type = u64;
-        var map = BidirectionalTreecodeHashMap(this_type).init(allocator);
-        defer map.deinit();
+
+        var code_to_thing = TreecodeHashMap(this_type).init(allocator);
+        defer code_to_thing.deinit();
+
+        var thing_to_code = std.AutoHashMap(this_type, Treecode).init(allocator);
+        defer thing_to_code.deinit();
 
         var tc = try Treecode.init_word(allocator, 0b1101);
         defer tc.deinit();
 
         const value: this_type = 3651;
 
-        try map.put(tc, value);
+        try code_to_thing.put(tc, value);
+        try thing_to_code.put(value, tc);
 
-        try std.testing.expectEqual(@as(?this_type, value), map.get_value(tc));
-        try std.testing.expectEqual(@as(?Treecode, tc), map.get_key(value));
+        try std.testing.expectEqual(@as(?this_type, value), code_to_thing.get(tc));
+        try std.testing.expectEqual(@as(?Treecode, tc), thing_to_code.get(value));
     }
 }
