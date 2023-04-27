@@ -2,6 +2,7 @@ const std = @import("std");
 
 const treecode_word = u128;
 const WORD_BIT_COUNT = @bitSizeOf(treecode_word);
+pub const Hash = u64;
 
 /// An encoding of a path through a binary tree.  The root bit is the right
 /// side of a number, and the directions are read right to left.  
@@ -290,7 +291,7 @@ pub const Treecode = struct {
         }
     }
 
-    pub fn hash(self: @This()) u64 {
+    pub fn hash(self: @This()) Hash {
         var hasher = std.hash.Wyhash.init(0);
         
         for (self.treecode_array) |tc, index| {
@@ -315,6 +316,8 @@ pub const Treecode = struct {
 
         return @intCast(u1, std.math.shr(treecode_word, masked_val, self_len_pos_local));
     }
+
+
 };
 
 test "treecode: code_length" {
