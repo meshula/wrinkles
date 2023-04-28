@@ -24,7 +24,8 @@ pub const Treecode = struct {
         allocator: std.mem.Allocator,
         count: usize,
         input: TreecodeWord,
-    ) !Treecode {
+    ) !Treecode 
+    {
         if (count == 0) {
             return error.InvalidCount;
         }
@@ -50,7 +51,8 @@ pub const Treecode = struct {
     pub fn init_word(
         allocator: std.mem.Allocator,
         input: TreecodeWord,
-    ) !Treecode {
+    ) !Treecode 
+    {
         var treecode_array:[]TreecodeWord = try allocator.alloc(
             TreecodeWord,
             1
@@ -64,7 +66,11 @@ pub const Treecode = struct {
         };
     }
 
-    fn realloc(self: *@This(), new_size: usize) !void {
+    fn realloc(
+        self: *@This(),
+        new_size: usize
+    ) !void 
+    {
         self.treecode_array = try self.allocator.realloc(
             self.treecode_array,
             new_size
@@ -119,7 +125,11 @@ pub const Treecode = struct {
         return count + (occupied_words) * WORD_BIT_COUNT;
     }
 
-    pub fn eql(self: @This(), other: Treecode) bool {
+    pub fn eql(
+        self: @This(),
+        other: Treecode
+    ) bool 
+    {
         const len_self = self.code_length();
         const len_other = other.code_length();
 
@@ -141,8 +151,8 @@ pub const Treecode = struct {
     // will realloc if needed
     pub fn append(
         self: *@This(),
-        l_or_r_branch: u1,
-    ) !void
+        l_or_r_branch: u1
+    ) !void 
     {
         if (self.sz == 0) {
             return error.InvalidTreecode;
@@ -208,7 +218,11 @@ pub const Treecode = struct {
         return;
     }
 
-    pub fn is_superset_of(self: @This(), rhs: Treecode) bool {
+    pub fn is_superset_of(
+        self: @This(),
+        rhs: Treecode
+    ) bool 
+    {
         var len_self: usize = self.code_length();
         var len_rhs: usize = rhs.code_length();
 
@@ -258,7 +272,11 @@ pub const Treecode = struct {
         return (self_masked == rhs_masked);
     }
 
-    pub fn to_str(self: @This(), buf:*std.ArrayList(u8)) !void {
+    pub fn to_str(
+        self: @This(),
+        buf:*std.ArrayList(u8)
+    ) !void 
+    {
 
         try buf.ensureTotalCapacity(self.code_length());
 
@@ -301,7 +319,11 @@ pub const Treecode = struct {
         return hasher.final();
     }
 
-    pub fn next_step_towards(self: @This(), dest: Treecode) !u1 {
+    pub fn next_step_towards(
+        self: @This(),
+        dest: Treecode
+    ) !u1 
+    {
         const self_len = self.code_length();
 
         const self_len_pos_local = @rem(self_len, WORD_BIT_COUNT);
