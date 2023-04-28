@@ -300,7 +300,8 @@ pub const Treecode = struct {
         for (self.treecode_array) |tc, index| {
             if (tc > 0) {
                 std.hash.autoHash(&hasher, index + 1);
-                std.hash.autoHash(&hasher, tc + 1);
+                // ensure no overflow
+                std.hash.autoHash(&hasher, @intCast(u256, tc) + 1);
             }
         }
 
