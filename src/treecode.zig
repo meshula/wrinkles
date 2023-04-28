@@ -21,9 +21,11 @@ pub const Treecode = struct {
     allocator: std.mem.Allocator,
 
     pub fn init_empty(allocator: std.mem.Allocator) !Treecode {
+        var arr = try allocator.alloc(TreecodeWord, 1);
+        arr[0] = 0b1;
         return .{
-            .sz = 0,
-            .treecode_array = try allocator.alloc(TreecodeWord, 0),
+            .sz = 1,
+            .treecode_array = arr,
             .allocator = allocator,
         };
     }
@@ -220,7 +222,12 @@ pub const Treecode = struct {
         var len_self: usize = self.code_length();
         var len_rhs: usize = rhs.code_length();
 
-        if (len_self == 0 or len_rhs == 0 or len_rhs > len_self) {
+        // empty lhs path is always a superset
+        if (len_self == 0) {
+            return true;
+        }
+
+        if (len_rhs == 0 or len_rhs > len_self) {
             return false;
         }
 
@@ -1195,4 +1202,13 @@ test "treecode: BidirectionalTreecodeHashMap" {
         try std.testing.expectEqual(@as(?this_type, value), code_to_thing.get(tc));
         try std.testing.expectEqual(@as(?Treecode, tc), thing_to_code.get(value));
     }
+}
+
+test "treecode: init_empty" {
+    var tc = try Treecode.init_empty(std.testing.allocator);
+    defer tc.deinit();
+
+    try tc.append(1);
+    try std.testing.expectEqual(@as(usize, 1), tc.code_length());
+    try std.testing.expectEqual(@as(TreecodeWord, 0b11), tc.treecode_array[0]);
 }
