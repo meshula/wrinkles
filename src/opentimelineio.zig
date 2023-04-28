@@ -10,20 +10,21 @@ const interval = @import("opentime/interval.zig");
 const transform = @import("opentime/transform.zig");
 const curve = @import("opentime/curve/curve.zig");
 const time_topology = @import("opentime/time_topology.zig");
-const path_hash = @import("path_hash.zig");
 const string = opentime.string;
 
 const util = @import("opentime/util.zig");
-
 const allocator = @import("opentime/allocator.zig");
+
+const treecode = @import("treecode.zig");
+
 const ALLOCATOR = allocator.ALLOCATOR;
 
 const GRAPH_CONSTRUCTION_TRACE_MESSAGES = false;
 
+
 // just for roughing tests in
 pub const Clip = struct {
     name: ?string.latin_s8 = null,
-    parent: ?ItemPtr = null,
 
     source_range: ?opentime.ContinuousTimeInterval = null,
     transform: ?time_topology.TimeTopology = null,
@@ -394,24 +395,6 @@ pub const Track = struct {
         );
     }
 };
-
-test "add clip to track and check parent pointer" {
-    try util.skip_test();
-
-    var tr = Track.init();
-    const start_seconds:f32 = 1;
-    const end_seconds:f32 = 10;
-    var cl = Clip {
-        .source_range = .{
-            .start_seconds = start_seconds,
-            .end_seconds = end_seconds 
-        }
-    };
-
-    try tr.append(.{ .clip = cl });
-
-    try expectEqual(ItemPtr.init_Item(&tr.children.items[0]), ItemPtr{ .track_ptr = &tr});
-}
 
 const SpaceLabel = enum(i8) {
     output = 0,
