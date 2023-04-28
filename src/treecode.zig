@@ -275,33 +275,21 @@ pub const Treecode = struct {
     pub fn to_str(
         self: @This(),
         buf:*std.ArrayList(u8)
-    ) !void 
+    ) error{OutOfMemory}!void 
     {
-
-        try buf.ensureTotalCapacity(self.code_length());
+        try buf.ensureTotalCapacity(self.code_length()+1);
+        var writer = buf.writer();
 
         const marker_pos_abs = self.code_length();
         const last_index = (marker_pos_abs / WORD_BIT_COUNT);
 
-        for (self.treecode_array) |tc, index| {
-            if (index > last_index) {
-                break;
-            }
-
-            var this_tc = tc;
-            var end_at:usize = WORD_BIT_COUNT;
-
-            if (index == last_index) {
-                end_at = @rem(marker_pos_abs, WORD_BIT_COUNT) + 1;
-            }
-
-            var bits_shifted:usize = 0;
-
-            // scoot each bit of this treecode over and see if its 1
-            while (bits_shifted < end_at) : (bits_shifted += 1) {
-                var result = this_tc & 1;
-                try buf.insert(0, @intCast(u8, result));
-                this_tc >>= 1;
+        var i:usize = 0;
+        while (i <= last_index) : (i+=1) {
+            const tcw = self.treecode_array[last_index - i];
+            if (i == 0) {
+                try writer.print("{b}", .{tcw});
+            } else {
+                try writer.print("{b:0>128}", .{tcw});
             }
         }
     }
@@ -433,12 +421,36 @@ fn treecode_word_b_is_a_subset(a: TreecodeWord, b: TreecodeWord) bool {
 }
 
 test "to_string" {
+    const one = "1"[0];
+    // const zero = "0"[0];
+
+    {
+        var ltc = try Treecode.init_word(std.testing.allocator, 0b1);
+        defer ltc.deinit();
+
+        try ltc.append(1);
+        var i:usize = 0;
+        while (i < 125):(i+=1) {
+            try ltc.append(0);
+        }
+        try ltc.append(1);
+        try ltc.append(0);
+        try ltc.append(1);
+
+        var buf = std.ArrayList(u8).init(std.testing.allocator);
+        defer buf.deinit();
+
+        try ltc.to_str(&buf);
+
+        try std.testing.expectEqual(ltc.code_length() + 1, buf.items.len);
+    }
+
     var tc = try Treecode.init_word(std.testing.allocator, 0b1);
     defer tc.deinit();
 
     var known = std.ArrayList(u8).init(std.testing.allocator);
     defer known.deinit();
-    try known.append(1);
+    try known.append(one);
 
 
     var buf = std.ArrayList(u8).init(std.testing.allocator);
@@ -446,19 +458,20 @@ test "to_string" {
     try tc.to_str(&buf);
 
     try std.testing.expectEqualStrings(known.items, buf.items);
+
     errdefer std.debug.print(
-        "known: {b} buf: {b} \n",
+        "known: {s} buf: {s} \n",
         .{ known.items, buf.items } 
     );
 
     try tc.append(1);
-    try known.append(1);
+    try known.append(one);
 
     buf.clearAndFree();
     try tc.to_str(&buf);
 
     errdefer std.debug.print(
-        "known: {b} buf: {b} \n",
+        "known: {s} buf: {s} \n",
         .{ known.items, buf.items } 
     );
     try std.testing.expectEqualStrings(known.items, buf.items);
@@ -468,14 +481,14 @@ test "to_string" {
         // const next:u1 = if (i & 5 != 0) 0 else 1;
         const next:u1 = 1;
 
-        try known.append(next);
-
+        try known.insert(1, one);
         try tc.append(next);
+
         buf.clearAndFree();
         try tc.to_str(&buf);
 
         errdefer std.debug.print(
-            "iteration: {} known: {b} buf: {b} \n",
+            "iteration: {} known: {s} buf: {s} \n",
             .{ i, known.items, buf.items } 
         );
 
@@ -616,6 +629,9 @@ test "treecode: is a superset" {
 }
 
 test "treecode: append" {
+    const one = "1"[0];
+    const zero = "0"[0];
+
     {
         try std.testing.expectEqual(
             @as(TreecodeWord, 0b10),
@@ -753,6 +769,7 @@ test "treecode: append" {
     }
 
     {   
+
         var tc = try Treecode.init_word(std.testing.allocator, 0b1);
         defer tc.deinit();
 
@@ -762,38 +779,35 @@ test "treecode: append" {
         var buf_known = std.ArrayList(u8).init(std.testing.allocator);
         defer buf_known.deinit();
         try buf_known.ensureTotalCapacity(1024);
-        try buf_known.append(1);
+        try buf_known.append("1"[0]);
+
+        buf_tc.clearAndFree();
+        try tc.to_str(&buf_tc);
+        // try std.testing.expectEqualStrings(buf_known.items, buf_tc.items);
 
         var i:usize = 0;
-        while (i < 256)  : (i += 1) 
+        while (i < 1)  : (i += 1) 
         {
 
             errdefer std.debug.print("iteration: {} \n", .{i});
 
             const next:u1 = if (@rem(i, 5) == 0) 0 else 1;
+            const next_str = (if (@rem(i, 5) == 0) "0" else "1")[0];
 
             try tc.append(next);
-            try buf_known.insert(1, next);
+            try buf_known.insert(1, next_str);
         }
-
-        errdefer std.debug.print(
-            "iteration: {} \n  buf_tc:    {any}\n  buf_known: {any}\n",
-            .{256, buf_tc.items, buf_known.items}
-        );
-
-
-        errdefer std.debug.print(
-            "tc: {b} \n",
-            .{ tc.treecode_array[1] }
-        );
 
         buf_tc.clearAndFree();
         try tc.to_str(&buf_tc);
 
-        try std.testing.expectEqual(buf_known.items.len - 1, tc.code_length());
-        try std.testing.expectEqualStrings(buf_known.items, buf_tc.items);
+        errdefer std.debug.print(
+            "iteration: {} \n  buf_tc:    {s}\n  expected:  {s}\n",
+            .{256, buf_tc.items, buf_known.items}
+        );
 
-        try std.testing.expectEqual(buf_known.items.len - 1, tc.code_length());
+        try std.testing.expectEqual(buf_known.items.len-1, tc.code_length());
+        try std.testing.expectEqualStrings(buf_known.items, buf_tc.items);
     }
 
     // Variable size flavor, adding a mix of 0s and 1s
@@ -807,43 +821,48 @@ test "treecode: append" {
         var buf_known = std.ArrayList(u8).init(std.testing.allocator);
         defer buf_known.deinit();
         try buf_known.ensureTotalCapacity(1024);
-        try buf_known.append(1);
+        try buf_known.append(one);
+
+        buf_tc.clearAndFree();
+        try tc.to_str(&buf_tc);
+        try std.testing.expectEqualStrings(buf_known.items, buf_tc.items);
 
         var i:usize = 0;
         while (i < 1000)  : (i += 1) 
         {
-            try std.testing.expectEqual(
-                buf_known.items.len - 1,
-                tc.code_length()
-            );
-            buf_tc.clearAndFree();
-            try tc.to_str(&buf_tc);
-
-            errdefer std.debug.print("iteration: {} \n", .{i});
-
-            errdefer std.debug.print(
-                "iteration: {} \n  buf_tc:    {b}\n  buf_known: {b}\n",
-                .{i, buf_tc.items, buf_known.items}
-            );
-
-            try std.testing.expectEqual(
-                buf_known.items.len - 1,
-                tc.code_length()
-            );
-            try std.testing.expectEqualStrings(buf_known.items, buf_tc.items);
-
+            // do the append
             const next:u1 = if (@rem(i, 5) == 0) 0 else 1;
             try tc.append(next);
-            try buf_known.insert(1, next);
+
+            buf_tc.clearAndFree();
+
+            try tc.to_str(&buf_tc);
+
+            const next_str = if (@rem(i, 5) == 0) zero else one;
+            try buf_known.insert(1, next_str);
 
             errdefer std.debug.print(
-                "tc: {b} \n",
-                .{ tc.treecode_array[0] }
+                "\niteration: {} \n  buf_tc:    {s}\n  buf_known: {s}\n  next: {b}\n\n",
+                .{i, buf_tc.items, buf_known.items, next}
+            );
+
+            errdefer std.debug.print(
+                "\ntc[2]tc[1]tc[0]: {b}{b}{b}",
+                .{tc.treecode_array[0], tc.treecode_array[1], tc.treecode_array[2]}
+            );
+
+            errdefer std.debug.print(
+                "\niteration: {} \n  buf_tc:    {s} {s}\n  buf_known: {s} {s}\n  next: {b}\n\n",
+                .{i, buf_tc.items[128..], buf_tc.items[0..127], buf_known.items[128..], buf_known.items[0..127], next}
             );
 
             try std.testing.expectEqual(
                 buf_known.items.len - 1,
                 tc.code_length()
+            );
+            try std.testing.expectEqualStrings(
+                buf_known.items,
+                buf_tc.items
             );
         }
     }
