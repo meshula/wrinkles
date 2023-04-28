@@ -1823,3 +1823,20 @@ test "sequential_child_hash: math" {
     }
 
 }
+
+test "label_for_node" {
+    var tr = Track.init();
+    var sr = SpaceReference{
+        .label = SpaceLabel.output,
+        .item = .{ .track_ptr = &tr } 
+    };
+    var tc = try treecode.Treecode.init_word(
+        std.testing.allocator,
+        0b1101001
+    );
+    defer tc.deinit();
+
+    var result = try TopologicalMap.label_for_node(sr, tc);
+
+    try std.testing.expectEqualStrings("track_output_1101001", result);
+}
