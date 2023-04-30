@@ -445,11 +445,6 @@ pub const TimeTopology = union (enum) {
         const self_tag = std.meta.activeTag(self) == .empty;
         const other_tag = std.meta.activeTag(other) == .empty;
 
-        std.debug.print(
-            "self_tag: {any} other_tag: {any}\n",
-            .{ self_tag, other_tag }
-        );
-
         if (self_tag or other_tag) 
         {
             return .{ .empty = .{} };

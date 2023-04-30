@@ -21,6 +21,9 @@ const ALLOCATOR = allocator.ALLOCATOR;
 
 const GRAPH_CONSTRUCTION_TRACE_MESSAGES = false;
 
+// for VERY LARGE files, turn this off so that dot can process the graphs
+const LABEL_HAS_BINARY_TREECODE = true;
+
 
 // just for roughing tests in
 pub const Clip = struct {
@@ -534,6 +537,10 @@ const TopologicalMap = struct {
         };
     }
 
+    // @TODO: add a print for the enum of the transform on the node
+    //        that at least lets you spot empty/bezier/affine etc
+    //        transforms
+    //
     fn label_for_node(
         ref: SpaceReference,
         code: treecode.Treecode
@@ -546,27 +553,27 @@ const TopologicalMap = struct {
             .timeline_ptr => "timeline",
             .stack_ptr => "stack",
         };
-        var buf = std.ArrayList(u8).init(allocator.ALLOCATOR);
-        defer buf.deinit();
 
-        try code.to_str(&buf);
 
-        return std.fmt.allocPrint(
-            allocator.ALLOCATOR,
-            // @TODO: add a print for the enum of the transform on the node
-            //        that at least lets you spot empty/bezier/affine etc
-            //        transforms
-            //
-            "{s}_{s}_{s}", 
-            .{
+        if (LABEL_HAS_BINARY_TREECODE) {
+            var buf = std.ArrayList(u8).init(allocator.ALLOCATOR);
+            defer buf.deinit();
+
+            try code.to_str(&buf);
+
+            var args = .{
                 item_kind,
                 @tagName(ref.label),
                 buf.items,
-                // build the next transfomr
-                // const xform = ref.item.build_transform(from_space: SpaceLabel, to_space: SpaceReference, current_code: TopologicalPathcode, step: u1)
-                // @tagName(std.meta.activeTag(xform))
-            }
-        );
+            };
+            return std.fmt.allocPrint(allocator.ALLOCATOR, "{s}_{s}_{s}", args);
+        } 
+        else {
+            var args = .{ item_kind, @tagName(ref.label), code.hash(), };
+
+            return std.fmt.allocPrint(allocator.ALLOCATOR, "{s}_{s}_{any}", args);
+        }
+
     }
 
     pub fn write_dot_graph(self:@This(), filepath: string.latin_s8) !void {
