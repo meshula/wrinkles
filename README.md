@@ -8,12 +8,12 @@ contains:
   * Curve library
     * Bezier Curves
     * Linear curves
-* Wrinkles app for visualizing curves/projections
+* Visualizer apps
+    * Wrinkles app for visualizing frequency domain "plaid" charts
+    * otvis, pyguitest for looking at curves/curve projections
 * OpenTimelineIO prototype library
   * parse .otio files and project through them
   * treecode library (path through a binary tree)
-
-## Todo
 
 ## IP
 * holodromes
@@ -22,7 +22,7 @@ contains:
     * non-linearizing bezier inversion
     * arbitrary (splitting) inversion
 
-## TODO
+## Todo
 * add back in linear and bezier curve topologies
     * with linearizing
     * add hododrome decomposition to bezier/bezier projection
@@ -41,9 +41,17 @@ contains:
     * visualize graph transformations over a topology with different targets
 * redesign the `opentimelineio` layer
     * clean up mess of `Item` and `ItemPtr`
+    * Allocators should be exposed as parameters, not through `allocator.ALLOCATOR`
 * move to zig v0.11 and bump deps
-* clean up mess around allocators in math libraries
 * topology->[]topology projection (for handling inversions)
+
+## ZIG REFERENCES
+
+* [Zig Lang](https://github.com/ziglang/zig): The language homepage
+* [Zig Learn](https://ziglearn.org/chapter-0/): Good starting place for a language overview
+* [Language Reference](https://ziglang.org/documentation/master/): Full Language Reference
+* [Stdlib Reference](https://ziglang.org/documentation/master/std/#A;std)
+* [Stdlib Source](https://github.com/ziglang/zig/tree/master/lib/std): I hate to admit it but often times its faster to just look at the source of the standard lib rather than going through the docs
 
 ### DONE
 
