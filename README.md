@@ -44,6 +44,8 @@ contains:
     * Allocators should be exposed as parameters, not through `allocator.ALLOCATOR`
 * move to zig v0.11 and bump deps
 * topology->[]topology projection (for handling inversions)
+* time-varying parameters
+* time-varying metadata
 
 ## ZIG REFERENCES
 
