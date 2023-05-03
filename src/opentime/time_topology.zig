@@ -107,19 +107,41 @@ const AffineTopology = struct {
         };
     }
 
+    /// project a topology through self (affine transform)
+    ///
+    /// -> means "is projected through"
+    /// A->B (bounds are in A)
+    /// B->C (bounds are in B)
+    /// B->C.project(A->B) => A->C, bounds are in A
+    ///
+    /// self: self.input -> self.output
+    /// other:other.input -> other.output
+    ///
+    /// self.project_topology(other) => other.input -> self.output
+    /// result.bounds -> other.input
+    ///
     pub fn project_topology(self: @This(), other: TimeTopology) TimeTopology {
         return switch (other) {
+           .bezier_curve => |other_bez| {
+               _ = other_bez;
+               unreachable;
+               // var other_clone = other_bez.clone();
+               //
+               // var [4]bezier_curve.ControlPoint;
+               // for (other_clone.bezier_curve.segments) |*seg| {
+               //     for (seg.points()) |*pt, pt_index| {
+               //          = self.project_ordinate(pt.value);
+               //     }
+               //     seg.from_pt_array(pts: [4]ControlPoint)
+               //     
+               // }
+               //
+               // return other_clone;
+           },
+           // .linear_curve => |_| {
+           //     unreachable;
+           // },
            .affine => |other_aff| {
-               // A->B (bounds are in A
-               // B->C (bounds are in B
-               // B->C.project(A->B) => A->C, bounds are in A
-               //
-               // self: self.input -> self.output
-               // other:other.input -> other.output
-               //
-               // self.project_topology(other) => other.input -> self.output
-               // result.bounds -> other.input
-               //
                const inv_xform = other_aff.transform.inverted();
 
                const self_bounds_in_input_space = (
