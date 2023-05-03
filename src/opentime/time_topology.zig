@@ -775,7 +775,12 @@ test "TimeTopology: staircase constructor" {
     );
 }
 
-test "TimeTopology: project affine through bezier" {
+test "TimeTopology: project bezier through affine" {
+    // affine topology
+    //
+    // output: [100, 110)
+    // input:  [0, 10)
+    //
     const aff_transform = (
         transform.AffineTransform1D{
             .offset_seconds = 100,
@@ -786,7 +791,7 @@ test "TimeTopology: project affine through bezier" {
         .start_seconds = 0,
         .end_seconds = 10,
     };
-    const aff_Topo = (
+    const affine_topo = (
         TimeTopology.init_affine(
             .{
                 .transform = aff_transform,
@@ -795,10 +800,24 @@ test "TimeTopology: project affine through bezier" {
         )
     );
 
+    //
+    // Bezier curve
+    //
+    // mapping:
+    // output: [0,    10)
+    // input:  [100, 110)
+    //
+    //   shape: (straight line)
+    //
+    //    |   /
+    //    |  /
+    //    | /
+    //    +------
+    //
     const xform_curve = try curve.rescaled_curve(
         // this curve is [-0.5, 0.5), so needs to be rescaled into the space
         // of the test/data that we want to do.
-        try curve.read_curve_json("curves/scurve.curve.json"),
+        try curve.read_curve_json("curves/linear.curve.json"),
         //  the range of the clip for testing - rescale factors
         .{
             .{ .time = 100, .value = 0, },
@@ -806,11 +825,35 @@ test "TimeTopology: project affine through bezier" {
         }
     );
 
-    const curve_topo = TimeTopology.init_bezier_cubic(
-        xform_curve
-    );
+    const curve_topo = TimeTopology.init_bezier_cubic(xform_curve);
 
-    const result = try aff_Topo.project_topology(curve_topo);
+    // bezier through affine
+    {
+        //
+        // should result in a curve mapping:
+        //
+        // (identity curve, 1 segment)
+        //
+        // [100, 110)
+        // [100, 110)
+        //
+        const result = try affine_topo.project_topology(curve_topo);
 
-    try std.testing.expect(std.meta.activeTag(result) != TimeTopology.empty);
+        try std.testing.expect(std.meta.activeTag(result) != TimeTopology.empty);
+    }
+
+    // affine through bezier
+    {
+        //
+        // should result in a curve mapping:
+        //
+        // (identity curve, 1 segment)
+        //
+        // [0, 10)
+        // [0, 10)
+        //
+        const result = try curve_topo.project_topology(affine_topo);
+
+        try std.testing.expect(std.meta.activeTag(result) != TimeTopology.empty);
+    }
 }
