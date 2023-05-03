@@ -89,8 +89,35 @@ fn arrayListInit(comptime T: type) std.ArrayList(T) {
 }
 
 fn curveName(state: *DemoState, index: usize) string.latin_s8 {
-    return state.curve_options.items[index].name;
+    return state.curves.items[index].options.name;
 }
+
+
+fn read_curve(fpath: []const u8) !curve.TimeCurve {
+    var buf: [1024]u8 = undefined;
+    const lower_fpath = std.ascii.lowerString(&buf, fpath);
+
+    if (std.mem.endsWith(u8, lower_fpath, ".curve.json")) {
+        return try curve.read_curve_json(fpath);
+    } 
+    else 
+    {
+        return .{ 
+            .segments = &[1]curve.Segment{
+                try curve.read_segment_json(fpath) 
+            }
+        };
+    }
+}
+
+const DemoCurve = struct {
+    original_bezier:curve.TimeCurve,
+    normalized:curve.TimeCurve,
+    linear:curve.TimeCurveLinear,
+    options:CurveOpts,
+    // transformed_by_affine:TimeCurve,
+    // transforming_affine:TimeCurve,
+};
 
 const DemoState = struct {
     gctx: *zgpu.GraphicsContext,
@@ -112,13 +139,8 @@ const DemoState = struct {
     clip_frame_rate: i32 = 6,
     frame_rate: i32 = 10,
 
-    /// original bezier curves read from json
-    bezier_curves:std.ArrayList(curve.TimeCurve) = arrayListInit(curve.TimeCurve),
-    /// list of curves normalized into the space of the display
-    normalized_curves:std.ArrayList(curve.TimeCurve) = arrayListInit(curve.TimeCurve),
-    /// list of linearized curves
-    linear_curves:std.ArrayList(curve.TimeCurveLinear) = arrayListInit(curve.TimeCurveLinear),
-    curve_options:std.ArrayList(CurveOpts) = arrayListInit(CurveOpts),
+    curves: std.ArrayList(DemoCurve),
+    linear_curves: std.ArrayList(curve.TimeCurveLinear),
 
     options: struct {
         // using i32 because microui check_box expects an int32 not a bool
@@ -264,6 +286,8 @@ fn init(allocator: std.mem.Allocator, window: zglfw.Window) !*DemoState {
         .otvis_vertex_buffer = vertex_buffer,
         .otvis_index_buffer = index_buffer,
         .otvis_sampler = sampler,
+        .curves = std.ArrayList(DemoCurve).init(allocator),
+        .linear_curves = std.ArrayList(curve.TimeCurveLinear).init(allocator),
     };
 
     // (Async) Create the otvis render pipeline.
@@ -400,7 +424,7 @@ fn update(demo: *DemoState) void {
     var points_y = std.mem.zeroes([t_stops]f32);
 
     if (zgui.collapsingHeader("Curves", .{})) {
-        for (demo.normalized_curves.items) |crv, crv_index| {
+        for (demo.curves.items) |*crv, crv_index| {
             if (
                 zgui.collapsingHeader(
                     @ptrCast([:0]const u8, curveName(demo, crv_index)),
@@ -408,7 +432,7 @@ fn update(demo: *DemoState) void {
                 ) 
             )
             {
-                var opts = &demo.curve_options.items[crv_index];
+                var opts = &crv.options;
                 _ = zgui.checkbox("Draw Hull", .{ .v = &opts.draw_hull },);
                 _ = zgui.checkbox("Draw Curve", .{ .v = &opts.draw_curve },);
                 _ = zgui.checkbox(
@@ -416,17 +440,18 @@ fn update(demo: *DemoState) void {
                     .{ .v = &opts.draw_imgui_curve },
                 );
 
-                const extents = crv.extents();
+                const extents = crv.normalized.extents();
+
+                // @TODO: WTF not just normalize this up front?
                 const norm_crv = curve.normalized_to(
-                    crv,
+                    crv.normalized,
                     .{.time=-1, .value=-1},
                     .{.time=1, .value=1}
                 );
 
                 if (zgui.collapsingHeader("Points", .{})) {
                     if (zgui.collapsingHeader("Original Points", .{})) {
-                        const orig_crv = demo.bezier_curves.items[crv_index];
-                        for (orig_crv.segments) |seg| {
+                        for (crv.original_bezier.segments) |seg| {
                             const pts = seg.points();
                             for (pts) |pt, pt_index| {
                                 zgui.bulletText(
@@ -473,7 +498,7 @@ fn update(demo: *DemoState) void {
                     //     "enabled",
                     //     Checkbox{ enabled = state.curve_draw_switch.items[crv_index] },
                     // );
-                    for (crv.segments) |seg| {
+                    for (crv.normalized.segments) |seg| {
                         zgui.plot.plotLine(
                             "control hull",
                             f32,
@@ -494,7 +519,7 @@ fn update(demo: *DemoState) void {
                         );
                     }
 
-                    const linearized_crv = crv.linearized();
+                    const linearized_crv = crv.normalized.linearized();
 
                     times.clearAndFree();
                     values.clearAndFree();
@@ -535,7 +560,7 @@ fn update(demo: *DemoState) void {
                     var index:usize = 0;
                     while (t < t_end) : ({t += t_inc; index += 1;}) {
                         points_x[index] = t;
-                        points_y[index] = crv.evaluate(t) catch unreachable;
+                        points_y[index] = crv.normalized.evaluate(t) catch unreachable;
                     }
                     zgui.plot.plotLine(
                         "evaluated curve",
@@ -598,9 +623,9 @@ fn update(demo: *DemoState) void {
     var pts:std.ArrayList([2]f32) = arrayListInit([2]f32);
     defer pts.deinit();
 
-    for (demo.bezier_curves.items) |crv, index| {
-        const draw_crv = curve.normalized_to(crv, min_p, max_p);
-        const opts = &demo.curve_options.items[index];
+    for (demo.curves.items) |crv| {
+        const draw_crv = curve.normalized_to(crv.original_bezier, min_p, max_p);
+        const opts = &crv.options;
         
         for (draw_crv.segments) |seg| {
             if (opts.draw_hull) {
@@ -777,8 +802,9 @@ fn draw(demo: *DemoState) void {
     _ = gctx.present();
 }
 
-fn _parse_args(state:*DemoState) !void {
-    var args = try std.process.argsWithAllocator(ALLOCATOR);
+fn _parse_args(state:*DemoState, allocator: std.mem.Allocator) !void {
+    var args = try std.process.argsWithAllocator(allocator);
+    defer args.deinit();
 
     // ignore the app name, always first in args
     _ = args.skip();
@@ -865,40 +891,33 @@ fn _parse_args(state:*DemoState) !void {
         }
 
         std.debug.print("reading curve: {s}\n", .{ fpath });
-        try state.curve_options.append(.{.name=fpath});
 
-        var buf: [1024]u8 = undefined;
-        const lower_fpath = std.ascii.lowerString(&buf, fpath);
-        if (std.mem.endsWith(u8, lower_fpath, ".curve.json")) {
-            var crv = curve.read_curve_json(fpath) catch |err| {
-                std.debug.print(
-                    "Something went wrong reading: '{s}'\n",
-                    .{ fpath }
-                );
-                return err;
-            };
+        var opts = CurveOpts{ .name = fpath };
 
-            try state.bezier_curves.append(crv);
-
-            try state.normalized_curves.append(
-                curve.normalized_to(
-                    crv,
-                    .{.time=0, .value=0}, 
-                    .{.time=400, .value=400}
-                )
+        var crv = read_curve(fpath) catch |err| {
+            std.debug.print(
+                "Something went wrong reading: '{s}'\n",
+                .{ fpath }
             );
-        } 
-        else 
-        {
-            // pack into a curve
-            try state.normalized_curves.append(
-                curve.TimeCurve{ 
-                    .segments = &[1]curve.Segment{
-                        try curve.read_segment_json(fpath) 
-                    }
-                }
-            );
-        }
+
+            return err;
+        };
+
+        // @TODO: 0->400?? where are these numbers coming from
+        var normalized_crv = curve.normalized_to(
+            crv,
+            .{.time=0, .value=0}, 
+            .{.time=400, .value=400}
+        );
+
+        try state.curves.append(
+            .{
+                .original_bezier = crv,
+                .linear = crv.linearized(),
+                .normalized = normalized_crv,
+                .options = opts,
+            }
+        );
     }
 
     if (state.options.normalize_scale == 1) {
@@ -907,34 +926,25 @@ fn _parse_args(state:*DemoState) !void {
             .{ .time = 0.5, .value = 0.5 },
         };
 
-
         var extents: [2]curve.ControlPoint = .{
             // min
             .{ .time = std.math.inf(f32), .value = std.math.inf(f32) },
             // max
             .{ .time = -std.math.inf(f32), .value = -std.math.inf(f32) }
         };
-        
-        for (state.normalized_curves.items) |crv| {
-            const crv_extents = crv.extents();
-            extents = .{
-                .{ 
-                    .time = std.math.min(extents[0].time, crv_extents[0].time),
-                    .value = std.math.min(extents[0].value, crv_extents[0].value),
-                },
-                .{ 
-                    .time = std.math.max(extents[1].time, crv_extents[1].time),
-                    .value = std.math.max(extents[1].value, crv_extents[1].value),
-                },
-            };
-        }
 
         var rescaled_curves = std.ArrayList(curve.TimeCurve).init(ALLOCATOR);
+        defer rescaled_curves.deinit();
 
-        for (state.normalized_curves.items) |crv| {
-            var segments = std.ArrayList(curve.Segment).init(ALLOCATOR);
+        var segments = std.ArrayList(curve.Segment).init(ALLOCATOR);
+        defer segments.deinit();
 
-            for (crv.segments) |seg| {
+        for (state.curves.items) |*crv| {
+            segments.clearAndFree();
+
+            var n_crv = crv.normalized;
+
+            for (n_crv.segments) |seg| {
                 const pts = seg.points();
 
                 var new_pts:[4]curve.ControlPoint = pts;
@@ -952,24 +962,21 @@ fn _parse_args(state:*DemoState) !void {
                 try segments.append(new_seg);
             }
 
-            try rescaled_curves.append(.{ .segments = segments.items });
+            allocator.free(crv.*.normalized.segments);
+            crv.*.normalized.segments = segments.items;
         }
-
-        // empty and replace state.normalized_curves with rescaled segments
-        state.normalized_curves.clearAndFree();
-        try state.normalized_curves.appendSlice(rescaled_curves.items);
     }
 
-    if (state.normalized_curves.items.len == 0) {
+    if (state.curves.items.len == 0) {
         usage();
     }
 
     if (project) {
-        if (state.normalized_curves.items.len != 2) {
+        if (state.curves.items.len != 2) {
             std.debug.print(
                 "Error: --project require exactly two "
                 ++ "normalized_curves, got {}.",
-                .{ state.normalized_curves.items.len }
+                .{ state.curves.items.len }
             );
             usage();
         } else {
@@ -978,8 +985,8 @@ fn _parse_args(state:*DemoState) !void {
                 .{ curveName(state, PROJ_S), curveName(state, PROJ_THR_S) } 
             );
 
-            const fst = state.normalized_curves.items[PROJ_THR_S];
-            const snd = state.normalized_curves.items[PROJ_S];
+            const fst = state.curves.items[PROJ_THR_S].normalized;
+            const snd = state.curves.items[PROJ_S].normalized;
 
             const result = fst.project_curve(snd);
 
@@ -1048,7 +1055,7 @@ pub fn main() !void {
     };
     defer deinit(allocator, demo);
 
-    try _parse_args(demo);
+    try _parse_args(demo, allocator);
 
     while (!window.shouldClose() and window.getKey(.escape) != .press) {
         zglfw.pollEvents();
