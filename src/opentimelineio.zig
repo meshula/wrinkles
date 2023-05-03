@@ -1412,11 +1412,14 @@ test "Single Clip reverse transform" {
 
 test "Single Clip bezier transform" {
     //
-    // xform: reverse (linear w/ -1 slope)
+    // xform: scurve read from sample curve file
     //
     //              0                 7           10
     // output       [-----------------*-----------)
-    // (transform)  10                3           0
+    //                               _,-----------x
+    //                             _/
+    // transform                 ,/
+    //              x-----------'
     // media        [-----------------*-----------)
     //              110               103         100 (seconds)
     //
