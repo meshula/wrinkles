@@ -17,6 +17,7 @@ all:
 # ; lldb $(mkfile_dir)otio_test.out -o run -o "frame variable -f b"
 
 test:
+	zig test -femit-bin=$(mkfile_dir)otio_test.out -freference-trace src/opentime/time_topology.zig $(TEST_FILTER)
 	zig test -femit-bin=$(mkfile_dir)otio_test.out -freference-trace src/opentimelineio.zig $(TEST_FILTER)
 	zig test -femit-bin=$(mkfile_dir)otio_test.out src/opentime/test_topology_projections.zig $(TEST_FILTER)
 	zig test -femit-bin=$(mkfile_dir)otio_test.out src/opentime/opentime.zig $(TEST_FILTER)
