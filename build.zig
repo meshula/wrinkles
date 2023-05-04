@@ -84,7 +84,10 @@ pub fn build_wrinkles_like(
     );
     exe.step.dependOn(&install_content_step.step);
 
-    std.debug.print("[build] content source directory path: {s}\n", .{thisDir() ++ source_dir_path});
+    std.debug.print(
+        "[build: {s}] content source directory path: {s}\n",
+        .{name, thisDir() ++ source_dir_path}
+    );
 
     exe.setBuildMode(options.build_mode);
     exe.setTarget(options.target);
@@ -136,10 +139,23 @@ pub fn build(b: *std.build.Builder) void {
        "/wrinkles_content/",
        options
    );
+   build_wrinkles_like(
+       b,
+       "curvevist",
+       "/src/curvevist.zig",
+       "/wrinkles_content/",
+       options
+   );
 
     const test_step = b.step("test", "run all unit tests");
 
     for (SOURCES_WITH_TESTS) |fpath| {
-        add_test_for_source(b, options.target, options.build_mode, test_step, fpath);
+        add_test_for_source(
+            b,
+            options.target,
+            options.build_mode,
+            test_step,
+            fpath
+        );
     }
 }
