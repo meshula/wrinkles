@@ -69,148 +69,126 @@ typedef struct {
     Vector2 p[4];
 } BezierCurve;
 
-/* @TODO this goes in the general root finder */
-// Returns the root of a linear Bezier curve
-float root_linear_bezier(BezierCurve* bz)
+BezierCurve translate_bezier(BezierCurve* bz, Vector2 v)
 {
-    float m = (bz->p[1].y - bz->p[0].y) / (bz->p[1].x - bz->p[0].x);
-    float b = bz->p[0].y - m * bz->p[0].x;
-    return -(bz->p[0].y - m * bz->p[0].x) / m;
+    BezierCurve rv;
+    rv.order = bz->order;
+    for (int i = 0; i <= bz->order; i++)
+        rv.p[i] = bz->p[i] + v;
+    return rv;
+}
+
+BezierCurve move_bezier_to_origin(BezierCurve* bz) {
+    if (!bz || bz->order != 3)
+        return BezierCurve{3, {{0,0}, {0,0}, {0,0}, {0,0}}};
+
+    return translate_bezier(bz, bz->p[0] * -1.f);
+}
+
+BezierCurve scale_bezier(BezierCurve* bz, float s) {
+    if (!bz)
+        return BezierCurve{0, {{0,0}, {0,0}, {0,0}, {0,0}}};
+
+    BezierCurve rv;
+    rv.order = bz->order;
+    for (int i = 0; i <= bz->order; i++)
+        rv.p[i] = bz->p[i] * s;
+    return rv;
 }
 
 // Compute the alignment of a Bezier curve, which means, rotate and translate the
 // curve so that the first control point is at the origin and the last control point
 // is on the x-axis
-BezierCurve align_quadratic_bezier(BezierCurve* bz) {
-    if (!bz || bz->order != 3)
-        return BezierCurve{0, {{0,0}, {0,0}, {0,0}, {0,0}}};
-
-    /// @TODO for order 2
-
-    BezierCurve rv;
-    rv.p[0] = {0, 0};
-    rv.p[1] = bz->p[1] - bz->p[0];
-    rv.p[2] = bz->p[2] - bz->p[0];
-    float dx = rv.p[2].x;
-    float dy = rv.p[2].y;
-    float a = atan2f(dy, dx);
-    float cosa = cosf(-a);
-    float sina = sinf(-a);
-    rv.p[1] = { rv.p[1].x * cosa - rv.p[1].y * sina, rv.p[1].x * sina + rv.p[1].y * cosa };
-    rv.p[2] = { rv.p[2].x * cosa - rv.p[2].y * sina, rv.p[2].x * sina + rv.p[2].y * cosa };
-    return rv;
-}
-BezierCurve move_bezier_to_origin(BezierCurve* bz) {
-    if (!bz || bz->order != 3)
-        return BezierCurve{3, {{0,0}, {0,0}, {0,0}, {0,0}}};
-
-    /// @TODO for order 2
-    
-    BezierCurve rv;
-    rv.p[0] = {0, 0};
-    rv.p[1] = bz->p[1] - bz->p[0];
-    rv.p[2] = bz->p[2] - bz->p[0];
-    rv.p[3] = bz->p[3] - bz->p[0];
-    return rv;
-}
-
-// Compute the alignment of a Bezier curve, which means, rotate and translate the
-// curve so that the first control point is at the origin and the last control point 
-// is on the x-axis
 BezierCurve align_bezier(BezierCurve* bz) {
-    if (!bz || bz->order != 3)
+    if (!bz || bz->order < 2 || bz->order > 3)
         return BezierCurve{0, {{0,0}, {0,0}, {0,0}, {0,0}}};
 
-    /// @TODO for order 2
-
-    BezierCurve rv;
-    rv.p[0] = {0, 0};
-    rv.p[1] = bz->p[1] - bz->p[0];
-    rv.p[2] = bz->p[2] - bz->p[0];
-    rv.p[3] = bz->p[3] - bz->p[0];
-    float dx = rv.p[3].x;
-    float dy = rv.p[3].y;
-    float a = atan2f(dy, dx);
-    float cosa = cosf(-a);
-    float sina = sinf(-a);
-    rv.p[1] = { rv.p[1].x * cosa - rv.p[1].y * sina, rv.p[1].x * sina + rv.p[1].y * cosa };
-    rv.p[2] = { rv.p[2].x * cosa - rv.p[2].y * sina, rv.p[2].x * sina + rv.p[2].y * cosa };
-    rv.p[3] = { rv.p[3].x * cosa - rv.p[3].y * sina, rv.p[3].x * sina + rv.p[3].y * cosa };
-    return rv;
-}
-
-float root_quadratic_bezier(BezierCurve* bz) {
-    if (!bz)
-        return -1.f;
-
-    Vector2 p[3];
-    p[0] = bz->p[0];
-    p[1] = bz->p[1];
-    p[2] = bz->p[2];
-
-    float a = p[0].y - 2 * p[1].y + p[2].y;
-    float b = 2 * (p[1].y - p[0].y);
-    float c = p[0].y;
-
-    // Check if discriminant is negative, meaning no real roots
-    if (b * b - 4 * a * c < 0) {
-        return -1.f;
-    }
-
-    // Compute roots using quadratic formula
-    float sqrtDiscriminant = sqrtf(b * b - 4 * a * c);
-    float t1 = (-b + sqrtDiscriminant) / (2 * a);
-    float t2 = (-b - sqrtDiscriminant) / (2 * a);
-
-    // Check if roots are within [0, 1], meaning they are on the curve
-    if (t1 >= 0 && t1 <= 1) {
-        return t1;
-    }
-
-    if (t2 >= 0 && t2 <= 1) {
-        return t2;
-    }
-
-    return -1.f;
-}
-
-
-float root2_quadratic_bezier(BezierCurve* bz) {
-    if (!bz)
-        return -1.f;
-
-    Vector2 p[3];
-    p[0] = bz->p[0];
-    p[1] = bz->p[1];
-    p[2] = bz->p[2];
-
-    float a = p[0].y - 2 * p[1].y + p[2].y;
-    float b = 2 * (p[1].y - p[0].y);
-    float c = p[0].y;
-
-    // Check if discriminant is negative, meaning no real roots
-    if (b * b - 4 * a * c < 0) {
-        return -1.f;
-    }
-
-    // Compute roots using quadratic formula
-    float sqrtDiscriminant = sqrtf(b * b - 4 * a * c);
-    float t1 = (-b + sqrtDiscriminant) / (2 * a);
-    float t2 = (-b - sqrtDiscriminant) / (2 * a);
-
-    // Check if roots are within [0, 1], meaning they are on the curve
-    if (t1 >= 0 && t1 <= 1) {
+    if (bz->order == 3) {
+        BezierCurve rv;
+        rv.order = 3;
+        rv.p[0] = {0, 0};
+        rv.p[1] = bz->p[1] - bz->p[0];
+        rv.p[2] = bz->p[2] - bz->p[0];
+        rv.p[3] = bz->p[3] - bz->p[0];
+        float dx = rv.p[3].x;
+        float dy = rv.p[3].y;
+        float a = atan2f(dy, dx);
+        float cosa = cosf(-a);
+        float sina = sinf(-a);
+        rv.p[1] = { rv.p[1].x * cosa - rv.p[1].y * sina, rv.p[1].x * sina + rv.p[1].y * cosa };
+        rv.p[2] = { rv.p[2].x * cosa - rv.p[2].y * sina, rv.p[2].x * sina + rv.p[2].y * cosa };
+        rv.p[3] = { rv.p[3].x * cosa - rv.p[3].y * sina, rv.p[3].x * sina + rv.p[3].y * cosa };
+        return rv;
     }
     else {
-        return -1.f;
+        BezierCurve rv;
+        rv.order = 2;
+        rv.p[0] = {0, 0};
+        rv.p[1] = bz->p[1] - bz->p[0];
+        rv.p[2] = bz->p[2] - bz->p[0];
+        float dx = rv.p[2].x;
+        float dy = rv.p[2].y;
+        float a = atan2f(dy, dx);
+        float cosa = cosf(-a);
+        float sina = sinf(-a);
+        rv.p[1] = { rv.p[1].x * cosa - rv.p[1].y * sina, rv.p[1].x * sina + rv.p[1].y * cosa };
+        rv.p[2] = { rv.p[2].x * cosa - rv.p[2].y * sina, rv.p[2].x * sina + rv.p[2].y * cosa };
+        return rv;
     }
-
-    if (t2 >= 0 && t2 <= 1) {
-        return t2;
-    }
-
-    return -1.f;
 }
+
+Vector2 bezier_roots(BezierCurve* bz) {
+    Vector2 rv = { -1.f, -1.f };
+    if (!bz || bz->order < 1 || bz->order > 2)
+        return rv;
+
+    if (bz->order == 2) {
+        Vector2 p[3];
+        p[0] = bz->p[0];
+        p[1] = bz->p[1];
+        p[2] = bz->p[2];
+
+        float a = p[0].y - 2 * p[1].y + p[2].y;
+        float b = 2 * (p[1].y - p[0].y);
+        float c = p[0].y;
+
+        // Check if discriminant is negative, meaning no real roots
+        if (b * b - 4 * a * c < 0) {
+            return rv;
+        }
+
+        // Compute roots using quadratic formula
+        float sqrtDiscriminant = sqrtf(b * b - 4 * a * c);
+        float t1 = (-b + sqrtDiscriminant) / (2 * a);
+        float t2 = (-b - sqrtDiscriminant) / (2 * a);
+
+        // Check if roots are within [0, 1], meaning they are on the curve
+        if (t1 >= 0 && t1 <= 1) {
+            rv.x = t1;
+        }
+
+        if (t2 >= 0 && t2 <= 1) {
+            rv.y = t2;
+        }
+
+        if (rv.x < 0) {
+            rv.x = rv.y;
+            rv.y = -1.f;
+        }
+        else if (rv.x > rv.y && rv.y > 0) {
+            float tmp = rv.x;
+            rv.x = rv.y;
+            rv.y = tmp;
+        }
+    }
+    else {
+        float m = (bz->p[1].y - bz->p[0].y) / (bz->p[1].x - bz->p[0].x);
+        float b = bz->p[0].y - m * bz->p[0].x;
+        rv.x = -(bz->p[0].y - m * bz->p[0].x) / m;
+    }
+    return rv;
+}
+
 
 Vector2 evaluate_bezier(BezierCurve* b, float u)
 {
@@ -270,7 +248,7 @@ BezierCurve compute_hodograph(BezierCurve* b)
     if (!b || b->order < 2 || b->order > 3)
         return r;
 
-    // compute the hodograph of b. Calculate the derivative of the Bezier curve. 
+    // compute the hodograph of b. Calculate the derivative of the Bezier curve.
     // Subtracting each consecutive control point from the next
     r.order = b->order - 1;
     if (b->order == 3) {
@@ -324,6 +302,16 @@ Vector2 inflection_points(BezierCurve* bz) {
         if (roots.y < 0 || roots.y > 1.f)
             roots.y = -1;
     }
+    
+    if (roots.x < 0) {
+        roots.x = roots.y;
+        roots.y = -1.f;
+    }
+    else if (roots.x > roots.y && roots.y > 0) {
+        float tmp = roots.x;
+        roots.x = roots.y;
+        roots.y = tmp;
+    }
     return roots;
 }
 
@@ -351,11 +339,13 @@ bool split_bezier(const BezierCurve* bz, float t, BezierCurve* r1, BezierCurve* 
     Vector2 R1 = (1 - t) * ((1 - t) * p[1] + t * p[2]) + t * R2;
     Vector2 R3 = p[3];
 
+    r1->order = 3;
     r1->p[0] = Q0;
     r1->p[1] = Q1;
     r1->p[2] = Q2;
     r1->p[3] = Q3;
 
+    r2->order = 3;
     r2->p[0] = R0;
     r2->p[1] = R1;
     r2->p[2] = R2;
@@ -598,22 +588,19 @@ int main(void)
         //DrawLineBezierx(&alb, steps, 2.0f, BLACK);
 
         Vector2 inflections = inflection_points(&b);
-        Vector2 roots = { -1, -1 };
-        roots.x = root_quadratic_bezier(&h);
-        roots.y = root2_quadratic_bezier(&h);
+        Vector2 roots = bezier_roots(&h);
 
-        float split = roots.x;//inflections.x;
-        //if ((inflections.y > 0) && (inflections.y < split))
-          //  split = inflections.y;
-        if ((roots.x > 0) && (roots.x < split))
-            split = roots.x;
-        if ((roots.y > 0) && (roots.y < split))
-            split = roots.y;
+        float split1 = roots.x;
+        if (split1 == -1) {
+            split1 = inflections.x;
+        }
+        if (inflections.x > 0 && inflections.x < split1)
+            split1 = inflections.x;
 
         BezierCurve s1;
         BezierCurve s2;
-        if (split > 0)
-            split_bezier(&b, split, &s1, &s2);
+        if (split1 > 0)
+            split_bezier(&b, split1, &s1, &s2);
         else
             draw_split = false;
         
@@ -729,24 +716,23 @@ int main(void)
                 DrawLineBezierx(&b, steps, 2.0f, RED);
             
             if (draw_roots) {
-                float root = root_quadratic_bezier(&h);
-                if (root >= 0.f) {
-                    Vector2 r = evaluate_bezier(&b, root);
+                Vector2 root = bezier_roots(&h);
+                if (root.x >= 0.f) {
+                    Vector2 r = evaluate_bezier(&b, root.x);
                     DrawRing(r, 2, 6, 0, 360, 16, DARKGREEN);
                 }
-                float root2 = root2_quadratic_bezier(&h);
-                if (root2 >= 0.f) {
-                    Vector2 r = evaluate_bezier(&b, root2);
+                if (root.y >= 0.f) {
+                    Vector2 r = evaluate_bezier(&b, root.y);
                     DrawRing(r, 2, 6, 0, 360, 16, DARKGREEN);
                 }
             }
-            if (draw_inflections) {
-                float inflection = root_linear_bezier(&h2);
-                if (inflection >= 0.f) {
+/*            if (draw_inflections) {
+                Vector2 inflection = bezier_roots(&h2);
+                if (inflection.x >= 0.f) {
                     Vector2 r = evaluate_bezier(&b, inflection);
                     //DrawRing(r, 2, 6, 0, 360, 16, DARKBLUE);
                 }
-            }
+            }*/
         }
         EndDrawing();
         //----------------------------------------------------------------------------------
