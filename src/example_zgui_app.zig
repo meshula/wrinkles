@@ -154,7 +154,7 @@ pub fn main() !void {
     zglfw.windowHint(.client_api, 0);
 
     const title = (
-        "Example app with a full screen zgui ui" 
+        "Example app with a full screen zgui ui [commit: " 
         ++ build_options.hash[0..6] 
         ++ "]"
     );
@@ -190,32 +190,6 @@ pub fn main() !void {
     }
 }
 
-
-pub fn evaluated_curve(
-    crv: curve.TimeCurve,
-    comptime steps:usize
-) !struct{ xv: [steps]f32, yv: [steps]f32 }
-{
-    const ext = crv.extents();
-    const stepsize:f32 = (ext[1].time - ext[0].time) / @as(f32, steps);
-
-    var xv:[steps]f32 = .{};
-    var yv:[steps]f32 = .{};
-
-    var i:usize = 0;
-    var uv:f32 = ext[0].time;
-    while (i < steps - 1) : (i += 1) {
-        errdefer std.log.err("error: uv was: {} extents: {any}\n", .{ uv, ext });
-        const p = try crv.evaluate(uv);
-
-        xv[i] = uv;
-        yv[i] = p;
-
-        uv += stepsize;
-    }
-
-    return .{ .xv = xv, .yv = yv };
-}
 
 fn update(
     gfx_state: *GraphicsState,
@@ -332,8 +306,8 @@ fn _parse_args(
         var fpath: [:0]const u8 = nextarg;
 
         if (
-            string.eql_latin_s8(fpath, "--help")
-            or (string.eql_latin_s8(fpath, "-h"))
+            std.mem.eql(u8, fpath, "--help")
+            or (std.mem.eql(u8, fpath, "-h"))
         ) {
             usage();
         }
