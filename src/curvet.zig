@@ -250,8 +250,13 @@ fn update(
         demo.gctx.swapchain_descriptor.height,
     );
 
-    zgui.setNextWindowPos(.{ .x = 0.0, .y = 0.0, .cond = .first_use_ever });
-    zgui.setNextWindowSize(.{ .w = -1, .h = 1, .cond = .first_use_ever });
+    zgui.setNextWindowPos(.{ .x = 0.0, .y = 0.0, });
+
+    const size = gfx_state.gctx.window.getFramebufferSize();
+    const width = @intToFloat(f32, size[0]);
+    const height = @intToFloat(f32, size[1]);
+
+    zgui.setNextWindowSize(.{ .w = width, .h = height, });
 
     var main_flags = zgui.WindowFlags.no_decoration;
     main_flags.no_resize = true;
@@ -268,7 +273,7 @@ fn update(
 
     zgui.bulletText(
         "Average : {d:.3} ms/frame ({d:.1} fps)",
-        .{ demo.gctx.stats.average_cpu_time, demo.gctx.stats.fps },
+        .{ gfx_state.gctx.stats.average_cpu_time, gfx_state.gctx.stats.fps },
     );
     zgui.spacing();
 
@@ -322,8 +327,8 @@ fn update(
     zgui.end();
 }
 
-fn draw(demo: *DemoState) void {
-    const gctx = demo.gctx;
+fn draw(gfx_state: *GraphicsState) void {
+    const gctx = gfx_state.gctx;
 
     const back_buffer_view = gctx.swapchain.getCurrentTextureView();
     defer back_buffer_view.release();
