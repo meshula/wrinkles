@@ -193,6 +193,7 @@ pub fn main() !void {
     defer demo.deinit();
 
     const state = try _parse_args(allocator);
+    defer allocator.free(state.curves);
 
     while (!window.shouldClose() and window.getKey(.escape) != .press) {
         zglfw.pollEvents();
@@ -342,6 +343,7 @@ fn _parse_args(
 
             return err;
         };
+        defer allocator.free(crv.segments);
 
         var viscurve = VisCurve{
             .original = .{
