@@ -237,6 +237,11 @@ pub fn evaluated_curve(
         uv += stepsize;
     }
 
+    const end_point = crv.segments[crv.segments.len - 1].p3;
+
+    xv[steps - 1] = end_point.time;
+    yv[steps - 1] = end_point.value;
+
     return .{ .xv = xv, .yv = yv };
 }
 
@@ -277,53 +282,25 @@ fn update(
     );
     zgui.spacing();
 
-    if (
-        zgui.collapsingHeader(
-            "Curves",
-            .{
-                .span_full_width = true,
-                .default_open = true,
-                .framed = true,
-            }
-            )
-        ) 
-    {
+    if (zgui.plot.beginPlot("Curve Plot", .{ .h = -1.0 })) {
+        zgui.plot.setupAxis(.x1, .{ .label = "input" });
+        zgui.plot.setupAxis(.y1, .{ .label = "output" });
+
         for (state.curves) |viscurve| {
-            if (
-                zgui.collapsingHeader(
-                    viscurve.original.fpath,
-                    .{ .default_open = true}
-                )
-            ) 
-            {
-                if (zgui.plot.beginPlot(viscurve.original.fpath, .{ .h = -1.0 })) {
+            const pts = try evaluated_curve(viscurve.original.bezier, 1000);
 
-                    zgui.plot.setupAxis(.x1, .{ .label = "xaxis" });
+            zgui.plot.setupLegend(.{ .south = true, .west = true }, .{});
+            zgui.plot.setupFinish();
 
-                    {
-                        const ext = viscurve.original.bezier.extents();
-
-                        // @TODO: use a relative padding rather than an absolute
-                        zgui.plot.setupAxisLimits(.x1, .{ .min = ext[0].time - 1, .max = ext[1].time + 1 });
-                        zgui.plot.setupAxisLimits(.y1, .{ .min = ext[0].value - 1, .max = ext[1].value + 1 });
-                    }
-
-                    const pts = try evaluated_curve(viscurve.original.bezier, 100);
-
-                    zgui.plot.setupLegend(.{ .south = true, .west = true }, .{});
-                    zgui.plot.setupFinish();
-
-                    zgui.plot.plotLineValues("y data", i32, .{ .v = &.{ 0, 1, 0, 1, 0, 1 } });
-                    zgui.plot.plotLine("xy data", f32, .{
-                        .xv = &pts.xv,
-                        .yv = &pts.yv,
-                    });
-                    zgui.plot.endPlot();
-                }
-            }
+            zgui.plot.plotLine(
+                viscurve.original.fpath,
+                f32,
+                .{ .xv = &pts.xv, .yv = &pts.yv }
+            );
         }
-    }
 
+        zgui.plot.endPlot();
+    }
     zgui.end();
 }
 
