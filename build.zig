@@ -146,6 +146,13 @@ pub fn build(b: *std.build.Builder) void {
        "/wrinkles_content/",
        options
    );
+   build_wrinkles_like(
+       b,
+       "example_zgui_app",
+       "/src/example_zgui_app.zig",
+       "/wrinkles_content/",
+       options
+   );
 
     const test_step = b.step("test", "run all unit tests");
 
