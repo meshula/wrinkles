@@ -195,17 +195,48 @@ pub fn main() !void {
     const state = try _parse_args(allocator);
     defer allocator.free(state.curves);
 
+    std.debug.assert(state.curves[0].original.bezier.segments.len > 0);
+    std.debug.print("curve segments: {any}\n", .{ state.curves[0].original.bezier.segments.len });
+    std.debug.print("curve extents: {any}\n", .{ state.curves[0].original.bezier.extents() });
+
     while (!window.shouldClose() and window.getKey(.escape) != .press) {
         zglfw.pollEvents();
-        update(demo, state);
+        try update(demo, state);
         draw(demo);
     }
+}
+
+
+pub fn evaluated_curve(
+    crv: curve.TimeCurve,
+    comptime steps:usize
+) !struct{ xv: [steps]f32, yv: [steps]f32 }
+{
+    const ext = crv.extents();
+    const stepsize:f32 = (ext[1].time - ext[0].time) / @as(f32, steps);
+
+    var xv:[steps]f32 = .{};
+    var yv:[steps]f32 = .{};
+
+    var i:usize = 0;
+    var uv:f32 = ext[0].time;
+    while (i < steps - 1) : (i += 1) {
+        errdefer std.log.err("error: uv was: {} extents: {any}\n", .{ uv, ext });
+        const p = try crv.evaluate(uv);
+
+        xv[i] = uv;
+        yv[i] = p;
+
+        uv += stepsize;
+    }
+
+    return .{ .xv = xv, .yv = yv };
 }
 
 fn update(
     demo: *DemoState,
     state: VisState
-) void 
+) !void 
 {
     zgui.backend.newFrame(
         demo.gctx.swapchain_descriptor.width,
@@ -246,16 +277,34 @@ fn update(
         ) 
     {
         for (state.curves) |viscurve| {
-            if (zgui.collapsingHeader(viscurve.original.fpath, .{})) {
+            if (
+                zgui.collapsingHeader(
+                    viscurve.original.fpath,
+                    .{ .default_open = true}
+                )
+            ) 
+            {
                 if (zgui.plot.beginPlot(viscurve.original.fpath, .{ .h = -1.0 })) {
+
                     zgui.plot.setupAxis(.x1, .{ .label = "xaxis" });
-                    zgui.plot.setupAxisLimits(.x1, .{ .min = 0, .max = 5 });
+
+                    {
+                        const ext = viscurve.original.bezier.extents();
+
+                        // @TODO: use a relative padding rather than an absolute
+                        zgui.plot.setupAxisLimits(.x1, .{ .min = ext[0].time - 1, .max = ext[1].time + 1 });
+                        zgui.plot.setupAxisLimits(.y1, .{ .min = ext[0].value - 1, .max = ext[1].value + 1 });
+                    }
+
+                    const pts = try evaluated_curve(viscurve.original.bezier, 100);
+
                     zgui.plot.setupLegend(.{ .south = true, .west = true }, .{});
                     zgui.plot.setupFinish();
+
                     zgui.plot.plotLineValues("y data", i32, .{ .v = &.{ 0, 1, 0, 1, 0, 1 } });
                     zgui.plot.plotLine("xy data", f32, .{
-                        .xv = &.{ 0.1, 0.2, 0.5, 2.5 },
-                        .yv = &.{ 0.1, 0.3, 0.5, 0.9 },
+                        .xv = &pts.xv,
+                        .yv = &pts.yv,
                     });
                     zgui.plot.endPlot();
                 }
@@ -349,8 +398,10 @@ fn _parse_args(
             .original = .{
                 .fpath = fpath,
                 .bezier = crv 
-            }
+            },
         };
+
+        std.debug.assert(crv.segments.len > 0);
 
        try curves.append(viscurve);
     }
@@ -362,6 +413,8 @@ fn _parse_args(
     if (state.curves.len == 0) {
         usage();
     }
+
+    std.debug.assert(state.curves[0].original.bezier.segments.len > 0);
 
     return state;
 }
