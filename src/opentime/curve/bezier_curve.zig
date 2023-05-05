@@ -805,18 +805,25 @@ pub const TimeCurve = struct {
     }
 };
 
-pub fn read_curve_json(file_path: latin_s8) !TimeCurve {
+pub fn read_curve_json(
+    file_path: latin_s8,
+    allocator_:std.mem.Allocator
+) !TimeCurve 
+{
     const fi = try std.fs.cwd().openFile(file_path, .{});
     defer fi.close();
 
-    const source = try fi.readToEndAlloc(ALLOCATOR, std.math.maxInt(u32));
+    const source = try fi.readToEndAlloc(allocator_, std.math.maxInt(u32));
+    defer allocator_.free(source);
+
     var stream = std.json.TokenStream.init(source);
 
-    return try std.json.parse(TimeCurve, &stream, .{ .allocator = ALLOCATOR });
+    return try std.json.parse(TimeCurve, &stream, .{ .allocator = allocator_ });
 }
 
 test "Curve: read_curve_json" {
-    const curve = try read_curve_json("curves/linear.curve.json");
+    const curve = try read_curve_json("curves/linear.curve.json", std.testing.allocator);
+    defer std.testing.allocator.free(curve.segments);
 
     try expectEqual(@as(usize, 1), curve.segments.len);
 
