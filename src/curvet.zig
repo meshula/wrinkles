@@ -34,7 +34,7 @@ const VisState = struct {
     }
 };
 
-const DemoState = struct {
+const GraphicsState = struct {
     gctx: *zgpu.GraphicsContext,
 
     font_normal: zgui.Font,
@@ -48,7 +48,7 @@ const DemoState = struct {
     pub fn init(
         allocator: std.mem.Allocator,
         window: zglfw.Window
-    ) !*DemoState 
+    ) !*GraphicsState 
     {
         const gctx = try zgpu.GraphicsContext.create(allocator, window);
 
@@ -140,8 +140,8 @@ const DemoState = struct {
         }
 
      
-        const demo = try allocator.create(DemoState);
-        demo.* = .{
+        const gfx_state = try allocator.create(GraphicsState);
+        gfx_state.* = .{
             .gctx = gctx,
             .texture_view = texture_view,
             .font_normal = font_normal,
@@ -149,7 +149,7 @@ const DemoState = struct {
             .allocator = allocator,
         };
 
-        return demo;
+        return gfx_state;
     }
 
     fn deinit(self: *@This()) void {
@@ -193,11 +193,11 @@ pub fn main() !void {
 
     const allocator = gpa.allocator();
 
-    const demo = DemoState.init(allocator, window) catch {
+    const gfx_state = GraphicsState.init(allocator, window) catch {
         std.log.err("Could not initialize resources", .{});
         return;
     };
-    defer demo.deinit();
+    defer gfx_state.deinit();
 
     const state = try _parse_args(allocator);
     defer state.deinit(allocator);
@@ -208,8 +208,8 @@ pub fn main() !void {
 
     while (!window.shouldClose() and window.getKey(.escape) != .press) {
         zglfw.pollEvents();
-        try update(demo, state);
-        draw(demo);
+        try update(gfx_state, state);
+        draw(gfx_state);
     }
 }
 
@@ -241,13 +241,13 @@ pub fn evaluated_curve(
 }
 
 fn update(
-    demo: *DemoState,
+    gfx_state: *GraphicsState,
     state: VisState
 ) !void 
 {
     zgui.backend.newFrame(
-        demo.gctx.swapchain_descriptor.width,
-        demo.gctx.swapchain_descriptor.height,
+        gfx_state.gctx.swapchain_descriptor.width,
+        gfx_state.gctx.swapchain_descriptor.height,
     );
 
     zgui.setNextWindowPos(.{ .x = 0.0, .y = 0.0, });
@@ -264,7 +264,7 @@ fn update(
     main_flags.no_move = true;
     main_flags.no_scroll_with_mouse = true;
     main_flags.no_bring_to_front_on_focus = true;
-    main_flags.menu_bar = true;
+    // main_flags.menu_bar = true;
  
     if (!zgui.begin("###FULLSCREEN", .{ .flags = main_flags })) {
         zgui.end();
