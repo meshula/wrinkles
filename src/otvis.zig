@@ -98,7 +98,7 @@ fn read_curve(fpath: []const u8) !curve.TimeCurve {
     const lower_fpath = std.ascii.lowerString(&buf, fpath);
 
     if (std.mem.endsWith(u8, lower_fpath, ".curve.json")) {
-        return try curve.read_curve_json(fpath);
+        return try curve.read_curve_json(fpath, ALLOCATOR);
     } 
     else 
     {

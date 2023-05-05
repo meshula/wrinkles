@@ -482,7 +482,8 @@ pub fn rescaled_curve(
 }
 
 test "TimeCurve: rescaled parameter" {
-    const crv = try curve.read_curve_json("curves/scurve.curve.json");
+    const crv = try curve.read_curve_json("curves/scurve.curve.json", std.testing.allocator);
+    defer std.testing.allocator.free(crv.segments);
 
     const start_extents = crv.extents();
 

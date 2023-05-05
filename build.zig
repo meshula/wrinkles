@@ -141,8 +141,8 @@ pub fn build(b: *std.build.Builder) void {
    );
    build_wrinkles_like(
        b,
-       "curvevist",
-       "/src/curvevist.zig",
+       "curvet",
+       "/src/curvet.zig",
        "/wrinkles_content/",
        options
    );

@@ -8,8 +8,24 @@ const zgui = @import("zgui");
 const zm = @import("zmath");
 const zstbi = @import("zstbi");
 
+
 const build_options = @import("build_options");
-const content_dir = build_options.curvevist_content_dir;
+const content_dir = build_options.curvet_content_dir;
+
+const opentime = @import("opentime/opentime.zig");
+const curve = opentime.curve;
+const string = opentime.string;
+
+const VisCurve = struct {
+    original: struct{
+        fpath: [:0]const u8,
+        bezier: curve.TimeCurve,
+    },
+};
+
+const VisState = struct {
+    curves: []VisCurve,
+};
 
 const DemoState = struct {
     gctx: *zgpu.GraphicsContext,
@@ -148,8 +164,15 @@ pub fn main() !void {
     zglfw.defaultWindowHints();
     zglfw.windowHint(.cocoa_retina_framebuffer, 1);
     zglfw.windowHint(.client_api, 0);
+
+    const title = (
+        "OpenTimelineIO V2 Prototype Bezier Curve Visualizer [" 
+        ++ build_options.hash[0..6] 
+        ++ "]"
+    );
+
     const window = (
-        zglfw.createWindow(1600, 1000, "OpenTimelineIO v2: CurveVist", null, null) 
+        zglfw.createWindow(1600, 1000, title, null, null) 
         catch {
             std.log.err("Could not create a window", .{});
             return;
@@ -169,16 +192,20 @@ pub fn main() !void {
     };
     defer demo.deinit();
 
-    // try _parse_args(demo, allocator);
+    const state = try _parse_args(allocator);
 
     while (!window.shouldClose() and window.getKey(.escape) != .press) {
         zglfw.pollEvents();
-        update(demo);
+        update(demo, state);
         draw(demo);
     }
 }
 
-fn update(demo: *DemoState) void {
+fn update(
+    demo: *DemoState,
+    state: VisState
+) void 
+{
     zgui.backend.newFrame(
         demo.gctx.swapchain_descriptor.width,
         demo.gctx.swapchain_descriptor.height,
@@ -217,17 +244,21 @@ fn update(demo: *DemoState) void {
             )
         ) 
     {
-        if (zgui.plot.beginPlot("Line Plot", .{ .h = -1.0 })) {
-            zgui.plot.setupAxis(.x1, .{ .label = "xaxis" });
-            zgui.plot.setupAxisLimits(.x1, .{ .min = 0, .max = 5 });
-            zgui.plot.setupLegend(.{ .south = true, .west = true }, .{});
-            zgui.plot.setupFinish();
-            zgui.plot.plotLineValues("y data", i32, .{ .v = &.{ 0, 1, 0, 1, 0, 1 } });
-            zgui.plot.plotLine("xy data", f32, .{
-                .xv = &.{ 0.1, 0.2, 0.5, 2.5 },
-                .yv = &.{ 0.1, 0.3, 0.5, 0.9 },
-            });
-            zgui.plot.endPlot();
+        for (state.curves) |viscurve| {
+            if (zgui.collapsingHeader(viscurve.original.fpath, .{})) {
+                if (zgui.plot.beginPlot(viscurve.original.fpath, .{ .h = -1.0 })) {
+                    zgui.plot.setupAxis(.x1, .{ .label = "xaxis" });
+                    zgui.plot.setupAxisLimits(.x1, .{ .min = 0, .max = 5 });
+                    zgui.plot.setupLegend(.{ .south = true, .west = true }, .{});
+                    zgui.plot.setupFinish();
+                    zgui.plot.plotLineValues("y data", i32, .{ .v = &.{ 0, 1, 0, 1, 0, 1 } });
+                    zgui.plot.plotLine("xy data", f32, .{
+                        .xv = &.{ 0.1, 0.2, 0.5, 2.5 },
+                        .yv = &.{ 0.1, 0.3, 0.5, 0.9 },
+                    });
+                    zgui.plot.endPlot();
+                }
+            }
         }
     }
 
@@ -270,4 +301,81 @@ fn draw(demo: *DemoState) void {
 
     gctx.submit(&.{commands});
     _ = gctx.present();
+}
+
+/// parse the commandline arguments and setup the state
+fn _parse_args(
+    allocator: std.mem.Allocator
+) !VisState 
+{
+    var args = try std.process.argsWithAllocator(allocator);
+    defer args.deinit();
+
+    // ignore the app name, always first in args
+    _ = args.skip();
+
+    // inline for (std.meta.fields(@TypeOf(state))) |field| {
+    //     std.debug.print("{s}: {}\n", .{ field.name, @field(state, field.name) });
+    // }
+
+    var curves = std.ArrayList(VisCurve).init(allocator);
+
+    // read all the filepaths from the commandline
+    while (args.next()) |nextarg| 
+    {
+        var fpath: [:0]const u8 = nextarg;
+
+        if (
+            string.eql_latin_s8(fpath, "--help")
+            or (string.eql_latin_s8(fpath, "-h"))
+        ) {
+            usage();
+        }
+
+        std.debug.print("reading curve: {s}\n", .{ fpath });
+
+        var crv = curve.read_curve_json(fpath, allocator) catch |err| {
+            std.debug.print(
+                "Something went wrong reading: '{s}'\n",
+                .{ fpath }
+            );
+
+            return err;
+        };
+
+        var viscurve = VisCurve{
+            .original = .{
+                .fpath = fpath,
+                .bezier = crv 
+            }
+        };
+
+       try curves.append(viscurve);
+    }
+
+    var state = VisState{
+        .curves = curves.items,
+    };
+
+    if (state.curves.len == 0) {
+        usage();
+    }
+
+    return state;
+}
+
+/// print the usage message out and quit
+pub fn usage() void {
+    std.debug.print(
+        \\
+        \\usage:
+        \\  curvet path/to/seg1.json [path/to/seg2.json] [...] [args]
+        \\
+        \\arguments:
+        \\  -h --help: print this message and exit
+        \\
+        \\
+        , .{}
+    );
+    std.os.exit(1);
 }
