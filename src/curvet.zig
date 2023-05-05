@@ -25,6 +25,13 @@ const VisCurve = struct {
 
 const VisState = struct {
     curves: []VisCurve,
+
+    pub fn deinit(self: *const @This(), allocator: std.mem.Allocator) void {
+        for (self.curves) |crv| {
+            allocator.free(crv.original.bezier.segments);
+        }
+        allocator.free(self.curves);
+    }
 };
 
 const DemoState = struct {
@@ -193,7 +200,7 @@ pub fn main() !void {
     defer demo.deinit();
 
     const state = try _parse_args(allocator);
-    defer allocator.free(state.curves);
+    defer state.deinit(allocator);
 
     std.debug.assert(state.curves[0].original.bezier.segments.len > 0);
     std.debug.print("curve segments: {any}\n", .{ state.curves[0].original.bezier.segments.len });
@@ -392,7 +399,6 @@ fn _parse_args(
 
             return err;
         };
-        defer allocator.free(crv.segments);
 
         var viscurve = VisCurve{
             .original = .{
