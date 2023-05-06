@@ -227,15 +227,34 @@ pub fn evaluated_curve(
 
     var i:usize = 0;
     var uv:f32 = ext[0].time;
-    while (i < steps - 1) : (i += 1) {
-        errdefer std.log.err("error: uv was: {} extents: {any}\n", .{ uv, ext });
-        const p = try crv.evaluate(uv);
+    for (crv.segments) |seg| {
+        uv = seg.p0.time;
 
-        xv[i] = uv;
-        yv[i] = p;
+        while (i < steps - 1) : (i += 1) {
 
-        uv += stepsize;
+            // guarantee that it hits the end point
+            if (uv > seg.p3.time) {
+                xv[i] = seg.p3.time;
+                yv[i] = seg.p3.value;
+                i += 1;
+
+                break;
+            }
+
+            // should not ever be hit
+            errdefer std.log.err(
+                "error: uv was: {} extents: {any}\n",
+                .{ uv, ext }
+            );
+            const p = try crv.evaluate(uv);
+
+            xv[i] = uv;
+            yv[i] = p;
+
+            uv += stepsize;
+        }
     }
+
 
     const end_point = crv.segments[crv.segments.len - 1].p3;
 
