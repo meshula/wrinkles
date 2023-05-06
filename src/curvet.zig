@@ -208,7 +208,7 @@ pub fn main() !void {
 
     while (!window.shouldClose() and window.getKey(.escape) != .press) {
         zglfw.pollEvents();
-        try update(gfx_state, state);
+        try update(gfx_state, state, allocator);
         draw(gfx_state);
     }
 }
@@ -266,7 +266,8 @@ pub fn evaluated_curve(
 
 fn update(
     gfx_state: *GraphicsState,
-    state: VisState
+    state: VisState,
+    allocator: std.mem.Allocator,
 ) !void 
 {
     zgui.backend.newFrame(
@@ -306,16 +307,49 @@ fn update(
         zgui.plot.setupAxis(.y1, .{ .label = "output" });
 
         for (state.curves) |viscurve| {
-            const pts = try evaluated_curve(viscurve.original.bezier, 1000);
+            const bez = viscurve.original.bezier;
+            {
+                const pts = try evaluated_curve(bez, 1000);
 
-            zgui.plot.setupLegend(.{ .south = true, .west = true }, .{});
-            zgui.plot.setupFinish();
+                zgui.plot.setupLegend(.{ .south = true, .west = true }, .{});
+                zgui.plot.setupFinish();
 
-            zgui.plot.plotLine(
-                viscurve.original.fpath,
-                f32,
-                .{ .xv = &pts.xv, .yv = &pts.yv }
-            );
+                zgui.plot.plotLine(
+                    viscurve.original.fpath,
+                    f32,
+                    .{ .xv = &pts.xv, .yv = &pts.yv }
+                );
+            }
+
+            {
+                const name = try std.fmt.allocPrintZ(
+                    allocator,
+                    "{s}: Control Points",
+                    .{ viscurve.original.fpath }
+                );
+                defer allocator.free(name);
+
+                const knots_xv = try allocator.alloc(f32, 4 * bez.segments.len);
+                defer allocator.free(knots_xv);
+                const knots_yv = try allocator.alloc(f32, 4 * bez.segments.len);
+                defer allocator.free(knots_yv);
+
+                for (bez.segments) |seg, seg_ind| {
+                    for (seg.points()) |pt, pt_ind| {
+                        knots_xv[seg_ind*4 + pt_ind] = pt.time;
+                        knots_yv[seg_ind*4 + pt_ind] = pt.value;
+                    }
+                }
+
+                zgui.plot.plotScatter(
+                    name,
+                    f32,
+                    .{ 
+                        .xv = knots_xv,
+                        .yv = knots_yv,
+                    }
+                );
+            }
         }
 
         zgui.plot.endPlot();
