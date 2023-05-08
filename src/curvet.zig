@@ -26,6 +26,26 @@ const VisCurve = struct {
 const VisState = struct {
     curves: []VisCurve,
 
+    affine_transform: AffintTransformOpts,
+
+    const AffintTransformOpts = struct{
+        offset:f32 = 0,
+        scale:f32 = 1,
+        mode:i32 = @enumToInt(Modes.projected_through_curve),
+
+        const Modes = enum(i32) {
+            projected_through_curve,
+            projecting_curve,
+        };
+
+        const modestring:[:0]const u8 = (
+            ""
+            ++ "Projected through Curve" ++ "\x00" 
+            ++ "Projecting Curve" ++ "\x00"
+            ++ "\x00"
+        );
+    };
+
     pub fn deinit(self: *const @This(), allocator: std.mem.Allocator) void {
         for (self.curves) |crv| {
             allocator.free(crv.original.bezier.segments);
@@ -139,7 +159,7 @@ const GraphicsState = struct {
             plot_style.marker_size = 5.0;
         }
 
-     
+
         const gfx_state = try allocator.create(GraphicsState);
         gfx_state.* = .{
             .gctx = gctx,
@@ -199,7 +219,7 @@ pub fn main() !void {
     };
     defer gfx_state.deinit();
 
-    const state = try _parse_args(allocator);
+    var state = try _parse_args(allocator);
     defer state.deinit(allocator);
 
     std.debug.assert(state.curves[0].original.bezier.segments.len > 0);
@@ -208,7 +228,7 @@ pub fn main() !void {
 
     while (!window.shouldClose() and window.getKey(.escape) != .press) {
         zglfw.pollEvents();
-        try update(gfx_state, state, allocator);
+        try update(gfx_state, &state, allocator);
         draw(gfx_state);
     }
 }
@@ -266,7 +286,7 @@ pub fn evaluated_curve(
 
 fn update(
     gfx_state: *GraphicsState,
-    state: VisState,
+    state: *VisState,
     allocator: std.mem.Allocator,
 ) !void 
 {
@@ -290,70 +310,98 @@ fn update(
     main_flags.no_scroll_with_mouse = true;
     main_flags.no_bring_to_front_on_focus = true;
     // main_flags.menu_bar = true;
- 
+
     if (!zgui.begin("###FULLSCREEN", .{ .flags = main_flags })) {
         zgui.end();
         return;
     }
 
-    zgui.bulletText(
-        "Average : {d:.3} ms/frame ({d:.1} fps)",
-        .{ gfx_state.gctx.stats.average_cpu_time, gfx_state.gctx.stats.fps },
-    );
-    zgui.spacing();
+    {
+        if (zgui.beginChild("Plot", .{ .w = width - 300 }))
+        {
 
-    if (zgui.plot.beginPlot("Curve Plot", .{ .h = -1.0 })) {
-        zgui.plot.setupAxis(.x1, .{ .label = "input" });
-        zgui.plot.setupAxis(.y1, .{ .label = "output" });
+            if (zgui.plot.beginPlot("Curve Plot", .{ .h = -1.0 })) {
+                zgui.plot.setupAxis(.x1, .{ .label = "input" });
+                zgui.plot.setupAxis(.y1, .{ .label = "output" });
 
-        for (state.curves) |viscurve| {
-            const bez = viscurve.original.bezier;
-            {
-                const pts = try evaluated_curve(bez, 1000);
+                for (state.curves) |viscurve| {
+                    const bez = viscurve.original.bezier;
+                    {
+                        const pts = try evaluated_curve(bez, 1000);
 
-                zgui.plot.setupLegend(.{ .south = true, .west = true }, .{});
-                zgui.plot.setupFinish();
+                        zgui.plot.setupLegend(.{ .south = true, .west = true }, .{});
+                        zgui.plot.setupFinish();
 
-                zgui.plot.plotLine(
-                    viscurve.original.fpath,
-                    f32,
-                    .{ .xv = &pts.xv, .yv = &pts.yv }
-                );
-            }
+                        zgui.plot.plotLine(
+                            viscurve.original.fpath,
+                            f32,
+                            .{ .xv = &pts.xv, .yv = &pts.yv }
+                        );
+                    }
 
-            {
-                const name = try std.fmt.allocPrintZ(
-                    allocator,
-                    "{s}: Control Points",
-                    .{ viscurve.original.fpath }
-                );
-                defer allocator.free(name);
+                    {
+                        const name = try std.fmt.allocPrintZ(
+                            allocator,
+                            "{s}: Control Points",
+                            .{ viscurve.original.fpath }
+                        );
+                        defer allocator.free(name);
 
-                const knots_xv = try allocator.alloc(f32, 4 * bez.segments.len);
-                defer allocator.free(knots_xv);
-                const knots_yv = try allocator.alloc(f32, 4 * bez.segments.len);
-                defer allocator.free(knots_yv);
+                        const knots_xv = try allocator.alloc(f32, 4 * bez.segments.len);
+                        defer allocator.free(knots_xv);
+                        const knots_yv = try allocator.alloc(f32, 4 * bez.segments.len);
+                        defer allocator.free(knots_yv);
 
-                for (bez.segments) |seg, seg_ind| {
-                    for (seg.points()) |pt, pt_ind| {
-                        knots_xv[seg_ind*4 + pt_ind] = pt.time;
-                        knots_yv[seg_ind*4 + pt_ind] = pt.value;
+                        for (bez.segments) |seg, seg_ind| {
+                            for (seg.points()) |pt, pt_ind| {
+                                knots_xv[seg_ind*4 + pt_ind] = pt.time;
+                                knots_yv[seg_ind*4 + pt_ind] = pt.value;
+                            }
+                        }
+
+                        zgui.plot.plotScatter(
+                            name,
+                            f32,
+                            .{ 
+                                .xv = knots_xv,
+                                .yv = knots_yv,
+                            }
+                        );
                     }
                 }
 
-                zgui.plot.plotScatter(
-                    name,
-                    f32,
-                    .{ 
-                        .xv = knots_xv,
-                        .yv = knots_yv,
+                zgui.plot.endPlot();
+            }
+        }
+        defer zgui.endChild();
+    }
+
+    zgui.sameLine(.{});
+
+    {
+        if (zgui.beginChild("settings group 1", .{.w = 300, .flags = main_flags })) {
+            if (zgui.collapsingHeader("Affine Transform Settings", .{ .default_open = true})) {
+                _ = zgui.sliderFloat("offset", .{ .min = -10, .max = 10, .v = &state.affine_transform.offset});
+                _ = zgui.sliderFloat("scale", .{ .min = -10, .max = 10, .v = &state.affine_transform.scale});
+                _ = zgui.combo(
+                    "Mode",
+                    .{
+                        .current_item = &state.affine_transform.mode,
+                        .items_separated_by_zeros = VisState.AffintTransformOpts.modestring,
                     }
                 );
             }
         }
-
-        zgui.plot.endPlot();
+        defer zgui.endChild();
     }
+
+    // FPS/status line
+    zgui.spacing();
+    zgui.bulletText(
+        "Average : {d:.3} ms/frame ({d:.1} fps)",
+        .{ gfx_state.gctx.stats.average_cpu_time, gfx_state.gctx.stats.fps },
+    );
+
     zgui.end();
 }
 
@@ -449,6 +497,7 @@ fn _parse_args(
 
     var state = VisState{
         .curves = curves.items,
+        .affine_transform = .{},
     };
 
     if (state.curves.len == 0) {
