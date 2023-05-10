@@ -22,6 +22,10 @@ pub const Domain = @import("domain.zig").Domain;
 pub const curve = @import("curve/curve.zig");
 // @}
 
+// transform
+pub const transform = @import("transform.zig"); 
+pub const interval = @import("interval.zig"); 
+
 test "all" {
     _ = curve;
 }
