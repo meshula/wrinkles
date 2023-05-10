@@ -642,6 +642,10 @@ pub const TimeCurve = struct {
         return TimeCurve{ .segments = try ALLOCATOR.dupe(Segment, segments) };
     }
 
+    pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
+        allocator.free(self.segments);
+    }
+
     pub fn init_from_linear_curve(crv: linear_curve.TimeCurveLinear) TimeCurve {
         var result = std.ArrayList(Segment).init(ALLOCATOR);
 
