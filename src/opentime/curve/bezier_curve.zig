@@ -1219,27 +1219,49 @@ test "TimeCurve: project u loop bug" {
 }
 
 test "TimeCurve: split_at_input_ordinate" {
-    const ident = try TimeCurve.init(
-        &.{ create_identity_segment(-20, 30) }
-    );
 
-    const split_ident = try ident.split_at_input_ordinate(0, std.testing.allocator);
-    defer split_ident.deinit(std.testing.allocator);
+    const test_curves = [_]TimeCurve{
+        try TimeCurve.init(&.{ create_identity_segment(-20, 30) }),
+        try read_curve_json("curves/upside_down_u.curve.json", std.testing.allocator), 
+        try read_curve_json("curves/scurve.curve.json", std.testing.allocator), 
+    };
 
-    try expectEqual(ident.segments.len + 1, split_ident.segments.len);
+    defer test_curves[1].deinit(std.testing.allocator);
+    defer test_curves[2].deinit(std.testing.allocator);
 
-    // check that the end points are the same
-    try expectEqual(ident.segments[0].p0.time, split_ident.segments[0].p0.time);
-    try expectEqual(ident.segments[0].p3.time, split_ident.segments[1].p3.time);
+    for (test_curves) |ident| {
+        const extents = ident.extents();
+        var split_loc:f32 = extents[0].time;
 
-    var i:f32 = -20;
-    while (i < 30) : (i += 1) {
-        const fst = try ident.evaluate(i);
-        const snd = try split_ident.evaluate(i);
-        errdefer std.log.err(
-            "Loop: {} orig: {} new: {}",
-            .{i, fst, snd}
-        );
-        try expectApproxEql(fst, snd);
+        while (split_loc < extents[1].time) : (split_loc += 1) {
+            const split_ident = try ident.split_at_input_ordinate(
+                split_loc,
+                std.testing.allocator
+            );
+            defer split_ident.deinit(std.testing.allocator);
+
+            try expectEqual(ident.segments.len + 1, split_ident.segments.len);
+
+            // check that the end points are the same
+            try expectEqual(
+                ident.segments[0].p0.time,
+                split_ident.segments[0].p0.time
+            );
+            try expectEqual(
+                ident.segments[0].p3.time,
+                split_ident.segments[1].p3.time
+            );
+
+            var i:f32 = extents[0].time;
+            while (i < extents[1].time) : (i += 1) {
+                const fst = try ident.evaluate(i);
+                const snd = try split_ident.evaluate(i);
+                errdefer std.log.err(
+                    "Loop: {} orig: {} new: {}",
+                    .{i, fst, snd}
+                );
+                try std.testing.expectApproxEqAbs(fst, snd, 0.001);
+            }
+        }
     }
 }
