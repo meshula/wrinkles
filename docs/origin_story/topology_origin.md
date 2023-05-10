@@ -15,3 +15,4 @@ and in thinking about rotators it got me thinking about time mappings. These are
 ![part 4](topology_origin/IMG_0041.PNG)
 ![part 5](topology_origin/IMG_0042.PNG)
 ![part 6](topology_origin/IMG_0043.PNG)
+![part 7](topology_origin/IMG_0044.PNG)
