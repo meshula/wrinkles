@@ -21,8 +21,7 @@ const stdout = std.io.getStdOut().writer();
 const inf = std.math.inf(f32);
 const nan = std.math.nan(f32);
 
-const allocator = @import("../allocator.zig");
-const ALLOCATOR = allocator.ALLOCATOR;
+const ALLOCATOR = @import("../allocator.zig").ALLOCATOR;
 const string_stuff = @import("../string_stuff.zig");
 const latin_s8 = string_stuff.latin_s8;
 
