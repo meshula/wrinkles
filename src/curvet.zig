@@ -29,8 +29,6 @@ const VisCurve = struct {
 const VisState = struct {
     curves: []VisCurve,
 
-    // affine_transform: AffineTransformOpts,
-
     // xforms: std.ArrayList(CurveOperator),
     xforms: std.ArrayList(AffineTransformOpts),
 
