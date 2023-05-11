@@ -13,24 +13,37 @@ const build_options = @import("build_options");
 const content_dir = build_options.curvet_content_dir;
 
 const opentime = @import("opentime/opentime.zig");
+const interval = opentime.interval;
 const curve = opentime.curve;
 const string = opentime.string;
+const util = @import("opentime/util.zig");
 
 const VisCurve = struct {
     original: struct{
         fpath: [:0]const u8,
         bezier: curve.TimeCurve,
     },
+    affine: curve.TimeCurve,
 };
 
 const VisState = struct {
     curves: []VisCurve,
 
-    affine_transform: AffintTransformOpts,
+    // affine_transform: AffineTransformOpts,
 
-    const AffintTransformOpts = struct{
+    // xforms: std.ArrayList(CurveOperator),
+    xforms: std.ArrayList(AffineTransformOpts),
+
+    // const CurveOperator = union {
+    //     .affine = AffineTransformOpts,
+    //     .curve = CurveOpts,
+    // }
+
+    const AffineTransformOpts = struct{
         offset:f32 = 0,
         scale:f32 = 1,
+        bound_input_min:f32 = -util.inf,
+        bound_input_max:f32 =  util.inf,
         mode:i32 = @enumToInt(Modes.projected_through_curve),
 
         const Modes = enum(i32) {
@@ -51,6 +64,7 @@ const VisState = struct {
             allocator.free(crv.original.bezier.segments);
         }
         allocator.free(self.curves);
+        self.xforms.deinit();
     }
 };
 
@@ -290,6 +304,88 @@ fn update(
     allocator: std.mem.Allocator,
 ) !void 
 {
+    const xform_opt = state.xforms.items[0];
+    const xform = opentime.transform.AffineTransform1D{
+        .offset_seconds = xform_opt.offset,
+        .scale = xform_opt.scale,
+    };
+
+    var tmp:[4]opentime.curve.ControlPoint = .{};
+
+    // var affine_bounds_in_affine_input_space = (
+    //     opentime.interval.ContinuousTimeInterval{ 
+    //         .start_seconds = state.affine_transform.bound_input_min,
+    //         .end_seconds = state.affine_transform.bound_input_max,
+    //     }
+    // );
+
+    // transform the affine curve
+    for (state.curves) |crv| {
+        // const curve_extents = crv.extents();
+        // const curve_output_bounds = interval.ContinuousTimeInterval{
+        //     .start_seconds = curve_extents[0].value,
+        //     .end_seconds = curve_extents[1].value,
+        // };
+
+
+        // switch (state.affine_transform.mode) {
+        //     // affine bounds are applied to the input of the curve
+        //     @enumToInt(VisState.AffineTransformOpts.Modes.projected_through_curve) => {
+        //         // const curve_input_bounds = interval.ContinuousTimeInterval{
+        //         //     .start_seconds = curve_extents[0].time,
+        //         //     .end_seconds = curve_extents[1].time,
+        //         // };
+        //         // const affine_bounds_in_affine_output_space = (
+        //         //     xform.applied_to_bounds(
+        //         //         affine_bounds_in_affine_input_space
+        //         //     )
+        //         // );
+        //         // const intersected_bounds = interval.intersect(
+        //         //     curve_input_bounds,
+        //         //     affine_bounds_in_affine_output_space
+        //         // );
+        //
+        //         //
+        //         // // if the curve needs to be trimmed
+        //         // if (
+        //         //     intersected_bounds.start_seconds 
+        //         //     > curve_input_bounds.start_seconds
+        //         // )
+        //         // {
+        //         //     const seg_to_split = crv.affine.find_segment(intersected_bounds.start_seconds);
+        //         // }
+        //     },
+        //     else => {}
+        // }
+
+        // output of the curve is the input of the affine
+        // affine bounds are applied to the output of the curve
+        // @enumToInt(VisState.AffineTransformOpts.Modes.projecting_curve) => {
+        //     tmp[pt_index] = .{ .time = pt.time, .value = xform.applied_to_seconds(pt.value)};
+        //     crv.affine.segments[seg_index] = curve.Segment.from_pt_array(tmp);
+        // },
+        // output of the affine is the input of the curve
+        for (crv.original.bezier.segments) |seg, seg_index| {
+            for (seg.points()) |pt, pt_index| {
+                switch (xform_opt.mode) {
+                    // output of the curve is the input of the affine
+                    // affine bounds are applied to the output of the curve
+                    @enumToInt(VisState.AffineTransformOpts.Modes.projecting_curve) => {
+                        tmp[pt_index] = .{ .time = pt.time, .value = xform.applied_to_seconds(pt.value)};
+                        crv.affine.segments[seg_index] = curve.Segment.from_pt_array(tmp);
+                    },
+                    // output of the affine is the input of the curve
+                    // affine bounds are applied to the input of the curve
+                    @enumToInt(VisState.AffineTransformOpts.Modes.projected_through_curve) => {
+                        tmp[pt_index] = .{ .value = pt.value, .time = xform.applied_to_seconds(pt.time)};
+                        crv.affine.segments[seg_index] = curve.Segment.from_pt_array(tmp);
+                    },
+                    else => {},
+                }
+            }
+        }
+    }
+
     zgui.backend.newFrame(
         gfx_state.gctx.swapchain_descriptor.width,
         gfx_state.gctx.swapchain_descriptor.height,
@@ -316,8 +412,10 @@ fn update(
         return;
     }
 
+    // _ = zgui.showDemoWindow(null);
+
     {
-        if (zgui.beginChild("Plot", .{ .w = width - 300 }))
+        if (zgui.beginChild("Plot", .{ .w = width - 600 }))
         {
 
             if (zgui.plot.beginPlot("Curve Plot", .{ .h = -1.0 })) {
@@ -334,6 +432,24 @@ fn update(
 
                         zgui.plot.plotLine(
                             viscurve.original.fpath,
+                            f32,
+                            .{ .xv = &pts.xv, .yv = &pts.yv }
+                        );
+                    }
+
+                    {
+                        const aff = viscurve.affine;
+                        const pts = try evaluated_curve(aff, 1000);
+
+                        const name = try std.fmt.allocPrintZ(
+                            allocator,
+                            "{s}: Affine Projection",
+                            .{ viscurve.original.fpath }
+                        );
+                        defer allocator.free(name);
+
+                        zgui.plot.plotLine(
+                            name,
                             f32,
                             .{ .xv = &pts.xv, .yv = &pts.yv }
                         );
@@ -379,17 +495,48 @@ fn update(
     zgui.sameLine(.{});
 
     {
-        if (zgui.beginChild("settings group 1", .{.w = 300, .flags = main_flags })) {
-            if (zgui.collapsingHeader("Affine Transform Settings", .{ .default_open = true})) {
-                _ = zgui.sliderFloat("offset", .{ .min = -10, .max = 10, .v = &state.affine_transform.offset});
-                _ = zgui.sliderFloat("scale", .{ .min = -10, .max = 10, .v = &state.affine_transform.scale});
-                _ = zgui.combo(
-                    "Mode",
-                    .{
-                        .current_item = &state.affine_transform.mode,
-                        .items_separated_by_zeros = VisState.AffintTransformOpts.modestring,
-                    }
-                );
+        if (zgui.beginChild("Settings", .{.w = 600, .flags = main_flags })) {
+            for (state.xforms.items) |*this_xform| {
+
+                // switch (this_xform) {
+                //     .affine => |aff| { // generate affine ui }
+                // }
+                if (zgui.collapsingHeader("Affine Transform Settings", .{ .default_open = true})) {
+                    var bounds:[2]f32 = .{
+                        this_xform.bound_input_min, 
+                        this_xform.bound_input_max, 
+                    };
+                    _ = zgui.sliderFloat(
+                        "offset",
+                        .{ 
+                            .min = -10,
+                            .max = 10,
+                            .v = &this_xform.*.offset
+                        }
+                    );
+                    _ = zgui.sliderFloat(
+                        "scale",
+                        .{ 
+                            .min = -10,
+                            .max = 10,
+                            .v = &this_xform.*.scale
+                        }
+                    );
+                    _ = zgui.inputFloat2("input space bounds", .{ .v = &bounds});
+                    this_xform.bound_input_min = bounds[0];
+                    this_xform.bound_input_max = bounds[1];
+                    _ = zgui.combo(
+                        "Mode",
+                        .{
+                            .current_item = &this_xform.mode,
+                            .items_separated_by_zeros = VisState.AffineTransformOpts.modestring,
+                        }
+                    );
+                }
+            }
+
+            var i:usize = 0;
+            while (i<10) : (i+=1) {
             }
         }
         defer zgui.endChild();
@@ -483,22 +630,29 @@ fn _parse_args(
             return err;
         };
 
+        var affine_crv = try curve.TimeCurve.init(crv.segments);
+
         var viscurve = VisCurve{
             .original = .{
                 .fpath = fpath,
-                .bezier = crv 
+                .bezier = crv,
             },
+            .affine = affine_crv,
         };
 
         std.debug.assert(crv.segments.len > 0);
 
-       try curves.append(viscurve);
+        try curves.append(viscurve);
     }
 
     var state = VisState{
         .curves = curves.items,
-        .affine_transform = .{},
+        .xforms = std.ArrayList(VisState.AffineTransformOpts).init(allocator),
     };
+
+    try state.xforms.append(.{});
+    // ^ is shorthand for this:
+    // state.xforms.append(VisState.AffineTransformOpts{});
 
     if (state.curves.len == 0) {
         usage();
