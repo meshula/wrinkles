@@ -839,7 +839,10 @@ test "TimeTopology: project bezier through affine" {
     const xform_curve = try curve.rescaled_curve(
         // this curve is [-0.5, 0.5), so needs to be rescaled into the space
         // of the test/data that we want to do.
-        try curve.read_curve_json("curves/linear.curve.json"),
+        try curve.read_curve_json(
+            "curves/linear.curve.json",
+            std.testing.allocator,
+        ),
         //  the range of the clip for testing - rescale factors
         .{
             .{ .time = 100, .value = 0, },
