@@ -12,6 +12,7 @@ const opentime = @import("../opentime.zig");
 const bezier_math = @import("./bezier_math.zig");
 const generic_curve = @import("./generic_curve.zig");
 const linear_curve = @import("./linear_curve.zig");
+const interval = opentime.interval;
 const ContinuousTimeInterval = opentime.ContinuousTimeInterval;
 const control_point = @import("./control_point.zig");
 const ControlPoint = control_point.ControlPoint;
@@ -20,6 +21,8 @@ const stdout = std.io.getStdOut().writer();
 
 const inf = std.math.inf(f32);
 const nan = std.math.nan(f32);
+
+const  util = @import("util");
 
 const ALLOCATOR = @import("../allocator.zig").ALLOCATOR;
 const string_stuff = @import("../string_stuff.zig");
@@ -326,6 +329,16 @@ pub const Segment = struct {
         );
     }
 
+    pub fn findU_input(self:@This(), input_ordinate: f32) f32 {
+        return bezier_math.findU(
+            input_ordinate,
+            self.p0.time,
+            self.p1.time,
+            self.p2.time,
+            self.p3.time,
+        );
+    }
+
     // returns the y-value for the given x-value
     pub fn eval_at_x(self: @This(), x:f32) f32 {
         const u:f32 = bezier_math.findU(
@@ -627,8 +640,8 @@ pub fn create_bezier_segment(
 ///            ... but it isn't urgent, I think this can wait
 ///
 ///            ... there are other procedural curves that we may want to encode:
-//             - mono hermite
-//             - step function
+///            - mono hermite
+///            - step function
 ///
 pub const TimeCurve = struct {
     // according to the evaluation specification, an empty
@@ -658,8 +671,6 @@ pub const TimeCurve = struct {
 
         return TimeCurve{ .segments = result.items };
     }
-
-    // @TODO: write .deinit() to free segments
 
     /// evaluate the curve at time t in the space of the curve
     pub fn evaluate(self: @This(), t_arg: f32) error{OutOfBounds}!f32 {
@@ -807,6 +818,15 @@ pub const TimeCurve = struct {
         return .{ min, max };
     }
 
+    /// returns a copy of self which is split in the segment which overlaps
+    /// the ordinate at the ordinate in the input space.
+    ///
+    /// Example:
+    /// Curve has three segments [0, 3)[0, 10)[0, 4)
+    /// ordinate: 5
+    ///
+    /// result:
+    /// [0, 3)[0, 5)[5, 10)[0, 4)
     pub fn split_at_input_ordinate(
         self:@This(),
         ordinate:f32,
@@ -837,12 +857,115 @@ pub const TimeCurve = struct {
         return .{ .segments = new_segments };
     }
 
-    pub fn trim_in_input_space(
+    const TrimDir = enum {
+        trim_before,
+        trim_after,
+    };
+
+    pub fn trimmed_from_input_ordinate(
+        self: @This(),
+        ordinate: f32,
+        direction: TrimDir,
+        allocator: std.mem.Allocator,
+    ) !TimeCurve {
+        const seg_to_split_index = (
+            self.find_segment_index(ordinate)
+        ) orelse {
+            return error.OutOfBounds;
+        };
+
+        const seg_to_split = self.segments[seg_to_split_index]; 
+
+        {
+            const is_bounding_point = (
+                std.math.approxEqAbs(
+                    @TypeOf(ordinate),
+                    seg_to_split.p0.time, 
+                    ordinate,
+                    0.00001,
+                )
+                or std.math.approxEqAbs(
+                    @TypeOf(ordinate),
+                    seg_to_split.p3.time, 
+                    ordinate,
+                    0.00001,
+                )
+            );
+
+            if (is_bounding_point) {
+                return .{
+                    .segments =  try allocator.dupe(Segment, self.segments) 
+                };
+            }
+        }
+
+        const unorm = seg_to_split.findU_input(ordinate);
+
+        const split_segments = seg_to_split.split_at(unorm);
+
+        var new_segments:[]Segment = undefined;
+
+        switch (direction) {
+            // keep later stuff
+            .trim_before => {
+                const new_split = split_segments[1];
+                const segments_to_copy = self.segments[seg_to_split_index+1..];
+
+                new_segments = try allocator.alloc(
+                    Segment,
+                    segments_to_copy.len + 1
+                );
+
+                new_segments[0] = new_split;
+                std.mem.copy(Segment, new_segments[1..], segments_to_copy);
+            },
+            // keep earlier stuff
+            .trim_after => {
+                const new_split = split_segments[0];
+                const segments_to_copy = self.segments[0..seg_to_split_index];
+
+                new_segments = try allocator.alloc(
+                    Segment,
+                    segments_to_copy.len + 1
+                );
+
+                std.mem.copy(
+                    Segment,
+                    new_segments[0..segments_to_copy.len],
+                    segments_to_copy
+                );
+                new_segments[new_segments.len - 1] = new_split;
+            },
+        }
+
+        return .{ .segments = new_segments };
+    }
+
+    /// returns a copy of self, trimmed by bounds.  If bounds are greater than 
+    /// the bounds of the existing curve, an unaltered copy is returned.  
+    /// Otherwise the curve is copied, and trimmed to fit the bounds.
+    pub fn trimmed_in_input_space(
         self: @This(),
         bounds: ContinuousTimeInterval,
-    ) TimeCurve {
-        _ = self;
-        _ = bounds;
+        allocator: std.mem.Allocator,
+    ) !TimeCurve {
+        // @TODO; implement this using slices of a larger segment buffer to
+        //        reduce the number of allocations/copies
+        var front_split = try self.trimmed_from_input_ordinate(
+            bounds.start_seconds,
+            .trim_before,
+            allocator
+        );
+        defer front_split.deinit(allocator);
+
+        // todo - does the above trim reset the origin on the input space?
+        var result = try front_split.trimmed_from_input_ordinate(
+            bounds.end_seconds,
+            .trim_after,
+            allocator,
+        );
+
+        return result;
     }
 };
 
@@ -1262,6 +1385,217 @@ test "TimeCurve: split_at_input_ordinate" {
                 );
                 try std.testing.expectApproxEqAbs(fst, snd, 0.001);
             }
+        }
+    }
+}
+
+test "TimeCurve: trimmed_from_input_ordinate" {
+    const TestData = struct {
+        // inputs
+        ordinate:f32,
+        direction: TimeCurve.TrimDir,
+
+        // expected results
+        result_extents:ContinuousTimeInterval,
+        result_segment_count: usize,
+    };
+
+    const test_curves = [_]TimeCurve{
+        try read_curve_json(
+            "curves/linear_scurve_u.curve.json",
+            std.testing.allocator
+        ), 
+        try TimeCurve.init(
+            &.{
+                create_identity_segment(-25, -5), 
+                create_identity_segment(-5, 5), 
+                create_identity_segment(5, 25), 
+            }
+        ),
+    };
+
+    defer test_curves[0].deinit(std.testing.allocator);
+
+    for (test_curves) |ident, curve_index| {
+        const extents = ident.extents();
+
+        // assumes that curve is 0-centered
+        const test_data = [_]TestData{
+            // trim the first segment
+            .{
+                .ordinate = extents[0].time * 0.25,
+                .direction = .trim_before,
+                .result_extents = .{
+                    .start_seconds = extents[0].time * 0.25,
+                    .end_seconds = extents[1].time,
+                },
+                .result_segment_count = ident.segments.len,
+            },
+            .{
+                .ordinate = extents[0].time * 0.25,
+                .direction = .trim_after,
+                .result_extents = .{
+                    .start_seconds = extents[0].time,
+                    .end_seconds = extents[0].time * 0.25,
+                },
+                .result_segment_count = 1,
+            },
+            // trim the last segment
+            .{
+                .ordinate = extents[1].time * 0.75,
+                .direction = .trim_before,
+                .result_extents = .{
+                    .start_seconds = extents[1].time * 0.75,
+                    .end_seconds = extents[1].time,
+                },
+                .result_segment_count = 1,
+            },
+            .{
+                .ordinate = extents[1].time * 0.75,
+                .direction = .trim_after,
+                .result_extents = .{
+                    .start_seconds = extents[0].time,
+                    .end_seconds = extents[1].time * 0.75,
+                },
+                .result_segment_count = ident.segments.len,
+            },
+            // trim on an existing split
+            .{
+                .ordinate = ident.segments[0].p3.time,
+                .direction = .trim_after,
+                .result_extents = .{
+                    .start_seconds = extents[0].time,
+                    .end_seconds = extents[1].time,
+                },
+                .result_segment_count = ident.segments.len,
+            },
+        };
+
+        for (test_data) |td, index| {
+            errdefer std.debug.print(
+                "\ncurve: {} / loop: {}\n",
+                .{ curve_index, index }
+            );
+
+            const trimmed_curve = try ident.trimmed_from_input_ordinate(
+                td.ordinate,
+                td.direction,
+                std.testing.allocator,
+            );
+            const trimmed_extents = trimmed_curve.extents();
+            defer trimmed_curve.deinit(std.testing.allocator);
+
+            errdefer std.debug.print(
+                "\n test: {any}\n trimmed_extents: {any} \n\n",
+                .{ td , trimmed_extents}
+            );
+
+            try std.testing.expectApproxEqAbs(
+                td.result_extents.start_seconds,
+                trimmed_extents[0].time,
+                0.001
+            );
+            try std.testing.expectApproxEqAbs(
+                td.result_extents.end_seconds,
+                trimmed_extents[1].time,
+                0.001
+            );
+        }
+    }
+}
+
+test "TimeCurve: trimmed_in_input_space" {
+    const TestData = struct {
+        trim_range:ContinuousTimeInterval,
+        result_extents:ContinuousTimeInterval,
+    };
+
+    const test_curves = [_]TimeCurve{
+        try TimeCurve.init(&.{ create_identity_segment(-20, 30) }),
+        try read_curve_json("curves/upside_down_u.curve.json", std.testing.allocator), 
+        try read_curve_json("curves/scurve.curve.json", std.testing.allocator), 
+    };
+
+    defer test_curves[1].deinit(std.testing.allocator);
+    defer test_curves[2].deinit(std.testing.allocator);
+
+    for (test_curves) |ident| {
+        const extents = ident.extents();
+
+        const test_data = [_]TestData{
+            // trim both
+            .{
+                .trim_range = .{
+                    .start_seconds = extents[0].time * 0.25,
+                    .end_seconds = extents[1].time * 0.75,
+                },
+                .result_extents = .{
+                    .start_seconds = extents[0].time * 0.25,
+                    .end_seconds = extents[1].time * 0.75,
+                },
+                },
+            // trim start
+            .{
+                .trim_range = .{
+                    .start_seconds = extents[0].time * 0.25,
+                    .end_seconds = extents[1].time * 1.75,
+                },
+                .result_extents = .{
+                    .start_seconds = extents[0].time * 0.25,
+                    .end_seconds = extents[1].time,
+                },
+                },
+            // trim end
+            .{
+                .trim_range = .{
+                    .start_seconds = extents[0].time * 1.25,
+                    .end_seconds = extents[1].time * 0.75,
+                },
+                .result_extents = .{
+                    .start_seconds = extents[0].time,
+                    .end_seconds = extents[1].time * 0.75,
+                },
+                },
+            // trim neither
+            .{
+                .trim_range = .{
+                    .start_seconds = extents[0].time * 1.25,
+                    .end_seconds = extents[1].time * 1.75,
+                },
+                .result_extents = .{
+                    .start_seconds = extents[0].time * 1.25,
+                    .end_seconds = extents[1].time * 1.75,
+                },
+                },
+            .{
+                .trim_range = .{
+                    .start_seconds = extents[0].time,
+                    .end_seconds = extents[1].time,
+                },
+                .result_extents = .{
+                    .start_seconds = extents[0].time,
+                    .end_seconds = extents[1].time,
+                },
+                },
+            };
+
+        for (test_data) |td| {
+            const trimmed_curve = try ident.trimmed_in_input_space(
+                td.trim_range,
+                std.testing.allocator
+            );
+            const trimmed_extents = trimmed_curve.extents();
+
+            try std.testing.expectApproxEqAbs(
+                td.result_extents.start_seconds,
+                trimmed_extents[0].time,
+                0.001
+            );
+            try std.testing.expectApproxEqAbs(
+                td.result_extents.end_seconds,
+                trimmed_extents[1].time,
+                0.001
+            );
         }
     }
 }
