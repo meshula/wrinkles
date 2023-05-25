@@ -9,6 +9,8 @@
 #define RAYGUI_IMPLEMENTATION
 #include "raygui.h"
 
+#include "hodographs.h"
+
 // add two Vector2's
 Vector2 operator+(const Vector2& a, const Vector2& b)
 {
@@ -62,12 +64,6 @@ float dot(const Vector2& a, const Vector2& b)
 {
     return a.x * b.x + a.y * b.y;
 }
-
-// a Bezier curve is defined by four control points
-typedef struct {
-    int order;
-    Vector2 p[4];
-} BezierCurve;
 
 BezierCurve translate_bezier(BezierCurve* bz, Vector2 v)
 {
