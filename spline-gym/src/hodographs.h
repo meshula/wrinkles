@@ -9,7 +9,7 @@
 typedef struct {
     int order;
     Vector2 p[4];
-} BezierCurve;
+} BezierSegment;
 
-// a Bezier curve is defined by four control points
-BezierCurve compute_hodograph(BezierCurve* b);
+// a Bezier curve segment is defined by four control points
+BezierSegment compute_hodograph(BezierSegment* b);

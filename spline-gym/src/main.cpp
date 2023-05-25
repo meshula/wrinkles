@@ -65,27 +65,27 @@ float dot(const Vector2& a, const Vector2& b)
     return a.x * b.x + a.y * b.y;
 }
 
-BezierCurve translate_bezier(BezierCurve* bz, Vector2 v)
+BezierSegment translate_bezier(BezierSegment* bz, Vector2 v)
 {
-    BezierCurve rv;
+    BezierSegment rv;
     rv.order = bz->order;
     for (int i = 0; i <= bz->order; i++)
         rv.p[i] = bz->p[i] + v;
     return rv;
 }
 
-BezierCurve move_bezier_to_origin(BezierCurve* bz) {
+BezierSegment move_bezier_to_origin(BezierSegment* bz) {
     if (!bz || bz->order != 3)
-        return BezierCurve{3, {{0,0}, {0,0}, {0,0}, {0,0}}};
+        return BezierSegment{3, {{0,0}, {0,0}, {0,0}, {0,0}}};
 
     return translate_bezier(bz, bz->p[0] * -1.f);
 }
 
-BezierCurve scale_bezier(BezierCurve* bz, float s) {
+BezierSegment scale_bezier(BezierSegment* bz, float s) {
     if (!bz)
-        return BezierCurve{0, {{0,0}, {0,0}, {0,0}, {0,0}}};
+        return BezierSegment{0, {{0,0}, {0,0}, {0,0}, {0,0}}};
 
-    BezierCurve rv;
+    BezierSegment rv;
     rv.order = bz->order;
     for (int i = 0; i <= bz->order; i++)
         rv.p[i] = bz->p[i] * s;
@@ -95,12 +95,12 @@ BezierCurve scale_bezier(BezierCurve* bz, float s) {
 // Compute the alignment of a Bezier curve, which means, rotate and translate the
 // curve so that the first control point is at the origin and the last control point
 // is on the x-axis
-BezierCurve align_bezier(BezierCurve* bz) {
+BezierSegment align_bezier(BezierSegment* bz) {
     if (!bz || bz->order < 2 || bz->order > 3)
-        return BezierCurve{0, {{0,0}, {0,0}, {0,0}, {0,0}}};
+        return BezierSegment{0, {{0,0}, {0,0}, {0,0}, {0,0}}};
 
     if (bz->order == 3) {
-        BezierCurve rv;
+        BezierSegment rv;
         rv.order = 3;
         rv.p[0] = {0, 0};
         rv.p[1] = bz->p[1] - bz->p[0];
@@ -117,7 +117,7 @@ BezierCurve align_bezier(BezierCurve* bz) {
         return rv;
     }
     else {
-        BezierCurve rv;
+        BezierSegment rv;
         rv.order = 2;
         rv.p[0] = {0, 0};
         rv.p[1] = bz->p[1] - bz->p[0];
@@ -133,7 +133,7 @@ BezierCurve align_bezier(BezierCurve* bz) {
     }
 }
 
-Vector2 bezier_roots(BezierCurve* bz) {
+Vector2 bezier_roots(BezierSegment* bz) {
     Vector2 rv = { -1.f, -1.f };
     if (!bz || bz->order < 1 || bz->order > 2)
         return rv;
@@ -186,7 +186,7 @@ Vector2 bezier_roots(BezierCurve* bz) {
 }
 
 
-Vector2 evaluate_bezier(BezierCurve* b, float u)
+Vector2 evaluate_bezier(BezierSegment* b, float u)
 {
     Vector2 r = {0, 0};
     if (!b || b->order < 2 || b->order > 3)
@@ -224,7 +224,7 @@ Vector2 evaluate_bezier(BezierCurve* b, float u)
 
 
 // Draw line using cubic-bezier curves in-out
-void DrawLineBezierx(BezierCurve* b, int steps, float thick, Color color)
+void DrawLineBezierx(BezierSegment* b, int steps, float thick, Color color)
 {
     if (!b)
         return;
@@ -238,9 +238,9 @@ void DrawLineBezierx(BezierCurve* b, int steps, float thick, Color color)
     }
 }
 
-BezierCurve compute_hodograph(BezierCurve* b)
+BezierSegment compute_hodograph(BezierSegment* b)
 {
-    BezierCurve r{0, {{0,0}, {0,0}, {0,0}, {0,0}}};
+    BezierSegment r{0, {{0,0}, {0,0}, {0,0}, {0,0}}};
     if (!b || b->order < 2 || b->order > 3)
         return r;
 
@@ -261,13 +261,13 @@ BezierCurve compute_hodograph(BezierCurve* b)
     return r;
 }
 
-Vector2 inflection_points(BezierCurve* bz) {
+Vector2 inflection_points(BezierSegment* bz) {
     if (!bz || bz->order != 3)
         return (Vector2){-1.f, -1.f};
     
     /// @TODO for order 2
 
-    BezierCurve aligned = align_bezier(bz);
+    BezierSegment aligned = align_bezier(bz);
     float a = aligned.p[2].x * aligned.p[1].y;
     float b = aligned.p[3].x * aligned.p[1].y;
     float c = aligned.p[1].x * aligned.p[2].y;
@@ -312,7 +312,7 @@ Vector2 inflection_points(BezierCurve* bz) {
 }
 
 // split bz at t, into two curves r1 and r2
-bool split_bezier(const BezierCurve* bz, float t, BezierCurve* r1, BezierCurve* r2)
+bool split_bezier(const BezierSegment* bz, float t, BezierSegment* r1, BezierSegment* r2)
 {
     if (!bz || !r1 || !r2 || bz->order != 3)
         return false;
@@ -572,11 +572,11 @@ int main(void)
             draw_roots = GuiCheckBox((Rectangle){ 20, 320, 20, 20 }, "Draw Roots", draw_roots);
         }
         //----------------------------------------------------------------------------------
-        BezierCurve b = {3, start, p1, p2, end};
-        BezierCurve h = compute_hodograph(&b);
-        BezierCurve h2 = compute_hodograph(&h);
+        BezierSegment b = {3, start, p1, p2, end};
+        BezierSegment h = compute_hodograph(&b);
+        BezierSegment h2 = compute_hodograph(&h);
         
-        BezierCurve alb = align_bezier(&b);
+        BezierSegment alb = align_bezier(&b);
         alb.p[0] += b.p[0];
         alb.p[1] += b.p[0];
         alb.p[2] += b.p[0];
@@ -593,15 +593,15 @@ int main(void)
         if (inflections.x > 0 && inflections.x < split1)
             split1 = inflections.x;
 
-        BezierCurve s1;
-        BezierCurve s2;
+        BezierSegment s1;
+        BezierSegment s2;
         if (split1 > 0)
             split_bezier(&b, split1, &s1, &s2);
         else
             draw_split = false;
         
-        BezierCurve b0 = move_bezier_to_origin(&s1);
-        BezierCurve h0 = compute_hodograph(&b0);
+        BezierSegment b0 = move_bezier_to_origin(&s1);
+        BezierSegment h0 = compute_hodograph(&b0);
         // start dstart end dend, width
         float run_left    = b0.p[1].x - b0.p[0].x;
         float rise_left   = b0.p[1].y - b0.p[0].y;
