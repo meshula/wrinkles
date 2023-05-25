@@ -7,6 +7,6 @@ set(CMAKE_CXX_STANDARD 11)
 #add_subdirectory(external/motive)
 add_subdirectory(external/raylib)
 
-add_executable(bezier_spline_visualizer src/main.cpp)
+add_executable(bezier_spline_visualizer src/main.cpp src/hodographs.c)
 
 target_link_libraries(bezier_spline_visualizer raylib)
