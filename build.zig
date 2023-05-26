@@ -26,6 +26,7 @@ const c_args = [_][]const u8{
 const SOURCES_WITH_TESTS = [_][]const u8{
     // "./src/opentime/test_topology_projections.zig",
     "./src/opentime/curve/bezier_math.zig",
+    "./src/test_hodograph.zig",
 };
 
 pub fn add_test_for_source(b: *std.build.Builder, target: anytype, mode: anytype, test_step: anytype, fpath: []const u8) void {
@@ -34,6 +35,9 @@ pub fn add_test_for_source(b: *std.build.Builder, target: anytype, mode: anytype
     // test_thing.addPackagePath("opentimelineio", "./src/opentimelineio/opentimelineio.zig");
     test_thing.setTarget(target);
     test_thing.setBuildMode(mode);
+
+    test_thing.addIncludePath("./spline-gym/src");
+    test_thing.addCSourceFile("./spline-gym/src/hodographs.c", &c_args);
 
     test_step.dependOn(&test_thing.step);
 }
