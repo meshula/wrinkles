@@ -43,6 +43,11 @@ Vector2 bezier_roots(BezierSegment* bz) {
         p[1] = bz->p[1];
         p[2] = bz->p[2];
 
+        if (p[0].y == p[1].y) {
+            // nudge p[0].y slightly
+            p[0].y += 0.00001;
+        }
+
         float a = p[0].y - 2 * p[1].y + p[2].y;
         float b = 2 * (p[1].y - p[0].y);
         float c = p[0].y;
