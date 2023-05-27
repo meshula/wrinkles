@@ -21,14 +21,13 @@ test "simple_hodo" {
         cSeg.p[index].y = pt.value;
     }
 
-    std.debug.print("\n\ncSeg: {}\n\n", .{ cSeg });
+    if (cSeg.p[0].y == cSeg.p[3].y) {
+        cSeg.p[0].y += 0.0001;
+    }
 
-    // var hodo = hodographs.compute_hodograph(&cSeg);
-    @breakpoint();
-    const roots = hodographs.bezier_roots(&cSeg);
+    var hodo = hodographs.compute_hodograph(&cSeg);
+    const roots = hodographs.bezier_roots(&hodo);
 
-    std.debug.print("\n\nroots: {}\n\n", .{ roots });
-
-    try std.testing.expectApproxEqAbs(roots.x, 0.5, 0.00001);
+    try std.testing.expectApproxEqAbs(@as(f32, 0.5), roots.x, 0.00001);
     try std.testing.expectApproxEqAbs(roots.y, -1, 0.00001);
 }
