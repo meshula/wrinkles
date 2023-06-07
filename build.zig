@@ -39,6 +39,15 @@ pub fn add_test_for_source(b: *std.build.Builder, target: anytype, mode: anytype
     test_thing.addIncludePath("./spline-gym/src");
     test_thing.addCSourceFile("./spline-gym/src/hodographs.c", &c_args);
 
+    var test_exe = b.addTestExe("otio_test.out", fpath);
+    test_exe.addPackagePath("opentime", "./src/opentime/opentime.zig");
+    test_exe.setTarget(target);
+    test_exe.setBuildMode(mode);
+
+    test_exe.addIncludePath("./spline-gym/src");
+    test_exe.addCSourceFile("./spline-gym/src/hodographs.c", &c_args);
+    test_step.dependOn(&test_exe.step);
+
     test_step.dependOn(&test_thing.step);
 }
 
