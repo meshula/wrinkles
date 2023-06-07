@@ -341,6 +341,10 @@ pub const EmptyTopology = struct {
 // output       |-----------------*-----------|
 // internal     |-----------------*-----------|
 //              100               176         200
+//
+// The implementation of this mapping function can be one of a class of 
+// functions.  This struct maps those functions to the same interface and
+// handles rules for interoperation between them.
 // ////////////////////////////////////////////////////////////////////////////
 pub const TimeTopology = union (enum) {
     affine: AffineTopology,

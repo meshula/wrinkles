@@ -105,6 +105,9 @@ pub fn build_wrinkles_like(
     exe.addPackage(zglfw.pkg);
     exe.addPackage(zstbi.pkg);
 
+    exe.addIncludePath("./spline-gym/src");
+    exe.addCSourceFile("./spline-gym/src/hodographs.c", &c_args);
+
     zgpu.link(exe, zgpu_options);
     zglfw.link(exe);
     zgui.link(exe);
