@@ -22,6 +22,7 @@ const VisCurve = struct {
     original: struct{
         fpath: [:0]const u8,
         bezier: curve.TimeCurve,
+        split_hodograph: curve.TimeCurve,
     },
     affine: curve.TimeCurve,
 };
@@ -60,6 +61,7 @@ const VisState = struct {
     pub fn deinit(self: *const @This(), allocator: std.mem.Allocator) void {
         for (self.curves) |crv| {
             allocator.free(crv.original.bezier.segments);
+            allocator.free(crv.original.split_hodograph.segments);
         }
         allocator.free(self.curves);
         self.xforms.deinit();
@@ -456,7 +458,7 @@ fn update(
                     {
                         const name = try std.fmt.allocPrintZ(
                             allocator,
-                            "{s}: Control Points",
+                            "{s}: Original Bezier Control Points",
                             .{ viscurve.original.fpath }
                         );
                         defer allocator.free(name);
@@ -482,6 +484,57 @@ fn update(
                             }
                         );
                     }
+                    
+                    const hod = viscurve.original.split_hodograph;
+                    {
+                        const name = try std.fmt.allocPrintZ(
+                            allocator,
+                            "{s}: Split at critical points via Hodograph",
+                            .{ viscurve.original.fpath }
+                        );
+                        defer allocator.free(name);
+
+                        {
+                            const pts = try evaluated_curve(hod, 1000);
+
+                            zgui.plot.plotLine(
+                                name,
+                                f32,
+                                .{ .xv = &pts.xv, .yv = &pts.yv }
+                            );
+                        }
+                    }
+
+                    {
+                        const name = try std.fmt.allocPrintZ(
+                            allocator,
+                            "{s}: Split Hodograph Bezier Control Points",
+                            .{ viscurve.original.fpath }
+                        );
+                        defer allocator.free(name);
+
+                        const knots_xv = try allocator.alloc(f32, 4 * hod.segments.len);
+                        defer allocator.free(knots_xv);
+                        const knots_yv = try allocator.alloc(f32, 4 * hod.segments.len);
+                        defer allocator.free(knots_yv);
+
+                        for (bez.segments) |seg, seg_ind| {
+                            for (seg.points()) |pt, pt_ind| {
+                                knots_xv[seg_ind*4 + pt_ind] = pt.time;
+                                knots_yv[seg_ind*4 + pt_ind] = pt.value;
+                            }
+                        }
+
+                        zgui.plot.plotScatter(
+                            name,
+                            f32,
+                            .{ 
+                                .xv = knots_xv,
+                                .yv = knots_yv,
+                            }
+                        );
+                    }
+
                 }
 
                 zgui.plot.endPlot();
@@ -634,6 +687,7 @@ fn _parse_args(
             .original = .{
                 .fpath = fpath,
                 .bezier = crv,
+                .split_hodograph = try crv.split_hodograph(allocator),
             },
             .affine = affine_crv,
         };

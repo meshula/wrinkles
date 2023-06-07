@@ -24,9 +24,18 @@ const nan = std.math.nan(f32);
 
 const  util = @import("util");
 
-const ALLOCATOR = @import("../allocator.zig").ALLOCATOR;
+const otio_allocator = @import("../allocator.zig");
+const ALLOCATOR = otio_allocator.ALLOCATOR;
+
 const string_stuff = @import("../string_stuff.zig");
 const latin_s8 = string_stuff.latin_s8;
+
+// hodographs c-library
+const hodographs = @cImport(
+    {
+        @cInclude("hodographs.h");
+    }
+);
 
 fn expectApproxEql(expected: anytype, actual: @TypeOf(expected)) !void {
     return std.testing.expectApproxEqAbs(expected, actual, generic_curve.EPSILON);
@@ -966,6 +975,52 @@ pub const TimeCurve = struct {
         );
 
         return result;
+    }
+
+    pub fn split_hodograph(
+        self: @This(),
+        allocator: std.mem.Allocator
+    ) !TimeCurve 
+    {
+        var cSeg : hodographs.BezierSegment = .{
+            .order = 3,
+            .p = .{},
+        };
+
+        var split_segments = std.ArrayList(Segment).init(allocator);
+
+        for (self.segments) |seg, seg_index| {
+            errdefer std.debug.print("seg_index: {}\n", .{seg_index});
+            const ind = seg_index;
+            _ = ind;
+            for (seg.points()) |pt, index| {
+                cSeg.p[index].x = pt.time;
+                cSeg.p[index].y = pt.value;
+            }
+
+            // hodographs algorithm is sensitive to end points y-coordinate 
+            // being equivalent
+            if (cSeg.p[0].y == cSeg.p[3].y) {
+                cSeg.p[0].y += 0.0001;
+            }
+
+            var hodo = hodographs.compute_hodograph(&cSeg);
+            const roots = hodographs.bezier_roots(&hodo);
+
+            if (roots.x > 0) {
+                const xsplits = seg.split_at(roots.x);
+                try split_segments.appendSlice(&xsplits);
+
+                if (roots.y > 0) {
+                    const ysplits = seg.split_at(roots.y);
+                    try split_segments.appendSlice(&ysplits);
+                }
+            } else {
+                try split_segments.append(seg);
+            }
+        }
+
+        return .{ .segments = split_segments.items };
     }
 };
 
