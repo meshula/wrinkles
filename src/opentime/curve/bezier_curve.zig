@@ -998,8 +998,10 @@ pub const TimeCurve = struct {
                 cSeg.p[index].y = pt.value;
             }
 
+            // XXX: HACK
             // hodographs algorithm is sensitive to end points y-coordinate 
-            // being equivalent
+            // being equivalent, needs to drop to a lower order of the curve
+            // to compute the root correctly in this case
             if (cSeg.p[0].y == cSeg.p[3].y) {
                 cSeg.p[0].y += 0.0001;
             }
