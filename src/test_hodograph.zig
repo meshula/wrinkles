@@ -31,7 +31,7 @@ test "hodograph: simple" {
     try std.testing.expectApproxEqAbs(@as(f32, 0.5), roots.x, 0.00001);
     try std.testing.expectApproxEqAbs(roots.y, -1, 0.00001);
 
-    const split_crv = try crv.split_hodograph(std.testing.allocator);
+    const split_crv = try crv.split_on_critical_points(std.testing.allocator);
     defer std.testing.allocator.free(split_crv.segments);
 
     try std.testing.expectEqual(@as(usize, 2), split_crv.segments.len);
@@ -49,7 +49,7 @@ test "hodograph: uuuuu" {
 
     const crv_to_split = curve.TimeCurve{ .segments = seg_list.items };
 
-    const split_crv = try crv_to_split.split_hodograph(std.testing.allocator);
+    const split_crv = try crv_to_split.split_on_critical_points(std.testing.allocator);
     defer std.testing.allocator.free(split_crv.segments);
 
     try std.testing.expectEqual(u_count*2, split_crv.segments.len);
@@ -58,7 +58,7 @@ test "hodograph: uuuuu" {
 test "hodograph: multisegment curve" {
     const crv = try curve.read_curve_json("curves/linear_scurve_u.curve.json");
     try std.testing.expectEqual(@as(usize, 3), crv.segments.len);
-    const split_crv = try crv.split_hodograph(std.testing.allocator);
+    const split_crv = try crv.split_on_critical_points(std.testing.allocator);
     defer std.testing.allocator.free(split_crv.segments);
 
     try std.testing.expectEqual(@as(usize, 4), split_crv.segments.len);
