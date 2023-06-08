@@ -515,7 +515,6 @@ const TopologicalMap = struct {
                 next_step
             );
 
-
             // transformation spaces:
             // proj:         input   -> current
             // next_proj:    current -> next
