@@ -977,7 +977,10 @@ pub const TimeCurve = struct {
         return result;
     }
 
-    pub fn split_hodograph(
+    /// split the segments on their first derivative roots, return a new curve
+    /// with all the split segments and copies of the segments that were not
+    /// split, memory is owned by the caller
+    pub fn split_on_critical_points(
         self: @This(),
         allocator: std.mem.Allocator
     ) !TimeCurve 
@@ -1009,11 +1012,11 @@ pub const TimeCurve = struct {
             var hodo = hodographs.compute_hodograph(&cSeg);
             const roots = hodographs.bezier_roots(&hodo);
 
-            if (roots.x > 0) {
+            if (roots.x > 0 and roots.x < 1) {
                 const xsplits = seg.split_at(roots.x);
                 try split_segments.appendSlice(&xsplits);
 
-                if (roots.y > 0) {
+                if (roots.y > 0 and roots.y < 1) {
                     const ysplits = seg.split_at(roots.y);
                     try split_segments.appendSlice(&ysplits);
                 }
