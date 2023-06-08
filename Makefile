@@ -21,6 +21,8 @@ test:
 	zig test -femit-bin=$(mkfile_dir)otio_test.out -freference-trace src/opentimelineio.zig $(TEST_FILTER)
 	zig test -femit-bin=$(mkfile_dir)otio_test.out src/opentime/test_topology_projections.zig $(TEST_FILTER)
 	zig test -femit-bin=$(mkfile_dir)otio_test.out src/opentime/opentime.zig $(TEST_FILTER)
+	# for testing the hodographs
+	# zig test src/test_hodograph.zig spline-gym/src/hodographs.c --pkg-begin opentime src/opentime/opentime.zig --pkg-end -Ispline-gym/src -femit-bin=otio_test.out --test-filter "s curve"
 	# zig build test
 
 debug:
