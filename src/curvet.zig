@@ -687,7 +687,7 @@ fn _parse_args(
             .original = .{
                 .fpath = fpath,
                 .bezier = crv,
-                .split_hodograph = try crv.split_hodograph(allocator),
+                .split_hodograph = try crv.split_on_critical_points(allocator),
             },
             .affine = affine_crv,
         };
