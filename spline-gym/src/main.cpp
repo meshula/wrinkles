@@ -452,14 +452,27 @@ int main(void)
     SetConfigFlags(FLAG_MSAA_4X_HINT);
     InitWindow(screenWidth, screenHeight, "raylib [shapes] example - cubic-bezier lines");
 
-    Vector2 start = { screenWidth * 0.25f, screenHeight * 0.25f };
+    // broken case - y is equal
+    Vector2 start = { screenWidth * 0.25f, screenHeight * 0.75f };
     Vector2 end = { screenWidth * 0.75f, screenHeight * 0.75f };
     Vector2 p1 = start;
-    p1.x = (start.x + end.x) * 0.5f;
-    p1.y -= 30;
+    p1.y -= screenHeight * 0.5f;
     Vector2 p2 = end;
-    p2.y += 30;
-    p2.x = (start.x + end.x) * 0.5f;
+    p2.y -= screenHeight * 0.5f + 0.01;
+    
+    // Vector2 start = { screenWidth * 0.75f, screenHeight * 0.15f };
+    // Vector2 end = { screenWidth * 0.75f, screenHeight * 0.85f };
+
+    // Vector2 p1 = start;
+    // p1.y += screenHeight * 0.15f;
+    // p1.x += 150;
+    // p1.x = (start.x + end.x) * 0.5f;
+    // p1.y -= 30;
+    // Vector2 p2 = end;
+    // p2.y -= screenHeight * 0.15f;
+    // p2.x -= 100;
+    // p2.y += 30;
+    // p2.x = (start.x + end.x) * 0.5f;
 
     SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
