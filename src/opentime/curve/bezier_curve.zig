@@ -1145,15 +1145,17 @@ test "TimeCurve: projection_test - compose to identity" {
     // @breakpoint();
     const results = fst.project_curve(snd);
     try expectEqual(@as(usize, 1), results.len);
-    const result = results[0];
-    try expectEqual(@as(usize, 2), result.knots.len);
 
+    if (results.len > 0) {
+        const result = results[0];
+        try expectEqual(@as(usize, 1), result.segments.len);
 
-    var x:f32 = 0;
-    while (x < 1) {
-        // @TODO: fails because evaluating a linear curve
-        try expectApproxEql(x, try result.evaluate(x));
-        x += 0.1;
+        var x:f32 = 0;
+        while (x < 1) {
+            // @TODO: fails because evaluating a linear curve
+            try expectApproxEql(x, try result.evaluate(x));
+            x += 0.1;
+        }
     }
 }
 
@@ -1363,40 +1365,11 @@ test "TimeCurve: project u loop bug" {
             .p1 = .{ .time = 0, .value = 100 },
             .p2 = .{ .time = 100, .value = 100 },
             .p3 = .{ .time = 100, .value = 0 },
-        }
+        },
     }; 
     const upside_down_u = try TimeCurve.init(&u_seg);
 
-    // const lin_simple_s = simple_s.linearized();
-    // const lin_upside_down_u = upside_down_u.linearized();
-
-    // const problematic_segment_to_split = lin_upside_down_u.segments[740];
-    // const problematic_segment_to_project_through = lin_simple_s.segments[1];
-
-    // const problematic_segment_to_split = linear_curve.LinearSegment2d.init(
-    //     .{.time = 3.50041771, .value = 29.9077034},
-    //     .{.time = 3.55905294, .value = 30.1345825}
-    // );
-    // const problematic_segment_to_project_through = linear_curve.LinearSegment2d.init(
-    //     .{.time = 30, .value = 10},
-    //     .{.time = 60, .value = 90}
-    // );
-    // _ = problematic_segment_to_project_through;
-    // const split_point = simple_s_segments[1].p3.time;
-    // const u = problematic_segment_to_split.findU_value(split_point);
-    // const splits = problematic_segment_to_split.split_at(u);
-    //
-    // const new_seg = splits[1];
-    // const u_2 = problematic_segment_to_split.findU_value(split_point);
-    // const splits_2 = new_seg.split_at(u_2);
-    // _ = splits_2;
-    //
-    // // @breakpoint();
-    // _ = splits;
-    // _ = lin_simple_s.project_curve(lin_upside_down_u);
-
-    // original bug
-    const result = simple_s.project_curve(upside_down_u);
+    const result : []TimeCurve = simple_s.project_curve(upside_down_u);
 
     _ = result;
 }
@@ -1644,6 +1617,8 @@ test "TimeCurve: trimmed_in_input_space" {
                 td.trim_range,
                 std.testing.allocator
             );
+            defer trimmed_curve.deinit(std.testing.allocator);
+
             const trimmed_extents = trimmed_curve.extents();
 
             try std.testing.expectApproxEqAbs(
