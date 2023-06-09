@@ -120,24 +120,17 @@ pub const AffineTopology = struct {
     /// self.project_topology(other) => other.input -> self.output
     /// result.bounds -> other.input
     ///
-    pub fn project_topology(self: @This(), other: TimeTopology) TimeTopology {
+    pub fn project_topology(self: @This(), other: TimeTopology) !TimeTopology {
         return switch (other) {
-           .bezier_curve => |other_bez| {
-               _ = other_bez;
-               unreachable;
-               // var other_clone = other_bez.clone();
-               //
-               // var [4]bezier_curve.ControlPoint;
-               // for (other_clone.bezier_curve.segments) |*seg| {
-               //     for (seg.points()) |*pt, pt_index| {
-               //          = self.project_ordinate(pt.value);
-               //     }
-               //     seg.from_pt_array(pts: [4]ControlPoint)
-               //     
-               // }
-               //
-               // return other_clone;
-           },
+            .bezier_curve => |other_bez| .{ 
+                .bezier_curve = .{
+                    .bezier_curve = try curve.affine_project_curve(
+                        self.transform,
+                        other_bez.bezier_curve,
+                        allocator.ALLOCATOR
+                    )
+                }
+            },
            // .linear_curve => |_| {
            //     unreachable;
            // },
@@ -284,32 +277,24 @@ pub const BezierTopology = struct {
     {
         return switch (other) {
             .affine => |aff| {
-                const aff_linearized = try aff.as_linear_curve_over_output_range(
-                    self.compute_bounds()
-                );
-
-                const projected_curve = (
-                    self.bezier_curve.linearized().project_curve(
-                        aff_linearized
-                    )
+                const projected_curve = try self.bezier_curve.project_affine(
+                    aff.transform,
+                    allocator.ALLOCATOR
                 );
 
                 return .{
-                    .bezier_curve = .{
-                        .bezier_curve = curve.TimeCurve.init_from_linear_curve(
-                            projected_curve[0]
-                        )
-                    }
+                    .bezier_curve = .{ .bezier_curve = projected_curve }
                 };
             },
-            .bezier_curve => |bez| .{
-                .bezier_curve = .{
-                    .bezier_curve = curve.TimeCurve.init_from_linear_curve(
-                        self.bezier_curve.project_curve(bez.bezier_curve)[0]
-                    )
-                }
-            },
+            // .bezier_curve => |bez| .{
+            //     .bezier_curve = .{
+            //         .bezier_curve = curve.TimeCurve.init_from_linear_curve(
+            //             self.bezier_curve.project_curve(bez.bezier_curve)[0]
+            //         )
+            //     }
+            // },
             .empty => .{ .empty = EmptyTopology{} },
+            else => { unreachable; },
         };
     }
 };
@@ -840,14 +825,17 @@ test "TimeTopology: project bezier through affine" {
     //    | /
     //    +------
     //
+
+    // this curve is [-0.5, 0.5), so needs to be rescaled into the space
+    // of the test/data that we want to do.
+    const crv = try curve.read_curve_json(
+        "curves/linear.curve.json",
+        std.testing.allocator,
+    );
+    defer crv.deinit(std.testing.allocator);
     const xform_curve = try curve.rescaled_curve(
-        // this curve is [-0.5, 0.5), so needs to be rescaled into the space
-        // of the test/data that we want to do.
-        try curve.read_curve_json(
-            "curves/linear.curve.json",
-            std.testing.allocator,
-        ),
         //  the range of the clip for testing - rescale factors
+        crv,
         .{
             .{ .time = 100, .value = 0, },
             .{ .time = 110, .value = 10, },

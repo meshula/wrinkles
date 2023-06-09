@@ -20,6 +20,7 @@ pub const normalized_to = bezier_math.normalized_to;
 pub const inverted = bezier_math.inverted_bezier;
 pub const inverted_linear = bezier_math.inverted_linear;
 pub const rescaled_curve = bezier_math.rescaled_curve;
+pub const affine_project_curve = bezier_curve.affine_project_curve;
 
 test "all curve" {
     _ = bezier_math;
