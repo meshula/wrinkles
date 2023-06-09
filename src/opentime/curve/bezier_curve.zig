@@ -785,12 +785,17 @@ pub const TimeCurve = struct {
         self: @This(),
         other: TimeCurve
         // should return []TimeCurve
+    pub fn project_linear_curve(
+        self: @This(),
+        other: linear_curve.TimeCurveLinear,
+        // should return []TimeCurve
     ) []linear_curve.TimeCurveLinear
     {
-        // @TODO: should use holodromes for projection rather than
-        //        linearization
-        const l_proj_thru = self.linearized();
-        const l_to_proj = other.linearized();
+        const self_linearized = self.linearized();
+
+        return self_linearized.project_curve(other);
+    }
+
     pub fn project_affine(
         self: @This(),
         aff: opentime.transform.AffineTransform1D,
@@ -1138,7 +1143,7 @@ test "TimeCurve: positive length 1 linear segment test" {
     try expectEqual(@as(f32, 0.75), try xform_curve.evaluate(1.75));
 }
 
-test "TimeCurve: projection_test - compose to identity" {
+test "TimeCurve: project_linear_curve to identity" {
     var seg_0_4 = [_]Segment{
         create_linear_segment(
             .{ .time = 0, .value = 0, },
@@ -1155,19 +1160,17 @@ test "TimeCurve: projection_test - compose to identity" {
     };
     const snd: TimeCurve = .{ .segments = &seg_0_8 };
 
-    // check linearization first
     const fst_lin = fst.linearized();
     try expectEqual(@as(usize, 2), fst_lin.knots.len);
     const snd_lin = snd.linearized();
     try expectEqual(@as(usize, 2), snd_lin.knots.len);
 
-    // @breakpoint();
-    const results = fst.project_curve(snd);
+    const results = fst.project_linear_curve(snd_lin);
     try expectEqual(@as(usize, 1), results.len);
 
     if (results.len > 0) {
         const result = results[0];
-        try expectEqual(@as(usize, 1), result.segments.len);
+        try expectEqual(@as(usize, 2), result.knots.len);
 
         var x:f32 = 0;
         while (x < 1) {
