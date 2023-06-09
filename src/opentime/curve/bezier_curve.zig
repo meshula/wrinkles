@@ -785,6 +785,12 @@ pub const TimeCurve = struct {
         self: @This(),
         other: TimeCurve
         // should return []TimeCurve
+    ) TimeCurve {
+        _ = self;
+        _ = other;
+
+        return .{};
+    }
     pub fn project_linear_curve(
         self: @This(),
         other: linear_curve.TimeCurveLinear,
