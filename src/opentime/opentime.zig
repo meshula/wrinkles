@@ -1,4 +1,4 @@
-// 
+//
 // Exports for the `opentime` library
 //
 
@@ -7,11 +7,13 @@ pub const string = @import("string_stuff.zig");
 // @}
 
 // interval @{
-pub const ContinuousTimeInterval = @import("interval.zig").ContinuousTimeInterval;
+pub const interval = @import("interval.zig");
+pub const ContinuousTimeInterval = interval.ContinuousTimeInterval;
 // @}
 
 // TimeTopology @{
-pub const TimeTopology = @import("time_topology.zig").TimeTopology;
+pub const time_topology = @import("time_topology.zig");
+pub const TimeTopology = time_topology.TimeTopology;
 // @}
 
 // Domain @{
@@ -23,8 +25,7 @@ pub const curve = @import("curve/curve.zig");
 // @}
 
 // transform
-pub const transform = @import("transform.zig"); 
-pub const interval = @import("interval.zig"); 
+pub const transform = @import("transform.zig");
 
 test "all" {
     _ = curve;
