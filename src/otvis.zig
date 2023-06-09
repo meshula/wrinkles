@@ -988,7 +988,7 @@ fn _parse_args(state:*DemoState, allocator: std.mem.Allocator) !void {
             const fst = state.curves.items[PROJ_THR_S].normalized;
             const snd = state.curves.items[PROJ_S].normalized;
 
-            const result = fst.project_curve(snd);
+            const result = fst.project_linear_curve(snd.linearized());
 
             std.debug.print(
                 "Final projected segments: {d}\n",
