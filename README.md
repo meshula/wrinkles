@@ -16,11 +16,13 @@ contains:
   * treecode library (path through a binary tree)
 
 ## IP
-* holodromes
-    * 0 finding over cubic bezier
-    * non-linearizing bezier projection
-    * non-linearizing bezier inversion
-    * arbitrary (splitting) inversion
+* hododromes
+    * [x] 0 finding over cubic bezier
+    * [ ] non-linearizing bezier projection
+    * [ ] non-linearizing bezier.affine projection
+    * [ ] non-linearizing affine.bezier projection
+    * [ ] non-linearizing bezier inversion
+    * [ ] arbitrary (splitting) inversion
 
 ## Todo
 * add back in linear and bezier curve topologies
