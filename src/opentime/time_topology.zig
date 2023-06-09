@@ -23,7 +23,7 @@ const IDENTITY_TRANSFORM = transform.AffineTransform1D{
     .scale = 1,
 };
 
-const AffineTopology = struct {
+pub const AffineTopology = struct {
     // defaults to an infinite identity
     bounds: interval.ContinuousTimeInterval = interval.INF_CTI,
     transform: transform.AffineTransform1D =IDENTITY_TRANSFORM, 
