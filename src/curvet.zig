@@ -19,52 +19,34 @@ const string = opentime.string;
 const util = @import("opentime/util.zig");
 
 const VisCurve = struct {
-    original: struct{
-        fpath: [:0]const u8,
-        bezier: curve.TimeCurve,
-        split_hodograph: curve.TimeCurve,
-    },
-    affine: curve.TimeCurve,
+    fpath: [1024:0]u8,
+    bezier: curve.TimeCurve,
+    split_hodograph: curve.TimeCurve,
+};
+
+const VisTransform = struct {
+    topology: opentime.time_topology.AffineTopology = .{},
+};
+
+const VisOperation = union(enum) {
+    curve: VisCurve,
+    transform: VisTransform,
 };
 
 const VisState = struct {
-    curves: []VisCurve,
-
-    // xforms: std.ArrayList(CurveOperator),
-    xforms: std.ArrayList(AffineTransformOpts),
-
-    // const CurveOperator = union {
-    //     .affine = AffineTransformOpts,
-    //     .curve = CurveOpts,
-    // }
-
-    const AffineTransformOpts = struct{
-        offset:f32 = 0,
-        scale:f32 = 1,
-        bound_input_min:f32 = -util.inf,
-        bound_input_max:f32 =  util.inf,
-        mode:i32 = @enumToInt(Modes.projected_through_curve),
-
-        const Modes = enum(i32) {
-            projected_through_curve,
-            projecting_curve,
-        };
-
-        const modestring:[:0]const u8 = (
-            ""
-            ++ "Projected through Curve" ++ "\x00" 
-            ++ "Projecting Curve" ++ "\x00"
-            ++ "\x00"
-        );
-    };
+    operations: std.ArrayList(VisOperation),
 
     pub fn deinit(self: *const @This(), allocator: std.mem.Allocator) void {
-        for (self.curves) |crv| {
-            allocator.free(crv.original.bezier.segments);
-            allocator.free(crv.original.split_hodograph.segments);
+        for (self.operations.items) |visop| {
+            switch (visop) {
+                .curve => |crv| {
+                    allocator.free(crv.bezier.segments);
+                    allocator.free(crv.split_hodograph.segments);
+                },
+                else => {},
+            }
         }
-        allocator.free(self.curves);
-        self.xforms.deinit();
+        self.operations.deinit();
     }
 };
 
@@ -236,10 +218,6 @@ pub fn main() !void {
     var state = try _parse_args(allocator);
     defer state.deinit(allocator);
 
-    std.debug.assert(state.curves[0].original.bezier.segments.len > 0);
-    std.debug.print("curve segments: {any}\n", .{ state.curves[0].original.bezier.segments.len });
-    std.debug.print("curve extents: {any}\n", .{ state.curves[0].original.bezier.extents() });
-
     while (!window.shouldClose() and window.getKey(.escape) != .press) {
         zglfw.pollEvents();
         try update(gfx_state, &state, allocator);
@@ -302,88 +280,14 @@ fn update(
     gfx_state: *GraphicsState,
     state: *VisState,
     allocator: std.mem.Allocator,
-) !void 
-{
-    const xform_opt = state.xforms.items[0];
-    const xform = opentime.transform.AffineTransform1D{
-        .offset_seconds = xform_opt.offset,
-        .scale = xform_opt.scale,
-    };
-
-    var tmp:[4]opentime.curve.ControlPoint = .{};
-
-    // var affine_bounds_in_affine_input_space = (
-    //     opentime.interval.ContinuousTimeInterval{ 
-    //         .start_seconds = state.affine_transform.bound_input_min,
-    //         .end_seconds = state.affine_transform.bound_input_max,
-    //     }
-    // );
-
-    // transform the affine curve
-    for (state.curves) |crv| {
-        // const curve_extents = crv.extents();
-        // const curve_output_bounds = interval.ContinuousTimeInterval{
-        //     .start_seconds = curve_extents[0].value,
-        //     .end_seconds = curve_extents[1].value,
-        // };
-
-
-        // switch (state.affine_transform.mode) {
-        //     // affine bounds are applied to the input of the curve
-        //     @enumToInt(VisState.AffineTransformOpts.Modes.projected_through_curve) => {
-        //         // const curve_input_bounds = interval.ContinuousTimeInterval{
-        //         //     .start_seconds = curve_extents[0].time,
-        //         //     .end_seconds = curve_extents[1].time,
-        //         // };
-        //         // const affine_bounds_in_affine_output_space = (
-        //         //     xform.applied_to_bounds(
-        //         //         affine_bounds_in_affine_input_space
-        //         //     )
-        //         // );
-        //         // const intersected_bounds = interval.intersect(
-        //         //     curve_input_bounds,
-        //         //     affine_bounds_in_affine_output_space
-        //         // );
-        //
-        //         //
-        //         // // if the curve needs to be trimmed
-        //         // if (
-        //         //     intersected_bounds.start_seconds 
-        //         //     > curve_input_bounds.start_seconds
-        //         // )
-        //         // {
-        //         //     const seg_to_split = crv.affine.find_segment(intersected_bounds.start_seconds);
-        //         // }
-        //     },
-        //     else => {}
-        // }
-
-        // output of the curve is the input of the affine
-        // affine bounds are applied to the output of the curve
-        // @enumToInt(VisState.AffineTransformOpts.Modes.projecting_curve) => {
-        //     tmp[pt_index] = .{ .time = pt.time, .value = xform.applied_to_seconds(pt.value)};
-        //     crv.affine.segments[seg_index] = curve.Segment.from_pt_array(tmp);
-        // },
-        // output of the affine is the input of the curve
-        for (crv.original.bezier.segments) |seg, seg_index| {
-            for (seg.points()) |pt, pt_index| {
-                switch (xform_opt.mode) {
-                    // output of the curve is the input of the affine
-                    // affine bounds are applied to the output of the curve
-                    @enumToInt(VisState.AffineTransformOpts.Modes.projecting_curve) => {
-                        tmp[pt_index] = .{ .time = pt.time, .value = xform.applied_to_seconds(pt.value)};
-                        crv.affine.segments[seg_index] = curve.Segment.from_pt_array(tmp);
-                    },
-                    // output of the affine is the input of the curve
-                    // affine bounds are applied to the input of the curve
-                    @enumToInt(VisState.AffineTransformOpts.Modes.projected_through_curve) => {
-                        tmp[pt_index] = .{ .value = pt.value, .time = xform.applied_to_seconds(pt.time)};
-                        crv.affine.segments[seg_index] = curve.Segment.from_pt_array(tmp);
-                    },
-                    else => {},
-                }
-            }
-        }
+) !void {
+    var _proj = opentime.TimeTopology.init_identity_infinite();
+    for (state.operations.items) |visop| {
+        var _topology: opentime.TimeTopology = switch (visop) {
+            .curve => |crv| .{ .bezier_curve = .{ .bezier_curve = crv.bezier } },
+            .transform => |xform| .{ .affine = xform.topology },
+        };
+        _proj = try _topology.project_topology(_proj);
     }
 
     zgui.backend.newFrame(
@@ -422,119 +326,55 @@ fn update(
                 zgui.plot.setupAxis(.x1, .{ .label = "input" });
                 zgui.plot.setupAxis(.y1, .{ .label = "output" });
 
-                for (state.curves) |viscurve| {
-                    const bez = viscurve.original.bezier;
-                    {
-                        const pts = try evaluated_curve(bez, 1000);
+                for (state.operations.items) |visop| {
+                    switch (visop) {
+                        .curve => |crv| {
+                            const bez = crv.bezier;
+                            {
+                                const pts = try evaluated_curve(bez, 1000);
 
-                        zgui.plot.setupLegend(.{ .south = true, .west = true }, .{});
-                        zgui.plot.setupFinish();
+                                zgui.plot.setupLegend(.{ .south = true, .west = true }, .{});
+                                zgui.plot.setupFinish();
 
-                        zgui.plot.plotLine(
-                            viscurve.original.fpath,
-                            f32,
-                            .{ .xv = &pts.xv, .yv = &pts.yv }
-                        );
-                    }
-
-                    {
-                        const aff = viscurve.affine;
-                        const pts = try evaluated_curve(aff, 1000);
-
-                        const name = try std.fmt.allocPrintZ(
-                            allocator,
-                            "{s}: Affine Projection",
-                            .{ viscurve.original.fpath }
-                        );
-                        defer allocator.free(name);
-
-                        zgui.plot.plotLine(
-                            name,
-                            f32,
-                            .{ .xv = &pts.xv, .yv = &pts.yv }
-                        );
-                    }
-
-                    {
-                        const name = try std.fmt.allocPrintZ(
-                            allocator,
-                            "{s}: Original Bezier Control Points",
-                            .{ viscurve.original.fpath }
-                        );
-                        defer allocator.free(name);
-
-                        const knots_xv = try allocator.alloc(f32, 4 * bez.segments.len);
-                        defer allocator.free(knots_xv);
-                        const knots_yv = try allocator.alloc(f32, 4 * bez.segments.len);
-                        defer allocator.free(knots_yv);
-
-                        for (bez.segments) |seg, seg_ind| {
-                            for (seg.points()) |pt, pt_ind| {
-                                knots_xv[seg_ind*4 + pt_ind] = pt.time;
-                                knots_yv[seg_ind*4 + pt_ind] = pt.value;
+                                zgui.plot.plotLine(&crv.fpath, f32, .{ .xv = &pts.xv, .yv = &pts.yv });
                             }
-                        }
 
-                        zgui.plot.plotScatter(
-                            name,
-                            f32,
-                            .{ 
-                                .xv = knots_xv,
-                                .yv = knots_yv,
+                            const hod = crv.split_hodograph;
+                            {
+                                const name = try std.fmt.allocPrintZ(allocator, "{s}: Split at critical points via Hodograph", .{crv.fpath});
+                                defer allocator.free(name);
+
+                                {
+                                    const pts = try evaluated_curve(hod, 1000);
+
+                                    zgui.plot.plotLine(name, f32, .{ .xv = &pts.xv, .yv = &pts.yv });
+                                }
                             }
-                        );
-                    }
-                    
-                    const hod = viscurve.original.split_hodograph;
-                    {
-                        const name = try std.fmt.allocPrintZ(
-                            allocator,
-                            "{s}: Split at critical points via Hodograph",
-                            .{ viscurve.original.fpath }
-                        );
-                        defer allocator.free(name);
 
-                        {
-                            const pts = try evaluated_curve(hod, 1000);
+                            {
+                                const name = try std.fmt.allocPrintZ(allocator, "{s}: Split Hodograph Bezier Control Points", .{crv.fpath});
+                                defer allocator.free(name);
 
-                            zgui.plot.plotLine(
-                                name,
-                                f32,
-                                .{ .xv = &pts.xv, .yv = &pts.yv }
-                            );
-                        }
-                    }
+                                const knots_xv = try allocator.alloc(f32, 4 * hod.segments.len);
+                                defer allocator.free(knots_xv);
+                                const knots_yv = try allocator.alloc(f32, 4 * hod.segments.len);
+                                defer allocator.free(knots_yv);
 
-                    {
-                        const name = try std.fmt.allocPrintZ(
-                            allocator,
-                            "{s}: Split Hodograph Bezier Control Points",
-                            .{ viscurve.original.fpath }
-                        );
-                        defer allocator.free(name);
+                                for (bez.segments) |seg, seg_ind| {
+                                    for (seg.points()) |pt, pt_ind| {
+                                        knots_xv[seg_ind * 4 + pt_ind] = pt.time;
+                                        knots_yv[seg_ind * 4 + pt_ind] = pt.value;
+                                    }
+                                }
 
-                        const knots_xv = try allocator.alloc(f32, 4 * hod.segments.len);
-                        defer allocator.free(knots_xv);
-                        const knots_yv = try allocator.alloc(f32, 4 * hod.segments.len);
-                        defer allocator.free(knots_yv);
-
-                        for (bez.segments) |seg, seg_ind| {
-                            for (seg.points()) |pt, pt_ind| {
-                                knots_xv[seg_ind*4 + pt_ind] = pt.time;
-                                knots_yv[seg_ind*4 + pt_ind] = pt.value;
+                                zgui.plot.plotScatter(name, f32, .{
+                                    .xv = knots_xv,
+                                    .yv = knots_yv,
+                                });
                             }
-                        }
-
-                        zgui.plot.plotScatter(
-                            name,
-                            f32,
-                            .{ 
-                                .xv = knots_xv,
-                                .yv = knots_yv,
-                            }
-                        );
+                        },
+                        else => {},
                     }
-
                 }
 
                 zgui.plot.endPlot();
@@ -546,43 +386,27 @@ fn update(
     zgui.sameLine(.{});
 
     {
-        if (zgui.beginChild("Settings", .{.w = 600, .flags = main_flags })) {
-            for (state.xforms.items) |*this_xform| {
-
-                // switch (this_xform) {
-                //     .affine => |aff| { // generate affine ui }
-                // }
-                if (zgui.collapsingHeader("Affine Transform Settings", .{ .default_open = true})) {
-                    var bounds:[2]f32 = .{
-                        this_xform.bound_input_min, 
-                        this_xform.bound_input_max, 
-                    };
-                    _ = zgui.sliderFloat(
-                        "offset",
-                        .{ 
-                            .min = -10,
-                            .max = 10,
-                            .v = &this_xform.*.offset
+        if (zgui.beginChild("Settings", .{ .w = 600, .flags = main_flags })) {
+            for (state.operations.items) |*visop| {
+                switch (visop.*) {
+                    .curve => |*crv| {
+                        if (zgui.collapsingHeader("Curve Settings", .{ .default_open = true })) {
+                            _ = zgui.inputText("file path", .{ .buf = crv.*.fpath[0..] });
                         }
-                    );
-                    _ = zgui.sliderFloat(
-                        "scale",
-                        .{ 
-                            .min = -10,
-                            .max = 10,
-                            .v = &this_xform.*.scale
+                    },
+                    .transform => |*xform| {
+                        if (zgui.collapsingHeader("Affine Transform Settings", .{ .default_open = true })) {
+                            var bounds: [2]f32 = .{
+                                xform.topology.bounds.start_seconds,
+                                xform.topology.bounds.end_seconds,
+                            };
+                            _ = zgui.sliderFloat("offset", .{ .min = -10, .max = 10, .v = &xform.*.topology.transform.offset_seconds });
+                            _ = zgui.sliderFloat("scale", .{ .min = -10, .max = 10, .v = &xform.*.topology.transform.scale });
+                            _ = zgui.inputFloat2("input space bounds", .{ .v = &bounds });
+                            xform.topology.bounds.start_seconds = bounds[0];
+                            xform.topology.bounds.end_seconds = bounds[1];
                         }
-                    );
-                    _ = zgui.inputFloat2("input space bounds", .{ .v = &bounds});
-                    this_xform.bound_input_min = bounds[0];
-                    this_xform.bound_input_max = bounds[1];
-                    _ = zgui.combo(
-                        "Mode",
-                        .{
-                            .current_item = &this_xform.mode,
-                            .items_separated_by_zeros = VisState.AffineTransformOpts.modestring,
-                        }
-                    );
+                    },
                 }
             }
 
@@ -656,7 +480,7 @@ fn _parse_args(
     //     std.debug.print("{s}: {}\n", .{ field.name, @field(state, field.name) });
     // }
 
-    var curves = std.ArrayList(VisCurve).init(allocator);
+    var operations = std.ArrayList(VisOperation).init(allocator);
 
     // read all the filepaths from the commandline
     while (args.next()) |nextarg| 
@@ -681,36 +505,23 @@ fn _parse_args(
             return err;
         };
 
-        var affine_crv = try curve.TimeCurve.init(crv.segments);
-
         var viscurve = VisCurve{
-            .original = .{
-                .fpath = fpath,
-                .bezier = crv,
-                .split_hodograph = try crv.split_on_critical_points(allocator),
-            },
-            .affine = affine_crv,
+            .fpath = .{},
+            .bezier = crv,
+            .split_hodograph = try crv.split_on_critical_points(allocator),
         };
+        std.mem.copy(u8, &viscurve.fpath, fpath);
 
         std.debug.assert(crv.segments.len > 0);
-
-        try curves.append(viscurve);
+        var visoperation = VisOperation{ .curve = viscurve };
+        try operations.append(visoperation);
     }
 
     var state = VisState{
-        .curves = curves.items,
-        .xforms = std.ArrayList(VisState.AffineTransformOpts).init(allocator),
+        .operations = operations,
     };
 
-    try state.xforms.append(.{});
-    // ^ is shorthand for this:
-    // state.xforms.append(VisState.AffineTransformOpts{});
-
-    if (state.curves.len == 0) {
-        usage();
-    }
-
-    std.debug.assert(state.curves[0].original.bezier.segments.len > 0);
+    try state.operations.append(.{ .transform = .{} });
 
     return state;
 }
