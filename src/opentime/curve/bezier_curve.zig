@@ -791,8 +791,27 @@ pub const TimeCurve = struct {
         //        linearization
         const l_proj_thru = self.linearized();
         const l_to_proj = other.linearized();
+    pub fn project_affine(
+        self: @This(),
+        aff: opentime.transform.AffineTransform1D,
+        allocator: std.mem.Allocator,
+    ) !TimeCurve 
+    {
+        var result_segments = try allocator.dupe(Segment, self.segments);
 
-        return l_proj_thru.project_curve(l_to_proj);
+        var tmp:[4]opentime.curve.ControlPoint = .{};
+
+        for (self.segments) |seg, seg_index| {
+            for (seg.points()) |pt, pt_index| {
+                tmp[pt_index] = .{ 
+                    .value = pt.value,
+                    .time = aff.applied_to_seconds(pt.time)
+                };
+            }
+            result_segments[seg_index] = Segment.from_pt_array(tmp);
+        }
+
+        return .{ .segments = result_segments };
     }
 
     pub fn debug_json_str(self:@This()) []const u8
@@ -1631,6 +1650,69 @@ test "TimeCurve: trimmed_in_input_space" {
                 trimmed_extents[1].time,
                 0.001
             );
+        }
+    }
+}
+
+test "TimeCurve: project_affine" {
+    const test_crv = try read_curve_json(
+        "curves/upside_down_u.curve.json",
+        std.testing.allocator
+    );
+    defer test_crv.deinit(std.testing.allocator);
+
+    const test_affine = [_]opentime.transform.AffineTransform1D{
+        .{
+            .offset_seconds = -10,
+            .scale = 0.5,
+        },
+        .{
+            .offset_seconds = 0,
+            .scale = 1,
+        },
+        .{
+            .offset_seconds = 0,
+            .scale = 2,
+        },
+        .{
+            .offset_seconds = 10,
+            .scale = 1,
+        },
+    };
+
+    for (test_affine) |testdata| {
+        const result = try test_crv.project_affine(
+            testdata,
+            std.testing.allocator
+        );
+        defer result.deinit(std.testing.allocator);
+
+        // number of segments shouldn't have changed
+        try expectEqual(test_crv.segments.len, result.segments.len);
+
+        for (test_crv.segments) |t_seg, t_seg_index| {
+            for (t_seg.points()) |pt, pt_index| {
+                const result_pt = result.segments[t_seg_index].points()[pt_index];
+                errdefer  std.debug.print(
+                    "\nseg: {} pt: {} ({d:.2}, {d:.2})\n"
+                    ++ "computed: ({d:.2}, {d:.2})\n\n", 
+                    .{
+                        t_seg_index,
+                        pt_index,
+                        pt.time,
+                        pt.value,
+                        result_pt.time,
+                        result_pt.value, 
+                    }
+                );
+                try expectApproxEql(
+                    @as(
+                        f32,
+                        testdata.scale * pt.time + testdata.offset_seconds
+                    ), 
+                    result_pt.time
+                );
+            }
         }
     }
 }
