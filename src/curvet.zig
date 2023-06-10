@@ -19,7 +19,7 @@ const string = opentime.string;
 const util = @import("opentime/util.zig");
 
 const VisCurve = struct {
-    fpath: [1024:0]u8,
+    fpath: [:0]u8,
     bezier: curve.TimeCurve,
     split_hodograph: curve.TimeCurve,
 };
@@ -42,6 +42,7 @@ const VisState = struct {
                 .curve => |crv| {
                     allocator.free(crv.bezier.segments);
                     allocator.free(crv.split_hodograph.segments);
+                    allocator.free(crv.fpath);
                 },
                 else => {},
             }
@@ -494,7 +495,7 @@ fn _parse_args(
             usage();
         }
 
-        std.debug.print("reading curve: {s}\n", .{ fpath });
+        std.debug.print("reading curve: '{s}'\n", .{ fpath });
 
         var crv = curve.read_curve_json(fpath, allocator) catch |err| {
             std.debug.print(
@@ -506,11 +507,10 @@ fn _parse_args(
         };
 
         var viscurve = VisCurve{
-            .fpath = .{},
+            .fpath = try allocator.dupeZ(u8, fpath),
             .bezier = crv,
             .split_hodograph = try crv.split_on_critical_points(allocator),
         };
-        std.mem.copy(u8, &viscurve.fpath, fpath);
 
         std.debug.assert(crv.segments.len > 0);
         var visoperation = VisOperation{ .curve = viscurve };
