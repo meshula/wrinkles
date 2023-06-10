@@ -297,7 +297,6 @@ fn plot_curve(
 
         zgui.plot.plotLine(
             crv.fpath,
-            // "hello",
             f32,
             .{ .xv = &pts.xv, .yv = &pts.yv }
         );
@@ -307,7 +306,7 @@ fn plot_curve(
     {
         const name:[:0]const u8 = try std.fmt.allocPrintZ(
             allocator,
-            "bloop {s}: Split at critical points via Hodograph",
+            "{s}: Split at critical points via Hodograph",
             .{crv.fpath[0..]}
         );
         defer allocator.free(name);
@@ -334,15 +333,9 @@ fn plot_curve(
         );
         defer allocator.free(name);
 
-        const knots_xv = try allocator.alloc(
-            f32,
-            4 * hod.segments.len
-        );
+        const knots_xv = try allocator.alloc(f32, 4 * hod.segments.len);
         defer allocator.free(knots_xv);
-        const knots_yv = try allocator.alloc(
-            f32,
-            4 * hod.segments.len
-        );
+        const knots_yv = try allocator.alloc(f32, 4 * hod.segments.len);
         defer allocator.free(knots_yv);
 
         for (hod.segments) |seg, seg_ind| {
@@ -352,10 +345,14 @@ fn plot_curve(
             }
         }
 
-        zgui.plot.plotScatter(name, f32, .{
-            .xv = knots_xv,
-            .yv = knots_yv,
-        });
+        zgui.plot.plotScatter(
+            name,
+            f32,
+            .{
+                .xv = knots_xv,
+                .yv = knots_yv,
+            }
+        );
     }
 }
 
@@ -428,19 +425,50 @@ fn update(
             for (state.operations.items) |*visop| {
                 switch (visop.*) {
                     .curve => |*crv| {
-                        if (zgui.collapsingHeader("Curve Settings", .{ .default_open = true })) {
-                            _ = zgui.inputText("file path", .{ .buf = crv.*.fpath[0..] });
+                        if (
+                            zgui.collapsingHeader("Curve Settings",
+                                .{ .default_open = true })
+                        ) 
+                        {
+                            _ = zgui.inputText(
+                                "file path",
+                                .{ .buf = crv.*.fpath[0..] }
+                            );
                         }
                     },
                     .transform => |*xform| {
-                        if (zgui.collapsingHeader("Affine Transform Settings", .{ .default_open = true })) {
+                        if (
+                            zgui.collapsingHeader(
+                                "Affine Transform Settings",
+                                .{ .default_open = true }
+                            )
+                        ) 
+                        {
+                            var xform_topo = xform.*.topology.transform;
                             var bounds: [2]f32 = .{
                                 xform.topology.bounds.start_seconds,
                                 xform.topology.bounds.end_seconds,
                             };
-                            _ = zgui.sliderFloat("offset", .{ .min = -10, .max = 10, .v = &xform.*.topology.transform.offset_seconds });
-                            _ = zgui.sliderFloat("scale", .{ .min = -10, .max = 10, .v = &xform.*.topology.transform.scale });
-                            _ = zgui.inputFloat2("input space bounds", .{ .v = &bounds });
+                            _ = zgui.sliderFloat(
+                                "offset",
+                                .{
+                                    .min = -10,
+                                    .max = 10,
+                                    .v = &xform_topo.offset_seconds 
+                                }
+                            );
+                            _ = zgui.sliderFloat(
+                                "scale",
+                                .{
+                                    .min = -10,
+                                    .max = 10,
+                                    .v = &xform_topo.scale 
+                                }
+                            );
+                            _ = zgui.inputFloat2(
+                                "input space bounds",
+                                .{ .v = &bounds }
+                            );
                             xform.topology.bounds.start_seconds = bounds[0];
                             xform.topology.bounds.end_seconds = bounds[1];
                         }
