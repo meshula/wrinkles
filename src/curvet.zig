@@ -277,6 +277,88 @@ pub fn evaluated_curve(
     return .{ .xv = xv, .yv = yv };
 }
 
+fn plot_curve(
+    crv: VisCurve,
+    allocator: std.mem.Allocator,
+) !void 
+{
+    const bez = crv.bezier;
+    {
+        const pts = try evaluated_curve(bez, 1000);
+
+        zgui.plot.setupLegend(
+            .{ 
+                .south = true,
+                .west = true 
+            },
+            .{}
+        );
+        zgui.plot.setupFinish();
+
+        zgui.plot.plotLine(
+            crv.fpath,
+            // "hello",
+            f32,
+            .{ .xv = &pts.xv, .yv = &pts.yv }
+        );
+    }
+
+    const hod = crv.split_hodograph;
+    {
+        const name:[:0]const u8 = try std.fmt.allocPrintZ(
+            allocator,
+            "bloop {s}: Split at critical points via Hodograph",
+            .{crv.fpath[0..]}
+        );
+        defer allocator.free(name);
+
+        {
+            const pts = try evaluated_curve(hod, 1000);
+
+            zgui.plot.plotLine(
+                name,
+                f32,
+                .{
+                    .xv = &pts.xv,
+                    .yv = &pts.yv 
+                }
+            );
+        }
+    }
+
+    {
+        const name = try std.fmt.allocPrintZ(
+            allocator,
+            "{s}: Split Hodograph Bezier Control Points",
+            .{crv.fpath}
+        );
+        defer allocator.free(name);
+
+        const knots_xv = try allocator.alloc(
+            f32,
+            4 * hod.segments.len
+        );
+        defer allocator.free(knots_xv);
+        const knots_yv = try allocator.alloc(
+            f32,
+            4 * hod.segments.len
+        );
+        defer allocator.free(knots_yv);
+
+        for (bez.segments) |seg, seg_ind| {
+            for (seg.points()) |pt, pt_ind| {
+                knots_xv[seg_ind * 4 + pt_ind] = pt.time;
+                knots_yv[seg_ind * 4 + pt_ind] = pt.value;
+            }
+        }
+
+        zgui.plot.plotScatter(name, f32, .{
+            .xv = knots_xv,
+            .yv = knots_yv,
+        });
+    }
+}
+
 fn update(
     gfx_state: *GraphicsState,
     state: *VisState,
@@ -329,55 +411,10 @@ fn update(
 
                 for (state.operations.items) |visop| {
                     switch (visop) {
-                        .curve => |crv| {
-                            const bez = crv.bezier;
-                            {
-                                const pts = try evaluated_curve(bez, 1000);
-
-                                zgui.plot.setupLegend(.{ .south = true, .west = true }, .{});
-                                zgui.plot.setupFinish();
-
-                                zgui.plot.plotLine(&crv.fpath, f32, .{ .xv = &pts.xv, .yv = &pts.yv });
-                            }
-
-                            const hod = crv.split_hodograph;
-                            {
-                                const name = try std.fmt.allocPrintZ(allocator, "{s}: Split at critical points via Hodograph", .{crv.fpath});
-                                defer allocator.free(name);
-
-                                {
-                                    const pts = try evaluated_curve(hod, 1000);
-
-                                    zgui.plot.plotLine(name, f32, .{ .xv = &pts.xv, .yv = &pts.yv });
-                                }
-                            }
-
-                            {
-                                const name = try std.fmt.allocPrintZ(allocator, "{s}: Split Hodograph Bezier Control Points", .{crv.fpath});
-                                defer allocator.free(name);
-
-                                const knots_xv = try allocator.alloc(f32, 4 * hod.segments.len);
-                                defer allocator.free(knots_xv);
-                                const knots_yv = try allocator.alloc(f32, 4 * hod.segments.len);
-                                defer allocator.free(knots_yv);
-
-                                for (bez.segments) |seg, seg_ind| {
-                                    for (seg.points()) |pt, pt_ind| {
-                                        knots_xv[seg_ind * 4 + pt_ind] = pt.time;
-                                        knots_yv[seg_ind * 4 + pt_ind] = pt.value;
-                                    }
-                                }
-
-                                zgui.plot.plotScatter(name, f32, .{
-                                    .xv = knots_xv,
-                                    .yv = knots_yv,
-                                });
-                            }
-                        },
+                        .curve => |crv| try plot_curve(crv, allocator),
                         else => {},
                     }
                 }
-
                 zgui.plot.endPlot();
             }
         }
