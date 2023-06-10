@@ -345,7 +345,7 @@ fn plot_curve(
         );
         defer allocator.free(knots_yv);
 
-        for (bez.segments) |seg, seg_ind| {
+        for (hod.segments) |seg, seg_ind| {
             for (seg.points()) |pt, pt_ind| {
                 knots_xv[seg_ind * 4 + pt_ind] = pt.time;
                 knots_yv[seg_ind * 4 + pt_ind] = pt.value;
