@@ -278,82 +278,87 @@ pub fn evaluated_curve(
 }
 
 fn plot_curve(
-    crv: VisCurve,
+    in_crv: VisCurve,
     allocator: std.mem.Allocator,
 ) !void 
 {
-    const bez = crv.bezier;
+    _ = allocator;
+
+    switch (in_crv) 
     {
-        const pts = try evaluated_curve(bez, 1000);
+        inline else => |crv| {
+            const pts = try evaluated_curve(crv, 1000);
 
-        zgui.plot.setupLegend(
-            .{ 
-                .south = true,
-                .west = true 
-            },
-            .{}
-        );
-        zgui.plot.setupFinish();
-
-        zgui.plot.plotLine(
-            crv.fpath,
-            f32,
-            .{ .xv = &pts.xv, .yv = &pts.yv }
-        );
-    }
-
-    const hod = crv.split_hodograph;
-    {
-        const name:[:0]const u8 = try std.fmt.allocPrintZ(
-            allocator,
-            "{s}: Split at critical points via Hodograph",
-            .{crv.fpath[0..]}
-        );
-        defer allocator.free(name);
-
-        {
-            const pts = try evaluated_curve(hod, 1000);
+            zgui.plot.setupLegend(
+                .{ 
+                    .south = true,
+                    .west = true 
+                },
+                .{}
+            );
+            zgui.plot.setupFinish();
 
             zgui.plot.plotLine(
-                name,
+                crv.fpath,
                 f32,
-                .{
-                    .xv = &pts.xv,
-                    .yv = &pts.yv 
-                }
+                .{ .xv = &pts.xv, .yv = &pts.yv }
             );
-        }
+        },
     }
 
-    {
-        const name = try std.fmt.allocPrintZ(
-            allocator,
-            "{s}: Split Hodograph Bezier Control Points",
-            .{crv.fpath}
-        );
-        defer allocator.free(name);
+    // only true for the bezier
+    // const hod = crv.split_hodograph;
+    // {
+    //     const name:[:0]const u8 = try std.fmt.allocPrintZ(
+    //         allocator,
+    //         "{s}: Split at critical points via Hodograph",
+    //         .{crv.fpath[0..]}
+    //     );
+    //     defer allocator.free(name);
+    //
+    //     {
+    //         const pts = try evaluated_curve(hod, 1000);
+    //
+    //         zgui.plot.plotLine(
+    //             name,
+    //             f32,
+    //             .{
+    //                 .xv = &pts.xv,
+    //                 .yv = &pts.yv 
+    //             }
+    //         );
+    //     }
+    // }
 
-        const knots_xv = try allocator.alloc(f32, 4 * hod.segments.len);
-        defer allocator.free(knots_xv);
-        const knots_yv = try allocator.alloc(f32, 4 * hod.segments.len);
-        defer allocator.free(knots_yv);
-
-        for (hod.segments) |seg, seg_ind| {
-            for (seg.points()) |pt, pt_ind| {
-                knots_xv[seg_ind * 4 + pt_ind] = pt.time;
-                knots_yv[seg_ind * 4 + pt_ind] = pt.value;
-            }
-        }
-
-        zgui.plot.plotScatter(
-            name,
-            f32,
-            .{
-                .xv = knots_xv,
-                .yv = knots_yv,
-            }
-        );
-    }
+    // {
+    //     const name = try std.fmt.allocPrintZ(
+    //         allocator,
+    //         "{s}: Split Hodograph Bezier Control Points",
+    //         .{crv.fpath}
+    //     );
+    //     defer allocator.free(name);
+    //
+    //     const knots_xv = try allocator.alloc(f32, 4 * hod.segments.len);
+    //     defer allocator.free(knots_xv);
+    //     const knots_yv = try allocator.alloc(f32, 4 * hod.segments.len);
+    //     defer allocator.free(knots_yv);
+    //
+    //     for (hod.segments) |seg, seg_ind| {
+    //         for (seg.points()) |pt, pt_ind| {
+    //             knots_xv[seg_ind * 4 + pt_ind] = pt.time;
+    //             knots_yv[seg_ind * 4 + pt_ind] = pt.value;
+    //         }
+    //     }
+    //
+    //     zgui.plot.plotScatter(
+    //         name,
+    //         f32,
+    //         .{
+    //             .xv = knots_xv,
+    //             .yv = knots_yv,
+    //         }
+    //     );
+    // }
 }
 
 fn update(
@@ -364,7 +369,7 @@ fn update(
     var _proj = opentime.TimeTopology.init_identity_infinite();
     for (state.operations.items) |visop| {
         var _topology: opentime.TimeTopology = switch (visop) {
-            .curve => |crv| .{ .bezier_curve = .{ .bezier_curve = crv.bezier } },
+            .curve => |crv| .{ .bezier_curve = .{ .curve = crv.bezier } },
             .transform => |xform| .{ .affine = xform.topology },
         };
         _proj = try _topology.project_topology(_proj);

@@ -9,7 +9,7 @@ const expectEqual = std.testing.expectEqual;
 const expectApproxEqAbs = std.testing.expectApproxEqAbs;
 
 const ALLOCATOR = @import("../allocator.zig").ALLOCATOR;
-const opentime = @import("opentime");
+const opentime = @import("../opentime.zig");
 const ContinuousTimeInterval = opentime.ContinuousTimeInterval;
 
 fn _is_between(val: f32, fst: f32, snd: f32) bool {
@@ -38,6 +38,24 @@ pub const TimeCurveLinear = struct {
         }
 
         return TimeCurveLinear{ .knots = result.items };
+    }
+
+    pub fn project_affine(
+        self: @This(),
+        aff: opentime.transform.AffineTransform1D,
+        allocator: std.mem.Allocator,
+    ) !TimeCurveLinear 
+    {
+        var result_knots = try allocator.dupe(ControlPoint, self.knots);
+
+        for (self.knots) |pt, pt_index| {
+            result_knots[pt_index] = .{ 
+                .time = aff.applied_to_seconds(pt.time),
+                .value = pt.value,
+            };
+        }
+
+        return .{ .knots = result_knots };
     }
 
     // @TODO: write .deinit() to free knots
