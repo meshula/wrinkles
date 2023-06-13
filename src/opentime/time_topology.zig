@@ -350,13 +350,10 @@ pub const BezierTopology = struct {
             },
             .bezier_curve => |bez| .{
                 .bezier_curve = .{
-                    .curve = curve.TimeCurve.init_from_linear_curve(
-                        self.curve.linearized().project_curve(bez.curve.linearized())[0]
-                    )
+                    .curve = self.curve.project_curve(bez.curve)
                 }
             },
             .empty => .{ .empty = EmptyTopology{} },
-            else => { unreachable; },
         };
     }
 };
@@ -447,7 +444,7 @@ pub const TimeTopology = union (enum) {
     }
     
     pub fn init_bezier_cubic(btc: curve.TimeCurve) TimeTopology {
-        return .{.bezier_curve = .{.bezier_curve = btc}};
+        return .{.bezier_curve = .{.curve = btc}};
     }
     
     pub fn init_empty() TimeTopology {
