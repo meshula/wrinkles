@@ -22,10 +22,12 @@ const VisCurve = struct {
     fpath: [:0]u8,
     curve: curve.TimeCurve,
     split_hodograph: curve.TimeCurve,
+    active: bool = true,
 };
 
 const VisTransform = struct {
     topology: opentime.time_topology.AffineTopology = .{},
+    active: bool = true,
 };
 
 const VisOperation = union(enum) {
@@ -354,10 +356,27 @@ fn update(
 ) !void {
     var _proj = opentime.TimeTopology.init_identity_infinite();
     for (state.operations.items) |visop| {
-        var _topology: opentime.TimeTopology = switch (visop) {
-            .curve => |crv| .{ .bezier_curve = .{ .curve = crv.curve } },
-            .transform => |xform| .{ .affine = xform.topology },
-        };
+        var _topology: opentime.TimeTopology = .{ .empty = .{} };
+        switch (visop) {
+            .transform => |xform| {
+                if (!xform.active) {
+                    continue;
+                } else {
+                    _topology = .{ .affine = xform.topology };
+                }
+            },
+            .curve => |crv| {
+                if (!crv.active) {
+                    continue;
+                } else {
+                    _topology = .{ .bezier_curve = .{ .curve = crv.curve } };
+                }
+                // var _topology: opentime.TimeTopology = switch (visop) {
+                //     .curve => |crv| .{ .bezier_curve = .{ .curve = crv.curve } },
+                //     .transform => |xform| .{ .affine = xform.topology },
+                // };
+            },
+        }
         _proj = try _topology.project_topology(_proj);
     }
 
@@ -458,6 +477,7 @@ fn update(
                                 .{ .default_open = true })
                         ) 
                         {
+                            _ = zgui.checkbox("active", .{.v = &crv.active});
                             _ = zgui.inputText(
                                 "file path",
                                 .{ .buf = crv.*.fpath[0..] }
@@ -472,6 +492,7 @@ fn update(
                             )
                         ) 
                         {
+                            _ = zgui.checkbox("active", .{.v = &xform.active});
                             var bounds: [2]f32 = .{
                                 xform.topology.bounds.start_seconds,
                                 xform.topology.bounds.end_seconds,
