@@ -281,6 +281,7 @@ pub fn evaluated_curve(
 
 fn plot_curve(
     crv: VisCurve,
+    name: [:0]const u8,
     allocator: std.mem.Allocator,
 ) !void 
 {
@@ -289,7 +290,7 @@ fn plot_curve(
     const pts = try evaluated_curve(crv.curve, 1000);
 
     zgui.plot.plotLine(
-        crv.fpath,
+        name,
         f32,
         .{ .xv = &pts.xv, .yv = &pts.yv }
     );
@@ -406,7 +407,18 @@ fn update(
         return;
     }
 
+
+    // FPS/status line
+    zgui.bulletText(
+        "Average : {d:.3} ms/frame ({d:.1} fps)",
+        .{ gfx_state.gctx.stats.average_cpu_time, gfx_state.gctx.stats.fps },
+    );
+    zgui.spacing();
+
     // _ = zgui.showDemoWindow(null);
+
+    var tmp_buf:[1024:0]u8 = .{};
+    std.mem.set(u8, &tmp_buf, 0);
 
     {
         if (zgui.beginChild("Plot", .{ .w = width - 600 }))
@@ -423,9 +435,17 @@ fn update(
                     .{}
                 );
                 zgui.plot.setupFinish();
-                for (state.operations.items) |visop| {
+                for (state.operations.items) |visop, op_index| {
                     switch (visop) {
-                        .curve => |crv| try plot_curve(crv, allocator),
+                        .curve => |crv| {
+                            const name = try std.fmt.bufPrintZ(
+                                &tmp_buf,
+                                "{d}: Bezier Curve / {s}",
+                                .{op_index, crv.fpath[0..]}
+                            );
+
+                            try plot_curve(crv, name, allocator);
+                        },
                         else => {},
                     }
                 }
@@ -549,13 +569,6 @@ fn update(
         }
         defer zgui.endChild();
     }
-
-    // FPS/status line
-    zgui.spacing();
-    zgui.bulletText(
-        "Average : {d:.3} ms/frame ({d:.1} fps)",
-        .{ gfx_state.gctx.stats.average_cpu_time, gfx_state.gctx.stats.fps },
-    );
 
     zgui.end();
 }
