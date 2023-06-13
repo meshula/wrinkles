@@ -796,13 +796,16 @@ pub const TimeCurve = struct {
         other: TimeCurve
     ) TimeCurve 
     {
+        const self_hodograph = self.split_on_critical_points(ALLOCATOR) catch unreachable;
+        const other_hodograph = other.split_on_critical_points(ALLOCATOR) catch unreachable;
+
         const other_bounds = other.extents();
-        var other_copy = TimeCurve.init(other.segments) catch unreachable;
+        var other_copy = TimeCurve.init(other_hodograph.segments) catch unreachable;
 
         // @TODO - split on hodographs and do the projection there
 
         // find all knots in self that are within the other bounds
-        for (self.segment_endpoints() catch unreachable)
+        for (self_hodograph.segment_endpoints() catch unreachable)
             |self_knot| 
         {
             if (
@@ -812,7 +815,6 @@ pub const TimeCurve = struct {
                     other_bounds[1].value
                 )
             ) {
-                // @TODO: not sure how to do this in place?
                 other_copy = other_copy.split_at_each_output_ordinate(
                     self_knot.time,
                     ALLOCATOR
@@ -874,7 +876,10 @@ pub const TimeCurve = struct {
                     const value = self.evaluate(pt.value) catch (
                         if (self.segments[self.segments.len-1].p3.time == pt.value)
                         self.segments[self.segments.len-1].p3.value                    
-                        else unreachable
+                        else {
+                            std.debug.print("pt: {any} extents: {any} \n", .{ pt, self.extents() });
+                            unreachable;
+                        }
                     );
                     tmp[pt_index] = .{
                         .time = pt.time,
