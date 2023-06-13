@@ -124,9 +124,9 @@ pub const AffineTopology = struct {
         return switch (other) {
             .bezier_curve => |other_bez| .{ 
                 .bezier_curve = .{
-                    .bezier_curve = try curve.affine_project_curve(
+                    .curve = try curve.affine_project_curve(
                         self.transform,
-                        other_bez.bezier_curve,
+                        other_bez.curve,
                         allocator.ALLOCATOR
                     )
                 }
@@ -167,11 +167,11 @@ pub const AffineTopology = struct {
     }
 };
 
-pub const BezierTopology = struct {
-    bezier_curve: curve.TimeCurve,
+pub const LinearTopology = struct {
+    curve: curve.TimeCurveLinear,
 
     pub fn compute_bounds(self: @This()) interval.ContinuousTimeInterval {
-        const extents = self.bezier_curve.extents();
+        const extents = self.curve.extents();
 
         return .{
             .start_seconds = extents[0].time,
@@ -188,7 +188,69 @@ pub const BezierTopology = struct {
     }
 
     pub fn project_ordinate(self: @This(), ordinate: Ordinate) !Ordinate {
-        return self.bezier_curve.evaluate(ordinate);
+        return self.curve.evaluate(ordinate);
+    }
+
+    pub fn inverted(self: @This()) !TimeTopology {
+        _ = self;
+        return error.NotImplemented;
+    }
+
+    // @TODO: needs to return a list of topologies (imagine a line projected
+    //        through a u)
+    pub fn project_topology(
+        self: @This(),
+        other: TimeTopology,
+        // @TODO: should fill a list of TimeTopology
+        // out: *std.ArrayList(TimeTopology),
+    ) !TimeTopology 
+    {
+        return switch (other) {
+            .affine => |aff| {
+                const projected_curve = try self.curve.project_affine(
+                    aff.transform,
+                    allocator.ALLOCATOR
+                );
+
+                return .{
+                    .linear_curve = .{ .curve = projected_curve }
+                };
+            },
+            .bezier_curve => |bez| .{
+                .linear_curve = .{
+                    .curve = self.curve.project_curve(bez.curve.linearized())[0]
+                }
+            },
+            .linear_curve => |lin| .{
+                .linear_curve = .{ .curve = self.curve.project_curve(lin.curve)[0] }
+            },
+            .empty => .{ .empty = EmptyTopology{} },
+        };
+    }
+};
+
+pub const BezierTopology = struct {
+    curve: curve.TimeCurve,
+
+    pub fn compute_bounds(self: @This()) interval.ContinuousTimeInterval {
+        const extents = self.curve.extents();
+
+        return .{
+            .start_seconds = extents[0].time,
+            .end_seconds = extents[1].time,
+        };
+    }
+
+    pub fn project_sample(self: @This(), sample: Sample) !Sample {
+        var result = sample;
+        result.ordinate_seconds = try self.project_ordinate(
+            sample.ordinate_seconds
+        );
+        return result;
+    }
+
+    pub fn project_ordinate(self: @This(), ordinate: Ordinate) !Ordinate {
+        return self.curve.evaluate(ordinate);
     }
 
     pub fn inverted(self: @This()) !TimeTopology {
@@ -277,22 +339,22 @@ pub const BezierTopology = struct {
     {
         return switch (other) {
             .affine => |aff| {
-                const projected_curve = try self.bezier_curve.project_affine(
+                const projected_curve = try self.curve.project_affine(
                     aff.transform,
                     allocator.ALLOCATOR
                 );
 
                 return .{
-                    .bezier_curve = .{ .bezier_curve = projected_curve }
+                    .bezier_curve = .{ .curve = projected_curve }
                 };
             },
-            // .bezier_curve => |bez| .{
-            //     .bezier_curve = .{
-            //         .bezier_curve = curve.TimeCurve.init_from_linear_curve(
-            //             self.bezier_curve.project_curve(bez.bezier_curve)[0]
-            //         )
-            //     }
-            // },
+            .bezier_curve => |bez| .{
+                .bezier_curve = .{
+                    .curve = curve.TimeCurve.init_from_linear_curve(
+                        self.curve.linearized().project_curve(bez.curve.linearized())[0]
+                    )
+                }
+            },
             .empty => .{ .empty = EmptyTopology{} },
             else => { unreachable; },
         };
@@ -335,8 +397,8 @@ pub const TimeTopology = union (enum) {
     affine: AffineTopology,
     empty: EmptyTopology,
 
-    // linear_curve: curve.TimeCurveLinear,
     bezier_curve: BezierTopology,
+    linear_curve: LinearTopology,
 
     // linear_holodrome_curve: curve.TimeCurveLinearHolodrome,
     // bezier_holodrome_curve: curve.TimeCurveBezierHolodrome,
@@ -462,8 +524,8 @@ pub const TimeTopology = union (enum) {
         }
 
         return switch(self) {
-            inline .affine, .bezier_curve => |v| v.project_topology(other),
             .empty => .{ .empty = .{} },
+            inline else =>|v| v.project_topology(other),
         };
     }
     // @}
@@ -765,11 +827,11 @@ test "TimeTopology: staircase constructor" {
 
     try expectEqual(
         @as(usize, 5),
-        tp.bezier_curve.bezier_curve.segments.len
+        tp.bezier_curve.curve.segments.len
     );
 
     var value:f32 = 0;
-    for (tp.bezier_curve.bezier_curve.segments) |seg| {
+    for (tp.bezier_curve.curve.segments) |seg| {
         try expectEqual(value, seg.p0.value);
         value += increment;
     }
