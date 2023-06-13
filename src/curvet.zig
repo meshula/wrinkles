@@ -457,7 +457,26 @@ fn update(
                             .{ .xv = &pts.xv, .yv = &pts.yv }
                         );
                     },
-                    else => {},
+                    .affine =>  {
+                        zgui.plot.plotLine(
+                            "NO RESULT: AFFINE",
+                            f32,
+                            .{ 
+                                .xv = &[_] f32{},
+                                .yv = &[_] f32{},
+                            }
+                        );
+                    },
+                    .empty => {
+                        zgui.plot.plotLine(
+                            "EMPTY RESULT",
+                            f32,
+                            .{ 
+                                .xv = &[_] f32{},
+                                .yv = &[_] f32{},
+                            }
+                        );
+                    },
                 }
                 zgui.plot.endPlot();
             }
