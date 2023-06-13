@@ -20,7 +20,7 @@ const util = @import("opentime/util.zig");
 
 const VisCurve = struct {
     fpath: [:0]u8,
-    bezier: curve.TimeCurve,
+    curve: curve.TimeCurve,
     split_hodograph: curve.TimeCurve,
 };
 
@@ -40,7 +40,7 @@ const VisState = struct {
         for (self.operations.items) |visop| {
             switch (visop) {
                 .curve => |crv| {
-                    allocator.free(crv.bezier.segments);
+                    allocator.free(crv.curve.segments);
                     allocator.free(crv.split_hodograph.segments);
                     allocator.free(crv.fpath);
                 },
@@ -278,33 +278,28 @@ pub fn evaluated_curve(
 }
 
 fn plot_curve(
-    in_crv: VisCurve,
+    crv: VisCurve,
     allocator: std.mem.Allocator,
 ) !void 
 {
     _ = allocator;
 
-    switch (in_crv) 
-    {
-        inline else => |crv| {
-            const pts = try evaluated_curve(crv, 1000);
+    const pts = try evaluated_curve(crv.curve, 1000);
 
-            zgui.plot.setupLegend(
-                .{ 
-                    .south = true,
-                    .west = true 
-                },
-                .{}
-            );
-            zgui.plot.setupFinish();
-
-            zgui.plot.plotLine(
-                crv.fpath,
-                f32,
-                .{ .xv = &pts.xv, .yv = &pts.yv }
-            );
+    zgui.plot.setupLegend(
+        .{ 
+            .south = true,
+            .west = true 
         },
-    }
+        .{}
+    );
+    zgui.plot.setupFinish();
+
+    zgui.plot.plotLine(
+        crv.fpath,
+        f32,
+        .{ .xv = &pts.xv, .yv = &pts.yv }
+    );
 
     // only true for the bezier
     // const hod = crv.split_hodograph;
@@ -369,7 +364,7 @@ fn update(
     var _proj = opentime.TimeTopology.init_identity_infinite();
     for (state.operations.items) |visop| {
         var _topology: opentime.TimeTopology = switch (visop) {
-            .curve => |crv| .{ .bezier_curve = .{ .curve = crv.bezier } },
+            .curve => |crv| .{ .bezier_curve = .{ .curve = crv.curve } },
             .transform => |xform| .{ .affine = xform.topology },
         };
         _proj = try _topology.project_topology(_proj);
@@ -578,7 +573,7 @@ fn _parse_args(
 
         var viscurve = VisCurve{
             .fpath = try allocator.dupeZ(u8, fpath),
-            .bezier = crv,
+            .curve = crv,
             .split_hodograph = try crv.split_on_critical_points(allocator),
         };
 
