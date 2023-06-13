@@ -41,6 +41,9 @@ fn expectApproxEql(expected: anytype, actual: @TypeOf(expected)) !void {
     return std.testing.expectApproxEqAbs(expected, actual, generic_curve.EPSILON);
 }
 
+fn _is_between(val: f32, fst: f32, snd: f32) bool {
+    return ((fst <= val and val < snd) or (fst >= val and val > snd));
+}
 
 // Time curves are functions mapping a time to a value.
 // Time curves are a sequence of right met 2d Bezier curve segments
@@ -139,6 +142,13 @@ pub const Segment = struct {
 
     pub fn from_pt_array(pts: [4]ControlPoint) Segment {
         return .{ .p0 = pts[0], .p1 = pts[1], .p2 = pts[2], .p3 = pts[3], };
+    }
+
+    pub fn set_points(self: *@This(), pts: [4]ControlPoint) void {
+        self.p0 = pts[0];
+        self.p1 = pts[1];
+        self.p2 = pts[2];
+        self.p3 = pts[3];
     }
 
     /// evaluate the segment at parameter unorm, [0, 1)
@@ -784,13 +794,111 @@ pub const TimeCurve = struct {
     pub fn project_curve(
         self: @This(),
         other: TimeCurve
-        // should return []TimeCurve
-    ) TimeCurve {
-        _ = self;
-        _ = other;
+    ) TimeCurve 
+    {
+        const other_bounds = other.extents();
+        var other_copy = TimeCurve.init(other.segments) catch unreachable;
+
+        // @TODO - split on hodographs and do the projection there
+
+        // find all knots in self that are within the other bounds
+        for (self.segment_endpoints() catch unreachable)
+            |self_knot| 
+        {
+            if (
+                _is_between(
+                    self_knot.time,
+                    other_bounds[0].value,
+                    other_bounds[1].value
+                )
+            ) {
+                // @TODO: not sure how to do this in place?
+                other_copy = other_copy.split_at_each_output_ordinate(
+                    self_knot.time,
+                    ALLOCATOR
+                ) catch unreachable;
+            }
+
+        }
+
+        var curves_to_project = std.ArrayList(TimeCurve).init(ALLOCATOR);
+        const self_bounds = self.extents();
+
+        var last_index: i32 = -10;
+        var current_curve = std.ArrayList(Segment).init(ALLOCATOR);
+
+        for (other_copy.segments) 
+            |other_segment, index| 
+        {
+            const other_knot = other_segment.p0;
+
+            if (
+                self_bounds[0].time <= other_knot.value 
+                and other_knot.value <= self_bounds[1].time
+            ) 
+            {
+                if (index != last_index+1) {
+                    // curves of less than one point are trimmed, because they
+                    // have no duration, and therefore are not modelled in our
+                    // system.
+                    if (current_curve.items.len > 1) {
+                        curves_to_project.append(
+                            TimeCurve.init(
+                                current_curve.items
+                            ) catch unreachable
+                        ) catch unreachable;
+                    }
+                    current_curve = std.ArrayList(Segment).init(ALLOCATOR);
+                }
+
+                current_curve.append(other_segment) catch unreachable;
+                last_index = @intCast(i32, index);
+            }
+        }
+        if (current_curve.items.len > 1) {
+            curves_to_project.append(
+                TimeCurve.init(current_curve.items) catch unreachable
+            ) catch unreachable;
+        }
+
+        if (curves_to_project.items.len == 0) {
+            return TimeCurve{};
+        }
+
+        for (curves_to_project.items) 
+            |*crv| 
+        {
+            for (crv.segments) |*segment| {
+                var tmp: [4]ControlPoint = .{};
+                for (segment.points()) |pt, pt_index| {
+                    const value = self.evaluate(pt.value) catch (
+                        if (self.segments[self.segments.len-1].p3.time == pt.value)
+                        self.segments[self.segments.len-1].p3.value                    
+                        else unreachable
+                    );
+                    tmp[pt_index] = .{
+                        .time = pt.time,
+                        .value = value,
+                    };
+                }
+                segment.*.set_points(tmp);
+            }
+        }
 
         return .{};
     }
+
+    pub fn segment_endpoints(self: @This()) ![]ControlPoint {
+        var result = std.ArrayList(ControlPoint).init(ALLOCATOR);
+        if (self.segments.len > 0) {
+            try result.append(self.segments[0].p0);
+        }
+        for (self.segments) |seg| {
+            try result.append(seg.p3);
+        }
+        return result.items;
+    }
+
     pub fn project_linear_curve(
         self: @This(),
         other: linear_curve.TimeCurveLinear,
@@ -894,6 +1002,51 @@ pub const TimeCurve = struct {
          std.mem.copy(Segment, after_split_dest, after_split_src);
 
         return .{ .segments = new_segments };
+    }
+
+    /// returns a copy of self which is split in the segment which overlaps
+    /// the ordinate at the ordinate in the input space.
+    ///
+    /// Example:
+    /// Curve has three segments [0, 3)[0, 10)[0, 4)
+    /// ordinate: 5
+    ///
+    /// result:
+    /// [0, 3)[0, 5)[5, 10)[0, 4)
+    pub fn split_at_each_output_ordinate(
+        self:@This(),
+        ordinate:f32,
+        allocator: std.mem.Allocator,
+    ) !TimeCurve 
+    {
+        var segments_to_split = std.ArrayList(usize).init(allocator);
+        defer segments_to_split.deinit();
+
+        for (self.segments) |seg, seg_index| {
+            const ext = seg.extents();
+            if (_is_between(ordinate, ext[0].value, ext[1].value)) {
+                try segments_to_split.append(seg_index);
+            }
+        }
+
+        if (segments_to_split.items.len == 0) {
+            return error.OutOfBounds;
+        }
+
+        var new_segments = std.ArrayList(Segment).init(allocator);
+        try new_segments.appendSlice(self.segments);
+
+        for (segments_to_split.items) |seg_to_split_index| {
+            var split_segments = self.segments[seg_to_split_index].split_at(
+                ordinate
+            );
+
+            try new_segments.insert(seg_to_split_index, split_segments[0]);
+            _ = new_segments.orderedRemove(seg_to_split_index+1);
+            try new_segments.insert(seg_to_split_index+1, split_segments[1]);
+        }
+
+        return .{ .segments = new_segments.items };
     }
 
     const TrimDir = enum {
@@ -1201,7 +1354,7 @@ test "TimeCurve: projection_test non-overlapping" {
 
     const result = fst.project_curve(snd);
 
-    try expectEqual(@as(usize, 0), result.len);
+    try expectEqual(@as(usize, 0), result.segments.len);
 }
 
 test "positive slope 2 linear segment test" {
@@ -1397,9 +1550,9 @@ test "TimeCurve: project u loop bug" {
     }; 
     const upside_down_u = try TimeCurve.init(&u_seg);
 
-    const result : []TimeCurve = simple_s.project_curve(upside_down_u);
+    const result : TimeCurve = simple_s.project_curve(upside_down_u);
 
-    _ = result;
+    try expectEqual(@as(usize, 2), result.segments.len);
 }
 
 test "TimeCurve: split_at_input_ordinate" {
