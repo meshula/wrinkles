@@ -286,15 +286,6 @@ fn plot_curve(
 
     const pts = try evaluated_curve(crv.curve, 1000);
 
-    zgui.plot.setupLegend(
-        .{ 
-            .south = true,
-            .west = true 
-        },
-        .{}
-    );
-    zgui.plot.setupFinish();
-
     zgui.plot.plotLine(
         crv.fpath,
         f32,
@@ -405,12 +396,49 @@ fn update(
             if (zgui.plot.beginPlot("Curve Plot", .{ .h = -1.0 })) {
                 zgui.plot.setupAxis(.x1, .{ .label = "input" });
                 zgui.plot.setupAxis(.y1, .{ .label = "output" });
-
+                zgui.plot.setupLegend(
+                    .{ 
+                        .south = true,
+                        .west = true 
+                    },
+                    .{}
+                );
+                zgui.plot.setupFinish();
                 for (state.operations.items) |visop| {
                     switch (visop) {
                         .curve => |crv| try plot_curve(crv, allocator),
                         else => {},
                     }
+                }
+                switch (_proj) {
+                    .linear_curve => |lint| { 
+                        const lin = lint.curve;
+                        var xv:[]f32 = try allocator.alloc(f32, lin.knots.len);
+                        defer allocator.free(xv);
+                        var yv:[]f32 = try allocator.alloc(f32, lin.knots.len);
+                        defer allocator.free(yv);
+                        
+                        for (lin.knots) |knot, knot_index| {
+                            xv[knot_index] = knot.time;
+                            yv[knot_index] = knot.value;
+                        }
+
+                        zgui.plot.plotLine(
+                            "result",
+                            f32,
+                            .{ .xv = xv, .yv = yv }
+                        );
+                    },
+                    .bezier_curve => |bez| {
+                        const pts = try evaluated_curve(bez.curve, 1000);
+
+                        zgui.plot.plotLine(
+                            "result",
+                            f32,
+                            .{ .xv = &pts.xv, .yv = &pts.yv }
+                        );
+                    },
+                    else => {},
                 }
                 zgui.plot.endPlot();
             }
