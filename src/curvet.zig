@@ -472,7 +472,6 @@ fn update(
                             )
                         ) 
                         {
-                            var xform_topo = xform.*.topology.transform;
                             var bounds: [2]f32 = .{
                                 xform.topology.bounds.start_seconds,
                                 xform.topology.bounds.end_seconds,
@@ -482,7 +481,7 @@ fn update(
                                 .{
                                     .min = -10,
                                     .max = 10,
-                                    .v = &xform_topo.offset_seconds 
+                                    .v = &xform.topology.transform.offset_seconds
                                 }
                             );
                             _ = zgui.sliderFloat(
@@ -490,7 +489,7 @@ fn update(
                                 .{
                                     .min = -10,
                                     .max = 10,
-                                    .v = &xform_topo.scale 
+                                    .v = &xform.topology.transform.scale
                                 }
                             );
                             _ = zgui.inputFloat2(
