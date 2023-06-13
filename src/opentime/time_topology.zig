@@ -131,9 +131,16 @@ pub const AffineTopology = struct {
                     )
                 }
             },
-           // .linear_curve => |_| {
-           //     unreachable;
-           // },
+           .linear_curve => |lin| {
+               var result = try curve.TimeCurveLinear.init(lin.curve.knots);
+               for (lin.curve.knots) |knot, knot_index| {
+                    result.knots[knot_index] = .{
+                        .time = self.transform.applied_to_seconds(knot.time),
+                        .value = knot.value,
+                    };
+               }
+               return .{ .linear_curve = .{ .curve = result }};
+           },
            .affine => |other_aff| {
                const inv_xform = other_aff.transform.inverted();
 
@@ -162,7 +169,7 @@ pub const AffineTopology = struct {
                    return .{ .empty = .{} };
                }
            },
-           else => .{ .empty = .{} },
+           .empty => .{ .empty = .{} },
         };
     }
 };
@@ -349,8 +356,13 @@ pub const BezierTopology = struct {
                 };
             },
             .bezier_curve => |bez| .{
-                .bezier_curve = .{
-                    .curve = self.curve.project_curve(bez.curve)
+                // .bezier_curve = .{
+                //     .curve = self.curve.project_curve(bez.curve)
+                // }
+                .linear_curve = .{
+                    .curve = self.curve.linearized().project_curve(
+                        bez.curve.linearized()
+                    )[0]
                 }
             },
             .linear_curve => |lin| .{
