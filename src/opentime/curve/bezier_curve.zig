@@ -574,7 +574,7 @@ pub fn create_linear_segment(p0: ControlPoint, p1: ControlPoint) Segment {
     }
 
     debug_panic(
-        "Create bezier segment failed, {}, {}\n",
+        "Create linear segment failed, {}, {}\n",
         .{p0.time, p1.time}
     );
 }
