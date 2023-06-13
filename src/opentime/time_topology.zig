@@ -353,6 +353,11 @@ pub const BezierTopology = struct {
                     .curve = self.curve.project_curve(bez.curve)
                 }
             },
+            .linear_curve => |lin| .{
+                .linear_curve = .{
+                    .curve = self.curve.linearized().project_curve(lin.curve)[0]
+                }
+            },
             .empty => .{ .empty = EmptyTopology{} },
         };
     }
