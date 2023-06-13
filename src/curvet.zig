@@ -511,15 +511,21 @@ fn update(
             for (state.operations.items) |*visop| {
                 switch (visop.*) {
                     .curve => |*crv| {
+                        zgui.pushPtrId(@ptrCast(*const anyopaque, crv));
+                        defer zgui.popId();
                         if (
-                            zgui.collapsingHeader("Curve Settings",
-                                .{ .default_open = true })
+                            zgui.collapsingHeader(
+                                "Curve Settings",
+                                .{ .default_open = true }
+                            )
                         ) 
                         {
-                            _ = zgui.checkbox("active", .{.v = &crv.active});
-                            _ = zgui.inputText(
-                                "file path",
-                                .{ .buf = crv.*.fpath[0..] }
+                            zgui.pushPtrId(&crv.active);
+                            defer zgui.popId();
+                            _ = zgui.checkbox("Mute", .{.v = &crv.active});
+                            zgui.text(
+                                "file path: {s}",
+                                .{ crv.*.fpath[0..] }
                             );
                         }
                     },
