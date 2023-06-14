@@ -458,7 +458,7 @@ int main(void)
     Vector2 p1 = start;
     p1.y -= screenHeight * 0.5f;
     Vector2 p2 = end;
-    p2.y -= screenHeight * 0.5f + 0.01;
+    p2.y -= screenHeight * 0.5f;
     
     // Vector2 start = { screenWidth * 0.75f, screenHeight * 0.15f };
     // Vector2 end = { screenWidth * 0.75f, screenHeight * 0.85f };

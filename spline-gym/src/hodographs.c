@@ -43,15 +43,19 @@ Vector2 bezier_roots(BezierSegment* bz) {
         p[1] = bz->p[1];
         p[2] = bz->p[2];
 
-        if (p[0].y == p[1].y) {
-            // nudge p[0].y slightly
-            p[0].y += 0.00001;
-        }
-
         float a = p[0].y - 2 * p[1].y + p[2].y;
         float b = 2 * (p[1].y - p[0].y);
         float c = p[0].y;
-
+        // is it linear?
+        if (fabsf(a) <= 1.e-4) {
+            if (fabsf(b) <= 1.e-4)
+                return rv; // no solutions
+            float t = -c / b;
+            if (t > 0 && t < 1.f)
+                rv.x = t; // linear solution
+            return rv;
+        }
+        
         // Check if discriminant is negative, meaning no real roots
         if (b * b - 4 * a * c < 0) {
             return rv;
@@ -63,11 +67,11 @@ Vector2 bezier_roots(BezierSegment* bz) {
         float t2 = (-b - sqrtDiscriminant) / (2 * a);
 
         // Check if roots are within [0, 1], meaning they are on the curve
-        if (t1 >= 0 && t1 <= 1) {
+        if (t1 > 0 && t1 < 1) {
             rv.x = t1;
         }
 
-        if (t2 >= 0 && t2 <= 1) {
+        if (t2 > 0 && t2 < 1) {
             rv.y = t2;
         }
 
