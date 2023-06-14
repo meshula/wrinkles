@@ -135,8 +135,8 @@ pub const AffineTopology = struct {
                var result = try curve.TimeCurveLinear.init(lin.curve.knots);
                for (lin.curve.knots) |knot, knot_index| {
                     result.knots[knot_index] = .{
-                        .time = self.transform.applied_to_seconds(knot.time),
-                        .value = knot.value,
+                        .time = knot.time,
+                        .value = self.transform.applied_to_seconds(knot.value),
                     };
                }
                return .{ .linear_curve = .{ .curve = result }};
