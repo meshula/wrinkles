@@ -32,6 +32,10 @@ BezierSegment compute_hodograph(BezierSegment* b)
     return r;
 }
 
+// Cardano's method, per https://pomax.github.io/bezierinfo
+// note that Cardano's method also has a solution for order 3, but
+// that's not needed for this library
+
 Vector2 bezier_roots(BezierSegment* bz) {
     Vector2 rv = { -1.f, -1.f };
     if (!bz || bz->order < 1 || bz->order > 2)
