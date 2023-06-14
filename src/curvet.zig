@@ -462,7 +462,7 @@ fn update(
                         }
 
                         zgui.plot.plotLine(
-                            "result",
+                            "result [linear]",
                             f32,
                             .{ .xv = xv, .yv = yv }
                         );
@@ -471,7 +471,7 @@ fn update(
                         const pts = try evaluated_curve(bez.curve, 1000);
 
                         zgui.plot.plotLine(
-                            "result",
+                            "result [bezier]",
                             f32,
                             .{ .xv = &pts.xv, .yv = &pts.yv }
                         );
@@ -521,7 +521,7 @@ fn update(
                         {
                             zgui.pushPtrId(&crv.active);
                             defer zgui.popId();
-                            _ = zgui.checkbox("Mute", .{.v = &crv.active});
+                            _ = zgui.checkbox("Active", .{.v = &crv.active});
                             zgui.text(
                                 "file path: {s}",
                                 .{ crv.*.fpath[0..] }
