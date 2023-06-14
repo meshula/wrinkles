@@ -191,22 +191,30 @@ pub const TimeCurveLinear = struct {
         //        as well
         //
         const other_bounds = other.extents();
-        var other_copy = TimeCurveLinear.init(other.knots) catch unreachable;
+        var other_split_at_self_knots = TimeCurveLinear{};
 
         // find all knots in self that are within the other bounds
-        for (self.knots)
-            |self_knot| 
         {
-            if (
-                _is_between(
-                    self_knot.time,
-                    other_bounds[0].value,
-                    other_bounds[1].value
-                )
-            ) {
-                // @TODO: not sure how to do this in place?
-                other_copy = other_copy.split_at_each_value(self_knot.time);
+            var split_points = std.ArrayList(f32).init(ALLOCATOR);
+            defer split_points.deinit();
+
+            for (self.knots)
+                |self_knot| 
+            {
+                if (
+                    _is_between(
+                        self_knot.time,
+                        other_bounds[0].value,
+                        other_bounds[1].value
+                    )
+                ) {
+                    split_points.append(self_knot.time) catch unreachable;
+                }
             }
+
+            other_split_at_self_knots = other.split_at_each_value(
+                split_points.items
+            );
         }
 
         // split other into curves where it goes in and out of the domain of self
@@ -216,7 +224,7 @@ pub const TimeCurveLinear = struct {
         var current_curve = std.ArrayList(ControlPoint).init(ALLOCATOR);
         defer current_curve.deinit();
 
-        for (other_copy.knots) 
+        for (other_split_at_self_knots.knots) 
             |other_knot, index| 
         {
             if (
@@ -318,7 +326,11 @@ pub const TimeCurveLinear = struct {
     }
 
     /// insert a knot each location on the curve that crosses the value v_arg
-    pub fn split_at_each_value(self: @This(), v_arg: f32) TimeCurveLinear {
+    pub fn split_at_each_value(
+        self: @This(),
+        split_points: []f32
+    ) TimeCurveLinear 
+    {
         var result = std.ArrayList(ControlPoint).init(ALLOCATOR);
         for (self.knots[0..self.knots.len-1])
             |knot, index|
@@ -326,10 +338,27 @@ pub const TimeCurveLinear = struct {
             result.append(knot) catch unreachable;
             const next_knot = self.knots[index+1];
 
-            if (knot.value < v_arg and v_arg < next_knot.value)
+            for (split_points) 
+                |pt_value_space| 
             {
-                const u = bezier_math.invlerp(v_arg, knot.value, next_knot.value);
-                result.append(bezier_math.lerp_cp(u, knot, next_knot)) catch unreachable;
+                if (
+                    knot.value < pt_value_space 
+                    and pt_value_space < next_knot.value
+                )
+                {
+                    const u = bezier_math.invlerp(
+                        pt_value_space,
+                        knot.value,
+                        next_knot.value
+                    );
+                    result.append(
+                        bezier_math.lerp_cp(
+                            u,
+                            knot,
+                            next_knot
+                        )
+                    ) catch unreachable;
+                }
             }
         }
         result.append(self.knots[self.knots.len-1]) catch unreachable;
