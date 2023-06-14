@@ -325,7 +325,8 @@ pub const TimeCurveLinear = struct {
         return .{ min, max };
     }
 
-    /// insert a knot each location on the curve that crosses the value v_arg
+    /// insert a knot each location on the curve that crosses the values in
+    /// split_points
     pub fn split_at_each_value(
         self: @This(),
         split_points: []f32
