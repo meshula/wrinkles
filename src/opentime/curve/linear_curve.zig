@@ -214,6 +214,8 @@ pub const TimeCurveLinear = struct {
         const self_bounds = self.extents();
         var last_index: i32 = -10;
         var current_curve = std.ArrayList(ControlPoint).init(ALLOCATOR);
+        defer current_curve.deinit();
+
         for (other_copy.knots) 
             |other_knot, index| 
         {

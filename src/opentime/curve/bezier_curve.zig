@@ -802,8 +802,6 @@ pub const TimeCurve = struct {
         const other_bounds = other.extents();
         var other_copy = TimeCurve.init(other_hodograph.segments) catch unreachable;
 
-        // @TODO - split on hodographs and do the projection there
-
         // find all knots in self that are within the other bounds
         for (self_hodograph.segment_endpoints() catch unreachable)
             |self_knot| 

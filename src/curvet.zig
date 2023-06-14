@@ -270,7 +270,6 @@ pub fn evaluated_curve(
         }
     }
 
-
     const end_point = crv.segments[crv.segments.len - 1].p3;
 
     xv[steps - 1] = end_point.time;
