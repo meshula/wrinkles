@@ -1550,6 +1550,63 @@ test "TimeCurve: project u loop bug" {
     try expectEqual(@as(usize, 2), result.segments.len);
 }
 
+test "TimeCurve: split_at_each_value" {
+    const u_seg = [_]Segment{
+        Segment{
+            .p0 = .{ .time = 0, .value = 0 },
+            .p1 = .{ .time = 0, .value = 100 },
+            .p2 = .{ .time = 100, .value = 100 },
+            .p3 = .{ .time = 100, .value = 0 },
+        },
+    }; 
+    const upside_down_u = try TimeCurve.init(&u_seg);
+    const upside_down_u_hodo = try upside_down_u.split_on_critical_points(
+        std.testing.allocator
+    );
+    defer upside_down_u_hodo.deinit(std.testing.allocator);
+
+    const split_points = [_]f32{
+        u_seg[0].eval_at(0).value, 
+        u_seg[0].eval_at(0.5).value, 
+        u_seg[0].eval_at(0.75).value, 
+        u_seg[0].eval_at(0.88).value, 
+        u_seg[0].eval_at(1).value, 
+    };
+
+    const result = try upside_down_u_hodo.split_at_each_output_ordinate(
+        &split_points,
+        std.testing.allocator
+    );
+    defer result.deinit(std.testing.allocator);
+
+    const endpoints = try result.segment_endpoints();
+    for (split_points)
+        |sp_p, index|
+    {
+        errdefer std.debug.print(
+            "Couldn't find : {d}: {d} in [{any:0.02}]\n",
+            .{
+                index,
+                sp_p,
+                endpoints,
+            }
+        );
+        
+        var found = false;
+        for (endpoints)
+            |pt|
+        {
+            if (std.math.approxEqAbs(f32, sp_p, pt.value, 0.00001)) {
+                found = true;
+            }
+        }
+
+        try std.testing.expect(found);
+    }
+
+    try expectEqual(@as(usize, 5), result.segments.len);
+}
+
 test "TimeCurve: split_at_input_ordinate" {
 
     const test_curves = [_]TimeCurve{
