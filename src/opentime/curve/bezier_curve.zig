@@ -802,23 +802,29 @@ pub const TimeCurve = struct {
         const other_bounds = other.extents();
         var other_copy = TimeCurve.init(other_hodograph.segments) catch unreachable;
 
-        // find all knots in self that are within the other bounds
-        for (self_hodograph.segment_endpoints() catch unreachable)
-            |self_knot| 
         {
-            if (
-                _is_between(
-                    self_knot.time,
-                    other_bounds[0].value,
-                    other_bounds[1].value
-                )
-            ) {
-                other_copy = other_copy.split_at_each_output_ordinate(
-                    self_knot.time,
-                    ALLOCATOR
-                ) catch unreachable;
-            }
+            var split_points = std.ArrayList(f32).init(ALLOCATOR);
+            defer split_points.deinit();
 
+            // find all knots in self that are within the other bounds
+            for (self_hodograph.segment_endpoints() catch unreachable)
+                |self_knot| 
+            {
+                if (
+                    _is_between(
+                        self_knot.time,
+                        other_bounds[0].value,
+                        other_bounds[1].value
+                    )
+                ) {
+                    split_points.append(self_knot.time) catch unreachable;
+                }
+
+            }
+            other_copy = other_copy.split_at_each_output_ordinate(
+                split_points.items,
+                ALLOCATOR
+            ) catch unreachable;
         }
 
         var curves_to_project = std.ArrayList(TimeCurve).init(ALLOCATOR);
@@ -888,7 +894,7 @@ pub const TimeCurve = struct {
             }
         }
 
-        return .{};
+        return curves_to_project.items[0];
     }
 
     pub fn segment_endpoints(self: @This()) ![]ControlPoint {
@@ -1012,44 +1018,57 @@ pub const TimeCurve = struct {
     ///
     /// Example:
     /// Curve has three segments [0, 3)[0, 10)[0, 4)
-    /// ordinate: 5
+    /// ordinates: {5, 15}
     ///
     /// result:
-    /// [0, 3)[0, 5)[5, 10)[0, 4)
+    /// [0, 3)[0, 5)[5, 10)[0,2)[2, 4)
     pub fn split_at_each_output_ordinate(
         self:@This(),
-        ordinate:f32,
+        ordinates:[]const f32,
         allocator: std.mem.Allocator,
     ) !TimeCurve 
     {
-        var segments_to_split = std.ArrayList(usize).init(allocator);
-        defer segments_to_split.deinit();
+        var result_segments = std.ArrayList(Segment).init(allocator);
+        try result_segments.appendSlice(self.segments);
 
-        for (self.segments) |seg, seg_index| {
-            const ext = seg.extents();
-            if (_is_between(ordinate, ext[0].value, ext[1].value)) {
-                try segments_to_split.append(seg_index);
+        var current_segment_index:usize = 0;
+
+        while (current_segment_index < result_segments.items.len) 
+            : (current_segment_index += 1) 
+        {
+            for (ordinates)
+                |ordinate|
+            {
+                const seg = result_segments.items[current_segment_index];
+                const ext = seg.extents();
+
+                if (
+                    _is_between(
+                        ordinate,
+                        ext[0].value,
+                        ext[1].value
+                    )
+                ) 
+                {
+                    const u = seg.findU_value(ordinate);
+
+                    // if it isn't an end point
+                    if (u > 0 + 0.000001 and u < 1 - 0.000001) {
+                        var split_segments = seg.split_at(u);
+                        try result_segments.insertSlice(
+                            current_segment_index,
+                            &split_segments
+                        );
+                        _ = result_segments.orderedRemove(
+                            current_segment_index + split_segments.len
+                        );
+                        continue;
+                    }
+                }
             }
         }
 
-        if (segments_to_split.items.len == 0) {
-            return error.OutOfBounds;
-        }
-
-        var new_segments = std.ArrayList(Segment).init(allocator);
-        try new_segments.appendSlice(self.segments);
-
-        for (segments_to_split.items) |seg_to_split_index| {
-            var split_segments = self.segments[seg_to_split_index].split_at(
-                ordinate
-            );
-
-            try new_segments.insert(seg_to_split_index, split_segments[0]);
-            _ = new_segments.orderedRemove(seg_to_split_index+1);
-            try new_segments.insert(seg_to_split_index+1, split_segments[1]);
-        }
-
-        return .{ .segments = new_segments.items };
+        return .{ .segments = result_segments.items };
     }
 
     const TrimDir = enum {
@@ -1547,10 +1566,10 @@ test "TimeCurve: project u loop bug" {
 
     const result : TimeCurve = simple_s.project_curve(upside_down_u);
 
-    try expectEqual(@as(usize, 2), result.segments.len);
+    try expectEqual(@as(usize, 4), result.segments.len);
 }
 
-test "TimeCurve: split_at_each_value" {
+test "TimeCurve: split_at_each_value u curve" {
     const u_seg = [_]Segment{
         Segment{
             .p0 = .{ .time = 0, .value = 0 },
@@ -1604,7 +1623,53 @@ test "TimeCurve: split_at_each_value" {
         try std.testing.expect(found);
     }
 
-    try expectEqual(@as(usize, 5), result.segments.len);
+    try expectEqual(@as(usize, 4), result.segments.len);
+}
+
+test "TimeCurve: split_at_each_value linear" {
+    const identSeg = create_identity_segment(-0.2, 1) ;
+    const lin = try TimeCurve.init(&.{identSeg});
+
+    const split_points = [_]f32{ -0.2, 0, 0.5, 1 };
+
+    const result = try lin.split_at_each_output_ordinate(
+        &split_points,
+        std.testing.allocator
+    );
+    defer result.deinit(std.testing.allocator);
+
+    var fbuf: [1024]f32 = .{};
+    const endpoints_cp = try result.segment_endpoints();
+    for (endpoints_cp) |cp, index| {
+        fbuf[index] = cp.value;
+    }
+    const endpoints = fbuf[0..endpoints_cp.len];
+
+    for (split_points)
+        |sp_p, index|
+    {
+        errdefer std.debug.print(
+            "Couldn't find : {d}: {d} in [{any:0.02}]\n",
+            .{
+                index,
+                sp_p,
+                endpoints,
+            }
+        );
+        
+        var found = false;
+        for (endpoints)
+            |pt|
+        {
+            if (std.math.approxEqAbs(f32, sp_p, pt, 0.00001)) {
+                found = true;
+            }
+        }
+
+        try std.testing.expect(found);
+    }
+
+    try expectEqual(@as(usize, 3), result.segments.len);
 }
 
 test "TimeCurve: split_at_input_ordinate" {
