@@ -371,10 +371,6 @@ fn update(
                 } else {
                     _topology = .{ .bezier_curve = .{ .curve = crv.curve } };
                 }
-                // var _topology: opentime.TimeTopology = switch (visop) {
-                //     .curve => |crv| .{ .bezier_curve = .{ .curve = crv.curve } },
-                //     .transform => |xform| .{ .affine = xform.topology },
-                // };
             },
         }
         _proj = try _topology.project_topology(_proj);
@@ -507,6 +503,9 @@ fn update(
 
     {
         if (zgui.beginChild("Settings", .{ .w = 600, .flags = main_flags })) {
+            var remove = std.ArrayList(usize).init(allocator);
+            defer remove.deinit();
+            var op_index:usize = 0;
             for (state.operations.items) |*visop| {
                 switch (visop.*) {
                     .curve => |*crv| {
@@ -517,11 +516,15 @@ fn update(
                                 "Curve Settings",
                                 .{ .default_open = true }
                             )
-                        ) 
+                        )
                         {
                             zgui.pushPtrId(&crv.active);
                             defer zgui.popId();
                             _ = zgui.checkbox("Active", .{.v = &crv.active});
+                            zgui.sameLine(.{});
+                            if (zgui.smallButton("Remove")) {
+                                try remove.append(op_index);
+                            }
                             zgui.text(
                                 "file path: {s}",
                                 .{ crv.*.fpath[0..] }
@@ -536,7 +539,11 @@ fn update(
                             )
                         ) 
                         {
-                            _ = zgui.checkbox("active", .{.v = &xform.active});
+                            _ = zgui.checkbox("Active", .{.v = &xform.active});
+                            zgui.sameLine(.{});
+                            if (zgui.smallButton("Remove")) {
+                                try remove.append(op_index);
+                            }
                             var bounds: [2]f32 = .{
                                 xform.topology.bounds.start_seconds,
                                 xform.topology.bounds.end_seconds,
@@ -567,9 +574,23 @@ fn update(
                     },
                 }
             }
+            if (zgui.smallButton("Add")) {
+                zgui.openPopup("Delete?");
+            }
 
-            var i:usize = 0;
-            while (i<10) : (i+=1) {
+            // Remove any "remove"'d operations
+            var i:usize = remove.items.len;
+            while (i > 0) {
+                i -= 1;
+                var visop = state.operations.orderedRemove(remove.items[i]);
+                switch (visop) {
+                    .curve => |crv| {
+                        allocator.free(crv.curve.segments);
+                        allocator.free(crv.split_hodograph.segments);
+                        allocator.free(crv.fpath);
+                    },
+                    else => {},
+                }
             }
         }
         defer zgui.endChild();
