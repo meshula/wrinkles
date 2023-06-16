@@ -153,7 +153,7 @@ const DemoState = struct {
     } = .{},
 };
 
-fn init(allocator: std.mem.Allocator, window: zglfw.Window) !*DemoState {
+fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*DemoState {
     const gctx = try zgpu.GraphicsContext.create(allocator, window);
 
     var arena_state = std.heap.ArenaAllocator.init(allocator);
@@ -424,7 +424,7 @@ fn update(demo: *DemoState) void {
     var points_y = std.mem.zeroes([t_stops]f32);
 
     if (zgui.collapsingHeader("Curves", .{})) {
-        for (demo.curves.items) |*crv, crv_index| {
+        for (demo.curves.items, 0..) |*crv, crv_index| {
             if (
                 zgui.collapsingHeader(
                     @ptrCast([:0]const u8, curveName(demo, crv_index)),
@@ -453,7 +453,7 @@ fn update(demo: *DemoState) void {
                     if (zgui.collapsingHeader("Original Points", .{})) {
                         for (crv.original_bezier.segments) |seg| {
                             const pts = seg.points();
-                            for (pts) |pt, pt_index| {
+                            for (pts, 0..) |pt, pt_index| {
                                 zgui.bulletText(
                                     "{d}: {{ {d:.6}, {d:.6} }}",
                                     .{ pt_index, pt.time, pt.value }
@@ -464,7 +464,7 @@ fn update(demo: *DemoState) void {
                     if (zgui.collapsingHeader("Normalized Hull Points", .{})) {
                         for (norm_crv.segments) |seg| {
                             const pts = seg.points();
-                            for (pts) |pt, pt_index| {
+                            for (pts, 0..) |pt, pt_index| {
                                 zgui.bulletText(
                                     "{d}: {{ {d:.6}, {d:.6} }}",
                                     .{ pt_index, pt.time, pt.value }
@@ -949,7 +949,7 @@ fn _parse_args(state:*DemoState, allocator: std.mem.Allocator) !void {
 
                 var new_pts:[4]curve.ControlPoint = pts;
 
-                for (pts) |pt, index| {
+                for (pts, 0..) |pt, index| {
                     new_pts[index] = _rescaledPoint(
                         pt,
                         extents,
@@ -996,7 +996,7 @@ fn _parse_args(state:*DemoState, allocator: std.mem.Allocator) !void {
             );
 
 
-            for (result) |crv, index| {
+            for (result, 0..) |crv, index| {
                 const outpath = try std.fmt.allocPrint(
                     ALLOCATOR,
                     "/var/tmp/debug.projected.{}.curve.json",
@@ -1031,11 +1031,10 @@ pub fn main() !void {
     //     return;
     // };
 
-    zglfw.defaultWindowHints();
-    zglfw.windowHint(.cocoa_retina_framebuffer, 1);
-    zglfw.windowHint(.client_api, 0);
+    zglfw.WindowHint.set(.cocoa_retina_framebuffer, 1);
+    zglfw.WindowHint.set(.client_api, 0);
     const window = (
-        zglfw.createWindow(1600, 1000, window_title, null, null) 
+        zglfw.Window.create(1600, 1000, window_title, null) 
         catch {
             std.log.err("Could not create a window", .{});
             return;
