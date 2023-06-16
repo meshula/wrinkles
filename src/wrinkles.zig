@@ -54,7 +54,7 @@ const DemoState = struct {
     frame_rate: i32 = 10,
 };
 
-fn init(allocator: std.mem.Allocator, window: zglfw.Window) !*DemoState {
+fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*DemoState {
     ot.ot_test();
 
     const gctx = try zgpu.GraphicsContext.create(allocator, window);
@@ -446,10 +446,9 @@ pub fn main() !void {
     };
     defer zglfw.terminate();
 
-    zglfw.defaultWindowHints();
-    zglfw.windowHint(.cocoa_retina_framebuffer, 1);
-    zglfw.windowHint(.client_api, 0);
-    const window = zglfw.createWindow(1600, 1000, window_title, null, null) catch {
+    zglfw.WindowHint.set(.cocoa_retina_framebuffer, 1);
+    zglfw.WindowHint.set(.client_api, 0);
+    const window = zglfw.Window.create(1600, 1000, window_title, null) catch {
         std.log.err("Could not create a window", .{});
         return;
     };

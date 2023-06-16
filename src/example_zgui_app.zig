@@ -28,7 +28,7 @@ const GraphicsState = struct {
 
     pub fn init(
         allocator: std.mem.Allocator,
-        window: zglfw.Window
+        window: *zglfw.Window
     ) !*GraphicsState 
     {
         const gctx = try zgpu.GraphicsContext.create(allocator, window);
@@ -149,9 +149,8 @@ pub fn main() !void {
     };
     defer zglfw.terminate();
 
-    zglfw.defaultWindowHints();
-    zglfw.windowHint(.cocoa_retina_framebuffer, 1);
-    zglfw.windowHint(.client_api, 0);
+    zglfw.WindowHint.set(.cocoa_retina_framebuffer, 1);
+    zglfw.WindowHint.set(.client_api, 0);
 
     const title = (
         "Example app with a full screen zgui ui [commit: " 
@@ -160,7 +159,7 @@ pub fn main() !void {
     );
 
     const window = (
-        zglfw.createWindow(1600, 1000, title, null, null) 
+        zglfw.Window.create(1600, 1000, title, null) 
         catch {
             std.log.err("Could not create a window", .{});
             return;
