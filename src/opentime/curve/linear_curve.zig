@@ -48,7 +48,7 @@ pub const TimeCurveLinear = struct {
     {
         var result_knots = try allocator.dupe(ControlPoint, self.knots);
 
-        for (self.knots) |pt, pt_index| {
+        for (self.knots, 0..) |pt, pt_index| {
             result_knots[pt_index] = .{ 
                 .time = aff.applied_to_seconds(pt.time),
                 .value = pt.value,
@@ -92,7 +92,7 @@ pub const TimeCurveLinear = struct {
         var result = std.ArrayList(u32).init(ALLOCATOR) catch unreachable;
 
         // last knot is out of domain
-        for (self.knots[0..self.knots.len-1]) 
+        for (self.knots[0..self.knots.len-1], 0..) 
             |knot, index| 
         {
             const next_knot = self.knots[index+1];
@@ -121,7 +121,7 @@ pub const TimeCurveLinear = struct {
         }
 
         // last knot is out of domain
-        for (self.knots[0..self.knots.len-1]) 
+        for (self.knots[0..self.knots.len-1], 0..) 
             |knot, index| 
         {
             if ( knot.time <= t_arg and t_arg < self.knots[index+1].time) 
@@ -224,7 +224,7 @@ pub const TimeCurveLinear = struct {
         var current_curve = std.ArrayList(ControlPoint).init(ALLOCATOR);
         defer current_curve.deinit();
 
-        for (other_split_at_self_knots.knots) 
+        for (other_split_at_self_knots.knots, 0..) 
             |other_knot, index| 
         {
             if (
@@ -264,7 +264,7 @@ pub const TimeCurveLinear = struct {
             |crv| 
         {
             // project each knot
-            for (crv.knots) 
+            for (crv.knots, 0..) 
                 |knot, index| 
             {
                 // 2. evaluate grows a parameter to treat endpoint as in bounds
@@ -333,7 +333,7 @@ pub const TimeCurveLinear = struct {
     ) TimeCurveLinear 
     {
         var result = std.ArrayList(ControlPoint).init(ALLOCATOR);
-        for (self.knots[0..self.knots.len-1])
+        for (self.knots[0..self.knots.len-1], 0..)
             |knot, index|
         {
             result.append(knot) catch unreachable;
