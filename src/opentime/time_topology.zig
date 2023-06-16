@@ -133,7 +133,7 @@ pub const AffineTopology = struct {
             },
            .linear_curve => |lin| {
                var result = try curve.TimeCurveLinear.init(lin.curve.knots);
-               for (lin.curve.knots) |knot, knot_index| {
+               for (lin.curve.knots, 0..) |knot, knot_index| {
                     result.knots[knot_index] = .{
                         .time = knot.time,
                         .value = self.transform.applied_to_seconds(knot.value),
@@ -572,7 +572,7 @@ test "TimeTopology: finite identity test"
     const expected_result = [_]f32 {   99,   100,   101,  102,  103,   104, };
     const err =             [_]bool{ true, false, false, false, true, true, };
 
-    for (times) 
+    for (times, 0..)
         |t, index| 
     {
         const s = Sample {
@@ -636,7 +636,7 @@ test "TimeTopology: finite Affine" {
         .{ .seconds = 100, .expected=200, .err = true },
     };
 
-    for (tests) |t, index| {
+    for (tests, 0..) |t, index| {
         errdefer std.log.err(
             "[{d}] time: {d} expected: {d} err: {any}",
             .{index, t.seconds, t.expected, t.err}
@@ -803,7 +803,7 @@ test "TimeTopology: Affine through Affine w/ negative scale" {
         .{ .output_s = 10, .media_s=100, .err = true },
     };
 
-    for (output_to_media_tests) |t, index| {
+    for (output_to_media_tests, 0..) |t, index| {
         errdefer std.log.err(
             "[{d}] time: {d} expected: {d} err: {any}",
             .{index, t.output_s, t.media_s, t.err}

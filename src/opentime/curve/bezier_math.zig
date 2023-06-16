@@ -247,9 +247,9 @@ pub fn normalized_to(
     var result = crv;
     result.segments = ALLOCATOR.dupe(curve.Segment, crv.segments) catch unreachable;
 
-    for (result.segments) |seg, seg_index| {
+    for (result.segments, 0..) |seg, seg_index| {
         var new_points:[4]ControlPoint = .{};
-        for (seg.points()) |pt, pt_index| {
+        for (seg.points(), 0..) |pt, pt_index| {
             new_points[pt_index] = .{
                 .time = remap_float(
                     pt.time,
@@ -352,7 +352,7 @@ pub fn inverted_linear(
     const needs_reversal = slope < 0;
     const knot_count = crv.knots.len;
 
-    for (crv.knots) |knot, index| {
+    for (crv.knots, 0..) |knot, index| {
         const real_index : usize = index;
         const real_knot:ControlPoint = knot;
         const target_index = (
@@ -469,7 +469,7 @@ pub fn rescaled_curve(
 
         var new_pts:[4]ControlPoint = pts;
 
-        for (pts) |pt, index| {
+        for (pts, 0..) |pt, index| {
             new_pts[index] = _rescaled_pt(pt, extents, target_range);
         }
 

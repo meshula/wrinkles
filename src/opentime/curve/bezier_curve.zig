@@ -681,7 +681,7 @@ pub const TimeCurve = struct {
     pub fn init_from_linear_curve(crv: linear_curve.TimeCurveLinear) TimeCurve {
         var result = std.ArrayList(Segment).init(ALLOCATOR);
 
-        for (crv.knots[0..crv.knots.len-1]) 
+        for (crv.knots[0..crv.knots.len-1], 0..) 
             |knot, index| 
         {
             const next_knot = crv.knots[index+1];
@@ -713,7 +713,7 @@ pub const TimeCurve = struct {
             return 0;
         }
 
-        for (self.segments) |seg, index| {
+        for (self.segments, 0..) |seg, index| {
             if (seg.p0.time <= t_arg and t_arg < seg.p3.time) {
                 // exactly in a segment
                 return index;
@@ -895,7 +895,7 @@ pub const TimeCurve = struct {
 
         std.debug.print("===========\n", .{});
 
-        for (other_split.segments) 
+        for (other_split.segments, 0..) 
             |other_segment, index| 
         {
             const other_seg_ext = other_segment.extents();
@@ -937,7 +937,7 @@ pub const TimeCurve = struct {
                 |*segment|
             {
                 var tmp: [4]ControlPoint = .{};
-                for (segment.points())
+                for (segment.points(), 0..)
                     |pt, pt_index|
                 {
                     const value = self.evaluate(pt.value) catch (
@@ -995,8 +995,8 @@ pub const TimeCurve = struct {
 
         var tmp:[4]opentime.curve.ControlPoint = .{};
 
-        for (self.segments) |seg, seg_index| {
-            for (seg.points()) |pt, pt_index| {
+        for (self.segments, 0..) |seg, seg_index| {
+            for (seg.points(), 0..) |pt, pt_index| {
                 tmp[pt_index] = .{ 
                     .time = aff.applied_to_seconds(pt.time),
                     .value = pt.value,
@@ -1312,11 +1312,9 @@ pub const TimeCurve = struct {
 
         var split_segments = std.ArrayList(Segment).init(allocator);
 
-        for (self.segments) |seg, seg_index| {
+        for (self.segments, 0..) |seg, seg_index| {
             errdefer std.debug.print("seg_index: {}\n", .{seg_index});
-            const ind = seg_index;
-            _ = ind;
-            for (seg.points()) |pt, index| {
+            for (seg.points(), 0..) |pt, index| {
                 cSeg.p[index].x = pt.time;
                 cSeg.p[index].y = pt.value;
             }
@@ -1761,7 +1759,7 @@ test "TimeCurve: split_at_each_value u curve" {
     defer result.deinit(std.testing.allocator);
 
     const endpoints = try result.segment_endpoints();
-    for (split_points)
+    for (split_points, 0..)
         |sp_p, index|
     {
         errdefer std.debug.print(
@@ -1802,12 +1800,12 @@ test "TimeCurve: split_at_each_value linear" {
 
     var fbuf: [1024]f32 = .{};
     const endpoints_cp = try result.segment_endpoints();
-    for (endpoints_cp) |cp, index| {
+    for (endpoints_cp, 0..) |cp, index| {
         fbuf[index] = cp.value;
     }
     const endpoints = fbuf[0..endpoints_cp.len];
 
-    for (split_points)
+    for (split_points, 0..)
         |sp_p, index|
     {
         errdefer std.debug.print(
@@ -1848,12 +1846,12 @@ test "TimeCurve: split_at_each_input_ordinate linear" {
 
     var fbuf: [1024]f32 = .{};
     const endpoints_cp = try result.segment_endpoints();
-    for (endpoints_cp) |cp, index| {
+    for (endpoints_cp, 0..) |cp, index| {
         fbuf[index] = cp.value;
     }
     const endpoints = fbuf[0..endpoints_cp.len];
 
-    for (split_points)
+    for (split_points, 0..)
         |sp_p, index|
     {
         errdefer std.debug.print(
@@ -1955,7 +1953,7 @@ test "TimeCurve: trimmed_from_input_ordinate" {
 
     defer test_curves[0].deinit(std.testing.allocator);
 
-    for (test_curves) |ident, curve_index| {
+    for (test_curves, 0..) |ident, curve_index| {
         const extents = ident.extents();
 
         // assumes that curve is 0-centered
@@ -2010,7 +2008,7 @@ test "TimeCurve: trimmed_from_input_ordinate" {
             },
         };
 
-        for (test_data) |td, index| {
+        for (test_data, 0..) |td, index| {
             errdefer std.debug.print(
                 "\ncurve: {} / loop: {}\n",
                 .{ curve_index, index }
@@ -2179,8 +2177,8 @@ test "TimeCurve: project_affine" {
         // number of segments shouldn't have changed
         try expectEqual(test_crv.segments.len, result.segments.len);
 
-        for (test_crv.segments) |t_seg, t_seg_index| {
-            for (t_seg.points()) |pt, pt_index| {
+        for (test_crv.segments, 0..) |t_seg, t_seg_index| {
+            for (t_seg.points(), 0..) |pt, pt_index| {
                 const result_pt = result.segments[t_seg_index].points()[pt_index];
                 errdefer  std.debug.print(
                     "\nseg: {} pt: {} ({d:.2}, {d:.2})\n"
@@ -2216,8 +2214,8 @@ pub fn affine_project_curve(
 
     var tmp:[4]opentime.curve.ControlPoint = .{};
 
-    for (rhs.segments) |seg, seg_index| {
-        for (seg.points()) |pt, pt_index| {
+    for (rhs.segments, 0..) |seg, seg_index| {
+        for (seg.points(), 0..) |pt, pt_index| {
             tmp[pt_index] = .{ 
                 .time = pt.time, 
                 .value = lhs.applied_to_seconds(pt.value),
@@ -2257,7 +2255,7 @@ test "affine_project_curve" {
         },
     };
 
-    for (test_affine) |testdata, test_loop_index| {
+    for (test_affine, 0..) |testdata, test_loop_index| {
         errdefer std.debug.print(
             "\ntest: {}, offset: {d:.2}, scale: {d:.2}\n",
             .{ test_loop_index, testdata.offset_seconds, testdata.scale }
@@ -2272,8 +2270,8 @@ test "affine_project_curve" {
         // number of segments shouldn't have changed
         try expectEqual(test_crv.segments.len, result.segments.len);
 
-        for (test_crv.segments) |t_seg, t_seg_index| {
-            for (t_seg.points()) |pt, pt_index| {
+        for (test_crv.segments, 0..) |t_seg, t_seg_index| {
+            for (t_seg.points(), 0..) |pt, pt_index| {
                 const result_pt = result.segments[t_seg_index].points()[pt_index];
                 errdefer  std.debug.print(
                     "\nseg: {} pt: {} ({d:.2}, {d:.2})\n"
