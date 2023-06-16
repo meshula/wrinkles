@@ -98,8 +98,21 @@ const SOURCES_WITH_TESTS = [_][]const u8{
     "./src/test_hodograph.zig",
 };
 
-pub fn add_test_for_source(b: *std.build.Builder, target: anytype, test_step: anytype, fpath: []const u8) void {
-    const test_thing = b.addTest(.{ .name = std.fs.path.basename(fpath), .root_source_file = .{ .path = fpath }, .target = target, .optimize = .Debug });
+pub fn add_test_for_source(
+    b: *std.build.Builder,
+    target: anytype,
+    test_step: anytype,
+    fpath: []const u8
+) void 
+{
+    const test_thing = b.addTest(
+        .{
+            .name = std.fs.path.basename(fpath),
+            .root_source_file = .{ .path = fpath },
+            .target = target,
+            .optimize = .Debug 
+        }
+    );
     //test_thing.addPackagePath("opentime", "./src/opentime/opentime.zig");
     // test_thing.addPackagePath("opentimelineio", "./src/opentimelineio/opentimelineio.zig");
     //test_thing.setTarget(target);
@@ -108,14 +121,20 @@ pub fn add_test_for_source(b: *std.build.Builder, target: anytype, test_step: an
     test_thing.addIncludePath("./spline-gym/src");
     test_thing.addCSourceFile("./spline-gym/src/hodographs.c", &c_args);
 
-    var test_exe = b.addTestExe("otio_test.out", fpath);
-    test_exe.addPackagePath("opentime", "./src/opentime/opentime.zig");
-    test_exe.setTarget(target);
-    test_exe.setBuildMode(mode);
-
-    test_exe.addIncludePath("./spline-gym/src");
-    test_exe.addCSourceFile("./spline-gym/src/hodographs.c", &c_args);
-    test_step.dependOn(&test_exe.step);
+    // var test_exe = b.addTest(
+    //     .{
+    //         .name = "otio_test.out",
+    //         .kind = .test_exe,
+    //         .root_source_file = .{ .path = fpath },
+    //         .target = target,
+    //         .optimize = .Debug,
+    //     }
+    // );
+    // test_exe.addPackagePath("opentime", "./src/opentime/opentime.zig");
+    //
+    // test_exe.addIncludePath("./spline-gym/src");
+    // test_exe.addCSourceFile("./spline-gym/src/hodographs.c", &c_args);
+    // test_step.dependOn(&test_exe.step);
 
     test_step.dependOn(&test_thing.step);
 }
@@ -124,8 +143,16 @@ pub fn add_test_for_source(b: *std.build.Builder, target: anytype, test_step: an
 pub fn rev_HEAD(alloc: std.mem.Allocator) ![]const u8 {
     const max = std.math.maxInt(usize);
     const dirg = try std.fs.cwd().openDir(".git", .{});
-    const h = std.mem.trim(u8, try dirg.readFileAlloc(alloc, "HEAD", max), "\n");
-    const r = std.mem.trim(u8, try dirg.readFileAlloc(alloc, h[5..], max), "\n");
+    const h = std.mem.trim(
+        u8,
+        try dirg.readFileAlloc(alloc, "HEAD", max),
+        "\n"
+    );
+    const r = std.mem.trim(
+        u8,
+        try dirg.readFileAlloc(alloc, h[5..], max),
+        "\n"
+    );
     return r;
 }
 
@@ -151,8 +178,16 @@ pub fn build_wrinkles_like(
     exe.addOptions("build_options", exe_options);
 
     // @TODO: should this be in the install directory instead of `thisDir()`?
-    exe_options.addOption([]const u8, name ++ "_content_dir", thisDir() ++ "/src" ++ source_dir_path);
-    exe_options.addOption([]const u8, "hash", rev_HEAD(ALLOCATOR) catch "COULDNT READ HASH");
+    exe_options.addOption(
+        []const u8,
+        name ++ "_content_dir",
+        thisDir() ++ "/src" ++ source_dir_path
+    );
+    exe_options.addOption(
+        []const u8,
+        "hash",
+        rev_HEAD(ALLOCATOR
+    ) catch "COULDNT READ HASH");
     // this
     const install_content_step = b.addInstallDirectory(.{
         .source_dir = thisDir() ++ "/src/" ++ source_dir_path,
@@ -177,10 +212,10 @@ pub fn build_wrinkles_like(
     exe.addIncludePath("./spline-gym/src");
     exe.addCSourceFile("./spline-gym/src/hodographs.c", &c_args);
 
-    zgpu.link(exe, zgpu_options);
-    zglfw.link(exe);
-    zgui.link(exe);
-    zstbi.link(exe);
+    // zgpu.link(exe, zgpu_options);
+    // zglfw.link(exe);
+    // zgui.link(exe);
+    // zstbi.link(exe);
 
     // Needed for glfw/wgpu rendering backend
     const zglfw_pkg = zglfw.package(b, options.target, options.optimize, .{});
@@ -229,7 +264,6 @@ pub fn build(b: *std.build.Builder) void {
 
     //b.prominent_compile_errors = true;
 
-<<<<<<< HEAD
     build_wrinkles_like(
         b, 
         "wrinkles",
@@ -258,24 +292,15 @@ pub fn build(b: *std.build.Builder) void {
        "/wrinkles_content/",
        options
    );
-=======
-    build_wrinkles_like(b, "wrinkles", "/src/wrinkles.zig", "/wrinkles_content/", options);
-    build_wrinkles_like(b, "otvis", "/src/otvis.zig", "/wrinkles_content/", options);
->>>>>>> 139b17e (Update zgd libraries)
 
     const test_step = b.step("test", "run all unit tests");
 
     for (SOURCES_WITH_TESTS) |fpath| {
-<<<<<<< HEAD
         add_test_for_source(
             b,
             options.target,
-            options.build_mode,
             test_step,
             fpath
         );
-=======
-        add_test_for_source(b, options.target, test_step, fpath);
->>>>>>> 139b17e (Update zgd libraries)
     }
 }
