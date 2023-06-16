@@ -9,12 +9,12 @@ const expect = std.testing.expect;
 
 // const opentime = @import("opentime");
 const opentime = @import("../opentime.zig");
-const bezier_math = @import("./bezier_math.zig");
-const generic_curve = @import("./generic_curve.zig");
-const linear_curve = @import("./linear_curve.zig");
+const bezier_math = @import("bezier_math.zig");
+const generic_curve = @import("generic_curve.zig");
+const linear_curve = @import("linear_curve.zig");
 const interval = opentime.interval;
 const ContinuousTimeInterval = opentime.ContinuousTimeInterval;
-const control_point = @import("./control_point.zig");
+const control_point = @import("control_point.zig");
 const ControlPoint = control_point.ControlPoint;
 
 const stdout = std.io.getStdOut().writer();
@@ -1350,9 +1350,10 @@ pub fn read_curve_json(
     const source = try fi.readToEndAlloc(allocator_, std.math.maxInt(u32));
     defer allocator_.free(source);
 
-    var stream = std.json.TokenStream.init(source);
+    // var stream = std.json.TokenStream.init(source);
 
-    return try std.json.parse(TimeCurve, &stream, .{ .allocator = allocator_ });
+    // return try std.json.parse(TimeCurve, &stream, .{ .allocator = allocator_ });
+    return try std.json.parseFromSlice(TimeCurve, allocator_, source, .{});
 }
 
 test "Curve: read_curve_json" {
