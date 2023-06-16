@@ -731,7 +731,8 @@ fn update(
                 }
             }
             if (zgui.smallButton("Add")) {
-                zgui.openPopup("Delete?");
+                // @TODO: after updating to zig 0.11
+                // zgui.openPopup("Delete?");
             }
 
             // Remove any "remove"'d operations
