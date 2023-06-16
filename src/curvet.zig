@@ -359,7 +359,7 @@ fn plot_knots(
         const knots_yv = try allocator.alloc(f32, hod.segments.len + 1);
         defer allocator.free(knots_yv);
 
-        for (try hod.segment_endpoints()) |knot, knot_ind| {
+        for (try hod.segment_endpoints(), 0..) |knot, knot_ind| {
             knots_xv[knot_ind] = knot.time;
             knots_yv[knot_ind] = knot.value;
         }
@@ -396,8 +396,8 @@ fn plot_control_points(
         const knots_yv = try allocator.alloc(f32, 4 * hod.segments.len);
         defer allocator.free(knots_yv);
 
-        for (hod.segments) |seg, seg_ind| {
-            for (seg.points()) |pt, pt_ind| {
+        for (hod.segments, 0..) |seg, seg_ind| {
+            for (seg.points(), 0..) |pt, pt_ind| {
                 knots_xv[seg_ind * 4 + pt_ind] = pt.time;
                 knots_yv[seg_ind * 4 + pt_ind] = pt.value;
             }
@@ -521,7 +521,7 @@ fn update(
                     .{}
                 );
                 zgui.plot.setupFinish();
-                for (state.operations.items) |visop, op_index| {
+                for (state.operations.items, 0..) |visop, op_index| {
                     switch (visop) {
                         .curve => |crv| {
                             const name = try std.fmt.bufPrintZ(
@@ -543,7 +543,7 @@ fn update(
                         var yv:[]f32 = try allocator.alloc(f32, lin.knots.len);
                         defer allocator.free(yv);
                         
-                        for (lin.knots) |knot, knot_index| {
+                        for (lin.knots, 0..) |knot, knot_index| {
                             xv[knot_index] = knot.time;
                             yv[knot_index] = knot.value;
                         }
