@@ -90,7 +90,7 @@ const GraphicsState = struct {
 
         const font_path = content_dir ++ "genart_0025_5.png";
 
-        var image = try zstbi.Image.init(font_path, 4);
+        var image = try zstbi.Image.loadFromFile(font_path, 4);
         defer image.deinit();
 
         const texture = gctx.createTexture(.{
@@ -344,7 +344,7 @@ fn plot_knots(
 ) !void 
 {
     var buf:[1024:0]u8 = .{};
-    std.mem.set(u8, &buf, 0);
+    @memset(&buf, 0);
 
     {
         const name_ = try std.fmt.bufPrintZ(
@@ -381,7 +381,7 @@ fn plot_control_points(
 ) !void 
 {
     var buf:[1024:0]u8 = .{};
-    std.mem.set(u8, &buf, 0);
+    @memset(&buf, 0);
 
     {
         const name_ = try std.fmt.bufPrintZ(
@@ -503,7 +503,7 @@ fn update(
     _ = zgui.showDemoWindow(null);
 
     var tmp_buf:[1024:0]u8 = .{};
-    std.mem.set(u8, &tmp_buf, 0);
+    @memset(&tmp_buf, 0);
 
     {
         if (zgui.beginChild("Plot", .{ .w = width - 600 }))
@@ -635,7 +635,7 @@ fn update(
 
                 // const result = self_hodograph.project_curve(other_hodograph);
                 // var buf:[1024:0]u8 = .{};
-                // std.mem.set(u8, &buf, 0);
+                // @memset(&buf, 0);
                 // const result_name = try std.fmt.bufPrintZ(
                 //     &buf,
                 //     "result of projection{s}",

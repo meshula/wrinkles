@@ -36,7 +36,7 @@ pub const Treecode = struct {
         );
 
         // zero everything out
-        std.mem.set(TreecodeWord, treecode_array, 0);
+        @memset(treecode_array, 0);
 
         // set the argument in the LSB
         treecode_array[count - 1] = input;
@@ -76,7 +76,7 @@ pub const Treecode = struct {
             new_size
         );
 
-        std.mem.set(TreecodeWord, self.treecode_array[self.sz..], 0);
+        @memset(self.treecode_array[self.sz..], 0);
 
         self.sz = new_size;
     }
@@ -84,7 +84,7 @@ pub const Treecode = struct {
     pub fn clone(self: @This()) !Treecode {
         var result_array = try self.allocator.alloc(TreecodeWord, self.sz);
 
-        for (self.treecode_array) |tc, index| {
+        for (self.treecode_array, 0..) |tc, index| {
             result_array[index] = tc;
         }
 
@@ -297,7 +297,7 @@ pub const Treecode = struct {
     pub fn hash(self: @This()) Hash {
         var hasher = std.hash.Wyhash.init(0);
         
-        for (self.treecode_array) |tc, index| {
+        for (self.treecode_array, 0..) |tc, index| {
             if (tc > 0) {
                 std.hash.autoHash(&hasher, index + 1);
                 // ensure no overflow
@@ -1106,7 +1106,7 @@ test "treecode: next_step_towards" {
             .{ .source = 0b1101001, .dest = 0b10101001, .expect = 0b0 },
         };
 
-        for (test_data) |t, i| {
+        for (test_data, 0..) |t, i| {
             errdefer std.log.err(
                 "[{d}] source: {b} dest: {b} expected: {b}",
                 .{ i, t.source, t.dest, t.expect }
