@@ -25,6 +25,15 @@ const VisCurve = struct {
     active: bool = true,
 };
 
+const projTmpTest = struct {
+    fst: VisCurve,
+    snd: VisCurve,
+};
+
+fn _is_between(val: f32, fst: f32, snd: f32) bool {
+    return ((fst <= val and val < snd) or (fst >= val and val > snd));
+}
+
 const VisTransform = struct {
     topology: opentime.time_topology.AffineTopology = .{},
     active: bool = true,
@@ -219,11 +228,56 @@ pub fn main() !void {
     defer gfx_state.deinit();
 
     var state = try _parse_args(allocator);
+    var pbuf:[1024:0]u8 = .{};
+    var u_path:[:0]u8 = try std.fmt.bufPrintZ(
+        &pbuf,
+        "{s}",
+        .{ "curves/upside_down_u.curve.json" }
+    );
+    const u_curve = try curve.read_curve_json(u_path, allocator);
+    defer u_curve.deinit(allocator);
+
+    // const identSeg_half = curve.create_linear_segment(
+    //     .{ .time = -2, .value = -1 },
+    //     .{ .time = 2, .value = 1 },
+    // );
+    // const lin_half = try curve.TimeCurve.init(&.{identSeg_half});
+    // const lin_name_half = try std.fmt.bufPrintZ(
+    //     pbuf[512..],
+    //     "{s}",
+    //     .{  "linear slope of 0.5 [-2, 2)" }
+    // );
+
+
+    const identSeg = curve.create_identity_segment(-0.2, 1) ;
+    const lin = try curve.TimeCurve.init(&.{identSeg});
+    const lin_name = try std.fmt.bufPrintZ(
+        pbuf[512..],
+        "{s}",
+        .{  "linear [0, 1)" }
+    );
+    const tmpCurves = projTmpTest{
+        .fst = .{ 
+            .curve = u_curve,
+            // .curve = lin_half,
+            .fpath = u_path,
+            // .fpath = lin_name_half,
+            // .split_hodograph = try lin_half.split_on_critical_points(allocator),
+            .split_hodograph = try u_curve.split_on_critical_points(allocator),
+        },
+        .snd = .{ 
+            .curve = lin,
+            .fpath = lin_name,
+            .split_hodograph = try lin.split_on_critical_points(allocator),
+        },
+    };
+    defer tmpCurves.fst.split_hodograph.deinit(allocator);
+    defer tmpCurves.snd.split_hodograph.deinit(allocator);
     defer state.deinit(allocator);
 
     while (!window.shouldClose() and window.getKey(.escape) != .press) {
         zglfw.pollEvents();
-        try update(gfx_state, &state, allocator);
+        try update(gfx_state, &state, tmpCurves, allocator);
         draw(gfx_state);
     }
 }
@@ -234,6 +288,10 @@ pub fn evaluated_curve(
     comptime steps:usize
 ) !struct{ xv: [steps]f32, yv: [steps]f32 }
 {
+    if (crv.segments.len == 0) {
+        return .{ .xv = .{}, .yv = .{} };
+    }
+
     const ext = crv.extents();
     const stepsize:f32 = (ext[1].time - ext[0].time) / @as(f32, steps);
 
@@ -270,12 +328,106 @@ pub fn evaluated_curve(
         }
     }
 
-    const end_point = crv.segments[crv.segments.len - 1].p3;
+    if (crv.segments.len > 0) {
+        const end_point = crv.segments[crv.segments.len - 1].p3;
 
-    xv[steps - 1] = end_point.time;
-    yv[steps - 1] = end_point.value;
+        xv[steps - 1] = end_point.time;
+        yv[steps - 1] = end_point.value;
+    }
 
     return .{ .xv = xv, .yv = yv };
+}
+
+fn plot_knots(
+    hod: curve.TimeCurve, 
+    name: [:0]const u8,
+    allocator: std.mem.Allocator,
+) !void 
+{
+    var buf:[1024:0]u8 = .{};
+    std.mem.set(u8, &buf, 0);
+
+    {
+        const name_ = try std.fmt.bufPrintZ(
+            &buf,
+            "{s}: Bezier Control Points",
+            .{name}
+        );
+
+        const knots_xv = try allocator.alloc(f32, hod.segments.len + 1);
+        defer allocator.free(knots_xv);
+        const knots_yv = try allocator.alloc(f32, hod.segments.len + 1);
+        defer allocator.free(knots_yv);
+
+        for (try hod.segment_endpoints()) |knot, knot_ind| {
+            knots_xv[knot_ind] = knot.time;
+            knots_yv[knot_ind] = knot.value;
+        }
+
+        zgui.plot.plotScatter(
+            name_,
+            f32,
+            .{
+                .xv = knots_xv,
+                .yv = knots_yv,
+            }
+        );
+    }
+}
+
+fn plot_control_points(
+    hod: curve.TimeCurve, 
+    name: [:0]const u8,
+    allocator: std.mem.Allocator,
+) !void 
+{
+    var buf:[1024:0]u8 = .{};
+    std.mem.set(u8, &buf, 0);
+
+    {
+        const name_ = try std.fmt.bufPrintZ(
+            &buf,
+            "{s}: Bezier Control Points",
+            .{name}
+        );
+
+        const knots_xv = try allocator.alloc(f32, 4 * hod.segments.len);
+        defer allocator.free(knots_xv);
+        const knots_yv = try allocator.alloc(f32, 4 * hod.segments.len);
+        defer allocator.free(knots_yv);
+
+        for (hod.segments) |seg, seg_ind| {
+            for (seg.points()) |pt, pt_ind| {
+                knots_xv[seg_ind * 4 + pt_ind] = pt.time;
+                knots_yv[seg_ind * 4 + pt_ind] = pt.value;
+            }
+        }
+
+        zgui.plot.plotScatter(
+            name_,
+            f32,
+            .{
+                .xv = knots_xv,
+                .yv = knots_yv,
+            }
+        );
+    }
+}
+
+fn plot_bezier_curve(
+    crv:curve.TimeCurve,
+    name:[:0]const u8,
+    allocator:std.mem.Allocator
+) !void {
+    const pts = try evaluated_curve(crv, 1000);
+
+    zgui.plot.plotLine(
+        name,
+        f32,
+        .{ .xv = &pts.xv, .yv = &pts.yv }
+    );
+
+    try plot_control_points(crv, name, allocator);
 }
 
 fn plot_curve(
@@ -284,74 +436,13 @@ fn plot_curve(
     allocator: std.mem.Allocator,
 ) !void 
 {
-    _ = allocator;
-
-    const pts = try evaluated_curve(crv.curve, 1000);
-
-    zgui.plot.plotLine(
-        name,
-        f32,
-        .{ .xv = &pts.xv, .yv = &pts.yv }
-    );
-
-    // only true for the bezier
-    // const hod = crv.split_hodograph;
-    // {
-    //     const name:[:0]const u8 = try std.fmt.allocPrintZ(
-    //         allocator,
-    //         "{s}: Split at critical points via Hodograph",
-    //         .{crv.fpath[0..]}
-    //     );
-    //     defer allocator.free(name);
-    //
-    //     {
-    //         const pts = try evaluated_curve(hod, 1000);
-    //
-    //         zgui.plot.plotLine(
-    //             name,
-    //             f32,
-    //             .{
-    //                 .xv = &pts.xv,
-    //                 .yv = &pts.yv 
-    //             }
-    //         );
-    //     }
-    // }
-
-    // {
-    //     const name = try std.fmt.allocPrintZ(
-    //         allocator,
-    //         "{s}: Split Hodograph Bezier Control Points",
-    //         .{crv.fpath}
-    //     );
-    //     defer allocator.free(name);
-    //
-    //     const knots_xv = try allocator.alloc(f32, 4 * hod.segments.len);
-    //     defer allocator.free(knots_xv);
-    //     const knots_yv = try allocator.alloc(f32, 4 * hod.segments.len);
-    //     defer allocator.free(knots_yv);
-    //
-    //     for (hod.segments) |seg, seg_ind| {
-    //         for (seg.points()) |pt, pt_ind| {
-    //             knots_xv[seg_ind * 4 + pt_ind] = pt.time;
-    //             knots_yv[seg_ind * 4 + pt_ind] = pt.value;
-    //         }
-    //     }
-    //
-    //     zgui.plot.plotScatter(
-    //         name,
-    //         f32,
-    //         .{
-    //             .xv = knots_xv,
-    //             .yv = knots_yv,
-    //         }
-    //     );
-    // }
+    try plot_bezier_curve(crv.curve, name, allocator);
 }
 
 fn update(
     gfx_state: *GraphicsState,
     state: *VisState,
+    tmpCurves: projTmpTest,
     allocator: std.mem.Allocator,
 ) !void {
     var _proj = opentime.TimeTopology.init_identity_infinite();
@@ -410,7 +501,7 @@ fn update(
     );
     zgui.spacing();
 
-    // _ = zgui.showDemoWindow(null);
+    _ = zgui.showDemoWindow(null);
 
     var tmp_buf:[1024:0]u8 = .{};
     std.mem.set(u8, &tmp_buf, 0);
@@ -493,6 +584,71 @@ fn update(
                         );
                     },
                 }
+
+                // debug 
+                const self = tmpCurves.fst.curve;
+                const other = tmpCurves.snd.curve;
+
+                try plot_bezier_curve(self, "self", allocator);
+                try plot_bezier_curve(other, "other", allocator);
+
+                const self_hodograph = try self.split_on_critical_points(allocator);
+                try plot_bezier_curve(self_hodograph, "self hodograph", allocator);
+                defer self_hodograph.deinit(allocator);
+                try plot_knots(self_hodograph, "hodograph knots", allocator);
+                const other_hodograph = try other.split_on_critical_points(allocator);
+                try plot_bezier_curve(other_hodograph, "other hodograph", allocator);
+                defer other_hodograph.deinit(allocator);
+
+                const other_bounds = other.extents();
+                var other_copy = try curve.TimeCurve.init(other_hodograph.segments);
+                defer other_copy.deinit(allocator);
+
+                {
+                    {
+                        var split_points = std.ArrayList(f32).init(allocator);
+                        defer split_points.deinit();
+
+                        // find all knots in self that are within the other bounds
+                        for (self_hodograph.segment_endpoints() catch unreachable)
+                            |self_knot| 
+                            {
+                                if (
+                                    _is_between(
+                                        self_knot.time,
+                                        other_bounds[0].value,
+                                        other_bounds[1].value
+                                    )
+                                ) {
+                                    split_points.append(self_knot.time) catch unreachable;
+                                }
+
+                            }
+                        other_copy = other_copy.split_at_each_output_ordinate(
+                            split_points.items,
+                            allocator
+                        ) catch unreachable;
+                    }
+                }
+
+                try plot_knots(other_copy, "other copy knots", allocator);
+                try plot_bezier_curve(other_copy, "other copy", allocator);
+
+                // const result = self_hodograph.project_curve(other_hodograph);
+                // var buf:[1024:0]u8 = .{};
+                // std.mem.set(u8, &buf, 0);
+                // const result_name = try std.fmt.bufPrintZ(
+                //     &buf,
+                //     "result of projection{s}",
+                //     .{
+                //         if (result.segments.len > 0) "" 
+                //         else " [NO SEGMENTS/EMPTY]",
+                //     }
+                // );
+                //
+                // try plot_knots(result, result_name, allocator);
+                // try plot_bezier_curve(result, result_name, allocator);
+
                 zgui.plot.endPlot();
             }
         }
