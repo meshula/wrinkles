@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const curve = @import("curve/curve.zig");
-const string_stuff = @import("string_stuff.zig");
+const string_stuff = @import("string_stuff");
 const latin_s8 = string_stuff.latin_s8;
 const allocator = @import("allocator.zig");
 const ALLOCATOR = allocator.ALLOCATOR;

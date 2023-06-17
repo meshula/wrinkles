@@ -27,7 +27,7 @@ const  util = @import("util");
 const otio_allocator = @import("../allocator.zig");
 const ALLOCATOR = otio_allocator.ALLOCATOR;
 
-const string_stuff = @import("../string_stuff.zig");
+const string_stuff = @import("string_stuff");
 const latin_s8 = string_stuff.latin_s8;
 
 // hodographs c-library
