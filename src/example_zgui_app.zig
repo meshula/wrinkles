@@ -43,7 +43,7 @@ const GraphicsState = struct {
 
         const font_path = content_dir ++ "genart_0025_5.png";
 
-        var image = try zstbi.Image.init(font_path, 4);
+        var image = try zstbi.Image.loadFromFile(font_path, 4);
         defer image.deinit();
 
         const texture = gctx.createTexture(.{

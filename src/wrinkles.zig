@@ -66,7 +66,7 @@ fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*DemoState {
     // Create a texture.
     zstbi.init(arena);
     defer zstbi.deinit();
-    var image = try zstbi.Image.init(content_dir ++ "genart_0025_5.png", 4);
+    var image = try zstbi.Image.loadFromFile(content_dir ++ "genart_0025_5.png", 4);
     defer image.deinit();
 
     const texture = gctx.createTexture(.{
