@@ -102,11 +102,7 @@ fn read_curve(fpath: []const u8) !curve.TimeCurve {
     } 
     else 
     {
-        return .{ 
-            .segments = &[1]curve.Segment{
-                try curve.read_segment_json(fpath) 
-            }
-        };
+        return curve.TimeCurve.init(&.{ try curve.read_segment_json(fpath) });
     }
 }
 
@@ -166,7 +162,7 @@ fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*DemoState {
 
     const font_path = content_dir ++ "genart_0025_5.png";
 
-    var image = try zstbi.Image.init(font_path, 4);
+    var image = try zstbi.Image.loadFromFile(font_path, 4);
     defer image.deinit();
 
     const texture = gctx.createTexture(.{
