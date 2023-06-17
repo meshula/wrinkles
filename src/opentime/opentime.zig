@@ -3,7 +3,7 @@
 //
 
 // string @{
-pub const string = @import("string_stuff.zig");
+pub const string = @import("string_stuff");
 // @}
 
 // interval @{

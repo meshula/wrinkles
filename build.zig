@@ -156,19 +156,29 @@ pub fn rev_HEAD(alloc: std.mem.Allocator) ![]const u8 {
     return r;
 }
 
+const ModuleSpec = struct {
+    name: []const u8,
+    module: *std.build.Module,
+};
+
+/// build an app that is like the wrinkles one
 pub fn build_wrinkles_like(
     b: *std.build.Builder,
     comptime name: []const u8,
     comptime main_file_name: []const u8,
     comptime source_dir_path: []const u8,
     options: Options,
-) void {
-    const exe = b.addExecutable(.{
-        .name = name,
-        .root_source_file = .{ .path = thisDir() ++ main_file_name },
-        .target = options.target,
-        .optimize = options.optimize,
-    });
+    module_deps: []const ModuleSpec,
+) void 
+{
+    const exe = b.addExecutable(
+        .{
+            .name = name,
+            .root_source_file = .{ .path = thisDir() ++ main_file_name },
+            .target = options.target,
+            .optimize = options.optimize,
+        }
+    );
 
     exe.addIncludePath("./src");
     exe.addCSourceFile("./src/opentime.c", &c_args);
@@ -211,6 +221,10 @@ pub fn build_wrinkles_like(
 
     exe.addIncludePath("./spline-gym/src");
     exe.addCSourceFile("./spline-gym/src/hodographs.c", &c_args);
+
+    for (module_deps) |mod| {
+        exe.addModule(mod.name, mod.module);
+    }
 
     // zgpu.link(exe, zgpu_options);
     // zglfw.link(exe);
@@ -264,33 +278,44 @@ pub fn build(b: *std.build.Builder) void {
 
     //b.prominent_compile_errors = true;
 
+    const string_stuff = b.createModule(
+        .{
+            .source_file = .{ .path = "src/opentime/string_stuff.zig" },
+            .dependencies = &.{},
+        }
+    );
+
     build_wrinkles_like(
         b, 
         "wrinkles",
         "/src/wrinkles.zig",
         "/wrinkles_content/",
-        options
+        options,
+        &.{ .{ .name = "string_stuff", .module = string_stuff } },
     );
    build_wrinkles_like(
        b,
        "otvis",
        "/src/otvis.zig",
        "/wrinkles_content/",
-       options
+        options,
+        &.{ .{ .name = "string_stuff", .module = string_stuff } },
    );
    build_wrinkles_like(
        b,
        "curvet",
        "/src/curvet.zig",
        "/wrinkles_content/",
-       options
+        options,
+        &.{ .{ .name = "string_stuff", .module = string_stuff } },
    );
    build_wrinkles_like(
        b,
        "example_zgui_app",
        "/src/example_zgui_app.zig",
        "/wrinkles_content/",
-       options
+        options,
+        &.{ .{ .name = "string_stuff", .module = string_stuff } },
    );
 
     const test_step = b.step("test", "run all unit tests");
