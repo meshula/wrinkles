@@ -171,7 +171,7 @@ Vector2 evaluate_bezier(BezierSegment* b, float u)
 
 
 // Draw line using cubic-bezier curves in-out
-void DrawLineBezierx(BezierSegment* b, int steps, float thick, Color color)
+void DrawLineBezierx(Vector2 origin, BezierSegment* b, int steps, float thick, Color color)
 {
     if (!b)
         return;
@@ -180,7 +180,34 @@ void DrawLineBezierx(BezierSegment* b, int steps, float thick, Color color)
         float u = (float)i / (float)steps;
         float v = (float)(i+1) / (float)steps;
         Vector2 p0 = evaluate_bezier(b, u);
+        p0.y *= -1;
+        p0 += origin;
         Vector2 p1 = evaluate_bezier(b, v);
+        p1.y *= -1;
+        p1 += origin;
+        DrawLineEx(p0, p1, thick, color);
+    }
+}
+
+// Draw line using cubic-bezier curves in-out
+void DrawLineBezierRotated(Vector2 origin, BezierSegment* b, int steps, float thick, Color color)
+{
+    if (!b)
+        return;
+
+    // swap x,y, negate y
+    BezierSegment r = *b;
+    for (int i = 0; i < 4; ++i) {
+        float t = r.p[i].x;
+        r.p[i].x = -r.p[i].y;
+        r.p[i].y = -t;
+    }
+
+    for (int i = 0; i < steps; ++i) {
+        float u = (float)i / (float)steps;
+        float v = (float)(i+1) / (float)steps;
+        Vector2 p0 = evaluate_bezier(&r, u) + origin;
+        Vector2 p1 = evaluate_bezier(&r, v) + origin;
         DrawLineEx(p0, p1, thick, color);
     }
 }
@@ -438,21 +465,7 @@ void CubicCurve::Init(const CubicInit& init) {
           one_over_w_sq * (init.end_derivative + init.start_derivative);
 }
 
-
-//------------------------------------------------------------------------------------
-// Program main entry point
-//------------------------------------------------------------------------------------
-int main(void)
-{
-    // Initialization
-    //--------------------------------------------------------------------------------------
-    const int screenWidth = 800;
-    const int screenHeight = 450;
-
-    SetConfigFlags(FLAG_MSAA_4X_HINT);
-    InitWindow(screenWidth, screenHeight, "raylib [shapes] example - cubic-bezier lines");
-
-    // broken case - y is equal
+void RunGym(int screenWidth, int screenHeight) {
     Vector2 start = { screenWidth * 0.25f, screenHeight * 0.75f };
     Vector2 end = { screenWidth * 0.75f, screenHeight * 0.75f };
     Vector2 p1 = start;
@@ -474,7 +487,6 @@ int main(void)
     // p2.y += 30;
     // p2.x = (start.x + end.x) * 0.5f;
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //--------------------------------------------------------------------------------------
 
     bool dragging = false;
@@ -513,14 +525,6 @@ int main(void)
         BezierSegment b = {3, start, p1, p2, end};
         BezierSegment h = compute_hodograph(&b);
         BezierSegment h2 = compute_hodograph(&h);
-        
-        BezierSegment alb = align_bezier(&b);
-        alb.p[0] += b.p[0];
-        alb.p[1] += b.p[0];
-        alb.p[2] += b.p[0];
-        alb.p[3] += b.p[0];
-        //DrawLineBezierx(&alb, steps, 2.0f, BLACK);
-
         Vector2 inflections = inflection_points(&b);
         Vector2 roots = bezier_roots(&h);
 
@@ -552,6 +556,7 @@ int main(void)
         CubicInit ci_x(b0.p[0].y, slope_left, b0.p[3].y, slope_right, cubic_width);
         CubicCurve cubic_x(ci_x);
 
+        Vector2 origin = { 0, 0 };
 
         // Draw
         //----------------------------------------------------------------------------------
@@ -563,8 +568,8 @@ int main(void)
             
             const int steps = 100;
             if (draw_split) {
-                DrawLineBezierx(&s1, steps, 2.0f, RED);
-                DrawLineBezierx(&s2, steps, 2.0f, DARKBROWN);
+                DrawLineBezierx(origin, &s1, steps, 2.0f, RED);
+                DrawLineBezierx(origin, &s2, steps, 2.0f, DARKBROWN);
             }
 
             if (draw_inflections) {
@@ -584,7 +589,6 @@ int main(void)
                     DrawPixel(b.p[0].x + x, b.p[0].y + y, BLACK);
                 }
             }
-
 
             Vector2* points[4] = { &b.p[0], &b.p[1], &b.p[2], &b.p[3] };
             
@@ -647,7 +651,7 @@ int main(void)
                 DrawRing(*points[i], 2, 6, 0, 360, 16, (closest >= 0)? RED : GREEN);
 
             if (draw_curve)
-                DrawLineBezierx(&b, steps, 2.0f, RED);
+                DrawLineBezierx(origin, &b, steps, 2.0f, RED);
             
             if (draw_roots) {
                 Vector2 root = bezier_roots(&h);
@@ -671,6 +675,310 @@ int main(void)
         EndDrawing();
         //----------------------------------------------------------------------------------
     }
+}
+
+void DrawNormals(Vector2 origin, BezierSegment* b, BezierSegment* h, int steps) {
+    for (int i = 0; i < steps; ++i) {
+        float u = (float)i / (float)steps;
+        Vector2 p0 = evaluate_bezier(h, u);
+        Vector2 b0 = evaluate_bezier(b, u);
+        p0 += b0;
+        DrawLineEx(b0 + origin, p0 + origin, 2.0f, BLUE);
+    }
+}
+
+void DrawControls(Vector2 origin, BezierSegment* b, int closest) {
+    Vector2 p0 = b->p[0];
+    p0.y *= -1.f;
+    Vector2 p1 = b->p[1];
+    p1.y *= -1.f;
+    DrawLineEx(p0 + origin, p1 + origin, 2.f, GREEN);
+    p0 = b->p[b->order];
+    p0.y *= -1.f;
+    p1 = b->p[b->order - 1];
+    p1.y *= -1.f;
+    DrawLineEx(p0 + origin, p1 + origin, 2.f, GREEN);
+    for (int i = 0; i <= b->order; ++i) {
+        p0 = b->p[i];
+        p0.y *= -1.f;
+        DrawRing(p0 + origin, 2, 6, 0, 360, 16, (closest >= 0)? RED : GREEN);
+    }
+    
+    DrawRing(origin, 4, 8, 0, 360, 16, RED);
+}
+
+void Swap(float& a, float& b) {
+    float t = a;
+    a = b;
+    b = t;
+}
+
+void DrawBounds(Vector2 origin, Vector2 bmin, Vector2 bmax) {
+    float y = -bmin.y + origin.y;
+    float left = 50; // bmin.x - 20 + origin.x;
+    DrawLineEx((Vector2){left, y}, (Vector2){bmax.x + 20 + origin.x, y}, 2.f, DARKGREEN);
+    y = -bmax.y + origin.y;
+    DrawLineEx((Vector2){left, y}, (Vector2){bmax.x + 20 + origin.x, y}, 2.f, DARKGREEN);
+    float x = bmin.x + origin.x;
+    DrawLineEx((Vector2){x, -bmin.y + 20 + origin.y}, (Vector2){x, -bmax.y - 20 + origin.y}, 2.f, DARKGREEN);
+    x = bmax.x + origin.x;
+    DrawLineEx((Vector2){x, -bmin.y + 20 + origin.y}, (Vector2){x, -bmax.y - 20 + origin.y}, 2.f, DARKGREEN);
+}
+
+void RunProjector(int screenWidth, int screenHeight) {
+    Vector2 start = { 0, 0 };
+    Vector2 end = { screenWidth * 0.5f, 0 };
+    Vector2 p1 = start;
+    p1.y += screenHeight * 0.5f;
+    Vector2 p2 = end;
+    p2.y += screenHeight * 0.5f;
+    
+    //--------------------------------------------------------------------------------------
+
+    bool dragging = false;
+    bool mouseDown = false;
+    
+    bool draw_normals = false;
+    bool draw_roots = true;
+    bool draw_inflections = true;
+    bool draw_approx = true;
+    bool draw_split = true;
+    bool draw_curve = false;
+    
+    Vector2 origin = { screenWidth * 0.25f, screenHeight * 0.80f };
+    
+    BezierSegment b1 = {3, start, p1, p2, end};
+    BezierSegment b2 = {3, (Vector2){0, 0}, (Vector2){20, 20}, (Vector2){50, 50}, (Vector2) {200, 200}};
+    
+    BezierSegment* bwork[2] = { &b1, & b2 };
+    
+    int selected_curve = 0;
+    int selected_point = -1;
+    bool selected_origin = false;
+
+    // Main game loop
+    while (!WindowShouldClose())    // Detect window close button or ESC key
+    {
+        //----------------------------------------------------------------------------------
+        // mouse and GUI
+        //
+        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+            mouseDown = true;
+        }
+        else {
+            dragging = false;
+            selected_point = -1;
+            selected_origin = false;
+        }
+        Vector2 mousePos = GetMousePosition();
+        Vector2 localMousePos = mousePos - origin;
+        localMousePos.y *= -1.f;
+
+        if (!dragging) {
+            selected_curve =   GuiToggleGroup((Rectangle){ 20, 120, 20, 40 }, "from;to", selected_curve);
+            draw_curve =       GuiCheckBox((Rectangle){ 20, 170, 20, 20 }, "Draw curve", draw_curve);
+            draw_split =       GuiCheckBox((Rectangle){ 20, 200, 20, 20 }, "Draw split", draw_split);
+            draw_approx =      GuiCheckBox((Rectangle){ 20, 230, 20, 20 }, "Draw approximation", draw_approx);
+            draw_inflections = GuiCheckBox((Rectangle){ 20, 260, 20, 20 }, "Draw Inflections", draw_inflections);
+            draw_normals =     GuiCheckBox((Rectangle){ 20, 290, 20, 20 }, "Draw Normals", draw_normals);
+            draw_roots =       GuiCheckBox((Rectangle){ 20, 320, 20, 20 }, "Draw Roots", draw_roots);
+        }
+        BezierSegment* b = bwork[selected_curve];
+
+        //----------------------------------------------------------------------------------
+        // manage selecting a point using the mouse
+        const int steps = 100;
+        int closest = -1;
+        if (selected_point >= 0) {
+            b->p[selected_point] = localMousePos;
+        }
+        else if (selected_origin) {
+            origin = mousePos;
+            selected_point = -1;
+        }
+        else {
+            float closestDist = 1000000;
+            for (int i = 0; i < 4; ++i) {
+                Vector2 dp = localMousePos - b->p[i];
+                float d2 = dot(dp, dp);
+                if (d2 < closestDist) {
+                    closestDist = d2;
+                    closest = i;
+                }
+            }
+            if (closestDist < 100 && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+                selected_point = closest;
+                b->p[closest] = localMousePos;
+                selected_origin = false;
+            }
+        }
+        
+        if (!selected_origin && (selected_point < 0) && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+            float d2 = dot(localMousePos, localMousePos);
+            selected_origin = d2 < 100;
+        }
+
+        //----------------------------------------------------------------------------------
+        // compute derivatives
+        BezierSegment h = compute_hodograph(b);
+        BezierSegment h2 = compute_hodograph(&h);
+        Vector2 inflections = inflection_points(b);
+        Vector2 roots = bezier_roots(&h);
+        
+        //----------------------------------------------------------------------------------
+        // compute splits
+        float splits[3] = { 1.f, 1.f, 1.f };
+        int split_count = 0;
+        if (roots.x > 0.f && roots.x < 1.f) {
+            splits[split_count] = roots.x;
+            split_count++;
+        }
+        if (roots.y > 0.f && roots.y < 1.f) {
+            bool duplicate = false;
+            for (int i = 0; i < split_count; ++i)
+                duplicate |= splits[i] == roots.y;
+            if (!duplicate) {
+                splits[split_count] = roots.y;
+                split_count++;
+            }
+        }
+        if (inflections.x > 0.f && inflections.x < 1.f) {
+            bool duplicate = false;
+            for (int i = 0; i < split_count; ++i)
+                duplicate |= splits[i] == inflections.x;
+            if (!duplicate) {
+                splits[split_count] = inflections.x;
+                split_count++;
+            }
+        }
+        for (int i = 0; i < split_count - 1; i++)
+            if (splits[i] > splits[i + 1])
+                Swap(splits[i], splits[i + 1]);
+
+        // make only the first split
+        BezierSegment s1;
+        BezierSegment s2;
+        if (split_count > 0)
+            split_bezier(b, splits[0], &s1, &s2);
+        
+        //----------------------------------------------------------------------------------
+        // compute bounds
+        Vector2 bound_min = { b1.p[0].x, b2.p[0].x };
+        Vector2 bound_max = { b1.p[b1.order].x, b2.p[b2.order].x };
+
+        // shrink the bound by knot extremal values
+        float knot_min_y = b1.p[0].y < b1.p[b1.order].y ? b1.p[0].y : b1.p[b1.order].y;
+        float knot_max_y =  b1.p[0].y > b1.p[b1.order].y ? b1.p[0].y : b1.p[b1.order].y;
+        for (int i = 0; i < split_count; ++i) {
+            float y = evaluate_bezier(&b1, splits[i]).y;
+            if (y > knot_max_y)
+                knot_max_y = y;
+            if (y < knot_min_y)
+                knot_min_y = y;
+        }
+        if (knot_min_y > bound_min.y)
+            bound_min.y = knot_min_y;
+        if (knot_max_y < bound_max.y)
+            bound_max.y = knot_max_y;
+        
+        //----------------------------------------------------------------------------------
+        // compute approximation
+        BezierSegment b0 = move_bezier_to_origin(&s1);
+        BezierSegment h0 = compute_hodograph(&b0);
+        float run_left    = b0.p[1].x - b0.p[0].x;
+        float rise_left   = b0.p[1].y - b0.p[0].y;
+        float slope_left  = rise_left / run_left;
+        float run_right   = b0.p[3].x - b0.p[2].x;
+        float rise_right  = b0.p[3].y - b0.p[2].y;
+        float slope_right = rise_right / run_right;
+        float cubic_width = b0.p[3].x - b0.p[0].x;
+        CubicInit ci_x(b0.p[0].y, slope_left, b0.p[3].y, slope_right, cubic_width);
+        CubicCurve cubic_x(ci_x);
+
+        //----------------------------------------------------------------------------------
+        BeginDrawing();
+        {
+            ClearBackground(RAYWHITE);
+            DrawText("BEZIER DEMONSTRATOR", 15, 20, 20, GRAY);
+            
+            // axes
+            float oy = origin.y;
+            DrawLine(0, oy, screenWidth, oy, BLACK);
+            DrawLine(origin.x, 0, origin.x, screenHeight, BLACK);
+            
+            if (draw_normals) {
+                DrawNormals(origin, b, &h, steps);
+            }
+
+            if (draw_curve) {
+                DrawLineBezierx(origin, &b1, steps, 2.0f, RED);
+            }
+            // always draw the projectee curve
+            DrawLineBezierRotated(origin, &b2, steps, 2.0f, RED);
+
+            if (draw_roots) {
+                Vector2 root = bezier_roots(&h);
+                if (root.x >= 0.f) {
+                    Vector2 r = evaluate_bezier(b, root.x);
+                    r.y *= -1.f;
+                    DrawRing(r + origin, 2, 6, 0, 360, 16, DARKGREEN);
+                }
+                if (root.y >= 0.f) {
+                    Vector2 r = evaluate_bezier(b, root.y);
+                    r.y *= -1.f;
+                    DrawRing(r + origin, 2, 6, 0, 360, 16, DARKGREEN);
+                }
+            }
+            
+            if (draw_split && split_count > 0) {
+                DrawLineBezierx(origin, &s1, steps, 2.0f, RED);
+                DrawLineBezierx(origin, &s2, steps, 2.0f, DARKBROWN);
+            }
+
+            if (draw_inflections) {
+                if (inflections.x > 0) {
+                    Vector2 p = evaluate_bezier(b, inflections.x);
+                    p.y *= -1;
+                    DrawCircle(p.x + origin.x, p.y + origin.y, 5, RED);
+                }
+                if (inflections.y > 0) {
+                    Vector2 p = evaluate_bezier(b, inflections.y);
+                    p.y *= -1;
+                    DrawCircle(p.x + origin.x, p.y + origin.y, 5, RED);
+                }
+            }
+
+            if (draw_approx) {
+                for (float x = 0; x < cubic_width; x += 2) {
+                    float y = cubic_x.Evaluate(x);
+                    DrawPixel(b->p[0].x + x + origin.x, -b->p[0].y - y + origin.y, BLACK);
+                }
+            }
+
+            DrawBounds(origin, bound_min, bound_max);
+            DrawControls(origin, b, closest);
+        }
+        EndDrawing();
+        //----------------------------------------------------------------------------------
+    }
+}
+
+//------------------------------------------------------------------------------------
+// Program main entry point
+//------------------------------------------------------------------------------------
+int main(void)
+{
+    // Initialization
+    //--------------------------------------------------------------------------------------
+    const int screenWidth = 1000;
+    const int screenHeight = 600;
+
+    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    SetConfigFlags(FLAG_MSAA_4X_HINT);
+    InitWindow(screenWidth, screenHeight, "raylib [shapes] example - cubic-bezier lines");
+
+    //RunGym(screenWidth, screenHeight);
+    RunProjector(screenWidth, screenHeight);
 
     // De-Initialization
     //--------------------------------------------------------------------------------------
