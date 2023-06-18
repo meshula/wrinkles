@@ -5,6 +5,7 @@
 
 #include "raylib.h"
 #include <math.h>
+#include <float.h>
 
 #define RAYGUI_IMPLEMENTATION
 #include "raygui.h"
@@ -167,6 +168,138 @@ Vector2 evaluate_bezier(BezierSegment* b, float u)
         r += b->p[2] * u2;
         return r;
     }
+}
+
+
+//
+// Given x in the interval [0, p3], and a monotonically nondecreasing
+// 1-D Bezier curve, B(u), with control points (0, p1, p2, p3), find
+// u so that B(u) == x.
+//
+
+// evaluate a 1d bezier whose first point is 0.
+float _bezier0(float unorm, float p2, float p3, float p4)
+{
+    const float p1 = 0.0;
+    const float z = unorm;
+    const float z2 = z*z;
+    const float z3 = z2*z;
+
+    const float zmo = z-1.0;
+    const float zmo2 = zmo*zmo;
+    const float zmo3 = zmo2*zmo;
+
+    return (p4 * z3) 
+        - (p3 * (3.0*z2*zmo))
+        + (p2 * (3.0*z*zmo2))
+        - (p1 * zmo3);
+}
+
+
+float _findU(float x, float p1, float p2, float p3)
+{
+    const float MAX_ABS_ERROR = FLT_EPSILON * 2.0;
+    const int MAX_ITERATIONS = 45;
+    
+    if (x <= 0) {
+        return 0;
+    }
+    
+    if (x >= p3) {
+        return 1;
+    }
+    
+    float _u1 = 0;
+    float _u2 = 0;
+    float x1 = -x; // same as: bezier0 (0, p1, p2, p3) - x;
+    float x2 = p3 - x; // same as: bezier0 (1, p1, p2, p3) - x;
+    
+    {
+        const float _u3 = 1.0 - x2 / (x2 - x1);
+        const float x3 = _bezier0(_u3, p1, p2, p3) - x;
+        
+        if (x3 == 0)
+            return _u3;
+        
+        if (x3 < 0)
+        {
+            if (1.0 - _u3 <= MAX_ABS_ERROR) {
+                if (x2 < -x3)
+                    return 1.0;
+                return _u3;
+            }
+            
+            _u1 = 1.0;
+            x1 = x2;
+        }
+        else
+        {
+            _u1 = 0.0;
+            x1 = x1 * x2 / (x2 + x3);
+            
+            if (_u3 <= MAX_ABS_ERROR) {
+                if (-x1 < x3)
+                    return 0.0;
+                return _u3;
+            }
+        }
+        _u2 = _u3;
+        x2 = x3;
+    }
+    
+    int i = MAX_ITERATIONS - 1;
+    
+    while (i > 0)
+    {
+        i -= 1;
+        const float _u3 = _u2 - x2 * ((_u2 - _u1) / (x2 - x1));
+        const float x3 = _bezier0 (_u3, p1, p2, p3) - x;
+        
+        if (x3 == 0)
+            return _u3;
+        
+        if (x2 * x3 <= 0)
+        {
+            _u1 = _u2;
+            x1 = x2;
+        }
+        else
+        {
+            x1 = x1 * x2 / (x2 + x3);
+        }
+
+        _u2 = _u3;
+        x2 = x3;
+
+        if (_u2 > _u1)
+        {
+            if (_u2 - _u1 <= MAX_ABS_ERROR)
+                break;
+        }
+        else
+        {
+            if (_u1 - _u2 <= MAX_ABS_ERROR)
+                break;
+        }
+    }
+
+    if (x1 < 0)
+        x1 = -x1;
+    if (x2 < 0)
+        x2 = -x2;
+
+    if (x1 < x2)
+        return _u1;
+    return _u2;
+}
+
+// given a x coordinate, find the corresponding u
+float find_u(BezierSegment* b, float t) {
+    BezierSegment b0 = *b;
+    for (int i = 0; i < b->order; ++i) {
+        b0.p[i] -= b->p[0];
+    }
+    return _findU(t - b->p[0].x, b0.p[1].x, b0.p[2].x, b0.p[3].x);
 }
 
 
@@ -952,6 +1085,36 @@ void RunProjector(int screenWidth, int screenHeight) {
                 for (float x = 0; x < cubic_width; x += 2) {
                     float y = cubic_x.Evaluate(x);
                     DrawPixel(b->p[0].x + x + origin.x, -b->p[0].y - y + origin.y, BLACK);
+                }
+            }
+            
+            if (localMousePos.x >= bound_min.x && localMousePos.x <= bound_max.x) {
+                float u = find_u(&b1, localMousePos.x);
+                float y = evaluate_bezier(&b1, u).y;
+                DrawLineEx((Vector2){localMousePos.x, 0} + origin,
+                           (Vector2){localMousePos.x, -y} + origin, 2, GRAY);
+
+                Vector2 labelPos = {localMousePos.x - 16, 10};
+                labelPos += origin;
+                char buff[32];
+                snprintf(buff, 31, "%2.2f", y);
+                DrawText(buff, labelPos.x, labelPos.y, 15, GRAY);
+
+                
+                if (y >= bound_min.y && y <= bound_max.y) {
+                    u = find_u(&b2, y);
+                    float y2 = evaluate_bezier(&b2, u).y;
+                    DrawLineEx((Vector2){localMousePos.x, -y} + origin,
+                               (Vector2){-y2, -y} + origin, 2, GRAY);
+                    DrawLineEx((Vector2){-y2, 0} + origin,
+                               (Vector2){-y2, -y} + origin, 2, GRAY);
+
+                    labelPos = {-y2 - 16, 10};
+                    labelPos += origin;
+                    char buff[32];
+                    snprintf(buff, 31, "%2.2f", y2);
+                    DrawText(buff, labelPos.x, labelPos.y, 15, GRAY);
+
                 }
             }
 
