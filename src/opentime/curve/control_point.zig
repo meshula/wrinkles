@@ -1,5 +1,5 @@
 const std = @import("std");
-const allocator = @import("../allocator.zig");
+const allocator = @import("opentime").ALLOCATOR;
 const ALLOCATOR = allocator.ALLOCATOR;
 const expectEqual = std.testing.expectEqual;
 

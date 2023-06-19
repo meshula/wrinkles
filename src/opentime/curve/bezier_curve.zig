@@ -8,7 +8,7 @@ const expectError = std.testing.expectError;
 const expect = std.testing.expect;
 
 // const opentime = @import("opentime");
-const opentime = @import("../opentime.zig");
+const opentime = @import("opentime");
 const bezier_math = @import("bezier_math.zig");
 const generic_curve = @import("generic_curve.zig");
 const linear_curve = @import("linear_curve.zig");
@@ -24,7 +24,7 @@ const nan = std.math.nan(f32);
 
 const  util = @import("util");
 
-const otio_allocator = @import("../allocator.zig");
+const otio_allocator = opentime.allocator;
 const ALLOCATOR = otio_allocator.ALLOCATOR;
 
 const string_stuff = @import("string_stuff");
@@ -1400,7 +1400,7 @@ test "Segment: projected_segment to 1/2" {
 
 test "TimeCurve: positive length 1 linear segment test" {
     const xform_curve: TimeCurve = .{
-        .segments = &[1]Segment{
+        .segments = &[_]Segment{
             create_linear_segment(
                 .{ .time = 1, .value = 0, },
                 .{ .time = 2, .value = 1, },

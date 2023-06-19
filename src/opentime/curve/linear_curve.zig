@@ -1,6 +1,6 @@
-const bezier_math = @import("./bezier_math.zig");
-const generic_curve = @import("./generic_curve.zig");
-const control_point = @import("./control_point.zig");
+const bezier_math = @import("bezier_math.zig");
+const generic_curve = @import("generic_curve.zig");
+const control_point = @import("control_point.zig");
 const ControlPoint = control_point.ControlPoint;
 
 const std = @import("std");
@@ -8,8 +8,8 @@ const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const expectApproxEqAbs = std.testing.expectApproxEqAbs;
 
-const ALLOCATOR = @import("../allocator.zig").ALLOCATOR;
-const opentime = @import("../opentime.zig");
+const opentime = @import("opentime");
+const ALLOCATOR = opentime.ALLOCATOR;
 const ContinuousTimeInterval = opentime.ContinuousTimeInterval;
 
 fn _is_between(val: f32, fst: f32, snd: f32) bool {

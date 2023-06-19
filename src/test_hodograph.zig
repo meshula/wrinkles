@@ -16,7 +16,7 @@ test "hodograph: simple" {
         .p = .{},
     };
     
-    for (crv.segments[0].points()) |pt, index| {
+    for (crv.segments[0].points(), 0..) |pt, index| {
         cSeg.p[index].x = pt.time;
         cSeg.p[index].y = pt.value;
     }

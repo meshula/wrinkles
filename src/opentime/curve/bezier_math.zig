@@ -1,17 +1,17 @@
 const std = @import("std");
 
-const control_point = @import("./control_point.zig");
+const control_point = @import("control_point.zig");
 const ControlPoint = control_point.ControlPoint;
-const curve = @import("./bezier_curve.zig");
-const linear_curve = @import("./linear_curve.zig");
-const generic_curve = @import("./generic_curve.zig");
+const curve = @import("bezier_curve.zig");
+const linear_curve = @import("linear_curve.zig");
+const generic_curve = @import("generic_curve.zig");
 const expectEqual = std.testing.expectEqual;
 const expect = std.testing.expect;
 fn expectApproxEql(expected: anytype, actual: @TypeOf(expected)) !void {
     return std.testing.expectApproxEqAbs(expected, actual, generic_curve.EPSILON);
 }
 
-const allocator = @import("../allocator.zig");
+const allocator = @import("opentime").ALLOCATOR;
 const ALLOCATOR = allocator.ALLOCATOR;
 
 /// could build an anytype version of this function if we needed
