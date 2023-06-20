@@ -349,14 +349,6 @@ pub fn build(b: *std.build.Builder) void {
     );
    build_wrinkles_like(
        b,
-       "otvis",
-       "/src/otvis.zig",
-       "/wrinkles_content/",
-        options,
-        deps,
-   );
-   build_wrinkles_like(
-       b,
        "curvet",
        "/src/curvet.zig",
        "/wrinkles_content/",
