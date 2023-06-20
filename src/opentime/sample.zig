@@ -1,8 +1,8 @@
 const std = @import("std");
 
-const time_topology = @import("time_topology.zig");
+const time_topology = @import("time_topology");
 const util = @import("util.zig");
-const curve = @import("curve/curve.zig");
+const curve = @import("curve");
 const ALLOCATOR = @import("allocator.zig").ALLOCATOR;
 
 const expectEqual = std.testing.expectEqual;

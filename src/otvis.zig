@@ -8,9 +8,9 @@ const zm = @import("zmath");
 const zstbi = @import("zstbi");
 
 // curve library
-const opentime = @import("opentime/opentime.zig");
-const curve = opentime.curve;
-const string = opentime.string;
+const opentime = @import("opentime");
+const curve = @import("curve");
+const string = @import("string_stuff");
 
 const assert = std.debug.assert;
 
@@ -23,7 +23,7 @@ const wgsl_common = @embedFile("wrinkles_common.wgsl");
 const wgsl_vs = wgsl_common ++ @embedFile("wrinkles_vs.wgsl");
 const wgsl_fs = wgsl_common ++ @embedFile("blank_fs.wgsl");
 
-const ALLOCATOR = @import("opentime/allocator.zig").ALLOCATOR;
+const ALLOCATOR = @import("otio_allocator").ALLOCATOR;
 
 // constants for indexing into the segment array
 const PROJ_S:usize = 0;

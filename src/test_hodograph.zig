@@ -6,10 +6,14 @@ const hodographs = @cImport(
 );
 
 const opentime = @import("opentime");
-const curve = opentime.curve;
+const curve = @import("curve");
 
 test "hodograph: simple" {
-    const crv = try curve.read_curve_json("curves/upside_down_u.curve.json");
+    const crv = try curve.read_curve_json(
+        "curves/upside_down_u.curve.json",
+        std.testing.allocator,
+    );
+    defer crv.deinit(std.testing.allocator);
 
     var cSeg : hodographs.BezierSegment = .{
         .order = 3,
@@ -38,7 +42,11 @@ test "hodograph: simple" {
 }
 
 test "hodograph: uuuuu" {
-    const crv = try curve.read_curve_json("curves/upside_down_u.curve.json");
+    const crv = try curve.read_curve_json(
+        "curves/upside_down_u.curve.json",
+        std.testing.allocator,
+    );
+    defer crv.deinit(std.testing.allocator);
 
     var seg_list = std.ArrayList(curve.Segment).init(std.testing.allocator);
     defer seg_list.deinit();
@@ -56,7 +64,12 @@ test "hodograph: uuuuu" {
 }
 
 test "hodograph: multisegment curve" {
-    const crv = try curve.read_curve_json("curves/linear_scurve_u.curve.json");
+    const crv = try curve.read_curve_json(
+        "curves/linear_scurve_u.curve.json",
+        std.testing.allocator,
+    );
+    defer crv.deinit(std.testing.allocator);
+
     try std.testing.expectEqual(@as(usize, 3), crv.segments.len);
     const split_crv = try crv.split_on_critical_points(std.testing.allocator);
     defer std.testing.allocator.free(split_crv.segments);

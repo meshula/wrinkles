@@ -9,7 +9,7 @@ const expectEqual = std.testing.expectEqual;
 const expectApproxEqAbs = std.testing.expectApproxEqAbs;
 
 const opentime = @import("opentime");
-const ALLOCATOR = opentime.ALLOCATOR;
+const ALLOCATOR = @import("otio_allocator").ALLOCATOR;
 const ContinuousTimeInterval = opentime.ContinuousTimeInterval;
 
 fn _is_between(val: f32, fst: f32, snd: f32) bool {

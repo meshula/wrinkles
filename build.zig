@@ -7,7 +7,12 @@ const zpool = @import("libs/zpool/build.zig");
 const zglfw = @import("libs/zglfw/build.zig");
 const zstbi = @import("libs/zstbi/build.zig");
 
-pub const min_zig_version = std.SemanticVersion{ .major = 0, .minor = 11, .patch = 0, .pre = "dev.2560" };
+pub const min_zig_version = std.SemanticVersion{
+    .major = 0,
+    .minor = 11,
+    .patch = 0,
+    .pre = "dev.3395" 
+};
 
 fn ensureZigVersion() !void {
     var installed_ver = @import("builtin").zig_version;
@@ -33,7 +38,9 @@ fn ensureZigVersion() !void {
 }
 
 fn ensureTarget(cross: std.zig.CrossTarget) !void {
-    const target = (std.zig.system.NativeTargetInfo.detect(cross) catch unreachable).target;
+    const target = (
+        std.zig.system.NativeTargetInfo.detect(cross) catch unreachable
+    ).target;
 
     const supported = switch (target.os.tag) {
         .windows => target.cpu.arch.isX86() and target.abi.isGnu(),
@@ -93,10 +100,11 @@ const c_args = [_][]const u8{
 };
 
 const SOURCES_WITH_TESTS = [_][]const u8{
-    // "./src/opentime/test_topology_projections.zig",
-    "./src/opentime/curve/bezier_math.zig",
+    "./src/curve/curve.zig",
     "./src/test_hodograph.zig",
 };
+
+
 
 pub fn add_test_for_source(
     b: *std.build.Builder,
@@ -104,7 +112,6 @@ pub fn add_test_for_source(
     test_step: anytype,
     fpath: []const u8,
     module_deps: []const ModuleSpec,
-
 ) void 
 {
     const test_thing = b.addTest(
@@ -125,17 +132,21 @@ pub fn add_test_for_source(
     // var test_exe = b.addTest(
     //     .{
     //         .name = "otio_test.out",
-    //         .kind = .test_exe,
     //         .root_source_file = .{ .path = fpath },
     //         .target = target,
     //         .optimize = .Debug,
     //     }
     // );
+    //
     // test_exe.addIncludePath("./spline-gym/src");
     // test_exe.addCSourceFile("./spline-gym/src/hodographs.c", &c_args);
+    //
+    // for (module_deps) |mod| {
+    //     test_exe.addModule(mod.name, mod.module);
+    // }
     // test_step.dependOn(&test_exe.step);
 
-    test_step.dependOn(&test_thing.step);
+    test_step.dependOn(&b.addRunArtifact(test_thing).step);
 }
 
 /// Returns the result of running `git rev-parse HEAD`
@@ -277,22 +288,55 @@ pub fn build(b: *std.build.Builder) void {
 
     //b.prominent_compile_errors = true;
 
+    const otio_allocator = b.createModule(
+        .{
+            .source_file = .{ .path = "src/allocator.zig" },
+            .dependencies = &.{},
+        }
+    );
     const string_stuff = b.createModule(
         .{
-            .source_file = .{ .path = "src/opentime/string_stuff.zig" },
+            .source_file = .{ .path = "src/string_stuff.zig" },
             .dependencies = &.{},
         }
     );
     const opentime = b.createModule(
         .{
             .source_file = .{ .path = "src/opentime/opentime.zig" },
-            .dependencies = &.{},
+            .dependencies = &.{ 
+                .{ .name = "string_stuff", .module = string_stuff },
+                .{ .name = "otio_allocator", .module = otio_allocator },
+            },
+        }
+    );
+    const curve = b.createModule(
+        .{
+            .source_file = .{ .path = "src/curve/curve.zig" },
+            .dependencies = &.{ 
+                .{ .name = "string_stuff", .module = string_stuff },
+                .{ .name = "opentime", .module = opentime },
+                .{ .name = "otio_allocator", .module = otio_allocator },
+            },
+        }
+    );
+    const time_topology = b.createModule(
+        .{
+            .source_file = .{ .path = "src/time_topology/time_topology.zig" },
+            .dependencies = &.{ 
+                .{ .name = "string_stuff", .module = string_stuff },
+                .{ .name = "opentime", .module = opentime },
+                .{ .name = "otio_allocator", .module = otio_allocator },
+                .{ .name = "curve", .module = curve },
+            },
         }
     );
 
     const deps:[]const ModuleSpec = &.{ 
         .{ .name = "string_stuff", .module = string_stuff },
         .{ .name = "opentime", .module = opentime },
+        .{ .name = "curve", .module = curve },
+        .{ .name = "otio_allocator", .module = otio_allocator },
+        .{ .name = "time_topology", .module = time_topology },
     };
 
     build_wrinkles_like(

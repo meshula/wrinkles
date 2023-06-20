@@ -1,13 +1,16 @@
 const std = @import("std"); 
 
-const interval = @import("interval.zig"); 
-const transform = @import("transform.zig"); 
-const curve = @import("curve/curve.zig"); 
-const control_point = @import("curve/control_point.zig"); 
-const sample_lib = @import("sample.zig");
+const opentime = @import("opentime"); 
+const interval = opentime.interval;
+const transform = opentime.transform;
+const sample_lib = opentime.sample;
 const Sample = sample_lib.Sample; 
-const util = @import("util.zig"); 
-const allocator = @import("allocator.zig"); 
+const util = opentime.util;
+
+const curve = @import("curve"); 
+const control_point = curve.control_point; 
+
+const allocator = @import("otio_allocator"); 
 
 
 // assertions
