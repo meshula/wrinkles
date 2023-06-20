@@ -279,12 +279,12 @@ pub const Segment = struct {
         inline for ([3][]const u8{"p1", "p2", "p3"}) |field| {
             const pt = @field(self, field);
             min = .{
-                .time = std.math.min(min.time, pt.time),
-                .value = std.math.min(min.value, pt.value),
+                .time = @min(min.time, pt.time),
+                .value = @min(min.value, pt.value),
             };
             max = .{
-                .time = std.math.max(max.time, pt.time),
-                .value = std.math.max(max.value, pt.value),
+                .time = @max(max.time, pt.time),
+                .value = @max(max.value, pt.value),
             };
         }
 
@@ -1042,12 +1042,12 @@ pub const TimeCurve = struct {
         for (self.segments) |seg| {
             const seg_extents = seg.extents();
             min = .{
-                .time = std.math.min(min.time, seg_extents[0].time),
-                .value = std.math.min(min.value, seg_extents[0].value),
+                .time = @min(min.time, seg_extents[0].time),
+                .value = @min(min.value, seg_extents[0].value),
             };
             max = .{
-                .time = std.math.max(min.time, seg_extents[1].time),
-                .value = std.math.max(min.value, seg_extents[1].value),
+                .time = @max(min.time, seg_extents[1].time),
+                .value = @max(min.value, seg_extents[1].value),
             };
         }
         return .{ min, max };
@@ -1371,7 +1371,10 @@ pub fn read_curve_json(
     const source = try fi.readToEndAlloc(allocator_, std.math.maxInt(u32));
     defer allocator_.free(source);
 
-    return try std.json.parseFromSlice(TimeCurve, allocator_, source, .{});
+    const result = try std.json.parseFromSlice(TimeCurve, allocator_, source, .{});
+    defer result.deinit();
+
+    return TimeCurve.init(result.value.segments);
 }
 
 test "Curve: read_curve_json" {

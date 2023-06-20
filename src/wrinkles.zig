@@ -96,7 +96,7 @@ fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*DemoState {
     zgui.plot.init();
     const scale_factor = scale_factor: {
         const scale = window.getContentScale();
-        break :scale_factor math.max(scale[0], scale[1]);
+        break :scale_factor @max(scale[0], scale[1]);
     };
     const font_size = 16.0 * scale_factor;
     const roboto_fp = content_dir ++ "Roboto-Medium.ttf";

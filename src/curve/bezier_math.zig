@@ -91,7 +91,7 @@ pub fn _bezier0(unorm: f32, p2: f32, p3: f32, p4: f32) f32
 
 pub fn _findU(x:f32, p1:f32, p2:f32, p3:f32) f32
 {
-    const MAX_ABS_ERROR = std.math.f32_epsilon * 2.0;
+    const MAX_ABS_ERROR = std.math.floatEps(f32) * 2.0;
     const MAX_ITERATIONS: u8 = 45;
 
     if (x <= 0) {

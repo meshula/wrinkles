@@ -73,7 +73,7 @@ const GraphicsState = struct {
         zgui.plot.init();
         const scale_factor = scale_factor: {
             const scale = window.getContentScale();
-            break :scale_factor std.math.max(scale[0], scale[1]);
+            break :scale_factor @max(scale[0], scale[1]);
         };
 
         // const fira_font_path = content_dir ++ "FiraCode-Medium.ttf";

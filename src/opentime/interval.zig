@@ -61,8 +61,8 @@ pub fn extend(
     snd: ContinuousTimeInterval
 ) ContinuousTimeInterval {
     return .{
-        .start_seconds = std.math.min(fst.start_seconds, snd.start_seconds),
-        .end_seconds = std.math.max(fst.end_seconds, snd.end_seconds),
+        .start_seconds = @min(fst.start_seconds, snd.start_seconds),
+        .end_seconds = @max(fst.end_seconds, snd.end_seconds),
     };
 }
 
@@ -85,8 +85,8 @@ pub fn union_of(
     }
 
     return .{
-        .start_seconds = std.math.min(fst.start_seconds, snd.start_seconds),
-        .end_seconds = std.math.max(fst.end_seconds, snd.end_seconds),
+        .start_seconds = @min(fst.start_seconds, snd.start_seconds),
+        .end_seconds = @max(fst.end_seconds, snd.end_seconds),
     };
 }
 
@@ -99,8 +99,8 @@ pub fn intersect(
     }
 
     return .{
-        .start_seconds = std.math.max(fst.start_seconds, snd.start_seconds),
-        .end_seconds = std.math.min(fst.end_seconds, snd.end_seconds),
+        .start_seconds = @max(fst.start_seconds, snd.start_seconds),
+        .end_seconds = @min(fst.end_seconds, snd.end_seconds),
     };
 }
 

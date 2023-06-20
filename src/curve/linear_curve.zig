@@ -314,12 +314,12 @@ pub const TimeCurveLinear = struct {
 
         for (self.knots) |knot| {
             min = .{
-                .time = std.math.min(min.time, knot.time),
-                .value = std.math.min(min.value, knot.value),
+                .time = @min(min.time, knot.time),
+                .value = @min(min.value, knot.value),
             };
             max = .{
-                .time = std.math.max(max.time, knot.time),
-                .value = std.math.max(max.value, knot.value),
+                .time = @max(max.time, knot.time),
+                .value = @max(max.value, knot.value),
             };
         }
         return .{ min, max };
