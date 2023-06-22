@@ -137,7 +137,7 @@ const GraphicsState = struct {
         zgui.backend.init(
             window,
             gctx.device,
-            @enumToInt(zgpu.GraphicsContext.swapchain_format)
+            @intFromEnum(zgpu.GraphicsContext.swapchain_format)
         );
 
         // This call is optional. Initially, zgui.io.getFont(0) is a default font.
@@ -475,8 +475,8 @@ fn update(
     zgui.setNextWindowPos(.{ .x = 0.0, .y = 0.0, });
 
     const size = gfx_state.gctx.window.getFramebufferSize();
-    const width = @intToFloat(f32, size[0]);
-    const height = @intToFloat(f32, size[1]);
+    const width = @floatFromInt(f32, size[0]);
+    const height = @floatFromInt(f32, size[1]);
 
     zgui.setNextWindowSize(.{ .w = width, .h = height, });
 

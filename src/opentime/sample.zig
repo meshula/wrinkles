@@ -102,7 +102,7 @@ test "StepSampleGenerator: sample over step function topology" {
     );
 
     try expectEqual(
-        @floatToInt(i32, @floor(expected)),
+        @intFromFloat(i32, @floor(expected)),
         @intCast(i32, result.len),
     );
 }
@@ -136,7 +136,7 @@ test "StepSampleGenerator: sample over identity topology"
 
     var expected = target_topology.bounds().duration_seconds() * sample_rate;
     try expectEqual(
-        @floatToInt(i32, @floor(expected)),
+        @intFromFloat(i32, @floor(expected)),
         @intCast(i32, result.len),
     );
 }

@@ -1582,7 +1582,7 @@ pub const IntrinsicSchema = enum {
 
 pub fn read_float(obj:std.json.Value) time_topology.Ordinate {
     return switch (obj) {
-        .Integer => |i| @intToFloat(time_topology.Ordinate, i),
+        .Integer => |i| @floatFromInt(time_topology.Ordinate, i),
         .Float => |f| @floatCast(time_topology.Ordinate, f),
         else => 0,
     };

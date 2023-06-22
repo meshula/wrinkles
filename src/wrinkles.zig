@@ -106,7 +106,7 @@ fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*DemoState {
     assert(zgui.io.getFont(1) == font_normal);
 
     // This needs to be called *after* adding your custom fonts.
-    zgui.backend.init(window, gctx.device, @enumToInt(zgpu.GraphicsContext.swapchain_format));
+    zgui.backend.init(window, gctx.device, @intFromEnum(zgpu.GraphicsContext.swapchain_format));
 
     // This call is optional. Initially, zgui.io.getFont(0) is a default font.
     zgui.io.setDefaultFont(font_normal);
@@ -402,10 +402,10 @@ fn draw(demo: *DemoState) void {
 
             const mem = gctx.uniformsAllocate(Uniforms, 1);
             mem.slice[0] = .{
-                .aspect_ratio = @intToFloat(f32, fb_width) / @intToFloat(f32, fb_height),
+                .aspect_ratio = @floatFromInt(f32, fb_width) / @floatFromInt(f32, fb_height),
                 .duration = demo.duration,
-                .clip_frame_rate = @intToFloat(f32, demo.clip_frame_rate),
-                .frame_rate = @intToFloat(f32, demo.frame_rate),
+                .clip_frame_rate = @floatFromInt(f32, demo.clip_frame_rate),
+                .frame_rate = @floatFromInt(f32, demo.frame_rate),
             };
             pass.setBindGroup(0, bind_group, &.{mem.offset});
             pass.drawIndexed(6, 1, 0, 0, 0);
