@@ -1375,13 +1375,7 @@ pub fn read_curve_json(
     const source = try fi.readToEndAlloc(allocator_, std.math.maxInt(u32));
     defer allocator_.free(source);
 
-    const parsed = try std.json.parseFromSlice(TimeCurve, allocator_, source, .{});
-    defer parsed.deinit();
-
-    var result = parsed.value;
-    result.segments = try allocator_.dupe(Segment, parsed.value.segments);
-
-    return result;
+    return try std.json.parseFromSliceLeaky(TimeCurve, allocator_, source, .{});
 }
 
 test "Curve: read_curve_json" {
