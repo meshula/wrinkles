@@ -48,9 +48,16 @@ const VisOperation = union(enum) {
 const VisState = struct {
     operations: std.ArrayList(VisOperation),
 
-    pub fn deinit(self: *const @This(), allocator: std.mem.Allocator) void {
-        for (self.operations.items) |visop| {
-            switch (visop) {
+    pub fn deinit(
+        self: *const @This(),
+        allocator: std.mem.Allocator
+    ) void 
+    {
+        for (self.operations.items) 
+            |visop| 
+        {
+            switch (visop) 
+            {
                 .curve => |crv| {
                     allocator.free(crv.curve.segments);
                     allocator.free(crv.split_hodograph.segments);
@@ -228,6 +235,7 @@ pub fn main() !void {
     defer gfx_state.deinit();
 
     var state = try _parse_args(allocator);
+
     var pbuf:[1024:0]u8 = .{};
     var u_path:[:0]u8 = try std.fmt.bufPrintZ(
         &pbuf,
@@ -444,11 +452,17 @@ fn update(
     state: *VisState,
     tmpCurves: projTmpTest,
     allocator: std.mem.Allocator,
-) !void {
+) !void 
+{
     var _proj = time_topology.TimeTopology.init_identity_infinite();
-    for (state.operations.items) |visop| {
+
+    for (state.operations.items) 
+        |visop| 
+    {
         var _topology: time_topology.TimeTopology = .{ .empty = .{} };
-        switch (visop) {
+
+        switch (visop) 
+        {
             .transform => |xform| {
                 if (!xform.active) {
                     continue;
@@ -464,6 +478,7 @@ fn update(
                 }
             },
         }
+
         _proj = try _topology.project_topology(_proj);
     }
 
@@ -493,7 +508,6 @@ fn update(
         return;
     }
 
-
     // FPS/status line
     zgui.bulletText(
         "Average : {d:.3} ms/frame ({d:.1} fps)",
@@ -510,7 +524,8 @@ fn update(
         if (zgui.beginChild("Plot", .{ .w = width - 600 }))
         {
 
-            if (zgui.plot.beginPlot("Curve Plot", .{ .h = -1.0 })) {
+            if (zgui.plot.beginPlot("Curve Plot", .{ .h = -1.0 })) 
+            {
                 zgui.plot.setupAxis(.x1, .{ .label = "input" });
                 zgui.plot.setupAxis(.y1, .{ .label = "output" });
                 zgui.plot.setupLegend(
@@ -521,8 +536,12 @@ fn update(
                     .{}
                 );
                 zgui.plot.setupFinish();
-                for (state.operations.items, 0..) |visop, op_index| {
-                    switch (visop) {
+                for (state.operations.items, 0..) 
+                    |visop, op_index| 
+                {
+
+                    switch (visop) 
+                    {
                         .curve => |crv| {
                             const name = try std.fmt.bufPrintZ(
                                 &tmp_buf,
@@ -535,7 +554,9 @@ fn update(
                         else => {},
                     }
                 }
-                switch (_proj) {
+
+                switch (_proj) 
+                {
                     .linear_curve => |lint| { 
                         const lin = lint.curve;
                         var xv:[]f32 = try allocator.alloc(f32, lin.knots.len);
@@ -585,8 +606,8 @@ fn update(
                     },
                 }
 
-                if (false) {
-
+                if (false) 
+                {
                     // debug 
                     const self = tmpCurves.fst.curve;
                     const other = tmpCurves.snd.curve;
@@ -817,7 +838,7 @@ fn _parse_args(
     // read all the filepaths from the commandline
     while (args.next()) |nextarg| 
     {
-        var fpath: [:0]const u8 = nextarg;
+        const fpath: [:0]const u8 = nextarg;
 
         if (
             string.eql_latin_s8(fpath, "--help")
@@ -828,7 +849,7 @@ fn _parse_args(
 
         std.debug.print("reading curve: '{s}'\n", .{ fpath });
 
-        var crv = curve.read_curve_json(fpath, allocator) catch |err| {
+        const crv = curve.read_curve_json(fpath, allocator) catch |err| {
             std.debug.print(
                 "Something went wrong reading: '{s}'\n",
                 .{ fpath }
@@ -844,17 +865,13 @@ fn _parse_args(
         };
 
         std.debug.assert(crv.segments.len > 0);
-        var visoperation = VisOperation{ .curve = viscurve };
-        try operations.append(visoperation);
+
+        try operations.append(.{ .curve = viscurve });
     }
 
-    var state = VisState{
-        .operations = operations,
-    };
+    try operations.append(.{ .transform = .{} });
 
-    try state.operations.append(.{ .transform = .{} });
-
-    return state;
+    return .{ .operations = operations };
 }
 
 /// print the usage message out and quit

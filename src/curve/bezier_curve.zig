@@ -556,7 +556,11 @@ pub fn read_segment_json(file_path: latin_s8) !Segment {
     defer fi.close();
 
     const source = try fi.readToEndAlloc(ALLOCATOR, std.math.maxInt(u32));
-    return try std.json.parseFromSlice(Segment, ALLOCATOR, source, .{});
+
+    const result = try std.json.parseFromSlice(Segment, ALLOCATOR, source, .{});
+    defer result.deinit();
+
+    return result.value;
 }
 
 test "segment: eval_at_x and findU test over linear curve" {
@@ -1371,10 +1375,13 @@ pub fn read_curve_json(
     const source = try fi.readToEndAlloc(allocator_, std.math.maxInt(u32));
     defer allocator_.free(source);
 
-    const result = try std.json.parseFromSlice(TimeCurve, allocator_, source, .{});
-    defer result.deinit();
+    const parsed = try std.json.parseFromSlice(TimeCurve, allocator_, source, .{});
+    defer parsed.deinit();
 
-    return TimeCurve.init(result.value.segments);
+    var result = parsed.value;
+    result.segments = try allocator_.dupe(Segment, parsed.value.segments);
+
+    return result;
 }
 
 test "Curve: read_curve_json" {
