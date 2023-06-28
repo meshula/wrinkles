@@ -45,6 +45,28 @@ fn _is_between(val: f32, fst: f32, snd: f32) bool {
     return ((fst <= val and val < snd) or (fst >= val and val > snd));
 }
 
+fn vec2_add_vec2(
+    lhs: control_point.ControlPoint,
+    rhs: control_point.ControlPoint
+) control_point.ControlPoint {
+    return .{ .time = lhs.time + rhs.time, .value = lhs.value + rhs.value };
+}
+
+fn vec2_sub_vec2(
+    lhs: control_point.ControlPoint,
+    rhs: control_point.ControlPoint
+) control_point.ControlPoint {
+    return .{ .time = lhs.time - rhs.time, .value = lhs.value - rhs.value };
+}
+
+fn float_mul_vec2(
+    lhs: f32,
+    rhs: control_point.ControlPoint
+) control_point.ControlPoint
+{
+    return .{ .time = lhs * rhs.time, .value = lhs * rhs.value };
+}
+
 // Time curves are functions mapping a time to a value.
 // Time curves are a sequence of right met 2d Bezier curve segments
 // closed on the left and open on the right.
@@ -191,76 +213,64 @@ pub const Segment = struct {
         return (self.p0.time <= t and self.p3.time > t);
     }
 
-    pub fn split_at(self: @This(), unorm:f32) [2]Segment 
+    pub fn split_at(self: @This(), unorm:f32) ?[2]Segment 
     {
-        const z = unorm;
-        const z2 = z*z;
-        const z3 = z2*z;
+        if (unorm <= 0 or unorm >= 1) 
+        {
+            return null;
+        }
 
-        const zmo = z-1.0;
-        const zmo2 = zmo*zmo;
-        const zmo3 = zmo2*zmo;
+        const p = self.points();
 
-        // const unorm_2 = unorm*unorm;
-        // const unorm_3 = unorm_2*unorm;
+        const Q0 = p[0];
+
+        // Vector2 Q1 = (1 - unorm) * p[0] + unorm * p[1];
+        const Q1 = vec2_add_vec2(float_mul_vec2((1 - unorm), p[0]),
+            float_mul_vec2(unorm, p[1]));
+
+        //Vector2 Q2 = (1 - unorm) * Q1 + unorm * ((1 - unorm) * p[1] + unorm * p[2]);
+        const Q2 = vec2_add_vec2(float_mul_vec2((1 - unorm), Q1),
+            float_mul_vec2(unorm, (vec2_add_vec2(float_mul_vec2((1 - unorm), p[1]),
+                        float_mul_vec2(unorm, p[2])))));
+
+        // Vector2 p[4] = { bz->p[0], bz->p[1], bz->p[2], bz->p[3] };
+
+        //     const Q0 = self.p0;
+        // 
+        //     // Vector2 Q1 = (1 - unorm) * p[0] + unorm * p[1];
+        //     const Q1 = (
+        //         (
+        //             p[0].mul(1 - unorm)
+        //         ).add(p[1].mul(unorm))
+        //     );
         //
-        // const un_sub = unorm - 1;
-        // const un_sub_2 = un_sub * un_sub;
-        // const un_sub_3 = un_sub_2 * un_sub;
-        //
-        const p1: control_point.ControlPoint = self.p0;
-        const p2: control_point.ControlPoint = self.p1;
-        const p3: control_point.ControlPoint = self.p2;
-        const p4: control_point.ControlPoint = self.p3;
+        //     //Vector2 Q2 = (1 - unorm) * Q1 + unorm * ((1 - unorm) * p[1] + unorm * p[2]);
+        //     const Q2 = Q1.mul((1-unorm)).add(
+        //         ((p[1].mul(1-unorm)).add(p[2].mul(unorm))).mul(unorm));
 
-        const l_p1: control_point.ControlPoint = p1;
-        const l_p2: control_point.ControlPoint = (p2.mul(z)).sub(p1.mul(zmo));
-        const l_p3: control_point.ControlPoint = (p3.mul(z2)).sub(p2.mul(2.0*z*zmo)).add(p1.mul(zmo2));
-        const l_p4: control_point.ControlPoint = (p4.mul(z3)).sub(p3.mul(3.0*z2*zmo)).add(p2.mul(3.0*z*zmo2)).sub(p1.mul(zmo3));
+        //Vector2 Q3 = (1 - unorm) * Q2 + unorm * ((1 - unorm) * ((1 - unorm) * p[1] + unorm * p[2]) + unorm * ((1 - unorm) * p[2] + unorm * p[3]));
+        const Q3 = vec2_add_vec2(float_mul_vec2((1 - unorm), Q2),
+            float_mul_vec2(unorm, (vec2_add_vec2(float_mul_vec2((1 - unorm), (vec2_add_vec2(float_mul_vec2((1 - unorm), p[1]),
+                                    float_mul_vec2(unorm, p[2])))),
+                        float_mul_vec2(unorm, vec2_add_vec2(float_mul_vec2((1 - unorm), p[2]),
+                                float_mul_vec2(unorm, p[3])))))));
 
-        const r_p1: control_point.ControlPoint = l_p4;
-        const r_p2: control_point.ControlPoint = (p4.mul(z2)).sub(p3.mul(2.0*z*zmo)).add(p2.mul(zmo2));
-        const r_p3: control_point.ControlPoint = (p4.mul(z)).sub(p3.mul(zmo));
-        const r_p4: control_point.ControlPoint = p4;
+        const R0 = Q3;
+
+        //Vector2 R2 = (1 - unorm) * p[2] + unorm * p[3];
+        const R2 = vec2_add_vec2(float_mul_vec2((1 - unorm), p[2]),
+            float_mul_vec2(unorm, p[3]));
+
+        //Vector2 R1 = (1 - unorm) * ((1 - unorm) * p[1] + unorm * p[2]) + unorm * R2;
+        const R1 = vec2_add_vec2(float_mul_vec2((1 - unorm), (vec2_add_vec2(float_mul_vec2((1 - unorm), p[1]),
+                        float_mul_vec2(unorm, p[2])))),
+            float_mul_vec2(unorm, R2));
+        const R3 = p[3];
 
         return .{
-            //left 
-            .{
-                .p0 = l_p1,
-                .p1 = l_p2,
-                .p2 = l_p3,
-                .p3 = l_p4,
-            },
-
-            //right
-            .{
-                .p0 = r_p1,
-                .p1 = r_p2,
-                .p2 = r_p3,
-                .p3 = r_p4,
-            }
-
+            Segment.from_pt_array( .{ Q0, Q1, Q2, Q3 } ),
+            Segment.from_pt_array( .{ R0, R1, R2, R3 } ),
         };
-
-        // return .{
-        //
-        //     // left ('earlier') segment
-        //     .{
-        //         .p0 = self.p0,
-        //         .p1 = (self.p1.mul(unorm)  ).sub(self.p0.mul(un_sub)),
-        //         .p2 = (self.p2.mul(unorm_2)).sub(self.p1.mul(2*unorm*un_sub)  ).add(self.p0.mul(un_sub_2)),
-        //         .p3 = (self.p3.mul(unorm_3)).sub(self.p2.mul(3*unorm_2*un_sub)).add(self.p1.mul(3*unorm*un_sub_2)).sub(self.p0.mul(un_sub_3)),
-        //     },
-        //     
-        //     // right segment (later)
-        //     .{
-        //         .p0 = (self.p3.mul(unorm_3)).sub(self.p2.mul(3*unorm_2*un_sub)).add(self.p1.mul(3*unorm*un_sub_2)).sub(self.p0.mul(un_sub_3)),
-        //         .p1 = (self.p3.mul(unorm_2)).sub(self.p2.mul(2*unorm*un_sub)  ).add(self.p1.mul(un_sub_2)), 
-        //         .p2 = (self.p3.mul(unorm)  ).sub(self.p2.mul(un_sub)),
-        //         .p3 = self.p3,
-        //
-        //    }
-        // };
     }
 
     pub fn control_hull(self: @This()) [3][2]control_point.ControlPoint {
@@ -1470,11 +1480,8 @@ pub const TimeCurve = struct {
 
             var current_seg = seg;
             for (0..split_count) |i| {
-                if (
-                    splits[i] > 0 + generic_curve.EPSILON
-                    and splits[i] < 1 - generic_curve.EPSILON
-                ) {
-                    const xsplits = current_seg.split_at(splits[i]);
+                const maybe_xsplits = current_seg.split_at(splits[i]);
+                if (maybe_xsplits) |xsplits| {
                     try split_segments.append(xsplits[0]);
                     current_seg = xsplits[1];
                 }
@@ -2497,6 +2504,69 @@ test "TimeCurve: split_on_critical_points symmetric about the origin" {
         inflections.x,
         generic_curve.EPSILON
     );
+
+    var t:f32 = 0.0;
+    while (t < 1) 
+        : (t += 0.01) 
+    {
+        var c_split_l:hodographs.BezierSegment = undefined;
+        var c_split_r:hodographs.BezierSegment = undefined;
+        var c_result = hodographs.split_bezier(&cSeg, t, &c_split_l, &c_split_r);
+
+        const maybe_zig_splits = s_seg[0].split_at(t);
+
+        if (maybe_zig_splits == null) {
+            try std.testing.expect(c_result == false);
+            continue;
+        }
+
+        const zig_splits = maybe_zig_splits.?;
+
+        errdefer {
+            std.debug.print("\n---\nc left:\n", .{});
+            for (c_split_l.p) |p| {
+                std.debug.print("  {d}, {d}\n", .{p.x, p.y});
+            }
+            std.debug.print("\nc right:\n", .{});
+            for (c_split_r.p) |p| {
+                std.debug.print("  {d}, {d}\n", .{p.x, p.y});
+            }
+            std.debug.print("\nzig left:\n", .{});
+            for (zig_splits[0].points()) |p| {
+                std.debug.print("  {d}, {d}\n", .{p.time, p.value});
+            }
+            std.debug.print("\nzig right:\n", .{});
+            for (zig_splits[1].points()) |p| {
+                std.debug.print("  {d}, {d}\n", .{p.time, p.value});
+            }
+        }
+
+        for (0..4) 
+            |i|
+        {
+            errdefer std.debug.print("\n\npt: {d} t: {d}\n", .{ i, t });
+            try std.testing.expectApproxEqAbs(
+                c_split_l.p[i].x,
+                zig_splits[0].points()[i].time,
+                generic_curve.EPSILON
+            );
+            try std.testing.expectApproxEqAbs(
+                c_split_l.p[i].y,
+                zig_splits[0].points()[i].value,
+                generic_curve.EPSILON
+            );
+            try std.testing.expectApproxEqAbs(
+                c_split_r.p[i].x,
+                zig_splits[1].points()[i].time,
+                generic_curve.EPSILON
+            );
+            try std.testing.expectApproxEqAbs(
+                c_split_r.p[i].y,
+                zig_splits[1].points()[i].value,
+                generic_curve.EPSILON
+            );
+        }
+    }
 
     const s_curve_split = try s_curve_seg.split_on_critical_points(
         std.testing.allocator
