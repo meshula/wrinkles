@@ -358,7 +358,7 @@ fn plot_knots(
     {
         const name_ = try std.fmt.bufPrintZ(
             &buf,
-            "{s}: Bezier Control Points",
+            "{s}: Bezier Knots",
             .{name}
         );
 
@@ -422,15 +422,57 @@ fn plot_control_points(
     }
 }
 
+fn plot_linear_curve(
+    lin:curve.TimeCurveLinear,
+    name:[:0]const u8,
+    allocator:std.mem.Allocator
+) !void
+{
+    var xv:[]f32 = try allocator.alloc(f32, lin.knots.len);
+    defer allocator.free(xv);
+    var yv:[]f32 = try allocator.alloc(f32, lin.knots.len);
+    defer allocator.free(yv);
+
+    for (lin.knots, 0..) |knot, knot_index| {
+        xv[knot_index] = knot.time;
+        yv[knot_index] = knot.value;
+    }
+
+    var tmp_buf:[1024:0]u8 = .{};
+    @memset(&tmp_buf, 0);
+
+    const label = try std.fmt.bufPrintZ(
+        &tmp_buf,
+        "{s}: {d} knots",
+        .{ name, lin.knots.len }
+    );
+
+    zgui.plot.plotLine(
+        label,
+        f32,
+        .{ .xv = xv, .yv = yv }
+    );
+}
+
 fn plot_bezier_curve(
     crv:curve.TimeCurve,
     name:[:0]const u8,
     allocator:std.mem.Allocator
-) !void {
+) !void 
+{
     const pts = try evaluated_curve(crv, 1000);
 
+    var buf:[1024:0]u8 = .{};
+    @memset(&buf, 0);
+
+    const label = try std.fmt.bufPrintZ(
+        &buf,
+        "{s} [{d} segments]",
+        .{ name, crv.segments.len }
+    );
+
     zgui.plot.plotLine(
-        name,
+        label,
         f32,
         .{ .xv = &pts.xv, .yv = &pts.yv }
     );
@@ -444,7 +486,33 @@ fn plot_curve(
     allocator: std.mem.Allocator,
 ) !void 
 {
+    var buf:[1024:0]u8 = .{};
+    @memset(&buf, 0);
+    const lin_label = try std.fmt.bufPrintZ(
+        &buf,
+        "{s} / linearized", 
+        .{ name }
+    );
+
     try plot_bezier_curve(crv.curve, name, allocator);
+    const orig_linearized = crv.curve.linearized();
+    try plot_linear_curve(orig_linearized, lin_label, allocator);
+
+    const split = try crv.curve.split_on_critical_points(allocator);
+    defer split.deinit(allocator);
+
+    @memset(&buf, 0);
+    const label = try std.fmt.bufPrintZ(
+        &buf,
+        "{s} / split on critical points", 
+        .{ name }
+    );
+
+    try plot_bezier_curve(split, label, allocator);
+    try plot_knots(split, label, allocator);
+
+    const linearized = split.linearized();
+    try plot_linear_curve(linearized, label, allocator);
 }
 
 fn update(
@@ -515,7 +583,7 @@ fn update(
     );
     zgui.spacing();
 
-    _ = zgui.showDemoWindow(null);
+    // _ = zgui.showDemoWindow(null);
 
     var tmp_buf:[1024:0]u8 = .{};
     @memset(&tmp_buf, 0);
@@ -559,21 +627,7 @@ fn update(
                 {
                     .linear_curve => |lint| { 
                         const lin = lint.curve;
-                        var xv:[]f32 = try allocator.alloc(f32, lin.knots.len);
-                        defer allocator.free(xv);
-                        var yv:[]f32 = try allocator.alloc(f32, lin.knots.len);
-                        defer allocator.free(yv);
-                        
-                        for (lin.knots, 0..) |knot, knot_index| {
-                            xv[knot_index] = knot.time;
-                            yv[knot_index] = knot.value;
-                        }
-
-                        zgui.plot.plotLine(
-                            "result [linear]",
-                            f32,
-                            .{ .xv = xv, .yv = yv }
-                        );
+                        try plot_linear_curve(lin, "result / linear", allocator);
                     },
                     .bezier_curve => |bez| {
                         const pts = try evaluated_curve(bez.curve, 1000);
@@ -616,15 +670,19 @@ fn update(
                     try plot_bezier_curve(other, "other", allocator);
 
                     const self_hodograph = try self.split_on_critical_points(allocator);
-                    try plot_bezier_curve(self_hodograph, "self hodograph", allocator);
                     defer self_hodograph.deinit(allocator);
+                    try plot_bezier_curve(self_hodograph, "self hodograph", allocator);
                     try plot_knots(self_hodograph, "hodograph knots", allocator);
+
                     const other_hodograph = try other.split_on_critical_points(allocator);
-                    try plot_bezier_curve(other_hodograph, "other hodograph", allocator);
                     defer other_hodograph.deinit(allocator);
+                    try plot_bezier_curve(other_hodograph, "other hodograph", allocator);
 
                     const other_bounds = other.extents();
-                    var other_copy = try curve.TimeCurve.init(other_hodograph.segments);
+                    var other_copy = try curve.TimeCurve.init(
+                        other_hodograph.segments
+                    );
+                    defer other_copy.deinit(allocator);
 
                     {
                         var split_points = std.ArrayList(f32).init(allocator);
@@ -652,7 +710,6 @@ fn update(
                         );
                         other_copy = result;
                     }
-                    defer other_copy.deinit(allocator);
 
                     try plot_knots(other_copy, "other copy knots", allocator);
                     try plot_bezier_curve(other_copy, "other copy", allocator);
@@ -709,7 +766,41 @@ fn update(
                                 "file path: {s}",
                                 .{ crv.*.fpath[0..] }
                             );
+
+                            // show the knots
+                            if (zgui.collapsingHeader("Original Knots", .{})) {
+                                for (try crv.curve.segment_endpoints(), 0..) 
+                                    |pt, ind| 
+                                {
+                                    zgui.bulletText(
+                                        "{d}: ({d}, {d})",
+                                        .{ ind, pt.time, pt.value },
+                                    );
+                                }
+                            }
+
+                            // split on critical points knots
+                            if (
+                                zgui.collapsingHeader(
+                                    "Split on Critical Points Knots",
+                                    .{}
+                                )
+                            )
+                            {
+                                const split = try crv.curve.split_on_critical_points(allocator);
+                                defer split.deinit(allocator);
+
+                                for (try split.segment_endpoints(), 0..) 
+                                    |pt, ind| 
+                                {
+                                    zgui.bulletText(
+                                        "{d}: ({d}, {d})",
+                                        .{ ind, pt.time, pt.value },
+                                    );
+                                }
+                            }
                         }
+
                     },
                     .transform => |*xform| {
                         if (

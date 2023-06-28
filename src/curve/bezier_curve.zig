@@ -761,18 +761,30 @@ pub const TimeCurve = struct {
         );
         defer linearized_knots.deinit();
 
-        // @NOTE NICK: this is a good place to start adding in the holodromes
-
-        // @TODO: find the holodromes first, then linearize the holodromes
-        //        ...because any critical point will want a linearized knot
-
-        for (self.segments) |seg| {
-            // @TODO: expose the tolerance as a parameter(?)
-            linearized_knots.appendSlice(
-                (
-                 linearize_segment(seg, 0.000001) catch unreachable
-                ).items
+        if (true) {
+            const self_split_on_critical_points = self.split_on_critical_points(
+                ALLOCATOR
             ) catch unreachable;
+            defer self_split_on_critical_points.deinit(ALLOCATOR);
+
+            for (self_split_on_critical_points.segments) |seg| {
+                // @TODO: expose the tolerance as a parameter(?)
+                linearized_knots.appendSlice(
+                    (
+                     linearize_segment(seg, 0.000001) catch unreachable
+                    ).items
+                ) catch unreachable;
+            }
+        } else {
+            // no hodograph first
+            for (self.segments) |seg| {
+                // @TODO: expose the tolerance as a parameter(?)
+                linearized_knots.appendSlice(
+                    (
+                     linearize_segment(seg, 0.000001) catch unreachable
+                    ).items
+                ) catch unreachable;
+            }
         }
 
         return .{
@@ -1154,6 +1166,59 @@ pub const TimeCurve = struct {
 
         return .{ .segments = try result_segments.toOwnedSlice() };
     }
+    
+    pub fn split_at_each_parameter_space_ordinate(
+        self:@This(),
+        parameter_ordinates:[]const f32,
+        segment_indices:[]const usize,
+        allocator: std.mem.Allocator,
+    ) !TimeCurve 
+    {
+        var result_segments = std.ArrayList(Segment).init(allocator);
+        defer result_segments.deinit();
+        try result_segments.appendSlice(self.segments);
+
+        var current_split = 0;
+
+        for (self.segments, 0..) 
+            |seg, seg_ind| 
+        {
+            // if the current split is after all the splits in the index list
+            // or the current split is after this segment's index, add it
+            if (
+                current_split >= segment_indices.len 
+                or seg_ind < segment_indices[current_split]
+            ) {
+                result_segments.append(seg);
+                continue;
+            }
+        
+            var current_segment = seg;
+            while (seg_ind == segment_indices[current_split]) 
+                : (current_split += 1) 
+            {
+                // if the parameter is 0 or 1, don't bother splitting
+                if (
+                    parameter_ordinates[current_split] < generic_curve.EPSILON 
+                    or parameter_ordinates[current_split] > 1 - generic_curve.EPSILON
+                ) {
+                    continue;
+                }
+
+                // do a split    
+                var split_segments = current_segment.split_at(
+                    parameter_ordinates[current_split]
+                );
+                // and insert it
+                result_segments.append(split_segments[0]);
+                current_segment = split_segments[1];
+            }
+
+            result_segments.append(current_segment);
+        }
+
+        return .{ .segments = try result_segments.toOwnedSlice() };
+    }
 
     pub fn split_at_each_input_ordinate(
         self:@This(),
@@ -1337,6 +1402,8 @@ pub const TimeCurve = struct {
             |seg, seg_index| 
         {
             errdefer std.debug.print("seg_index: {}\n", .{seg_index});
+
+            // build the segment to pass into the C library
             for (seg.points(), 0..) 
                 |pt, index| 
             {
@@ -1346,18 +1413,73 @@ pub const TimeCurve = struct {
 
             var hodo = hodographs.compute_hodograph(&cSeg);
             const roots = hodographs.bezier_roots(&hodo);
+            const inflections = hodographs.inflection_points(&cSeg);
 
-            if (roots.x > 0 and roots.x < 1) {
-                const xsplits = seg.split_at(roots.x);
-                try split_segments.appendSlice(&xsplits);
+            //-----------------------------------------------------------------
+            // compute splits
+            //-----------------------------------------------------------------
+            var splits:[3]f32 = .{ 1, 1, 1};
 
-                if (roots.y > 0 and roots.y < 1) {
-                    const ysplits = seg.split_at(roots.y);
-                    try split_segments.appendSlice(&ysplits);
+            var split_count:usize = 0;
+
+            const possible_splits:[3]f32 = .{
+                roots.x,
+                roots.y,
+                inflections.x,
+            };
+
+            for (possible_splits) |possible_split| 
+            {
+                // if the possible split isn't already a segment boundary
+                if (possible_split > 0 and possible_split < 1) 
+                {
+                    var duplicate:bool = false;
+
+                    for (0..split_count) |s_i| 
+                    {
+                        duplicate = (
+                            duplicate
+                            or (
+                                std.math.fabs(splits[s_i] - possible_split) 
+                                < generic_curve.EPSILON
+                            )
+                        );
+                    }
+
+                    if (duplicate == false) {
+                        splits[split_count] = possible_split;
+                        split_count += 1;
+                    }
                 }
-            } else {
-                try split_segments.append(seg);
             }
+            
+            // sort the splits
+            if (split_count > 0) 
+            {
+                for (0..(split_count - 1)) 
+                    |i| 
+                {
+                    if (splits[i] > splits[i + 1]) 
+                    {
+                        const tmp = splits[i];
+                        splits[i] = splits[i+1];
+                        splits[i+1] = tmp;
+                    }
+                }
+            }
+
+            var current_seg = seg;
+            for (0..split_count) |i| {
+                if (
+                    splits[i] > 0 + generic_curve.EPSILON
+                    and splits[i] < 1 - generic_curve.EPSILON
+                ) {
+                    const xsplits = current_seg.split_at(splits[i]);
+                    try split_segments.append(xsplits[0]);
+                    current_seg = xsplits[1];
+                }
+            }
+            try split_segments.append(current_seg);
         }
 
         return .{ .segments = try split_segments.toOwnedSlice() };
@@ -2328,4 +2450,61 @@ test "affine_project_curve" {
             }
         }
     }
+}
+
+test "TimeCurve: split_on_critical_points s curve" {
+    const s_seg = [_]Segment{
+        Segment{
+            .p0 = .{ .time = 0, .value = 0 },
+            .p1 = .{ .time = 0, .value = 200 },
+            .p2 = .{ .time = 200, .value = 0 },
+            .p3 = .{ .time = 100, .value = 100 },
+        },
+    }; 
+    const s_curve_seg = try TimeCurve.init(&s_seg);
+
+    const s_curve_split = try s_curve_seg.split_on_critical_points(
+        std.testing.allocator
+    );
+    defer s_curve_split.deinit(std.testing.allocator);
+
+    try std.testing.expectEqual(@as(usize, 4), s_curve_split.segments.len);
+}
+
+test "TimeCurve: split_on_critical_points symmetric about the origin" {
+    const s_seg = [_]Segment{
+        Segment{
+            .p0 = .{ .time = -0.5, .value = 0 },
+            .p1 = .{ .time = 0.5, .value = -0.5 },
+            .p2 = .{ .time = -0.5, .value = 0.5 },
+            .p3 = .{ .time = 0.5, .value = 0 },
+        },
+    }; 
+    const s_curve_seg = try TimeCurve.init(&s_seg);
+
+    const cSeg : hodographs.BezierSegment = .{
+        .order = 3,
+        .p = .{
+            .{ .x = s_seg[0].p0.time, .y = s_seg[0].p0.value },
+            .{ .x = s_seg[0].p1.time, .y = s_seg[0].p1.value },
+            .{ .x = s_seg[0].p2.time, .y = s_seg[0].p2.value },
+            .{ .x = s_seg[0].p3.time, .y = s_seg[0].p3.value },
+        },
+    };
+    const inflections = hodographs.inflection_points(&cSeg);
+    try std.testing.expectApproxEqAbs(
+        @as(f32, 0.5),
+        inflections.x,
+        generic_curve.EPSILON
+    );
+
+    const s_curve_split = try s_curve_seg.split_on_critical_points(
+        std.testing.allocator
+    );
+    defer s_curve_split.deinit(std.testing.allocator);
+
+    try std.testing.expectEqual(@as(usize, 4), s_curve_split.segments.len);
+
+    // for (s_curve_split.segment_endpoints()) |pt| {
+    // }
 }

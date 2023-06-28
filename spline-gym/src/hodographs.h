@@ -16,9 +16,15 @@ typedef struct {
     Vector2 p[4];
 } BezierSegment;
 
-HODO_API_EXTERN_C BezierSegment compute_hodograph(BezierSegment* b);
+HODO_API_EXTERN_C BezierSegment compute_hodograph(const BezierSegment* const b);
 
-HODO_API_EXTERN_C Vector2 bezier_roots(BezierSegment* bz);
+HODO_API_EXTERN_C Vector2 bezier_roots(const BezierSegment* const bz);
+
+HODO_API_EXTERN_C Vector2 inflection_points(const BezierSegment* const bz);
+
+HODO_API_EXTERN_C bool split_bezier(
+        const BezierSegment* bz, float t, 
+        BezierSegment* r1, BezierSegment* r2);
 
 // 
 // 1. compute the hodograph a (quadratic bezier from the cubic)
