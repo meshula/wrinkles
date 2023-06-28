@@ -130,6 +130,44 @@ Vector2 evaluate_bezier(BezierSegment* b, float u)
     }
 }
 
+// reference C++ not used
+bool split_bezier2(const BezierSegment* bz, float t, BezierSegment* r1, BezierSegment* r2)
+{
+    if (!bz || !r1 || !r2 || bz->order != 3)
+        return false;
+
+    /// @TODO for order 2
+
+    if (t <= 0.f || t >= 1.f) {
+        return false;
+    }
+
+    Vector2 p[4] = { bz->p[0], bz->p[1], bz->p[2], bz->p[3] };
+
+    Vector2 Q0 = p[0];
+    Vector2 Q1 = (1 - t) * p[0] + t * p[1];
+    Vector2 Q2 = (1 - t) * Q1 + t * ((1 - t) * p[1] + t * p[2]);
+    Vector2 Q3 = (1 - t) * Q2 + t * ((1 - t) * ((1 - t) * p[1] + t * p[2]) + t * ((1 - t) * p[2] + t * p[3]));
+
+    Vector2 R0 = Q3;
+    Vector2 R2 = (1 - t) * p[2] + t * p[3];
+    Vector2 R1 = (1 - t) * ((1 - t) * p[1] + t * p[2]) + t * R2;
+    Vector2 R3 = p[3];
+
+    r1->order = 3;
+    r1->p[0] = Q0;
+    r1->p[1] = Q1;
+    r1->p[2] = Q2;
+    r1->p[3] = Q3;
+
+    r2->order = 3;
+    r2->p[0] = R0;
+    r2->p[1] = R1;
+    r2->p[2] = R2;
+    r2->p[3] = R3;
+
+    return true;
+}
 
 //
 // Given x in the interval [0, p3], and a monotonically nondecreasing
@@ -255,11 +293,13 @@ float _findU(float x, float p1, float p2, float p3)
 
 // given a x coordinate, find the corresponding u
 float find_u(BezierSegment* b, float t) {
-    BezierSegment b0 = *b;
-    for (int i = 0; i < b->order; ++i) {
-        b0.p[i] -= b->p[0];
+    float v[4];
+    for (int i = 0; i <= b->order; ++i) {
+        v[i] = b->p[i].x - b->p[0].x;
     }
-    return _findU(t - b->p[0].x, b0.p[1].x, b0.p[2].x, b0.p[3].x);
+    float tp = t - b->p[0].x;
+    float u = _findU(tp, v[1], v[2], v[3]);
+    return u;
 }
 
 

@@ -1,5 +1,6 @@
 #include "hodographs.h"
 #include <math.h>
+#include <stdbool.h>
 
 Vector2 vec2_add_vec2(Vector2 lhs, Vector2 rhs) {
     Vector2 result = { lhs.x + rhs.x, lhs.y + rhs.y };
@@ -206,33 +207,48 @@ Vector2 inflection_points(const BezierSegment* const bz) {
 }
 
 // split bz at t, into two curves r1 and r2
-int 
-split_bezier(
-        const BezierSegment* bz,
-        float t, 
-        BezierSegment* r1,
-        BezierSegment* r2
-)
+
+bool split_bezier(const BezierSegment* bz, float t, BezierSegment* r1, BezierSegment* r2)
 {
     if (!bz || !r1 || !r2 || bz->order != 3)
-        return 0;
+        return false;
 
     /// @TODO for order 2
 
     if (t <= 0.f || t >= 1.f) {
-        return 0;
+        return false;
     }
-    
+
     Vector2 p[4] = { bz->p[0], bz->p[1], bz->p[2], bz->p[3] };
 
     Vector2 Q0 = p[0];
-    Vector2 Q1 = vec2_add_vec2(float_mul_vec2((1 - t), p[0]), float_mul_vec2(t, p[1]));
-    Vector2 Q2 = vec2_add_vec2(float_mul_vec2((1 - t), Q1), float_mul_vec2(t , vec2_add_vec2(float_mul_vec2((1 - t), p[1]), float_mul_vec2(t, p[2]))));
-    Vector2 Q3 = float_mul_vec2((1 - t), Q2) + t * (float_mul_vec2((1 - t), (vec2_add_vec2(float_mul_vec2((1 - t), p[1]), vec2_add_vec2(float_mul_vec2(t, p[2])))), float_mul_vec2(t, (vec2_add_vec2(float_mul_vec2((1 - t), p[2]), float_mul_vec2(t, p[3]))))));
+    
+    // Vector2 Q1 = (1 - t) * p[0] + t * p[1];
+    Vector2 Q1 = vec2_add_vec2(float_mul_vec2((1 - t), p[0]),
+                               float_mul_vec2(t, p[1]));
+
+    //Vector2 Q2 = (1 - t) * Q1 + t * ((1 - t) * p[1] + t * p[2]);
+    Vector2 Q2 = vec2_add_vec2(float_mul_vec2((1 - t), Q1),
+                               float_mul_vec2(t, (vec2_add_vec2(float_mul_vec2((1 - t), p[1]),
+                                                                float_mul_vec2(t, p[2])))));
+    
+    //Vector2 Q3 = (1 - t) * Q2 + t * ((1 - t) * ((1 - t) * p[1] + t * p[2]) + t * ((1 - t) * p[2] + t * p[3]));
+    Vector2 Q3 = vec2_add_vec2(float_mul_vec2((1 - t), Q2),
+                               float_mul_vec2(t, (vec2_add_vec2(float_mul_vec2((1 - t), (vec2_add_vec2(float_mul_vec2((1 - t), p[1]),
+                                                                           float_mul_vec2(t, p[2])))),
+                                                  float_mul_vec2(t, vec2_add_vec2(float_mul_vec2((1 - t), p[2]),
+                                                                    float_mul_vec2(t, p[3])))))));
 
     Vector2 R0 = Q3;
-    Vector2 R2 = vec2_add_vec2(float_mul_vec2((1 - t), p[2]), float_mul_vec2(t, p[3]));
-    Vector2 R1 = (1 - t) * ((1 - t) * p[1] + t * p[2]) + t * R2;
+    
+    //Vector2 R2 = (1 - t) * p[2] + t * p[3];
+    Vector2 R2 = vec2_add_vec2(float_mul_vec2((1 - t), p[2]),
+                               float_mul_vec2(t, p[3]));
+    
+    //Vector2 R1 = (1 - t) * ((1 - t) * p[1] + t * p[2]) + t * R2;
+    Vector2 R1 = vec2_add_vec2(float_mul_vec2((1 - t), (vec2_add_vec2(float_mul_vec2((1 - t), p[1]),
+                                                                      float_mul_vec2(t, p[2])))),
+                               float_mul_vec2(t, R2));
     Vector2 R3 = p[3];
 
     r1->order = 3;
@@ -247,5 +263,5 @@ split_bezier(
     r2->p[2] = R2;
     r2->p[3] = R3;
 
-    return 0;
+    return true;
 }

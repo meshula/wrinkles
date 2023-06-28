@@ -4,6 +4,8 @@
 #define HODO_API_EXTERN_C
 #endif
 
+#include <stdbool.h>
+
 #ifndef RAYGUI_H
     typedef struct Vector2 {
         float x;
