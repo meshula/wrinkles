@@ -1,1 +1,11 @@
-{"segments":[{"p0":{"time":-5.0e-01,"value":-5.0e-01},"p1":{"time":-5.0e-01,"value":5.0e-01},"p2":{"time":5.0e-01,"value":5.0e-01},"p3":{"time":5.0e-01,"value":-5.0e-01}}]}
+{
+    "segments":
+    [
+        {
+            "p0": {"time":-5.0e-01, "value":-5.0e-01 },
+            "p1": {"time":-5.0e-01,"value":5.0e-01},
+            "p2": {"time":5.0e-01,"value":5.0e-01},
+            "p3": {"time":5.0e-01,"value":-5.0e-01}
+        }
+    ]
+}
