@@ -584,6 +584,9 @@ fn update(
     zgui.spacing();
 
     // _ = zgui.showDemoWindow(null);
+    // _ = zgui.plot.showDemoWindow(null);
+
+    // @TODO: add the dragpoints feature to the curves
 
     var tmp_buf:[1024:0]u8 = .{};
     @memset(&tmp_buf, 0);
