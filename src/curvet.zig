@@ -584,7 +584,7 @@ fn update(
     zgui.spacing();
 
     // _ = zgui.showDemoWindow(null);
-    // _ = zgui.plot.showDemoWindow(null);
+    _ = zgui.plot.showDemoWindow(null);
 
     // @TODO: add the dragpoints feature to the curves
 

@@ -273,11 +273,11 @@ pub fn build_wrinkles_like(
     const install = b.step(name, "Build '" ++ name ++ "'");
     install.dependOn(&b.addInstallArtifact(exe).step);
 
-    const run_step = b.step(name ++ "-run", "Run '" ++ name ++ "'");
-
     var run_cmd = b.addRunArtifact(exe).step;
     run_cmd.dependOn(install);
-    run_step.dependOn(&run_cmd);
+
+    // const run_step = b.step(name ++ "-run", "Run '" ++ name ++ "'");
+    // run_step.dependOn(&run_cmd);
 
     b.getInstallStep().dependOn(install);
 }
