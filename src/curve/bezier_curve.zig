@@ -31,7 +31,7 @@ const string_stuff = @import("string_stuff");
 const latin_s8 = string_stuff.latin_s8;
 
 // hodographs c-library
-const hodographs = @cImport(
+pub const hodographs = @cImport(
     {
         @cInclude("hodographs.h");
     }
@@ -222,38 +222,38 @@ pub const Segment = struct {
 
         const p = self.points();
 
-        const Q0 = p[0];
-
-        // Vector2 Q1 = (1 - unorm) * p[0] + unorm * p[1];
-        const Q1 = vec2_add_vec2(float_mul_vec2((1 - unorm), p[0]),
-            float_mul_vec2(unorm, p[1]));
-
-        //Vector2 Q2 = (1 - unorm) * Q1 + unorm * ((1 - unorm) * p[1] + unorm * p[2]);
-        const Q2 = vec2_add_vec2(float_mul_vec2((1 - unorm), Q1),
-            float_mul_vec2(unorm, (vec2_add_vec2(float_mul_vec2((1 - unorm), p[1]),
-                        float_mul_vec2(unorm, p[2])))));
+        // const Q0 = p[0];
+        //
+        // // Vector2 Q1 = (1 - unorm) * p[0] + unorm * p[1];
+        // const Q1 = vec2_add_vec2(float_mul_vec2((1 - unorm), p[0]),
+        //     float_mul_vec2(unorm, p[1]));
+        //
+        // //Vector2 Q2 = (1 - unorm) * Q1 + unorm * ((1 - unorm) * p[1] + unorm * p[2]);
+        // const Q2 = vec2_add_vec2(float_mul_vec2((1 - unorm), Q1),
+        //     float_mul_vec2(unorm, (vec2_add_vec2(float_mul_vec2((1 - unorm), p[1]),
+        //                 float_mul_vec2(unorm, p[2])))));
 
         // Vector2 p[4] = { bz->p[0], bz->p[1], bz->p[2], bz->p[3] };
 
-        //     const Q0 = self.p0;
-        // 
-        //     // Vector2 Q1 = (1 - unorm) * p[0] + unorm * p[1];
-        //     const Q1 = (
-        //         (
-        //             p[0].mul(1 - unorm)
-        //         ).add(p[1].mul(unorm))
-        //     );
-        //
-        //     //Vector2 Q2 = (1 - unorm) * Q1 + unorm * ((1 - unorm) * p[1] + unorm * p[2]);
-        //     const Q2 = Q1.mul((1-unorm)).add(
-        //         ((p[1].mul(1-unorm)).add(p[2].mul(unorm))).mul(unorm));
+            const Q0 = self.p0;
+
+            // Vector2 Q1 = (1 - unorm) * p[0] + unorm * p[1];
+            const Q1 = (
+                (
+                    p[0].mul(1 - unorm)
+                ).add(p[1].mul(unorm))
+            );
+
+            //Vector2 Q2 = (1 - unorm) * Q1 + unorm * ((1 - unorm) * p[1] + unorm * p[2]);
+            const Q2 = Q1.mul((1-unorm)).add(
+                ((p[1].mul(1-unorm)).add(p[2].mul(unorm))).mul(unorm));
 
         //Vector2 Q3 = (1 - unorm) * Q2 + unorm * ((1 - unorm) * ((1 - unorm) * p[1] + unorm * p[2]) + unorm * ((1 - unorm) * p[2] + unorm * p[3]));
-        const Q3 = vec2_add_vec2(float_mul_vec2((1 - unorm), Q2),
+        const Q3 = vec2_add_vec2(Q2.mul(1-unorm),
             float_mul_vec2(unorm, (vec2_add_vec2(float_mul_vec2((1 - unorm), (vec2_add_vec2(float_mul_vec2((1 - unorm), p[1]),
-                                    float_mul_vec2(unorm, p[2])))),
-                        float_mul_vec2(unorm, vec2_add_vec2(float_mul_vec2((1 - unorm), p[2]),
-                                float_mul_vec2(unorm, p[3])))))));
+                                    p[2].mul(unorm)))),
+                        ((p[2].mul(1-unorm)).add(
+                                p[3].mul(unorm))).mul(unorm)))));
 
         const R0 = Q3;
 
@@ -498,7 +498,7 @@ pub fn linearize_segment(
         return result;
     }
 
-    const subsegments = segment.split_at(0.5);
+    const subsegments = segment.split_at(0.5) orelse unreachable;
 
     try result.appendSlice((try linearize_segment(subsegments[0], tolerance)).items);
     try result.appendSlice((try linearize_segment(subsegments[1], tolerance)).items);
@@ -1480,7 +1480,9 @@ pub const TimeCurve = struct {
 
             var current_seg = seg;
             for (0..split_count) |i| {
-                const maybe_xsplits = current_seg.split_at(splits[i]);
+                const pt = seg.eval_at(splits[i]);
+                const u = current_seg.findU_input(pt.time);
+                const maybe_xsplits = current_seg.split_at(u);
                 if (maybe_xsplits) |xsplits| {
                     try split_segments.append(xsplits[0]);
                     current_seg = xsplits[1];
@@ -2479,102 +2481,157 @@ test "TimeCurve: split_on_critical_points s curve" {
 }
 
 test "TimeCurve: split_on_critical_points symmetric about the origin" {
-    const s_seg = [_]Segment{
-        Segment{
-            .p0 = .{ .time = -0.5, .value = 0 },
-            .p1 = .{ .time = 0.5, .value = -0.5 },
-            .p2 = .{ .time = -0.5, .value = 0.5 },
-            .p3 = .{ .time = 0.5, .value = 0 },
-        },
-    }; 
-    const s_curve_seg = try TimeCurve.init(&s_seg);
 
-    const cSeg : hodographs.BezierSegment = .{
-        .order = 3,
-        .p = .{
-            .{ .x = s_seg[0].p0.time, .y = s_seg[0].p0.value },
-            .{ .x = s_seg[0].p1.time, .y = s_seg[0].p1.value },
-            .{ .x = s_seg[0].p2.time, .y = s_seg[0].p2.value },
-            .{ .x = s_seg[0].p3.time, .y = s_seg[0].p3.value },
+    const TestData = struct {
+        segment: Segment,
+        inflection_point: f32,
+        roots: [2]f32,
+        split_segments: usize,
+    };
+
+    const tests = [_]TestData{
+        .{
+            .segment = Segment{
+                .p0 = .{ .time = -0.5, .value = -0.5 },
+                .p1 = .{ .time =    0, .value = -0.5 },
+                .p2 = .{ .time =    0, .value =  0.5 },
+                .p3 = .{ .time =  0.5, .value =  0.5 },
+            },
+            .inflection_point = 0.5,
+            .roots = .{ -1, -1 },
+            .split_segments = 2,
+        },
+        .{
+            .segment = Segment{
+                .p0 = .{ .time = -0.5, .value =    0 },
+                .p1 = .{ .time =    0, .value =   -1 },
+                .p2 = .{ .time =    0, .value =    1 },
+                .p3 = .{ .time =  0.5, .value =    0 },
+            },
+            .inflection_point = 0.5,
+            // assuming this is correct
+            .roots = .{ 0.21132487, 0.788675129 },
+            .split_segments = 4,
         },
     };
-    const inflections = hodographs.inflection_points(&cSeg);
-    try std.testing.expectApproxEqAbs(
-        @as(f32, 0.5),
-        inflections.x,
-        generic_curve.EPSILON
-    );
 
-    var t:f32 = 0.0;
-    while (t < 1) 
-        : (t += 0.01) 
+    for (tests, 0..) 
+        |td, td_ind| 
     {
-        var c_split_l:hodographs.BezierSegment = undefined;
-        var c_split_r:hodographs.BezierSegment = undefined;
-        var c_result = hodographs.split_bezier(&cSeg, t, &c_split_l, &c_split_r);
+        errdefer std.debug.print("test that failed: {d}\n", .{ td_ind });
+        const s_seg:[1]Segment = .{ td.segment };
+        const s_curve_seg = try TimeCurve.init(&s_seg);
 
-        const maybe_zig_splits = s_seg[0].split_at(t);
+        const cSeg : hodographs.BezierSegment = .{
+            .order = 3,
+            .p = .{
+                .{ .x = s_seg[0].p0.time, .y = s_seg[0].p0.value },
+                .{ .x = s_seg[0].p1.time, .y = s_seg[0].p1.value },
+                .{ .x = s_seg[0].p2.time, .y = s_seg[0].p2.value },
+                .{ .x = s_seg[0].p3.time, .y = s_seg[0].p3.value },
+            },
+        };
+        const inflections = hodographs.inflection_points(&cSeg);
+        try std.testing.expectApproxEqAbs(
+            @as(f32, td.inflection_point),
+            inflections.x,
+            generic_curve.EPSILON
+        );
 
-        if (maybe_zig_splits == null) {
-            try std.testing.expect(c_result == false);
-            continue;
-        }
-
-        const zig_splits = maybe_zig_splits.?;
-
-        errdefer {
-            std.debug.print("\n---\nc left:\n", .{});
-            for (c_split_l.p) |p| {
-                std.debug.print("  {d}, {d}\n", .{p.x, p.y});
-            }
-            std.debug.print("\nc right:\n", .{});
-            for (c_split_r.p) |p| {
-                std.debug.print("  {d}, {d}\n", .{p.x, p.y});
-            }
-            std.debug.print("\nzig left:\n", .{});
-            for (zig_splits[0].points()) |p| {
-                std.debug.print("  {d}, {d}\n", .{p.time, p.value});
-            }
-            std.debug.print("\nzig right:\n", .{});
-            for (zig_splits[1].points()) |p| {
-                std.debug.print("  {d}, {d}\n", .{p.time, p.value});
-            }
-        }
-
-        for (0..4) 
-            |i|
+        var t:f32 = 0.0;
+        while (t < 1) 
+            : (t += 0.01) 
         {
-            errdefer std.debug.print("\n\npt: {d} t: {d}\n", .{ i, t });
+            var c_split_l:hodographs.BezierSegment = undefined;
+            var c_split_r:hodographs.BezierSegment = undefined;
+            var c_result = hodographs.split_bezier(&cSeg, t, &c_split_l, &c_split_r);
+
+            const maybe_zig_splits = s_seg[0].split_at(t);
+
+            if (maybe_zig_splits == null) {
+                try std.testing.expect(c_result == false);
+                continue;
+            }
+
+            const zig_splits = maybe_zig_splits.?;
+
+            errdefer {
+                std.debug.print("\n---\nc left:\n", .{});
+                for (c_split_l.p) |p| {
+                    std.debug.print("  {d}, {d}\n", .{p.x, p.y});
+                }
+                std.debug.print("\nc right:\n", .{});
+                for (c_split_r.p) |p| {
+                    std.debug.print("  {d}, {d}\n", .{p.x, p.y});
+                }
+                std.debug.print("\nzig left:\n", .{});
+                for (zig_splits[0].points()) |p| {
+                    std.debug.print("  {d}, {d}\n", .{p.time, p.value});
+                }
+                std.debug.print("\nzig right:\n", .{});
+                for (zig_splits[1].points()) |p| {
+                    std.debug.print("  {d}, {d}\n", .{p.time, p.value});
+                }
+            }
+
+            for (0..4) 
+                |i|
+                {
+                    errdefer std.debug.print("\n\npt: {d} t: {d}\n", .{ i, t });
+                    try std.testing.expectApproxEqAbs(
+                        c_split_l.p[i].x,
+                        zig_splits[0].points()[i].time,
+                        generic_curve.EPSILON
+                    );
+                    try std.testing.expectApproxEqAbs(
+                        c_split_l.p[i].y,
+                        zig_splits[0].points()[i].value,
+                        generic_curve.EPSILON
+                    );
+                    try std.testing.expectApproxEqAbs(
+                        c_split_r.p[i].x,
+                        zig_splits[1].points()[i].time,
+                        generic_curve.EPSILON
+                    );
+                    try std.testing.expectApproxEqAbs(
+                        c_split_r.p[i].y,
+                        zig_splits[1].points()[i].value,
+                        generic_curve.EPSILON
+                    );
+                }
+        }
+
+        const s_curve_split = try s_curve_seg.split_on_critical_points(
+            std.testing.allocator
+        );
+        defer s_curve_split.deinit(std.testing.allocator);
+
+        try std.testing.expectEqual(
+            @as(usize, td.split_segments),
+            s_curve_split.segments.len
+        );
+
+        // test the hodographs for this curve
+        {
+            const hodo = hodographs.compute_hodograph(&cSeg);
+            const roots = hodographs.bezier_roots(&hodo);
+
+            errdefer std.debug.print("roots: {any:0.2}\n", .{roots});
+
             try std.testing.expectApproxEqAbs(
-                c_split_l.p[i].x,
-                zig_splits[0].points()[i].time,
+                // @as(f32, -0.25),
+                @as(f32, td.roots[0]),
+                roots.x,
                 generic_curve.EPSILON
             );
             try std.testing.expectApproxEqAbs(
-                c_split_l.p[i].y,
-                zig_splits[0].points()[i].value,
-                generic_curve.EPSILON
-            );
-            try std.testing.expectApproxEqAbs(
-                c_split_r.p[i].x,
-                zig_splits[1].points()[i].time,
-                generic_curve.EPSILON
-            );
-            try std.testing.expectApproxEqAbs(
-                c_split_r.p[i].y,
-                zig_splits[1].points()[i].value,
+                @as(f32, td.roots[1]),
+                // @as(f32, 0.25),
+                roots.y,
                 generic_curve.EPSILON
             );
         }
-    }
+        }
 
-    const s_curve_split = try s_curve_seg.split_on_critical_points(
-        std.testing.allocator
-    );
-    defer s_curve_split.deinit(std.testing.allocator);
 
-    try std.testing.expectEqual(@as(usize, 4), s_curve_split.segments.len);
-
-    // for (s_curve_split.segment_endpoints()) |pt| {
-    // }
 }

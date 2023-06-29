@@ -324,7 +324,7 @@ pub fn evaluated_curve(
 
             // should not ever be hit
             errdefer std.log.err(
-                "error: uv was: {} extents: {any}\n",
+                "error: uv was: {:0.3} extents: {any:0.3}\n",
                 .{ uv, ext }
             );
             const p = try crv.evaluate(uv);
@@ -777,6 +777,29 @@ fn update(
                                         .{ ind, pt.time, pt.value },
                                     );
                                 }
+                            }
+
+                            if (zgui.collapsingHeader("Hodograph Debug", .{})) {
+                                const cSeg : curve.bezier_curve.hodographs.BezierSegment = .{
+                                    .order = 3,
+                                    .p = .{
+                                        .{ .x = crv.curve.segments[0].p0.time, .y = crv.curve.segments[0].p0.value },
+                                        .{ .x = crv.curve.segments[0].p1.time, .y = crv.curve.segments[0].p1.value },
+                                        .{ .x = crv.curve.segments[0].p2.time, .y = crv.curve.segments[0].p2.value },
+                                        .{ .x = crv.curve.segments[0].p3.time, .y = crv.curve.segments[0].p3.value },
+                                    },
+                                };
+                                const inflections = curve.bezier_curve.hodographs.inflection_points(&cSeg);
+                                zgui.bulletText(
+                                    "inflection point: {d:0.4}",
+                                    .{inflections.x},
+                                );
+                                const hodo = curve.bezier_curve.hodographs.compute_hodograph(&cSeg);
+                                const roots = curve.bezier_curve.hodographs.bezier_roots(&hodo);
+                                zgui.bulletText(
+                                    "roots: {d:0.4} {d:0.4}",
+                                    .{roots.x, roots.y},
+                                );
                             }
 
                             // split on critical points knots
