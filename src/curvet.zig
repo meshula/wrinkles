@@ -135,8 +135,14 @@ const GraphicsState = struct {
         const robota_font_path = content_dir ++ "Roboto-Medium.ttf";
 
         const font_size = 16.0 * scale_factor;
-        const font_large = zgui.io.addFontFromFile(robota_font_path, font_size * 1.1);
-        const font_normal = zgui.io.addFontFromFile(robota_font_path, font_size);
+        const font_large = zgui.io.addFontFromFile(
+            robota_font_path,
+            font_size * 1.1
+        );
+        const font_normal = zgui.io.addFontFromFile(
+            robota_font_path,
+            font_size
+        );
         std.debug.assert(zgui.io.getFont(0) == font_large);
         std.debug.assert(zgui.io.getFont(1) == font_normal);
 
