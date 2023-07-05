@@ -595,7 +595,14 @@ fn update(
         if (zgui.beginChild("Plot", .{ .w = width - 600 }))
         {
 
-            if (zgui.plot.beginPlot("Curve Plot", .{ .h = -1.0 })) 
+            if (zgui.plot.beginPlot(
+                    "Curve Plot",
+                    .{ 
+                        .h = -1.0,
+                        .flags = .{ .equal = true },
+                    }
+                )
+            ) 
             {
                 zgui.plot.setupAxis(.x1, .{ .label = "input" });
                 zgui.plot.setupAxis(.y1, .{ .label = "output" });
