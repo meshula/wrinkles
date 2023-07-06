@@ -24,6 +24,7 @@ const VisCurve = struct {
     curve: curve.TimeCurve,
     split_hodograph: curve.TimeCurve,
     active: bool = true,
+    editable: bool = false,
 };
 
 const projTmpTest = struct {
@@ -488,7 +489,7 @@ fn plot_editable_bezier_curve(
 
         inline for (0..4) |idx| {
             _ = zgui.plot.dragPoint(
-                @intCast(i32, idx*seg_ind + idx),
+                @intCast(i32, (4)*(seg_ind) + (idx)),
                 .{ 
                     .x = &times[idx],
                     .y = &values[idx], 
@@ -535,7 +536,7 @@ fn plot_bezier_curve(
 }
 
 fn plot_curve(
-    crv: VisCurve,
+    crv: *VisCurve,
     name: [:0]const u8,
     allocator: std.mem.Allocator,
 ) !void 
@@ -548,7 +549,11 @@ fn plot_curve(
         .{ name }
     );
 
-    try plot_bezier_curve(crv.curve, name, allocator);
+    if (crv.editable) {
+        try plot_editable_bezier_curve(&crv.curve, name, allocator);
+    } else {
+        try plot_bezier_curve(crv.curve, name, allocator);
+    }
     const orig_linearized = crv.curve.linearized();
     try plot_linear_curve(orig_linearized, lin_label, allocator);
 
@@ -667,12 +672,12 @@ fn update(
                 );
                 zgui.plot.setupFinish();
                 for (state.operations.items, 0..) 
-                    |visop, op_index| 
+                    |*visop, op_index| 
                 {
 
-                    switch (visop) 
+                    switch (visop.*) 
                     {
-                        .curve => |crv| {
+                        .curve => |*crv| {
                             const name = try std.fmt.bufPrintZ(
                                 &tmp_buf,
                                 "{d}: Bezier Curve / {s}",
@@ -792,12 +797,6 @@ fn update(
                     // try plot_bezier_curve(result, result_name, allocator);
                 }
 
-                try plot_editable_bezier_curve(
-                    &tmpCurves.fst.curve,
-                    "self",
-                    allocator
-                ); 
-
                 zgui.plot.endPlot();
             }
         }
@@ -830,7 +829,7 @@ fn update(
                             zgui.pushPtrId(&crv.active);
                             defer zgui.popId();
                             _ = zgui.checkbox("Active", .{.v = &crv.active});
-                            zgui.sameLine(.{});
+                            _ = zgui.checkbox("Editable", .{.v = &crv.editable});
                             if (zgui.smallButton("Remove")) {
                                 try remove.append(op_index);
                             }
