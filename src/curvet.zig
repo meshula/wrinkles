@@ -8,7 +8,6 @@ const zgui = @import("zgui");
 const zm = @import("zmath");
 const zstbi = @import("zstbi");
 
-
 const build_options = @import("build_options");
 const content_dir = build_options.curvet_content_dir;
 

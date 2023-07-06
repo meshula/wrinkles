@@ -44,6 +44,8 @@ contains:
 * redesign the `opentimelineio` layer
     * clean up mess of `Item` and `ItemPtr`
     * Allocators should be exposed as parameters, not through `allocator.ALLOCATOR`
+    * project_curve and so on should be !TimeCurve, not use catch unreachable
+      everywhere
 * move to zig v0.11 and bump deps
 * topology->[]topology projection (for handling inversions)
 * time-varying parameters
