@@ -807,6 +807,11 @@ fn update(
 
     {
         if (zgui.beginChild("Settings", .{ .w = 600, .flags = main_flags })) {
+            _ = zgui.checkbox(
+                "Show ZGui Demo Windows",
+                .{ .v = &state.show_demo }
+            );
+
             var remove = std.ArrayList(usize).init(allocator);
             defer remove.deinit();
             var op_index:usize = 0;
@@ -815,10 +820,6 @@ fn update(
                     .curve => |*crv| {
                         zgui.pushPtrId(@ptrCast(*const anyopaque, crv));
                         defer zgui.popId();
-                        _ = zgui.checkbox(
-                            "Show ZGui Demo Windows",
-                            .{ .v = &state.show_demo }
-                        );
                         if (
                             zgui.collapsingHeader(
                                 "Curve Settings",
