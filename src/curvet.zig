@@ -270,7 +270,7 @@ pub fn main() !void {
         "{s}",
         .{  "linear [0, 1)" }
     );
-    const tmpCurves = projTmpTest{
+    var tmpCurves = projTmpTest{
         .fst = .{ 
             .curve = u_curve,
             // .curve = lin_half,
@@ -291,7 +291,7 @@ pub fn main() !void {
 
     while (!window.shouldClose() and window.getKey(.escape) != .press) {
         zglfw.pollEvents();
-        try update(gfx_state, &state, tmpCurves, allocator);
+        try update(gfx_state, &state, &tmpCurves, allocator);
         draw(gfx_state);
     }
 }
@@ -333,7 +333,9 @@ pub fn evaluated_curve(
                 "error: uv was: {:0.3} extents: {any:0.3}\n",
                 .{ uv, ext }
             );
-            const p = try crv.evaluate(uv);
+            const p = crv.evaluate(uv) catch blk: {
+                break :blk ext[0].value;
+            };
 
             xv[i] = uv;
             yv[i] = p;
@@ -460,6 +462,51 @@ fn plot_linear_curve(
     );
 }
 
+fn plot_editable_bezier_curve(
+    crv:*curve.TimeCurve,
+    name:[:0]const u8,
+    allocator:std.mem.Allocator
+) !void 
+{
+    const col: [4]f32 = .{ 1, 0, 0, 1 };
+
+    for (crv.segments, 0..) |*seg, seg_ind| {
+        var in_pts = seg.points();
+        var times: [4]f64 = .{ 
+            @floatCast(f64, in_pts[0].time),
+            @floatCast(f64, in_pts[1].time),
+            @floatCast(f64, in_pts[2].time),
+            @floatCast(f64, in_pts[3].time),
+        };
+        var values: [4]f64 = .{ 
+            @floatCast(f64, in_pts[0].value),
+            @floatCast(f64, in_pts[1].value),
+            @floatCast(f64, in_pts[2].value),
+            @floatCast(f64, in_pts[3].value),
+        };
+
+        inline for (0..4) |idx| {
+            _ = zgui.plot.dragPoint(
+                @intCast(i32, idx*seg_ind + idx),
+                .{ 
+                    .x = &times[idx],
+                    .y = &values[idx], 
+                    .size = 20,
+                    .col = &col,
+                }
+            );
+            in_pts[idx] = .{
+                .time = @floatCast(f32, times[idx]),
+                .value = @floatCast(f32, values[idx]),
+            };
+        }
+
+        seg.set_points(in_pts);
+    }
+
+    try plot_bezier_curve(crv.*, name, allocator);
+}
+
 fn plot_bezier_curve(
     crv:curve.TimeCurve,
     name:[:0]const u8,
@@ -524,7 +571,7 @@ fn plot_curve(
 fn update(
     gfx_state: *GraphicsState,
     state: *VisState,
-    tmpCurves: projTmpTest,
+    tmpCurves: *projTmpTest,
     allocator: std.mem.Allocator,
 ) !void 
 {
@@ -745,6 +792,12 @@ fn update(
                     // try plot_knots(result, result_name, allocator);
                     // try plot_bezier_curve(result, result_name, allocator);
                 }
+
+                try plot_editable_bezier_curve(
+                    &tmpCurves.fst.curve,
+                    "self",
+                    allocator
+                ); 
 
                 zgui.plot.endPlot();
             }
