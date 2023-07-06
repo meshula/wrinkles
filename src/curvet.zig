@@ -582,6 +582,7 @@ fn update(
 ) !void 
 {
     var _proj = time_topology.TimeTopology.init_identity_infinite();
+    const inf = time_topology.TimeTopology.init_identity_infinite();
 
     for (state.operations.items) 
         |visop| 
@@ -606,7 +607,7 @@ fn update(
             },
         }
 
-        _proj = try _topology.project_topology(_proj);
+        _proj = _topology.project_topology(_proj) catch inf;
     }
 
     zgui.backend.newFrame(
