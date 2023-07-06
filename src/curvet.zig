@@ -818,11 +818,19 @@ fn update(
             for (state.operations.items) |*visop| {
                 switch (visop.*) {
                     .curve => |*crv| {
+                        var buf:[1024:0]u8 = .{};
+                        @memset(&buf, 0);
+                        const top_label = try std.fmt.bufPrintZ(
+                            &buf,
+                            "Curve Settings: {s}",
+                            .{ crv.fpath }
+                        );
+
                         zgui.pushPtrId(@ptrCast(*const anyopaque, crv));
                         defer zgui.popId();
                         if (
                             zgui.collapsingHeader(
-                                "Curve Settings",
+                                top_label,
                                 .{ .default_open = true }
                             )
                         )
