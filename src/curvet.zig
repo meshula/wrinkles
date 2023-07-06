@@ -831,9 +831,11 @@ fn update(
                             defer zgui.popId();
                             _ = zgui.checkbox("Active", .{.v = &crv.active});
                             _ = zgui.checkbox("Editable", .{.v = &crv.editable});
+
                             if (zgui.smallButton("Remove")) {
                                 try remove.append(op_index);
                             }
+                            zgui.sameLine(.{});
                             zgui.text(
                                 "file path: {s}",
                                 .{ crv.*.fpath[0..] }
