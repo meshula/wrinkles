@@ -750,7 +750,6 @@ fn update(
                     var other_copy = try curve.TimeCurve.init(
                         other_hodograph.segments
                     );
-                    defer other_copy.deinit(allocator);
 
                     {
                         var split_points = std.ArrayList(f32).init(allocator);
@@ -759,24 +758,25 @@ fn update(
                         // find all knots in self that are within the other bounds
                         for (try self_hodograph.segment_endpoints())
                             |self_knot| 
-                            {
-                                if (
-                                    _is_between(
-                                        self_knot.time,
-                                        other_bounds[0].value,
-                                        other_bounds[1].value
-                                    )
-                                ) {
-                                    try split_points.append(self_knot.time);
-                                }
-
+                        {
+                            if (
+                                _is_between(
+                                    self_knot.time,
+                                    other_bounds[0].value,
+                                    other_bounds[1].value
+                                )
+                            ) {
+                                try split_points.append(self_knot.time);
                             }
 
+                        }
+
                         var result = try other_copy.split_at_each_output_ordinate(
-                            try split_points.toOwnedSlice(),
+                            split_points.items,
                             allocator
                         );
-                        other_copy = result;
+                        other_copy = try curve.TimeCurve.init(result.segments);
+                        result.deinit(allocator);
                     }
 
                     try plot_knots(other_copy, "other copy knots", allocator);
