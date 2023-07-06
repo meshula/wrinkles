@@ -47,6 +47,7 @@ const VisOperation = union(enum) {
 
 const VisState = struct {
     operations: std.ArrayList(VisOperation),
+    show_demo: bool = false,
 
     pub fn deinit(
         self: *const @This(),
@@ -636,8 +637,6 @@ fn update(
     );
     zgui.spacing();
 
-    // _ = zgui.showDemoWindow(null);
-    _ = zgui.plot.showDemoWindow(null);
 
     // @TODO: add the dragpoints feature to the curves
 
@@ -817,6 +816,10 @@ fn update(
                     .curve => |*crv| {
                         zgui.pushPtrId(@ptrCast(*const anyopaque, crv));
                         defer zgui.popId();
+                        _ = zgui.checkbox(
+                            "Show ZGui Demo Windows",
+                            .{ .v = &state.show_demo }
+                        );
                         if (
                             zgui.collapsingHeader(
                                 "Curve Settings",
@@ -958,6 +961,11 @@ fn update(
             }
         }
         defer zgui.endChild();
+    }
+
+    if (state.show_demo) {
+        _ = zgui.showDemoWindow(null);
+        _ = zgui.plot.showDemoWindow(null);
     }
 
     zgui.end();
