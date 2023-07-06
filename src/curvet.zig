@@ -740,11 +740,11 @@ fn update(
                 if (false) 
                 {
                     // debug 
-                    const self = tmpCurves.fst.curve;
-                    const other = tmpCurves.snd.curve;
+                    var self = tmpCurves.fst.curve;
+                    var other = tmpCurves.snd.curve;
 
-                    try plot_bezier_curve(self, "self", allocator);
-                    try plot_bezier_curve(other, "other", allocator);
+                    try plot_editable_bezier_curve(&self, "self", allocator);
+                    try plot_editable_bezier_curve(&other, "other", allocator);
 
                     const self_hodograph = try self.split_on_critical_points(allocator);
                     defer self_hodograph.deinit(allocator);
