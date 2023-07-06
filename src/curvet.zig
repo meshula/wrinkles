@@ -472,7 +472,14 @@ fn plot_editable_bezier_curve(
 {
     const col: [4]f32 = .{ 1, 0, 0, 1 };
 
+    var hasher = std.hash.Wyhash.init(0);
+    for (name) |char| {
+        std.hash.autoHash(&hasher, char);
+    }
+
     for (crv.segments, 0..) |*seg, seg_ind| {
+        std.hash.autoHash(&hasher, seg_ind);
+
         var in_pts = seg.points();
         var times: [4]f64 = .{ 
             @floatCast(f64, in_pts[0].time),
@@ -488,8 +495,10 @@ fn plot_editable_bezier_curve(
         };
 
         inline for (0..4) |idx| {
+            std.hash.autoHash(&hasher, idx);
+
             _ = zgui.plot.dragPoint(
-                @intCast(i32, (4)*(seg_ind) + (idx)),
+                @truncate(i32, @intCast(i65, hasher.final())),
                 .{ 
                     .x = &times[idx],
                     .y = &values[idx], 
