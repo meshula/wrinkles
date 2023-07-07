@@ -24,6 +24,7 @@ const VisCurve = struct {
     split_hodograph: curve.TimeCurve,
     active: bool = true,
     editable: bool = false,
+    show_approximation: bool = false,
 };
 
 const projTmpTest = struct {
@@ -565,6 +566,73 @@ fn plot_curve(
     const orig_linearized = crv.curve.linearized();
     try plot_linear_curve(orig_linearized, lin_label, allocator);
 
+    if (crv.show_approximation) {
+        const approx_label = try std.fmt.bufPrintZ(
+            &buf,
+            "{s} / approximation using three point method",
+            .{ name }
+        );
+        var approx_segments = std.ArrayList(curve.Segment).init(allocator);
+        defer approx_segments.deinit();
+
+        const crv_hodo = crv.split_hodograph;
+
+        for (crv_hodo.segments) |seg| {
+            var mid_point = seg.eval_at(0.5);
+            var x = @floatCast(f64, mid_point.time);
+            var y = @floatCast(f64, mid_point.value);
+            try approx_segments.append(
+                curve.Segment.init_approximate_from_three_points(
+                    seg.p0,
+                    mid_point,
+                    0.5,
+                    seg.p3,
+                ).?
+            );
+
+            var maybe_c = curve.bezier_curve.getccenter(
+                seg.p0,
+                mid_point,
+                seg.p3
+            );
+
+            if (maybe_c == null) {
+                continue;
+            }
+            var c = maybe_c.?;
+
+            _ = zgui.plot.dragPoint(
+                -100,
+                .{
+                    .x = &x,
+                    .y = &y,
+                    .size = 20,
+                    .col = &.{ 0, 1, 1, 1 },
+                }
+            );
+
+            // center circle point is green
+            x = @floatCast(f64, c.time);
+            y = @floatCast(f64, c.value);
+
+            _ = zgui.plot.dragPoint(
+                100,
+                .{
+                    .x = &x,
+                    .y = &y,
+                    .size = 20,
+                    .col = &.{ 0, 1, 0, 1 },
+                }
+            );
+        }
+
+        const approx_crv = try curve.TimeCurve.init(approx_segments.items);
+
+
+        try plot_bezier_curve(approx_crv, approx_label, allocator);
+        try plot_knots(approx_crv, approx_label, allocator);
+    }
+
     const split = try crv.curve.split_on_critical_points(allocator);
     defer split.deinit(allocator);
 
@@ -848,6 +916,10 @@ fn update(
                             defer zgui.popId();
                             _ = zgui.checkbox("Active", .{.v = &crv.active});
                             _ = zgui.checkbox("Editable", .{.v = &crv.editable});
+                            _ = zgui.checkbox(
+                                "Show Three Point Approximation",
+                                .{.v = &crv.show_approximation}
+                            );
 
                             if (zgui.smallButton("Remove")) {
                                 try remove.append(op_index);
