@@ -31,6 +31,11 @@ pub const ControlPoint = struct {
             .value = self.value - rhs.value,
         };
     }
+
+    pub fn distance(self: @This(), rhs: ControlPoint) f32 {
+        const diff = rhs.sub(self);
+        return std.math.sqrt(diff.time * diff.time + diff.value * diff.value);
+    }
     
     pub fn debug_json_str(
         self: @This()
