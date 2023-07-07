@@ -560,6 +560,8 @@ fn plot_curve(
 
     if (crv.editable) {
         try plot_editable_bezier_curve(&crv.curve, name, allocator);
+        crv.split_hodograph.deinit(allocator);
+        crv.split_hodograph = try crv.curve.split_on_critical_points(allocator);
     } else {
         try plot_bezier_curve(crv.curve, name, allocator);
     }
