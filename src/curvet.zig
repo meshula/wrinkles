@@ -875,6 +875,23 @@ fn update(
                         }
                     );
 
+                    zgui.text(
+                        "Projection result debug:",
+                        .{},
+                    );
+                    for (result.segments, 0..)
+                        |seg, seg_ind|
+                    {
+                        for (seg.points(), 0..)
+                            |pt, pt_ind|
+                        {
+                            zgui.bulletText(
+                                "Result.segment_{d}.point_{d}: ({d}, {d})",
+                                .{ seg_ind, pt_ind, pt.time, pt.value },
+                            );
+                        }
+                    }
+
                     try plot_bezier_curve(result, result_name, allocator);
                     try plot_knots(result, result_name, allocator);
                 }
