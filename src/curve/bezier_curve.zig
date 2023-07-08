@@ -1122,7 +1122,7 @@ pub const TimeCurve = struct {
 
                     const derivative_other_xy = other_pt_snd.sub(
                         other_pt_fst
-                    ).mul(3);
+                    ).mul(@as(f32, 3));
 
                     const g_t = other_pt_fst;
                     const g_t_t_in_f = self_seg.findU_input(g_t.value);
@@ -1137,7 +1137,7 @@ pub const TimeCurve = struct {
                         .value = derivative_other_xy.value * f_prime_t_xy.y,
                     };
 
-                    tmp[1] = (h_prime_t.mul(1/3)).add(tmp[0]);
+                    tmp[1] = (h_prime_t.mul(@as(f32, 1)/@as(f32, 3))).add(tmp[0]);
                 }
 
                 // pt3
@@ -1170,7 +1170,7 @@ pub const TimeCurve = struct {
 
                     const derivative_other_xy = other_pt_snd.sub(
                         other_pt_fst
-                    ).mul(3);
+                    ).mul(@as(f32, 3));
 
                     const g_t = other_pt_fst;
                     const g_t_t_in_f = self_seg.findU_input(g_t.value);
@@ -1185,7 +1185,7 @@ pub const TimeCurve = struct {
                         .value = derivative_other_xy.value * f_prime_t_xy.y,
                     };
 
-                    tmp[2] = (h_prime_t.mul(1/3)).add(tmp[3]);
+                    tmp[2] = (h_prime_t.mul(@as(f32, 1)/@as(f32, 3))).add(tmp[3]);
                 }
 
                 segment.*.set_points(tmp);
