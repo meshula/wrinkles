@@ -28,6 +28,8 @@ HODO_API_EXTERN_C bool split_bezier(
         const BezierSegment* bz, float t, 
         BezierSegment* r1, BezierSegment* r2);
 
+HODO_API_EXTERN_C Vector2 evaluate_bezier(BezierSegment* b, float u);
+
 // 
 // 1. compute the hodograph a (quadratic bezier from the cubic)
 // 2. pass the hodograph into the root finder

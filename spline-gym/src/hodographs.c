@@ -265,3 +265,40 @@ bool split_bezier(const BezierSegment* bz, float t, BezierSegment* r1, BezierSeg
 
     return true;
 }
+
+
+Vector2 evaluate_bezier(BezierSegment* b, float u)
+{
+    Vector2 r = {0, 0};
+    if (!b || b->order < 2 || b->order > 3)
+        return r;
+
+    if (b->order == 3) {
+        // evaluate the Bezier curve at parameter value u.
+        // The function is defined recursively as follows:
+        // B(u) = (1-u)^3 * p0 + 3u(1-u)^2 * p1 + 3u^2(1-u) * p2 + u^3 * p3
+        float u2 = u*u;
+        float u3 = u2*u;
+        float omu = 1-u;
+        float omu2 = omu*omu;
+        float omu3 = omu2*omu;
+        
+        r = vec2_mul_float(b->p[0], omu3);
+        r = vec2_add_vec2(vec2_mul_float(b->p[1], 3*u*omu2), r);
+        r = vec2_add_vec2(vec2_mul_float(b->p[2], 3*u2*omu), r);
+        r = vec2_add_vec2(vec2_mul_float(b->p[3], u3), r);
+        return r;
+    }
+    else if (b->order == 2) {
+        // evaluate the Bezier curve at parameter value u.
+        // The function is defined recursively as follows:
+        // B(u) = (1-u)^2 * p0 + 2u(1-u) * p1 + u^2 * p2
+        float u2 = u*u;
+        float omu = 1-u;
+        float omu2 = omu*omu;
+        r = vec2_mul_float(b->p[0], omu2);
+        r = vec2_add_vec2(r, vec2_mul_float(b->p[1], 2*u*omu));
+        r = vec2_add_vec2(vec2_mul_float(b->p[2], u2), r);
+        return r;
+    }
+}
