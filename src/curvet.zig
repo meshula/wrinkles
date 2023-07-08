@@ -49,6 +49,7 @@ const VisOperation = union(enum) {
 const VisState = struct {
     operations: std.ArrayList(VisOperation),
     show_demo: bool = false,
+    show_test_curves: bool = false,
 
     pub fn deinit(
         self: *const @This(),
@@ -579,7 +580,9 @@ fn plot_curve(
 
         const crv_hodo = crv.split_hodograph;
 
-        for (crv_hodo.segments) |seg| {
+        for (crv_hodo.segments) 
+            |seg| 
+        {
             var mid_point = seg.eval_at(0.5);
             var x = @floatCast(f64, mid_point.time);
             var y = @floatCast(f64, mid_point.value);
@@ -806,7 +809,7 @@ fn update(
                     },
                 }
 
-                if (false) 
+                if (state.show_test_curves) 
                 {
                     // debug 
                     var self = tmpCurves.fst.curve;
@@ -857,23 +860,23 @@ fn update(
                         result.deinit(allocator);
                     }
 
-                    try plot_knots(other_copy, "other copy knots", allocator);
                     try plot_bezier_curve(other_copy, "other copy", allocator);
+                    try plot_knots(other_copy, "other copy knots", allocator);
 
-                    // const result = self_hodograph.project_curve(other_hodograph);
-                    // var buf:[1024:0]u8 = .{};
-                    // @memset(&buf, 0);
-                    // const result_name = try std.fmt.bufPrintZ(
-                    //     &buf,
-                    //     "result of projection{s}",
-                    //     .{
-                    //         if (result.segments.len > 0) "" 
-                    //         else " [NO SEGMENTS/EMPTY]",
-                    //     }
-                    // );
-                    //
-                    // try plot_knots(result, result_name, allocator);
-                    // try plot_bezier_curve(result, result_name, allocator);
+                    const result = self_hodograph.project_curve(other_hodograph);
+                    var buf:[1024:0]u8 = .{};
+                    @memset(&buf, 0);
+                    const result_name = try std.fmt.bufPrintZ(
+                        &buf,
+                        "result of projection{s}",
+                        .{
+                            if (result.segments.len > 0) "" 
+                            else " [NO SEGMENTS/EMPTY]",
+                        }
+                    );
+
+                    try plot_bezier_curve(result, result_name, allocator);
+                    try plot_knots(result, result_name, allocator);
                 }
 
                 zgui.plot.endPlot();
@@ -889,6 +892,10 @@ fn update(
             _ = zgui.checkbox(
                 "Show ZGui Demo Windows",
                 .{ .v = &state.show_demo }
+            );
+            _ = zgui.checkbox(
+                "Show Projection Test Curves",
+                .{ .v = &state.show_test_curves }
             );
 
             var remove = std.ArrayList(usize).init(allocator);
