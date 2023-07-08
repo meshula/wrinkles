@@ -188,11 +188,9 @@ pub const Segment = struct {
         const de2 = (1-u_mid_point) * bc;
 
         // get the circle-aligned slope as normalized dx/dy
-        const maybe_c = getccenter(start_knot, mid_point, end_knot);
-        if (maybe_c == null) {
+        const c = getccenter(start_knot, mid_point, end_knot) orelse {
             return null;
-        }
-        const c = maybe_c.?;
+        };
 
         const tangent: [2]control_point.ControlPoint = .{
             .{
@@ -1289,11 +1287,9 @@ pub const TimeCurve = struct {
         allocator: std.mem.Allocator,
     ) !TimeCurve 
     {
-        const maybe_seg_to_split_index = self.find_segment_index(ordinate);
-        if (maybe_seg_to_split_index == null) {
+        const seg_to_split_index = self.find_segment_index(ordinate) orelse {
             return error.OutOfBounds;
-        }
-        const seg_to_split_index = maybe_seg_to_split_index.?;
+        };
 
         var split_segments = self.segments[seg_to_split_index].split_at(ordinate);
 
