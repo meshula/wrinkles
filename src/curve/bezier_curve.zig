@@ -1462,7 +1462,10 @@ pub const TimeCurve = struct {
 
                     // if it isn't an end point
                     if (u > 0 + 0.000001 and u < 1 - 0.000001) {
-                        var split_segments = seg.split_at(u);
+                        var split_segments = seg.split_at(u) orelse {
+                            continue;
+                        };
+
                         try result_segments.insertSlice(
                             current_segment_index,
                             &split_segments
