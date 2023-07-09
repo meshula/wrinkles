@@ -162,85 +162,53 @@ pub const Segment = struct {
         start_knot: control_point.ControlPoint,
         mid_point: control_point.ControlPoint,
         u_mid_point: f32,
+        d_mid_point_dt: control_point.ControlPoint,
         end_knot: control_point.ControlPoint,
     ) ?Segment
     {
         // from pomax
-        // findControlPoints(t, A, B, C, S, E) 
-
-        // get our e1-e2 distances
-        const angle = (
-            std.math.atan2(
-                f32,
-                end_knot.value-start_knot.value,
-                end_knot.time-start_knot.time
-            ) 
-            - 
-            std.math.atan2(
-                f32,
-                mid_point.value-start_knot.value,
-                mid_point.time-start_knot.time
-            )
-        );
-        const sign:f32 =( if (angle < 0 or angle > std.math.pi) -1 else 1); 
-        const bc = sign * (start_knot.distance(end_knot))/3;
-        const de1 = u_mid_point * bc;
-        const de2 = (1-u_mid_point) * bc;
-
-        // get the circle-aligned slope as normalized dx/dy
-        const c = getccenter(start_knot, mid_point, end_knot) orelse {
-            return null;
-        };
-
-        const tangent: [2]control_point.ControlPoint = .{
-            .{
-                .time = mid_point.time - (mid_point.value - c.value),
-                .value = mid_point.value + (mid_point.time - c.time) 
-            },
-            .{ 
-                .time = mid_point.time + (mid_point.value - c.value),
-                .value = mid_point.value - (mid_point.time - c.time) 
-            }
-        };
-        const tlength = tangent[0].distance(tangent[1]);
-        const dx = (tangent[1].time - tangent[0].time)/tlength;
-        const dy = (tangent[1].value - tangent[0].value)/tlength;
-
+        // if B is the midpoint, there are points A and C such that C is the
+        // midpoint of the first and last control points and A is the midpoint
+        // of the inner control points.
+        // 
+        // Based on this we can infer the position of the inner control points
+        //
+        
         // then set up an e1 and e2 parallel to the baseline
         const e1 = control_point.ControlPoint{
-            .time= mid_point.time + de1 * dx,
-            .value = mid_point.value + de1 * dy
+            .time= mid_point.time + d_mid_point_dt.time,
+            .value = mid_point.value + d_mid_point_dt.value,
         };
         const e2 = control_point.ControlPoint{
-            .time= mid_point.time - de2 * dx,
-            .value= mid_point.value - de2 * dy 
+            .time= mid_point.time - d_mid_point_dt.time,
+            .value= mid_point.value - d_mid_point_dt.value,
         };
 
         // then use those e1/e2 to derive the new hull coordinates
-        // const v1 = control_point.ControlPoint{
-        //     .time = start_knot.time + (e1.time - start_knot.time) / (1 - u_mid_point),
-        //     .value = start_knot.value + (e1.value - start_knot.value) / (1 - u_mid_point)
-        // };
-        //
-        // const v2 = control_point.ControlPoint{
-        //     .time = start_knot.time + (e2.time - start_knot.time) / u_mid_point,
-        //     .value = start_knot.value + (e2.value - start_knot.value) / u_mid_point
-        // };
-        //
-        // const C1 = control_point.ControlPoint{
-        //     .time = start_knot.time + (v1.time - start_knot.time) / u_mid_point,
-        //     .value = start_knot.value + (v1.value - start_knot.value) / u_mid_point
-        // };
-        //
-        // const C2 = control_point.ControlPoint{
-        //     .time = end_knot.time + (v2.time - end_knot.time) / (1 - u_mid_point),
-        //     .value = end_knot.value + (v2.value - end_knot.value) / (1 - u_mid_point),
-        // };
+        const v1 = control_point.ControlPoint{
+            .time = start_knot.time + (e1.time - start_knot.time) / (1 - u_mid_point),
+            .value = start_knot.value + (e1.value - start_knot.value) / (1 - u_mid_point)
+        };
+
+        const v2 = control_point.ControlPoint{
+            .time = start_knot.time + (e2.time - start_knot.time) / u_mid_point,
+            .value = start_knot.value + (e2.value - start_knot.value) / u_mid_point
+        };
+
+        const C1 = control_point.ControlPoint{
+            .time = start_knot.time + (v1.time - start_knot.time) / u_mid_point,
+            .value = start_knot.value + (v1.value - start_knot.value) / u_mid_point
+        };
+
+        const C2 = control_point.ControlPoint{
+            .time = end_knot.time + (v2.time - end_knot.time) / (1 - u_mid_point),
+            .value = end_knot.value + (v2.value - end_knot.value) / (1 - u_mid_point),
+        };
 
         return .{
             .p0 = start_knot,
-            .p1 = e1,
-            .p2 = e2,
+            .p1 = C1,
+            .p2 = C2,
             .p3 = end_knot,
         };
     }
@@ -1136,6 +1104,20 @@ pub const TimeCurve = struct {
                     };
 
                     tmp[1] = (h_prime_t.mul(@as(f32, 1)/@as(f32, 3))).add(tmp[0]);
+
+                    const self_pt_snd = self_seg.p1;
+                    const self_pt_fst = self_seg.p0;
+
+                    const derivative_self_xy = self_pt_snd.sub(
+                        self_pt_fst
+                    ).mul(@as(f32, 3));
+
+                    const h_prime_t_2 = control_point.ControlPoint{
+                        .time = derivative_other_xy.time * derivative_self_xy.time,
+                        .value = derivative_other_xy.value * derivative_self_xy.value,
+                    };
+
+                    tmp[1] = (h_prime_t_2.mul(@as(f32, 1)/@as(f32, 3))).add(tmp[0]);
                 }
 
                 // pt3
@@ -1177,13 +1159,25 @@ pub const TimeCurve = struct {
                         &self_cSeg,
                         g_t_t_in_f
                     );
-
                     const h_prime_t = control_point.ControlPoint{
                         .time = derivative_other_xy.time * f_prime_t_xy.x,
                         .value = derivative_other_xy.value * f_prime_t_xy.y,
                     };
-
                     tmp[2] = (h_prime_t.mul(@as(f32, 1)/@as(f32, 3))).add(tmp[3]);
+
+                    const self_pt_snd = self_seg.p2;
+                    const self_pt_fst = self_seg.p3;
+
+                    const derivative_self_xy = self_pt_snd.sub(
+                        self_pt_fst
+                    ).mul(@as(f32, 3));
+
+                    const h_prime_t_2 = control_point.ControlPoint{
+                        .time = derivative_other_xy.time * derivative_self_xy.time,
+                        .value = derivative_other_xy.value * derivative_self_xy.value,
+                    };
+
+                    tmp[2] = (h_prime_t_2.mul(@as(f32, 1)/@as(f32, 3))).add(tmp[3]);
                 }
 
                 segment.*.set_points(tmp);
