@@ -18,6 +18,67 @@ const string = @import("string_stuff");
 const time_topology = @import("time_topology");
 const util = opentime.util;
 
+const DebugBezierFlags = struct {
+    bezier: bool = true,
+    knots: bool = false,
+    control_points: bool = false,
+    linearized: bool = false,
+
+    pub fn draw_ui(self: * @This(), name: []const u8) void {
+        const fields = .{
+            .{ "Draw Bezier Curves", "bezier"},
+            .{ "Draw Knots", "knots"},
+            .{ "Draw Control Points", "control_points" },
+            .{ "Draw Linearized", "linearized" },
+        };
+
+        zgui.pushStrId(name);
+        zgui.text("{s}:", .{ name });
+
+        inline for (fields) |field| {
+            _ = zgui.checkbox(field[0], .{ .v = & @field(self, field[1]) });
+        }
+        zgui.popId();
+    }
+};
+
+const DebugDrawCurveFlags = struct {
+    input_curve: DebugBezierFlags = .{},
+    split_critical_points: DebugBezierFlags = .{},
+    three_point_approximation: struct {
+        result_curves: DebugBezierFlags = .{},
+        A: bool = false,
+        midpoint: bool = false,
+        C: bool = false,
+        e1_2: bool = false,
+        v1_2: bool = false,
+        C1_2: bool = false,
+        pub fn draw_ui(self: *@This(), name: []const u8) void {
+            self.result_curves.draw_ui(name);
+
+            const fields = .{
+                "A", 
+                "midpoint", 
+                "e1_2",
+                "v1_2",
+                "C1_2",
+            };
+
+            inline for (fields) |field| {
+                _ = zgui.checkbox(field, .{ .v = & @field(self, field) });
+            }
+        }
+    } = .{},
+
+    pub fn draw_ui(self: *@This(), name: []const u8) void {
+        zgui.pushStrId(name);
+        self.input_curve.draw_ui("input_curve");
+        self.split_critical_points.draw_ui("split on critical points");
+        self.three_point_approximation.draw_ui("three point approximation");
+        zgui.popId();
+    }
+};
+
 const VisCurve = struct {
     fpath: [:0]u8,
     curve: curve.TimeCurve,
@@ -25,6 +86,7 @@ const VisCurve = struct {
     active: bool = true,
     editable: bool = false,
     show_approximation: bool = false,
+    draw_flags: DebugDrawCurveFlags = .{},
 };
 
 const projTmpTest = struct {
@@ -415,12 +477,28 @@ fn plot_control_points(
         const knots_yv = try allocator.alloc(f32, 4 * hod.segments.len);
         defer allocator.free(knots_yv);
 
+        zgui.pushStrId(name_);
+        zgui.text(
+            "Mid point debug: {s}",
+            .{name},
+        );
         for (hod.segments, 0..) |seg, seg_ind| {
             for (seg.points(), 0..) |pt, pt_ind| {
                 knots_xv[seg_ind * 4 + pt_ind] = pt.time;
                 knots_yv[seg_ind * 4 + pt_ind] = pt.value;
+                const pt_text = try std.fmt.bufPrintZ(
+                    buf[512..],
+                    "{d}.{d}: ({d:0.2}, {d:0.2})",
+                    .{ seg_ind, pt_ind, pt.time, pt.value },
+                );
+                zgui.plot.plotText(
+                    pt_text,
+                    .{.x = pt.time, .y = pt.value, .pix_offset = .{0, 16}} 
+                );
+                zgui.bulletText("{s}", .{pt_text});
             }
         }
+        zgui.popId();
 
         zgui.plot.plotScatter(
             name_,
@@ -553,23 +631,31 @@ fn plot_curve(
 {
     var buf:[1024:0]u8 = .{};
     @memset(&buf, 0);
-    const lin_label = try std.fmt.bufPrintZ(
-        &buf,
-        "{s} / linearized", 
-        .{ name }
-    );
 
-    if (crv.editable) {
-        try plot_editable_bezier_curve(&crv.curve, name, allocator);
-        crv.split_hodograph.deinit(allocator);
-        crv.split_hodograph = try crv.curve.split_on_critical_points(allocator);
-    } else {
-        try plot_bezier_curve(crv.curve, name, allocator);
+    // input curve
+    if (crv.draw_flags.input_curve.bezier) {
+        if (crv.editable) {
+            try plot_editable_bezier_curve(&crv.curve, name, allocator);
+            crv.split_hodograph.deinit(allocator);
+            crv.split_hodograph = try crv.curve.split_on_critical_points(allocator);
+        } else {
+            try plot_bezier_curve(crv.curve, name, allocator);
+        }
     }
-    const orig_linearized = crv.curve.linearized();
-    try plot_linear_curve(orig_linearized, lin_label, allocator);
 
-    if (crv.show_approximation) {
+    // input curve linearized
+    if (crv.draw_flags.input_curve.linearized) {
+        const lin_label = try std.fmt.bufPrintZ(
+            &buf,
+            "{s} / linearized", 
+            .{ name }
+        );
+        const orig_linearized = crv.curve.linearized();
+        try plot_linear_curve(orig_linearized, lin_label, allocator);
+    }
+
+    // three point approximation
+    if (crv.draw_flags.three_point_approximation.result_curves.bezier) {
         const approx_label = try std.fmt.bufPrintZ(
             &buf,
             "{s} / approximation using three point method",
@@ -584,28 +670,48 @@ fn plot_curve(
             |seg| 
         {
             var mid_point = seg.eval_at(0.5);
-            var x = @floatCast(f64, mid_point.time);
-            var y = @floatCast(f64, mid_point.value);
+
+            const cSeg : curve.bezier_curve.hodographs.BezierSegment = .{
+                .order = 3,
+                .p = .{
+                    .{ .x = seg.p0.time, .y = seg.p0.value },
+                    .{ .x = seg.p1.time, .y = seg.p1.value },
+                    .{ .x = seg.p2.time, .y = seg.p2.value },
+                    .{ .x = seg.p3.time, .y = seg.p3.value },
+                },
+            };
+            var hodo = curve.bezier_curve.hodographs.compute_hodograph(&cSeg);
+            const d_mid_point_dt_v2 = curve.bezier_curve.hodographs.evaluate_bezier(
+                &hodo,
+                0.5
+            );
+            const d_mid_point_dt = curve.ControlPoint{
+                .time = d_mid_point_dt_v2.x,
+                .value = d_mid_point_dt_v2.y,
+            };
+
+
+            // derivative at the midpoint
             try approx_segments.append(
                 curve.Segment.init_approximate_from_three_points(
                     seg.p0,
                     mid_point,
                     0.5,
+                    d_mid_point_dt,
                     seg.p3,
                 ).?
             );
 
-            var maybe_c = curve.bezier_curve.getccenter(
+            const c = curve.bezier_curve.getccenter(
                 seg.p0,
                 mid_point,
                 seg.p3
-            );
-
-            if (maybe_c == null) {
+            ) orelse {
                 continue;
-            }
-            var c = maybe_c.?;
+            };
 
+            var x = @floatCast(f64, mid_point.time);
+            var y = @floatCast(f64, mid_point.value);
             _ = zgui.plot.dragPoint(
                 -100,
                 .{
@@ -638,21 +744,32 @@ fn plot_curve(
         try plot_knots(approx_crv, approx_label, allocator);
     }
 
-    const split = try crv.curve.split_on_critical_points(allocator);
-    defer split.deinit(allocator);
+    // split on critical points
+    {
+        const split = try crv.curve.split_on_critical_points(allocator);
+        defer split.deinit(allocator);
 
-    @memset(&buf, 0);
-    const label = try std.fmt.bufPrintZ(
-        &buf,
-        "{s} / split on critical points", 
-        .{ name }
-    );
+        @memset(&buf, 0);
+        const label = try std.fmt.bufPrintZ(
+            &buf,
+            "{s} / split on critical points", 
+            .{ name }
+        );
 
-    try plot_bezier_curve(split, label, allocator);
-    try plot_knots(split, label, allocator);
+        if (crv.draw_flags.split_critical_points.bezier) {
+            try plot_bezier_curve(split, label, allocator);
+        }
 
-    const linearized = split.linearized();
-    try plot_linear_curve(linearized, label, allocator);
+        if (crv.draw_flags.split_critical_points.knots) {
+            try plot_knots(split, label, allocator);
+        }
+
+        if (crv.draw_flags.split_critical_points.linearized) {
+            const linearized = split.linearized();
+            try plot_linear_curve(linearized, label, allocator);
+        }
+    }
+
 }
 
 fn update(
@@ -940,12 +1057,20 @@ fn update(
                         {
                             zgui.pushPtrId(&crv.active);
                             defer zgui.popId();
-                            _ = zgui.checkbox("Active", .{.v = &crv.active});
-                            _ = zgui.checkbox("Editable", .{.v = &crv.editable});
+
+                            // debug flags
                             _ = zgui.checkbox(
-                                "Show Three Point Approximation",
-                                .{.v = &crv.show_approximation}
+                                "Active In Projections",
+                                .{.v = &crv.active}
                             );
+                            _ = zgui.checkbox(
+                                "Editable",
+                                .{.v = &crv.editable}
+                            );
+
+                            if (zgui.collapsingHeader("Draw Flags", .{})) {
+                                crv.draw_flags.draw_ui(crv.fpath);
+                            }
 
                             if (zgui.smallButton("Remove")) {
                                 try remove.append(op_index);
