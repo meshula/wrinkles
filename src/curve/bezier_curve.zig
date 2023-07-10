@@ -173,6 +173,21 @@ pub const Segment = struct {
         // 
         // Based on this we can infer the position of the inner control points
         //
+
+        // C is a lerp between the end points
+        const C = bezier_math.lerp_cp(u_mid_point, start_knot, end_knot);
+        const ratio_t = cmp_t: {
+            const t = u_mid_point;
+            const one_minus_t = 1 - t;
+
+            const result = @fabs(
+                (t*t*t + one_minus_t*one_minus_t*one_minus_t - 1)
+                /
+                (t*t + one_minus_t*one_minus_t)
+            );
+            break :cmp_t result;
+        };
+        const A = mid_point.sub(((C.sub(mid_point)).mul(1/ratio_t)));
         
         // then set up an e1 and e2 parallel to the baseline
         const e1 = control_point.ControlPoint{
@@ -185,25 +200,11 @@ pub const Segment = struct {
         };
 
         // then use those e1/e2 to derive the new hull coordinates
-        const v1 = control_point.ControlPoint{
-            .time = start_knot.time + (e1.time - start_knot.time) / (1 - u_mid_point),
-            .value = start_knot.value + (e1.value - start_knot.value) / (1 - u_mid_point)
-        };
+        const v1 = (e1.sub(A.mul(u_mid_point))).mul(1/(1-u_mid_point));
+        const v2 = (e2.sub(A.mul(1-u_mid_point))).mul(1/u_mid_point);
 
-        const v2 = control_point.ControlPoint{
-            .time = start_knot.time + (e2.time - start_knot.time) / u_mid_point,
-            .value = start_knot.value + (e2.value - start_knot.value) / u_mid_point
-        };
-
-        const C1 = control_point.ControlPoint{
-            .time = start_knot.time + (v1.time - start_knot.time) / u_mid_point,
-            .value = start_knot.value + (v1.value - start_knot.value) / u_mid_point
-        };
-
-        const C2 = control_point.ControlPoint{
-            .time = end_knot.time + (v2.time - end_knot.time) / (1 - u_mid_point),
-            .value = end_knot.value + (v2.value - end_knot.value) / (1 - u_mid_point),
-        };
+        const C1 = (v1.sub(start_knot.mul(1-u_mid_point))).mul(1/u_mid_point);
+        const C2 = (v2.sub(end_knot.mul(u_mid_point))).mul(1/(1-u_mid_point));
 
         return .{
             .p0 = start_knot,
