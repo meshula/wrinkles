@@ -44,9 +44,9 @@ const DebugBezierFlags = struct {
 
 const DebugDrawCurveFlags = struct {
     input_curve: DebugBezierFlags = .{},
-    split_critical_points: DebugBezierFlags = .{},
+    split_critical_points: DebugBezierFlags = .{ .bezier = false },
     three_point_approximation: struct {
-        result_curves: DebugBezierFlags = .{},
+        result_curves: DebugBezierFlags = .{ .bezier = false },
         A: bool = false,
         midpoint: bool = false,
         C: bool = false,
@@ -710,38 +710,44 @@ fn plot_curve(
                 continue;
             };
 
-            var x = @floatCast(f64, mid_point.time);
-            var y = @floatCast(f64, mid_point.value);
-            _ = zgui.plot.dragPoint(
-                -100,
-                .{
-                    .x = &x,
-                    .y = &y,
-                    .size = 20,
-                    .col = &.{ 0, 1, 1, 1 },
-                }
-            );
+            if (crv.draw_flags.three_point_approximation.midpoint) {
+                var x = @floatCast(f64, mid_point.time);
+                var y = @floatCast(f64, mid_point.value);
+                _ = zgui.plot.dragPoint(
+                    -100,
+                    .{
+                        .x = &x,
+                        .y = &y,
+                        .size = 20,
+                        .col = &.{ 0, 1, 1, 1 },
+                    }
+                );
+            }
 
-            // center circle point is green
-            x = @floatCast(f64, c.time);
-            y = @floatCast(f64, c.value);
+            if (crv.draw_flags.three_point_approximation.C) {
+                // center circle point is green
+                var x = @floatCast(f64, c.time);
+                var y = @floatCast(f64, c.value);
 
-            _ = zgui.plot.dragPoint(
-                100,
-                .{
-                    .x = &x,
-                    .y = &y,
-                    .size = 20,
-                    .col = &.{ 0, 1, 0, 1 },
-                }
-            );
+                _ = zgui.plot.dragPoint(
+                    100,
+                    .{
+                        .x = &x,
+                        .y = &y,
+                        .size = 20,
+                        .col = &.{ 0, 1, 0, 1 },
+                    }
+                );
+            }
         }
 
         const approx_crv = try curve.TimeCurve.init(approx_segments.items);
 
-
         try plot_bezier_curve(approx_crv, approx_label, allocator);
-        try plot_knots(approx_crv, approx_label, allocator);
+        
+        if (crv.draw_flags.three_point_approximation.result_curves.knots) {
+            try plot_knots(approx_crv, approx_label, allocator);
+        }
     }
 
     // split on critical points
