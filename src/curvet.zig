@@ -681,7 +681,7 @@ fn plot_curve(
     }
 
     // three point approximation
-    if (flags.three_point_approximation.result_curves.bezier) {
+    {
         const approx_label = try std.fmt.bufPrintZ(
             &buf,
             "{s} / approximation using three point method",
