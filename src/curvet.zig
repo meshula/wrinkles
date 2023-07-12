@@ -18,11 +18,13 @@ const string = @import("string_stuff");
 const time_topology = @import("time_topology");
 const util = opentime.util;
 
-const DebugBezierFlags = packed struct {
+const DebugBezierFlags = packed struct (i8) {
     bezier: bool = true,
     knots: bool = false,
     control_points: bool = false,
     linearized: bool = false,
+
+    _padding: i4 = 0,
 
     pub fn draw_ui(self: * @This(), name: []const u8) void {
         const fields = .{
@@ -601,12 +603,13 @@ fn plot_editable_bezier_curve(
         seg.set_points(in_pts);
     }
 
-    try plot_bezier_curve(crv.*, name, allocator);
+    try plot_bezier_curve(crv.*, name, .{}, allocator);
 }
 
 fn plot_bezier_curve(
     crv:curve.TimeCurve,
     name:[:0]const u8,
+    flags: DebugBezierFlags,
     allocator:std.mem.Allocator
 ) !void 
 {
@@ -621,13 +624,21 @@ fn plot_bezier_curve(
         .{ name, crv.segments.len }
     );
 
-    zgui.plot.plotLine(
-        label,
-        f32,
-        .{ .xv = &pts.xv, .yv = &pts.yv }
-    );
+    if (flags.bezier) {
+        zgui.plot.plotLine(
+            label,
+            f32,
+            .{ .xv = &pts.xv, .yv = &pts.yv }
+        );
+    }
 
-    try plot_control_points(crv, name, allocator);
+    if (flags.control_points) {
+        try plot_control_points(crv, name, allocator);
+    }
+
+    if (flags.knots) {
+        try plot_knots(crv, name, allocator);
+    }
 }
 
 fn plot_curve(
@@ -639,19 +650,26 @@ fn plot_curve(
     var buf:[1024:0]u8 = .{};
     @memset(&buf, 0);
 
+    const flags = crv.draw_flags;
+
     // input curve
-    if (crv.draw_flags.input_curve.bezier) {
+    if (flags.input_curve.bezier) {
         if (crv.editable) {
             try plot_editable_bezier_curve(&crv.curve, name, allocator);
             crv.split_hodograph.deinit(allocator);
             crv.split_hodograph = try crv.curve.split_on_critical_points(allocator);
         } else {
-            try plot_bezier_curve(crv.curve, name, allocator);
+            try plot_bezier_curve(
+                crv.curve,
+                name,
+                flags.input_curve,
+                allocator
+            );
         }
     }
 
     // input curve linearized
-    if (crv.draw_flags.input_curve.linearized) {
+    if (flags.input_curve.linearized) {
         const lin_label = try std.fmt.bufPrintZ(
             &buf,
             "{s} / linearized", 
@@ -662,7 +680,7 @@ fn plot_curve(
     }
 
     // three point approximation
-    if (crv.draw_flags.three_point_approximation.result_curves.bezier) {
+    if (flags.three_point_approximation.result_curves.bezier) {
         const approx_label = try std.fmt.bufPrintZ(
             &buf,
             "{s} / approximation using three point method",
@@ -717,7 +735,7 @@ fn plot_curve(
                 continue;
             };
 
-            if (crv.draw_flags.three_point_approximation.midpoint) {
+            if (flags.three_point_approximation.midpoint) {
                 var x = @floatCast(f64, mid_point.time);
                 var y = @floatCast(f64, mid_point.value);
                 _ = zgui.plot.dragPoint(
@@ -731,7 +749,7 @@ fn plot_curve(
                 );
             }
 
-            if (crv.draw_flags.three_point_approximation.C) {
+            if (flags.three_point_approximation.C) {
                 // center circle point is green
                 var x = @floatCast(f64, c.time);
                 var y = @floatCast(f64, c.value);
@@ -750,11 +768,12 @@ fn plot_curve(
 
         const approx_crv = try curve.TimeCurve.init(approx_segments.items);
 
-        try plot_bezier_curve(approx_crv, approx_label, allocator);
-        
-        if (crv.draw_flags.three_point_approximation.result_curves.knots) {
-            try plot_knots(approx_crv, approx_label, allocator);
-        }
+        try plot_bezier_curve(
+            approx_crv,
+            approx_label,
+            flags.three_point_approximation.result_curves,
+            allocator
+        );
     }
 
     // split on critical points
@@ -769,15 +788,14 @@ fn plot_curve(
             .{ name }
         );
 
-        if (crv.draw_flags.split_critical_points.bezier) {
-            try plot_bezier_curve(split, label, allocator);
-        }
+        try plot_bezier_curve(
+            split,
+            label,
+            flags.split_critical_points,
+            allocator
+        );
 
-        if (crv.draw_flags.split_critical_points.knots) {
-            try plot_knots(split, label, allocator);
-        }
-
-        if (crv.draw_flags.split_critical_points.linearized) {
+        if (flags.split_critical_points.linearized) {
             const linearized = split.linearized();
             try plot_linear_curve(linearized, label, allocator);
         }
@@ -948,12 +966,11 @@ fn update(
 
                     const self_hodograph = try self.split_on_critical_points(allocator);
                     defer self_hodograph.deinit(allocator);
-                    try plot_bezier_curve(self_hodograph, "self hodograph", allocator);
-                    try plot_knots(self_hodograph, "hodograph knots", allocator);
+                    try plot_bezier_curve(self_hodograph, "self hodograph", .{}, allocator);
 
                     const other_hodograph = try other.split_on_critical_points(allocator);
                     defer other_hodograph.deinit(allocator);
-                    try plot_bezier_curve(other_hodograph, "other hodograph", allocator);
+                    try plot_bezier_curve(other_hodograph, "other hodograph", .{}, allocator);
 
                     const other_bounds = other.extents();
                     var other_copy = try curve.TimeCurve.init(
@@ -988,8 +1005,7 @@ fn update(
                         result.deinit(allocator);
                     }
 
-                    try plot_bezier_curve(other_copy, "other copy", allocator);
-                    try plot_knots(other_copy, "other copy knots", allocator);
+                    try plot_bezier_curve(other_copy, "other copy", .{}, allocator);
 
                     const result = self_hodograph.project_curve(other_hodograph);
                     var buf:[1024:0]u8 = .{};
@@ -1020,8 +1036,7 @@ fn update(
                         }
                     }
 
-                    try plot_bezier_curve(result, result_name, allocator);
-                    try plot_knots(result, result_name, allocator);
+                    try plot_bezier_curve(result, result_name, .{}, allocator);
                 }
 
                 zgui.plot.endPlot();
