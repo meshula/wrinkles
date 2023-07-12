@@ -68,6 +68,7 @@ const DebugDrawCurveFlags = struct {
             const fields = .{
                 "A", 
                 "midpoint", 
+                "C",
                 "e1_2",
                 "v1_2",
                 "C1_2",
