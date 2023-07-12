@@ -18,7 +18,7 @@ const string = @import("string_stuff");
 const time_topology = @import("time_topology");
 const util = opentime.util;
 
-const DebugBezierFlags = struct {
+const DebugBezierFlags = packed struct {
     bezier: bool = true,
     knots: bool = false,
     control_points: bool = false,
@@ -35,8 +35,15 @@ const DebugBezierFlags = struct {
         zgui.pushStrId(name);
         zgui.text("{s}:", .{ name });
 
-        inline for (fields) |field| {
-            _ = zgui.checkbox(field[0], .{ .v = & @field(self, field[1]) });
+        inline for (fields) 
+            |field| 
+        {
+            // unpack into a bool type
+            var c_value:bool = @field(self, field[1]);
+            _ = zgui.checkbox(field[0], .{ .v = &c_value,});
+            // pack back into the aligned field
+            @field(self, field[1]) = c_value;
+
         }
         zgui.popId();
     }
