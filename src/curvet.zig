@@ -121,6 +121,7 @@ const VisState = struct {
     operations: std.ArrayList(VisOperation),
     show_demo: bool = false,
     show_test_curves: bool = false,
+    show_projection_result: bool = true,
 
     pub fn deinit(
         self: *const @This(),
@@ -918,41 +919,43 @@ fn update(
                     }
                 }
 
-                switch (_proj) 
-                {
-                    .linear_curve => |lint| { 
-                        const lin = lint.curve;
-                        try plot_linear_curve(lin, "result / linear", allocator);
-                    },
-                    .bezier_curve => |bez| {
-                        const pts = try evaluated_curve(bez.curve, 1000);
+                if (state.show_projection_result) {
+                    switch (_proj) 
+                    {
+                        .linear_curve => |lint| { 
+                            const lin = lint.curve;
+                            try plot_linear_curve(lin, "result / linear", allocator);
+                        },
+                        .bezier_curve => |bez| {
+                            const pts = try evaluated_curve(bez.curve, 1000);
 
-                        zgui.plot.plotLine(
-                            "result [bezier]",
-                            f32,
-                            .{ .xv = &pts.xv, .yv = &pts.yv }
-                        );
-                    },
-                    .affine =>  {
-                        zgui.plot.plotLine(
-                            "NO RESULT: AFFINE",
-                            f32,
-                            .{ 
-                                .xv = &[_] f32{},
-                                .yv = &[_] f32{},
-                            }
-                        );
-                    },
-                    .empty => {
-                        zgui.plot.plotLine(
-                            "EMPTY RESULT",
-                            f32,
-                            .{ 
-                                .xv = &[_] f32{},
-                                .yv = &[_] f32{},
-                            }
-                        );
-                    },
+                            zgui.plot.plotLine(
+                                "result [bezier]",
+                                f32,
+                                .{ .xv = &pts.xv, .yv = &pts.yv }
+                            );
+                        },
+                        .affine =>  {
+                            zgui.plot.plotLine(
+                                "NO RESULT: AFFINE",
+                                f32,
+                                .{ 
+                                    .xv = &[_] f32{},
+                                    .yv = &[_] f32{},
+                                }
+                            );
+                        },
+                        .empty => {
+                            zgui.plot.plotLine(
+                                "EMPTY RESULT",
+                                f32,
+                                .{ 
+                                    .xv = &[_] f32{},
+                                    .yv = &[_] f32{},
+                                }
+                            );
+                        },
+                    }
                 }
 
                 if (state.show_test_curves) 
@@ -1056,6 +1059,10 @@ fn update(
             _ = zgui.checkbox(
                 "Show Projection Test Curves",
                 .{ .v = &state.show_test_curves }
+            );
+            _ = zgui.checkbox(
+                "Show Projection Result",
+                .{ .v = &state.show_projection_result }
             );
 
             var remove = std.ArrayList(usize).init(allocator);
