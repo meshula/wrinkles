@@ -839,6 +839,7 @@ fn update(
         zgui.end();
         return;
     }
+    defer zgui.end();
 
     // FPS/status line
     zgui.bulletText(
@@ -846,9 +847,6 @@ fn update(
         .{ gfx_state.gctx.stats.average_cpu_time, gfx_state.gctx.stats.fps },
     );
     zgui.spacing();
-
-
-    // @TODO: add the dragpoints feature to the curves
 
     var tmp_buf:[1024:0]u8 = .{};
     @memset(&tmp_buf, 0);
@@ -1215,8 +1213,6 @@ fn update(
         _ = zgui.showDemoWindow(null);
         _ = zgui.plot.showDemoWindow(null);
     }
-
-    zgui.end();
 }
 
 fn draw(gfx_state: *GraphicsState) void {
