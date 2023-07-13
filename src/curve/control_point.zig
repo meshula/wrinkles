@@ -18,6 +18,13 @@ pub const ControlPoint = struct {
         };
     }
 
+    pub fn div(self: @This(), val: f32) ControlPoint {
+        return .{
+            .time  = self.time/val,
+            .value = self.value/val,
+        };
+    }
+
     pub fn add(self: @This(), rhs: ControlPoint) ControlPoint {
         return .{
             .time = self.time + rhs.time,
