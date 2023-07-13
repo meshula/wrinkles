@@ -544,7 +544,7 @@ fn plot_control_points(
                 );
                 zgui.plot.plotText(
                     pt_text,
-                    .{.x = pt.time, .y = pt.value, .pix_offset = .{0, 16}} 
+                    .{.x = pt.time, .y = pt.value, .pix_offset = .{0, 36}} 
                 );
                 zgui.bulletText("{s}", .{pt_text});
             }
