@@ -430,6 +430,33 @@ pub fn evaluated_curve(
     return .{ .xv = xv, .yv = yv };
 }
 
+fn plot_point(
+    full_label: [:0]const u8,
+    short_label: [:0]const u8,
+    pt: curve.ControlPoint,
+    size: f32,
+) void
+{
+    zgui.plot.pushStyleVar1f(.{ .idx = .marker_size, .v = size });
+    _ = zgui.plot.plotScatter(
+        full_label,
+        f32,
+        .{
+            .xv = &.{pt.time},
+            .yv = &.{pt.value},
+        }
+    );
+    zgui.plot.plotText(
+        short_label,
+        .{
+            .x = pt.time,
+            .y = pt.value,
+            .pix_offset = .{ 0, size * 1.75 },
+        }
+    );
+    zgui.plot.popStyleVar(.{ .count = 1 });
+}
+
 fn plot_knots(
     hod: curve.TimeCurve, 
     name: [:0]const u8,
@@ -741,38 +768,24 @@ fn plot_curve(
                 continue;
             };
 
-            if (flags.three_point_approximation.midpoint) {
-                zgui.plot.pushStyleVar1f(.{ .idx = .marker_size, .v = 20 });
+            if (flags.three_point_approximation.midpoint) 
+            {
                 const label =  try std.fmt.bufPrintZ(
                     &buf,
                     "{s} / midpoint",
                     .{ name }
                 );
-                _ = zgui.plot.plotScatter(
-                    label,
-                    f32,
-                    .{
-                        .xv = &.{mid_point.time},
-                        .yv = &.{mid_point.value},
-                    }
-                );
-                zgui.plot.popStyleVar(.{ .count = 1 });
+                plot_point(label, "midpoint", mid_point, 20);
             }
 
-            if (flags.three_point_approximation.C) {
-                // center circle point is green
-                var x = @floatCast(f64, c.time);
-                var y = @floatCast(f64, c.value);
-
-                _ = zgui.plot.dragPoint(
-                    100,
-                    .{
-                        .x = &x,
-                        .y = &y,
-                        .size = 20,
-                        .col = &.{ 0, 1, 0, 1 },
-                    }
+            if (flags.three_point_approximation.C) 
+            {
+                const label =  try std.fmt.bufPrintZ(
+                    &buf,
+                    "{s} / C",
+                    .{ name }
                 );
+                plot_point(label, "C", c, 20);
             }
         }
 
