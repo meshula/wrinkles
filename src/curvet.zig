@@ -685,6 +685,63 @@ fn plot_bezier_curve(
     }
 }
 
+fn three_point_guts_plot(
+        start_knot: curve.ControlPoint,
+        mid_point: curve.ControlPoint,
+        u_mid_point: f32,
+        d_mid_point_dt: curve.ControlPoint,
+        end_knot: curve.ControlPoint,
+) ?curve.Segment
+{
+    // from pomax
+    // if B is the midpoint, there are points A and C such that C is the
+    // midpoint of the first and last control points and A is the midpoint
+    // of the inner control points.
+    // 
+    // Based on this we can infer the position of the inner control points
+    //
+
+    // C is a lerp between the end points
+    const C = curve.bezier_math.lerp_cp(u_mid_point, start_knot, end_knot);
+    const ratio_t = cmp_t: {
+        const t = u_mid_point;
+        const one_minus_t = 1 - t;
+
+        const result = @fabs(
+            (t*t*t + one_minus_t*one_minus_t*one_minus_t - 1)
+            /
+            (t*t + one_minus_t*one_minus_t)
+        );
+        break :cmp_t result;
+    };
+    const A = mid_point.sub(((C.sub(mid_point)).mul(1/ratio_t)));
+
+    // then set up an e1 and e2 parallel to the baseline
+    const e1 = curve.ControlPoint{
+        .time= mid_point.time + d_mid_point_dt.time,
+        .value = mid_point.value + d_mid_point_dt.value,
+    };
+    const e2 = curve.ControlPoint{
+        .time= mid_point.time - d_mid_point_dt.time,
+        .value= mid_point.value - d_mid_point_dt.value,
+    };
+
+    // then use those e1/e2 to derive the new hull coordinates
+    const v1 = (e1.sub(A.mul(u_mid_point))).mul(1/(1-u_mid_point));
+    const v2 = (e2.sub(A.mul(1-u_mid_point))).mul(1/u_mid_point);
+
+    const C1 = (v1.sub(start_knot.mul(1-u_mid_point))).mul(1/u_mid_point);
+    const C2 = (v2.sub(end_knot.mul(u_mid_point))).mul(1/(1-u_mid_point));
+
+    return .{
+        .p0 = start_knot,
+        .p1 = C1,
+        .p2 = C2,
+        .p3 = end_knot,
+    };
+
+}
+
 fn plot_curve(
     crv: *VisCurve,
     name: [:0]const u8,
@@ -762,7 +819,7 @@ fn plot_curve(
 
             // derivative at the midpoint
             try approx_segments.append(
-                curve.Segment.init_approximate_from_three_points(
+                three_point_guts_plot(
                     seg.p0,
                     mid_point,
                     0.5,
