@@ -771,14 +771,6 @@ fn plot_curve(
                 ).?
             );
 
-            const c = curve.bezier_curve.getccenter(
-                seg.p0,
-                mid_point,
-                seg.p3
-            ) orelse {
-                continue;
-            };
-
             if (flags.three_point_approximation.midpoint) 
             {
                 const label =  try std.fmt.bufPrintZ(
@@ -791,6 +783,14 @@ fn plot_curve(
 
             if (flags.three_point_approximation.C) 
             {
+                const c = curve.bezier_curve.getccenter(
+                    seg.p0,
+                    mid_point,
+                    seg.p3
+                ) orelse {
+                    continue;
+                };
+
                 const label =  try std.fmt.bufPrintZ(
                     &buf,
                     "{s} / C",
