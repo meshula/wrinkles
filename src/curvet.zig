@@ -687,8 +687,8 @@ fn plot_bezier_curve(
 
 const tpa_result = struct {
     result: ?curve.Segment = null,
-    A: ?curve.ControlPoint = null,
-    C: ?curve.ControlPoint = null,
+    A:  ?curve.ControlPoint = null,
+    C:  ?curve.ControlPoint = null,
     e1: ?curve.ControlPoint = null,
     e2: ?curve.ControlPoint = null,
     v1: ?curve.ControlPoint = null,
@@ -884,6 +884,30 @@ fn plot_curve(
                     );
                     plot_point(label, "C", c, 20);
                 }
+            }
+
+            if (flags.three_point_approximation.e1_2) 
+            {
+                const e1 = tpa_guts.e1.?;
+                const e2 = tpa_guts.e2.?;
+                
+                const xv = &.{ e1.time, mid_point.time, e2.time };
+                const yv = &.{ e1.value, mid_point.value, e2.value };
+
+                const label =  try std.fmt.bufPrintZ(
+                    &buf,
+                    "{s} / e1->midpoint->e2",
+                    .{ name }
+                );
+
+                zgui.plot.plotLine(
+                    label,
+                    f32,
+                    .{ .xv = xv, .yv = yv }
+                );
+
+                plot_point(label, "e1", e1, 20);
+                plot_point(label, "e2", e2, 20);
             }
         }
 
