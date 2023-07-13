@@ -550,6 +550,15 @@ fn plot_control_points(
             }
         }
         zgui.popId();
+        
+        zgui.plot.plotLine(
+            name_,
+            f32,
+            .{
+                .xv = knots_xv,
+                .yv = knots_yv,
+            }
+        );
 
         zgui.plot.pushStyleVar1f(.{ .idx = .marker_size, .v = 20 });
         zgui.plot.plotScatter(
