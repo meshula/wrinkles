@@ -1,6 +1,6 @@
-const bezier_math = @import("bezier_math.zig");
-const linear_curve = @import("linear_curve.zig");
-const control_point = @import("control_point.zig");
+pub const bezier_math = @import("bezier_math.zig");
+pub const linear_curve = @import("linear_curve.zig");
+pub const control_point = @import("control_point.zig");
 
 // bezier
 pub const TimeCurve = bezier_curve.TimeCurve;
