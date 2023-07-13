@@ -456,6 +456,7 @@ fn plot_knots(
             knots_yv[knot_ind] = knot.value;
         }
 
+        zgui.plot.pushStyleVar1f(.{ .idx = .marker_size, .v = 30 });
         zgui.plot.plotScatter(
             name_,
             f32,
@@ -464,6 +465,7 @@ fn plot_knots(
                 .yv = knots_yv,
             }
         );
+        zgui.plot.popStyleVar(.{ .count = 1 });
     }
 }
 
@@ -511,6 +513,7 @@ fn plot_control_points(
         }
         zgui.popId();
 
+        zgui.plot.pushStyleVar1f(.{ .idx = .marker_size, .v = 20 });
         zgui.plot.plotScatter(
             name_,
             f32,
@@ -519,6 +522,7 @@ fn plot_control_points(
                 .yv = knots_yv,
             }
         );
+        zgui.plot.popStyleVar(.{ .count = 1 });
     }
 }
 
@@ -738,17 +742,21 @@ fn plot_curve(
             };
 
             if (flags.three_point_approximation.midpoint) {
-                var x = @floatCast(f64, mid_point.time);
-                var y = @floatCast(f64, mid_point.value);
-                _ = zgui.plot.dragPoint(
-                    -100,
+                zgui.plot.pushStyleVar1f(.{ .idx = .marker_size, .v = 20 });
+                const label =  try std.fmt.bufPrintZ(
+                    &buf,
+                    "{s} / midpoint",
+                    .{ name }
+                );
+                _ = zgui.plot.plotScatter(
+                    label,
+                    f32,
                     .{
-                        .x = &x,
-                        .y = &y,
-                        .size = 20,
-                        .col = &.{ 0, 1, 1, 1 },
+                        .xv = &.{mid_point.time},
+                        .yv = &.{mid_point.value},
                     }
                 );
+                zgui.plot.popStyleVar(.{ .count = 1 });
             }
 
             if (flags.three_point_approximation.C) {
