@@ -728,18 +728,24 @@ fn three_point_guts_plot(
     const C = curve.bezier_math.lerp_cp(u_mid_point, start_knot, end_knot);
     final_result.C = C;
 
+    // abs( (t^3 + (1-t)^3 - 1) / ( t^3 + (1-t)^3 ) )
     const ratio_t = cmp_t: {
         const t = u_mid_point;
+        const t_cubed = t * t * t;
         const one_minus_t = 1 - t;
+        const one_minus_t_cubed = one_minus_t * one_minus_t * one_minus_t;
 
         const result = @fabs(
-            (t*t*t + one_minus_t*one_minus_t*one_minus_t - 1)
+            (t_cubed + one_minus_t_cubed - 1)
             /
-            (t*t + one_minus_t*one_minus_t)
+            (t_cubed + one_minus_t_cubed)
         );
         break :cmp_t result;
     };
-    const A = mid_point.sub(((C.sub(mid_point)).mul(1/ratio_t)));
+    // A = B - (C-B)/ratio_t
+    const A = mid_point.sub(
+        ((C.sub(mid_point)).div(ratio_t))
+    );
     final_result.A = A;
 
     // then set up an e1 and e2 parallel to the baseline
