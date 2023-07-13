@@ -478,7 +478,9 @@ fn plot_knots(
         const knots_yv = try allocator.alloc(f32, hod.segments.len + 1);
         defer allocator.free(knots_yv);
 
-        for (try hod.segment_endpoints(), 0..) |knot, knot_ind| {
+        const endpoints = try hod.segment_endpoints();
+
+        for (endpoints, 0..) |knot, knot_ind| {
             knots_xv[knot_ind] = knot.time;
             knots_yv[knot_ind] = knot.value;
         }
@@ -492,6 +494,15 @@ fn plot_knots(
                 .yv = knots_yv,
             }
         );
+
+        for (endpoints, 0..) |pt, pt_ind| {
+            const label = try std.fmt.bufPrintZ(&buf, "{d}", .{ pt_ind });
+            zgui.plot.plotText(
+                label,
+                .{ .x = pt.time, .y = pt.value, .pix_offset = .{ 0, 45 } }
+            );
+        }
+
         zgui.plot.popStyleVar(.{ .count = 1 });
     }
 }
