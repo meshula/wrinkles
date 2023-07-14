@@ -467,6 +467,23 @@ pub const Segment = struct {
         std.debug.print("\ndebug_print_json] p0: {}\n", .{ self.p0});
         std.debug.print("{s}", .{ self.debug_json_str()});
     }
+
+    pub fn to_cSeg(self: @This()) hodographs.BezierSegment {
+        return .{ 
+            .order = 3,
+            .p = translate: {
+                var tmp : [4] hodographs.Vector2 = .{};
+
+                inline for (&.{ self.p0, self.p1, self.p2, self.p3 }, 0..) 
+                    |pt, pt_ind| 
+                    {
+                        tmp[pt_ind] = .{ .x = pt.time, .y = pt.value };
+                    }
+
+                break :translate tmp;
+            },
+        };
+    }
 };
 
 test "Segment: can_project test" {
