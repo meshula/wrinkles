@@ -119,8 +119,8 @@ const VisOperation = union(enum) {
 };
 
 const ProjectionResultDebugFlags = struct {
-    curve_flags: DebugBezierFlags = .{},
-
+    result: DebugBezierFlags = .{},
+    to_project: DebugBezierFlags = .{},
 };
 
 const VisState = struct {
@@ -1136,16 +1136,19 @@ fn update(
 
                     try plot_bezier_curve(other_copy, "other copy", .{}, allocator);
 
-                    const result = self_hodograph.project_curve_guts(
-                        other_hodograph
+                    const result_guts = try self_hodograph.project_curve_guts(
+                        other_hodograph,
+                        allocator
                     );
+                    defer result_guts.deinit();
+
                     var buf:[1024:0]u8 = .{};
                     @memset(&buf, 0);
                     const result_name = try std.fmt.bufPrintZ(
                         &buf,
                         "result of projection{s}",
                         .{
-                            if (result.result.?.segments.len > 0) "" 
+                            if (result_guts.result.?.segments.len > 0) "" 
                             else " [NO SEGMENTS/EMPTY]",
                         }
                     );
@@ -1154,7 +1157,7 @@ fn update(
                         "Projection result debug:",
                         .{},
                     );
-                    for (result.result.?.segments, 0..)
+                    for (result_guts.result.?.segments, 0..)
                         |seg, seg_ind|
                     {
                         for (seg.points(), 0..)
@@ -1167,7 +1170,12 @@ fn update(
                         }
                     }
 
-                    try plot_bezier_curve(result.result.?, result_name, state.show_projection_result_guts.curve_flags, allocator);
+                    try plot_bezier_curve(
+                        result_guts.result.?,
+                        result_name,
+                        state.show_projection_result_guts.result,
+                        allocator
+                    );
                 }
 
                 zgui.plot.endPlot();
@@ -1192,7 +1200,12 @@ fn update(
                 "Show Projection Result",
                 .{ .v = &state.show_projection_result }
             );
-            state.show_projection_result_guts.curve_flags.draw_ui("porjection result");
+            state.show_projection_result_guts.result.draw_ui(
+                "Projection Result"
+            );
+            state.show_projection_result_guts.to_project.draw_ui(
+                "segments in other to project"
+            );
 
             var remove = std.ArrayList(usize).init(allocator);
             defer remove.deinit();

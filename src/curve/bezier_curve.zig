@@ -1118,15 +1118,24 @@ pub const TimeCurve = struct {
 
     const ProjectCurveGuts = struct {
         result : ?TimeCurve = null,
+        to_project : ?TimeCurve = null,
+        allocator: std.mem.Allocator,
+
+        pub fn deinit(self: @This()) void {
+            if (self.to_project) |tp| {
+                tp.deinit(self.allocator);
+            }
+        }
     };
 
     pub fn project_curve_guts(
         self: @This(),
         other: TimeCurve,
+        allocator: std.mem.Allocator,
         // should be []TimeCurve <-  come back to this later
-    ) ProjectCurveGuts 
+    ) !ProjectCurveGuts 
     {
-        var result = ProjectCurveGuts{};
+        var result = ProjectCurveGuts{.allocator = allocator};
 
         var self_split = self.split_on_critical_points(
             ALLOCATOR
@@ -1264,6 +1273,11 @@ pub const TimeCurve = struct {
             return result;
         }
 
+        result.to_project = .{ 
+            .segments = try allocator.dupe(Segment, curves_to_project.items[0].segments),
+        };
+
+        // do the projection
         for (curves_to_project.items) 
             |*crv| 
         {
