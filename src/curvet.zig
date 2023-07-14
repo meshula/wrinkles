@@ -722,7 +722,6 @@ fn three_point_guts_plot(
     // of the inner control points.
     // 
     // Based on this we can infer the position of the inner control points
-    //
 
     // C is a lerp between the end points
     const C = curve.bezier_math.lerp_cp(u_mid_point, start_knot, end_knot);
@@ -749,11 +748,11 @@ fn three_point_guts_plot(
     final_result.A = A;
 
     // then set up an e1 and e2 parallel to the baseline
-    const e1 = curve.ControlPoint{
+    const e2 = curve.ControlPoint{
         .time= mid_point.time + d_mid_point_dt.time * u_mid_point,
         .value = mid_point.value + d_mid_point_dt.value * u_mid_point,
     };
-    const e2 = curve.ControlPoint{
+    const e1 = curve.ControlPoint{
         .time= mid_point.time - d_mid_point_dt.time * (1-u_mid_point),
         .value= mid_point.value - d_mid_point_dt.value * (1-u_mid_point),
     };
@@ -766,8 +765,10 @@ fn three_point_guts_plot(
     final_result.v1 = v1;
     final_result.v2 = v2;
 
-    const C1 = (v1.sub(start_knot.mul(1-u_mid_point))).mul(1/u_mid_point);
-    const C2 = (v2.sub(end_knot.mul(u_mid_point))).mul(1/(1-u_mid_point));
+    // C1 = (v1 - (1 - t) * start) / t
+    const C1 = (v1.sub(start_knot.mul(1-u_mid_point))).div(u_mid_point);
+    // C2 = (v2 - t * end) / (1 - t)
+    const C2 = (v2.sub(end_knot.mul(u_mid_point))).div(1 - u_mid_point);
     final_result.C1 = C1;
     final_result.C2 = C2;
 
@@ -930,12 +931,36 @@ fn plot_curve(
                 const v1 = tpa_guts.v1.?;
                 const v2 = tpa_guts.v2.?;
                 
+                const xv = &.{ v1.time,  tpa_guts.A.?.time,  v2.time };
+                const yv = &.{ v1.value, tpa_guts.A.?.value, v2.value };
+
+                const label =  try std.fmt.bufPrintZ(
+                    &buf,
+                    "{s} / v1->A->v2",
+                    .{ name }
+                );
+
+                zgui.plot.plotLine(
+                    label,
+                    f32,
+                    .{ .xv = xv, .yv = yv }
+                );
+
+                plot_point(label, "v1", v1, 20);
+                plot_point(label, "v2", v2, 20);
+            }
+
+            if (flags.three_point_approximation.C1_2) 
+            {
+                const c1 = tpa_guts.C1.?;
+                const c2 = tpa_guts.C2.?;
+                
                 // const xv = &.{ v1.time,  mid_point.time,  v2.time };
                 // const yv = &.{ v1.value, mid_point.value, v2.value };
 
                 const label =  try std.fmt.bufPrintZ(
                     &buf,
-                    "{s} / v1/v2",
+                    "{s} / c1/c2",
                     .{ name }
                 );
 
@@ -945,8 +970,8 @@ fn plot_curve(
                 //     .{ .xv = xv, .yv = yv }
                 // );
 
-                plot_point(label, "v1", v1, 20);
-                plot_point(label, "v2", v2, 20);
+                plot_point(label, "c1", c1, 20);
+                plot_point(label, "c2", c2, 20);
             }
         }
 
