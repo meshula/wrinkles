@@ -359,14 +359,14 @@ pub const BezierTopology = struct {
                 };
             },
             .bezier_curve => |bez| .{
-                // .bezier_curve = .{
-                //     .curve = self.curve.project_curve(bez.curve)
-                // }
-                .linear_curve = .{
-                    .curve = self.curve.linearized().project_curve(
-                        bez.curve.linearized()
-                    )[0]
+                .bezier_curve = .{
+                    .curve = self.curve.project_curve(bez.curve)
                 }
+                // .linear_curve = .{
+                //     .curve = self.curve.linearized().project_curve(
+                //         bez.curve.linearized()
+                //     )[0]
+                // }
             },
             .linear_curve => |lin| .{
                 .linear_curve = .{

@@ -1040,8 +1040,6 @@ pub const TimeCurve = struct {
             return TimeCurve{};
         }
 
-        const last_seg = self.segments[self.segments.len - 1];
-
         for (curves_to_project.items) 
             |*crv| 
         {
@@ -1054,149 +1052,60 @@ pub const TimeCurve = struct {
                     continue;
                 };
 
-                var self_cSeg : hodographs.BezierSegment = .{
-                    .order = 3,
-                    .p = .{},
+                var self_cSeg = self_seg.to_cSeg();
+                var other_cSeg = segment.to_cSeg();
+
+                const midpoint = self_seg.eval_at(0.5);
+
+                var start_mid_end_projected = [3]control_point.ControlPoint{
+                    segment.p0,
+                    midpoint,
+                    segment.p3, 
                 };
 
-                // build the segment to pass into the C library
-                for (self_seg.points(), 0..) 
-                    |pt, index| 
+                // explicitly project start, mid, and end
+                inline for (&start_mid_end_projected, 0..) 
+                    |pt, pt_ind|
                 {
-                    self_cSeg.p[index].x = pt.time;
-                    self_cSeg.p[index].y = pt.value;
-                }
-
-                // pt0
-                {
-                    const pt = segment.p0;
-                    tmp[0] = .{
+                    start_mid_end_projected[pt_ind] = .{
                         .time  = pt.time,
-                        .value = self.evaluate(pt.value) catch (
-                            if (last_seg.p3.time == pt.value) 
-                                self.segments[self.segments.len-1].p3.value
-                            else 
-                            {
-                                std.debug.print(
-                                    "\npt: {any} \nextents: {any} \nsegment: {any:.02} \n",
-                                    .{ pt, self.extents() , segment }
-                                );
-                                unreachable;
-                            }
-                        )
+                        .value = self_seg.eval_at_x(pt.value)
                     };
                 }
 
-                // chain rule the derivative through
-                // from wikipedia:
-                // in this case:
-                // * f = self
-                // * g = other 
-                // * (f o g) is the composition
-                // h'(x) = f'(g(x)) * g'(x)
+                const d_mid_point_dt = chain_rule: {
+                    const u_in_self = self_seg.findU_input(midpoint.value);
 
-
-                // pt1
-                {
-                    // given that projecting other through self
-                    // and chain rule: h'(x) = f
-                    // other = g
-                    const other_pt_snd = segment.p1;
-                    const other_pt_fst = segment.p0;
-
-                    const derivative_other_xy = other_pt_snd.sub(
-                        other_pt_fst
-                    ).mul(@as(f32, 3));
-
-                    const g_t = other_pt_fst;
-                    const g_t_t_in_f = self_seg.findU_input(g_t.value);
-
-                    const f_prime_t_xy = hodographs.evaluate_bezier(
-                        &self_cSeg,
-                        g_t_t_in_f
+                    // project derivative by the chain rule
+                    const g_prime_of_x = hodographs.evaluate_bezier(
+                        &other_cSeg,
+                        0.5,
                     );
 
-                    const h_prime_t = control_point.ControlPoint{
-                        .time = derivative_other_xy.time * f_prime_t_xy.x,
-                        .value = derivative_other_xy.value * f_prime_t_xy.y,
-                    };
-
-                    tmp[1] = (h_prime_t.mul(@as(f32, 1)/@as(f32, 3))).add(tmp[0]);
-
-                    const self_pt_snd = self_seg.p1;
-                    const self_pt_fst = self_seg.p0;
-
-                    const derivative_self_xy = self_pt_snd.sub(
-                        self_pt_fst
-                    ).mul(@as(f32, 3));
-
-                    const h_prime_t_2 = control_point.ControlPoint{
-                        .time = derivative_other_xy.time * derivative_self_xy.time,
-                        .value = derivative_other_xy.value * derivative_self_xy.value,
-                    };
-
-                    tmp[1] = (h_prime_t_2.mul(@as(f32, 1)/@as(f32, 3))).add(tmp[0]);
-                }
-
-                // pt3
-                {
-                    const pt = segment.p3;
-                    tmp[3] = .{
-                        .time  = pt.time,
-                        .value = self.evaluate(pt.value) catch (
-                            if (last_seg.p3.time == pt.value) 
-                                self.segments[self.segments.len-1].p3.value
-                            else 
-                            {
-                                std.debug.print(
-                                    "\npt: {any} \nextents: {any} \nsegment: {any:.02} \n",
-                                    .{ pt, self.extents() , segment }
-                                );
-                                unreachable;
-                            }
-                        )
-                    };
-                }
-
-                // pt2
-                {
-                    // given that projecting other through self
-                    // and chain rule: h'(x) = f
-                    // other = g
-                    const other_pt_snd = segment.p2;
-                    const other_pt_fst = segment.p3;
-
-                    const derivative_other_xy = other_pt_snd.sub(
-                        other_pt_fst
-                    ).mul(@as(f32, 3));
-
-                    const g_t = other_pt_fst;
-                    const g_t_t_in_f = self_seg.findU_input(g_t.value);
-
-                    const f_prime_t_xy = hodographs.evaluate_bezier(
+                    // chain rule: h'(x) = f'(g(x)) * g'(x)
+                    const f_prime_of_g_of_x = hodographs.evaluate_bezier(
                         &self_cSeg,
-                        g_t_t_in_f
+                        u_in_self,
                     );
-                    const h_prime_t = control_point.ControlPoint{
-                        .time = derivative_other_xy.time * f_prime_t_xy.x,
-                        .value = derivative_other_xy.value * f_prime_t_xy.y,
+
+                    break :chain_rule control_point.ControlPoint{
+                        .time  = f_prime_of_g_of_x.x * g_prime_of_x.x,
+                        .value = f_prime_of_g_of_x.y * g_prime_of_x.y,
                     };
-                    tmp[2] = (h_prime_t.mul(@as(f32, 1)/@as(f32, 3))).add(tmp[3]);
+                };
 
-                    const self_pt_snd = self_seg.p2;
-                    const self_pt_fst = self_seg.p3;
+                const final = three_point_guts_plot(
+                    start_mid_end_projected[0],
+                    start_mid_end_projected[1],
+                    0.5,
+                    d_mid_point_dt,
+                    start_mid_end_projected[2],
+                );
 
-                    const derivative_self_xy = self_pt_snd.sub(
-                        self_pt_fst
-                    ).mul(@as(f32, 3));
-
-                    const h_prime_t_2 = control_point.ControlPoint{
-                        .time = derivative_other_xy.time * derivative_self_xy.time,
-                        .value = derivative_other_xy.value * derivative_self_xy.value,
-                    };
-
-                    tmp[2] = (h_prime_t_2.mul(@as(f32, 1)/@as(f32, 3))).add(tmp[3]);
-                }
+                tmp[0] = start_mid_end_projected[0];
+                tmp[1] = final.C1.?;
+                tmp[2] = final.C2.?;
+                tmp[3] = start_mid_end_projected[2];
 
                 segment.*.set_points(tmp);
             }
