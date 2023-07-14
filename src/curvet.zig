@@ -119,6 +119,8 @@ const VisOperation = union(enum) {
 };
 
 const ProjectionResultDebugFlags = struct {
+    fst: DebugBezierFlags = .{},
+    snd: DebugBezierFlags = .{},
     result: DebugBezierFlags = .{},
     to_project: DebugBezierFlags = .{},
 };
@@ -1090,8 +1092,18 @@ fn update(
                     var self = tmpCurves.fst.curve;
                     var other = tmpCurves.snd.curve;
 
-                    try plot_editable_bezier_curve(&self, "self", allocator);
-                    try plot_editable_bezier_curve(&other, "other", allocator);
+                    try plot_bezier_curve(
+                        self,
+                        "self",
+                        state.show_projection_result_guts.fst,
+                        allocator
+                    );
+                    try plot_bezier_curve(
+                        other,
+                        "other",
+                        state.show_projection_result_guts.snd,
+                        allocator
+                    );
 
                     const self_hodograph = try self.split_on_critical_points(allocator);
                     defer self_hodograph.deinit(allocator);
@@ -1176,6 +1188,13 @@ fn update(
                         state.show_projection_result_guts.result,
                         allocator
                     );
+
+                    try plot_bezier_curve(
+                        result_guts.to_project.?,
+                        result_name,
+                        state.show_projection_result_guts.to_project,
+                        allocator
+                    );
                 }
 
                 zgui.plot.endPlot();
@@ -1199,6 +1218,12 @@ fn update(
             _ = zgui.checkbox(
                 "Show Projection Result",
                 .{ .v = &state.show_projection_result }
+            );
+            state.show_projection_result_guts.fst.draw_ui(
+                "self"
+            );
+            state.show_projection_result_guts.snd.draw_ui(
+                "other"
             );
             state.show_projection_result_guts.result.draw_ui(
                 "Projection Result"
