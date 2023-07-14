@@ -750,12 +750,12 @@ fn three_point_guts_plot(
 
     // then set up an e1 and e2 parallel to the baseline
     const e1 = curve.ControlPoint{
-        .time= mid_point.time + d_mid_point_dt.time,
-        .value = mid_point.value + d_mid_point_dt.value,
+        .time= mid_point.time + d_mid_point_dt.time * u_mid_point,
+        .value = mid_point.value + d_mid_point_dt.value * u_mid_point,
     };
     const e2 = curve.ControlPoint{
-        .time= mid_point.time - d_mid_point_dt.time,
-        .value= mid_point.value - d_mid_point_dt.value,
+        .time= mid_point.time - d_mid_point_dt.time * (1-u_mid_point),
+        .value= mid_point.value - d_mid_point_dt.value * (1-u_mid_point),
     };
     final_result.e1 = e1;
     final_result.e2 = e2;
@@ -923,6 +923,30 @@ fn plot_curve(
 
                 plot_point(label, "e1", e1, 20);
                 plot_point(label, "e2", e2, 20);
+            }
+
+            if (flags.three_point_approximation.v1_2) 
+            {
+                const v1 = tpa_guts.v1.?;
+                const v2 = tpa_guts.v2.?;
+                
+                // const xv = &.{ v1.time,  mid_point.time,  v2.time };
+                // const yv = &.{ v1.value, mid_point.value, v2.value };
+
+                const label =  try std.fmt.bufPrintZ(
+                    &buf,
+                    "{s} / v1/v2",
+                    .{ name }
+                );
+
+                // zgui.plot.plotLine(
+                //     label,
+                //     f32,
+                //     .{ .xv = xv, .yv = yv }
+                // );
+
+                plot_point(label, "v1", v1, 20);
+                plot_point(label, "v2", v2, 20);
             }
         }
 
