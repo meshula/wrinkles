@@ -1127,11 +1127,9 @@ fn update(
 
                     const self_hodograph = try self.split_on_critical_points(allocator);
                     defer self_hodograph.deinit(allocator);
-                    try plot_bezier_curve(self_hodograph, "self hodograph", .{}, allocator);
 
                     const other_hodograph = try other.split_on_critical_points(allocator);
                     defer other_hodograph.deinit(allocator);
-                    try plot_bezier_curve(other_hodograph, "other hodograph", .{}, allocator);
 
                     const other_bounds = other.extents();
                     var other_copy = try curve.TimeCurve.init(
@@ -1166,8 +1164,6 @@ fn update(
                         result.deinit(allocator);
                     }
 
-                    try plot_bezier_curve(other_copy, "other copy", .{}, allocator);
-
                     const result_guts = try self_hodograph.project_curve_guts(
                         other_hodograph,
                         allocator
@@ -1176,45 +1172,32 @@ fn update(
 
                     var buf:[1024:0]u8 = .{};
                     @memset(&buf, 0);
-                    const result_name = try std.fmt.bufPrintZ(
-                        &buf,
-                        "result of projection{s}",
-                        .{
-                            if (result_guts.result.?.segments.len > 0) "" 
-                            else " [NO SEGMENTS/EMPTY]",
-                        }
-                    );
-
-                    zgui.text(
-                        "Projection result debug:",
-                        .{},
-                    );
-                    for (result_guts.result.?.segments, 0..)
-                        |seg, seg_ind|
                     {
-                        for (seg.points(), 0..)
-                            |pt, pt_ind|
-                        {
-                            zgui.bulletText(
-                                "Result.segment_{d}.point_{d}: ({d}, {d})",
-                                .{ seg_ind, pt_ind, pt.time, pt.value },
-                            );
-                        }
+                        const result_name = try std.fmt.bufPrintZ(
+                            &buf,
+                            "result of projection{s}",
+                            .{
+                                if (result_guts.result.?.segments.len > 0) "" 
+                                else " [NO SEGMENTS/EMPTY]",
+                            }
+                        );
+
+                        try plot_bezier_curve(
+                            result_guts.result.?,
+                            result_name,
+                            state.show_projection_result_guts.tpa_flags.result_curves,
+                            allocator
+                        );
                     }
 
-                    try plot_bezier_curve(
-                        result_guts.result.?,
-                        result_name,
-                        state.show_projection_result_guts.tpa_flags.result_curves,
-                        allocator
-                    );
-
-                    try plot_bezier_curve(
-                        result_guts.to_project.?,
-                        result_name,
-                        state.show_projection_result_guts.to_project,
-                        allocator
-                    );
+                    {
+                        try plot_bezier_curve(
+                            result_guts.to_project.?,
+                            "Segments of Other that will be projected",
+                            state.show_projection_result_guts.to_project,
+                            allocator
+                        );
+                    }
                 }
 
                 zgui.plot.endPlot();
