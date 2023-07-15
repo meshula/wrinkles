@@ -922,20 +922,12 @@ pub const TimeCurve = struct {
         var split_points = std.ArrayList(f32).init(ALLOCATOR);
         defer split_points.deinit();
 
-        std.debug.print("-------\n", .{});
-
         // self split
         {
-            std.debug.print(
-                "[{d}, {d}]\n",
-                .{ self_bounds[0].time, self_bounds[1].time }
-            );
-
             // find all knots in self that are within the other bounds
             for (other_split.segment_endpoints() catch unreachable)
                 |other_knot| 
             {
-                std.debug.print("knot: {any}\n", .{other_knot});
                 if (
                     _is_between(
                         other_knot.value,
@@ -943,10 +935,8 @@ pub const TimeCurve = struct {
                         self_bounds[1].time
                     )
                 ) {
-                    std.debug.print("knot: {any} is between \n", .{other_knot});
                     split_points.append(other_knot.value) catch unreachable;
                 }
-                std.debug.print("knot: {any} is done \n", .{other_knot});
             }
             self_split = (
                 self_split.split_at_each_input_ordinate(
@@ -956,15 +946,9 @@ pub const TimeCurve = struct {
             );
         }
 
-        std.debug.print("-------\n", .{});
-
         // other split
         {
             const other_bounds = other.extents();
-            std.debug.print(
-                "[{d}, {d}]\n",
-                .{ other_bounds[0].time, other_bounds[1].time }
-            );
 
             split_points.clearAndFree();
 
@@ -972,8 +956,6 @@ pub const TimeCurve = struct {
             for (self_split.segment_endpoints() catch unreachable)
                 |self_knot| 
             {
-                std.debug.print("knot: {any}\n", .{self_knot});
-
                 if (
                     _is_between(
                         self_knot.time,
@@ -981,10 +963,8 @@ pub const TimeCurve = struct {
                         other_bounds[1].value
                     )
                 ) {
-                    std.debug.print("knot: {any} is between \n", .{self_knot});
                     split_points.append(self_knot.time) catch unreachable;
                 }
-                std.debug.print("knot: {any} is done \n", .{self_knot});
             }
             other_split = (
                 other_split.split_at_each_output_ordinate(
@@ -1002,8 +982,6 @@ pub const TimeCurve = struct {
         var last_index: i32 = -10;
         var current_curve = std.ArrayList(Segment).init(ALLOCATOR);
         defer current_curve.deinit();
-
-        std.debug.print("===========\n", .{});
 
         for (other_split.segments, 0..) 
             |other_segment, index| 
@@ -1159,20 +1137,12 @@ pub const TimeCurve = struct {
         var split_points = std.ArrayList(f32).init(ALLOCATOR);
         defer split_points.deinit();
 
-        std.debug.print("-------\n", .{});
-
         // self split
         {
-            std.debug.print(
-                "[{d}, {d}]\n",
-                .{ self_bounds[0].time, self_bounds[1].time }
-            );
-
             // find all knots in self that are within the other bounds
             for (other_split.segment_endpoints() catch unreachable)
                 |other_knot| 
             {
-                std.debug.print("knot: {any}\n", .{other_knot});
                 if (
                     _is_between(
                         other_knot.value,
@@ -1180,10 +1150,8 @@ pub const TimeCurve = struct {
                         self_bounds[1].time
                     )
                 ) {
-                    std.debug.print("knot: {any} is between \n", .{other_knot});
                     split_points.append(other_knot.value) catch unreachable;
                 }
-                std.debug.print("knot: {any} is done \n", .{other_knot});
             }
             self_split = (
                 self_split.split_at_each_input_ordinate(
@@ -1193,15 +1161,9 @@ pub const TimeCurve = struct {
             );
         }
 
-        std.debug.print("-------\n", .{});
-
         // other split
         {
             const other_bounds = other.extents();
-            std.debug.print(
-                "[{d}, {d}]\n",
-                .{ other_bounds[0].time, other_bounds[1].time }
-            );
 
             split_points.clearAndFree();
 
@@ -1209,8 +1171,6 @@ pub const TimeCurve = struct {
             for (self_split.segment_endpoints() catch unreachable)
                 |self_knot| 
             {
-                std.debug.print("knot: {any}\n", .{self_knot});
-
                 if (
                     _is_between(
                         self_knot.time,
@@ -1218,10 +1178,8 @@ pub const TimeCurve = struct {
                         other_bounds[1].value
                     )
                 ) {
-                    std.debug.print("knot: {any} is between \n", .{self_knot});
                     split_points.append(self_knot.time) catch unreachable;
                 }
-                std.debug.print("knot: {any} is done \n", .{self_knot});
             }
             other_split = (
                 other_split.split_at_each_output_ordinate(
@@ -1239,8 +1197,6 @@ pub const TimeCurve = struct {
         var last_index: i32 = -10;
         var current_curve = std.ArrayList(Segment).init(ALLOCATOR);
         defer current_curve.deinit();
-
-        std.debug.print("===========\n", .{});
 
         for (other_split.segments, 0..) 
             |other_segment, index| 
@@ -1775,11 +1731,9 @@ pub const TimeCurve = struct {
         var split_segments = std.ArrayList(Segment).init(allocator);
         defer split_segments.deinit();
 
-        for (self.segments, 0..) 
-            |seg, seg_index| 
+        for (self.segments) 
+            |seg| 
         {
-            errdefer std.debug.print("seg_index: {}\n", .{seg_index});
-
             // build the segment to pass into the C library
             for (seg.points(), 0..) 
                 |pt, index| 
