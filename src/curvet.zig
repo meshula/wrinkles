@@ -26,28 +26,31 @@ const DebugBezierFlags = packed struct (i8) {
 
     _padding: i4 = 0,
 
-    pub fn draw_ui(self: * @This(), name: []const u8) void {
-        const fields = .{
-            .{ "Draw Bezier Curves", "bezier"},
-            .{ "Draw Knots", "knots"},
-            .{ "Draw Control Points", "control_points" },
-            .{ "Draw Linearized", "linearized" },
-        };
-
-        zgui.pushStrId(name);
-        zgui.text("{s}:", .{ name });
-
-        inline for (fields) 
-            |field| 
+    pub fn draw_ui(self: * @This(), name: [:0]const u8) void {
+        if (zgui.treeNode(name)) 
         {
-            // unpack into a bool type
-            var c_value:bool = @field(self, field[1]);
-            _ = zgui.checkbox(field[0], .{ .v = &c_value,});
-            // pack back into the aligned field
-            @field(self, field[1]) = c_value;
+            defer zgui.treePop();
+            const fields = .{
+                .{ "Draw Bezier Curves", "bezier"},
+                .{ "Draw Knots", "knots"},
+                .{ "Draw Control Points", "control_points" },
+                .{ "Draw Linearized", "linearized" },
+            };
 
+            zgui.pushStrId(name);
+
+            inline for (fields) 
+                |field| 
+                {
+                    // unpack into a bool type
+                    var c_value:bool = @field(self, field[1]);
+                    _ = zgui.checkbox(field[0], .{ .v = &c_value,});
+                    // pack back into the aligned field
+                    @field(self, field[1]) = c_value;
+
+                }
+            zgui.popId();
         }
-        zgui.popId();
     }
 };
 
@@ -59,20 +62,28 @@ const tpa_flags = struct {
     e1_2: bool = false,
     v1_2: bool = false,
     C1_2: bool = false,
-    pub fn draw_ui(self: *@This(), name: []const u8) void {
-        self.result_curves.draw_ui(name);
+    pub fn draw_ui(self: *@This(), name: [:0]const u8) void {
+        if (zgui.treeNode(name)) 
+        {
+            defer zgui.treePop();
+            self.result_curves.draw_ui("result of three point approx");
 
-        const fields = .{
-            "A", 
-            "midpoint", 
-            "C",
-            "e1_2",
-            "v1_2",
-            "C1_2",
-        };
+            const fields = .{
+                "A", 
+                "midpoint", 
+                "C",
+                "e1_2",
+                "v1_2",
+                "C1_2",
+            };
 
-        inline for (fields) |field| {
-            _ = zgui.checkbox(field, .{ .v = & @field(self, field) });
+            if (zgui.treeNode("Three Point Approx internals")) 
+            {
+                defer zgui.treePop();
+                inline for (fields) |field| {
+                    _ = zgui.checkbox(field, .{ .v = & @field(self, field) });
+                }
+            }
         }
     }
 };
@@ -1228,18 +1239,24 @@ fn update(
                 "Show Projection Result",
                 .{ .v = &state.show_projection_result }
             );
-            state.show_projection_result_guts.fst.draw_ui(
-                "self"
-            );
-            state.show_projection_result_guts.snd.draw_ui(
-                "other"
-            );
-            state.show_projection_result_guts.tpa_flags.draw_ui(
-                "Projection Result"
-            );
-            state.show_projection_result_guts.to_project.draw_ui(
-                "segments in other to project"
-            );
+
+
+            if (state.show_test_curves and zgui.treeNode("Test Curve Settings"))
+            {
+                defer zgui.treePop();
+                state.show_projection_result_guts.fst.draw_ui(
+                    "self"
+                );
+                state.show_projection_result_guts.snd.draw_ui(
+                    "other"
+                );
+                state.show_projection_result_guts.tpa_flags.draw_ui(
+                    "Projection Result"
+                );
+                state.show_projection_result_guts.to_project.draw_ui(
+                    "segments in other to project"
+                );
+            }
 
             var remove = std.ArrayList(usize).init(allocator);
             defer remove.deinit();
@@ -1257,13 +1274,10 @@ fn update(
 
                         zgui.pushPtrId(@ptrCast(*const anyopaque, crv));
                         defer zgui.popId();
-                        if (
-                            zgui.collapsingHeader(
-                                top_label,
-                                .{ .default_open = true }
-                            )
-                        )
+                        if (zgui.treeNode(top_label))
                         {
+                            defer zgui.treePop();
+
                             zgui.pushPtrId(&crv.active);
                             defer zgui.popId();
 
@@ -1277,7 +1291,9 @@ fn update(
                                 .{.v = &crv.editable}
                             );
 
-                            if (zgui.collapsingHeader("Draw Flags", .{})) {
+                            if (zgui.treeNode("Draw Flags")) {
+                                defer zgui.treePop();
+
                                 crv.draw_flags.draw_ui(crv.fpath);
                             }
 
@@ -1291,18 +1307,22 @@ fn update(
                             );
 
                             // show the knots
-                            if (zgui.collapsingHeader("Original Knots", .{})) {
+                            if (zgui.treeNode("Original Knots")) {
+                                defer zgui.treePop();
+
                                 for (try crv.curve.segment_endpoints(), 0..) 
                                     |pt, ind| 
-                                {
-                                    zgui.bulletText(
-                                        "{d}: ({d}, {d})",
-                                        .{ ind, pt.time, pt.value },
-                                    );
-                                }
+                                    {
+                                        zgui.bulletText(
+                                            "{d}: ({d}, {d})",
+                                            .{ ind, pt.time, pt.value },
+                                        );
+                                    }
                             }
 
-                            if (zgui.collapsingHeader("Hodograph Debug", .{})) {
+                            if (zgui.treeNode("Hodograph Debug")) {
+                                defer zgui.treePop();
+
                                 const cSeg : curve.bezier_curve.hodographs.BezierSegment = .{
                                     .order = 3,
                                     .p = .{
@@ -1326,36 +1346,31 @@ fn update(
                             }
 
                             // split on critical points knots
-                            if (
-                                zgui.collapsingHeader(
-                                    "Split on Critical Points Knots",
-                                    .{}
-                                )
-                            )
+                            if ( zgui.treeNode( "Split on Critical Points Knots",))
                             {
+                                defer zgui.treePop();
+
                                 const split = try crv.curve.split_on_critical_points(allocator);
                                 defer split.deinit(allocator);
 
                                 for (try split.segment_endpoints(), 0..) 
                                     |pt, ind| 
-                                {
-                                    zgui.bulletText(
-                                        "{d}: ({d}, {d})",
-                                        .{ ind, pt.time, pt.value },
-                                    );
-                                }
+                                    {
+                                        zgui.bulletText(
+                                            "{d}: ({d}, {d})",
+                                            .{ ind, pt.time, pt.value },
+                                        );
+                                    }
                             }
                         }
 
                     },
                     .transform => |*xform| {
                         if (
-                            zgui.collapsingHeader(
-                                "Affine Transform Settings",
-                                .{ .default_open = true }
-                            )
+                            zgui.treeNode( "Affine Transform Settings",)
                         ) 
                         {
+                            defer zgui.treePop();
                             _ = zgui.checkbox("Active", .{.v = &xform.active});
                             zgui.sameLine(.{});
                             if (zgui.smallButton("Remove")) {
