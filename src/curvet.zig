@@ -51,34 +51,36 @@ const DebugBezierFlags = packed struct (i8) {
     }
 };
 
+const tpa_flags = struct {
+    result_curves: DebugBezierFlags = .{ .bezier = false },
+    A: bool = false,
+    midpoint: bool = false,
+    C: bool = false,
+    e1_2: bool = false,
+    v1_2: bool = false,
+    C1_2: bool = false,
+    pub fn draw_ui(self: *@This(), name: []const u8) void {
+        self.result_curves.draw_ui(name);
+
+        const fields = .{
+            "A", 
+            "midpoint", 
+            "C",
+            "e1_2",
+            "v1_2",
+            "C1_2",
+        };
+
+        inline for (fields) |field| {
+            _ = zgui.checkbox(field, .{ .v = & @field(self, field) });
+        }
+    }
+};
+
 const DebugDrawCurveFlags = struct {
     input_curve: DebugBezierFlags = .{},
     split_critical_points: DebugBezierFlags = .{ .bezier = false },
-    three_point_approximation: struct {
-        result_curves: DebugBezierFlags = .{ .bezier = false },
-        A: bool = false,
-        midpoint: bool = false,
-        C: bool = false,
-        e1_2: bool = false,
-        v1_2: bool = false,
-        C1_2: bool = false,
-        pub fn draw_ui(self: *@This(), name: []const u8) void {
-            self.result_curves.draw_ui(name);
-
-            const fields = .{
-                "A", 
-                "midpoint", 
-                "C",
-                "e1_2",
-                "v1_2",
-                "C1_2",
-            };
-
-            inline for (fields) |field| {
-                _ = zgui.checkbox(field, .{ .v = & @field(self, field) });
-            }
-        }
-    } = .{},
+    three_point_approximation: tpa_flags = .{},
 
     pub fn draw_ui(self: *@This(), name: []const u8) void {
         zgui.pushStrId(name);
@@ -121,7 +123,7 @@ const VisOperation = union(enum) {
 const ProjectionResultDebugFlags = struct {
     fst: DebugBezierFlags = .{},
     snd: DebugBezierFlags = .{},
-    result: DebugBezierFlags = .{},
+    tpa_flags: tpa_flags = .{},
     to_project: DebugBezierFlags = .{},
 };
 
@@ -702,59 +704,25 @@ fn plot_bezier_curve(
     }
 }
 
-
-fn plot_curve(
-    crv: *VisCurve,
+fn plot_three_point_approx(
+    crv: curve.TimeCurve,
+    flags: DebugDrawCurveFlags,
     name: [:0]const u8,
     allocator: std.mem.Allocator,
-) !void 
+) !void
 {
     var buf:[1024:0]u8 = .{};
-    @memset(&buf, 0);
 
-    const flags = crv.draw_flags;
+    const approx_label = try std.fmt.bufPrintZ(
+        &buf,
+        "{s} / approximation using three point method",
+        .{ name }
+    );
+    var approx_segments = std.ArrayList(curve.Segment).init(allocator);
+    defer approx_segments.deinit();
 
-    // input curve
-    if (flags.input_curve.bezier) {
-        if (crv.editable) {
-            try plot_editable_bezier_curve(&crv.curve, name, allocator);
-            crv.split_hodograph.deinit(allocator);
-            crv.split_hodograph = try crv.curve.split_on_critical_points(allocator);
-        } else {
-            try plot_bezier_curve(
-                crv.curve,
-                name,
-                flags.input_curve,
-                allocator
-            );
-        }
-    }
-
-    // input curve linearized
-    if (flags.input_curve.linearized) {
-        const lin_label = try std.fmt.bufPrintZ(
-            &buf,
-            "{s} / linearized", 
-            .{ name }
-        );
-        const orig_linearized = crv.curve.linearized();
-        try plot_linear_curve(orig_linearized, lin_label, allocator);
-    }
-
-    // three point approximation
-    {
-        const approx_label = try std.fmt.bufPrintZ(
-            &buf,
-            "{s} / approximation using three point method",
-            .{ name }
-        );
-        var approx_segments = std.ArrayList(curve.Segment).init(allocator);
-        defer approx_segments.deinit();
-
-        const crv_hodo = crv.split_hodograph;
-
-        for (crv_hodo.segments) 
-            |seg| 
+    for (crv.segments) 
+        |seg| 
         {
             var mid_point = seg.eval_at(0.5);
 
@@ -826,7 +794,7 @@ fn plot_curve(
             {
                 const e1 = tpa_guts.e1.?;
                 const e2 = tpa_guts.e2.?;
-                
+
                 const xv = &.{ e1.time, mid_point.time, e2.time };
                 const yv = &.{ e1.value, mid_point.value, e2.value };
 
@@ -850,7 +818,7 @@ fn plot_curve(
             {
                 const v1 = tpa_guts.v1.?;
                 const v2 = tpa_guts.v2.?;
-                
+
                 const xv = &.{ v1.time,  tpa_guts.A.?.time,  v2.time };
                 const yv = &.{ v1.value, tpa_guts.A.?.value, v2.value };
 
@@ -874,7 +842,7 @@ fn plot_curve(
             {
                 const c1 = tpa_guts.C1.?;
                 const c2 = tpa_guts.C2.?;
-                
+
                 // const xv = &.{ v1.time,  mid_point.time,  v2.time };
                 // const yv = &.{ v1.value, mid_point.value, v2.value };
 
@@ -895,15 +863,56 @@ fn plot_curve(
             }
         }
 
-        const approx_crv = try curve.TimeCurve.init(approx_segments.items);
+    const approx_crv = try curve.TimeCurve.init(approx_segments.items);
 
-        try plot_bezier_curve(
-            approx_crv,
-            approx_label,
-            flags.three_point_approximation.result_curves,
-            allocator
-        );
+    try plot_bezier_curve(
+        approx_crv,
+        approx_label,
+        flags.three_point_approximation.result_curves,
+        allocator
+    );
+}
+
+fn plot_curve(
+    crv: *VisCurve,
+    name: [:0]const u8,
+    allocator: std.mem.Allocator,
+) !void 
+{
+    var buf:[1024:0]u8 = .{};
+    @memset(&buf, 0);
+
+    const flags = crv.draw_flags;
+
+    // input curve
+    if (flags.input_curve.bezier) {
+        if (crv.editable) {
+            try plot_editable_bezier_curve(&crv.curve, name, allocator);
+            crv.split_hodograph.deinit(allocator);
+            crv.split_hodograph = try crv.curve.split_on_critical_points(allocator);
+        } else {
+            try plot_bezier_curve(
+                crv.curve,
+                name,
+                flags.input_curve,
+                allocator
+            );
+        }
     }
+
+    // input curve linearized
+    if (flags.input_curve.linearized) {
+        const lin_label = try std.fmt.bufPrintZ(
+            &buf,
+            "{s} / linearized", 
+            .{ name }
+        );
+        const orig_linearized = crv.curve.linearized();
+        try plot_linear_curve(orig_linearized, lin_label, allocator);
+    }
+
+    // three point approximation
+    try plot_three_point_approx(crv.split_hodograph, flags, name, allocator);
 
     // split on critical points
     {
@@ -1185,7 +1194,7 @@ fn update(
                     try plot_bezier_curve(
                         result_guts.result.?,
                         result_name,
-                        state.show_projection_result_guts.result,
+                        state.show_projection_result_guts.tpa_flags.result_curves,
                         allocator
                     );
 
@@ -1225,7 +1234,7 @@ fn update(
             state.show_projection_result_guts.snd.draw_ui(
                 "other"
             );
-            state.show_projection_result_guts.result.draw_ui(
+            state.show_projection_result_guts.tpa_flags.draw_ui(
                 "Projection Result"
             );
             state.show_projection_result_guts.to_project.draw_ui(

@@ -1119,11 +1119,16 @@ pub const TimeCurve = struct {
     const ProjectCurveGuts = struct {
         result : ?TimeCurve = null,
         to_project : ?TimeCurve = null,
+        tpa: ?[]tpa_result = null,
         allocator: std.mem.Allocator,
 
         pub fn deinit(self: @This()) void {
             if (self.to_project) |tp| {
                 tp.deinit(self.allocator);
+            }
+
+            if (self.tpa) |tp| {
+                self.allocator.free(tp);
             }
         }
     };
@@ -1277,6 +1282,8 @@ pub const TimeCurve = struct {
             .segments = try allocator.dupe(Segment, curves_to_project.items[0].segments),
         };
 
+        var guts = std.ArrayList(tpa_result).init(allocator);
+
         // do the projection
         for (curves_to_project.items) 
             |*crv| 
@@ -1340,6 +1347,8 @@ pub const TimeCurve = struct {
                     start_mid_end_projected[2],
                 );
 
+                try guts.append(final);
+
                 tmp[0] = start_mid_end_projected[0];
                 tmp[1] = final.C1.?;
                 tmp[2] = final.C2.?;
@@ -1348,6 +1357,8 @@ pub const TimeCurve = struct {
                 segment.*.set_points(tmp);
             }
         }
+
+        result.tpa = try guts.toOwnedSlice();
 
         result.result = curves_to_project.items[0];
 
