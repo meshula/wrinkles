@@ -804,7 +804,11 @@ pub const TimeCurve = struct {
         }
 
         for (self.segments, 0..) |seg, index| {
-            if (seg.p0.time <= t_arg and t_arg < seg.p3.time) {
+            if (
+                seg.p0.time <= t_arg + generic_curve.EPSILON 
+                and t_arg < seg.p3.time - generic_curve.EPSILON
+            ) 
+            {
                 // exactly in a segment
                 return index;
             }
