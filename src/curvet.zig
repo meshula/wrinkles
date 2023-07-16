@@ -339,16 +339,16 @@ pub fn main() !void {
 
     var state = try _parse_args(allocator);
 
-    var pbuf:[1024:0]u8 = .{};
-    var u_path:[:0]u8 = try std.fmt.bufPrintZ(
-        &pbuf,
-        "{s}",
-        .{ "curves/upside_down_u.curve.json" }
+    // u
+    const fst_name:[:0]const u8 = "upside down u";
+    const fst_crv = try curve.read_curve_json(
+        "curves/upside_down_u.curve.json" ,
+        allocator
     );
-    const u_curve = try curve.read_curve_json(u_path, allocator);
-    defer u_curve.deinit(allocator);
+    defer fst_crv.deinit(allocator);
 
-    // const identSeg_half = curve.create_linear_segment(
+    // 1/2 slope
+    // const seg = curve.create_linear_segment(
     //     .{ .time = -2, .value = -1 },
     //     .{ .time = 2, .value = 1 },
     // );
@@ -359,27 +359,31 @@ pub fn main() !void {
     //     .{  "linear slope of 0.5 [-2, 2)" }
     // );
 
+    // ident_long
+    // const seg = curve.create_linear_segment(
+    //     .{ .time = -2, .value = -2 },
+    //     .{ .time = 2, .value = 2 },
+    // );
+    // const fst_crv = try curve.TimeCurve.init(&.{seg});
+    // const fst_name:[:0]const u8 = "linear slope of 0.5 [-2, 2)";
+    
 
-    const identSeg = curve.create_identity_segment(-0.2, 1) ;
-    const lin = try curve.TimeCurve.init(&.{identSeg});
-    const lin_name = try std.fmt.bufPrintZ(
-        pbuf[512..],
-        "{s}",
-        .{  "linear [0, 1)" }
-    );
+    // const identSeg = curve.create_identity_segment(-0.2, 1) ;
+    const identSeg = curve.create_identity_segment(-3, 3) ;
+    const snd_crv = try curve.TimeCurve.init(&.{identSeg});
+    const snd_name:[:0]const u8 ="linear [-0.2, 1)" ;
+
     var tmpCurves = projTmpTest{
+        // projecting "snd" through "fst"
         .fst = .{ 
-            .curve = u_curve,
-            // .curve = lin_half,
-            .fpath = u_path,
-            // .fpath = lin_name_half,
-            // .split_hodograph = try lin_half.split_on_critical_points(allocator),
-            .split_hodograph = try u_curve.split_on_critical_points(allocator),
+            .curve = fst_crv,
+            .fpath = fst_name,
+            .split_hodograph = try fst_crv.split_on_critical_points(allocator),
         },
         .snd = .{ 
-            .curve = lin,
-            .fpath = lin_name,
-            .split_hodograph = try lin.split_on_critical_points(allocator),
+            .curve = snd_crv,
+            .fpath = snd_name,
+            .split_hodograph = try snd_crv.split_on_critical_points(allocator),
         },
     };
     defer tmpCurves.fst.split_hodograph.deinit(allocator);
