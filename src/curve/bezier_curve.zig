@@ -1128,6 +1128,10 @@ pub const TimeCurve = struct {
             if (self.other_split) |sp| {
                 sp.deinit(ALLOCATOR);
             }
+
+            if (self.segments_to_project_through) |sp| {
+                self.allocator.free(sp);
+            }
         }
     };
 
