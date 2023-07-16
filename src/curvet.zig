@@ -150,6 +150,7 @@ const VisState = struct {
     show_test_curves: bool = true,
     show_projection_result: bool = false,
     show_projection_result_guts: ProjectionResultDebugFlags = .{},
+    midpoint_derivatives: bool = false,
 
     pub fn deinit(
         self: *const @This(),
@@ -1186,12 +1187,12 @@ fn update(
                         allocator
                     );
 
-                    zgui.text("Segments to project through indices: ", .{});
-                    for (
-                        result_guts.segments_to_project_through.?
-                    ) |ind| {
-                        zgui.text("{d}", .{ ind });
-                    }
+                    // zgui.text("Segments to project through indices: ", .{});
+                    // for (
+                    //     result_guts.segments_to_project_through.?
+                    // ) |ind| {
+                    //     zgui.text("{d}", .{ ind });
+                    // }
 
                     try plot_bezier_curve(
                         result_guts.other_split.?,
@@ -1246,6 +1247,27 @@ fn update(
 
                         }
                     }
+
+                    // midpoint derivatives
+                    if (state.midpoint_derivatives)
+                    {
+                        for (result_guts.midpoint_derivatives.?, 0..) 
+                            |d_mid_point_dt, ind|
+                        {
+                            const midpoint = result_guts.tpa.?[ind].midpoint.?;
+                            const p1 = midpoint.add(d_mid_point_dt);
+                            const p2 = midpoint.sub(d_mid_point_dt);
+
+                            const xv = &.{ p1.time,  midpoint.time,  p2.time };
+                            const yv = &.{ p1.value, midpoint.value, p2.value };
+
+                            zgui.plot.plotLine(
+                                "midpoint_derivatives",
+                                f32,
+                                .{ .xv = xv, .yv = yv }
+                            );
+                        }
+                    }
                 }
 
                 zgui.plot.endPlot();
@@ -1292,6 +1314,10 @@ fn update(
                 );
                 state.show_projection_result_guts.tpa_flags.draw_ui(
                     "Projection Result"
+                );
+                _ = zgui.checkbox(
+                    "Show midpoint derivatives",
+                    .{ .v = &state.midpoint_derivatives }
                 );
             }
 

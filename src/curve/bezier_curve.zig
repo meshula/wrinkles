@@ -1056,11 +1056,11 @@ pub const TimeCurve = struct {
                 // project derivative by the chain rule
                 // chain rule: h'(x) = f'(g(x)) * g'(x)
                 //             h'(t) = f'(g(t)) * g'(t)
+
+                const u_in_self = self_seg.findU_input(midpoint.value);
                 const d_mid_point_dt = chain_rule: {
                     // t = 0.5 (in the space of "g")
                     // g(t) = midpoint
-
-                    const u_in_self = self_seg.findU_input(midpoint.value);
 
                     // result is (dx/du, dy/du)
                     var self_cSeg = self_seg.to_cSeg();
@@ -1084,7 +1084,7 @@ pub const TimeCurve = struct {
                 const final = three_point_guts_plot(
                     start_mid_end_projected[0],
                     start_mid_end_projected[1],
-                    0.5,
+                    u_in_self,
                     d_mid_point_dt,
                     start_mid_end_projected[2],
                 );
@@ -1111,15 +1111,13 @@ pub const TimeCurve = struct {
         tpa: ?[]tpa_result = null,
         segments_to_project_through: ?[]usize = null,
         allocator: std.mem.Allocator,
+        midpoint_derivatives: ?[]control_point.ControlPoint = null,
 
         pub fn deinit(self: @This()) void {
             if (self.to_project) |tp| {
                 tp.deinit(self.allocator);
             }
 
-            if (self.tpa) |tp| {
-                self.allocator.free(tp);
-            }
 
             if (self.self_split) |sp| {
                 sp.deinit(ALLOCATOR);
@@ -1129,8 +1127,16 @@ pub const TimeCurve = struct {
                 sp.deinit(ALLOCATOR);
             }
 
-            if (self.segments_to_project_through) |sp| {
-                self.allocator.free(sp);
+            const things_to_free = &.{
+                "tpa",
+                "segments_to_project_through",
+                "midpoint_derivatives",
+            };
+
+            inline for (things_to_free) |t| {
+                if (@field(self, t)) |thing| {
+                    self.allocator.free(thing);
+                }
             }
         }
     };
@@ -1268,6 +1274,9 @@ pub const TimeCurve = struct {
 
         var guts = std.ArrayList(tpa_result).init(allocator);
         var segments_to_project_through = std.ArrayList(usize).init(allocator);
+        var midpoint_derivatives = std.ArrayList(
+            control_point.ControlPoint
+        ).init(allocator);
 
         // do the projection
         for (curves_to_project.items) 
@@ -1327,6 +1336,8 @@ pub const TimeCurve = struct {
                     };
                 };
 
+                try midpoint_derivatives.append(d_mid_point_dt);
+
                 const final = three_point_guts_plot(
                     start_mid_end_projected[0],
                     start_mid_end_projected[1],
@@ -1348,6 +1359,7 @@ pub const TimeCurve = struct {
 
         result.tpa = try guts.toOwnedSlice();
         result.segments_to_project_through = try segments_to_project_through.toOwnedSlice();
+        result.midpoint_derivatives = try midpoint_derivatives.toOwnedSlice();
 
         result.result = curves_to_project.items[0];
 
