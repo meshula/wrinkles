@@ -1034,10 +1034,8 @@ pub const TimeCurve = struct {
                     continue;
                 };
 
-                var self_cSeg = self_seg.to_cSeg();
-                var other_cSeg = segment.to_cSeg();
 
-                const midpoint = self_seg.eval_at(0.5);
+                const midpoint = segment.eval_at(0.5);
 
                 var start_mid_end_projected = [3]control_point.ControlPoint{
                     segment.p0,
