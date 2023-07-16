@@ -1053,19 +1053,26 @@ pub const TimeCurve = struct {
                     };
                 }
 
+                // project derivative by the chain rule
+                // chain rule: h'(x) = f'(g(x)) * g'(x)
+                //             h'(t) = f'(g(t)) * g'(t)
                 const d_mid_point_dt = chain_rule: {
+                    // t = 0.5 (in the space of "g")
+                    // g(t) = midpoint
+
                     const u_in_self = self_seg.findU_input(midpoint.value);
 
-                    // project derivative by the chain rule
-                    const g_prime_of_x = hodographs.evaluate_bezier(
-                        &other_cSeg,
-                        0.5,
-                    );
-
-                    // chain rule: h'(x) = f'(g(x)) * g'(x)
+                    // result is (dx/du, dy/du)
+                    var self_cSeg = self_seg.to_cSeg();
                     const f_prime_of_g_of_x = hodographs.evaluate_bezier(
                         &self_cSeg,
                         u_in_self,
+                    );
+
+                    var other_cSeg = segment.to_cSeg();
+                    const g_prime_of_x = hodographs.evaluate_bezier(
+                        &other_cSeg,
+                        0.5,
                     );
 
                     break :chain_rule control_point.ControlPoint{
@@ -1098,8 +1105,11 @@ pub const TimeCurve = struct {
 
     const ProjectCurveGuts = struct {
         result : ?TimeCurve = null,
+        self_split: ?TimeCurve = null,
+        other_split: ?TimeCurve = null,
         to_project : ?TimeCurve = null,
         tpa: ?[]tpa_result = null,
+        segments_to_project_through: ?[]usize = null,
         allocator: std.mem.Allocator,
 
         pub fn deinit(self: @This()) void {
@@ -1109,6 +1119,14 @@ pub const TimeCurve = struct {
 
             if (self.tpa) |tp| {
                 self.allocator.free(tp);
+            }
+
+            if (self.self_split) |sp| {
+                sp.deinit(ALLOCATOR);
+            }
+
+            if (self.other_split) |sp| {
+                sp.deinit(ALLOCATOR);
             }
         }
     };
@@ -1125,7 +1143,7 @@ pub const TimeCurve = struct {
         var self_split = self.split_on_critical_points(
             ALLOCATOR
         ) catch unreachable;
-        defer self_split.deinit(ALLOCATOR);
+        // defer self_split.deinit(ALLOCATOR);
 
         var other_split = other.split_on_critical_points(
             ALLOCATOR
@@ -1163,6 +1181,8 @@ pub const TimeCurve = struct {
             );
         }
 
+        result.self_split = self_split;
+
         // other split
         {
             const other_bounds = other.extents();
@@ -1191,7 +1211,7 @@ pub const TimeCurve = struct {
             );
         }
 
-        // at this point we're correct.  each has 2 splits
+        result.other_split = other_split;
 
         var curves_to_project = std.ArrayList(TimeCurve).init(ALLOCATOR);
         defer curves_to_project.deinit();
@@ -1200,6 +1220,8 @@ pub const TimeCurve = struct {
         var current_curve = std.ArrayList(Segment).init(ALLOCATOR);
         defer current_curve.deinit();
 
+        // having split both curves by both endpoints, throw out the segments in
+        // other that will not be projected
         for (other_split.segments, 0..) 
             |other_segment, index| 
         {
@@ -1241,6 +1263,7 @@ pub const TimeCurve = struct {
         };
 
         var guts = std.ArrayList(tpa_result).init(allocator);
+        var segments_to_project_through = std.ArrayList(usize).init(allocator);
 
         // do the projection
         for (curves_to_project.items) 
@@ -1251,14 +1274,17 @@ pub const TimeCurve = struct {
             {
                 var tmp: [4]control_point.ControlPoint = .{};
 
-                const self_seg = self.find_segment(segment.p0.time) orelse {
+                const self_seg = self_split.find_segment(segment.p0.time) orelse {
                     continue;
                 };
+                try segments_to_project_through.append(
+                    self_split.find_segment_index(segment.p0.time) orelse continue
+                );
 
                 var self_cSeg = self_seg.to_cSeg();
                 var other_cSeg = segment.to_cSeg();
 
-                const midpoint = self_seg.eval_at(0.5);
+                const midpoint = segment.eval_at(0.5);
 
                 var start_mid_end_projected = [3]control_point.ControlPoint{
                     segment.p0,
@@ -1317,6 +1343,7 @@ pub const TimeCurve = struct {
         }
 
         result.tpa = try guts.toOwnedSlice();
+        result.segments_to_project_through = try segments_to_project_through.toOwnedSlice();
 
         result.result = curves_to_project.items[0];
 
@@ -3070,10 +3097,13 @@ pub fn lli8(
     return .{.time = nx/d, .value = ny/d};
 }
 
-const tpa_result = struct {
+pub const tpa_result = struct {
     result: ?Segment = null,
+    start: ?control_point.ControlPoint = null,
     A:  ?control_point.ControlPoint = null,
+    midpoint: ?control_point.ControlPoint = null,
     C:  ?control_point.ControlPoint = null,
+    end: ?control_point.ControlPoint = null,
     e1: ?control_point.ControlPoint = null,
     e2: ?control_point.ControlPoint = null,
     v1: ?control_point.ControlPoint = null,
@@ -3091,6 +3121,10 @@ pub fn three_point_guts_plot(
 ) tpa_result
 {
     var final_result = tpa_result{};
+
+    final_result.start = start_knot;
+    final_result.midpoint = mid_point;
+    final_result.end = end_knot;
 
     // from pomax
     // if B is the midpoint, there are points A and C such that C is the
@@ -3124,13 +3158,13 @@ pub fn three_point_guts_plot(
     final_result.A = A;
 
     // then set up an e1 and e2 parallel to the baseline
-    const e2 = control_point.ControlPoint{
-        .time= mid_point.time + d_mid_point_dt.time * u_mid_point,
-        .value = mid_point.value + d_mid_point_dt.value * u_mid_point,
-    };
     const e1 = control_point.ControlPoint{
         .time= mid_point.time - d_mid_point_dt.time * (1-u_mid_point),
         .value= mid_point.value - d_mid_point_dt.value * (1-u_mid_point),
+    };
+    const e2 = control_point.ControlPoint{
+        .time= mid_point.time + d_mid_point_dt.time * u_mid_point,
+        .value = mid_point.value + d_mid_point_dt.value * u_mid_point,
     };
     final_result.e1 = e1;
     final_result.e2 = e2;
@@ -3142,9 +3176,9 @@ pub fn three_point_guts_plot(
     final_result.v2 = v2;
 
     // C1 = (v1 - (1 - t) * start) / t
-    const C1 = (v1.sub(start_knot.mul(1-u_mid_point))).div(u_mid_point);
+    const C1 = (v2.sub(end_knot.mul(u_mid_point))).div(1 - u_mid_point);
     // C2 = (v2 - t * end) / (1 - t)
-    const C2 = (v2.sub(end_knot.mul(u_mid_point))).div(1 - u_mid_point);
+    const C2 = (v1.sub(start_knot.mul(1-u_mid_point))).div(u_mid_point);
     final_result.C1 = C1;
     final_result.C2 = C2;
 

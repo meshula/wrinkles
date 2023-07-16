@@ -107,7 +107,7 @@ const DebugDrawCurveFlags = struct {
 };
 
 const VisCurve = struct {
-    fpath: [:0]u8,
+    fpath: [:0]const u8,
     curve: curve.TimeCurve,
     split_hodograph: curve.TimeCurve,
     active: bool = true,
@@ -137,7 +137,9 @@ const VisOperation = union(enum) {
 
 const ProjectionResultDebugFlags = struct {
     fst: DebugBezierFlags = .{},
+    self_split: DebugBezierFlags = .{},
     snd: DebugBezierFlags = .{},
+    other_split: DebugBezierFlags = .{},
     tpa_flags: tpa_flags = .{},
     to_project: DebugBezierFlags = .{},
 };
@@ -145,8 +147,8 @@ const ProjectionResultDebugFlags = struct {
 const VisState = struct {
     operations: std.ArrayList(VisOperation),
     show_demo: bool = false,
-    show_test_curves: bool = false,
-    show_projection_result: bool = true,
+    show_test_curves: bool = true,
+    show_projection_result: bool = false,
     show_projection_result_guts: ProjectionResultDebugFlags = .{},
 
     pub fn deinit(
@@ -723,6 +725,109 @@ fn plot_bezier_curve(
     }
 }
 
+fn plot_tpa_guts(
+    guts: curve.bezier_curve.tpa_result,
+    name: []const u8,
+    flags: tpa_flags
+) !void 
+{
+    var buf: [1024:0]u8 = .{};
+
+    const fields = &.{
+        "start",
+        "midpoint",
+        "end",
+        "A",
+        "C",
+    };
+
+    inline for (fields) 
+        |f| 
+    {
+        if (@field(flags, f)) {
+            const label =  try std.fmt.bufPrintZ(
+                &buf,
+                "{s} / {s}",
+                .{ name, f }
+            );
+            
+            plot_point(label, f, @field(guts, f).?, 20);
+        }
+    }
+
+    if (flags.e1_2) 
+    {
+        const e1 = guts.e1.?;
+        const e2 = guts.e2.?;
+
+        const xv = &.{ e1.time, guts.midpoint.?.time, e2.time };
+        const yv = &.{ e1.value, guts.midpoint.?.value, e2.value };
+
+        const label =  try std.fmt.bufPrintZ(
+            &buf,
+            "{s} / e1->midpoint->e2",
+            .{ name }
+        );
+
+        zgui.plot.plotLine(
+            label,
+            f32,
+            .{ .xv = xv, .yv = yv }
+        );
+
+        plot_point(label, "e1", e1, 20);
+        plot_point(label, "e2", e2, 20);
+    }
+
+    if (flags.v1_2) 
+    {
+        const v1 = guts.v1.?;
+        const v2 = guts.v2.?;
+
+        const xv = &.{ v1.time,  guts.A.?.time,  v2.time };
+        const yv = &.{ v1.value, guts.A.?.value, v2.value };
+
+        const label =  try std.fmt.bufPrintZ(
+            &buf,
+            "{s} / v1->A->v2",
+            .{ name }
+        );
+
+        zgui.plot.plotLine(
+            label,
+            f32,
+            .{ .xv = xv, .yv = yv }
+        );
+
+        plot_point(label, "v1", v1, 20);
+        plot_point(label, "v2", v2, 20);
+    }
+
+    if (flags.C1_2) 
+    {
+        const c1 = guts.C1.?;
+        const c2 = guts.C2.?;
+
+        // const xv = &.{ v1.time,  mid_point.time,  v2.time };
+        // const yv = &.{ v1.value, mid_point.value, v2.value };
+
+        const label =  try std.fmt.bufPrintZ(
+            &buf,
+            "{s} / c1/c2",
+            .{ name }
+        );
+
+        // zgui.plot.plotLine(
+        //     label,
+        //     f32,
+        //     .{ .xv = xv, .yv = yv }
+        // );
+
+        plot_point(label, "c1", c1, 20);
+        plot_point(label, "c2", c2, 20);
+    }
+}
+
 fn plot_three_point_approx(
     crv: curve.TimeCurve,
     flags: DebugDrawCurveFlags,
@@ -775,111 +880,7 @@ fn plot_three_point_approx(
             // derivative at the midpoint
             try approx_segments.append(tpa_guts.result.?);
 
-            if (flags.three_point_approximation.midpoint) 
-            {
-                const label =  try std.fmt.bufPrintZ(
-                    &buf,
-                    "{s} / midpoint",
-                    .{ name }
-                );
-                plot_point(label, "midpoint", mid_point, 20);
-            }
-
-            if (tpa_guts.A) |a| {
-                if (flags.three_point_approximation.A)
-                {
-                    const label =  try std.fmt.bufPrintZ(
-                        &buf,
-                        "{s} / A",
-                        .{ name }
-                    );
-                    plot_point(label, "A", a, 20);
-                }
-            }
-
-            if (tpa_guts.C) |c| {
-                if (flags.three_point_approximation.C) 
-                {
-                    const label =  try std.fmt.bufPrintZ(
-                        &buf,
-                        "{s} / C",
-                        .{ name }
-                    );
-                    plot_point(label, "C", c, 20);
-                }
-            }
-
-            if (flags.three_point_approximation.e1_2) 
-            {
-                const e1 = tpa_guts.e1.?;
-                const e2 = tpa_guts.e2.?;
-
-                const xv = &.{ e1.time, mid_point.time, e2.time };
-                const yv = &.{ e1.value, mid_point.value, e2.value };
-
-                const label =  try std.fmt.bufPrintZ(
-                    &buf,
-                    "{s} / e1->midpoint->e2",
-                    .{ name }
-                );
-
-                zgui.plot.plotLine(
-                    label,
-                    f32,
-                    .{ .xv = xv, .yv = yv }
-                );
-
-                plot_point(label, "e1", e1, 20);
-                plot_point(label, "e2", e2, 20);
-            }
-
-            if (flags.three_point_approximation.v1_2) 
-            {
-                const v1 = tpa_guts.v1.?;
-                const v2 = tpa_guts.v2.?;
-
-                const xv = &.{ v1.time,  tpa_guts.A.?.time,  v2.time };
-                const yv = &.{ v1.value, tpa_guts.A.?.value, v2.value };
-
-                const label =  try std.fmt.bufPrintZ(
-                    &buf,
-                    "{s} / v1->A->v2",
-                    .{ name }
-                );
-
-                zgui.plot.plotLine(
-                    label,
-                    f32,
-                    .{ .xv = xv, .yv = yv }
-                );
-
-                plot_point(label, "v1", v1, 20);
-                plot_point(label, "v2", v2, 20);
-            }
-
-            if (flags.three_point_approximation.C1_2) 
-            {
-                const c1 = tpa_guts.C1.?;
-                const c2 = tpa_guts.C2.?;
-
-                // const xv = &.{ v1.time,  mid_point.time,  v2.time };
-                // const yv = &.{ v1.value, mid_point.value, v2.value };
-
-                const label =  try std.fmt.bufPrintZ(
-                    &buf,
-                    "{s} / c1/c2",
-                    .{ name }
-                );
-
-                // zgui.plot.plotLine(
-                //     label,
-                //     f32,
-                //     .{ .xv = xv, .yv = yv }
-                // );
-
-                plot_point(label, "c1", c1, 20);
-                plot_point(label, "c2", c2, 20);
-            }
+            try plot_tpa_guts(tpa_guts, name, flags.three_point_approximation);
         }
 
     const approx_crv = try curve.TimeCurve.init(approx_segments.items);
@@ -1178,6 +1179,27 @@ fn update(
                     );
                     defer result_guts.deinit();
 
+                    try plot_bezier_curve(
+                        result_guts.self_split.?,
+                        "self_split",
+                        state.show_projection_result_guts.self_split,
+                        allocator
+                    );
+
+                    zgui.text("Segments to project through indices: ", .{});
+                    for (
+                        result_guts.segments_to_project_through.?
+                    ) |ind| {
+                        zgui.text("{d}", .{ ind });
+                    }
+
+                    try plot_bezier_curve(
+                        result_guts.other_split.?,
+                        "other_split",
+                        state.show_projection_result_guts.other_split,
+                        allocator
+                    );
+
                     var buf:[1024:0]u8 = .{};
                     @memset(&buf, 0);
                     {
@@ -1205,6 +1227,24 @@ fn update(
                             state.show_projection_result_guts.to_project,
                             allocator
                         );
+                    }
+
+                    {
+                        for (result_guts.tpa.?, 0..) 
+                            |tpa, ind| 
+                        {
+                            const label = try std.fmt.bufPrintZ(
+                                &buf,
+                                "Three Point Approx Projected.segments[{d}]",
+                                .{ind }
+                            );
+                            try plot_tpa_guts(
+                                tpa,
+                                label,
+                                state.show_projection_result_guts.tpa_flags,
+                            );
+
+                        }
                     }
                 }
 
@@ -1238,14 +1278,20 @@ fn update(
                 state.show_projection_result_guts.fst.draw_ui(
                     "self"
                 );
+                state.show_projection_result_guts.self_split.draw_ui(
+                    "self split"
+                );
                 state.show_projection_result_guts.snd.draw_ui(
                     "other"
                 );
-                state.show_projection_result_guts.tpa_flags.draw_ui(
-                    "Projection Result"
+                state.show_projection_result_guts.other_split.draw_ui(
+                    "other split"
                 );
                 state.show_projection_result_guts.to_project.draw_ui(
                     "segments in other to project"
+                );
+                state.show_projection_result_guts.tpa_flags.draw_ui(
+                    "Projection Result"
                 );
             }
 
