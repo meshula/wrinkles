@@ -326,7 +326,7 @@ pub fn main() !void {
     defer window.destroy();
     window.setSizeLimits(400, 400, -1, -1);
 
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.GeneralPurposeAllocator(.{.stack_trace_frames = 32}){};
     defer _ = gpa.deinit();
 
     const allocator = gpa.allocator();
