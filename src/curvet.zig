@@ -55,10 +55,12 @@ const DebugBezierFlags = packed struct (i8) {
 };
 
 const tpa_flags = struct {
-    result_curves: DebugBezierFlags = .{ .bezier = false },
+    result_curves: DebugBezierFlags = .{ .bezier = true },
+    start: bool = false,
     A: bool = false,
     midpoint: bool = false,
     C: bool = false,
+    end: bool = false,
     e1_2: bool = false,
     v1_2: bool = false,
     C1_2: bool = false,
@@ -69,9 +71,11 @@ const tpa_flags = struct {
             self.result_curves.draw_ui("result of three point approx");
 
             const fields = .{
+                "start",
                 "A", 
                 "midpoint", 
                 "C",
+                "end",
                 "e1_2",
                 "v1_2",
                 "C1_2",
