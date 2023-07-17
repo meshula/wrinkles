@@ -1477,6 +1477,14 @@ fn update(
                                         );
                                     }
                             }
+
+                            if (zgui.treeNode("Three Point Projection"))
+                            {
+                                defer zgui.treePop();
+
+                                crv.draw_flags.three_point_approximation.draw_ui("curve three point");
+
+                            }
                         }
 
                     },
