@@ -18,11 +18,12 @@ const string = @import("string_stuff");
 const time_topology = @import("time_topology");
 const util = opentime.util;
 
-const DebugBezierFlags = packed struct (i8) {
+const DebugBezierFlags = packed struct (i9) {
     bezier: bool = true,
     knots: bool = false,
     control_points: bool = false,
     linearized: bool = false,
+    natural_midpoint: bool = false,
 
     _padding: i4 = 0,
 
@@ -35,6 +36,7 @@ const DebugBezierFlags = packed struct (i8) {
                 .{ "Draw Knots", "knots"},
                 .{ "Draw Control Points", "control_points" },
                 .{ "Draw Linearized", "linearized" },
+                .{ "Natural Midpoint (t=0.5)", "natural_midpoint" },
             };
 
             zgui.pushStrId(name);
@@ -725,6 +727,17 @@ fn plot_bezier_curve(
 
     if (flags.knots) {
         try plot_knots(crv, name, allocator);
+    }
+
+    if (flags.natural_midpoint) {
+        for (crv.segments) |seg| {
+            plot_point(
+                label,
+                "midpoint",
+                seg.eval_at(0.5),
+                18,
+            );
+        }
     }
 }
 
