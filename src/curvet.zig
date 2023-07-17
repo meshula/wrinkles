@@ -1287,7 +1287,7 @@ fn update(
                                     {
                                         const label = try std.fmt.bufPrintZ(
                                             &buf,
-                                            "d/dt: ({d:0.3}, {d:0.3})",
+                                            "d/dt: ({d:0.6}, {d:0.6})",
                                             .{d.time, d.value},
                                         );
                                         zgui.plot.plotText(
