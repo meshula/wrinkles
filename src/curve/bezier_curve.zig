@@ -166,52 +166,15 @@ pub const Segment = struct {
         end_knot: control_point.ControlPoint,
     ) ?Segment
     {
-        // from pomax
-        // if B is the midpoint, there are points A and C such that C is the
-        // midpoint of the first and last control points and A is the midpoint
-        // of the inner control points.
-        // 
-        // Based on this we can infer the position of the inner control points
-        //
+        const result = three_point_guts_plot(
+            start_knot,
+            mid_point,
+            u_mid_point,
+            d_mid_point_dt,
+            end_knot
+        );
 
-        // C is a lerp between the end points
-        const C = bezier_math.lerp_cp(u_mid_point, start_knot, end_knot);
-        const ratio_t = cmp_t: {
-            const t = u_mid_point;
-            const one_minus_t = 1 - t;
-
-            const result = @fabs(
-                (t*t*t + one_minus_t*one_minus_t*one_minus_t - 1)
-                /
-                (t*t + one_minus_t*one_minus_t)
-            );
-            break :cmp_t result;
-        };
-        const A = mid_point.sub(((C.sub(mid_point)).mul(1/ratio_t)));
-        
-        // then set up an e1 and e2 parallel to the baseline
-        const e1 = control_point.ControlPoint{
-            .time= mid_point.time + d_mid_point_dt.time,
-            .value = mid_point.value + d_mid_point_dt.value,
-        };
-        const e2 = control_point.ControlPoint{
-            .time= mid_point.time - d_mid_point_dt.time,
-            .value= mid_point.value - d_mid_point_dt.value,
-        };
-
-        // then use those e1/e2 to derive the new hull coordinates
-        const v1 = (e1.sub(A.mul(u_mid_point))).mul(1/(1-u_mid_point));
-        const v2 = (e2.sub(A.mul(1-u_mid_point))).mul(1/u_mid_point);
-
-        const C1 = (v1.sub(start_knot.mul(1-u_mid_point))).mul(1/u_mid_point);
-        const C2 = (v2.sub(end_knot.mul(u_mid_point))).mul(1/(1-u_mid_point));
-
-        return .{
-            .p0 = start_knot,
-            .p1 = C1,
-            .p2 = C2,
-            .p3 = end_knot,
-        };
+        return result.result;
     }
 
     pub fn points(self: @This()) [4]control_point.ControlPoint {
@@ -909,10 +872,8 @@ pub const TimeCurve = struct {
         // should be []TimeCurve <-  come back to this later
     ) TimeCurve 
     {
-        _ = self;
-        _ = other;
-
-        @panic("unimplemented");
+        const result = project_curve_guts(self, other, ALLOCATOR) catch unreachable;
+        return result.result.?;
     }
 
     const ProjectCurveGuts = struct {
@@ -2844,119 +2805,6 @@ test "TimeCurve: split_on_critical_points symmetric about the origin" {
             );
         }
     }
-}
-
-// from pomax
-pub fn getccenter(
-    p1:control_point.ControlPoint,
-    p2:control_point.ControlPoint,
-    p3:control_point.ControlPoint,
-) ?control_point.ControlPoint 
-{
-    const dx1 = p2.time - p1.time;
-    const dy1 = p2.value - p1.value;
-    const dx2 = p3.time - p2.time;
-    const dy2 = p3.value - p2.value;
-    const quart = std.math.pi / @as(f32, 2);
-    const dx1p = dx1 * std.math.cos(quart) - dy1 * std.math.sin(quart);
-    const dy1p = dx1 * std.math.sin(quart) + dy1 * std.math.cos(quart);
-    const dx2p = dx2 * std.math.cos(quart) - dy2 * std.math.sin(quart);
-    const dy2p = dx2 * std.math.sin(quart) + dy2 * std.math.cos(quart);
-    // chord midpoints
-    const mx1 = (p1.time + p2.time) / 2;
-    const my1 = (p1.value + p2.value) / 2;
-    const mx2 = (p2.time + p3.time) / 2;
-    const my2 = (p2.value + p3.value) / 2;
-    // midpoint offsets
-    const mx1n = mx1 + dx1p;
-    const my1n = my1 + dy1p;
-    const mx2n = mx2 + dx2p;
-    const my2n = my2 + dy2p;
-    // intersection of these lines:
-    const maybe_arc = lli8(
-        .{ .time = mx1, .value = my1 },
-        .{ .time = mx1n, .value = my1n},
-        .{ .time = mx2, .value = my2}, 
-        .{ .time = mx2n, .value = my2n }
-    );
-    if (maybe_arc == null) {
-        return null;
-    }
-    const arc = maybe_arc.?;
-
-    // arc start/end values, over mid point:
-    var s = std.math.atan2(f32, p1.value - arc.value, p1.time - arc.time);
-    var m = std.math.atan2(f32, p2.value - arc.value, p2.time - arc.time);
-    var e = std.math.atan2(f32, p3.value - arc.value, p3.time - arc.time);
-
-    // determine arc direction (cw/ccw correction)
-    if (s < e) {
-      // if s<m<e, arc(s, e)
-      // if m<s<e, arc(e, s + tau)
-      // if s<e<m, arc(e, s + tau)
-      if (s > m or m > e) {
-        s += 2 * std.math.pi;
-      }
-      if (s > e) {
-        const tmp = e;
-        e = s;
-        s = tmp;
-      }
-    } else {
-      // if e<m<s, arc(e, s)
-      // if m<e<s, arc(s, e + tau)
-      // if e<s<m, arc(s, e + tau)
-      if (e < m and m < s) {
-        const tmp = e;
-        e = s;
-        s = tmp;
-      } else {
-        e += 2 * std.math.pi;
-      }
-    }
-
-    return arc;
-}
-
-// from pomax
-pub fn lli8(
-    p1: control_point.ControlPoint,
-    p2: control_point.ControlPoint,
-    p3: control_point.ControlPoint,
-    p4: control_point.ControlPoint,
-) ?control_point.ControlPoint 
-{
-    const nx=(
-        (
-         (p1.time*p2.value-p1.value*p2.time) 
-         * (p3.time-p4.time)
-        )
-        - 
-        (
-         (p1.time-p2.time)
-         * (p3.time*p4.value-p3.value*p4.time)
-        )
-    );
-    const ny=(
-        (
-         (p1.time*p2.value-p1.value*p2.time)
-         * (p3.value-p4.value)
-        )
-        -
-        (
-         (p1.value-p2.value)
-         * (p3.time*p4.value-p3.value*p4.time)
-        )
-    );
-    const d=(
-        (p1.time-p2.time)*(p3.value-p4.value)
-        - (p1.value-p2.value)*(p3.time-p4.time)
-    );
-
-    if (d == 0) {
-        return null;
-    }
-    return .{.time = nx/d, .value = ny/d};
 }
 
 pub const tpa_result = struct {
