@@ -1366,6 +1366,7 @@ fn update(
                             );
                         }
                 }
+                zgui.text("U value: {d}", .{ curve.bezier_curve.u_val_of_midpoint });
 
                 state.show_projection_result_guts.tpa_flags.draw_ui(
                     "Projection Result"
