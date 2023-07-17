@@ -1277,6 +1277,21 @@ fn update(
                                         f32,
                                         .{ .xv = xv, .yv = yv }
                                     );
+                                    {
+                                        const label = try std.fmt.bufPrintZ(
+                                            &buf,
+                                            "d/dt: ({d:0.3}, {d:0.3})",
+                                            .{d.time, d.value},
+                                        );
+                                        zgui.plot.plotText(
+                                            label,
+                                            .{ 
+                                                .x = p1.time, 
+                                                .y = p1.value, 
+                                                .pix_offset = .{ 0, 16 } 
+                                            },
+                                            );
+                                    }
                                 }
                         }
                     }
@@ -1324,25 +1339,30 @@ fn update(
                 state.show_projection_result_guts.to_project.draw_ui(
                     "segments in other to project"
                 );
+
+                if (zgui.treeNode("Derivative Debug Info"))
+                {
+                    defer zgui.treePop();
+                    const derivs = .{
+                        .{"f_prime_of_g_of_t", "Show Derivative of self at midpoint"},
+                        .{"g_prime_of_t", "Show derivative of other at midpoint"},
+                        .{"midpoint_derivatives", "Show chain rule result of multiplying derivatives"},
+                    };
+
+                    // midpoint derivatives
+                    inline for (derivs) 
+                        |d_info| 
+                        {
+                            _ = zgui.checkbox(
+                                d_info[1],
+                                .{ .v = &@field(state,d_info[0]) }
+                            );
+                        }
+                }
+
                 state.show_projection_result_guts.tpa_flags.draw_ui(
                     "Projection Result"
                 );
-
-                const derivs = .{
-                    .{"f_prime_of_g_of_t", "Show Derivative of self at midpoint"},
-                    .{"g_prime_of_t", "Show derivative of other at midpoint"},
-                    .{"midpoint_derivatives", "Show chain rule result of multiplying derivatives"},
-                };
-
-                // midpoint derivatives
-                inline for (derivs) 
-                    |d_info| 
-                {
-                    _ = zgui.checkbox(
-                        d_info[1],
-                        .{ .v = &@field(state,d_info[0]) }
-                    );
-                }
             }
 
             var remove = std.ArrayList(usize).init(allocator);
