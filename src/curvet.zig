@@ -780,6 +780,23 @@ fn plot_tpa_guts(
 
         plot_point(label, "e1", e1, 20);
         plot_point(label, "e2", e2, 20);
+
+        {
+            const d = e1.sub(guts.midpoint.?);
+            const d_label = try std.fmt.bufPrintZ(
+                &buf,
+                "d/dt: ({d:0.6}, {d:0.6})",
+                .{d.time, d.value},
+            );
+            zgui.plot.plotText(
+                d_label,
+                .{ 
+                    .x = e1.time, 
+                    .y = e1.value, 
+                    .pix_offset = .{ 0, 48 } 
+                },
+                );
+        }
     }
 
     if (flags.v1_2) 
