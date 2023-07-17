@@ -1176,6 +1176,13 @@ fn update(
                         result.deinit(allocator);
                     }
 
+                    // animate the u value
+                    if (false) {
+                        curve.bezier_curve.u_val_of_midpoint += 0.001;
+                        if (curve.bezier_curve.u_val_of_midpoint > 0.8) {
+                            curve.bezier_curve.u_val_of_midpoint = 0.2;
+                        }
+                    }
                     const result_guts = try self_hodograph.project_curve_guts(
                         other_hodograph,
                         allocator
