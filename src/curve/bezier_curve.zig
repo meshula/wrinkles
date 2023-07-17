@@ -1111,8 +1111,9 @@ pub const TimeCurve = struct {
                 const d_mid_point_dt = chain_rule: {
 
                     var self_cSeg = self_seg.to_cSeg();
+                    var self_hodo = hodographs.compute_hodograph(&self_cSeg);
                     const f_prime_of_g_of_t = hodographs.evaluate_bezier(
-                        &self_cSeg,
+                        &self_hodo,
                         u_in_self,
                     );
                     try cache_f_prime_of_g_of_t.append(
@@ -1124,8 +1125,9 @@ pub const TimeCurve = struct {
 
                     // project derivative by the chain rule
                     var other_cSeg = segment.to_cSeg();
+                    var other_hodo = hodographs.compute_hodograph(&other_cSeg);
                     const g_prime_of_t = hodographs.evaluate_bezier(
-                        &other_cSeg,
+                        &other_hodo,
                         t_midpoint_other,
                     );
                     try cache_g_prime_of_t.append(
