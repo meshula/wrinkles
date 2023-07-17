@@ -151,6 +151,8 @@ const VisState = struct {
     show_projection_result: bool = false,
     show_projection_result_guts: ProjectionResultDebugFlags = .{},
     midpoint_derivatives: bool = false,
+    f_prime_of_g_of_t: bool = false,
+    g_prime_of_t: bool = false,
 
     pub fn deinit(
         self: *const @This(),
@@ -1248,24 +1250,34 @@ fn update(
                         }
                     }
 
+                    const derivs = .{
+                        "f_prime_of_g_of_t",
+                        "g_prime_of_t",
+                        "midpoint_derivatives",
+                    };
+
                     // midpoint derivatives
-                    if (state.midpoint_derivatives)
+                    inline for (derivs) 
+                        |d_name| 
                     {
-                        for (result_guts.midpoint_derivatives.?, 0..) 
-                            |d_mid_point_dt, ind|
+                        if (@field(state, d_name))
                         {
-                            const midpoint = result_guts.tpa.?[ind].midpoint.?;
-                            const p1 = midpoint.add(d_mid_point_dt);
-                            const p2 = midpoint.sub(d_mid_point_dt);
+                            for (@field(result_guts, d_name).?, 0..) 
+                                |d, ind|
+                                {
+                                    const midpoint = result_guts.tpa.?[ind].midpoint.?;
+                                    const p1 = midpoint.add(d);
+                                    const p2 = midpoint.sub(d);
 
-                            const xv = &.{ p1.time,  midpoint.time,  p2.time };
-                            const yv = &.{ p1.value, midpoint.value, p2.value };
+                                    const xv = &.{ p1.time,  midpoint.time,  p2.time };
+                                    const yv = &.{ p1.value, midpoint.value, p2.value };
 
-                            zgui.plot.plotLine(
-                                "midpoint_derivatives",
-                                f32,
-                                .{ .xv = xv, .yv = yv }
-                            );
+                                    zgui.plot.plotLine(
+                                        d_name,
+                                        f32,
+                                        .{ .xv = xv, .yv = yv }
+                                    );
+                                }
                         }
                     }
                 }
@@ -1315,10 +1327,22 @@ fn update(
                 state.show_projection_result_guts.tpa_flags.draw_ui(
                     "Projection Result"
                 );
-                _ = zgui.checkbox(
-                    "Show midpoint derivatives",
-                    .{ .v = &state.midpoint_derivatives }
-                );
+
+                const derivs = .{
+                    .{"f_prime_of_g_of_t", "Show Derivative of self at midpoint"},
+                    .{"g_prime_of_t", "Show derivative of other at midpoint"},
+                    .{"midpoint_derivatives", "Show chain rule result of multiplying derivatives"},
+                };
+
+                // midpoint derivatives
+                inline for (derivs) 
+                    |d_info| 
+                {
+                    _ = zgui.checkbox(
+                        d_info[1],
+                        .{ .v = &@field(state,d_info[0]) }
+                    );
+                }
             }
 
             var remove = std.ArrayList(usize).init(allocator);

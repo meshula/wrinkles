@@ -924,6 +924,8 @@ pub const TimeCurve = struct {
         segments_to_project_through: ?[]usize = null,
         allocator: std.mem.Allocator,
         midpoint_derivatives: ?[]control_point.ControlPoint = null,
+        f_prime_of_g_of_t: ?[]control_point.ControlPoint = null,
+        g_prime_of_t: ?[]control_point.ControlPoint = null,
 
         pub fn deinit(self: @This()) void {
             if (self.to_project) |tp| {
@@ -943,6 +945,8 @@ pub const TimeCurve = struct {
                 "tpa",
                 "segments_to_project_through",
                 "midpoint_derivatives",
+                "f_prime_of_g_of_t",
+                "g_prime_of_t"
             };
 
             inline for (things_to_free) |t| {
@@ -1089,6 +1093,13 @@ pub const TimeCurve = struct {
         var midpoint_derivatives = std.ArrayList(
             control_point.ControlPoint
         ).init(allocator);
+        var cache_f_prime_of_g_of_t = std.ArrayList(
+            control_point.ControlPoint
+        ).init(allocator);
+        var cache_g_prime_of_t = std.ArrayList(
+            control_point.ControlPoint
+        ).init(allocator);
+
 
         // do the projection
         for (curves_to_project.items) 
@@ -1106,7 +1117,8 @@ pub const TimeCurve = struct {
                     self_split.find_segment_index(segment.p0.time) orelse continue
                 );
 
-
+                // @TODO: question 1- should this be halfway across the input
+                //                    space (vs 0.5 across the parameter space)
                 const t_midpoint_other = 0.5;
                 const midpoint = segment.eval_at(t_midpoint_other);
 
@@ -1142,12 +1154,24 @@ pub const TimeCurve = struct {
                         &self_cSeg,
                         u_in_self,
                     );
+                    try cache_f_prime_of_g_of_t.append(
+                        .{
+                            .time = f_prime_of_g_of_t.x, 
+                            .value= f_prime_of_g_of_t.y
+                        }
+                    );
 
                     // project derivative by the chain rule
                     var other_cSeg = segment.to_cSeg();
                     const g_prime_of_t = hodographs.evaluate_bezier(
                         &other_cSeg,
                         t_midpoint_other,
+                    );
+                    try cache_g_prime_of_t.append(
+                        .{
+                            .time = g_prime_of_t.x, 
+                            .value= g_prime_of_t.y
+                        }
                     );
 
                     break :chain_rule control_point.ControlPoint{
@@ -1180,6 +1204,8 @@ pub const TimeCurve = struct {
         result.tpa = try guts.toOwnedSlice();
         result.segments_to_project_through = try segments_to_project_through.toOwnedSlice();
         result.midpoint_derivatives = try midpoint_derivatives.toOwnedSlice();
+        result.f_prime_of_g_of_t = try cache_f_prime_of_g_of_t.toOwnedSlice();
+        result.g_prime_of_t = try cache_g_prime_of_t.toOwnedSlice();
 
         result.result = curves_to_project.items[0];
 
