@@ -187,6 +187,7 @@ pub const TimeCurveLinear = struct {
         other: TimeCurveLinear
     ) []TimeCurveLinear 
     {
+        @breakpoint();
         // @TODO: if there are preserved derivatives, project and compose them
         //        as well
         //

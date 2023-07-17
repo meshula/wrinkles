@@ -909,198 +909,10 @@ pub const TimeCurve = struct {
         // should be []TimeCurve <-  come back to this later
     ) TimeCurve 
     {
-        var self_split = self.split_on_critical_points(
-            ALLOCATOR
-        ) catch unreachable;
-        defer self_split.deinit(ALLOCATOR);
+        _ = self;
+        _ = other;
 
-        var other_split = other.split_on_critical_points(
-            ALLOCATOR
-        ) catch unreachable;
-
-        const self_bounds = self.extents();
-
-        // @TODO: skip segments in self that are BEFORE other and skip segments
-        //        in self that are AFTER other
-
-        var split_points = std.ArrayList(f32).init(ALLOCATOR);
-        defer split_points.deinit();
-
-        // self split
-        {
-            // find all knots in self that are within the other bounds
-            for (other_split.segment_endpoints() catch unreachable)
-                |other_knot| 
-            {
-                if (
-                    _is_between(
-                        other_knot.value,
-                        self_bounds[0].time,
-                        self_bounds[1].time
-                    )
-                ) {
-                    split_points.append(other_knot.value) catch unreachable;
-                }
-            }
-            self_split = (
-                self_split.split_at_each_input_ordinate(
-                    split_points.items,
-                    ALLOCATOR
-                ) catch unreachable
-            );
-        }
-
-        // other split
-        {
-            const other_bounds = other.extents();
-
-            split_points.clearAndFree();
-
-            // find all knots in self that are within the other bounds
-            for (self_split.segment_endpoints() catch unreachable)
-                |self_knot| 
-            {
-                if (
-                    _is_between(
-                        self_knot.time,
-                        other_bounds[0].value,
-                        other_bounds[1].value
-                    )
-                ) {
-                    split_points.append(self_knot.time) catch unreachable;
-                }
-            }
-            other_split = (
-                other_split.split_at_each_output_ordinate(
-                    split_points.items,
-                    ALLOCATOR
-                ) catch unreachable
-            );
-        }
-
-        // at this point we're correct.  each has 2 splits
-
-        var curves_to_project = std.ArrayList(TimeCurve).init(ALLOCATOR);
-        defer curves_to_project.deinit();
-
-        var last_index: i32 = -10;
-        var current_curve = std.ArrayList(Segment).init(ALLOCATOR);
-        defer current_curve.deinit();
-
-        for (other_split.segments, 0..) 
-            |other_segment, index| 
-        {
-            const other_seg_ext = other_segment.extents();
-
-            if ((other_seg_ext[0].value < self_bounds[1].time)) 
-            {
-                if (index != last_index+1) {
-                    // curves of less than one point are trimmed, because they
-                    // have no duration, and therefore are not modelled in our
-                    // system.
-                    if (current_curve.items.len > 1) {
-                        curves_to_project.append(
-                            TimeCurve.init(
-                                current_curve.toOwnedSlice() catch unreachable
-                            ) catch unreachable
-                        ) catch unreachable;
-                    }
-                    current_curve = std.ArrayList(Segment).init(ALLOCATOR);
-                }
-
-                current_curve.append(other_segment) catch unreachable;
-                last_index = @intCast(i32, index);
-            }
-        }
-        if (current_curve.items.len > 0) {
-            curves_to_project.append(
-                TimeCurve.init(current_curve.toOwnedSlice() catch unreachable) catch unreachable
-            ) catch unreachable;
-        }
-
-        if (curves_to_project.items.len == 0) {
-            return TimeCurve{};
-        }
-
-        for (curves_to_project.items) 
-            |*crv| 
-        {
-            for (crv.segments)
-                |*segment|
-            {
-                var tmp: [4]control_point.ControlPoint = .{};
-
-                const self_seg = self.find_segment(segment.p0.time) orelse {
-                    continue;
-                };
-
-
-                const midpoint = segment.eval_at(0.5);
-
-                var start_mid_end_projected = [3]control_point.ControlPoint{
-                    segment.p0,
-                    midpoint,
-                    segment.p3, 
-                };
-
-                // explicitly project start, mid, and end
-                inline for (&start_mid_end_projected, 0..) 
-                    |pt, pt_ind|
-                {
-                    start_mid_end_projected[pt_ind] = .{
-                        .time  = pt.time,
-                        .value = self_seg.eval_at_x(pt.value)
-                    };
-                }
-
-                // project derivative by the chain rule
-                // chain rule: h'(x) = f'(g(x)) * g'(x)
-                //             h'(t) = f'(g(t)) * g'(t)
-
-                const u_in_self = self_seg.findU_input(midpoint.value);
-                const d_mid_point_dt = chain_rule: {
-                    // t = 0.5 (in the space of "g")
-                    // g(t) = midpoint
-
-                    // result is (dx/du, dy/du)
-                    var self_cSeg = self_seg.to_cSeg();
-                    const f_prime_of_g_of_x = hodographs.evaluate_bezier(
-                        &self_cSeg,
-                        u_in_self,
-                    );
-
-                    var other_cSeg = segment.to_cSeg();
-                    const g_prime_of_x = hodographs.evaluate_bezier(
-                        &other_cSeg,
-                        0.5,
-                    );
-
-                    break :chain_rule control_point.ControlPoint{
-                        .time  = f_prime_of_g_of_x.x * g_prime_of_x.x,
-                        .value = f_prime_of_g_of_x.y * g_prime_of_x.y,
-                    };
-                };
-
-                const final = three_point_guts_plot(
-                    start_mid_end_projected[0],
-                    start_mid_end_projected[1],
-                    u_in_self,
-                    d_mid_point_dt,
-                    start_mid_end_projected[2],
-                );
-
-                tmp[0] = start_mid_end_projected[0];
-                tmp[1] = final.C1.?;
-                tmp[2] = final.C2.?;
-                tmp[3] = start_mid_end_projected[2];
-
-                segment.*.set_points(tmp);
-            }
-        }
-
-        const result = curves_to_project.items[0];
-
-        return result;
+        @panic("unimplemented");
     }
 
     const ProjectCurveGuts = struct {
@@ -1294,10 +1106,9 @@ pub const TimeCurve = struct {
                     self_split.find_segment_index(segment.p0.time) orelse continue
                 );
 
-                var self_cSeg = self_seg.to_cSeg();
-                var other_cSeg = segment.to_cSeg();
 
-                const midpoint = segment.eval_at(0.5);
+                const t_midpoint_other = 0.5;
+                const midpoint = segment.eval_at(t_midpoint_other);
 
                 var start_mid_end_projected = [3]control_point.ControlPoint{
                     segment.p0,
@@ -1315,24 +1126,33 @@ pub const TimeCurve = struct {
                     };
                 }
 
+                // chain rule: h'(x) = f'(g(x)) * g'(x)
+                // chain rule: h'(t) = f'(g(t)) * g'(t)
+                // g(t) == midpoint (other @ t = 0.5)
+                // f'(g(t)) == f'(midpoint -- other @ t = 0.5)
+                // g'(t) == hodograph of other @ t = 0.5
+                // h'(t) = f'(midpoint) * hodograph of other @ t= 0.5
+                const u_in_self = self_seg.findU_input(
+                    midpoint.value
+                );
                 const d_mid_point_dt = chain_rule: {
-                    const u_in_self = self_seg.findU_input(midpoint.value);
 
-                    // project derivative by the chain rule
-                    const g_prime_of_x = hodographs.evaluate_bezier(
-                        &other_cSeg,
-                        0.5,
-                    );
-
-                    // chain rule: h'(x) = f'(g(x)) * g'(x)
-                    const f_prime_of_g_of_x = hodographs.evaluate_bezier(
+                    var self_cSeg = self_seg.to_cSeg();
+                    const f_prime_of_g_of_t = hodographs.evaluate_bezier(
                         &self_cSeg,
                         u_in_self,
                     );
 
+                    // project derivative by the chain rule
+                    var other_cSeg = segment.to_cSeg();
+                    const g_prime_of_t = hodographs.evaluate_bezier(
+                        &other_cSeg,
+                        t_midpoint_other,
+                    );
+
                     break :chain_rule control_point.ControlPoint{
-                        .time  = f_prime_of_g_of_x.x * g_prime_of_x.x,
-                        .value = f_prime_of_g_of_x.y * g_prime_of_x.y,
+                        .time  = f_prime_of_g_of_t.x * g_prime_of_t.x,
+                        .value = f_prime_of_g_of_t.y * g_prime_of_t.y,
                     };
                 };
 
@@ -1341,7 +1161,7 @@ pub const TimeCurve = struct {
                 const final = three_point_guts_plot(
                     start_mid_end_projected[0],
                     start_mid_end_projected[1],
-                    0.5,
+                    u_in_self,
                     d_mid_point_dt,
                     start_mid_end_projected[2],
                 );
