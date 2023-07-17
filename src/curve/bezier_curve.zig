@@ -30,6 +30,8 @@ const ALLOCATOR = otio_allocator.ALLOCATOR;
 const string_stuff = @import("string_stuff");
 const latin_s8 = string_stuff.latin_s8;
 
+pub var u_val_of_midpoint:f32 = 0.5;
+
 // hodographs c-library
 pub const hodographs = @cImport(
     {
@@ -1080,6 +1082,10 @@ pub const TimeCurve = struct {
 
                 // @TODO: question 1- should this be halfway across the input
                 //                    space (vs 0.5 across the parameter space)
+                // review - want the point on the curve furthest from the line
+                //          from A to C (in tpa terms)
+                //          see "aligning a curve" on pomax to compute the
+                //          extremity
                 const t_midpoint_other = 0.5;
                 const midpoint = segment.eval_at(t_midpoint_other);
 
@@ -1109,6 +1115,8 @@ pub const TimeCurve = struct {
                     midpoint.value
                 );
                 const d_mid_point_dt = chain_rule: {
+
+                    // if this was a straight line, not a bezier line
 
                     var self_cSeg = self_seg.to_cSeg();
                     var self_hodo = hodographs.compute_hodograph(&self_cSeg);
@@ -1148,7 +1156,7 @@ pub const TimeCurve = struct {
                 const final = three_point_guts_plot(
                     start_mid_end_projected[0],
                     start_mid_end_projected[1],
-                    u_in_self,
+                    u_val_of_midpoint, // <- should be u_in_projected_curve
                     d_mid_point_dt,
                     start_mid_end_projected[2],
                 );
