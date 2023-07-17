@@ -2896,8 +2896,8 @@ pub fn three_point_guts_plot(
 
     const result_seg : Segment = .{
         .p0 = start_knot,
-        .p1 = C1,
-        .p2 = C2,
+        .p1 = C2,
+        .p2 = C1,
         .p3 = end_knot,
     };
     final_result.result = result_seg;
