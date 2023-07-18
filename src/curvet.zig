@@ -1409,7 +1409,16 @@ fn update(
     zgui.sameLine(.{});
 
     {
-        if (zgui.beginChild("Settings", .{ .w = 600, .flags = main_flags })) {
+        if (
+            zgui.beginChild(
+                "Settings",
+                .{ 
+                    .w = 600,
+                    .flags = zgui.WindowFlags{ .no_scrollbar = false} 
+                }
+            )
+        ) 
+        {
             _ = zgui.checkbox(
                 "Show ZGui Demo Windows",
                 .{ .v = &state.show_demo }
