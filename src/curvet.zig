@@ -477,6 +477,29 @@ pub fn evaluated_curve(
     return .{ .xv = xv, .yv = yv };
 }
 
+fn plot_cp_line(
+    label: [:0]const u8,
+    points: []const curve.ControlPoint,
+    allocator: std.mem.Allocator,
+) !void
+{
+    const xv = try allocator.alloc(f32, points.len);
+    defer allocator.free(xv);
+    const yv = try allocator.alloc(f32, points.len);
+    defer allocator.free(yv);
+
+    for (points, xv, yv) |p, *x, *y| {
+        x.* = p.time;
+        y.* = p.value;
+    }
+
+    zgui.plot.plotLine(
+        label,
+        f32,
+        .{ .xv = xv, .yv = yv }
+    );
+}
+
 fn plot_point(
     full_label: [:0]const u8,
     short_label: [:0]const u8,
