@@ -1086,7 +1086,7 @@ pub const TimeCurve = struct {
                 //          from A to C (in tpa terms)
                 //          see "aligning a curve" on pomax to compute the
                 //          extremity
-                const t_midpoint_other = 0.5;
+                const t_midpoint_other = u_val_of_midpoint;
                 const midpoint = segment.eval_at(t_midpoint_other);
 
                 var start_mid_end_projected = [3]control_point.ControlPoint{
@@ -1156,7 +1156,7 @@ pub const TimeCurve = struct {
                 const final = three_point_guts_plot(
                     start_mid_end_projected[0],
                     start_mid_end_projected[1],
-                    u_val_of_midpoint, // <- should be u_in_projected_curve
+                    u_in_self, // <- should be u_in_projected_curve
                     d_mid_point_dt,
                     start_mid_end_projected[2],
                 );
