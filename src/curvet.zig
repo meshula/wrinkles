@@ -599,10 +599,6 @@ fn plot_control_points(
         defer allocator.free(knots_yv);
 
         zgui.pushStrId(name_);
-        zgui.text(
-            "Mid point debug: {s}",
-            .{name},
-        );
         for (hod.segments, 0..) |seg, seg_ind| {
             for (seg.points(), 0..) |pt, pt_ind| {
                 knots_xv[seg_ind * 4 + pt_ind] = pt.time;
@@ -616,7 +612,6 @@ fn plot_control_points(
                     pt_text,
                     .{.x = pt.time, .y = pt.value, .pix_offset = .{0, 36}} 
                 );
-                zgui.bulletText("{s}", .{pt_text});
             }
         }
         zgui.popId();
@@ -809,6 +804,10 @@ fn plot_tpa_guts(
     // draw the line from A to C
     if (flags.A and flags.C) {
         try plot_cp_line("A->C", &.{guts.A.?, guts.C.?}, allocator);
+    }
+
+    if (flags.start and flags.end) {
+        try plot_cp_line("start->end", &.{guts.start.?, guts.end.?}, allocator);
     }
 
     if (flags.e1_2) 
