@@ -18,16 +18,20 @@ const string = @import("string_stuff");
 const time_topology = @import("time_topology");
 const util = opentime.util;
 
-const DebugBezierFlags = packed struct (i9) {
+const DebugBezierFlags = packed struct (i8) {
     bezier: bool = true,
     knots: bool = false,
     control_points: bool = false,
     linearized: bool = false,
     natural_midpoint: bool = false,
 
-    _padding: i4 = 0,
+    _padding: i3 = 0,
 
-    pub fn draw_ui(self: * @This(), name: [:0]const u8) void {
+    pub fn draw_ui(
+        self: * @This(),
+        name: [:0]const u8
+    ) void 
+    {
         if (zgui.treeNode(name)) 
         {
             defer zgui.treePop();
@@ -40,17 +44,16 @@ const DebugBezierFlags = packed struct (i9) {
             };
 
             zgui.pushStrId(name);
-
             inline for (fields) 
                 |field| 
-                {
-                    // unpack into a bool type
-                    var c_value:bool = @field(self, field[1]);
-                    _ = zgui.checkbox(field[0], .{ .v = &c_value,});
-                    // pack back into the aligned field
-                    @field(self, field[1]) = c_value;
+            {
+                // unpack into a bool type
+                var c_value:bool = @field(self, field[1]);
+                _ = zgui.checkbox(field[0], .{ .v = &c_value,});
+                // pack back into the aligned field
+                @field(self, field[1]) = c_value;
 
-                }
+            }
             zgui.popId();
         }
     }
