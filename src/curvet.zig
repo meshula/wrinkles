@@ -97,7 +97,11 @@ const tpa_flags = struct {
 const DebugDrawCurveFlags = struct {
     input_curve: DebugBezierFlags = .{},
     split_critical_points: DebugBezierFlags = .{ .bezier = false },
-    three_point_approximation: tpa_flags = .{},
+    three_point_approximation: tpa_flags = .{
+        .result_curves = .{ .bezier = false },
+        .midpoint = true,
+        .e1_2 = true,
+    },
 
     pub fn draw_ui(self: *@This(), name: []const u8) void {
         zgui.pushStrId(name);
@@ -149,7 +153,7 @@ const ProjectionResultDebugFlags = struct {
 const VisState = struct {
     operations: std.ArrayList(VisOperation),
     show_demo: bool = false,
-    show_test_curves: bool = true,
+    show_test_curves: bool = false,
     show_projection_result: bool = false,
     show_projection_result_guts: ProjectionResultDebugFlags = .{},
     midpoint_derivatives: bool = false,
@@ -878,11 +882,24 @@ fn plot_three_point_approx(
     var approx_segments = std.ArrayList(curve.Segment).init(allocator);
     defer approx_segments.deinit();
 
-    for (crv.segments) 
-        |seg| 
-        {
-            var mid_point = seg.eval_at(0.5);
+    const u_vals:[]const f32 = &.{0.25, 0.5, 0.75};
+    for (u_vals) 
+        |u|
+    {
+        const label = try std.fmt.bufPrintZ(
+            &buf,
+            "{s} three points approximation [u = {d}]",
+            .{ name, u }
+        );
 
+        zgui.pushStrId(label);
+        defer zgui.popId();
+
+        approx_segments.clearAndFree();
+
+        for (crv.segments) 
+            |seg| 
+        {
             const cSeg : curve.bezier_curve.hodographs.BezierSegment = .{
                 .order = 3,
                 .p = .{
@@ -893,9 +910,13 @@ fn plot_three_point_approx(
                 },
             };
             var hodo = curve.bezier_curve.hodographs.compute_hodograph(&cSeg);
-            const d_mid_point_dt_v2 = curve.bezier_curve.hodographs.evaluate_bezier(
-                &hodo,
-                0.5
+            var mid_point = seg.eval_at(u);
+
+            const d_mid_point_dt_v2 = (
+                curve.bezier_curve.hodographs.evaluate_bezier(
+                    &hodo,
+                    u
+                )
             );
             const d_mid_point_dt = curve.ControlPoint{
                 .time = d_mid_point_dt_v2.x,
@@ -905,7 +926,7 @@ fn plot_three_point_approx(
             const tpa_guts = curve.bezier_curve.three_point_guts_plot(
                 seg.p0,
                 mid_point,
-                0.5,
+                u,
                 d_mid_point_dt,
                 seg.p3,
             );
@@ -913,17 +934,22 @@ fn plot_three_point_approx(
             // derivative at the midpoint
             try approx_segments.append(tpa_guts.result.?);
 
-            try plot_tpa_guts(tpa_guts, name, flags.three_point_approximation);
+            try plot_tpa_guts(
+                tpa_guts,
+                label,
+                flags.three_point_approximation
+            );
         }
 
-    const approx_crv = try curve.TimeCurve.init(approx_segments.items);
+        const approx_crv = try curve.TimeCurve.init(approx_segments.items);
 
-    try plot_bezier_curve(
-        approx_crv,
-        approx_label,
-        flags.three_point_approximation.result_curves,
-        allocator
-    );
+        try plot_bezier_curve(
+            approx_crv,
+            approx_label,
+            flags.three_point_approximation.result_curves,
+            allocator
+        );
+    }
 }
 
 fn plot_curve(
