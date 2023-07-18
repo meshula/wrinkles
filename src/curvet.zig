@@ -400,11 +400,13 @@ pub fn main() !void {
 
     var tmpCurves = projTmpTest{
         // projecting "snd" through "fst"
+        // .snd = .{ 
         .fst = .{ 
             .curve = fst_crv,
             .fpath = fst_name,
             .split_hodograph = try fst_crv.split_on_critical_points(allocator),
         },
+        // .fst = .{ 
         .snd = .{ 
             .curve = snd_crv,
             .fpath = snd_name,

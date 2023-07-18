@@ -1063,7 +1063,6 @@ pub const TimeCurve = struct {
             control_point.ControlPoint
         ).init(allocator);
 
-
         // do the projection
         for (curves_to_project.items) 
             |*crv| 
