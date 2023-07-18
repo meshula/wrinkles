@@ -66,6 +66,10 @@ const tpa_flags = struct {
     e1_2: bool = false,
     v1_2: bool = false,
     C1_2: bool = false,
+    u_1_4: bool = false,
+    u_1_2: bool = false,
+    u_3_4: bool = false,
+
     pub fn draw_ui(self: *@This(), name: [:0]const u8) void {
         if (zgui.treeNode(name)) 
         {
@@ -81,6 +85,9 @@ const tpa_flags = struct {
                 "e1_2",
                 "v1_2",
                 "C1_2",
+                "u_1_4",
+                "u_1_2",
+                "u_3_4",
             };
 
             if (zgui.treeNode("Three Point Approx internals")) 
@@ -883,9 +890,20 @@ fn plot_three_point_approx(
     defer approx_segments.deinit();
 
     const u_vals:[]const f32 = &.{0.25, 0.5, 0.75};
-    for (u_vals) 
-        |u|
+    const u_names = &.{"u_1_4", "u_1_2", "u_3_4"};
+    var u_bools : [u_names.len]bool = undefined;
+
+    inline for (u_names, 0..) |n, i| {
+        u_bools[i] = @field(flags.three_point_approximation, n);
+    }
+
+    for (u_bools, u_vals) 
+        |b, u|
     {
+        if (b != true) {
+            continue;
+        }
+
         const label = try std.fmt.bufPrintZ(
             &buf,
             "{s} three points approximation [u = {d}]",
