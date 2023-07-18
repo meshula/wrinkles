@@ -946,18 +946,10 @@ fn plot_three_point_approx(
         for (crv.segments) 
             |seg| 
         {
-            const cSeg : curve.bezier_curve.hodographs.BezierSegment = .{
-                .order = 3,
-                .p = .{
-                    .{ .x = seg.p0.time, .y = seg.p0.value },
-                    .{ .x = seg.p1.time, .y = seg.p1.value },
-                    .{ .x = seg.p2.time, .y = seg.p2.value },
-                    .{ .x = seg.p3.time, .y = seg.p3.value },
-                },
-            };
-            var hodo = curve.bezier_curve.hodographs.compute_hodograph(&cSeg);
             var mid_point = seg.eval_at(u);
 
+            const cSeg = seg.to_cSeg();
+            var hodo = curve.bezier_curve.hodographs.compute_hodograph(&cSeg);
             const d_midpoint_dt = (
                 curve.bezier_curve.hodographs.evaluate_bezier(
                     &hodo,
@@ -1542,15 +1534,7 @@ fn update(
                             if (zgui.treeNode("Hodograph Debug")) {
                                 defer zgui.treePop();
 
-                                const cSeg : curve.bezier_curve.hodographs.BezierSegment = .{
-                                    .order = 3,
-                                    .p = .{
-                                        .{ .x = crv.curve.segments[0].p0.time, .y = crv.curve.segments[0].p0.value },
-                                        .{ .x = crv.curve.segments[0].p1.time, .y = crv.curve.segments[0].p1.value },
-                                        .{ .x = crv.curve.segments[0].p2.time, .y = crv.curve.segments[0].p2.value },
-                                        .{ .x = crv.curve.segments[0].p3.time, .y = crv.curve.segments[0].p3.value },
-                                    },
-                                };
+                                const cSeg = crv.curve.segments[0].to_cSeg();
                                 const inflections = curve.bezier_curve.hodographs.inflection_points(&cSeg);
                                 zgui.bulletText(
                                     "inflection point: {d:0.4}",
