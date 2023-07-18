@@ -958,15 +958,15 @@ fn plot_three_point_approx(
             var hodo = curve.bezier_curve.hodographs.compute_hodograph(&cSeg);
             var mid_point = seg.eval_at(u);
 
-            const d_mid_point_dt_v2 = (
+            const d_midpoint_dt = (
                 curve.bezier_curve.hodographs.evaluate_bezier(
                     &hodo,
                     u
                 )
             );
             const d_mid_point_dt = curve.ControlPoint{
-                .time = d_mid_point_dt_v2.x,
-                .value = d_mid_point_dt_v2.y,
+                .time = d_midpoint_dt.x,
+                .value = d_midpoint_dt.y,
             };
 
             const tpa_guts = curve.bezier_curve.three_point_guts_plot(
