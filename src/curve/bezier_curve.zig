@@ -163,7 +163,7 @@ pub const Segment = struct {
     pub fn init_approximate_from_three_points(
         start_knot: control_point.ControlPoint,
         mid_point: control_point.ControlPoint,
-        u_mid_point: f32,
+        t_mid_point: f32,
         d_mid_point_dt: control_point.ControlPoint,
         end_knot: control_point.ControlPoint,
     ) ?Segment
@@ -171,7 +171,7 @@ pub const Segment = struct {
         const result = three_point_guts_plot(
             start_knot,
             mid_point,
-            u_mid_point,
+            t_mid_point,
             d_mid_point_dt,
             end_knot
         );
@@ -2835,7 +2835,7 @@ pub const tpa_result = struct {
 pub fn three_point_guts_plot(
         start_knot: control_point.ControlPoint,
         mid_point: control_point.ControlPoint,
-        u_mid_point: f32,
+        t_mid_point: f32,
         d_mid_point_dt: control_point.ControlPoint,
         end_knot: control_point.ControlPoint,
 ) tpa_result
@@ -2853,17 +2853,18 @@ pub fn three_point_guts_plot(
     // 
     // Based on this we can infer the position of the inner control points
 
+    const t_cubed = t_mid_point * t_mid_point * t_mid_point;
+    const one_minus_t = 1 - t_mid_point;
+    const one_minus_t_cubed = one_minus_t * one_minus_t * one_minus_t;
+
+    const u = one_minus_t_cubed / (t_cubed + one_minus_t_cubed);
+
     // C is a lerp between the end points
-    const C = bezier_math.lerp_cp(u_mid_point, start_knot, end_knot);
+    const C = bezier_math.lerp_cp(1-u, start_knot, end_knot);
     final_result.C = C;
 
     // abs( (t^3 + (1-t)^3 - 1) / ( t^3 + (1-t)^3 ) )
     const ratio_t = cmp_t: {
-        const t = u_mid_point;
-        const t_cubed = t * t * t;
-        const one_minus_t = 1 - t;
-        const one_minus_t_cubed = one_minus_t * one_minus_t * one_minus_t;
-
         const result = @fabs(
             (t_cubed + one_minus_t_cubed - 1)
             /
@@ -2871,41 +2872,46 @@ pub fn three_point_guts_plot(
         );
         break :cmp_t result;
     };
+
     // A = B - (C-B)/ratio_t
-    const A = mid_point.sub(
-        ((C.sub(mid_point)).div(ratio_t))
-    );
+    const A = a: {
+        const c_minus_b = C.sub(mid_point);
+        const c_minus_b_over_ratio_t = c_minus_b.div(ratio_t);
+        break :a mid_point.sub(c_minus_b_over_ratio_t);
+    };
     final_result.A = A;
 
     // then set up an e1 and e2 parallel to the baseline
     const e1 = control_point.ControlPoint{
-        .time= mid_point.time - d_mid_point_dt.time * (u_mid_point),
-        .value= mid_point.value - d_mid_point_dt.value * (u_mid_point),
+        .time= mid_point.time - d_mid_point_dt.time * (t_mid_point),
+        .value= mid_point.value - d_mid_point_dt.value * (t_mid_point),
     };
     const e2 = control_point.ControlPoint{
-        .time= mid_point.time + d_mid_point_dt.time * (1-u_mid_point),
-        .value = mid_point.value + d_mid_point_dt.value * (1-u_mid_point),
+        .time= mid_point.time + d_mid_point_dt.time * (1-t_mid_point),
+        .value = mid_point.value + d_mid_point_dt.value * (1-t_mid_point),
     };
     final_result.e1 = e1;
     final_result.e2 = e2;
 
     // then use those e1/e2 to derive the new hull coordinates
-    const v1 = (e1.sub(A.mul(u_mid_point))).mul(1/(1-u_mid_point));
-    const v2 = (e2.sub(A.mul(1-u_mid_point))).mul(1/u_mid_point);
+    // v1 = (e1 - t*A)/(1-t)
+    const v1 = (e1.sub(A.mul(t_mid_point))).div(1-t_mid_point);
+    // v2 = (e2 - (1-t)*A)/(t)
+    const v2 = (e2.sub(A.mul(1-t_mid_point))).div(t_mid_point);
     final_result.v1 = v1;
     final_result.v2 = v2;
 
     // C1 = (v1 - (1 - t) * start) / t
-    const C1 = (v2.sub(end_knot.mul(u_mid_point))).div(1 - u_mid_point);
+    const C1 = (v1.sub(start_knot.mul(1-t_mid_point))).div(t_mid_point);
     // C2 = (v2 - t * end) / (1 - t)
-    const C2 = (v1.sub(start_knot.mul(1-u_mid_point))).div(u_mid_point);
+    const C2 = (v2.sub(end_knot.mul(t_mid_point))).div(1 - t_mid_point);
     final_result.C1 = C1;
     final_result.C2 = C2;
 
     const result_seg : Segment = .{
         .p0 = start_knot,
-        .p1 = C2,
-        .p2 = C1,
+        .p1 = C1,
+        .p2 = C2,
         .p3 = end_knot,
     };
     final_result.result = result_seg;
