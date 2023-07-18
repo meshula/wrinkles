@@ -778,7 +778,8 @@ fn plot_bezier_curve(
 fn plot_tpa_guts(
     guts: curve.bezier_curve.tpa_result,
     name: []const u8,
-    flags: tpa_flags
+    flags: tpa_flags,
+    allocator: std.mem.Allocator,
 ) !void 
 {
     var buf: [1024:0]u8 = .{};
@@ -803,6 +804,11 @@ fn plot_tpa_guts(
             
             plot_point(label, f, @field(guts, f).?, 20);
         }
+    }
+
+    // draw the line from A to C
+    if (flags.A and flags.C) {
+        try plot_cp_line("A->C", &.{guts.A.?, guts.C.?}, allocator);
     }
 
     if (flags.e1_2) 
@@ -978,7 +984,8 @@ fn plot_three_point_approx(
             try plot_tpa_guts(
                 tpa_guts,
                 label,
-                flags.three_point_approximation
+                flags.three_point_approximation,
+                allocator,
             );
         }
 
@@ -1349,6 +1356,7 @@ fn update(
                                 tpa,
                                 label,
                                 state.show_projection_result_guts.tpa_flags,
+                                allocator,
                             );
 
                         }
