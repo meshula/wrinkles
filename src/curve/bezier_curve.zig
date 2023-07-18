@@ -2879,12 +2879,12 @@ pub fn three_point_guts_plot(
 
     // then set up an e1 and e2 parallel to the baseline
     const e1 = control_point.ControlPoint{
-        .time= mid_point.time - d_mid_point_dt.time * (1-u_mid_point),
-        .value= mid_point.value - d_mid_point_dt.value * (1-u_mid_point),
+        .time= mid_point.time - d_mid_point_dt.time * (u_mid_point),
+        .value= mid_point.value - d_mid_point_dt.value * (u_mid_point),
     };
     const e2 = control_point.ControlPoint{
-        .time= mid_point.time + d_mid_point_dt.time * u_mid_point,
-        .value = mid_point.value + d_mid_point_dt.value * u_mid_point,
+        .time= mid_point.time + d_mid_point_dt.time * (1-u_mid_point),
+        .value = mid_point.value + d_mid_point_dt.value * (1-u_mid_point),
     };
     final_result.e1 = e1;
     final_result.e2 = e2;
