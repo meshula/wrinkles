@@ -22,8 +22,6 @@ const stdout = std.io.getStdOut().writer();
 const inf = std.math.inf(f32);
 const nan = std.math.nan(f32);
 
-const  util = @import("util");
-
 const otio_allocator = @import("otio_allocator");
 const ALLOCATOR = otio_allocator.ALLOCATOR;
 
@@ -43,8 +41,13 @@ fn expectApproxEql(expected: anytype, actual: @TypeOf(expected)) !void {
     return std.testing.expectApproxEqAbs(expected, actual, generic_curve.EPSILON);
 }
 
+/// returns true if val is between fst and snd regardless of whether fst or snd
+/// is greater
 fn _is_between(val: f32, fst: f32, snd: f32) bool {
-    return ((fst <= val and val < snd) or (fst >= val and val > snd));
+    return (
+           (fst < val - generic_curve.EPSILON and val < snd - generic_curve.EPSILON) 
+        or (fst > val + generic_curve.EPSILON and val > snd + generic_curve.EPSILON)
+    );
 }
 
 fn vec2_add_vec2(
@@ -958,6 +961,8 @@ pub const TimeCurve = struct {
                         self_bounds[0].time,
                         self_bounds[1].time
                     )
+                    // @TODO: omit cases where either endpoint is within an
+                    //        epsilon of an endpoint
                 ) {
                     split_points.append(other_knot.value) catch unreachable;
                 }
@@ -1009,6 +1014,8 @@ pub const TimeCurve = struct {
         var current_curve = std.ArrayList(Segment).init(ALLOCATOR);
         defer current_curve.deinit();
 
+        // @breakpoint();
+
         // having split both curves by both endpoints, throw out the segments in
         // other that will not be projected
         for (other_split.segments, 0..) 
@@ -1016,7 +1023,10 @@ pub const TimeCurve = struct {
         {
             const other_seg_ext = other_segment.extents();
 
-            if ((other_seg_ext[0].value < self_bounds[1].time)) 
+            if (
+                (other_seg_ext[0].value < self_bounds[1].time - generic_curve.EPSILON)
+                and (other_seg_ext[1].value > self_bounds[0].time + generic_curve.EPSILON)
+            )
             {
                 if (index != last_index+1) {
                     // curves of less than one point are trimmed, because they
@@ -1063,6 +1073,8 @@ pub const TimeCurve = struct {
             control_point.ControlPoint
         ).init(allocator);
 
+        var tmp: [4]control_point.ControlPoint = .{};
+
         // do the projection
         for (curves_to_project.items) 
             |*crv| 
@@ -1070,8 +1082,6 @@ pub const TimeCurve = struct {
             for (crv.segments)
                 |*segment|
             {
-                var tmp: [4]control_point.ControlPoint = .{};
-
                 const self_seg = self_split.find_segment(segment.p0.time) orelse {
                     continue;
                 };
@@ -1114,9 +1124,6 @@ pub const TimeCurve = struct {
                     midpoint.value
                 );
                 const d_mid_point_dt = chain_rule: {
-
-                    // if this was a straight line, not a bezier line
-
                     var self_cSeg = self_seg.to_cSeg();
                     var self_hodo = hodographs.compute_hodograph(&self_cSeg);
                     const f_prime_of_g_of_t = hodographs.evaluate_bezier(
@@ -1144,10 +1151,17 @@ pub const TimeCurve = struct {
                         }
                     );
 
-                    break :chain_rule control_point.ControlPoint{
-                        .time  = f_prime_of_g_of_t.x * g_prime_of_t.x,
-                        .value = f_prime_of_g_of_t.y * g_prime_of_t.y,
-                    };
+                    if (false) {
+                        break :chain_rule control_point.ControlPoint{
+                            .time  = f_prime_of_g_of_t.x * g_prime_of_t.x,
+                            .value = f_prime_of_g_of_t.y * g_prime_of_t.y,
+                        };
+                    } else {
+                        break :chain_rule control_point.ControlPoint{
+                            .time  = g_prime_of_t.x,
+                            .value = f_prime_of_g_of_t.y * g_prime_of_t.y,
+                        };
+                    }
                 };
 
                 try midpoint_derivatives.append(d_mid_point_dt);
@@ -1155,7 +1169,7 @@ pub const TimeCurve = struct {
                 const final = three_point_guts_plot(
                     start_mid_end_projected[0],
                     start_mid_end_projected[1],
-                    u_in_self, // <- should be u_in_projected_curve
+                    t_midpoint_other, // <- should be u_in_projected_curve
                     d_mid_point_dt,
                     start_mid_end_projected[2],
                 );
