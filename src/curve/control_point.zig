@@ -43,6 +43,11 @@ pub const ControlPoint = struct {
         const diff = rhs.sub(self);
         return std.math.sqrt(diff.time * diff.time + diff.value * diff.value);
     }
+
+    pub fn normalized(self: @This()) ControlPoint {
+        const d = self.distance(.{ .time=0, .value=0 });
+        return .{ .time = self.time/d, .value = self.value/d };
+    }
     
     pub fn debug_json_str(
         self: @This()
