@@ -29,6 +29,7 @@ const string_stuff = @import("string_stuff");
 const latin_s8 = string_stuff.latin_s8;
 
 pub var u_val_of_midpoint:f32 = 0.5;
+pub var fudge:f32 = 1;
 
 // hodographs c-library
 pub const hodographs = @cImport(
@@ -2843,6 +2844,7 @@ pub const tpa_result = struct {
     v2: ?control_point.ControlPoint = null,
     C1: ?control_point.ControlPoint = null,
     C2: ?control_point.ControlPoint = null,
+    t: ?f32 = null,
 };
 
 pub fn three_point_guts_plot(
@@ -2858,6 +2860,7 @@ pub fn three_point_guts_plot(
     final_result.start = start_knot;
     final_result.midpoint = mid_point;
     final_result.end = end_knot;
+    final_result.t = t_mid_point;
 
     // from pomax
     // if B is the midpoint, there are points A and C such that C is the
