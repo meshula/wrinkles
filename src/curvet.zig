@@ -69,9 +69,11 @@ const tpa_flags = struct {
     e1_2: bool = false,
     v1_2: bool = false,
     C1_2: bool = false,
+    u_0: bool = false,
     u_1_4: bool = false,
     u_1_2: bool = false,
     u_3_4: bool = false,
+    u_1: bool = false,
 
     pub fn draw_ui(self: *@This(), name: [:0]const u8) void {
         if (zgui.treeNode(name)) 
@@ -88,9 +90,11 @@ const tpa_flags = struct {
                 "e1_2",
                 "v1_2",
                 "C1_2",
+                "u_0",
                 "u_1_4",
                 "u_1_2",
                 "u_3_4",
+                "u_1",
             };
 
             if (zgui.treeNode("Three Point Approx internals")) 
@@ -809,10 +813,30 @@ fn plot_tpa_guts(
     // draw the line from A to C
     if (flags.A and flags.C) {
         try plot_cp_line("A->C", &.{guts.A.?, guts.C.?}, allocator);
+        const baseline_len = guts.C.?.distance(guts.A.?);
+        const label = try std.fmt.bufPrintZ(&buf, "A->C length {d}", .{ baseline_len });
+        zgui.plot.plotText(
+            label,
+            .{ 
+                .x = guts.A.?.time, 
+                .y = guts.A.?.value,
+                .pix_offset = .{ 0, 60 }
+            }
+        );
     }
 
     if (flags.start and flags.end) {
         try plot_cp_line("start->end", &.{guts.start.?, guts.end.?}, allocator);
+        const baseline_len = guts.start.?.distance(guts.end.?);
+        const label = try std.fmt.bufPrintZ(&buf, "start->end length: {d}", .{ baseline_len });
+        zgui.plot.plotText(
+            label,
+            .{ 
+                .x = guts.start.?.time, 
+                .y = guts.start.?.value,
+                .pix_offset = .{ 0, 60 }
+            }
+        );
     }
 
     if (flags.e1_2) 
@@ -842,8 +866,8 @@ fn plot_tpa_guts(
             const d = e1.sub(guts.midpoint.?);
             const d_label = try std.fmt.bufPrintZ(
                 &buf,
-                "d/dt: ({d:0.6}, {d:0.6})",
-                .{d.time, d.value},
+                "d/dt: ({d:0.6}, {d:0.6}) len: {d:0.4}",
+                .{d.time, d.value, e1.distance(guts.midpoint.?) },
             );
             zgui.plot.plotText(
                 d_label,
@@ -922,8 +946,8 @@ fn plot_three_point_approx(
     var approx_segments = std.ArrayList(curve.Segment).init(allocator);
     defer approx_segments.deinit();
 
-    const u_vals:[]const f32 = &.{0.25, 0.5, 0.75};
-    const u_names = &.{"u_1_4", "u_1_2", "u_3_4"};
+    const u_vals:[]const f32 = &.{0, 0.25, 0.5, 0.75, 1};
+    const u_names = &.{"u_0", "u_1_4", "u_1_2", "u_3_4", "u_1"};
     var u_bools : [u_names.len]bool = undefined;
 
     inline for (u_names, 0..) |n, i| {
