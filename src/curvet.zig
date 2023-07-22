@@ -814,7 +814,11 @@ fn plot_tpa_guts(
     if (flags.A and flags.C) {
         try plot_cp_line("A->C", &.{guts.A.?, guts.C.?}, allocator);
         const baseline_len = guts.C.?.distance(guts.A.?);
-        const label = try std.fmt.bufPrintZ(&buf, "A->C length {d}", .{ baseline_len });
+        const label = try std.fmt.bufPrintZ(
+            &buf,
+            "A->C length {d}\nt: {d}",
+            .{ baseline_len, guts.t.? }
+        );
         zgui.plot.plotText(
             label,
             .{ 
@@ -1300,13 +1304,6 @@ fn update(
                         result.deinit(allocator);
                     }
 
-                    // animate the u value
-                    if (false) {
-                        curve.bezier_curve.u_val_of_midpoint += 0.001;
-                        if (curve.bezier_curve.u_val_of_midpoint > 0.8) {
-                            curve.bezier_curve.u_val_of_midpoint = 0.2;
-                        }
-                    }
                     const result_guts = try self_hodograph.project_curve_guts(
                         other_hodograph,
                         allocator
@@ -1461,6 +1458,28 @@ fn update(
                 .{ .v = &state.show_projection_result }
             );
 
+            if (zgui.treeNode("Projection Algorithm Debug Switches")) {
+                defer zgui.treePop();
+                zgui.text("U value: {d}", .{ curve.bezier_curve.u_val_of_midpoint });
+                _ = zgui.sliderFloat(
+                    "U Value",
+                    .{
+                        .min = 0,
+                        .max = 1,
+                        .v = &curve.bezier_curve.u_val_of_midpoint 
+                    }
+                );
+                zgui.text("fudge: {d}", .{ curve.bezier_curve.fudge });
+                _ = zgui.sliderFloat(
+                    "scale e1/e2 fudge factor",
+                    .{ 
+                        .min = 0.1,
+                        .max = 10,
+                        .v = &curve.bezier_curve.fudge 
+                    }
+                );
+            }
+
 
             if (state.show_test_curves and zgui.treeNode("Test Curve Settings"))
             {
@@ -1500,7 +1519,6 @@ fn update(
                             );
                         }
                 }
-                zgui.text("U value: {d}", .{ curve.bezier_curve.u_val_of_midpoint });
 
                 state.show_projection_result_guts.tpa_flags.draw_ui(
                     "Projection Result"
