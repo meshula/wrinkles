@@ -1478,6 +1478,21 @@ fn update(
                         .v = &curve.bezier_curve.fudge 
                     }
                 );
+
+                var index = @intFromEnum(time_topology.project_algo);
+                _ = zgui.combo(
+                    "Projection Algorithm",
+                    .{
+                        .items_separated_by_zeros=(
+                            "Three Point Approx\x00Linearized\x00"
+                        ),
+                        .current_item = &index,
+                    }
+                );
+                time_topology.project_algo = @enumFromInt(
+                    time_topology.TransformAglorithms,
+                    index
+                );
             }
 
 

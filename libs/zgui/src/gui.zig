@@ -1450,6 +1450,10 @@ pub fn combo(label: [:0]const u8, args: Combo) bool {
         args.popup_max_height_in_items,
     );
 }
+// pub fn combo_from_enum(current_item: anytype) bool {
+//
+//     return ;
+// }
 extern fn zguiCombo(
     label: [*:0]const u8,
     current_item: *i32,

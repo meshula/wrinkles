@@ -26,6 +26,13 @@ const IDENTITY_TRANSFORM = transform.AffineTransform1D{
     .scale = 1,
 };
 
+pub const TransformAglorithms = enum (i32) {
+    three_point_approx=0 ,
+    linearized,
+};
+
+pub var project_algo = TransformAglorithms.three_point_approx;
+
 pub const AffineTopology = struct {
     // defaults to an infinite identity
     bounds: interval.ContinuousTimeInterval = interval.INF_CTI,
@@ -358,15 +365,19 @@ pub const BezierTopology = struct {
                     .bezier_curve = .{ .curve = projected_curve }
                 };
             },
-            .bezier_curve => |bez| .{
-                .bezier_curve = .{
-                    .curve = self.curve.project_curve(bez.curve)
-                }
-                // .linear_curve = .{
-                //     .curve = self.curve.linearized().project_curve(
-                //         bez.curve.linearized()
-                //     )[0]
-                // }
+            .bezier_curve => |bez| switch (project_algo) {
+                .three_point_approx => .{
+                    .bezier_curve = .{
+                        .curve = self.curve.project_curve(bez.curve)
+                    }
+                },
+                .linearized => .{ 
+                    .linear_curve = .{
+                        .curve = self.curve.linearized().project_curve(
+                            bez.curve.linearized()
+                        )[0]
+                    }
+                },
             },
             .linear_curve => |lin| .{
                 .linear_curve = .{

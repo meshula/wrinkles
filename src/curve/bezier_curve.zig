@@ -1152,7 +1152,7 @@ pub const TimeCurve = struct {
                         }
                     );
 
-                    if (false) {
+                    if (true) {
                         break :chain_rule control_point.ControlPoint{
                             .time  = f_prime_of_g_of_t.x * g_prime_of_t.x,
                             .value = f_prime_of_g_of_t.y * g_prime_of_t.y,
@@ -1167,11 +1167,14 @@ pub const TimeCurve = struct {
 
                 try midpoint_derivatives.append(d_mid_point_dt);
 
+                const m_ratio = (u_in_self * t_midpoint_other) / ((1-u_in_self)*(1-t_midpoint_other));
+                const projected_t = m_ratio / (m_ratio + 1);
+
                 const final = three_point_guts_plot(
                     start_mid_end_projected[0],
                     start_mid_end_projected[1],
-                    t_midpoint_other, // <- should be u_in_projected_curve
-                    d_mid_point_dt,
+                    projected_t, // <- should be u_in_projected_curve
+                    d_mid_point_dt.mul(fudge),
                     start_mid_end_projected[2],
                 );
 
