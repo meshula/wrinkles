@@ -1450,10 +1450,49 @@ pub fn combo(label: [:0]const u8, args: Combo) bool {
         args.popup_max_height_in_items,
     );
 }
-// pub fn combo_from_enum(current_item: anytype) bool {
-//
-//     return ;
-// }
+/// creates a combo box directly from a pointer to an enum value using zig's
+/// comptime mechanics to infer the items for the list at compile time
+pub fn combo_from_enum(
+    label: [:0]const u8,
+    /// must be a pointer to an enum value (var my_enum: *FoodEnum = .Banana)
+    current_item: anytype
+) bool 
+{
+    const item_names = comptime lbl: {
+        const item_type = @typeInfo(@TypeOf(current_item.*));
+        switch (item_type) {
+            .Enum => |e| {
+                comptime var str: [:0]const u8 = "";
+
+                inline for (e.fields) |f| {
+                    str = str ++ f.name ++ "\x00";
+                }
+                break :lbl str;
+            },
+            else => {
+                @compileError(
+                    "Error: current_item must be a pointer-to-an-enum, not a "
+                    ++ @TypeOf(current_item)
+                );
+            }
+        }
+    };
+
+    var item = @intCast(i32, @intFromEnum(current_item.*));
+
+    const result = combo(
+        label,
+        .{
+            .items_separated_by_zeros = item_names,
+            .current_item = &item,
+        }
+    );
+
+    current_item.* = @enumFromInt(@TypeOf(current_item.*), item);
+
+    return result;
+}
+
 extern fn zguiCombo(
     label: [*:0]const u8,
     current_item: *i32,

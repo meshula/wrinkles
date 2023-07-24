@@ -1479,19 +1479,9 @@ fn update(
                     }
                 );
 
-                var index = @intFromEnum(time_topology.project_algo);
-                _ = zgui.combo(
+                _ = zgui.combo_from_enum(
                     "Projection Algorithm",
-                    .{
-                        .items_separated_by_zeros=(
-                            "Three Point Approx\x00Linearized\x00"
-                        ),
-                        .current_item = &index,
-                    }
-                );
-                time_topology.project_algo = @enumFromInt(
-                    time_topology.TransformAglorithms,
-                    index
+                    &time_topology.project_algo
                 );
             }
 
