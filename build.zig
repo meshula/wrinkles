@@ -144,8 +144,11 @@ pub fn add_test_for_source(
         test_thing.addModule(mod.name, mod.module);
     }
 
-    test_thing.addIncludePath("./spline-gym/src");
-    test_thing.addCSourceFile("./spline-gym/src/hodographs.c", &c_args);
+    test_thing.addIncludePath(.{ .path = "./spline-gym/src"});
+    test_thing.addCSourceFile(.{ .file = .{ .path = "./spline-gym/src/hodographs.c"}, .flags = &c_args});
+
+    test_thing.addIncludePath(.{ .path = "./libs/kissfft"});
+    test_thing.addCSourceFile(.{ .file = .{ .path = "./libs/kissfft/kiss_fft.c"}, .flags = &c_args});
 
     // var test_exe = b.addTest(
     //     .{
@@ -156,7 +159,7 @@ pub fn add_test_for_source(
     //     }
     // );
     //
-    // test_exe.addIncludePath("./spline-gym/src");
+    // test_exe.addIncludePath(.{ .path = "./spline-gym/src"});
     // test_exe.addCSourceFile("./spline-gym/src/hodographs.c", &c_args);
     //
     // for (module_deps) |mod| {
@@ -208,9 +211,14 @@ pub fn build_wrinkles_like(
         }
     );
 
-    exe.addIncludePath("./src");
-    exe.addCSourceFile("./src/opentime.c", &c_args);
-    exe.addCSourceFile("./src/munit.c", &c_args);
+    exe.addIncludePath(.{ .path = "./src"});
+    exe.addCSourceFiles(
+        &.{
+            "./src/opentime.c",
+            "./src/munit.c",
+        },
+        &c_args
+    );
 
     const exe_options = b.addOptions();
     exe.addOptions("build_options", exe_options);
@@ -228,7 +236,7 @@ pub fn build_wrinkles_like(
     ) catch "COULDNT READ HASH");
     // this
     const install_content_step = b.addInstallDirectory(.{
-        .source_dir = thisDir() ++ "/src/" ++ source_dir_path,
+        .source_dir = .{ .path = thisDir() ++ "/src/" ++ source_dir_path },
         .install_dir = .{ .custom = "" },
         .install_subdir = "bin/" ++ name ++ "_content",
     });
@@ -247,8 +255,11 @@ pub fn build_wrinkles_like(
 
     zgui_pkg.link(exe);
 
-    exe.addIncludePath("./spline-gym/src");
-    exe.addCSourceFile("./spline-gym/src/hodographs.c", &c_args);
+    exe.addIncludePath(.{ .path = "./spline-gym/src"});
+    exe.addCSourceFile(.{ .file = .{ .path = "./spline-gym/src/hodographs.c"}, .flags = &c_args});
+
+    exe.addIncludePath(.{ .path = "./libs/kissfft"});
+    exe.addCSourceFile(.{ .file = .{ .path = "./libs/kissfft/kiss_fft.c"}, .flags = &c_args});
 
     for (module_deps) |mod| {
         exe.addModule(mod.name, mod.module);
@@ -271,7 +282,7 @@ pub fn build_wrinkles_like(
     zstbi_pkg.link(exe);
 
     const install = b.step(name, "Build '" ++ name ++ "'");
-    install.dependOn(&b.addInstallArtifact(exe).step);
+    install.dependOn(&b.addInstallArtifact(exe, .{}).step);
 
     var run_cmd = b.addRunArtifact(exe).step;
     run_cmd.dependOn(install);

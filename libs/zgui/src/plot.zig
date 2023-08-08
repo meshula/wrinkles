@@ -363,7 +363,7 @@ pub fn plotLineValues(label_id: [:0]const u8, comptime T: type, args: PlotLineVa
         label_id,
         gui.typeToDataTypeEnum(T),
         args.v.ptr,
-        @intCast(i32, args.v.len),
+        @as(i32, @intCast(args.v.len)),
         args.xscale,
         args.xstart,
         args.flags,
@@ -399,7 +399,7 @@ pub fn plotLine(label_id: [:0]const u8, comptime T: type, args: PlotLineGen(T)) 
         gui.typeToDataTypeEnum(T),
         args.xv.ptr,
         args.yv.ptr,
-        @intCast(i32, args.xv.len),
+        @as(i32, @intCast(args.xv.len)),
         args.flags,
         args.offset,
         args.stride,
@@ -445,7 +445,7 @@ pub fn plotScatterValues(label_id: [:0]const u8, comptime T: type, args: PlotSca
         label_id,
         gui.typeToDataTypeEnum(T),
         args.v.ptr,
-        @intCast(i32, args.v.len),
+        @as(i32, @intCast(args.v.len)),
         args.xscale,
         args.xstart,
         args.flags,
@@ -481,7 +481,7 @@ pub fn plotScatter(label_id: [:0]const u8, comptime T: type, args: PlotScatterGe
         gui.typeToDataTypeEnum(T),
         args.xv.ptr,
         args.yv.ptr,
-        @intCast(i32, args.xv.len),
+        @as(i32, @intCast(args.xv.len)),
         args.flags,
         args.offset,
         args.stride,
@@ -518,7 +518,7 @@ pub fn plotShaded(label_id: [:0]const u8, comptime T: type, args: PlotShadedGen(
         gui.typeToDataTypeEnum(T),
         args.xv.ptr,
         args.yv.ptr,
-        @intCast(i32, args.xv.len),
+        @as(i32, @intCast(args.xv.len)),
         args.yref,
         args.flags,
         args.offset,
@@ -536,7 +536,7 @@ extern fn zguiPlot_PlotShaded(
     offset: i32,
     stride: i32,
 ) void;
-
+//----------------------------------------------------------------------------------------------
 pub const DragToolFlags = packed struct(u32) {
     no_cursors: bool = false,
     no_fit: bool = false,
@@ -544,31 +544,29 @@ pub const DragToolFlags = packed struct(u32) {
     delayed: bool = false,
     _padding: u28 = 0,
 };
-const DragPointArgs = struct {
+const DragPoint = struct {
     x: *f64,
     y: *f64,
-    col: *const [4]f32,
+    col: [4]f32,
     size: f32 = 4,
     flags: DragToolFlags = .{},
 };
-pub fn dragPoint(id: i32, args: DragPointArgs) bool {
+pub fn dragPoint(id: i32, args: DragPoint) bool {
     return zguiPlot_DragPoint(
         id,
         args.x,
         args.y,
-        args.col,
+        &args.col,
         args.size,
         args.flags,
     );
 }
 extern fn zguiPlot_DragPoint(id: i32, x: *f64, y: *f64, *const [4]f32, size: f32, flags: DragToolFlags) bool;
-
 //----------------------------------------------------------------------------------------------
 // PlotText
 const PlotTextFlags = packed struct(u32) {
-    none: bool = false,
     vertical: bool = false,
-    _padding: u30 = 0,
+    _padding: u31 = 0,
 };
 const PlotText = struct {
     x: f64,
@@ -585,6 +583,7 @@ extern fn zguiPlot_PlotText(
     pix_offset: *const [2]f32,
     flags: PlotTextFlags,
 ) void;
+
 
 //----------------------------------------------------------------------------------------------
 /// `pub fn showDemoWindow(popen: ?*bool) void`
