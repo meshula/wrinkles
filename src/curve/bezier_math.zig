@@ -41,7 +41,8 @@ pub fn invlerp(v: f32, a: f32, b: f32) f32 {
 
 pub fn value_at_time_between(
     t: f32,
-    snd: ControlPoint
+    fst: ControlPoint,
+    snd: ControlPoint,
 ) f32 
 {
     const u = invlerp(t, fst.time, snd.time);
