@@ -23,8 +23,14 @@ pub fn lerp_cp(u: f32, a: ControlPoint, b: ControlPoint) ControlPoint {
     };
 }
 
-pub fn lerp(u: f32, a: f32, b: f32) f32 {
-    return a  * (1 - u) + b * u;
+pub fn lerp(u: anytype, a: anytype, b: @TypeOf(a)) @TypeOf(a) {
+    return ((1 - u) * a + b * u);
+}
+
+pub fn lerp_vector(u: anytype, a: anytype, b: @TypeOf(a)) @TypeOf(a) {
+    const u_vec: @Vector(2, @TypeOf(u)) = @splat(u);
+    const one_vec:@Vector(2, @TypeOf(u)) = @splat(@as(@TypeOf(u), 1));
+    return ((one_vec - u_vec) * a + b * u_vec);
 }
 
 pub fn invlerp(v: f32, a: f32, b: f32) f32 {
@@ -35,7 +41,6 @@ pub fn invlerp(v: f32, a: f32, b: f32) f32 {
 
 pub fn value_at_time_between(
     t: f32,
-    fst: ControlPoint,
     snd: ControlPoint
 ) f32 
 {

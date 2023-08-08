@@ -57,7 +57,7 @@ const DemoState = struct {
 fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*DemoState {
     ot.ot_test();
 
-    const gctx = try zgpu.GraphicsContext.create(allocator, window);
+    const gctx = try zgpu.GraphicsContext.create(allocator, window, .{});
 
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
@@ -402,10 +402,10 @@ fn draw(demo: *DemoState) void {
 
             const mem = gctx.uniformsAllocate(Uniforms, 1);
             mem.slice[0] = .{
-                .aspect_ratio = @floatFromInt(f32, fb_width) / @floatFromInt(f32, fb_height),
+                .aspect_ratio = @as(f32, @floatFromInt(fb_width)) / @as(f32, @floatFromInt(fb_height)),
                 .duration = demo.duration,
-                .clip_frame_rate = @floatFromInt(f32, demo.clip_frame_rate),
-                .frame_rate = @floatFromInt(f32, demo.frame_rate),
+                .clip_frame_rate = @floatFromInt(demo.clip_frame_rate),
+                .frame_rate = @floatFromInt(demo.frame_rate),
             };
             pass.setBindGroup(0, bind_group, &.{mem.offset});
             pass.drawIndexed(6, 1, 0, 0, 0);

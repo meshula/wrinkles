@@ -31,7 +31,7 @@ const GraphicsState = struct {
         window: *zglfw.Window
     ) !*GraphicsState 
     {
-        const gctx = try zgpu.GraphicsContext.create(allocator, window);
+        const gctx = try zgpu.GraphicsContext.create(allocator, window, .{});
 
         var arena_state = std.heap.ArenaAllocator.init(allocator);
         defer arena_state.deinit();
@@ -205,8 +205,8 @@ fn update(
     zgui.setNextWindowPos(.{ .x = 0.0, .y = 0.0, });
 
     const size = gfx_state.gctx.window.getFramebufferSize();
-    const width = @floatFromInt(f32, size[0]);
-    const height = @floatFromInt(f32, size[1]);
+    const width:f32 = @floatFromInt(size[0]);
+    const height:f32 = @floatFromInt(size[1]);
 
     zgui.setNextWindowSize(.{ .w = width, .h = height, });
 

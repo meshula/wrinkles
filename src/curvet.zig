@@ -212,7 +212,7 @@ const GraphicsState = struct {
         window: *zglfw.Window
     ) !*GraphicsState 
     {
-        const gctx = try zgpu.GraphicsContext.create(allocator, window);
+        const gctx = try zgpu.GraphicsContext.create(allocator, window, .{});
 
         var arena_state = std.heap.ArenaAllocator.init(allocator);
         defer arena_state.deinit();
@@ -697,33 +697,33 @@ fn plot_editable_bezier_curve(
 
         var in_pts = seg.points();
         var times: [4]f64 = .{ 
-            @floatCast(f64, in_pts[0].time),
-            @floatCast(f64, in_pts[1].time),
-            @floatCast(f64, in_pts[2].time),
-            @floatCast(f64, in_pts[3].time),
+            @floatCast(in_pts[0].time),
+            @floatCast(in_pts[1].time),
+            @floatCast(in_pts[2].time),
+            @floatCast(in_pts[3].time),
         };
         var values: [4]f64 = .{ 
-            @floatCast(f64, in_pts[0].value),
-            @floatCast(f64, in_pts[1].value),
-            @floatCast(f64, in_pts[2].value),
-            @floatCast(f64, in_pts[3].value),
+            @floatCast(in_pts[0].value),
+            @floatCast(in_pts[1].value),
+            @floatCast(in_pts[2].value),
+            @floatCast(in_pts[3].value),
         };
 
         inline for (0..4) |idx| {
             std.hash.autoHash(&hasher, idx);
 
             _ = zgui.plot.dragPoint(
-                @truncate(i32, @intCast(i65, hasher.final())),
+                @truncate(@as(i65, @intCast(hasher.final()))),
                 .{ 
                     .x = &times[idx],
                     .y = &values[idx], 
                     .size = 20,
-                    .col = &col,
+                    .col = col,
                 }
             );
             in_pts[idx] = .{
-                .time = @floatCast(f32, times[idx]),
-                .value = @floatCast(f32, values[idx]),
+                .time = @floatCast(times[idx]),
+                .value = @floatCast(values[idx]),
             };
         }
 
@@ -1136,8 +1136,8 @@ fn update(
     zgui.setNextWindowPos(.{ .x = 0.0, .y = 0.0, });
 
     const size = gfx_state.gctx.window.getFramebufferSize();
-    const width = @floatFromInt(f32, size[0]);
-    const height = @floatFromInt(f32, size[1]);
+    const width:f32 = @floatFromInt(size[0]);
+    const height:f32 = @floatFromInt(size[1]);
 
     zgui.setNextWindowSize(.{ .w = width, .h = height, });
 
@@ -1479,7 +1479,7 @@ fn update(
                     }
                 );
 
-                _ = zgui.combo_from_enum(
+                _ = zgui.comboFromEnum(
                     "Projection Algorithm",
                     &time_topology.project_algo
                 );
@@ -1544,7 +1544,7 @@ fn update(
                             .{ crv.fpath }
                         );
 
-                        zgui.pushPtrId(@ptrCast(*const anyopaque, crv));
+                        zgui.pushPtrId(@ptrCast(crv));
                         defer zgui.popId();
                         if (zgui.treeNode(top_label))
                         {

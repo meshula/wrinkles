@@ -247,7 +247,7 @@ pub const TimeCurveLinear = struct {
                 }
 
                 current_curve.append(other_knot) catch unreachable;
-                last_index = @intCast(i32, index);
+                last_index = @intCast(index);
             }
         }
         if (current_curve.items.len > 1) {
