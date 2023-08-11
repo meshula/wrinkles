@@ -33,13 +33,13 @@ BezierSegment compute_hodograph(const BezierSegment* const b)
     // Subtracting each consecutive control point from the next
     r.order = b->order - 1;
     if (b->order == 3) {
-        r.p[0] = vec2_sub_vec2(b->p[1], b->p[0]);
-        r.p[1] = vec2_sub_vec2(b->p[2], b->p[1]);
-        r.p[2] = vec2_sub_vec2(b->p[3], b->p[2]);
+        r.p[0] = vec2_mul_float(vec2_sub_vec2(b->p[1], b->p[0]), 3);
+        r.p[1] = vec2_mul_float(vec2_sub_vec2(b->p[2], b->p[1]), 3);
+        r.p[2] = vec2_mul_float(vec2_sub_vec2(b->p[3], b->p[2]), 3);
     }
     else if (b->order == 2) {
-        r.p[0] = vec2_sub_vec2(b->p[1], b->p[0]);
-        r.p[1] = vec2_sub_vec2(b->p[2], b->p[1]);
+        r.p[0] = vec2_mul_float(vec2_sub_vec2(b->p[1], b->p[0]), 2);
+        r.p[1] = vec2_mul_float(vec2_sub_vec2(b->p[2], b->p[1]), 2);
         r.p[2].x = 0;
         r.p[2].y = 0;
     }
