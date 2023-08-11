@@ -63,10 +63,12 @@ const DebugBezierFlags = packed struct (i8) {
 const tpa_flags = struct {
     result_curves: DebugBezierFlags = .{ .bezier = true },
     start: bool = false,
+    start_ddt: bool = false,
     A: bool = false,
     midpoint: bool = false,
     C: bool = false,
     end: bool = false,
+    end_ddt: bool = false,
     e1_2: bool = false,
     v1_2: bool = false,
     C1_2: bool = false,
@@ -84,10 +86,12 @@ const tpa_flags = struct {
 
             const fields = .{
                 "start",
+                "start_ddt",
                 "A", 
                 "midpoint", 
                 "C",
                 "end",
+                "end_ddt",
                 "e1_2",
                 "v1_2",
                 "C1_2",
@@ -842,6 +846,50 @@ fn plot_tpa_guts(
                 .pix_offset = .{ 0, 60 }
             }
         );
+    }
+
+    if (flags.start_ddt and guts.start_ddt != null) {
+        const ddt = guts.start_ddt.?;
+        const off = guts.start.?.add(ddt);
+
+        const xv = &.{ guts.start.?.time, off.time };
+        const yv = &.{ guts.start.?.value, off.value };
+
+        const label =  try std.fmt.bufPrintZ(
+            &buf,
+            "{s} / start->start_ddt",
+            .{ name }
+        );
+
+        zgui.plot.plotLine(
+            label,
+            f32,
+            .{ .xv = xv, .yv = yv }
+        );
+
+        plot_point(label, "start_ddt", off, 20);
+    }
+
+    if (flags.end_ddt and guts.end_ddt != null) {
+        const ddt = guts.end_ddt.?;
+        const off = guts.end.?.sub(ddt);
+
+        const xv = &.{ guts.end.?.time, off.time };
+        const yv = &.{ guts.end.?.value, off.value };
+
+        const label =  try std.fmt.bufPrintZ(
+            &buf,
+            "{s} / end->end_ddt",
+            .{ name }
+        );
+
+        zgui.plot.plotLine(
+            label,
+            f32,
+            .{ .xv = xv, .yv = yv }
+        );
+
+        plot_point(label, "end_ddt", off, 20);
     }
 
     if (flags.e1_2) 

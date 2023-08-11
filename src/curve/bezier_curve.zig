@@ -1247,7 +1247,6 @@ pub const TimeCurve = struct {
                                     }
                                 );
 
-                                // project derivative by the chain rule
                                 var other_cSeg = segment.to_cSeg();
                                 var other_hodo = hodographs.compute_hodograph(&other_cSeg);
                                 const g_prime_of_t = hodographs.evaluate_bezier(
@@ -1268,12 +1267,27 @@ pub const TimeCurve = struct {
                             };
                         }
 
+                        const scaling_factor : f32 = fudge/3;
+
                         tmp[0] = projected_pts[0];
-                        tmp[1] = projected_pts[0].add(projected_derivatives[0].mul(fudge * 0.333));
-                        tmp[2] = projected_pts[1].sub(projected_derivatives[1].mul(fudge * 0.333));
+                        tmp[1] = projected_pts[0].add(
+                            projected_derivatives[0].mul(scaling_factor)
+                        );
+                        tmp[2] = projected_pts[1].sub(
+                            projected_derivatives[1].mul(scaling_factor)
+                        );
                         tmp[3] = projected_pts[1];
 
                         segment.*.set_points(tmp);
+
+                        try guts.append(
+                            .{ 
+                                .start = projected_pts[0],
+                                .start_ddt = projected_derivatives[0].mul(fudge),
+                                .end = projected_pts[1],
+                                .end_ddt = projected_derivatives[1].mul(fudge),
+                            }
+                        );
                     },
                     else => {}
                 }
@@ -2927,11 +2941,13 @@ test "TimeCurve: split_on_critical_points symmetric about the origin" {
 
 pub const tpa_result = struct {
     result: ?Segment = null,
+    start_ddt: ?control_point.ControlPoint = null,
     start: ?control_point.ControlPoint = null,
     A:  ?control_point.ControlPoint = null,
     midpoint: ?control_point.ControlPoint = null,
     C:  ?control_point.ControlPoint = null,
     end: ?control_point.ControlPoint = null,
+    end_ddt: ?control_point.ControlPoint = null,
     e1: ?control_point.ControlPoint = null,
     e2: ?control_point.ControlPoint = null,
     v1: ?control_point.ControlPoint = null,
