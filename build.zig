@@ -147,9 +147,6 @@ pub fn add_test_for_source(
     test_thing.addIncludePath(.{ .path = "./spline-gym/src"});
     test_thing.addCSourceFile(.{ .file = .{ .path = "./spline-gym/src/hodographs.c"}, .flags = &c_args});
 
-    test_thing.addIncludePath(.{ .path = "./libs/kissfft"});
-    test_thing.addCSourceFile(.{ .file = .{ .path = "./libs/kissfft/kiss_fft.c"}, .flags = &c_args});
-
     // var test_exe = b.addTest(
     //     .{
     //         .name = "otio_test.out",
@@ -257,9 +254,6 @@ pub fn build_wrinkles_like(
 
     exe.addIncludePath(.{ .path = "./spline-gym/src"});
     exe.addCSourceFile(.{ .file = .{ .path = "./spline-gym/src/hodographs.c"}, .flags = &c_args});
-
-    exe.addIncludePath(.{ .path = "./libs/kissfft"});
-    exe.addCSourceFile(.{ .file = .{ .path = "./libs/kissfft/kiss_fft.c"}, .flags = &c_args});
 
     for (module_deps) |mod| {
         exe.addModule(mod.name, mod.module);
