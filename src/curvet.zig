@@ -44,6 +44,7 @@ const DebugBezierFlags = packed struct (i8) {
             };
 
             zgui.pushStrId(name);
+
             inline for (fields) 
                 |field| 
             {
@@ -1481,7 +1482,7 @@ fn update(
 
                 _ = zgui.comboFromEnum(
                     "Projection Algorithm",
-                    &time_topology.project_algo
+                    &curve.bezier_curve.project_algo
                 );
             }
 

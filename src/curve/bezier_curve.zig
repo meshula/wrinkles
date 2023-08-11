@@ -31,6 +31,19 @@ const latin_s8 = string_stuff.latin_s8;
 pub var u_val_of_midpoint:f32 = 0.5;
 pub var fudge:f32 = 1;
 
+// options for projecting bezier through bezier
+pub const ProjectionAlgorithms = enum (i32) {
+    // project endpoints, midpoint + midpoint derviatives, run decastlejau in
+    // reverse (so called three-point-approximation) to infer P1, P2
+    three_point_approx=0,
+    // project each endpoint, chain rule derivatives, then use derivative length
+    // to estimate P1, P2
+    two_point_approx,
+    // linearize both curves, then project linear segments
+    linearized,
+};
+pub var project_algo = ProjectionAlgorithms.three_point_approx;
+
 // hodographs c-library
 pub const hodographs = @cImport(
     {
@@ -1090,102 +1103,180 @@ pub const TimeCurve = struct {
                     self_split.find_segment_index(segment.p0.time) orelse continue
                 );
 
-                // @TODO: question 1- should this be halfway across the input
-                //                    space (vs 0.5 across the parameter space)
-                // review - want the point on the curve furthest from the line
-                //          from A to C (in tpa terms)
-                //          see "aligning a curve" on pomax to compute the
-                //          extremity
-                const t_midpoint_other = u_val_of_midpoint;
-                const midpoint = segment.eval_at(t_midpoint_other);
+                switch (project_algo) {
+                    .three_point_approx => {
+                        // @TODO: question 1- should this be halfway across the input
+                        //                    space (vs 0.5 across the parameter space)
+                        // review - want the point on the curve furthest from the line
+                        //          from A to C (in tpa terms)
+                        //          see "aligning a curve" on pomax to compute the
+                        //          extremity
+                        const t_midpoint_other = u_val_of_midpoint;
+                        const midpoint = segment.eval_at(t_midpoint_other);
 
-                var start_mid_end_projected = [3]control_point.ControlPoint{
-                    segment.p0,
-                    midpoint,
-                    segment.p3, 
-                };
+                        var projected_pts = [_]control_point.ControlPoint{
+                            segment.p0,
+                            midpoint,
+                            segment.p3, 
+                        };
 
-                // explicitly project start, mid, and end
-                inline for (&start_mid_end_projected, 0..) 
-                    |pt, pt_ind|
-                {
-                    start_mid_end_projected[pt_ind] = .{
-                        .time  = pt.time,
-                        .value = self_seg.eval_at_x(pt.value)
-                    };
+                        // explicitly project start, mid, and end
+                        inline for (&projected_pts, 0..) 
+                            |pt, pt_ind|
+                            {
+                                projected_pts[pt_ind] = .{
+                                    .time  = pt.time,
+                                    .value = self_seg.eval_at_x(pt.value)
+                                };
+                            }
+
+                        // chain rule: h'(x) = f'(g(x)) * g'(x)
+                        // chain rule: h'(t) = f'(g(t)) * g'(t)
+                        // g(t) == midpoint (other @ t = 0.5)
+                        // f'(g(t)) == f'(midpoint -- other @ t = 0.5)
+                        // g'(t) == hodograph of other @ t = 0.5
+                        // h'(t) = f'(midpoint) * hodograph of other @ t= 0.5
+                        const u_in_self = self_seg.findU_input(
+                            midpoint.value
+                        );
+                        const d_mid_point_dt = chain_rule: {
+                            var self_cSeg = self_seg.to_cSeg();
+                            var self_hodo = hodographs.compute_hodograph(&self_cSeg);
+                            const f_prime_of_g_of_t = hodographs.evaluate_bezier(
+                                &self_hodo,
+                                u_in_self,
+                            );
+                            try cache_f_prime_of_g_of_t.append(
+                                .{
+                                    .time = f_prime_of_g_of_t.x, 
+                                    .value= f_prime_of_g_of_t.y
+                                }
+                            );
+
+                            // project derivative by the chain rule
+                            var other_cSeg = segment.to_cSeg();
+                            var other_hodo = hodographs.compute_hodograph(&other_cSeg);
+                            const g_prime_of_t = hodographs.evaluate_bezier(
+                                &other_hodo,
+                                t_midpoint_other,
+                            );
+                            try cache_g_prime_of_t.append(
+                                .{
+                                    .time = g_prime_of_t.x, 
+                                    .value= g_prime_of_t.y
+                                }
+                            );
+
+                            if (true) {
+                                break :chain_rule control_point.ControlPoint{
+                                    .time  = f_prime_of_g_of_t.x * g_prime_of_t.x,
+                                    .value = f_prime_of_g_of_t.y * g_prime_of_t.y,
+                                };
+                            } else {
+                                break :chain_rule control_point.ControlPoint{
+                                    .time  = g_prime_of_t.x,
+                                    .value = f_prime_of_g_of_t.y * g_prime_of_t.y,
+                                };
+                            }
+                        };
+
+                        try midpoint_derivatives.append(d_mid_point_dt);
+
+                        const m_ratio = (u_in_self * t_midpoint_other) / ((1-u_in_self)*(1-t_midpoint_other));
+                        const projected_t = m_ratio / (m_ratio + 1);
+
+                        const final = three_point_guts_plot(
+                            projected_pts[0],
+                            projected_pts[1],
+                            projected_t, // <- should be u_in_projected_curve
+                            d_mid_point_dt.mul(fudge),
+                            projected_pts[2],
+                        );
+
+                        try guts.append(final);
+
+                        tmp[0] = projected_pts[0];
+                        tmp[1] = final.C1.?;
+                        tmp[2] = final.C2.?;
+                        tmp[3] = projected_pts[2];
+
+                        segment.*.set_points(tmp);
+                    },
+                    .two_point_approx => {
+
+                        // project p0, p3 and their derivaties
+                        // p1 and p2 are derived by using the derivatives at p0
+                        // and p3
+
+                        var projected_pts = [_]control_point.ControlPoint{
+                            segment.p0,
+                            segment.p3, 
+                        };
+                        var u_values = &.{ 0, 1 };
+                        var projected_derivatives: [2]control_point.ControlPoint = undefined;
+
+                        inline for (&projected_pts, u_values, 0..) 
+                            |*pt, u, pt_ind|
+                        {
+                            // project the point
+                            pt.* = .{
+                                .time  = pt.time,
+                                .value = self_seg.eval_at_x(pt.value)
+                            };
+
+                            // Use the chain rule to compute the derivatives of
+                            // the projected point.
+                            //
+                            // chain rule: h'(x) = f'(g(x)) * g'(x)
+                            // chain rule: h'(t) = f'(g(t)) * g'(t)
+                            // g(t) == midpoint (other @ t = 0.5)
+                            // f'(g(t)) == f'(midpoint -- other @ t = 0.5)
+                            // g'(t) == hodograph of other @ t = 0.5
+                            // h'(t) = f'(midpoint) * hodograph of other @ t= 0.5
+                            projected_derivatives[pt_ind] = chain_rule: {
+                                var self_cSeg = self_seg.to_cSeg();
+                                var self_hodo = hodographs.compute_hodograph(&self_cSeg);
+                                const f_prime_of_g_of_t = hodographs.evaluate_bezier(
+                                    &self_hodo,
+                                    u,
+                                );
+                                try cache_f_prime_of_g_of_t.append(
+                                    .{
+                                        .time = f_prime_of_g_of_t.x, 
+                                        .value= f_prime_of_g_of_t.y
+                                    }
+                                );
+
+                                // project derivative by the chain rule
+                                var other_cSeg = segment.to_cSeg();
+                                var other_hodo = hodographs.compute_hodograph(&other_cSeg);
+                                const g_prime_of_t = hodographs.evaluate_bezier(
+                                    &other_hodo,
+                                    u,
+                                );
+                                try cache_g_prime_of_t.append(
+                                    .{
+                                        .time = g_prime_of_t.x, 
+                                        .value= g_prime_of_t.y
+                                    }
+                                );
+
+                                break :chain_rule control_point.ControlPoint{
+                                    .time  = f_prime_of_g_of_t.x * g_prime_of_t.x,
+                                    .value = f_prime_of_g_of_t.y * g_prime_of_t.y,
+                                };
+                            };
+                        }
+
+                        tmp[0] = projected_pts[0];
+                        tmp[1] = projected_pts[0].add(projected_derivatives[0].mul(fudge * 0.333));
+                        tmp[2] = projected_pts[1].sub(projected_derivatives[1].mul(fudge * 0.333));
+                        tmp[3] = projected_pts[1];
+
+                        segment.*.set_points(tmp);
+                    },
+                    else => {}
                 }
-
-                // chain rule: h'(x) = f'(g(x)) * g'(x)
-                // chain rule: h'(t) = f'(g(t)) * g'(t)
-                // g(t) == midpoint (other @ t = 0.5)
-                // f'(g(t)) == f'(midpoint -- other @ t = 0.5)
-                // g'(t) == hodograph of other @ t = 0.5
-                // h'(t) = f'(midpoint) * hodograph of other @ t= 0.5
-                const u_in_self = self_seg.findU_input(
-                    midpoint.value
-                );
-                const d_mid_point_dt = chain_rule: {
-                    var self_cSeg = self_seg.to_cSeg();
-                    var self_hodo = hodographs.compute_hodograph(&self_cSeg);
-                    const f_prime_of_g_of_t = hodographs.evaluate_bezier(
-                        &self_hodo,
-                        u_in_self,
-                    );
-                    try cache_f_prime_of_g_of_t.append(
-                        .{
-                            .time = f_prime_of_g_of_t.x, 
-                            .value= f_prime_of_g_of_t.y
-                        }
-                    );
-
-                    // project derivative by the chain rule
-                    var other_cSeg = segment.to_cSeg();
-                    var other_hodo = hodographs.compute_hodograph(&other_cSeg);
-                    const g_prime_of_t = hodographs.evaluate_bezier(
-                        &other_hodo,
-                        t_midpoint_other,
-                    );
-                    try cache_g_prime_of_t.append(
-                        .{
-                            .time = g_prime_of_t.x, 
-                            .value= g_prime_of_t.y
-                        }
-                    );
-
-                    if (true) {
-                        break :chain_rule control_point.ControlPoint{
-                            .time  = f_prime_of_g_of_t.x * g_prime_of_t.x,
-                            .value = f_prime_of_g_of_t.y * g_prime_of_t.y,
-                        };
-                    } else {
-                        break :chain_rule control_point.ControlPoint{
-                            .time  = g_prime_of_t.x,
-                            .value = f_prime_of_g_of_t.y * g_prime_of_t.y,
-                        };
-                    }
-                };
-
-                try midpoint_derivatives.append(d_mid_point_dt);
-
-                const m_ratio = (u_in_self * t_midpoint_other) / ((1-u_in_self)*(1-t_midpoint_other));
-                const projected_t = m_ratio / (m_ratio + 1);
-
-                const final = three_point_guts_plot(
-                    start_mid_end_projected[0],
-                    start_mid_end_projected[1],
-                    projected_t, // <- should be u_in_projected_curve
-                    d_mid_point_dt.mul(fudge),
-                    start_mid_end_projected[2],
-                );
-
-                try guts.append(final);
-
-                tmp[0] = start_mid_end_projected[0];
-                tmp[1] = final.C1.?;
-                tmp[2] = final.C2.?;
-                tmp[3] = start_mid_end_projected[2];
-
-                segment.*.set_points(tmp);
             }
         }
 
