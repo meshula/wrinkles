@@ -1,3 +1,6 @@
 [submodule "spline-gym/external/raylib"]
 	path = spline-gym/external/raylib
 	url = git@github.com:raysan5/raylib.git
+[submodule "libs/kissfft"]
+	path = libs/kissfft
+	url = git@github.com:mborgerding/kissfft.git
