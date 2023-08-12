@@ -2,8 +2,8 @@
 
 Zig:
 
-`0.10.1`
+`0.11.0`
 
 zig-gamedev:
 
-`a848b43b52b92133738e1da2dc177e66ecb2e833`
+`e31e3c280e0e00d3a15f56a4364a506169a5ebe5`
