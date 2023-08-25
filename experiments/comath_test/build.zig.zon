@@ -1,0 +1,16 @@
+// because zon file is really just a zig struct
+// comments are really done in the same way using 2 forward slashes
+.{
+    // the name of your project
+    .name = "comath_test",
+    // the version of your project
+    .version = "0.0.1",
+
+    // the actual packages you need as dependencies of your project 
+    .dependencies = .{
+        .comath = .{
+            .url = "https://github.com/InKryption/comath/archive/b1b544b1521afb71471b32b2627195884e47a122.tar.gz",
+            .hash = "1220d9d95cd8aea3776edc8f99246a01dbb90df41bbf839fbe7f36a6628fed41cf1b",
+        },
+    },
+}
