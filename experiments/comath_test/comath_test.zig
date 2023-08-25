@@ -12,6 +12,20 @@ test "basic comath test" {
     try std.testing.expect(value == 8);
 }
 
+test "comath test but with piponi example algorithm" {
+    // really simple example
+    {
+        const ctx = comath.contexts.simpleCtx({});
+        const value = comath.eval(
+            "(x+2)*(x+1)",
+            ctx,
+            .{ .x = 3 }
+        ) catch |err| switch (err) {};
+
+        try std.testing.expect(value == 20);
+    }
+}
+
 const Dual_f32 = struct {
     /// real component
     r: f32 = 0,
@@ -36,20 +50,6 @@ const Dual_f32 = struct {
         };
     }
 };
-
-test "comath really simple example" {
-    // really simple example
-    {
-        const ctx = comath.contexts.simpleCtx({});
-        const value = comath.eval(
-            "(x+2)*(x+1)",
-            ctx,
-            .{ .x = 3 }
-        ) catch |err| switch (err) {};
-
-        try std.testing.expect(value == 20);
-    }
-}
 
 test "comath dual test" {
 
