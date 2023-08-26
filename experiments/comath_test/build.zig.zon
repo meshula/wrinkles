@@ -9,8 +9,8 @@
     // the actual packages you need as dependencies of your project 
     .dependencies = .{
         .comath = .{
-            .url = "https://github.com/InKryption/comath/archive/b1b544b1521afb71471b32b2627195884e47a122.tar.gz",
-            .hash = "1220d9d95cd8aea3776edc8f99246a01dbb90df41bbf839fbe7f36a6628fed41cf1b",
+            .url = "https://github.com/InKryption/comath/archive/494d612859e3c3d709aa74faabde59d4b97f547b.tar.gz",
+            .hash = "12203fafec44f0911b996d259f4d9c2f702b16b949c5691a8f8c870e6d7e61573b6c",
         },
     },
 }
