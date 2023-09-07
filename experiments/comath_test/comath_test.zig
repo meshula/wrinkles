@@ -26,30 +26,35 @@ test "comath really simple example" {
     }
 }
 
-const Dual_f32 = struct {
-    /// real component
-    r: f32 = 0,
-    /// infinitesimal component
-    i: f32 = 0,
+pub fn DualOf(comptime T: type) type 
+{
+    return struct {
+        /// real component
+        r: T = 0,
+        /// infinitesimal component
+        i: T = 0,
 
-    pub fn from(r: f32) Dual_f32 {
-        return .{ .r = r };
-    }
+        pub fn from(r: T) @TypeOf(@This()) {
+            return .{ .r = r };
+        }
 
-    pub inline fn add(self: @This(), rhs: @This()) @This() {
-        return .{ 
-            .r = self.r + rhs.r,
-            .i = self.i + rhs.i,
-        };
-    }
+        pub inline fn add(self: @This(), rhs: @This()) @This() {
+            return .{ 
+                .r = self.r + rhs.r,
+                .i = self.i + rhs.i,
+            };
+        }
 
-    pub inline fn mul(self: @This(), rhs: @This()) @This() {
-        return .{ 
-            .r = self.r * rhs.r,
-            .i = self.r * rhs.i + self.i*rhs.r,
-        };
-    }
-};
+        pub inline fn mul(self: @This(), rhs: @This()) @This() {
+            return .{ 
+                .r = self.r * rhs.r,
+                .i = self.r * rhs.i + self.i*rhs.r,
+            };
+        }
+    };
+}
+
+const Dual_f32 = DualOf(f32);
 
 test "comath dual test" {
 
@@ -155,7 +160,6 @@ test "reuse" {
 
     const p : []const f32 = &.{ 0, 1, 2, 3 };
     const unorm:f32 = 0.5;
-
     const q1 = try comath.eval(
         "(1 - unorm) * p[0] + unorm * p[1]",
         ctx,
