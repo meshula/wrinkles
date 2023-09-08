@@ -179,6 +179,22 @@ test "comath dual test polymorphic" {
                 .i = .{ .time = 9, .value = 9 },
             },
         },
+        .{
+            .x = Dual_CP{
+                .r = .{ .time = -3, .value = -2 },
+                .i = .{ .time = 1, .value = 1 },
+            },
+            .off1 = Dual_CP{
+                .r = .{ .time = 2, .value = 3 },
+            },
+            .off2 = Dual_CP{
+                .r = .{ .time = 1, .value = 1 },
+            },
+            .expect = Dual_CP{
+                .r = .{ .time = 2, .value = -1 },
+                .i = .{ .time = -3, .value = 0 },
+            },
+        },
     };
 
     // function we want derivatives of
