@@ -28,6 +28,16 @@ test "comath really simple example" {
 
 pub fn DualOf(comptime T: type) type 
 {
+    return switch(@typeInfo(T)) {
+        .Struct =>  DualOfStruct(T),
+        else => DualOfNumberType(T),
+    };
+}
+
+const Dual_f32 = DualOf(f32);
+const Dual_CP = DualOf(ControlPoint);
+
+pub fn DualOfNumberType(comptime T: type) type {
     return struct {
         /// real component
         r: T = 0,
@@ -54,59 +64,33 @@ pub fn DualOf(comptime T: type) type
     };
 }
 
-const Dual_f32 = DualOf(f32);
+pub fn DualOfStruct(comptime T: type) type 
+{
+    return struct {
+        /// real component
+        r: T,
+        /// infinitesimal component
+        i: T,
 
-test "comath dual test" {
-
-    // function we want derivatives of
-    const fn_str = "(x + off1) * (x + off2)";
-
-    // build the context
-    const ctx = comath.contexts.fnMethodCtx(
-        comath.contexts.simpleCtx({}),
-        .{
-            .@"+" = "add",
-            .@"*" = "mul",
+        pub fn from(r: T) @TypeOf(@This()) {
+            return .{ .r = r };
         }
-    );
 
-    // evaluate as floats
-    {
-        const value = comath.eval(
-            fn_str,
-            ctx,
-            .{.x = 3, .off1 = 2, .off2 = 1}
-        ) catch |err| switch (err) {};
+        pub inline fn add(self: @This(), rhs: @This()) @This() {
+            return .{ 
+                .r = self.r.add(rhs.r),
+                .i = self.i.add(rhs.i),
+            };
+        }
 
-        try std.testing.expect(value == 20);
-    }
-
-    // evaluate as duals
-    {
-        const value_dual = comath.eval(
-            fn_str,
-            ctx,
-            .{
-                .x = Dual_f32{.r = 3, .i = 1},
-                .off1 = Dual_f32{.r = 2},
-                .off2 = Dual_f32{.r = 1},
-            }
-        ) catch |err| switch (err) {};
-
-        // the value of f at x = 3
-        try std.testing.expectEqual(@as(f32, 20), value_dual.r);
-        // the derivative of f at x = 3
-        try std.testing.expectEqual(@as(f32, 9), value_dual.i);
-    }
+        pub inline fn mul(self: @This(), rhs: @This()) @This() {
+            return .{ 
+                .r = self.r.mul(rhs.r),
+                .i = (self.r.mul(rhs.i)).add(self.i.mul(rhs.r)),
+            };
+        }
+    };
 }
-
-    // const ctx = comath.contexts.fnMethodCtx(
-    //     comath.contexts.simpleCtx({}),
-    //     .{
-    //         .@"+" = "add",
-    //         .@"*" = "mul",
-    //     }
-    // );
 
 /// control point for curve parameterization
 pub const ControlPoint = struct {
@@ -115,11 +99,22 @@ pub const ControlPoint = struct {
     /// value of the Control point at the time cooridnate
     value: f32,
 
+    pub fn init(x: f32) ControlPoint {
+        return .{ .time = x, .value = x };
+    }
+
     // multiply with float
-    pub fn mul(self: @This(), val: f32) ControlPoint {
+    pub fn mul_float(self: @This(), val: f32) ControlPoint {
         return .{
             .time = val*self.time,
             .value = val*self.value,
+        };
+    }
+
+    pub fn mul(self: @This(), rhs: ControlPoint) ControlPoint {
+        return .{
+            .time = rhs.time*self.time,
+            .value = rhs.value*self.value,
         };
     }
 
@@ -155,112 +150,67 @@ pub const ControlPoint = struct {
     }
 };
 
-test "reuse" {
-    const ctx = comath.contexts.simpleCtx({});
-
-    const p : []const f32 = &.{ 0, 1, 2, 3 };
-    const unorm:f32 = 0.5;
-    const q1 = try comath.eval(
-        "(1 - unorm) * p[0] + unorm * p[1]",
-        ctx,
-        .{ 
-            .p = p,
-            .unorm = unorm,
+test "comath dual test polymorphic" {
+    const test_data = &.{
+        // as float
+        .{
+            .x = 3,
+            .off1 = 2,
+            .off2 = 1 ,
+            .expect = 20,
         },
+        // as float dual
+        .{
+            .x = Dual_f32{.r = 3, .i = 1},
+            .off1 = Dual_f32{ .r = 2 },
+            .off2 = Dual_f32{ .r = 1 }, 
+            .expect = Dual_f32{ .r = 20, .i = 9},
+        },
+        // as control point dual
+        .{
+            .x = Dual_CP{
+                .r = .{ .time = 3, .value = 3 },
+                .i = .{ .time = 1, .value = 1 },
+            },
+            .off1 = Dual_CP{
+                .r = .{ .time = 2, .value = 2 },
+                .i = .{ .time = 0, .value = 0 },
+            },
+            .off2 = Dual_CP{
+                .r = .{ .time = 1, .value = 1 },
+                .i = .{ .time = 0, .value = 0 },
+            },
+            .expect = Dual_CP{
+                .r = .{ .time = 20, .value = 20 },
+                .i = .{ .time = 9, .value = 9 },
+            },
+        },
+    };
+
+    // function we want derivatives of
+    const fn_str = "(x + off1) * (x + off2)";
+
+    // build the context
+    const ctx = comath.contexts.fnMethodCtx(
+        comath.contexts.simpleCtx({}),
+        .{
+            .@"+" = "add",
+            .@"*" = "mul",
+        }
     );
 
-    const q2 = try comath.eval(
-        "(1 - unorm) * Q1 + unorm * ((1 - unorm) * p[1] + unorm * p[2])",
-        ctx,
-        .{ 
-            .p = p,
-            .Q1 = q1,
-            .unorm = unorm,
-        },
-    );
-    _ = q2;
+    inline for (test_data, 0..) |td, i| {
+        const value = comath.eval(
+            fn_str,
+            ctx,
+            .{.x = td.x, .off1 = td.off1, .off2 = td.off2}
+        ) catch |err| switch (err) {};
+
+        errdefer std.debug.print(
+            "{d}: Failed for type: {s}, \nrecieved: {any}\nexpected: {any}\n\n",
+            .{ i,  @typeName(@TypeOf(td.x)), value, td.expect }
+        );
+
+        try std.testing.expect(std.meta.eql(value, td.expect));
+    }
 }
-
-// test "math_port_test" 
-// {
-//     const ctx = comath.contexts.fnMethodCtx(
-//         comath.contexts.simpleCtx({}),
-//         .{
-//             .@"+" = "add",
-//             .@"*" = "mul",
-//         }
-//     );
-//
-//     // inputs
-//     const p : []const ControlPoint = &.{ 
-//         .{ .time = 0, .value = 0 },
-//         .{ .time = 0, .value = 1 },
-//         .{ .time = 1, .value = 1 },
-//         .{ .time = 1, .value = 0 },
-//     };
-//     const unorm:f32 = 0.5;
-//
-//     // left segment points
-//     const q0 = p[0];
-//     _ = q0;
-//
-//     const q1 = try comath.eval(
-//         "(1 - unorm) * p[0] + unorm * p[1]",
-//         ctx,
-//         .{ 
-//             .p = p,
-//             .unorm = unorm,
-//         },
-//     );
-//
-//     const q2:f32 = try comath.eval(
-//         "(1 - unorm) * q1 + unorm * ((1 - unorm) * p[1] + unorm * p[2])",
-//         ctx,
-//         .{ 
-//             .p = p,
-//             .q1 = q1,
-//             .unorm = unorm,
-//         },
-//     );
-//
-//     const q3 = try comath.eval(
-//         "(1 - unorm) * Q2" ++ 
-//         " + unorm * ("
-//             ++ "(1 - unorm) * ((1 - unorm) * p[1] "
-//             ++ "+ unorm * p[2]) + unorm * ((1 - unorm) * p[2] + unorm * p[3])"
-//         ++ ")",
-//         ctx,
-//         .{ 
-//             .p = p,
-//             .Q2 = q2,
-//             .unorm = unorm,
-//         },
-//     );
-//
-//     // right segment points
-//     const r0 = q3;
-//     _ = r0;   
-//
-//     const r2:f32 = try comath.eval(
-//         "(1 - unorm) * p[2] + unorm * p[3]",
-//         ctx,
-//         .{ 
-//             .p = p,
-//             .unorm = unorm,
-//         },
-//     );
-//
-//     const r1:f32 = try comath.eval(
-//         "(1 - unorm) * ((1 - unorm) * p[1] + unorm * p[2]) + unorm * R2",
-//         ctx,
-//         .{ 
-//             .p = p,
-//             .R2 = r2,
-//             .unorm = unorm,
-//         },
-//     );
-//     _ = r1;
-//
-//     const r3 = p[3];
-//     _ = r3;
-// }
