@@ -68,9 +68,9 @@ pub fn DualOfStruct(comptime T: type) type
 {
     return struct {
         /// real component
-        r: T,
+        r: T = .{},
         /// infinitesimal component
-        i: T,
+        i: T = .{},
 
         pub fn from(r: T) @TypeOf(@This()) {
             return .{ .r = r };
@@ -95,13 +95,9 @@ pub fn DualOfStruct(comptime T: type) type
 /// control point for curve parameterization
 pub const ControlPoint = struct {
     /// temporal coordinate of the control point
-    time: f32,
+    time: f32 = 0,
     /// value of the Control point at the time cooridnate
-    value: f32,
-
-    pub fn init(x: f32) ControlPoint {
-        return .{ .time = x, .value = x };
-    }
+    value: f32 = 0,
 
     // multiply with float
     pub fn mul_float(self: @This(), val: f32) ControlPoint {
@@ -174,11 +170,9 @@ test "comath dual test polymorphic" {
             },
             .off1 = Dual_CP{
                 .r = .{ .time = 2, .value = 2 },
-                .i = .{ .time = 0, .value = 0 },
             },
             .off2 = Dual_CP{
                 .r = .{ .time = 1, .value = 1 },
-                .i = .{ .time = 0, .value = 0 },
             },
             .expect = Dual_CP{
                 .r = .{ .time = 20, .value = 20 },
