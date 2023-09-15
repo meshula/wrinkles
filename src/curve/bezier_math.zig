@@ -7,6 +7,8 @@ const linear_curve = @import("linear_curve.zig");
 const generic_curve = @import("generic_curve.zig");
 const expectEqual = std.testing.expectEqual;
 const expect = std.testing.expect;
+const comath = @import("comath");
+
 
 fn expectApproxEql(expected: anytype, actual: @TypeOf(expected)) !void {
     return std.testing.expectApproxEqAbs(expected, actual, generic_curve.EPSILON);
@@ -15,24 +17,33 @@ fn expectApproxEql(expected: anytype, actual: @TypeOf(expected)) !void {
 const allocator = @import("otio_allocator");
 const ALLOCATOR = allocator.ALLOCATOR;
 
-/// could build an anytype version of this function if we needed
-pub fn lerp_cp(u: f32, a: ControlPoint, b: ControlPoint) ControlPoint {
-    return .{
-        .time =  a.time  * (1 - u) + b.time  * u,
-        .value = a.value * (1 - u) + b.value * u,
-    };
-}
+const CTX = comath.contexts.fnMethodCtx(
+    comath.contexts.simpleCtx({}),
+    .{
+        .@"+" = "add",
+        .@"-" = "sub",
+        .@"*" = &.{"mul"},
+    }
+);
 
 pub fn lerp(u: anytype, a: anytype, b: @TypeOf(a)) @TypeOf(a) {
-    return ((1 - u) * a + b * u);
+    return comath.eval(
+        "a * (1 - u) + b * u",
+        CTX,
+        .{
+            .a = a,
+            .b = b,
+            .u = u,
+        }
+    ) catch |err| switch (err) {};
 }
 
-pub fn lerp_vector(u: anytype, a: anytype, b: @TypeOf(a)) @TypeOf(a) {
-    const u_vec: @Vector(2, @TypeOf(u)) = @splat(u);
-    const one_vec:@Vector(2, @TypeOf(u)) = @splat(@as(@TypeOf(u), 1));
-    return ((one_vec - u_vec) * a + b * u_vec);
-}
-
+// pub fn lerp_vector(u: anytype, a: anytype, b: @TypeOf(a)) @TypeOf(a) {
+//     const u_vec: @Vector(2, @TypeOf(u)) = @splat(u);
+//     const one_vec:@Vector(2, @TypeOf(u)) = @splat(@as(@TypeOf(u), 1));
+//     return ((one_vec - u_vec) * a + b * u_vec);
+// }
+//
 pub fn invlerp(v: f32, a: f32, b: f32) f32 {
     if (b == a)
         return a;
@@ -52,22 +63,22 @@ pub fn value_at_time_between(
 // @TODO: turn these back on
 pub fn segment_reduce4(u: f32, segment: curve.Segment) curve.Segment {
     return .{
-        .p0 = lerp_cp(u, segment.p0, segment.p1),
-        .p1 = lerp_cp(u, segment.p1, segment.p2),
-        .p2 = lerp_cp(u, segment.p2, segment.p3),
+        .p0 = lerp(u, segment.p0, segment.p1),
+        .p1 = lerp(u, segment.p1, segment.p2),
+        .p2 = lerp(u, segment.p2, segment.p3),
     };
 }
 
 pub fn segment_reduce3(u: f32, segment: curve.Segment) curve.Segment {
     return .{
-        .p0 = lerp_cp(u, segment.p0, segment.p1),
-        .p1 = lerp_cp(u, segment.p1, segment.p2),
+        .p0 = lerp(u, segment.p0, segment.p1),
+        .p1 = lerp(u, segment.p1, segment.p2),
     };
 }
 
 pub fn segment_reduce2(u: f32, segment: curve.Segment) curve.Segment {
     return .{
-        .p0 = lerp_cp(u, segment.p0, segment.p1),
+        .p0 = lerp(u, segment.p0, segment.p1),
     };
 }
 
@@ -203,19 +214,19 @@ pub fn findU(x:f32, p0:f32, p1:f32, p2:f32, p3:f32) f32
 }
 
 
-test "lerp_cp" {
+test "lerp" {
     const fst: ControlPoint = .{ .time = 0, .value = 0 };
     const snd: ControlPoint = .{ .time = 1, .value = 1 };
 
-    try expectEqual(@as(f32, 0), lerp_cp(0, fst, snd).value);
-    try expectEqual(@as(f32, 0.25), lerp_cp(0.25, fst, snd).value);
-    try expectEqual(@as(f32, 0.5), lerp_cp(0.5, fst, snd).value);
-    try expectEqual(@as(f32, 0.75), lerp_cp(0.75, fst, snd).value);
+    try expectEqual(@as(f32, 0), lerp(0, fst, snd).value);
+    try expectEqual(@as(f32, 0.25), lerp(0.25, fst, snd).value);
+    try expectEqual(@as(f32, 0.5), lerp(0.5, fst, snd).value);
+    try expectEqual(@as(f32, 0.75), lerp(0.75, fst, snd).value);
 
-    try expectEqual(@as(f32, 0), lerp_cp(0, fst, snd).time);
-    try expectEqual(@as(f32, 0.25), lerp_cp(0.25, fst, snd).time);
-    try expectEqual(@as(f32, 0.5), lerp_cp(0.5, fst, snd).time);
-    try expectEqual(@as(f32, 0.75), lerp_cp(0.75, fst, snd).time);
+    try expectEqual(@as(f32, 0), lerp(0, fst, snd).time);
+    try expectEqual(@as(f32, 0.25), lerp(0.25, fst, snd).time);
+    try expectEqual(@as(f32, 0.5), lerp(0.5, fst, snd).time);
+    try expectEqual(@as(f32, 0.75), lerp(0.75, fst, snd).time);
 }
 
 test "findU" {

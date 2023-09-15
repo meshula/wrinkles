@@ -10,11 +10,25 @@ pub const ControlPoint = struct {
     /// value of the Control point at the time cooridnate
     value: f32,
 
-    // multiply with float
-    pub fn mul(self: @This(), val: f32) ControlPoint {
+    // polymorphic dispatch
+    pub inline fn mul(self: @This(), rhs: anytype) ControlPoint {
+        return switch (@typeInfo(@TypeOf(rhs))) {
+            .Struct => self.mul_cp(rhs),
+            else => self.mul_num(rhs),
+        };
+    }
+
+    pub fn mul_num(self: @This(), val: f32) ControlPoint {
         return .{
             .time = val*self.time,
             .value = val*self.value,
+        };
+    }
+
+    pub fn mul_cp(self: @This(), rhs: ControlPoint) ControlPoint {
+        return .{
+            .time = rhs.time*self.time,
+            .value = rhs.value*self.value,
         };
     }
 
@@ -25,17 +39,46 @@ pub const ControlPoint = struct {
         };
     }
 
-    pub fn add(self: @This(), rhs: ControlPoint) ControlPoint {
+    pub fn add(self: @This(), rhs: anytype) ControlPoint {
+        return switch (@typeInfo(@TypeOf(rhs))) {
+            .Struct => self.add_cp(rhs),
+            else => self.add_num(rhs),
+        };
+    }
+
+    pub fn add_num(self: @This(), rhs: anytype) ControlPoint {
+        return .{
+            .time = self.time + rhs,
+            .value = self.value + rhs,
+        };
+    }
+
+
+    pub fn add_cp(self: @This(), rhs: ControlPoint) ControlPoint {
         return .{
             .time = self.time + rhs.time,
             .value = self.value + rhs.value,
         };
     }
 
-    pub fn sub(self: @This(), rhs: ControlPoint) ControlPoint {
+    pub fn sub(self: @This(), rhs: anytype) ControlPoint {
+        return switch (@typeInfo(@TypeOf(rhs))) {
+            .Struct => self.sub_cp(rhs),
+            else => self.sub_num(rhs),
+        };
+    }
+
+    pub fn sub_cp(self: @This(), rhs: ControlPoint) ControlPoint {
         return .{
             .time = self.time - rhs.time,
             .value = self.value - rhs.value,
+        };
+    }
+
+    pub fn sub_num(self: @This(), rhs: anytype) ControlPoint {
+        return .{
+            .time = self.time - rhs,
+            .value = self.value - rhs,
         };
     }
 

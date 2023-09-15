@@ -648,8 +648,8 @@ pub fn create_linear_segment(
     if (p1.time >= p0.time) {
         return .{
             .p0 = p0,
-            .p1 = bezier_math.lerp_cp(1.0/3.0, p0, p1),
-            .p2 = bezier_math.lerp_cp(2.0/3.0, p0, p1),
+            .p1 = bezier_math.lerp(1.0/3.0, p0, p1),
+            .p2 = bezier_math.lerp(2.0/3.0, p0, p1),
             .p3 = p1,
         };
     }
@@ -2986,7 +2986,7 @@ pub fn three_point_guts_plot(
     const u = one_minus_t_cubed / (t_cubed + one_minus_t_cubed);
 
     // C is a lerp between the end points
-    const C = bezier_math.lerp_cp(1-u, start_knot, end_knot);
+    const C = bezier_math.lerp(1-u, start_knot, end_knot);
     final_result.C = C;
 
     // abs( (t^3 + (1-t)^3 - 1) / ( t^3 + (1-t)^3 ) )

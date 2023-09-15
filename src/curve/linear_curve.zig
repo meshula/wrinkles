@@ -353,7 +353,7 @@ pub const TimeCurveLinear = struct {
                         next_knot.value
                     );
                     result.append(
-                        bezier_math.lerp_cp(
+                        bezier_math.lerp(
                             u,
                             knot,
                             next_knot
