@@ -310,6 +310,14 @@ pub fn build(b: *std.build.Builder) void {
     ensureTarget(options.target) catch return;
 
     //b.prominent_compile_errors = true;
+    const comath_dep = b.dependency(
+        "comath",
+        .{
+            .target = options.target,
+            .optimize = options.optimize,
+        }
+    );
+
 
     const otio_allocator = b.createModule(
         .{
@@ -339,6 +347,7 @@ pub fn build(b: *std.build.Builder) void {
                 .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "opentime", .module = opentime },
                 .{ .name = "otio_allocator", .module = otio_allocator },
+                .{ .name = "comath", .module = comath_dep.module("comath") },
             },
         }
     );
@@ -360,6 +369,7 @@ pub fn build(b: *std.build.Builder) void {
         .{ .name = "curve", .module = curve },
         .{ .name = "otio_allocator", .module = otio_allocator },
         .{ .name = "time_topology", .module = time_topology },
+        .{ .name = "comath", .module = comath_dep.module("comath") },
     };
 
     build_wrinkles_like(

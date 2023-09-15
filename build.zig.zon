@@ -22,6 +22,10 @@
             .url = "https://github.com/michal-z/webgpu_dawn-x86_64-macos/archive/901716b10b31ce3e0d3fe479326b41e91d59c661.tar.gz",
             .hash = "1220b1f02f2f7edd98a078c64e3100907d90311d94880a3cc5927e1ac009d002667a",
         },
+        .comath = .{
+            .url = "https://github.com/InKryption/comath/archive/494d612859e3c3d709aa74faabde59d4b97f547b.tar.gz",
+            .hash = "12203fafec44f0911b996d259f4d9c2f702b16b949c5691a8f8c870e6d7e61573b6c",
+        },
      }
 }
 
