@@ -260,49 +260,65 @@ pub const Segment = struct {
 
         const p = self.points();
 
-        // const Q0 = p[0];
-        //
-        // // Vector2 Q1 = (1 - unorm) * p[0] + unorm * p[1];
-        // const Q1 = vec2_add_vec2(float_mul_vec2((1 - unorm), p[0]),
-        //     float_mul_vec2(unorm, p[1]));
-        //
-        // //Vector2 Q2 = (1 - unorm) * Q1 + unorm * ((1 - unorm) * p[1] + unorm * p[2]);
-        // const Q2 = vec2_add_vec2(float_mul_vec2((1 - unorm), Q1),
-        //     float_mul_vec2(unorm, (vec2_add_vec2(float_mul_vec2((1 - unorm), p[1]),
-        //                 float_mul_vec2(unorm, p[2])))));
+        const Q0 = self.p0;
 
-        // Vector2 p[4] = { bz->p[0], bz->p[1], bz->p[2], bz->p[3] };
+        // Vector2 Q1 = (1 - unorm) * p[0] + unorm * p[1];
+        const Q1 = (
+            (p[0].mul(1 - unorm)).add(p[1].mul(unorm))
+        );
 
-            const Q0 = self.p0;
-
-            // Vector2 Q1 = (1 - unorm) * p[0] + unorm * p[1];
-            const Q1 = (
-                (
-                    p[0].mul(1 - unorm)
-                ).add(p[1].mul(unorm))
-            );
-
-            //Vector2 Q2 = (1 - unorm) * Q1 + unorm * ((1 - unorm) * p[1] + unorm * p[2]);
-            const Q2 = Q1.mul((1-unorm)).add(
-                ((p[1].mul(1-unorm)).add(p[2].mul(unorm))).mul(unorm));
+        //Vector2 Q2 = (1 - unorm) * Q1 + unorm * ((1 - unorm) * p[1] + unorm * p[2]);
+        const Q2 = Q1.mul((1-unorm)).add(
+            ((p[1].mul(1-unorm)).add(p[2].mul(unorm))).mul(unorm)
+        );
 
         //Vector2 Q3 = (1 - unorm) * Q2 + unorm * ((1 - unorm) * ((1 - unorm) * p[1] + unorm * p[2]) + unorm * ((1 - unorm) * p[2] + unorm * p[3]));
-        const Q3 = vec2_add_vec2(Q2.mul(1-unorm),
-            float_mul_vec2(unorm, (vec2_add_vec2(float_mul_vec2((1 - unorm), (vec2_add_vec2(float_mul_vec2((1 - unorm), p[1]),
-                                    p[2].mul(unorm)))),
-                        ((p[2].mul(1-unorm)).add(
-                                p[3].mul(unorm))).mul(unorm)))));
+        const Q3 = vec2_add_vec2(
+            Q2.mul(1-unorm),
+            float_mul_vec2(
+                unorm,
+                (
+                 vec2_add_vec2(
+                     float_mul_vec2(
+                         (1 - unorm),
+                         (
+                          vec2_add_vec2(
+                              float_mul_vec2(
+                                  (1 - unorm),
+                                  p[1]
+                              ),
+                              p[2].mul(unorm)
+                          )
+                         )
+                     ),
+                     (
+                      (p[2].mul(1-unorm)).add(p[3].mul(unorm))).mul(unorm)
+                 )
+                )
+            )
+        );
 
         const R0 = Q3;
 
         //Vector2 R2 = (1 - unorm) * p[2] + unorm * p[3];
-        const R2 = vec2_add_vec2(float_mul_vec2((1 - unorm), p[2]),
-            float_mul_vec2(unorm, p[3]));
+        const R2 = vec2_add_vec2(
+            float_mul_vec2((1 - unorm), p[2]),
+            float_mul_vec2(unorm, p[3])
+        );
 
         //Vector2 R1 = (1 - unorm) * ((1 - unorm) * p[1] + unorm * p[2]) + unorm * R2;
-        const R1 = vec2_add_vec2(float_mul_vec2((1 - unorm), (vec2_add_vec2(float_mul_vec2((1 - unorm), p[1]),
-                        float_mul_vec2(unorm, p[2])))),
-            float_mul_vec2(unorm, R2));
+        const R1 = vec2_add_vec2(
+            float_mul_vec2(
+                (1 - unorm),
+                (
+                 vec2_add_vec2(
+                     float_mul_vec2((1 - unorm), p[1]),
+                     float_mul_vec2(unorm, p[2])
+                 )
+                )
+            ),
+            float_mul_vec2(unorm, R2)
+        );
         const R3 = p[3];
 
         return .{
