@@ -60,7 +60,6 @@ pub fn value_at_time_between(
     return lerp(u, fst.value, snd.value);
 }
 
-// @TODO: turn these back on
 pub fn segment_reduce4(u: f32, segment: curve.Segment) curve.Segment {
     return .{
         .p0 = lerp(u, segment.p0, segment.p1),
