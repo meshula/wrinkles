@@ -12,6 +12,14 @@ test "basic comath test" {
     try std.testing.expect(value == 8);
 }
 
+const CTX = comath.contexts.fnMethodCtx(
+    comath.contexts.simpleCtx({}),
+    .{
+        .@"+" = "add",
+        .@"*" = &.{"mul_float", "mul"},
+    }
+);
+
 test "comath really simple example" {
     // really simple example
     {
@@ -77,16 +85,35 @@ pub fn DualOfStruct(comptime T: type) type
         }
 
         pub inline fn add(self: @This(), rhs: @This()) @This() {
-            return .{ 
-                .r = self.r.add(rhs.r),
-                .i = self.i.add(rhs.i),
+            return .{
+                .r = comath.eval(
+                    "self_r + rhs_r",
+                    CTX,
+                    .{ .self_r = self.r, .rhs_r = rhs.r }
+                ) catch |err| switch (err) {},
+                .i = comath.eval(
+                    "self_i + rhs_i",
+                    CTX,
+                    .{ .self_r = self.r, .rhs_r = rhs.r }
+                ) catch |err| switch (err) {}
             };
+
+            // return .{ 
+            //     .r = self.r.add(rhs.r),
+            //     .i = self.i.add(rhs.i),
+            // };
         }
 
-        pub inline fn mul(self: @This(), rhs: @This()) @This() {
-            return .{ 
-                .r = self.r.mul(rhs.r),
-                .i = (self.r.mul(rhs.i)).add(self.i.mul(rhs.r)),
+        pub inline fn mul(self: @This(), rhs: anytype) @This() {
+            return switch(@typeInfo(@TypeOf(rhs))) {
+                .Struct => .{ 
+                    .r = self.r.mul(rhs.r),
+                    .i = (self.r.mul(rhs.i)).add(self.i.mul(rhs.r)),
+                },
+                else => .{
+                    .r = self.r * rhs,
+                    .i = self.i * rhs,
+                },
             };
         }
     };
@@ -100,17 +127,16 @@ pub const ControlPoint = struct {
     value: f32 = 0,
 
     // multiply with float
-    pub fn mul_float(self: @This(), val: f32) ControlPoint {
-        return .{
-            .time = val*self.time,
-            .value = val*self.value,
-        };
-    }
-
-    pub fn mul(self: @This(), rhs: ControlPoint) ControlPoint {
-        return .{
-            .time = rhs.time*self.time,
-            .value = rhs.value*self.value,
+    pub fn mul(self: @This(), rhs: anytype) ControlPoint {
+        return switch(@typeInfo(rhs)) {
+            .Struct =>  .{
+                .time = rhs.time*self.time,
+                .value = rhs.value*self.value,
+            },
+            else => .{
+                .time = rhs.time*self.time,
+                .value = rhs.value*self.value,
+            },
         };
     }
 
@@ -219,6 +245,58 @@ test "comath dual test polymorphic" {
         errdefer std.debug.print(
             "{d}: Failed for type: {s}, \nrecieved: {any}\nexpected: {any}\n\n",
             .{ i,  @typeName(@TypeOf(td.x)), value, td.expect }
+        );
+
+        try std.testing.expect(std.meta.eql(value, td.expect));
+    }
+}
+
+pub fn lerp(u: f32, a: anytype, b: @TypeOf(a)) @TypeOf(a) {
+    return comath.eval(
+        "a * (1 - u) + b * u",
+        CTX,
+        .{ .a = a, .b = b, .u = u}
+    ) catch |err| switch (err) {};
+}
+
+test "test lerp" {
+    const test_data = &.{
+        // as float
+        .{
+            .u = 0.25,
+            .a = 1.0,
+            .b = 2.0,
+            .expect = 1.25,
+        },
+        // as float dual
+        .{
+            .u = 0.25,
+            .a = Dual_f32{ .r = 1 },
+            .b = Dual_f32{ .r = 2 }, 
+            .expect = Dual_f32{ .r = 1.25, .i = 3.14 },
+        },
+        // as control point dual
+        .{
+            .u = 0.25,
+            .a = Dual_CP{
+                .r = .{ .time = 1, .value = 5 },
+            },
+            .b = Dual_CP{
+                .r = .{ .time = 2, .value = 15 },
+            },
+            .expect = Dual_CP{
+                .r = .{ .time = 2, .value = 15 },
+                .i = .{ .time = -3, .value = 0 },
+            },
+        },
+    };
+
+    inline for (test_data, 0..) |td, i| {
+        const value = lerp(td.u, td.a, td.b);
+
+        errdefer std.debug.print(
+            "{d}: Failed for type: {s}, \nrecieved: {any}\nexpected: {any}\n\n",
+            .{ i,  @typeName(@TypeOf(td.a)), value, td.expect }
         );
 
         try std.testing.expect(std.meta.eql(value, td.expect));
