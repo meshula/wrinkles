@@ -64,28 +64,6 @@ fn _is_between(val: f32, fst: f32, snd: f32) bool {
     );
 }
 
-fn vec2_add_vec2(
-    lhs: control_point.ControlPoint,
-    rhs: control_point.ControlPoint
-) control_point.ControlPoint {
-    return .{ .time = lhs.time + rhs.time, .value = lhs.value + rhs.value };
-}
-
-fn vec2_sub_vec2(
-    lhs: control_point.ControlPoint,
-    rhs: control_point.ControlPoint
-) control_point.ControlPoint {
-    return .{ .time = lhs.time - rhs.time, .value = lhs.value - rhs.value };
-}
-
-fn float_mul_vec2(
-    lhs: f32,
-    rhs: control_point.ControlPoint
-) control_point.ControlPoint
-{
-    return .{ .time = lhs * rhs.time, .value = lhs * rhs.value };
-}
-
 // Time curves are functions mapping a time to a value.
 // Time curves are a sequence of right met 2d Bezier curve segments
 // closed on the left and open on the right.
@@ -263,62 +241,83 @@ pub const Segment = struct {
         const Q0 = self.p0;
 
         // Vector2 Q1 = (1 - unorm) * p[0] + unorm * p[1];
-        const Q1 = (
-            (p[0].mul(1 - unorm)).add(p[1].mul(unorm))
-        );
+        const Q1 = bezier_math.lerp(unorm, p[0], p[1]);
 
         //Vector2 Q2 = (1 - unorm) * Q1 + unorm * ((1 - unorm) * p[1] + unorm * p[2]);
-        const Q2 = Q1.mul((1-unorm)).add(
-            ((p[1].mul(1-unorm)).add(p[2].mul(unorm))).mul(unorm)
+        const Q2 = bezier_math.lerp(
+            unorm,
+            Q1,
+            bezier_math.lerp(unorm, p[1], p[2])
         );
 
+        // const Q2 = Q1.mul((1-unorm)).add(
+        //     ((p[1].mul(1-unorm)).add(p[2].mul(unorm))).mul(unorm)
+        // );
+
         //Vector2 Q3 = (1 - unorm) * Q2 + unorm * ((1 - unorm) * ((1 - unorm) * p[1] + unorm * p[2]) + unorm * ((1 - unorm) * p[2] + unorm * p[3]));
-        const Q3 = vec2_add_vec2(
-            Q2.mul(1-unorm),
-            float_mul_vec2(
+        const Q3 = bezier_math.lerp(
+            unorm,
+            Q2,
+            bezier_math.lerp(
                 unorm,
-                (
-                 vec2_add_vec2(
-                     float_mul_vec2(
-                         (1 - unorm),
-                         (
-                          vec2_add_vec2(
-                              float_mul_vec2(
-                                  (1 - unorm),
-                                  p[1]
-                              ),
-                              p[2].mul(unorm)
-                          )
-                         )
-                     ),
-                     (
-                      (p[2].mul(1-unorm)).add(p[3].mul(unorm))).mul(unorm)
-                 )
-                )
+                bezier_math.lerp(unorm, p[1], p[2]),
+                bezier_math.lerp(unorm, p[2], p[3])
             )
         );
+
+
+        // const Q3 = vec2_add_vec2(
+        //     Q2.mul(1-unorm),
+        //     float_mul_vec2(
+        //         unorm,
+        //         (
+        //          vec2_add_vec2(
+        //              float_mul_vec2(
+        //                  (1 - unorm),
+        //                  (
+        //                   vec2_add_vec2(
+        //                       float_mul_vec2(
+        //                           (1 - unorm),
+        //                           p[1]
+        //                       ),
+        //                       p[2].mul(unorm)
+        //                   )
+        //                  )
+        //              ),
+        //              (
+        //               (p[2].mul(1-unorm)).add(p[3].mul(unorm))).mul(unorm)
+        //          )
+        //         )
+        //     )
+        // );
 
         const R0 = Q3;
 
         //Vector2 R2 = (1 - unorm) * p[2] + unorm * p[3];
-        const R2 = vec2_add_vec2(
-            float_mul_vec2((1 - unorm), p[2]),
-            float_mul_vec2(unorm, p[3])
-        );
+        const R2 = bezier_math.lerp(unorm, p[2], p[3]);
+        // const R2 = vec2_add_vec2(
+        //     float_mul_vec2((1 - unorm), p[2]),
+        //     float_mul_vec2(unorm, p[3])
+        // );
 
         //Vector2 R1 = (1 - unorm) * ((1 - unorm) * p[1] + unorm * p[2]) + unorm * R2;
-        const R1 = vec2_add_vec2(
-            float_mul_vec2(
-                (1 - unorm),
-                (
-                 vec2_add_vec2(
-                     float_mul_vec2((1 - unorm), p[1]),
-                     float_mul_vec2(unorm, p[2])
-                 )
-                )
-            ),
-            float_mul_vec2(unorm, R2)
+        const R1 = bezier_math.lerp(
+            unorm,
+            bezier_math.lerp(unorm, p[1], p[2]), 
+            R2,
         );
+        // const R1 = vec2_add_vec2(
+        //     float_mul_vec2(
+        //         (1 - unorm),
+        //         (
+        //          vec2_add_vec2(
+        //              float_mul_vec2((1 - unorm), p[1]),
+        //              float_mul_vec2(unorm, p[2])
+        //          )
+        //         )
+        //     ),
+        //     float_mul_vec2(unorm, R2)
+        // );
         const R3 = p[3];
 
         return .{
