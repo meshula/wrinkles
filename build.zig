@@ -253,7 +253,12 @@ pub fn build_wrinkles_like(
     zgui_pkg.link(exe);
 
     exe.addIncludePath(.{ .path = "./spline-gym/src"});
-    exe.addCSourceFile(.{ .file = .{ .path = "./spline-gym/src/hodographs.c"}, .flags = &c_args});
+    exe.addCSourceFile(
+        .{ 
+            .file = .{ .path = "./spline-gym/src/hodographs.c"},
+            .flags = &c_args
+        }
+    );
 
     for (module_deps) |mod| {
         exe.addModule(mod.name, mod.module);
