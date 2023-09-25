@@ -417,7 +417,10 @@ test "inverted: invert linear" {
     const identity_crv:curve.TimeCurve = .{ .segments = &identity_seg };
 
     var t :f32 = 0;
-    while (t<1) : (t += 0.01) {
+    //           no split at t=1 (end point)
+    while (t<1 - 0.01) 
+        : (t += 0.01) 
+    {
         const idntity_p = try identity_crv.evaluate(t);
         const forward_p = try forward_crv.evaluate(t);
         const inverse_p = try inverse_crv.evaluate(forward_p);
