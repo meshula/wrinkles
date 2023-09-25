@@ -840,7 +840,9 @@ pub const TimeCurve = struct {
     }
 
     pub fn find_segment(self: @This(), t_arg: f32) ?*Segment {
-        if (self.find_segment_index(t_arg)) |ind| {
+        if (self.find_segment_index(t_arg)) 
+           |ind|
+        {
             return &self.segments[ind];
         }
 
@@ -1440,7 +1442,28 @@ pub const TimeCurve = struct {
             return error.OutOfBounds;
         };
 
-        var split_segments = self.segments[seg_to_split_index].split_at(ordinate);
+        const seg_to_split = self.segments[seg_to_split_index];
+
+        const unorm = seg_to_split.findU_input(ordinate);
+
+        if (
+            unorm < generic_curve.EPSILON 
+            or generic_curve.EPSILON > @fabs(1 - unorm) 
+        ) {
+            return .{ .segments = try allocator.dupe(Segment, self.segments) };
+        }
+
+        const maybe_split_segments = seg_to_split.split_at(unorm);
+
+        if (maybe_split_segments == null) {
+            std.log.err(
+                "ordinate: {} unorm: {} seg_to_split: {s}\n",
+                .{ ordinate, unorm, seg_to_split.debug_json_str() }
+            );
+            return error.OutOfBounds;
+        }
+        const split_segments = maybe_split_segments.?;
+
 
         var new_segments = try allocator.alloc(Segment, self.segments.len + 1);
 
@@ -1671,7 +1694,11 @@ pub const TimeCurve = struct {
 
         const unorm = seg_to_split.findU_input(ordinate);
 
-        const split_segments = seg_to_split.split_at(unorm);
+        const maybe_split_segments = seg_to_split.split_at(unorm);
+        if (maybe_split_segments == null) {
+            return .{};
+        }
+        const split_segments = maybe_split_segments.?;
 
         var new_segments:[]Segment = undefined;
 
@@ -1782,22 +1809,24 @@ pub const TimeCurve = struct {
                 inflections.x,
             };
 
-            for (possible_splits) |possible_split| 
+            for (possible_splits) 
+                |possible_split| 
             {
                 // if the possible split isn't already a segment boundary
                 if (possible_split > 0 and possible_split < 1) 
                 {
                     var duplicate:bool = false;
 
-                    for (0..split_count) |s_i| 
+                    for (0..split_count) 
+                        |s_i| 
                     {
-                        duplicate = (
-                            duplicate
-                            or (
-                                std.math.fabs(splits[s_i] - possible_split) 
-                                < generic_curve.EPSILON
-                            )
-                        );
+                        if (
+                            std.math.fabs(splits[s_i] - possible_split) 
+                            < generic_curve.EPSILON
+                        ) {
+                            duplicate = true;
+                            break;
+                        }
                     }
 
                     if (duplicate == false) {
@@ -1823,11 +1852,17 @@ pub const TimeCurve = struct {
             }
 
             var current_seg = seg;
-            for (0..split_count) |i| {
+
+            for (0..split_count) 
+                |i| 
+            {
                 const pt = seg.eval_at(splits[i]);
                 const u = current_seg.findU_input(pt.time);
                 const maybe_xsplits = current_seg.split_at(u);
-                if (maybe_xsplits) |xsplits| {
+
+                if (maybe_xsplits) 
+                    |xsplits| 
+                {
                     try split_segments.append(xsplits[0]);
                     current_seg = xsplits[1];
                 }
@@ -2393,18 +2428,29 @@ test "TimeCurve: split_at_input_ordinate" {
     defer test_curves[1].deinit(std.testing.allocator);
     defer test_curves[2].deinit(std.testing.allocator);
 
-    for (test_curves) |ident| {
+    for (test_curves, 0..) 
+        |ident, loop| 
+    {
         const extents = ident.extents();
-        var split_loc:f32 = extents[0].time;
+        var split_loc:f32 = extents[0].time + 1;
 
-        while (split_loc < extents[1].time) : (split_loc += 1) {
+        while (split_loc < extents[1].time) 
+            : (split_loc += 1) 
+        {
+            errdefer std.log.err(
+                "loop_index: {} extents: {any}, split_loc: {} curve: {s}\n",
+                .{loop, extents, split_loc, ident.debug_json_str()}
+            );
             const split_ident = try ident.split_at_input_ordinate(
                 split_loc,
                 std.testing.allocator
             );
             defer split_ident.deinit(std.testing.allocator);
 
-            try expectEqual(ident.segments.len + 1, split_ident.segments.len);
+            try expectEqual(
+                ident.segments.len + 1,
+                split_ident.segments.len
+            );
 
             // check that the end points are the same
             try expectEqual(
