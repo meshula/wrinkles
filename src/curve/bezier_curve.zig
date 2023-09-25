@@ -764,6 +764,15 @@ pub const TimeCurve = struct {
         allocator.free(self.segments);
     }
 
+    pub fn init_from_start_end(
+        p0: control_point.ControlPoint,
+        p1: control_point.ControlPoint
+    ) !TimeCurve 
+    {
+        return try TimeCurve.init(&.{ create_linear_segment(p0, p1) });
+    }
+
+
     pub fn init_from_linear_curve(crv: linear_curve.TimeCurveLinear) TimeCurve {
         var result = std.ArrayList(Segment).init(ALLOCATOR);
         result.deinit();
