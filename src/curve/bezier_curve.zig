@@ -2856,7 +2856,7 @@ test "TimeCurve: split_on_critical_points s curve" {
         Segment{
             .p0 = .{ .time = 0, .value = 0 },
             .p1 = .{ .time = 0, .value = 200 },
-            .p2 = .{ .time = 200, .value = 0 },
+            .p2 = .{ .time = 100, .value = -100 },
             .p3 = .{ .time = 100, .value = 100 },
         },
     }; 
