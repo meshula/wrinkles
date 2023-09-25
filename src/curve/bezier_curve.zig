@@ -788,28 +788,43 @@ pub const TimeCurve = struct {
     }
 
     /// evaluate the curve at time t in the space of the curve
-    pub fn evaluate(self: @This(), t_arg: f32) error{OutOfBounds}!f32 {
-        const seg_ptr = self.find_segment(t_arg);
-        if (seg_ptr) |seg| {
+    pub fn evaluate(
+        self: @This(),
+        t_arg: f32
+    ) error{OutOfBounds}!f32 
+    {
+        if (self.find_segment(t_arg)) 
+           |seg|
+        {
             return seg.eval_at_x(t_arg);
         }
+
+        // no segment found
         return error.OutOfBounds;
     }
 
     pub fn find_segment_index(self: @This(), t_arg: f32) ?usize {
-        if (self.segments.len == 0 or
-            t_arg < self.segments[0].p0.time or
-            t_arg >= self.segments[self.segments.len - 1].p3.time)
+        if (
+            self.segments.len == 0 
+            or t_arg < self.segments[0].p0.time - generic_curve.EPSILON
+            or t_arg >= self.segments[self.segments.len - 1].p3.time - generic_curve.EPSILON
+        )
         {
+        std.log.err(
+            "(out of bounds) no splits at: {} (p0.time: {}, p3.time: {})\n",
+            .{ t_arg, self.segments[0].p0.time, self.segments[self.segments.len - 1].p3.time }
+        );
             return null;
         }
 
         // quick check if it is exactly the start time of the first segment
-        if (t_arg == self.segments[0].p0.time) {
+        if (t_arg < self.segments[0].p0.time + generic_curve.EPSILON) {
             return 0;
         }
 
-        for (self.segments, 0..) |seg, index| {
+        for (self.segments, 0..) 
+            |seg, index| 
+        {
             if (
                 seg.p0.time <= t_arg + generic_curve.EPSILON 
                 and t_arg < seg.p3.time - generic_curve.EPSILON
