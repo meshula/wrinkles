@@ -342,6 +342,7 @@ pub fn build(b: *std.build.Builder) void {
             .dependencies = &.{ 
                 .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "otio_allocator", .module = otio_allocator },
+                .{ .name = "comath", .module = comath_dep.module("comath") },
             },
         }
     );

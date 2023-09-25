@@ -4,15 +4,19 @@ const ALLOCATOR = allocator.ALLOCATOR;
 const expectEqual = std.testing.expectEqual;
 const generic_curve = @import("generic_curve.zig");
 
+const dual = @import("opentime").dual;
+
+pub const Dual_CP = dual.DualOf(ControlPoint);
+
 /// control point for curve parameterization
 pub const ControlPoint = struct {
     /// temporal coordinate of the control point
-    time: f32,
+    time: f32 = 0,
     /// value of the Control point at the time cooridnate
-    value: f32,
+    value: f32 = 0,
 
     // polymorphic dispatch
-    pub inline fn mul(self: @This(), rhs: anytype) ControlPoint {
+    pub fn mul(self: @This(), rhs: anytype) ControlPoint {
         return switch (@typeInfo(@TypeOf(rhs))) {
             .Struct => self.mul_cp(rhs),
             else => self.mul_num(rhs),

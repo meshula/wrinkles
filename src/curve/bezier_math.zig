@@ -8,6 +8,7 @@ const generic_curve = @import("generic_curve.zig");
 const expectEqual = std.testing.expectEqual;
 const expect = std.testing.expect;
 const comath = @import("comath");
+const dual = @import("opentime").dual;
 
 
 fn expectApproxEql(expected: anytype, actual: @TypeOf(expected)) !void {
@@ -22,13 +23,13 @@ const CTX = comath.contexts.fnMethodCtx(
     .{
         .@"+" = "add",
         .@"-" = "sub",
-        .@"*" = &.{"mul"},
+        .@"*" = "mul",
     }
 );
 
 pub fn lerp(u: anytype, a: anytype, b: @TypeOf(a)) @TypeOf(a) {
     return comath.eval(
-        "a * (1 - u) + b * u",
+        "a * (1.0 - u) + b * u",
         CTX,
         .{
             .a = a,
@@ -58,6 +59,47 @@ pub fn value_at_time_between(
 {
     const u = invlerp(t, fst.time, snd.time);
     return lerp(u, fst.value, snd.value);
+}
+
+// dual variety
+pub fn segment_reduce4_dual(
+    u: f32, 
+    segment: [4]control_point.Dual_CP
+) [4]control_point.Dual_CP 
+{
+    const  u_dual = dual.DualOf(f32){ .r = u, .i = 1 };
+    return .{
+        lerp(u_dual, segment[0], segment[1]),
+        lerp(u_dual, segment[1], segment[2]),
+        lerp(u_dual, segment[2], segment[3]),
+        .{}
+    };
+}
+
+pub fn segment_reduce3_dual(
+    u: f32,
+    segment: [4]control_point.Dual_CP
+) [4]control_point.Dual_CP 
+{
+    return .{
+        lerp(u, segment[0], segment[1]),
+        lerp(u, segment[1], segment[2]),
+        .{},
+        .{},
+    };
+}
+
+pub fn segment_reduce2_dual(
+    u: f32,
+    segment: [4]control_point.Dual_CP
+) [4]control_point.Dual_CP 
+{
+    return .{
+        lerp(u, segment[0], segment[1]),
+        .{},
+        .{},
+        .{},
+    };
 }
 
 pub fn segment_reduce4(u: f32, segment: curve.Segment) curve.Segment {

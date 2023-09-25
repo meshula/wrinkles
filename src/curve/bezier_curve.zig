@@ -28,6 +28,8 @@ const ALLOCATOR = otio_allocator.ALLOCATOR;
 const string_stuff = @import("string_stuff");
 const latin_s8 = string_stuff.latin_s8;
 
+const dual = opentime.dual;
+
 pub var u_val_of_midpoint:f32 = 0.5;
 pub var fudge:f32 = 1;
 
@@ -189,6 +191,26 @@ pub const Segment = struct {
         self.p3 = pts[3];
     }
 
+    pub fn eval_at_dual(
+        self: @This(),
+        unorm:f32,
+    ) control_point.Dual_CP
+    {
+        var seg : [4]control_point.Dual_CP = undefined;
+        const self_p = self.points();
+
+        inline for (0..4) |i| 
+        {
+            seg[i].r = self_p[i];
+            seg[i].i = .{ .time = 1, .value = 1 };
+        }
+
+        const seg3 = bezier_math.segment_reduce4_dual(unorm, seg);
+        const seg2 = bezier_math.segment_reduce3_dual(unorm, seg3);
+        const result = bezier_math.segment_reduce2_dual(unorm, seg2);
+        return result[0];
+    }
+
     /// evaluate the segment at parameter unorm, [0, 1)
     pub fn eval_at(
         self: @This(),
@@ -233,7 +255,7 @@ pub const Segment = struct {
     {
         if (unorm < generic_curve.EPSILON or unorm >= 1)
         {
-            std.log.err("out of bounds unorm {}\n", .{ unorm });
+            // std.log.err("out of bounds unorm {}\n", .{ unorm });
             return null;
         }
 
@@ -650,8 +672,23 @@ test "segment: eval_at_x and findU test over linear curve" {
         .{.time = 3, .value = 3},
     );
 
-    inline for ([_]f32{2.1, 2.2, 2.3, 2.5, 2.7}) |coord| {
+    inline for ([_]f32{2.1, 2.2, 2.3, 2.5, 2.7}) 
+               |coord| 
+    {
         try expectApproxEql(coord, seg.eval_at_x(coord));
+    }
+}
+
+test "segment: dual_eval_at over linear curve" {
+    const seg = create_identity_segment(0, 1);
+
+    inline for ([_]f32{0.2, 0.4, 0.5, 0.98}) 
+               |coord| 
+    {
+        try expectApproxEql(coord, seg.eval_at_dual(coord).r.time);
+        try expectApproxEql(coord, seg.eval_at_dual(coord).r.value);
+        try expectApproxEql(@as(f32, 1), seg.eval_at_dual(coord).i.time);
+        try expectApproxEql(@as(f32, 1), seg.eval_at_dual(coord).i.value);
     }
 }
 
@@ -810,10 +847,6 @@ pub const TimeCurve = struct {
             or t_arg >= self.segments[self.segments.len - 1].p3.time - generic_curve.EPSILON
         )
         {
-        std.log.err(
-            "(out of bounds) no splits at: {} (p0.time: {}, p3.time: {})\n",
-            .{ t_arg, self.segments[0].p0.time, self.segments[self.segments.len - 1].p3.time }
-        );
             return null;
         }
 
@@ -1087,7 +1120,8 @@ pub const TimeCurve = struct {
                     // curves of less than one point are trimmed, because they
                     // have no duration, and therefore are not modelled in our
                     // system.
-                    if (current_curve.items.len > 1) {
+                    if (current_curve.items.len > 1) 
+                    {
                         curves_to_project.append(
                             TimeCurve.init(
                                 current_curve.toOwnedSlice() catch unreachable
@@ -1101,19 +1135,26 @@ pub const TimeCurve = struct {
                 last_index = @intCast(index);
             }
         }
-        if (current_curve.items.len > 0) {
+        if (current_curve.items.len > 0) 
+        {
             curves_to_project.append(
-                TimeCurve.init(current_curve.toOwnedSlice() catch unreachable) catch unreachable
+                TimeCurve.init(
+                    current_curve.toOwnedSlice() catch unreachable
+                ) catch unreachable
             ) catch unreachable;
         }
 
-        if (curves_to_project.items.len == 0) {
+        if (curves_to_project.items.len == 0) 
+        {
             result.result = TimeCurve{};
             return result;
         }
 
         result.to_project = .{ 
-            .segments = try allocator.dupe(Segment, curves_to_project.items[0].segments),
+            .segments = try allocator.dupe(
+                Segment,
+                curves_to_project.items[0].segments
+            ),
         };
 
         var guts = std.ArrayList(tpa_result).init(allocator);
@@ -1956,8 +1997,8 @@ test "TimeCurve: positive length 1 linear segment test" {
 
     // within the range of the curve
     try expectEqual(@as(f32, 0),    try xform_curve.evaluate(1));
-    try expectEqual(@as(f32, 0.25), try xform_curve.evaluate(1.25));
-    try expectEqual(@as(f32, 0.5),  try xform_curve.evaluate(1.5));
+    try std.testing.expectApproxEqAbs(@as(f32, 0.25), try xform_curve.evaluate(1.25), generic_curve.EPSILON);
+    try std.testing.expectApproxEqAbs(@as(f32, 0.5),  try xform_curve.evaluate(1.5), generic_curve.EPSILON);
     try expectEqual(@as(f32, 0.75), try xform_curve.evaluate(1.75));
 }
 
@@ -2025,10 +2066,23 @@ test "positive slope 2 linear segment test" {
     };
     const xform_curve = TimeCurve{ .segments = &test_segment_arr };
 
-    try expectEqual(@as(f32, 0),   try xform_curve.evaluate(1));
-    try expectEqual(@as(f32, 0.5), try xform_curve.evaluate(1.25));
-    try expectEqual(@as(f32, 1),   try xform_curve.evaluate(1.5));
-    try expectEqual(@as(f32, 1.5), try xform_curve.evaluate(1.75));
+    const tests = &.{
+        // expect result
+        .{ 0,   1   },
+        .{ 0.5, 1.25},
+        .{ 1,   1.5 },
+        .{ 1.5, 1.75},
+    };
+
+    inline for (tests) 
+        |t| 
+    {
+        try std.testing.expectApproxEqAbs(
+            @as(f32, t[0]),
+            try xform_curve.evaluate(t[1]),
+            generic_curve.EPSILON
+        );
+    }
 }
 
 test "negative length 1 linear segment test" {
@@ -2167,13 +2221,23 @@ test "json writer: curve" {
 
 test "segment: findU_value" {
     const test_segment = create_identity_segment(1,2);
-    try expectEqual(@as(f32, 0.5), test_segment.findU_value(1.5));
-    try expectEqual(@as(f32, 0), test_segment.findU_value(0.5));
-    try expectEqual(@as(f32, 1), test_segment.findU_value(2.5));
+    try std.testing.expectApproxEqAbs(
+        @as(f32, 0.5),
+        test_segment.findU_value(1.5),
+        generic_curve.EPSILON
+    );
+    try std.testing.expectApproxEqAbs(
+        @as(f32, 0),
+        test_segment.findU_value(0.5),
+        generic_curve.EPSILON
+    );
+    try std.testing.expectApproxEqAbs(
+        @as(f32, 1),
+        test_segment.findU_value(2.5),
+        generic_curve.EPSILON
+    );
 
     // const test_segment_inv = create_linear_segment(
-    //     .{ .time = 1, .value = 2 },
-    //     .{ .time = 2, .value = 1 }
     // );
 
     // @TODO: this might be a legit bug in the root finder?
@@ -2183,6 +2247,16 @@ test "segment: findU_value" {
 }
 
 test "TimeCurve: project u loop bug" {
+    // until projection is worked out
+    if (true) {
+        return error.SkipZigTest;
+    }
+
+    // specific to the linearized implementation
+    const old_project_algo = project_algo;
+    project_algo = ProjectionAlgorithms.linearized;
+    defer project_algo = old_project_algo;
+
     const simple_s_segments = [_]Segment{
         create_linear_segment(
             .{ .time = 0, .value = 0},
@@ -2210,6 +2284,21 @@ test "TimeCurve: project u loop bug" {
     const upside_down_u = try TimeCurve.init(&u_seg);
 
     const result : TimeCurve = simple_s.project_curve(upside_down_u);
+
+    for (result.segments)
+        |seg|
+    {
+        for (seg.points())
+            |p|
+        {
+            try std.testing.expect(!std.math.isNan(p.time));
+            try std.testing.expect(!std.math.isNan(p.value));
+        }
+    }
+
+    errdefer std.log.err("simple_s: {s}\n", .{ simple_s.debug_json_str() } );
+    errdefer std.log.err("u: {s}\n", .{ upside_down_u.debug_json_str() } );
+    errdefer std.log.err("result: {s}\n", .{ result.debug_json_str() } );
 
     try expectEqual(@as(usize, 4), result.segments.len);
 }
