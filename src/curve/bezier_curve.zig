@@ -2934,13 +2934,23 @@ test "TimeCurve: split_on_critical_points symmetric about the origin" {
         {
             var c_split_l:hodographs.BezierSegment = undefined;
             var c_split_r:hodographs.BezierSegment = undefined;
-            var c_result = hodographs.split_bezier(&cSeg, t, &c_split_l, &c_split_r);
+            var c_result = hodographs.split_bezier(
+                &cSeg,
+                t,
+                &c_split_l,
+                &c_split_r
+            );
 
             const maybe_zig_splits = s_seg[0].split_at(t);
+
+            errdefer std.debug.print("\nt: {}\n", .{t});
 
             if (maybe_zig_splits == null) {
                 try std.testing.expect(c_result == false);
                 continue;
+            } else {
+                errdefer std.debug.print("zig added a split where c didnt", .{});
+                try std.testing.expect(c_result == true);
             }
 
             const zig_splits = maybe_zig_splits.?;
@@ -2966,29 +2976,29 @@ test "TimeCurve: split_on_critical_points symmetric about the origin" {
 
             for (0..4) 
                 |i|
-                {
-                    errdefer std.debug.print("\n\npt: {d} t: {d}\n", .{ i, t });
-                    try std.testing.expectApproxEqAbs(
-                        c_split_l.p[i].x,
-                        zig_splits[0].points()[i].time,
-                        generic_curve.EPSILON
-                    );
-                    try std.testing.expectApproxEqAbs(
-                        c_split_l.p[i].y,
-                        zig_splits[0].points()[i].value,
-                        generic_curve.EPSILON
-                    );
-                    try std.testing.expectApproxEqAbs(
-                        c_split_r.p[i].x,
-                        zig_splits[1].points()[i].time,
-                        generic_curve.EPSILON
-                    );
-                    try std.testing.expectApproxEqAbs(
-                        c_split_r.p[i].y,
-                        zig_splits[1].points()[i].value,
-                        generic_curve.EPSILON
-                    );
-                }
+            {
+                errdefer std.debug.print("\n\npt: {d} t: {d}\n", .{ i, t });
+                try std.testing.expectApproxEqAbs(
+                    c_split_l.p[i].x,
+                    zig_splits[0].points()[i].time,
+                    generic_curve.EPSILON
+                );
+                try std.testing.expectApproxEqAbs(
+                    c_split_l.p[i].y,
+                    zig_splits[0].points()[i].value,
+                    generic_curve.EPSILON
+                );
+                try std.testing.expectApproxEqAbs(
+                    c_split_r.p[i].x,
+                    zig_splits[1].points()[i].time,
+                    generic_curve.EPSILON
+                );
+                try std.testing.expectApproxEqAbs(
+                    c_split_r.p[i].y,
+                    zig_splits[1].points()[i].value,
+                    generic_curve.EPSILON
+                );
+            }
         }
 
         const s_curve_split = try s_curve_seg.split_on_critical_points(

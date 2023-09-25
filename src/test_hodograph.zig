@@ -64,15 +64,32 @@ test "hodograph: uuuuu" {
 }
 
 test "hodograph: multisegment curve" {
-    const crv = try curve.read_curve_json(
-        "curves/linear_scurve_u.curve.json",
-        std.testing.allocator,
-    );
-    defer crv.deinit(std.testing.allocator);
+    {
+        const crv = try curve.read_curve_json(
+            "curves/linear.curve.json",
+            std.testing.allocator,
+        );
+        defer crv.deinit(std.testing.allocator);
 
-    try std.testing.expectEqual(@as(usize, 3), crv.segments.len);
-    const split_crv = try crv.split_on_critical_points(std.testing.allocator);
-    defer std.testing.allocator.free(split_crv.segments);
+        try std.testing.expectEqual(@as(usize, 1), crv.segments.len);
+        const split_crv = try crv.split_on_critical_points(std.testing.allocator);
+        defer std.testing.allocator.free(split_crv.segments);
 
-    try std.testing.expectEqual(@as(usize, 4), split_crv.segments.len);
+        try std.testing.expectEqual(@as(usize, 1), split_crv.segments.len);
+    }
+
+    {
+        const crv = try curve.read_curve_json(
+            "curves/linear_scurve_u.curve.json",
+            std.testing.allocator,
+        );
+        defer crv.deinit(std.testing.allocator);
+
+        try std.testing.expectEqual(@as(usize, 3), crv.segments.len);
+        const split_crv = try crv.split_on_critical_points(std.testing.allocator);
+        defer std.testing.allocator.free(split_crv.segments);
+
+        // 1 segment for the linear, two for the s and 2 for the u
+        try std.testing.expectEqual(@as(usize, 5), split_crv.segments.len);
+    }
 }

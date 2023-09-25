@@ -393,14 +393,11 @@ pub fn inverted_bezier(
 }
 
 test "inverted: invert linear" {
-    var slope2 = [_]curve.Segment{
-        // slope of 2
-        curve.create_linear_segment(
+    // slope 2
+    const forward_crv = try curve.TimeCurve.init_from_start_end(
             .{.time = -1, .value = -3},
             .{.time = 1, .value = 1}
-        )
-    };
-    const forward_crv:curve.TimeCurve = .{ .segments = &slope2 };
+    );
 
     const inverse_crv = inverted_bezier(forward_crv);
 

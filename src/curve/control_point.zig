@@ -2,6 +2,7 @@ const std = @import("std");
 const allocator = @import("opentime").ALLOCATOR;
 const ALLOCATOR = allocator.ALLOCATOR;
 const expectEqual = std.testing.expectEqual;
+const generic_curve = @import("generic_curve.zig");
 
 /// control point for curve parameterization
 pub const ControlPoint = struct {
@@ -106,8 +107,15 @@ pub const ControlPoint = struct {
 
 /// check equality between two control points
 pub fn expectControlPointEqual(lhs: ControlPoint, rhs: ControlPoint) !void {
-    inline for (.{ "time", "value" }) |k| {
-        try expectEqual(@field(lhs, k), @field(rhs, k));
+    inline for (.{ "time", "value" }) 
+            |k| 
+    {
+        errdefer std.log.err("Error: expected {any} got {any}\n", .{ lhs, rhs });
+        try std.testing.expectApproxEqAbs(
+            @field(lhs, k),
+            @field(rhs, k),
+            generic_curve.EPSILON
+        );
     }
 }
 
@@ -131,11 +139,15 @@ test "ControlPoint: sub" {
 }
 
 test "ControlPoint: mul" { 
-    const cp1 = ControlPoint{ .time = 0, .value = 10 };
-    const scale = -10;
+    const cp1 = ControlPoint{ .time = 0.0, .value = 10.0 };
+    const scale = -10.0;
 
-    const result = ControlPoint{ .time = 0, .value = -100 };
+    const result = ControlPoint{ .time = 0.0, .value = -100 };
 
+    errdefer std.log.err("result: {any}\n", .{ cp1.mul(scale) });
+
+    try expectControlPointEqual(cp1.mul_num(scale), cp1.mul(scale));
     try expectControlPointEqual(cp1.mul(scale), result);
 }
+
 // @}
