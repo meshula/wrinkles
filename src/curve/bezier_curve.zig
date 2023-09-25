@@ -231,8 +231,9 @@ pub const Segment = struct {
 
     pub fn split_at(self: @This(), unorm:f32) ?[2]Segment 
     {
-        if (unorm <= 0 or unorm >= 1) 
+        if (unorm < generic_curve.EPSILON or unorm >= 1)
         {
+            std.log.err("out of bounds unorm {}\n", .{ unorm });
             return null;
         }
 
@@ -653,7 +654,6 @@ test "segment: eval_at_x and findU test over linear curve" {
         try expectApproxEql(coord, seg.eval_at_x(coord));
     }
 }
-
 
 pub fn create_linear_segment(
     p0: control_point.ControlPoint,
