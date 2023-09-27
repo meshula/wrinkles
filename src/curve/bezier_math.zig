@@ -22,14 +22,14 @@ const CTX = comath.contexts.fnMethodCtx(
     comath.contexts.simpleCtx({}),
     .{
         .@"+" = "add",
-        .@"-" = "sub",
+        .@"-" = &.{"sub", "negate"},
         .@"*" = "mul",
     }
 );
 
 pub fn lerp(u: anytype, a: anytype, b: @TypeOf(a)) @TypeOf(a) {
     return comath.eval(
-        "a * (1.0 - u) + b * u",
+        "a * (-u + 1.0) + b * u",
         CTX,
         .{
             .a = a,
