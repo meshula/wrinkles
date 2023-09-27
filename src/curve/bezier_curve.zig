@@ -202,12 +202,20 @@ pub const Segment = struct {
         inline for (0..4) |i| 
         {
             seg[i].r = self_p[i];
-            seg[i].i = .{ .time = 1, .value = 1 };
+            seg[i].i = .{ .time = 1, .value = 1};
         }
 
-        const seg3 = bezier_math.segment_reduce4_dual(unorm, seg);
-        const seg2 = bezier_math.segment_reduce3_dual(unorm, seg3);
-        const result = bezier_math.segment_reduce2_dual(unorm, seg2);
+        const unorm_dual = dual.Dual_f32{.r = unorm, .i = 0 };
+
+        // std.log.err("seg: {any}\n", .{ seg } );
+
+        const seg3 = bezier_math.segment_reduce4_dual(unorm_dual, seg);
+        // std.log.err("seg3: {any}\n", .{ seg3 } );
+        const seg2 = bezier_math.segment_reduce3_dual(unorm_dual, seg3);
+        // std.log.err("seg2: {any}\n", .{ seg2 } );
+        const result = bezier_math.segment_reduce2_dual(unorm_dual, seg2);
+        // std.log.err("result: {any}\n", .{ result[0] } );
+
         return result[0];
     }
 
@@ -680,15 +688,45 @@ test "segment: eval_at_x and findU test over linear curve" {
 }
 
 test "segment: dual_eval_at over linear curve" {
-    const seg = create_identity_segment(0, 1);
-
-    inline for ([_]f32{0.2, 0.4, 0.5, 0.98}) 
-               |coord| 
+    // identity curve
     {
-        try expectApproxEql(coord, seg.eval_at_dual(coord).r.time);
-        try expectApproxEql(coord, seg.eval_at_dual(coord).r.value);
-        try expectApproxEql(@as(f32, 1), seg.eval_at_dual(coord).i.time);
-        try expectApproxEql(@as(f32, 1), seg.eval_at_dual(coord).i.value);
+        const seg = create_identity_segment(0, 1);
+
+        inline for ([_]f32{0.2, 0.4, 0.5, 0.98}) 
+            |coord| 
+        {
+            const result = seg.eval_at_dual(coord);
+            errdefer std.log.err(
+                "coord: {any}, result: {any}\n",
+                .{ coord, result }
+            );
+            try expectApproxEql(coord, result.r.time);
+            try expectApproxEql(coord, result.r.value);
+            try expectApproxEql(@as(f32, 1), result.i.time);
+            try expectApproxEql(@as(f32, 1), result.i.value);
+        }
+    }
+
+    // curve with slope 2
+    {
+        const seg = create_linear_segment(
+            .{ .time = 0, .value = 0 },
+            .{ .time = 1, .value = 2 },
+        );
+
+        inline for ([_]f32{0.2, 0.4, 0.5, 0.98}) 
+            |coord| 
+        {
+            const result = seg.eval_at_dual(coord);
+            errdefer std.log.err(
+                "coord: {any}, result: {any}\n",
+                .{ coord, result }
+            );
+            try expectApproxEql(coord, result.r.time);
+            try expectApproxEql(coord * 2, result.r.value);
+            try expectApproxEql(@as(f32, 1), result.i.time);
+            try expectApproxEql(@as(f32, 2), result.i.value);
+        }
     }
 }
 

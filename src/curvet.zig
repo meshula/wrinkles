@@ -18,14 +18,18 @@ const string = @import("string_stuff");
 const time_topology = @import("time_topology");
 const util = opentime.util;
 
+const DERIVATIVE_STEPS = 100;
+const CURVE_SAMPLE_COUNT = 1000;
+
 const DebugBezierFlags = packed struct (i8) {
     bezier: bool = true,
     knots: bool = false,
     control_points: bool = false,
     linearized: bool = false,
     natural_midpoint: bool = false,
+    derivatives: bool = true,
 
-    _padding: i3 = 0,
+    _padding: i2 = 0,
 
     pub fn draw_ui(
         self: * @This(),
@@ -41,6 +45,7 @@ const DebugBezierFlags = packed struct (i8) {
                 .{ "Draw Control Points", "control_points" },
                 .{ "Draw Linearized", "linearized" },
                 .{ "Natural Midpoint (t=0.5)", "natural_midpoint" },
+                .{ "Show Derivatives", "derivatives" },
             };
 
             zgui.pushStrId(name);
@@ -451,13 +456,17 @@ pub fn evaluated_curve(
 
     var i:usize = 0;
     var uv:f32 = ext[0].time;
-    for (crv.segments) |seg| {
+    for (crv.segments) 
+        |seg| 
+    {
         uv = seg.p0.time;
 
-        while (i < steps - 1) : (i += 1) {
-
+        while (i < steps - 1) 
+            : (i += 1) 
+        {
             // guarantee that it hits the end point
-            if (uv > seg.p3.time) {
+            if (uv > seg.p3.time) 
+            {
                 xv[i] = seg.p3.time;
                 yv[i] = seg.p3.value;
                 i += 1;
@@ -470,6 +479,7 @@ pub fn evaluated_curve(
                 "error: uv was: {:0.3} extents: {any:0.3}\n",
                 .{ uv, ext }
             );
+
             const p = crv.evaluate(uv) catch blk: {
                 break :blk ext[0].value;
             };
@@ -745,7 +755,8 @@ fn plot_bezier_curve(
     allocator:std.mem.Allocator
 ) !void 
 {
-    const pts = try evaluated_curve(crv, 1000);
+    // evaluate curve points over the x domain
+    const pts = try evaluated_curve(crv, CURVE_SAMPLE_COUNT);
 
     var buf:[1024:0]u8 = .{};
     @memset(&buf, 0);
@@ -780,6 +791,44 @@ fn plot_bezier_curve(
                 seg.eval_at(0.5),
                 18,
             );
+        }
+    }
+
+    if (flags.derivatives) {
+        const deriv_label = try std.fmt.bufPrintZ(
+            &buf,
+            "{s} derivatives",
+            .{ name }
+        );
+        const increment : f32 = (
+            @as(f32, @floatFromInt(DERIVATIVE_STEPS))
+            / @as(f32, @floatFromInt(CURVE_SAMPLE_COUNT))
+        );
+        var unorm : f32 = 0;
+        while (unorm < 1.0) 
+            : (unorm += increment)
+        {
+            for (crv.segments)
+                |seg|
+            {
+                // dual of control points
+                const d_du = seg.eval_at_dual(unorm);
+
+                const xv : [2]f32 = .{
+                    d_du.r.time,
+                    d_du.r.time + d_du.i.time 
+                };
+                const yv : [2]f32 = .{
+                    d_du.r.value,
+                    d_du.r.value + d_du.i.value 
+                };
+
+                zgui.plot.plotLine(
+                    deriv_label,
+                    f32,
+                    .{ .xv = &xv, .yv = &yv }
+                );
+            }
         }
     }
 }
@@ -1261,10 +1310,17 @@ fn update(
                     {
                         .linear_curve => |lint| { 
                             const lin = lint.curve;
-                            try plot_linear_curve(lin, "result / linear", allocator);
+                            try plot_linear_curve(
+                                lin,
+                                "result / linear",
+                                allocator
+                            );
                         },
                         .bezier_curve => |bez| {
-                            const pts = try evaluated_curve(bez.curve, 1000);
+                            const pts = try evaluated_curve(
+                                bez.curve,
+                                CURVE_SAMPLE_COUNT
+                            );
 
                             zgui.plot.plotLine(
                                 "result [bezier]",

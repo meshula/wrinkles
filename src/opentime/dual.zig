@@ -64,8 +64,8 @@ pub fn DualOfNumberType(comptime T: type) type {
         pub inline fn sub(self: @This(), rhs: anytype) @This() {
             return switch(@typeInfo(@TypeOf(rhs))) {
                 .Struct => .{ 
-                    .r = rhs.r.sub(self.r),
-                    .i = rhs.i.sub(self.i),
+                    .r = rhs.r.add(- self.r),
+                    .i = rhs.i.add(- self.i),
                 },
                 else => .{
                     .r = self.r - rhs,
