@@ -44,17 +44,33 @@ pub fn DualOfNumberType(comptime T: type) type {
             return .{ .r = r };
         }
 
-        pub inline fn add(self: @This(), rhs: @This()) @This() {
-            return .{ 
-                .r = self.r + rhs.r,
-                .i = self.i + rhs.i,
+        pub fn negate(self: @This()) @This() {
+            return .{ .r = -self.r, .i = -self.i };
+        }
+
+        pub inline fn add(self: @This(), rhs: anytype) @This() {
+            return switch(@typeInfo(@TypeOf(rhs))) {
+                .Struct => .{ 
+                    .r = rhs.r.add(self.r),
+                    .i = rhs.i.add(self.i),
+                },
+                else => .{
+                    .r = self.r + rhs,
+                    .i = self.i,
+                },
             };
         }
 
-        pub inline fn sub(self: @This(), rhs: @This()) @This() {
-            return .{ 
-                .r = self.r - rhs.r,
-                .i = self.i - rhs.i,
+        pub inline fn sub(self: @This(), rhs: anytype) @This() {
+            return switch(@typeInfo(@TypeOf(rhs))) {
+                .Struct => .{ 
+                    .r = rhs.r.sub(self.r),
+                    .i = rhs.i.sub(self.i),
+                },
+                else => .{
+                    .r = self.r - rhs,
+                    .i = self.i,
+                },
             };
         }
 
@@ -97,21 +113,16 @@ pub fn DualOfStruct(comptime T: type) type
                 .i = comath.eval(
                     "self_i + rhs_i",
                     CTX,
-                    .{ .self_r = self.r, .rhs_r = rhs.r }
+                    .{ .self_i = self.i, .rhs_i = rhs.i }
                 ) catch |err| switch (err) {}
             };
-
-            // return .{ 
-            //     .r = self.r.add(rhs.r),
-            //     .i = self.i.add(rhs.i),
-            // };
         }
 
         pub inline fn mul(self: @This(), rhs: anytype) @This() {
             return switch(@typeInfo(@TypeOf(rhs))) {
                 .Struct => .{ 
                     .r = self.r.mul(rhs.r),
-                    .i = (self.r.mul(rhs.i)).add(self.i.mul(rhs.r)),
+                    .i = (self.i.mul(rhs.i)).add(self.i.mul(rhs.r)),
                 },
                 else => .{
                     .r = self.r.mul(rhs),
