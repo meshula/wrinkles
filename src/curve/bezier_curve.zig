@@ -196,18 +196,19 @@ pub const Segment = struct {
         unorm:f32,
     ) control_point.Dual_CP
     {
-        var seg : [4]control_point.Dual_CP = undefined;
+        var self_dual : [4]control_point.Dual_CP = undefined;
         const self_p = self.points();
 
-        inline for (0..4) |i| 
+        inline for (self_p, &self_dual) 
+                   |p, *dual_p| 
         {
-            seg[i].r = self_p[i];
-            seg[i].i = .{};
+            dual_p.r = p;
+            dual_p.i = .{};
         }
 
         const unorm_dual = dual.Dual_f32{ .r = unorm, .i = 1 };
 
-        const seg3 = bezier_math.segment_reduce4_dual(unorm_dual, seg);
+        const seg3 = bezier_math.segment_reduce4_dual(unorm_dual, self_dual);
         const seg2 = bezier_math.segment_reduce3_dual(unorm_dual, seg3);
         const result = bezier_math.segment_reduce2_dual(unorm_dual, seg2);
 
