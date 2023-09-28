@@ -40,7 +40,7 @@ pub fn DualOfNumberType(comptime T: type) type {
         /// infinitesimal component
         i: T = 0,
 
-        pub fn from(r: T) @This() {
+        pub fn init(r: T) @This() {
             return .{ .r = r };
         }
 
