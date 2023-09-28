@@ -202,19 +202,14 @@ pub const Segment = struct {
         inline for (0..4) |i| 
         {
             seg[i].r = self_p[i];
-            seg[i].i = .{ .time = 1, .value = 1};
+            seg[i].i = .{};
         }
 
-        const unorm_dual = dual.Dual_f32{.r = unorm, .i = 0 };
-
-        // std.log.err("seg: {any}\n", .{ seg } );
+        const unorm_dual = dual.Dual_f32{ .r = unorm, .i = 1 };
 
         const seg3 = bezier_math.segment_reduce4_dual(unorm_dual, seg);
-        // std.log.err("seg3: {any}\n", .{ seg3 } );
         const seg2 = bezier_math.segment_reduce3_dual(unorm_dual, seg3);
-        // std.log.err("seg2: {any}\n", .{ seg2 } );
         const result = bezier_math.segment_reduce2_dual(unorm_dual, seg2);
-        // std.log.err("result: {any}\n", .{ result[0] } );
 
         return result[0];
     }

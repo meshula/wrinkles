@@ -122,7 +122,7 @@ pub fn DualOfStruct(comptime T: type) type
             return switch(@typeInfo(@TypeOf(rhs))) {
                 .Struct => .{ 
                     .r = self.r.mul(rhs.r),
-                    .i = (self.i.mul(rhs.i)).add(self.i.mul(rhs.r)),
+                    .i = (self.r.mul(rhs.i)).add(self.i.mul(rhs.r)),
                 },
                 else => .{
                     .r = self.r.mul(rhs),
