@@ -27,9 +27,10 @@ const DebugBezierFlags = packed struct (i8) {
     control_points: bool = false,
     linearized: bool = false,
     natural_midpoint: bool = false,
-    derivatives: bool = true,
+    derivatives_ddu: bool = true,
+    derivatives_dydx: bool = false,
 
-    _padding: i2 = 0,
+    _padding: i1 = 0,
 
     pub fn draw_ui(
         self: * @This(),
@@ -45,7 +46,8 @@ const DebugBezierFlags = packed struct (i8) {
                 .{ "Draw Control Points", "control_points" },
                 .{ "Draw Linearized", "linearized" },
                 .{ "Natural Midpoint (t=0.5)", "natural_midpoint" },
-                .{ "Show Derivatives", "derivatives" },
+                .{ "Show Derivatives (d/du)", "derivatives_ddu" },
+                .{ "Show Derivatives (dy/dx)", "derivatives_dydx" },
             };
 
             zgui.pushStrId(name);
@@ -794,10 +796,16 @@ fn plot_bezier_curve(
         }
     }
 
-    if (flags.derivatives) {
-        const deriv_label = try std.fmt.bufPrintZ(
+    if (flags.derivatives_ddu or flags.derivatives_dydx) 
+    {
+        const deriv_label_ddu = try std.fmt.bufPrintZ(
+            buf[512..],
+            "{s} derivatives (ddu)",
+            .{ name }
+        );
+        const deriv_label_dydx = try std.fmt.bufPrintZ(
             &buf,
-            "{s} derivatives",
+            "{s} derivatives (dy/dx)",
             .{ name }
         );
         const increment : f32 = (
@@ -814,20 +822,43 @@ fn plot_bezier_curve(
                 // dual of control points
                 const d_du = seg.eval_at_dual(unorm);
 
-                const xv : [2]f32 = .{
-                    d_du.r.time,
-                    d_du.r.time + d_du.i.time 
-                };
-                const yv : [2]f32 = .{
-                    d_du.r.value,
-                    d_du.r.value + d_du.i.value 
-                };
+                if (flags.derivatives_ddu) 
+                {
+                    const xv : [2]f32 = .{
+                        d_du.r.time,
+                        d_du.r.time + d_du.i.time,
+                    };
+                    const yv : [2]f32 = .{
+                        d_du.r.value,
+                        d_du.r.value + d_du.i.value,
+                    };
 
-                zgui.plot.plotLine(
-                    deriv_label,
-                    f32,
-                    .{ .xv = &xv, .yv = &yv }
-                );
+                    zgui.plot.plotLine(
+                        deriv_label_ddu,
+                        f32,
+                        .{ .xv = &xv, .yv = &yv }
+                    );
+                }
+
+                if (flags.derivatives_dydx) 
+                {
+                    const dy_dx = d_du.i.value / d_du.i.time;
+
+                    const xv : [2]f32 = .{
+                        d_du.r.time,
+                        d_du.r.time + 1,
+                    };
+                    const yv : [2]f32 = .{
+                        d_du.r.value,
+                        d_du.r.value + dy_dx
+                    };
+
+                    zgui.plot.plotLine(
+                        deriv_label_dydx,
+                        f32,
+                        .{ .xv = &xv, .yv = &yv }
+                    );
+                }
             }
         }
     }
