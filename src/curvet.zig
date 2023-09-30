@@ -18,7 +18,7 @@ const string = @import("string_stuff");
 const time_topology = @import("time_topology");
 const util = opentime.util;
 
-const DERIVATIVE_STEPS = 100;
+const DERIVATIVE_STEPS = 10;
 const CURVE_SAMPLE_COUNT = 1000;
 
 const DebugBezierFlags = packed struct (i8) {
