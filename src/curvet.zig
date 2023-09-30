@@ -29,8 +29,9 @@ const DebugBezierFlags = packed struct (i8) {
     natural_midpoint: bool = false,
     derivatives_ddu: bool = true,
     derivatives_dydx: bool = false,
+    derivatives_hodo_ddu: bool = false,
 
-    _padding: i1 = 0,
+    // _padding: i1 = 0,
 
     pub fn draw_ui(
         self: * @This(),
@@ -48,6 +49,7 @@ const DebugBezierFlags = packed struct (i8) {
                 .{ "Natural Midpoint (t=0.5)", "natural_midpoint" },
                 .{ "Show Derivatives (d/du)", "derivatives_ddu" },
                 .{ "Show Derivatives (dy/dx)", "derivatives_dydx" },
+                .{ "Show Derivatives (hodograph d/du)", "derivatives_hodo_ddu" },
             };
 
             zgui.pushStrId(name);
@@ -803,6 +805,11 @@ fn plot_bezier_curve(
             "{s} derivatives (ddu)",
             .{ name }
         );
+        const deriv_label_hodo_ddu = try std.fmt.bufPrintZ(
+            buf[700..],
+            "{s} derivatives (hodograph ddu)",
+            .{ name }
+        );
         const deriv_label_dydx = try std.fmt.bufPrintZ(
             &buf,
             "{s} derivatives (dy/dx)",
@@ -855,6 +862,35 @@ fn plot_bezier_curve(
 
                     zgui.plot.plotLine(
                         deriv_label_dydx,
+                        f32,
+                        .{ .xv = &xv, .yv = &yv }
+                    );
+                }
+
+                if (flags.derivatives_hodo_ddu)
+                {
+                    const cSeg = seg.to_cSeg();
+                    var hodo = curve.bezier_curve.hodographs.compute_hodograph(
+                        &cSeg
+                    );
+                    const hodo_d_du = (
+                        curve.bezier_curve.hodographs.evaluate_bezier(
+                            &hodo,
+                            unorm
+                        )
+                    );
+
+                    const xv : [2]f32 = .{
+                        d_du.r.time,
+                        d_du.r.time + hodo_d_du.x,
+                    };
+                    const yv : [2]f32 = .{
+                        d_du.r.value,
+                        d_du.r.value + hodo_d_du.y,
+                    };
+
+                    zgui.plot.plotLine(
+                        deriv_label_hodo_ddu,
                         f32,
                         .{ .xv = &xv, .yv = &yv }
                     );
