@@ -820,7 +820,7 @@ fn plot_bezier_curve(
             / @as(f32, @floatFromInt(CURVE_SAMPLE_COUNT))
         );
         var unorm : f32 = 0;
-        while (unorm < 1.0) 
+        while (unorm <= 1.0 + increment) 
             : (unorm += increment)
         {
             for (crv.segments)
