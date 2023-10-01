@@ -24,6 +24,7 @@ const CTX = comath.contexts.fnMethodCtx(
         .@"+" = "add",
         .@"-" = &.{"sub", "negate"},
         .@"*" = "mul",
+        .@"/" = "div",
     }
 );
 
@@ -140,6 +141,36 @@ pub fn _bezier0(unorm: f32, p2: f32, p3: f32, p4: f32) f32
         - (p1 * zmo3);
 }
 
+pub fn _bezier0_dual(
+    unorm: dual.Dual_f32,
+    p2: f32,
+    p3: f32,
+    p4: f32
+) dual.Dual_f32
+{
+    // return (p4 * z3) 
+    //     - (p3 * (3.0*z2*zmo))
+    //     + (p2 * (3.0*z*zmo2))
+    //     - (p1 * zmo3);
+    return try comath.eval(
+        (
+         "u*u*u * p4" 
+         ++ " - (p3 * u*u*zmo*3.0"
+         ++ " + (p2 * 3.0 * u * zmo * zmo))"
+         ++ " - (p1 * zmo * zmo * zmo)" 
+        ),
+        CTX,
+        .{
+            .u = unorm,
+            .zmo = (unorm.negate()).add(.{ .r = 1.0, .i = 0 }),
+            .p1 = dual.Dual_f32{.r = 0, .i = 0},
+            .p2 = dual.Dual_f32{ .r = p2 },
+            .p3 = dual.Dual_f32{ .r = p3 },
+            .p4 = dual.Dual_f32{ .r = p4 },
+        }
+    );
+}
+
 //
 // Given x in the interval [0, p3], and a monotonically nondecreasing
 // 1-D Bezier curve, B(u), with control points (0, p1, p2, p3), find
@@ -243,6 +274,138 @@ pub fn _findU(x:f32, p1:f32, p2:f32, p3:f32) f32
     return _u2;
 }
 
+pub fn _findU_dual(x_input:f32, p1:f32, p2:f32, p3:f32) dual.Dual_f32
+{
+    const MAX_ABS_ERROR = std.math.floatEps(f32) * 2.0;
+    const MAX_ITERATIONS: u8 = 45;
+
+    if (x_input <= 0) {
+        return .{ .r = 0, .i = 0 };
+    }
+
+    if (x_input >= p3) {
+        return .{ .r = 1, .i = 0 };
+    }
+
+    // differentiate from x on
+    const x = dual.Dual_f32{ .r = x_input, .i = 1 };
+
+    var _u1=dual.Dual_f32{};
+    var _u2=dual.Dual_f32{};
+    var x1 = x.negate(); // same as: bezier0 (0, p1, p2, p3) - x;
+    var x2 = try comath.eval("x1 + p3", CTX, .{ .x1 = x1, .p3 = p3 }); // same as: bezier0 (1, p1, p2, p3) - x;
+
+    {
+        const _u3 = try comath.eval(
+            "((x2_n) / (x2 + x)) + one",
+            CTX,
+            .{
+                .x = x,
+                .x2 = x2, 
+                .x2_n = x2.negate(),
+                .one = dual.Dual_f32{.r = 1, .i = 0 },
+            }
+        );
+        const x3 = _bezier0_dual(_u3, p1, p2, p3).sub(x);
+
+        if (x3.r == 0)
+        {
+            return _u3;
+        }
+
+        if (x3.r < 0)
+        {
+            if (_u3.negate().add(dual.Dual_f32{ .r = 1.0 }).r <= MAX_ABS_ERROR) {
+                if (x2.r < x3.negate().r)
+                    return .{ .r = 1.0, .i = 0 };
+                return _u3;
+            }
+
+            _u1 = .{ .r = 1.0 };
+            x1 = x2;
+        }
+        else
+        {
+            _u1 = .{ .r = 0.0};
+            x1 = try comath.eval(
+                "x1 * x2 / (x2 + x3)",
+                CTX,
+                .{ .x1 = x1, .x2 = x2, .x3 = x3 }
+            );
+
+            if (_u3.r <= MAX_ABS_ERROR) {
+                if (x1.negate().r < x3.r)
+                    return .{ .r = 0.0, .i = 0 };
+                return _u3;
+            }
+        }
+        _u2 = _u3;
+        x2 = x3;
+    }
+
+    var i: u8 = MAX_ITERATIONS - 1;
+
+    while (i > 0)
+    {
+        i -= 1;
+        const _u3 = try comath.eval(
+            "_u2 - x2 * ((_u2 - _u1) / (x2 - x1))",
+            CTX,
+            .{
+                ._u2 = _u2,
+                .x1 = x1,
+                .x2 = x2,
+                ._u1 = _u1,
+            },
+        );
+        const x3 = _bezier0_dual(_u3, p1, p2, p3).sub(x);
+
+        if (x3.r == 0)
+            return _u3;
+
+        if (x2.mul(x3).r <= 0)
+        {
+            _u1 = _u2;
+            x1 = x2;
+        }
+        else
+        {
+            x1 = try comath.eval(
+                "x1 * x2 / (x2 + x3)",
+                CTX,
+                .{
+                    .x1 = x1,
+                    .x2 = x2,
+                    .x3 = x3,
+                },
+            );
+        }
+
+        _u2 = _u3;
+        x2 = x3;
+
+        if (_u2.r > _u1.r)
+        {
+            if (_u2.sub(_u1).r <= MAX_ABS_ERROR)
+                break;
+        }
+        else
+        {
+            if (_u1.sub(_u2).r <= MAX_ABS_ERROR)
+                break;
+        }
+    }
+
+    if (x1.r < 0)
+        x1 = x1.negate();
+    if (x2.r < 0)
+        x2 = x2.negate();
+
+    if (x1.r < x2.r)
+        return _u1;
+    return _u2;
+}
+
 //
 // Given x in the interval [p0, p3], and a monotonically nondecreasing
 // 1-D Bezier curve, B(u), with control points (p0, p1, p2, p3), find
@@ -251,6 +414,11 @@ pub fn _findU(x:f32, p1:f32, p2:f32, p3:f32) f32
 pub fn findU(x:f32, p0:f32, p1:f32, p2:f32, p3:f32) f32
 {
     return _findU(x - p0, p1 - p0, p2 - p0, p3 - p0);
+}
+
+pub fn findU_dual(x:f32, p0:f32, p1:f32, p2:f32, p3:f32) dual.Dual_f32
+{
+    return _findU_dual(x - p0, p1 - p0, p2 - p0, p3 - p0);
 }
 
 
@@ -274,6 +442,14 @@ test "findU" {
     // out of range values are clamped in u
     try expectEqual(@as(f32, 0), findU(-1, 0,1,2,3));
     try expectEqual(@as(f32, 1), findU(4, 0,1,2,3));
+}
+
+test "findU_dual" {
+    try expectEqual(@as(f32, 0), findU_dual(0, 0,1,2,3).r);
+    try expectEqual(@as(f32, 0), findU_dual(0, 0,1,2,3).i);
+    // out of range values are clamped in u
+    try expectEqual(@as(f32, 0), findU_dual(-1, 0,1,2,3).r);
+    try expectEqual(@as(f32, 1), findU_dual(4, 0,1,2,3).r);
 }
 
 fn remap_float(

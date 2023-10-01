@@ -16,6 +16,10 @@ contains:
   * treecode library (path through a binary tree)
 
 ## IP
+* Find the two or three point projection approximation
+* Add the graph to the ui
+* thread the duals through findU
+
 * hododromes
     * [x] 0 finding over cubic bezier
     * [ ] non-linearizing bezier projection

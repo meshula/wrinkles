@@ -827,7 +827,7 @@ fn plot_bezier_curve(
                 |seg|
             {
                 // dual of control points
-                const d_du = seg.eval_at_dual(unorm);
+                const d_du = seg.eval_at_dual(.{.r = unorm, .i = 1 });
 
                 if (flags.derivatives_ddu) 
                 {
@@ -849,15 +849,15 @@ fn plot_bezier_curve(
 
                 if (flags.derivatives_dydx) 
                 {
-                    const dy_dx = d_du.i.value / d_du.i.time;
+                    const d_dx = seg.eval_at_x_dual(d_du.r.time);
 
                     const xv : [2]f32 = .{
-                        d_du.r.time,
-                        d_du.r.time + 1,
+                        d_dx.r.time,
+                        d_dx.r.time + d_dx.i.time,
                     };
                     const yv : [2]f32 = .{
-                        d_du.r.value,
-                        d_du.r.value + dy_dx
+                        d_dx.r.value,
+                        d_dx.r.value + d_dx.i.value,
                     };
 
                     zgui.plot.plotLine(

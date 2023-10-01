@@ -193,7 +193,7 @@ pub const Segment = struct {
 
     pub fn eval_at_dual(
         self: @This(),
-        unorm:f32,
+        unorm_dual:dual.Dual_f32,
     ) control_point.Dual_CP
     {
         var self_dual : [4]control_point.Dual_CP = undefined;
@@ -205,8 +205,6 @@ pub const Segment = struct {
             dual_p.r = p;
             dual_p.i = .{};
         }
-
-        const unorm_dual = dual.Dual_f32{ .r = unorm, .i = 1 };
 
         const seg3 = bezier_math.segment_reduce4_dual(unorm_dual, self_dual);
         const seg2 = bezier_math.segment_reduce3_dual(unorm_dual, seg3);
@@ -460,6 +458,17 @@ pub const Segment = struct {
         return self.eval_at(u).value;
     }
 
+    pub fn eval_at_x_dual(self: @This(), x:f32) control_point.Dual_CP {
+        const u = bezier_math.findU_dual(
+            x,
+            self.p0.time,
+            self.p1.time,
+            self.p2.time,
+            self.p3.time
+        );
+        return self.eval_at_dual(u);
+    }
+
     pub fn debug_json_str(
         self: @This()
     ) []const u8 
@@ -691,7 +700,7 @@ test "segment: dual_eval_at over linear curve" {
         inline for ([_]f32{0.2, 0.4, 0.5, 0.98}) 
             |coord| 
         {
-            const result = seg.eval_at_dual(coord);
+            const result = seg.eval_at_dual(.{ .r = coord, .i = 1});
             errdefer std.log.err(
                 "coord: {any}, result: {any}\n",
                 .{ coord, result }
@@ -713,7 +722,7 @@ test "segment: dual_eval_at over linear curve" {
         inline for ([_]f32{0.2, 0.4, 0.5, 0.98}) 
             |coord| 
         {
-            const result = seg.eval_at_dual(coord);
+            const result = seg.eval_at_dual(.{ .r = coord, .i = 1 });
             errdefer std.log.err(
                 "coord: {any}, result: {any}\n",
                 .{ coord, result }

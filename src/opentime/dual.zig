@@ -51,8 +51,8 @@ pub fn DualOfNumberType(comptime T: type) type {
         pub inline fn add(self: @This(), rhs: anytype) @This() {
             return switch(@typeInfo(@TypeOf(rhs))) {
                 .Struct => .{ 
-                    .r = rhs.r.add(self.r),
-                    .i = rhs.i.add(self.i),
+                    .r = self.r + rhs.r,
+                    .i = self.i + rhs.i,
                 },
                 else => .{
                     .r = self.r + rhs,
@@ -64,8 +64,8 @@ pub fn DualOfNumberType(comptime T: type) type {
         pub inline fn sub(self: @This(), rhs: anytype) @This() {
             return switch(@typeInfo(@TypeOf(rhs))) {
                 .Struct => .{ 
-                    .r = rhs.r.add(- self.r),
-                    .i = rhs.i.add(- self.i),
+                    .r = self.r - rhs.r,
+                    .i = self.i - rhs.i,
                 },
                 else => .{
                     .r = self.r - rhs,
@@ -74,10 +74,16 @@ pub fn DualOfNumberType(comptime T: type) type {
             };
         }
 
-        pub inline fn mul(self: @This(), rhs: @This()) @This() {
-            return .{ 
-                .r = self.r * rhs.r,
-                .i = self.r * rhs.i + self.i*rhs.r,
+        pub inline fn mul(self: @This(), rhs: anytype) @This() {
+            return switch(@typeInfo(@TypeOf(rhs))) {
+                .Struct => .{ 
+                    .r = self.r * rhs.r,
+                    .i = self.r * rhs.i + self.i*rhs.r,
+                },
+                else => .{
+                    .r = self.r * rhs,
+                    .i = self.i * rhs,
+                },
             };
         }
 
@@ -87,6 +93,13 @@ pub fn DualOfNumberType(comptime T: type) type {
 
         pub inline fn gt(self: @This(), rhs: @This()) @This() {
             return self.r > rhs.r;
+        }
+
+        pub inline fn div(self: @This(), rhs: @This()) @This() {
+            return .{
+                .r = self.r / rhs.r,
+                .i = (rhs.r * self.i - self.r * rhs.i) / (rhs.r * rhs.r),
+            };
         }
     };
 }
