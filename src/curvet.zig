@@ -27,7 +27,7 @@ const DebugBezierFlags = packed struct (i8) {
     control_points: bool = false,
     linearized: bool = false,
     natural_midpoint: bool = false,
-    derivatives_ddu: bool = true,
+    derivatives_ddu: bool = false,
     derivatives_dydx: bool = false,
     derivatives_hodo_ddu: bool = false,
 
@@ -38,7 +38,7 @@ const DebugBezierFlags = packed struct (i8) {
         name: [:0]const u8
     ) void 
     {
-        if (zgui.treeNode(name)) 
+        if (zgui.treeNodeFlags(name, .{ .default_open = true })) 
         {
             defer zgui.treePop();
             const fields = .{
@@ -1718,7 +1718,12 @@ fn update(
 
                         zgui.pushPtrId(@ptrCast(crv));
                         defer zgui.popId();
-                        if (zgui.treeNode(top_label))
+                        if (
+                            zgui.treeNodeFlags(
+                                top_label,
+                                .{ .default_open = true }
+                            )
+                        )
                         {
                             defer zgui.treePop();
 
@@ -1735,7 +1740,12 @@ fn update(
                                 .{.v = &crv.editable}
                             );
 
-                            if (zgui.treeNode("Draw Flags")) {
+                            if (
+                                zgui.treeNodeFlags(
+                                    "Draw Flags",
+                                    .{ .default_open = true }
+                                )
+                            ) {
                                 defer zgui.treePop();
 
                                 crv.draw_flags.draw_ui(crv.fpath);
