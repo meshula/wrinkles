@@ -157,6 +157,7 @@ pub fn _bezier0_dual(
     p4: f32
 ) dual.Dual_f32
 {
+    // original math (p1 = 0, so last term falls out)
     // return (p4 * z3) 
     //     - (p3 * (3.0*z2*zmo))
     //     + (p2 * (3.0*z*zmo2))
@@ -164,15 +165,13 @@ pub fn _bezier0_dual(
     return try comath.eval(
         (
          "u*u*u * p4" 
-         ++ " - (p3 * u*u*zmo*3.0"
-         ++ " + (p2 * 3.0 * u * zmo * zmo))"
-         ++ " - (p1 * zmo * zmo * zmo)" 
+         ++ " - (p3 * u*u*zmo*3.0)"
+         ++ " + (p2 * 3.0 * u * zmo * zmo)"
         ),
         CTX,
         .{
             .u = unorm,
-            .zmo = (unorm.negate()).add(.{ .r = 1.0, .i = 0 }),
-            .p1 = dual.Dual_f32{.r = 0, .i = 0},
+            .zmo = unorm.sub(.{.r = 1.0, .i = 0.0}),
             .p2 = dual.Dual_f32{ .r = p2 },
             .p3 = dual.Dual_f32{ .r = p3 },
             .p4 = dual.Dual_f32{ .r = p4 },
@@ -239,9 +238,9 @@ pub fn _findU(x:f32, p1:f32, p2:f32, p3:f32) f32
 
     var i: u8 = MAX_ITERATIONS - 1;
 
-    while (i > 0)
+    while (i > 0) 
+        : (i -= 1)
     {
-        i -= 1;
         const _u3:f32 = _u2 - x2 * ((_u2 - _u1) / (x2 - x1));
         const x3 = _bezier0 (_u3, p1, p2, p3) - x;
 
@@ -288,31 +287,34 @@ pub fn _findU_dual(x_input:f32, p1:f32, p2:f32, p3:f32) dual.Dual_f32
     const MAX_ABS_ERROR = std.math.floatEps(f32) * 2.0;
     const MAX_ITERATIONS: u8 = 45;
 
+    const ONE_DUAL = dual.Dual_f32{ .r = 1, .i = 0 };
+    const ZERO_DUAL = dual.Dual_f32{ .r = 0, .i = 0};
+
     if (x_input < 0) {
-        return .{ .r = 0, .i = 0 };
+        return ZERO_DUAL;
     }
 
     if (x_input > p3) {
-        return .{ .r = 1, .i = 0 };
+        return ONE_DUAL;
     }
 
     // differentiate from x on
     const x = dual.Dual_f32{ .r = x_input, .i = 1 };
 
-    var _u1=dual.Dual_f32{.r = 0};
-    var _u2=dual.Dual_f32{.r = 0};
+    var _u1=ZERO_DUAL;
+    var _u2=ZERO_DUAL;
     var x1 = x.negate(); // same as: bezier0 (0, p1, p2, p3) - x;
     var x2 = try comath.eval("x1 + p3", CTX, .{ .x1 = x1, .p3 = p3 }); // same as: bezier0 (1, p1, p2, p3) - x;
 
     {
         const _u3 = try comath.eval(
-            "((x2_n) / (x2 + x)) + one",
+            "((x2_n) / (x2 + x1)) + one",
             CTX,
             .{
-                .x = x,
+                .x1 = x1,
                 .x2 = x2, 
                 .x2_n = x2.negate(),
-                .one = dual.Dual_f32{.r = 1, .i = 0 },
+                .one = ONE_DUAL,
             }
         );
         const x3 = _bezier0_dual(_u3, p1, p2, p3).sub(x);
@@ -324,18 +326,18 @@ pub fn _findU_dual(x_input:f32, p1:f32, p2:f32, p3:f32) dual.Dual_f32
 
         if (x3.r < 0)
         {
-            if (_u3.negate().add(dual.Dual_f32{ .r = 1.0 }).r <= MAX_ABS_ERROR) {
+            if ((ONE_DUAL.sub(_u3)).r <= MAX_ABS_ERROR) {
                 if (x2.r < x3.negate().r)
                     return .{ .r = 1.0, .i = 0 };
                 return _u3;
             }
 
-            _u1 = .{ .r = 1.0 };
+            _u1 = ONE_DUAL;
             x1 = x2;
         }
         else
         {
-            _u1 = .{ .r = 0.0};
+            _u1 = ZERO_DUAL;
             x1 = try comath.eval(
                 "x1 * x2 / (x2 + x3)",
                 CTX,
@@ -344,7 +346,7 @@ pub fn _findU_dual(x_input:f32, p1:f32, p2:f32, p3:f32) dual.Dual_f32
 
             if (_u3.r <= MAX_ABS_ERROR) {
                 if (x1.negate().r < x3.r)
-                    return .{ .r = 0.0, .i = 0 };
+                    return ZERO_DUAL;
                 return _u3;
             }
         }
@@ -367,13 +369,13 @@ pub fn _findU_dual(x_input:f32, p1:f32, p2:f32, p3:f32) dual.Dual_f32
                 ._u2 = _u2,
             },
         );
-        const x3 = _bezier0_dual(_u3, p1, p2, p3).sub(x);
+        const x3 = (_bezier0_dual(_u3, p1, p2, p3)).sub(x);
 
         if (x3.r == 0) {
             return _u3;
         }
 
-        if (x2.mul(x3).r <= 0)
+        if ((x2.mul(x3)).r <= 0)
         {
             _u1 = _u2;
             x1 = x2;
@@ -459,9 +461,56 @@ test "findU" {
     try expectEqual(@as(f32, 1), findU(4, 0,1,2,3));
 }
 
-test "findU_dual" {
+test "_bezier0 matches _bezier0_dual" {
+    {
+        const test_data = [_][4]f32{
+            [4]f32{ 0, 1, 2, 3 },
+        };
+
+        // sweep values in range and make sure that findU and findU_dual match
+        for (test_data)
+            |t|
+        {
+            var x : f32 = t[0];
+            while (x < t[3])
+                : (x += 0.01)
+            {
+                errdefer std.log.err("Error on loop: {}\n",.{x});
+                try expectApproxEql(
+                    _bezier0(x, t[1], t[2], t[3]),
+                    _bezier0_dual(.{ .r = x, .i = 1}, t[1], t[2], t[3]).r,
+                );
+            }
+        }
+    }
+}
+
+test "findU_dual matches findU" {
     try expectEqual(@as(f32, 0), findU_dual(0, 0,1,2,3).r);
-    try expectEqual(@as(f32, 1)/@as(f32,3), findU_dual(0, 0,1,2,3).i);
+    try expectApproxEql(-@as(f32, 1)/@as(f32,3), findU_dual(0, 0,1,2,3).i);
+
+    {
+        const test_data = [_][4]f32{
+            [4]f32{ 0, 1, 2, 3 },
+        };
+
+        // sweep values in range and make sure that findU and findU_dual match
+        for (test_data)
+            |t|
+        {
+            var x : f32 = t[0];
+            while (x < t[3])
+                : (x += 0.01)
+            {
+                errdefer std.log.err("Error on loop: {}\n",.{x});
+                try expectApproxEql(
+                    findU(x, t[0], t[1], t[2], t[3]),
+                    findU_dual(x, t[0], t[1], t[2], t[3]).r,
+                );
+            }
+        }
+    }
+
     // out of range values are clamped in u
     try expectEqual(@as(f32, 0), findU_dual(-1, 0,1,2,3).r);
     try expectEqual(@as(f32, 1), findU_dual(4, 0,1,2,3).r);
