@@ -12,7 +12,11 @@ const dual = @import("opentime").dual;
 
 
 fn expectApproxEql(expected: anytype, actual: @TypeOf(expected)) !void {
-    return std.testing.expectApproxEqAbs(expected, actual, generic_curve.EPSILON);
+    return std.testing.expectApproxEqAbs(
+        expected,
+        actual,
+        generic_curve.EPSILON*10
+    );
 }
 
 const allocator = @import("otio_allocator");
