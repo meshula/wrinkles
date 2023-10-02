@@ -279,19 +279,19 @@ pub fn _findU_dual(x_input:f32, p1:f32, p2:f32, p3:f32) dual.Dual_f32
     const MAX_ABS_ERROR = std.math.floatEps(f32) * 2.0;
     const MAX_ITERATIONS: u8 = 45;
 
-    if (x_input <= 0) {
+    if (x_input < 0) {
         return .{ .r = 0, .i = 0 };
     }
 
-    if (x_input >= p3) {
+    if (x_input > p3) {
         return .{ .r = 1, .i = 0 };
     }
 
     // differentiate from x on
     const x = dual.Dual_f32{ .r = x_input, .i = 1 };
 
-    var _u1=dual.Dual_f32{};
-    var _u2=dual.Dual_f32{};
+    var _u1=dual.Dual_f32{.r = 0};
+    var _u2=dual.Dual_f32{.r = 0};
     var x1 = x.negate(); // same as: bezier0 (0, p1, p2, p3) - x;
     var x2 = try comath.eval("x1 + p3", CTX, .{ .x1 = x1, .p3 = p3 }); // same as: bezier0 (1, p1, p2, p3) - x;
 
@@ -346,22 +346,23 @@ pub fn _findU_dual(x_input:f32, p1:f32, p2:f32, p3:f32) dual.Dual_f32
     var i: u8 = MAX_ITERATIONS - 1;
 
     while (i > 0)
+        : (i -= 1)
     {
-        i -= 1;
         const _u3 = try comath.eval(
             "_u2 - x2 * ((_u2 - _u1) / (x2 - x1))",
             CTX,
             .{
-                ._u2 = _u2,
                 .x1 = x1,
                 .x2 = x2,
                 ._u1 = _u1,
+                ._u2 = _u2,
             },
         );
         const x3 = _bezier0_dual(_u3, p1, p2, p3).sub(x);
 
-        if (x3.r == 0)
+        if (x3.r == 0) {
             return _u3;
+        }
 
         if (x2.mul(x3).r <= 0)
         {
@@ -386,23 +387,28 @@ pub fn _findU_dual(x_input:f32, p1:f32, p2:f32, p3:f32) dual.Dual_f32
 
         if (_u2.r > _u1.r)
         {
-            if (_u2.sub(_u1).r <= MAX_ABS_ERROR)
+            if (_u2.sub(_u1).r <= MAX_ABS_ERROR) {
                 break;
+            }
         }
         else
         {
-            if (_u1.sub(_u2).r <= MAX_ABS_ERROR)
+            if (_u1.sub(_u2).r <= MAX_ABS_ERROR) {
                 break;
+            }
         }
     }
 
-    if (x1.r < 0)
+    if (x1.r < 0) {
         x1 = x1.negate();
-    if (x2.r < 0)
+    }
+    if (x2.r < 0) {
         x2 = x2.negate();
+    }
 
-    if (x1.r < x2.r)
+    if (x1.r < x2.r) {
         return _u1;
+    }
     return _u2;
 }
 
