@@ -128,7 +128,12 @@ pub fn segment_reduce2(u: f32, segment: curve.Segment) curve.Segment {
 }
 
 // evaluate a 1d bezier whose first point is 0.
-pub fn _bezier0(unorm: f32, p2: f32, p3: f32, p4: f32) f32
+pub fn _bezier0(
+    unorm: f32,
+    p2: f32,
+    p3: f32,
+    p4: f32
+) f32
 {
     const p1 = 0.0;
     const z = unorm;
