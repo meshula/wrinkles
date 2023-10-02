@@ -23,8 +23,8 @@
             .hash = "1220b1f02f2f7edd98a078c64e3100907d90311d94880a3cc5927e1ac009d002667a",
         },
         .comath = .{
-            .url = "https://github.com/InKryption/comath/archive/494d612859e3c3d709aa74faabde59d4b97f547b.tar.gz",
-            .hash = "12203fafec44f0911b996d259f4d9c2f702b16b949c5691a8f8c870e6d7e61573b6c",
+            .url = "https://github.com/InKryption/comath/archive/3bda4d2e0b490bf2e73fe590b943f7bb190bbeae.tar.gz",
+            .hash = "1220db07ef076d5025fb744d8fcdb43f4ccdfcea9383d66c8a20559d950353e0936d",
         },
      }
 }

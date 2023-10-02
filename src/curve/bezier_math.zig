@@ -18,8 +18,8 @@ fn expectApproxEql(expected: anytype, actual: @TypeOf(expected)) !void {
 const allocator = @import("otio_allocator");
 const ALLOCATOR = allocator.ALLOCATOR;
 
-const CTX = comath.contexts.fnMethodCtx(
-    comath.contexts.simpleCtx({}),
+const CTX = comath.ctx.fnMethod(
+    comath.ctx.simple({}),
     .{
         .@"+" = "add",
         .@"-" = &.{"sub", "negate"},

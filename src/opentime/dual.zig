@@ -19,8 +19,8 @@ pub fn DualOf(comptime T: type) type
 }
 
 // build the context
-pub const CTX = comath.contexts.fnMethodCtx(
-    comath.contexts.simpleCtx({}),
+pub const CTX = comath.ctx.fnMethod(
+    comath.ctx.simple({}),
     .{
         .@"+" = "add",
         .@"*" = "mul",
