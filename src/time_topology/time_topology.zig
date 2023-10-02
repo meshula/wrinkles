@@ -537,10 +537,10 @@ pub const TimeTopology = union (enum) {
         other: TimeTopology
     ) !TimeTopology 
     {
-        const self_tag = std.meta.activeTag(self) == .empty;
-        const other_tag = std.meta.activeTag(other) == .empty;
+        const self_tag_is_empty = std.meta.activeTag(self) == .empty;
+        const other_tag_is_empty = std.meta.activeTag(other) == .empty;
 
-        if (self_tag or other_tag) 
+        if (self_tag_is_empty or other_tag_is_empty) 
         {
             return .{ .empty = .{} };
         }
