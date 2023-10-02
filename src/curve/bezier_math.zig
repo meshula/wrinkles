@@ -452,7 +452,7 @@ test "findU" {
 
 test "findU_dual" {
     try expectEqual(@as(f32, 0), findU_dual(0, 0,1,2,3).r);
-    try expectEqual(@as(f32, 0), findU_dual(0, 0,1,2,3).i);
+    try expectEqual(@as(f32, 1)/@as(f32,3), findU_dual(0, 0,1,2,3).i);
     // out of range values are clamped in u
     try expectEqual(@as(f32, 0), findU_dual(-1, 0,1,2,3).r);
     try expectEqual(@as(f32, 1), findU_dual(4, 0,1,2,3).r);
