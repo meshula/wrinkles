@@ -436,8 +436,28 @@ pub const Segment = struct {
         );
     }
 
+    pub fn findU_value_dual(self:@This(), tgt_value: f32) dual.Dual_f32 {
+        return bezier_math.findU_dual(
+            tgt_value,
+            self.p0.value,
+            self.p1.value,
+            self.p2.value,
+            self.p3.value,
+        );
+    }
+
     pub fn findU_input(self:@This(), input_ordinate: f32) f32 {
         return bezier_math.findU(
+            input_ordinate,
+            self.p0.time,
+            self.p1.time,
+            self.p2.time,
+            self.p3.time,
+        );
+    }
+
+    pub fn findU_input_dual(self:@This(), input_ordinate: f32) dual.Dual_f32 {
+        return bezier_math.findU_dual(
             input_ordinate,
             self.p0.time,
             self.p1.time,
@@ -1337,69 +1357,29 @@ pub const TimeCurve = struct {
                             segment.p0,
                             segment.p3, 
                         };
-                        var u_values = &.{ 0, 1 };
                         var projected_derivatives: [2]control_point.ControlPoint = undefined;
 
-                        inline for (&projected_pts, u_values, 0..) 
-                            |*pt, u, pt_ind|
+                        inline for (&projected_pts, 0..) 
+                            |*pt, pt_ind|
                         {
+                            const projection_dual = self_seg.eval_at_x_dual(
+                                pt.value
+                            );
+
                             // project the point
                             pt.* = .{
                                 .time  = pt.time,
-                                .value = self_seg.eval_at_x(pt.value)
+                                .value = projection_dual.r.value,
                             };
-
-                            // Use the chain rule to compute the derivatives of
-                            // the projected point.
-                            //
-                            // chain rule: h'(x) = f'(g(x)) * g'(x)
-                            // chain rule: h'(t) = f'(g(t)) * g'(t)
-                            // g(t) == midpoint (other @ t = 0.5)
-                            // f'(g(t)) == f'(midpoint -- other @ t = 0.5)
-                            // g'(t) == hodograph of other @ t = 0.5
-                            // h'(t) = f'(midpoint) * hodograph of other @ t= 0.5
-                            projected_derivatives[pt_ind] = chain_rule: {
-                                var self_cSeg = self_seg.to_cSeg();
-                                var self_hodo = hodographs.compute_hodograph(&self_cSeg);
-                                const f_prime_of_g_of_t = hodographs.evaluate_bezier(
-                                    &self_hodo,
-                                    u,
-                                );
-                                try cache_f_prime_of_g_of_t.append(
-                                    .{
-                                        .time = f_prime_of_g_of_t.x, 
-                                        .value= f_prime_of_g_of_t.y
-                                    }
-                                );
-
-                                var other_cSeg = segment.to_cSeg();
-                                var other_hodo = hodographs.compute_hodograph(&other_cSeg);
-                                const g_prime_of_t = hodographs.evaluate_bezier(
-                                    &other_hodo,
-                                    u,
-                                );
-                                try cache_g_prime_of_t.append(
-                                    .{
-                                        .time = g_prime_of_t.x, 
-                                        .value= g_prime_of_t.y
-                                    }
-                                );
-
-                                break :chain_rule control_point.ControlPoint{
-                                    .time  = f_prime_of_g_of_t.x * g_prime_of_t.x,
-                                    .value = f_prime_of_g_of_t.y * g_prime_of_t.y,
-                                };
-                            };
+                            projected_derivatives[pt_ind] = projection_dual.i;
                         }
-
-                        const scaling_factor : f32 = fudge/3;
 
                         tmp[0] = projected_pts[0];
                         tmp[1] = projected_pts[0].add(
-                            projected_derivatives[0].mul(scaling_factor)
+                            projected_derivatives[0].div(3)
                         );
                         tmp[2] = projected_pts[1].sub(
-                            projected_derivatives[1].mul(scaling_factor)
+                            projected_derivatives[1].div(3)
                         );
                         tmp[3] = projected_pts[1];
 

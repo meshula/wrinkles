@@ -282,7 +282,12 @@ pub fn _findU(x:f32, p1:f32, p2:f32, p3:f32) f32
     return _u2;
 }
 
-pub fn _findU_dual(x_input:f32, p1:f32, p2:f32, p3:f32) dual.Dual_f32
+pub fn _findU_dual(
+    x_input:f32,
+    p1:f32,
+    p2:f32,
+    p3:f32
+) dual.Dual_f32
 {
     const MAX_ABS_ERROR = std.math.floatEps(f32) * 2.0;
     const MAX_ITERATIONS: u8 = 45;
@@ -308,12 +313,11 @@ pub fn _findU_dual(x_input:f32, p1:f32, p2:f32, p3:f32) dual.Dual_f32
 
     {
         const _u3 = try comath.eval(
-            "((x2_n) / (x2 + x1)) + one",
+            "one - (x2 / (x2 - x1))",
             CTX,
             .{
                 .x1 = x1,
                 .x2 = x2, 
-                .x2_n = x2.negate(),
                 .one = ONE_DUAL,
             }
         );
@@ -328,7 +332,9 @@ pub fn _findU_dual(x_input:f32, p1:f32, p2:f32, p3:f32) dual.Dual_f32
         {
             if ((ONE_DUAL.sub(_u3)).r <= MAX_ABS_ERROR) {
                 if (x2.r < x3.negate().r)
+                {
                     return .{ .r = 1.0, .i = 0 };
+                }
                 return _u3;
             }
 
@@ -346,7 +352,9 @@ pub fn _findU_dual(x_input:f32, p1:f32, p2:f32, p3:f32) dual.Dual_f32
 
             if (_u3.r <= MAX_ABS_ERROR) {
                 if (x1.negate().r < x3.r)
+                {
                     return ZERO_DUAL;
+                }
                 return _u3;
             }
         }
@@ -487,7 +495,7 @@ test "_bezier0 matches _bezier0_dual" {
 
 test "findU_dual matches findU" {
     try expectEqual(@as(f32, 0), findU_dual(0, 0,1,2,3).r);
-    try expectApproxEql(-@as(f32, 1)/@as(f32,3), findU_dual(0, 0,1,2,3).i);
+    try expectApproxEql(@as(f32, 1)/@as(f32,3), findU_dual(0, 0,1,2,3).i);
 
     {
         const test_data = [_][4]f32{
@@ -514,6 +522,49 @@ test "findU_dual matches findU" {
     // out of range values are clamped in u
     try expectEqual(@as(f32, 0), findU_dual(-1, 0,1,2,3).r);
     try expectEqual(@as(f32, 1), findU_dual(4, 0,1,2,3).r);
+}
+
+test "derivative at 0 for linear curve" {
+    const crv = try curve.read_curve_json(
+        "curves/linear.curve.json",
+        std.testing.allocator
+    );
+    defer std.testing.allocator.free(crv.segments);
+
+    try expectEqual(@as(usize, 1), crv.segments.len);
+
+    // test that eval_at_dual gets the same result
+    {
+        const u_zero_dual = crv.segments[0].eval_at_dual(.{ .r = 0, .i = 1 });
+        const u_half_dual = crv.segments[0].eval_at_dual(.{ .r = 0.5, .i = 1 });
+
+        try expectApproxEql(u_zero_dual.i.time, u_half_dual.i.time);
+        try expectApproxEql(u_zero_dual.i.value, u_half_dual.i.value);
+    }
+
+    // findU dual comparison
+    {
+        const u_zero_dual = crv.segments[0].findU_input_dual(crv.segments[0].p0.time);
+        const u_third_dual = crv.segments[0].findU_input_dual(crv.segments[0].p1.time);
+        const u_one_dual = crv.segments[0].findU_input_dual(crv.segments[0].p3.time);
+
+        // known 0 values
+        try expectApproxEql(@as(f32, 0), u_zero_dual.r);
+        try expectApproxEql(@as(f32, 1), u_one_dual.r);
+
+        // derivative should be the same everywhere, linear function
+        try expectApproxEql(@as(f32, 1), u_zero_dual.i);
+        try expectApproxEql(@as(f32, 1), u_third_dual.i);
+        try expectApproxEql(@as(f32, 1), u_one_dual.i);
+    }
+
+    {
+        const x_zero_dual = crv.segments[0].eval_at_x_dual(crv.segments[0].p0.time);
+        const x_third_dual = crv.segments[0].eval_at_x_dual(crv.segments[0].p1.time);
+
+        try expectApproxEql(x_zero_dual.i.time, x_third_dual.i.time);
+        try expectApproxEql(x_zero_dual.i.value, x_third_dual.i.value);
+    }
 }
 
 fn remap_float(
