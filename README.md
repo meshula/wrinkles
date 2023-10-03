@@ -20,6 +20,13 @@ contains:
 * Add the graph to the ui
 * thread the duals through findU
 
+* todo:
+    * [ ] derivative with dual at u = 0
+    * [ ] using the derivative in the projection
+    * [ ] testing the 2 point approximation using computed derivatives
+    * [ ] show derivatives on linearized curves
+    * [ ] show derivatives on projected curves / projected curve imagine settings
+
 * hododromes
     * [x] 0 finding over cubic bezier
     * [ ] non-linearizing bezier projection
