@@ -533,10 +533,12 @@ test "derivative at 0 for linear curve" {
 
     try expectEqual(@as(usize, 1), crv.segments.len);
 
+    const seg_0 = crv.segments[0];
+
     // test that eval_at_dual gets the same result
     {
-        const u_zero_dual = crv.segments[0].eval_at_dual(.{ .r = 0, .i = 1 });
-        const u_half_dual = crv.segments[0].eval_at_dual(.{ .r = 0.5, .i = 1 });
+        const u_zero_dual = seg_0.eval_at_dual(.{ .r = 0, .i = 1 });
+        const u_half_dual = seg_0.eval_at_dual(.{ .r = 0.5, .i = 1 });
 
         try expectApproxEql(u_zero_dual.i.time, u_half_dual.i.time);
         try expectApproxEql(u_zero_dual.i.value, u_half_dual.i.value);
@@ -544,9 +546,9 @@ test "derivative at 0 for linear curve" {
 
     // findU dual comparison
     {
-        const u_zero_dual = crv.segments[0].findU_input_dual(crv.segments[0].p0.time);
-        const u_third_dual = crv.segments[0].findU_input_dual(crv.segments[0].p1.time);
-        const u_one_dual = crv.segments[0].findU_input_dual(crv.segments[0].p3.time);
+        const u_zero_dual =  seg_0.findU_input_dual(crv.segments[0].p0.time);
+        const u_third_dual = seg_0.findU_input_dual(crv.segments[0].p1.time);
+        const u_one_dual =   seg_0.findU_input_dual(crv.segments[0].p3.time);
 
         // known 0 values
         try expectApproxEql(@as(f32, 0), u_zero_dual.r);
@@ -559,8 +561,8 @@ test "derivative at 0 for linear curve" {
     }
 
     {
-        const x_zero_dual = crv.segments[0].eval_at_x_dual(crv.segments[0].p0.time);
-        const x_third_dual = crv.segments[0].eval_at_x_dual(crv.segments[0].p1.time);
+        const x_zero_dual =  seg_0.eval_at_x_dual(crv.segments[0].p0.time);
+        const x_third_dual = seg_0.eval_at_x_dual(crv.segments[0].p1.time);
 
         try expectApproxEql(x_zero_dual.i.time, x_third_dual.i.time);
         try expectApproxEql(x_zero_dual.i.value, x_third_dual.i.value);
