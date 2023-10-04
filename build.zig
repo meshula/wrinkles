@@ -101,6 +101,7 @@ pub const ALLOCATOR = raw.allocator();
 pub const Options = struct {
     optimize: std.builtin.Mode,
     target: std.zig.CrossTarget,
+    test_filter: ?[]const u8 = null,
 
     zd3d12_enable_debug_layer: bool,
     zd3d12_enable_gbv: bool,
@@ -130,6 +131,7 @@ pub fn add_test_for_source(
     test_step: anytype,
     fpath: []const u8,
     module_deps: []const ModuleSpec,
+    filter: ?[]const u8,
 ) void 
 {
     const test_thing = b.addTest(
@@ -137,32 +139,52 @@ pub fn add_test_for_source(
             .name = std.fs.path.basename(fpath),
             .root_source_file = .{ .path = fpath },
             .target = target,
-            .optimize = .Debug 
+            .optimize = .Debug,
         }
     );
-    for (module_deps) |mod| {
+
+    for (module_deps) 
+        |mod| 
+    {
         test_thing.addModule(mod.name, mod.module);
     }
 
     test_thing.addIncludePath(.{ .path = "./spline-gym/src"});
-    test_thing.addCSourceFile(.{ .file = .{ .path = "./spline-gym/src/hodographs.c"}, .flags = &c_args});
+    test_thing.addCSourceFile(
+        .{ 
+            .file = .{ .path = "./spline-gym/src/hodographs.c"},
+            .flags = &c_args
+        }
+    );
 
-    // var test_exe = b.addTest(
-    //     .{
-    //         .name = "otio_test.out",
-    //         .root_source_file = .{ .path = fpath },
-    //         .target = target,
-    //         .optimize = .Debug,
-    //     }
-    // );
-    //
-    // test_exe.addIncludePath(.{ .path = "./spline-gym/src"});
-    // test_exe.addCSourceFile("./spline-gym/src/hodographs.c", &c_args);
-    //
-    // for (module_deps) |mod| {
-    //     test_exe.addModule(mod.name, mod.module);
-    // }
-    // test_step.dependOn(&test_exe.step);
+    // install the binary for the test, so that it can be used with lldb
+    {
+        var test_exe = b.addTest(
+            .{
+                .name = "otio_test",
+                .root_source_file = .{ .path = fpath },
+                .target = target,
+                .optimize = .Debug,
+                .filter = filter,
+            }
+        );
+
+        test_exe.addIncludePath(.{ .path = "./spline-gym/src"});
+        test_exe.addCSourceFile(
+            .{ 
+                .file = .{ .path = "./spline-gym/src/hodographs.c"},
+                .flags = &c_args
+            }
+        );
+
+        const install_test_bin = b.addInstallArtifact(test_exe, .{});
+
+        for (module_deps) |mod| {
+            test_exe.addModule(mod.name, mod.module);
+        }
+        test_step.dependOn(&install_test_bin.step);
+        test_step.dependOn(&test_exe.step);
+    }
 
     test_step.dependOn(&b.addRunArtifact(test_thing).step);
 }
@@ -310,7 +332,16 @@ pub fn build(b: *std.build.Builder) void {
             "zd3d12-enable-gbv",
             "Enable DirectX 12 GPU-Based Validation (GBV)",
         ) orelse false,
-        .zpix_enable = b.option(bool, "zpix-enable", "Enable PIX for Windows profiler") orelse false,
+        .zpix_enable = b.option(
+            bool,
+            "zpix-enable",
+            "Enable PIX for Windows profiler"
+        ) orelse false,
+        .test_filter = b.option(
+            []const u8,
+            "test-filter",
+            "filter for tests to run"
+        ) orelse null,
     };
     ensureTarget(options.target) catch return;
 
@@ -412,6 +443,7 @@ pub fn build(b: *std.build.Builder) void {
             test_step,
             fpath,
             deps,
+            options.test_filter,
         );
     }
 }
