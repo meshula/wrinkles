@@ -119,6 +119,7 @@ const c_args = [_][]const u8{
 };
 
 const SOURCES_WITH_TESTS = [_][]const u8{
+    "./src/opentime/dual.zig",
     "./src/curve/curve.zig",
     "./src/test_hodograph.zig",
 };
@@ -140,6 +141,7 @@ pub fn add_test_for_source(
             .root_source_file = .{ .path = fpath },
             .target = target,
             .optimize = .Debug,
+            .filter = filter,
         }
     );
 
