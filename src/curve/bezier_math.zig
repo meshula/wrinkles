@@ -135,19 +135,34 @@ pub fn _bezier0(
     p4: f32
 ) f32
 {
-    const p1 = 0.0;
-    const z = unorm;
-    const z2 = z*z;
-    const z3 = z2*z;
-
-    const zmo = z-1.0;
-    const zmo2 = zmo*zmo;
-    const zmo3 = zmo2*zmo;
-
-    return (p4 * z3) 
-        - (p3 * (3.0*z2*zmo))
-        + (p2 * (3.0*z*zmo2))
-        - (p1 * zmo3);
+    return try comath.eval(
+        (
+         "u*u*u * p4" 
+         ++ " - (p3 * u*u*zmo*3.0)"
+         ++ " + (p2 * 3.0 * u * zmo * zmo)"
+        ),
+        CTX,
+        .{
+            .u = unorm,
+            .zmo = unorm - 1,
+            .p2 = p2,
+            .p3 = p3,
+            .p4 = p4,
+        }
+    );
+    // const p1 = 0.0;
+    // const z = unorm;
+    // const z2 = z*z;
+    // const z3 = z2*z;
+    //
+    // const zmo = z-1.0;
+    // const zmo2 = zmo*zmo;
+    // const zmo3 = zmo2*zmo;
+    //
+    // return (p4 * z3) 
+    //     - (p3 * (3.0*z2*zmo))
+    //     + (p2 * (3.0*z*zmo2))
+    //     - (p1 * zmo3);
 }
 
 pub fn _bezier0_dual(
@@ -172,9 +187,9 @@ pub fn _bezier0_dual(
         .{
             .u = unorm,
             .zmo = unorm.sub(.{.r = 1.0, .i = 0.0}),
-            .p2 = dual.Dual_f32{ .r = p2 },
-            .p3 = dual.Dual_f32{ .r = p3 },
-            .p4 = dual.Dual_f32{ .r = p4 },
+            .p2 = dual.Dual_f32{ .r = p2, .i = 0.0 },
+            .p3 = dual.Dual_f32{ .r = p3, .i = 0.0 },
+            .p4 = dual.Dual_f32{ .r = p4, .i = 0.0 },
         }
     );
 }
@@ -282,6 +297,109 @@ pub fn _findU(x:f32, p1:f32, p2:f32, p3:f32) f32
     return _u2;
 }
 
+pub fn findU_dual2(
+    x_input: f32,
+    p1: f32,
+    p2: f32,
+    p3: f32,
+) dual.Dual_f32
+{
+    // first guess
+    var u_guess: dual.Dual_f32 = .{ .r = 0.5, .i = 1.0 };
+
+    const MAX_ABS_ERROR = std.math.floatEps(f32) * 2.0;
+    const MAX_ITERATIONS = 45;
+
+    var u_max = dual.Dual_f32{.r = 1.0, .i = 0.0 };
+    var u_min = dual.Dual_f32{.r = 0.0, .i = 0.0 };
+
+    const TWO = dual.Dual_f32{ .r = 2.0, .i = 0.0 };
+
+    var iter:usize = 0;
+    while (iter < MAX_ITERATIONS) 
+        : (iter += 1)
+    {
+        var x_at_u_guess = _bezier0_dual(u_guess, p1, p2, p3);
+
+        const delta = x_at_u_guess.r - x_input;
+
+        if (@fabs(delta) < MAX_ABS_ERROR) 
+        {
+            return u_guess;
+        }
+
+        if (delta < 0)
+        {
+            u_min = u_guess;
+            u_guess = try comath.eval(
+                "(u_max + u_guess) / two",
+                CTX,
+                .{
+                    .u_max = u_max,
+                    .u_guess = u_guess,
+                    .two = TWO,
+                },
+            );
+        } 
+        else 
+        {
+            u_max = u_guess;
+            u_guess = try comath.eval(
+                "(u_guess + u_min) / two",
+                CTX,
+                .{
+                    .u_guess = u_guess,
+                    .u_min = u_min,
+                    .two = TWO,
+                },
+            );
+        }
+    }
+
+    // best guess
+    return u_guess;
+
+    // var u_guess = dual.Dual_f32{ .r =  1.5, .i = 1.0 };
+    // const x_input_dual = dual.Dual_f32{ .r = x_input, .i = 0 };
+    //
+    // var iter:usize = 0;
+    // while (iter < MAX_ITERATIONS)
+    //     : (iter += 1)
+    // {
+    //     const x_at_u_guess = _bezier0_dual(u_guess, p1, p2, p3);
+    //
+    //     if (@fabs(x_at_u_guess.r - x_input) < MAX_ABS_ERROR)
+    //     {
+    //         return u_guess;
+    //     }
+    //
+    //     // u_(n+1) = u_n - f(u_n) / f'(u_n)
+    //     u_guess = try comath.eval(
+    //         "u_guess - ((x_at_u_guess - x_input_dual) / dx_at_uguess_du)",
+    //         CTX,
+    //         .{
+    //             .u_guess = u_guess,
+    //             .x_at_u_guess = x_at_u_guess,
+    //             .x_input_dual = x_input_dual,
+    //             .dx_at_uguess_du = dual.Dual_f32{ .r = u_guess.i, .i = 0 },
+    //         },
+    //     );
+    // }
+    //
+    // std.log.err("woo\nwoo\nwoo\n", .{});
+    // return u_guess;
+    //
+    // // def find_u_for_x(bezier_curve, target_x, tolerance=1e-6, max_iterations=100):
+    // // u = 0.5  # Initial guess for u
+    // // for i in range(max_iterations):
+    // //     x_at_u = evaluate_bezier_x(bezier_curve, u)  # Evaluate x-coordinate
+    // //     if abs(x_at_u - target_x) < tolerance:
+    // //         return u  # Found a close enough u
+    // //     # Adjust u based on the difference between x_at_u and target_x
+    // //     u -= (x_at_u - target_x) / derivative_of_x_at_u(bezier_curve, u)
+    // // return None  # Convergence failed
+}
+
 pub fn _findU_dual(
     x_input:f32,
     p1:f32,
@@ -292,16 +410,16 @@ pub fn _findU_dual(
     const MAX_ABS_ERROR = std.math.floatEps(f32) * 2.0;
     const MAX_ITERATIONS: u8 = 45;
 
-    const ONE_DUAL = dual.Dual_f32{ .r = 1, .i = 0 };
+    const ONE_DUAL  = dual.Dual_f32{ .r = 1, .i = 0};
     const ZERO_DUAL = dual.Dual_f32{ .r = 0, .i = 0};
 
-    if (x_input < 0) {
-        return ZERO_DUAL;
-    }
-
-    if (x_input > p3) {
-        return ONE_DUAL;
-    }
+    // if (x_input < 0) {
+    //     return ZERO_DUAL;
+    // }
+    //
+    // if (x_input > p3) {
+    //     return ONE_DUAL;
+    // }
 
     // differentiate from x on
     const x = dual.Dual_f32{ .r = x_input, .i = 1 };
@@ -309,8 +427,13 @@ pub fn _findU_dual(
     var _u1=ZERO_DUAL;
     var _u2=ZERO_DUAL;
     var x1 = x.negate(); // same as: bezier0 (0, p1, p2, p3) - x;
-    var x2 = try comath.eval("x1 + p3", CTX, .{ .x1 = x1, .p3 = p3 }); // same as: bezier0 (1, p1, p2, p3) - x;
+    var x2 = try comath.eval(
+        "x1 + p3",
+        CTX, .{ .x1 = x1, .p3 = dual.Dual_f32{ .r = p3, .i = 0 } },
+    ); // same as: bezier0 (1, p1, p2, p3) - x;
 
+    // find a good start point for the newton-raphson search, bail out early on
+    // endpoints
     {
         const _u3 = try comath.eval(
             "one - (x2 / (x2 - x1))",
@@ -323,18 +446,14 @@ pub fn _findU_dual(
         );
         const x3 = _bezier0_dual(_u3, p1, p2, p3).sub(x);
 
-        if (x3.r == 0)
-        {
-            return _u3;
-        }
-
         if (x3.r < 0)
         {
             if ((ONE_DUAL.sub(_u3)).r <= MAX_ABS_ERROR) {
-                if (x2.r < x3.negate().r)
-                {
-                    return .{ .r = 1.0, .i = 0 };
-                }
+                // if (x2.r < x3.negate().r)
+                // {
+                //     return ONE_DUAL;
+                // }
+                @breakpoint();
                 return _u3;
             }
 
@@ -347,20 +466,31 @@ pub fn _findU_dual(
             x1 = try comath.eval(
                 "x1 * x2 / (x2 + x3)",
                 CTX,
-                .{ .x1 = x1, .x2 = x2, .x3 = x3 }
+                .{ 
+                    .x1 = x1,
+                    .x2 = x2,
+                    .x3 = x3 
+                }
             );
 
-            if (_u3.r <= MAX_ABS_ERROR) {
-                if (x1.negate().r < x3.r)
-                {
-                    return ZERO_DUAL;
-                }
-                return _u3;
-            }
+            // if (_u3.r <= MAX_ABS_ERROR) {
+            //     // if (x1.negate().r < x3.r)
+            //     // {
+            //     //     return ZERO_DUAL;
+            //     // }
+            //     @breakpoint();
+            //     return _u3;
+            // }
         }
         _u2 = _u3;
         x2 = x3;
     }
+
+    // if ((x_input <= 0) or (x_input >= p3))
+    // {
+    //     @breakpoint();
+    //     return _u2;
+    // }
 
     var i: u8 = MAX_ITERATIONS - 1;
 
@@ -428,6 +558,7 @@ pub fn _findU_dual(
     if (x1.r < x2.r) {
         return _u1;
     }
+
     return _u2;
 }
 
@@ -443,6 +574,7 @@ pub fn findU(x:f32, p0:f32, p1:f32, p2:f32, p3:f32) f32
 
 pub fn findU_dual(x:f32, p0:f32, p1:f32, p2:f32, p3:f32) dual.Dual_f32
 {
+    // return findU_dual2(x - p0, p1 - p0, p2 - p0, p3 - p0);
     return _findU_dual(x - p0, p1 - p0, p2 - p0, p3 - p0);
 }
 
@@ -475,7 +607,6 @@ test "_bezier0 matches _bezier0_dual" {
             [4]f32{ 0, 1, 2, 3 },
         };
 
-        // sweep values in range and make sure that findU and findU_dual match
         for (test_data)
             |t|
         {
@@ -522,6 +653,31 @@ test "findU_dual matches findU" {
     // out of range values are clamped in u
     try expectEqual(@as(f32, 0), findU_dual(-1, 0,1,2,3).r);
     try expectEqual(@as(f32, 1), findU_dual(4, 0,1,2,3).r);
+}
+
+test "dydx matches expected at endpoints" {
+    const crv = try curve.read_curve_json(
+        "curves/scurve_extreme.curve.json",
+        std.testing.allocator
+    );
+    defer std.testing.allocator.free(crv.segments);
+
+    const seg0 = crv.segments[0];
+
+    // {
+    //     const u_zero_dual = seg0.eval_at_dual(.{ .r = 0.1, .i = 1 });
+    //     try expectApproxEql(@as(f32, 1.0), u_zero_dual.i.time);
+    // }
+
+    // {
+    //     const u_zero_dual = seg0.eval_at_dual(.{ .r = 0, .i = 1 });
+    //     try expectApproxEql(@as(f32, 1.0), u_zero_dual.i.time);
+    // }
+
+    {
+        const x_zero_dual = seg0.eval_at_x_dual(seg0.p0.time);
+        try expectApproxEql(seg0.p1.time - seg0.p0.time, x_zero_dual.i.time);
+    }
 }
 
 test "derivative at 0 for linear curve" {

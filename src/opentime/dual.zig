@@ -101,6 +101,13 @@ pub fn DualOfNumberType(comptime T: type) type {
                 .i = (rhs.r * self.i - self.r * rhs.i) / (rhs.r * rhs.r),
             };
         }
+
+        pub inline fn sqrt(self: @This()) @This() {
+            return .{ 
+                .r = std.math.sqrt(self.r),
+                .i = self.i / (2 * std.math.sqrt(self.r)),
+            };
+        }
     };
 }
 

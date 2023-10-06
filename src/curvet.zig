@@ -21,17 +21,18 @@ const util = opentime.util;
 const DERIVATIVE_STEPS = 10;
 const CURVE_SAMPLE_COUNT = 1000;
 
-const DebugBezierFlags = packed struct (i8) {
+const DebugBezierFlags = packed struct (i16) {
     bezier: bool = true,
     knots: bool = false,
     control_points: bool = false,
     linearized: bool = false,
+    find_u_test: bool = false,
     natural_midpoint: bool = false,
     derivatives_ddu: bool = false,
     derivatives_dydx: bool = false,
     derivatives_hodo_ddu: bool = false,
 
-    // _padding: i1 = 0,
+    _padding: i7 = 0,
 
     pub fn draw_ui(
         self: * @This(),
@@ -46,6 +47,7 @@ const DebugBezierFlags = packed struct (i8) {
                 .{ "Draw Knots", "knots"},
                 .{ "Draw Control Points", "control_points" },
                 .{ "Draw Linearized", "linearized" },
+                .{ "Draw Find U Test", "find_u_test" },
                 .{ "Natural Midpoint (t=0.5)", "natural_midpoint" },
                 .{ "Show Derivatives (d/du)", "derivatives_ddu" },
                 .{ "Show Derivatives (dy/dx)", "derivatives_dydx" },
@@ -65,6 +67,30 @@ const DebugBezierFlags = packed struct (i8) {
 
             }
             zgui.popId();
+        }
+    }
+};
+
+const two_point_approx_flags = struct {
+    result_curves: DebugBezierFlags = .{ .bezier = true },
+
+    pub fn draw_ui(self: *@This(), name: [:0]const u8) void {
+        if (zgui.treeNode(name)) 
+        {
+            defer zgui.treePop();
+
+            self.result_curves.draw_ui("result of two point approximation");
+
+            // const fields = .{
+            // };
+            //
+            // if (zgui.treeNode("two Point Approx internals")) 
+            // {
+            //     defer zgui.treePop();
+            //     inline for (fields) |field| {
+            //         _ = zgui.checkbox(field, .{ .v = & @field(self, field) });
+            //     }
+            // }
         }
     }
 };
@@ -130,12 +156,14 @@ const DebugDrawCurveFlags = struct {
         .midpoint = true,
         .e1_2 = true,
     },
+    two_point_approx: two_point_approx_flags = .{},
 
     pub fn draw_ui(self: *@This(), name: []const u8) void {
         zgui.pushStrId(name);
         self.input_curve.draw_ui("input_curve");
         self.split_critical_points.draw_ui("split on critical points");
         self.three_point_approximation.draw_ui("three point approximation");
+        self.two_point_approx.draw_ui("two point approximation");
         zgui.popId();
     }
 };
@@ -798,6 +826,47 @@ fn plot_bezier_curve(
         }
     }
 
+    if (flags.find_u_test) 
+    {
+        const crv_extents = crv.extents();
+
+        const findu_label = try std.fmt.bufPrintZ(
+            &buf,
+            "{s} findu test",
+            .{ name }
+        );
+
+        var xv : [2]f32 = .{0, 0};
+        var yv : [2]f32 = .{0, 0};
+
+        for (crv.segments)
+            |seg|
+        {
+            var x = seg.p0.time;
+            var xmax = seg.p3.time;
+            var step = (xmax - x) / 10.0;
+
+            while (x < xmax)
+                : (x += step)
+            {
+                var u_at_x = seg.findU_input_dual(x);
+                var pt = seg.eval_at_dual(u_at_x);
+
+                xv[0] = x;
+                xv[1] = pt.r.time;
+
+                yv[0] = crv_extents[0].value;
+                yv[1] = pt.r.value;
+
+                zgui.plot.plotLine(
+                    findu_label,
+                    f32,
+                    .{ .xv = &xv, .yv = &yv }
+                );
+            }
+        }
+    }
+
     if (flags.derivatives_ddu or flags.derivatives_dydx) 
     {
         const deriv_label_ddu = try std.fmt.bufPrintZ(
@@ -1098,6 +1167,72 @@ fn plot_tpa_guts(
     }
 }
 
+// plot using a two point approximation
+fn plot_two_point_approx(
+    crv: curve.TimeCurve,
+    flags: DebugDrawCurveFlags,
+    name: [:0]const u8,
+    allocator: std.mem.Allocator,
+) !void
+{
+    var buf:[1024:0]u8 = .{};
+
+    const approx_label = try std.fmt.bufPrintZ(
+        &buf,
+        "{s} / approximation using two point method (+computed derivatives at endpoints)",
+        .{ name }
+    );
+    var approx_segments = std.ArrayList(curve.Segment).init(allocator);
+    defer approx_segments.deinit();
+
+    for (crv.segments) 
+        |seg| 
+    {
+        if (seg.p0.time > 0) {
+            continue;
+        }
+        // const cSeg = seg.to_cSeg();
+        // var hodo = curve.bezier_curve.hodographs.compute_hodograph(&cSeg);
+    //     const d_midpoint_dt = (
+    //         curve.bezier_curve.hodographs.evaluate_bezier(
+    //             &hodo,
+    //             u
+    //         )
+    //     );
+    //     const d_mid_point_dt = curve.ControlPoint{
+    //         .time = d_midpoint_dt.x,
+    //         .value = d_midpoint_dt.y,
+    //     };
+    //
+    //     const tpa_guts = curve.bezier_curve.three_point_guts_plot(
+    //         seg.p0,
+    //         mid_point,
+    //         u,
+    //         d_mid_point_dt,
+    //         seg.p3,
+    //     );
+    //
+    //     // derivative at the midpoint
+    //     try approx_segments.append(tpa_guts.result.?);
+    //
+    //     try plot_tpa_guts(
+    //         tpa_guts,
+    //         label,
+    //         flags.three_point_approximation,
+    //         allocator,
+    //     );
+    }
+
+        const approx_crv = try curve.TimeCurve.init(approx_segments.items);
+
+        try plot_bezier_curve(
+            approx_crv,
+            approx_label,
+            flags.three_point_approximation.result_curves,
+            allocator
+        );
+}
+
 fn plot_three_point_approx(
     crv: curve.TimeCurve,
     flags: DebugDrawCurveFlags,
@@ -1205,15 +1340,17 @@ fn plot_curve(
         if (crv.editable) {
             try plot_editable_bezier_curve(&crv.curve, name, allocator);
             crv.split_hodograph.deinit(allocator);
-            crv.split_hodograph = try crv.curve.split_on_critical_points(allocator);
-        } else {
-            try plot_bezier_curve(
-                crv.curve,
-                name,
-                flags.input_curve,
-                allocator
+            crv.split_hodograph = (
+                try crv.curve.split_on_critical_points(allocator)
             );
         }
+
+        try plot_bezier_curve(
+            crv.curve,
+            name,
+            flags.input_curve,
+            allocator
+        );
     }
 
     // input curve linearized
