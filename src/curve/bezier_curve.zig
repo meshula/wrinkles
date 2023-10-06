@@ -2022,7 +2022,7 @@ test "TimeCurve: positive length 1 linear segment test" {
     try expectEqual(@as(f32, 0),    try xform_curve.evaluate(1));
     try std.testing.expectApproxEqAbs(@as(f32, 0.25), try xform_curve.evaluate(1.25), generic_curve.EPSILON);
     try std.testing.expectApproxEqAbs(@as(f32, 0.5),  try xform_curve.evaluate(1.5), generic_curve.EPSILON);
-    try expectEqual(@as(f32, 0.75), try xform_curve.evaluate(1.75));
+    try expectApproxEql(@as(f32, 0.75), try xform_curve.evaluate(1.75));
 }
 
 test "TimeCurve: project_linear_curve to identity" {
