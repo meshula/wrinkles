@@ -297,6 +297,102 @@ pub fn _findU(x:f32, p1:f32, p2:f32, p3:f32) f32
     return _u2;
 }
 
+pub fn findU_dual3(
+    x_input: f32,
+    p0: f32,
+    p1: f32,
+    p2: f32,
+    p3: f32,
+) dual.Dual_f32
+{
+    const x = @max(0, @min(1, x_input));
+
+    const p0_d = dual.Dual_f32{.r = p0 - x, .i = -1 };
+    const p1_d = dual.Dual_f32{.r = p1 - x, .i = -1 };
+    const p2_d = dual.Dual_f32{.r = p2 - x, .i = -1 };
+    const p3_d = dual.Dual_f32{.r = p3 - x, .i = -1 };
+
+    const a = try comath.eval(
+        "three * ( three * p1 - three * p2 + p3 - p0 )",
+        CTX,
+        .{
+            .three = dual.Dual_f32{ .r = 3.0, .i = 0 },
+            .p0 = p0_d,
+            .p1 = p1_d,
+            .p2 = p2_d,
+            .p3 = p3_d,
+        },
+    );
+
+    // if (a.r == 0) {
+    //     return a;
+    // }
+
+    const b = try comath.eval(
+        "six * (p0 - two * p1 + p2)",
+        CTX,
+        .{
+            .p0 = p0_d,
+            .p1 = p1_d,
+            .p2 = p2_d,
+            .two = dual.Dual_f32{ .r = 2.0, .i = 0 },
+            .six = dual.Dual_f32{ .r = 6.0, .i = 0 },
+        },
+    );
+    const c = try comath.eval(
+        "three * (p1 - p0)",
+        CTX,
+        .{
+            .three = dual.Dual_f32{ .r = 3.0, .i = 0 },
+            .p0 = p0_d,
+            .p1 = p1_d,
+        },
+    );
+
+    const b2_4ac = try comath.eval(
+        "b*b - four*a*c",
+        CTX,
+        .{
+            .four = dual.Dual_f32{ .r = 4.0, .i = 0 },
+            .a = a,
+            .b = b,
+            .c = c,
+        }
+    );
+
+    const sqrt_b2_4ac = b2_4ac.sqrt();
+
+    const u_pos = try comath.eval(
+        "(sqrt_b2_4ac - b)/(two * a)",
+        CTX,
+        .{
+            .b = b,
+            .sqrt_b2_4ac = sqrt_b2_4ac,
+            .a = a,
+            .two = dual.Dual_f32{ .r = 2.0, .i = 0 },
+        }
+    );
+
+    if (u_pos.r >= 0 and u_pos.r <= 1) {
+        return u_pos;
+    }
+
+    const u_neg = try comath.eval(
+        "(sqrt_b2_4ac - b)/(two * a)",
+        CTX,
+        .{
+            .b = b,
+            .sqrt_b2_4ac = sqrt_b2_4ac.negate(),
+            .a = a,
+            .two = dual.Dual_f32{ .r = 2.0, .i = 0 },
+        }
+    );
+
+    return u_neg;
+
+    // u = (-b +/- sqrt(b*b - 4*a*c)) / (2*a)
+}
+
 pub fn findU_dual2(
     x_input: f32,
     p1: f32,
@@ -448,14 +544,14 @@ pub fn _findU_dual(
 
         if (x3.r < 0)
         {
-            if ((ONE_DUAL.sub(_u3)).r <= MAX_ABS_ERROR) {
-                // if (x2.r < x3.negate().r)
-                // {
-                //     return ONE_DUAL;
-                // }
-                @breakpoint();
-                return _u3;
-            }
+            // if ((ONE_DUAL.sub(_u3)).r <= MAX_ABS_ERROR) {
+            //     // if (x2.r < x3.negate().r)
+            //     // {
+            //     //     return ONE_DUAL;
+            //     // }
+            //     @breakpoint();
+            //     return _u3;
+            // }
 
             _u1 = ONE_DUAL;
             x1 = x2;
@@ -575,7 +671,8 @@ pub fn findU(x:f32, p0:f32, p1:f32, p2:f32, p3:f32) f32
 pub fn findU_dual(x:f32, p0:f32, p1:f32, p2:f32, p3:f32) dual.Dual_f32
 {
     // return findU_dual2(x - p0, p1 - p0, p2 - p0, p3 - p0);
-    return _findU_dual(x - p0, p1 - p0, p2 - p0, p3 - p0);
+    // return _findU_dual(x - p0, p1 - p0, p2 - p0, p3 - p0);
+    return findU_dual3(x, p0, p1, p2, p3);
 }
 
 
@@ -626,6 +723,8 @@ test "_bezier0 matches _bezier0_dual" {
 
 test "findU_dual matches findU" {
     try expectEqual(@as(f32, 0), findU_dual(0, 0,1,2,3).r);
+    @breakpoint();
+    try expectEqual(@as(f32, 0.5), findU_dual(0.5, 0,1,2,3).r);
     try expectApproxEql(@as(f32, 1)/@as(f32,3), findU_dual(0, 0,1,2,3).i);
 
     {

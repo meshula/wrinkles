@@ -8,18 +8,22 @@ pub const ContinuousTimeInterval = interval.ContinuousTimeInterval;
 // @}
 
 // Domain @{
-pub const Domain = @import("domain.zig").Domain;
+// pub const Domain = @import("domain.zig").Domain;
 // @}
 
 // transform
 pub const transform = @import("transform.zig");
+pub const sample = @import("sample.zig");
 
 pub const dual = @import("dual.zig");
 pub const Dual_t = dual.Dual_t;
 
+pub const util = @import("util.zig");
+
 test "all opentime tests" {
     _ = interval;
-    _ = Domain;
+    // _ = Domain;
     _ = transform;
+    _ = sample;
     _ = dual;
 }

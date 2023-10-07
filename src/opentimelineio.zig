@@ -3,17 +3,17 @@ const expectApproxEqAbs= std.testing.expectApproxEqAbs;
 const expectEqual = std.testing.expectEqual;
 const expectError= std.testing.expectError;
 
-const opentime = @import("opentime/opentime.zig");
+const opentime = @import("opentime");
 const Duration = f32;
 
-const interval = @import("opentime/interval.zig");
-const transform = @import("opentime/transform.zig");
-const curve = @import("opentime/curve/curve.zig");
-const time_topology = @import("opentime/time_topology.zig");
+const interval = opentime.interval;
+const transform = opentime.transform;
+const curve = @import("curve");
+const time_topology = @import("time_topology");
 const string = opentime.string;
 
-const util = @import("opentime/util.zig");
-const allocator = @import("opentime/allocator.zig");
+const util = opentime.util;
+const allocator = @import("otio_allocator");
 
 const treecode = @import("treecode.zig");
 

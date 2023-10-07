@@ -167,7 +167,7 @@ pub fn add_test_for_source(
                 .root_source_file = .{ .path = fpath },
                 .target = target,
                 .optimize = .Debug,
-                .filter = filter,
+                // .filter = filter,
             }
         );
 

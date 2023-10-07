@@ -162,7 +162,7 @@ pub const ControlPoint = struct {
 
     // multiply with float
     pub fn mul(self: @This(), rhs: anytype) ControlPoint {
-        return switch(@typeInfo(rhs)) {
+        return switch(@typeInfo(@TypeOf(rhs))) {
             .Struct =>  .{
                 .time = rhs.time*self.time,
                 .value = rhs.value*self.value,
@@ -260,7 +260,6 @@ test "comath dual test polymorphic" {
     // function we want derivatives of
     const fn_str = "(x + off1) * (x + off2)";
 
-
     inline for (test_data, 0..) |td, i| {
         const value = comath.eval(
             fn_str,
@@ -275,4 +274,11 @@ test "comath dual test polymorphic" {
 
         try std.testing.expect(std.meta.eql(value, td.expect));
     }
+}
+
+test "Dual_f32 sqrt (3-4-5 triangle)" {
+    const d = Dual_f32{ .r = (3*3 + 4*4), .i = 1 };
+
+    try std.testing.expectApproxEqAbs(@as(f32, 5), d.sqrt().r, 0.00000001);
+    // try std.testing.expectApproxEqAbs(@as(f32, 0.1), d.sqrt().i, 0.00000001);
 }

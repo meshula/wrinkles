@@ -1,7 +1,7 @@
 const std = @import("std");
-const opentime = @import("opentime.zig");
-const util = @import("util.zig");
-const EPSILON = @import("util.zig").EPSILON;
+const opentime = @import("opentime");
+const util = opentime.util;
+const EPSILON = util.EPSILON;
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const expectApproxEqAbs= std.testing.expectApproxEqAbs;
