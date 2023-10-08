@@ -336,9 +336,9 @@ pub fn findU_dual3(
 ) dual.Dual_f32
 {
 
-    const FOUR = dual.Dual_f32{ .r = 4, .i = 0 };
-    const THREE = dual.Dual_f32{ .r = 3, .i = 0 };
-    const TWO = dual.Dual_f32{ .r = 2, .i = 0 };
+    // const FOUR = dual.Dual_f32{ .r = 4, .i = 0 };
+    // const THREE = dual.Dual_f32{ .r = 3, .i = 0 };
+    // const TWO = dual.Dual_f32{ .r = 2, .i = 0 };
 
     const x = @max(0, @min(1, x_input));
 
@@ -407,9 +407,9 @@ pub fn findU_dual3(
 
         // quadratic
         const q2 = try comath.eval(
-            "b * b - FOUR * a * c",
+            "b * b - a * c * 4.0",
             CTX,
-            .{ .b = b, .a = a, .c = c, .FOUR = FOUR },
+            .{ .b = b, .a = a, .c = c},
         );
         const q = q2.sqrt();
 
@@ -442,10 +442,9 @@ pub fn findU_dual3(
         c = c.div(d);
 
         const p = try comath.eval(
-            "(THREE * b - a * a) / THREE",
+            "(b * 3.0 - a * a) / 3.0",
             CTX,
             .{
-                .THREE = THREE,
                 .a = a,
                 .b = b,
             },
@@ -460,19 +459,16 @@ pub fn findU_dual3(
 
     @setEvalBranchQuota(100000);
         const q = try comath.eval(
-            "(two * a * a * a - nine * a * b + n27 * c) / n27",
+            "(a * a * a * 2.0 -  a * b * 9.0 + c * 27.0) / 27.0",
             CTX,
             .{ 
-                .two = TWO,
-                .nine = dual.Dual_f32{ .r = 9, .i = 0 },
-                .n27 = dual.Dual_f32{ .r = 27, .i = 0 },
                 .a = a,
                 .b = b,
                 .c = c
             } 
         );
 
-        const p_div_3 = p.div(THREE);
+        const p_div_3 = p.div(3.0);
         const q2 = q.div(.{ .r = 2, .i = 0});
         const discriminant = try comath.eval(
             "q2 * q2 + p_div_3 * p_div_3 * p_div_3",
@@ -484,13 +480,13 @@ pub fn findU_dual3(
             );
 
         if (discriminant.r < 0) {
-            const mp3 = (p.negate()).div(THREE);
+            const mp3 = (p.negate()).div(3.0);
             const mp33 = mp3.mul(mp3).mul(mp3);
             const r = mp33.sqrt();
             const t = try comath.eval(
-                "-q / (two * r)",
+                "-q / (r*2.0)",
                 CTX,
-                .{ .q = q, .r = r, .two = TWO },
+                .{ .q = q, .r = r, },
             );
             const ONE_DUAL = dual.Dual_f32{ .r = 1.0, .i = t.i };
             const cosphi = if (t.r < -1) ONE_DUAL.negate() else (if (t.r > 1) ONE_DUAL else t);
