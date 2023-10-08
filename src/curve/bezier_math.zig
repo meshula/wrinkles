@@ -23,12 +23,13 @@ const allocator = @import("otio_allocator");
 const ALLOCATOR = allocator.ALLOCATOR;
 
 const CTX = comath.ctx.fnMethod(
-    comath.ctx.simple({}),
+    comath.ctx.simple(dual.dual_ctx{}),
     .{
         .@"+" = "add",
         .@"-" = &.{"sub", "negate"},
         .@"*" = "mul",
         .@"/" = "div",
+        .@"cos" = "cos",
     }
 );
 
@@ -297,6 +298,35 @@ pub fn _findU(x:f32, p1:f32, p2:f32, p3:f32) f32
     return _u2;
 }
 
+fn first_valid_root(possible_roots: [] const dual.Dual_f32 ) dual.Dual_f32
+{
+    for (possible_roots)
+        |root|
+    {
+        if (0 <= root.r and root.r <= 1)
+        {
+            return root;
+        }
+    }
+
+    return possible_roots[0];
+}
+
+// cube root function yielding real roots
+inline fn crt(
+    v:dual.Dual_f32
+) dual.Dual_f32
+{
+    if (v.r < 0) {
+        // return -std.math.pow(f32,-v, 1.0 / 3.0);
+        return (v.pow(1.0/3.0)).negate();
+    } 
+    else {
+        // return std.math.pow(f32,v, 1.0 / 3.0);
+        return (v.pow(1.0/3.0));
+    }
+}
+
 pub fn findU_dual3(
     x_input: f32,
     p0: f32,
@@ -305,6 +335,11 @@ pub fn findU_dual3(
     p3: f32,
 ) dual.Dual_f32
 {
+
+    const FOUR = dual.Dual_f32{ .r = 4, .i = 0 };
+    const THREE = dual.Dual_f32{ .r = 3, .i = 0 };
+    const TWO = dual.Dual_f32{ .r = 2, .i = 0 };
+
     const x = @max(0, @min(1, x_input));
 
     const p0_d = dual.Dual_f32{.r = p0 - x, .i = -1 };
@@ -312,85 +347,218 @@ pub fn findU_dual3(
     const p2_d = dual.Dual_f32{.r = p2 - x, .i = -1 };
     const p3_d = dual.Dual_f32{.r = p3 - x, .i = -1 };
 
-    const a = try comath.eval(
-        "three * ( three * p1 - three * p2 + p3 - p0 )",
+    const d = comath.eval(
+        "-pa + THREE * pb - THREE * pc + pd",
         CTX,
-        .{
-            .three = dual.Dual_f32{ .r = 3.0, .i = 0 },
-            .p0 = p0_d,
-            .p1 = p1_d,
-            .p2 = p2_d,
-            .p3 = p3_d,
+        .{ 
+            .pa = p0_d,
+            .pb = p1_d,
+            .pc = p2_d,
+            .pd = p3_d,
+            .THREE = dual.Dual_f32{ .r = 3, .i = 0 },
         },
-    );
+    ) catch .{ .r = -12, .i=3.14};
 
-    // if (a.r == 0) {
-    //     return a;
-    // }
-
-    const b = try comath.eval(
-        "six * (p0 - two * p1 + p2)",
+    var a = comath.eval(
+        "THREE * pa - six * pb + THREE * pc",
         CTX,
-        .{
-            .p0 = p0_d,
-            .p1 = p1_d,
-            .p2 = p2_d,
-            .two = dual.Dual_f32{ .r = 2.0, .i = 0 },
-            .six = dual.Dual_f32{ .r = 6.0, .i = 0 },
+        .{ 
+            .pa = p0_d,
+            .pb = p1_d,
+            .pc = p2_d,
+            .THREE = dual.Dual_f32{ .r = 3, .i = 0 },
+            .six = dual.Dual_f32{ .r = 6, .i = 0 },
         },
-    );
-    const c = try comath.eval(
-        "three * (p1 - p0)",
-        CTX,
-        .{
-            .three = dual.Dual_f32{ .r = 3.0, .i = 0 },
-            .p0 = p0_d,
-            .p1 = p1_d,
-        },
-    );
+    ) catch .{ .r = -12, .i=3.14};
 
-    const b2_4ac = try comath.eval(
-        "b*b - four*a*c",
+    var b = comath.eval(
+        "-THREE * pa + THREE * pb",
         CTX,
-        .{
-            .four = dual.Dual_f32{ .r = 4.0, .i = 0 },
-            .a = a,
-            .b = b,
-            .c = c,
+        .{ 
+            .pa = p0_d,
+            .pb = p1_d,
+            .THREE = dual.Dual_f32{ .r = 3, .i = 0 },
+        },
+    ) catch .{ .r = -12, .i=3.14};
+
+    var c = p0_d;
+
+    if (@fabs(d.r) < generic_curve.EPSILON) 
+    {
+        // not cubic
+        if (@fabs(a.r) < generic_curve.EPSILON) 
+        {
+            // linear
+            if (@fabs(b.r) < generic_curve.EPSILON)
+            {
+                // no solutions
+                // todo optiona/error
+                return .{
+                    .r = std.math.nan(f32),
+                    .i = std.math.nan(f32),
+                };
+            }
+            return try comath.eval(
+                "-c / b", 
+                CTX,
+                .{ .c = c, .b = b }
+            );
         }
-    );
 
-    const sqrt_b2_4ac = b2_4ac.sqrt();
+        // quadratic
+        const q2 = try comath.eval(
+            "b * b - FOUR * a * c",
+            CTX,
+            .{ .b = b, .a = a, .c = c, .FOUR = FOUR },
+        );
+        const q = q2.sqrt();
 
-    const u_pos = try comath.eval(
-        "(sqrt_b2_4ac - b)/(two * a)",
-        CTX,
-        .{
-            .b = b,
-            .sqrt_b2_4ac = sqrt_b2_4ac,
-            .a = a,
-            .two = dual.Dual_f32{ .r = 2.0, .i = 0 },
+        const a2 = a.mul(.{ .r = 2, .i = 0 });
+
+        const pos_sol = try comath.eval(
+            "(q - b) / a2",
+            CTX,
+            .{ .q = q, .b = b, .a2 = a2 }
+        );
+
+        if (0 <= pos_sol.r and pos_sol.r <= 1)
+        {
+            return pos_sol;
         }
-    );
 
-    if (u_pos.r >= 0 and u_pos.r <= 1) {
-        return u_pos;
+        // negative solution
+        return try comath.eval(
+            "(-b - q) / a2",
+            CTX,
+            .{ .q = q, .b = b, .a2 = a2 }
+        );
+
     }
 
-    const u_neg = try comath.eval(
-        "(sqrt_b2_4ac - b)/(two * a)",
-        CTX,
-        .{
-            .b = b,
-            .sqrt_b2_4ac = sqrt_b2_4ac.negate(),
-            .a = a,
-            .two = dual.Dual_f32{ .r = 2.0, .i = 0 },
+
+        // cubic solution
+        a = a.div(d);
+        b = b.div(d);
+        c = c.div(d);
+
+        const p = try comath.eval(
+            "(THREE * b - a * a) / THREE",
+            CTX,
+            .{
+                .THREE = THREE,
+                .a = a,
+                .b = b,
+            },
+        );
+
+    if (true)
+    {
+    //     return .{ .r = 1, .i = 0 };
+    // }
+    // else
+    // {
+
+    @setEvalBranchQuota(100000);
+        const q = try comath.eval(
+            "(two * a * a * a - nine * a * b + n27 * c) / n27",
+            CTX,
+            .{ 
+                .two = TWO,
+                .nine = dual.Dual_f32{ .r = 9, .i = 0 },
+                .n27 = dual.Dual_f32{ .r = 27, .i = 0 },
+                .a = a,
+                .b = b,
+                .c = c
+            } 
+        );
+
+        const p_div_3 = p.div(THREE);
+        const q2 = q.div(.{ .r = 2, .i = 0});
+        const discriminant = try comath.eval(
+            "q2 * q2 + p_div_3 * p_div_3 * p_div_3",
+            CTX,
+            .{ 
+                .q2 = q2,
+                .p_div_3 = p_div_3,
+            },
+            );
+
+        if (discriminant.r < 0) {
+            const mp3 = (p.negate()).div(THREE);
+            const mp33 = mp3.mul(mp3).mul(mp3);
+            const r = mp33.sqrt();
+            const t = try comath.eval(
+                "-q / (two * r)",
+                CTX,
+                .{ .q = q, .r = r, .two = TWO },
+            );
+            const ONE_DUAL = dual.Dual_f32{ .r = 1.0, .i = t.i };
+            const cosphi = if (t.r < -1) ONE_DUAL.negate() else (if (t.r > 1) ONE_DUAL else t);
+            const phi = cosphi.acos();
+            const crtr = crt(r);
+            const t1 = crtr.mul(2.0);
+
+            const x1 = try comath.eval(
+                "t1 * cos_phi_over_three - a / 3.0",
+                CTX,
+                .{
+                    .t1 = t1,
+                    .cos_phi_over_three = phi.div(.{.r =3.0, .i = 0}).cos(),
+                    .a = a 
+                }
+            );
+            const x2 = try comath.eval(
+                "t1 * cos_phi_plus_tau - a / 3",
+                CTX,
+                .{
+                    .t1 = t1,
+                    // cos((phi + std.math.tau) / 3) 
+                    .cos_phi_plus_tau = ((phi.add(std.math.tau)).div(3.0)).cos(),
+                    .a = a 
+                }
+            );
+            const x3 = try comath.eval(
+                "t1 * cos_phi_plus_2tau - a / 3",
+                CTX,
+                    // cos((phi + 2 * std.math.tau) / 3) 
+                .{
+                    .t1 = t1,
+                    .cos_phi_plus_2tau = (
+                        (
+                         (phi.add(2.0 * std.math.tau)).div(3.0)
+                        ).cos()
+                    ),
+                    .a = a 
+                },
+            );
+
+            return first_valid_root(&.{x1, x2, x3});
+        } else if (discriminant.r == 0) {
+            const u_1 = if (q2.r < 0) crt(q2.negate()) else crt(q2).negate();
+            const x1 = try comath.eval(
+                "u_1 * 2.0 - a / 3.0",
+                CTX,
+                .{ .u_1 = u_1, .a = a },
+            );
+            const x2 = try comath.eval(
+                "-u_1 - a / 3",
+                CTX,
+                .{ .u_1 = u_1, .a = a },
+            );
+            return first_valid_root(&.{x1, x2});
+        } else {
+            const sd = discriminant.sqrt();
+            const u_1 = crt(q2.negate().add(sd));
+            const v1 = crt(q2.add(sd));
+            return try comath.eval(
+                "u_1 - v1 - a / 3",
+                CTX,
+                .{ .u_1 = u_1, .v1 = v1, .a = a }
+            );
         }
-    );
 
-    return u_neg;
-
-    // u = (-b +/- sqrt(b*b - 4*a*c)) / (2*a)
+        return d;
+    }
 }
 
 pub fn findU_dual2(
@@ -723,7 +891,7 @@ test "_bezier0 matches _bezier0_dual" {
 
 test "findU_dual matches findU" {
     try expectEqual(@as(f32, 0), findU_dual(0, 0,1,2,3).r);
-    @breakpoint();
+    // @breakpoint();
     try expectEqual(@as(f32, 0.5), findU_dual(0.5, 0,1,2,3).r);
     try expectApproxEql(@as(f32, 1)/@as(f32,3), findU_dual(0, 0,1,2,3).i);
 

@@ -9,7 +9,6 @@ pub fn eval(
     return comath.eval(expr, CTX, inputs);
 }
 
-
 pub fn DualOf(comptime T: type) type 
 {
     return switch(@typeInfo(T)) {
@@ -18,14 +17,86 @@ pub fn DualOf(comptime T: type) type
     };
 }
 
+pub const dual_ctx = struct{
+    pub fn EvalNumberLiteral(comptime src: []const u8) type {
+        const result = comath.ctx.DefaultEvalNumberLiteral(src);
+        if (result == comptime_float or result == comptime_int) {
+            return Dual_f32; 
+        } else {
+            return result;
+        }
+    }
+    pub fn evalNumberLiteral(
+        comptime src: []const u8
+    ) EvalNumberLiteral(src) 
+    {
+        const target_type = EvalNumberLiteral(src);
+
+        return switch (target_type) {
+            .Dual_f32 => .{ 
+                .r = std.fmt.parseFloat(f32, src) catch |err| @compileError(@errorName(err)),
+                .i = 0.0,
+            },
+            else => comath.ctx.defaultEvalNumberLiteral(src),
+        };
+    }
+};
+
 // build the context
 pub const CTX = comath.ctx.fnMethod(
     comath.ctx.simple({}),
+    // dual_ctx,
     .{
         .@"+" = "add",
         .@"*" = "mul",
     }
 );
+
+pub const CTX2 = comath.ctx.fnMethod(
+    comath.ctx.Simple(dual_ctx),
+    .{
+        .@"+" = "add",
+        .@"*" = "mul",
+    }
+);
+
+test "dual: add to float" {
+    {
+        const result = comath.eval(
+            "x + 3",
+            CTX,
+            .{ .x = 1}
+        ) catch |err| switch (err) {};
+        try std.testing.expectEqual(@as(f32, 4), result);
+    }
+
+    {
+        const result = comath.eval(
+            "x + 3",
+            CTX,
+            .{ .x = Dual_f32{ .r = 3, .i = 1 }}
+        ) catch |err| switch (err) {};
+        try std.testing.expectEqual(@as(f32, 6), result.r);
+    }
+
+    {
+        const result = comath.eval(
+            "x * 3",
+            CTX,
+            .{ .x = Dual_f32{ .r = 3, .i = 1 }}
+        ) catch |err| switch (err) {};
+        try std.testing.expectEqual(@as(f32, 9), result.r);
+    }
+
+    // {
+    //     const result = comath.eval(
+    //         "3 * x",
+    //         CTX2,
+    //         .{ .x = Dual_f32{ .r = 3, .i = 1 }}
+    //     ) catch |err| switch (err) {};
+    //     try std.testing.expectEqual(@as(f32, 9), result.r);
+    // }
+}
 
 pub const Dual_f32 = DualOf(f32);
 pub const Dual_CP = DualOf(ControlPoint);
@@ -95,10 +166,16 @@ pub fn DualOfNumberType(comptime T: type) type {
             return self.r > rhs.r;
         }
 
-        pub inline fn div(self: @This(), rhs: @This()) @This() {
-            return .{
-                .r = self.r / rhs.r,
-                .i = (rhs.r * self.i - self.r * rhs.i) / (rhs.r * rhs.r),
+        pub inline fn div(self: @This(), rhs: anytype) @This() {
+            return switch(@typeInfo(@TypeOf(rhs))) {
+                .Struct => .{
+                    .r = self.r / rhs.r,
+                    .i = (rhs.r * self.i - self.r * rhs.i) / (rhs.r * rhs.r),
+                },
+                else => .{
+                    .r = self.r / rhs,
+                    .i = (self.i) / (rhs),
+                },
             };
         }
 
@@ -106,6 +183,31 @@ pub fn DualOfNumberType(comptime T: type) type {
             return .{ 
                 .r = std.math.sqrt(self.r),
                 .i = self.i / (2 * std.math.sqrt(self.r)),
+            };
+        }
+
+        pub inline fn cos(self: @This()) @This() {
+            return .{
+                .r = std.math.cos(self.r),
+                .i = -self.i * std.math.sin(self.r),
+            };
+        }
+
+        pub inline fn acos(self: @This()) @This() {
+            return .{
+                .r = std.math.acos(self.r),
+                .i = -self.i / std.math.sqrt(1 - (self.r * self.r)),
+            };
+        }
+
+        pub inline fn pow(self: @This(), y: @TypeOf(self.r)) @This() {
+            return .{
+                .r = std.math.pow(@TypeOf(self.r), self.r, y),
+                .i = (
+                    self.i 
+                    * (y - 1) 
+                    * std.math.pow(@TypeOf(self.r), self.r, y - 1)
+                ),
             };
         }
     };
