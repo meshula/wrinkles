@@ -115,7 +115,7 @@ pub fn DualOfNumberType(comptime T: type) type {
             return .{ .r = r };
         }
 
-        pub fn negate(self: @This()) @This() {
+        pub inline fn negate(self: @This()) @This() {
             return .{ .r = -self.r, .i = -self.i };
         }
 
@@ -179,6 +179,7 @@ pub fn DualOfNumberType(comptime T: type) type {
             };
         }
 
+        // derivative is self.i * f'(self.r)
         pub inline fn sqrt(self: @This()) @This() {
             return .{ 
                 .r = std.math.sqrt(self.r),

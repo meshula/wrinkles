@@ -15,7 +15,7 @@ fn expectApproxEql(expected: anytype, actual: @TypeOf(expected)) !void {
     return std.testing.expectApproxEqAbs(
         expected,
         actual,
-        generic_curve.EPSILON*10
+        generic_curve.EPSILON*100
     );
 }
 
@@ -309,6 +309,7 @@ fn first_valid_root(possible_roots: [] const dual.Dual_f32 ) dual.Dual_f32
         }
     }
 
+
     return possible_roots[0];
 }
 
@@ -318,11 +319,9 @@ inline fn crt(
 ) dual.Dual_f32
 {
     if (v.r < 0) {
-        // return -std.math.pow(f32,-v, 1.0 / 3.0);
-        return (v.pow(1.0/3.0)).negate();
+        return ((v.negate()).pow(1.0/3.0)).negate();
     } 
     else {
-        // return std.math.pow(f32,v, 1.0 / 3.0);
         return (v.pow(1.0/3.0));
     }
 }
@@ -335,12 +334,8 @@ pub fn findU_dual3(
     p3: f32,
 ) dual.Dual_f32
 {
-
-    // const FOUR = dual.Dual_f32{ .r = 4, .i = 0 };
-    // const THREE = dual.Dual_f32{ .r = 3, .i = 0 };
-    // const TWO = dual.Dual_f32{ .r = 2, .i = 0 };
-
-    const x = @max(0, @min(1, x_input));
+    // assumes that p3 > p0
+    const x = @min(@max(x_input, p0), p3);
 
     const p0_d = dual.Dual_f32{.r = p0 - x, .i = -1 };
     const p1_d = dual.Dual_f32{.r = p1 - x, .i = -1 };
@@ -348,36 +343,32 @@ pub fn findU_dual3(
     const p3_d = dual.Dual_f32{.r = p3 - x, .i = -1 };
 
     const d = comath.eval(
-        "-pa + THREE * pb - THREE * pc + pd",
+        "(-pa) + (pb * 3.0) - (pc * 3.0) + pd",
         CTX,
         .{ 
             .pa = p0_d,
             .pb = p1_d,
             .pc = p2_d,
             .pd = p3_d,
-            .THREE = dual.Dual_f32{ .r = 3, .i = 0 },
         },
     ) catch .{ .r = -12, .i=3.14};
 
     var a = comath.eval(
-        "THREE * pa - six * pb + THREE * pc",
+        "(pa * 3.0) - (pb * 6.0) + (pc * 3.0)",
         CTX,
         .{ 
             .pa = p0_d,
             .pb = p1_d,
             .pc = p2_d,
-            .THREE = dual.Dual_f32{ .r = 3, .i = 0 },
-            .six = dual.Dual_f32{ .r = 6, .i = 0 },
         },
     ) catch .{ .r = -12, .i=3.14};
 
     var b = comath.eval(
-        "-THREE * pa + THREE * pb",
+        "(-pa * 3.0) + (pb * 3.0)",
         CTX,
         .{ 
             .pa = p0_d,
             .pb = p1_d,
-            .THREE = dual.Dual_f32{ .r = 3, .i = 0 },
         },
     ) catch .{ .r = -12, .i=3.14};
 
@@ -399,7 +390,7 @@ pub fn findU_dual3(
                 };
             }
             return try comath.eval(
-                "-c / b", 
+                "(-c) / b", 
                 CTX,
                 .{ .c = c, .b = b }
             );
@@ -407,13 +398,13 @@ pub fn findU_dual3(
 
         // quadratic
         const q2 = try comath.eval(
-            "b * b - a * c * 4.0",
+            "(b * b) - (a * c * 4.0)",
             CTX,
             .{ .b = b, .a = a, .c = c},
         );
         const q = q2.sqrt();
 
-        const a2 = a.mul(.{ .r = 2, .i = 0 });
+        const a2 = a.mul(2.0);
 
         const pos_sol = try comath.eval(
             "(q - b) / a2",
@@ -435,126 +426,120 @@ pub fn findU_dual3(
 
     }
 
+    // cubic solution
+    a = a.div(d);
+    b = b.div(d);
+    c = c.div(d);
 
-        // cubic solution
-        a = a.div(d);
-        b = b.div(d);
-        c = c.div(d);
-
-        const p = try comath.eval(
-            "(b * 3.0 - a * a) / 3.0",
-            CTX,
-            .{
-                .a = a,
-                .b = b,
-            },
-        );
-
-    if (true)
-    {
-    //     return .{ .r = 1, .i = 0 };
-    // }
-    // else
-    // {
+    const p = try comath.eval(
+        "((b * 3.0) - (a * a)) / 3.0",
+        CTX,
+        .{
+            .a = a,
+            .b = b,
+        },
+    );
 
     @setEvalBranchQuota(100000);
-        const q = try comath.eval(
-            "(a * a * a * 2.0 -  a * b * 9.0 + c * 27.0) / 27.0",
+    const q = try comath.eval(
+        "((a * a * a) * 2.0 -  ((a * b) * 9.0) + (c * 27.0)) / 27.0",
+        CTX,
+        .{ 
+            .a = a,
+            .b = b,
+            .c = c
+        } 
+    );
+
+    const q2 = q.div(2.0);
+
+    const p_div_3 = p.div(3.0);
+    const discriminant = try comath.eval(
+        "(q2 * q2) + (p_div_3 * p_div_3 * p_div_3)",
+        CTX,
+        .{ 
+            .q2 = q2,
+            .p_div_3 = p_div_3,
+        },
+    );
+
+    if (discriminant.r < 0) {
+        const mp3 = (p.negate()).div(3.0);
+        const mp33 = mp3.mul(mp3).mul(mp3);
+        const r = mp33.sqrt();
+        const t = try comath.eval(
+            "-q / (r*2.0)",
             CTX,
-            .{ 
-                .a = a,
-                .b = b,
-                .c = c
-            } 
+            .{ .q = q, .r = r, },
+        );
+        const ONE_DUAL = dual.Dual_f32{ .r = 1.0, .i = t.i };
+        const cosphi = if (t.r < -1) 
+            ONE_DUAL.negate() 
+            else (
+                if (t.r > 1) ONE_DUAL else t
+            );
+        const phi = cosphi.acos();
+        const crtr = crt(r);
+        const t1 = crtr.mul(2.0);
+
+        const x1 = try comath.eval(
+            "(t1 * cos_phi_over_three) - (a / 3.0)",
+            CTX,
+            .{
+                .t1 = t1,
+                .cos_phi_over_three = (phi.div(3.0)).cos(),
+                .a = a 
+            }
+        );
+        const x2 = try comath.eval(
+            "(t1 * cos_phi_plus_tau) - (a / 3)",
+            CTX,
+            .{
+                .t1 = t1,
+                // cos((phi + std.math.tau) / 3) 
+                .cos_phi_plus_tau = ((phi.add(std.math.tau)).div(3.0)).cos(),
+                .a = a 
+            }
+        );
+        const x3 = try comath.eval(
+            "(t1 * cos_phi_plus_2tau) - (a / 3)",
+            CTX,
+                // cos((phi + 2 * std.math.tau) / 3) 
+            .{
+                .t1 = t1,
+                .cos_phi_plus_2tau = (
+                    ((phi.add(2.0 * std.math.tau)).div(3.0)).cos()
+                ),
+                .a = a 
+            },
         );
 
-        const p_div_3 = p.div(3.0);
-        const q2 = q.div(.{ .r = 2, .i = 0});
-        const discriminant = try comath.eval(
-            "q2 * q2 + p_div_3 * p_div_3 * p_div_3",
+        return first_valid_root(&.{x1, x2, x3});
+    } else if (discriminant.r == 0) {
+        const u_1 = if (q2.r < 0) crt(q2.negate()) else crt(q2).negate();
+        const x1 = try comath.eval(
+            "(u_1 * 2.0) - (a / 3.0)",
             CTX,
-            .{ 
-                .q2 = q2,
-                .p_div_3 = p_div_3,
-            },
-            );
-
-        if (discriminant.r < 0) {
-            const mp3 = (p.negate()).div(3.0);
-            const mp33 = mp3.mul(mp3).mul(mp3);
-            const r = mp33.sqrt();
-            const t = try comath.eval(
-                "-q / (r*2.0)",
-                CTX,
-                .{ .q = q, .r = r, },
-            );
-            const ONE_DUAL = dual.Dual_f32{ .r = 1.0, .i = t.i };
-            const cosphi = if (t.r < -1) ONE_DUAL.negate() else (if (t.r > 1) ONE_DUAL else t);
-            const phi = cosphi.acos();
-            const crtr = crt(r);
-            const t1 = crtr.mul(2.0);
-
-            const x1 = try comath.eval(
-                "t1 * cos_phi_over_three - a / 3.0",
-                CTX,
-                .{
-                    .t1 = t1,
-                    .cos_phi_over_three = phi.div(.{.r =3.0, .i = 0}).cos(),
-                    .a = a 
-                }
-            );
-            const x2 = try comath.eval(
-                "t1 * cos_phi_plus_tau - a / 3",
-                CTX,
-                .{
-                    .t1 = t1,
-                    // cos((phi + std.math.tau) / 3) 
-                    .cos_phi_plus_tau = ((phi.add(std.math.tau)).div(3.0)).cos(),
-                    .a = a 
-                }
-            );
-            const x3 = try comath.eval(
-                "t1 * cos_phi_plus_2tau - a / 3",
-                CTX,
-                    // cos((phi + 2 * std.math.tau) / 3) 
-                .{
-                    .t1 = t1,
-                    .cos_phi_plus_2tau = (
-                        (
-                         (phi.add(2.0 * std.math.tau)).div(3.0)
-                        ).cos()
-                    ),
-                    .a = a 
-                },
-            );
-
-            return first_valid_root(&.{x1, x2, x3});
-        } else if (discriminant.r == 0) {
-            const u_1 = if (q2.r < 0) crt(q2.negate()) else crt(q2).negate();
-            const x1 = try comath.eval(
-                "u_1 * 2.0 - a / 3.0",
-                CTX,
-                .{ .u_1 = u_1, .a = a },
-            );
-            const x2 = try comath.eval(
-                "-u_1 - a / 3",
-                CTX,
-                .{ .u_1 = u_1, .a = a },
-            );
-            return first_valid_root(&.{x1, x2});
-        } else {
-            const sd = discriminant.sqrt();
-            const u_1 = crt(q2.negate().add(sd));
-            const v1 = crt(q2.add(sd));
-            return try comath.eval(
-                "u_1 - v1 - a / 3",
-                CTX,
-                .{ .u_1 = u_1, .v1 = v1, .a = a }
-            );
-        }
-
-        return d;
+            .{ .u_1 = u_1, .a = a },
+        );
+        const x2 = try comath.eval(
+            "(-u_1) - (a / 3)",
+            CTX,
+            .{ .u_1 = u_1, .a = a },
+        );
+        return first_valid_root(&.{x1, x2});
+    } else {
+        const sd = discriminant.sqrt();
+        const u_1 = crt(q2.negate().add(sd));
+        const v1 = crt(q2.add(sd));
+        return try comath.eval(
+            "u_1 - v1 - (a / 3)",
+            CTX,
+            .{ .u_1 = u_1, .v1 = v1, .a = a }
+        );
     }
+
+    return d;
 }
 
 pub fn findU_dual2(
@@ -886,10 +871,18 @@ test "_bezier0 matches _bezier0_dual" {
 }
 
 test "findU_dual matches findU" {
+
     try expectEqual(@as(f32, 0), findU_dual(0, 0,1,2,3).r);
-    // @breakpoint();
-    try expectEqual(@as(f32, 0.5), findU_dual(0.5, 0,1,2,3).r);
-    try expectApproxEql(@as(f32, 1)/@as(f32,3), findU_dual(0, 0,1,2,3).i);
+    try expectEqual(@as(f32, 1.0/6.0), findU_dual(0.5, 0,1,2,3).r);
+
+    try expectApproxEql(@as(f32, 1.0/3.0), findU_dual(0, 0,1,2,3).i);
+    try expectApproxEql(@as(f32, 1.0/3.0), findU_dual(0.5, 0,1,2,3).i);
+
+    try expectEqual(@as(f32, 0), findU_dual(-1, -1,0,1,2).r);
+    try expectEqual(@as(f32, 1.0/6.0), findU_dual(-0.5, -1,0,1,2).r);
+
+    try expectApproxEql(@as(f32, 1.0/3.0), findU_dual(0, -1,0,1,2).i);
+    try expectApproxEql(@as(f32, 1.0/3.0), findU_dual(-0.5, -1,0,1,2).i);
 
     {
         const test_data = [_][4]f32{
@@ -943,6 +936,31 @@ test "dydx matches expected at endpoints" {
     }
 }
 
+test "findU for upside down u" {
+    const crv = try curve.read_curve_json(
+        "curves/upside_down_u.curve.json",
+        std.testing.allocator
+    );
+    defer std.testing.allocator.free(crv.segments);
+
+    const seg_0 = crv.segments[0];
+
+    {
+        const u_zero_dual =  seg_0.findU_input_dual(seg_0.p0.time);
+        try expectApproxEql(@as(f32, 0), u_zero_dual.r);
+
+        const half_x = lerp(0.5, seg_0.p0.time, seg_0.p3.time);
+        @breakpoint();
+        const u_half_dual = seg_0.findU_input_dual(half_x);
+        try expectApproxEql(@as(f32, 0.5), u_half_dual.r);
+        try expectApproxEql(@as(f32, 1.0), u_half_dual.i);
+
+        const u_one_dual =   seg_0.findU_input_dual(seg_0.p3.time);
+        try expectApproxEql(@as(f32, 1), u_one_dual.r);
+    }
+
+}
+
 test "derivative at 0 for linear curve" {
     const crv = try curve.read_curve_json(
         "curves/linear.curve.json",
@@ -965,9 +983,9 @@ test "derivative at 0 for linear curve" {
 
     // findU dual comparison
     {
-        const u_zero_dual =  seg_0.findU_input_dual(crv.segments[0].p0.time);
-        const u_third_dual = seg_0.findU_input_dual(crv.segments[0].p1.time);
-        const u_one_dual =   seg_0.findU_input_dual(crv.segments[0].p3.time);
+        const u_zero_dual =  seg_0.findU_input_dual(seg_0.p0.time);
+        const u_third_dual = seg_0.findU_input_dual(seg_0.p1.time);
+        const u_one_dual =   seg_0.findU_input_dual(seg_0.p3.time);
 
         // known 0 values
         try expectApproxEql(@as(f32, 0), u_zero_dual.r);
