@@ -1826,12 +1826,12 @@ fn update(
                     // midpoint derivatives
                     inline for (derivs) 
                         |d_info| 
-                        {
-                            _ = zgui.checkbox(
-                                d_info[1],
-                                .{ .v = &@field(state,d_info[0]) }
-                            );
-                        }
+                    {
+                        _ = zgui.checkbox(
+                            d_info[1],
+                            .{ .v = &@field(state,d_info[0]) }
+                        );
+                    }
                 }
 
                 state.show_projection_result_guts.tpa_flags.draw_ui(
@@ -1842,8 +1842,11 @@ fn update(
             var remove = std.ArrayList(usize).init(allocator);
             defer remove.deinit();
             var op_index:usize = 0;
-            for (state.operations.items) |*visop| {
-                switch (visop.*) {
+            for (state.operations.items) 
+                |*visop| 
+            {
+                switch (visop.*) 
+                {
                     .curve => |*crv| {
                         var buf:[1024:0]u8 = .{};
                         @memset(&buf, 0);
@@ -2051,12 +2054,12 @@ fn update(
 
                                 for (try split.segment_endpoints(), 0..) 
                                     |pt, ind| 
-                                    {
-                                        zgui.bulletText(
-                                            "{d}: ({d}, {d})",
-                                            .{ ind, pt.time, pt.value },
-                                        );
-                                    }
+                                {
+                                    zgui.bulletText(
+                                        "{d}: ({d}, {d})",
+                                        .{ ind, pt.time, pt.value },
+                                    );
+                                }
                             }
 
                             if (zgui.treeNode("Three Point Projection"))
@@ -2064,10 +2067,8 @@ fn update(
                                 defer zgui.treePop();
 
                                 crv.draw_flags.three_point_approximation.draw_ui("curve three point");
-
                             }
                         }
-
                     },
                     .transform => |*xform| {
                         if (
