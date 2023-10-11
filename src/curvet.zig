@@ -1509,7 +1509,8 @@ fn update(
                     }
                 }
 
-                if (state.show_projection_result) {
+                if (state.show_projection_result) 
+                {
                     switch (_proj) 
                     {
                         .linear_curve => |lint| { 
@@ -1702,35 +1703,35 @@ fn update(
                         {
                             for (@field(result_guts, d_name).?, 0..) 
                                 |d, ind|
+                            {
+                                const midpoint = result_guts.tpa.?[ind].midpoint.?;
+                                const p1 = midpoint.add(d);
+                                const p2 = midpoint.sub(d);
+
+                                const xv = &.{ p1.time,  midpoint.time,  p2.time };
+                                const yv = &.{ p1.value, midpoint.value, p2.value };
+
+                                zgui.plot.plotLine(
+                                    d_name,
+                                    f32,
+                                    .{ .xv = xv, .yv = yv }
+                                );
                                 {
-                                    const midpoint = result_guts.tpa.?[ind].midpoint.?;
-                                    const p1 = midpoint.add(d);
-                                    const p2 = midpoint.sub(d);
-
-                                    const xv = &.{ p1.time,  midpoint.time,  p2.time };
-                                    const yv = &.{ p1.value, midpoint.value, p2.value };
-
-                                    zgui.plot.plotLine(
-                                        d_name,
-                                        f32,
-                                        .{ .xv = xv, .yv = yv }
+                                    const label = try std.fmt.bufPrintZ(
+                                        &buf,
+                                        "d/dt: ({d:0.6}, {d:0.6})",
+                                        .{d.time, d.value},
                                     );
-                                    {
-                                        const label = try std.fmt.bufPrintZ(
-                                            &buf,
-                                            "d/dt: ({d:0.6}, {d:0.6})",
-                                            .{d.time, d.value},
-                                        );
-                                        zgui.plot.plotText(
-                                            label,
-                                            .{ 
-                                                .x = p1.time, 
-                                                .y = p1.value, 
-                                                .pix_offset = .{ 0, 16 } 
-                                            },
-                                            );
-                                    }
+                                    zgui.plot.plotText(
+                                        label,
+                                        .{ 
+                                            .x = p1.time, 
+                                            .y = p1.value, 
+                                            .pix_offset = .{ 0, 16 } 
+                                        },
+                                    );
                                 }
+                            }
                         }
                     }
                 }
@@ -1767,30 +1768,33 @@ fn update(
                 .{ .v = &state.show_projection_result }
             );
 
-            if (zgui.treeNode("Projection Algorithm Debug Switches")) {
+            if (zgui.treeNode("Projection Algorithm Debug Switches")) 
+            {
                 defer zgui.treePop();
-                zgui.text("U value: {d}", .{ curve.bezier_curve.u_val_of_midpoint });
+
+                const bcrv = curve.bezier_curve;
+                zgui.text("U value: {d}", .{ bcrv.u_val_of_midpoint });
                 _ = zgui.sliderFloat(
                     "U Value",
                     .{
                         .min = 0,
                         .max = 1,
-                        .v = &curve.bezier_curve.u_val_of_midpoint 
+                        .v = &bcrv.u_val_of_midpoint 
                     }
                 );
-                zgui.text("fudge: {d}", .{ curve.bezier_curve.fudge });
+                zgui.text("fudge: {d}", .{ bcrv.fudge });
                 _ = zgui.sliderFloat(
                     "scale e1/e2 fudge factor",
                     .{ 
                         .min = 0.1,
                         .max = 10,
-                        .v = &curve.bezier_curve.fudge 
+                        .v = &bcrv.fudge 
                     }
                 );
 
                 _ = zgui.comboFromEnum(
                     "Projection Algorithm",
-                    &curve.bezier_curve.project_algo
+                    &bcrv.project_algo
                 );
             }
 
@@ -1798,21 +1802,15 @@ fn update(
             if (state.show_test_curves and zgui.treeNode("Test Curve Settings"))
             {
                 defer zgui.treePop();
-                state.show_projection_result_guts.fst.draw_ui(
-                    "self"
-                );
-                state.show_projection_result_guts.self_split.draw_ui(
-                    "self split"
-                );
-                state.show_projection_result_guts.snd.draw_ui(
-                    "other"
-                );
-                state.show_projection_result_guts.other_split.draw_ui(
-                    "other split"
-                );
-                state.show_projection_result_guts.to_project.draw_ui(
-                    "segments in other to project"
-                );
+
+                {
+                    const guts = state.show_projection_result_guts;
+                    guts.fst.draw_ui("self");
+                    guts.self_split.draw_ui("self split");
+                    guts.snd.draw_ui("other");
+                    guts.other_split.draw_ui("other split");
+                    guts.to_project.draw_ui("segments in other to project");
+                }
 
                 if (zgui.treeNode("Derivative Debug Info"))
                 {
@@ -2030,14 +2028,17 @@ fn update(
                             if (zgui.treeNode("Hodograph Debug")) {
                                 defer zgui.treePop();
 
+                                const hgraph = curve.bezier_curve.hodographs;
                                 const cSeg = crv.curve.segments[0].to_cSeg();
-                                const inflections = curve.bezier_curve.hodographs.inflection_points(&cSeg);
+                                const inflections = hgraph.inflection_points(
+                                    &cSeg
+                                );
                                 zgui.bulletText(
                                     "inflection point: {d:0.4}",
                                     .{inflections.x},
                                 );
-                                const hodo = curve.bezier_curve.hodographs.compute_hodograph(&cSeg);
-                                const roots = curve.bezier_curve.hodographs.bezier_roots(&hodo);
+                                const hodo = hgraph.compute_hodograph(&cSeg);
+                                const roots = hgraph.bezier_roots(&hodo);
                                 zgui.bulletText(
                                     "roots: {d:0.4} {d:0.4}",
                                     .{roots.x, roots.y},
@@ -2196,7 +2197,8 @@ fn _parse_args(
     var operations = std.ArrayList(VisOperation).init(allocator);
 
     // read all the filepaths from the commandline
-    while (args.next()) |nextarg| 
+    while (args.next()) 
+        |nextarg| 
     {
         const fpath: [:0]const u8 = nextarg;
 
