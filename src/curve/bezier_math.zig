@@ -343,6 +343,7 @@ pub fn findU_dual3(
     const p3_d = dual.Dual_f32{.r = p3 - x, .i = -1 };
 
     const d = comath.eval(
+        // "(-pa) + (pb * 3.0) - (pc * 3.0) + pd",
         "(-pa) + (pb * 3.0) - (pc * 3.0) + pd",
         CTX,
         .{ 
@@ -354,7 +355,8 @@ pub fn findU_dual3(
     ) catch .{ .r = -12, .i=3.14};
 
     var a = comath.eval(
-        "(pa * 3.0) - (pb * 6.0) + (pc * 3.0)",
+        // "(pa * 3.0) - (pb * 6.0) + (pc * 3.0)",
+        "pa * 3.0 - pb * 6.0 + pc * 3.0",
         CTX,
         .{ 
             .pa = p0_d,

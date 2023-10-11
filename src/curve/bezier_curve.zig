@@ -240,6 +240,7 @@ pub const Segment = struct {
             const p3: control_point.ControlPoint = self.p2;
             const p4: control_point.ControlPoint = self.p3;
 
+            // "p4 * z3 - p3 * z2 * zmo + p2 * 3 * z * zmo2 - (p1 * zmo3)"
             const l_p4: control_point.ControlPoint = (
                 (p4.mul(z3)).sub(p3.mul(3.0*z2*zmo)).add(p2.mul(3.0*z*zmo2)).sub(p1.mul(zmo3))
             );

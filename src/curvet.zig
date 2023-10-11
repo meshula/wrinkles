@@ -1888,6 +1888,119 @@ fn update(
                                 crv.draw_flags.draw_ui(crv.fpath);
                             }
 
+                            if (zgui.treeNode("Debug Data"))
+                            {
+                                defer zgui.treePop();
+
+                                for (crv.curve.segments, 0..)
+                                    |seg, ind|
+                                {
+                                    // dy/dx
+                                    {
+                                        const d_p0 = seg.eval_at_x_dual(seg.p0.time);
+                                        zgui.bulletText(
+                                            "[Seg: {}] dy/dx at p0: {}",
+                                            .{
+                                                ind,
+                                                d_p0.i.time,
+                                            },
+                                        );
+                                        zgui.bulletText(
+                                            "[Seg: {}] p1-p0: {}",
+                                            .{
+                                                ind,
+                                                seg.p1.time - seg.p0.time,
+                                            },
+                                        );
+                                        zgui.bulletText(
+                                            "[Seg: {}] (dy/dx) / (p1-p0): {}",
+                                            .{
+                                                ind,
+                                                d_p0.i.time / (seg.p1.time - seg.p0.time),
+                                            },
+                                        );
+
+                                        const d_p3 = seg.eval_at_x_dual(seg.p3.time);
+                                        zgui.bulletText(
+                                            "[Seg: {}] dy/dx at p3: {}",
+                                            .{
+                                                ind,
+                                                d_p3.i.time,
+                                            },
+                                        );
+                                        zgui.bulletText(
+                                            "[Seg: {}] p3-p2: {}",
+                                            .{
+                                                ind,
+                                                seg.p3.time - seg.p2.time,
+                                            },
+                                        );
+                                        zgui.bulletText(
+                                            "[Seg: {}] (dy/dx) / (p3-p2): {}",
+                                            .{
+                                                ind,
+                                                d_p3.i.time / (seg.p3.time - seg.p2.time),
+                                            },
+                                        );
+                                    }
+
+                                    // dy/du
+                                    {
+                                        const d_p0 = seg.eval_at_dual(
+                                            .{ .r = 0, .i = 1.0}
+                                        );
+                                        zgui.bulletText(
+                                            "[Seg: {}] dy/du at p0: {}",
+                                            .{
+                                                ind,
+                                                d_p0.i.time,
+                                            },
+                                        );
+                                        zgui.bulletText(
+                                            "[Seg: {}] p1-p0: {}",
+                                            .{
+                                                ind,
+                                                seg.p1.time - seg.p0.time,
+                                            },
+                                        );
+                                        zgui.bulletText(
+                                            "[Seg: {}] (dy/du) / (p1-p0): {}",
+                                            .{
+                                                ind,
+                                                d_p0.i.time / (
+                                                    seg.p1.time - seg.p0.time
+                                                ),
+                                            },
+                                        );
+
+                                        const d_p3 = seg.eval_at_dual(
+                                            .{ .r = 1.0, .i = 1.0 }
+                                        );
+                                        zgui.bulletText(
+                                            "[Seg: {}] dy/du at p3: {}",
+                                            .{
+                                                ind,
+                                                d_p3.i.time,
+                                            },
+                                        );
+                                        zgui.bulletText(
+                                            "[Seg: {}] p3-p2: {}",
+                                            .{
+                                                ind,
+                                                seg.p3.time - seg.p2.time,
+                                            },
+                                        );
+                                        zgui.bulletText(
+                                            "[Seg: {}] (dy/du) / (p3-p2): {}",
+                                            .{
+                                                ind,
+                                                d_p3.i.time / (seg.p3.time - seg.p2.time),
+                                            },
+                                        );
+                                    }
+                                }
+                            }
+
                             if (zgui.smallButton("Remove")) {
                                 try remove.append(op_index);
                             }
