@@ -326,6 +326,133 @@ inline fn crt(
     }
 }
 
+pub fn actual_order(
+    p0: f32,
+    p1: f32,
+    p2: f32,
+    p3: f32,
+) !u8 
+{
+    const d = try comath.eval(
+        // "(-pa) + (pb * 3.0) - (pc * 3.0) + pd",
+        "(-pa) + (pb * 3.0) - (pc * 3.0) + pd",
+        CTX,
+        .{ 
+            .pa = p0,
+            .pb = p1,
+            .pc = p2,
+            .pd = p3,
+        },
+    );
+
+    var a = try comath.eval(
+        // "(pa * 3.0) - (pb * 6.0) + (pc * 3.0)",
+        "pa * 3.0 - pb * 6.0 + pc * 3.0",
+        CTX,
+        .{ 
+            .pa = p0,
+            .pb = p1,
+            .pc = p2,
+        },
+    );
+
+    var b = try comath.eval(
+        "(-pa * 3.0) + (pb * 3.0)",
+        CTX,
+        .{ 
+            .pa = p0,
+            .pb = p1,
+        },
+    );
+
+    if (@fabs(d) < generic_curve.EPSILON) 
+    {
+        // not cubic
+        if (@fabs(a) < generic_curve.EPSILON) 
+        {
+            // linear
+            if (@fabs(b) < generic_curve.EPSILON)
+            {
+                return error.NoSolution;
+            }
+
+            return 1;
+        }
+        return 2;
+    }
+
+    return 3;
+}
+
+test "actual_order" {
+    {
+        const crv = try curve.read_curve_json(
+            "curves/linear.curve.json",
+            std.testing.allocator
+        );
+        defer std.testing.allocator.free(crv.segments);
+
+        const seg = crv.segments[0];
+
+        try expectEqual(
+            @as(u8, 1),
+            try actual_order(seg.p0.time, seg.p1.time, seg.p2.time, seg.p3.time)
+        );
+        try expectEqual(
+            @as(u8, 1),
+            try actual_order(seg.p0.value, seg.p1.value, seg.p2.value, seg.p3.value)
+        );
+    }
+
+    {
+        const crv = try curve.read_curve_json(
+            "curves/upside_down_u.curve.json",
+            std.testing.allocator
+        );
+        defer std.testing.allocator.free(crv.segments);
+
+        const seg = crv.segments[0];
+
+        try expectEqual(
+            @as(u8, 2),
+            try actual_order(
+                seg.p0.time,
+                seg.p1.time,
+                seg.p2.time,
+                seg.p3.time
+            )
+        );
+        try expectEqual(
+            @as(u8, 2),
+            try actual_order(
+                seg.p0.value,
+                seg.p1.value,
+                seg.p2.value,
+                seg.p3.value
+            )
+        );
+    }
+
+    {
+        const crv = try curve.read_curve_json(
+            "curves/scurve_extreme.curve.json",
+            std.testing.allocator
+        );
+        defer std.testing.allocator.free(crv.segments);
+
+        const seg = crv.segments[0];
+
+        try expectEqual(
+            @as(u8, 3),
+            try actual_order(seg.p0.time, seg.p1.time, seg.p2.time, seg.p3.time)
+        );
+        try expectEqual(
+            @as(u8, 3),
+            try actual_order(seg.p0.value, seg.p1.value, seg.p2.value, seg.p3.value)
+        );
+    }
+}
+
 pub fn findU_dual3(
     x_input: f32,
     p0: f32,
