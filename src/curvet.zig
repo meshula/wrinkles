@@ -1804,7 +1804,7 @@ fn update(
                 defer zgui.treePop();
 
                 {
-                    const guts = state.show_projection_result_guts;
+                    var guts = state.show_projection_result_guts;
                     guts.fst.draw_ui("self");
                     guts.self_split.draw_ui("self split");
                     guts.snd.draw_ui("other");
