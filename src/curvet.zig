@@ -1896,9 +1896,35 @@ fn update(
                                 for (crv.curve.segments, 0..)
                                     |seg, ind|
                                 {
+                                    zgui.bulletText(
+                                        "Measured Order [time]: {d}",
+                                        .{ 
+                                            try curve.bezier_math.actual_order(
+                                                seg.p0.time,
+                                                seg.p1.time,
+                                                seg.p2.time,
+                                                seg.p3.time,
+                                            )
+                                        },
+                                    );
+
+                                    zgui.bulletText(
+                                        "Measured Order [value]: {d}",
+                                        .{ 
+                                            try curve.bezier_math.actual_order(
+                                                seg.p0.value,
+                                                seg.p1.value,
+                                                seg.p2.value,
+                                                seg.p3.value,
+                                            )
+                                        },
+                                    );
+
                                     // dy/dx
                                     {
-                                        const d_p0 = seg.eval_at_x_dual(seg.p0.time);
+                                        const d_p0 = seg.eval_at_x_dual(
+                                            seg.p0.time
+                                        );
                                         zgui.bulletText(
                                             "[Seg: {}] dy/dx at p0: {}",
                                             .{
@@ -1917,11 +1943,19 @@ fn update(
                                             "[Seg: {}] (dy/dx) / (p1-p0): {}",
                                             .{
                                                 ind,
-                                                d_p0.i.time / (seg.p1.time - seg.p0.time),
+                                                (
+                                                 d_p0.i.time 
+                                                 / (
+                                                     seg.p1.time 
+                                                     - seg.p0.time
+                                                 )
+                                                ),
                                             },
                                         );
 
-                                        const d_p3 = seg.eval_at_x_dual(seg.p3.time);
+                                        const d_p3 = seg.eval_at_x_dual(
+                                            seg.p3.time
+                                        );
                                         zgui.bulletText(
                                             "[Seg: {}] dy/dx at p3: {}",
                                             .{
@@ -2017,12 +2051,12 @@ fn update(
 
                                 for (try crv.curve.segment_endpoints(), 0..) 
                                     |pt, ind| 
-                                    {
-                                        zgui.bulletText(
-                                            "{d}: ({d}, {d})",
-                                            .{ ind, pt.time, pt.value },
-                                        );
-                                    }
+                                {
+                                    zgui.bulletText(
+                                        "{d}: ({d}, {d})",
+                                        .{ ind, pt.time, pt.value },
+                                    );
+                                }
                             }
 
                             if (zgui.treeNode("Hodograph Debug")) {
