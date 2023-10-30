@@ -30,9 +30,10 @@ const DebugBezierFlags = packed struct (i16) {
     natural_midpoint: bool = false,
     derivatives_ddu: bool = false,
     derivatives_dydx: bool = false,
+    derivatives_dydx_isect: bool = false,
     derivatives_hodo_ddu: bool = false,
 
-    _padding: i7 = 0,
+    _padding: i6 = 0,
 
     pub fn draw_ui(
         self: * @This(),
@@ -51,6 +52,7 @@ const DebugBezierFlags = packed struct (i16) {
                 .{ "Natural Midpoint (t=0.5)", "natural_midpoint" },
                 .{ "Show Derivatives (d/du)", "derivatives_ddu" },
                 .{ "Show Derivatives (dy/dx)", "derivatives_dydx" },
+                .{ "Show dy/dx intersection point", "derivatives_dydx_isect" },
                 .{ "Show Derivatives (hodograph d/du)", "derivatives_hodo_ddu" },
             };
 
@@ -960,6 +962,49 @@ fn plot_bezier_curve(
 
                     zgui.plot.plotLine(
                         deriv_label_hodo_ddu,
+                        f32,
+                        .{ .xv = &xv, .yv = &yv }
+                    );
+                }
+            }
+        }
+    }
+
+    if (flags.derivatives_dydx_isect) 
+    {
+        const deriv_label_isect = try std.fmt.bufPrintZ(
+            buf[512..],
+            "{s} derivatives at p0, p3 (dydx)",
+            .{ name }
+        );
+
+        var unorms= [_] f32{ 0, 1 };
+        for (unorms) 
+            |unorm|
+        {
+            for (crv.segments)
+                |seg|
+            {
+                // dual of control points
+                const d_du = seg.eval_at_dual(.{.r = unorm, .i = 1 });
+
+                if (flags.derivatives_dydx_isect) 
+                {
+                    const d_dx = seg.eval_at_x_dual(d_du.r.time);
+
+                    const xv : [3]f32 = .{
+                        d_dx.r.time - d_dx.i.time,
+                        d_dx.r.time,
+                        d_dx.r.time + d_dx.i.time,
+                    };
+                    const yv : [3]f32 = .{
+                        d_dx.r.value - d_dx.i.value,
+                        d_dx.r.value,
+                        d_dx.r.value + d_dx.i.value,
+                    };
+
+                    zgui.plot.plotLine(
+                        deriv_label_isect,
                         f32,
                         .{ .xv = &xv, .yv = &yv }
                     );
