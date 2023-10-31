@@ -1269,12 +1269,12 @@ pub const TimeCurve = struct {
                         // explicitly project start, mid, and end
                         inline for (&projected_pts, 0..) 
                             |pt, pt_ind|
-                            {
-                                projected_pts[pt_ind] = .{
-                                    .time  = pt.time,
-                                    .value = self_seg.eval_at_x(pt.value)
-                                };
-                            }
+                        {
+                            projected_pts[pt_ind] = .{
+                                .time  = pt.time,
+                                .value = self_seg.eval_at_x(pt.value)
+                            };
+                        }
 
                         // chain rule: h'(x) = f'(g(x)) * g'(x)
                         // chain rule: h'(t) = f'(g(t)) * g'(t)
@@ -1285,7 +1285,8 @@ pub const TimeCurve = struct {
                         const u_in_self = self_seg.findU_input(
                             midpoint.value
                         );
-                        const d_mid_point_dt = chain_rule: {
+                        const d_mid_point_dt = chain_rule: 
+                        {
                             var self_cSeg = self_seg.to_cSeg();
                             var self_hodo = hodographs.compute_hodograph(&self_cSeg);
                             const f_prime_of_g_of_t = hodographs.evaluate_bezier(
