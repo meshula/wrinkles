@@ -118,13 +118,10 @@ const c_args = [_][]const u8{
     "-fno-sanitize=undefined",
 };
 
+// for sources that aren't tested by the modules
 const SOURCES_WITH_TESTS = [_][]const u8{
-    // "./src/opentime/dual.zig",
-    // "./src/curve/curve.zig",
-    // "./src/test_hodograph.zig",
+    "./src/test_hodograph.zig",
 };
-
-
 
 pub fn add_test_for_source(
     b: *std.build.Builder,
