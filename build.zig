@@ -332,29 +332,42 @@ pub fn create_and_test_module(
         }
     );
 
-    const mod_unit_tests = b.addTest(
-        .{
-            .name = name ++ "_tests",
-            .root_source_file = .{ .path = fpath },
-            .target = target,
-        }
-    );
-
-    for (deps) 
-        |dep_mod| 
+    // run the unit test
     {
-        mod_unit_tests.addModule(dep_mod.name, dep_mod.module);
+        const mod_unit_tests = b.addTest(
+            .{
+                .name = name ++ "_tests",
+                .root_source_file = .{ .path = fpath },
+                .target = target,
+            }
+        );
+
+        for (deps) 
+            |dep_mod| 
+        {
+            mod_unit_tests.addModule(dep_mod.name, dep_mod.module);
+        }
+
+        mod_unit_tests.addIncludePath(.{ .path = "./spline-gym/src"});
+        mod_unit_tests.addCSourceFile(
+            .{ 
+                .file = .{ .path = "./spline-gym/src/hodographs.c"},
+                .flags = &c_args
+            }
+        );
+        // coverage @TODO
+        // mod_unit_tests.setExecCmd(
+        //     &[_]?[]const u8{
+        //         "lcov",
+        //         //"--path-strip-level=3", // any kcov flags can be specified here
+        //     }
+        // );
+        const run_unit_tests = b.addRunArtifact(mod_unit_tests);
+        test_step.dependOn(&run_unit_tests.step);
     }
 
-    mod_unit_tests.addIncludePath(.{ .path = "./spline-gym/src"});
-    mod_unit_tests.addCSourceFile(
-        .{ 
-            .file = .{ .path = "./spline-gym/src/hodographs.c"},
-            .flags = &c_args
-        }
-    );
-
     // install the binary for the test, so that it can be used with lldb
+    // @TODO: there might be more direct ways of doing this in modern build.zig
     {
         var test_exe = b.addTest(
             .{
@@ -383,8 +396,6 @@ pub fn create_and_test_module(
         test_step.dependOn(&install_test_bin.step);
         test_step.dependOn(&test_exe.step);
     }
-    const run_unit_tests = b.addRunArtifact(mod_unit_tests);
-    test_step.dependOn(&run_unit_tests.step);
 
     return mod;
 }
