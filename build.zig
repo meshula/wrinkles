@@ -119,9 +119,9 @@ const c_args = [_][]const u8{
 };
 
 const SOURCES_WITH_TESTS = [_][]const u8{
-    "./src/opentime/dual.zig",
-    "./src/curve/curve.zig",
-    "./src/test_hodograph.zig",
+    // "./src/opentime/dual.zig",
+    // "./src/curve/curve.zig",
+    // "./src/test_hodograph.zig",
 };
 
 
@@ -316,6 +316,79 @@ pub fn build_wrinkles_like(
     b.getInstallStep().dependOn(install);
 }
 
+pub fn create_and_test_module(
+    b: *std.build.Builder,
+    comptime name: []const u8,
+    fpath: []const u8,
+    target: std.zig.CrossTarget,
+    test_step: *std.build.Step,
+    deps: []const std.build.ModuleDependency,
+) *std.build.Module 
+{
+    const mod = b.createModule(
+        .{
+            .source_file = .{ .path = fpath },
+            .dependencies = deps,
+        }
+    );
+
+    const mod_unit_tests = b.addTest(
+        .{
+            .name = name ++ "_tests",
+            .root_source_file = .{ .path = fpath },
+            .target = target,
+        }
+    );
+
+    for (deps) 
+        |dep_mod| 
+    {
+        mod_unit_tests.addModule(dep_mod.name, dep_mod.module);
+    }
+
+    mod_unit_tests.addIncludePath(.{ .path = "./spline-gym/src"});
+    mod_unit_tests.addCSourceFile(
+        .{ 
+            .file = .{ .path = "./spline-gym/src/hodographs.c"},
+            .flags = &c_args
+        }
+    );
+
+    // install the binary for the test, so that it can be used with lldb
+    {
+        var test_exe = b.addTest(
+            .{
+                .name = "test_" ++ name,
+                .root_source_file = .{ .path = fpath },
+                .target = target,
+                .optimize = .Debug,
+                // .filter = filter,
+            }
+        );
+
+        test_exe.addIncludePath(.{ .path = "./spline-gym/src"});
+        test_exe.addCSourceFile(
+            .{ 
+                .file = .{ .path = "./spline-gym/src/hodographs.c"},
+                .flags = &c_args
+            }
+        );
+
+        const install_test_bin = b.addInstallArtifact(test_exe, .{});
+
+        for (deps) |dep_mod| {
+            test_exe.addModule(dep_mod.name, dep_mod.module);
+        }
+
+        test_step.dependOn(&install_test_bin.step);
+        test_step.dependOn(&test_exe.step);
+    }
+    const run_unit_tests = b.addRunArtifact(mod_unit_tests);
+    test_step.dependOn(&run_unit_tests.step);
+
+    return mod;
+}
+
 pub fn build(b: *std.build.Builder) void {
     //
     // Options and system checks
@@ -347,6 +420,8 @@ pub fn build(b: *std.build.Builder) void {
     };
     ensureTarget(options.target) catch return;
 
+    const test_step = b.step("test", "run all unit tests");
+
     //b.prominent_compile_errors = true;
     const comath_dep = b.dependency(
         "comath",
@@ -357,49 +432,60 @@ pub fn build(b: *std.build.Builder) void {
     );
 
 
-    const otio_allocator = b.createModule(
-        .{
-            .source_file = .{ .path = "src/allocator.zig" },
-            .dependencies = &.{},
-        }
+    const otio_allocator = create_and_test_module(
+        b,
+        "allocator",
+        "src/allocator.zig",
+        options.target,
+        test_step,
+        &.{},
     );
-    const string_stuff = b.createModule(
-        .{
-            .source_file = .{ .path = "src/string_stuff.zig" },
-            .dependencies = &.{},
-        }
+    const string_stuff = create_and_test_module(
+        b,
+        "allocator",
+        "src/string_stuff.zig",
+        options.target,
+        test_step,
+        &.{},
     );
-    const opentime = b.createModule(
-        .{
-            .source_file = .{ .path = "src/opentime/opentime.zig" },
-            .dependencies = &.{ 
-                .{ .name = "string_stuff", .module = string_stuff },
-                .{ .name = "otio_allocator", .module = otio_allocator },
-                .{ .name = "comath", .module = comath_dep.module("comath") },
-            },
-        }
+    const opentime = create_and_test_module(
+        b,
+        "opentime_lib",
+        "src/opentime/opentime.zig",
+        options.target,
+        test_step,
+        &.{
+            .{ .name = "string_stuff", .module = string_stuff },
+            .{ .name = "otio_allocator", .module = otio_allocator },
+            .{ .name = "comath", .module = comath_dep.module("comath") },
+        },
     );
-    const curve = b.createModule(
-        .{
-            .source_file = .{ .path = "src/curve/curve.zig" },
-            .dependencies = &.{ 
+    const curve = create_and_test_module(
+        b,
+        "curve",
+        "src/curve/curve.zig",
+        options.target,
+        test_step,
+        &.{
                 .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "opentime", .module = opentime },
                 .{ .name = "otio_allocator", .module = otio_allocator },
                 .{ .name = "comath", .module = comath_dep.module("comath") },
-            },
-        }
+        },
     );
-    const time_topology = b.createModule(
-        .{
-            .source_file = .{ .path = "src/time_topology/time_topology.zig" },
-            .dependencies = &.{ 
+
+    const time_topology = create_and_test_module(
+        b,
+        "time_topology",
+        "src/time_topology/time_topology.zig",
+        options.target,
+        test_step,
+        &.{
                 .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "opentime", .module = opentime },
                 .{ .name = "otio_allocator", .module = otio_allocator },
                 .{ .name = "curve", .module = curve },
-            },
-        }
+        },
     );
 
     const deps:[]const ModuleSpec = &.{ 
@@ -436,7 +522,6 @@ pub fn build(b: *std.build.Builder) void {
         deps,
    );
 
-    const test_step = b.step("test", "run all unit tests");
 
     for (SOURCES_WITH_TESTS) |fpath| {
         add_test_for_source(
