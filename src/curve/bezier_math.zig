@@ -1055,10 +1055,10 @@ test "dydx matches expected at endpoints" {
 
     const seg0 = crv.segments[0];
 
-    // {
-    //     const u_zero_dual = seg0.eval_at_dual(.{ .r = 0.1, .i = 1 });
-    //     try expectApproxEql(@as(f32, 1.0), u_zero_dual.i.time);
-    // }
+    {
+        const u_zero_dual = seg0.eval_at_dual(.{ .r = 0.1, .i = 1 });
+        try expectApproxEql(@as(f32, 1.0), u_zero_dual.i.time);
+    }
 
     // {
     //     const u_zero_dual = seg0.eval_at_dual(.{ .r = 0, .i = 1 });
@@ -1088,7 +1088,6 @@ test "findU for upside down u" {
         try expectApproxEql(@as(f32, 0), u_zero_dual.r);
 
         const half_x = lerp(0.5, seg_0.p0.time, seg_0.p3.time);
-        @breakpoint();
         const u_half_dual = seg_0.findU_input_dual(half_x);
         try expectApproxEql(@as(f32, 0.5), u_half_dual.r);
         try expectApproxEql(@as(f32, 1.0), u_half_dual.i);
