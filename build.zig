@@ -37,7 +37,10 @@ fn ensureZigVersion() !void {
     }
 }
 
-fn ensureTarget(cross: std.zig.CrossTarget) !void {
+fn ensureTarget(
+    cross: std.zig.CrossTarget
+) !void 
+{
     const target = (
         std.zig.system.NativeTargetInfo.detect(cross) catch unreachable
     ).target;
@@ -90,7 +93,7 @@ fn ensureTarget(cross: std.zig.CrossTarget) !void {
             \\
             \\---------------------------------------------------------------------------
             \\
-        , .{});
+            , .{});
         return error.TargetNotSupported;
     }
 }
@@ -266,19 +269,49 @@ pub fn build_wrinkles_like(
     }
 
     // Needed for glfw/wgpu rendering backend
-    const zgui_pkg = zgui.package(b, options.target, options.optimize, .{
-        .options = .{ .backend = .glfw_wgpu },
-    });
-    const zglfw_pkg = zglfw.package(b, options.target, options.optimize, .{});
-    const zpool_pkg = zpool.package(b, options.target, options.optimize, .{});
-    const zgpu_pkg = zgpu.package(b, options.target, options.optimize, .{
-        .deps = .{ .zpool = zpool_pkg.zpool, .zglfw = zglfw_pkg.zglfw },
-    });
-    const zstbi_pkg = zstbi.package(b, options.target, options.optimize, .{});
-    zgui_pkg.link(exe);
-    zglfw_pkg.link(exe);
-    zgpu_pkg.link(exe);
-    zstbi_pkg.link(exe);
+    {
+        const zgui_pkg = zgui.package(
+            b,
+            options.target,
+            options.optimize,
+            .{ .options = .{ .backend = .glfw_wgpu }, }
+        );
+
+        const zglfw_pkg = zglfw.package(
+            b,
+            options.target,
+            options.optimize,
+            .{}
+        );
+        const zpool_pkg = zpool.package(
+            b,
+            options.target,
+            options.optimize,
+            .{}
+        );
+        const zgpu_pkg = zgpu.package(
+            b,
+            options.target,
+            options.optimize,
+            .{
+                .deps = .{
+                    .zpool = zpool_pkg.zpool,
+                    .zglfw = zglfw_pkg.zglfw
+                },
+            }
+        );
+        const zstbi_pkg = zstbi.package(
+            b,
+            options.target,
+            options.optimize,
+            .{}
+        );
+
+        zgui_pkg.link(exe);
+        zglfw_pkg.link(exe);
+        zgpu_pkg.link(exe);
+        zstbi_pkg.link(exe);
+    }
 
     const install = b.step(name, "Build '" ++ name ++ "'");
     install.dependOn(&b.addInstallArtifact(exe, .{}).step);
@@ -297,7 +330,7 @@ pub const CreateModuelOptions = struct {
     fpath: []const u8,
     target: std.zig.CrossTarget,
     test_step: *std.build.Step,
-    deps: []const std.build.ModuleDependency,
+    deps: []const std.build.ModuleDependency = &.{},
     c_libraries: []*std.build.CompileStep = &.{},
 };
 
@@ -370,7 +403,11 @@ pub fn create_and_test_module(
     return mod;
 }
 
-pub fn build(b: *std.build.Builder) void {
+// main entry point
+pub fn build(
+    b: *std.build.Builder
+) void 
+{
     //
     // Options and system checks
     //
@@ -403,7 +440,7 @@ pub fn build(b: *std.build.Builder) void {
 
     const test_step = b.step("test", "run all unit tests");
 
-    //b.prominent_compile_errors = true;
+    // submodules and dependencies
     const comath_dep = b.dependency(
         "comath",
         .{
@@ -412,7 +449,6 @@ pub fn build(b: *std.build.Builder) void {
         }
     );
 
-
     const otio_allocator = create_and_test_module(
         "allocator",
         .{
@@ -420,7 +456,6 @@ pub fn build(b: *std.build.Builder) void {
             .fpath = "src/allocator.zig",
             .target = options.target,
             .test_step = test_step,
-            .deps = &.{},
         }
     );
     const string_stuff = create_and_test_module(
@@ -430,7 +465,6 @@ pub fn build(b: *std.build.Builder) void {
             .fpath = "src/string_stuff.zig",
             .target = options.target,
             .test_step = test_step,
-            .deps = &.{},
         }
     );
     const opentime = create_and_test_module(
@@ -517,26 +551,28 @@ pub fn build(b: *std.build.Builder) void {
         deps,
         &c_libs,
     );
-   build_wrinkles_like(
-       b,
-       "curvet",
-       "/src/curvet.zig",
-       "/wrinkles_content/",
+    build_wrinkles_like(
+        b,
+        "curvet",
+        "/src/curvet.zig",
+        "/wrinkles_content/",
         options,
         deps,
         &c_libs,
-   );
-   build_wrinkles_like(
-       b,
-       "example_zgui_app",
-       "/src/example_zgui_app.zig",
-       "/wrinkles_content/",
+    );
+    build_wrinkles_like(
+        b,
+        "example_zgui_app",
+        "/src/example_zgui_app.zig",
+        "/wrinkles_content/",
         options,
         deps,
         &c_libs,
-   );
+    );
 
-    for (SOURCES_WITH_TESTS) |fpath| {
+    for (SOURCES_WITH_TESTS) 
+        |fpath| 
+    {
         add_test_for_source(
             b,
             options.target,
