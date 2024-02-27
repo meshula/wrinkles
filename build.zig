@@ -267,36 +267,34 @@ pub fn build_wrinkles_like(
 
     exe.want_lto = false;
 
-    const zgui_pkg = zgui.package(b, options.target, options.optimize, .{
-        .options = .{ .backend = .glfw_wgpu },
-    });
+    // c library dependency
+    {
+        exe.addIncludePath(.{ .path = "./spline-gym/src"});
+        exe.addCSourceFile(
+            .{ 
+                .file = .{ .path = "./spline-gym/src/hodographs.c"},
+                .flags = &c_args
+            }
+        );
+    }
 
-    zgui_pkg.link(exe);
-
-    exe.addIncludePath(.{ .path = "./spline-gym/src"});
-    exe.addCSourceFile(
-        .{ 
-            .file = .{ .path = "./spline-gym/src/hodographs.c"},
-            .flags = &c_args
-        }
-    );
-
-    for (module_deps) |mod| {
+    for (module_deps) 
+        |mod| 
+    {
         exe.addModule(mod.name, mod.module);
     }
 
-    // zgpu.link(exe, zgpu_options);
-    // zglfw.link(exe);
-    // zgui.link(exe);
-    // zstbi.link(exe);
-
     // Needed for glfw/wgpu rendering backend
+    const zgui_pkg = zgui.package(b, options.target, options.optimize, .{
+        .options = .{ .backend = .glfw_wgpu },
+    });
     const zglfw_pkg = zglfw.package(b, options.target, options.optimize, .{});
     const zpool_pkg = zpool.package(b, options.target, options.optimize, .{});
     const zgpu_pkg = zgpu.package(b, options.target, options.optimize, .{
         .deps = .{ .zpool = zpool_pkg.zpool, .zglfw = zglfw_pkg.zglfw },
     });
     const zstbi_pkg = zstbi.package(b, options.target, options.optimize, .{});
+    zgui_pkg.link(exe);
     zglfw_pkg.link(exe);
     zgpu_pkg.link(exe);
     zstbi_pkg.link(exe);
@@ -307,8 +305,8 @@ pub fn build_wrinkles_like(
     var run_cmd = b.addRunArtifact(exe).step;
     run_cmd.dependOn(install);
 
-    // const run_step = b.step(name ++ "-run", "Run '" ++ name ++ "'");
-    // run_step.dependOn(&run_cmd);
+    const run_step = b.step(name ++ "-run", "Run '" ++ name ++ "'");
+    run_step.dependOn(&run_cmd);
 
     b.getInstallStep().dependOn(install);
 }
