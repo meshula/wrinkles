@@ -6,10 +6,9 @@ const wgpu = zgpu.wgpu;
 const zgui = @import("zgui");
 const zm = @import("zmath");
 const zstbi = @import("zstbi");
-const ot = @cImport({
-    @cInclude("opentime.h");
-});
-
+// const ot = @cImport({
+//     @cInclude("opentime.h");
+// });
 
 const assert = std.debug.assert;
 
@@ -55,7 +54,7 @@ const DemoState = struct {
 };
 
 fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*DemoState {
-    ot.ot_test();
+    // ot.ot_test();
 
     const gctx = try zgpu.GraphicsContext.create(allocator, window, .{});
 

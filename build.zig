@@ -148,14 +148,6 @@ pub fn add_test_for_source(
         test_thing.addModule(mod.name, mod.module);
     }
 
-    test_thing.addIncludePath(.{ .path = "./spline-gym/src"});
-    test_thing.addCSourceFile(
-        .{ 
-            .file = .{ .path = "./spline-gym/src/hodographs.c"},
-            .flags = &c_args
-        }
-    );
-
     // install the binary for the test, so that it can be used with lldb
     {
         var test_exe = b.addTest(
@@ -165,14 +157,6 @@ pub fn add_test_for_source(
                 .target = target,
                 .optimize = .Debug,
                 // .filter = filter,
-            }
-        );
-
-        test_exe.addIncludePath(.{ .path = "./spline-gym/src"});
-        test_exe.addCSourceFile(
-            .{ 
-                .file = .{ .path = "./spline-gym/src/hodographs.c"},
-                .flags = &c_args
             }
         );
 
@@ -218,6 +202,7 @@ pub fn build_wrinkles_like(
     comptime source_dir_path: []const u8,
     options: Options,
     module_deps: []const ModuleSpec,
+    c_libraries: []*std.build.CompileStep,
 ) void 
 {
     const exe = b.addExecutable(
@@ -227,15 +212,6 @@ pub fn build_wrinkles_like(
             .target = options.target,
             .optimize = options.optimize,
         }
-    );
-
-    exe.addIncludePath(.{ .path = "./src"});
-    exe.addCSourceFiles(
-        &.{
-            "./src/opentime.c",
-            "./src/munit.c",
-        },
-        &c_args
     );
 
     const exe_options = b.addOptions();
@@ -283,6 +259,11 @@ pub fn build_wrinkles_like(
     {
         exe.addModule(mod.name, mod.module);
     }
+    for (c_libraries)
+        |c_lib|
+    {
+        exe.linkLibrary(c_lib);
+    }
 
     // Needed for glfw/wgpu rendering backend
     const zgui_pkg = zgui.package(b, options.target, options.optimize, .{
@@ -311,85 +292,79 @@ pub fn build_wrinkles_like(
     b.getInstallStep().dependOn(install);
 }
 
-pub fn create_and_test_module(
+pub const CreateModuelOptions = struct {
     b: *std.build.Builder,
-    comptime name: []const u8,
     fpath: []const u8,
     target: std.zig.CrossTarget,
     test_step: *std.build.Step,
     deps: []const std.build.ModuleDependency,
+    c_libraries: []*std.build.CompileStep = &.{},
+};
+
+pub fn create_and_test_module(
+    comptime name: []const u8,
+    opts:CreateModuelOptions
 ) *std.build.Module 
 {
-    const mod = b.createModule(
+    const mod = opts.b.createModule(
         .{
-            .source_file = .{ .path = fpath },
-            .dependencies = deps,
+            .source_file = .{ .path = opts.fpath },
+            .dependencies = opts.deps,
         }
     );
 
     // run the unit test
     {
-        const mod_unit_tests = b.addTest(
+        const mod_unit_tests = opts.b.addTest(
             .{
                 .name = name ++ "_tests",
-                .root_source_file = .{ .path = fpath },
-                .target = target,
+                .root_source_file = .{ .path = opts.fpath },
+                .target =opts. target,
             }
         );
 
-        for (deps) 
+        for (opts.deps) 
             |dep_mod| 
         {
             mod_unit_tests.addModule(dep_mod.name, dep_mod.module);
         }
 
-        mod_unit_tests.addIncludePath(.{ .path = "./spline-gym/src"});
-        mod_unit_tests.addCSourceFile(
-            .{ 
-                .file = .{ .path = "./spline-gym/src/hodographs.c"},
-                .flags = &c_args
-            }
-        );
-        // coverage @TODO
-        // mod_unit_tests.setExecCmd(
-        //     &[_]?[]const u8{
-        //         "lcov",
-        //         //"--path-strip-level=3", // any kcov flags can be specified here
-        //     }
-        // );
-        const run_unit_tests = b.addRunArtifact(mod_unit_tests);
-        test_step.dependOn(&run_unit_tests.step);
+        for (opts.c_libraries)
+            |c_lib|
+        {
+            mod_unit_tests.linkLibrary(c_lib);
+        }
+
+        const run_unit_tests = opts.b.addRunArtifact(mod_unit_tests);
+        opts.test_step.dependOn(&run_unit_tests.step);
     }
 
     // install the binary for the test, so that it can be used with lldb
     // @TODO: there might be more direct ways of doing this in modern build.zig
     {
-        var test_exe = b.addTest(
+        var test_exe = opts.b.addTest(
             .{
                 .name = "test_" ++ name,
-                .root_source_file = .{ .path = fpath },
-                .target = target,
+                .root_source_file = .{ .path = opts.fpath },
+                .target =opts. target,
                 .optimize = .Debug,
                 // .filter = filter,
             }
         );
 
-        test_exe.addIncludePath(.{ .path = "./spline-gym/src"});
-        test_exe.addCSourceFile(
-            .{ 
-                .file = .{ .path = "./spline-gym/src/hodographs.c"},
-                .flags = &c_args
-            }
-        );
+        const install_test_bin = opts.b.addInstallArtifact(test_exe, .{});
 
-        const install_test_bin = b.addInstallArtifact(test_exe, .{});
-
-        for (deps) |dep_mod| {
+        for (opts.deps) |dep_mod| {
             test_exe.addModule(dep_mod.name, dep_mod.module);
         }
+        for (opts.c_libraries)
+            |c_lib|
+        {
+            test_exe.linkLibrary(c_lib);
+        }
 
-        test_step.dependOn(&install_test_bin.step);
-        test_step.dependOn(&test_exe.step);
+        opts.test_step.dependOn(&install_test_bin.step);
+        opts.test_step.dependOn(&test_exe.step);
     }
 
     return mod;
@@ -439,59 +414,89 @@ pub fn build(b: *std.build.Builder) void {
 
 
     const otio_allocator = create_and_test_module(
-        b,
         "allocator",
-        "src/allocator.zig",
-        options.target,
-        test_step,
-        &.{},
+        .{
+            .b = b,
+            .fpath = "src/allocator.zig",
+            .target = options.target,
+            .test_step = test_step,
+            .deps = &.{},
+        }
     );
     const string_stuff = create_and_test_module(
-        b,
-        "allocator",
-        "src/string_stuff.zig",
-        options.target,
-        test_step,
-        &.{},
+        "string_stuff",
+        .{
+            .b = b,
+            .fpath = "src/string_stuff.zig",
+            .target = options.target,
+            .test_step = test_step,
+            .deps = &.{},
+        }
     );
     const opentime = create_and_test_module(
-        b,
         "opentime_lib",
-        "src/opentime/opentime.zig",
-        options.target,
-        test_step,
-        &.{
-            .{ .name = "string_stuff", .module = string_stuff },
-            .{ .name = "otio_allocator", .module = otio_allocator },
-            .{ .name = "comath", .module = comath_dep.module("comath") },
-        },
+        .{ 
+            .b = b,
+            .fpath = "src/opentime/opentime.zig",
+            .target = options.target,
+            .test_step = test_step,
+            .deps = &.{
+                .{ .name = "string_stuff", .module = string_stuff },
+                .{ .name = "otio_allocator", .module = otio_allocator },
+                .{ .name = "comath", .module = comath_dep.module("comath") },
+            },
+        }
     );
+    var spline_gym = b.addStaticLibrary(
+        .{
+            .name = "spline_gym",
+            .target = options.target,
+            .optimize = options.optimize,
+        }
+    );
+    {
+        spline_gym.addIncludePath(.{ .path = "./spline-gym/src"});
+        spline_gym.addCSourceFile(
+            .{ 
+                .file = .{ .path = "./spline-gym/src/hodographs.c"},
+                .flags = &c_args
+            }
+        );
+    }
+    var c_libs = [_]*std.build.CompileStep{
+        spline_gym,
+    };
     const curve = create_and_test_module(
-        b,
         "curve",
-        "src/curve/curve.zig",
-        options.target,
-        test_step,
-        &.{
+        .{ 
+            .b = b,
+            .fpath = "src/curve/curve.zig",
+            .target = options.target,
+            .test_step = test_step,
+            .deps = &.{
                 .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "opentime", .module = opentime },
                 .{ .name = "otio_allocator", .module = otio_allocator },
                 .{ .name = "comath", .module = comath_dep.module("comath") },
-        },
+            },
+            .c_libraries = &c_libs,
+        }
     );
 
     const time_topology = create_and_test_module(
-        b,
         "time_topology",
-        "src/time_topology/time_topology.zig",
-        options.target,
-        test_step,
-        &.{
+        .{ 
+            .b = b,
+            .fpath = "src/time_topology/time_topology.zig",
+            .target = options.target,
+            .test_step = test_step,
+            .deps = &.{
                 .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "opentime", .module = opentime },
                 .{ .name = "otio_allocator", .module = otio_allocator },
                 .{ .name = "curve", .module = curve },
-        },
+            },
+        }
     );
 
     const deps:[]const ModuleSpec = &.{ 
@@ -510,6 +515,7 @@ pub fn build(b: *std.build.Builder) void {
         "/wrinkles_content/",
         options,
         deps,
+        &c_libs,
     );
    build_wrinkles_like(
        b,
@@ -518,6 +524,7 @@ pub fn build(b: *std.build.Builder) void {
        "/wrinkles_content/",
         options,
         deps,
+        &c_libs,
    );
    build_wrinkles_like(
        b,
@@ -526,8 +533,8 @@ pub fn build(b: *std.build.Builder) void {
        "/wrinkles_content/",
         options,
         deps,
+        &c_libs,
    );
-
 
     for (SOURCES_WITH_TESTS) |fpath| {
         add_test_for_source(
