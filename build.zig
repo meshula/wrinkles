@@ -205,7 +205,6 @@ pub fn build_wrinkles_like(
     comptime source_dir_path: []const u8,
     options: Options,
     module_deps: []const ModuleSpec,
-    c_libraries: []*std.build.CompileStep,
 ) void 
 {
     const exe = b.addExecutable(
@@ -261,11 +260,6 @@ pub fn build_wrinkles_like(
         |mod| 
     {
         exe.addModule(mod.name, mod.module);
-    }
-    for (c_libraries)
-        |c_lib|
-    {
-        exe.linkLibrary(c_lib);
     }
 
     // Needed for glfw/wgpu rendering backend
@@ -549,7 +543,6 @@ pub fn build(
         "/wrinkles_content/",
         options,
         deps,
-        &c_libs,
     );
     build_wrinkles_like(
         b,
@@ -558,7 +551,6 @@ pub fn build(
         "/wrinkles_content/",
         options,
         deps,
-        &c_libs,
     );
     build_wrinkles_like(
         b,
@@ -567,7 +559,6 @@ pub fn build(
         "/wrinkles_content/",
         options,
         deps,
-        &c_libs,
     );
 
     for (SOURCES_WITH_TESTS) 
