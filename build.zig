@@ -254,12 +254,14 @@ pub fn build_wrinkles_like(
         "hash",
         rev_HEAD(ALLOCATOR
     ) catch "COULDNT READ HASH");
-    // this
-    const install_content_step = b.addInstallDirectory(.{
-        .source_dir = .{ .path = thisDir() ++ "/src/" ++ source_dir_path },
-        .install_dir = .{ .custom = "" },
-        .install_subdir = "bin/" ++ name ++ "_content",
-    });
+
+    const install_content_step = b.addInstallDirectory(
+        .{
+            .source_dir = .{ .path = thisDir() ++ "/src/" ++ source_dir_path },
+            .install_dir = .{ .custom = "" },
+            .install_subdir = "bin/" ++ name ++ "_content",
+        }
+    );
     exe.step.dependOn(&install_content_step.step);
 
     std.debug.print(
@@ -331,18 +333,22 @@ pub fn build_wrinkles_like(
         zstbi_pkg.link(exe);
     }
 
-    const install = b.step(name, "Build '" ++ name ++ "'");
+    const install = b.step(name, "Build/install '" ++ name ++ "' executable");
     install.dependOn(&b.addInstallArtifact(exe, .{}).step);
 
     var run_cmd = b.addRunArtifact(exe).step;
     run_cmd.dependOn(install);
 
-    const run_step = b.step(name ++ "-run", "Run '" ++ name ++ "'");
+    const run_step = b.step(
+        name ++ "-run",
+        "Run '" ++ name ++ "' executable"
+    );
     run_step.dependOn(&run_cmd);
 
     b.getInstallStep().dependOn(install);
 }
 
+/// options for create_and_test_module
 pub const CreateModuelOptions = struct {
     b: *std.build.Builder,
     fpath: []const u8,
@@ -476,7 +482,7 @@ pub fn build(
     };
     ensureTarget(options.target) catch return;
 
-    const test_step = b.step("test", "run all unit tests");
+    const test_step = b.step("test", "step to run all unit tests");
 
     // submodules and dependencies
     const comath_dep = b.dependency(
