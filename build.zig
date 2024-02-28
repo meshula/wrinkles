@@ -1,13 +1,15 @@
+// zig std stuff
 const builtin = @import("builtin");
 const std = @import("std");
 
+// zgui stuff
 const zgui = @import("libs/zgui/build.zig");
 const zgpu = @import("libs/zgpu/build.zig");
 const zpool = @import("libs/zpool/build.zig");
 const zglfw = @import("libs/zglfw/build.zig");
 const zstbi = @import("libs/zstbi/build.zig");
 
-pub const min_zig_version = std.SemanticVersion{
+pub const MIN_ZIG_VERSION = std.SemanticVersion{
     .major = 0,
     .minor = 11,
     .patch = 0,
@@ -18,8 +20,9 @@ fn ensureZigVersion() !void {
     var installed_ver = @import("builtin").zig_version;
     installed_ver.build = null;
 
-    if (installed_ver.order(min_zig_version) == .lt) {
-        std.log.err("\n" ++
+    if (installed_ver.order(MIN_ZIG_VERSION) == .lt) {
+        std.log.err(
+            "\n" ++
             \\---------------------------------------------------------------------------
             \\
             \\Installed Zig compiler version is too old.
@@ -32,7 +35,9 @@ fn ensureZigVersion() !void {
             \\
             \\---------------------------------------------------------------------------
             \\
-        , .{ min_zig_version, installed_ver });
+            , .{ MIN_ZIG_VERSION, installed_ver }
+        );
+
         return error.ZigIsTooOld;
     }
 }
@@ -45,7 +50,8 @@ fn ensureTarget(
         std.zig.system.NativeTargetInfo.detect(cross) catch unreachable
     ).target;
 
-    const supported = switch (target.os.tag) {
+    const supported = switch (target.os.tag) 
+    {
         .windows => target.cpu.arch.isX86() and target.abi.isGnu(),
         .linux => (
             target.cpu.arch.isX86() 
@@ -78,7 +84,8 @@ fn ensureTarget(
         else => false,
     };
     if (!supported) {
-        std.log.err("\n" ++
+        std.log.err(
+            "\n" ++
             \\---------------------------------------------------------------------------
             \\
             \\Unsupported build target. Dawn/WebGPU binary for this target is not available.
@@ -93,7 +100,8 @@ fn ensureTarget(
             \\
             \\---------------------------------------------------------------------------
             \\
-            , .{});
+            , .{}
+        );
         return error.TargetNotSupported;
     }
 }
@@ -116,7 +124,7 @@ inline fn thisDir() []const u8 {
     return comptime std.fs.path.dirname(@src().file) orelse ".";
 }
 
-const c_args = [_][]const u8{
+const C_ARGS = [_][]const u8{
     "-std=c11",
     "-fno-sanitize=undefined",
 };
@@ -145,6 +153,14 @@ pub fn add_test_for_source(
         }
     );
 
+    test_thing.addIncludePath(.{ .path = "./spline-gym/src"});
+    test_thing.addCSourceFile(
+        .{ 
+            .file = .{ .path = "./spline-gym/src/hodographs.c"},
+            .flags = &C_ARGS
+        }
+    );
+
     for (module_deps) 
         |mod| 
     {
@@ -160,6 +176,14 @@ pub fn add_test_for_source(
                 .target = target,
                 .optimize = .Debug,
                 // .filter = filter,
+            }
+        );
+
+        test_exe.addIncludePath(.{ .path = "./spline-gym/src"});
+        test_exe.addCSourceFile(
+            .{ 
+                .file = .{ .path = "./spline-gym/src/hodographs.c"},
+                .flags = &C_ARGS
             }
         );
 
@@ -251,7 +275,7 @@ pub fn build_wrinkles_like(
         exe.addCSourceFile(
             .{ 
                 .file = .{ .path = "./spline-gym/src/hodographs.c"},
-                .flags = &c_args
+                .flags = &C_ARGS
             }
         );
     }
@@ -356,11 +380,19 @@ pub fn create_and_test_module(
             mod_unit_tests.addModule(dep_mod.name, dep_mod.module);
         }
 
-        for (opts.c_libraries)
-            |c_lib|
-        {
-            mod_unit_tests.linkLibrary(c_lib);
-        }
+        mod_unit_tests.addIncludePath(.{ .path = "./spline-gym/src"});
+        mod_unit_tests.addCSourceFile(
+            .{ 
+                .file = .{ .path = "./spline-gym/src/hodographs.c" },
+                .flags = &C_ARGS
+            }
+        );
+
+        // for (opts.c_libraries)
+        //     |c_lib|
+        // {
+        //     mod_unit_tests.linkLibrary(c_lib);
+        // }
 
         const run_unit_tests = opts.b.addRunArtifact(mod_unit_tests);
         opts.test_step.dependOn(&run_unit_tests.step);
@@ -381,14 +413,25 @@ pub fn create_and_test_module(
 
         const install_test_bin = opts.b.addInstallArtifact(test_exe, .{});
 
-        for (opts.deps) |dep_mod| {
+        for (opts.deps) 
+            |dep_mod| 
+        {
             test_exe.addModule(dep_mod.name, dep_mod.module);
         }
-        for (opts.c_libraries)
-            |c_lib|
-        {
-            test_exe.linkLibrary(c_lib);
-        }
+
+        // for (opts.c_libraries)
+        //     |c_lib|
+        // {
+        //     test_exe.linkLibrary(c_lib);
+        // }
+
+        test_exe.addIncludePath(.{ .path = "./spline-gym/src"});
+        test_exe.addCSourceFile(
+            .{ 
+                .file = .{ .path = "./spline-gym/src/hodographs.c"},
+                .flags = &C_ARGS
+            }
+        );
 
         opts.test_step.dependOn(&install_test_bin.step);
         opts.test_step.dependOn(&test_exe.step);
@@ -402,10 +445,11 @@ pub fn build(
     b: *std.build.Builder
 ) void 
 {
+    ensureZigVersion() catch return;
+
     //
     // Options and system checks
     //
-    ensureZigVersion() catch return;
     const options = Options{
         .optimize = b.standardOptimizeOption(.{}),
         .target = b.standardTargetOptions(.{}),
@@ -487,7 +531,7 @@ pub fn build(
         spline_gym.addCSourceFile(
             .{ 
                 .file = .{ .path = "./spline-gym/src/hodographs.c"},
-                .flags = &c_args
+                .flags = &C_ARGS
             }
         );
     }
