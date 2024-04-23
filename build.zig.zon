@@ -26,6 +26,11 @@
             .url = "https://github.com/InKryption/comath/archive/3bda4d2e0b490bf2e73fe590b943f7bb190bbeae.tar.gz",
             .hash = "1220db07ef076d5025fb744d8fcdb43f4ccdfcea9383d66c8a20559d950353e0936d",
         },
-     }
+     },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
 }
 

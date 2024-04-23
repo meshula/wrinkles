@@ -46,21 +46,22 @@ fn ensureTarget(
     cross: std.zig.CrossTarget
 ) !void 
 {
-    const target = (
-        std.zig.system.NativeTargetInfo.detect(cross) catch unreachable
-    ).target;
+    // const target = (
+    //     std.zig.system.NativeTargetInfo.detect(cross) catch unreachable
+    // ).target;
+    const target = cross;
 
-    const supported = switch (target.os.tag) 
+    const supported = switch (target.os_tag.?) 
     {
-        .windows => target.cpu.arch.isX86() and target.abi.isGnu(),
+        .windows => target.cpu_arch.?.isX86() and target.abi.?.isGnu(),
         .linux => (
-            target.cpu.arch.isX86() 
-            or target.cpu.arch.isAARCH64()
-        ) and target.abi.isGnu(),
+            target.cpu_arch.?.isX86() 
+            or target.cpu_arch.?.isAARCH64()
+        ) and target.abi.?.isGnu(),
         .macos => blk: {
             if (
-                !target.cpu.arch.isX86() 
-                and !target.cpu.arch.isAARCH64()
+                !target.cpu_arch.?.isX86() 
+                and !target.cpu_arch.?.isAARCH64()
             ) break :blk false;
 
             // If min. target macOS version is lesser than the min version we
@@ -72,7 +73,7 @@ fn ensureTarget(
                 .patch = 0,
             };
             if (
-                target.os.version_range.semver.min.order(
+                target.os_version_min(
                     min_available
                 ) == .lt
             ) {
@@ -135,7 +136,7 @@ const SOURCES_WITH_TESTS = [_][]const u8{
 };
 
 pub fn add_test_for_source(
-    b: *std.build.Builder,
+    b: *std.Build,
     target: anytype,
     test_step: anytype,
     fpath: []const u8,
@@ -218,12 +219,12 @@ pub fn rev_HEAD(alloc: std.mem.Allocator) ![]const u8 {
 
 const ModuleSpec = struct {
     name: []const u8,
-    module: *std.build.Module,
+    module: *std.Build.Module,
 };
 
 /// build an app that is like the wrinkles one
 pub fn build_wrinkles_like(
-    b: *std.build.Builder,
+    b: *std.Build,
     comptime name: []const u8,
     comptime main_file_name: []const u8,
     comptime source_dir_path: []const u8,
@@ -350,18 +351,18 @@ pub fn build_wrinkles_like(
 
 /// options for create_and_test_module
 pub const CreateModuelOptions = struct {
-    b: *std.build.Builder,
+    b: *std.Build,
     fpath: []const u8,
     target: std.zig.CrossTarget,
-    test_step: *std.build.Step,
-    deps: []const std.build.ModuleDependency = &.{},
-    c_libraries: []*std.build.CompileStep = &.{},
+    test_step: *std.Build.Step,
+    deps: []const std.Build.ModuleDependency = &.{},
+    c_libraries: []*std.Build.CompileStep = &.{},
 };
 
 pub fn create_and_test_module(
     comptime name: []const u8,
     opts:CreateModuelOptions
-) *std.build.Module 
+) *std.Build.Module 
 {
     const mod = opts.b.createModule(
         .{
@@ -448,7 +449,7 @@ pub fn create_and_test_module(
 
 // main entry point
 pub fn build(
-    b: *std.build.Builder
+    b: *std.Build
 ) void 
 {
     ensureZigVersion() catch return;
@@ -458,7 +459,7 @@ pub fn build(
     //
     const options = Options{
         .optimize = b.standardOptimizeOption(.{}),
-        .target = b.standardTargetOptions(.{}),
+        .target = .{},
         .zd3d12_enable_debug_layer = b.option(
             bool,
             "zd3d12-enable-debug-layer",
@@ -541,7 +542,7 @@ pub fn build(
             }
         );
     }
-    var c_libs = [_]*std.build.CompileStep{
+    var c_libs = [_]*std.Build.CompileStep{
         spline_gym,
     };
     const curve = create_and_test_module(
