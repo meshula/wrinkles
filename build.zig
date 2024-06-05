@@ -9,6 +9,11 @@ pub const MIN_ZIG_VERSION = std.SemanticVersion{
     .pre = "dev.46" 
 };
 
+const CLibCompileStep = struct {
+    name : []const u8,
+    step : *std.build.CompileStep,
+};
+
 fn ensureZigVersion() !void {
     var installed_ver = @import("builtin").zig_version;
     installed_ver.build = null;
@@ -374,6 +379,14 @@ pub fn create_and_test_module(
         {
             mod_unit_tests.root_module.addImport(dep_mod.name, dep_mod.module);
         }
+        //
+        // mod_unit_tests.addIncludePath(.{ .path = "./spline-gym/src"});
+        // mod_unit_tests.addCSourceFile(
+        //     .{ 
+        //         .file = .{ .path = "./spline-gym/src/hodographs.c" },
+        //         .flags = &C_ARGS
+        //     }
+        // );
 
         for (opts.c_libraries)
             |c_lib|
@@ -487,15 +500,41 @@ pub fn build(
             .test_step = test_step,
         }
     );
-    const sampling = create_and_test_module(
-        "sampling",
-        .{
-            .b = b,
-            .fpath = "src/sampling.zig",
-            .target = options.target,
-            .test_step = test_step,
-        }
-    );
+
+    // var libsamplerate = b.addStaticLibrary(
+    //     .{
+    //         .name = "libsamplerate",
+    //         .target = options.target,
+    //         .optimize = options.optimize,
+    //     }
+    // );
+    // {
+    //     libsamplerate.addIncludePath(
+    //         .{ .path = "./libs/wrapped_libsamplerate/libsamplerate/include"}
+    //     );
+    //     libsamplerate.addIncludePath(
+    //         .{ .path = "./libs/wrapped_libsamplerate"}
+    //     );
+    //     libsamplerate.addCSourceFile(
+    //         .{ 
+    //             .file = .{ .path = "./libs/wrapped_libsamplerate/wrapped_libsamplerate.c"},
+    //             .flags = &C_ARGS
+    //         }
+    //     );
+    // }
+    // var sampling_c_libs = [_]*std.build.CompileStep{
+    //     libsamplerate,
+    // };
+    // const sampling = create_and_test_module(
+    //     "sampling",
+    //     .{
+    //         .b = b,
+    //         .fpath = "src/sampling.zig",
+    //         .target = options.target,
+    //         .test_step = test_step,
+    //         // .c_libraries = &sampling_c_libs,
+    //     }
+    // );
     const opentime = create_and_test_module(
         "opentime_lib",
         .{ 
@@ -565,7 +604,7 @@ pub fn build(
     );
 
     const deps:[]const ModuleSpec = &.{ 
-        .{ .name = "sampling", .module = sampling },
+        // .{ .name = "sampling", .module = sampling },
         .{ .name = "string_stuff", .module = string_stuff },
         .{ .name = "opentime", .module = opentime },
         .{ .name = "curve", .module = curve },
