@@ -487,6 +487,15 @@ pub fn build(
             .test_step = test_step,
         }
     );
+    const sampling = create_and_test_module(
+        "sampling",
+        .{
+            .b = b,
+            .fpath = "src/sampling.zig",
+            .target = options.target,
+            .test_step = test_step,
+        }
+    );
     const opentime = create_and_test_module(
         "opentime_lib",
         .{ 
@@ -556,6 +565,7 @@ pub fn build(
     );
 
     const deps:[]const ModuleSpec = &.{ 
+        .{ .name = "sampling", .module = sampling },
         .{ .name = "string_stuff", .module = string_stuff },
         .{ .name = "opentime", .module = opentime },
         .{ .name = "curve", .module = curve },
