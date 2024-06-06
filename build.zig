@@ -294,7 +294,7 @@ pub fn build_wrinkles_like(
             "zglfw",
             zglfw_pkg.module("root")
         );
-         exe.linkLibrary(zglfw_pkg.artifact("glfw"));
+        exe.linkLibrary(zglfw_pkg.artifact("glfw"));
 
         const zpool_pkg = b.dependency("zpool", .{
             .target = options.target,
