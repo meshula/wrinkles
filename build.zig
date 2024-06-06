@@ -2,18 +2,11 @@
 const builtin = @import("builtin");
 const std = @import("std");
 
-// zgui stuff
-// const zgui = @import("libs/zgui/build.zig");
-// const zgpu = @import("libs/zgpu/build.zig");
-// const zpool = @import("libs/zpool/build.zig");
-// const zglfw = @import("libs/zglfw/build.zig");
-// const zstbi = @import("libs/zstbi/build.zig");
-
 pub const MIN_ZIG_VERSION = std.SemanticVersion{
     .major = 0,
-    .minor = 11,
+    .minor = 13,
     .patch = 0,
-    .pre = "dev.3395" 
+    .pre = "dev.46" 
 };
 
 fn ensureZigVersion() !void {
@@ -264,17 +257,33 @@ pub fn build_wrinkles_like(
 
     // Needed for glfw/wgpu rendering backend
     {
-        const zgui_pkg = b.dependency("zgui", .{
+        @import("zgpu").addLibraryPathsTo(exe);
+
+        const zgpu_pkg = b.dependency("zgpu", .{
             .target = options.target,
             .optimize = options.optimize,
-            .shared = false,
-            .with_implot = false,
-            .backend = .glfw_wgpu,
         });
+        exe.root_module.addImport(
+            "zgpu",
+            zgpu_pkg.module("root")
+        );
+        exe.linkLibrary(zgpu_pkg.artifact("zdawn"));
+
+        const zgui_pkg = b.dependency(
+            "zgui",
+            .{
+                .target = options.target,
+                .optimize = options.optimize,
+                .shared = false,
+                .with_implot = true,
+                .backend = .glfw_wgpu,
+            }
+        );
         exe.root_module.addImport(
             "zgui",
             zgui_pkg.module("root")
         );
+        exe.linkLibrary(zgui_pkg.artifact("imgui"));
 
         const zglfw_pkg = b.dependency("zglfw", .{
             .target = options.target,
@@ -285,6 +294,7 @@ pub fn build_wrinkles_like(
             "zglfw",
             zglfw_pkg.module("root")
         );
+         exe.linkLibrary(zglfw_pkg.artifact("glfw"));
 
         const zpool_pkg = b.dependency("zpool", .{
             .target = options.target,
@@ -295,15 +305,6 @@ pub fn build_wrinkles_like(
             zpool_pkg.module("root")
         );
 
-        const zgpu_pkg = b.dependency("zgpu", .{
-            .target = options.target,
-            .optimize = options.optimize,
-       });
-        exe.root_module.addImport(
-            "zgpu",
-            zgpu_pkg.module("root")
-        );
-
         const zstbi_pkg = b.dependency("zstbi", .{
             .target = options.target,
             .optimize = options.optimize,
@@ -312,6 +313,8 @@ pub fn build_wrinkles_like(
             "zstbi",
             zstbi_pkg.module("root")
         );
+        exe.linkLibrary(zstbi_pkg.artifact("zstbi"));
+
     }
 
     const install = b.step(name, "Build/install '" ++ name ++ "' executable");
