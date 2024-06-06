@@ -4,3 +4,6 @@
 [submodule "libs/kissfft"]
 	path = libs/kissfft
 	url = git@github.com:mborgerding/kissfft.git
+[submodule "libs/wrapped_libsamplerate/libsamplerate"]
+	path = libs/wrapped_libsamplerate/libsamplerate
+	url = git@github.com:libsndfile/libsamplerate.git
