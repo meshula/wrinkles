@@ -140,7 +140,7 @@ pub fn rev_HEAD(alloc: std.mem.Allocator) ![]const u8 {
     return r;
 }
 
-/// build an app that is like the wrinkles one
+/// build an executable that uses zgui/zgflw etc from zig-gamedev
 pub fn executable(
     b: *std.Build,
     comptime name: []const u8,
@@ -153,7 +153,9 @@ pub fn executable(
     const exe = b.addExecutable(
         .{
             .name = name,
-            .root_source_file = .{ .path = thisDir() ++ main_file_name },
+            .root_source_file = .{ 
+                .path = thisDir() ++ main_file_name 
+            },
             .target = options.target,
             .optimize = options.optimize,
         }
