@@ -1,11 +1,7 @@
 const std = @import("std");
-const expectEqual = std.testing.expectEqual;
+const libsamplerate = @import("libsamplerate").libsamplerate;
 
-pub const libsamplerate = @cImport(
-    {
-        @cInclude("samplerate.h");
-    }
-);
+const expectEqual = std.testing.expectEqual;
 
 // @TODO : move to util maybe?
 const EPSILON: f32 = 1.0e-6;
@@ -19,7 +15,8 @@ const SineSampleGenerator = struct {
 
 // test 0
 test "libsamplerate interface test" {
-    expectEqual(libsamplerate.foo(), 1.0);
+    try expectEqual(libsamplerate.SRC_SINC_BEST_QUALITY, 0);
+    try expectEqual(libsamplerate.foo(), 1.0);
 }
 
 // test 1
