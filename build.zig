@@ -9,11 +9,6 @@ pub const MIN_ZIG_VERSION = std.SemanticVersion{
     .pre = "dev.46" 
 };
 
-const CLibCompileStep = struct {
-    name : []const u8,
-    step : *std.build.CompileStep,
-};
-
 fn ensureZigVersion() !void {
     var installed_ver = @import("builtin").zig_version;
     installed_ver.build = null;
@@ -128,60 +123,6 @@ const C_ARGS = [_][]const u8{
     "-fno-sanitize=undefined",
 };
 
-// for sources that aren't tested by the modules
-const SOURCES_WITH_TESTS = [_][]const u8{
-    "./src/test_hodograph.zig",
-};
-
-pub fn add_test_for_source(
-    b: *std.Build,
-    target: anytype,
-    test_step: anytype,
-    fpath: []const u8,
-    module_deps: []const ModuleSpec,
-    filter: ?[]const u8,
-) void 
-{
-    const test_thing = b.addTest(
-        .{
-            .name = std.fs.path.basename(fpath),
-            .root_source_file = .{ .path = fpath },
-            .target = target,
-            .optimize = .Debug,
-            .filter = filter,
-        }
-    );
-
-    for (module_deps) 
-        |mod| 
-    {
-        test_thing.root_module.addImport(mod.name, mod.module);
-    }
-
-    // install the binary for the test, so that it can be used with lldb
-    {
-        var test_exe = b.addTest(
-            .{
-                .name = "otio_test",
-                .root_source_file = .{ .path = fpath },
-                .target = target,
-                .optimize = .Debug,
-                // .filter = filter,
-            }
-        );
-
-        const install_test_bin = b.addInstallArtifact(test_exe, .{});
-
-        for (module_deps) |mod| {
-            test_exe.root_module.addImport(mod.name, mod.module);
-        }
-        test_step.dependOn(&install_test_bin.step);
-        test_step.dependOn(&test_exe.step);
-    }
-
-    test_step.dependOn(&b.addRunArtifact(test_thing).step);
-}
-
 /// Returns the result of running `git rev-parse HEAD`
 pub fn rev_HEAD(alloc: std.mem.Allocator) ![]const u8 {
     const max = std.math.maxInt(usize);
@@ -199,19 +140,14 @@ pub fn rev_HEAD(alloc: std.mem.Allocator) ![]const u8 {
     return r;
 }
 
-const ModuleSpec = struct {
-    name: []const u8,
-    module: *std.Build.Module,
-};
-
 /// build an app that is like the wrinkles one
-pub fn build_wrinkles_like(
+pub fn executable(
     b: *std.Build,
     comptime name: []const u8,
     comptime main_file_name: []const u8,
     comptime source_dir_path: []const u8,
     options: Options,
-    module_deps: []const ModuleSpec,
+    module_deps: []const std.Build.Module.Import,
 ) void 
 {
     const exe = b.addExecutable(
@@ -223,44 +159,48 @@ pub fn build_wrinkles_like(
         }
     );
 
-    const exe_options = b.addOptions();
-    exe.root_module.addOptions("build_options", exe_options);
-
-    // @TODO: should this be in the install directory instead of `thisDir()`?
-    exe_options.addOption(
-        []const u8,
-        name ++ "_content_dir",
-        thisDir() ++ "/src" ++ source_dir_path
-    );
-    exe_options.addOption(
-        []const u8,
-        "hash",
-        rev_HEAD(ALLOCATOR
-    ) catch "COULDNT READ HASH");
-
-    const install_content_step = b.addInstallDirectory(
-        .{
-            .source_dir = .{ .path = thisDir() ++ "/src/" ++ source_dir_path },
-            .install_dir = .{ .custom = "" },
-            .install_subdir = "bin/" ++ name ++ "_content",
-        }
-    );
-    exe.step.dependOn(&install_content_step.step);
-
-    std.debug.print(
-        "[build: {s}] content source directory path: {s}\n",
-        .{name, thisDir() ++ source_dir_path}
-    );
-
-    exe.want_lto = false;
-
     for (module_deps) 
         |mod| 
     {
         exe.root_module.addImport(mod.name, mod.module);
     }
 
-    // Needed for glfw/wgpu rendering backend
+    // options for exposing the content directory and build hash
+    {
+        const exe_options = b.addOptions();
+        exe.root_module.addOptions("build_options", exe_options);
+
+        // @TODO: should this be in the install directory instead of `thisDir()`?
+        exe_options.addOption(
+            []const u8,
+            name ++ "_content_dir",
+            thisDir() ++ "/src" ++ source_dir_path
+        );
+        exe_options.addOption(
+            []const u8,
+            "hash",
+            rev_HEAD(ALLOCATOR) catch "COULDNT READ HASH"
+        );
+
+        const install_content_step = b.addInstallDirectory(
+            .{
+                .source_dir = .{ 
+                    .path = thisDir() ++ "/src/" ++ source_dir_path 
+                },
+                .install_dir = .{ .custom = "" },
+                .install_subdir = "bin/" ++ name ++ "_content",
+            }
+        );
+        exe.step.dependOn(&install_content_step.step);
+        std.debug.print(
+            "[build: {s}] content source directory path: {s}\n",
+            .{name, thisDir() ++ source_dir_path}
+        );
+    }
+
+    exe.want_lto = false;
+
+    // zig gamedev dependencies
     {
         @import("zgpu").addLibraryPathsTo(exe);
 
@@ -319,35 +259,39 @@ pub fn build_wrinkles_like(
             zstbi_pkg.module("root")
         );
         exe.linkLibrary(zstbi_pkg.artifact("zstbi"));
-
     }
 
-    const install = b.step(name, "Build/install '" ++ name ++ "' executable");
-    install.dependOn(&b.addInstallArtifact(exe, .{}).step);
+    // run and install the executable
+    {
+        const install = b.step(
+            name,
+            "Build/install '" ++ name ++ "' executable"
+        );
+        install.dependOn(&b.addInstallArtifact(exe, .{}).step);
 
-    var run_cmd = b.addRunArtifact(exe).step;
-    run_cmd.dependOn(install);
+        var run_cmd = b.addRunArtifact(exe).step;
+        run_cmd.dependOn(install);
 
-    const run_step = b.step(
-        name ++ "-run",
-        "Run '" ++ name ++ "' executable"
-    );
-    run_step.dependOn(&run_cmd);
+        const run_step = b.step(
+            name ++ "-run",
+            "Run '" ++ name ++ "' executable"
+        );
+        run_step.dependOn(&run_cmd);
 
-    b.getInstallStep().dependOn(install);
+        b.getInstallStep().dependOn(install);
+    }
 }
 
-/// options for create_and_test_module
+/// options for module_with_tests_and_artifact
 pub const CreateModuleOptions = struct {
     b: *std.Build,
     fpath: []const u8,
     target: std.Build.ResolvedTarget,
     test_step: *std.Build.Step,
     deps: []const std.Build.Module.Import = &.{},
-    c_libraries: []const std.Build.Module.Import = &.{},
 };
 
-pub fn create_and_test_module(
+pub fn module_with_tests_and_artifact(
     comptime name: []const u8,
     opts:CreateModuleOptions
 ) *std.Build.Module 
@@ -358,17 +302,12 @@ pub fn create_and_test_module(
             .imports = opts.deps,
         }
     );
-    for (opts.c_libraries)
-        |c_lib|
-    {
-        mod.addImport(c_lib.name, c_lib.module);
-    }
 
-    // run the unit test
+    // unit tests for the module
     {
         const mod_unit_tests = opts.b.addTest(
             .{
-                .name = name ++ "_tests",
+                .name = "test_" ++ name,
                 .root_source_file = .{ .path = opts.fpath },
                 .target =opts. target,
             }
@@ -379,54 +318,13 @@ pub fn create_and_test_module(
         {
             mod_unit_tests.root_module.addImport(dep_mod.name, dep_mod.module);
         }
-        //
-        // mod_unit_tests.addIncludePath(.{ .path = "./spline-gym/src"});
-        // mod_unit_tests.addCSourceFile(
-        //     .{ 
-        //         .file = .{ .path = "./spline-gym/src/hodographs.c" },
-        //         .flags = &C_ARGS
-        //     }
-        // );
-
-        for (opts.c_libraries)
-            |c_lib|
-        {
-            mod_unit_tests.root_module.addImport(c_lib.name, c_lib.module);
-        }
 
         const run_unit_tests = opts.b.addRunArtifact(mod_unit_tests);
         opts.test_step.dependOn(&run_unit_tests.step);
-    }
 
-    // install the binary for the test, so that it can be used with lldb
-    // @TODO: there might be more direct ways of doing this in modern build.zig
-    {
-        var test_exe = opts.b.addTest(
-            .{
-                .name = "test_" ++ name,
-                .root_source_file = .{ .path = opts.fpath },
-                .target =opts. target,
-                .optimize = .Debug,
-                // .filter = filter,
-            }
-        );
-
-        const install_test_bin = opts.b.addInstallArtifact(test_exe, .{});
-
-        for (opts.deps) 
-            |dep_mod| 
-        {
-            test_exe.root_module.addImport(dep_mod.name, dep_mod.module);
-        }
-
-        for (opts.c_libraries)
-            |c_lib|
-        {
-            test_exe.root_module.addImport(c_lib.name, c_lib.module);
-        }
-
+        // also install the test binary for lldb needs
+        const install_test_bin = opts.b.addInstallArtifact(mod_unit_tests, .{});
         opts.test_step.dependOn(&install_test_bin.step);
-        opts.test_step.dependOn(&test_exe.step);
     }
 
     return mod;
@@ -482,7 +380,7 @@ pub fn build(
         }
     );
 
-    const otio_allocator = create_and_test_module(
+    const otio_allocator = module_with_tests_and_artifact(
         "allocator",
         .{
             .b = b,
@@ -491,7 +389,8 @@ pub fn build(
             .test_step = test_step,
         }
     );
-    const string_stuff = create_and_test_module(
+
+    const string_stuff = module_with_tests_and_artifact(
         "string_stuff",
         .{
             .b = b,
@@ -501,45 +400,54 @@ pub fn build(
         }
     );
 
-    var libsamplerate = b.addStaticLibrary(
+    const libsamplerate = b.addStaticLibrary(
         .{
             .name = "libsamplerate",
             .target = options.target,
             .optimize = options.optimize,
-            .root_source_file = .{ .path = "libs/wrapped_libsamplerate/wrapped_libsamplerate.zig" },
+            .root_source_file = .{ 
+                .path = 
+                    "libs/wrapped_libsamplerate/wrapped_libsamplerate.zig" 
+            },
         }
     );
     {
         libsamplerate.addIncludePath(
-            .{ .path = "./libs/wrapped_libsamplerate/libsamplerate/include"}
+            .{ 
+                .path = 
+                    "./libs/wrapped_libsamplerate/libsamplerate/include"
+            }
         );
         libsamplerate.addIncludePath(
             .{ .path = "./libs/wrapped_libsamplerate"}
         );
         libsamplerate.addCSourceFile(
             .{ 
-                .file = .{ .path = "./libs/wrapped_libsamplerate/wrapped_libsamplerate.c"},
+                .file = .{
+                    .path = 
+                        "./libs/wrapped_libsamplerate/wrapped_libsamplerate.c"
+                },
                 .flags = &C_ARGS
             }
         );
     }
-    var sampling_c_libs = [_]std.Build.Module.Import{
-        .{
-            .name = "libsamplerate",
-            .module = &libsamplerate.root_module,
-        },
-    };
-    const sampling = create_and_test_module(
+    const sampling = module_with_tests_and_artifact(
         "sampling",
         .{
             .b = b,
             .fpath = "src/sampling.zig",
             .target = options.target,
             .test_step = test_step,
-            .c_libraries = &sampling_c_libs,
+            .deps = &.{
+                .{ 
+                    .name = "libsamplerate",
+                    .module = &libsamplerate.root_module, 
+                },
+            },
         }
     );
-    const opentime = create_and_test_module(
+
+    const opentime = module_with_tests_and_artifact(
         "opentime_lib",
         .{ 
             .b = b,
@@ -553,12 +461,15 @@ pub fn build(
             },
         }
     );
-    var spline_gym = b.addStaticLibrary(
+
+    const spline_gym = b.addStaticLibrary(
         .{
             .name = "spline_gym",
             .target = options.target,
             .optimize = options.optimize,
-            .root_source_file = .{ .path = "./spline-gym/src/hodographs.zig" },
+            .root_source_file = .{
+                .path = "./spline-gym/src/hodographs.zig" 
+            },
         }
     );
     {
@@ -571,10 +482,8 @@ pub fn build(
         );
         b.installArtifact(spline_gym);
     }
-    const c_libs = [_]std.Build.Module.Import{
-        .{ .name = "spline_gym", .module = &spline_gym.root_module },
-    };
-    const curve = create_and_test_module(
+
+    const curve = module_with_tests_and_artifact(
         "curve",
         .{ 
             .b = b,
@@ -582,16 +491,16 @@ pub fn build(
             .target = options.target,
             .test_step = test_step,
             .deps = &.{
+                .{ .name = "spline_gym", .module = &spline_gym.root_module },
                 .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "opentime", .module = opentime },
                 .{ .name = "otio_allocator", .module = otio_allocator },
                 .{ .name = "comath", .module = comath_dep.module("comath") },
             },
-            .c_libraries = &c_libs,
         }
     );
 
-    const time_topology = create_and_test_module(
+    const time_topology = module_with_tests_and_artifact(
         "time_topology",
         .{ 
             .b = b,
@@ -607,52 +516,44 @@ pub fn build(
         }
     );
 
-    const deps:[]const ModuleSpec = &.{ 
-        .{ .name = "sampling", .module = sampling },
+    const common_deps:[]const std.Build.Module.Import = &.{ 
+        // external deps
+        .{ .name = "comath", .module = comath_dep.module("comath") },
+
+        // internal deps
         .{ .name = "string_stuff", .module = string_stuff },
         .{ .name = "opentime", .module = opentime },
         .{ .name = "curve", .module = curve },
         .{ .name = "otio_allocator", .module = otio_allocator },
         .{ .name = "time_topology", .module = time_topology },
-        .{ .name = "comath", .module = comath_dep.module("comath") },
+
+        // libraries with c components
         .{ .name = "spline_gym", .module = &spline_gym.root_module },
+        .{ .name = "sampling", .module = sampling },
     };
 
-    build_wrinkles_like(
+    executable(
         b, 
         "wrinkles",
         "/src/wrinkles.zig",
         "/wrinkles_content/",
         options,
-        deps,
+        common_deps,
     );
-    build_wrinkles_like(
+    executable(
         b,
         "curvet",
         "/src/curvet.zig",
         "/wrinkles_content/",
         options,
-        deps,
+        common_deps,
     );
-    build_wrinkles_like(
+    executable(
         b,
         "example_zgui_app",
         "/src/example_zgui_app.zig",
         "/wrinkles_content/",
         options,
-        deps,
+        common_deps,
     );
-
-    for (SOURCES_WITH_TESTS) 
-        |fpath| 
-    {
-        add_test_for_source(
-            b,
-            options.target,
-            test_step,
-            fpath,
-            deps,
-            options.test_filter,
-        );
-    }
 }
