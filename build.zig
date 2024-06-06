@@ -3,11 +3,11 @@ const builtin = @import("builtin");
 const std = @import("std");
 
 // zgui stuff
-const zgui = @import("libs/zgui/build.zig");
-const zgpu = @import("libs/zgpu/build.zig");
-const zpool = @import("libs/zpool/build.zig");
-const zglfw = @import("libs/zglfw/build.zig");
-const zstbi = @import("libs/zstbi/build.zig");
+// const zgui = @import("libs/zgui/build.zig");
+// const zgpu = @import("libs/zgpu/build.zig");
+// const zpool = @import("libs/zpool/build.zig");
+// const zglfw = @import("libs/zglfw/build.zig");
+// const zstbi = @import("libs/zstbi/build.zig");
 
 pub const MIN_ZIG_VERSION = std.SemanticVersion{
     .major = 0,
@@ -42,77 +42,77 @@ fn ensureZigVersion() !void {
     }
 }
 
-fn ensureTarget(
-    cross: std.zig.CrossTarget
-) !void 
-{
-    // const target = (
-    //     std.zig.system.NativeTargetInfo.detect(cross) catch unreachable
-    // ).target;
-    const target = cross;
-
-    const supported = switch (target.os_tag.?) 
-    {
-        .windows => target.cpu_arch.?.isX86() and target.abi.?.isGnu(),
-        .linux => (
-            target.cpu_arch.?.isX86() 
-            or target.cpu_arch.?.isAARCH64()
-        ) and target.abi.?.isGnu(),
-        .macos => blk: {
-            if (
-                !target.cpu_arch.?.isX86() 
-                and !target.cpu_arch.?.isAARCH64()
-            ) break :blk false;
-
-            // If min. target macOS version is lesser than the min version we
-            // have available, then our Dawn binary is incompatible with the
-            // target.
-            const min_available = std.SemanticVersion{
-                .major = 12,
-                .minor = 0,
-                .patch = 0,
-            };
-            if (
-                target.os_version_min(
-                    min_available
-                ) == .lt
-            ) {
-                break :blk false;
-            }
-
-            break :blk true;
-        },
-        else => false,
-    };
-    if (!supported) {
-        std.log.err(
-            "\n" ++
-            \\---------------------------------------------------------------------------
-            \\
-            \\Unsupported build target. Dawn/WebGPU binary for this target is not available.
-            \\
-            \\Following targets are supported:
-            \\
-            \\x86_64-windows-gnu
-            \\x86_64-linux-gnu
-            \\x86_64-macos.12-none
-            \\aarch64-linux-gnu
-            \\aarch64-macos.12-none
-            \\
-            \\---------------------------------------------------------------------------
-            \\
-            , .{}
-        );
-        return error.TargetNotSupported;
-    }
-}
+// fn ensureTarget(
+//     cross: std.zig.CrossTarget
+// ) !void 
+// {
+//     // const target = (
+//     //     std.zig.system.NativeTargetInfo.detect(cross) catch unreachable
+//     // ).target;
+//     const target = cross;
+//
+//     const supported = switch (target.os_tag.?) 
+//     {
+//         .windows => target.cpu_arch.?.isX86() and target.abi.?.isGnu(),
+//         .linux => (
+//             target.cpu_arch.?.isX86() 
+//             or target.cpu_arch.?.isAARCH64()
+//         ) and target.abi.?.isGnu(),
+//         .macos => blk: {
+//             if (
+//                 !target.cpu_arch.?.isX86() 
+//                 and !target.cpu_arch.?.isAARCH64()
+//             ) break :blk false;
+//
+//             // If min. target macOS version is lesser than the min version we
+//             // have available, then our Dawn binary is incompatible with the
+//             // target.
+//             const min_available = std.SemanticVersion{
+//                 .major = 12,
+//                 .minor = 0,
+//                 .patch = 0,
+//             };
+//             if (
+//                 target.os_version_min(
+//                     min_available
+//                 ) == .lt
+//             ) {
+//                 break :blk false;
+//             }
+//
+//             break :blk true;
+//         },
+//         else => false,
+//     };
+//     if (!supported) {
+//         std.log.err(
+//             "\n" ++
+//             \\---------------------------------------------------------------------------
+//             \\
+//             \\Unsupported build target. Dawn/WebGPU binary for this target is not available.
+//             \\
+//             \\Following targets are supported:
+//             \\
+//             \\x86_64-windows-gnu
+//             \\x86_64-linux-gnu
+//             \\x86_64-macos.12-none
+//             \\aarch64-linux-gnu
+//             \\aarch64-macos.12-none
+//             \\
+//             \\---------------------------------------------------------------------------
+//             \\
+//             , .{}
+//         );
+//         return error.TargetNotSupported;
+//     }
+// }
 
 var raw = std.heap.GeneralPurposeAllocator(.{}){};
 pub const ALLOCATOR = raw.allocator();
 
 pub const Options = struct {
     optimize: std.builtin.Mode,
-    target: std.zig.CrossTarget,
+    target: std.Build.ResolvedTarget,
     test_filter: ?[]const u8 = null,
 
     zd3d12_enable_debug_layer: bool,
@@ -154,18 +154,10 @@ pub fn add_test_for_source(
         }
     );
 
-    test_thing.addIncludePath(.{ .path = "./spline-gym/src"});
-    test_thing.addCSourceFile(
-        .{ 
-            .file = .{ .path = "./spline-gym/src/hodographs.c"},
-            .flags = &C_ARGS
-        }
-    );
-
     for (module_deps) 
         |mod| 
     {
-        test_thing.addModule(mod.name, mod.module);
+        test_thing.root_module.addImport(mod.name, mod.module);
     }
 
     // install the binary for the test, so that it can be used with lldb
@@ -180,18 +172,10 @@ pub fn add_test_for_source(
             }
         );
 
-        test_exe.addIncludePath(.{ .path = "./spline-gym/src"});
-        test_exe.addCSourceFile(
-            .{ 
-                .file = .{ .path = "./spline-gym/src/hodographs.c"},
-                .flags = &C_ARGS
-            }
-        );
-
         const install_test_bin = b.addInstallArtifact(test_exe, .{});
 
         for (module_deps) |mod| {
-            test_exe.addModule(mod.name, mod.module);
+            test_exe.root_module.addImport(mod.name, mod.module);
         }
         test_step.dependOn(&install_test_bin.step);
         test_step.dependOn(&test_exe.step);
@@ -242,7 +226,7 @@ pub fn build_wrinkles_like(
     );
 
     const exe_options = b.addOptions();
-    exe.addOptions("build_options", exe_options);
+    exe.root_module.addOptions("build_options", exe_options);
 
     // @TODO: should this be in the install directory instead of `thisDir()`?
     exe_options.addOption(
@@ -272,66 +256,62 @@ pub fn build_wrinkles_like(
 
     exe.want_lto = false;
 
-    // c library dependency
-    {
-        exe.addIncludePath(.{ .path = "./spline-gym/src"});
-        exe.addCSourceFile(
-            .{ 
-                .file = .{ .path = "./spline-gym/src/hodographs.c"},
-                .flags = &C_ARGS
-            }
-        );
-    }
-
     for (module_deps) 
         |mod| 
     {
-        exe.addModule(mod.name, mod.module);
+        exe.root_module.addImport(mod.name, mod.module);
     }
 
     // Needed for glfw/wgpu rendering backend
     {
-        const zgui_pkg = zgui.package(
-            b,
-            options.target,
-            options.optimize,
-            .{ .options = .{ .backend = .glfw_wgpu }, }
+        const zgui_pkg = b.dependency("zgui", .{
+            .target = options.target,
+            .optimize = options.optimize,
+            .shared = false,
+            .with_implot = false,
+            .backend = .glfw_wgpu,
+        });
+        exe.root_module.addImport(
+            "zgui",
+            zgui_pkg.module("root")
         );
 
-        const zglfw_pkg = zglfw.package(
-            b,
-            options.target,
-            options.optimize,
-            .{}
-        );
-        const zpool_pkg = zpool.package(
-            b,
-            options.target,
-            options.optimize,
-            .{}
-        );
-        const zgpu_pkg = zgpu.package(
-            b,
-            options.target,
-            options.optimize,
-            .{
-                .deps = .{
-                    .zpool = zpool_pkg.zpool,
-                    .zglfw = zglfw_pkg.zglfw
-                },
-            }
-        );
-        const zstbi_pkg = zstbi.package(
-            b,
-            options.target,
-            options.optimize,
-            .{}
+        const zglfw_pkg = b.dependency("zglfw", .{
+            .target = options.target,
+            .optimize = options.optimize,
+            .shared = false,
+        });
+        exe.root_module.addImport(
+            "zglfw",
+            zglfw_pkg.module("root")
         );
 
-        zgui_pkg.link(exe);
-        zglfw_pkg.link(exe);
-        zgpu_pkg.link(exe);
-        zstbi_pkg.link(exe);
+        const zpool_pkg = b.dependency("zpool", .{
+            .target = options.target,
+            .optimize = options.optimize,
+        });
+        exe.root_module.addImport(
+            "zpool",
+            zpool_pkg.module("root")
+        );
+
+        const zgpu_pkg = b.dependency("zgpu", .{
+            .target = options.target,
+            .optimize = options.optimize,
+       });
+        exe.root_module.addImport(
+            "zgpu",
+            zgpu_pkg.module("root")
+        );
+
+        const zstbi_pkg = b.dependency("zstbi", .{
+            .target = options.target,
+            .optimize = options.optimize,
+        });
+        exe.root_module.addImport(
+            "zstbi",
+            zstbi_pkg.module("root")
+        );
     }
 
     const install = b.step(name, "Build/install '" ++ name ++ "' executable");
@@ -350,26 +330,31 @@ pub fn build_wrinkles_like(
 }
 
 /// options for create_and_test_module
-pub const CreateModuelOptions = struct {
+pub const CreateModuleOptions = struct {
     b: *std.Build,
     fpath: []const u8,
-    target: std.zig.CrossTarget,
+    target: std.Build.ResolvedTarget,
     test_step: *std.Build.Step,
-    deps: []const std.Build.ModuleDependency = &.{},
-    c_libraries: []*std.Build.CompileStep = &.{},
+    deps: []const std.Build.Module.Import = &.{},
+    c_libraries: []const std.Build.Module.Import = &.{},
 };
 
 pub fn create_and_test_module(
     comptime name: []const u8,
-    opts:CreateModuelOptions
+    opts:CreateModuleOptions
 ) *std.Build.Module 
 {
     const mod = opts.b.createModule(
         .{
-            .source_file = .{ .path = opts.fpath },
-            .dependencies = opts.deps,
+            .root_source_file = .{ .path = opts.fpath },
+            .imports = opts.deps,
         }
     );
+    for (opts.c_libraries)
+        |c_lib|
+    {
+        mod.addImport(c_lib.name, c_lib.module);
+    }
 
     // run the unit test
     {
@@ -384,22 +369,14 @@ pub fn create_and_test_module(
         for (opts.deps) 
             |dep_mod| 
         {
-            mod_unit_tests.addModule(dep_mod.name, dep_mod.module);
+            mod_unit_tests.root_module.addImport(dep_mod.name, dep_mod.module);
         }
 
-        mod_unit_tests.addIncludePath(.{ .path = "./spline-gym/src"});
-        mod_unit_tests.addCSourceFile(
-            .{ 
-                .file = .{ .path = "./spline-gym/src/hodographs.c" },
-                .flags = &C_ARGS
-            }
-        );
-
-        // for (opts.c_libraries)
-        //     |c_lib|
-        // {
-        //     mod_unit_tests.linkLibrary(c_lib);
-        // }
+        for (opts.c_libraries)
+            |c_lib|
+        {
+            mod_unit_tests.root_module.addImport(c_lib.name, c_lib.module);
+        }
 
         const run_unit_tests = opts.b.addRunArtifact(mod_unit_tests);
         opts.test_step.dependOn(&run_unit_tests.step);
@@ -423,22 +400,14 @@ pub fn create_and_test_module(
         for (opts.deps) 
             |dep_mod| 
         {
-            test_exe.addModule(dep_mod.name, dep_mod.module);
+            test_exe.root_module.addImport(dep_mod.name, dep_mod.module);
         }
 
-        // for (opts.c_libraries)
-        //     |c_lib|
-        // {
-        //     test_exe.linkLibrary(c_lib);
-        // }
-
-        test_exe.addIncludePath(.{ .path = "./spline-gym/src"});
-        test_exe.addCSourceFile(
-            .{ 
-                .file = .{ .path = "./spline-gym/src/hodographs.c"},
-                .flags = &C_ARGS
-            }
-        );
+        for (opts.c_libraries)
+            |c_lib|
+        {
+            test_exe.root_module.addImport(c_lib.name, c_lib.module);
+        }
 
         opts.test_step.dependOn(&install_test_bin.step);
         opts.test_step.dependOn(&test_exe.step);
@@ -459,7 +428,7 @@ pub fn build(
     //
     const options = Options{
         .optimize = b.standardOptimizeOption(.{}),
-        .target = .{},
+        .target = b.standardTargetOptions(.{}),
         .zd3d12_enable_debug_layer = b.option(
             bool,
             "zd3d12-enable-debug-layer",
@@ -481,9 +450,12 @@ pub fn build(
             "filter for tests to run"
         ) orelse null,
     };
-    ensureTarget(options.target) catch return;
+    // ensureTarget(options.target) catch return;
 
-    const test_step = b.step("test", "step to run all unit tests");
+    const test_step = b.step(
+        "test",
+        "step to run all unit tests"
+    );
 
     // submodules and dependencies
     const comath_dep = b.dependency(
@@ -531,6 +503,7 @@ pub fn build(
             .name = "spline_gym",
             .target = options.target,
             .optimize = options.optimize,
+            .root_source_file = .{ .path = "./spline-gym/src/hodographs.zig" },
         }
     );
     {
@@ -541,9 +514,10 @@ pub fn build(
                 .flags = &C_ARGS
             }
         );
+        b.installArtifact(spline_gym);
     }
-    var c_libs = [_]*std.Build.CompileStep{
-        spline_gym,
+    const c_libs = [_]std.Build.Module.Import{
+        .{ .name = "spline_gym", .module = &spline_gym.root_module },
     };
     const curve = create_and_test_module(
         "curve",
@@ -585,6 +559,7 @@ pub fn build(
         .{ .name = "otio_allocator", .module = otio_allocator },
         .{ .name = "time_topology", .module = time_topology },
         .{ .name = "comath", .module = comath_dep.module("comath") },
+        .{ .name = "spline_gym", .module = &spline_gym.root_module },
     };
 
     build_wrinkles_like(

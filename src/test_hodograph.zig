@@ -1,9 +1,5 @@
 const std = @import("std");
-const hodographs = @cImport(
-    {
-        @cInclude("hodographs.h");
-    }
-);
+const hodographs = @import("spline_gym");
 
 const opentime = @import("opentime");
 const curve = @import("curve");
@@ -17,7 +13,7 @@ test "hodograph: simple" {
 
     var cSeg : hodographs.BezierSegment = .{
         .order = 3,
-        .p = .{},
+        .p = undefined,
     };
     
     for (crv.segments[0].points(), 0..) |pt, index| {

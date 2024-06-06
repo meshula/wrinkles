@@ -56,7 +56,20 @@ const DemoState = struct {
 fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*DemoState {
     // ot.ot_test();
 
-    const gctx = try zgpu.GraphicsContext.create(allocator, window, .{});
+    const gctx = try zgpu.GraphicsContext.create(
+        allocator,
+        .{
+            .window  = window,
+            .fn_getTime = @ptrCast(&zglfw.getTime),
+            .fn_getFramebufferSize = @ptrCast(&zglfw.Window.getFramebufferSize),
+            .fn_getWin32Window = @ptrCast(&zglfw.getWin32Window),
+            .fn_getX11Display = @ptrCast(&zglfw.getX11Display),
+            .fn_getX11Window = @ptrCast(&zglfw.getX11Window),
+            .fn_getCocoaWindow = @ptrCast(&zglfw.getCocoaWindow),
+        },
+        .{}
+    );
+
 
     var arena_state = std.heap.ArenaAllocator.init(allocator);
     defer arena_state.deinit();
@@ -105,7 +118,12 @@ fn init(allocator: std.mem.Allocator, window: *zglfw.Window) !*DemoState {
     assert(zgui.io.getFont(1) == font_normal);
 
     // This needs to be called *after* adding your custom fonts.
-    zgui.backend.init(window, gctx.device, @intFromEnum(zgpu.GraphicsContext.swapchain_format));
+    zgui.backend.init(
+        window,
+        gctx.device,
+        @intFromEnum(zgpu.GraphicsContext.swapchain_format),
+        @intFromEnum(zgpu.wgpu.TextureFormat.undef),
+    );
 
     // This call is optional. Initially, zgui.io.getFont(0) is a default font.
     zgui.io.setDefaultFont(font_normal);

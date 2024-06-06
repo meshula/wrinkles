@@ -23,9 +23,14 @@
             .hash = "1220b1f02f2f7edd98a078c64e3100907d90311d94880a3cc5927e1ac009d002667a",
         },
         .comath = .{
-            .url = "https://github.com/InKryption/comath/archive/3bda4d2e0b490bf2e73fe590b943f7bb190bbeae.tar.gz",
-            .hash = "1220db07ef076d5025fb744d8fcdb43f4ccdfcea9383d66c8a20559d950353e0936d",
+            .url = "https://github.com/InKryption/comath/archive/cd2f8170f0440e5d88a734e8d162ad84d3e34290.tar.gz",
+            .hash = "12203e39fef4d171fc3ff8e0276bb58679d2b6db10ce6175ad0ecfd2cfc35445febc",
         },
+        .zgui = .{ .path = "libs/zgui" },
+        .zglfw = .{ .path = "libs/zglfw" },
+        .zpool = .{ .path = "libs/zpool" },
+        .zgpu = .{ .path = "libs/zgpu" },
+        .zstbi = .{ .path = "libs/zstbi" },
      },
     .paths = .{
         "build.zig",

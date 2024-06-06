@@ -345,7 +345,7 @@ pub fn actual_order(
         },
     );
 
-    var a = try comath.eval(
+    const a = try comath.eval(
         // "(pa * 3.0) - (pb * 6.0) + (pc * 3.0)",
         "pa * 3.0 - pb * 6.0 + pc * 3.0",
         CTX,
@@ -356,7 +356,7 @@ pub fn actual_order(
         },
     );
 
-    var b = try comath.eval(
+    const b = try comath.eval(
         "(-pa * 3.0) + (pb * 3.0)",
         CTX,
         .{ 
@@ -365,13 +365,13 @@ pub fn actual_order(
         },
     );
 
-    if (@fabs(d) < generic_curve.EPSILON) 
+    if (@abs(d) < generic_curve.EPSILON) 
     {
         // not cubic
-        if (@fabs(a) < generic_curve.EPSILON) 
+        if (@abs(a) < generic_curve.EPSILON) 
         {
             // linear
-            if (@fabs(b) < generic_curve.EPSILON)
+            if (@abs(b) < generic_curve.EPSILON)
             {
                 return error.NoSolution;
             }
@@ -506,13 +506,13 @@ pub fn findU_dual3(
 
     var c = p0_d;
 
-    if (@fabs(d.r) < generic_curve.EPSILON) 
+    if (@abs(d.r) < generic_curve.EPSILON) 
     {
         // not cubic
-        if (@fabs(a.r) < generic_curve.EPSILON) 
+        if (@abs(a.r) < generic_curve.EPSILON) 
         {
             // linear
-            if (@fabs(b.r) < generic_curve.EPSILON)
+            if (@abs(b.r) < generic_curve.EPSILON)
             {
                 // no solutions
                 // todo optiona/error
@@ -696,11 +696,11 @@ pub fn findU_dual2(
     while (iter < MAX_ITERATIONS) 
         : (iter += 1)
     {
-        var x_at_u_guess = _bezier0_dual(u_guess, p1, p2, p3);
+        const x_at_u_guess = _bezier0_dual(u_guess, p1, p2, p3);
 
         const delta = x_at_u_guess.r - x_input;
 
-        if (@fabs(delta) < MAX_ABS_ERROR) 
+        if (@abs(delta) < MAX_ABS_ERROR) 
         {
             return u_guess;
         }
@@ -1173,7 +1173,7 @@ pub fn normalized_to(
     result.segments = ALLOCATOR.dupe(curve.Segment, crv.segments) catch unreachable;
 
     for (result.segments, 0..) |seg, seg_index| {
-        var new_points:[4]ControlPoint = .{};
+        var new_points:[4]ControlPoint = undefined;
         for (seg.points(), 0..) |pt, pt_index| {
             new_points[pt_index] = .{
                 .time = remap_float(
@@ -1398,7 +1398,7 @@ pub fn rescaled_curve(
             new_pts[index] = _rescaled_pt(pt, extents, target_range);
         }
 
-        var new_seg = curve.Segment.from_pt_array(new_pts);
+        const new_seg = curve.Segment.from_pt_array(new_pts);
 
         try segments.append(new_seg);
     }

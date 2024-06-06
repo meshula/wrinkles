@@ -269,7 +269,19 @@ const GraphicsState = struct {
         window: *zglfw.Window
     ) !*GraphicsState 
     {
-        const gctx = try zgpu.GraphicsContext.create(allocator, window, .{});
+        const gctx = try zgpu.GraphicsContext.create(
+            allocator,
+            .{
+                .window  = window,
+                .fn_getTime = @ptrCast(&zglfw.getTime),
+                .fn_getFramebufferSize = @ptrCast(&zglfw.Window.getFramebufferSize),
+                .fn_getWin32Window = @ptrCast(&zglfw.getWin32Window),
+                .fn_getX11Display = @ptrCast(&zglfw.getX11Display),
+                .fn_getX11Window = @ptrCast(&zglfw.getX11Window),
+                .fn_getCocoaWindow = @ptrCast(&zglfw.getCocoaWindow),
+            },
+            .{}
+        );
 
         var arena_state = std.heap.ArenaAllocator.init(allocator);
         defer arena_state.deinit();
@@ -333,7 +345,8 @@ const GraphicsState = struct {
         zgui.backend.init(
             window,
             gctx.device,
-            @intFromEnum(zgpu.GraphicsContext.swapchain_format)
+            @intFromEnum(zgpu.GraphicsContext.swapchain_format),
+            @intFromEnum(zgpu.wgpu.TextureFormat.undef),
         );
 
         // This call is optional. Initially, zgui.io.getFont(0) is a default font.
@@ -492,14 +505,14 @@ pub fn evaluated_curve(
 ) !struct{ xv: [steps]f32, yv: [steps]f32 }
 {
     if (crv.segments.len == 0) {
-        return .{ .xv = .{}, .yv = .{} };
+        return .{ .xv = undefined, .yv = undefined };
     }
 
     const ext = crv.extents();
     const stepsize:f32 = (ext[1].time - ext[0].time) / @as(f32, steps);
 
-    var xv:[steps]f32 = .{};
-    var yv:[steps]f32 = .{};
+    var xv:[steps]f32 = undefined;
+    var yv:[steps]f32 = undefined;
 
     var i:usize = 0;
     var uv:f32 = ext[0].time;
@@ -604,7 +617,7 @@ fn plot_knots(
     allocator: std.mem.Allocator,
 ) !void 
 {
-    var buf:[1024:0]u8 = .{};
+    var buf:[1024:0]u8 = undefined;
     @memset(&buf, 0);
 
     {
@@ -654,7 +667,7 @@ fn plot_control_points(
     allocator: std.mem.Allocator,
 ) !void 
 {
-    var buf:[1024:0]u8 = .{};
+    var buf:[1024:0]u8 = undefined;
     @memset(&buf, 0);
 
     {
@@ -725,7 +738,7 @@ fn plot_linear_curve(
         yv[knot_index] = knot.value;
     }
 
-    var tmp_buf:[1024:0]u8 = .{};
+    var tmp_buf:[1024:0]u8 = undefined;
     @memset(&tmp_buf, 0);
 
     const label = try std.fmt.bufPrintZ(
@@ -805,7 +818,7 @@ fn plot_bezier_curve(
     // evaluate curve points over the x domain
     const pts = try evaluated_curve(crv, CURVE_SAMPLE_COUNT);
 
-    var buf:[1024:0]u8 = .{};
+    var buf:[1024:0]u8 = undefined;
     @memset(&buf, 0);
 
     const label = try std.fmt.bufPrintZ(
@@ -858,14 +871,14 @@ fn plot_bezier_curve(
             |seg|
         {
             var x = seg.p0.time;
-            var xmax = seg.p3.time;
-            var step = (xmax - x) / 10.0;
+            const xmax = seg.p3.time;
+            const step = (xmax - x) / 10.0;
 
             while (x < xmax)
                 : (x += step)
             {
-                var u_at_x = seg.findU_input_dual(x);
-                var pt = seg.eval_at_dual(u_at_x);
+                const u_at_x = seg.findU_input_dual(x);
+                const pt = seg.eval_at_dual(u_at_x);
 
                 xv[0] = x;
                 xv[1] = pt.r.time;
@@ -991,7 +1004,7 @@ fn plot_bezier_curve(
             .{ name }
         );
 
-        var unorms= [_] f32{ 0, 1 };
+        const unorms= [_] f32{ 0, 1 };
         for (unorms) 
             |unorm|
         {
@@ -1126,7 +1139,7 @@ fn plot_tpa_guts(
     allocator: std.mem.Allocator,
 ) !void 
 {
-    var buf: [1024:0]u8 = .{};
+    var buf: [1024:0]u8 = undefined;
 
     const fields = &.{
         "start",
@@ -1325,7 +1338,7 @@ fn plot_two_point_approx(
     allocator: std.mem.Allocator,
 ) !void
 {
-    var buf:[1024:0]u8 = .{};
+    var buf:[1024:0]u8 = undefined;
 
     const approx_label = try std.fmt.bufPrintZ(
         &buf,
@@ -1390,7 +1403,7 @@ fn plot_three_point_approx(
     allocator: std.mem.Allocator,
 ) !void
 {
-    var buf:[1024:0]u8 = .{};
+    var buf:[1024:0]u8 = undefined;
 
     const approx_label = try std.fmt.bufPrintZ(
         &buf,
@@ -1429,7 +1442,7 @@ fn plot_three_point_approx(
         for (crv.segments) 
             |seg| 
         {
-            var mid_point = seg.eval_at(u);
+            const mid_point = seg.eval_at(u);
 
             const cSeg = seg.to_cSeg();
             var hodo = curve.bezier_curve.hodographs.compute_hodograph(&cSeg);
@@ -1480,7 +1493,7 @@ fn plot_curve(
     allocator: std.mem.Allocator,
 ) !void 
 {
-    var buf:[1024:0]u8 = .{};
+    var buf:[1024:0]u8 = undefined;
     @memset(&buf, 0);
 
     const flags = crv.draw_flags;
@@ -1587,7 +1600,7 @@ fn update(
 
     zgui.setNextWindowPos(.{ .x = 0.0, .y = 0.0, });
 
-    const size = gfx_state.gctx.window.getFramebufferSize();
+    const size = gfx_state.gctx.window_provider.fn_getFramebufferSize(gfx_state.gctx.window_provider.window);
     const width:f32 = @floatFromInt(size[0]);
     const height:f32 = @floatFromInt(size[1]);
 
@@ -1614,7 +1627,7 @@ fn update(
     );
     zgui.spacing();
 
-    var tmp_buf:[1024:0]u8 = .{};
+    var tmp_buf:[1024:0]u8 = undefined;
     @memset(&tmp_buf, 0);
 
     {
@@ -1791,7 +1804,7 @@ fn update(
                         allocator
                     );
 
-                    var buf:[1024:0]u8 = .{};
+                    var buf:[1024:0]u8 = undefined;
                     @memset(&buf, 0);
                     {
                         const result_name = try std.fmt.bufPrintZ(
@@ -1900,7 +1913,7 @@ fn update(
                 "Settings",
                 .{ 
                     .w = 600,
-                    .flags = zgui.WindowFlags{ .no_scrollbar = false} 
+                    .window_flags = zgui.WindowFlags{ .no_scrollbar = false} 
                 }
             )
         ) 
@@ -1989,14 +2002,14 @@ fn update(
 
             var remove = std.ArrayList(usize).init(allocator);
             defer remove.deinit();
-            var op_index:usize = 0;
+            const op_index:usize = 0;
             for (state.operations.items) 
                 |*visop| 
             {
                 switch (visop.*) 
                 {
                     .curve => |*crv| {
-                        var buf:[1024:0]u8 = .{};
+                        var buf:[1024:0]u8 = undefined;
                         @memset(&buf, 0);
                         const top_label = try std.fmt.bufPrintZ(
                             &buf,
@@ -2305,7 +2318,7 @@ fn update(
             var i:usize = remove.items.len;
             while (i > 0) {
                 i -= 1;
-                var visop = state.operations.orderedRemove(remove.items[i]);
+                const visop = state.operations.orderedRemove(remove.items[i]);
                 switch (visop) {
                     .curve => |crv| {
                         allocator.free(crv.curve.segments);
@@ -2404,7 +2417,7 @@ fn _parse_args(
             return err;
         };
 
-        var viscurve = VisCurve{
+        const viscurve = VisCurve{
             .fpath = try allocator.dupeZ(u8, fpath),
             .curve = crv,
             .split_hodograph = try crv.split_on_critical_points(allocator),
@@ -2433,5 +2446,5 @@ pub fn usage() void {
         \\
         , .{}
     );
-    std.os.exit(1);
+    std.process.exit(1);
 }

@@ -47,11 +47,7 @@ pub const ProjectionAlgorithms = enum (i32) {
 pub var project_algo = ProjectionAlgorithms.three_point_approx;
 
 // hodographs c-library
-pub const hodographs = @cImport(
-    {
-        @cInclude("hodographs.h");
-    }
-);
+pub const hodographs = @import("spline_gym");
 
 fn expectApproxEql(expected: anytype, actual: @TypeOf(expected)) !void {
     return std.testing.expectApproxEqAbs(expected, actual, generic_curve.EPSILON);
@@ -526,7 +522,7 @@ pub const Segment = struct {
         return .{ 
             .order = 3,
             .p = translate: {
-                var tmp : [4] hodographs.Vector2 = .{};
+                var tmp : [4] hodographs.Vector2 = undefined;
 
                 inline for (&.{ self.p0, self.p1, self.p2, self.p3 }, 0..) 
                     |pt, pt_ind| 
@@ -1233,7 +1229,7 @@ pub const TimeCurve = struct {
             control_point.ControlPoint
         ).init(allocator);
 
-        var tmp: [4]control_point.ControlPoint = .{};
+        var tmp: [4]control_point.ControlPoint = undefined;
 
         // do the projection
         for (curves_to_project.items) 
@@ -1442,7 +1438,7 @@ pub const TimeCurve = struct {
     {
         var result_segments = try allocator.dupe(Segment, self.segments);
 
-        var tmp:[4]control_point.ControlPoint = .{};
+        var tmp:[4]control_point.ControlPoint = .{.{}, .{}, .{}, .{}};
 
         for (self.segments, 0..) |seg, seg_index| {
             for (seg.points(), 0..) |pt, pt_index| {
@@ -1514,7 +1510,7 @@ pub const TimeCurve = struct {
 
         if (
             unorm < generic_curve.EPSILON 
-            or generic_curve.EPSILON > @fabs(1 - unorm) 
+            or generic_curve.EPSILON > @abs(1 - unorm) 
         ) {
             return .{ .segments = try allocator.dupe(Segment, self.segments) };
         }
@@ -1533,16 +1529,16 @@ pub const TimeCurve = struct {
 
         var new_segments = try allocator.alloc(Segment, self.segments.len + 1);
 
-        var before_split_src = self.segments[0..seg_to_split_index];
-        var after_split_src = self.segments[seg_to_split_index+1..];
+        const before_split_src = self.segments[0..seg_to_split_index];
+        const after_split_src = self.segments[seg_to_split_index+1..];
 
-        var before_split_dest = new_segments[0..seg_to_split_index];
-        var after_split_dest = new_segments[seg_to_split_index+2..];
+        const before_split_dest = new_segments[0..seg_to_split_index];
+        const after_split_dest = new_segments[seg_to_split_index+2..];
 
-         std.mem.copy(Segment, before_split_dest, before_split_src);
+         std.mem.copyForwards(Segment, before_split_dest, before_split_src);
          new_segments[seg_to_split_index] = split_segments[0];
          new_segments[seg_to_split_index+1] = split_segments[1];
-         std.mem.copy(Segment, after_split_dest, after_split_src);
+         std.mem.copyForwards(Segment, after_split_dest, after_split_src);
 
         return .{ .segments = new_segments };
     }
@@ -1589,7 +1585,7 @@ pub const TimeCurve = struct {
 
                     // if it isn't an end point
                     if (u > 0 + 0.000001 and u < 1 - 0.000001) {
-                        var maybe_split_segments = seg.split_at(u);
+                        const maybe_split_segments = seg.split_at(u);
 
                         if (maybe_split_segments) |split_segments| {
                             try result_segments.insertSlice(
@@ -1648,7 +1644,7 @@ pub const TimeCurve = struct {
                 }
 
                 // do a split    
-                var split_segments = current_segment.split_at(
+                const split_segments = current_segment.split_at(
                     parameter_ordinates[current_split]
                 );
                 // and insert it
@@ -1780,7 +1776,7 @@ pub const TimeCurve = struct {
                 );
 
                 new_segments[0] = new_split;
-                std.mem.copy(Segment, new_segments[1..], segments_to_copy);
+                std.mem.copyForwards(Segment, new_segments[1..], segments_to_copy);
             },
             // keep earlier stuff
             .trim_after => {
@@ -1792,7 +1788,7 @@ pub const TimeCurve = struct {
                     segments_to_copy.len + 1
                 );
 
-                std.mem.copy(
+                std.mem.copyForwards(
                     Segment,
                     new_segments[0..segments_to_copy.len],
                     segments_to_copy
@@ -1822,7 +1818,7 @@ pub const TimeCurve = struct {
         defer front_split.deinit(allocator);
 
         // todo - does the above trim reset the origin on the input space?
-        var result = try front_split.trimmed_from_input_ordinate(
+        const result = try front_split.trimmed_from_input_ordinate(
             bounds.end_seconds,
             .trim_after,
             allocator,
@@ -1839,10 +1835,8 @@ pub const TimeCurve = struct {
         allocator: std.mem.Allocator
     ) !TimeCurve 
     {
-        var cSeg : hodographs.BezierSegment = .{
-            .order = 3,
-            .p = .{},
-        };
+        var cSeg = hodographs.BezierSegment{};
+        cSeg.order = 3;
 
         var split_segments = std.ArrayList(Segment).init(allocator);
         defer split_segments.deinit();
@@ -1887,7 +1881,7 @@ pub const TimeCurve = struct {
                         |s_i| 
                     {
                         if (
-                            std.math.fabs(splits[s_i] - possible_split) 
+                            @abs(splits[s_i] - possible_split) 
                             < generic_curve.EPSILON
                         ) {
                             duplicate = true;
@@ -2185,7 +2179,7 @@ test "convex hull test" {
 
     var i: f32 = 0;
     while (i <= 1) {
-        var test_point = segment.eval_at(i);
+        const test_point = segment.eval_at(i);
 
         try expect(line_orientation(test_point, left_bound_segment) >= 0);
         try expect(line_orientation(test_point, top_bound_segment) >= 0);
@@ -2451,7 +2445,7 @@ test "TimeCurve: split_at_each_value linear" {
     );
     defer result.deinit(std.testing.allocator);
 
-    var fbuf: [1024]f32 = .{};
+    var fbuf: [1024]f32 = undefined;
     const endpoints_cp = try result.segment_endpoints();
     for (endpoints_cp, 0..) |cp, index| {
         fbuf[index] = cp.value;
@@ -2497,7 +2491,7 @@ test "TimeCurve: split_at_each_input_ordinate linear" {
     );
     defer result.deinit(std.testing.allocator);
 
-    var fbuf: [1024]f32 = .{};
+    var fbuf: [1024]f32 = undefined;
     const endpoints_cp = try result.segment_endpoints();
     for (endpoints_cp, 0..) |cp, index| {
         fbuf[index] = cp.value;
@@ -2880,7 +2874,7 @@ pub fn affine_project_curve(
 {
     var result_segments = try allocator.dupe(Segment, rhs.segments);
 
-    var tmp:[4]control_point.ControlPoint = .{};
+    var tmp:[4]control_point.ControlPoint = undefined;
 
     for (rhs.segments, 0..) |seg, seg_index| {
         for (seg.points(), 0..) |pt, pt_index| {
@@ -3048,7 +3042,7 @@ test "TimeCurve: split_on_critical_points symmetric about the origin" {
         {
             var c_split_l:hodographs.BezierSegment = undefined;
             var c_split_r:hodographs.BezierSegment = undefined;
-            var c_result = hodographs.split_bezier(
+            const c_result = hodographs.split_bezier(
                 &cSeg,
                 t,
                 &c_split_l,
@@ -3200,7 +3194,7 @@ pub fn three_point_guts_plot(
 
     // abs( (t^3 + (1-t)^3 - 1) / ( t^3 + (1-t)^3 ) )
     const ratio_t = cmp_t: {
-        const result = @fabs(
+        const result = @abs(
             (t_cubed + one_minus_t_cubed - 1)
             /
             (t_cubed + one_minus_t_cubed)

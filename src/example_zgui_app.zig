@@ -31,7 +31,19 @@ const GraphicsState = struct {
         window: *zglfw.Window
     ) !*GraphicsState 
     {
-        const gctx = try zgpu.GraphicsContext.create(allocator, window, .{});
+        const gctx = try zgpu.GraphicsContext.create(
+            allocator,
+            .{
+                .window  = window,
+                .fn_getTime = @ptrCast(&zglfw.getTime),
+                .fn_getFramebufferSize = @ptrCast(&zglfw.Window.getFramebufferSize),
+                .fn_getWin32Window = @ptrCast(&zglfw.getWin32Window),
+                .fn_getX11Display = @ptrCast(&zglfw.getX11Display),
+                .fn_getX11Window = @ptrCast(&zglfw.getX11Window),
+                .fn_getCocoaWindow = @ptrCast(&zglfw.getCocoaWindow),
+            },
+            .{}
+        );
 
         var arena_state = std.heap.ArenaAllocator.init(allocator);
         defer arena_state.deinit();
@@ -89,7 +101,8 @@ const GraphicsState = struct {
         zgui.backend.init(
             window,
             gctx.device,
-            @intFromEnum(zgpu.GraphicsContext.swapchain_format)
+            @intFromEnum(zgpu.GraphicsContext.swapchain_format),
+            @intFromEnum(zgpu.wgpu.TextureFormat.undef),
         );
 
         // This call is optional. Initially, zgui.io.getFont(0) is a default font.
@@ -204,12 +217,6 @@ fn update(
 
     zgui.setNextWindowPos(.{ .x = 0.0, .y = 0.0, });
 
-    const size = gfx_state.gctx.window.getFramebufferSize();
-    const width:f32 = @floatFromInt(size[0]);
-    const height:f32 = @floatFromInt(size[1]);
-
-    zgui.setNextWindowSize(.{ .w = width, .h = height, });
-
     var main_flags = zgui.WindowFlags.no_decoration;
     main_flags.no_resize = true;
     main_flags.no_background = true;
@@ -302,7 +309,7 @@ fn _parse_args(
     // read all the filepaths from the commandline
     while (args.next()) |nextarg| 
     {
-        var fpath: [:0]const u8 = nextarg;
+        const fpath: [:0]const u8 = nextarg;
 
         if (
             std.mem.eql(u8, fpath, "--help")
@@ -312,7 +319,7 @@ fn _parse_args(
         }
     }
 
-    var state = VisState{};
+    const state = VisState{};
 
     // if (state.curves.len == 0) {
     //     usage();
@@ -334,5 +341,5 @@ pub fn usage() void {
         \\
         , .{}
     );
-    std.os.exit(1);
+    std.process.exit(1);
 }

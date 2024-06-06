@@ -133,7 +133,7 @@ test "AffineTransform1D: offset test" {
 
     try expectEqual(
         result_xform,
-        .{
+        AffineTransform1D{
             .offset_seconds = 20,
             .scale = 1
         }
