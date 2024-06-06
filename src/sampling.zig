@@ -13,10 +13,9 @@ const SineSampleGenerator = struct {
     signal_duration_s: f32,
 };
 
-// test 0
+// test 0 - ensure that the contents of the c-library are visible
 test "libsamplerate interface test" {
     try expectEqual(libsamplerate.SRC_SINC_BEST_QUALITY, 0);
-    try expectEqual(libsamplerate.foo(), 1.0);
 }
 
 // test 1
@@ -28,39 +27,38 @@ test "resample from 48khz to 44" {
         .signal_amplitude = 1,
         .signal_duration_s = 1,
     };
-    _ = samples_48;
 
-    // const samples_48_peak_to_peak_distance = samples_48.peak_to_peak_distance();
-    // 
-    // // find a zero crossing
-    // // const s_i_48_half = samples_48.sample_index_near_s(0.5);
-    // // const s_48_half = samples_48.sample_at_index(s_i_48_half);
-    // // const s_48_half_sign = s_48_half > 0;
-    // //
-    // // var s_i = s_i_48_half + 1;
-    // // while (s_i < samples_48.last_index) : (s_i += 1) {
-    // //     const s = samples_48.sample_at_index(s_i);
-    // //     if (s_48_half * s <= EPSILON) {
-    // //         break;
-    // //     }
-    // // }
-    // //
-    // // // s_i is either the last index or the 0 cross
-    // // if (s_i == samples_48.last_index) {
-    // //     return error.NoZeroCrossing;
-    // // }
-    // //
-    // // const s_48_half_next = samples_48.sample_at_index(s_i_48_half + 1);
+    const samples_48_peak_to_peak_distance = samples_48.peak_to_peak_distance();
+
+    // find a zero crossing
+    // const s_i_48_half = samples_48.sample_index_near_s(0.5);
+    // const s_48_half = samples_48.sample_at_index(s_i_48_half);
+    // const s_48_half_sign = s_48_half > 0;
     //
-    // const samples_44 = samples_48.resampled(44100);
-    // const samples_44_peak_to_peak_distance = samples_44.peak_to_peak_distance(
-    //     0.5
-    // );
+    // var s_i = s_i_48_half + 1;
+    // while (s_i < samples_48.last_index) : (s_i += 1) {
+    //     const s = samples_48.sample_at_index(s_i);
+    //     if (s_48_half * s <= EPSILON) {
+    //         break;
+    //     }
+    // }
     //
-    // try expectEqual(
-    //     samples_48_peak_to_peak_distance,
-    //     samples_44_peak_to_peak_distance
-    // );
+    // // s_i is either the last index or the 0 cross
+    // if (s_i == samples_48.last_index) {
+    //     return error.NoZeroCrossing;
+    // }
+    //
+    // const s_48_half_next = samples_48.sample_at_index(s_i_48_half + 1);
+
+    const samples_44 = samples_48.resampled(44100);
+    const samples_44_peak_to_peak_distance = samples_44.peak_to_peak_distance(
+        0.5
+    );
+
+    try expectEqual(
+        samples_48_peak_to_peak_distance,
+        samples_44_peak_to_peak_distance
+    );
 }
 
 // test 2
