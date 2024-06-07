@@ -425,56 +425,6 @@ pub fn build(
             }
         );
     }
-    const libsamplerate = b.addStaticLibrary(
-        .{
-            .name = "libsamplerate",
-            .target = options.target,
-            .optimize = options.optimize,
-            .root_source_file = .{ 
-                .path = 
-                    "libs/wrapped_libsamplerate/wrapped_libsamplerate.zig" 
-            },
-        }
-    );
-    {
-        libsamplerate.addIncludePath(
-            .{ 
-                .path = 
-                    "./libs/wrapped_libsamplerate/libsamplerate/include"
-            }
-        );
-        libsamplerate.addIncludePath(
-            .{ .path = "./libs/wrapped_libsamplerate"}
-        );
-        libsamplerate.addCSourceFile(
-            .{ 
-                .file = .{
-                    .path = 
-                        "./libs/wrapped_libsamplerate/wrapped_libsamplerate.c"
-                },
-                .flags = &C_ARGS
-            }
-        );
-    }
-    const sampling = module_with_tests_and_artifact(
-        "sampling",
-        .{
-            .b = b,
-            .fpath = "src/sampling.zig",
-            .target = options.target,
-            .test_step = test_step,
-            .deps = &.{
-                .{ 
-                    .name = "libsamplerate",
-                    .module = &libsamplerate.root_module, 
-                },
-                .{
-                    .name = "kissfft",
-                    .module = &kissfft.root_module,
-                }
-            },
-        }
-    );
 
     const opentime = module_with_tests_and_artifact(
         "opentime_lib",
@@ -525,6 +475,58 @@ pub fn build(
                 .{ .name = "opentime", .module = opentime },
                 .{ .name = "otio_allocator", .module = otio_allocator },
                 .{ .name = "comath", .module = comath_dep.module("comath") },
+            },
+        }
+    );
+
+    const libsamplerate = b.addStaticLibrary(
+        .{
+            .name = "libsamplerate",
+            .target = options.target,
+            .optimize = options.optimize,
+            .root_source_file = .{ 
+                .path = 
+                    "libs/wrapped_libsamplerate/wrapped_libsamplerate.zig" 
+            },
+        }
+    );
+    {
+        libsamplerate.addIncludePath(
+            .{ 
+                .path = 
+                    "./libs/wrapped_libsamplerate/libsamplerate/include"
+            }
+        );
+        libsamplerate.addIncludePath(
+            .{ .path = "./libs/wrapped_libsamplerate"}
+        );
+        libsamplerate.addCSourceFile(
+            .{ 
+                .file = .{
+                    .path = 
+                        "./libs/wrapped_libsamplerate/wrapped_libsamplerate.c"
+                },
+                .flags = &C_ARGS
+            }
+        );
+    }
+    const sampling = module_with_tests_and_artifact(
+        "sampling",
+        .{
+            .b = b,
+            .fpath = "src/sampling.zig",
+            .target = options.target,
+            .test_step = test_step,
+            .deps = &.{
+                .{ 
+                    .name = "libsamplerate",
+                    .module = &libsamplerate.root_module, 
+                },
+                .{
+                    .name = "kissfft",
+                    .module = &kissfft.root_module,
+                },
+                .{ .name = "curve", .module = curve },
             },
         }
     );
