@@ -1,5 +1,6 @@
 const std = @import("std");
 const libsamplerate = @import("libsamplerate").libsamplerate;
+const kissfft = @import("kissfft").c;
 
 const expectEqual = std.testing.expectEqual;
 
@@ -14,8 +15,13 @@ const SineSampleGenerator = struct {
 };
 
 // test 0 - ensure that the contents of the c-library are visible
-test "libsamplerate interface test" {
+test "c lib interface test" {
+    // libsamplerate
     try expectEqual(libsamplerate.SRC_SINC_BEST_QUALITY, 0);
+
+    // kiss_fft
+    const cpx = kissfft.kiss_fft_cpx{ .r = 1, .i = 1 };
+    try expectEqual(cpx.r, 1);
 }
 
 // test 1

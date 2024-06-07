@@ -402,6 +402,29 @@ pub fn build(
         }
     );
 
+    const kissfft = b.addStaticLibrary(
+        .{
+            .name = "kissfft",
+            .target = options.target,
+            .optimize = options.optimize,
+            .root_source_file = .{ 
+                .path = 
+                    "libs/wrapped_kissfft.zig" 
+            },
+        }
+    );
+    {
+        kissfft.addIncludePath( .{ .path = "./libs/kissfft" });
+        kissfft.addCSourceFile(
+            .{ 
+                .file = .{
+                    .path = 
+                        "./libs/kissfft/kiss_fft.c"
+                },
+                .flags = &C_ARGS
+            }
+        );
+    }
     const libsamplerate = b.addStaticLibrary(
         .{
             .name = "libsamplerate",
@@ -445,6 +468,10 @@ pub fn build(
                     .name = "libsamplerate",
                     .module = &libsamplerate.root_module, 
                 },
+                .{
+                    .name = "kissfft",
+                    .module = &kissfft.root_module,
+                }
             },
         }
     );
