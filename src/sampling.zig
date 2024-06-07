@@ -10,8 +10,34 @@ const EPSILON: f32 = 1.0e-6;
 /// alias around the sample type @TODO: make this comptime definable (anytype)
 const sample_t  = f64;
 
+/// a set of samples and the parameters of those samples
+const Sampling = struct {
+    buffer: []sample_t,
+    sample_rate_hz: u32,
+    allocator: std.mem.Allocator,
+
+    pub fn init(
+        allocator: std.mem.Allocator,
+        count:usize,
+        sample_rate_hz: u32,
+    ) !Sampling
+    {
+        const buffer: []sample_t = try allocator.alloc(sample_t, count);
+
+        return .{
+            .buffer = buffer,
+            .sample_rate_hz = sample_rate_hz,
+            .allocator = allocator,
+        };
+    }
+
+    pub fn deinit(self: @This()) void {
+        self.allocator.free(self.buffer);
+    }
+};
+
 const SineSampleGenerator = struct {
-    sampling_frequency_hz: u32,
+    sampling_rate_hz: u32,
     signal_frequency_hz: u32,
     signal_amplitude: f32,
     signal_duration_s: f32,
@@ -19,17 +45,18 @@ const SineSampleGenerator = struct {
     pub fn rasterized(
         self:@This(),
         allocator: std.mem.Allocator
-    ) ![]sample_t 
+    ) !Sampling
     {
-        const sample_hz : sample_t = @floatFromInt(self.sampling_frequency_hz);
+        const sample_hz : sample_t = @floatFromInt(self.sampling_rate_hz);
 
-        const result: []sample_t = try allocator.alloc(
-            sample_t,
-            @intFromFloat(@ceil(@as(f64, self.signal_duration_s)*sample_hz))
+        const result = try Sampling.init(
+            allocator, 
+            @intFromFloat(@ceil(@as(f64, self.signal_duration_s)*sample_hz)),
+            self.sampling_rate_hz,
         );
 
         // fill the sample buffer
-        for (0.., result)
+        for (0.., result.buffer)
             |idx, *sample|
         {
             sample.* = std.math.sin(
@@ -45,17 +72,17 @@ const SineSampleGenerator = struct {
 
 test "rasterizing the sine" {
     const samples_48 = SineSampleGenerator{
-        .sampling_frequency_hz = 48000,
+        .sampling_rate_hz = 48000,
         .signal_frequency_hz = 100,
         .signal_amplitude = 1,
         .signal_duration_s = 1,
     };
-    const s48_buf = try samples_48.rasterized(std.testing.allocator);
-    defer std.testing.allocator.free(s48_buf);
+    const s48 = try samples_48.rasterized(std.testing.allocator);
+    defer s48.deinit();
 
     // check some known quantities
-    try expectEqual(@as(usize, 48000), s48_buf.len);
-    try expectEqual(@as(sample_t, 0), s48_buf[0]);
+    try expectEqual(@as(usize, 48000), s48.buffer.len);
+    try expectEqual(@as(sample_t, 0), s48.buffer[0]);
 }
 
 // returns the peak to peak distance of the samples in the buffer
@@ -90,15 +117,15 @@ pub fn peak_to_peak_distance(
 
 test "peak_to_peak_distance of sine 48khz" {
     const samples_48 = SineSampleGenerator{
-        .sampling_frequency_hz = 48000,
+        .sampling_rate_hz = 48000,
         .signal_frequency_hz = 100,
         .signal_amplitude = 1,
         .signal_duration_s = 1,
     };
-    const samples_48_buf = try samples_48.rasterized(std.testing.allocator);
-    defer std.testing.allocator.free(samples_48_buf);
+    const s48 = try samples_48.rasterized(std.testing.allocator);
+    defer s48.deinit();
 
-    const samples_48_p2p = peak_to_peak_distance(samples_48_buf);
+    const samples_48_p2p = peak_to_peak_distance(s48.buffer);
 
     try expectEqual(480, samples_48_p2p);
 }
@@ -113,19 +140,39 @@ test "c lib interface test" {
     try expectEqual(cpx.r, 1);
 }
 
+// pub fn resampled(
+//     in_samples: []sample_t
+// ) []sample_t 
+// {
+//     // Resampling ratio
+//     double ratio = 48000.0 / 44100.0;
+//     int num_output_samples = (int)(num_input_samples * ratio);
+//     float *output_audio = (float *)malloc(num_output_samples * sizeof(float));
+//
+//     SRC_DATA src_data;
+//     src_data.data_in = input_audio;
+//     src_data.input_frames = num_input_samples;
+//     src_data.data_out = output_audio;
+//     src_data.output_frames = num_output_samples;
+//     src_data.src_ratio = ratio;
+//     src_data.end_of_input = 1;
+//
+//     int error = src_simple(&src_data, SRC_SINC_BEST_QUALITY, 1);
+// }
+
 // test 1
 // have a set of samples over 48khz, resample them to 44khz
 test "resample from 48khz to 44" {
     const samples_48 = SineSampleGenerator{
-        .sampling_frequency_hz = 48000,
+        .sampling_rate_hz = 48000,
         .signal_frequency_hz = 100,
         .signal_amplitude = 1,
         .signal_duration_s = 1,
     };
-    const samples_48_buf = try samples_48.rasterized(std.testing.allocator);
-    defer std.testing.allocator.free(samples_48_buf);
+    const s48 = try samples_48.rasterized(std.testing.allocator);
+    defer s48.deinit();
 
-    const samples_48_p2pd = peak_to_peak_distance(samples_48_buf);
+    const samples_48_p2pd = peak_to_peak_distance(s48.buffer);
 
     // find a zero crossing
     // const s_i_48_half = samples_48.sample_index_near_s(0.5);
@@ -160,7 +207,7 @@ test "resample from 48khz to 44" {
 // them to 44khz
 // test "retime 48khz samples with a curve, and then resample that retimed data" {
 //     const samples_48 = SineSampleGenerator{
-//         .sampling_frequency_hz = 48000,
+//         .sampling_rate_hz = 48000,
 //         .signal_frequency_hz = 100,
 //         .signal_amplitude = 1,
 //         .signal_duration_s = 1,
@@ -198,7 +245,7 @@ test "resample from 48khz to 44" {
 //
 //    // make the reference data
 //    const samples_44100_at_200 = SineSampleGenerator{
-//        .sampling_frequency_hz = 44100,
+//        .sampling_rate_hz = 44100,
 //        .signal_frequency_hz = 200,
 //        .signal_amplitude = 1,
 //        .signal_duration_s = 1,
@@ -211,7 +258,7 @@ test "resample from 48khz to 44" {
 //    );
 //
 //    const samples_44100_at_100 = SineSampleGenerator{
-//        .sampling_frequency_hz = 44100,
+//        .sampling_rate_hz = 44100,
 //        .signal_frequency_hz = 200,
 //        .signal_amplitude = 1,
 //        .signal_duration_s = 1,
@@ -226,7 +273,7 @@ test "resample from 48khz to 44" {
 
 // test "retime 48khz samples with a curve projection, and then resample" {
 //     const samples_48 = SineSampleGenerator{
-//         .sampling_frequency_hz = 48000,
+//         .sampling_rate_hz = 48000,
 //         .signal_frequency_hz = 100,
 //         .signal_amplitude = 1,
 //         .signal_duration_s = 1,
@@ -265,7 +312,7 @@ test "resample from 48khz to 44" {
 //
 //    // make the reference data
 //    const samples_44100_at_200 = SineSampleGenerator{
-//        .sampling_frequency_hz = 44100,
+//        .sampling_rate_hz = 44100,
 //        .signal_frequency_hz = 200,
 //        .signal_amplitude = 1,
 //        .signal_duration_s = 1,
@@ -278,7 +325,7 @@ test "resample from 48khz to 44" {
 //    );
 //
 //    const samples_44100_at_100 = SineSampleGenerator{
-//        .sampling_frequency_hz = 44100,
+//        .sampling_rate_hz = 44100,
 //        .signal_frequency_hz = 200,
 //        .signal_amplitude = 1,
 //        .signal_duration_s = 1,
