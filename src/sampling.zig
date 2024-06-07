@@ -88,7 +88,7 @@ pub fn peak_to_peak_distance(
     return peak_to_peak_samples;
 }
 
-test "peak_to_peak_distance basic" {
+test "peak_to_peak_distance of sine 48khz" {
     const samples_48 = SineSampleGenerator{
         .sampling_frequency_hz = 48000,
         .signal_frequency_hz = 100,
