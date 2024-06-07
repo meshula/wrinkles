@@ -1580,7 +1580,10 @@ pub const IntrinsicSchema = enum {
     RationalTime,
 };
 
-pub fn read_float(obj:std.json.Value) time_topology.Ordinate {
+pub fn read_float(
+    obj:std.json.Value
+) time_topology.Ordinate 
+{
     return switch (obj) {
         .Integer => |i| @floatFromInt(time_topology.Ordinate, i),
         .Float => |f| @floatCast(time_topology.Ordinate, f),
@@ -1588,13 +1591,20 @@ pub fn read_float(obj:std.json.Value) time_topology.Ordinate {
     };
 }
 
-pub fn read_ordinate_from_rt(obj:?std.json.ObjectMap) ?time_topology.Ordinate {
-    if (obj) |o| {
+pub fn read_ordinate_from_rt(
+    obj:?std.json.ObjectMap
+) ?time_topology.Ordinate 
+{
+    if (obj) 
+       |o| 
+    {
         const value = read_float(o.get("value").?);
         const rate = read_float(o.get("rate").?);
 
         return @floatCast(time_topology.Ordinate, value/rate);
-    } else {
+    } 
+    else 
+    {
         return null;
     }
 }
