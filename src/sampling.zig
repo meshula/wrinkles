@@ -8,7 +8,7 @@ const expectEqual = std.testing.expectEqual;
 const EPSILON: f32 = 1.0e-6;
 
 /// alias around the sample type @TODO: make this comptime definable (anytype)
-const sample_t  = f64;
+const sample_t  = f32;
 
 /// a set of samples and the parameters of those samples
 const Sampling = struct {
@@ -140,25 +140,51 @@ test "c lib interface test" {
     try expectEqual(cpx.r, 1);
 }
 
-// pub fn resampled(
-//     in_samples: []sample_t
-// ) []sample_t 
-// {
-//     // Resampling ratio
-//     double ratio = 48000.0 / 44100.0;
-//     int num_output_samples = (int)(num_input_samples * ratio);
-//     float *output_audio = (float *)malloc(num_output_samples * sizeof(float));
-//
-//     SRC_DATA src_data;
-//     src_data.data_in = input_audio;
-//     src_data.input_frames = num_input_samples;
-//     src_data.data_out = output_audio;
-//     src_data.output_frames = num_output_samples;
-//     src_data.src_ratio = ratio;
-//     src_data.end_of_input = 1;
-//
-//     int error = src_simple(&src_data, SRC_SINC_BEST_QUALITY, 1);
-// }
+pub fn resampled(
+    allocator: std.mem.Allocator,
+    in_samples: Sampling,
+    destination_sample_rate_hz: u32,
+) !Sampling
+{
+    const resample_ratio : f64 = (
+        @as(f64, @floatFromInt(destination_sample_rate_hz))
+        / @as(f64, @floatFromInt(in_samples.sample_rate_hz))
+    );
+
+    const num_output_samples: usize = @as(
+        usize, 
+        @intFromFloat(
+            @floor(@as(f64, @floatFromInt(in_samples.buffer.len)) * resample_ratio)
+        )
+    );
+
+    const result = try Sampling.init(
+        allocator,
+        num_output_samples,
+        destination_sample_rate_hz
+    );
+
+    var src_data : libsamplerate.SRC_DATA = .{
+        .data_in = @ptrCast(in_samples.buffer.ptr),
+        .input_frames = @intCast(in_samples.buffer.len),
+        .data_out = @ptrCast(result.buffer.ptr),
+        .output_frames = @intCast(num_output_samples),
+        .src_ratio = resample_ratio,
+        .end_of_input = 1,
+    };
+
+    const resample_error = libsamplerate.src_simple(
+        &src_data,
+        libsamplerate.SRC_SINC_BEST_QUALITY,
+        1,
+    );
+
+    if (resample_error != 0) {
+        return error.ResamplingError;
+    }
+
+    return result;
+}
 
 // test 1
 // have a set of samples over 48khz, resample them to 44khz
@@ -194,12 +220,12 @@ test "resample from 48khz to 44" {
     //
     // const s_48_half_next = samples_48.sample_at_index(s_i_48_half + 1);
 
-    const samples_44 = samples_48.resampled(44100);
-    const samples_44_p2pd = samples_44.peak_to_peak_distance(0.5);
+    const samples_44 = try resampled(std.testing.allocator, s48, 44100);
+    const samples_44_p2pd = peak_to_peak_distance(samples_44.buffer);
 
     // peak to peak distance (a distance in sample indices) should be the same
     // independent of retiming those samples
-    try expectEqual(samples_48_p2pd, samples_44_p2pd);
+    try expectEqual(@as(usize, 441), samples_44_p2pd);
 }
 
 // test 2
