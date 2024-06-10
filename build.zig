@@ -6,7 +6,8 @@ pub const MIN_ZIG_VERSION = std.SemanticVersion{
     .major = 0,
     .minor = 13,
     .patch = 0,
-    .pre = "dev.46" 
+    .pre = "" 
+    // .pre = "dev.46"  <- for setting the dev version string
 };
 
 fn ensureZigVersion() !void {
