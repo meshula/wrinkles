@@ -153,9 +153,7 @@ pub fn executable(
     const exe = b.addExecutable(
         .{
             .name = name,
-            .root_source_file = .{ 
-                .path = thisDir() ++ main_file_name 
-            },
+            .root_source_file = b.path(thisDir() ++ main_file_name),
             .target = options.target,
             .optimize = options.optimize,
         }
@@ -186,9 +184,9 @@ pub fn executable(
 
         const install_content_step = b.addInstallDirectory(
             .{
-                .source_dir = .{ 
-                    .path = thisDir() ++ "/src/" ++ source_dir_path 
-                },
+                .source_dir = b.path(
+                    thisDir() ++ "/src/" ++ source_dir_path
+                ),
                 .install_dir = .{ .custom = "" },
                 .install_subdir = "bin/" ++ name ++ "_content",
             }
@@ -300,7 +298,7 @@ pub fn module_with_tests_and_artifact(
 {
     const mod = opts.b.createModule(
         .{
-            .root_source_file = .{ .path = opts.fpath },
+            .root_source_file = opts.b.path(opts.fpath),
             .imports = opts.deps,
         }
     );
@@ -310,7 +308,7 @@ pub fn module_with_tests_and_artifact(
         const mod_unit_tests = opts.b.addTest(
             .{
                 .name = "test_" ++ name,
-                .root_source_file = .{ .path = opts.fpath },
+                .root_source_file = opts.b.path(opts.fpath),
                 .target =opts. target,
             }
         );
@@ -407,20 +405,16 @@ pub fn build(
             .name = "kissfft",
             .target = options.target,
             .optimize = options.optimize,
-            .root_source_file = .{ 
-                .path = 
-                    "libs/wrapped_kissfft.zig" 
-            },
+            .root_source_file = b.path(
+                "libs/wrapped_kissfft.zig"
+            ),
         }
     );
     {
-        kissfft.addIncludePath( .{ .path = "./libs/kissfft" });
+        kissfft.addIncludePath(b.path("./libs/kissfft"));
         kissfft.addCSourceFile(
             .{ 
-                .file = .{
-                    .path = 
-                        "./libs/kissfft/kiss_fft.c"
-                },
+                .file = b.path("./libs/kissfft/kiss_fft.c"),
                 .flags = &C_ARGS
             }
         );
@@ -446,16 +440,16 @@ pub fn build(
             .name = "spline_gym",
             .target = options.target,
             .optimize = options.optimize,
-            .root_source_file = .{
-                .path = "./spline-gym/src/hodographs.zig" 
-            },
+            .root_source_file = b.path(
+                "./spline-gym/src/hodographs.zig" 
+            ),
         }
     );
     {
-        spline_gym.addIncludePath(.{ .path = "./spline-gym/src"});
+        spline_gym.addIncludePath(b.path("./spline-gym/src"));
         spline_gym.addCSourceFile(
             .{ 
-                .file = .{ .path = "./spline-gym/src/hodographs.c"},
+                .file = b.path("./spline-gym/src/hodographs.c"),
                 .flags = &C_ARGS
             }
         );
@@ -484,28 +478,23 @@ pub fn build(
             .name = "libsamplerate",
             .target = options.target,
             .optimize = options.optimize,
-            .root_source_file = .{ 
-                .path = 
-                    "libs/wrapped_libsamplerate/wrapped_libsamplerate.zig" 
-            },
+            .root_source_file = b.path(
+                    "libs/wrapped_libsamplerate/wrapped_libsamplerate.zig"
+            ),
         }
     );
     {
         libsamplerate.addIncludePath(
-            .{ 
-                .path = 
-                    "./libs/wrapped_libsamplerate/libsamplerate/include"
-            }
+            b.path("./libs/wrapped_libsamplerate/libsamplerate/include")
         );
         libsamplerate.addIncludePath(
-            .{ .path = "./libs/wrapped_libsamplerate"}
+            b.path("./libs/wrapped_libsamplerate")
         );
         libsamplerate.addCSourceFile(
             .{ 
-                .file = .{
-                    .path = 
-                        "./libs/wrapped_libsamplerate/wrapped_libsamplerate.c"
-                },
+                .file = b.path(
+                    "./libs/wrapped_libsamplerate/wrapped_libsamplerate.c"
+                ),
                 .flags = &C_ARGS
             }
         );
