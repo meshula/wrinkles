@@ -153,7 +153,7 @@ pub fn executable(
     const exe = b.addExecutable(
         .{
             .name = name,
-            .root_source_file = b.path(thisDir() ++ main_file_name),
+            .root_source_file = b.path(main_file_name),
             .target = options.target,
             .optimize = options.optimize,
         }
@@ -185,7 +185,7 @@ pub fn executable(
         const install_content_step = b.addInstallDirectory(
             .{
                 .source_dir = b.path(
-                    thisDir() ++ "/src/" ++ source_dir_path
+                    "src/" ++ source_dir_path
                 ),
                 .install_dir = .{ .custom = "" },
                 .install_subdir = "bin/" ++ name ++ "_content",
@@ -555,7 +555,7 @@ pub fn build(
     executable(
         b, 
         "wrinkles",
-        "/src/wrinkles.zig",
+        "src/wrinkles.zig",
         "/wrinkles_content/",
         options,
         common_deps,
@@ -563,7 +563,7 @@ pub fn build(
     executable(
         b,
         "curvet",
-        "/src/curvet.zig",
+        "src/curvet.zig",
         "/wrinkles_content/",
         options,
         common_deps,
@@ -571,7 +571,7 @@ pub fn build(
     executable(
         b,
         "example_zgui_app",
-        "/src/example_zgui_app.zig",
+        "src/example_zgui_app.zig",
         "/wrinkles_content/",
         options,
         common_deps,
