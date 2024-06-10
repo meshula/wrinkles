@@ -49,9 +49,6 @@ def main():
             destination_path = os.path.join(path_root, d)
 
             to_path_tmp = os.path.join(tmpdir, d)
-            print(f"Moving {destination_path} to {to_path_tmp}")
-            shutil.move(destination_path, to_path_tmp)
-
             from_path = os.path.join(args.path, "libs", d)
             if not os.path.exists(from_path):
                 print(
@@ -59,8 +56,14 @@ def main():
                 )
                 continue
 
+            print(f"Moving {destination_path} to {to_path_tmp}")
+
+            if not args.dryrun:
+                shutil.move(destination_path, to_path_tmp)
+
             print(f"Copying {from_path} to {destination_path}")
-            shutil.copytree(from_path, destination_path)
+            if not args.dryrun:
+                shutil.copytree(from_path, destination_path)
 
     print("Done.")
 
