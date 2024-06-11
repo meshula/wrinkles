@@ -1633,11 +1633,6 @@ test "Single Clip bezier transform" {
     );
     defer base_curve.deinit(std.testing.allocator);
 
-    try curve.write_json_file_curve(
-        base_curve,
-        "/var/tmp/test_input.crv.json"
-    );
-
     // this curve is [-0.5, 0.5), rescale it into test range
     const xform_curve = try curve.rescaled_curve(
         base_curve,
@@ -1646,10 +1641,6 @@ test "Single Clip bezier transform" {
             .{ .time = 0, .value = 0, },
             .{ .time = 10, .value = 10, },
         }
-    );
-    try curve.write_json_file_curve(
-        xform_curve,
-        "/var/tmp/test_rescaled.crv.json"
     );
     const curve_topo = time_topology.TimeTopology.init_bezier_cubic(
         xform_curve
@@ -1704,11 +1695,6 @@ test "Single Clip bezier transform" {
                 .source =  try cl_ptr.space(SpaceLabel.output),
                 .destination = try cl_ptr.space(SpaceLabel.media),
             }
-        );
-
-        try curve.write_json_file_curve(
-            clip_output_to_media_proj.topology.bezier_curve.curve,
-            "/var/tmp/test_from_projection.crv.json"
         );
 
         // note that the clips output space is the curve's input space
@@ -2213,4 +2199,3 @@ test "test spaces list" {
        "media", @tagName(SpaceLabel.media),
     );
 }
-
