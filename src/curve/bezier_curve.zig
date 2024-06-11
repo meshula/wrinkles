@@ -1469,6 +1469,14 @@ pub const TimeCurve = struct {
         };
     }
 
+    /// return the extents of the curve's output space
+    pub fn extents_value(self:@This()) ContinuousTimeInterval {
+        return .{
+            .start_seconds = self.segments[0].p0.value,
+            .end_seconds = self.segments[self.segments.len - 1].p3.value,
+        };
+    }
+
     /// return the extents of the curve as control points
     pub fn extents(self:@This()) [2]control_point.ControlPoint {
         var min:control_point.ControlPoint = self.segments[0].p0;
