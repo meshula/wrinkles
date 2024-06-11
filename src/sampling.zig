@@ -224,6 +224,8 @@ test "resample from 48khz to 44" {
     );
     defer samples_44.deinit();
 
+    try samples_44.write_file("/var/tmp/ours_100hz_441test.wav");
+
     const samples_44_p2pd = peak_to_peak_distance(samples_44.buffer);
 
     // peak to peak distance (a distance in sample indices) should be the same
