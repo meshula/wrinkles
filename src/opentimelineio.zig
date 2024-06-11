@@ -1610,6 +1610,13 @@ test "Single Clip reverse transform" {
 }
 
 test "Single Clip bezier transform" {
+    // @TODO: this test is busted.
+    //        its reading an scurve in and using that as a transform.
+    //        the test values are copied from the linear curve case, so they
+    //        don't make any sense for the scurve.
+    //
+    //        probably best to hand compute some values and test them
+    //        specifically rather than somehting programattic.
     if (true) {
         return error.SkipZigTest;
     }
@@ -1679,13 +1686,17 @@ test "Single Clip bezier transform" {
         );
 
         // @TODO this should work
-        var time = source_range.start_seconds;
-        while (time < source_range.end_seconds) : (time += 0.01) {
+        const start_time = source_range.start_seconds;
+        const end_time = source_range.end_seconds;
+        var time = start_time;
+        while (time < end_time) 
+            : (time += 0.01) 
+        {
 
             const curve_bounds = curve_topo.bounds();
 
             errdefer std.log.err(
-                "\nERR\n  time: {any} \n  source_range: {any}\n  extents: {any} \n",
+                "\nERR\n  time: {d} \n  source_range: {any}\n  extents: {any} \n",
                 .{
                     time,
                     source_range,
@@ -1698,12 +1709,6 @@ test "Single Clip bezier transform" {
             ); 
 
             try expectApproxEqAbs(
-                @as(f32, time - source_range.start_seconds),
-                curve_eval,
-                util.EPSILON
-            );
-
-            try expectApproxEqAbs(
                 @as(f32, 100),
                 curve_bounds.start_seconds, util.EPSILON
             );
@@ -1711,6 +1716,14 @@ test "Single Clip bezier transform" {
                 @as(f32, 110),
                 curve_bounds.end_seconds, util.EPSILON
             );
+
+            try expectApproxEqAbs(
+                @as(f32, time - source_range.start_seconds),
+                curve_eval,
+                util.EPSILON
+            );
+
+            @breakpoint();
 
             const projected = (
                 try clip_output_to_media_topo.project_ordinate(time)
