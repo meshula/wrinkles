@@ -201,7 +201,11 @@ test "resample from 48khz to 44" {
     const s48 = try samples_48.rasterized(std.testing.allocator);
     defer s48.deinit();
 
-    const samples_44 = try resampled(std.testing.allocator, s48, 44100);
+    const samples_44 = try resampled(
+        std.testing.allocator,
+        s48,
+        44100
+    );
     defer samples_44.deinit();
 
     const samples_44_p2pd = peak_to_peak_distance(samples_44.buffer);
