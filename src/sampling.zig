@@ -433,7 +433,6 @@ test "retime 48khz samples with a curve, and then resample that retimed data" {
         441,
         samples_44_p2p_1p0
     );
-
 }
 
 // test "retime 48khz samples with a curve projection, and then resample" {
