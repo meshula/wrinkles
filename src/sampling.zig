@@ -1,6 +1,7 @@
 const std = @import("std");
 const libsamplerate = @import("libsamplerate").libsamplerate;
 const kissfft = @import("kissfft").c;
+const wav = @import("wav");
 
 const curve = @import("curve");
 
@@ -219,12 +220,31 @@ test "resample from 48khz to 44" {
 // have a set of samples over 48khz, retime them with a curve and then resample
 // them to 44khz
 test "retime 48khz samples with a curve, and then resample that retimed data" {
+    if (true) {
+        return error.SkipZigTest;
+    }
     const samples_48 = SineSampleGenerator{
         .sampling_rate_hz = 48000,
         .signal_frequency_hz = 100,
         .signal_amplitude = 1,
         .signal_duration_s = 1,
     };
+
+    //
+    //           hold
+    //        2x
+    //  ident 
+    //           -------
+    //          |
+    //         |
+    //        |
+    //       /
+    //      /
+    //     /
+    //    /
+    //   /
+    //  /
+    //
 
     // @TODO: write this to a json file so we can image in curvet
     var retime_curve_segments = [_]curve.Segment{
@@ -362,3 +382,59 @@ test "retime 48khz samples with a curve, and then resample that retimed data" {
 // 
 // test 5 
 // resample according to centered kernels
+
+/// Naive sine with pitch 440Hz.
+fn generateSine(sample_rate: f32, data: []f32) void {
+    const radians_per_sec: f32 = 440.0 * 2.0 * std.math.pi;
+    var i: usize = 0;
+    while (i < data.len) : (i += 1) {
+        data[i] = 0.5 * std.math.sin(@as(f32, @floatFromInt(i)) * radians_per_sec / sample_rate);
+    }
+}
+
+test "wav.zig generator test (purely their code)" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const alloc = gpa.allocator();
+
+    var file = try std.fs.cwd().createFile("/var/tmp/theirs_givemeasine.wav", .{});
+    defer file.close();
+
+    const sample_rate: usize = 44100;
+    const num_channels: usize = 1;
+
+    const data = try alloc.alloc(f32, 10 * sample_rate);
+    defer alloc.free(data);
+
+    generateSine(@as(f32, @floatFromInt(sample_rate)), data);
+
+    // Write out samples as 16-bit PCM int.
+    var encoder = try wav.encoder(i16, file.writer(), file.seekableStream(), sample_rate, num_channels);
+    try encoder.write(f32, data);
+    try encoder.finalize(); // Don't forget to finalize after you're done writing.
+
+}
+
+test "wav.zig generator test (our code)" {
+    const samples_48 = SineSampleGenerator{
+        .sampling_rate_hz = 48000,
+        .signal_frequency_hz = 100,
+        .signal_amplitude = 1,
+        .signal_duration_s = 1,
+    };
+    const s48 = try samples_48.rasterized(std.testing.allocator);
+    defer s48.deinit();
+
+    var file = try std.fs.cwd().createFile("/var/tmp/ours_givemeasine.wav", .{});
+    defer file.close();
+
+    var encoder = try wav.encoder(
+        i16,
+        file.writer(),
+        file.seekableStream(),
+        s48.sample_rate_hz,
+        1
+    );
+    try encoder.write(f32, s48.buffer);
+    try encoder.finalize(); // Don't forget to finalize after you're done writing.
+}

@@ -382,6 +382,16 @@ pub fn build(
             .optimize = options.optimize,
         }
     );
+    const wav_dep = module_with_tests_and_artifact(
+        "wav",
+        .{
+            .b = b,
+            .fpath = "libs/zig-wav/src/wav.zig",
+            .target = options.target,
+            .test_step = test_step,
+            .test_filter = options.test_filter,
+        }
+    );
 
     const otio_allocator = module_with_tests_and_artifact(
         "allocator",
@@ -539,6 +549,7 @@ pub fn build(
                     .module = &kissfft.root_module,
                 },
                 .{ .name = "curve", .module = curve },
+                .{ .name = "wav", .module = wav_dep },
             },
             .test_filter = options.test_filter,
         }
@@ -583,6 +594,7 @@ pub fn build(
     const common_deps:[]const std.Build.Module.Import = &.{ 
         // external deps
         .{ .name = "comath", .module = comath_dep.module("comath") },
+        .{ .name = "wav", .module = wav_dep },
 
         // internal deps
         .{ .name = "string_stuff", .module = string_stuff },
