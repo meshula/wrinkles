@@ -1538,6 +1538,7 @@ test "Single Clip Media to Output Identity transform" {
 test "Single Clip reverse transform" {
     //
     // xform: reverse (linear w/ -1 slope)
+    // note: transforms map from the _output_ space to the _media_ space
     //
     //              0                 7           10
     // output       [-----------------*-----------)
@@ -1610,32 +1611,22 @@ test "Single Clip reverse transform" {
 }
 
 test "Single Clip bezier transform" {
-    // @TODO: this test is busted.
-    //        its reading an scurve in and using that as a transform.
-    //        the test values are copied from the linear curve case, so they
-    //        don't make any sense for the scurve.
     //
-    //        probably best to hand compute some values and test them
-    //        specifically rather than somehting programattic.
-    if (true) {
-        return error.SkipZigTest;
-    }
+    // xform: s-curve read from sample curve file
+    //        curves map from the output space to the intrinsic space for clips
     //
-    // xform: scurve read from sample curve file
-    //
-    //              0                 7           10
-    // output       [-----------------*-----------)
+    //              0                             10
+    // output       [-----------------------------)
     //                               _,-----------x
-    //                             _/
-    // transform                 ,/
+    // transform                   _/
+    // (curve)                  ,/
     //              x-----------'
-    // media        [-----------------*-----------)
-    //              110               103         100 (seconds)
+    // intrinsic    [-----------------------------)
+    //              0                             10 (seconds)
+    // media        100                          110 (seconds)
     //
-    const source_range:interval.ContinuousTimeInterval = .{
-        .start_seconds = 100,
-        .end_seconds = 110,
-    };
+    // the media space is defined by the source range
+    //
 
     const base_curve = try curve.read_curve_json(
         "curves/scurve.curve.json",
@@ -1643,27 +1634,63 @@ test "Single Clip bezier transform" {
     );
     defer base_curve.deinit(std.testing.allocator);
 
+    try curve.write_json_file_curve(
+        base_curve,
+        "/var/tmp/test_input.crv.json"
+    );
+
+    // this curve is [-0.5, 0.5), rescale it into test range
     const xform_curve = try curve.rescaled_curve(
-        // this curve is [-0.5, 0.5), so needs to be rescaled into the space
-        // of the test/data that we want to do.
         base_curve,
         //  the range of the clip for testing - rescale factors
         .{
-            .{ .time = 100, .value = 0, },
-            .{ .time = 110, .value = 10, },
+            .{ .time = 0, .value = 0, },
+            .{ .time = 10, .value = 10, },
         }
     );
-
+    try curve.write_json_file_curve(
+        xform_curve,
+        "/var/tmp/test_rescaled.crv.json"
+    );
     const curve_topo = time_topology.TimeTopology.init_bezier_cubic(
         xform_curve
+    );
+
+    // test the input space range
+    const curve_bounds_input = curve_topo.bounds();
+    try expectApproxEqAbs(
+        @as(f32, 0),
+        curve_bounds_input.start_seconds, util.EPSILON
+    );
+    try expectApproxEqAbs(
+        @as(f32, 10),
+        curve_bounds_input.end_seconds, util.EPSILON
+    );
+
+    // test the output space range (the media space of the clip)
+    const curve_bounds_output = xform_curve.extents_value();
+    try expectApproxEqAbs(
+        @as(f32, 0),
+        curve_bounds_output.start_seconds, util.EPSILON
+    );
+    try expectApproxEqAbs(
+        @as(f32, 10),
+        curve_bounds_output.end_seconds, util.EPSILON
     );
 
     try std.testing.expect(
         std.meta.activeTag(curve_topo) != time_topology.TimeTopology.empty
     );
 
-    const cl = Clip { .source_range = source_range, .transform = curve_topo };
-    const cl_ptr : ItemPtr = .{ .clip_ptr = &cl};
+    const source_range:interval.ContinuousTimeInterval = .{
+        .start_seconds = 100,
+        .end_seconds = 110,
+    };
+    const cl = Clip {
+        .source_range = source_range,
+        .transform = curve_topo 
+    };
+    const cl_ptr : ItemPtr = .{ .clip_ptr = &cl };
 
     const map = try build_topological_map(
         // std.testing.allocator,
@@ -1673,63 +1700,100 @@ test "Single Clip bezier transform" {
 
     // output->media (forward projection)
     {
-        const clip_output_to_media_topo = try map.build_projection_operator(
+        const clip_output_to_media_proj = try map.build_projection_operator(
             .{
                 .source =  try cl_ptr.space(SpaceLabel.output),
                 .destination = try cl_ptr.space(SpaceLabel.media),
             }
         );
 
+        try curve.write_json_file_curve(
+            clip_output_to_media_proj.topology.bezier_curve.curve,
+            "/var/tmp/test_from_projection.crv.json"
+        );
+
+        // note that the clips output space is the curve's input space
+        const output_bounds = (
+            clip_output_to_media_proj.topology.bounds()
+        );
+        try expectApproxEqAbs(
+            curve_bounds_output.start_seconds, 
+            output_bounds.start_seconds,
+            util.EPSILON
+        );
+        try expectApproxEqAbs(
+            curve_bounds_output.end_seconds, 
+            output_bounds.end_seconds,
+            util.EPSILON
+        );
+
+        // invert it back and check it against the inpout curve bounds
+        const clip_media_to_output = (
+            try clip_output_to_media_proj.topology.inverted()
+        );
+        const clip_media_to_output_bounds = (
+            clip_media_to_output.bounds()
+        );
+        try expectApproxEqAbs(
+            @as(f32, 100),
+            clip_media_to_output_bounds.start_seconds, util.EPSILON
+        );
+        try expectApproxEqAbs(
+            @as(f32, 110),
+            clip_media_to_output_bounds.end_seconds, util.EPSILON
+        );
+
         try std.testing.expect(
-            std.meta.activeTag(clip_output_to_media_topo.topology) 
+            std.meta.activeTag(clip_output_to_media_proj.topology) 
             != time_topology.TimeTopology.empty
         );
 
-        // @TODO this should work
-        const start_time = source_range.start_seconds;
-        const end_time = source_range.end_seconds;
-        var time = start_time;
-        while (time < end_time) 
-            : (time += 0.01) 
+        // walk over the output space of the curve
+        const o_s_time = output_bounds.start_seconds;
+        const o_e_time = output_bounds.end_seconds;
+        var output_time = o_s_time;
+        while (output_time < o_e_time) 
+            : (output_time += 0.01) 
         {
-
-            const curve_bounds = curve_topo.bounds();
-
+            // output time -> media time
+            const media_time = (
+                try clip_output_to_media_proj.project_ordinate(output_time)
+            );
+            
             errdefer std.log.err(
-                "\nERR\n  time: {d} \n  source_range: {any}\n  extents: {any} \n",
+        "\nERR1\n  output_time: {d} \n"
+                ++ "  topology output_bounds: {any} \n"
+                ++ "  topology curve bounds: {any} \n ",
                 .{
-                    time,
-                    source_range,
-                    curve_bounds,
+                    output_time,
+                    clip_output_to_media_proj.topology.bounds(),
+                    clip_output_to_media_proj.topology.bezier_curve.compute_bounds(),
                 }
             );
 
-            const curve_eval = (
-                try curve_topo.bezier_curve.curve.evaluate(time)
+            // media time -> output time
+            const computed_output_time = (
+                try clip_media_to_output.project_ordinate(media_time)
             ); 
 
-            try expectApproxEqAbs(
-                @as(f32, 100),
-                curve_bounds.start_seconds, util.EPSILON
-            );
-            try expectApproxEqAbs(
-                @as(f32, 110),
-                curve_bounds.end_seconds, util.EPSILON
+            errdefer std.log.err(
+                "\nERR\n  output_time: {d} \n"
+                ++ "  computed_output_time: {d} \n"
+                ++ " source_range: {any}\n"
+                ++ "  output_bounds: {any} \n",
+                .{
+                    output_time,
+                    computed_output_time,
+                    source_range,
+                    output_bounds,
+                }
             );
 
             try expectApproxEqAbs(
-                @as(f32, time - source_range.start_seconds),
-                curve_eval,
+                computed_output_time,
+                output_time,
                 util.EPSILON
             );
-
-            @breakpoint();
-
-            const projected = (
-                try clip_output_to_media_topo.project_ordinate(time)
-            );
-
-            try expectApproxEqAbs(curve_eval, projected, util.EPSILON);
         }
     }
 
@@ -1743,7 +1807,7 @@ test "Single Clip bezier transform" {
         );
 
         try expectApproxEqAbs(
-            @as(f32, 3),
+            @as(f32, 6.5745),
             try clip_media_to_output.project_ordinate(107),
             util.EPSILON,
         );
@@ -1751,11 +1815,12 @@ test "Single Clip bezier transform" {
 }
 
 // @TODO: this needs to be init/deinit()
-// top level object
+/// top level object
 pub const Timeline = struct {
     tracks:Stack = Stack.init(std.testing.allocator),
 };
 
+/// children of a stack are simultaneous in time
 pub const Stack = struct {
     name: ?string.latin_s8 = null,
     children: std.ArrayList(Item),
