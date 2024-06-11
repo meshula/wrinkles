@@ -290,6 +290,7 @@ pub const CreateModuleOptions = struct {
     target: std.Build.ResolvedTarget,
     test_step: *std.Build.Step,
     deps: []const std.Build.Module.Import = &.{},
+    test_filter: ?[]const u8 = &.{},
 };
 
 pub fn module_with_tests_and_artifact(
@@ -311,6 +312,7 @@ pub fn module_with_tests_and_artifact(
                 .name = "test_" ++ name,
                 .root_source_file = opts.b.path(opts.fpath),
                 .target =opts. target,
+                .filter = opts.test_filter orelse &.{},
             }
         );
 
@@ -388,6 +390,7 @@ pub fn build(
             .fpath = "src/allocator.zig",
             .target = options.target,
             .test_step = test_step,
+            .test_filter = options.test_filter,
         }
     );
 
@@ -398,6 +401,7 @@ pub fn build(
             .fpath = "src/string_stuff.zig",
             .target = options.target,
             .test_step = test_step,
+            .test_filter = options.test_filter,
         }
     );
 
@@ -433,6 +437,7 @@ pub fn build(
                 .{ .name = "otio_allocator", .module = otio_allocator },
                 .{ .name = "comath", .module = comath_dep.module("comath") },
             },
+            .test_filter = options.test_filter,
         }
     );
 
@@ -471,6 +476,7 @@ pub fn build(
                 .{ .name = "otio_allocator", .module = otio_allocator },
                 .{ .name = "comath", .module = comath_dep.module("comath") },
             },
+            .test_filter = options.test_filter,
         }
     );
 
@@ -518,6 +524,7 @@ pub fn build(
                 },
                 .{ .name = "curve", .module = curve },
             },
+            .test_filter = options.test_filter,
         }
     );
 
