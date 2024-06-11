@@ -970,12 +970,20 @@ pub const TimeCurve = struct {
             ) catch unreachable;
             defer self_split_on_critical_points.deinit(ALLOCATOR);
 
-            for (self_split_on_critical_points.segments) |seg| {
+            var start_knot:usize = 0;
+
+            for (self_split_on_critical_points.segments, 0..) 
+                |seg, seg_ind| 
+            {
+                if (seg_ind > 0) {
+                    start_knot = 1;
+                }
+
                 // @TODO: expose the tolerance as a parameter(?)
                 linearized_knots.appendSlice(
                     (
                      linearize_segment(seg, 0.000001) catch unreachable
-                    ).items
+                    ).items[start_knot..]
                 ) catch unreachable;
             }
         } else {

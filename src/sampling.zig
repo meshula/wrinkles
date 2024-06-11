@@ -53,7 +53,37 @@ const Sampling = struct {
         try encoder.write(f32, self.buffer);
         try encoder.finalize(); // Don't forget to finalize after you're done writing.
     }
+
+    pub fn samples_between_time(
+        self: @This(),
+        start_time_inclusive_s: sample_t,
+        end_time_exclusive_s: sample_t,
+    ) []sample_t
+    {
+        const start_index:usize = @intFromFloat(start_time_inclusive_s*@as(f32, @floatFromInt(self.sample_rate_hz)));
+        const end_index:usize = @intFromFloat(end_time_exclusive_s*@as(f32, @floatFromInt(self.sample_rate_hz)));
+
+        return self.buffer[start_index..end_index];
+    }
 };
+
+test "samples_between_time" {
+    const samples_48 = SineSampleGenerator{
+        .sampling_rate_hz = 48000,
+        .signal_frequency_hz = 100,
+        .signal_amplitude = 1,
+        .signal_duration_s = 1,
+    };
+    const s48 = try samples_48.rasterized(std.testing.allocator);
+    defer s48.deinit();
+
+    const first_half_samples = s48.samples_between_time(0, 0.5);
+
+    try expectEqual(
+        samples_48.sampling_rate_hz/2,
+        first_half_samples.len,
+    );
+}
 
 const SineSampleGenerator = struct {
     sampling_rate_hz: u32,
@@ -106,7 +136,7 @@ test "rasterizing the sine" {
 
 // returns the peak to peak distance of the samples in the buffer
 pub fn peak_to_peak_distance(
-    samples: []const sample_t
+    samples: []const sample_t,
 ) usize 
 {
     var last_max_idx:?usize = null;
@@ -135,18 +165,44 @@ pub fn peak_to_peak_distance(
 }
 
 test "peak_to_peak_distance of sine 48khz" {
-    const samples_48 = SineSampleGenerator{
+    const samples_48_100 = SineSampleGenerator{
         .sampling_rate_hz = 48000,
         .signal_frequency_hz = 100,
         .signal_amplitude = 1,
         .signal_duration_s = 1,
     };
-    const s48 = try samples_48.rasterized(std.testing.allocator);
-    defer s48.deinit();
+    const s48_100 = try samples_48_100.rasterized(std.testing.allocator);
+    defer s48_100.deinit();
 
-    const samples_48_p2p = peak_to_peak_distance(s48.buffer);
+    const samples_48_100_p2p = peak_to_peak_distance(s48_100.buffer);
 
-    try expectEqual(480, samples_48_p2p);
+    try expectEqual(480, samples_48_100_p2p);
+
+    const samples_48_50 = SineSampleGenerator{
+        .sampling_rate_hz = 48000,
+        .signal_frequency_hz = 50,
+        .signal_amplitude = 1,
+        .signal_duration_s = 1,
+    };
+    const s48_50 = try samples_48_50.rasterized(std.testing.allocator);
+    defer s48_50.deinit();
+
+    const samples_48_50_p2p = peak_to_peak_distance(s48_50.buffer);
+
+    try expectEqual(960, samples_48_50_p2p);
+
+    const samples_96_100 = SineSampleGenerator{
+        .sampling_rate_hz = 96000,
+        .signal_frequency_hz = 100,
+        .signal_amplitude = 1,
+        .signal_duration_s = 1,
+    };
+    const s96_100 = try samples_96_100.rasterized(std.testing.allocator);
+    defer s96_100.deinit();
+
+    const samples_96_100_p2p = peak_to_peak_distance(s96_100.buffer);
+
+    try expectEqual(960, samples_96_100_p2p);
 }
 
 // test 0 - ensure that the contents of the c-library are visible
@@ -205,6 +261,51 @@ pub fn resampled(
     return result;
 }
 
+pub fn retimed(
+    allocator: std.mem.Allocator,
+    in_samples: Sampling,
+    xform: curve.TimeCurve,
+) !Sampling
+{
+    const lin_curve = xform.linearized();
+
+    var result = std.ArrayList(sample_t).init(allocator);
+
+    for (lin_curve.knots[0..lin_curve.knots.len-1], lin_curve.knots[1..]) 
+        |l_knot, r_knot|
+    {    
+        const relevant_samples = in_samples.samples_between_time(
+            l_knot.time,
+            r_knot.time
+        );
+        const relevant_sampling = Sampling{
+            .allocator = allocator,
+            .buffer = relevant_samples,
+            .sample_rate_hz = in_samples.sample_rate_hz,
+        };
+
+        const retime_ratio = (
+            ((r_knot.value - l_knot.value) * @as(f32, @floatFromInt(in_samples.sample_rate_hz)))
+            / @as(f32, @floatFromInt(relevant_samples.len))
+        );
+
+        const output_chunk = try resampled(
+            allocator,
+            relevant_sampling,
+            @intFromFloat(retime_ratio * @as(f32, @floatFromInt(in_samples.sample_rate_hz)))
+        );
+        defer output_chunk.deinit();
+
+        try result.appendSlice(output_chunk.buffer);
+    }
+
+    return Sampling{
+        .allocator = allocator,
+        .buffer = try result.toOwnedSlice(),
+        .sample_rate_hz = in_samples.sample_rate_hz,
+    };
+}
+
 // test 1
 // have a set of samples over 48khz, resample them to 44khz
 test "resample from 48khz to 44" {
@@ -216,6 +317,8 @@ test "resample from 48khz to 44" {
     };
     const s48 = try samples_48.rasterized(std.testing.allocator);
     defer s48.deinit();
+
+    try s48.write_file("/var/tmp/ours_100hz_48test.wav");
 
     const samples_44 = try resampled(
         std.testing.allocator,
@@ -237,21 +340,20 @@ test "resample from 48khz to 44" {
 // have a set of samples over 48khz, retime them with a curve and then resample
 // them to 44khz
 test "retime 48khz samples with a curve, and then resample that retimed data" {
-    if (true) {
-        return error.SkipZigTest;
-    }
     const samples_48 = SineSampleGenerator{
         .sampling_rate_hz = 48000,
         .signal_frequency_hz = 100,
         .signal_amplitude = 1,
         .signal_duration_s = 1,
     };
+    const s48 = try samples_48.rasterized(std.testing.allocator);
+    defer s48.deinit();
 
     //
-    //           hold
-    //        2x
-    //  ident 
-    //           -------
+    //           ident
+    //        2x   /
+    //  ident     /
+    //           /
     //          |
     //         |
     //        |
@@ -270,55 +372,68 @@ test "retime 48khz samples with a curve, and then resample that retimed data" {
         // go up
         curve.create_linear_segment(
             .{ .time = 0.25, .value = 0.25 },
-            .{ .time = 0.5, .value = 2 },
+            .{ .time = 0.5, .value = 0.75 },
         ),
-        // hold
+        // identity
         curve.create_linear_segment(
-            .{ .time = 0.5, .value = 2.0 },
-            .{ .time = 1.0, .value = 2.0 },
+            .{ .time = 0.5, .value = 0.75 },
+            .{ .time = 1.0, .value = 1.25 },
         ),
     };
     const retime_curve : curve.TimeCurve = .{
         .segments = &retime_curve_segments
     };
-
-   const samples_48_retimed = samples_48.retimed(retime_curve);
-   const samples_44 = samples_48_retimed.resampled(44100);
-
-   // do the measurement of what we've generated
-   const samples_44_p2p_0p1 = samples_44.peak_to_peak_distance(0.1);
-
-   // @TODO: listen to this and hear if we get the chirp/sweep
-   // const samples_44_p2p_0p35 = samples_44.peak_to_peak_distance(0.35);
-
-   const samples_44_p2p_0p75 = samples_44.peak_to_peak_distance(0.75);
-
-   // make the reference data
-   const samples_44100_at_200 = SineSampleGenerator{
-       .sampling_rate_hz = 44100,
-       .signal_frequency_hz = 200,
-       .signal_amplitude = 1,
-       .signal_duration_s = 1,
-   };
-   const samples_44100_at_200_p2p = samples_44100_at_200.peak_to_peak_distance(
-       0.5
-   );
-   try expect(
-       @abs(samples_44100_at_200_p2p - samples_44_p2p_0p1) <= 2
-   );
-
-   const samples_44100_at_100 = SineSampleGenerator{
-       .sampling_rate_hz = 44100,
-       .signal_frequency_hz = 200,
-       .signal_amplitude = 1,
-       .signal_duration_s = 1,
-   };
-   const samples_44100_at_100_p2p = samples_44100_at_100.peak_to_peak_distance(
-       0.5
+    try curve.write_json_file_curve(
+        retime_curve,
+        "/var/tmp/ours_retime_curve.curve.json"
     );
-   try expect(
-       @abs(samples_44100_at_100_p2p - samples_44_p2p_0p75) <= 2
-   );
+
+    const samples_48_retimed = try retimed(
+        std.testing.allocator,
+        s48,
+        retime_curve
+    );
+    defer samples_48_retimed.deinit();
+    const samples_44 = try resampled(
+        std.testing.allocator,
+        samples_48_retimed,
+        44100,
+    );
+    defer samples_44.deinit();
+    try samples_44.write_file("/var/tmp/ours_s44_retimed.wav");
+
+    // identity
+    const samples_44_p2p_0p25 = peak_to_peak_distance(
+        samples_44.buffer[0..11025]
+    );
+    try expectEqual(
+        441,
+        samples_44_p2p_0p25
+    );
+
+    // @TODO: Test failures are here -- questions
+    //        1. are we really passing the right values to libsamplerate (96 vs
+    //           192, etc)
+    //        2. is there an official API for doing pitch shifting?
+
+    // 2x
+    const samples_44_p2p_0p5 = peak_to_peak_distance(
+        samples_44.buffer[11025..22050]
+    );
+    try expectEqual(
+        441,
+        samples_44_p2p_0p5
+     );
+
+    // identity
+    const samples_44_p2p_1p0 = peak_to_peak_distance(
+        samples_44.buffer[22050..]
+    );
+    try expectEqual(
+        441,
+        samples_44_p2p_1p0
+    );
+
 }
 
 // test "retime 48khz samples with a curve projection, and then resample" {
