@@ -303,8 +303,8 @@ pub const TimeCurveLinear = struct {
 
     pub fn extents_time(self:@This()) ContinuousTimeInterval {
         return .{
-            .start_seconds = self.segments[0].p0.time,
-            .end_seconds = self.segments[self.segments.len - 1].p1.time,
+            .start_seconds = self.knots[0].time,
+            .end_seconds = self.knots[self.knots.len - 1].time,
         };
     }
 
