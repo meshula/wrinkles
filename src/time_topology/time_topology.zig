@@ -426,17 +426,19 @@ pub const TimeTopology = union (enum) {
     // linear_holodrome_curve: curve.TimeCurveLinearHolodrome,
     // bezier_holodrome_curve: curve.TimeCurveBezierHolodrome,
 
-    // default to an infinite identity
+    /// default to an infinite identity
     const IdentityArgs = struct {
         bounds: interval.ContinuousTimeInterval = interval.INF_CTI,
         transform: transform.AffineTransform1D = .{},
     };
 
     // @{ Initializers
+    /// initialize an infinite identity topology
     pub fn init_identity_infinite() TimeTopology {
         return init_identity(.{});
     }
 
+    ///initialize an identity topology
     pub fn init_identity(
         args: IdentityArgs,
     ) TimeTopology 
@@ -444,10 +446,12 @@ pub const TimeTopology = union (enum) {
         return .{ .affine = .{ .bounds = args.bounds } };
     }
 
+    /// initialize an affine topology
     pub fn init_affine(topo: AffineTopology) TimeTopology {
         return .{ .affine = topo };
     }
 
+    /// initialize a topology with a single linear curve over [start, end)
     pub fn init_linear_start_end(
         start:curve.ControlPoint,
         end: curve.ControlPoint
@@ -469,16 +473,18 @@ pub const TimeTopology = union (enum) {
         );
     }
     
+    /// initialize a topology with the given bezier cubic
     pub fn init_bezier_cubic(btc: curve.TimeCurve) TimeTopology {
         return .{.bezier_curve = .{.curve = btc}};
     }
     
+    /// initialize an empty time topology
     pub fn init_empty() TimeTopology {
         return .{ .empty = EmptyTopology{} };
     }
 
-    // builds a TimeTopology out with a mapping that contains a step function
     // @TODO: should include a phase offset
+    /// builds a TimeTopology out with a mapping that contains a step function
     pub fn init_step_mapping(
         in_bounds: interval.ContinuousTimeInterval,
         // the value of the function at the initial sample (f(0))
@@ -514,6 +520,7 @@ pub const TimeTopology = union (enum) {
     }
     // @}
 
+    /// the bounds of the curve in its input space
     pub fn bounds(self: @This()) interval.ContinuousTimeInterval {
         return switch (self) {
             inline else => |contained| contained.compute_bounds(),
