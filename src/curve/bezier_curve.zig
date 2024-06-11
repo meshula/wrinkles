@@ -865,7 +865,7 @@ pub const TimeCurve = struct {
         return try TimeCurve.init(&.{ create_linear_segment(p0, p1) });
     }
 
-
+    /// convert a linear curve into a bezier one
     pub fn init_from_linear_curve(crv: linear_curve.TimeCurveLinear) TimeCurve {
         var result = std.ArrayList(Segment).init(ALLOCATOR);
         result.deinit();
