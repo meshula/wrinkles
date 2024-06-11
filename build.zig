@@ -425,6 +425,22 @@ pub fn build(
         );
     }
 
+    const treecode = module_with_tests_and_artifact(
+        "treecode_lib",
+        .{ 
+            .b = b,
+            .fpath = "src/treecode.zig",
+            .target = options.target,
+            .test_step = test_step,
+            .deps = &.{
+                // .{ .name = "string_stuff", .module = string_stuff },
+                // .{ .name = "otio_allocator", .module = otio_allocator },
+                // .{ .name = "comath", .module = comath_dep.module("comath") },
+            },
+            .test_filter = options.test_filter,
+        }
+    );
+
     const opentime = module_with_tests_and_artifact(
         "opentime_lib",
         .{ 
@@ -536,13 +552,33 @@ pub fn build(
             .target = options.target,
             .test_step = test_step,
             .deps = &.{
-                .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "opentime", .module = opentime },
                 .{ .name = "otio_allocator", .module = otio_allocator },
                 .{ .name = "curve", .module = curve },
             },
+            .test_filter = options.test_filter,
         }
     );
+
+    const opentimelineio = module_with_tests_and_artifact(
+        "opentimelineio_lib",
+        .{ 
+            .b = b,
+            .fpath = "src/opentimelineio.zig",
+            .target = options.target,
+            .test_step = test_step,
+            .deps = &.{
+                .{ .name = "otio_allocator", .module = otio_allocator },
+                .{ .name = "string_stuff", .module = string_stuff },
+                .{ .name = "opentime", .module = opentime },
+                .{ .name = "curve", .module = curve },
+                .{ .name = "time_topology", .module = time_topology },
+                .{ .name = "treecode", .module = treecode },
+            },
+            .test_filter = options.test_filter,
+        }
+    );
+    _ = opentimelineio;
 
     const common_deps:[]const std.Build.Module.Import = &.{ 
         // external deps

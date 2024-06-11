@@ -82,7 +82,10 @@ pub const Treecode = struct {
     }
 
     pub fn clone(self: @This()) !Treecode {
-        var result_array = try self.allocator.alloc(TreecodeWord, self.sz);
+        var result_array = try self.allocator.alloc(
+            TreecodeWord,
+            self.sz
+        );
 
         for (self.treecode_array, 0..) |tc, index| {
             result_array[index] = tc;
@@ -114,7 +117,7 @@ pub const Treecode = struct {
             i += 1;
         }
 
-        var count = (
+        const count = (
             (WORD_BIT_COUNT - 1) - @clz(self.treecode_array[occupied_words])
         );
 
@@ -137,7 +140,7 @@ pub const Treecode = struct {
             return false;
         }
 
-        var greatest_nozero_index: usize = len_self / WORD_BIT_COUNT;
+        const greatest_nozero_index: usize = len_self / WORD_BIT_COUNT;
         var i:usize = 0;
         while (i <= greatest_nozero_index): (i += 1) {
             if (self.treecode_array[i] != other.treecode_array[i]) {
@@ -223,8 +226,8 @@ pub const Treecode = struct {
         rhs: Treecode
     ) bool 
     {
-        var len_self: usize = self.code_length();
-        var len_rhs: usize = rhs.code_length();
+        const len_self: usize = self.code_length();
+        const len_rhs: usize = rhs.code_length();
 
         // empty lhs path is always a superset
         if (len_self == 0) {
@@ -242,7 +245,7 @@ pub const Treecode = struct {
             );
         }
 
-        var greatest_nonzero_rhs_index: usize = (
+        const greatest_nonzero_rhs_index: usize = (
             len_rhs / WORD_BIT_COUNT
         );
         var i:usize = 0;
@@ -260,7 +263,7 @@ pub const Treecode = struct {
             return true;
         }
 
-        var mask: TreecodeWord = treecode_word_mask(mask_bits);
+        const mask: TreecodeWord = treecode_word_mask(mask_bits);
 
         const self_masked = (
             self.treecode_array[greatest_nonzero_rhs_index] & mask
@@ -301,7 +304,7 @@ pub const Treecode = struct {
             if (tc > 0) {
                 std.hash.autoHash(&hasher, index + 1);
                 // ensure no overflow
-                std.hash.autoHash(&hasher, @intCast(u256, tc) + 1);
+                std.hash.autoHash(&hasher, @as(u256, @intCast(tc)) + 1);
             }
         }
 
@@ -322,7 +325,7 @@ pub const Treecode = struct {
 
         const masked_val = dest.treecode_array[self_len_word] & mask;
 
-        return @intCast(u1, std.math.shr(TreecodeWord, masked_val, self_len_pos_local));
+        return @intCast(std.math.shr(TreecodeWord, masked_val, self_len_pos_local));
     }
 
 
@@ -397,8 +400,8 @@ test "treecode: @clz" {
 
 fn treecode_word_mask(leading_zeros: usize) TreecodeWord {
     return (
-        @intCast(TreecodeWord, 1) << (
-            @intCast(u7, (WORD_BIT_COUNT - leading_zeros))
+        @as(TreecodeWord, @intCast(1)) << (
+            @as(u7, @intCast((WORD_BIT_COUNT - leading_zeros)))
         )
     ) - 1;
 }
@@ -939,15 +942,15 @@ fn treecode_word_append(a: TreecodeWord, l_or_r_branch: u1) TreecodeWord {
 
     // strip leading bit
     const leading_bit = (
-        @as(TreecodeWord, 1) << @intCast(u7, @as(u8, signficant_bits))
+        @as(TreecodeWord, 1) << @as(u7, @intCast(@as(u8, signficant_bits)))
     );
 
     const a_without_leading_bit = (a - leading_bit) ;
     const leading_bit_shifted = (leading_bit << 1);
 
     const l_or_r_branch_shifted = (
-        @intCast(TreecodeWord, l_or_r_branch) 
-        << @intCast(u7, (@as(u8, signficant_bits)))
+        @as(TreecodeWord, @intCast(l_or_r_branch) )
+        << @as(u7, @intCast((@as(u8, signficant_bits))))
     );
 
     const result = (
@@ -987,7 +990,40 @@ test "treecode: hash" {
         var tc2 = try Treecode.init_word(std.testing.allocator, 0b101);
         defer tc2.deinit();
 
-        try std.testing.expectEqual(tc1.hash(), tc2.hash());
+        try std.testing.expectEqual(
+            tc1.hash(),
+            tc2.hash()
+        );
+
+        // ensure that the allocator isn't participating in the hash
+        {
+            var tmp = [_]TreecodeWord{ 0b101 };
+            const t1 = Treecode{
+                .allocator = undefined,
+                .sz = 1,
+                .treecode_array = &tmp,
+            };
+            const t2 = try Treecode.init_word(
+                // different allocator
+                std.testing.allocator,
+                0b101
+            );
+            defer t2.deinit();
+            try std.testing.expectEqual(
+                t1.hash(),
+                t2.hash()
+            );
+
+            try std.testing.expect(t1.eql(t2));
+            var thm = TreecodeHashMap(u8).init(std.testing.allocator);
+            defer thm.deinit();
+
+            try thm.put(t1, 4);
+            try std.testing.expectEqual(
+                thm.get(t1), thm.get(t2)
+            );
+
+        }
 
         try tc1.append(1);
         try tc2.append(1);
