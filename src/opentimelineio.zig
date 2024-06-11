@@ -2004,6 +2004,11 @@ pub fn read_from_file(
 }
 
 test "read_from_file test" {
+    // @TODO: disabled because it has a bonkers amount of leaking in it.
+    //        the JSON reader and json.object.Value -> struct code needs to be
+    //        redone.
+    //
+    //        its a good idea, and can definitely be rescued.
     if (true) {
         return error.SkipZigTest;
     }
