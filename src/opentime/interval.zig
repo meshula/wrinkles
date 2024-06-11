@@ -10,10 +10,10 @@ const expect = std.testing.expect;
 // right open interval on the time continuum
 // the default CTI splits the timeline at the origin
 pub const ContinuousTimeInterval = struct {
-    // inclusive
+    /// the start time of the interval in seconds, inclusive
     start_seconds: f32 = 0,
 
-    // exclusive
+    /// the end time of the interval in seconds, exclusive
     end_seconds: f32 = util.inf,
 
     // compute the duration of the interval, if either boundary is not finite,

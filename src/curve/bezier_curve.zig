@@ -1453,6 +1453,7 @@ pub const TimeCurve = struct {
         return .{ .segments = result_segments };
     }
 
+    /// build a string serialization of the curve
     pub fn debug_json_str(self:@This()) []const u8
     {
         var str = std.ArrayList(u8).init(ALLOCATOR);
@@ -1460,6 +1461,7 @@ pub const TimeCurve = struct {
         return str.items;
     }
 
+    /// return the extents of the curve's input space
     pub fn extents_time(self:@This()) ContinuousTimeInterval {
         return .{
             .start_seconds = self.segments[0].p0.time,
@@ -1467,6 +1469,7 @@ pub const TimeCurve = struct {
         };
     }
 
+    /// return the extents of the curve as control points
     pub fn extents(self:@This()) [2]control_point.ControlPoint {
         var min:control_point.ControlPoint = self.segments[0].p0;
         var max:control_point.ControlPoint = self.segments[0].p3;
@@ -1934,6 +1937,7 @@ pub const TimeCurve = struct {
     }
 };
 
+/// parse a .curve.json file from disk and return a TimeCurve
 pub fn read_curve_json(
     file_path: latin_s8,
     allocator_:std.mem.Allocator
@@ -2216,6 +2220,7 @@ pub fn write_json_file(json_blob: []const u8, to_fpath: []const u8) !void {
     try file.writeAll(json_blob);
 }
 
+/// serialize a thing with a .debug_json_str to the filepath
 pub fn write_json_file_curve(curve: anytype, to_fpath: []const u8) !void {
     try write_json_file(curve.debug_json_str(), to_fpath);
 }

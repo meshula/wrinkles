@@ -1378,7 +1378,7 @@ fn _rescaled_pt(
     };
 }
 
-// return a new curve rescaled over the domain
+/// return a new curve rescaled over the specified target_range
 pub fn rescaled_curve(
     crv: curve.TimeCurve,
     target_range: [2]ControlPoint,
