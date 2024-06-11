@@ -594,8 +594,6 @@ fn _is_approximately_linear(
 
 }
 
-const LinearizeError = error { OutOfMemory };
-
 /// Based on this paper:
 /// https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.86.162&rep=rep1&type=pdf
 /// return a list of segments that approximate the segment with the given tolerance
@@ -604,8 +602,7 @@ const LinearizeError = error { OutOfMemory };
 pub fn linearize_segment(
     segment: Segment,
     tolerance:f32,
-    // @TODO this shouldn't return an arraylist
-) error{OutOfMemory}!std.ArrayList(control_point.ControlPoint) 
+) error{OutOfMemory}![]control_point.ControlPoint
 {
     // @TODO: this function should compute and preserve the derivatives on the
     //        bezier segments
@@ -613,33 +610,32 @@ pub fn linearize_segment(
         std.ArrayList(control_point.ControlPoint).init(ALLOCATOR)
     );
 
-    // terminal condition
     if (_is_approximately_linear(segment, tolerance)) {
+        // terminal condition
         try result.append(segment.p0);
         try result.append(segment.p3);
+    } else {
+        // recursion
+        const subsegments = segment.split_at(0.5) orelse unreachable;
 
-        return result;
+        try result.appendSlice(try linearize_segment(subsegments[0], tolerance));
+        try result.appendSlice(try linearize_segment(subsegments[1], tolerance));
     }
 
-    const subsegments = segment.split_at(0.5) orelse unreachable;
-
-    try result.appendSlice((try linearize_segment(subsegments[0], tolerance)).items);
-    try result.appendSlice((try linearize_segment(subsegments[1], tolerance)).items);
-
-    return result;
+    return result.toOwnedSlice();
 }
 
 test "segment: linearize basic test" {
     const segment = try read_segment_json("segments/upside_down_u.json");
     var linearized_knots = try linearize_segment(segment, 0.01);
 
-    try expectEqual(@as(usize, 8*2), linearized_knots.items.len);
+    try expectEqual(@as(usize, 8*2), linearized_knots.len);
 
     linearized_knots = try linearize_segment(segment, 0.000001);
-    try expectEqual(@as(usize, 68*2), linearized_knots.items.len);
+    try expectEqual(@as(usize, 68*2), linearized_knots.len);
 
     linearized_knots = try linearize_segment(segment, 0.00000001);
-    try expectEqual(@as(usize, 256*2), linearized_knots.items.len);
+    try expectEqual(@as(usize, 256*2), linearized_knots.len);
 }
 
 test "segment from point array" {
@@ -655,24 +651,24 @@ test "segment from point array" {
     try expectApproxEql(@as(f32, 0), ident.eval_at(0.5).value);
 
     const linearized_ident_knots = try linearize_segment(ident, 0.01);
-    try expectEqual(@as(usize, 2), linearized_ident_knots.items.len);
+    try expectEqual(@as(usize, 2), linearized_ident_knots.len);
 
     try expectApproxEql(
         original_knots_ident[0].time,
-        linearized_ident_knots.items[0].time
+        linearized_ident_knots[0].time
     );
     try expectApproxEql(
         original_knots_ident[0].value,
-        linearized_ident_knots.items[0].value
+        linearized_ident_knots[0].value
     );
 
     try expectApproxEql(
         original_knots_ident[3].time,
-        linearized_ident_knots.items[1].time
+        linearized_ident_knots[1].time
     );
     try expectApproxEql(
         original_knots_ident[3].value,
-        linearized_ident_knots.items[1].value
+        linearized_ident_knots[1].value
     );
 }
 
@@ -681,7 +677,7 @@ test "segment: linearize already linearized curve" {
     const linearized_knots = try linearize_segment(segment, 0.01);
 
     // already linear!
-    try expectEqual(@as(usize, 2), linearized_knots.items.len);
+    try expectEqual(@as(usize, 2), linearized_knots.len);
 }
 
 pub fn read_segment_json(file_path: latin_s8) !Segment {
@@ -942,10 +938,11 @@ pub const TimeCurve = struct {
         return null;
     }
 
-    pub fn insert(self: @This(), seg: Segment) void {
+    pub fn insert(self: @This(), seg: Segment) !void {
         const conflict = find_segment(seg.p0.time);
-        if (conflict != null)
-            unreachable;
+        if (conflict != null) {
+            return error.NotImplemented;
+        }
 
         self.segments.append(seg);
         std.sort(
@@ -955,6 +952,7 @@ pub const TimeCurve = struct {
         );
     }
 
+    /// build a linearized version of this TimeCurve
     pub fn linearized(
         self: @This()
     ) linear_curve.TimeCurveLinear 
@@ -983,7 +981,9 @@ pub const TimeCurve = struct {
                 linearized_knots.appendSlice(
                     (
                      linearize_segment(seg, 0.000001) catch unreachable
-                    ).items[start_knot..]
+                     // first knot of all interior segments should match the 
+                     // last knot of the previous segment, so can be skipped
+                    )[start_knot..]
                 ) catch unreachable;
             }
         } else {
@@ -991,9 +991,7 @@ pub const TimeCurve = struct {
             for (self.segments) |seg| {
                 // @TODO: expose the tolerance as a parameter(?)
                 linearized_knots.appendSlice(
-                    (
-                     linearize_segment(seg, 0.000001) catch unreachable
-                    ).items
+                    linearize_segment(seg, 0.000001) catch unreachable
                 ) catch unreachable;
             }
         }
@@ -1980,7 +1978,7 @@ test "Curve: read_curve_json" {
     const linearized_knots = try linearize_segment(segment, 0.01);
 
     // already linear!
-    try expectEqual(@as(usize, 2), linearized_knots.items.len);
+    try expectEqual(@as(usize, 2), linearized_knots.len);
 }
 
 test "Segment: projected_segment to 1/2" {
