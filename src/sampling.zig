@@ -60,8 +60,12 @@ const Sampling = struct {
         end_time_exclusive_s: sample_t,
     ) []sample_t
     {
-        const start_index:usize = @intFromFloat(start_time_inclusive_s*@as(f32, @floatFromInt(self.sample_rate_hz)));
-        const end_index:usize = @intFromFloat(end_time_exclusive_s*@as(f32, @floatFromInt(self.sample_rate_hz)));
+        const start_index:usize = @intFromFloat(
+            start_time_inclusive_s*@as(f32, @floatFromInt(self.sample_rate_hz))
+        );
+        const end_index:usize = @intFromFloat(
+            end_time_exclusive_s*@as(f32, @floatFromInt(self.sample_rate_hz))
+        );
 
         return self.buffer[start_index..end_index];
     }
