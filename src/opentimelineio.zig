@@ -853,7 +853,6 @@ pub fn build_topological_map(
     root_item: ItemPtr
 ) !TopologicalMap 
 {
-
     const tmp_allocator = otio_allocator.ALLOCATOR;
     // var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     // defer arena.deinit();
@@ -891,29 +890,29 @@ pub fn build_topological_map(
 
             for (0.., spaces) 
                 |index, space_ref| 
-                {
-                    const child_code = try depth_child_code(current_code, index);
-                    if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
-                        std.debug.assert(tmp_topo_map.map_code_to_space.get(child_code) == null);
-                        std.debug.assert(tmp_topo_map.map_space_to_code.get(space_ref) == null);
-                        std.debug.print(
-                            "[{d}] code: {b} hash: {d} adding local space: '{s}.{s}'\n",
-                            .{
-                                index,
-                                child_code.treecode_array[0],
-                                child_code.hash(), 
-                                @tagName(space_ref.item),
-                                @tagName(space_ref.label)
-                            }
-                        );
-                    }
-                    try tmp_topo_map.map_space_to_code.put(space_ref, child_code);
-                    try tmp_topo_map.map_code_to_space.put(child_code, space_ref);
-
-                    if (index == (spaces.len - 1)) {
-                        current_code = child_code;
-                    }
+            {
+                const child_code = try depth_child_code(current_code, index);
+                if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
+                    std.debug.assert(tmp_topo_map.map_code_to_space.get(child_code) == null);
+                    std.debug.assert(tmp_topo_map.map_space_to_code.get(space_ref) == null);
+                    std.debug.print(
+                        "[{d}] code: {b} hash: {d} adding local space: '{s}.{s}'\n",
+                        .{
+                            index,
+                            child_code.treecode_array[0],
+                            child_code.hash(), 
+                            @tagName(space_ref.item),
+                            @tagName(space_ref.label)
+                        }
+                    );
                 }
+                try tmp_topo_map.map_space_to_code.put(space_ref, child_code);
+                try tmp_topo_map.map_code_to_space.put(child_code, space_ref);
+
+                if (index == (spaces.len - 1)) {
+                    current_code = child_code;
+                }
+            }
         }
 
         // transforms to children
@@ -1619,7 +1618,7 @@ test "Single Clip bezier transform" {
     // output       [-----------------------------)
     //                               _,-----------x
     // transform                   _/
-    // (curve)                  ,/
+    // (curve)                   ,/
     //              x-----------'
     // intrinsic    [-----------------------------)
     //              0                             10 (seconds)
