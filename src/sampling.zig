@@ -38,6 +38,21 @@ const Sampling = struct {
     pub fn deinit(self: @This()) void {
         self.allocator.free(self.buffer);
     }
+
+    pub fn write_file(self: @This(), fpath: []const u8) !void {
+        var file = try std.fs.cwd().createFile(fpath, .{});
+        defer file.close();
+
+        var encoder = try wav.encoder(
+            i16,
+            file.writer(),
+            file.seekableStream(),
+            self.sample_rate_hz,
+            1
+        );
+        try encoder.write(f32, self.buffer);
+        try encoder.finalize(); // Don't forget to finalize after you're done writing.
+    }
 };
 
 const SineSampleGenerator = struct {
@@ -425,16 +440,5 @@ test "wav.zig generator test (our code)" {
     const s48 = try samples_48.rasterized(std.testing.allocator);
     defer s48.deinit();
 
-    var file = try std.fs.cwd().createFile("/var/tmp/ours_givemeasine.wav", .{});
-    defer file.close();
-
-    var encoder = try wav.encoder(
-        i16,
-        file.writer(),
-        file.seekableStream(),
-        s48.sample_rate_hz,
-        1
-    );
-    try encoder.write(f32, s48.buffer);
-    try encoder.finalize(); // Don't forget to finalize after you're done writing.
+    try s48.write_file("/var/tmp/ours_givemesine.wav");
 }
