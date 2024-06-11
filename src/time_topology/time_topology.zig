@@ -204,8 +204,12 @@ pub const LinearTopology = struct {
     }
 
     pub fn inverted(self: @This()) !TimeTopology {
-        _ = self;
-        return error.NotImplemented;
+        const result = TimeTopology{
+            .linear_curve = .{
+                .curve = curve.inverted_linear(self.curve)
+            }
+        };
+        return result;
     }
 
     // @TODO: needs to return a list of topologies (imagine a line projected
@@ -241,6 +245,28 @@ pub const LinearTopology = struct {
     }
 };
 
+test "LinearTopology: invert" {
+    const crv = try curve.TimeCurveLinear.init(
+        &.{ 
+            .{ .time = 0, .value = 10 },
+            .{ .time = 10, .value = 20 },
+        },
+    );
+    const topo = TimeTopology{
+        .linear_curve = .{ .curve = crv }
+    };
+
+    const topo_bounds = topo.bounds();
+    try expectEqual(0, topo_bounds.start_seconds);
+    try expectEqual(10, topo_bounds.end_seconds);
+
+    const topo_inv = try topo.inverted();
+    const topo_inv_bounds = topo_inv.bounds();
+    try expectEqual(10, topo_inv_bounds.start_seconds);
+    try expectEqual(20, topo_inv_bounds.end_seconds);
+
+}
+
 pub const BezierTopology = struct {
     curve: curve.TimeCurve,
 
@@ -265,9 +291,10 @@ pub const BezierTopology = struct {
         return self.curve.evaluate(ordinate);
     }
 
-    pub fn inverted(self: @This()) !TimeTopology {
-        _ = self;
-        return error.NotImplemented;
+    pub fn inverted(self: @This()) error{OutOfBounds,NotImplemented}!TimeTopology {
+         return TimeTopology{
+            .linear_curve = .{ .curve = curve.inverted(self.curve) }
+        };
     }
 
     // pub fn project_topology(
@@ -383,6 +410,35 @@ pub const BezierTopology = struct {
         };
     }
 };
+
+test "BezierTopology: inverted" {
+    const base_curve = try curve.read_curve_json(
+        "curves/scurve.curve.json",
+        std.testing.allocator,
+    );
+    defer base_curve.deinit(std.testing.allocator);
+
+    // this curve is [-0.5, 0.5), rescale it into test range
+    const xform_curve = try curve.rescaled_curve(
+        base_curve,
+        //  the range of the clip for testing - rescale factors
+        .{
+            .{ .time = 100, .value = 0, },
+            .{ .time = 110, .value = 10, },
+        }
+    );
+    const curve_topo = TimeTopology.init_bezier_cubic(
+        xform_curve
+    );
+    const curve_topo_bounds = curve_topo.bounds();
+    try expectEqual(100, curve_topo_bounds.start_seconds);
+    try expectEqual(110, curve_topo_bounds.end_seconds);
+    
+    const curve_topo_inverted = try curve_topo.inverted();
+    const topo_inv_bounds = curve_topo_inverted.bounds();
+    try expectEqual(0, topo_inv_bounds.start_seconds);
+    try expectEqual(10, topo_inv_bounds.end_seconds);
+}
 
 pub const EmptyTopology = struct {
     pub fn project_ordinate(_: @This(), _: Ordinate) !Ordinate {
@@ -520,7 +576,7 @@ pub const TimeTopology = union (enum) {
     }
     // @}
 
-    /// the bounds of the curve in its input space
+    /// the bounding interval of the topology in its input space
     pub fn bounds(self: @This()) interval.ContinuousTimeInterval {
         return switch (self) {
             inline else => |contained| contained.compute_bounds(),
