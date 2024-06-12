@@ -614,15 +614,17 @@ fn _is_approximately_linear(
 ///
 /// ASSUMES THAT ALL POINTS ARE FINITE
 pub fn linearize_segment(
+    allocator: std.mem.Allocator,
     segment: Segment,
     tolerance:f32,
-) error{OutOfMemory}![]control_point.ControlPoint
+) ![]control_point.ControlPoint
 {
     // @TODO: this function should compute and preserve the derivatives on the
     //        bezier segments
     var result: std.ArrayList(control_point.ControlPoint) = (
-        std.ArrayList(control_point.ControlPoint).init(ALLOCATOR)
+        std.ArrayList(control_point.ControlPoint).init(allocator)
     );
+    defer result.deinit();
 
     if (_is_approximately_linear(segment, tolerance)) {
         // terminal condition
@@ -630,10 +632,29 @@ pub fn linearize_segment(
         try result.append(segment.p3);
     } else {
         // recursion
-        const subsegments = segment.split_at(0.5) orelse unreachable;
+        const subsegments = (
+            segment.split_at(0.5) orelse return error.NoSplitForLinearization
+        );
 
-        try result.appendSlice(try linearize_segment(subsegments[0], tolerance));
-        try result.appendSlice(try linearize_segment(subsegments[1], tolerance));
+        {
+            const l_result = try linearize_segment(
+                allocator,
+                subsegments[0],
+                tolerance
+            );
+            defer allocator.free(l_result);
+            try result.appendSlice(l_result);
+        }
+
+        {
+            const r_result = try linearize_segment(
+                allocator,
+                subsegments[1],
+                tolerance
+            );
+            defer allocator.free(r_result);
+            try result.appendSlice(r_result);
+        }
     }
 
     return result.toOwnedSlice();
@@ -641,15 +662,36 @@ pub fn linearize_segment(
 
 test "segment: linearize basic test" {
     const segment = try read_segment_json("segments/upside_down_u.json");
-    var linearized_knots = try linearize_segment(segment, 0.01);
 
-    try expectEqual(@as(usize, 8*2), linearized_knots.len);
+    {
+        const linearized_knots = try linearize_segment(
+            std.testing.allocator,
+            segment,
+            0.01
+        );
+        defer std.testing.allocator.free(linearized_knots);
+        try expectEqual(@as(usize, 8*2), linearized_knots.len);
+    }
 
-    linearized_knots = try linearize_segment(segment, 0.000001);
-    try expectEqual(@as(usize, 68*2), linearized_knots.len);
+    {
+        const linearized_knots = try linearize_segment(
+            std.testing.allocator,
+            segment,
+            0.000001
+        );
+        defer std.testing.allocator.free(linearized_knots);
+        try expectEqual(@as(usize, 68*2), linearized_knots.len);
+    }
 
-    linearized_knots = try linearize_segment(segment, 0.00000001);
-    try expectEqual(@as(usize, 256*2), linearized_knots.len);
+    {
+        const linearized_knots = try linearize_segment(
+            std.testing.allocator,
+            segment,
+            0.00000001
+        );
+        defer std.testing.allocator.free(linearized_knots);
+        try expectEqual(@as(usize, 256*2), linearized_knots.len);
+    }
 }
 
 test "segment from point array" {
@@ -664,7 +706,12 @@ test "segment from point array" {
 
     try expectApproxEql(@as(f32, 0), ident.eval_at(0.5).value);
 
-    const linearized_ident_knots = try linearize_segment(ident, 0.01);
+    const linearized_ident_knots = try linearize_segment(
+        std.testing.allocator,
+        ident,
+        0.01
+    );
+    defer std.testing.allocator.free(linearized_ident_knots);
     try expectEqual(@as(usize, 2), linearized_ident_knots.len);
 
     try expectApproxEql(
@@ -688,7 +735,12 @@ test "segment from point array" {
 
 test "segment: linearize already linearized curve" {
     const segment = try read_segment_json("segments/linear.json");
-    const linearized_knots = try linearize_segment(segment, 0.01);
+    const linearized_knots = try linearize_segment(
+        std.testing.allocator,
+        segment,
+        0.01
+    );
+    defer std.testing.allocator.free(linearized_knots);
 
     // already linear!
     try expectEqual(@as(usize, 2), linearized_knots.len);
@@ -1011,7 +1063,7 @@ pub const TimeCurve = struct {
                 // @TODO: expose the tolerance as a parameter(?)
                 linearized_knots.appendSlice(
                     (
-                     linearize_segment(seg, 0.000001) catch unreachable
+                     linearize_segment(ALLOCATOR, seg, 0.000001) catch unreachable
                      // first knot of all interior segments should match the 
                      // last knot of the previous segment, so can be skipped
                     )[start_knot..]
@@ -1022,7 +1074,7 @@ pub const TimeCurve = struct {
             for (self.segments) |seg| {
                 // @TODO: expose the tolerance as a parameter(?)
                 linearized_knots.appendSlice(
-                    linearize_segment(seg, 0.000001) catch unreachable
+                    linearize_segment(ALLOCATOR,seg, 0.000001) catch unreachable
                 ) catch unreachable;
             }
         }
@@ -2014,7 +2066,12 @@ test "Curve: read_curve_json" {
     // first segment should already be linear
     const segment = curve.segments[0];
 
-    const linearized_knots = try linearize_segment(segment, 0.01);
+    const linearized_knots = try linearize_segment(
+        std.testing.allocator,
+        segment,
+        0.01
+    );
+    defer std.testing.allocator.free(linearized_knots);
 
     // already linear!
     try expectEqual(@as(usize, 2), linearized_knots.len);
