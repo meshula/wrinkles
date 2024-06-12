@@ -176,8 +176,21 @@ pub const Segment = struct {
         return .{ self.p0, self.p1, self.p2, self.p3 };
     }
 
-    pub fn from_pt_array(pts: [4]control_point.ControlPoint) Segment {
-        return .{ .p0 = pts[0], .p1 = pts[1], .p2 = pts[2], .p3 = pts[3], };
+    pub fn point_ptrs(self: *@This()) [4]*control_point.ControlPoint {
+        return .{ &self.p0, &self.p1, &self.p2, &self.p3 };
+    }
+
+    /// copy pts over values in self
+    pub fn from_pt_array(
+        pts: [4]control_point.ControlPoint
+    ) Segment 
+    {
+        return .{ 
+            .p0 = pts[0],
+            .p1 = pts[1],
+            .p2 = pts[2],
+            .p3 = pts[3], 
+        };
     }
 
     pub fn set_points(self: *@This(), pts: [4]control_point.ControlPoint) void {
@@ -250,6 +263,7 @@ pub const Segment = struct {
         return (self.p0.time <= t and self.p3.time > t);
     }
 
+    // @TODO: check this function
     pub fn split_at(self: @This(), unorm:f32) ?[2]Segment 
     {
         if (unorm < generic_curve.EPSILON or unorm >= 1)

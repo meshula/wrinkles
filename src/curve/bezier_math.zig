@@ -1171,11 +1171,10 @@ pub fn normalized_to(
     for (result.segments) 
         |*seg| 
     {
-        var new_points:[4]ControlPoint = undefined;
-        for (seg.points(), 0..) 
-            |pt, pt_index| 
+        for (seg.point_ptrs()) 
+            |pt| 
         {
-            new_points[pt_index] = .{
+            pt.* = .{
                 .time = remap_float(
                     pt.time,
                     crv_min.time, crv_max.time,
@@ -1188,7 +1187,6 @@ pub fn normalized_to(
                 ),
             };
         }
-        seg.* = curve.Segment.from_pt_array(new_points);
     }
 
     return result;
@@ -1404,19 +1402,16 @@ pub fn rescaled_curve(
     for (result.segments) 
         |*seg| 
     {
-        var new_points:[4]ControlPoint = undefined;
-        for (seg.points(), 0..) 
-            |pt, pt_index| 
+        for (seg.point_ptrs()) 
+            |pt| 
         {
 
-            new_points[pt_index] = _rescaled_pt(
-                pt,
+            pt.* = _rescaled_pt(
+                pt.*,
                 extents,
                 target_range
             );
         }
-
-        seg.* = curve.Segment.from_pt_array(new_points);
     }
 
     return result;
