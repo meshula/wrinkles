@@ -420,6 +420,7 @@ test "BezierTopology: inverted" {
 
     // this curve is [-0.5, 0.5), rescale it into test range
     const xform_curve = try curve.rescaled_curve(
+        std.testing.allocator,
         base_curve,
         //  the range of the clip for testing - rescale factors
         .{
@@ -427,6 +428,7 @@ test "BezierTopology: inverted" {
             .{ .time = 110, .value = 10, },
         }
     );
+    defer xform_curve.deinit(std.testing.allocator);
     const curve_topo = TimeTopology.init_bezier_cubic(
         xform_curve
     );
@@ -982,6 +984,7 @@ test "TimeTopology: project bezier through affine" {
     );
     defer crv.deinit(std.testing.allocator);
     const xform_curve = try curve.rescaled_curve(
+        std.testing.allocator,
         //  the range of the clip for testing - rescale factors
         crv,
         .{
@@ -989,6 +992,7 @@ test "TimeTopology: project bezier through affine" {
             .{ .time = 110, .value = 10, },
         }
     );
+    defer xform_curve.deinit(std.testing.allocator);
 
     const curve_topo = TimeTopology.init_bezier_cubic(xform_curve);
 

@@ -857,6 +857,19 @@ pub const TimeCurve = struct {
         allocator.free(self.segments);
     }
 
+    pub fn clone(
+        self: @This(),
+        allocator: std.mem.Allocator
+    ) !TimeCurve
+    {
+        return .{ 
+            .segments = try allocator.dupe(
+                Segment,
+                self.segments
+            ),
+        };
+    }
+
     pub fn init_from_start_end(
         p0: control_point.ControlPoint,
         p1: control_point.ControlPoint

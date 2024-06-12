@@ -1151,12 +1151,12 @@ fn remap_float(
 
 /// return crv normalized into the space provided
 pub fn normalized_to(
+    allocator: std.mem.Allocator,
     crv:curve.TimeCurve,
     min_point:ControlPoint,
     max_point:ControlPoint,
-) curve.TimeCurve 
+) !curve.TimeCurve 
 {
-
     // return input, curve is empty
     if (crv.segments.len == 0) {
         return crv;
@@ -1166,13 +1166,15 @@ pub fn normalized_to(
     const crv_min = extents[0];
     const crv_max = extents[1];
 
-    // copy the curve
-    var result = crv;
-    result.segments = ALLOCATOR.dupe(curve.Segment, crv.segments) catch unreachable;
+    const result = try crv.clone(allocator);
 
-    for (result.segments, 0..) |seg, seg_index| {
+    for (result.segments) 
+        |*seg| 
+    {
         var new_points:[4]ControlPoint = undefined;
-        for (seg.points(), 0..) |pt, pt_index| {
+        for (seg.points(), 0..) 
+            |pt, pt_index| 
+        {
             new_points[pt_index] = .{
                 .time = remap_float(
                     pt.time,
@@ -1186,7 +1188,7 @@ pub fn normalized_to(
                 ),
             };
         }
-        result.segments[seg_index] = curve.Segment.from_pt_array(new_points);
+        seg.* = curve.Segment.from_pt_array(new_points);
     }
 
     return result;
@@ -1213,7 +1215,13 @@ test "normalized_to" {
     const min_point = ControlPoint{.time=-100, .value=-300};
     const max_point = ControlPoint{.time=100, .value=-200};
 
-    const result_crv = normalized_to(input_crv, min_point, max_point);
+    const result_crv = try normalized_to(
+        std.testing.allocator,
+        input_crv,
+        min_point,
+        max_point
+    );
+    defer result_crv.deinit(std.testing.allocator);
     const result_extents = result_crv.extents();
 
     try expectEqual(min_point.time, result_extents[0].time);
@@ -1239,7 +1247,13 @@ test "normalize_to_screen_coords" {
     const min_point = ControlPoint{.time=700, .value=100};
     const max_point = ControlPoint{.time=2500, .value=1900};
 
-    const result_crv = normalized_to(input_crv, min_point, max_point);
+    const result_crv = try normalized_to(
+        std.testing.allocator,
+        input_crv,
+        min_point,
+        max_point
+    );
+    defer result_crv.deinit(std.testing.allocator);
     const result_extents = result_crv.extents();
 
     try expectEqual(min_point.time, result_extents[0].time);
@@ -1378,30 +1392,34 @@ fn _rescaled_pt(
 
 /// return a new curve rescaled over the specified target_range
 pub fn rescaled_curve(
+    allocator: std.mem.Allocator,
     crv: curve.TimeCurve,
     target_range: [2]ControlPoint,
 ) !curve.TimeCurve
 {
     const extents = crv.extents();
 
-    var segments = std.ArrayList(curve.Segment).init(ALLOCATOR);
-    defer segments.deinit();
+    const result = try crv.clone(allocator);
 
-    for (crv.segments) |seg| {
-        const pts = seg.points();
+    for (result.segments) 
+        |*seg| 
+    {
+        var new_points:[4]ControlPoint = undefined;
+        for (seg.points(), 0..) 
+            |pt, pt_index| 
+        {
 
-        var new_pts:[4]ControlPoint = pts;
-
-        for (pts, 0..) |pt, index| {
-            new_pts[index] = _rescaled_pt(pt, extents, target_range);
+            new_points[pt_index] = _rescaled_pt(
+                pt,
+                extents,
+                target_range
+            );
         }
 
-        const new_seg = curve.Segment.from_pt_array(new_pts);
-
-        try segments.append(new_seg);
+        seg.* = curve.Segment.from_pt_array(new_points);
     }
 
-    return curve.TimeCurve.init(segments.items);
+    return result;
 }
 
 test "TimeCurve: rescaled parameter" {
@@ -1420,12 +1438,14 @@ test "TimeCurve: rescaled parameter" {
     try expectApproxEql(@as(f32,  0.5), start_extents[1].value);
 
     const result = try rescaled_curve(
+        std.testing.allocator,
         crv,
         .{
             .{ .time = 100, .value = 0 },
             .{ .time = 200, .value = 10 },
         }
     );
+    defer result.deinit(std.testing.allocator);
 
     const end_extents = result.extents();
 

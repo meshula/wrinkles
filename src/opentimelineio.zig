@@ -1635,6 +1635,7 @@ test "Single Clip bezier transform" {
 
     // this curve is [-0.5, 0.5), rescale it into test range
     const xform_curve = try curve.rescaled_curve(
+        std.testing.allocator,
         base_curve,
         //  the range of the clip for testing - rescale factors
         .{
@@ -1642,6 +1643,7 @@ test "Single Clip bezier transform" {
             .{ .time = 10, .value = 10, },
         }
     );
+    defer xform_curve.deinit(std.testing.allocator);
     const curve_topo = time_topology.TimeTopology.init_bezier_cubic(
         xform_curve
     );
