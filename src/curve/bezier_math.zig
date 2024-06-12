@@ -19,8 +19,8 @@ fn expectApproxEql(expected: anytype, actual: @TypeOf(expected)) !void {
     );
 }
 
-const allocator = @import("otio_allocator");
-const ALLOCATOR = allocator.ALLOCATOR;
+const otio_allocator = @import("otio_allocator");
+const ALLOCATOR = otio_allocator.ALLOCATOR;
 
 const CTX = comath.ctx.fnMethod(
     comath.ctx.simple(dual.dual_ctx{}),
