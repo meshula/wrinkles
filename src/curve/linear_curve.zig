@@ -1,3 +1,4 @@
+const string_stuff = @import("string_stuff");
 const bezier_math = @import("bezier_math.zig");
 const generic_curve = @import("generic_curve.zig");
 const control_point = @import("control_point.zig");
@@ -484,4 +485,3 @@ test "TimeCurveLinear: projection_test - compose to identity" {
         x += 0.1;
     }
 }
-

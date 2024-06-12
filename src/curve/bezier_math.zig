@@ -19,6 +19,7 @@ fn expectApproxEql(expected: anytype, actual: @TypeOf(expected)) !void {
     );
 }
 
+/// comath context for operations on duals
 const CTX = comath.ctx.fnMethod(
     comath.ctx.simple(dual.dual_ctx{}),
     .{
@@ -30,7 +31,13 @@ const CTX = comath.ctx.fnMethod(
     }
 );
 
-pub fn lerp(u: anytype, a: anytype, b: @TypeOf(a)) @TypeOf(a) {
+/// lerp from a to b by amount u, [0, 1], using comath
+pub fn lerp(
+    u: anytype,
+    a: anytype,
+    b: @TypeOf(a)
+) @TypeOf(a) 
+{
     return comath.eval(
         "a * (-u + 1.0) + b * u",
         CTX,
@@ -1272,24 +1279,68 @@ pub fn inverted_linear(
         return crv;
     }
 
-    var result = try crv.clone(allocator);
+    const result = try crv.clone(allocator);
 
-    // check the slope
-    const slope = _compute_slope(crv.knots[0], crv.knots[1]);
-
-    const needs_reversal = slope < 0;
-    const knot_count = crv.knots.len;
-
-    for (crv.knots, 0..) |knot, index| {
-        const real_index : usize = index;
-        const real_knot:ControlPoint = knot;
-        const target_index = (
-            if (needs_reversal) knot_count - real_index - 1 else real_index
-        );
-        result.knots[target_index] = .{
-            .time = real_knot.value,
-            .value = real_knot.time, 
+    for (crv.knots, result.knots) 
+        |src_knot, *dst_knot| 
+    {
+        dst_knot.* = .{
+            .time = src_knot.value,
+            .value = src_knot.time, 
         };
+    }
+
+    // @TODO: the library assumes that all curves are monotonic over
+    //        time. therefore, inverting a curve where the slope changes sign
+    //        will result in an invalid curve.  see the implementation of
+    //        create_linear_segment for an example of where this assumption is
+    //        tested.
+    //
+    // const slope = _compute_slope( crv.knots[0], crv.knots[1]);
+    // if (slope < 0) {
+    //     std.mem.reverse(
+    //         ControlPoint,
+    //         result.knots
+    //     );
+    // }
+
+    const ncount = crv.knots.len;
+    var slice_start:usize = 0;
+    var slice_sign = std.math.sign(
+        _compute_slope(
+            crv.knots[0],
+            crv.knots[1]
+        )
+    );
+    for (
+        crv.knots[0..ncount-1],
+        crv.knots[1..], 1..,
+    )
+        |p0, p1, i_p1|
+    {
+        const slope_sign = std.math.sign(_compute_slope(p0, p1));
+
+        if (slope_sign == slice_sign) {
+            continue;
+        }
+
+        if (slice_sign < 0) {
+            std.mem.reverse(
+                ControlPoint,
+                result.knots[slice_start..i_p1]
+            );
+        }
+
+        slice_start = i_p1;
+        slice_sign = slope_sign;
+    }
+
+    // if last slice
+    if (slice_sign < 0) {
+        std.mem.reverse(
+            ControlPoint,
+            result.knots[slice_start..]
+        );
     }
 
     return result;
@@ -1310,7 +1361,6 @@ test "inverted: invert linear" {
             .{.time = -1, .value = -3},
             .{.time = 1, .value = 1}
     );
-
     const inverse_crv = try inverted_bezier(
         std.testing.allocator,
         forward_crv
@@ -1338,6 +1388,8 @@ test "inverted: invert linear" {
         : (t += 0.01) 
     {
         const idntity_p = try identity_crv.evaluate(t);
+
+        // identity_p(t) == inverse_p(forward_p(t))
         const forward_p = try forward_crv.evaluate(t);
         const inverse_p = try inverse_crv.evaluate(forward_p);
 
@@ -1348,6 +1400,119 @@ test "inverted: invert linear" {
 
         // A * A-1 => 1
         try expectApproxEql(idntity_p, inverse_p);
+    }
+}
+
+test "invert negative slope linear" {
+    // slope 2
+    const forward_crv = try curve.TimeCurve.init_from_start_end(
+            .{.time = -1, .value = 1},
+            .{.time = 1, .value = -3}
+    );
+
+    const forward_crv_lin = forward_crv.linearized();
+    const inverse_crv_lin = try inverted_linear(
+        std.testing.allocator,
+        forward_crv_lin
+    );
+    defer inverse_crv_lin.deinit(std.testing.allocator);
+
+    // ensure that temporal ordering is correct
+    { 
+        errdefer std.log.err(
+            "knot0.time ({any}) < knot1.time ({any})",
+            .{inverse_crv_lin.knots[0].time, inverse_crv_lin.knots[1].time}
+        );
+        try expect(inverse_crv_lin.knots[0].time < inverse_crv_lin.knots[1].time);
+    }
+
+    const double_inv_lin = try inverted_linear(
+        std.testing.allocator,
+        inverse_crv_lin
+    );
+    defer double_inv_lin.deinit(std.testing.allocator);
+
+    var t: f32 = -1;
+    // end point is exclusive
+    while (t<1 - 0.01) 
+        : (t += 0.01) 
+    {
+        errdefer std.log.err(
+            "\n  [t: {any}] \n",
+            .{t, }
+        );
+
+        const forward_p = try forward_crv.evaluate(t);
+        const double__p = try double_inv_lin.evaluate(t);
+
+        errdefer std.log.err(
+            "[t: {any}] forwd: {any} double_inv: {any}",
+            .{t, forward_p, double__p}
+        );
+
+        // A * A-1 => 1
+        try expectApproxEql(forward_p, double__p);
+    }
+}
+
+test "invert linear complicated curve" {
+    // for now this test builds a more complicated curve than most parts of 
+    // this library supports... disabling
+    // if (true) {
+    //     return error.SkipZigTest;
+    // }
+    var segments = [_]curve.Segment{
+        // identity
+        curve.create_identity_segment(0, 1),
+        // go up
+        curve.create_linear_segment(
+            .{ .time = 1, .value = 1 },
+            .{ .time = 2, .value = 3 },
+        ),
+        // go down
+        curve.create_linear_segment(
+            .{ .time = 2, .value = 3 },
+            .{ .time = 3, .value = 1 },
+        ),
+        // identity
+        curve.create_linear_segment(
+            .{ .time = 3, .value = 1 },
+            .{ .time = 4, .value = 2 },
+        ),
+    };
+    const crv : curve.TimeCurve = .{
+        .segments = &segments
+    };
+    const crv_linear = crv.linearized();
+    try curve.write_json_file_curve(crv_linear, "/var/tmp/forward.linear.json");
+    const crv_linear_inv = try inverted_linear(std.testing.allocator, crv_linear);
+    try curve.write_json_file_curve(crv_linear_inv, "/var/tmp/inverse.linear.json");
+    defer crv_linear_inv.deinit(std.testing.allocator);
+
+    const crv_double_inv = try inverted_linear(std.testing.allocator, crv_linear_inv);
+    defer crv_double_inv.deinit(std.testing.allocator);
+
+    var t:f32 = 0;
+    while (t < 4-0.01)
+        : (t+=0.01)
+    {
+        errdefer std.log.err(
+            "\n  t: {d} err! \n",
+            .{ t, }
+        );
+        const fwd = try crv_linear.evaluate(t);
+        const dbl = try crv_double_inv.evaluate(t);
+
+        // @TODO: this should compare the inverse(forward(t)) => t at some
+        //        point
+        // const inv = try crv_linear_inv.evaluate(fwd);
+
+        // errdefer std.log.err(
+        //     "\n  t: {d} not equals projected {d}\n",
+        //     .{ t, inv }
+        // );
+
+        try expectEqual(fwd, dbl);
     }
 }
 

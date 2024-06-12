@@ -777,7 +777,7 @@ pub fn create_linear_segment(
     }
 
     debug_panic(
-        "Create linear segment failed, {}, {}\n",
+        "Create linear segment failed, t0: {d} > t1: {d}\n",
         .{p0.time, p1.time}
     );
 }
@@ -893,15 +893,19 @@ pub const TimeCurve = struct {
     }
 
     /// convert a linear curve into a bezier one
-    pub fn init_from_linear_curve(crv: linear_curve.TimeCurveLinear) TimeCurve {
+    pub fn init_from_linear_curve(
+        crv: linear_curve.TimeCurveLinear
+    ) !TimeCurve 
+    {
         var result = std.ArrayList(Segment).init(ALLOCATOR);
         result.deinit();
 
-        for (crv.knots[0..crv.knots.len-1], 0..) 
-            |knot, index| 
+        const knots = crv.knots.len;
+
+        for (crv.knots[0..knots-1], crv.knots[1..]) 
+            |knot, next_knot| 
         {
-            const next_knot = crv.knots[index+1];
-            result.append(create_linear_segment(knot, next_knot)) catch unreachable;
+            try result.append(create_linear_segment(knot, next_knot));
         }
 
         return TimeCurve{ .segments = try result.toOwnedSlice() };
@@ -1989,6 +1993,14 @@ pub fn read_curve_json(
 
     const source = try fi.readToEndAlloc(allocator_, std.math.maxInt(u32));
     defer allocator_.free(source);
+
+    // if its a linear curve
+    if (std.mem.indexOf(u8, file_path, ".linear.json"))
+        |_|
+    {
+        const lin_curve = try std.json.parseFromSliceLeaky(linear_curve.TimeCurveLinear, allocator_, source, .{});
+        return TimeCurve.init_from_linear_curve(lin_curve);
+    }
 
     return try std.json.parseFromSliceLeaky(TimeCurve, allocator_, source, .{});
 }
