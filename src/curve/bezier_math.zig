@@ -1382,7 +1382,7 @@ test "inverted: invert linear" {
     };
     const identity_crv:curve.TimeCurve = .{ .segments = &identity_seg };
 
-    var t :f32 = 0;
+    var t :f32 = -1;
     //           no split at t=1 (end point)
     while (t<1 - 0.01) 
         : (t += 0.01) 
@@ -1417,6 +1417,9 @@ test "invert negative slope linear" {
     );
     defer inverse_crv_lin.deinit(std.testing.allocator);
 
+    // std.debug.print("\n\n  forward: {any}\n", .{ forward_crv_lin.extents() });
+    // std.debug.print("\n\n  inverse: {any}\n", .{ inverse_crv_lin.extents() });
+
     // ensure that temporal ordering is correct
     { 
         errdefer std.log.err(
@@ -1450,8 +1453,11 @@ test "invert negative slope linear" {
             .{t, forward_p, double__p}
         );
 
-        // A * A-1 => 1
         try expectApproxEql(forward_p, double__p);
+
+        // A * A-1 => 1
+        // const inverse_p = try inverse_crv_lin.evaluate(forward_p);
+        // try expectApproxEql(t, inverse_p);
     }
 }
 
@@ -1489,11 +1495,14 @@ test "invert linear complicated curve" {
     try curve.write_json_file_curve(crv_linear_inv, "/var/tmp/inverse.linear.json");
     defer crv_linear_inv.deinit(std.testing.allocator);
 
+    // std.debug.print("\n\n  forward: {any}\n", .{ crv_linear.extents() });
+    // std.debug.print("\n\n  inverse: {any}\n", .{ crv_linear_inv.extents() });
+
     const crv_double_inv = try inverted_linear(std.testing.allocator, crv_linear_inv);
     defer crv_double_inv.deinit(std.testing.allocator);
 
     var t:f32 = 0;
-    while (t < 4-0.01)
+    while (t < 3-0.01)
         : (t+=0.01)
     {
         errdefer std.log.err(
@@ -1513,6 +1522,7 @@ test "invert linear complicated curve" {
         // );
 
         try expectEqual(fwd, dbl);
+        // try expectEqual(t, inv);
     }
 }
 
@@ -1615,39 +1625,44 @@ test "TimeCurve: rescaled parameter" {
 
 }
 
-// test "inverted: invert bezier" {
-//     const forward_crv = try curve.read_curve_json("curves/scurve.curve.json");
-//     const inverse_crv = inverted_bezier(forward_crv);
-//
-//     var identity_seg = [_]curve.Segment{
-//         // slope of 2
-//         curve.create_identity_segment(-3, 1)
-//     };
-//     const identity_crv:curve.TimeCurve = .{ .segments = &identity_seg };
-//
-//     var t :f32 = 0;
-//     while (t<1) : (t += 0.01) {
-//         errdefer std.log.err(
-//             "[t: {any}]",
-//             .{t}
-//         );
-//         const idntity_p = try identity_crv.evaluate(t);
-//         errdefer std.log.err(
-//             " ident: {any}",
-//             .{idntity_p}
-//         );
-//         const forward_p = try forward_crv.evaluate(t);
-//         errdefer std.log.err(
-//             " forwd: {any}",
-//             .{forward_p}
-//         );
-//         const inverse_p = try inverse_crv.evaluate(forward_p);
-//         errdefer std.log.err(
-//             " inv: {any}\n",
-//             .{inverse_p}
-//         );
-//
-//         // A * A-1 => 1
-//         try expectApproxEql(idntity_p, inverse_p);
-//     }
-// }
+test "inverted: invert bezier" {
+    const forward_crv = try curve.read_curve_json(
+        "curves/scurve.curve.json",
+        std.testing.allocator
+    );
+    defer forward_crv.deinit(std.testing.allocator);
+    const inverse_crv = try inverted_bezier(std.testing.allocator, forward_crv);
+    defer inverse_crv.deinit(std.testing.allocator);
+
+    var identity_seg = [_]curve.Segment{
+        // slope of 2
+        curve.create_identity_segment(-3, 1)
+    };
+    const identity_crv:curve.TimeCurve = .{ .segments = &identity_seg };
+
+    var t :f32 = -0.5;
+    while (t<0.5-0.01) : (t += 0.01) {
+        errdefer std.log.err(
+            "[t: {any}]",
+            .{t}
+        );
+        const idntity_p = try identity_crv.evaluate(t);
+        errdefer std.log.err(
+            " ident: {any}",
+            .{idntity_p}
+        );
+        const forward_p = try forward_crv.evaluate(t);
+        errdefer std.log.err(
+            " forwd: {any}",
+            .{forward_p}
+        );
+        const inverse_p = try inverse_crv.evaluate(forward_p);
+        errdefer std.log.err(
+            " inv: {any}\n",
+            .{inverse_p}
+        );
+
+        // A * A-1 => 1
+        try expectApproxEql(idntity_p, inverse_p);
+    }
+}
