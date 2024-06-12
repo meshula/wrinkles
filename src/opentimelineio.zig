@@ -571,7 +571,7 @@ const TopologicalMap = struct {
         }
 
         if (needs_inversion) {
-            proj = try proj.inverted();
+            proj = try proj.inverted(otio_allocator.ALLOCATOR);
         }
 
         return .{
@@ -1716,7 +1716,9 @@ test "Single Clip bezier transform" {
 
         // invert it back and check it against the inpout curve bounds
         const clip_media_to_output = (
-            try clip_output_to_media_proj.topology.inverted()
+            try clip_output_to_media_proj.topology.inverted(
+                otio_allocator.ALLOCATOR
+            )
         );
         const clip_media_to_output_bounds = (
             clip_media_to_output.bounds()

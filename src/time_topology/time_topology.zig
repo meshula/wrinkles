@@ -10,8 +10,8 @@ const util = opentime.util;
 const curve = @import("curve"); 
 const control_point = curve.control_point; 
 
-const allocator = @import("otio_allocator"); 
-const ALLOCATOR = allocator.ALLOCATOR;
+const otio_allocator = @import("otio_allocator"); 
+const ALLOCATOR = otio_allocator.ALLOCATOR;
 
 
 // assertions
@@ -88,7 +88,10 @@ pub const AffineTopology = struct {
         return self.transform.applied_to_seconds(ordinate);
     }
 
-    pub fn inverted(self: @This()) !TimeTopology {
+    pub fn inverted(
+        self: @This(),
+    ) !TimeTopology 
+    {
         var start = self.bounds.start_seconds;
         if (start != interval.INF_CTI.start_seconds) {
             start = try self.project_ordinate(start);
@@ -132,7 +135,7 @@ pub const AffineTopology = struct {
                     .curve = try curve.affine_project_curve(
                         self.transform,
                         other_bez.curve,
-                        allocator.ALLOCATOR
+                        otio_allocator.ALLOCATOR
                     )
                 }
             },
@@ -181,6 +184,10 @@ pub const AffineTopology = struct {
 
 pub const LinearTopology = struct {
     curve: curve.TimeCurveLinear,
+    
+    pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
+        self.curve.deinit(allocator);
+    }
 
     pub fn compute_bounds(self: @This()) interval.ContinuousTimeInterval {
         const extents = self.curve.extents();
@@ -203,10 +210,17 @@ pub const LinearTopology = struct {
         return self.curve.evaluate(ordinate);
     }
 
-    pub fn inverted(self: @This()) !TimeTopology {
+    pub fn inverted(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) !TimeTopology 
+    {
         const result = TimeTopology{
             .linear_curve = .{
-                .curve = curve.inverted_linear(self.curve)
+                .curve = try curve.inverted_linear(
+                    allocator,
+                    self.curve
+                )
             }
         };
         return result;
@@ -225,7 +239,7 @@ pub const LinearTopology = struct {
             .affine => |aff| {
                 const projected_curve = try self.curve.project_affine(
                     aff.transform,
-                    allocator.ALLOCATOR
+                    otio_allocator.ALLOCATOR
                 );
 
                 return .{
@@ -260,7 +274,8 @@ test "LinearTopology: invert" {
     try expectEqual(0, topo_bounds.start_seconds);
     try expectEqual(10, topo_bounds.end_seconds);
 
-    const topo_inv = try topo.inverted();
+    const topo_inv = try topo.inverted(std.testing.allocator);
+    defer topo_inv.deinit(std.testing.allocator);
     const topo_inv_bounds = topo_inv.bounds();
     try expectEqual(10, topo_inv_bounds.start_seconds);
     try expectEqual(20, topo_inv_bounds.end_seconds);
@@ -269,6 +284,10 @@ test "LinearTopology: invert" {
 
 pub const BezierTopology = struct {
     curve: curve.TimeCurve,
+
+    pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
+        self.curve.deinit(allocator);
+    }
 
     pub fn compute_bounds(self: @This()) interval.ContinuousTimeInterval {
         const extents = self.curve.extents();
@@ -291,9 +310,18 @@ pub const BezierTopology = struct {
         return self.curve.evaluate(ordinate);
     }
 
-    pub fn inverted(self: @This()) error{OutOfBounds,NotImplemented}!TimeTopology {
+    pub fn inverted(
+        self: @This(),
+        allocator: std.mem.Allocator
+    ) !TimeTopology 
+    {
          return TimeTopology{
-            .linear_curve = .{ .curve = curve.inverted(self.curve) }
+            .linear_curve = .{ 
+                .curve = try curve.inverted(
+                    allocator,
+                    self.curve
+                ) 
+            }
         };
     }
 
@@ -380,7 +408,7 @@ pub const BezierTopology = struct {
             .affine => |aff| {
                 const projected_curve = try self.curve.project_affine(
                     aff.transform,
-                    allocator.ALLOCATOR
+                    otio_allocator.ALLOCATOR
                 );
 
                 return .{
@@ -436,7 +464,10 @@ test "BezierTopology: inverted" {
     try expectEqual(100, curve_topo_bounds.start_seconds);
     try expectEqual(110, curve_topo_bounds.end_seconds);
     
-    const curve_topo_inverted = try curve_topo.inverted();
+    const curve_topo_inverted = try curve_topo.inverted(
+        std.testing.allocator
+    );
+    defer curve_topo_inverted.deinit(std.testing.allocator);
     const topo_inv_bounds = curve_topo_inverted.bounds();
     try expectEqual(0, topo_inv_bounds.start_seconds);
     try expectEqual(10, topo_inv_bounds.end_seconds);
@@ -541,6 +572,13 @@ pub const TimeTopology = union (enum) {
         return .{ .empty = EmptyTopology{} };
     }
 
+    pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
+        switch (self) {
+            inline .affine, .empty => {},
+            inline else => |t| t.deinit(allocator),
+        }
+    }
+
     // @TODO: should include a phase offset
     /// builds a TimeTopology out with a mapping that contains a step function
     pub fn init_step_mapping(
@@ -551,7 +589,7 @@ pub const TimeTopology = union (enum) {
         increment: f32,
     ) !TimeTopology
     {
-        var segments = std.ArrayList(curve.Segment).init(allocator.ALLOCATOR);
+        var segments = std.ArrayList(curve.Segment).init(otio_allocator.ALLOCATOR);
         var t_seconds = in_bounds.start_seconds;
         var current_value = start_value;
         while (t_seconds < in_bounds.end_seconds) {
@@ -618,9 +656,10 @@ pub const TimeTopology = union (enum) {
     }
     // @}
     
-    pub fn inverted(self: @This()) !TimeTopology {
+    pub fn inverted(self: @This(), allocator: std.mem.Allocator) !TimeTopology {
         return switch (self) {
-            inline else => |contained| try contained.inverted(),
+            inline .affine, .empty => |aff| try aff.inverted(),
+            inline else => |contained| try contained.inverted(allocator),
         };
     }
 
@@ -742,7 +781,7 @@ test "TimeTopology: Affine Projected Through inverted Affine" {
         }
     );
 
-    const tp_inv = try tp.inverted();
+    const tp_inv = try tp.inverted(std.testing.allocator);
 
     const expected_bounds = interval.ContinuousTimeInterval{
         .start_seconds = 10,

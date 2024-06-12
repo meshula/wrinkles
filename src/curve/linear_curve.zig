@@ -40,6 +40,23 @@ pub const TimeCurveLinear = struct {
         return TimeCurveLinear{ .knots = result.items };
     }
 
+    pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
+        allocator.free(self.knots);
+    }
+
+    pub fn clone(
+        self: @This(),
+        allocator: std.mem.Allocator
+    ) !TimeCurveLinear
+    {
+        return .{ 
+            .knots = try allocator.dupe(
+                control_point.ControlPoint,
+                self.knots
+            ),
+        };
+    }
+
     pub fn project_affine(
         self: @This(),
         aff: opentime.transform.AffineTransform1D,

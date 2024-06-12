@@ -19,9 +19,6 @@ fn expectApproxEql(expected: anytype, actual: @TypeOf(expected)) !void {
     );
 }
 
-const otio_allocator = @import("otio_allocator");
-const ALLOCATOR = otio_allocator.ALLOCATOR;
-
 const CTX = comath.ctx.fnMethod(
     comath.ctx.simple(dual.dual_ctx{}),
     .{
@@ -1266,20 +1263,16 @@ pub fn _compute_slope(p1: ControlPoint, p2: ControlPoint) f32 {
 }
 
 pub fn inverted_linear(
+    allocator: std.mem.Allocator,
     crv: linear_curve.TimeCurveLinear
-) linear_curve.TimeCurveLinear 
+) !linear_curve.TimeCurveLinear 
 {
     // require two points to define a line
     if (crv.knots.len < 2) {
         return crv;
     }
 
-    var result = crv;
-    result.knots = ALLOCATOR.dupe(
-        ControlPoint,
-        crv.knots
-    ) catch unreachable;
-
+    var result = try crv.clone(allocator);
 
     // check the slope
     const slope = _compute_slope(crv.knots[0], crv.knots[1]);
@@ -1303,11 +1296,12 @@ pub fn inverted_linear(
 }
 
 pub fn inverted_bezier(
+    allocator: std.mem.Allocator,
     crv: curve.TimeCurve
-) linear_curve.TimeCurveLinear 
+) !linear_curve.TimeCurveLinear 
 {
     const lin_crv = crv.linearized();
-    return inverted_linear(lin_crv);
+    return try inverted_linear(allocator, lin_crv);
 }
 
 test "inverted: invert linear" {
@@ -1317,7 +1311,11 @@ test "inverted: invert linear" {
             .{.time = 1, .value = 1}
     );
 
-    const inverse_crv = inverted_bezier(forward_crv);
+    const inverse_crv = try inverted_bezier(
+        std.testing.allocator,
+        forward_crv
+    );
+    defer inverse_crv.deinit(std.testing.allocator);
 
     // ensure that temporal ordering is correct
     { 
