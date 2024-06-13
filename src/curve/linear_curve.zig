@@ -21,6 +21,7 @@ fn _is_between(val: f32, fst: f32, snd: f32) bool {
 pub const TimeCurveLinear = struct {
     knots: []ControlPoint = &.{},
 
+    /// dupe the provided points into the result
     pub fn init(
         allocator: std.mem.Allocator,
         knots: []const ControlPoint
@@ -34,15 +35,25 @@ pub const TimeCurveLinear = struct {
         };
     }
 
-    pub fn init_identity(knot_times:[]const f32) !TimeCurveLinear {
-        var result = std.ArrayList(ControlPoint).init(ALLOCATOR);
+    /// initialize a TimeCurveLinear where each knot time has the same value
+    /// as the time (in other words, an identity curve that passes through t=0).
+    pub fn init_identity(
+        allocator: std.mem.Allocator,
+        knot_times:[]const f32
+    ) !TimeCurveLinear 
+    {
+        var result = std.ArrayList(ControlPoint).init(
+            allocator,
+        );
         for (knot_times) 
             |t| 
         {
             try result.append(.{.time = t, .value = t});
         }
 
-        return TimeCurveLinear{ .knots = result.items };
+        return TimeCurveLinear{
+            .knots = try result.toOwnedSlice(), 
+        };
     }
 
     pub fn deinit(
@@ -53,6 +64,7 @@ pub const TimeCurveLinear = struct {
         allocator.free(self.knots);
     }
 
+    // @TODO: the same as init
     pub fn clone(
         self: @This(),
         allocator: std.mem.Allocator
@@ -419,7 +431,12 @@ pub const TimeCurveLinear = struct {
 };
 
 test "TimeCurveLinear: extents" {
-    const crv = try TimeCurveLinear.init_identity(&.{100, 200});
+    const crv = try TimeCurveLinear.init_identity(
+        std.testing.allocator,
+        &.{100, 200},
+    );
+    defer crv.deinit(std.testing.allocator);
+
     const bounds = crv.extents();
 
     try expectEqual(@as(f32, 100), bounds[0].time);
@@ -428,7 +445,11 @@ test "TimeCurveLinear: extents" {
 
 test "TimeCurveLinear: proj_ident" 
 {
-    const ident = try TimeCurveLinear.init_identity(&.{0, 100});
+    const ident = try TimeCurveLinear.init_identity(
+        std.testing.allocator,
+        &.{0, 100},
+    );
+    defer ident.deinit(std.testing.allocator);
 
     {
         const right_overhang= [_]ControlPoint{
@@ -482,7 +503,11 @@ test "TimeCurveLinear: proj_ident"
 
 test "TimeCurveLinear: project s" {
     // @TODO: the next thing to fix -- START HERE
-    const ident = try TimeCurveLinear.init_identity(&.{0, 100});
+    const ident = try TimeCurveLinear.init_identity(
+        std.testing.allocator,
+        &.{0, 100},
+    );
+    defer ident.deinit(std.testing.allocator);
 
     const simple_s: [4]ControlPoint = .{
         .{ .time = 0, .value = 0},
