@@ -294,16 +294,28 @@ pub fn retimed(
             l_knot.time,
             r_knot.time
         );
+        if (relevant_samples.len == 0) {
+            @panic("no relevant samples!");
+        }
+
         const relevant_sampling = Sampling{
             .allocator = allocator,
             .buffer = relevant_samples,
             .sample_rate_hz = in_samples.sample_rate_hz,
         };
 
-        const retime_ratio = (
-            ((r_knot.value - l_knot.value) * @as(f32, @floatFromInt(in_samples.sample_rate_hz)))
-            / @as(f32, @floatFromInt(relevant_samples.len))
+        const retime_ratio:f32 = (
+            (
+             (r_knot.value - l_knot.value) 
+             * @as(f32, @floatFromInt(in_samples.sample_rate_hz))
+            ) / (
+                @as(f32, @floatFromInt(relevant_samples.len))
+            )
         );
+
+        if (std.math.isNan(retime_ratio)) {
+            @panic("retime ratio is NaN!");
+        }
 
         const output_chunk = try resampled(
             allocator,
