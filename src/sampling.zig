@@ -110,12 +110,12 @@ const SineSampleGenerator = struct {
 
         // fill the sample buffer
         for (0.., result.buffer)
-            |idx, *sample|
+            |current_index, *sample|
         {
             sample.* = std.math.sin(
                 @as(sample_t, @floatFromInt(self.signal_frequency_hz))
                 * 2.0 * std.math.pi 
-                * (@as(sample_t, @floatFromInt(idx)) / sample_hz)
+                * (@as(sample_t, @floatFromInt(current_index)) / sample_hz)
             );
         }
 
@@ -138,34 +138,45 @@ test "rasterizing the sine" {
     try expectEqual(@as(sample_t, 0), s48.buffer[0]);
 }
 
-// returns the peak to peak distance of the samples in the buffer
+/// returns the peak to peak distance in indices of the samples in the buffer
 pub fn peak_to_peak_distance(
     samples: []const sample_t,
-) usize 
+) !usize 
 {
-    var last_max_idx:?usize = null;
-    var peak_to_peak_samples:usize = 0;
+    var maybe_last_peak_index:?usize = null;
+    var maybe_distance_in_indices:?usize = null;
 
-    var idx : usize = 1;
-    while (idx < samples.len) 
-        : (idx += 1) 
+    const width = 3;
+
+    for (width..samples.len-width)
+        |current_index|
     {
         if (
-            samples[idx] > samples[idx - 1] 
-            and samples[idx] > samples[idx + 1]
-        ) 
+            samples[current_index] > samples[current_index - width] 
+            and samples[current_index] > samples[current_index + width]
+            and (
+                maybe_last_peak_index == null 
+                or maybe_last_peak_index.? < current_index - 3
+            )
+        )
         {
-            if (last_max_idx) 
-                |l_m_idx| 
+            if (maybe_last_peak_index)
+               |last_peak_index| 
             {
-                peak_to_peak_samples = idx - l_m_idx;
+                maybe_distance_in_indices = current_index - last_peak_index;
                 break;
             }
-            last_max_idx = idx;
+            maybe_last_peak_index = current_index;
         }
     }
 
-    return peak_to_peak_samples;
+    if (maybe_distance_in_indices)
+        |distance_in_indices|
+    {
+        return distance_in_indices;
+    }
+
+    return error.CouldNotFindTwoPeaks;
 }
 
 test "peak_to_peak_distance of sine 48khz" {
@@ -178,7 +189,7 @@ test "peak_to_peak_distance of sine 48khz" {
     const s48_100 = try samples_48_100.rasterized(std.testing.allocator);
     defer s48_100.deinit();
 
-    const samples_48_100_p2p = peak_to_peak_distance(s48_100.buffer);
+    const samples_48_100_p2p = try peak_to_peak_distance(s48_100.buffer);
 
     try expectEqual(480, samples_48_100_p2p);
 
@@ -191,7 +202,7 @@ test "peak_to_peak_distance of sine 48khz" {
     const s48_50 = try samples_48_50.rasterized(std.testing.allocator);
     defer s48_50.deinit();
 
-    const samples_48_50_p2p = peak_to_peak_distance(s48_50.buffer);
+    const samples_48_50_p2p = try peak_to_peak_distance(s48_50.buffer);
 
     try expectEqual(960, samples_48_50_p2p);
 
@@ -204,7 +215,7 @@ test "peak_to_peak_distance of sine 48khz" {
     const s96_100 = try samples_96_100.rasterized(std.testing.allocator);
     defer s96_100.deinit();
 
-    const samples_96_100_p2p = peak_to_peak_distance(s96_100.buffer);
+    const samples_96_100_p2p = try peak_to_peak_distance(s96_100.buffer);
 
     try expectEqual(960, samples_96_100_p2p);
 }
@@ -271,7 +282,8 @@ pub fn retimed(
     xform: curve.TimeCurve,
 ) !Sampling
 {
-    const lin_curve = xform.linearized();
+    const lin_curve = try xform.linearized(allocator);
+    defer lin_curve.deinit(allocator);
 
     var result = std.ArrayList(sample_t).init(allocator);
 
@@ -333,7 +345,7 @@ test "resample from 48khz to 44" {
 
     try samples_44.write_file("/var/tmp/ours_100hz_441test.wav");
 
-    const samples_44_p2pd = peak_to_peak_distance(samples_44.buffer);
+    const samples_44_p2pd = try peak_to_peak_distance(samples_44.buffer);
 
     // peak to peak distance (a distance in sample indices) should be the same
     // independent of retiming those samples
@@ -376,7 +388,7 @@ test "retime 48khz samples with a curve, and then resample that retimed data" {
         // go up
         curve.create_linear_segment(
             .{ .time = 0.25, .value = 0.25 },
-            .{ .time = 0.5, .value = 0.75 },
+            .{ .time = 0.50, .value = 0.75 },
         ),
         // identity
         curve.create_linear_segment(
@@ -388,6 +400,7 @@ test "retime 48khz samples with a curve, and then resample that retimed data" {
         .segments = &retime_curve_segments
     };
     try curve.write_json_file_curve(
+        std.testing.allocator,
         retime_curve,
         "/var/tmp/ours_retime_curve.curve.json"
     );
@@ -407,7 +420,7 @@ test "retime 48khz samples with a curve, and then resample that retimed data" {
     try samples_44.write_file("/var/tmp/ours_s44_retimed.wav");
 
     // identity
-    const samples_44_p2p_0p25 = peak_to_peak_distance(
+    const samples_44_p2p_0p25 = try peak_to_peak_distance(
         samples_44.buffer[0..11025]
     );
     try expectEqual(
@@ -415,23 +428,18 @@ test "retime 48khz samples with a curve, and then resample that retimed data" {
         samples_44_p2p_0p25
     );
 
-    // @TODO: Test failures are here -- questions
-    //        1. are we really passing the right values to libsamplerate (96 vs
-    //           192, etc)
-    //        2. is there an official API for doing pitch shifting?
-
     // 2x
-    const samples_44_p2p_0p5 = peak_to_peak_distance(
-        samples_44.buffer[11025..22050]
+    const samples_44_p2p_0p5 = try peak_to_peak_distance(
+        samples_44.buffer[11025..33074]
     );
     try expectEqual(
-        441,
+        882,
         samples_44_p2p_0p5
      );
 
     // identity
-    const samples_44_p2p_1p0 = peak_to_peak_distance(
-        samples_44.buffer[22050..]
+    const samples_44_p2p_1p0 = try peak_to_peak_distance(
+        samples_44.buffer[33074..]
     );
     try expectEqual(
         441,
