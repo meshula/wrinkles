@@ -2507,9 +2507,10 @@ test "TimeCurve: project u loop bug" {
         ),
     };
     const simple_s = try TimeCurve.init(
-        ALLOCATOR,
+        std.testing.allocator,
         &simple_s_segments
     );
+    defer simple_s.deinit(std.testing.allocator);
 
     const u_seg = [_]Segment{
         Segment{
@@ -2520,9 +2521,10 @@ test "TimeCurve: project u loop bug" {
         },
     }; 
     const upside_down_u = try TimeCurve.init(
-        ALLOCATOR,
+        std.testing.allocator,
         &u_seg,
     );
+    defer upside_down_u.deinit(std.testing.allocator);
 
     const result : TimeCurve = simple_s.project_curve(upside_down_u);
 
@@ -2552,9 +2554,10 @@ test "TimeCurve: project linear identity with linear 1/2 slope" {
         ),
     };
     const linear_crv = try TimeCurve.init(
-        ALLOCATOR,
+        std.testing.allocator,
         &linear_segment,
     );
+    defer linear_crv.deinit(std.testing.allocator);
 
     if (linear_segment.len > 0) {
         return error.SkipZigTest;
@@ -2567,9 +2570,10 @@ test "TimeCurve: project linear identity with linear 1/2 slope" {
         ),
     };
     const linear_half_crv = try TimeCurve.init(
-        ALLOCATOR,
+        std.tesitng.allocator,
         &linear_half_segment
     );
+    defer linear_half_crv.deinit(std.testing.allocator);
 
     const result : TimeCurve = linear_half_crv.project_curve(linear_crv);
 
