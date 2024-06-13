@@ -22,11 +22,15 @@ pub const TimeCurveLinear = struct {
     knots: []ControlPoint = &.{},
 
     pub fn init(
+        allocator: std.mem.Allocator,
         knots: []const ControlPoint
-    ) error{OutOfMemory}!TimeCurveLinear 
+    ) !TimeCurveLinear 
     {
         return TimeCurveLinear{
-            .knots = try ALLOCATOR.dupe(ControlPoint, knots) 
+            .knots = try allocator.dupe(
+                ControlPoint,
+                knots,
+            ) 
         };
     }
 
@@ -267,6 +271,7 @@ pub const TimeCurveLinear = struct {
                     if (current_curve.items.len > 1) {
                         curves_to_project.append(
                             TimeCurveLinear.init(
+                                ALLOCATOR,
                                 current_curve.items
                             ) catch unreachable
                         ) catch unreachable;
@@ -280,7 +285,10 @@ pub const TimeCurveLinear = struct {
         }
         if (current_curve.items.len > 1) {
             curves_to_project.append(
-                TimeCurveLinear.init(current_curve.items) catch unreachable
+                TimeCurveLinear.init(
+                    ALLOCATOR,
+                    current_curve.items,
+                ) catch unreachable
             ) catch unreachable;
         }
 
@@ -427,7 +435,12 @@ test "TimeCurveLinear: proj_ident"
             .{ .time = -10, .value = -10},
             .{ .time = 30, .value = 10},
         };
-        const right_overhang_lin = try TimeCurveLinear.init(&right_overhang);
+        const right_overhang_lin = try TimeCurveLinear.init(
+            std.testing.allocator,
+            &right_overhang,
+        );
+        defer right_overhang_lin.deinit(std.testing.allocator);
+
         const result = ident.project_curve(right_overhang_lin);
         try expectEqual(@as(usize, 1), result.len);
         try expectEqual(@as(usize, 2), result[0].knots.len);
@@ -446,7 +459,11 @@ test "TimeCurveLinear: proj_ident"
             .{ .time = 90, .value = 90},
             .{ .time = 110, .value = 130},
         };
-        const left_overhang_lin = try TimeCurveLinear.init(&left_overhang);
+        const left_overhang_lin = try TimeCurveLinear.init(
+            std.testing.allocator,
+            &left_overhang,
+        );
+        defer left_overhang_lin.deinit(std.testing.allocator);
 
         const result = ident.project_curve(left_overhang_lin);
 
@@ -474,7 +491,12 @@ test "TimeCurveLinear: project s" {
         .{ .time = 100, .value = 100},
     };
 
-    const simple_s_lin = try TimeCurveLinear.init(&simple_s);
+    const simple_s_lin = try TimeCurveLinear.init(
+        std.testing.allocator,
+        &simple_s,
+    );
+    defer simple_s_lin.deinit(std.testing.allocator);
+
     const result = simple_s_lin.project_curve(ident);
 
     try expectEqual(@as(usize, 1), result.len);
@@ -483,17 +505,21 @@ test "TimeCurveLinear: project s" {
 
 test "TimeCurveLinear: projection_test - compose to identity" {
     const fst= try TimeCurveLinear.init(
+        std.testing.allocator,
         &.{
             .{ .time = 0, .value = 0, },
             .{ .time = 4, .value = 8, },
         }
     );
+    defer fst.deinit(std.testing.allocator);
     const snd= try TimeCurveLinear.init(
+        std.testing.allocator,
         &.{
             .{ .time = 0, .value = 0, },
             .{ .time = 8, .value = 4, },
-        }
+        },
     );
+    defer snd.deinit(std.testing.allocator);
 
     const result = fst.project_curve(snd);
 

@@ -140,7 +140,10 @@ pub const AffineTopology = struct {
                 }
             },
            .linear_curve => |lin| {
-               var result = try curve.TimeCurveLinear.init(lin.curve.knots);
+               var result = try curve.TimeCurveLinear.init(
+                   otio_allocator.ALLOCATOR,
+                   lin.curve.knots,
+               );
                for (lin.curve.knots, 0..) |knot, knot_index| {
                     result.knots[knot_index] = .{
                         .time = knot.time,
@@ -265,11 +268,13 @@ pub const LinearTopology = struct {
 
 test "LinearTopology: invert" {
     const crv = try curve.TimeCurveLinear.init(
+        std.testing.allocator,
         &.{ 
             .{ .time = 0, .value = 10 },
             .{ .time = 10, .value = 20 },
         },
     );
+    defer crv.deinit(std.testing.allocator);
     const topo = TimeTopology{
         .linear_curve = .{ .curve = crv }
     };
