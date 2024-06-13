@@ -1532,7 +1532,9 @@ fn plot_curve(
             "{s} / linearized", 
             .{ name }
         );
-        const orig_linearized = crv.curve.linearized();
+        const orig_linearized = try crv.curve.linearized(allocator);
+        defer orig_linearized.deinit(allocator);
+
         try plot_linear_curve(orig_linearized, lin_label, allocator);
     }
 
@@ -1559,7 +1561,8 @@ fn plot_curve(
         );
 
         if (flags.split_critical_points.linearized) {
-            const linearized = split.linearized();
+            const linearized = try split.linearized(allocator);
+            defer linearized.deinit(allocator);
             try plot_linear_curve(linearized, label, allocator);
         }
     }
