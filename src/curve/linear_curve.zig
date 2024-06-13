@@ -185,6 +185,7 @@ pub const TimeCurveLinear = struct {
         return null;
     }
 
+    /// not implemented - meant to insert a knot into a curve
     pub fn insert(self: @This(), knot: ControlPoint) void {
         _ = self;
         _ = knot;
