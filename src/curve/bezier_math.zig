@@ -1490,10 +1490,23 @@ test "invert linear complicated curve" {
         .segments = &segments
     };
     const crv_linear = crv.linearized();
-    try curve.write_json_file_curve(crv_linear, "/var/tmp/forward.linear.json");
-    const crv_linear_inv = try inverted_linear(std.testing.allocator, crv_linear);
-    try curve.write_json_file_curve(crv_linear_inv, "/var/tmp/inverse.linear.json");
+
+    try curve.write_json_file_curve(
+        std.testing.allocator,
+        crv_linear,
+        "/var/tmp/forward.linear.json"
+    );
+
+    const crv_linear_inv = try inverted_linear(
+        std.testing.allocator,
+        crv_linear
+    );
     defer crv_linear_inv.deinit(std.testing.allocator);
+    try curve.write_json_file_curve(
+        std.testing.allocator,
+        crv_linear_inv,
+        "/var/tmp/inverse.linear.json"
+    );
 
     // std.debug.print("\n\n  forward: {any}\n", .{ crv_linear.extents() });
     // std.debug.print("\n\n  inverse: {any}\n", .{ crv_linear_inv.extents() });

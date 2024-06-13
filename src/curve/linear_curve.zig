@@ -312,11 +312,16 @@ pub const TimeCurveLinear = struct {
         return curves_to_project.items;
     }
 
-    pub fn debug_json_str(self:@This()) []const u8
+    pub fn debug_json_str(
+        self:@This(), 
+        allocator: std.mem.Allocator,
+    ) ![]const u8
     {
-        var str = std.ArrayList(u8).init(ALLOCATOR);
-        std.json.stringify(self, .{}, str.writer()) catch unreachable; 
-        return str.items;
+        var str = std.ArrayList(u8).init(allocator);
+
+        try std.json.stringify(self, .{}, str.writer()); 
+
+        return str.toOwnedSlice();
     }
 
     pub fn extents_time(self:@This()) ContinuousTimeInterval {

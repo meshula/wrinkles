@@ -501,11 +501,12 @@ pub const Segment = struct {
     }
 
     pub fn debug_json_str(
-        self: @This()
-    ) []const u8 
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) ![]const u8 
     {
-        return std.fmt.allocPrint(
-            ALLOCATOR,
+        return try std.fmt.allocPrint(
+            allocator,
             \\
             \\{{
             \\    "p0": {{ "time": {d:.6}, "value": {d:.6} }},
@@ -521,15 +522,20 @@ pub const Segment = struct {
                 self.p2.time, self.p2.value,
                 self.p3.time, self.p3.value,
             }
-        ) catch unreachable;
+        );
     }
 
     pub fn debug_print_json(
-        self: @This()
-    ) void 
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) !void 
     {
         std.debug.print("\ndebug_print_json] p0: {}\n", .{ self.p0});
-        std.debug.print("{s}", .{ self.debug_json_str()});
+
+        const blob = try self.debug_json_str(allocator);
+        defer allocator.free(blob);
+
+        std.debug.print("{s}", .{ blob });
     }
 
     pub fn to_cSeg(self: @This()) hodographs.BezierSegment {
@@ -581,7 +587,10 @@ test "Segment: debug_str test" {
         \\
     ;
 
-    try expectEqualStrings(result, seg.debug_json_str());
+    const blob = try seg.debug_json_str(std.testing.allocator);
+    defer std.testing.allocator.free(blob);
+
+    try expectEqualStrings( result,blob);
 }
 
 fn _is_approximately_linear(
@@ -1543,14 +1552,18 @@ pub const TimeCurve = struct {
     }
 
     /// build a string serialization of the curve
-    pub fn debug_json_str(self:@This()) []const u8
+    pub fn debug_json_str(
+        self:@This(),
+        allocator: std.mem.Allocator
+    ) ![]const u8
     {
-        var str = std.ArrayList(u8).init(ALLOCATOR);
-        std.json.stringify(self, .{}, str.writer()) catch unreachable; 
-        return str.items;
+        var str = std.ArrayList(u8).init(allocator);
+
+        try std.json.stringify(self, .{}, str.writer()); 
+        return str.toOwnedSlice();
     }
 
-    /// return the extents of the curve's input space
+    /// return the extents of the curve's input spact /v
     pub fn extents_time(self:@This()) ContinuousTimeInterval {
         return .{
             .start_seconds = self.segments[0].p0.time,
@@ -1620,7 +1633,7 @@ pub const TimeCurve = struct {
         if (maybe_split_segments == null) {
             std.log.err(
                 "ordinate: {} unorm: {} seg_to_split: {s}\n",
-                .{ ordinate, unorm, seg_to_split.debug_json_str() }
+                .{ ordinate, unorm, try seg_to_split.debug_json_str(allocator) }
             );
             return error.OutOfBounds;
         }
@@ -2320,7 +2333,11 @@ test "Segment: eval_at for out of range u" {
     try expectError(error.OutOfBounds, tc.evaluate(5));
 }
 
-pub fn write_json_file(json_blob: []const u8, to_fpath: []const u8) !void {
+pub fn write_json_file(
+    json_blob: []const u8,
+    to_fpath: []const u8
+) !void 
+{
     const file = try std.fs.cwd().createFile(
         to_fpath,
         .{ .read = true },
@@ -2331,8 +2348,19 @@ pub fn write_json_file(json_blob: []const u8, to_fpath: []const u8) !void {
 }
 
 /// serialize a thing with a .debug_json_str to the filepath
-pub fn write_json_file_curve(curve: anytype, to_fpath: []const u8) !void {
-    try write_json_file(curve.debug_json_str(), to_fpath);
+pub fn write_json_file_curve(
+    allocator: std.mem.Allocator,
+    curve: anytype,
+    to_fpath: []const u8
+) !void 
+{
+    const json_blob = try curve.debug_json_str(allocator);
+    defer allocator.free(json_blob);
+
+    try write_json_file(
+        json_blob,
+        to_fpath
+    );
 }
 
 test "json writer: curve" {
@@ -2341,16 +2369,26 @@ test "json writer: curve" {
     );
     const fpath = "/var/tmp/test.curve.json";
 
-    try write_json_file_curve(ident, fpath);
+    try write_json_file_curve(
+        std.testing.allocator,
+        ident,
+        fpath
+    );
 
-    const file = try std.fs.cwd().openFile(fpath, .{ .mode = .read_only },);
+    const file = try std.fs.cwd().openFile(
+        fpath,
+        .{ .mode = .read_only },
+    );
     defer file.close();
 
     var buffer: [2048]u8 = undefined;
     try file.seekTo(0);
     const bytes_read = try file.readAll(&buffer);
 
-    try expectEqualStrings(buffer[0..bytes_read], ident.debug_json_str());
+    const blob = try ident.debug_json_str(std.testing.allocator);
+    defer std.testing.allocator.free(blob);
+
+    try expectEqualStrings(buffer[0..bytes_read], blob);
 }
 
 test "segment: findU_value" {
@@ -2430,9 +2468,9 @@ test "TimeCurve: project u loop bug" {
         }
     }
 
-    errdefer std.log.err("simple_s: {s}\n", .{ simple_s.debug_json_str() } );
-    errdefer std.log.err("u: {s}\n", .{ upside_down_u.debug_json_str() } );
-    errdefer std.log.err("result: {s}\n", .{ result.debug_json_str() } );
+    errdefer std.log.err("simple_s: {!s}\n", .{ simple_s.debug_json_str(std.testing.allocator) } );
+    errdefer std.log.err("u: {!s}\n", .{ upside_down_u.debug_json_str(std.testing.allocator) } );
+    errdefer std.log.err("result: {!s}\n", .{ result.debug_json_str(std.testing.allocator) } );
 
     try expectEqual(@as(usize, 4), result.segments.len);
 }
@@ -2661,8 +2699,10 @@ test "TimeCurve: split_at_input_ordinate" {
             : (split_loc += 1) 
         {
             errdefer std.log.err(
-                "loop_index: {} extents: {any}, split_loc: {} curve: {s}\n",
-                .{loop, extents, split_loc, ident.debug_json_str()}
+                "loop_index: {} extents: {any}, split_loc: {} curve: {!s}\n",
+                .{
+                    loop, extents, split_loc, ident.debug_json_str(std.testing.allocator)
+                }
             );
             const split_ident = try ident.split_at_input_ordinate(
                 split_loc,

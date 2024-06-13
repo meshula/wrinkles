@@ -1,10 +1,8 @@
 const std = @import("std");
-const allocator = @import("opentime").ALLOCATOR;
-const ALLOCATOR = allocator.ALLOCATOR;
 const expectEqual = std.testing.expectEqual;
-const generic_curve = @import("generic_curve.zig");
-
 const dual = @import("opentime").dual;
+
+const generic_curve = @import("generic_curve.zig");
 
 pub const Dual_CP = dual.DualOf(ControlPoint);
 
@@ -98,21 +96,26 @@ pub const ControlPoint = struct {
     }
     
     pub fn debug_json_str(
-        self: @This()
-    ) []const u8 
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) ![]const u8 
     {
-        return std.fmt.allocPrint(
-            ALLOCATOR,
+        return try std.fmt.allocPrint(
+            allocator,
             \\{{ "time": {d:.6}, "value": {d:.6} }}
             , .{ self.time, self.value, }
-        ) catch unreachable;
+        );
     }
 };
 
 /// check equality between two control points
-pub fn expectControlPointEqual(lhs: ControlPoint, rhs: ControlPoint) !void {
+pub fn expectControlPointEqual(
+    lhs: ControlPoint,
+    rhs: ControlPoint
+) !void 
+{
     inline for (.{ "time", "value" }) 
-            |k| 
+        |k| 
     {
         errdefer std.log.err("Error: expected {any} got {any}\n", .{ lhs, rhs });
         try std.testing.expectApproxEqAbs(
@@ -146,12 +149,13 @@ test "ControlPoint: mul" {
     const cp1 = ControlPoint{ .time = 0.0, .value = 10.0 };
     const scale = -10.0;
 
-    const result = ControlPoint{ .time = 0.0, .value = -100 };
+    const expected = ControlPoint{ .time = 0.0, .value = -100 };
+    const mul_direct = cp1.mul_num(scale);
+    const mul_implct = cp1.mul(scale);
 
-    errdefer std.log.err("result: {any}\n", .{ cp1.mul(scale) });
+    errdefer std.log.err("result: {any}\n", .{ mul_implct });
 
-    try expectControlPointEqual(cp1.mul_num(scale), cp1.mul(scale));
-    try expectControlPointEqual(cp1.mul(scale), result);
+    try expectControlPointEqual(mul_direct, mul_implct);
+    try expectControlPointEqual(expected, mul_implct);
 }
-
 // @}

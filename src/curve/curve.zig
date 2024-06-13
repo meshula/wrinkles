@@ -1,6 +1,7 @@
 pub const bezier_math = @import("bezier_math.zig");
 pub const linear_curve = @import("linear_curve.zig");
 pub const control_point = @import("control_point.zig");
+pub const bezier_curve = @import("bezier_curve.zig");
 
 // bezier
 pub const TimeCurve = bezier_curve.TimeCurve;
@@ -21,10 +22,9 @@ pub const inverted_linear = bezier_math.inverted_linear;
 pub const rescaled_curve = bezier_math.rescaled_curve;
 pub const affine_project_curve = bezier_curve.affine_project_curve;
 
-pub const bezier_curve = @import("bezier_curve.zig");
-
-test "all curve" {
+test {
     _ = bezier_math;
     _ = linear_curve;
     _ = bezier_curve;
+    _ = control_point;
 }
