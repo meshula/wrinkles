@@ -667,7 +667,7 @@ pub fn linearize_segment(
                 tolerance
             );
             defer allocator.free(r_result);
-            try result.appendSlice(r_result);
+            try result.appendSlice(r_result[1..]);
         }
     }
 
@@ -687,7 +687,7 @@ test "segment: linearize basic test" {
             0.01
         );
         defer std.testing.allocator.free(linearized_knots);
-        try expectEqual(@as(usize, 8*2), linearized_knots.len);
+        try expectEqual(@as(usize, 8+1), linearized_knots.len);
     }
 
     {
@@ -697,7 +697,7 @@ test "segment: linearize basic test" {
             0.000001
         );
         defer std.testing.allocator.free(linearized_knots);
-        try expectEqual(@as(usize, 68*2), linearized_knots.len);
+        try expectEqual(@as(usize, 68+1), linearized_knots.len);
     }
 
     {
@@ -707,7 +707,7 @@ test "segment: linearize basic test" {
             0.00000001
         );
         defer std.testing.allocator.free(linearized_knots);
-        try expectEqual(@as(usize, 256*2), linearized_knots.len);
+        try expectEqual(@as(usize, 256+1), linearized_knots.len);
     }
 }
 
