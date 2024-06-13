@@ -365,8 +365,8 @@ test "resample from 48khz to 44" {
 }
 
 // test 2
-// have a set of samples over 48khz, retime them with a curve and then resample
-// them to 44khz
+// have a set of samples over 48khz, retime them with a linear curve and then
+// resample them to 44khz
 test "retime 48khz samples with a curve, and then resample that retimed data" {
     const samples_48 = SineSampleGenerator{
         .sampling_rate_hz = 48000,
@@ -459,76 +459,122 @@ test "retime 48khz samples with a curve, and then resample that retimed data" {
     );
 }
 
-// test "retime 48khz samples with a curve projection, and then resample" {
-//     const samples_48 = SineSampleGenerator{
-//         .sampling_rate_hz = 48000,
-//         .signal_frequency_hz = 100,
-//         .signal_amplitude = 1,
-//         .signal_duration_s = 1,
-//     };
-//
-//     // @TODO: write this to a json file so we can image in curvet
-//     var retime_curve_segments = [_]Segment{
-//         // identity
-//         create_identity_segment(0, 0.25),
-//         // go up
-//         create_linear_segment(
-//             .{ .time = 0.25, .value = 0.25 },
-//             .{ .time = 0.5, .value = 2 },
-//         ),
-//         // hold
-//         create_linear_segment(
-//             .{ .time = 0.5, .value = 2.0 },
-//             .{ .time = 1.0, .value = 2.0 },
-//         ),
-//     };
-//     const retime_curve : TimeCurve = .{
-//         .segments = &retime_curve_segments
-//     };
-//
-//    const samples_48_retimed = samples_48.retimed(retime_curve);
-//    const samples_44 = samples_48_retimed.resampled(44100);
-//
-//    // do the measurement of what we've generated
-//    const samples_44_p2p_0p1 = samples_44.peak_to_peak_distance(0.1);
-//
-//    // @TODO: listen to this and hear if we get the chirp/sweep
-//    // const samples_44_p2p_0p35 = samples_44.peak_to_peak_distance(0.35);
-//
-//    const samples_44_p2p_0p75 = samples_44.peak_to_peak_distance(0.75);
-//
-//
-//    // make the reference data
-//    const samples_44100_at_200 = SineSampleGenerator{
-//        .sampling_rate_hz = 44100,
-//        .signal_frequency_hz = 200,
-//        .signal_amplitude = 1,
-//        .signal_duration_s = 1,
-//    };
-//    const samples_44100_at_200_p2p = samples_44100_at_200.peak_to_peak_distance(
-//        0.5
-//    );
-//    try expect(
-//        @abs(samples_44100_at_200_p2p - samples_44_p2p_0p1) <= 2
-//    );
-//
-//    const samples_44100_at_100 = SineSampleGenerator{
-//        .sampling_rate_hz = 44100,
-//        .signal_frequency_hz = 200,
-//        .signal_amplitude = 1,
-//        .signal_duration_s = 1,
-//    };
-//    const samples_44100_at_100_p2p = samples_44100_at_100.peak_to_peak_distance(
-//        0.5
-//     );
-//    try expect(
-//        @abs(samples_44100_at_100_p2p - samples_44_p2p_0p75) <= 2
-//    );
-// }
-
 // test 3
 // in curvet, create a set of samples over one rate, then after projection,
 // resample to another rate
+test "retime 48khz samples with a nonlinear acceleration curve and resample" {
+    const samples_48 = SineSampleGenerator{
+        .sampling_rate_hz = 48000,
+        .signal_frequency_hz = 100,
+        .signal_amplitude = 1,
+        .signal_duration_s = 1,
+    };
+    const s48 = try samples_48.rasterized(std.testing.allocator);
+    defer s48.deinit();
+
+    //
+    // ident -> acceleration (cubic spline)
+    //
+
+    // @TODO: write this to a json file so we can image in curvet
+    var retime_curve_segments = [_]curve.Segment{
+        // identity
+        curve.create_identity_segment(0, 0.25),
+        // go up
+        curve.Segment{
+            .p0 = .{ .time = 0.25, .value = 0.25 },
+            .p1 = .{ .time = 0.50, .value = 0.5 },
+            .p2 = .{ .time = 0.75, .value = 1.0 },
+            .p3 = .{ .time = 1.00, .value = 2.0 },
+        },
+    };
+    const retime_curve : curve.TimeCurve = .{
+        .segments = &retime_curve_segments
+    };
+
+    // linearize at 24hz
+    const retime_curve_extents = retime_curve.extents_time();
+    const inc:sample_t = 1.0/24.0;
+
+    var knots = std.ArrayList(curve.ControlPoint).init(std.testing.allocator);
+
+    try knots.append(
+        .{
+            .time = retime_curve_extents.start_seconds,
+            .value = try retime_curve.evaluate(
+                retime_curve_extents.start_seconds
+            ),
+        }
+    );
+
+    var t = retime_curve_extents.start_seconds + inc;
+    while (t < retime_curve_extents.end_seconds)
+        : (t += inc)
+    {
+        try knots.append(
+            .{
+                .time = t,
+                .value = try retime_curve.evaluate(t),
+            }
+        );
+    }
+
+    const retime_24hz_lin = curve.TimeCurveLinear{
+        .knots = try knots.toOwnedSlice(),
+    };
+    defer retime_24hz_lin.deinit(std.testing.allocator);
+
+    const retime_24hz = try curve.TimeCurve.init_from_linear_curve(
+        std.testing.allocator,
+        retime_24hz_lin,
+    );
+    defer retime_24hz.deinit(std.testing.allocator);
+
+    try curve.write_json_file_curve(
+        std.testing.allocator,
+        retime_24hz_lin,
+        "/var/tmp/ours_retime_24hz.linear.json"
+    );
+
+    try curve.write_json_file_curve(
+        std.testing.allocator,
+        retime_curve,
+        "/var/tmp/ours_retime_acceleration.curve.json"
+    );
+
+    const samples_48_retimed = try retimed(
+        std.testing.allocator,
+        s48,
+        retime_24hz,
+    );
+    defer samples_48_retimed.deinit();
+    const samples_44 = try resampled(
+        std.testing.allocator,
+        samples_48_retimed,
+        44100,
+    );
+    defer samples_44.deinit();
+    try samples_44.write_file("/var/tmp/ours_s44_retimed_acceleration_24.wav");
+
+    // identity
+    const samples_44_p2p_0p25 = try peak_to_peak_distance(
+        samples_44.buffer[0..11025]
+    );
+    try expectEqual(
+        441,
+        samples_44_p2p_0p25
+    );
+
+    // 2x
+    const samples_44_p2p_0p5 = try peak_to_peak_distance(
+        samples_44.buffer[11025..33074]
+    );
+    try expectEqual(
+        882,
+        samples_44_p2p_0p5
+     );
+}
+
 //
 // test 4 <-- goal
 // within the nomenclature of OTIO itself, describe samples on one media and
