@@ -1226,7 +1226,7 @@ pub const TimeCurve = struct {
         // self split
         {
             // find all knots in self that are within the other bounds
-            for (other_split.segment_endpoints() catch unreachable)
+            for (other_split.segment_endpoints(ALLOCATOR) catch unreachable)
                 |other_knot| 
             {
                 if (
@@ -1258,7 +1258,7 @@ pub const TimeCurve = struct {
             split_points.clearAndFree();
 
             // find all knots in self that are within the other bounds
-            for (self_split.segment_endpoints() catch unreachable)
+            for (self_split.segment_endpoints(ALLOCATOR) catch unreachable)
                 |self_knot| 
             {
                 if (
@@ -1537,15 +1537,23 @@ pub const TimeCurve = struct {
         return result;
     }
 
-    pub fn segment_endpoints(self: @This()) ![]control_point.ControlPoint {
-        var result = std.ArrayList(control_point.ControlPoint).init(ALLOCATOR);
+    pub fn segment_endpoints(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) ![]control_point.ControlPoint 
+    {
+        var result = std.ArrayList(
+            control_point.ControlPoint
+        ).init(allocator);
+
         if (self.segments.len > 0) {
             try result.append(self.segments[0].p0);
         }
         for (self.segments) |seg| {
             try result.append(seg.p3);
         }
-        return result.items;
+
+        return try result.toOwnedSlice();
     }
 
     pub fn project_linear_curve(
@@ -2638,7 +2646,11 @@ test "TimeCurve: split_at_each_value u curve" {
     );
     defer result.deinit(std.testing.allocator);
 
-    const endpoints = try result.segment_endpoints();
+    const endpoints = try result.segment_endpoints(
+        std.testing.allocator
+    );
+    defer std.testing.allocator.free(endpoints);
+
     for (split_points, 0..)
         |sp_p, index|
     {
@@ -2691,7 +2703,10 @@ test "TimeCurve: split_at_each_value linear" {
     defer result.deinit(std.testing.allocator);
 
     var fbuf: [1024]f32 = undefined;
-    const endpoints_cp = try result.segment_endpoints();
+    const endpoints_cp = try result.segment_endpoints(
+        std.testing.allocator
+    );
+    defer std.testing.allocator.free(endpoints_cp);
     for (endpoints_cp, 0..) |cp, index| {
         fbuf[index] = cp.value;
     }
@@ -2741,7 +2756,11 @@ test "TimeCurve: split_at_each_input_ordinate linear" {
     defer result.deinit(std.testing.allocator);
 
     var fbuf: [1024]f32 = undefined;
-    const endpoints_cp = try result.segment_endpoints();
+    const endpoints_cp = try result.segment_endpoints(
+        std.testing.allocator
+    );
+    defer std.testing.allocator.free(endpoints_cp);
+
     for (endpoints_cp, 0..) |cp, index| {
         fbuf[index] = cp.value;
     }
