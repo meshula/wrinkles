@@ -610,7 +610,7 @@ pub const TimeTopology = union (enum) {
             current_value += increment;
         }
 
-        const crv = curve.TimeCurve.init(segments.items) catch curve.TimeCurve{};
+        const crv = curve.TimeCurve.init(ALLOCATOR, segments.items) catch curve.TimeCurve{};
 
         return TimeTopology.init_bezier_cubic(crv);
     }

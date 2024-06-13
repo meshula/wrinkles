@@ -941,11 +941,18 @@ pub const TimeCurve = struct {
     // timecurve evaluates t as t, everywhere.
     segments: []Segment = &.{},
 
+    /// dupe the segments argument into the returned object
     pub fn init(
-        segments: []const Segment
-    ) error{OutOfMemory}!TimeCurve 
+        allocator:std.mem.Allocator,
+        segments: []const Segment,
+    ) !TimeCurve 
     {
-        return TimeCurve{ .segments = try ALLOCATOR.dupe(Segment, segments) };
+        return TimeCurve{ 
+            .segments = try allocator.dupe(
+                Segment,
+                segments
+            ) 
+        };
     }
 
     pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
@@ -970,7 +977,7 @@ pub const TimeCurve = struct {
         p1: control_point.ControlPoint
     ) !TimeCurve 
     {
-        return try TimeCurve.init(&.{ create_linear_segment(p0, p1) });
+        return try TimeCurve.init(ALLOCATOR, &.{ create_linear_segment(p0, p1) });
     }
 
     /// convert a linear curve into a bezier one
@@ -1302,6 +1309,7 @@ pub const TimeCurve = struct {
                     {
                         curves_to_project.append(
                             TimeCurve.init(
+                                ALLOCATOR,
                                 current_curve.toOwnedSlice() catch unreachable
                             ) catch unreachable
                         ) catch unreachable;
@@ -1317,6 +1325,7 @@ pub const TimeCurve = struct {
         {
             curves_to_project.append(
                 TimeCurve.init(
+                    ALLOCATOR,
                     current_curve.toOwnedSlice() catch unreachable
                 ) catch unreachable
             ) catch unreachable;
@@ -2385,8 +2394,11 @@ pub fn write_json_file_curve(
 
 test "json writer: curve" {
     const ident = try TimeCurve.init(
-        &.{ create_identity_segment(-20, 30) }
+        std.testing.allocator,
+        &.{ create_identity_segment(-20, 30) },
     );
+    defer ident.deinit(std.testing.allocator);
+
     const fpath = "/var/tmp/test.curve.json";
 
     try write_json_file_curve(
@@ -2463,7 +2475,10 @@ test "TimeCurve: project u loop bug" {
             .{ .time = 100, .value = 100},
         ),
     };
-    const simple_s = try TimeCurve.init(&simple_s_segments);
+    const simple_s = try TimeCurve.init(
+        ALLOCATOR,
+        &simple_s_segments
+    );
 
     const u_seg = [_]Segment{
         Segment{
@@ -2473,7 +2488,10 @@ test "TimeCurve: project u loop bug" {
             .p3 = .{ .time = 100, .value = 0 },
         },
     }; 
-    const upside_down_u = try TimeCurve.init(&u_seg);
+    const upside_down_u = try TimeCurve.init(
+        ALLOCATOR,
+        &u_seg,
+    );
 
     const result : TimeCurve = simple_s.project_curve(upside_down_u);
 
@@ -2502,7 +2520,10 @@ test "TimeCurve: project linear identity with linear 1/2 slope" {
             .{ .time = 230, .value = 230},
         ),
     };
-    const linear_crv = try TimeCurve.init(&linear_segment);
+    const linear_crv = try TimeCurve.init(
+        ALLOCATOR,
+        &linear_segment,
+    );
 
     if (linear_segment.len > 0) {
         return error.SkipZigTest;
@@ -2514,7 +2535,10 @@ test "TimeCurve: project linear identity with linear 1/2 slope" {
             .{ .time = 200, .value = 200},
         ),
     };
-    const linear_half_crv = try TimeCurve.init(&linear_half_segment);
+    const linear_half_crv = try TimeCurve.init(
+        ALLOCATOR,
+        &linear_half_segment
+    );
 
     const result : TimeCurve = linear_half_crv.project_curve(linear_crv);
 
@@ -2528,7 +2552,11 @@ test "TimeCurve: project linear u with out-of-bounds segments" {
             .{ .time = 130, .value = 130},
         ),
     };
-    const linear_crv = try TimeCurve.init(&linear_segment);
+    const linear_crv = try TimeCurve.init(
+        std.testing.allocator,
+        &linear_segment,
+    );
+    defer linear_crv.deinit(std.testing.allocator);
 
     if (linear_segment.len > 0) {
         return error.SkipZigTest;
@@ -2541,7 +2569,11 @@ test "TimeCurve: project linear u with out-of-bounds segments" {
             .p3 = .{ .time = 100, .value = 0 },
         },
     }; 
-    const upside_down_u = try TimeCurve.init(&u_seg);
+    const upside_down_u = try TimeCurve.init(
+        std.testing.allocator,
+        &u_seg,
+    );
+    defer upside_down_u.deinit(std.testing.allocator);
 
     // const result : TimeCurve = linear_crv.project_curve(upside_down_u);
     const result : TimeCurve = upside_down_u.project_curve(linear_crv);
@@ -2558,7 +2590,12 @@ test "TimeCurve: split_at_each_value u curve" {
             .p3 = .{ .time = 100, .value = 0 },
         },
     }; 
-    const upside_down_u = try TimeCurve.init(&u_seg);
+    const upside_down_u = try TimeCurve.init(
+        std.testing.allocator,
+        &u_seg
+    );
+    defer upside_down_u.deinit(std.testing.allocator);
+
     const upside_down_u_hodo = try upside_down_u.split_on_critical_points(
         std.testing.allocator
     );
@@ -2608,7 +2645,11 @@ test "TimeCurve: split_at_each_value u curve" {
 
 test "TimeCurve: split_at_each_value linear" {
     const identSeg = create_identity_segment(-0.2, 1) ;
-    const lin = try TimeCurve.init(&.{identSeg});
+    const lin = try TimeCurve.init(
+        std.testing.allocator,
+        &.{identSeg},
+    );
+    defer lin.deinit(std.testing.allocator);
 
     const split_points = [_]f32{ -0.2, 0, 0.5, 1 };
 
@@ -2654,7 +2695,11 @@ test "TimeCurve: split_at_each_value linear" {
 
 test "TimeCurve: split_at_each_input_ordinate linear" {
     const identSeg = create_identity_segment(-0.2, 1) ;
-    const lin = try TimeCurve.init(&.{identSeg});
+    const lin = try TimeCurve.init(
+        std.testing.allocator,
+        &.{identSeg},
+    );
+    defer lin.deinit(std.testing.allocator);
 
     const split_points = [_]f32{ -0.2, 0, 0.5, 1 };
 
@@ -2701,11 +2746,14 @@ test "TimeCurve: split_at_each_input_ordinate linear" {
 test "TimeCurve: split_at_input_ordinate" {
 
     const test_curves = [_]TimeCurve{
-        try TimeCurve.init(&.{ create_identity_segment(-20, 30) }),
+        try TimeCurve.init(
+            std.testing.allocator,
+            &.{ create_identity_segment(-20, 30) },
+        ),
         try read_curve_json("curves/upside_down_u.curve.json", std.testing.allocator), 
         try read_curve_json("curves/scurve.curve.json", std.testing.allocator), 
     };
-
+    defer test_curves[0].deinit(std.testing.allocator);
     defer test_curves[1].deinit(std.testing.allocator);
     defer test_curves[2].deinit(std.testing.allocator);
 
@@ -2776,6 +2824,7 @@ test "TimeCurve: trimmed_from_input_ordinate" {
             std.testing.allocator
         ), 
         try TimeCurve.init(
+            std.testing.allocator,
             &.{
                 create_identity_segment(-25, -5), 
                 create_identity_segment(-5, 5), 
@@ -2785,6 +2834,7 @@ test "TimeCurve: trimmed_from_input_ordinate" {
     };
 
     defer test_curves[0].deinit(std.testing.allocator);
+    defer test_curves[1].deinit(std.testing.allocator);
 
     for (test_curves, 0..) |ident, curve_index| {
         const extents = ident.extents();
@@ -2885,11 +2935,15 @@ test "TimeCurve: trimmed_in_input_space" {
     };
 
     const test_curves = [_]TimeCurve{
-        try TimeCurve.init(&.{ create_identity_segment(-20, 30) }),
+        try TimeCurve.init(
+            std.testing.allocator,
+            &.{ create_identity_segment(-20, 30) }
+        ),
         try read_curve_json("curves/upside_down_u.curve.json", std.testing.allocator), 
         try read_curve_json("curves/scurve.curve.json", std.testing.allocator), 
     };
 
+    defer test_curves[0].deinit(std.testing.allocator);
     defer test_curves[1].deinit(std.testing.allocator);
     defer test_curves[2].deinit(std.testing.allocator);
 
@@ -3143,7 +3197,11 @@ test "TimeCurve: split_on_critical_points s curve" {
             .p3 = .{ .time = 100, .value = 100 },
         },
     }; 
-    const s_curve_seg = try TimeCurve.init(&s_seg);
+    const s_curve_seg = try TimeCurve.init(
+        std.testing.allocator,
+        &s_seg
+    );
+    defer s_curve_seg.deinit(std.testing.allocator);
 
     const s_curve_split = try s_curve_seg.split_on_critical_points(
         std.testing.allocator
@@ -3193,7 +3251,11 @@ test "TimeCurve: split_on_critical_points symmetric about the origin" {
     {
         errdefer std.debug.print("test that failed: {d}\n", .{ td_ind });
         const s_seg:[1]Segment = .{ td.segment };
-        const s_curve_seg = try TimeCurve.init(&s_seg);
+        const s_curve_seg = try TimeCurve.init(
+            std.testing.allocator,
+            &s_seg
+        );
+        defer s_curve_seg.deinit(std.testing.allocator);
 
         const cSeg : hodographs.BezierSegment = .{
             .order = 3,
