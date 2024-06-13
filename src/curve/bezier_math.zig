@@ -1358,9 +1358,12 @@ pub fn inverted_bezier(
 test "inverted: invert linear" {
     // slope 2
     const forward_crv = try curve.TimeCurve.init_from_start_end(
+        std.testing.allocator,
             .{.time = -1, .value = -3},
             .{.time = 1, .value = 1}
     );
+    defer forward_crv.deinit(std.testing.allocator);
+
     const inverse_crv = try inverted_bezier(
         std.testing.allocator,
         forward_crv
@@ -1406,9 +1409,11 @@ test "inverted: invert linear" {
 test "invert negative slope linear" {
     // slope 2
     const forward_crv = try curve.TimeCurve.init_from_start_end(
+        std.testing.allocator,
             .{.time = -1, .value = 1},
             .{.time = 1, .value = -3}
     );
+    defer forward_crv.deinit(std.testing.allocator);
 
     const forward_crv_lin = forward_crv.linearized();
     const inverse_crv_lin = try inverted_linear(

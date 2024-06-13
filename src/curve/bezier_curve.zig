@@ -973,11 +973,15 @@ pub const TimeCurve = struct {
     }
 
     pub fn init_from_start_end(
+        allocator: std.mem.Allocator,
         p0: control_point.ControlPoint,
-        p1: control_point.ControlPoint
+        p1: control_point.ControlPoint,
     ) !TimeCurve 
     {
-        return try TimeCurve.init(ALLOCATOR, &.{ create_linear_segment(p0, p1) });
+        return try TimeCurve.init(
+            allocator,
+            &.{ create_linear_segment(p0, p1) }
+        );
     }
 
     /// convert a linear curve into a bezier one
