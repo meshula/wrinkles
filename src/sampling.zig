@@ -260,7 +260,7 @@ pub fn resampled(
         .data_out = @ptrCast(result.buffer.ptr),
         .output_frames = @intCast(num_output_samples),
         .src_ratio = resample_ratio,
-        .end_of_input = 1,
+        .end_of_input = 0,
     };
 
     const resample_error = libsamplerate.src_simple(
