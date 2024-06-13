@@ -469,7 +469,10 @@ pub fn main() !void {
 
     // const identSeg = curve.create_identity_segment(-0.2, 1) ;
     const identSeg = curve.create_identity_segment(-3, 3) ;
-    const snd_crv = try curve.TimeCurve.init(&.{identSeg});
+    const snd_crv = try curve.TimeCurve.init(
+        allocator,
+        &.{identSeg}
+    );
     const snd_name:[:0]const u8 ="linear [-0.2, 1)" ;
 
     var tmpCurves = projTmpTest{
@@ -1356,44 +1359,47 @@ fn plot_two_point_approx(
         }
         // const cSeg = seg.to_cSeg();
         // var hodo = curve.bezier_curve.hodographs.compute_hodograph(&cSeg);
-    //     const d_midpoint_dt = (
-    //         curve.bezier_curve.hodographs.evaluate_bezier(
-    //             &hodo,
-    //             u
-    //         )
-    //     );
-    //     const d_mid_point_dt = curve.ControlPoint{
-    //         .time = d_midpoint_dt.x,
-    //         .value = d_midpoint_dt.y,
-    //     };
-    //
-    //     const tpa_guts = curve.bezier_curve.three_point_guts_plot(
-    //         seg.p0,
-    //         mid_point,
-    //         u,
-    //         d_mid_point_dt,
-    //         seg.p3,
-    //     );
-    //
-    //     // derivative at the midpoint
-    //     try approx_segments.append(tpa_guts.result.?);
-    //
-    //     try plot_tpa_guts(
-    //         tpa_guts,
-    //         label,
-    //         flags.three_point_approximation,
-    //         allocator,
-    //     );
+        //     const d_midpoint_dt = (
+        //         curve.bezier_curve.hodographs.evaluate_bezier(
+        //             &hodo,
+        //             u
+        //         )
+        //     );
+        //     const d_mid_point_dt = curve.ControlPoint{
+        //         .time = d_midpoint_dt.x,
+        //         .value = d_midpoint_dt.y,
+        //     };
+        //
+        //     const tpa_guts = curve.bezier_curve.three_point_guts_plot(
+        //         seg.p0,
+        //         mid_point,
+        //         u,
+        //         d_mid_point_dt,
+        //         seg.p3,
+        //     );
+        //
+        //     // derivative at the midpoint
+        //     try approx_segments.append(tpa_guts.result.?);
+        //
+        //     try plot_tpa_guts(
+        //         tpa_guts,
+        //         label,
+        //         flags.three_point_approximation,
+        //         allocator,
+        //     );
     }
 
-        const approx_crv = try curve.TimeCurve.init(approx_segments.items);
+    const approx_crv = try curve.TimeCurve.init(
+        allocator,
+        approx_segments.items
+    );
 
-        try plot_bezier_curve(
-            approx_crv,
-            approx_label,
-            flags.three_point_approximation.result_curves,
-            allocator
-        );
+    try plot_bezier_curve(
+        approx_crv,
+        approx_label,
+        flags.three_point_approximation.result_curves,
+        allocator
+    );
 }
 
 fn plot_three_point_approx(
@@ -1476,7 +1482,10 @@ fn plot_three_point_approx(
             );
         }
 
-        const approx_crv = try curve.TimeCurve.init(approx_segments.items);
+        const approx_crv = try curve.TimeCurve.init(
+            allocator,
+            approx_segments.items,
+        );
 
         try plot_bezier_curve(
             approx_crv,
@@ -1746,7 +1755,8 @@ fn update(
 
                     const other_bounds = other.extents();
                     var other_copy = try curve.TimeCurve.init(
-                        other_hodograph.segments
+                        allocator,
+                        other_hodograph.segments,
                     );
 
                     {
@@ -1773,7 +1783,10 @@ fn update(
                             split_points.items,
                             allocator
                         );
-                        other_copy = try curve.TimeCurve.init(result.segments);
+                        other_copy = try curve.TimeCurve.init(
+                            allocator,
+                            result.segments,
+                        );
                         result.deinit(allocator);
                     }
 

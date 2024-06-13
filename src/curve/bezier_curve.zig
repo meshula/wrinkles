@@ -986,10 +986,11 @@ pub const TimeCurve = struct {
 
     /// convert a linear curve into a bezier one
     pub fn init_from_linear_curve(
-        crv: linear_curve.TimeCurveLinear
+        allocator:std.mem.Allocator,
+        crv: linear_curve.TimeCurveLinear,
     ) !TimeCurve 
     {
-        var result = std.ArrayList(Segment).init(ALLOCATOR);
+        var result = std.ArrayList(Segment).init(allocator);
         result.deinit();
 
         const knots = crv.knots.len;
@@ -2083,24 +2084,39 @@ pub const TimeCurve = struct {
 /// parse a .curve.json file from disk and return a TimeCurve
 pub fn read_curve_json(
     file_path: latin_s8,
-    allocator_:std.mem.Allocator
+    allocator:std.mem.Allocator
 ) !TimeCurve 
 {
     const fi = try std.fs.cwd().openFile(file_path, .{});
     defer fi.close();
 
-    const source = try fi.readToEndAlloc(allocator_, std.math.maxInt(u32));
-    defer allocator_.free(source);
+    const source = try fi.readToEndAlloc(
+        allocator,
+        std.math.maxInt(u32)
+    );
+    defer allocator.free(source);
 
     // if its a linear curve
     if (std.mem.indexOf(u8, file_path, ".linear.json"))
         |_|
     {
-        const lin_curve = try std.json.parseFromSliceLeaky(linear_curve.TimeCurveLinear, allocator_, source, .{});
-        return TimeCurve.init_from_linear_curve(lin_curve);
+        const lin_curve = try std.json.parseFromSliceLeaky(
+            linear_curve.TimeCurveLinear,
+            allocator,
+            source, .{}
+        );
+        return TimeCurve.init_from_linear_curve(
+            allocator,
+            lin_curve
+        );
     }
 
-    return try std.json.parseFromSliceLeaky(TimeCurve, allocator_, source, .{});
+    return try std.json.parseFromSliceLeaky(
+        TimeCurve,
+        allocator,
+        source,
+        .{}
+    );
 }
 
 test "Curve: read_curve_json" {
