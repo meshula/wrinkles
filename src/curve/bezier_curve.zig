@@ -670,7 +670,10 @@ pub fn linearize_segment(
 }
 
 test "segment: linearize basic test" {
-    const segment = try read_segment_json("segments/upside_down_u.json");
+    const segment = try read_segment_json(
+        std.testing.allocator,
+        "segments/upside_down_u.json"
+    );
 
     {
         const linearized_knots = try linearize_segment(
@@ -743,7 +746,10 @@ test "segment from point array" {
 }
 
 test "segment: linearize already linearized curve" {
-    const segment = try read_segment_json("segments/linear.json");
+    const segment = try read_segment_json(
+        std.testing.allocator,
+        "segments/linear.json"
+    );
     const linearized_knots = try linearize_segment(
         std.testing.allocator,
         segment,
@@ -755,13 +761,27 @@ test "segment: linearize already linearized curve" {
     try expectEqual(@as(usize, 2), linearized_knots.len);
 }
 
-pub fn read_segment_json(file_path: latin_s8) !Segment {
+/// read a Bezier segment from a json file on disk
+pub fn read_segment_json(
+    allocator:std.mem.Allocator,
+    file_path: latin_s8,
+) !Segment 
+{
     const fi = try std.fs.cwd().openFile(file_path, .{});
     defer fi.close();
 
-    const source = try fi.readToEndAlloc(ALLOCATOR, std.math.maxInt(u32));
+    const source = try fi.readToEndAlloc(
+        allocator,
+        std.math.maxInt(u32)
+    );
+    defer allocator.free(source);
 
-    const result = try std.json.parseFromSlice(Segment, ALLOCATOR, source, .{});
+    const result = try std.json.parseFromSlice(
+        Segment,
+        allocator,
+        source,
+        .{}
+    );
     defer result.deinit();
 
     return result.value;
