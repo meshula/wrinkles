@@ -1572,7 +1572,10 @@ pub const TimeCurve = struct {
             ALLOCATOR
         ) catch unreachable;
 
-        return self_linearized.project_curve(other);
+        return self_linearized.project_curve(
+            ALLOCATOR,
+            other,
+        ) catch unreachable;
     }
 
     pub fn project_affine(

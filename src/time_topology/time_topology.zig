@@ -251,15 +251,25 @@ pub const LinearTopology = struct {
             },
             .bezier_curve => |bez| .{
                 .linear_curve = .{
-                    .curve = self.curve.project_curve(
-                        try bez.curve.linearized(
-                            ALLOCATOR
+                    .curve = (
+                        try self.curve.project_curve(
+                            ALLOCATOR,
+                            try bez.curve.linearized(
+                                ALLOCATOR
+                            )
                         )
                     )[0]
                 }
             },
             .linear_curve => |lin| .{
-                .linear_curve = .{ .curve = self.curve.project_curve(lin.curve)[0] }
+                .linear_curve = .{ 
+                    .curve = (
+                        try self.curve.project_curve(
+                            ALLOCATOR,
+                            lin.curve
+                        )
+                    )[0] 
+                }
             },
             .empty => .{ .empty = EmptyTopology{} },
         };
@@ -432,10 +442,15 @@ pub const BezierTopology = struct {
                 },
                 .linearized => .{ 
                     .linear_curve = .{
-                        .curve = (try self.curve.linearized(
-                            ALLOCATOR
-                        )).project_curve(
-                           try bez.curve.linearized(ALLOCATOR)
+                        .curve = (
+                            try (
+                             try self.curve.linearized(
+                                 ALLOCATOR
+                             )
+                            ).project_curve(
+                            ALLOCATOR,
+                            try bez.curve.linearized(ALLOCATOR),
+                            )
                         )[0]
                     }
                 },
@@ -443,10 +458,15 @@ pub const BezierTopology = struct {
             .linear_curve => |lin| .{
                 .linear_curve = .{
                     .curve = (
-                        try self.curve.linearized(
-                            ALLOCATOR
+                        try (
+                            try self.curve.linearized(
+                                ALLOCATOR
+                            )
+                        ).project_curve(
+                        ALLOCATOR,
+                        lin.curve,
                         )
-                    ).project_curve(lin.curve)[0]
+                    )[0]
                 }
             },
             .empty => .{ .empty = EmptyTopology{} },

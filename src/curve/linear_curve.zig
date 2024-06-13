@@ -10,7 +10,6 @@ const expectEqual = std.testing.expectEqual;
 const expectApproxEqAbs = std.testing.expectApproxEqAbs;
 
 const opentime = @import("opentime");
-const ALLOCATOR = @import("otio_allocator").ALLOCATOR;
 const ContinuousTimeInterval = opentime.ContinuousTimeInterval;
 
 fn _is_between(val: f32, fst: f32, snd: f32) bool {
@@ -21,6 +20,7 @@ fn _is_between(val: f32, fst: f32, snd: f32) bool {
 pub const TimeCurveLinear = struct {
     knots: []ControlPoint = &.{},
 
+    // @TODO: remove the allocator from this
     /// dupe the provided points into the result
     pub fn init(
         allocator: std.mem.Allocator,
@@ -232,9 +232,10 @@ pub const TimeCurveLinear = struct {
     pub fn project_curve(
         /// curve being projected _through_
         self: @This(),
+        allocator: std.mem.Allocator,
         /// curve being projected
         other: TimeCurveLinear
-    ) []TimeCurveLinear 
+    ) ![]TimeCurveLinear 
     {
         // @TODO: if there are preserved derivatives, project and compose them
         //        as well
@@ -244,7 +245,9 @@ pub const TimeCurveLinear = struct {
 
         // find all knots in self that are within the other bounds
         {
-            var split_points = std.ArrayList(f32).init(ALLOCATOR);
+            var split_points = std.ArrayList(f32).init(
+                allocator,
+            );
             defer split_points.deinit();
 
             for (self.knots)
@@ -257,58 +260,70 @@ pub const TimeCurveLinear = struct {
                         other_bounds[1].value
                     )
                 ) {
-                    split_points.append(self_knot.time) catch unreachable;
+                    try split_points.append(self_knot.time);
                 }
             }
 
-            other_split_at_self_knots = other.split_at_each_value(
-                ALLOCATOR,
+            other_split_at_self_knots = try other.split_at_each_value(
+                allocator,
                 split_points.items
-            ) catch unreachable;
+            );
         }
 
         // split other into curves where it goes in and out of the domain of self
-        var curves_to_project = std.ArrayList(TimeCurveLinear).init(ALLOCATOR);
-        const self_bounds = self.extents();
-        var last_index: i32 = -10;
-        var current_curve = std.ArrayList(ControlPoint).init(ALLOCATOR);
-        defer current_curve.deinit();
+        var curves_to_project = std.ArrayList(
+            TimeCurveLinear,
+        ).init(allocator);
 
-        for (other_split_at_self_knots.knots, 0..) 
-            |other_knot, index| 
+        // gather the curves to project by splitting
         {
-            if (
-                self_bounds[0].time <= other_knot.value 
-                and other_knot.value <= self_bounds[1].time
-            ) 
-            {
-                if (index != last_index+1) {
-                    // curves of less than one point are trimmed, because they
-                    // have no duration, and therefore are not modelled in our
-                    // system.
-                    if (current_curve.items.len > 1) {
-                        curves_to_project.append(
-                            TimeCurveLinear.init(
-                                ALLOCATOR,
-                                current_curve.items
-                            ) catch unreachable
-                        ) catch unreachable;
-                    }
-                    current_curve = std.ArrayList(ControlPoint).init(ALLOCATOR);
-                }
+            const self_bounds = self.extents();
+            var last_index:?i32 = null;
+            var current_curve = (
+                std.ArrayList(ControlPoint).init(
+                    allocator,
+                )
+            );
 
-                current_curve.append(other_knot) catch unreachable;
-                last_index = @intCast(index);
+            for (other_split_at_self_knots.knots, 0..) 
+                |other_knot, index| 
+            {
+                if (
+                    self_bounds[0].time <= other_knot.value 
+                    and other_knot.value <= self_bounds[1].time
+                ) 
+                {
+                    if (last_index == null or index != last_index.?+1) 
+                    {
+                        // curves of less than one point are trimmed, because they
+                        // have no duration, and therefore are not modelled in our
+                        // system.
+                        if (current_curve.items.len > 1) 
+                        {
+                            try curves_to_project.append(
+                                TimeCurveLinear{
+                                    .knots = try current_curve.toOwnedSlice(),
+                                }
+                            );
+                        }
+                        current_curve.clearAndFree();
+                    }
+
+                    try current_curve.append(other_knot);
+                    last_index = @intCast(index);
+                }
             }
+            if (current_curve.items.len > 1) {
+                try curves_to_project.append(
+                    TimeCurveLinear{
+                        .knots = try current_curve.toOwnedSlice(),
+                    }
+                );
+            }
+            current_curve.clearAndFree();
+            current_curve.deinit();
         }
-        if (current_curve.items.len > 1) {
-            curves_to_project.append(
-                TimeCurveLinear.init(
-                    ALLOCATOR,
-                    current_curve.items,
-                ) catch unreachable
-            ) catch unreachable;
-        }
+        other_split_at_self_knots.deinit(allocator);
 
         if (curves_to_project.items.len == 0) {
             return &[_]TimeCurveLinear{};
@@ -318,34 +333,32 @@ pub const TimeCurveLinear = struct {
             |crv| 
         {
             // project each knot
-            for (crv.knots, 0..) 
-                |knot, index| 
+            for (crv.knots) 
+                |*knot| 
             {
                 // 2. evaluate grows a parameter to treat endpoint as in bounds
                 // 3. check outside of evaluate if it sits on a knot and use
-                //    the value rathe rthan computing
+                //    the value rather than computing
                 // 4. catch the error and call a different function or do a
                 //    check in that case
                 const value = self.evaluate(knot.value) catch (
                     if (self.knots[self.knots.len-1].time == knot.value) 
                         self.knots[self.knots.len-1].value 
-                    else unreachable
+                    else return error.NotInRangeError
                 );
-                crv.knots[index] = .{
-                    .time = knot.time,
-                    // this will error out trying to project the last endpoint
-                    // .value = self.evaluate(knot.value) catch unreachable
-                    .value = value
-                };
+
+                // this will error out trying to project the last endpoint
+                // .value = self.evaluate(knot.value) catch unreachable
+                knot.value  = value;
             }
         }
 
         // @TODO: we should write a test that exersizes this case
         if (curves_to_project.items.len > 1) {
-            @panic("AAAAAH MORe THAN ONE CURVE");
+            return error.MoreThanOneCurveIsNotImplemented;
         }
 
-        return curves_to_project.items;
+        return try curves_to_project.toOwnedSlice();
     }
 
     pub fn debug_json_str(
@@ -458,17 +471,27 @@ test "TimeCurveLinear: proj_ident"
     defer ident.deinit(std.testing.allocator);
 
     {
-        const right_overhang= [_]ControlPoint{
+        var right_overhang= [_]ControlPoint{
             .{ .time = -10, .value = -10},
             .{ .time = 30, .value = 10},
         };
-        const right_overhang_lin = try TimeCurveLinear.init(
+        const right_overhang_lin = TimeCurveLinear{
+            .knots = &right_overhang,
+        };
+         
+        const result = try ident.project_curve(
             std.testing.allocator,
-            &right_overhang,
+            right_overhang_lin,
         );
-        defer right_overhang_lin.deinit(std.testing.allocator);
+        defer {
+            for (result)
+                |crv|
+            {
+                crv.deinit(std.testing.allocator);
+            }
+            std.testing.allocator.free(result);
+        }
 
-        const result = ident.project_curve(right_overhang_lin);
         try expectEqual(@as(usize, 1), result.len);
         try expectEqual(@as(usize, 2), result[0].knots.len);
 
@@ -492,7 +515,18 @@ test "TimeCurveLinear: proj_ident"
         );
         defer left_overhang_lin.deinit(std.testing.allocator);
 
-        const result = ident.project_curve(left_overhang_lin);
+        const result = try ident.project_curve(
+            std.testing.allocator,
+            left_overhang_lin,
+        );
+        defer {
+            for (result)
+                |crv|
+            {
+                crv.deinit(std.testing.allocator);
+            }
+            std.testing.allocator.free(result);
+        }
 
         try expectEqual(@as(usize, 1), result.len);
         try expectEqual(@as(usize, 2), result[0].knots.len);
@@ -508,7 +542,6 @@ test "TimeCurveLinear: proj_ident"
 }
 
 test "TimeCurveLinear: project s" {
-    // @TODO: the next thing to fix -- START HERE
     const ident = try TimeCurveLinear.init_identity(
         std.testing.allocator,
         &.{0, 100},
@@ -528,7 +561,18 @@ test "TimeCurveLinear: project s" {
     );
     defer simple_s_lin.deinit(std.testing.allocator);
 
-    const result = simple_s_lin.project_curve(ident);
+    const result = try simple_s_lin.project_curve(
+        std.testing.allocator,
+        ident,
+    );
+    defer {
+        for (result)
+            |crv|
+            {
+                crv.deinit(std.testing.allocator);
+            }
+        std.testing.allocator.free(result);
+    }
 
     try expectEqual(@as(usize, 1), result.len);
     try expectEqual(@as(usize, 4), result[0].knots.len);
@@ -552,7 +596,18 @@ test "TimeCurveLinear: projection_test - compose to identity" {
     );
     defer snd.deinit(std.testing.allocator);
 
-    const result = fst.project_curve(snd);
+    const result = try fst.project_curve(
+        std.testing.allocator,
+        snd,
+    );
+    defer {
+        for (result)
+            |crv|
+            {
+                crv.deinit(std.testing.allocator);
+            }
+        std.testing.allocator.free(result);
+    }
 
     try expectEqual(@as(usize, 1), result.len);
     try expectEqual(@as(f32, 8), result[0].knots[1].time);
