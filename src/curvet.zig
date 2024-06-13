@@ -636,7 +636,8 @@ fn plot_knots(
         const knots_yv = try allocator.alloc(f32, hod.segments.len + 1);
         defer allocator.free(knots_yv);
 
-        const endpoints = try hod.segment_endpoints();
+        const endpoints = try hod.segment_endpoints(allocator);
+        defer allocator.free(endpoints);
 
         for (endpoints, 0..) |knot, knot_ind| {
             knots_xv[knot_ind] = knot.time;
@@ -1768,7 +1769,12 @@ fn update(
                         defer split_points.deinit();
 
                         // find all knots in self that are within the other bounds
-                        for (try self_hodograph.segment_endpoints())
+                        const endpoints = try self_hodograph.segment_endpoints(
+                            allocator
+                        );
+                        defer allocator.free(endpoints);
+
+                        for (endpoints)
                             |self_knot| 
                         {
                             if (
@@ -2229,7 +2235,11 @@ fn update(
                             if (zgui.treeNode("Original Knots")) {
                                 defer zgui.treePop();
 
-                                for (try crv.curve.segment_endpoints(), 0..) 
+                                const endpoints = (
+                                    try crv.curve.segment_endpoints(allocator)
+                                );
+                                defer allocator.free(endpoints);
+                                for (endpoints, 0..) 
                                     |pt, ind| 
                                 {
                                     zgui.bulletText(
@@ -2267,7 +2277,12 @@ fn update(
                                 const split = try crv.curve.split_on_critical_points(allocator);
                                 defer split.deinit(allocator);
 
-                                for (try split.segment_endpoints(), 0..) 
+                                const endpoints = try split.segment_endpoints(
+                                    allocator,
+                                );
+                                defer allocator.free(endpoints);
+
+                                for (endpoints, 0..) 
                                     |pt, ind| 
                                 {
                                     zgui.bulletText(

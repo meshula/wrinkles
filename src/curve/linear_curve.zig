@@ -93,8 +93,11 @@ pub const TimeCurveLinear = struct {
         return error.OutOfBounds;
     }
 
+    /// finds all the knots for which v_arg is between this knot's value and
+    /// the next's value
     pub fn nearest_smaller_knot_index_value(
         self: @This(),
+        allocator: std.mem.Allocator,
         v_arg: f32
     ) []u32 
     {
@@ -107,13 +110,12 @@ pub const TimeCurveLinear = struct {
             return .{};
         }
 
-        var result = std.ArrayList(u32).init(ALLOCATOR) catch unreachable;
+        var result = std.ArrayList(u32).init(allocator);
 
         // last knot is out of domain
-        for (self.knots[0..self.knots.len-1], 0..) 
-            |knot, index| 
+        for (self.knots[0..self.knots.len-1], self.knots[1..], 0..) 
+            |knot, next_knot, index| 
         {
-            const next_knot = self.knots[index+1];
             if (
                 (knot.value <= v_arg and v_arg < next_knot.value)
                 or (knot.value >= v_arg and v_arg > next_knot.value)
@@ -123,7 +125,7 @@ pub const TimeCurveLinear = struct {
             }
         }
 
-        return result.items;
+        return try result.toOwnedSlice();
     }
 
     pub fn nearest_smaller_knot_index(
@@ -131,25 +133,26 @@ pub const TimeCurveLinear = struct {
         t_arg: f32, 
     ) ?usize 
     {
-        if (self.knots.len == 0 
+        const last_index = self.knots.len-1;
+
+        // out of bounds
+        if (
+            self.knots.len == 0 
             or (t_arg < self.knots[0].time)
-            or t_arg >= self.knots[self.knots.len - 1].time)
+            or t_arg >= self.knots[last_index].time
+        )
         {
             return null;
         }
 
         // last knot is out of domain
-        for (self.knots[0..self.knots.len-1], 0..) 
-            |knot, index| 
+        for (self.knots[0..last_index], self.knots[1..], 0..) 
+            |knot, next_knot, index| 
         {
-            if ( knot.time <= t_arg and t_arg < self.knots[index+1].time) 
+            if ( knot.time <= t_arg and t_arg < next_knot.time) 
             {
                 return index;
             }
-        }
-
-        if (self.knots[self.knots.len - 1].time == t_arg) {
-            return self.knots.len - 1;
         }
 
         return null;
