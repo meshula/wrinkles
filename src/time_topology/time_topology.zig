@@ -248,7 +248,11 @@ pub const LinearTopology = struct {
             },
             .bezier_curve => |bez| .{
                 .linear_curve = .{
-                    .curve = self.curve.project_curve(bez.curve.linearized())[0]
+                    .curve = self.curve.project_curve(
+                        try bez.curve.linearized(
+                            ALLOCATOR
+                        )
+                    )[0]
                 }
             },
             .linear_curve => |lin| .{
@@ -423,15 +427,21 @@ pub const BezierTopology = struct {
                 },
                 .linearized => .{ 
                     .linear_curve = .{
-                        .curve = self.curve.linearized().project_curve(
-                            bez.curve.linearized()
+                        .curve = (try self.curve.linearized(
+                            ALLOCATOR
+                        )).project_curve(
+                           try bez.curve.linearized(ALLOCATOR)
                         )[0]
                     }
                 },
             },
             .linear_curve => |lin| .{
                 .linear_curve = .{
-                    .curve = self.curve.linearized().project_curve(lin.curve)[0]
+                    .curve = (
+                        try self.curve.linearized(
+                            ALLOCATOR
+                        )
+                    ).project_curve(lin.curve)[0]
                 }
             },
             .empty => .{ .empty = EmptyTopology{} },

@@ -585,12 +585,12 @@ test "Segment: debug_str test" {
         \\    "p3": { "time": 0.500000, "value": 0.500000 }
         \\}
         \\
-    ;
+            ;
 
-    const blob = try seg.debug_json_str(std.testing.allocator);
-    defer std.testing.allocator.free(blob);
+        const blob = try seg.debug_json_str(std.testing.allocator);
+        defer std.testing.allocator.free(blob);
 
-    try expectEqualStrings( result,blob);
+        try expectEqualStrings( result,blob);
 }
 
 fn _is_approximately_linear(
@@ -633,7 +633,6 @@ pub fn linearize_segment(
     var result: std.ArrayList(control_point.ControlPoint) = (
         std.ArrayList(control_point.ControlPoint).init(allocator)
     );
-    defer result.deinit();
 
     if (_is_approximately_linear(segment, tolerance)) {
         // terminal condition
@@ -709,10 +708,10 @@ test "segment: linearize basic test" {
 test "segment from point array" {
 
     const original_knots_ident: [4]control_point.ControlPoint = .{
-            .{ .time = -0.5,     .value = -0.5},
-            .{ .time = -0.16666, .value = -0.16666},
-            .{ .time = 0.166666, .value = 0.16666},
-            .{ .time = 0.5,      .value = 0.5}
+        .{ .time = -0.5,     .value = -0.5},
+        .{ .time = -0.16666, .value = -0.16666},
+        .{ .time = 0.166666, .value = 0.16666},
+        .{ .time = 0.5,      .value = 0.5}
     };
     const ident = Segment.from_pt_array(original_knots_ident);
 
@@ -1078,50 +1077,47 @@ pub const TimeCurve = struct {
 
     /// build a linearized version of this TimeCurve
     pub fn linearized(
-        self: @This()
-    ) linear_curve.TimeCurveLinear 
+        self: @This(),
+        allocator:std.mem.Allocator,
+    ) !linear_curve.TimeCurveLinear 
     {
-        var linearized_knots = std.ArrayList(control_point.ControlPoint).init(
-            ALLOCATOR
+        var linearized_knots = std.ArrayList(
+            control_point.ControlPoint
+        ).init(allocator);
+
+        const self_split_on_critical_points = (
+            try self.split_on_critical_points(
+                allocator
+            )
         );
-        defer linearized_knots.deinit();
+        defer self_split_on_critical_points.deinit(allocator);
 
-        if (true) {
-            const self_split_on_critical_points = self.split_on_critical_points(
-                ALLOCATOR
-            ) catch unreachable;
-            defer self_split_on_critical_points.deinit(ALLOCATOR);
+        var start_knot:usize = 0;
 
-            var start_knot:usize = 0;
-
-            for (self_split_on_critical_points.segments, 0..) 
-                |seg, seg_ind| 
+        for (self_split_on_critical_points.segments, 0..) 
+            |seg, seg_ind| 
             {
                 if (seg_ind > 0) {
                     start_knot = 1;
                 }
 
+                const subseg = try linearize_segment(
+                    allocator,
+                    seg,
+                    0.000001
+                );
+                defer allocator.free(subseg);
+
                 // @TODO: expose the tolerance as a parameter(?)
-                linearized_knots.appendSlice(
-                    (
-                     linearize_segment(ALLOCATOR, seg, 0.000001) catch unreachable
-                     // first knot of all interior segments should match the 
-                     // last knot of the previous segment, so can be skipped
-                    )[start_knot..]
-                ) catch unreachable;
+                try linearized_knots.appendSlice(
+                    // first knot of all interior segments should match the 
+                    // last knot of the previous segment, so can be skipped
+                    subseg[start_knot..]
+                );
             }
-        } else {
-            // no hodograph first
-            for (self.segments) |seg| {
-                // @TODO: expose the tolerance as a parameter(?)
-                linearized_knots.appendSlice(
-                    linearize_segment(ALLOCATOR,seg, 0.000001) catch unreachable
-                ) catch unreachable;
-            }
-        }
 
         return .{
-            .knots = linearized_knots.toOwnedSlice() catch unreachable
+            .knots = try linearized_knots.toOwnedSlice()
         };
     }
 
@@ -1306,7 +1302,8 @@ pub const TimeCurve = struct {
                 and (other_seg_ext[1].value > self_bounds[0].time + generic_curve.EPSILON)
             )
             {
-                if (index != last_index+1) {
+                if (index != last_index+1) 
+                {
                     // curves of less than one point are trimmed, because they
                     // have no duration, and therefore are not modelled in our
                     // system.
@@ -1557,7 +1554,9 @@ pub const TimeCurve = struct {
         // should return []TimeCurve
     ) []linear_curve.TimeCurveLinear
     {
-        const self_linearized = self.linearized();
+        const self_linearized = self.linearized(
+            ALLOCATOR
+        ) catch unreachable;
 
         return self_linearized.project_curve(other);
     }
@@ -1682,10 +1681,10 @@ pub const TimeCurve = struct {
         const before_split_dest = new_segments[0..seg_to_split_index];
         const after_split_dest = new_segments[seg_to_split_index+2..];
 
-         std.mem.copyForwards(Segment, before_split_dest, before_split_src);
-         new_segments[seg_to_split_index] = split_segments[0];
-         new_segments[seg_to_split_index+1] = split_segments[1];
-         std.mem.copyForwards(Segment, after_split_dest, after_split_src);
+        std.mem.copyForwards(Segment, before_split_dest, before_split_src);
+        new_segments[seg_to_split_index] = split_segments[0];
+        new_segments[seg_to_split_index+1] = split_segments[1];
+        std.mem.copyForwards(Segment, after_split_dest, after_split_src);
 
         return .{ .segments = new_segments };
     }
@@ -1751,7 +1750,7 @@ pub const TimeCurve = struct {
 
         return .{ .segments = try result_segments.toOwnedSlice() };
     }
-    
+
     pub fn split_at_each_parameter_space_ordinate(
         self:@This(),
         parameter_ordinates:[]const f32,
@@ -1777,7 +1776,7 @@ pub const TimeCurve = struct {
                 result_segments.append(seg);
                 continue;
             }
-        
+
             var current_segment = seg;
             while (seg_ind == segment_indices[current_split]) 
                 : (current_split += 1) 
@@ -2042,7 +2041,7 @@ pub const TimeCurve = struct {
                     }
                 }
             }
-            
+
             // sort the splits
             if (split_count > 0) 
             {
@@ -2198,6 +2197,7 @@ test "TimeCurve: positive length 1 linear segment test" {
 }
 
 test "TimeCurve: project_linear_curve to identity" {
+
     var seg_0_4 = [_]Segment{
         create_linear_segment(
             .{ .time = 0, .value = 0, },
@@ -2214,9 +2214,12 @@ test "TimeCurve: project_linear_curve to identity" {
     };
     const snd: TimeCurve = .{ .segments = &seg_0_8 };
 
-    const fst_lin = fst.linearized();
+    const fst_lin = try fst.linearized(std.testing.allocator);
+    defer fst_lin.deinit(std.testing.allocator);
     try expectEqual(@as(usize, 2), fst_lin.knots.len);
-    const snd_lin = snd.linearized();
+
+    const snd_lin = try snd.linearized(std.testing.allocator);
+    defer snd_lin.deinit(std.testing.allocator);
     try expectEqual(@as(usize, 2), snd_lin.knots.len);
 
     const results = fst.project_linear_curve(snd_lin);
@@ -2647,12 +2650,20 @@ test "TimeCurve: split_at_each_value u curve" {
                 endpoints,
             }
         );
-        
+
         var found = false;
         for (endpoints)
             |pt|
         {
-            if (std.math.approxEqAbs(f32, sp_p, pt.value, 0.00001)) {
+            if (
+                std.math.approxEqAbs(
+                    f32,
+                    sp_p,
+                    pt.value,
+                    0.00001
+                )
+            ) 
+            {
                 found = true;
             }
         }
@@ -2697,7 +2708,7 @@ test "TimeCurve: split_at_each_value linear" {
                 endpoints,
             }
         );
-        
+
         var found = false;
         for (endpoints)
             |pt|
@@ -2747,7 +2758,7 @@ test "TimeCurve: split_at_each_input_ordinate linear" {
                 endpoints,
             }
         );
-        
+
         var found = false;
         for (endpoints)
             |pt|
@@ -3244,7 +3255,7 @@ test "TimeCurve: split_on_critical_points symmetric about the origin" {
         .{
             .segment = Segment{
                 .p0 = .{ .time = -0.5, .value = -0.5 },
-            .p1 = .{ .time =    0, .value = -0.5 },
+                .p1 = .{ .time =    0, .value = -0.5 },
                 .p2 = .{ .time =    0, .value =  0.5 },
                 .p3 = .{ .time =  0.5, .value =  0.5 },
             },
@@ -3418,11 +3429,11 @@ pub const tpa_result = struct {
 };
 
 pub fn three_point_guts_plot(
-        start_knot: control_point.ControlPoint,
-        mid_point: control_point.ControlPoint,
-        t_mid_point: f32,
-        d_mid_point_dt: control_point.ControlPoint,
-        end_knot: control_point.ControlPoint,
+    start_knot: control_point.ControlPoint,
+    mid_point: control_point.ControlPoint,
+    t_mid_point: f32,
+    d_mid_point_dt: control_point.ControlPoint,
+    end_knot: control_point.ControlPoint,
 ) tpa_result
 {
     var final_result = tpa_result{};

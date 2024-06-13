@@ -1351,7 +1351,9 @@ pub fn inverted_bezier(
     crv: curve.TimeCurve
 ) !linear_curve.TimeCurveLinear 
 {
-    const lin_crv = crv.linearized();
+    const lin_crv = try crv.linearized(allocator);
+    defer lin_crv.deinit(allocator);
+
     return try inverted_linear(allocator, lin_crv);
 }
 
@@ -1415,7 +1417,11 @@ test "invert negative slope linear" {
     );
     defer forward_crv.deinit(std.testing.allocator);
 
-    const forward_crv_lin = forward_crv.linearized();
+    const forward_crv_lin = try forward_crv.linearized(
+        std.testing.allocator
+    );
+    defer forward_crv_lin.deinit(std.testing.allocator);
+
     const inverse_crv_lin = try inverted_linear(
         std.testing.allocator,
         forward_crv_lin
@@ -1494,7 +1500,10 @@ test "invert linear complicated curve" {
     const crv : curve.TimeCurve = .{
         .segments = &segments
     };
-    const crv_linear = crv.linearized();
+    const crv_linear = try crv.linearized(
+        std.testing.allocator
+    );
+    defer crv_linear.deinit(std.testing.allocator);
 
     try curve.write_json_file_curve(
         std.testing.allocator,
