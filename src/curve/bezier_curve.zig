@@ -418,18 +418,20 @@ pub const Segment = struct {
     /// points of segment_to_project through self
     pub fn project_segment(
         self: @This(),
-        segment_to_project: Segment
+        segment_to_project: Segment,
     ) Segment
     {
         var result: Segment = undefined;
 
-        inline for ([4][]const u8{"p0", "p1", "p2", "p3"}) |field| {
-            const pt = @field(segment_to_project, field);
-            @field(result, field) = .{
-                .time = pt.time,
-                .value = self.eval_at_x(pt.value),
-            };
-        }
+        inline for ([4][]const u8{"p0", "p1", "p2", "p3"}) 
+                   |field| 
+       {
+           const pt = @field(segment_to_project, field);
+           @field(result, field) = .{
+               .time = pt.time,
+               .value = self.eval_at_x(pt.value),
+           };
+       }
 
         return result;
     }
@@ -538,17 +540,21 @@ pub const Segment = struct {
         std.debug.print("{s}", .{ blob });
     }
 
-    pub fn to_cSeg(self: @This()) hodographs.BezierSegment {
+    /// convert into the c library hodographs struct
+    pub fn to_cSeg(
+        self: @This()
+    ) hodographs.BezierSegment 
+    {
         return .{ 
             .order = 3,
             .p = translate: {
                 var tmp : [4] hodographs.Vector2 = undefined;
 
                 inline for (&.{ self.p0, self.p1, self.p2, self.p3 }, 0..) 
-                    |pt, pt_ind| 
-                    {
-                        tmp[pt_ind] = .{ .x = pt.time, .y = pt.value };
-                    }
+                           |pt, pt_ind| 
+                {
+                    tmp[pt_ind] = .{ .x = pt.time, .y = pt.value };
+                }
 
                 break :translate tmp;
             },
