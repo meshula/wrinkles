@@ -41,7 +41,11 @@ pub const TimeCurveLinear = struct {
         return TimeCurveLinear{ .knots = result.items };
     }
 
-    pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
+    pub fn deinit(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) void 
+    {
         allocator.free(self.knots);
     }
 
@@ -76,12 +80,14 @@ pub const TimeCurveLinear = struct {
         return .{ .knots = result_knots };
     }
 
-    // @TODO: write .deinit() to free knots
-
     /// evaluate the curve at time t in the space of the curve
-    pub fn evaluate(self: @This(), t_arg: f32) error{OutOfBounds}!f32 {
+    pub fn evaluate(
+        self: @This(),
+        t_arg: f32,
+    ) error{OutOfBounds}!f32 
+    {
         if (self.nearest_smaller_knot_index(t_arg)) 
-            |index| 
+           |index| 
         {
             return bezier_math.value_at_time_between(
                 t_arg,
@@ -234,8 +240,9 @@ pub const TimeCurveLinear = struct {
             }
 
             other_split_at_self_knots = other.split_at_each_value(
+                ALLOCATOR,
                 split_points.items
-            );
+            ) catch unreachable;
         }
 
         // split other into curves where it goes in and out of the domain of self
@@ -355,15 +362,21 @@ pub const TimeCurveLinear = struct {
     /// split_points
     pub fn split_at_each_value(
         self: @This(),
-        split_points: []f32
-    ) TimeCurveLinear 
+        allocator: std.mem.Allocator,
+        split_points: []f32,
+    ) !TimeCurveLinear 
     {
-        var result = std.ArrayList(ControlPoint).init(ALLOCATOR);
-        for (self.knots[0..self.knots.len-1], 0..)
-            |knot, index|
+        var result = std.ArrayList(ControlPoint).init(
+            allocator,
+        );
+
+        const last_minus_one = self.knots.len-1;
+
+        // @TODO: there is probably a more effecient algorithm here than MxN
+        for (self.knots[0..last_minus_one], self.knots[1..])
+            |knot, next_knot, |
         {
-            result.append(knot) catch unreachable;
-            const next_knot = self.knots[index+1];
+            try result.append(knot);
 
             for (split_points) 
                 |pt_value_space| 
@@ -378,20 +391,22 @@ pub const TimeCurveLinear = struct {
                         knot.value,
                         next_knot.value
                     );
-                    result.append(
+                    try result.append(
                         bezier_math.lerp(
                             u,
                             knot,
                             next_knot
                         )
-                    ) catch unreachable;
+                    );
                 }
             }
         }
-        result.append(self.knots[self.knots.len-1]) catch unreachable;
+        try result.append(self.knots[last_minus_one]);
 
         // @TODO: free the existing slice
-        return TimeCurveLinear{ .knots = result.items };
+        return TimeCurveLinear{
+            .knots = try result.toOwnedSlice() 
+        };
     }
 };
 
