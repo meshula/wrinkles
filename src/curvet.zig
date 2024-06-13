@@ -473,6 +473,7 @@ pub fn main() !void {
         allocator,
         &.{identSeg}
     );
+    defer snd_crv.deinit(allocator);
     const snd_name:[:0]const u8 ="linear [-0.2, 1)" ;
 
     var tmpCurves = projTmpTest{
