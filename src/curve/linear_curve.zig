@@ -78,22 +78,27 @@ pub const TimeCurveLinear = struct {
         };
     }
 
+    /// project an affine transformation through the curve
     pub fn project_affine(
         self: @This(),
         aff: opentime.transform.AffineTransform1D,
         allocator: std.mem.Allocator,
     ) !TimeCurveLinear 
     {
-        var result_knots = try allocator.dupe(ControlPoint, self.knots);
+        const result_knots = try allocator.dupe(
+            ControlPoint,
+            self.knots
+        );
 
-        for (self.knots, 0..) |pt, pt_index| {
-            result_knots[pt_index] = .{ 
-                .time = aff.applied_to_seconds(pt.time),
-                .value = pt.value,
-            };
+        for (self.knots, result_knots) 
+            |pt, *target_knot| 
+        {
+            target_knot.time = aff.applied_to_seconds(pt.time);
         }
 
-        return .{ .knots = result_knots };
+        return .{
+            .knots = result_knots,
+        };
     }
 
     /// evaluate the curve at time t in the space of the curve
