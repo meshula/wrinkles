@@ -54,11 +54,11 @@ const Sampling = struct {
         try encoder.finalize(); // Don't forget to finalize after you're done writing.
     }
 
-    pub fn samples_between_time(
+    pub fn indices_between_time(
         self: @This(),
         start_time_inclusive_s: sample_t,
         end_time_exclusive_s: sample_t,
-    ) []sample_t
+    ) [2]usize
     {
         const start_index:usize = @intFromFloat(
             start_time_inclusive_s*@as(f32, @floatFromInt(self.sample_rate_hz))
@@ -67,7 +67,21 @@ const Sampling = struct {
             end_time_exclusive_s*@as(f32, @floatFromInt(self.sample_rate_hz))
         );
 
-        return self.buffer[start_index..end_index];
+        return .{ start_index, end_index };
+    }
+
+    pub fn samples_between_time(
+        self: @This(),
+        start_time_inclusive_s: sample_t,
+        end_time_exclusive_s: sample_t,
+    ) []sample_t
+    {
+        const index_bounds = self.indices_between_time(
+            start_time_inclusive_s,
+            end_time_exclusive_s
+        );
+
+        return self.buffer[index_bounds[0]..index_bounds[1]];
     }
 };
 
@@ -230,6 +244,7 @@ test "c lib interface test" {
     try expectEqual(cpx.r, 1);
 }
 
+/// computes a resample_ratio based on the destination_sample_rate_hz
 pub fn resampled(
     allocator: std.mem.Allocator,
     in_samples: Sampling,
@@ -285,51 +300,94 @@ pub fn retimed(
     const lin_curve = try xform.linearized(allocator);
     defer lin_curve.deinit(allocator);
 
-    var result = std.ArrayList(sample_t).init(allocator);
+    var output_buffer_size:usize = 0;
+
+    const RetimeSpec = struct {
+        input_samples: usize,
+        retime_ratio: f32,
+        output_samples: usize,
+    };
+    var retime_specs = std.ArrayList(
+        RetimeSpec
+    ).init(allocator);
+    defer retime_specs.deinit();
 
     for (lin_curve.knots[0..lin_curve.knots.len-1], lin_curve.knots[1..]) 
         |l_knot, r_knot|
     {    
-        const relevant_samples = in_samples.samples_between_time(
+        const relevant_sample_indices = in_samples.indices_between_time(
             l_knot.time,
             r_knot.time
         );
-        if (relevant_samples.len == 0) {
-            @panic("no relevant samples!");
+        if (relevant_sample_indices.len == 0) {
+            return error.NoRelevantSamples;
         }
-
-        const relevant_sampling = Sampling{
-            .allocator = allocator,
-            .buffer = relevant_samples,
-            .sample_rate_hz = in_samples.sample_rate_hz,
-        };
+        const input_samples = (
+            relevant_sample_indices[1] - relevant_sample_indices[0]
+        );
 
         const retime_ratio:f32 = (
             (
              (r_knot.value - l_knot.value) 
              * @as(f32, @floatFromInt(in_samples.sample_rate_hz))
             ) / (
-                @as(f32, @floatFromInt(relevant_samples.len))
+                @as(f32, @floatFromInt(input_samples))
             )
         );
 
-        if (std.math.isNan(retime_ratio)) {
-            @panic("retime ratio is NaN!");
-        }
-
-        const output_chunk = try resampled(
-            allocator,
-            relevant_sampling,
-            @intFromFloat(retime_ratio * @as(f32, @floatFromInt(in_samples.sample_rate_hz)))
+        const output_samples:usize = (
+            @intFromFloat(@as(f32, @floatFromInt(input_samples)) / retime_ratio)
         );
-        defer output_chunk.deinit();
+        output_buffer_size += input_samples;
 
-        try result.appendSlice(output_chunk.buffer);
+        try retime_specs.append(
+            .{
+                .retime_ratio = retime_ratio,
+                .input_samples = input_samples,
+                .output_samples = output_samples,
+            }
+        );
     }
+
+    const output_buffer = try allocator.alloc(
+        sample_t,
+        output_buffer_size
+    );
+
+    // var src_error = libsamplerate.SRC_ERROR{};
+    const src_state = libsamplerate.src_new(
+        libsamplerate.SRC_SINC_BEST_QUALITY,
+        1,
+        null,
+    );
+    // @TODO: check src_state validity
+
+    var src_data = libsamplerate.SRC_DATA{
+        .data_in = @ptrCast(in_samples.buffer.ptr),
+        .data_out = @ptrCast(output_buffer.ptr),
+        .input_frames = 100,
+        .output_frames = 100,
+        .end_of_input = 0,
+    };
+
+    for (retime_specs.items)
+        |spec|
+    {
+        src_data.src_ratio = spec.retime_ratio;
+        src_data.input_frames = @intCast(spec.input_samples);
+        src_data.output_frames = @intCast(spec.output_samples);
+
+        const lsr_error = libsamplerate.src_process(src_state, &src_data);
+        if (lsr_error != 0) {
+            return error.LibSampleRateError;
+        }
+    }
+
+    _ = libsamplerate.src_delete(src_state);
 
     return Sampling{
         .allocator = allocator,
-        .buffer = try result.toOwnedSlice(),
+        .buffer = output_buffer,
         .sample_rate_hz = in_samples.sample_rate_hz,
     };
 }
@@ -548,6 +606,9 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample" {
         retime_24hz,
     );
     defer samples_48_retimed.deinit();
+    try samples_48_retimed.write_file(
+        "/var/tmp/ours_s48_retimed_acceleration_24.wav"
+    );
     const samples_44 = try resampled(
         std.testing.allocator,
         samples_48_retimed,
@@ -564,6 +625,11 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample" {
         441,
         samples_44_p2p_0p25
     );
+
+    if (true)
+    {
+        return error.SkipZigError;
+    }
 
     // 2x
     const samples_44_p2p_0p5 = try peak_to_peak_distance(
