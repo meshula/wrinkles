@@ -1153,11 +1153,16 @@ pub const TimeCurve = struct {
     ///
     pub fn project_curve(
         self: @This(),
+        allocator: std.mem.Allocator,
         other: TimeCurve
         // should be []TimeCurve <-  come back to this later
-    ) TimeCurve 
+    ) !TimeCurve 
     {
-        const result = project_curve_guts(self, other, ALLOCATOR) catch unreachable;
+        const result = try project_curve_guts(
+            self,
+            other,
+            allocator
+        );
         return result.result.?;
     }
 
@@ -2267,7 +2272,11 @@ test "TimeCurve: projection_test non-overlapping" {
     };
     const snd: TimeCurve = .{ .segments = &seg_1_9 };
 
-    const result = fst.project_curve(snd);
+    const result = try fst.project_curve(
+        std.testing.allocator,
+        snd,
+    );
+    defer result.deinit(std.testing.allocator);
 
     try expectEqual(@as(usize, 0), result.segments.len);
 }
@@ -2535,7 +2544,11 @@ test "TimeCurve: project u loop bug" {
     );
     defer upside_down_u.deinit(std.testing.allocator);
 
-    const result : TimeCurve = simple_s.project_curve(upside_down_u);
+    const result  = try simple_s.project_curve(
+        std.testing.allocator,
+        upside_down_u,
+    );
+    defer result.deinit(std.testing.allocator);
 
     for (result.segments)
         |seg|
@@ -2584,7 +2597,11 @@ test "TimeCurve: project linear identity with linear 1/2 slope" {
     );
     defer linear_half_crv.deinit(std.testing.allocator);
 
-    const result : TimeCurve = linear_half_crv.project_curve(linear_crv);
+    const result = try linear_half_crv.project_curve(
+        std.testing.allocator,
+        linear_crv,
+    );
+    defer result.deinit(std.testing.allocator);
 
     try expectEqual(@as(usize, 1), result.segments.len);
 }
@@ -2619,8 +2636,11 @@ test "TimeCurve: project linear u with out-of-bounds segments" {
     );
     defer upside_down_u.deinit(std.testing.allocator);
 
-    // const result : TimeCurve = linear_crv.project_curve(upside_down_u);
-    const result : TimeCurve = upside_down_u.project_curve(linear_crv);
+    const result : TimeCurve = upside_down_u.project_curve(
+        std.testing.allocator,
+        linear_crv,
+    );
+    defer result.deinit(std.testing.allocator);
 
     try expectEqual(@as(usize, 4), result.segments.len);
 }

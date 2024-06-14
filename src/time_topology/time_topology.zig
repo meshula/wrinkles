@@ -437,7 +437,10 @@ pub const BezierTopology = struct {
             .bezier_curve => |bez| switch (curve.bezier_curve.project_algo) {
                 .three_point_approx, .two_point_approx => .{
                     .bezier_curve = .{
-                        .curve = self.curve.project_curve(bez.curve)
+                        .curve = try self.curve.project_curve(
+                            ALLOCATOR,
+                            bez.curve
+                        )
                     }
                 },
                 .linearized => .{ 
