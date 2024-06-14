@@ -22,9 +22,6 @@ const stdout = std.io.getStdOut().writer();
 const inf = std.math.inf(f32);
 const nan = std.math.nan(f32);
 
-const otio_allocator = @import("otio_allocator");
-const ALLOCATOR = otio_allocator.ALLOCATOR;
-
 const string_stuff = @import("string_stuff");
 const latin_s8 = string_stuff.latin_s8;
 
@@ -1185,11 +1182,11 @@ pub const TimeCurve = struct {
 
 
             if (self.self_split) |sp| {
-                sp.deinit(ALLOCATOR);
+                sp.deinit(self.allocator);
             }
 
             if (self.other_split) |sp| {
-                sp.deinit(ALLOCATOR);
+                sp.deinit(self.allocator);
             }
 
             const things_to_free = &.{
@@ -1217,86 +1214,105 @@ pub const TimeCurve = struct {
     {
         var result = ProjectCurveGuts{.allocator = allocator};
 
-        var self_split = self.split_on_critical_points(
-            ALLOCATOR
-        ) catch unreachable;
-        // defer self_split.deinit(ALLOCATOR);
+        var self_split = try self.split_on_critical_points(
+            allocator
+        );
+        defer self_split.deinit(allocator);
 
-        var other_split = other.split_on_critical_points(
-            ALLOCATOR
-        ) catch unreachable;
+        var other_split = try other.split_on_critical_points(
+            allocator
+        );
+        defer other_split.deinit(allocator);
 
         const self_bounds = self.extents();
 
         // @TODO: skip segments in self that are BEFORE other and skip segments
         //        in self that are AFTER other
 
-        var split_points = std.ArrayList(f32).init(ALLOCATOR);
-        defer split_points.deinit();
-
-        // self split
         {
-            // find all knots in self that are within the other bounds
-            for (other_split.segment_endpoints(ALLOCATOR) catch unreachable)
-                |other_knot| 
+            var split_points = std.ArrayList(f32).init(allocator);
+            defer split_points.deinit();
+
+            // self split
             {
-                if (
-                    _is_between(
-                        other_knot.value,
-                        self_bounds[0].time,
-                        self_bounds[1].time
-                    )
-                    // @TODO: omit cases where either endpoint is within an
-                    //        epsilon of an endpoint
-                ) {
-                    split_points.append(other_knot.value) catch unreachable;
+                // find all knots in self that are within the other bounds
+                const endpoints = try other_split.segment_endpoints(
+                    allocator
+                );
+                defer allocator.free(endpoints);
+
+                for (endpoints)
+                    |other_knot| 
+                {
+                    if (
+                        _is_between(
+                            other_knot.value,
+                            self_bounds[0].time,
+                            self_bounds[1].time
+                        )
+                        // @TODO: omit cases where either endpoint is within an
+                        //        epsilon of an endpoint
+                    ) {
+                        try split_points.append(other_knot.value);
+                    }
                 }
+                const old_ptr = self_split.segments;
+                defer allocator.free(old_ptr);
+
+                self_split = (
+                    try self_split.split_at_each_input_ordinate(
+                        split_points.items,
+                        allocator
+                    )
+                );
             }
-            self_split = (
-                self_split.split_at_each_input_ordinate(
-                    split_points.items,
-                    ALLOCATOR
-                ) catch unreachable
-            );
-        }
 
-        result.self_split = self_split;
+            result.self_split = self_split;
 
-        // other split
-        {
-            const other_bounds = other.extents();
-
-            split_points.clearAndFree();
-
-            // find all knots in self that are within the other bounds
-            for (self_split.segment_endpoints(ALLOCATOR) catch unreachable)
-                |self_knot| 
+            // other split
             {
-                if (
-                    _is_between(
-                        self_knot.time,
-                        other_bounds[0].value,
-                        other_bounds[1].value
-                    )
-                ) {
-                    split_points.append(self_knot.time) catch unreachable;
+                const other_bounds = other.extents();
+
+                split_points.clearAndFree();
+
+                // find all knots in self that are within the other bounds
+                const endpoints = try self_split.segment_endpoints(
+                    allocator
+                );
+                defer allocator.free(endpoints);
+
+                for (endpoints)
+                    |self_knot| 
+                {
+                    if (
+                        _is_between(
+                            self_knot.time,
+                            other_bounds[0].value,
+                            other_bounds[1].value
+                        )
+                    ) {
+                        try split_points.append(self_knot.time);
+                    }
                 }
+                const old_ptr = other_split.segments;
+                defer allocator.free(old_ptr);
+
+                other_split = (
+                    try other_split.split_at_each_output_ordinate(
+                        split_points.items,
+                        allocator
+                    )
+                );
             }
-            other_split = (
-                other_split.split_at_each_output_ordinate(
-                    split_points.items,
-                    ALLOCATOR
-                ) catch unreachable
-            );
         }
 
         result.other_split = other_split;
 
-        var curves_to_project = std.ArrayList(TimeCurve).init(ALLOCATOR);
+        var curves_to_project = std.ArrayList(TimeCurve).init(allocator);
         defer curves_to_project.deinit();
 
         var last_index: i32 = -10;
-        var current_curve = std.ArrayList(Segment).init(ALLOCATOR);
+        var current_curve = std.ArrayList(Segment).init(allocator);
         defer current_curve.deinit();
 
         // @breakpoint();
@@ -1320,29 +1336,28 @@ pub const TimeCurve = struct {
                     // system.
                     if (current_curve.items.len > 1) 
                     {
-                        curves_to_project.append(
-                            TimeCurve.init(
-                                ALLOCATOR,
-                                current_curve.toOwnedSlice() catch unreachable
-                            ) catch unreachable
-                        ) catch unreachable;
+                        try curves_to_project.append(
+                            TimeCurve{
+                                .segments = try current_curve.toOwnedSlice()
+                            }
+                        );
                     }
-                    current_curve = std.ArrayList(Segment).init(ALLOCATOR);
+                    current_curve.clearAndFree();
                 }
 
-                current_curve.append(other_segment) catch unreachable;
+                try current_curve.append(other_segment);
                 last_index = @intCast(index);
             }
         }
         if (current_curve.items.len > 0) 
         {
-            curves_to_project.append(
-                TimeCurve.init(
-                    ALLOCATOR,
-                    current_curve.toOwnedSlice() catch unreachable
-                ) catch unreachable
-            ) catch unreachable;
+            try curves_to_project.append(
+                TimeCurve{
+                    .segments = try current_curve.toOwnedSlice()
+                }
+            );
         }
+        current_curve.deinit();
 
         if (curves_to_project.items.len == 0) 
         {
@@ -1569,18 +1584,20 @@ pub const TimeCurve = struct {
 
     pub fn project_linear_curve(
         self: @This(),
+        allocator: std.mem.Allocator,
         other: linear_curve.TimeCurveLinear,
         // should return []TimeCurve
-    ) []linear_curve.TimeCurveLinear
+    ) ![]linear_curve.TimeCurveLinear
     {
-        const self_linearized = self.linearized(
-            ALLOCATOR
-        ) catch unreachable;
+        const self_linearized = try self.linearized(
+            allocator
+        );
+        defer self_linearized.deinit(allocator);
 
-        return self_linearized.project_curve(
-            ALLOCATOR,
+        return try self_linearized.project_curve(
+            allocator,
             other,
-        ) catch unreachable;
+        );
     }
 
     pub fn project_affine(
@@ -2244,7 +2261,18 @@ test "TimeCurve: project_linear_curve to identity" {
     defer snd_lin.deinit(std.testing.allocator);
     try expectEqual(@as(usize, 2), snd_lin.knots.len);
 
-    const results = fst.project_linear_curve(snd_lin);
+    const results = try fst.project_linear_curve(
+        std.testing.allocator,
+        snd_lin,
+    );
+    defer {
+        for (results)
+            |crv|
+            {
+                crv.deinit(std.testing.allocator);
+            }
+        std.testing.allocator.free(results);
+    }
     try expectEqual(@as(usize, 1), results.len);
 
     if (results.len > 0) {

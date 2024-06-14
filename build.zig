@@ -499,7 +499,6 @@ pub fn build(
                 .{ .name = "spline_gym", .module = &spline_gym.root_module },
                 .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "opentime", .module = opentime },
-                .{ .name = "otio_allocator", .module = otio_allocator },
                 .{ .name = "comath", .module = comath_dep.module("comath") },
             },
             .test_filter = options.test_filter,
