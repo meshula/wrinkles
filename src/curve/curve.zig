@@ -2,6 +2,7 @@ pub const bezier_math = @import("bezier_math.zig");
 pub const linear_curve = @import("linear_curve.zig");
 pub const control_point = @import("control_point.zig");
 pub const bezier_curve = @import("bezier_curve.zig");
+pub const test_segment_projection = @import("test_segment_projection.zig");
 
 // bezier
 pub const TimeCurve = bezier_curve.TimeCurve;
@@ -25,4 +26,5 @@ test {
     _ = linear_curve;
     _ = bezier_curve;
     _ = control_point;
+    _ = test_segment_projection;
 }

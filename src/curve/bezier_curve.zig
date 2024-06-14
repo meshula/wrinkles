@@ -1161,7 +1161,15 @@ pub const TimeCurve = struct {
             other,
             allocator
         );
-        return result.result.?;
+        defer result.deinit();
+
+        if (result.result)
+            |crv|
+        {
+            return try crv.clone(allocator);
+        }
+
+        return error.NoProjectionResult;
     }
 
     const ProjectCurveGuts = struct {
@@ -1176,18 +1184,32 @@ pub const TimeCurve = struct {
         f_prime_of_g_of_t: ?[]control_point.ControlPoint = null,
         g_prime_of_t: ?[]control_point.ControlPoint = null,
 
-        pub fn deinit(self: @This()) void {
-            if (self.to_project) |tp| {
+        pub fn deinit(
+            self: @This()
+        ) void 
+        {
+            if (self.result) 
+               |sp| 
+            {
+                sp.deinit(self.allocator);
+            }
+
+            if (self.self_split) 
+               |sp| 
+            {
+                sp.deinit(self.allocator);
+            }
+
+            if (self.other_split) 
+                |sp| 
+            {
+                sp.deinit(self.allocator);
+            }
+
+            if (self.to_project) 
+                |tp| 
+            {
                 tp.deinit(self.allocator);
-            }
-
-
-            if (self.self_split) |sp| {
-                sp.deinit(self.allocator);
-            }
-
-            if (self.other_split) |sp| {
-                sp.deinit(self.allocator);
             }
 
             const things_to_free = &.{
@@ -1198,8 +1220,12 @@ pub const TimeCurve = struct {
                 "g_prime_of_t"
             };
 
-            inline for (things_to_free) |t| {
-                if (@field(self, t)) |thing| {
+            inline for (things_to_free) 
+                       |t| 
+            {
+                if (@field(self, t)) 
+                    |thing| 
+                {
                     self.allocator.free(thing);
                 }
             }
@@ -1270,7 +1296,7 @@ pub const TimeCurve = struct {
                 );
             }
 
-            result.self_split = self_split;
+            result.self_split = try self_split.clone(allocator);
 
             // other split
             {
@@ -1309,7 +1335,7 @@ pub const TimeCurve = struct {
             }
         }
 
-        result.other_split = other_split;
+        result.other_split = try other_split.clone(allocator);
 
         var curves_to_project = std.ArrayList(TimeCurve).init(allocator);
         defer curves_to_project.deinit();
@@ -1367,10 +1393,17 @@ pub const TimeCurve = struct {
             result.result = TimeCurve{};
             return result;
         }
-
         result.to_project = .{ 
-            .segments = curves_to_project.items[0].segments
+            .segments = try allocator.alloc(
+                Segment,
+                curves_to_project.items[0].segments.len
+            ),
         };
+        std.mem.copyForwards(
+            Segment,
+            result.to_project.?.segments,
+            curves_to_project.items[0].segments
+        );
 
         var guts = std.ArrayList(tpa_result).init(allocator);
         var segments_to_project_through = std.ArrayList(usize).init(allocator);
