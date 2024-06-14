@@ -13,6 +13,10 @@ const control_point = curve.control_point;
 const otio_allocator = @import("otio_allocator"); 
 const ALLOCATOR = otio_allocator.ALLOCATOR;
 
+test {
+    _ = @import("test_topology_projections.zig");
+}
+
 
 // assertions
 const expect = std.testing.expect;

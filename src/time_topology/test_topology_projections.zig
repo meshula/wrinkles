@@ -1,4 +1,5 @@
 const std = @import("std");
+const TimeTopology = @import("time_topology.zig").TimeTopology;
 const opentime = @import("opentime");
 const util = opentime.util;
 const EPSILON = util.EPSILON;
@@ -18,15 +19,15 @@ pub fn expectNotNan(val: f32) !void {
 ///////////////////////////////////////////////////////////////////////////////
 
 test "identity projections" {
-    const identity_inf = opentime.TimeTopology.init_identity_infinite();
+    const identity_inf = TimeTopology.init_identity_infinite();
 
     const bounds = opentime.ContinuousTimeInterval{
         .start_seconds = 12,
         .end_seconds = 20,
     };
-    const identity_bounded = opentime.TimeTopology.init_affine(.{ .bounds = bounds });
+    const identity_bounded = TimeTopology.init_affine(.{ .bounds = bounds });
     try expectError(
-        opentime.TimeTopology.ProjectionError.OutOfBounds, 
+        TimeTopology.ProjectionError.OutOfBounds, 
         identity_bounded.project_ordinate(10),
     );
     try expectApproxEqAbs(
@@ -35,7 +36,7 @@ test "identity projections" {
         EPSILON
     );
 
-    const inf_through_bounded = identity_bounded.project_topology(identity_inf);
+    const inf_through_bounded = try identity_bounded.project_topology(identity_inf);
 
     // no segments because identity_inf has no segments
 
@@ -43,7 +44,7 @@ test "identity projections" {
 }
 
 test "projection test: linear_through_linear" {
-    const first = opentime.TimeTopology.init_affine(
+    const first = TimeTopology.init_affine(
         .{ 
             .transform = .{ .scale = 4 }, 
             .bounds = .{.start_seconds = 0, .end_seconds=30},
@@ -53,7 +54,7 @@ test "projection test: linear_through_linear" {
     try expectEqual(@as(f32, 0), try first.project_ordinate(0));
     try expectApproxEqAbs(@as(f32, 8), try first.project_ordinate(2), EPSILON);
 
-    const second = opentime.TimeTopology.init_affine(
+    const second = TimeTopology.init_affine(
         .{ 
             .transform = .{ .scale = 2},
             .bounds = .{.start_seconds = 0, .end_seconds=15},
@@ -63,7 +64,7 @@ test "projection test: linear_through_linear" {
     try expectApproxEqAbs(@as(f32, 4), try second.project_ordinate(2), EPSILON);
 
     // project one through the other
-    const second_through_first_topo = first.project_topology(second);
+    const second_through_first_topo = try first.project_topology(second);
     try expectEqual(
         @as(f32, 0),
         try second_through_first_topo.project_ordinate(0)
@@ -78,7 +79,7 @@ test "projection test: linear_through_linear" {
 test "projection test: linear_through_linear with boundary" {
     try util.skip_test();
 
-    const first = opentime.TimeTopology.init_affine(
+    const first = TimeTopology.init_affine(
         .{ 
             .transform = .{ .scale = 4 },
             .bounds = .{.start_seconds = 0, .end_seconds=5},
@@ -95,7 +96,7 @@ test "projection test: linear_through_linear with boundary" {
         first.project_ordinate(5)
     );
 
-    const second= opentime.TimeTopology.init_affine(
+    const second= TimeTopology.init_affine(
         .{ 
             .transform = .{ .scale = 2},
             .bounds = .{.start_seconds = 0, .end_seconds=15},
@@ -108,7 +109,7 @@ test "projection test: linear_through_linear with boundary" {
     try expectEqual(@as(f32, 10), try second.project_ordinate(5));
 
     // project one through the other
-    const second_through_first_topo = first.project_topology(second);
+    const second_through_first_topo = try first.project_topology(second);
     try expectEqual(@as(f32, 0), try second_through_first_topo.project_ordinate(0));
     try expectEqual(@as(f32, 16), try second_through_first_topo.project_ordinate(2));
 
