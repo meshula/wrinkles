@@ -156,6 +156,37 @@ pub const Segment = struct {
         .value = 1,
     },
 
+    pub fn init_identity(
+        start_time: f32,
+        end_time: f32
+    ) Segment
+    {
+        return Segment.init_from_start_end(
+            .{ .time = start_time, .value = start_time },
+            .{ .time = end_time, .value = end_time }
+        );
+    }
+
+    pub fn init_from_start_end(
+        start: control_point.ControlPoint,
+        end: control_point.ControlPoint
+    ) Segment 
+    {
+        if (end.time >= start.time) {
+            return .{
+                .p0 = start,
+                .p1 = bezier_math.lerp(1.0/3.0, start, end),
+                .p2 = bezier_math.lerp(2.0/3.0, start, end),
+                .p3 = end,
+            };
+        }
+
+        debug_panic(
+            "Create linear segment failed, t0: {d} > t1: {d}\n",
+            .{start.time, end.time}
+        );
+    }
+
     pub fn init_approximate_from_three_points(
         start_knot: control_point.ControlPoint,
         mid_point: control_point.ControlPoint,
@@ -298,22 +329,12 @@ pub const Segment = struct {
         const p = self.points();
 
         const Q0 = self.p0;
-
-        // Vector2 Q1 = (1 - unorm) * p[0] + unorm * p[1];
         const Q1 = bezier_math.lerp(unorm, p[0], p[1]);
-
-        //Vector2 Q2 = (1 - unorm) * Q1 + unorm * ((1 - unorm) * p[1] + unorm * p[2]);
         const Q2 = bezier_math.lerp(
             unorm,
             Q1,
             bezier_math.lerp(unorm, p[1], p[2])
         );
-
-        // const Q2 = Q1.mul((1-unorm)).add(
-        //     ((p[1].mul(1-unorm)).add(p[2].mul(unorm))).mul(unorm)
-        // );
-
-        //Vector2 Q3 = (1 - unorm) * Q2 + unorm * ((1 - unorm) * ((1 - unorm) * p[1] + unorm * p[2]) + unorm * ((1 - unorm) * p[2] + unorm * p[3]));
         const Q3 = bezier_math.lerp(
             unorm,
             Q2,
@@ -324,73 +345,28 @@ pub const Segment = struct {
             )
         );
 
-
-        // const Q3 = vec2_add_vec2(
-        //     Q2.mul(1-unorm),
-        //     float_mul_vec2(
-        //         unorm,
-        //         (
-        //          vec2_add_vec2(
-        //              float_mul_vec2(
-        //                  (1 - unorm),
-        //                  (
-        //                   vec2_add_vec2(
-        //                       float_mul_vec2(
-        //                           (1 - unorm),
-        //                           p[1]
-        //                       ),
-        //                       p[2].mul(unorm)
-        //                   )
-        //                  )
-        //              ),
-        //              (
-        //               (p[2].mul(1-unorm)).add(p[3].mul(unorm))).mul(unorm)
-        //          )
-        //         )
-        //     )
-        // );
-
         const R0 = Q3;
-
-        //Vector2 R2 = (1 - unorm) * p[2] + unorm * p[3];
         const R2 = bezier_math.lerp(unorm, p[2], p[3]);
-        // const R2 = vec2_add_vec2(
-        //     float_mul_vec2((1 - unorm), p[2]),
-        //     float_mul_vec2(unorm, p[3])
-        // );
-
-        //Vector2 R1 = (1 - unorm) * ((1 - unorm) * p[1] + unorm * p[2]) + unorm * R2;
         const R1 = bezier_math.lerp(
             unorm,
             bezier_math.lerp(unorm, p[1], p[2]), 
             R2,
         );
-        // const R1 = vec2_add_vec2(
-        //     float_mul_vec2(
-        //         (1 - unorm),
-        //         (
-        //          vec2_add_vec2(
-        //              float_mul_vec2((1 - unorm), p[1]),
-        //              float_mul_vec2(unorm, p[2])
-        //          )
-        //         )
-        //     ),
-        //     float_mul_vec2(unorm, R2)
-        // );
         const R3 = p[3];
 
         return .{
-            Segment.from_pt_array( .{ Q0, Q1, Q2, Q3 } ),
-            Segment.from_pt_array( .{ R0, R1, R2, R3 } ),
-        };
-    }
-
-    pub fn control_hull(self: @This()) [3][2]control_point.ControlPoint {
-        return .{
-            .{ self.p0, self.p1 },
-            .{ self.p1, self.p2 },
-            .{ self.p2, self.p3 },
-            // .{ self.p3, self.p0 },
+            Segment{ 
+                .p0 = Q0,
+                .p1 = Q1,
+                .p2 = Q2,
+                .p3 = Q3
+            },
+            Segment{
+                .p0 = R0,
+                .p1 = R1,
+                .p2 = R2,
+                .p3 = R3
+            },
         };
     }
 
@@ -404,11 +380,17 @@ pub const Segment = struct {
         };
     }
 
-    pub fn extents(self: @This()) [2]control_point.ControlPoint {
+    /// compute the extents of the segment
+    pub fn extents(
+        self: @This()
+    ) [2]control_point.ControlPoint 
+    {
         var min: control_point.ControlPoint = self.p0;
         var max: control_point.ControlPoint = self.p0;
 
-        inline for ([3][]const u8{"p1", "p2", "p3"}) |field| {
+        inline for ([3][]const u8{"p1", "p2", "p3"}) 
+            |field| 
+        {
             const pt = @field(self, field);
             min = .{
                 .time = @min(min.time, pt.time),
@@ -423,24 +405,14 @@ pub const Segment = struct {
         return .{ min, max };
     }
 
-    pub fn linear_length(self: @This()) f32 
-    {
-        return distance(self.p0, self.p3);
-    }
-
+    /// checks if segment can project through this one
     pub fn can_project(
         self: @This(),
         segment_to_project: Segment
     ) bool {
         const my_extents = self.extents();
         const other_extents = segment_to_project.extents();
-        //
-        // var fst_test = other_extents[0].value >= my_extents[0].time - generic_curve.EPSILON;
-        // _ = fst_test;
-        //
-        // var snd_test = other_extents[1].value < my_extents[1].time + generic_curve.EPSILON;
-        // _ = snd_test;
-        //
+
         return (
             other_extents[0].value >= my_extents[0].time - generic_curve.EPSILON
             and other_extents[1].value < my_extents[1].time + generic_curve.EPSILON
@@ -472,7 +444,11 @@ pub const Segment = struct {
     /// @TODO: this function only works if the value is increasing over the 
     ///        segment.  The monotonicity and increasing -ness of a segment
     ///        is guaranteed for time, but not for the value coordinate.
-    pub fn findU_value(self:@This(), tgt_value: f32) f32 {
+    pub fn findU_value(
+        self:@This(),
+        tgt_value: f32
+    ) f32 
+    {
         return bezier_math.findU(
             tgt_value,
             self.p0.value,
@@ -482,7 +458,11 @@ pub const Segment = struct {
         );
     }
 
-    pub fn findU_value_dual(self:@This(), tgt_value: f32) dual.Dual_f32 {
+    pub fn findU_value_dual(
+        self:@This(),
+        tgt_value: f32
+    ) dual.Dual_f32 
+    {
         return bezier_math.findU_dual(
             tgt_value,
             self.p0.value,
@@ -492,7 +472,11 @@ pub const Segment = struct {
         );
     }
 
-    pub fn findU_input(self:@This(), input_ordinate: f32) f32 {
+    pub fn findU_input(
+        self:@This(),
+        input_ordinate: f32
+    ) f32 
+    {
         return bezier_math.findU(
             input_ordinate,
             self.p0.time,
@@ -502,7 +486,11 @@ pub const Segment = struct {
         );
     }
 
-    pub fn findU_input_dual(self:@This(), input_ordinate: f32) dual.Dual_f32 {
+    pub fn findU_input_dual(
+        self:@This(),
+        input_ordinate: f32
+    ) dual.Dual_f32 
+    {
         return bezier_math.findU_dual(
             input_ordinate,
             self.p0.time,
@@ -512,8 +500,12 @@ pub const Segment = struct {
         );
     }
 
-    // returns the y-value for the given x-value
-    pub fn eval_at_x(self: @This(), x:f32) f32 {
+    /// returns the y-value for the given x-value
+    pub fn eval_at_x(
+        self: @This(),
+        x:f32
+    ) f32 
+    {
         const u:f32 = bezier_math.findU(
             x,
             self.p0.time,
@@ -524,7 +516,11 @@ pub const Segment = struct {
         return self.eval_at(u).value;
     }
 
-    pub fn eval_at_x_dual(self: @This(), x:f32) control_point.Dual_CP {
+    pub fn eval_at_x_dual(
+        self: @This(),
+        x:f32
+    ) control_point.Dual_CP 
+    {
         const u = bezier_math.findU_dual(
             x,
             self.p0.time,
@@ -595,12 +591,13 @@ pub const Segment = struct {
     }
 };
 
-test "Segment: can_project test" {
-    const half = create_linear_segment(
+test "Segment: can_project test" 
+{
+    const half = Segment.init_from_start_end(
         .{ .time = -0.5, .value = -0.25, },
         .{ .time = 0.5, .value = 0.25, },
     );
-    const double = create_linear_segment(
+    const double = Segment.init_from_start_end(
         .{ .time = -0.5, .value = -1, },
         .{ .time = 0.5, .value = 1, },
     );
@@ -609,8 +606,9 @@ test "Segment: can_project test" {
     try expectEqual(false, half.can_project(double));
 }
 
-test "Segment: debug_str test" {
-    const seg = create_linear_segment(
+test "Segment: debug_str test" 
+{
+    const seg = Segment.init_from_start_end(
         .{.time = -0.5, .value = -0.5},
         .{.time =  0.5, .value = 0.5},
     );
@@ -637,11 +635,15 @@ fn _is_approximately_linear(
     tolerance: f32
 ) bool 
 {
-    const u = (segment.p1.mul(3.0)).sub(segment.p0.mul(2.0)).sub(segment.p3);
+    const u = (
+        (segment.p1.mul(3.0)).sub(segment.p0.mul(2.0)).sub(segment.p3)
+    );
     var ux = u.time * u.time;
     var uy = u.value * u.value;
 
-    const v = (segment.p2.mul(3.0)).sub(segment.p3.mul(2.0)).sub(segment.p0);
+    const v = (
+        (segment.p2.mul(3.0)).sub(segment.p3.mul(2.0)).sub(segment.p0)
+    );
     const vx = v.time * v.time;
     const vy = v.value * v.value;
 
@@ -707,7 +709,8 @@ pub fn linearize_segment(
     return result.toOwnedSlice();
 }
 
-test "segment: linearize basic test" {
+test "segment: linearize basic test" 
+{
     const segment = try read_segment_json(
         std.testing.allocator,
         "segments/upside_down_u.json"
@@ -744,8 +747,8 @@ test "segment: linearize basic test" {
     }
 }
 
-test "segment from point array" {
-
+test "segment from point array" 
+{
     const original_knots_ident: [4]control_point.ControlPoint = .{
         .{ .time = -0.5,     .value = -0.5},
         .{ .time = -0.16666, .value = -0.16666},
@@ -783,7 +786,8 @@ test "segment from point array" {
     );
 }
 
-test "segment: linearize already linearized curve" {
+test "segment: linearize already linearized curve" 
+{
     const segment = try read_segment_json(
         std.testing.allocator,
         "segments/linear.json"
@@ -825,8 +829,9 @@ pub fn read_segment_json(
     return result.value;
 }
 
-test "segment: eval_at_x and findU test over linear curve" {
-    const seg = create_linear_segment(
+test "segment: eval_at_x and findU test over linear curve" 
+{
+    const seg = Segment.init_from_start_end(
         .{.time = 2, .value = 2},
         .{.time = 3, .value = 3},
     );
@@ -838,10 +843,11 @@ test "segment: eval_at_x and findU test over linear curve" {
     }
 }
 
-test "segment: dual_eval_at over linear curve" {
+test "segment: dual_eval_at over linear curve" 
+{
     // identity curve
     {
-        const seg = create_identity_segment(0, 1);
+        const seg = Segment.init_identity(0, 1);
 
         inline for ([_]f32{0.2, 0.4, 0.5, 0.98}) 
             |coord| 
@@ -860,7 +866,7 @@ test "segment: dual_eval_at over linear curve" {
 
     // curve with slope 2
     {
-        const seg = create_linear_segment(
+        const seg = Segment.init_from_start_end(
             .{ .time = 0, .value = 0 },
             .{ .time = 1, .value = 2 },
         );
@@ -881,36 +887,9 @@ test "segment: dual_eval_at over linear curve" {
     }
 }
 
-pub fn create_linear_segment(
-    p0: control_point.ControlPoint,
-    p1: control_point.ControlPoint
-) Segment 
-{
-    if (p1.time >= p0.time) {
-        return .{
-            .p0 = p0,
-            .p1 = bezier_math.lerp(1.0/3.0, p0, p1),
-            .p2 = bezier_math.lerp(2.0/3.0, p0, p1),
-            .p3 = p1,
-        };
-    }
-
-    debug_panic(
-        "Create linear segment failed, t0: {d} > t1: {d}\n",
-        .{p0.time, p1.time}
-    );
-}
-
-pub fn create_identity_segment(t0: f32, t1: f32) Segment {
-    return create_linear_segment(
-        .{ .time = t0, .value = t0 },
-        .{ .time = t1, .value = t1 }
-    );
-}
-
-test "create_identity_segment check cubic spline" {
+test "Segment.init_identity check cubic spline" {
     // ensure that points are along line even for linear case
-    const seg = create_identity_segment(0, 1);
+    const seg = Segment.init_identity(0, 1);
 
     try expectEqual(@as(f32, 0), seg.p0.time);
     try expectEqual(@as(f32, 0), seg.p0.value);
@@ -1018,7 +997,7 @@ pub const TimeCurve = struct {
     {
         return try TimeCurve.init(
             allocator,
-            &.{ create_linear_segment(p0, p1) }
+            &.{ Segment.init_from_start_end(p0, p1) }
         );
     }
 
@@ -1036,7 +1015,7 @@ pub const TimeCurve = struct {
         for (crv.knots[0..knots-1], crv.knots[1..]) 
             |knot, next_knot| 
         {
-            try result.append(create_linear_segment(knot, next_knot));
+            try result.append(Segment.init_from_start_end(knot, next_knot));
         }
 
         return TimeCurve{ .segments = try result.toOwnedSlice() };
@@ -2175,11 +2154,11 @@ test "Curve: read_curve_json"
 test "Segment: projected_segment to 1/2" 
 {
     {
-        const half = create_linear_segment(
+        const half = Segment.init_from_start_end(
             .{ .time = -0.5, .value = -0.25, },
             .{ .time = 0.5, .value = 0.25, },
         );
-        const double = create_linear_segment(
+        const double = Segment.init_from_start_end(
             .{ .time = -0.5, .value = -1, },
             .{ .time = 0.5, .value = 1, },
         );
@@ -2199,11 +2178,11 @@ test "Segment: projected_segment to 1/2"
     }
 
     {
-        const half = create_linear_segment(
+        const half = Segment.init_from_start_end(
             .{ .time = -0.5, .value = -0.5, },
             .{ .time = 0.5, .value = 0.0, },
         );
-        const double = create_linear_segment(
+        const double = Segment.init_from_start_end(
             .{ .time = -0.5, .value = -0.5, },
             .{ .time = 0.5, .value = 1.5, },
         );
@@ -2225,7 +2204,7 @@ test "Segment: projected_segment to 1/2"
 
 test "TimeCurve: positive length 1 linear segment test" {
     var crv_seg = [_]Segment{
-        create_linear_segment(
+        Segment.init_from_start_end(
             .{ .time = 1, .value = 0, },
             .{ .time = 2, .value = 1, },
         )
@@ -2252,7 +2231,7 @@ test "TimeCurve: positive length 1 linear segment test" {
 test "TimeCurve: project_linear_curve to identity" {
 
     var seg_0_4 = [_]Segment{
-        create_linear_segment(
+        Segment.init_from_start_end(
             .{ .time = 0, .value = 0, },
             .{ .time = 4, .value = 8, },
         ) 
@@ -2260,7 +2239,7 @@ test "TimeCurve: project_linear_curve to identity" {
     const fst: TimeCurve = .{ .segments = &seg_0_4 };
 
     var seg_0_8 = [_]Segment{
-        create_linear_segment(
+        Segment.init_from_start_end(
             .{ .time = 0, .value = 0, },
             .{ .time = 8, .value = 4, },
         )
@@ -2303,11 +2282,11 @@ test "TimeCurve: project_linear_curve to identity" {
 }
 
 test "TimeCurve: projection_test non-overlapping" {
-    var seg_0_1 = [_]Segment{ create_identity_segment(0, 1) };
+    var seg_0_1 = [_]Segment{ Segment.init_identity(0, 1) };
     const fst: TimeCurve = .{ .segments = &seg_0_1 };
 
     var seg_1_9 = [_]Segment{ 
-        create_linear_segment(
+        Segment.init_from_start_end(
             .{ .time = 1, .value = 1, },
             .{ .time = 9, .value = 5, },
         )
@@ -2325,7 +2304,7 @@ test "TimeCurve: projection_test non-overlapping" {
 
 test "positive slope 2 linear segment test" {
     var test_segment_arr = [_]Segment{
-        create_linear_segment(
+        Segment.init_from_start_end(
             .{ .time = 1, .value = 0, },
             .{ .time = 2, .value = 2, },
         )
@@ -2355,7 +2334,7 @@ test "negative length 1 linear segment test" {
     // declaring the segment here means that the memory management is handled
     // by stack unwinding
     var segments_xform = [_]Segment{
-        create_linear_segment(
+        Segment.init_from_start_end(
             .{ .time = -2, .value = 0, },
             .{ .time = -1, .value = 1, },
         )
@@ -2407,22 +2386,22 @@ test "convex hull test" {
     var p2 = segment.p2;
     var p3 = segment.p3;
 
-    const left_bound_segment = create_linear_segment(p0, p1);
-    var right_bound_segment = create_linear_segment(p2, p3);
+    const left_bound_segment = Segment.init_from_start_end(p0, p1);
+    var right_bound_segment = Segment.init_from_start_end(p2, p3);
 
     // swizzle the right if necessary
     if (line_orientation(p0, right_bound_segment) < 0) {
         const tmp = p3;
         p3 = p2;
         p2 = tmp;
-        right_bound_segment = create_linear_segment(p2, p3);
+        right_bound_segment = Segment.init_from_start_end(p2, p3);
     }
 
-    const top_bound_segment = create_linear_segment(p1, p2);
+    const top_bound_segment = Segment.init_from_start_end(p1, p2);
 
     // NOTE: reverse the winding order because linear segment requires the 
     //       second point be _after_ the first in time
-    const bottom_bound_segment = create_linear_segment(p0, p3);
+    const bottom_bound_segment = Segment.init_from_start_end(p0, p3);
 
     var i: f32 = 0;
     while (i <= 1) {
@@ -2444,7 +2423,7 @@ test "convex hull test" {
 
 
 test "Segment: eval_at for out of range u" {
-    var seg = [1]Segment{create_identity_segment(3, 4)};
+    var seg = [1]Segment{Segment.init_identity(3, 4)};
     const tc = TimeCurve{ .segments = &seg};
 
     try expectError(error.OutOfBounds, tc.evaluate(0));
@@ -2486,7 +2465,7 @@ pub fn write_json_file_curve(
 test "json writer: curve" {
     const ident = try TimeCurve.init(
         std.testing.allocator,
-        &.{ create_identity_segment(-20, 30) },
+        &.{ Segment.init_identity(-20, 30) },
     );
     defer ident.deinit(std.testing.allocator);
 
@@ -2515,7 +2494,7 @@ test "json writer: curve" {
 }
 
 test "segment: findU_value" {
-    const test_segment = create_identity_segment(1,2);
+    const test_segment = Segment.init_identity(1,2);
     try std.testing.expectApproxEqAbs(
         @as(f32, 0.5),
         test_segment.findU_value(1.5),
@@ -2545,15 +2524,15 @@ test "TimeCurve: project u loop bug" {
     defer project_algo = old_project_algo;
 
     const simple_s_segments = [_]Segment{
-        create_linear_segment(
+        Segment.init_from_start_end(
             .{ .time = 0, .value = 0},
             .{ .time = 30, .value = 10},
         ),
-        create_linear_segment(
+        Segment.init_from_start_end(
             .{ .time = 30, .value = 10},
             .{ .time = 60, .value = 90},
         ),
-        create_linear_segment(
+        Segment.init_from_start_end(
             .{ .time = 60, .value = 90},
             .{ .time = 100, .value = 100},
         ),
@@ -2604,7 +2583,7 @@ test "TimeCurve: project u loop bug" {
 
 test "TimeCurve: project linear identity with linear 1/2 slope" {
     const linear_segment = [_]Segment{
-        create_linear_segment(
+        Segment.init_from_start_end(
             .{ .time = 60, .value = 60},
             .{ .time = 230, .value = 230},
         ),
@@ -2620,7 +2599,7 @@ test "TimeCurve: project linear identity with linear 1/2 slope" {
     }
 
     const linear_half_segment = [_]Segment{
-        create_linear_segment(
+        Segment.init_from_start_end(
             .{ .time = 0, .value = 100},
             .{ .time = 200, .value = 200},
         ),
@@ -2642,7 +2621,7 @@ test "TimeCurve: project linear identity with linear 1/2 slope" {
 
 test "TimeCurve: project linear u with out-of-bounds segments" {
     const linear_segment = [_]Segment{
-        create_linear_segment(
+        Segment.init_from_start_end(
             .{ .time = 60, .value = 60},
             .{ .time = 130, .value = 130},
         ),
@@ -2754,7 +2733,7 @@ test "TimeCurve: split_at_each_value u curve" {
 }
 
 test "TimeCurve: split_at_each_value linear" {
-    const identSeg = create_identity_segment(-0.2, 1) ;
+    const identSeg = Segment.init_identity(-0.2, 1) ;
     const lin = try TimeCurve.init(
         std.testing.allocator,
         &.{identSeg},
@@ -2807,7 +2786,7 @@ test "TimeCurve: split_at_each_value linear" {
 }
 
 test "TimeCurve: split_at_each_input_ordinate linear" {
-    const identSeg = create_identity_segment(-0.2, 1) ;
+    const identSeg = Segment.init_identity(-0.2, 1) ;
     const lin = try TimeCurve.init(
         std.testing.allocator,
         &.{identSeg},
@@ -2865,7 +2844,7 @@ test "TimeCurve: split_at_input_ordinate" {
     const test_curves = [_]TimeCurve{
         try TimeCurve.init(
             std.testing.allocator,
-            &.{ create_identity_segment(-20, 30) },
+            &.{ Segment.init_identity(-20, 30) },
         ),
         try read_curve_json("curves/upside_down_u.curve.json", std.testing.allocator), 
         try read_curve_json("curves/scurve.curve.json", std.testing.allocator), 
@@ -2943,9 +2922,9 @@ test "TimeCurve: trimmed_from_input_ordinate" {
         try TimeCurve.init(
             std.testing.allocator,
             &.{
-                create_identity_segment(-25, -5), 
-                create_identity_segment(-5, 5), 
-                create_identity_segment(5, 25), 
+                Segment.init_identity(-25, -5), 
+                Segment.init_identity(-5, 5), 
+                Segment.init_identity(5, 25), 
             }
         ),
     };
@@ -3054,7 +3033,7 @@ test "TimeCurve: trimmed_in_input_space" {
     const test_curves = [_]TimeCurve{
         try TimeCurve.init(
             std.testing.allocator,
-            &.{ create_identity_segment(-20, 30) }
+            &.{ Segment.init_identity(-20, 30) }
         ),
         try read_curve_json("curves/upside_down_u.curve.json", std.testing.allocator), 
         try read_curve_json("curves/scurve.curve.json", std.testing.allocator), 

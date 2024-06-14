@@ -446,29 +446,8 @@ pub fn main() !void {
     );
     defer fst_crv.deinit(allocator);
 
-    // 1/2 slope
-    // const seg = curve.create_linear_segment(
-    //     .{ .time = -2, .value = -1 },
-    //     .{ .time = 2, .value = 1 },
-    // );
-    // const lin_half = try curve.TimeCurve.init(&.{identSeg_half});
-    // const lin_name_half = try std.fmt.bufPrintZ(
-    //     pbuf[512..],
-    //     "{s}",
-    //     .{  "linear slope of 0.5 [-2, 2)" }
-    // );
-
-    // ident_long
-    // const seg = curve.create_linear_segment(
-    //     .{ .time = -2, .value = -2 },
-    //     .{ .time = 2, .value = 2 },
-    // );
-    // const fst_crv = try curve.TimeCurve.init(&.{seg});
-    // const fst_name:[:0]const u8 = "linear slope of 0.5 [-2, 2)";
-    
-
-    // const identSeg = curve.create_identity_segment(-0.2, 1) ;
-    const identSeg = curve.create_identity_segment(-3, 3) ;
+    // const identSeg = curve.Segment.init_identity(-0.2, 1) ;
+    const identSeg = curve.Segment.init_identity(-3, 3) ;
     const snd_crv = try curve.TimeCurve.init(
         allocator,
         &.{identSeg}

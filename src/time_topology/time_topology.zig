@@ -632,7 +632,7 @@ pub const TimeTopology = union (enum) {
         var current_value = start_value;
         while (t_seconds < in_bounds.end_seconds) {
             try segments.append(
-                curve.create_linear_segment(
+                curve.Segment.init_from_start_end(
                     .{
                         .time = t_seconds,
                         .value = current_value

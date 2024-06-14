@@ -396,14 +396,14 @@ test "retime 48khz samples with a curve, and then resample that retimed data" {
     // @TODO: write this to a json file so we can image in curvet
     var retime_curve_segments = [_]curve.Segment{
         // identity
-        curve.create_identity_segment(0, 0.25),
+        curve.Segment.init_identity(0, 0.25),
         // go up
-        curve.create_linear_segment(
+        curve.Segment.init_from_start_end(
             .{ .time = 0.25, .value = 0.25 },
             .{ .time = 0.50, .value = 0.75 },
         ),
         // identity
-        curve.create_linear_segment(
+        curve.Segment.init_from_start_end(
             .{ .time = 0.5, .value = 0.75 },
             .{ .time = 1.0, .value = 1.25 },
         ),
@@ -479,7 +479,7 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample" {
     // @TODO: write this to a json file so we can image in curvet
     var retime_curve_segments = [_]curve.Segment{
         // identity
-        curve.create_identity_segment(0, 0.25),
+        curve.Segment.init_identity(0, 0.25),
         // go up
         curve.Segment{
             .p0 = .{ .time = 0.25, .value = 0.25 },

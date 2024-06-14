@@ -1293,7 +1293,7 @@ pub fn inverted_linear(
     // @TODO: the library assumes that all curves are monotonic over
     //        time. therefore, inverting a curve where the slope changes sign
     //        will result in an invalid curve.  see the implementation of
-    //        create_linear_segment for an example of where this assumption is
+    //        Segment.init_from_start_end for an example of where this assumption is
     //        tested.
     //
     // const slope = _compute_slope( crv.knots[0], crv.knots[1]);
@@ -1383,7 +1383,7 @@ test "inverted: invert linear" {
 
     var identity_seg = [_]curve.Segment{
         // slope of 2
-        curve.create_identity_segment(-3, 1)
+        curve.Segment.init_identity(-3, 1)
     };
     const identity_crv:curve.TimeCurve = .{ .segments = &identity_seg };
 
@@ -1480,19 +1480,19 @@ test "invert linear complicated curve" {
     // }
     var segments = [_]curve.Segment{
         // identity
-        curve.create_identity_segment(0, 1),
+        curve.Segment.init_identity(0, 1),
         // go up
-        curve.create_linear_segment(
+        curve.Segment.init_from_start_end(
             .{ .time = 1, .value = 1 },
             .{ .time = 2, .value = 3 },
         ),
         // go down
-        curve.create_linear_segment(
+        curve.Segment.init_from_start_end(
             .{ .time = 2, .value = 3 },
             .{ .time = 3, .value = 1 },
         ),
         // identity
-        curve.create_linear_segment(
+        curve.Segment.init_from_start_end(
             .{ .time = 3, .value = 1 },
             .{ .time = 4, .value = 2 },
         ),
@@ -1663,7 +1663,7 @@ test "inverted: invert bezier" {
 
     var identity_seg = [_]curve.Segment{
         // slope of 2
-        curve.create_identity_segment(-3, 1)
+        curve.Segment.init_identity(-3, 1)
     };
     const identity_crv:curve.TimeCurve = .{ .segments = &identity_seg };
 

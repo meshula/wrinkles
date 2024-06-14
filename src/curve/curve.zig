@@ -10,8 +10,6 @@ pub const Segment = bezier_curve.Segment;
 pub const TimeCurveLinear = linear_curve.TimeCurveLinear;
 
 pub const ControlPoint = control_point.ControlPoint;
-pub const create_linear_segment = bezier_curve.create_linear_segment;
-pub const create_identity_segment = bezier_curve.create_identity_segment;
 pub const linearize_segment = bezier_curve.linearize_segment;
 pub const read_segment_json = bezier_curve.read_segment_json;
 pub const read_curve_json = bezier_curve.read_curve_json;
