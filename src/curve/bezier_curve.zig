@@ -2202,7 +2202,8 @@ test "Segment: projected_segment to 1/2"
     }
 }
 
-test "TimeCurve: positive length 1 linear segment test" {
+test "TimeCurve: positive length 1 linear segment test" 
+{
     var crv_seg = [_]Segment{
         Segment.init_from_start_end(
             .{ .time = 1, .value = 0, },
@@ -2228,7 +2229,8 @@ test "TimeCurve: positive length 1 linear segment test" {
     try expectApproxEql(@as(f32, 0.75), try xform_curve.evaluate(1.75));
 }
 
-test "TimeCurve: project_linear_curve to identity" {
+test "TimeCurve: project_linear_curve to identity" 
+{
 
     var seg_0_4 = [_]Segment{
         Segment.init_from_start_end(
@@ -2281,7 +2283,8 @@ test "TimeCurve: project_linear_curve to identity" {
     }
 }
 
-test "TimeCurve: projection_test non-overlapping" {
+test "TimeCurve: projection_test non-overlapping" 
+{
     var seg_0_1 = [_]Segment{ Segment.init_identity(0, 1) };
     const fst: TimeCurve = .{ .segments = &seg_0_1 };
 
@@ -2302,7 +2305,8 @@ test "TimeCurve: projection_test non-overlapping" {
     try expectEqual(@as(usize, 0), result.segments.len);
 }
 
-test "positive slope 2 linear segment test" {
+test "positive slope 2 linear segment test" 
+{
     var test_segment_arr = [_]Segment{
         Segment.init_from_start_end(
             .{ .time = 1, .value = 0, },
@@ -2330,7 +2334,8 @@ test "positive slope 2 linear segment test" {
     }
 }
 
-test "negative length 1 linear segment test" {
+test "negative length 1 linear segment test" 
+{
     // declaring the segment here means that the memory management is handled
     // by stack unwinding
     var segments_xform = [_]Segment{
@@ -2366,14 +2371,8 @@ fn line_orientation(test_point: control_point.ControlPoint, segment: Segment) f3
     return (v1.time * v2.value - v1.value * v2.time);
 }
 
-fn sub(lhs: control_point.ControlPoint, rhs: control_point.ControlPoint) control_point.ControlPoint {
-    return .{
-        .time= rhs.time - lhs.time,
-        .value= rhs.value - lhs.value,
-    };
-}
-
-test "convex hull test" {
+test "convex hull test" 
+{
     const segment = create_bezier_segment(
         .{ .time = 1, .value = 0, },
         .{ .time = 1.25, .value = 1, },
@@ -2421,8 +2420,8 @@ test "convex hull test" {
     }
 }
 
-
-test "Segment: eval_at for out of range u" {
+test "Segment: eval_at for out of range u" 
+{
     var seg = [1]Segment{Segment.init_identity(3, 4)};
     const tc = TimeCurve{ .segments = &seg};
 
@@ -2462,7 +2461,8 @@ pub fn write_json_file_curve(
     );
 }
 
-test "json writer: curve" {
+test "json writer: curve" 
+{
     const ident = try TimeCurve.init(
         std.testing.allocator,
         &.{ Segment.init_identity(-20, 30) },
@@ -2493,7 +2493,8 @@ test "json writer: curve" {
     try expectEqualStrings(buffer[0..bytes_read], blob);
 }
 
-test "segment: findU_value" {
+test "segment: findU_value" 
+{
     const test_segment = Segment.init_identity(1,2);
     try std.testing.expectApproxEqAbs(
         @as(f32, 0.5),
@@ -2512,7 +2513,8 @@ test "segment: findU_value" {
     );
 }
 
-test "TimeCurve: project u loop bug" {
+test "TimeCurve: project u loop bug" 
+{
     // until projection is worked out
     if (true) {
         return error.SkipZigTest;
@@ -2581,7 +2583,8 @@ test "TimeCurve: project u loop bug" {
     try expectEqual(@as(usize, 4), result.segments.len);
 }
 
-test "TimeCurve: project linear identity with linear 1/2 slope" {
+test "TimeCurve: project linear identity with linear 1/2 slope" 
+{
     const linear_segment = [_]Segment{
         Segment.init_from_start_end(
             .{ .time = 60, .value = 60},
@@ -2619,7 +2622,8 @@ test "TimeCurve: project linear identity with linear 1/2 slope" {
     try expectEqual(@as(usize, 1), result.segments.len);
 }
 
-test "TimeCurve: project linear u with out-of-bounds segments" {
+test "TimeCurve: project linear u with out-of-bounds segments" 
+{
     const linear_segment = [_]Segment{
         Segment.init_from_start_end(
             .{ .time = 60, .value = 60},
@@ -2658,7 +2662,8 @@ test "TimeCurve: project linear u with out-of-bounds segments" {
     try expectEqual(@as(usize, 4), result.segments.len);
 }
 
-test "TimeCurve: split_at_each_value u curve" {
+test "TimeCurve: split_at_each_value u curve" 
+{
     const u_seg = [_]Segment{
         Segment{
             .p0 = .{ .time = 0, .value = 0 },
@@ -2732,7 +2737,8 @@ test "TimeCurve: split_at_each_value u curve" {
     try expectEqual(@as(usize, 4), result.segments.len);
 }
 
-test "TimeCurve: split_at_each_value linear" {
+test "TimeCurve: split_at_each_value linear" 
+{
     const identSeg = Segment.init_identity(-0.2, 1) ;
     const lin = try TimeCurve.init(
         std.testing.allocator,
@@ -2785,7 +2791,8 @@ test "TimeCurve: split_at_each_value linear" {
     try expectEqual(@as(usize, 3), result.segments.len);
 }
 
-test "TimeCurve: split_at_each_input_ordinate linear" {
+test "TimeCurve: split_at_each_input_ordinate linear" 
+{
     const identSeg = Segment.init_identity(-0.2, 1) ;
     const lin = try TimeCurve.init(
         std.testing.allocator,
@@ -2839,7 +2846,8 @@ test "TimeCurve: split_at_each_input_ordinate linear" {
     try expectEqual(@as(usize, 3), result.segments.len);
 }
 
-test "TimeCurve: split_at_input_ordinate" {
+test "TimeCurve: split_at_input_ordinate" 
+{
 
     const test_curves = [_]TimeCurve{
         try TimeCurve.init(
@@ -2903,7 +2911,8 @@ test "TimeCurve: split_at_input_ordinate" {
     }
 }
 
-test "TimeCurve: trimmed_from_input_ordinate" {
+test "TimeCurve: trimmed_from_input_ordinate" 
+{
     const TestData = struct {
         // inputs
         ordinate:f32,
@@ -3020,7 +3029,8 @@ test "TimeCurve: trimmed_from_input_ordinate" {
     }
 }
 
-test "TimeCurve: trimmed_in_input_space" {
+test "TimeCurve: trimmed_in_input_space" 
+{
     if (true) {
         return error.SkipZigTest;
     }
@@ -3126,7 +3136,8 @@ test "TimeCurve: trimmed_in_input_space" {
     }
 }
 
-test "TimeCurve: project_affine" {
+test "TimeCurve: project_affine" 
+{
     // @TODO: test bounds
 
     const test_crv = try read_curve_json(
@@ -3204,24 +3215,26 @@ pub fn affine_project_curve(
     allocator: std.mem.Allocator,
 ) !TimeCurve 
 {
-    var result_segments = try allocator.dupe(Segment, rhs.segments);
+    const result_segments = try allocator.dupe(
+        Segment,
+        rhs.segments
+    );
 
-    var tmp:[4]control_point.ControlPoint = undefined;
-
-    for (rhs.segments, 0..) |seg, seg_index| {
-        for (seg.points(), 0..) |pt, pt_index| {
-            tmp[pt_index] = .{ 
-                .time = pt.time, 
-                .value = lhs.applied_to_seconds(pt.value),
-            };
+    for (result_segments) 
+        |*seg| 
+    {
+        for (seg.point_ptrs()) 
+            |pt| 
+        {
+            pt.value = lhs.applied_to_seconds(pt.value);
         }
-        result_segments[seg_index] = Segment.from_pt_array(tmp);
     }
 
     return .{ .segments = result_segments };
 }
 
-test "affine_project_curve" {
+test "affine_project_curve" 
+{
     // @TODO: test bounds
 
     const test_crv = try read_curve_json(
@@ -3249,7 +3262,9 @@ test "affine_project_curve" {
         },
     };
 
-    for (test_affine, 0..) |testdata, test_loop_index| {
+    for (test_affine, 0..) 
+        |testdata, test_loop_index| 
+    {
         errdefer std.debug.print(
             "\ntest: {}, offset: {d:.2}, scale: {d:.2}\n",
             .{ test_loop_index, testdata.offset_seconds, testdata.scale }
@@ -3291,7 +3306,8 @@ test "affine_project_curve" {
     }
 }
 
-test "TimeCurve: split_on_critical_points s curve" {
+test "TimeCurve: split_on_critical_points s curve" 
+{
     const s_seg = [_]Segment{
         Segment{
             .p0 = .{ .time = 0, .value = 0 },
@@ -3314,7 +3330,8 @@ test "TimeCurve: split_on_critical_points s curve" {
     try std.testing.expectEqual(@as(usize, 4), s_curve_split.segments.len);
 }
 
-test "TimeCurve: split_on_critical_points symmetric about the origin" {
+test "TimeCurve: split_on_critical_points symmetric about the origin" 
+{
 
     const TestData = struct {
         segment: Segment,
