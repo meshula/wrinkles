@@ -1560,6 +1560,7 @@ pub const TimeCurve = struct {
         return result;
     }
 
+    /// compute an array of all the segment endpoints
     pub fn segment_endpoints(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -1569,10 +1570,14 @@ pub const TimeCurve = struct {
             control_point.ControlPoint
         ).init(allocator);
 
-        if (self.segments.len > 0) {
-            try result.append(self.segments[0].p0);
+        if (self.segments.len == 0) {
+            return &[0]control_point.ControlPoint{};
         }
-        for (self.segments) |seg| {
+
+        try result.append(self.segments[0].p0);
+        for (self.segments) 
+            |seg| 
+        {
             try result.append(seg.p3);
         }
 
@@ -1597,24 +1602,26 @@ pub const TimeCurve = struct {
         );
     }
 
+    /// project an affine transformation through the curve
     pub fn project_affine(
         self: @This(),
         aff: opentime.transform.AffineTransform1D,
         allocator: std.mem.Allocator,
     ) !TimeCurve 
     {
-        var result_segments = try allocator.dupe(Segment, self.segments);
+        const result_segments = try allocator.dupe(
+            Segment,
+            self.segments
+        );
 
-        var tmp:[4]control_point.ControlPoint = .{.{}, .{}, .{}, .{}};
-
-        for (self.segments, 0..) |seg, seg_index| {
-            for (seg.points(), 0..) |pt, pt_index| {
-                tmp[pt_index] = .{ 
-                    .time = aff.applied_to_seconds(pt.time),
-                    .value = pt.value,
-                };
+        for (result_segments) 
+            |*seg| 
+        {
+            for (seg.point_ptrs()) 
+                |pt |
+            {
+                pt.time = aff.applied_to_seconds(pt.time);
             }
-            result_segments[seg_index] = Segment.from_pt_array(tmp);
         }
 
         return .{ .segments = result_segments };
@@ -1650,10 +1657,12 @@ pub const TimeCurve = struct {
 
     /// return the extents of the curve as control points
     pub fn extents(self:@This()) [2]control_point.ControlPoint {
-        var min:control_point.ControlPoint = self.segments[0].p0;
-        var max:control_point.ControlPoint = self.segments[0].p3;
+        var min = self.segments[0].p0;
+        var max = self.segments[0].p3;
 
-        for (self.segments) |seg| {
+        for (self.segments) 
+            |seg| 
+        {
             const seg_extents = seg.extents();
             min = .{
                 .time = @min(min.time, seg_extents[0].time),
@@ -1699,7 +1708,8 @@ pub const TimeCurve = struct {
 
         const maybe_split_segments = seg_to_split.split_at(unorm);
 
-        if (maybe_split_segments == null) {
+        if (maybe_split_segments == null) 
+        {
             std.log.err(
                 "ordinate: {} unorm: {} seg_to_split: {s}\n",
                 .{ ordinate, unorm, try seg_to_split.debug_json_str(allocator) }
@@ -1784,7 +1794,9 @@ pub const TimeCurve = struct {
             }
         }
 
-        return .{ .segments = try result_segments.toOwnedSlice() };
+        return .{ 
+            .segments = try result_segments.toOwnedSlice() 
+        };
     }
 
     pub fn split_at_each_parameter_space_ordinate(
@@ -2009,6 +2021,9 @@ pub const TimeCurve = struct {
         return result;
     }
 
+    // @TODO: all the split functions and trim function sseem like they could
+    //        do with cleanup
+
     /// split the segments on their first derivative roots, return a new curve
     /// with all the split segments and copies of the segments that were not
     /// split, memory is owned by the caller
@@ -2017,8 +2032,9 @@ pub const TimeCurve = struct {
         allocator: std.mem.Allocator
     ) !TimeCurve 
     {
-        var cSeg = hodographs.BezierSegment{};
-        cSeg.order = 3;
+        var cSeg = hodographs.BezierSegment{
+            .order = 3
+        };
 
         var split_segments = std.ArrayList(Segment).init(allocator);
         defer split_segments.deinit();
@@ -2192,19 +2208,6 @@ test "Segment: projected_segment to 1/2" {
         u+=0.1;
     }
 }
-
-// test "TimeCurve: string json" {
-//     const xform_curve: TimeCurve = .{
-//         .segments = &.{
-//             create_linear_segment(
-//                 .{ .time = 1, .value = 0, },
-//                 .{ .time = 2, .value = 1, },
-//             )
-//         }
-//     };
-//
-//     std.debug.print("\n{s}\n", .{ xform_curve.debug_json_str()});
-// }
 
 test "TimeCurve: positive length 1 linear segment test" {
     var crv_seg = [_]Segment{
@@ -2514,14 +2517,6 @@ test "segment: findU_value" {
         test_segment.findU_value(2.5),
         generic_curve.EPSILON
     );
-
-    // const test_segment_inv = create_linear_segment(
-    // );
-
-    // @TODO: this might be a legit bug in the root finder?
-    // try expectEqual(@as(f32, 0.5), test_segment_inv.findU_value(1.5));
-    // try expectEqual(@as(f32, 1),   test_segment_inv.findU_value(0.5)); // returns 0?
-    // try expectEqual(@as(f32, 0),   test_segment_inv.findU_value(2.5)); // returns 1?
 }
 
 test "TimeCurve: project u loop bug" {
@@ -3166,7 +3161,10 @@ test "TimeCurve: project_affine" {
         },
     };
 
-    for (test_affine) |testdata| {
+    // @TODO: this seems like it could be cleaned up
+    for (test_affine) 
+        |testdata| 
+    {
         const result = try test_crv.project_affine(
             testdata,
             std.testing.allocator
@@ -3176,8 +3174,12 @@ test "TimeCurve: project_affine" {
         // number of segments shouldn't have changed
         try expectEqual(test_crv.segments.len, result.segments.len);
 
-        for (test_crv.segments, 0..) |t_seg, t_seg_index| {
-            for (t_seg.points(), 0..) |pt, pt_index| {
+        for (test_crv.segments, 0..) 
+            |t_seg, t_seg_index| 
+        {
+            for (t_seg.points(), 0..) 
+                |pt, pt_index| 
+            {
                 const result_pt = result.segments[t_seg_index].points()[pt_index];
                 errdefer  std.debug.print(
                     "\nseg: {} pt: {} ({d:.2}, {d:.2})\n"
