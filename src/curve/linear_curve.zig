@@ -1,8 +1,6 @@
-const string_stuff = @import("string_stuff");
 const bezier_math = @import("bezier_math.zig");
 const generic_curve = @import("generic_curve.zig");
-const control_point = @import("control_point.zig");
-const ControlPoint = control_point.ControlPoint;
+const ControlPoint = @import("control_point.zig").ControlPoint;
 
 const std = @import("std");
 const expect = std.testing.expect;
@@ -72,7 +70,7 @@ pub const TimeCurveLinear = struct {
     {
         return .{ 
             .knots = try allocator.dupe(
-                control_point.ControlPoint,
+                ControlPoint,
                 self.knots
             ),
         };
@@ -120,41 +118,6 @@ pub const TimeCurveLinear = struct {
         return error.OutOfBounds;
     }
 
-    /// finds all the knots for which v_arg is between this knot's value and
-    /// the next's value
-    pub fn nearest_smaller_knot_index_value(
-        self: @This(),
-        allocator: std.mem.Allocator,
-        v_arg: f32
-    ) []u32 
-    {
-        const bounds = self.extents();
-        if (
-            self.knots.len == 0 
-            or v_arg < bounds[0].value 
-            or v_arg >= bounds[1].value
-        ) {
-            return .{};
-        }
-
-        var result = std.ArrayList(u32).init(allocator);
-
-        // last knot is out of domain
-        for (self.knots[0..self.knots.len-1], self.knots[1..], 0..) 
-            |knot, next_knot, index| 
-        {
-            if (
-                (knot.value <= v_arg and v_arg < next_knot.value)
-                or (knot.value >= v_arg and v_arg > next_knot.value)
-            )
-            {
-                result.append(index);
-            }
-        }
-
-        return try result.toOwnedSlice();
-    }
-
     pub fn nearest_smaller_knot_index(
         self: @This(),
         t_arg: f32, 
@@ -183,26 +146,6 @@ pub const TimeCurveLinear = struct {
         }
 
         return null;
-    }
-
-    /// not implemented - meant to insert a knot into a curve
-    pub fn insert(self: @This(), knot: ControlPoint) void {
-        _ = self;
-        _ = knot;
-        @panic("not implemented");
-        //
-        // if (knot.time)
-        //
-        // const conflict = find_segment(seg.p0.time);
-        // if (conflict != null)
-        //     unreachable;
-        //
-        // self.segments.append(seg);
-        // std.sort(
-        //     @TypeOf(seg),
-        //     self.segments.to_slice(),
-        //     generic_curve.cmpSegmentsByStart
-        // );
     }
 
     /// project another curve through this one.  A curve maps 'time' to 'value'
@@ -241,34 +184,31 @@ pub const TimeCurveLinear = struct {
         //        as well
         //
         const other_bounds = other.extents();
-        var other_split_at_self_knots = TimeCurveLinear{};
 
         // find all knots in self that are within the other bounds
+        var split_points = std.ArrayList(f32).init(
+            allocator,
+        );
+        defer split_points.deinit();
+
+        for (self.knots)
+            |self_knot| 
         {
-            var split_points = std.ArrayList(f32).init(
-                allocator,
-            );
-            defer split_points.deinit();
-
-            for (self.knots)
-                |self_knot| 
-            {
-                if (
-                    _is_between(
-                        self_knot.time,
-                        other_bounds[0].value,
-                        other_bounds[1].value
-                    )
-                ) {
-                    try split_points.append(self_knot.time);
-                }
+            if (
+                _is_between(
+                    self_knot.time,
+                    other_bounds[0].value,
+                    other_bounds[1].value
+                )
+            ) {
+                try split_points.append(self_knot.time);
             }
-
-            other_split_at_self_knots = try other.split_at_each_value(
-                allocator,
-                split_points.items
-            );
         }
+
+        const other_split_at_self_knots = try other.split_at_each_value(
+            allocator,
+            split_points.items
+        );
 
         // split other into curves where it goes in and out of the domain of self
         var curves_to_project = std.ArrayList(
@@ -277,7 +217,7 @@ pub const TimeCurveLinear = struct {
 
         // gather the curves to project by splitting
         {
-            const self_bounds = self.extents();
+            const self_bounds_t = self.extents_time();
             var last_index:?i32 = null;
             var current_curve = (
                 std.ArrayList(ControlPoint).init(
@@ -289,8 +229,8 @@ pub const TimeCurveLinear = struct {
                 |other_knot, index| 
             {
                 if (
-                    self_bounds[0].time <= other_knot.value 
-                    and other_knot.value <= self_bounds[1].time
+                    self_bounds_t.start_seconds <= other_knot.value 
+                    and other_knot.value <= self_bounds_t.end_seconds
                 ) 
                 {
                     if (last_index == null or index != last_index.?+1) 
@@ -321,7 +261,6 @@ pub const TimeCurveLinear = struct {
                 );
             }
             current_curve.clearAndFree();
-            current_curve.deinit();
         }
         other_split_at_self_knots.deinit(allocator);
 
@@ -347,8 +286,6 @@ pub const TimeCurveLinear = struct {
                     else return error.NotInRangeError
                 );
 
-                // this will error out trying to project the last endpoint
-                // .value = self.evaluate(knot.value) catch unreachable
                 knot.value  = value;
             }
         }
@@ -373,13 +310,19 @@ pub const TimeCurveLinear = struct {
         return str.toOwnedSlice();
     }
 
-    pub fn extents_time(self:@This()) ContinuousTimeInterval {
+    /// return the extents of the time (input) domain of the curve  - O(1)
+    /// because curves are monotonic over time by definition.
+    pub fn extents_time(
+        self:@This()
+    ) ContinuousTimeInterval 
+    {
         return .{
             .start_seconds = self.knots[0].time,
             .end_seconds = self.knots[self.knots.len - 1].time,
         };
     }
 
+    /// compute the extents for the curve exhaustively
     pub fn extents(self:@This()) [2]ControlPoint {
         var min:ControlPoint = self.knots[0];
         var max:ControlPoint = self.knots[0];
@@ -442,14 +385,14 @@ pub const TimeCurveLinear = struct {
         }
         try result.append(self.knots[last_minus_one]);
 
-        // @TODO: free the existing slice
         return TimeCurveLinear{
             .knots = try result.toOwnedSlice() 
         };
     }
 };
 
-test "TimeCurveLinear: extents" {
+test "TimeCurveLinear: extents" 
+{
     const crv = try TimeCurveLinear.init_identity(
         std.testing.allocator,
         &.{100, 200},
@@ -460,6 +403,10 @@ test "TimeCurveLinear: extents" {
 
     try expectEqual(@as(f32, 100), bounds[0].time);
     try expectEqual(@as(f32, 200), bounds[1].time);
+
+    const bounds_time = crv.extents_time();
+    try expectEqual(@as(f32, 100), bounds_time.start_seconds);
+    try expectEqual(@as(f32, 200), bounds_time.end_seconds);
 }
 
 test "TimeCurveLinear: proj_ident" 
@@ -541,7 +488,8 @@ test "TimeCurveLinear: proj_ident"
     // @TODO: add third test case, with right AND left overhang
 }
 
-test "TimeCurveLinear: project s" {
+test "TimeCurveLinear: project s" 
+{
     const ident = try TimeCurveLinear.init_identity(
         std.testing.allocator,
         &.{0, 100},
@@ -578,7 +526,8 @@ test "TimeCurveLinear: project s" {
     try expectEqual(@as(usize, 4), result[0].knots.len);
 }
 
-test "TimeCurveLinear: projection_test - compose to identity" {
+test "TimeCurveLinear: projection_test - compose to identity" 
+{
     const fst= try TimeCurveLinear.init(
         std.testing.allocator,
         &.{
@@ -614,9 +563,13 @@ test "TimeCurveLinear: projection_test - compose to identity" {
     try expectEqual(@as(f32, 8), result[0].knots[1].value);
 
     var x:f32 = 0;
-    while (x < 1) {
-        // @TODO: fails because evaluating a linear curve
-        try expectApproxEqAbs(x, try result[0].evaluate(x), generic_curve.EPSILON);
-        x += 0.1;
+    while (x < 1) 
+        : (x += 0.1)
+    {
+        try expectApproxEqAbs(
+            x,
+            try result[0].evaluate(x),
+            generic_curve.EPSILON
+        );
     }
 }
