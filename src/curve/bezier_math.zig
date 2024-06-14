@@ -1069,7 +1069,7 @@ test "dydx matches expected at endpoints" {
     // }
 
     {
-        const x_zero_dual = seg0.eval_at_x_dual(seg0.p0.time);
+        const x_zero_dual = seg0.eval_at_input_dual(seg0.p0.time);
         try expectApproxEql(seg0.p1.time - seg0.p0.time, x_zero_dual.i.time);
     }
 }
@@ -1137,8 +1137,8 @@ test "derivative at 0 for linear curve" {
     }
 
     {
-        const x_zero_dual =  seg_0.eval_at_x_dual(crv.segments[0].p0.time);
-        const x_third_dual = seg_0.eval_at_x_dual(crv.segments[0].p1.time);
+        const x_zero_dual =  seg_0.eval_at_input_dual(crv.segments[0].p0.time);
+        const x_third_dual = seg_0.eval_at_input_dual(crv.segments[0].p1.time);
 
         try expectApproxEql(x_zero_dual.i.time, x_third_dual.i.time);
         try expectApproxEql(x_zero_dual.i.value, x_third_dual.i.value);

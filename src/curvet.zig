@@ -930,7 +930,7 @@ fn plot_bezier_curve(
 
                 if (flags.derivatives_dydx) 
                 {
-                    const d_dx = seg.eval_at_x_dual(d_du.r.time);
+                    const d_dx = seg.eval_at_input_dual(d_du.r.time);
 
                     const xv : [2]f32 = .{
                         d_dx.r.time,
@@ -1000,7 +1000,7 @@ fn plot_bezier_curve(
 
                 if (flags.derivatives_dydx_isect) 
                 {
-                    const d_dx = seg.eval_at_x_dual(d_du.r.time);
+                    const d_dx = seg.eval_at_input_dual(d_du.r.time);
 
                     const xv : [3]f32 = .{
                         d_dx.r.time - d_dx.i.time,
@@ -1041,7 +1041,7 @@ fn plot_bezier_curve(
 
             if (flags.show_dydx_point) 
             {
-                const d_dx = seg.eval_at_x_dual(d_du.r.time);
+                const d_dx = seg.eval_at_input_dual(d_du.r.time);
 
                 const xv : [3]f32 = .{
                     d_dx.r.time - d_dx.i.time,
@@ -2087,7 +2087,7 @@ fn update(
 
                                     // dy/dx
                                     {
-                                        const d_p0 = seg.eval_at_x_dual(
+                                        const d_p0 = seg.eval_at_input_dual(
                                             seg.p0.time
                                         );
                                         zgui.bulletText(
@@ -2118,7 +2118,7 @@ fn update(
                                             },
                                         );
 
-                                        const d_p3 = seg.eval_at_x_dual(
+                                        const d_p3 = seg.eval_at_input_dual(
                                             seg.p3.time
                                         );
                                         zgui.bulletText(

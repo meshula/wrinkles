@@ -434,7 +434,7 @@ pub const Segment = struct {
            const pt = @field(segment_to_project, field);
            @field(result, field) = .{
                .time = pt.time,
-               .value = self.eval_at_x(pt.value),
+               .value = self.eval_at_input(pt.value),
            };
        }
 
@@ -501,7 +501,7 @@ pub const Segment = struct {
     }
 
     /// returns the y-value for the given x-value
-    pub fn eval_at_x(
+    pub fn eval_at_input(
         self: @This(),
         x:f32
     ) f32 
@@ -516,7 +516,7 @@ pub const Segment = struct {
         return self.eval_at(u).value;
     }
 
-    pub fn eval_at_x_dual(
+    pub fn eval_at_input_dual(
         self: @This(),
         x:f32
     ) control_point.Dual_CP 
@@ -829,7 +829,7 @@ pub fn read_segment_json(
     return result.value;
 }
 
-test "segment: eval_at_x and findU test over linear curve" 
+test "segment: eval_at_input and findU test over linear curve" 
 {
     const seg = Segment.init_from_start_end(
         .{.time = 2, .value = 2},
@@ -839,7 +839,7 @@ test "segment: eval_at_x and findU test over linear curve"
     inline for ([_]f32{2.1, 2.2, 2.3, 2.5, 2.7}) 
                |coord| 
     {
-        try expectApproxEql(coord, seg.eval_at_x(coord));
+        try expectApproxEql(coord, seg.eval_at_input(coord));
     }
 }
 
@@ -1030,7 +1030,7 @@ pub const TimeCurve = struct {
         if (self.find_segment(t_arg)) 
            |seg|
         {
-            return seg.eval_at_x(t_arg);
+            return seg.eval_at_input(t_arg);
         }
 
         // no segment found
@@ -1421,7 +1421,7 @@ pub const TimeCurve = struct {
                         {
                             projected_pts[pt_ind] = .{
                                 .time  = pt.time,
-                                .value = self_seg.eval_at_x(pt.value)
+                                .value = self_seg.eval_at_input(pt.value)
                             };
                         }
 
@@ -1511,7 +1511,7 @@ pub const TimeCurve = struct {
                         inline for (&projected_pts, 0..) 
                             |*pt, pt_ind|
                         {
-                            const projection_dual = self_seg.eval_at_x_dual(
+                            const projection_dual = self_seg.eval_at_input_dual(
                                 pt.value
                             );
 
