@@ -1,7 +1,5 @@
 const std = @import("std");
 const debug_panic = @import("std").debug.panic;
-
-const assert = std.debug.assert;
 const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
 const expectError = std.testing.expectError;
@@ -9,7 +7,6 @@ const expect = std.testing.expect;
 
 // const opentime = @import("opentime");
 const opentime = @import("opentime");
-const interval = opentime.interval;
 const ContinuousTimeInterval = opentime.ContinuousTimeInterval;
 
 const bezier_math = @import("bezier_math.zig");
@@ -17,37 +14,43 @@ const generic_curve = @import("generic_curve.zig");
 const linear_curve = @import("linear_curve.zig");
 const control_point = @import("control_point.zig");
 
-const stdout = std.io.getStdOut().writer();
-
-const inf = std.math.inf(f32);
-const nan = std.math.nan(f32);
-
 const string_stuff = @import("string_stuff");
 const latin_s8 = string_stuff.latin_s8;
 
 const dual = opentime.dual;
 
-pub var u_val_of_midpoint:f32 = 0.5;
-pub var fudge:f32 = 1;
-
-// options for projecting bezier through bezier
-pub const ProjectionAlgorithms = enum (i32) {
-    // project endpoints, midpoint + midpoint derviatives, run decastlejau in
-    // reverse (so called three-point-approximation) to infer P1, P2
-    three_point_approx=0,
-    // project each endpoint, chain rule derivatives, then use derivative length
-    // to estimate P1, P2
-    two_point_approx,
-    // linearize both curves, then project linear segments
-    linearized,
-};
-pub var project_algo = ProjectionAlgorithms.three_point_approx;
-
 // hodographs c-library
 pub const hodographs = @import("spline_gym");
 
-fn expectApproxEql(expected: anytype, actual: @TypeOf(expected)) !void {
-    return std.testing.expectApproxEqAbs(expected, actual, generic_curve.EPSILON);
+pub var u_val_of_midpoint:f32 = 0.5;
+pub var fudge:f32 = 1;
+
+/// options for projecting bezier through bezier
+pub const ProjectionAlgorithms = enum (i32) {
+    /// project endpoints, midpoint + midpoint derviatives, run decastlejau in
+    /// reverse (so called three-point-approximation) to infer P1, P2
+    three_point_approx=0,
+    /// project each endpoint, chain rule derivatives, then use derivative length
+    /// to estimate P1, P2
+    two_point_approx,
+    /// linearize both curves, then project linear segments
+    linearized,
+};
+
+/// the projection algorithm to use when projecting Bezier through Bezier
+pub var project_algo = ProjectionAlgorithms.three_point_approx;
+
+/// wrapper that bakes in the epsilon to expectApproxEql
+fn expectApproxEql(
+    expected: anytype,
+    actual: @TypeOf(expected)
+) !void 
+{
+    return std.testing.expectApproxEqAbs(
+        expected,
+        actual,
+        generic_curve.EPSILON
+    );
 }
 
 /// returns true if val is between fst and snd regardless of whether fst or snd
@@ -119,8 +122,10 @@ pub fn distance(
     return std.math.sqrt((dist.time*dist.time) + (dist.value*dist.value));
 }
 
-test "distance: 345 triangle" {
-    try expectEqual( @as(f32, 5),
+test "distance: 345 triangle" 
+{
+    try expectEqual(
+        @as(f32, 5),
         distance(
             .{ .time = 3, .value = -3 },
             .{ .time = 6, .value = 1 }
@@ -130,6 +135,7 @@ test "distance: 345 triangle" {
 
 /// @TODO: time should be an ordinate
 
+/// Bezier Curve Segment
 pub const Segment = struct {
     // time coordinate of each control point is expressed in the coordinate
     // system of the embedding space, ie a clip's intrinsic space.
@@ -169,11 +175,19 @@ pub const Segment = struct {
         return result.result;
     }
 
-    pub fn points(self: @This()) [4]control_point.ControlPoint {
+    /// construct a static array of the points
+    pub fn points(
+        self: @This()
+    ) [4]control_point.ControlPoint 
+    {
         return .{ self.p0, self.p1, self.p2, self.p3 };
     }
 
-    pub fn point_ptrs(self: *@This()) [4]*control_point.ControlPoint {
+    /// construct an array of pointers to the points in this segment
+    pub fn point_ptrs(
+        self: *@This()
+    ) [4]*control_point.ControlPoint 
+    {
         return .{ &self.p0, &self.p1, &self.p2, &self.p3 };
     }
 
@@ -190,7 +204,11 @@ pub const Segment = struct {
         };
     }
 
-    pub fn set_points(self: *@This(), pts: [4]control_point.ControlPoint) void {
+    pub fn set_points(
+        self: *@This(),
+        pts: [4]control_point.ControlPoint
+    ) void 
+    {
         self.p0 = pts[0];
         self.p1 = pts[1];
         self.p2 = pts[2];
@@ -256,16 +274,24 @@ pub const Segment = struct {
 
     }
 
-    pub fn overlaps_time(self:@This(), t:f32) bool {
+    /// returns whether t overlaps the domain of this segment or not
+    pub fn overlaps_time(
+        self:@This(),
+        t:f32
+    ) bool 
+    {
         return (self.p0.time <= t and self.p3.time > t);
     }
 
-    // @TODO: check this function
-    pub fn split_at(self: @This(), unorm:f32) ?[2]Segment 
+    /// return the segment split at u [0, 1.0)
+    /// note: u of < 0 or >= 1 will result in a null result, no split
+    pub fn split_at(
+        self: @This(),
+        unorm:f32
+    ) ?[2]Segment 
     {
         if (unorm < generic_curve.EPSILON or unorm >= 1)
         {
-            // std.log.err("out of bounds unorm {}\n", .{ unorm });
             return null;
         }
 
@@ -365,6 +391,16 @@ pub const Segment = struct {
             .{ self.p1, self.p2 },
             .{ self.p2, self.p3 },
             // .{ self.p3, self.p0 },
+        };
+    }
+
+    pub fn extents_time(
+        self: @This()
+    ) opentime.ContinuousTimeInterval
+    {
+        return .{
+            .start_seconds = self.p0.time,
+            .end_seconds = self.p3.time,
         };
     }
 
@@ -1064,20 +1100,6 @@ pub const TimeCurve = struct {
         return null;
     }
 
-    pub fn insert(self: @This(), seg: Segment) !void {
-        const conflict = find_segment(seg.p0.time);
-        if (conflict != null) {
-            return error.NotImplemented;
-        }
-
-        self.segments.append(seg);
-        std.sort(
-            Segment,
-            self.segments.to_slice(),
-            generic_curve.cmpSegmentsByStart
-        );
-    }
-
     /// build a linearized version of this TimeCurve
     pub fn linearized(
         self: @This(),
@@ -1205,6 +1227,8 @@ pub const TimeCurve = struct {
         }
     };
 
+    /// implementation of the bezier/bezier projection, including extra
+    /// instrumentation ("guts") for debugging/visualization purposes
     pub fn project_curve_guts(
         self: @This(),
         other: TimeCurve,
@@ -1381,8 +1405,6 @@ pub const TimeCurve = struct {
             control_point.ControlPoint
         ).init(allocator);
 
-        var tmp: [4]control_point.ControlPoint = undefined;
-
         // do the projection
         for (curves_to_project.items) 
             |*crv| 
@@ -1490,12 +1512,10 @@ pub const TimeCurve = struct {
 
                         try guts.append(final);
 
-                        tmp[0] = projected_pts[0];
-                        tmp[1] = final.C1.?;
-                        tmp[2] = final.C2.?;
-                        tmp[3] = projected_pts[2];
-
-                        segment.*.set_points(tmp);
+                        segment.p0 = projected_pts[0];
+                        segment.p1 = final.C1.?;
+                        segment.p2 = final.C2.?;
+                        segment.p3 = projected_pts[2];
                     },
                     .two_point_approx => {
 
@@ -1524,16 +1544,14 @@ pub const TimeCurve = struct {
                             projected_derivatives[pt_ind] = projection_dual.i;
                         }
 
-                        tmp[0] = projected_pts[0];
-                        tmp[1] = projected_pts[0].add(
+                        segment.p0 = projected_pts[0];
+                        segment.p1 = projected_pts[0].add(
                             projected_derivatives[0].div(3)
                         );
-                        tmp[2] = projected_pts[1].sub(
+                        segment.p2 = projected_pts[1].sub(
                             projected_derivatives[1].div(3)
                         );
-                        tmp[3] = projected_pts[1];
-
-                        segment.*.set_points(tmp);
+                        segment.p3 = projected_pts[1];
 
                         try guts.append(
                             .{ 
@@ -1584,6 +1602,7 @@ pub const TimeCurve = struct {
         return try result.toOwnedSlice();
     }
 
+    /// project a linear curve through this curve (by linearizing self)
     pub fn project_linear_curve(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -1640,7 +1659,10 @@ pub const TimeCurve = struct {
     }
 
     /// return the extents of the curve's input spact /v
-    pub fn extents_time(self:@This()) ContinuousTimeInterval {
+    pub fn extents_time(
+        self:@This()
+    ) ContinuousTimeInterval 
+    {
         return .{
             .start_seconds = self.segments[0].p0.time,
             .end_seconds = self.segments[self.segments.len - 1].p3.time,
@@ -1648,15 +1670,22 @@ pub const TimeCurve = struct {
     }
 
     /// return the extents of the curve's output space
-    pub fn extents_value(self:@This()) ContinuousTimeInterval {
+    pub fn extents_value(
+        self:@This()
+    ) ContinuousTimeInterval 
+    {
+        const result = self.extents();
         return .{
-            .start_seconds = self.segments[0].p0.value,
-            .end_seconds = self.segments[self.segments.len - 1].p3.value,
+            .start_seconds = result[0].value,
+            .end_seconds = result[1].value,
         };
     }
 
     /// return the extents of the curve as control points
-    pub fn extents(self:@This()) [2]control_point.ControlPoint {
+    pub fn extents(
+        self:@This()
+    ) [2]control_point.ControlPoint 
+    {
         var min = self.segments[0].p0;
         var max = self.segments[0].p3;
 
@@ -1685,6 +1714,9 @@ pub const TimeCurve = struct {
     ///
     /// result:
     /// [0, 3)[0, 5)[5, 10)[0, 4)
+    ///
+    /// note: if the ordinate causes no split (IE is on an endpoint), the
+    ///       return will a strict copy of self.
     pub fn split_at_input_ordinate(
         self:@This(),
         ordinate:f32,
@@ -1703,7 +1735,12 @@ pub const TimeCurve = struct {
             unorm < generic_curve.EPSILON 
             or generic_curve.EPSILON > @abs(1 - unorm) 
         ) {
-            return .{ .segments = try allocator.dupe(Segment, self.segments) };
+            return .{ 
+                .segments = try allocator.dupe(
+                    Segment,
+                    self.segments
+                ) 
+            };
         }
 
         const maybe_split_segments = seg_to_split.split_at(unorm);
@@ -1750,7 +1787,9 @@ pub const TimeCurve = struct {
         allocator: std.mem.Allocator,
     ) !TimeCurve 
     {
-        var result_segments = std.ArrayList(Segment).init(allocator);
+        var result_segments = std.ArrayList(
+            Segment
+        ).init(allocator);
         defer result_segments.deinit();
         try result_segments.appendSlice(self.segments);
 
@@ -1799,66 +1838,15 @@ pub const TimeCurve = struct {
         };
     }
 
-    pub fn split_at_each_parameter_space_ordinate(
-        self:@This(),
-        parameter_ordinates:[]const f32,
-        segment_indices:[]const usize,
-        allocator: std.mem.Allocator,
-    ) !TimeCurve 
-    {
-        var result_segments = std.ArrayList(Segment).init(allocator);
-        defer result_segments.deinit();
-        try result_segments.appendSlice(self.segments);
-
-        var current_split = 0;
-
-        for (self.segments, 0..) 
-            |seg, seg_ind| 
-        {
-            // if the current split is after all the splits in the index list
-            // or the current split is after this segment's index, add it
-            if (
-                current_split >= segment_indices.len 
-                or seg_ind < segment_indices[current_split]
-            ) {
-                result_segments.append(seg);
-                continue;
-            }
-
-            var current_segment = seg;
-            while (seg_ind == segment_indices[current_split]) 
-                : (current_split += 1) 
-            {
-                // if the parameter is 0 or 1, don't bother splitting
-                if (
-                    parameter_ordinates[current_split] < generic_curve.EPSILON 
-                    or parameter_ordinates[current_split] > 1 - generic_curve.EPSILON
-                ) {
-                    continue;
-                }
-
-                // do a split    
-                const split_segments = current_segment.split_at(
-                    parameter_ordinates[current_split]
-                );
-                // and insert it
-                result_segments.append(split_segments[0]);
-                current_segment = split_segments[1];
-            }
-
-            result_segments.append(current_segment);
-        }
-
-        return .{ .segments = try result_segments.toOwnedSlice() };
-    }
-
     pub fn split_at_each_input_ordinate(
         self:@This(),
         ordinates:[]const f32,
         allocator: std.mem.Allocator,
     ) !TimeCurve 
     {
-        var result_segments = std.ArrayList(Segment).init(allocator);
+        var result_segments = std.ArrayList(
+            Segment
+        ).init(allocator);
         defer result_segments.deinit();
 
         try result_segments.appendSlice(self.segments);
@@ -1906,17 +1894,23 @@ pub const TimeCurve = struct {
         return .{ .segments = try result_segments.toOwnedSlice() };
     }
 
+    /// the direction to execute the trimming operation in
     const TrimDir = enum {
         trim_before,
         trim_after,
     };
 
+    /// trim the curve based on the input ordinate
+    ///
+    /// note: if the input ordinate is a boundary point, then result will be a
+    ///       strict copy of self.
     pub fn trimmed_from_input_ordinate(
         self: @This(),
         ordinate: f32,
         direction: TrimDir,
         allocator: std.mem.Allocator,
-    ) !TimeCurve {
+    ) !TimeCurve 
+    {
         const seg_to_split_index = (
             self.find_segment_index(ordinate)
         ) orelse {
@@ -2011,7 +2005,7 @@ pub const TimeCurve = struct {
         );
         defer front_split.deinit(allocator);
 
-        // todo - does the above trim reset the origin on the input space?
+        // @TODO: - does the above trim reset the origin on the input space?
         const result = try front_split.trimmed_from_input_ordinate(
             bounds.end_seconds,
             .trim_after,
@@ -2020,9 +2014,6 @@ pub const TimeCurve = struct {
 
         return result;
     }
-
-    // @TODO: all the split functions and trim function sseem like they could
-    //        do with cleanup
 
     /// split the segments on their first derivative roots, return a new curve
     /// with all the split segments and copies of the segments that were not
@@ -2043,11 +2034,11 @@ pub const TimeCurve = struct {
             |seg| 
         {
             // build the segment to pass into the C library
-            for (seg.points(), 0..) 
-                |pt, index| 
+            for (seg.points(), &cSeg.p) 
+                |pt, *p| 
             {
-                cSeg.p[index].x = pt.time;
-                cSeg.p[index].y = pt.value;
+                p.x = pt.time;
+                p.y = pt.value;
             }
 
             var hodo = hodographs.compute_hodograph(&cSeg);
@@ -2094,20 +2085,7 @@ pub const TimeCurve = struct {
                 }
             }
 
-            // sort the splits
-            if (split_count > 0) 
-            {
-                for (0..(split_count - 1)) 
-                    |i| 
-                {
-                    if (splits[i] > splits[i + 1]) 
-                    {
-                        const tmp = splits[i];
-                        splits[i] = splits[i+1];
-                        splits[i+1] = tmp;
-                    }
-                }
-            }
+            std.mem.sort(f32, &splits, {}, std.sort.asc(f32));
 
             var current_seg = seg;
 
@@ -2170,11 +2148,15 @@ pub fn read_curve_json(
     );
 }
 
-test "Curve: read_curve_json" {
-    const curve = try read_curve_json("curves/linear.curve.json", std.testing.allocator);
+test "Curve: read_curve_json" 
+{
+    const curve = try read_curve_json(
+        "curves/linear.curve.json",
+        std.testing.allocator
+    );
     defer std.testing.allocator.free(curve.segments);
 
-    try expectEqual(@as(usize, 1), curve.segments.len);
+    try expectEqual(1, curve.segments.len);
 
     // first segment should already be linear
     const segment = curve.segments[0];
@@ -2187,25 +2169,57 @@ test "Curve: read_curve_json" {
     defer std.testing.allocator.free(linearized_knots);
 
     // already linear!
-    try expectEqual(@as(usize, 2), linearized_knots.len);
+    try expectEqual(2, linearized_knots.len);
 }
 
-test "Segment: projected_segment to 1/2" {
-    const half = create_linear_segment(
-        .{ .time = -0.5, .value = -0.25, },
-        .{ .time = 0.5, .value = 0.25, },
-    );
-    const double = create_linear_segment(
-        .{ .time = -0.5, .value = -1, },
-        .{ .time = 0.5, .value = 1, },
-    );
+test "Segment: projected_segment to 1/2" 
+{
+    {
+        const half = create_linear_segment(
+            .{ .time = -0.5, .value = -0.25, },
+            .{ .time = 0.5, .value = 0.25, },
+        );
+        const double = create_linear_segment(
+            .{ .time = -0.5, .value = -1, },
+            .{ .time = 0.5, .value = 1, },
+        );
 
-    const half_through_double = double.project_segment(half);
+        const half_through_double = double.project_segment(half);
 
-    var u:f32 = 0.0;
-    while (u<1) {
-        try expectApproxEql(u-0.5, half_through_double.eval_at(u).value);
-        u+=0.1;
+        var u:f32 = 0;
+        while (u<1) 
+            : (u += 0.01)
+        {
+            try expectApproxEql(
+                // t at u = 0 is -0.5
+                u-0.5,
+                half_through_double.eval_at(u).value
+            );
+        }
+    }
+
+    {
+        const half = create_linear_segment(
+            .{ .time = -0.5, .value = -0.5, },
+            .{ .time = 0.5, .value = 0.0, },
+        );
+        const double = create_linear_segment(
+            .{ .time = -0.5, .value = -0.5, },
+            .{ .time = 0.5, .value = 1.5, },
+        );
+
+        const half_through_double = double.project_segment(half);
+
+        var u:f32 = 0;
+        while (u<1) 
+            : (u += 0.01)
+        {
+            try expectApproxEql(
+                // t at u = 0 is -0.5
+                u-0.5,
+                half_through_double.eval_at(u).value
+            );
+        }
     }
 }
 
