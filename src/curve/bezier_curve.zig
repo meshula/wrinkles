@@ -1366,10 +1366,7 @@ pub const TimeCurve = struct {
         }
 
         result.to_project = .{ 
-            .segments = try allocator.dupe(
-                Segment,
-                curves_to_project.items[0].segments
-            ),
+            .segments = curves_to_project.items[0].segments
         };
 
         var guts = std.ArrayList(tpa_result).init(allocator);
