@@ -303,10 +303,12 @@ pub fn retimed(
     var output_buffer_size:usize = 0;
 
     const RetimeSpec = struct {
-        input_samples: usize,
         retime_ratio: f32,
         output_samples: usize,
+        input_samples: usize,
+        input_data: []sample_t,
     };
+
     var retime_specs = std.ArrayList(
         RetimeSpec
     ).init(allocator);
@@ -319,32 +321,38 @@ pub fn retimed(
             l_knot.time,
             r_knot.time
         );
-        if (relevant_sample_indices.len == 0) {
+        const relevant_input_samples = in_samples.buffer[
+            relevant_sample_indices[0]..
+        ];
+        if (relevant_input_samples.len == 0) {
             return error.NoRelevantSamples;
         }
-        const input_samples = (
-            relevant_sample_indices[1] - relevant_sample_indices[0]
+        const input_samples = relevant_sample_indices[1] - relevant_sample_indices[0];
+        // const input_samples = relevant_input_samples.len;
+
+        const output_samples:usize = @intFromFloat(
+            (r_knot.value - l_knot.value) 
+             * @as(f32, @floatFromInt(in_samples.sample_rate_hz))
         );
 
         const retime_ratio:f32 = (
-            (
-             (r_knot.value - l_knot.value) 
-             * @as(f32, @floatFromInt(in_samples.sample_rate_hz))
-            ) / (
+            ( @as(f32, @floatFromInt(output_samples ))) 
+            / (
                 @as(f32, @floatFromInt(input_samples))
             )
         );
 
-        const output_samples:usize = (
-            @intFromFloat(@as(f32, @floatFromInt(input_samples)) / retime_ratio)
-        );
-        output_buffer_size += input_samples;
+        // const output_samples:usize = (
+        //     @intFromFloat(@as(f32, @floatFromInt(input_samples)) / retime_ratio)
+        // );
+        output_buffer_size += output_samples;
 
         try retime_specs.append(
             .{
                 .retime_ratio = retime_ratio,
-                .input_samples = input_samples,
                 .output_samples = output_samples,
+                .input_data = relevant_input_samples,
+                .input_samples = input_samples,
             }
         );
     }
@@ -367,8 +375,14 @@ pub fn retimed(
         .data_out = @ptrCast(output_buffer.ptr),
         .input_frames = 100,
         .output_frames = 100,
+        // means that we're leaving additional data in the input buffer past
+        // the end
         .end_of_input = 0,
     };
+
+    var next_start : usize = 0;
+
+    std.debug.print(" \n\n----- retime info dump -----\n", .{});
 
     for (retime_specs.items)
         |spec|
@@ -376,11 +390,36 @@ pub fn retimed(
         src_data.src_ratio = spec.retime_ratio;
         src_data.input_frames = @intCast(spec.input_samples);
         src_data.output_frames = @intCast(spec.output_samples);
+        src_data.data_in = @ptrCast(spec.input_data);
+
+        const out_end = next_start + spec.output_samples;
+
+        src_data.data_out = @ptrCast(
+            output_buffer[next_start..out_end]
+        );
 
         const lsr_error = libsamplerate.src_process(src_state, &src_data);
         if (lsr_error != 0) {
             return error.LibSampleRateError;
         }
+
+        std.debug.print(
+            "provided: {d} requested: {d} used: {d} generated: {d} ",
+            .{
+                src_data.input_frames,
+                src_data.output_frames,
+                src_data.input_frames_used,
+                src_data.output_frames_gen,
+            }
+        );
+        std.debug.print(
+            "ratio: {d}\n",
+            .{
+                src_data.src_ratio,
+            }
+        );
+
+        next_start += @intCast(src_data.output_frames_gen);
     }
 
     _ = libsamplerate.src_delete(src_state);
@@ -425,12 +464,13 @@ test "resample from 48khz to 44" {
 // test 2
 // have a set of samples over 48khz, retime them with a linear curve and then
 // resample them to 44khz
-test "retime 48khz samples with a curve, and then resample that retimed data" {
+test "retime 48khz samples: ident-2x-ident, then resample to 44.1khz" 
+{
     const samples_48 = SineSampleGenerator{
         .sampling_rate_hz = 48000,
         .signal_frequency_hz = 100,
         .signal_amplitude = 1,
-        .signal_duration_s = 1,
+        .signal_duration_s = 4,
     };
     const s48 = try samples_48.rasterized(std.testing.allocator);
     defer s48.deinit();
@@ -454,26 +494,26 @@ test "retime 48khz samples with a curve, and then resample that retimed data" {
     // @TODO: write this to a json file so we can image in curvet
     var retime_curve_segments = [_]curve.Segment{
         // identity
-        curve.Segment.init_identity(0, 0.25),
+        curve.Segment.init_identity(0,  1.0),
         // go up
         curve.Segment.init_from_start_end(
-            .{ .time = 0.25, .value = 0.25 },
-            .{ .time = 0.50, .value = 0.75 },
+            .{ .time = 1.0, .value = 1.0 },
+            .{ .time = 2.0, .value = 3.0 },
         ),
         // identity
         curve.Segment.init_from_start_end(
-            .{ .time = 0.5, .value = 0.75 },
-            .{ .time = 1.0, .value = 1.25 },
+            .{ .time = 2.0, .value = 3.0 },
+            .{ .time = 3.0, .value = 4.0 },
         ),
     };
     const retime_curve : curve.TimeCurve = .{
         .segments = &retime_curve_segments
     };
-    try curve.write_json_file_curve(
-        std.testing.allocator,
-        retime_curve,
-        "/var/tmp/ours_retime_curve.curve.json"
-    );
+    // try curve.write_json_file_curve(
+    //     std.testing.allocator,
+    //     retime_curve,
+    //     "/var/tmp/ours_retime_curve.curve.json"
+    // );
 
     const samples_48_retimed = try retimed(
         std.testing.allocator,
