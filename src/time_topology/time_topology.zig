@@ -13,10 +13,10 @@ const control_point = curve.control_point;
 const otio_allocator = @import("otio_allocator"); 
 const ALLOCATOR = otio_allocator.ALLOCATOR;
 
+// import more tests
 test {
     _ = @import("test_topology_projections.zig");
 }
-
 
 // assertions
 const expect = std.testing.expect;
@@ -33,23 +33,26 @@ const IDENTITY_TRANSFORM = transform.AffineTransform1D{
 
 
 pub const AffineTopology = struct {
-    // defaults to an infinite identity
+    /// defaults to an infinite identity
     bounds: interval.ContinuousTimeInterval = interval.INF_CTI,
     transform: transform.AffineTransform1D =IDENTITY_TRANSFORM, 
 
-    pub fn compute_bounds(self: @This()) interval.ContinuousTimeInterval {
+    pub fn compute_bounds(
+        self: @This(),
+    ) interval.ContinuousTimeInterval 
+    {
         return self.bounds;
     }
 
     pub fn as_linear_curve_over_output_range(
         self: @This(),
-        output_interval: interval.ContinuousTimeInterval
+        output_interval: interval.ContinuousTimeInterval,
     ) !curve.TimeCurveLinear 
     {
         const self_inverted = self.transform.inverted();
 
-        const other_bounds_in_input_space = self_inverted.applied_to_bounds(
-            output_interval
+        const other_bounds_in_input_space = (
+            self_inverted.applied_to_bounds(output_interval)
         );
 
         const result_bounds = interval.intersect(
@@ -57,7 +60,8 @@ pub const AffineTopology = struct {
             self.bounds
         );
 
-        if (result_bounds) |b| 
+        if (result_bounds) 
+            |b| 
         {
             const bound_points = [2]control_point.ControlPoint{
                 .{
@@ -70,13 +74,19 @@ pub const AffineTopology = struct {
                 },
             };
 
+            // clone points into the new TimeCurveLinear
             return curve.TimeCurveLinear.init(&bound_points);
         } else {
-            return curve.TimeCurveLinear.init(&[_]control_point.ControlPoint{});
+            return curve.TimeCurveLinear{
+                .knots = &[_]control_point.ControlPoint{}
+            };
         }
     }
 
-    pub fn project_sample(self: @This(), sample: Sample) !Sample {
+    pub fn project_sample(
+        self: @This(),
+        sample: Sample,
+    ) !Sample {
         var result = sample;
         result.ordinate_seconds = try self.project_ordinate(
             sample.ordinate_seconds
@@ -84,7 +94,11 @@ pub const AffineTopology = struct {
         return result;
     }
 
-    pub fn project_ordinate(self: @This(), ordinate: Ordinate) !Ordinate {
+    pub fn project_ordinate(
+        self: @This(),
+        ordinate: Ordinate,
+    ) !Ordinate 
+    {
         if (!self.bounds.overlaps_seconds(ordinate)) {
             return TimeTopology.ProjectionError.OutOfBounds;
         }
@@ -113,7 +127,10 @@ pub const AffineTopology = struct {
 
         return .{
             .affine = .{
-                .bounds = .{ .start_seconds = start, .end_seconds = end },
+                .bounds = .{ 
+                    .start_seconds = start,
+                    .end_seconds = end 
+                },
                 .transform = self.transform.inverted()
             },
         };
@@ -132,7 +149,11 @@ pub const AffineTopology = struct {
     /// self.project_topology(other) => other.input -> self.output
     /// result.bounds -> other.input
     ///
-    pub fn project_topology(self: @This(), other: TimeTopology) !TimeTopology {
+    pub fn project_topology(
+        self: @This(),
+        other: TimeTopology,
+    ) !TimeTopology 
+    {
         return switch (other) {
             .bezier_curve => |other_bez| .{ 
                 .bezier_curve = .{
@@ -154,7 +175,11 @@ pub const AffineTopology = struct {
                         .value = self.transform.applied_to_seconds(knot.value),
                     };
                }
-               return .{ .linear_curve = .{ .curve = result }};
+               return .{ 
+                   .linear_curve = .{
+                       .curve = result 
+                   }
+               };
            },
            .affine => |other_aff| {
                const inv_xform = other_aff.transform.inverted();
@@ -192,11 +217,18 @@ pub const AffineTopology = struct {
 pub const LinearTopology = struct {
     curve: curve.TimeCurveLinear,
     
-    pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
+    pub fn deinit(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) void 
+    {
         self.curve.deinit(allocator);
     }
 
-    pub fn compute_bounds(self: @This()) interval.ContinuousTimeInterval {
+    pub fn compute_bounds(
+        self: @This(),
+    ) interval.ContinuousTimeInterval 
+    {
         const extents = self.curve.extents();
 
         return .{
@@ -205,7 +237,11 @@ pub const LinearTopology = struct {
         };
     }
 
-    pub fn project_sample(self: @This(), sample: Sample) !Sample {
+    pub fn project_sample(
+        self: @This(),
+        sample: Sample,
+    ) !Sample 
+    {
         var result = sample;
         result.ordinate_seconds = try self.project_ordinate(
             sample.ordinate_seconds
@@ -213,7 +249,11 @@ pub const LinearTopology = struct {
         return result;
     }
 
-    pub fn project_ordinate(self: @This(), ordinate: Ordinate) !Ordinate {
+    pub fn project_ordinate(
+        self: @This(),
+        ordinate: Ordinate,
+    ) !Ordinate 
+    {
         return self.curve.evaluate(ordinate);
     }
 
@@ -280,7 +320,8 @@ pub const LinearTopology = struct {
     }
 };
 
-test "LinearTopology: invert" {
+test "LinearTopology: invert" 
+{
     const crv = try curve.TimeCurveLinear.init(
         std.testing.allocator,
         &.{ 
@@ -308,11 +349,18 @@ test "LinearTopology: invert" {
 pub const BezierTopology = struct {
     curve: curve.TimeCurve,
 
-    pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
+    pub fn deinit(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) void 
+    {
         self.curve.deinit(allocator);
     }
 
-    pub fn compute_bounds(self: @This()) interval.ContinuousTimeInterval {
+    pub fn compute_bounds(
+        self: @This()
+    ) interval.ContinuousTimeInterval 
+    {
         const extents = self.curve.extents();
 
         return .{
@@ -321,7 +369,11 @@ pub const BezierTopology = struct {
         };
     }
 
-    pub fn project_sample(self: @This(), sample: Sample) !Sample {
+    pub fn project_sample(
+        self: @This(),
+        sample: Sample,
+    ) !Sample 
+    {
         var result = sample;
         result.ordinate_seconds = try self.project_ordinate(
             sample.ordinate_seconds
@@ -329,7 +381,11 @@ pub const BezierTopology = struct {
         return result;
     }
 
-    pub fn project_ordinate(self: @This(), ordinate: Ordinate) !Ordinate {
+    pub fn project_ordinate(
+        self: @This(),
+        ordinate: Ordinate,
+    ) !Ordinate 
+    {
         return self.curve.evaluate(ordinate);
     }
 
@@ -347,76 +403,6 @@ pub const BezierTopology = struct {
             }
         };
     }
-
-    // pub fn project_topology(
-    //     self: @This(),
-    //     other: TimeTopology
-    // ) TimeTopology 
-    // {
-    //     if (other.kind == Kind.empty) {
-    //         // if other is empty, it doesn't matter what self is, the result is
-    //         // an empty topology
-    //         return other;
-    //     }
-    //
-    //     if (self.kind == Kind.empty) {
-    //         return .{ .kind = Kind.empty };
-    //     }
-    //
-    //     if (self.kind == Kind.infinite_identity) {
-    //         return other;
-    //     }
-    //
-    //     // if (self.kind == Kind.finite) 
-    //     const other_wrapped = (
-    //         if (other.kind == Kind.infinite_identity) (
-    //             TimeTopology.init_identity_finite(self.bounds)
-    //         ) else (
-    //             other
-    //         )
-    //     );
-    //
-    //     var result = (
-    //         std.ArrayList(curve.TimeCurve).init(allocator.ALLOCATOR)
-    //     );
-    //
-    //     // @TODO: these curves need to have their respective
-    //     //        transformations applied (if we stick with that model)
-    //     for (other_wrapped.mapping) 
-    //         |other_crv|
-    //     {
-    //         for (self.mapping) 
-    //             |self_crv|
-    //         {
-    //             const resulting_curves = (
-    //                 self_crv.project_curve(other_crv)
-    //             );
-    //             for (resulting_curves) 
-    //                 |crv| 
-    //             {
-    //                 result.append(
-    //                     curve.TimeCurve.init_from_linear_curve(crv)
-    //                 ) catch unreachable;
-    //             }
-    //         }
-    //     }
-    //
-    //     const result_bounds = interval.intersect(
-    //         self.bounds,
-    //         other_wrapped.bounds
-    //     ) orelse interval.ContinuousTimeInterval{};
-    //
-    //     return .{
-    //         .transform = .{
-    //             .offset_seconds = result_bounds.start_seconds,
-    //             .scale = 1
-    //         },
-    //         .bounds = result_bounds,
-    //         .mapping = result.items,
-    //         // if its finite, even if other has no segments, is empty
-    //         .kind = Kind.finite,
-    //     };
-    // }
 
     // @TODO: needs to return a list of topologies (imagine a line projected
     //        through a u)
@@ -530,23 +516,24 @@ pub const EmptyTopology = struct {
     }
 };
 
-// TEMPORAL TOPOLOGY PROTOTYPE V2
-// ////////////////////////////////////////////////////////////////////////////
-// The time topology maps an external temporal coordinate system to an internal
-// one.  Coordinates in the external coordinate system can be projected through
-// the topology to retrieve values in the internal coordinate system.
-//
-// The time toplogy is a right met piecewise-linear function.
-//
-//              0                 36          50 (duration of the bounds)
-// output       |-----------------*-----------|
-// internal     |-----------------*-----------|
-//              100               176         200
-//
-// The implementation of this mapping function can be one of a class of 
-// functions.  This struct maps those functions to the same interface and
-// handles rules for interoperation between them.
-// ////////////////////////////////////////////////////////////////////////////
+/// TEMPORAL TOPOLOGY PROTOTYPE V2
+/// ///////////////////////////////////////////////////////////////////////////
+/// The time topology maps an external temporal coordinate system to an
+/// internal one.  Coordinates in the external coordinate system can be
+/// projected through the topology to retrieve values in the internal
+/// coordinate system.
+///
+/// The time toplogy is a right met piecewise-linear function.
+///
+///              0                 36          50 (duration of the bounds)
+/// output       |-----------------*-----------|
+/// internal     |-----------------*-----------|
+///              100               176         200
+///
+/// The implementation of this mapping function can be one of a class of 
+/// functions.  This struct maps those functions to the same interface and
+/// handles rules for interoperation between them.
+/// ///////////////////////////////////////////////////////////////////////////
 pub const TimeTopology = union (enum) {
     affine: AffineTopology,
     empty: EmptyTopology,
@@ -574,18 +561,25 @@ pub const TimeTopology = union (enum) {
         args: IdentityArgs,
     ) TimeTopology 
     {
-        return .{ .affine = .{ .bounds = args.bounds } };
+        return .{
+            .affine = .{
+                .bounds = args.bounds 
+            } 
+        };
     }
 
     /// initialize an affine topology
-    pub fn init_affine(topo: AffineTopology) TimeTopology {
+    pub fn init_affine(
+        topo: AffineTopology,
+    ) TimeTopology 
+    {
         return .{ .affine = topo };
     }
 
     /// initialize a topology with a single linear curve over [start, end)
     pub fn init_linear_start_end(
         start:curve.ControlPoint,
-        end: curve.ControlPoint
+        end: curve.ControlPoint,
     ) TimeTopology 
     {
         const slope = (end.value - start.value) / (end.time - start.time);
@@ -605,16 +599,28 @@ pub const TimeTopology = union (enum) {
     }
     
     /// initialize a topology with the given bezier cubic
-    pub fn init_bezier_cubic(btc: curve.TimeCurve) TimeTopology {
-        return .{.bezier_curve = .{.curve = btc}};
+    pub fn init_bezier_cubic(
+        cubic: curve.TimeCurve,
+    ) TimeTopology 
+    {
+        return .{
+            .bezier_curve = .{
+                .curve = cubic
+            }
+        };
     }
     
     /// initialize an empty time topology
-    pub fn init_empty() TimeTopology {
+    pub fn init_empty() TimeTopology 
+    {
         return .{ .empty = EmptyTopology{} };
     }
 
-    pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
+    pub fn deinit(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) void 
+    {
         switch (self) {
             inline .affine, .empty => {},
             inline else => |t| t.deinit(allocator),
@@ -652,26 +658,41 @@ pub const TimeTopology = union (enum) {
             current_value += increment;
         }
 
-        const crv = curve.TimeCurve.init(ALLOCATOR, segments.items) catch curve.TimeCurve{};
+        const crv = curve.TimeCurve.init(
+            ALLOCATOR,
+            segments.items,
+        ) catch curve.TimeCurve{};
 
         return TimeTopology.init_bezier_cubic(crv);
     }
     // @}
 
     /// the bounding interval of the topology in its input space
-    pub fn bounds(self: @This()) interval.ContinuousTimeInterval {
+    pub fn bounds(
+        self: @This(),
+    ) interval.ContinuousTimeInterval 
+    {
         return switch (self) {
             inline else => |contained| contained.compute_bounds(),
         };
     }
 
     // @{ Projections
-    pub fn project_sample(self: @This(), sample: Sample) !Sample {
+    pub fn project_sample(
+        self: @This(),
+        sample: Sample,
+    ) !Sample 
+    {
         return switch (self) {
             inline else => |contained| contained.project_sample(sample),
         };
     }
-    pub fn project_ordinate(self: @This(), ordinate:Ordinate) !Ordinate {
+
+    pub fn project_ordinate(
+        self: @This(),
+        ordinate:Ordinate,
+    ) !Ordinate 
+    {
         return switch (self) {
             inline else => |contained| contained.project_ordinate(ordinate),
         };
@@ -680,7 +701,7 @@ pub const TimeTopology = union (enum) {
     /// topology interface for projection
     pub fn project_topology(
         self: @This(),
-        other: TimeTopology
+        other: TimeTopology,
     ) !TimeTopology 
     {
         const self_tag_is_empty = std.meta.activeTag(self) == .empty;
@@ -698,7 +719,11 @@ pub const TimeTopology = union (enum) {
     }
     // @}
     
-    pub fn inverted(self: @This(), allocator: std.mem.Allocator) !TimeTopology {
+    pub fn inverted(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) !TimeTopology 
+    {
         return switch (self) {
             inline .affine, .empty => |aff| try aff.inverted(),
             inline else => |contained| try contained.inverted(allocator),
@@ -768,7 +793,8 @@ test "TimeTopology: finite identity test"
     }
 }
 
-test "TimeTopology: finite Affine" {
+test "TimeTopology: finite Affine" 
+{
     const tp = TimeTopology.init_affine(
         .{ 
             .bounds = .{ .start_seconds = 0, .end_seconds = 10 },
@@ -815,7 +841,8 @@ test "TimeTopology: finite Affine" {
     }
 }
 
-test "TimeTopology: Affine Projected Through inverted Affine" {
+test "TimeTopology: Affine Projected Through inverted Affine" 
+{
     const tp = TimeTopology.init_affine(
         .{ 
             .bounds = .{ .start_seconds = 0, .end_seconds = 10 },
@@ -852,7 +879,8 @@ test "TimeTopology: Affine Projected Through inverted Affine" {
     }
 }
 
-test "TimeTopology: Affine Projected Through infinite Affine" {
+test "TimeTopology: Affine Projected Through infinite Affine" 
+{
     const tp = TimeTopology.init_affine(
         .{ 
             .bounds = .{ .start_seconds = 0, .end_seconds = 10 },
@@ -914,7 +942,8 @@ test "TimeTopology: Affine Projected Through infinite Affine" {
     }
 }
 
-test "TimeTopology: Affine through Affine w/ negative scale" {
+test "TimeTopology: Affine through Affine w/ negative scale" 
+{
 //
 //                         0                 6           10 (duration of the bounds)
 // output_to_intrinsic     |-----------------*-----------|
@@ -982,7 +1011,8 @@ test "TimeTopology: Affine through Affine w/ negative scale" {
     }
 }
 
-test "TimeTopology: staircase constructor" {
+test "TimeTopology: staircase constructor" 
+{
     const increment:f32 = 2;
     const tp = try TimeTopology.init_step_mapping(
         .{
@@ -1017,7 +1047,8 @@ test "TimeTopology: staircase constructor" {
     );
 }
 
-test "TimeTopology: project bezier through affine" {
+test "TimeTopology: project bezier through affine" 
+{
     // affine topology
     //
     // output: [100, 110)
@@ -1162,7 +1193,8 @@ pub const StepSampleGenerator = struct {
     }
 };
 
-test "StepSampleGenerator: sample over step function topology" {
+test "StepSampleGenerator: sample over step function topology" 
+{
     const sample_rate: f32 = 24;
 
     const sample_generator = StepSampleGenerator{
