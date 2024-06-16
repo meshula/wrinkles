@@ -203,63 +203,87 @@ pub fn executable(
 
     // zig gamedev dependencies
     {
-        @import("zgpu").addLibraryPathsTo(exe);
+        // @import("zgpu").addLibraryPathsTo(exe);
+        //
+        // const zgpu_pkg = b.dependency("zgpu", .{
+        //     .target = options.target,
+        //     .optimize = options.optimize,
+        // });
+        // exe.root_module.addImport(
+        //     "zgpu",
+        //     zgpu_pkg.module("root")
+        // );
+        // exe.linkLibrary(zgpu_pkg.artifact("zdawn"));
+        //
+        // const zgui_pkg = b.dependency(
+        //     "zgui",
+        //     .{
+        //         .target = options.target,
+        //         .optimize = options.optimize,
+        //         .shared = false,
+        //         .with_implot = true,
+        //         .backend = .glfw_wgpu,
+        //     }
+        // );
+        // exe.root_module.addImport(
+        //     "zgui",
+        //     zgui_pkg.module("root")
+        // );
+        // exe.linkLibrary(zgui_pkg.artifact("imgui"));
+        //
+        // const zglfw_pkg = b.dependency("zglfw", .{
+        //     .target = options.target,
+        //     .optimize = options.optimize,
+        //     .shared = false,
+        // });
+        // exe.root_module.addImport(
+        //     "zglfw",
+        //     zglfw_pkg.module("root")
+        // );
+        // exe.linkLibrary(zglfw_pkg.artifact("glfw"));
+        //
+        // const zpool_pkg = b.dependency("zpool", .{
+        //     .target = options.target,
+        //     .optimize = options.optimize,
+        // });
+        // exe.root_module.addImport(
+        //     "zpool",
+        //     zpool_pkg.module("root")
+        // );
+        //
+        // const zstbi_pkg = b.dependency("zstbi", .{
+        //     .target = options.target,
+        //     .optimize = options.optimize,
+        // });
+        // exe.root_module.addImport(
+        //     "zstbi",
+        //     zstbi_pkg.module("root")
+        // );
+        // exe.linkLibrary(zstbi_pkg.artifact("zstbi"));
 
-        const zgpu_pkg = b.dependency("zgpu", .{
+        const dep_sokol = b.dependency("sokol", .{
+            .target = options.target,
+            .optimize = options.optimize,
+            .with_sokol_imgui = true,
+        });
+        const dep_cimgui = b.dependency("cimgui", .{
             .target = options.target,
             .optimize = options.optimize,
         });
-        exe.root_module.addImport(
-            "zgpu",
-            zgpu_pkg.module("root")
-        );
-        exe.linkLibrary(zgpu_pkg.artifact("zdawn"));
 
-        const zgui_pkg = b.dependency(
-            "zgui",
-            .{
-                .target = options.target,
-                .optimize = options.optimize,
-                .shared = false,
-                .with_implot = true,
-                .backend = .glfw_wgpu,
-            }
-        );
-        exe.root_module.addImport(
-            "zgui",
-            zgui_pkg.module("root")
-        );
-        exe.linkLibrary(zgui_pkg.artifact("imgui"));
+        // inject the cimgui header search path into the sokol C library compile step
+        const cimgui_root = dep_cimgui.namedWriteFiles("cimgui").getDirectory();
+        dep_sokol.artifact("sokol_clib").addIncludePath(cimgui_root);
 
-        const zglfw_pkg = b.dependency("zglfw", .{
-            .target = options.target,
-            .optimize = options.optimize,
-            .shared = false,
-        });
-        exe.root_module.addImport(
-            "zglfw",
-            zglfw_pkg.module("root")
-        );
-        exe.linkLibrary(zglfw_pkg.artifact("glfw"));
+        exe.root_module.addImport("sokol", dep_sokol.module("sokol"));
+        exe.root_module.addImport("cimgui", dep_cimgui.module("cimgui"));
 
-        const zpool_pkg = b.dependency("zpool", .{
-            .target = options.target,
-            .optimize = options.optimize,
-        });
-        exe.root_module.addImport(
-            "zpool",
-            zpool_pkg.module("root")
-        );
-
-        const zstbi_pkg = b.dependency("zstbi", .{
-            .target = options.target,
-            .optimize = options.optimize,
-        });
-        exe.root_module.addImport(
-            "zstbi",
-            zstbi_pkg.module("root")
-        );
-        exe.linkLibrary(zstbi_pkg.artifact("zstbi"));
+        // from here on different handling for native vs wasm builds
+        // if (options.target.result.isWasm()) {
+        //     try buildWasm(b, target, optimize, dep_sokol, dep_cimgui);
+        // } else {
+        //     try buildNative(b, target, optimize, dep_sokol, dep_cimgui);
+        // }
     }
 
     // run and install the executable
@@ -607,14 +631,14 @@ pub fn build(
         .{ .name = "sampling", .module = sampling },
     };
 
-    executable(
-        b, 
-        "wrinkles",
-        "src/wrinkles.zig",
-        "/wrinkles_content/",
-        options,
-        common_deps,
-    );
+    // executable(
+    //     b, 
+    //     "wrinkles",
+    //     "src/wrinkles.zig",
+    //     "/wrinkles_content/",
+    //     options,
+    //     common_deps,
+    // );
     executable(
         b,
         "curvet",
@@ -623,12 +647,12 @@ pub fn build(
         options,
         common_deps,
     );
-    executable(
-        b,
-        "example_zgui_app",
-        "src/example_zgui_app.zig",
-        "/wrinkles_content/",
-        options,
-        common_deps,
-    );
+    // executable(
+    //     b,
+    //     "example_zgui_app",
+    //     "src/example_zgui_app.zig",
+    //     "/wrinkles_content/",
+    //     options,
+    //     common_deps,
+    // );
 }

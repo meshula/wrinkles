@@ -1,12 +1,14 @@
 // curve visualizer tool for opentime
 const std = @import("std");
 
-const zglfw = @import("zglfw");
-const zgpu = @import("zgpu");
-const wgpu = zgpu.wgpu;
-const zgui = @import("zgui");
-const zm = @import("zmath");
-const zstbi = @import("zstbi");
+// sokol
+const ig = @import("cimgui");
+const sokol = @import("sokol");
+const slog = sokol.log;
+const sg = sokol.gfx;
+const sapp = sokol.app;
+const sglue = sokol.glue;
+const simgui = sokol.imgui;
 
 const build_options = @import("build_options");
 const content_dir = build_options.curvet_content_dir;
@@ -41,9 +43,9 @@ const DebugBezierFlags = struct {
         name: [:0]const u8
     ) void 
     {
-        if (zgui.treeNodeFlags(name, .{ .default_open = true })) 
+        if (ig.treeNodeFlags(name, .{ .default_open = true })) 
         {
-            defer zgui.treePop();
+            defer ig.treePop();
             const fields = .{
                 .{ "Draw Bezier Curves", "bezier"},
                 .{ "Draw Knots", "knots"},
@@ -59,20 +61,20 @@ const DebugBezierFlags = struct {
                 .{ "Show Derivatives (hodograph d/du)", "derivatives_hodo_ddu" },
             };
 
-            zgui.pushStrId(name);
+            ig.pushStrId(name);
 
             inline for (fields) 
                 |field| 
             {
                 // unpack into a bool type
                 var c_value:bool = @field(self, field[1]);
-                _ = zgui.checkbox(field[0], .{ .v = &c_value,});
+                _ = ig.checkbox(field[0], .{ .v = &c_value,});
                 // pack back into the aligned field
                 @field(self, field[1]) = c_value;
 
             }
 
-            _ = zgui.sliderFloat(
+            _ = ig.sliderFloat(
                 "sample point",
                 .{
                     .v = &self.sample_point,
@@ -81,7 +83,7 @@ const DebugBezierFlags = struct {
                 },
             );
 
-            zgui.popId();
+            ig.popId();
         }
     }
 };
@@ -90,20 +92,20 @@ const two_point_approx_flags = struct {
     result_curves: DebugBezierFlags = .{ .bezier = true },
 
     pub fn draw_ui(self: *@This(), name: [:0]const u8) void {
-        if (zgui.treeNode(name)) 
+        if (ig.treeNode(name)) 
         {
-            defer zgui.treePop();
+            defer ig.treePop();
 
             self.result_curves.draw_ui("result of two point approximation");
 
             // const fields = .{
             // };
             //
-            // if (zgui.treeNode("two Point Approx internals")) 
+            // if (ig.treeNode("two Point Approx internals")) 
             // {
-            //     defer zgui.treePop();
+            //     defer ig.treePop();
             //     inline for (fields) |field| {
-            //         _ = zgui.checkbox(field, .{ .v = & @field(self, field) });
+            //         _ = ig.checkbox(field, .{ .v = & @field(self, field) });
             //     }
             // }
         }
@@ -129,9 +131,9 @@ const tpa_flags = struct {
     u_1: bool = false,
 
     pub fn draw_ui(self: *@This(), name: [:0]const u8) void {
-        if (zgui.treeNode(name)) 
+        if (ig.treeNode(name)) 
         {
-            defer zgui.treePop();
+            defer ig.treePop();
             self.result_curves.draw_ui("result of three point approx");
 
             const fields = .{
@@ -152,11 +154,11 @@ const tpa_flags = struct {
                 "u_1",
             };
 
-            if (zgui.treeNode("Three Point Approx internals")) 
+            if (ig.treeNode("Three Point Approx internals")) 
             {
-                defer zgui.treePop();
+                defer ig.treePop();
                 inline for (fields) |field| {
-                    _ = zgui.checkbox(field, .{ .v = & @field(self, field) });
+                    _ = ig.checkbox(field, .{ .v = & @field(self, field) });
                 }
             }
         }
@@ -174,12 +176,12 @@ const DebugDrawCurveFlags = struct {
     two_point_approx: two_point_approx_flags = .{},
 
     pub fn draw_ui(self: *@This(), name: []const u8) void {
-        zgui.pushStrId(name);
+        ig.pushStrId(name);
         self.input_curve.draw_ui("input_curve");
         self.split_critical_points.draw_ui("split on critical points");
         self.three_point_approximation.draw_ui("three point approximation");
         self.two_point_approx.draw_ui("two point approximation");
-        zgui.popId();
+        ig.popId();
     }
 };
 
@@ -253,232 +255,333 @@ const VisState = struct {
     }
 };
 
-const GraphicsState = struct {
-    gctx: *zgpu.GraphicsContext,
+// const GraphicsState = struct {
+//     gctx: *zgpu.GraphicsContext,
+//
+//     font_normal: zgui.Font,
+//     font_large: zgui.Font,
+//
+//     // texture: zgpu.TextureHandle,
+//     texture_view: zgpu.TextureViewHandle,
+//
+//     allocator: std.mem.Allocator,
+//
+//     pub fn init(
+//         allocator: std.mem.Allocator,
+//         window: *zglfw.Window
+//     ) !*GraphicsState 
+//     {
+//         const gctx = try zgpu.GraphicsContext.create(
+//             allocator,
+//             .{
+//                 .window  = window,
+//                 .fn_getTime = @ptrCast(&zglfw.getTime),
+//                 .fn_getFramebufferSize = @ptrCast(&zglfw.Window.getFramebufferSize),
+//                 .fn_getWin32Window = @ptrCast(&zglfw.getWin32Window),
+//                 .fn_getX11Display = @ptrCast(&zglfw.getX11Display),
+//                 .fn_getX11Window = @ptrCast(&zglfw.getX11Window),
+//                 .fn_getCocoaWindow = @ptrCast(&zglfw.getCocoaWindow),
+//             },
+//             .{}
+//         );
+//
+//         var arena_state = std.heap.ArenaAllocator.init(allocator);
+//         defer arena_state.deinit();
+//         const arena = arena_state.allocator();
+//
+//         // Create a texture.
+//         zstbi.init(arena);
+//         defer zstbi.deinit();
+//
+//         const font_path = content_dir ++ "genart_0025_5.png";
+//
+//         var image = try zstbi.Image.loadFromFile(font_path, 4);
+//         defer image.deinit();
+//
+//         const texture = gctx.createTexture(.{
+//             .usage = .{ .texture_binding = true, .copy_dst = true },
+//             .size = .{
+//                 .width = image.width,
+//                 .height = image.height,
+//                 .depth_or_array_layers = 1,
+//             },
+//             .format = .rgba8_unorm,
+//             .mip_level_count = 1,
+//         });
+//         const texture_view = gctx.createTextureView(texture, .{});
+//
+//         gctx.queue.writeTexture(
+//             .{ .texture = gctx.lookupResource(texture).? },
+//             .{
+//                 .bytes_per_row = image.bytes_per_row,
+//                 .rows_per_image = image.height,
+//             },
+//             .{ .width = image.width, .height = image.height },
+//             u8,
+//             image.data,
+//         );
+//
+//         zgui.init(allocator);
+//         zgui.plot.init();
+//         const scale_factor = scale_factor: {
+//             const scale = window.getContentScale();
+//             break :scale_factor @max(scale[0], scale[1]);
+//         };
+//
+//         // const fira_font_path = content_dir ++ "FiraCode-Medium.ttf";
+//         const robota_font_path = content_dir ++ "Roboto-Medium.ttf";
+//
+//         const font_size = 16.0 * scale_factor;
+//         const font_large = zgui.io.addFontFromFile(
+//             robota_font_path,
+//             font_size * 1.1
+//         );
+//         const font_normal = zgui.io.addFontFromFile(
+//             robota_font_path,
+//             font_size
+//         );
+//         std.debug.assert(zgui.io.getFont(0) == font_large);
+//         std.debug.assert(zgui.io.getFont(1) == font_normal);
+//
+//         // This needs to be called *after* adding your custom fonts.
+//         zgui.backend.init(
+//             window,
+//             gctx.device,
+//             @intFromEnum(zgpu.GraphicsContext.swapchain_format),
+//             @intFromEnum(zgpu.wgpu.TextureFormat.undef),
+//         );
+//
+//         // This call is optional. Initially, zgui.io.getFont(0) is a default font.
+//         zgui.io.setDefaultFont(font_normal);
+//
+//         // You can directly manipulate zgui.Style *before* `newFrame()` call.
+//         // Once frame is started (after `newFrame()` call) you have to use
+//         // zgui.pushStyleColor*()/zgui.pushStyleVar*() functions.
+//         const style = zgui.getStyle();
+//
+//         style.window_min_size = .{ 320.0, 240.0 };
+//         style.window_border_size = 8.0;
+//         style.scrollbar_size = 6.0;
+//         {
+//             var color = style.getColor(.scrollbar_grab);
+//             color[1] = 0.8;
+//             style.setColor(.scrollbar_grab, color);
+//         }
+//         style.scaleAllSizes(scale_factor);
+//
+//         // To reset zgui.Style with default values:
+//         //zgui.getStyle().* = zgui.Style.init();
+//
+//         {
+//             zgui.plot.getStyle().line_weight = 3.0;
+//             const plot_style = zgui.plot.getStyle();
+//             plot_style.marker = .circle;
+//             plot_style.marker_size = 5.0;
+//         }
+//
+//
+//         const gfx_state = try allocator.create(GraphicsState);
+//         gfx_state.* = .{
+//             .gctx = gctx,
+//             .texture_view = texture_view,
+//             .font_normal = font_normal,
+//             .font_large = font_large,
+//             .allocator = allocator,
+//         };
+//
+//         return gfx_state;
+//     }
+//
+//     fn deinit(self: *@This()) void {
+//         zgui.backend.deinit();
+//         zgui.plot.deinit();
+//         zgui.deinit();
+//         self.gctx.destroy(self.allocator);
+//         self.allocator.destroy(self);
+//     }
+// };
 
-    font_normal: zgui.Font,
-    font_large: zgui.Font,
-
-    // texture: zgpu.TextureHandle,
-    texture_view: zgpu.TextureViewHandle,
-
-    allocator: std.mem.Allocator,
-
-    pub fn init(
-        allocator: std.mem.Allocator,
-        window: *zglfw.Window
-    ) !*GraphicsState 
-    {
-        const gctx = try zgpu.GraphicsContext.create(
-            allocator,
-            .{
-                .window  = window,
-                .fn_getTime = @ptrCast(&zglfw.getTime),
-                .fn_getFramebufferSize = @ptrCast(&zglfw.Window.getFramebufferSize),
-                .fn_getWin32Window = @ptrCast(&zglfw.getWin32Window),
-                .fn_getX11Display = @ptrCast(&zglfw.getX11Display),
-                .fn_getX11Window = @ptrCast(&zglfw.getX11Window),
-                .fn_getCocoaWindow = @ptrCast(&zglfw.getCocoaWindow),
-            },
-            .{}
-        );
-
-        var arena_state = std.heap.ArenaAllocator.init(allocator);
-        defer arena_state.deinit();
-        const arena = arena_state.allocator();
-
-        // Create a texture.
-        zstbi.init(arena);
-        defer zstbi.deinit();
-
-        const font_path = content_dir ++ "genart_0025_5.png";
-
-        var image = try zstbi.Image.loadFromFile(font_path, 4);
-        defer image.deinit();
-
-        const texture = gctx.createTexture(.{
-            .usage = .{ .texture_binding = true, .copy_dst = true },
-            .size = .{
-                .width = image.width,
-                .height = image.height,
-                .depth_or_array_layers = 1,
-            },
-            .format = .rgba8_unorm,
-            .mip_level_count = 1,
-        });
-        const texture_view = gctx.createTextureView(texture, .{});
-
-        gctx.queue.writeTexture(
-            .{ .texture = gctx.lookupResource(texture).? },
-            .{
-                .bytes_per_row = image.bytes_per_row,
-                .rows_per_image = image.height,
-            },
-            .{ .width = image.width, .height = image.height },
-            u8,
-            image.data,
-        );
-
-        zgui.init(allocator);
-        zgui.plot.init();
-        const scale_factor = scale_factor: {
-            const scale = window.getContentScale();
-            break :scale_factor @max(scale[0], scale[1]);
-        };
-
-        // const fira_font_path = content_dir ++ "FiraCode-Medium.ttf";
-        const robota_font_path = content_dir ++ "Roboto-Medium.ttf";
-
-        const font_size = 16.0 * scale_factor;
-        const font_large = zgui.io.addFontFromFile(
-            robota_font_path,
-            font_size * 1.1
-        );
-        const font_normal = zgui.io.addFontFromFile(
-            robota_font_path,
-            font_size
-        );
-        std.debug.assert(zgui.io.getFont(0) == font_large);
-        std.debug.assert(zgui.io.getFont(1) == font_normal);
-
-        // This needs to be called *after* adding your custom fonts.
-        zgui.backend.init(
-            window,
-            gctx.device,
-            @intFromEnum(zgpu.GraphicsContext.swapchain_format),
-            @intFromEnum(zgpu.wgpu.TextureFormat.undef),
-        );
-
-        // This call is optional. Initially, zgui.io.getFont(0) is a default font.
-        zgui.io.setDefaultFont(font_normal);
-
-        // You can directly manipulate zgui.Style *before* `newFrame()` call.
-        // Once frame is started (after `newFrame()` call) you have to use
-        // zgui.pushStyleColor*()/zgui.pushStyleVar*() functions.
-        const style = zgui.getStyle();
-
-        style.window_min_size = .{ 320.0, 240.0 };
-        style.window_border_size = 8.0;
-        style.scrollbar_size = 6.0;
-        {
-            var color = style.getColor(.scrollbar_grab);
-            color[1] = 0.8;
-            style.setColor(.scrollbar_grab, color);
-        }
-        style.scaleAllSizes(scale_factor);
-
-        // To reset zgui.Style with default values:
-        //zgui.getStyle().* = zgui.Style.init();
-
-        {
-            zgui.plot.getStyle().line_weight = 3.0;
-            const plot_style = zgui.plot.getStyle();
-            plot_style.marker = .circle;
-            plot_style.marker_size = 5.0;
-        }
-
-
-        const gfx_state = try allocator.create(GraphicsState);
-        gfx_state.* = .{
-            .gctx = gctx,
-            .texture_view = texture_view,
-            .font_normal = font_normal,
-            .font_large = font_large,
-            .allocator = allocator,
-        };
-
-        return gfx_state;
-    }
-
-    fn deinit(self: *@This()) void {
-        zgui.backend.deinit();
-        zgui.plot.deinit();
-        zgui.deinit();
-        self.gctx.destroy(self.allocator);
-        self.allocator.destroy(self);
-    }
+const sokol_state = struct {
+    var pass_action: sg.PassAction = .{};
 };
 
-pub fn main() !void {
-    zglfw.init() catch {
-        std.log.err("GLFW did not initialize properly.", .{});
-        return;
-    };
-    defer zglfw.terminate();
+export fn init() void 
+{
+    // initialize sokol-gfx
+    sg.setup(.{
+        .environment = sglue.environment(),
+        .logger = .{ .func = slog.func },
+    });
+    // initialize sokol-imgui
+    simgui.setup(.{
+        .logger = .{ .func = slog.func },
+    });
 
-    zglfw.WindowHint.set(.cocoa_retina_framebuffer, 1);
-    zglfw.WindowHint.set(.client_api, 0);
+    // initial clear color
+    sokol_state.pass_action.colors[0] = .{
+        .load_action = .CLEAR,
+        .clear_value = .{ .r = 0.0, .g = 0.5, .b = 1.0, .a = 1.0 },
+    };
+
+    const io = ig.igGetIO();
+    io.*.ConfigFlags |= ig.ImGuiConfigFlags_DockingEnable;
+}
+
+var STATE: VisState = undefined;
+var ALLOCATOR: std.mem.Allocator = undefined;
+
+export fn frame() void 
+{
+    // call simgui.newFrame() before any ImGui calls
+    simgui.newFrame(
+        .{
+            .width = sapp.width(),
+            .height = sapp.height(),
+            .delta_time = sapp.frameDuration(),
+            .dpi_scale = sapp.dpiScale(),
+        }
+    );
+
+    //=== UI CODE STARTS HERE
+    try update(&STATE, ALLOCATOR);
+
+    // create a new ImGui window and set it up as the main docking window. This
+    // will create a new docking space and set it as the main docking space.
+
+    // get the main viewport
+    const hostWindowFlags = ig.ImGuiWindowFlags_NoCollapse;
+    ig.igSetNextWindowSize(.{ .x = 600, .y = 600 }, ig.ImGuiCond_Once);
+    const dockId = ig.igGetID_Str("DockSpace");
+    _ = ig.igBegin("Docking Space", 0, hostWindowFlags);
+    _ = ig.igDockSpace(dockId, .{ .x = 0, .y = 0 }, ig.ImGuiDockNodeFlags_None, null);
+    ig.igEnd();
+
+    ig.igSetNextWindowPos(.{ .x = 10, .y = 10 }, ig.ImGuiCond_Once, .{ .x = 0, .y = 0 });
+    ig.igSetNextWindowSize(.{ .x = 400, .y = 100 }, ig.ImGuiCond_Once);
+    _ = ig.igBegin("Hello Dear ImGui!", 0, ig.ImGuiWindowFlags_None);
+    _ = ig.igColorEdit3("Background", &sokol_state.pass_action.colors[0].clear_value.r, ig.ImGuiColorEditFlags_None);
+    ig.igEnd();
+
+    // make a second window to test the dock.
+    ig.igSetNextWindowPos(.{ .x = 10, .y = 120 }, ig.ImGuiCond_Once, .{ .x = 0, .y = 0 });
+    ig.igSetNextWindowSize(.{ .x = 400, .y = 100 }, ig.ImGuiCond_Once);
+    _ = ig.igBegin("Hello Dear ImGui 2!", 0, ig.ImGuiWindowFlags_None);
+    _ = ig.igColorEdit3("Background 2", &sokol_state.pass_action.colors[0].clear_value.g, ig.ImGuiColorEditFlags_None);
+    ig.igEnd();
+
+    //=== UI CODE ENDS HERE
+
+    // call simgui.render() inside a sokol-gfx pass
+    sg.beginPass(.{ .action = sokol_state.pass_action, .swapchain = sglue.swapchain() });
+    simgui.render();
+    sg.endPass();
+    sg.commit();
+}
+
+export fn cleanup() void {
+    simgui.shutdown();
+    sg.shutdown();
+}
+
+export fn event(ev: [*c]const sapp.Event) void {
+    // forward input events to sokol-imgui
+    _ = simgui.handleEvent(ev.*);
+}
+
+pub fn main() !void 
+{
+    // zglfw.init() catch {
+    //     std.log.err("GLFW did not initialize properly.", .{});
+    //     return;
+    // };
+    // defer zglfw.terminate();
+
+    // zglfw.WindowHint.set(.cocoa_retina_framebuffer, 1);
+    // zglfw.WindowHint.set(.client_api, 0);
 
     const title = (
         "OpenTimelineIO V2 Prototype Bezier Curve Visualizer [" 
         ++ build_options.hash[0..6] 
         ++ "]"
     );
+    _ = title;
 
-    const window = (
-        zglfw.Window.create(1600, 1000, title, null) 
-        catch {
-            std.log.err("Could not create a window", .{});
-            return;
-        }
-    );
-    defer window.destroy();
-    window.setSizeLimits(400, 400, -1, -1);
+    // const window = (
+    //     zglfw.Window.create(1600, 1000, title, null) 
+    //     catch {
+    //         std.log.err("Could not create a window", .{});
+    //         return;
+    //     }
+    // );
+    // defer window.destroy();
+    // window.setSizeLimits(400, 400, -1, -1);
 
     var gpa = std.heap.GeneralPurposeAllocator(.{.stack_trace_frames = 32}){};
     defer _ = gpa.deinit();
 
-    const allocator = gpa.allocator();
+    ALLOCATOR = gpa.allocator();
 
-    const gfx_state = GraphicsState.init(allocator, window) catch {
-        std.log.err("Could not initialize resources", .{});
-        return;
-    };
-    defer gfx_state.deinit();
+    // const gfx_state = GraphicsState.init(allocator, window) catch {
+    //     std.log.err("Could not initialize resources", .{});
+    //     return;
+    // };
+    // defer gfx_state.deinit();
 
-    var state = try _parse_args(allocator);
+    STATE = try _parse_args(ALLOCATOR);
 
     // u
-    const fst_name:[:0]const u8 = "upside down u";
-    const fst_crv = try curve.read_curve_json(
-        "curves/upside_down_u.curve.json" ,
-        allocator
+    // const fst_name:[:0]const u8 = "upside down u";
+    // const fst_crv = try curve.read_curve_json(
+    //     "curves/upside_down_u.curve.json" ,
+    //     allocator
+    // );
+    // defer fst_crv.deinit(allocator);
+    //
+    // // const identSeg = curve.Segment.init_identity(-0.2, 1) ;
+    // const identSeg = curve.Segment.init_identity(-3, 3) ;
+    // const snd_crv = try curve.TimeCurve.init(
+    //     allocator,
+    //     &.{identSeg}
+    // );
+    // defer snd_crv.deinit(allocator);
+    // const snd_name:[:0]const u8 ="linear [-0.2, 1)" ;
+    //
+    // var tmpCurves = projTmpTest{
+    //     // projecting "snd" through "fst"
+    //     .fst = .{ 
+    //         .curve = fst_crv,
+    //         .fpath = fst_name,
+    //         .split_hodograph = try fst_crv.split_on_critical_points(allocator),
+    //     },
+    //     .snd = .{ 
+    //         .curve = snd_crv,
+    //         .fpath = snd_name,
+    //         .split_hodograph = try snd_crv.split_on_critical_points(allocator),
+    //     },
+    // };
+    // defer tmpCurves.fst.split_hodograph.deinit(allocator);
+    // defer tmpCurves.snd.split_hodograph.deinit(allocator);
+    defer STATE.deinit(ALLOCATOR);
+
+    // while (!window.shouldClose() and window.getKey(.escape) != .press) {
+    //     zglfw.pollEvents();
+    //     try update(gfx_state, &state, &tmpCurves, allocator);
+    //     draw(gfx_state);
+    // }
+
+    sapp.run(
+        .{
+            .init_cb = init,
+            .frame_cb = frame,
+            .cleanup_cb = cleanup,
+            .event_cb = event,
+            .window_title = "sokol-zig + Dear Imgui",
+            .width = 800,
+            .height = 600,
+            .icon = .{ .sokol_default = true },
+            .logger = .{ .func = slog.func },
+        }
     );
-    defer fst_crv.deinit(allocator);
-
-    // const identSeg = curve.Segment.init_identity(-0.2, 1) ;
-    const identSeg = curve.Segment.init_identity(-3, 3) ;
-    const snd_crv = try curve.TimeCurve.init(
-        allocator,
-        &.{identSeg}
-    );
-    defer snd_crv.deinit(allocator);
-    const snd_name:[:0]const u8 ="linear [-0.2, 1)" ;
-
-    var tmpCurves = projTmpTest{
-        // projecting "snd" through "fst"
-        // .snd = .{ 
-        .fst = .{ 
-            .curve = fst_crv,
-            .fpath = fst_name,
-            .split_hodograph = try fst_crv.split_on_critical_points(allocator),
-        },
-        // .fst = .{ 
-        .snd = .{ 
-            .curve = snd_crv,
-            .fpath = snd_name,
-            .split_hodograph = try snd_crv.split_on_critical_points(allocator),
-        },
-    };
-    defer tmpCurves.fst.split_hodograph.deinit(allocator);
-    defer tmpCurves.snd.split_hodograph.deinit(allocator);
-    defer state.deinit(allocator);
-
-    while (!window.shouldClose() and window.getKey(.escape) != .press) {
-        zglfw.pollEvents();
-        try update(gfx_state, &state, &tmpCurves, allocator);
-        draw(gfx_state);
-    }
 }
 
 
@@ -560,7 +663,7 @@ fn plot_cp_line(
         y.* = p.value;
     }
 
-    zgui.plot.plotLine(
+    ig.plot.plotLine(
         label,
         f32,
         .{ .xv = xv, .yv = yv }
@@ -574,8 +677,8 @@ fn plot_point(
     size: f32,
 ) void
 {
-    zgui.plot.pushStyleVar1f(.{ .idx = .marker_size, .v = size });
-    _ = zgui.plot.plotScatter(
+    ig.plot.pushStyleVar1f(.{ .idx = .marker_size, .v = size });
+    _ = ig.plot.plotScatter(
         full_label,
         f32,
         .{
@@ -583,7 +686,7 @@ fn plot_point(
             .yv = &.{pt.value},
         }
     );
-    zgui.plot.plotText(
+    ig.plot.plotText(
         short_label,
         .{
             .x = pt.time,
@@ -591,7 +694,7 @@ fn plot_point(
             .pix_offset = .{ 0, size * 1.75 },
         }
     );
-    zgui.plot.popStyleVar(.{ .count = 1 });
+    ig.plot.popStyleVar(.{ .count = 1 });
 }
 
 fn plot_knots(
@@ -623,8 +726,8 @@ fn plot_knots(
             knots_yv[knot_ind] = knot.value;
         }
 
-        zgui.plot.pushStyleVar1f(.{ .idx = .marker_size, .v = 30 });
-        zgui.plot.plotScatter(
+        ig.plot.pushStyleVar1f(.{ .idx = .marker_size, .v = 30 });
+        ig.plot.plotScatter(
             name_,
             f32,
             .{
@@ -635,13 +738,13 @@ fn plot_knots(
 
         for (endpoints, 0..) |pt, pt_ind| {
             const label = try std.fmt.bufPrintZ(&buf, "{d}", .{ pt_ind });
-            zgui.plot.plotText(
+            ig.plot.plotText(
                 label,
                 .{ .x = pt.time, .y = pt.value, .pix_offset = .{ 0, 45 } }
             );
         }
 
-        zgui.plot.popStyleVar(.{ .count = 1 });
+        ig.plot.popStyleVar(.{ .count = 1 });
     }
 }
 
@@ -666,7 +769,7 @@ fn plot_control_points(
         const knots_yv = try allocator.alloc(f32, 4 * hod.segments.len);
         defer allocator.free(knots_yv);
 
-        zgui.pushStrId(name_);
+        ig.pushStrId(name_);
         for (hod.segments, 0..) |seg, seg_ind| {
             for (seg.points(), 0..) |pt, pt_ind| {
                 knots_xv[seg_ind * 4 + pt_ind] = pt.time;
@@ -676,15 +779,15 @@ fn plot_control_points(
                     "{d}.{d}: ({d:0.2}, {d:0.2})",
                     .{ seg_ind, pt_ind, pt.time, pt.value },
                 );
-                zgui.plot.plotText(
+                ig.plot.plotText(
                     pt_text,
                     .{.x = pt.time, .y = pt.value, .pix_offset = .{0, 36}} 
                 );
             }
         }
-        zgui.popId();
+        ig.popId();
         
-        zgui.plot.plotLine(
+        ig.plot.plotLine(
             name_,
             f32,
             .{
@@ -693,8 +796,8 @@ fn plot_control_points(
             }
         );
 
-        zgui.plot.pushStyleVar1f(.{ .idx = .marker_size, .v = 20 });
-        zgui.plot.plotScatter(
+        ig.plot.pushStyleVar1f(.{ .idx = .marker_size, .v = 20 });
+        ig.plot.plotScatter(
             name_,
             f32,
             .{
@@ -702,7 +805,7 @@ fn plot_control_points(
                 .yv = knots_yv,
             }
         );
-        zgui.plot.popStyleVar(.{ .count = 1 });
+        ig.plot.popStyleVar(.{ .count = 1 });
     }
 }
 
@@ -731,7 +834,7 @@ fn plot_linear_curve(
         .{ name, lin.knots.len }
     );
 
-    zgui.plot.plotLine(
+    ig.plot.plotLine(
         label,
         f32,
         .{ .xv = xv, .yv = yv }
@@ -771,7 +874,7 @@ fn plot_editable_bezier_curve(
         inline for (0..4) |idx| {
             std.hash.autoHash(&hasher, idx);
 
-            _ = zgui.plot.dragPoint(
+            _ = ig.plot.dragPoint(
                 @truncate(@as(i65, @intCast(hasher.final()))),
                 .{ 
                     .x = &times[idx],
@@ -812,7 +915,7 @@ fn plot_bezier_curve(
     );
 
     if (flags.bezier) {
-        zgui.plot.plotLine(
+        ig.plot.plotLine(
             label,
             f32,
             .{ .xv = &pts.xv, .yv = &pts.yv }
@@ -870,7 +973,7 @@ fn plot_bezier_curve(
                 yv[0] = crv_extents[0].value;
                 yv[1] = pt.r.value;
 
-                zgui.plot.plotLine(
+                ig.plot.plotLine(
                     findu_label,
                     f32,
                     .{ .xv = &xv, .yv = &yv }
@@ -921,7 +1024,7 @@ fn plot_bezier_curve(
                         d_du.r.value + d_du.i.value,
                     };
 
-                    zgui.plot.plotLine(
+                    ig.plot.plotLine(
                         deriv_label_ddu,
                         f32,
                         .{ .xv = &xv, .yv = &yv }
@@ -941,7 +1044,7 @@ fn plot_bezier_curve(
                         d_dx.r.value + d_dx.i.value,
                     };
 
-                    zgui.plot.plotLine(
+                    ig.plot.plotLine(
                         deriv_label_dydx,
                         f32,
                         .{ .xv = &xv, .yv = &yv }
@@ -970,7 +1073,7 @@ fn plot_bezier_curve(
                         d_du.r.value + hodo_d_du.y,
                     };
 
-                    zgui.plot.plotLine(
+                    ig.plot.plotLine(
                         deriv_label_hodo_ddu,
                         f32,
                         .{ .xv = &xv, .yv = &yv }
@@ -1013,7 +1116,7 @@ fn plot_bezier_curve(
                         d_dx.r.value + d_dx.i.value,
                     };
 
-                    zgui.plot.plotLine(
+                    ig.plot.plotLine(
                         deriv_label_isect,
                         f32,
                         .{ .xv = &xv, .yv = &yv }
@@ -1054,7 +1157,7 @@ fn plot_bezier_curve(
                     d_dx.r.value + d_dx.i.value,
                 };
 
-                zgui.plot.plotLine(
+                ig.plot.plotLine(
                     decastlejau_label,
                     f32,
                     .{ .xv = &xv, .yv = &yv }
@@ -1080,7 +1183,7 @@ fn plot_bezier_curve(
                         I2.value,
                         I3.value,
                     };
-                    zgui.plot.plotLine(
+                    ig.plot.plotLine(
                         decastlejau_label,
                         f32,
                         .{ .xv = &xv, .yv = &yv }
@@ -1099,7 +1202,7 @@ fn plot_bezier_curve(
                         e1.value,
                         e2.value,
                     };
-                    zgui.plot.plotLine(
+                    ig.plot.plotLine(
                         decastlejau_label,
                         f32,
                         .{ .xv = &xv, .yv = &yv }
@@ -1156,7 +1259,7 @@ fn plot_tpa_guts(
             "A->C length {d}\nt: {d}",
             .{ baseline_len, guts.t.? }
         );
-        zgui.plot.plotText(
+        ig.plot.plotText(
             label,
             .{ 
                 .x = guts.A.?.time, 
@@ -1170,7 +1273,7 @@ fn plot_tpa_guts(
         try plot_cp_line("start->end", &.{guts.start.?, guts.end.?}, allocator);
         const baseline_len = guts.start.?.distance(guts.end.?);
         const label = try std.fmt.bufPrintZ(&buf, "start->end length: {d}", .{ baseline_len });
-        zgui.plot.plotText(
+        ig.plot.plotText(
             label,
             .{ 
                 .x = guts.start.?.time, 
@@ -1193,7 +1296,7 @@ fn plot_tpa_guts(
             .{ name }
         );
 
-        zgui.plot.plotLine(
+        ig.plot.plotLine(
             label,
             f32,
             .{ .xv = xv, .yv = yv }
@@ -1215,7 +1318,7 @@ fn plot_tpa_guts(
             .{ name }
         );
 
-        zgui.plot.plotLine(
+        ig.plot.plotLine(
             label,
             f32,
             .{ .xv = xv, .yv = yv }
@@ -1238,7 +1341,7 @@ fn plot_tpa_guts(
             .{ name }
         );
 
-        zgui.plot.plotLine(
+        ig.plot.plotLine(
             label,
             f32,
             .{ .xv = xv, .yv = yv }
@@ -1254,7 +1357,7 @@ fn plot_tpa_guts(
                 "d/dt: ({d:0.6}, {d:0.6}) len: {d:0.4}",
                 .{d.time, d.value, e1.distance(guts.midpoint.?) },
             );
-            zgui.plot.plotText(
+            ig.plot.plotText(
                 d_label,
                 .{ 
                     .x = e1.time, 
@@ -1279,7 +1382,7 @@ fn plot_tpa_guts(
             .{ name }
         );
 
-        zgui.plot.plotLine(
+        ig.plot.plotLine(
             label,
             f32,
             .{ .xv = xv, .yv = yv }
@@ -1303,7 +1406,7 @@ fn plot_tpa_guts(
             .{ name }
         );
 
-        // zgui.plot.plotLine(
+        // ig.plot.plotLine(
         //     label,
         //     f32,
         //     .{ .xv = xv, .yv = yv }
@@ -1421,8 +1524,8 @@ fn plot_three_point_approx(
             .{ name, u }
         );
 
-        zgui.pushStrId(label);
-        defer zgui.popId();
+        ig.pushStrId(label);
+        defer ig.popId();
 
         approx_segments.clearAndFree();
 
@@ -1551,9 +1654,9 @@ fn plot_curve(
 }
 
 fn update(
-    gfx_state: *GraphicsState,
+    // gfx_state: *GraphicsState,
     state: *VisState,
-    tmpCurves: *projTmpTest,
+    // tmpCurves: *projTmpTest,
     allocator: std.mem.Allocator,
 ) !void 
 {
@@ -1583,51 +1686,30 @@ fn update(
             },
         }
 
-        _proj = _topology.project_topology(_proj) catch inf;
+        _proj = _topology.project_topology(
+            allocator,
+            _proj
+        ) catch inf;
     }
 
-    zgui.backend.newFrame(
-        gfx_state.gctx.swapchain_descriptor.width,
-        gfx_state.gctx.swapchain_descriptor.height,
-    );
-
-    zgui.setNextWindowPos(.{ .x = 0.0, .y = 0.0, });
-
-    const size = gfx_state.gctx.window_provider.fn_getFramebufferSize(gfx_state.gctx.window_provider.window);
-    const width:f32 = @floatFromInt(size[0]);
-    const height:f32 = @floatFromInt(size[1]);
-
-    zgui.setNextWindowSize(.{ .w = width, .h = height, });
-
-    var main_flags = zgui.WindowFlags.no_decoration;
-    main_flags.no_resize = true;
-    main_flags.no_background = true;
-    main_flags.no_move = true;
-    main_flags.no_scroll_with_mouse = true;
-    main_flags.no_bring_to_front_on_focus = true;
-    // main_flags.menu_bar = true;
-
-    if (!zgui.begin("###FULLSCREEN", .{ .flags = main_flags })) {
-        zgui.end();
-        return;
-    }
-    defer zgui.end();
+    const width:f32 = @floatFromInt(sapp.width());
+    // const height:f32 = @floatFromInt(sapp.height());
 
     // FPS/status line
-    zgui.bulletText(
-        "Average : {d:.3} ms/frame ({d:.1} fps)",
-        .{ gfx_state.gctx.stats.average_cpu_time, gfx_state.gctx.stats.fps },
-    );
-    zgui.spacing();
+    // ig.bulletText(
+    //     "Average : {d:.3} ms/frame ({d:.1} fps)",
+    //     .{ gfx_state.gctx.stats.average_cpu_time, gfx_state.gctx.stats.fps },
+    // );
+    // zgui.spacing();
 
     var tmp_buf:[1024:0]u8 = undefined;
     @memset(&tmp_buf, 0);
 
     {
-        if (zgui.beginChild("Plot", .{ .w = width - 600 }))
+        if (ig.beginChild("Plot", .{ .w = width - 600 }))
         {
 
-            if (zgui.plot.beginPlot(
+            if (ig.plot.beginPlot(
                     "Curve Plot",
                     .{ 
                         .h = -1.0,
@@ -1636,16 +1718,16 @@ fn update(
                 )
             ) 
             {
-                zgui.plot.setupAxis(.x1, .{ .label = "input" });
-                zgui.plot.setupAxis(.y1, .{ .label = "output" });
-                zgui.plot.setupLegend(
+                ig.plot.setupAxis(.x1, .{ .label = "input" });
+                ig.plot.setupAxis(.y1, .{ .label = "output" });
+                ig.plot.setupLegend(
                     .{ 
                         .south = true,
                         .west = true 
                     },
                     .{}
                 );
-                zgui.plot.setupFinish();
+                ig.plot.setupFinish();
                 for (state.operations.items, 0..) 
                     |*visop, op_index| 
                 {
@@ -1683,14 +1765,14 @@ fn update(
                                 CURVE_SAMPLE_COUNT
                             );
 
-                            zgui.plot.plotLine(
+                            ig.plot.plotLine(
                                 "result [bezier]",
                                 f32,
                                 .{ .xv = &pts.xv, .yv = &pts.yv }
                             );
                         },
                         .affine =>  {
-                            zgui.plot.plotLine(
+                            ig.plot.plotLine(
                                 "NO RESULT: AFFINE",
                                 f32,
                                 .{ 
@@ -1700,7 +1782,7 @@ fn update(
                             );
                         },
                         .empty => {
-                            zgui.plot.plotLine(
+                            ig.plot.plotLine(
                                 "EMPTY RESULT",
                                 f32,
                                 .{ 
@@ -1712,234 +1794,234 @@ fn update(
                     }
                 }
 
-                if (state.show_test_curves) 
-                {
-                    // debug 
-                    var self = tmpCurves.fst.curve;
-                    var other = tmpCurves.snd.curve;
+                // if (state.show_test_curves) 
+                // {
+                //     // debug 
+                //     var self = tmpCurves.fst.curve;
+                //     var other = tmpCurves.snd.curve;
+                //
+                //     try plot_bezier_curve(
+                //         self,
+                //         "self",
+                //         state.show_projection_result_guts.fst,
+                //         allocator
+                //     );
+                //     try plot_bezier_curve(
+                //         other,
+                //         "other",
+                //         state.show_projection_result_guts.snd,
+                //         allocator
+                //     );
+                //
+                //     const self_hodograph = try self.split_on_critical_points(allocator);
+                //     defer self_hodograph.deinit(allocator);
+                //
+                //     const other_hodograph = try other.split_on_critical_points(allocator);
+                //     defer other_hodograph.deinit(allocator);
+                //
+                //     const other_bounds = other.extents();
+                //     var other_copy = try curve.TimeCurve.init(
+                //         allocator,
+                //         other_hodograph.segments,
+                //     );
+                //
+                //     {
+                //         var split_points = std.ArrayList(f32).init(allocator);
+                //         defer split_points.deinit();
+                //
+                //         // find all knots in self that are within the other bounds
+                //         const endpoints = try self_hodograph.segment_endpoints(
+                //             allocator
+                //         );
+                //         defer allocator.free(endpoints);
+                //
+                //         for (endpoints)
+                //             |self_knot| 
+                //         {
+                //             if (
+                //                 _is_between(
+                //                     self_knot.time,
+                //                     other_bounds[0].value,
+                //                     other_bounds[1].value
+                //                 )
+                //             ) {
+                //                 try split_points.append(self_knot.time);
+                //             }
+                //
+                //         }
+                //
+                //         var result = try other_copy.split_at_each_output_ordinate(
+                //             split_points.items,
+                //             allocator
+                //         );
+                //         other_copy = try curve.TimeCurve.init(
+                //             allocator,
+                //             result.segments,
+                //         );
+                //         result.deinit(allocator);
+                //     }
+                //
+                //     const result_guts = try self_hodograph.project_curve_guts(
+                //         other_hodograph,
+                //         allocator
+                //     );
+                //     defer result_guts.deinit();
+                //
+                //     try plot_bezier_curve(
+                //         result_guts.self_split.?,
+                //         "self_split",
+                //         state.show_projection_result_guts.self_split,
+                //         allocator
+                //     );
+                //
+                //     // ig.text("Segments to project through indices: ", .{});
+                //     // for (
+                //     //     result_guts.segments_to_project_through.?
+                //     // ) |ind| {
+                //     //     ig.text("{d}", .{ ind });
+                //     // }
+                //
+                //     try plot_bezier_curve(
+                //         result_guts.other_split.?,
+                //         "other_split",
+                //         state.show_projection_result_guts.other_split,
+                //         allocator
+                //     );
+                //
+                //     var buf:[1024:0]u8 = undefined;
+                //     @memset(&buf, 0);
+                //     {
+                //         const result_name = try std.fmt.bufPrintZ(
+                //             &buf,
+                //             "result of projection{s}",
+                //             .{
+                //                 if (result_guts.result.?.segments.len > 0) "" 
+                //                 else " [NO SEGMENTS/EMPTY]",
+                //             }
+                //         );
+                //
+                //         try plot_bezier_curve(
+                //             result_guts.result.?,
+                //             result_name,
+                //             state.show_projection_result_guts.tpa_flags.result_curves,
+                //             allocator
+                //         );
+                //     }
+                //
+                //     {
+                //         try plot_bezier_curve(
+                //             result_guts.to_project.?,
+                //             "Segments of Other that will be projected",
+                //             state.show_projection_result_guts.to_project,
+                //             allocator
+                //         );
+                //     }
+                //
+                //     {
+                //         for (result_guts.tpa.?, 0..) 
+                //             |tpa, ind| 
+                //         {
+                //             const label = try std.fmt.bufPrintZ(
+                //                 &buf,
+                //                 "Three Point Approx Projected.segments[{d}]",
+                //                 .{ind }
+                //             );
+                //             try plot_tpa_guts(
+                //                 tpa,
+                //                 label,
+                //                 state.show_projection_result_guts.tpa_flags,
+                //                 allocator,
+                //             );
+                //
+                //         }
+                //     }
+                //
+                //     const derivs = .{
+                //         "f_prime_of_g_of_t",
+                //         "g_prime_of_t",
+                //         "midpoint_derivatives",
+                //     };
+                //
+                //     // midpoint derivatives
+                //     inline for (derivs) 
+                //         |d_name| 
+                //     {
+                //         if (@field(state, d_name))
+                //         {
+                //             for (@field(result_guts, d_name).?, 0..) 
+                //                 |d, ind|
+                //             {
+                //                 const midpoint = result_guts.tpa.?[ind].midpoint.?;
+                //                 const p1 = midpoint.add(d);
+                //                 const p2 = midpoint.sub(d);
+                //
+                //                 const xv = &.{ p1.time,  midpoint.time,  p2.time };
+                //                 const yv = &.{ p1.value, midpoint.value, p2.value };
+                //
+                //                 ig.plot.plotLine(
+                //                     d_name,
+                //                     f32,
+                //                     .{ .xv = xv, .yv = yv }
+                //                 );
+                //                 {
+                //                     const label = try std.fmt.bufPrintZ(
+                //                         &buf,
+                //                         "d/dt: ({d:0.6}, {d:0.6})",
+                //                         .{d.time, d.value},
+                //                     );
+                //                     ig.plot.plotText(
+                //                         label,
+                //                         .{ 
+                //                             .x = p1.time, 
+                //                             .y = p1.value, 
+                //                             .pix_offset = .{ 0, 16 } 
+                //                         },
+                //                     );
+                //                 }
+                //             }
+                //         }
+                //     }
+                // }
 
-                    try plot_bezier_curve(
-                        self,
-                        "self",
-                        state.show_projection_result_guts.fst,
-                        allocator
-                    );
-                    try plot_bezier_curve(
-                        other,
-                        "other",
-                        state.show_projection_result_guts.snd,
-                        allocator
-                    );
-
-                    const self_hodograph = try self.split_on_critical_points(allocator);
-                    defer self_hodograph.deinit(allocator);
-
-                    const other_hodograph = try other.split_on_critical_points(allocator);
-                    defer other_hodograph.deinit(allocator);
-
-                    const other_bounds = other.extents();
-                    var other_copy = try curve.TimeCurve.init(
-                        allocator,
-                        other_hodograph.segments,
-                    );
-
-                    {
-                        var split_points = std.ArrayList(f32).init(allocator);
-                        defer split_points.deinit();
-
-                        // find all knots in self that are within the other bounds
-                        const endpoints = try self_hodograph.segment_endpoints(
-                            allocator
-                        );
-                        defer allocator.free(endpoints);
-
-                        for (endpoints)
-                            |self_knot| 
-                        {
-                            if (
-                                _is_between(
-                                    self_knot.time,
-                                    other_bounds[0].value,
-                                    other_bounds[1].value
-                                )
-                            ) {
-                                try split_points.append(self_knot.time);
-                            }
-
-                        }
-
-                        var result = try other_copy.split_at_each_output_ordinate(
-                            split_points.items,
-                            allocator
-                        );
-                        other_copy = try curve.TimeCurve.init(
-                            allocator,
-                            result.segments,
-                        );
-                        result.deinit(allocator);
-                    }
-
-                    const result_guts = try self_hodograph.project_curve_guts(
-                        other_hodograph,
-                        allocator
-                    );
-                    defer result_guts.deinit();
-
-                    try plot_bezier_curve(
-                        result_guts.self_split.?,
-                        "self_split",
-                        state.show_projection_result_guts.self_split,
-                        allocator
-                    );
-
-                    // zgui.text("Segments to project through indices: ", .{});
-                    // for (
-                    //     result_guts.segments_to_project_through.?
-                    // ) |ind| {
-                    //     zgui.text("{d}", .{ ind });
-                    // }
-
-                    try plot_bezier_curve(
-                        result_guts.other_split.?,
-                        "other_split",
-                        state.show_projection_result_guts.other_split,
-                        allocator
-                    );
-
-                    var buf:[1024:0]u8 = undefined;
-                    @memset(&buf, 0);
-                    {
-                        const result_name = try std.fmt.bufPrintZ(
-                            &buf,
-                            "result of projection{s}",
-                            .{
-                                if (result_guts.result.?.segments.len > 0) "" 
-                                else " [NO SEGMENTS/EMPTY]",
-                            }
-                        );
-
-                        try plot_bezier_curve(
-                            result_guts.result.?,
-                            result_name,
-                            state.show_projection_result_guts.tpa_flags.result_curves,
-                            allocator
-                        );
-                    }
-
-                    {
-                        try plot_bezier_curve(
-                            result_guts.to_project.?,
-                            "Segments of Other that will be projected",
-                            state.show_projection_result_guts.to_project,
-                            allocator
-                        );
-                    }
-
-                    {
-                        for (result_guts.tpa.?, 0..) 
-                            |tpa, ind| 
-                        {
-                            const label = try std.fmt.bufPrintZ(
-                                &buf,
-                                "Three Point Approx Projected.segments[{d}]",
-                                .{ind }
-                            );
-                            try plot_tpa_guts(
-                                tpa,
-                                label,
-                                state.show_projection_result_guts.tpa_flags,
-                                allocator,
-                            );
-
-                        }
-                    }
-
-                    const derivs = .{
-                        "f_prime_of_g_of_t",
-                        "g_prime_of_t",
-                        "midpoint_derivatives",
-                    };
-
-                    // midpoint derivatives
-                    inline for (derivs) 
-                        |d_name| 
-                    {
-                        if (@field(state, d_name))
-                        {
-                            for (@field(result_guts, d_name).?, 0..) 
-                                |d, ind|
-                            {
-                                const midpoint = result_guts.tpa.?[ind].midpoint.?;
-                                const p1 = midpoint.add(d);
-                                const p2 = midpoint.sub(d);
-
-                                const xv = &.{ p1.time,  midpoint.time,  p2.time };
-                                const yv = &.{ p1.value, midpoint.value, p2.value };
-
-                                zgui.plot.plotLine(
-                                    d_name,
-                                    f32,
-                                    .{ .xv = xv, .yv = yv }
-                                );
-                                {
-                                    const label = try std.fmt.bufPrintZ(
-                                        &buf,
-                                        "d/dt: ({d:0.6}, {d:0.6})",
-                                        .{d.time, d.value},
-                                    );
-                                    zgui.plot.plotText(
-                                        label,
-                                        .{ 
-                                            .x = p1.time, 
-                                            .y = p1.value, 
-                                            .pix_offset = .{ 0, 16 } 
-                                        },
-                                    );
-                                }
-                            }
-                        }
-                    }
-                }
-
-                zgui.plot.endPlot();
+                ig.plot.endPlot();
             }
         }
-        defer zgui.endChild();
+        defer ig.endChild();
     }
 
-    zgui.sameLine(.{});
+    ig.sameLine(.{});
 
     {
         if (
-            zgui.beginChild(
+            ig.beginChild(
                 "Settings",
                 .{ 
                     .w = 600,
-                    .window_flags = zgui.WindowFlags{ .no_scrollbar = false} 
+                    .window_flags = ig.WindowFlags{ .no_scrollbar = false} 
                 }
             )
         ) 
         {
-            _ = zgui.checkbox(
-                "Show ZGui Demo Windows",
+            _ = ig.checkbox(
+                "Show ig Demo Windows",
                 .{ .v = &state.show_demo }
             );
-            _ = zgui.checkbox(
+            _ = ig.checkbox(
                 "Show Projection Test Curves",
                 .{ .v = &state.show_test_curves }
             );
-            _ = zgui.checkbox(
+            _ = ig.checkbox(
                 "Show Projection Result",
                 .{ .v = &state.show_projection_result }
             );
 
-            if (zgui.treeNode("Projection Algorithm Debug Switches")) 
+            if (ig.treeNode("Projection Algorithm Debug Switches")) 
             {
-                defer zgui.treePop();
+                defer ig.treePop();
 
                 const bcrv = curve.bezier_curve;
-                zgui.text("U value: {d}", .{ bcrv.u_val_of_midpoint });
-                _ = zgui.sliderFloat(
+                ig.text("U value: {d}", .{ bcrv.u_val_of_midpoint });
+                _ = ig.sliderFloat(
                     "U Value",
                     .{
                         .min = 0,
@@ -1947,8 +2029,8 @@ fn update(
                         .v = &bcrv.u_val_of_midpoint 
                     }
                 );
-                zgui.text("fudge: {d}", .{ bcrv.fudge });
-                _ = zgui.sliderFloat(
+                ig.text("fudge: {d}", .{ bcrv.fudge });
+                _ = ig.sliderFloat(
                     "scale e1/e2 fudge factor",
                     .{ 
                         .min = 0.1,
@@ -1957,16 +2039,16 @@ fn update(
                     }
                 );
 
-                _ = zgui.comboFromEnum(
+                _ = ig.comboFromEnum(
                     "Projection Algorithm",
                     &bcrv.project_algo
                 );
             }
 
 
-            if (state.show_test_curves and zgui.treeNode("Test Curve Settings"))
+            if (state.show_test_curves and ig.treeNode("Test Curve Settings"))
             {
-                defer zgui.treePop();
+                defer ig.treePop();
 
                 {
                     var guts = state.show_projection_result_guts;
@@ -1977,9 +2059,9 @@ fn update(
                     guts.to_project.draw_ui("segments in other to project");
                 }
 
-                if (zgui.treeNode("Derivative Debug Info"))
+                if (ig.treeNode("Derivative Debug Info"))
                 {
-                    defer zgui.treePop();
+                    defer ig.treePop();
                     const derivs = .{
                         .{"f_prime_of_g_of_t", "Show Derivative of self at midpoint"},
                         .{"g_prime_of_t", "Show derivative of other at midpoint"},
@@ -1990,7 +2072,7 @@ fn update(
                     inline for (derivs) 
                         |d_info| 
                     {
-                        _ = zgui.checkbox(
+                        _ = ig.checkbox(
                             d_info[1],
                             .{ .v = &@field(state,d_info[0]) }
                         );
@@ -2019,49 +2101,49 @@ fn update(
                             .{ crv.fpath }
                         );
 
-                        zgui.pushPtrId(@ptrCast(crv));
-                        defer zgui.popId();
+                        ig.pushPtrId(@ptrCast(crv));
+                        defer ig.popId();
                         if (
-                            zgui.treeNodeFlags(
+                            ig.treeNodeFlags(
                                 top_label,
                                 .{ .default_open = true }
                             )
                         )
                         {
-                            defer zgui.treePop();
+                            defer ig.treePop();
 
-                            zgui.pushPtrId(&crv.active);
-                            defer zgui.popId();
+                            ig.pushPtrId(&crv.active);
+                            defer ig.popId();
 
                             // debug flags
-                            _ = zgui.checkbox(
+                            _ = ig.checkbox(
                                 "Active In Projections",
                                 .{.v = &crv.active}
                             );
-                            _ = zgui.checkbox(
+                            _ = ig.checkbox(
                                 "Editable",
                                 .{.v = &crv.editable}
                             );
 
                             if (
-                                zgui.treeNodeFlags(
+                                ig.treeNodeFlags(
                                     "Draw Flags",
                                     .{ .default_open = true }
                                 )
                             ) {
-                                defer zgui.treePop();
+                                defer ig.treePop();
 
                                 crv.draw_flags.draw_ui(crv.fpath);
                             }
 
-                            if (zgui.treeNode("Debug Data"))
+                            if (ig.treeNode("Debug Data"))
                             {
-                                defer zgui.treePop();
+                                defer ig.treePop();
 
                                 for (crv.curve.segments, 0..)
                                     |seg, ind|
                                 {
-                                    zgui.bulletText(
+                                    ig.bulletText(
                                         "Measured Order [time]: {d}",
                                         .{ 
                                             try curve.bezier_math.actual_order(
@@ -2073,7 +2155,7 @@ fn update(
                                         },
                                     );
 
-                                    zgui.bulletText(
+                                    ig.bulletText(
                                         "Measured Order [value]: {d}",
                                         .{ 
                                             try curve.bezier_math.actual_order(
@@ -2090,21 +2172,21 @@ fn update(
                                         const d_p0 = seg.eval_at_input_dual(
                                             seg.p0.time
                                         );
-                                        zgui.bulletText(
+                                        ig.bulletText(
                                             "[Seg: {}] dy/dx at p0: {}",
                                             .{
                                                 ind,
                                                 d_p0.i.time,
                                             },
                                         );
-                                        zgui.bulletText(
+                                        ig.bulletText(
                                             "[Seg: {}] p1-p0: {}",
                                             .{
                                                 ind,
                                                 seg.p1.time - seg.p0.time,
                                             },
                                         );
-                                        zgui.bulletText(
+                                        ig.bulletText(
                                             "[Seg: {}] (dy/dx) / (p1-p0): {}",
                                             .{
                                                 ind,
@@ -2121,21 +2203,21 @@ fn update(
                                         const d_p3 = seg.eval_at_input_dual(
                                             seg.p3.time
                                         );
-                                        zgui.bulletText(
+                                        ig.bulletText(
                                             "[Seg: {}] dy/dx at p3: {}",
                                             .{
                                                 ind,
                                                 d_p3.i.time,
                                             },
                                         );
-                                        zgui.bulletText(
+                                        ig.bulletText(
                                             "[Seg: {}] p3-p2: {}",
                                             .{
                                                 ind,
                                                 seg.p3.time - seg.p2.time,
                                             },
                                         );
-                                        zgui.bulletText(
+                                        ig.bulletText(
                                             "[Seg: {}] (dy/dx) / (p3-p2): {}",
                                             .{
                                                 ind,
@@ -2149,21 +2231,21 @@ fn update(
                                         const d_p0 = seg.eval_at_dual(
                                             .{ .r = 0, .i = 1.0}
                                         );
-                                        zgui.bulletText(
+                                        ig.bulletText(
                                             "[Seg: {}] dy/du at p0: {}",
                                             .{
                                                 ind,
                                                 d_p0.i.time,
                                             },
                                         );
-                                        zgui.bulletText(
+                                        ig.bulletText(
                                             "[Seg: {}] p1-p0: {}",
                                             .{
                                                 ind,
                                                 seg.p1.time - seg.p0.time,
                                             },
                                         );
-                                        zgui.bulletText(
+                                        ig.bulletText(
                                             "[Seg: {}] (dy/du) / (p1-p0): {}",
                                             .{
                                                 ind,
@@ -2176,21 +2258,21 @@ fn update(
                                         const d_p3 = seg.eval_at_dual(
                                             .{ .r = 1.0, .i = 1.0 }
                                         );
-                                        zgui.bulletText(
+                                        ig.bulletText(
                                             "[Seg: {}] dy/du at p3: {}",
                                             .{
                                                 ind,
                                                 d_p3.i.time,
                                             },
                                         );
-                                        zgui.bulletText(
+                                        ig.bulletText(
                                             "[Seg: {}] p3-p2: {}",
                                             .{
                                                 ind,
                                                 seg.p3.time - seg.p2.time,
                                             },
                                         );
-                                        zgui.bulletText(
+                                        ig.bulletText(
                                             "[Seg: {}] (dy/du) / (p3-p2): {}",
                                             .{
                                                 ind,
@@ -2201,18 +2283,18 @@ fn update(
                                 }
                             }
 
-                            if (zgui.smallButton("Remove")) {
+                            if (ig.smallButton("Remove")) {
                                 try remove.append(op_index);
                             }
-                            zgui.sameLine(.{});
-                            zgui.text(
+                            ig.sameLine(.{});
+                            ig.text(
                                 "file path: {s}",
                                 .{ crv.*.fpath[0..] }
                             );
 
                             // show the knots
-                            if (zgui.treeNode("Original Knots")) {
-                                defer zgui.treePop();
+                            if (ig.treeNode("Original Knots")) {
+                                defer ig.treePop();
 
                                 const endpoints = (
                                     try crv.curve.segment_endpoints(allocator)
@@ -2221,37 +2303,37 @@ fn update(
                                 for (endpoints, 0..) 
                                     |pt, ind| 
                                 {
-                                    zgui.bulletText(
+                                    ig.bulletText(
                                         "{d}: ({d}, {d})",
                                         .{ ind, pt.time, pt.value },
                                     );
                                 }
                             }
 
-                            if (zgui.treeNode("Hodograph Debug")) {
-                                defer zgui.treePop();
+                            if (ig.treeNode("Hodograph Debug")) {
+                                defer ig.treePop();
 
                                 const hgraph = curve.bezier_curve.hodographs;
                                 const cSeg = crv.curve.segments[0].to_cSeg();
                                 const inflections = hgraph.inflection_points(
                                     &cSeg
                                 );
-                                zgui.bulletText(
+                                ig.bulletText(
                                     "inflection point: {d:0.4}",
                                     .{inflections.x},
                                 );
                                 const hodo = hgraph.compute_hodograph(&cSeg);
                                 const roots = hgraph.bezier_roots(&hodo);
-                                zgui.bulletText(
+                                ig.bulletText(
                                     "roots: {d:0.4} {d:0.4}",
                                     .{roots.x, roots.y},
                                 );
                             }
 
                             // split on critical points knots
-                            if ( zgui.treeNode( "Split on Critical Points Knots",))
+                            if ( ig.treeNode( "Split on Critical Points Knots",))
                             {
-                                defer zgui.treePop();
+                                defer ig.treePop();
 
                                 const split = try crv.curve.split_on_critical_points(allocator);
                                 defer split.deinit(allocator);
@@ -2264,16 +2346,16 @@ fn update(
                                 for (endpoints, 0..) 
                                     |pt, ind| 
                                 {
-                                    zgui.bulletText(
+                                    ig.bulletText(
                                         "{d}: ({d}, {d})",
                                         .{ ind, pt.time, pt.value },
                                     );
                                 }
                             }
 
-                            if (zgui.treeNode("Three Point Projection"))
+                            if (ig.treeNode("Three Point Projection"))
                             {
-                                defer zgui.treePop();
+                                defer ig.treePop();
 
                                 crv.draw_flags.three_point_approximation.draw_ui("curve three point");
                             }
@@ -2281,20 +2363,20 @@ fn update(
                     },
                     .transform => |*xform| {
                         if (
-                            zgui.treeNode( "Affine Transform Settings",)
+                            ig.treeNode( "Affine Transform Settings",)
                         ) 
                         {
-                            defer zgui.treePop();
-                            _ = zgui.checkbox("Active", .{.v = &xform.active});
-                            zgui.sameLine(.{});
-                            if (zgui.smallButton("Remove")) {
+                            defer ig.treePop();
+                            _ = ig.checkbox("Active", .{.v = &xform.active});
+                            ig.sameLine(.{});
+                            if (ig.smallButton("Remove")) {
                                 try remove.append(op_index);
                             }
                             var bounds: [2]f32 = .{
                                 xform.topology.bounds.start_seconds,
                                 xform.topology.bounds.end_seconds,
                             };
-                            _ = zgui.sliderFloat(
+                            _ = ig.sliderFloat(
                                 "offset",
                                 .{
                                     .min = -10,
@@ -2302,7 +2384,7 @@ fn update(
                                     .v = &xform.topology.transform.offset_seconds
                                 }
                             );
-                            _ = zgui.sliderFloat(
+                            _ = ig.sliderFloat(
                                 "scale",
                                 .{
                                     .min = -10,
@@ -2310,7 +2392,7 @@ fn update(
                                     .v = &xform.topology.transform.scale
                                 }
                             );
-                            _ = zgui.inputFloat2(
+                            _ = ig.inputFloat2(
                                 "input space bounds",
                                 .{ .v = &bounds }
                             );
@@ -2320,9 +2402,9 @@ fn update(
                     },
                 }
             }
-            if (zgui.smallButton("Add")) {
+            if (ig.smallButton("Add")) {
                 // @TODO: after updating to zig 0.11
-                // zgui.openPopup("Delete?");
+                // ig.openPopup("Delete?");
             }
 
             // Remove any "remove"'d operations
@@ -2340,52 +2422,52 @@ fn update(
                 }
             }
         }
-        defer zgui.endChild();
+        defer ig.endChild();
     }
 
-    if (state.show_demo) {
-        _ = zgui.showDemoWindow(null);
-        _ = zgui.plot.showDemoWindow(null);
-    }
+    // if (state.show_demo) {
+    //     _ = ig.showDemoWindow(null);
+    //     _ = ig.plot.showDemoWindow(null);
+    // }
 }
 
-fn draw(gfx_state: *GraphicsState) void {
-    const gctx = gfx_state.gctx;
-
-    const back_buffer_view = gctx.swapchain.getCurrentTextureView();
-    defer back_buffer_view.release();
-
-    const commands = commands: {
-        const encoder = gctx.device.createCommandEncoder(null);
-        defer encoder.release();
-
-        // Gui pass.
-        {
-            const color_attachments = [_]wgpu.RenderPassColorAttachment{.{
-                .view = back_buffer_view,
-                .load_op = .load,
-                .store_op = .store,
-            }};
-            const render_pass_info = wgpu.RenderPassDescriptor{
-                .color_attachment_count = color_attachments.len,
-                .color_attachments = &color_attachments,
-            };
-            const pass = encoder.beginRenderPass(render_pass_info);
-            defer {
-                pass.end();
-                pass.release();
-            }
-
-            zgui.backend.draw(pass);
-        }
-
-        break :commands encoder.finish(null);
-    };
-    defer commands.release();
-
-    gctx.submit(&.{commands});
-    _ = gctx.present();
-}
+// fn draw(gfx_state: *GraphicsState) void {
+//     const gctx = gfx_state.gctx;
+//
+//     const back_buffer_view = gctx.swapchain.getCurrentTextureView();
+//     defer back_buffer_view.release();
+//
+//     const commands = commands: {
+//         const encoder = gctx.device.createCommandEncoder(null);
+//         defer encoder.release();
+//
+//         // Gui pass.
+//         {
+//             const color_attachments = [_]wgpu.RenderPassColorAttachment{.{
+//                 .view = back_buffer_view,
+//                 .load_op = .load,
+//                 .store_op = .store,
+//             }};
+//             const render_pass_info = wgpu.RenderPassDescriptor{
+//                 .color_attachment_count = color_attachments.len,
+//                 .color_attachments = &color_attachments,
+//             };
+//             const pass = encoder.beginRenderPass(render_pass_info);
+//             defer {
+//                 pass.end();
+//                 pass.release();
+//             }
+//
+//             zgui.backend.draw(pass);
+//         }
+//
+//         break :commands encoder.finish(null);
+//     };
+//     defer commands.release();
+//
+//     gctx.submit(&.{commands});
+//     _ = gctx.present();
+// }
 
 /// parse the commandline arguments and setup the state
 fn _parse_args(
