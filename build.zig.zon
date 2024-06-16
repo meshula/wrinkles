@@ -31,6 +31,13 @@
         .zpool = .{ .path = "libs/zpool" },
         .zgpu = .{ .path = "libs/zgpu" },
         .zstbi = .{ .path = "libs/zstbi" },
+        .sokol = .{
+            .url = "git+https://github.com/floooh/sokol-zig.git#d9f3ef983b7021417cc91bd5788cd925ca06aa83",
+            .hash = "12200a472b4f1a3a6db1002f39f10ae0cccf58ada45bf25ddc5fd48384dd187f55ea",
+        },
+        .cimgui = .{
+            .path = "libs/cimgui",
+        },
      },
     .paths = .{
         "build.zig",
