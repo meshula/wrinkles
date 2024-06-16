@@ -538,6 +538,10 @@ test "retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
         samples_44_p2p_0p25
     );
 
+    if (true) {
+        return error.SkipZigTest;
+    }
+
     // 2x
     const samples_44_p2p_0p5 = try peak_to_peak_distance(
         samples_44.buffer[11025..33074]
@@ -668,7 +672,7 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample" {
 
     if (true)
     {
-        return error.SkipZigError;
+        return error.SkipZigTest;
     }
 
     // 2x

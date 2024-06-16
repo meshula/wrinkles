@@ -36,7 +36,10 @@ test "identity projections" {
         EPSILON
     );
 
-    const inf_through_bounded = try identity_bounded.project_topology(identity_inf);
+    const inf_through_bounded = try identity_bounded.project_topology(
+        std.testing.allocator,
+        identity_inf,
+    );
 
     // no segments because identity_inf has no segments
 
@@ -64,7 +67,10 @@ test "projection test: linear_through_linear" {
     try expectApproxEqAbs(@as(f32, 4), try second.project_ordinate(2), EPSILON);
 
     // project one through the other
-    const second_through_first_topo = try first.project_topology(second);
+    const second_through_first_topo = try first.project_topology(
+        std.testing.allocator,
+        second,
+    );
     try expectEqual(
         @as(f32, 0),
         try second_through_first_topo.project_ordinate(0)
@@ -109,7 +115,10 @@ test "projection test: linear_through_linear with boundary" {
     try expectEqual(@as(f32, 10), try second.project_ordinate(5));
 
     // project one through the other
-    const second_through_first_topo = try first.project_topology(second);
+    const second_through_first_topo = try first.project_topology(
+        std.testing.allocator,
+        second
+    );
     try expectEqual(@as(f32, 0), try second_through_first_topo.project_ordinate(0));
     try expectEqual(@as(f32, 16), try second_through_first_topo.project_ordinate(2));
 

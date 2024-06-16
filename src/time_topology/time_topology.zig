@@ -151,6 +151,7 @@ pub const AffineTopology = struct {
     ///
     pub fn project_topology(
         self: @This(),
+        allocator: std.mem.Allocator,
         other: TimeTopology,
     ) !TimeTopology 
     {
@@ -160,13 +161,13 @@ pub const AffineTopology = struct {
                     .curve = try curve.affine_project_curve(
                         self.transform,
                         other_bez.curve,
-                        otio_allocator.ALLOCATOR
+                        allocator
                     )
                 }
             },
            .linear_curve => |lin| {
                var result = try curve.TimeCurveLinear.init(
-                   otio_allocator.ALLOCATOR,
+                   allocator,
                    lin.curve.knots,
                );
                for (lin.curve.knots, 0..) |knot, knot_index| {
@@ -277,6 +278,7 @@ pub const LinearTopology = struct {
     //        through a u)
     pub fn project_topology(
         self: @This(),
+        allocator: std.mem.Allocator,
         other: TimeTopology,
         // @TODO: should fill a list of TimeTopology
         // out: *std.ArrayList(TimeTopology),
@@ -286,7 +288,7 @@ pub const LinearTopology = struct {
             .affine => |aff| {
                 const projected_curve = try self.curve.project_affine(
                     aff.transform,
-                    otio_allocator.ALLOCATOR
+                    allocator,
                 );
 
                 return .{
@@ -297,9 +299,9 @@ pub const LinearTopology = struct {
                 .linear_curve = .{
                     .curve = (
                         try self.curve.project_curve(
-                            ALLOCATOR,
+                            allocator,
                             try bez.curve.linearized(
-                                ALLOCATOR
+                                allocator
                             )
                         )
                     )[0]
@@ -309,7 +311,7 @@ pub const LinearTopology = struct {
                 .linear_curve = .{ 
                     .curve = (
                         try self.curve.project_curve(
-                            ALLOCATOR,
+                            allocator,
                             lin.curve
                         )
                     )[0] 
@@ -408,6 +410,7 @@ pub const BezierTopology = struct {
     //        through a u)
     pub fn project_topology(
         self: @This(),
+        allocator: std.mem.Allocator,
         other: TimeTopology,
         // @TODO: should fill a list of TimeTopology
         // out: *std.ArrayList(TimeTopology),
@@ -417,7 +420,7 @@ pub const BezierTopology = struct {
             .affine => |aff| {
                 const projected_curve = try self.curve.project_affine(
                     aff.transform,
-                    otio_allocator.ALLOCATOR
+                    allocator,
                 );
 
                 return .{
@@ -428,7 +431,7 @@ pub const BezierTopology = struct {
                 .three_point_approx, .two_point_approx => .{
                     .bezier_curve = .{
                         .curve = try self.curve.project_curve(
-                            ALLOCATOR,
+                            allocator,
                             bez.curve
                         )
                     }
@@ -701,6 +704,7 @@ pub const TimeTopology = union (enum) {
     /// topology interface for projection
     pub fn project_topology(
         self: @This(),
+        allocator: std.mem.Allocator,
         other: TimeTopology,
     ) !TimeTopology 
     {
@@ -714,7 +718,7 @@ pub const TimeTopology = union (enum) {
 
         return switch(self) {
             .empty => .{ .empty = .{} },
-            inline else =>|v| v.project_topology(other),
+            inline else =>|v| v.project_topology(allocator, other),
         };
     }
     // @}
@@ -890,9 +894,15 @@ test "TimeTopology: Affine Projected Through infinite Affine"
     const tp_inf = TimeTopology.init_identity_infinite();
 
 
-    const tp_through_tp_inf = try tp_inf.project_topology(tp);
+    const tp_through_tp_inf = try tp_inf.project_topology(
+        std.testing.allocator,
+        tp,
+    );
 
-    const tp_inf_through_tp = try tp.project_topology(tp_inf);
+    const tp_inf_through_tp = try tp.project_topology(
+        std.testing.allocator,
+        tp_inf,
+    );
 
     const expected_bounds = interval.ContinuousTimeInterval{
         .start_seconds = 0,
@@ -970,7 +980,8 @@ test "TimeTopology: Affine through Affine w/ negative scale"
     );
 
     const output_to_media = try intrinsic_to_media.project_topology(
-        output_to_intrinsic
+        std.testing.allocator,
+        output_to_intrinsic,
     );
 
     const TestData = struct {
@@ -1118,7 +1129,11 @@ test "TimeTopology: project bezier through affine"
         // [100, 110)
         // [100, 110)
         //
-        const result = try affine_topo.project_topology(curve_topo);
+        const result = try affine_topo.project_topology(
+            std.testing.allocator,
+            curve_topo
+        );
+        defer result.deinit(std.testing.allocator);
 
         try std.testing.expect(std.meta.activeTag(result) != TimeTopology.empty);
     }
@@ -1133,7 +1148,11 @@ test "TimeTopology: project bezier through affine"
         // [0, 10)
         // [0, 10)
         //
-        const result = try curve_topo.project_topology(affine_topo);
+        const result = try curve_topo.project_topology(
+            std.testing.allocator,
+            affine_topo,
+        );
+        defer result.deinit(std.testing.allocator);
 
         try std.testing.expect(std.meta.activeTag(result) != TimeTopology.empty);
     }

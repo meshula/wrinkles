@@ -186,6 +186,7 @@ pub const ItemPtr = union(enum) {
 
     pub fn build_transform(
         self: @This(),
+        allocator: std.mem.Allocator,
         from_space: SpaceLabel,
         to_space: SpaceReference,
         step: u1
@@ -264,7 +265,8 @@ pub const ItemPtr = union(enum) {
 
                         const output_to_intrinsic = (
                             try post_transform_to_intrinsic.project_topology(
-                                output_to_post_transform
+                                allocator,
+                                output_to_post_transform,
                             )
                         );
 
@@ -289,6 +291,7 @@ pub const ItemPtr = union(enum) {
                         );
 
                         const output_to_media = try intrinsic_to_media.project_topology(
+                            allocator,
                             output_to_intrinsic
                         );
 
@@ -437,6 +440,14 @@ const ProjectionOperator = struct {
     pub fn project_ordinate(self: @This(), ord_to_project: f32) !f32 {
         return self.topology.project_ordinate(ord_to_project);
     }
+
+    pub fn deinit(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        self.topology.deinit(allocator);
+    }
 };
 
 /// Map of a timeline.  Can find transformations through the map.
@@ -486,6 +497,7 @@ const TopologicalMap = struct {
 
     pub fn build_projection_operator(
         self: @This(),
+        allocator: std.mem.Allocator,
         args: ProjectionOperatorArgs,
     ) !ProjectionOperator {
         var source_code = (
@@ -554,16 +566,21 @@ const TopologicalMap = struct {
             }
 
             var next_proj = try current.item.build_transform(
+                allocator,
                 current.label,
                 next,
                 next_step
             );
+            defer next_proj.deinit(allocator);
 
             // transformation spaces:
             // proj:         input   -> current
             // next_proj:    current -> next
             // current_proj: input   -> next
-            const current_proj = try next_proj.project_topology(proj);
+            const current_proj = try next_proj.project_topology(
+                allocator,
+                proj,
+            );
 
             current_code = next_code;
             current = next;
@@ -571,7 +588,7 @@ const TopologicalMap = struct {
         }
 
         if (needs_inversion) {
-            proj = try proj.inverted(otio_allocator.ALLOCATOR);
+            proj = try proj.inverted(allocator);
         }
 
         return .{
@@ -1220,6 +1237,7 @@ test "Track with clip with identity transform projection" {
 
     const clip = tr.child_ptr_from_index(0);
     const track_to_clip = try map.build_projection_operator(
+        std.testing.allocator,
         .{
             .source = try tr.space(SpaceLabel.output),
             .destination =  try clip.space(SpaceLabel.media)
@@ -1294,6 +1312,7 @@ test "PathMap: Track with clip with identity transform topological" {
     try expectEqual(true, path_exists(clip_code, root_code));
 
     const root_output_to_clip_media = try map.build_projection_operator(
+        std.testing.allocator,
         .{
             .source = try root.space(SpaceLabel.output),
             .destination = try clip.space(SpaceLabel.media)
@@ -1339,6 +1358,7 @@ test "Projection: Track with single clip with identity transform and bounds" {
     );
 
     const root_output_to_clip_media = try map.build_projection_operator(
+        std.testing.allocator,
         .{ 
             .source = try root.space(SpaceLabel.output),
             .destination = try clip.space(SpaceLabel.media),
@@ -1407,6 +1427,7 @@ test "Projection: Track with multiple clips with identity transform and bounds" 
         const child = tr.child_ptr_from_index(t.ind);
 
         const tr_output_to_clip_media = try map.build_projection_operator(
+        std.testing.allocator,
             .{
                 .source = try track_ptr.space(SpaceLabel.output),
                 .destination = try child.space(SpaceLabel.media),
@@ -1434,6 +1455,7 @@ test "Projection: Track with multiple clips with identity transform and bounds" 
     const clip = tr.child_ptr_from_index(0);
 
     const root_output_to_clip_media = try map.build_projection_operator(
+        std.testing.allocator,
         .{ 
             .source = try track_ptr.space(SpaceLabel.output),
             .destination = try clip.space(SpaceLabel.media),
@@ -1492,6 +1514,7 @@ test "Single Clip Media to Output Identity transform" {
     // output->media
     {
         const clip_output_to_media = try map.build_projection_operator(
+            std.testing.allocator,
             .{
                 .source =  try cl_ptr.space(SpaceLabel.output),
                 .destination = try cl_ptr.space(SpaceLabel.media),
@@ -1520,6 +1543,7 @@ test "Single Clip Media to Output Identity transform" {
     // media->output
     {
         const clip_output_to_media = try map.build_projection_operator(
+            std.testing.allocator,
             .{
                 .source =  try cl_ptr.space(SpaceLabel.media),
                 .destination = try cl_ptr.space(SpaceLabel.output),
@@ -1567,6 +1591,7 @@ test "Single Clip reverse transform" {
     // output->media (forward projection)
     {
         const clip_output_to_media_topo = try map.build_projection_operator(
+            std.testing.allocator,
             .{
                 .source =  try cl_ptr.space(SpaceLabel.output),
                 .destination = try cl_ptr.space(SpaceLabel.media),
@@ -1595,6 +1620,7 @@ test "Single Clip reverse transform" {
     // media->output (reverse projection)
     {
         const clip_media_to_output = try map.build_projection_operator(
+            std.testing.allocator,
             .{
                 .source =  try cl_ptr.space(SpaceLabel.media),
                 .destination = try cl_ptr.space(SpaceLabel.output),
@@ -1693,6 +1719,7 @@ test "Single Clip bezier transform" {
     // output->media (forward projection)
     {
         const clip_output_to_media_proj = try map.build_projection_operator(
+            std.testing.allocator,
             .{
                 .source =  try cl_ptr.space(SpaceLabel.output),
                 .destination = try cl_ptr.space(SpaceLabel.media),
@@ -1789,11 +1816,13 @@ test "Single Clip bezier transform" {
     // media->output (reverse projection)
     {
         const clip_media_to_output = try map.build_projection_operator(
+            std.testing.allocator,
             .{
                 .source =  try cl_ptr.space(SpaceLabel.media),
                 .destination = try cl_ptr.space(SpaceLabel.output),
             }
         );
+        defer clip_media_to_output.deinit(std.testing.allocator);
 
         try expectApproxEqAbs(
             @as(f32, 6.5745),
@@ -2106,6 +2135,7 @@ test "read_from_file test" {
     defer map.deinit();
 
     const tl_output_to_clip_media = try map.build_projection_operator(
+        std.testing.allocator,
         .{
             .source = try tl_ptr.space(SpaceLabel.output),
             .destination = try target_clip_ptr.space(SpaceLabel.media),
