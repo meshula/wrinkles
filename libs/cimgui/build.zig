@@ -40,16 +40,16 @@ pub fn build(b: *std.Build) void {
 
     // @nick @TODO - this is broken, I copied it from the zgui build.zig and
     //               haven't cleaned it up
-    lib_cimgui.defineCMacro("ZGUI_IMPLOT", "1");
-    lib_cimgui.addCSourceFiles(
-        .{
-            .files = &.{
-                "libs/imgui/implot_demo.cpp",
-                "libs/imgui/implot.cpp",
-                "libs/imgui/implot_items.cpp",
-            },
-        }
-    );
+    // lib_cimgui.defineCMacro("ZGUI_IMPLOT", "0");
+    // lib_cimgui.addCSourceFiles(
+    //     .{
+    //         .files = &.{
+    //             "libs/imgui/implot_demo.cpp",
+    //             "libs/imgui/implot.cpp",
+    //             "libs/imgui/implot_items.cpp",
+    //         },
+    //     }
+    // );
 
     // make cimgui available as artifact, this then allows to inject
     // the Emscripten include path in another build.zig
@@ -57,6 +57,9 @@ pub fn build(b: *std.Build) void {
 
     // lib compilation depends on file tree
     lib_cimgui.step.dependOn(&wf.step);
+
+    // zgui
+
 
     _ = b.addModule("root", .{
         .root_source_file = b.path("src/gui.zig"),
