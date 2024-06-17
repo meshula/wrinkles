@@ -602,10 +602,18 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
         // go up
         curve.Segment{
             .p0 = .{ .time = 1, .value = 1.0 },
-            .p1 = .{ .time = 2, .value = 1.85 },
-            .p2 = .{ .time = 3, .value = 2.5 },
-            .p3 = .{ .time = 4, .value = 2.75 },
+            .p1 = .{ .time = 1.5, .value = 1.25 },
+            .p2 = .{ .time = 2, .value = 1.35 },
+            .p3 = .{ .time = 2.5, .value = 1.5 },
         },
+
+        // longer segment
+        // curve.Segment{
+        //     .p0 = .{ .time = 1, .value = 1.0 },
+        //     .p1 = .{ .time = 2, .value = 1.85 },
+        //     .p2 = .{ .time = 3, .value = 2.5 },
+        //     .p3 = .{ .time = 4, .value = 2.75 },
+        // },
     };
     const cubic_retime_curve : curve.TimeCurve = .{
         .segments = &cubic_retime_curve_segments
@@ -703,17 +711,12 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
         samples_44_p2p_0p25
     );
 
-    if (true)
-    {
-        return error.SkipZigTest;
-    }
-
     // 2x
     const samples_44_p2p_0p5 = try peak_to_peak_distance(
-        samples_44.buffer[11025..33074]
+        samples_44.buffer[(44100+1000)..]
     );
     try expectEqual(
-        882,
+        210,
         samples_44_p2p_0p5
      );
 }
