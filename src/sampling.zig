@@ -293,6 +293,7 @@ pub fn resampled(
     return result;
 }
 
+/// retime in_samples with xform, return a new Sampling at the same rate
 pub fn retimed(
     allocator: std.mem.Allocator,
     in_samples: Sampling,
@@ -344,9 +345,6 @@ pub fn retimed(
             )
         );
 
-        // const output_samples:usize = (
-        //     @intFromFloat(@as(f32, @floatFromInt(input_samples)) / retime_ratio)
-        // );
         output_buffer_size += output_samples;
 
         try retime_specs.append(
@@ -365,7 +363,6 @@ pub fn retimed(
     );
     var output_buffer = full_output_buffer[0..];
 
-    // var src_error = libsamplerate.SRC_ERROR{};
     const src_state = libsamplerate.src_new(
         // converter
         libsamplerate.SRC_SINC_BEST_QUALITY,
@@ -374,7 +371,6 @@ pub fn retimed(
         // error
         null,
     );
-    // @TODO: check src_state validity
 
     var src_data = libsamplerate.SRC_DATA{
         .data_in = @ptrCast(in_samples.buffer.ptr),
@@ -589,12 +585,13 @@ test "retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
 // test 3
 // in curvet, create a set of samples over one rate, then after projection,
 // resample to another rate
-test "retime 48khz samples with a nonlinear acceleration curve and resample" {
+test "retime 48khz samples with a nonlinear acceleration curve and resample" 
+{
     const samples_48 = SineSampleGenerator{
         .sampling_rate_hz = 48000,
         .signal_frequency_hz = 100,
         .signal_amplitude = 1,
-        .signal_duration_s = 2,
+        .signal_duration_s = 4,
     };
     const s48 = try samples_48.rasterized(std.testing.allocator);
     defer s48.deinit();
@@ -604,10 +601,10 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample" {
         curve.Segment.init_identity(0, 1),
         // go up
         curve.Segment{
-            .p0 = .{ .time = 1.00, .value = 1.0 },
-            .p1 = .{ .time = 1.25, .value = 1.20 },
-            .p2 = .{ .time = 1.75, .value = 1.35 },
-            .p3 = .{ .time = 2.00, .value = 1.5 },
+            .p0 = .{ .time = 1, .value = 1.0 },
+            .p1 = .{ .time = 2, .value = 1.85 },
+            .p2 = .{ .time = 3, .value = 2.5 },
+            .p3 = .{ .time = 4, .value = 2.75 },
         },
     };
     const cubic_retime_curve : curve.TimeCurve = .{
@@ -629,16 +626,12 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample" {
         "/var/tmp/ours_s48_retimed_acceleration_cubic.wav"
     );
 
-    if (true)
-    {
-        return error.SkipZigTest;
-    }
-
     // linearize at 24hz
     const retime_curve_extents = cubic_retime_curve.extents_time();
     const inc:sample_t = 1.0/24.0;
 
     var knots = std.ArrayList(curve.ControlPoint).init(std.testing.allocator);
+    defer knots.deinit();
 
     try knots.append(
         .{
