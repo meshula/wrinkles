@@ -12,6 +12,7 @@ const expectEqual = std.testing.expectEqual;
 const EPSILON: f32 = 1.0e-6;
 
 const RETIME_DEBUG_LOGGING = false;
+const WRITE_TEST_FILES = false;
 
 /// alias around the sample type @TODO: make this comptime definable (anytype)
 const sample_t  = f32;
@@ -468,7 +469,9 @@ test "resample from 48khz to 44" {
     const s48 = try samples_48.rasterized(std.testing.allocator);
     defer s48.deinit();
 
-    try s48.write_file("/var/tmp/ours_100hz_48test.wav");
+    if (WRITE_TEST_FILES) {
+        try s48.write_file("/var/tmp/ours_100hz_48test.wav");
+    }
 
     const samples_44 = try resampled(
         std.testing.allocator,
@@ -477,7 +480,9 @@ test "resample from 48khz to 44" {
     );
     defer samples_44.deinit();
 
-    try samples_44.write_file("/var/tmp/ours_100hz_441test.wav");
+    if (WRITE_TEST_FILES) {
+        try samples_44.write_file("/var/tmp/ours_100hz_441test.wav");
+    }
 
     const samples_44_p2pd = try peak_to_peak_distance(samples_44.buffer);
 
@@ -499,6 +504,9 @@ test "retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
     };
     const s48 = try samples_48.rasterized(std.testing.allocator);
     defer s48.deinit();
+    if (WRITE_TEST_FILES) {
+        try s48.write_file("/var/tmp/ours_s48_input.wav");
+    }
 
     //
     //           ident
@@ -546,13 +554,19 @@ test "retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
         retime_curve
     );
     defer samples_48_retimed.deinit();
+    if (WRITE_TEST_FILES) {
+        try samples_48_retimed.write_file("/var/tmp/ours_s48_retimed.wav");
+    }
+
     const samples_44 = try resampled(
         std.testing.allocator,
         samples_48_retimed,
         44100,
     );
     defer samples_44.deinit();
-    try samples_44.write_file("/var/tmp/ours_s44_retimed.wav");
+    if (WRITE_TEST_FILES) {
+        try samples_44.write_file("/var/tmp/ours_s44_retimed.wav");
+    }
 
     // identity
     const samples_44_p2p_0p25 = try peak_to_peak_distance(
@@ -618,11 +632,13 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
     const cubic_retime_curve : curve.TimeCurve = .{
         .segments = &cubic_retime_curve_segments
     };
-    try curve.write_json_file_curve(
-        std.testing.allocator,
-        cubic_retime_curve,
-        "/var/tmp/ours_retime_24hz.linear.json"
-    );
+    if (WRITE_TEST_FILES) {
+        try curve.write_json_file_curve(
+            std.testing.allocator,
+            cubic_retime_curve,
+            "/var/tmp/ours_retime_24hz.linear.json"
+        );
+    }
 
     const samples_48_retimed_cubic = try retimed(
         std.testing.allocator,
@@ -630,9 +646,11 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
         cubic_retime_curve,
     );
     defer samples_48_retimed_cubic.deinit();
-    try samples_48_retimed_cubic.write_file(
-        "/var/tmp/ours_s48_retimed_acceleration_cubic.wav"
-    );
+    if (WRITE_TEST_FILES) {
+        try samples_48_retimed_cubic.write_file(
+            "/var/tmp/ours_s48_retimed_acceleration_cubic.wav"
+        );
+    }
 
     // linearize at 24hz
     const retime_curve_extents = cubic_retime_curve.extents_time();
@@ -673,17 +691,18 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
     );
     defer retime_24hz.deinit(std.testing.allocator);
 
-    try curve.write_json_file_curve(
-        std.testing.allocator,
-        retime_24hz_lin,
-        "/var/tmp/ours_retime_24hz.linear.json"
-    );
-
-    try curve.write_json_file_curve(
-        std.testing.allocator,
-        cubic_retime_curve,
-        "/var/tmp/ours_retime_acceleration.curve.json"
-    );
+    if (WRITE_TEST_FILES) {
+        try curve.write_json_file_curve(
+            std.testing.allocator,
+            retime_24hz_lin,
+            "/var/tmp/ours_retime_24hz.linear.json"
+        );
+        try curve.write_json_file_curve(
+            std.testing.allocator,
+            cubic_retime_curve,
+            "/var/tmp/ours_retime_acceleration.curve.json"
+        );
+    }
 
     const samples_48_retimed = try retimed(
         std.testing.allocator,
@@ -691,16 +710,20 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
         retime_24hz,
     );
     defer samples_48_retimed.deinit();
-    try samples_48_retimed.write_file(
-        "/var/tmp/ours_s48_retimed_acceleration_24.wav"
-    );
+    if (WRITE_TEST_FILES) {
+        try samples_48_retimed.write_file(
+            "/var/tmp/ours_s48_retimed_acceleration_24.wav"
+        );
+    }
     const samples_44 = try resampled(
         std.testing.allocator,
         samples_48_retimed,
         44100,
     );
     defer samples_44.deinit();
-    try samples_44.write_file("/var/tmp/ours_s44_retimed_acceleration_24.wav");
+    if (WRITE_TEST_FILES) {
+        try samples_44.write_file("/var/tmp/ours_s44_retimed_acceleration_24.wav");
+    }
 
     // identity
     const samples_44_p2p_0p25 = try peak_to_peak_distance(
@@ -744,9 +767,6 @@ test "wav.zig generator test (purely their code)" {
     defer _ = gpa.deinit();
     const alloc = gpa.allocator();
 
-    var file = try std.fs.cwd().createFile("/var/tmp/theirs_givemeasine.wav", .{});
-    defer file.close();
-
     const sample_rate: usize = 44100;
     const num_channels: usize = 1;
 
@@ -755,10 +775,15 @@ test "wav.zig generator test (purely their code)" {
 
     generateSine(@as(f32, @floatFromInt(sample_rate)), data);
 
-    // Write out samples as 16-bit PCM int.
-    var encoder = try wav.encoder(i16, file.writer(), file.seekableStream(), sample_rate, num_channels);
-    try encoder.write(f32, data);
-    try encoder.finalize(); // Don't forget to finalize after you're done writing.
+    if (WRITE_TEST_FILES) {
+        var file = try std.fs.cwd().createFile("/var/tmp/theirs_givemeasine.wav", .{});
+        defer file.close();
+
+        // Write out samples as 16-bit PCM int.
+        var encoder = try wav.encoder(i16, file.writer(), file.seekableStream(), sample_rate, num_channels);
+        try encoder.write(f32, data);
+        try encoder.finalize(); // Don't forget to finalize after you're done writing.
+    }
 
 }
 
@@ -772,5 +797,7 @@ test "wav.zig generator test (our code)" {
     const s48 = try samples_48.rasterized(std.testing.allocator);
     defer s48.deinit();
 
-    try s48.write_file("/var/tmp/ours_givemesine.wav");
+    if (WRITE_TEST_FILES) {
+        try s48.write_file("/var/tmp/ours_givemesine.wav");
+    }
 }
