@@ -51,7 +51,10 @@ const Sampling = struct {
         fpath: []const u8
     ) !void 
     {
-        var file = try std.fs.cwd().createFile(fpath, .{});
+        var file = try std.fs.cwd().createFile(
+            fpath,
+            .{}
+        );
         defer file.close();
 
         var encoder = try wav.encoder(
@@ -215,10 +218,14 @@ test "peak_to_peak_distance of sine 48khz"
         .signal_amplitude = 1,
         .signal_duration_s = 1,
     };
-    const s48_100 = try samples_48_100.rasterized(std.testing.allocator);
+    const s48_100 = try samples_48_100.rasterized(
+        std.testing.allocator
+    );
     defer s48_100.deinit();
 
-    const samples_48_100_p2p = try peak_to_peak_distance(s48_100.buffer);
+    const samples_48_100_p2p = try peak_to_peak_distance(
+        s48_100.buffer
+    );
 
     try expectEqual(480, samples_48_100_p2p);
 
@@ -228,7 +235,9 @@ test "peak_to_peak_distance of sine 48khz"
         .signal_amplitude = 1,
         .signal_duration_s = 1,
     };
-    const s48_50 = try samples_48_50.rasterized(std.testing.allocator);
+    const s48_50 = try samples_48_50.rasterized(
+        std.testing.allocator
+    );
     defer s48_50.deinit();
 
     const samples_48_50_p2p = try peak_to_peak_distance(s48_50.buffer);
@@ -241,7 +250,9 @@ test "peak_to_peak_distance of sine 48khz"
         .signal_amplitude = 1,
         .signal_duration_s = 1,
     };
-    const s96_100 = try samples_96_100.rasterized(std.testing.allocator);
+    const s96_100 = try samples_96_100.rasterized(
+        std.testing.allocator
+    );
     defer s96_100.deinit();
 
     const samples_96_100_p2p = try peak_to_peak_distance(s96_100.buffer);
@@ -275,7 +286,10 @@ pub fn resampled(
     const num_output_samples: usize = @as(
         usize, 
         @intFromFloat(
-            @floor(@as(f64, @floatFromInt(in_samples.buffer.len)) * resample_ratio)
+            @floor(
+                @as(f64, @floatFromInt(in_samples.buffer.len)) 
+                * resample_ratio
+            )
         )
     );
 
