@@ -11,6 +11,8 @@ const expectEqual = std.testing.expectEqual;
 // @TODO : move to util maybe?
 const EPSILON: f32 = 1.0e-6;
 
+const RETIME_DEBUG_LOGGING = false;
+
 /// alias around the sample type @TODO: make this comptime definable (anytype)
 const sample_t  = f32;
 
@@ -357,15 +359,19 @@ pub fn retimed(
         );
     }
 
-    const output_buffer = try allocator.alloc(
+    const full_output_buffer = try allocator.alloc(
         sample_t,
         output_buffer_size
     );
+    var output_buffer = full_output_buffer[0..];
 
     // var src_error = libsamplerate.SRC_ERROR{};
     const src_state = libsamplerate.src_new(
+        // converter
         libsamplerate.SRC_SINC_BEST_QUALITY,
+        // channels
         1,
+        // error
         null,
     );
     // @TODO: check src_state validity
@@ -380,53 +386,76 @@ pub fn retimed(
         .end_of_input = 0,
     };
 
-    var next_start : usize = 0;
+    if (RETIME_DEBUG_LOGGING) {
+        std.debug.print(" \n\n----- retime info dump -----\n", .{});
+    }
 
-    std.debug.print(" \n\n----- retime info dump -----\n", .{});
+    var input_retime_samples = in_samples.buffer[0..];
 
-    for (retime_specs.items)
-        |spec|
+    var retime_index:usize = 0;
+    while (retime_index < retime_specs.items.len)
     {
+        // setup this chunk
+        var spec = &retime_specs.items[retime_index];
         src_data.src_ratio = spec.retime_ratio;
-        src_data.input_frames = @intCast(spec.input_samples);
+        src_data.input_frames = @intCast(input_retime_samples.len);
         src_data.output_frames = @intCast(spec.output_samples);
-        src_data.data_in = @ptrCast(spec.input_data);
+        _ = libsamplerate.src_set_ratio(src_state, spec.retime_ratio);
 
-        const out_end = next_start + spec.output_samples;
+        if (retime_index == retime_specs.items.len - 1)
+        {
+            src_data.end_of_input = 1;
+        }
 
-        src_data.data_out = @ptrCast(
-            output_buffer[next_start..out_end]
-        );
-
+        // process the chunk
         const lsr_error = libsamplerate.src_process(src_state, &src_data);
         if (lsr_error != 0) {
             return error.LibSampleRateError;
         }
 
-        std.debug.print(
-            "provided: {d} requested: {d} used: {d} generated: {d} ",
-            .{
-                src_data.input_frames,
-                src_data.output_frames,
-                src_data.input_frames_used,
-                src_data.output_frames_gen,
-            }
-        );
-        std.debug.print(
-            "ratio: {d}\n",
-            .{
-                src_data.src_ratio,
-            }
-        );
+        if (RETIME_DEBUG_LOGGING) {
+            std.debug.print(
+                "in provided: {d} in used: {d} out requested: {d} out generated: {d} ",
+                .{
+                    src_data.input_frames,
+                    src_data.input_frames_used,
+                    src_data.output_frames,
+                    src_data.output_frames_gen,
+                }
+            );
+            std.debug.print(
+                "ratio: {d}\n",
+                .{
+                    src_data.src_ratio,
+                }
+            );
+        }
 
-        next_start += @intCast(src_data.output_frames_gen);
+        // slide buffers forward
+        input_retime_samples = input_retime_samples[
+            @intCast(src_data.input_frames_used)..
+        ];
+        src_data.data_in = @ptrCast(input_retime_samples.ptr);
+        output_buffer = output_buffer[@intCast(src_data.output_frames_gen)..];
+        src_data.data_out = @ptrCast(output_buffer.ptr);
+
+        // if its time to advance to the next chunk
+        if (src_data.output_frames == 0)
+        {
+            retime_index += 1;
+        }
+        else
+        {
+            // slide buffers forward
+            spec.output_samples -= @intCast(src_data.output_frames_gen);
+        }
     }
 
     _ = libsamplerate.src_delete(src_state);
 
     return Sampling{
         .allocator = allocator,
-        .buffer = output_buffer,
+        .buffer = full_output_buffer,
         .sample_rate_hz = in_samples.sample_rate_hz,
     };
 }
