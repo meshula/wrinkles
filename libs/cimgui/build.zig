@@ -40,16 +40,6 @@ pub fn build(b: *std.Build) void {
 
     // @nick @TODO - this is broken, I copied it from the zgui build.zig and
     //               haven't cleaned it up
-    // lib_cimgui.defineCMacro("ZGUI_IMPLOT", "0");
-    // lib_cimgui.addCSourceFiles(
-    //     .{
-    //         .files = &.{
-    //             "libs/imgui/implot_demo.cpp",
-    //             "libs/imgui/implot.cpp",
-    //             "libs/imgui/implot_items.cpp",
-    //         },
-    //     }
-    // );
 
     // make cimgui available as artifact, this then allows to inject
     // the Emscripten include path in another build.zig
@@ -69,6 +59,19 @@ pub fn build(b: *std.Build) void {
     );
     lib_zgui.linkLibCpp();
     lib_zgui.linkLibrary(lib_cimgui);
+    lib_zgui.addIncludePath(
+         dep_imgui.path("")
+    );
+    lib_zgui.addCSourceFiles(
+        .{
+            .files = &.{
+                "src/implot_demo.cpp",
+                "src/implot.cpp",
+                "src/implot_items.cpp",
+            },
+        }
+    );
+    lib_zgui.defineCMacro("ZGUI_IMPLOT", "1");
     // lib_cimgui.addIncludePath(
     //      dep_imgui.path("")
     // );
@@ -94,7 +97,17 @@ pub fn build(b: *std.Build) void {
             // },
         }
     );
-    zgui.linkLibrary(lib_zgui);
+    const zplot = b.addModule(
+        "zplot",
+        .{
+            .root_source_file = b.path("src/plot.zig"),
+            // .imports = &.{
+            //     .{ .name = "zgui_options", .module = options_module },
+            // },
+        }
+    );
+    zgui.addImport("plot", zplot);
+    zplot.linkLibrary(lib_zgui);
 
     // translate-c the cimgui.h file
     // NOTE: always run this with the host target, that way we don't need to inject

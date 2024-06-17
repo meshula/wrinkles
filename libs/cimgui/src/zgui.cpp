@@ -728,9 +728,9 @@ ZGUI_API bool zguiSliderAngle(
     return ImGui::SliderAngle(label, v_rad, v_degrees_min, v_degrees_max, format, flags);
 }
 
-ZGUI_API ImGuiInputTextCallbackData zguiInputTextCallbackData_Init(void) {
-    return ImGuiInputTextCallbackData();
-}
+// ZGUI_API ImGuiInputTextCallbackData zguiInputTextCallbackData_Init(void) {
+//     return ImGuiInputTextCallbackData();
+// }
 
 ZGUI_API void zguiInputTextCallbackData_DeleteChars(
     ImGuiInputTextCallbackData* data,
@@ -1078,9 +1078,9 @@ ZGUI_API ImGuiStyle* zguiGetStyle(void) {
     return &ImGui::GetStyle();
 }
 
-ZGUI_API ImGuiStyle zguiStyle_Init(void) {
-    return ImGuiStyle();
-}
+// ZGUI_API ImGuiStyle zguiStyle_Init(void) {
+//     return ImGuiStyle();
+// }
 
 ZGUI_API void zguiStyle_ScaleAllSizes(ImGuiStyle* style, float scale_factor) {
     style->ScaleAllSizes(scale_factor);
@@ -1281,9 +1281,9 @@ ZGUI_API ImFont* zguiIoAddFontFromMemory(void* font_data, int font_size, float s
     return ImGui::GetIO().Fonts->AddFontFromMemoryTTF(font_data, font_size, size_pixels, &config, nullptr);
 }
 
-ZGUI_API ImFontConfig zguiFontConfig_Init(void) {
-    return ImFontConfig();
-}
+// ZGUI_API ImFontConfig zguiFontConfig_Init(void) {
+//     return ImFontConfig();
+// }
 
 ZGUI_API ImFont* zguiIoGetFont(unsigned int index) {
     return ImGui::GetIO().Fonts->Fonts[index];
@@ -2237,9 +2237,9 @@ ZGUI_API ImGuiID zguiDockSpace(const char* str_id, float size[2], ImGuiDockNodeF
     return ImGui::DockSpace(ImGui::GetID(str_id), {size[0], size[1]}, flags);
 }
 
-ZGUI_API ImGuiID zguiDockSpaceOverViewport(const ImGuiViewport* viewport, ImGuiDockNodeFlags dockspace_flags) {
-    return ImGui::DockSpaceOverViewport(viewport, dockspace_flags);
-}
+// ZGUI_API ImGuiID zguiDockSpaceOverViewport(const ImGuiViewport* viewport, ImGuiDockNodeFlags dockspace_flags) {
+//     return ImGui::DockSpaceOverViewport(viewport, dockspace_flags);
+// }
 
 
 //--------------------------------------------------------------------------------------------------
