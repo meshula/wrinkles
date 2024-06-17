@@ -277,6 +277,7 @@ pub fn executable(
 
         exe.root_module.addImport("sokol", dep_sokol.module("sokol"));
         exe.root_module.addImport("cimgui", dep_cimgui.module("cimgui"));
+        exe.root_module.addImport("zgui", dep_cimgui.module("zgui"));
 
         // from here on different handling for native vs wasm builds
         // if (options.target.result.isWasm()) {

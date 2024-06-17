@@ -10,6 +10,8 @@ const sapp = sokol.app;
 const sglue = sokol.glue;
 const simgui = sokol.imgui;
 
+const zgui = @import("zgui");
+
 const build_options = @import("build_options");
 const content_dir = build_options.curvet_content_dir;
 
@@ -43,9 +45,9 @@ const DebugBezierFlags = struct {
         name: [:0]const u8
     ) void 
     {
-        if (ig.treeNodeFlags(name, .{ .default_open = true })) 
+        if (zgui.treeNodeFlags(name, .{ .default_open = true })) 
         {
-            defer ig.treePop();
+            defer zgui.treePop();
             const fields = .{
                 .{ "Draw Bezier Curves", "bezier"},
                 .{ "Draw Knots", "knots"},
@@ -61,20 +63,20 @@ const DebugBezierFlags = struct {
                 .{ "Show Derivatives (hodograph d/du)", "derivatives_hodo_ddu" },
             };
 
-            ig.pushStrId(name);
+            zgui.pushStrId(name);
 
             inline for (fields) 
                 |field| 
             {
                 // unpack into a bool type
                 var c_value:bool = @field(self, field[1]);
-                _ = ig.checkbox(field[0], .{ .v = &c_value,});
-                // pack back into the aligned field
+                _ = zgui.checkbox(field[0], .{ .v = &c_value,});
+                // pack back into the alzguined field
                 @field(self, field[1]) = c_value;
 
             }
 
-            _ = ig.sliderFloat(
+            _ = zgui.sliderFloat(
                 "sample point",
                 .{
                     .v = &self.sample_point,
@@ -83,7 +85,7 @@ const DebugBezierFlags = struct {
                 },
             );
 
-            ig.popId();
+            zgui.popId();
         }
     }
 };
@@ -92,20 +94,20 @@ const two_point_approx_flags = struct {
     result_curves: DebugBezierFlags = .{ .bezier = true },
 
     pub fn draw_ui(self: *@This(), name: [:0]const u8) void {
-        if (ig.treeNode(name)) 
+        if (zgui.treeNode(name)) 
         {
-            defer ig.treePop();
+            defer zgui.treePop();
 
             self.result_curves.draw_ui("result of two point approximation");
 
             // const fields = .{
             // };
             //
-            // if (ig.treeNode("two Point Approx internals")) 
+            // if (zgui.treeNode("two Point Approx internals")) 
             // {
-            //     defer ig.treePop();
+            //     defer zgui.treePop();
             //     inline for (fields) |field| {
-            //         _ = ig.checkbox(field, .{ .v = & @field(self, field) });
+            //         _ = zgui.checkbox(field, .{ .v = & @field(self, field) });
             //     }
             // }
         }
@@ -131,9 +133,9 @@ const tpa_flags = struct {
     u_1: bool = false,
 
     pub fn draw_ui(self: *@This(), name: [:0]const u8) void {
-        if (ig.treeNode(name)) 
+        if (zgui.treeNode(name)) 
         {
-            defer ig.treePop();
+            defer zgui.treePop();
             self.result_curves.draw_ui("result of three point approx");
 
             const fields = .{
@@ -154,11 +156,11 @@ const tpa_flags = struct {
                 "u_1",
             };
 
-            if (ig.treeNode("Three Point Approx internals")) 
+            if (zgui.treeNode("Three Point Approx internals")) 
             {
-                defer ig.treePop();
+                defer zgui.treePop();
                 inline for (fields) |field| {
-                    _ = ig.checkbox(field, .{ .v = & @field(self, field) });
+                    _ = zgui.checkbox(field, .{ .v = & @field(self, field) });
                 }
             }
         }
@@ -176,12 +178,12 @@ const DebugDrawCurveFlags = struct {
     two_point_approx: two_point_approx_flags = .{},
 
     pub fn draw_ui(self: *@This(), name: []const u8) void {
-        ig.pushStrId(name);
+        zgui.pushStrId(name);
         self.input_curve.draw_ui("input_curve");
         self.split_critical_points.draw_ui("split on critical points");
         self.three_point_approximation.draw_ui("three point approximation");
         self.two_point_approx.draw_ui("two point approximation");
-        ig.popId();
+        zgui.popId();
     }
 };
 
@@ -443,7 +445,7 @@ export fn frame() void
     );
 
     //=== UI CODE STARTS HERE
-    try update(&STATE, ALLOCATOR);
+    update(&STATE, ALLOCATOR) catch unreachable;
 
     // create a new ImGui window and set it up as the main docking window. This
     // will create a new docking space and set it as the main docking space.
@@ -663,7 +665,7 @@ fn plot_cp_line(
         y.* = p.value;
     }
 
-    ig.plot.plotLine(
+    zgui.plot.plotLine(
         label,
         f32,
         .{ .xv = xv, .yv = yv }
@@ -677,8 +679,8 @@ fn plot_point(
     size: f32,
 ) void
 {
-    ig.plot.pushStyleVar1f(.{ .idx = .marker_size, .v = size });
-    _ = ig.plot.plotScatter(
+    zgui.plot.pushStyleVar1f(.{ .idx = .marker_size, .v = size });
+    _ = zgui.plot.plotScatter(
         full_label,
         f32,
         .{
@@ -686,7 +688,7 @@ fn plot_point(
             .yv = &.{pt.value},
         }
     );
-    ig.plot.plotText(
+    zgui.plot.plotText(
         short_label,
         .{
             .x = pt.time,
@@ -694,7 +696,7 @@ fn plot_point(
             .pix_offset = .{ 0, size * 1.75 },
         }
     );
-    ig.plot.popStyleVar(.{ .count = 1 });
+    zgui.plot.popStyleVar(.{ .count = 1 });
 }
 
 fn plot_knots(
@@ -726,8 +728,8 @@ fn plot_knots(
             knots_yv[knot_ind] = knot.value;
         }
 
-        ig.plot.pushStyleVar1f(.{ .idx = .marker_size, .v = 30 });
-        ig.plot.plotScatter(
+        zgui.plot.pushStyleVar1f(.{ .idx = .marker_size, .v = 30 });
+        zgui.plot.plotScatter(
             name_,
             f32,
             .{
@@ -738,13 +740,13 @@ fn plot_knots(
 
         for (endpoints, 0..) |pt, pt_ind| {
             const label = try std.fmt.bufPrintZ(&buf, "{d}", .{ pt_ind });
-            ig.plot.plotText(
+            zgui.plot.plotText(
                 label,
                 .{ .x = pt.time, .y = pt.value, .pix_offset = .{ 0, 45 } }
             );
         }
 
-        ig.plot.popStyleVar(.{ .count = 1 });
+        zgui.plot.popStyleVar(.{ .count = 1 });
     }
 }
 
@@ -769,7 +771,7 @@ fn plot_control_points(
         const knots_yv = try allocator.alloc(f32, 4 * hod.segments.len);
         defer allocator.free(knots_yv);
 
-        ig.pushStrId(name_);
+        zgui.pushStrId(name_);
         for (hod.segments, 0..) |seg, seg_ind| {
             for (seg.points(), 0..) |pt, pt_ind| {
                 knots_xv[seg_ind * 4 + pt_ind] = pt.time;
@@ -779,15 +781,15 @@ fn plot_control_points(
                     "{d}.{d}: ({d:0.2}, {d:0.2})",
                     .{ seg_ind, pt_ind, pt.time, pt.value },
                 );
-                ig.plot.plotText(
+                zgui.plot.plotText(
                     pt_text,
                     .{.x = pt.time, .y = pt.value, .pix_offset = .{0, 36}} 
                 );
             }
         }
-        ig.popId();
+        zgui.popId();
         
-        ig.plot.plotLine(
+        zgui.plot.plotLine(
             name_,
             f32,
             .{
@@ -796,8 +798,8 @@ fn plot_control_points(
             }
         );
 
-        ig.plot.pushStyleVar1f(.{ .idx = .marker_size, .v = 20 });
-        ig.plot.plotScatter(
+        zgui.plot.pushStyleVar1f(.{ .idx = .marker_size, .v = 20 });
+        zgui.plot.plotScatter(
             name_,
             f32,
             .{
@@ -805,7 +807,7 @@ fn plot_control_points(
                 .yv = knots_yv,
             }
         );
-        ig.plot.popStyleVar(.{ .count = 1 });
+        zgui.plot.popStyleVar(.{ .count = 1 });
     }
 }
 
@@ -834,7 +836,7 @@ fn plot_linear_curve(
         .{ name, lin.knots.len }
     );
 
-    ig.plot.plotLine(
+    zgui.plot.plotLine(
         label,
         f32,
         .{ .xv = xv, .yv = yv }
@@ -874,7 +876,7 @@ fn plot_editable_bezier_curve(
         inline for (0..4) |idx| {
             std.hash.autoHash(&hasher, idx);
 
-            _ = ig.plot.dragPoint(
+            _ = zgui.plot.dragPoint(
                 @truncate(@as(i65, @intCast(hasher.final()))),
                 .{ 
                     .x = &times[idx],
@@ -915,7 +917,7 @@ fn plot_bezier_curve(
     );
 
     if (flags.bezier) {
-        ig.plot.plotLine(
+        zgui.plot.plotLine(
             label,
             f32,
             .{ .xv = &pts.xv, .yv = &pts.yv }
@@ -973,7 +975,7 @@ fn plot_bezier_curve(
                 yv[0] = crv_extents[0].value;
                 yv[1] = pt.r.value;
 
-                ig.plot.plotLine(
+                zgui.plot.plotLine(
                     findu_label,
                     f32,
                     .{ .xv = &xv, .yv = &yv }
@@ -1024,7 +1026,7 @@ fn plot_bezier_curve(
                         d_du.r.value + d_du.i.value,
                     };
 
-                    ig.plot.plotLine(
+                    zgui.plot.plotLine(
                         deriv_label_ddu,
                         f32,
                         .{ .xv = &xv, .yv = &yv }
@@ -1044,7 +1046,7 @@ fn plot_bezier_curve(
                         d_dx.r.value + d_dx.i.value,
                     };
 
-                    ig.plot.plotLine(
+                    zgui.plot.plotLine(
                         deriv_label_dydx,
                         f32,
                         .{ .xv = &xv, .yv = &yv }
@@ -1073,7 +1075,7 @@ fn plot_bezier_curve(
                         d_du.r.value + hodo_d_du.y,
                     };
 
-                    ig.plot.plotLine(
+                    zgui.plot.plotLine(
                         deriv_label_hodo_ddu,
                         f32,
                         .{ .xv = &xv, .yv = &yv }
@@ -1116,7 +1118,7 @@ fn plot_bezier_curve(
                         d_dx.r.value + d_dx.i.value,
                     };
 
-                    ig.plot.plotLine(
+                    zgui.plot.plotLine(
                         deriv_label_isect,
                         f32,
                         .{ .xv = &xv, .yv = &yv }
@@ -1157,7 +1159,7 @@ fn plot_bezier_curve(
                     d_dx.r.value + d_dx.i.value,
                 };
 
-                ig.plot.plotLine(
+                zgui.plot.plotLine(
                     decastlejau_label,
                     f32,
                     .{ .xv = &xv, .yv = &yv }
@@ -1183,7 +1185,7 @@ fn plot_bezier_curve(
                         I2.value,
                         I3.value,
                     };
-                    ig.plot.plotLine(
+                    zgui.plot.plotLine(
                         decastlejau_label,
                         f32,
                         .{ .xv = &xv, .yv = &yv }
@@ -1202,7 +1204,7 @@ fn plot_bezier_curve(
                         e1.value,
                         e2.value,
                     };
-                    ig.plot.plotLine(
+                    zgui.plot.plotLine(
                         decastlejau_label,
                         f32,
                         .{ .xv = &xv, .yv = &yv }
@@ -1259,7 +1261,7 @@ fn plot_tpa_guts(
             "A->C length {d}\nt: {d}",
             .{ baseline_len, guts.t.? }
         );
-        ig.plot.plotText(
+        zgui.plot.plotText(
             label,
             .{ 
                 .x = guts.A.?.time, 
@@ -1273,7 +1275,7 @@ fn plot_tpa_guts(
         try plot_cp_line("start->end", &.{guts.start.?, guts.end.?}, allocator);
         const baseline_len = guts.start.?.distance(guts.end.?);
         const label = try std.fmt.bufPrintZ(&buf, "start->end length: {d}", .{ baseline_len });
-        ig.plot.plotText(
+        zgui.plot.plotText(
             label,
             .{ 
                 .x = guts.start.?.time, 
@@ -1296,7 +1298,7 @@ fn plot_tpa_guts(
             .{ name }
         );
 
-        ig.plot.plotLine(
+        zgui.plot.plotLine(
             label,
             f32,
             .{ .xv = xv, .yv = yv }
@@ -1318,7 +1320,7 @@ fn plot_tpa_guts(
             .{ name }
         );
 
-        ig.plot.plotLine(
+        zgui.plot.plotLine(
             label,
             f32,
             .{ .xv = xv, .yv = yv }
@@ -1341,7 +1343,7 @@ fn plot_tpa_guts(
             .{ name }
         );
 
-        ig.plot.plotLine(
+        zgui.plot.plotLine(
             label,
             f32,
             .{ .xv = xv, .yv = yv }
@@ -1357,7 +1359,7 @@ fn plot_tpa_guts(
                 "d/dt: ({d:0.6}, {d:0.6}) len: {d:0.4}",
                 .{d.time, d.value, e1.distance(guts.midpoint.?) },
             );
-            ig.plot.plotText(
+            zgui.plot.plotText(
                 d_label,
                 .{ 
                     .x = e1.time, 
@@ -1382,7 +1384,7 @@ fn plot_tpa_guts(
             .{ name }
         );
 
-        ig.plot.plotLine(
+        zgui.plot.plotLine(
             label,
             f32,
             .{ .xv = xv, .yv = yv }
@@ -1406,7 +1408,7 @@ fn plot_tpa_guts(
             .{ name }
         );
 
-        // ig.plot.plotLine(
+        // zgui.plot.plotLine(
         //     label,
         //     f32,
         //     .{ .xv = xv, .yv = yv }
@@ -1524,8 +1526,8 @@ fn plot_three_point_approx(
             .{ name, u }
         );
 
-        ig.pushStrId(label);
-        defer ig.popId();
+        zgui.pushStrId(label);
+        defer zgui.popId();
 
         approx_segments.clearAndFree();
 
@@ -1693,10 +1695,10 @@ fn update(
     }
 
     const width:f32 = @floatFromInt(sapp.width());
-    // const height:f32 = @floatFromInt(sapp.height());
+    // const hezguiht:f32 = @floatFromInt(sapp.hezguiht());
 
     // FPS/status line
-    // ig.bulletText(
+    // zgui.bulletText(
     //     "Average : {d:.3} ms/frame ({d:.1} fps)",
     //     .{ gfx_state.gctx.stats.average_cpu_time, gfx_state.gctx.stats.fps },
     // );
@@ -1706,10 +1708,10 @@ fn update(
     @memset(&tmp_buf, 0);
 
     {
-        if (ig.beginChild("Plot", .{ .w = width - 600 }))
+        if (zgui.beginChild("Plot", .{ .w = width - 600 }))
         {
 
-            if (ig.plot.beginPlot(
+            if (zgui.plot.beginPlot(
                     "Curve Plot",
                     .{ 
                         .h = -1.0,
@@ -1718,16 +1720,16 @@ fn update(
                 )
             ) 
             {
-                ig.plot.setupAxis(.x1, .{ .label = "input" });
-                ig.plot.setupAxis(.y1, .{ .label = "output" });
-                ig.plot.setupLegend(
+                zgui.plot.setupAxis(.x1, .{ .label = "input" });
+                zgui.plot.setupAxis(.y1, .{ .label = "output" });
+                zgui.plot.setupLegend(
                     .{ 
                         .south = true,
                         .west = true 
                     },
                     .{}
                 );
-                ig.plot.setupFinish();
+                zgui.plot.setupFinish();
                 for (state.operations.items, 0..) 
                     |*visop, op_index| 
                 {
@@ -1765,14 +1767,14 @@ fn update(
                                 CURVE_SAMPLE_COUNT
                             );
 
-                            ig.plot.plotLine(
+                            zgui.plot.plotLine(
                                 "result [bezier]",
                                 f32,
                                 .{ .xv = &pts.xv, .yv = &pts.yv }
                             );
                         },
                         .affine =>  {
-                            ig.plot.plotLine(
+                            zgui.plot.plotLine(
                                 "NO RESULT: AFFINE",
                                 f32,
                                 .{ 
@@ -1782,7 +1784,7 @@ fn update(
                             );
                         },
                         .empty => {
-                            ig.plot.plotLine(
+                            zgui.plot.plotLine(
                                 "EMPTY RESULT",
                                 f32,
                                 .{ 
@@ -1874,11 +1876,11 @@ fn update(
                 //         allocator
                 //     );
                 //
-                //     // ig.text("Segments to project through indices: ", .{});
+                //     // zgui.text("Segments to project through indices: ", .{});
                 //     // for (
                 //     //     result_guts.segments_to_project_through.?
                 //     // ) |ind| {
-                //     //     ig.text("{d}", .{ ind });
+                //     //     zgui.text("{d}", .{ ind });
                 //     // }
                 //
                 //     try plot_bezier_curve(
@@ -1958,7 +1960,7 @@ fn update(
                 //                 const xv = &.{ p1.time,  midpoint.time,  p2.time };
                 //                 const yv = &.{ p1.value, midpoint.value, p2.value };
                 //
-                //                 ig.plot.plotLine(
+                //                 zgui.plot.plotLine(
                 //                     d_name,
                 //                     f32,
                 //                     .{ .xv = xv, .yv = yv }
@@ -1969,7 +1971,7 @@ fn update(
                 //                         "d/dt: ({d:0.6}, {d:0.6})",
                 //                         .{d.time, d.value},
                 //                     );
-                //                     ig.plot.plotText(
+                //                     zgui.plot.plotText(
                 //                         label,
                 //                         .{ 
                 //                             .x = p1.time, 
@@ -1983,45 +1985,45 @@ fn update(
                 //     }
                 // }
 
-                ig.plot.endPlot();
+                zgui.plot.endPlot();
             }
         }
-        defer ig.endChild();
+        defer zgui.endChild();
     }
 
-    ig.sameLine(.{});
+    zgui.sameLine(.{});
 
     {
         if (
-            ig.beginChild(
+            zgui.beginChild(
                 "Settings",
                 .{ 
                     .w = 600,
-                    .window_flags = ig.WindowFlags{ .no_scrollbar = false} 
+                    .window_flags = zgui.WindowFlags{ .no_scrollbar = false} 
                 }
             )
         ) 
         {
-            _ = ig.checkbox(
-                "Show ig Demo Windows",
+            _ = zgui.checkbox(
+                "Show zgui Demo Windows",
                 .{ .v = &state.show_demo }
             );
-            _ = ig.checkbox(
+            _ = zgui.checkbox(
                 "Show Projection Test Curves",
                 .{ .v = &state.show_test_curves }
             );
-            _ = ig.checkbox(
+            _ = zgui.checkbox(
                 "Show Projection Result",
                 .{ .v = &state.show_projection_result }
             );
 
-            if (ig.treeNode("Projection Algorithm Debug Switches")) 
+            if (zgui.treeNode("Projection Algorithm Debug Switches")) 
             {
-                defer ig.treePop();
+                defer zgui.treePop();
 
                 const bcrv = curve.bezier_curve;
-                ig.text("U value: {d}", .{ bcrv.u_val_of_midpoint });
-                _ = ig.sliderFloat(
+                zgui.text("U value: {d}", .{ bcrv.u_val_of_midpoint });
+                _ = zgui.sliderFloat(
                     "U Value",
                     .{
                         .min = 0,
@@ -2029,8 +2031,8 @@ fn update(
                         .v = &bcrv.u_val_of_midpoint 
                     }
                 );
-                ig.text("fudge: {d}", .{ bcrv.fudge });
-                _ = ig.sliderFloat(
+                zgui.text("fudge: {d}", .{ bcrv.fudge });
+                _ = zgui.sliderFloat(
                     "scale e1/e2 fudge factor",
                     .{ 
                         .min = 0.1,
@@ -2039,16 +2041,16 @@ fn update(
                     }
                 );
 
-                _ = ig.comboFromEnum(
+                _ = zgui.comboFromEnum(
                     "Projection Algorithm",
                     &bcrv.project_algo
                 );
             }
 
 
-            if (state.show_test_curves and ig.treeNode("Test Curve Settings"))
+            if (state.show_test_curves and zgui.treeNode("Test Curve Settings"))
             {
-                defer ig.treePop();
+                defer zgui.treePop();
 
                 {
                     var guts = state.show_projection_result_guts;
@@ -2059,9 +2061,9 @@ fn update(
                     guts.to_project.draw_ui("segments in other to project");
                 }
 
-                if (ig.treeNode("Derivative Debug Info"))
+                if (zgui.treeNode("Derivative Debug Info"))
                 {
-                    defer ig.treePop();
+                    defer zgui.treePop();
                     const derivs = .{
                         .{"f_prime_of_g_of_t", "Show Derivative of self at midpoint"},
                         .{"g_prime_of_t", "Show derivative of other at midpoint"},
@@ -2072,7 +2074,7 @@ fn update(
                     inline for (derivs) 
                         |d_info| 
                     {
-                        _ = ig.checkbox(
+                        _ = zgui.checkbox(
                             d_info[1],
                             .{ .v = &@field(state,d_info[0]) }
                         );
@@ -2101,49 +2103,49 @@ fn update(
                             .{ crv.fpath }
                         );
 
-                        ig.pushPtrId(@ptrCast(crv));
-                        defer ig.popId();
+                        zgui.pushPtrId(@ptrCast(crv));
+                        defer zgui.popId();
                         if (
-                            ig.treeNodeFlags(
+                            zgui.treeNodeFlags(
                                 top_label,
                                 .{ .default_open = true }
                             )
                         )
                         {
-                            defer ig.treePop();
+                            defer zgui.treePop();
 
-                            ig.pushPtrId(&crv.active);
-                            defer ig.popId();
+                            zgui.pushPtrId(&crv.active);
+                            defer zgui.popId();
 
                             // debug flags
-                            _ = ig.checkbox(
+                            _ = zgui.checkbox(
                                 "Active In Projections",
                                 .{.v = &crv.active}
                             );
-                            _ = ig.checkbox(
+                            _ = zgui.checkbox(
                                 "Editable",
                                 .{.v = &crv.editable}
                             );
 
                             if (
-                                ig.treeNodeFlags(
+                                zgui.treeNodeFlags(
                                     "Draw Flags",
                                     .{ .default_open = true }
                                 )
                             ) {
-                                defer ig.treePop();
+                                defer zgui.treePop();
 
                                 crv.draw_flags.draw_ui(crv.fpath);
                             }
 
-                            if (ig.treeNode("Debug Data"))
+                            if (zgui.treeNode("Debug Data"))
                             {
-                                defer ig.treePop();
+                                defer zgui.treePop();
 
                                 for (crv.curve.segments, 0..)
                                     |seg, ind|
                                 {
-                                    ig.bulletText(
+                                    zgui.bulletText(
                                         "Measured Order [time]: {d}",
                                         .{ 
                                             try curve.bezier_math.actual_order(
@@ -2155,7 +2157,7 @@ fn update(
                                         },
                                     );
 
-                                    ig.bulletText(
+                                    zgui.bulletText(
                                         "Measured Order [value]: {d}",
                                         .{ 
                                             try curve.bezier_math.actual_order(
@@ -2172,21 +2174,21 @@ fn update(
                                         const d_p0 = seg.eval_at_input_dual(
                                             seg.p0.time
                                         );
-                                        ig.bulletText(
+                                        zgui.bulletText(
                                             "[Seg: {}] dy/dx at p0: {}",
                                             .{
                                                 ind,
                                                 d_p0.i.time,
                                             },
                                         );
-                                        ig.bulletText(
+                                        zgui.bulletText(
                                             "[Seg: {}] p1-p0: {}",
                                             .{
                                                 ind,
                                                 seg.p1.time - seg.p0.time,
                                             },
                                         );
-                                        ig.bulletText(
+                                        zgui.bulletText(
                                             "[Seg: {}] (dy/dx) / (p1-p0): {}",
                                             .{
                                                 ind,
@@ -2203,21 +2205,21 @@ fn update(
                                         const d_p3 = seg.eval_at_input_dual(
                                             seg.p3.time
                                         );
-                                        ig.bulletText(
+                                        zgui.bulletText(
                                             "[Seg: {}] dy/dx at p3: {}",
                                             .{
                                                 ind,
                                                 d_p3.i.time,
                                             },
                                         );
-                                        ig.bulletText(
+                                        zgui.bulletText(
                                             "[Seg: {}] p3-p2: {}",
                                             .{
                                                 ind,
                                                 seg.p3.time - seg.p2.time,
                                             },
                                         );
-                                        ig.bulletText(
+                                        zgui.bulletText(
                                             "[Seg: {}] (dy/dx) / (p3-p2): {}",
                                             .{
                                                 ind,
@@ -2231,21 +2233,21 @@ fn update(
                                         const d_p0 = seg.eval_at_dual(
                                             .{ .r = 0, .i = 1.0}
                                         );
-                                        ig.bulletText(
+                                        zgui.bulletText(
                                             "[Seg: {}] dy/du at p0: {}",
                                             .{
                                                 ind,
                                                 d_p0.i.time,
                                             },
                                         );
-                                        ig.bulletText(
+                                        zgui.bulletText(
                                             "[Seg: {}] p1-p0: {}",
                                             .{
                                                 ind,
                                                 seg.p1.time - seg.p0.time,
                                             },
                                         );
-                                        ig.bulletText(
+                                        zgui.bulletText(
                                             "[Seg: {}] (dy/du) / (p1-p0): {}",
                                             .{
                                                 ind,
@@ -2258,21 +2260,21 @@ fn update(
                                         const d_p3 = seg.eval_at_dual(
                                             .{ .r = 1.0, .i = 1.0 }
                                         );
-                                        ig.bulletText(
+                                        zgui.bulletText(
                                             "[Seg: {}] dy/du at p3: {}",
                                             .{
                                                 ind,
                                                 d_p3.i.time,
                                             },
                                         );
-                                        ig.bulletText(
+                                        zgui.bulletText(
                                             "[Seg: {}] p3-p2: {}",
                                             .{
                                                 ind,
                                                 seg.p3.time - seg.p2.time,
                                             },
                                         );
-                                        ig.bulletText(
+                                        zgui.bulletText(
                                             "[Seg: {}] (dy/du) / (p3-p2): {}",
                                             .{
                                                 ind,
@@ -2283,18 +2285,18 @@ fn update(
                                 }
                             }
 
-                            if (ig.smallButton("Remove")) {
+                            if (zgui.smallButton("Remove")) {
                                 try remove.append(op_index);
                             }
-                            ig.sameLine(.{});
-                            ig.text(
+                            zgui.sameLine(.{});
+                            zgui.text(
                                 "file path: {s}",
                                 .{ crv.*.fpath[0..] }
                             );
 
                             // show the knots
-                            if (ig.treeNode("Original Knots")) {
-                                defer ig.treePop();
+                            if (zgui.treeNode("Orzguiinal Knots")) {
+                                defer zgui.treePop();
 
                                 const endpoints = (
                                     try crv.curve.segment_endpoints(allocator)
@@ -2303,37 +2305,37 @@ fn update(
                                 for (endpoints, 0..) 
                                     |pt, ind| 
                                 {
-                                    ig.bulletText(
+                                    zgui.bulletText(
                                         "{d}: ({d}, {d})",
                                         .{ ind, pt.time, pt.value },
                                     );
                                 }
                             }
 
-                            if (ig.treeNode("Hodograph Debug")) {
-                                defer ig.treePop();
+                            if (zgui.treeNode("Hodograph Debug")) {
+                                defer zgui.treePop();
 
                                 const hgraph = curve.bezier_curve.hodographs;
                                 const cSeg = crv.curve.segments[0].to_cSeg();
                                 const inflections = hgraph.inflection_points(
                                     &cSeg
                                 );
-                                ig.bulletText(
+                                zgui.bulletText(
                                     "inflection point: {d:0.4}",
                                     .{inflections.x},
                                 );
                                 const hodo = hgraph.compute_hodograph(&cSeg);
                                 const roots = hgraph.bezier_roots(&hodo);
-                                ig.bulletText(
+                                zgui.bulletText(
                                     "roots: {d:0.4} {d:0.4}",
                                     .{roots.x, roots.y},
                                 );
                             }
 
                             // split on critical points knots
-                            if ( ig.treeNode( "Split on Critical Points Knots",))
+                            if ( zgui.treeNode( "Split on Critical Points Knots",))
                             {
-                                defer ig.treePop();
+                                defer zgui.treePop();
 
                                 const split = try crv.curve.split_on_critical_points(allocator);
                                 defer split.deinit(allocator);
@@ -2346,16 +2348,16 @@ fn update(
                                 for (endpoints, 0..) 
                                     |pt, ind| 
                                 {
-                                    ig.bulletText(
+                                    zgui.bulletText(
                                         "{d}: ({d}, {d})",
                                         .{ ind, pt.time, pt.value },
                                     );
                                 }
                             }
 
-                            if (ig.treeNode("Three Point Projection"))
+                            if (zgui.treeNode("Three Point Projection"))
                             {
-                                defer ig.treePop();
+                                defer zgui.treePop();
 
                                 crv.draw_flags.three_point_approximation.draw_ui("curve three point");
                             }
@@ -2363,20 +2365,20 @@ fn update(
                     },
                     .transform => |*xform| {
                         if (
-                            ig.treeNode( "Affine Transform Settings",)
+                            zgui.treeNode( "Affine Transform Settings",)
                         ) 
                         {
-                            defer ig.treePop();
-                            _ = ig.checkbox("Active", .{.v = &xform.active});
-                            ig.sameLine(.{});
-                            if (ig.smallButton("Remove")) {
+                            defer zgui.treePop();
+                            _ = zgui.checkbox("Active", .{.v = &xform.active});
+                            zgui.sameLine(.{});
+                            if (zgui.smallButton("Remove")) {
                                 try remove.append(op_index);
                             }
                             var bounds: [2]f32 = .{
                                 xform.topology.bounds.start_seconds,
                                 xform.topology.bounds.end_seconds,
                             };
-                            _ = ig.sliderFloat(
+                            _ = zgui.sliderFloat(
                                 "offset",
                                 .{
                                     .min = -10,
@@ -2384,7 +2386,7 @@ fn update(
                                     .v = &xform.topology.transform.offset_seconds
                                 }
                             );
-                            _ = ig.sliderFloat(
+                            _ = zgui.sliderFloat(
                                 "scale",
                                 .{
                                     .min = -10,
@@ -2392,7 +2394,7 @@ fn update(
                                     .v = &xform.topology.transform.scale
                                 }
                             );
-                            _ = ig.inputFloat2(
+                            _ = zgui.inputFloat2(
                                 "input space bounds",
                                 .{ .v = &bounds }
                             );
@@ -2402,9 +2404,9 @@ fn update(
                     },
                 }
             }
-            if (ig.smallButton("Add")) {
-                // @TODO: after updating to zig 0.11
-                // ig.openPopup("Delete?");
+            if (zgui.smallButton("Add")) {
+                // @TODO: after updating to zzgui 0.11
+                // zgui.openPopup("Delete?");
             }
 
             // Remove any "remove"'d operations
@@ -2422,12 +2424,12 @@ fn update(
                 }
             }
         }
-        defer ig.endChild();
+        defer zgui.endChild();
     }
 
     // if (state.show_demo) {
-    //     _ = ig.showDemoWindow(null);
-    //     _ = ig.plot.showDemoWindow(null);
+    //     _ = zgui.showDemoWindow(null);
+    //     _ = zgui.plot.showDemoWindow(null);
     // }
 }
 
