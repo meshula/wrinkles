@@ -59,22 +59,42 @@ pub fn build(b: *std.Build) void {
     lib_cimgui.step.dependOn(&wf.step);
 
     // zgui
-
-
-    _ = b.addModule("root", .{
-        .root_source_file = b.path("src/gui.zig"),
-        // .imports = &.{
-        //     .{ .name = "zgui_options", .module = options_module },
-        // },
-    });
+    const lib_zgui = b.addSharedLibrary(
+        .{
+            .name = "zgui_c",
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        },
+    );
+    lib_zgui.linkLibCpp();
+    lib_zgui.linkLibrary(lib_cimgui);
+    // lib_cimgui.addIncludePath(
+    //      dep_imgui.path("")
+    // );
+    b.installArtifact(lib_zgui);
 
     const cflags = &.{"-fno-sanitize=undefined"};
-    lib_cimgui.addCSourceFile(
+    lib_zgui.addCSourceFile(
         .{
             .file = b.path("src/zgui.cpp"),
             .flags = cflags,
         }
     );
+    lib_zgui.addIncludePath(
+         dep_imgui.path("")
+    );
+
+    const zgui = b.addModule(
+        "zgui",
+        .{
+            .root_source_file = b.path("src/gui.zig"),
+            // .imports = &.{
+            //     .{ .name = "zgui_options", .module = options_module },
+            // },
+        }
+    );
+    zgui.linkLibrary(lib_zgui);
 
     // translate-c the cimgui.h file
     // NOTE: always run this with the host target, that way we don't need to inject
