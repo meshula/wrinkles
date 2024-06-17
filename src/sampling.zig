@@ -38,11 +38,19 @@ const Sampling = struct {
         };
     }
 
-    pub fn deinit(self: @This()) void {
+    pub fn deinit(
+        self: @This()
+    ) void 
+    {
         self.allocator.free(self.buffer);
     }
 
-    pub fn write_file(self: @This(), fpath: []const u8) !void {
+    /// serialize the sampling to a wav file
+    pub fn write_file(
+        self: @This(),
+        fpath: []const u8
+    ) !void 
+    {
         var file = try std.fs.cwd().createFile(fpath, .{});
         defer file.close();
 
@@ -53,8 +61,9 @@ const Sampling = struct {
             self.sample_rate_hz,
             1
         );
+        defer encoder.finalize() catch unreachable; 
+
         try encoder.write(f32, self.buffer);
-        try encoder.finalize(); // Don't forget to finalize after you're done writing.
     }
 
     pub fn indices_between_time(
@@ -88,7 +97,8 @@ const Sampling = struct {
     }
 };
 
-test "samples_between_time" {
+test "samples_between_time" 
+{
     const samples_48 = SineSampleGenerator{
         .sampling_rate_hz = 48000,
         .signal_frequency_hz = 100,
@@ -140,7 +150,8 @@ const SineSampleGenerator = struct {
     }
 };
 
-test "rasterizing the sine" {
+test "rasterizing the sine" 
+{
     const samples_48 = SineSampleGenerator{
         .sampling_rate_hz = 48000,
         .signal_frequency_hz = 100,
@@ -196,7 +207,8 @@ pub fn peak_to_peak_distance(
     return error.CouldNotFindTwoPeaks;
 }
 
-test "peak_to_peak_distance of sine 48khz" {
+test "peak_to_peak_distance of sine 48khz" 
+{
     const samples_48_100 = SineSampleGenerator{
         .sampling_rate_hz = 48000,
         .signal_frequency_hz = 100,
@@ -238,7 +250,8 @@ test "peak_to_peak_distance of sine 48khz" {
 }
 
 // test 0 - ensure that the contents of the c-library are visible
-test "c lib interface test" {
+test "c lib interface test" 
+{
     // libsamplerate
     try expectEqual(libsamplerate.SRC_SINC_BEST_QUALITY, 0);
 
@@ -459,7 +472,8 @@ pub fn retimed(
 
 // test 1
 // have a set of samples over 48khz, resample them to 44khz
-test "resample from 48khz to 44" {
+test "resample from 48khz to 44" 
+{
     const samples_48 = SineSampleGenerator{
         .sampling_rate_hz = 48000,
         .signal_frequency_hz = 100,
@@ -653,10 +667,14 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
     }
 
     // linearize at 24hz
-    const retime_curve_extents = cubic_retime_curve.extents_time();
+    const retime_curve_extents = (
+        cubic_retime_curve.extents_time()
+    );
     const inc:sample_t = 1.0/24.0;
 
-    var knots = std.ArrayList(curve.ControlPoint).init(std.testing.allocator);
+    var knots = std.ArrayList(curve.ControlPoint).init(
+        std.testing.allocator
+    );
     defer knots.deinit();
 
     try knots.append(
@@ -722,7 +740,9 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
     );
     defer samples_44.deinit();
     if (WRITE_TEST_FILES) {
-        try samples_44.write_file("/var/tmp/ours_s44_retimed_acceleration_24.wav");
+        try samples_44.write_file(
+            "/var/tmp/ours_s44_retimed_acceleration_24.wav"
+        );
     }
 
     // identity
@@ -754,15 +774,24 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
 // resample according to centered kernels
 
 /// Naive sine with pitch 440Hz.
-fn generateSine(sample_rate: f32, data: []f32) void {
+fn generateSine(
+    sample_rate: f32,
+    data: []f32
+) void 
+{
     const radians_per_sec: f32 = 440.0 * 2.0 * std.math.pi;
-    var i: usize = 0;
-    while (i < data.len) : (i += 1) {
-        data[i] = 0.5 * std.math.sin(@as(f32, @floatFromInt(i)) * radians_per_sec / sample_rate);
+    for (data, 0..)
+        |*s, i|
+    {
+        s.* = 0.5 * std.math.sin(
+            @as(f32, @floatFromInt(i)) 
+            * radians_per_sec / sample_rate
+        );
     }
 }
 
-test "wav.zig generator test (purely their code)" {
+test "wav.zig generator test (purely their code)" 
+{
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const alloc = gpa.allocator();
@@ -776,18 +805,28 @@ test "wav.zig generator test (purely their code)" {
     generateSine(@as(f32, @floatFromInt(sample_rate)), data);
 
     if (WRITE_TEST_FILES) {
-        var file = try std.fs.cwd().createFile("/var/tmp/theirs_givemeasine.wav", .{});
+        var file = try std.fs.cwd().createFile(
+            "/var/tmp/theirs_givemeasine.wav",
+            .{}
+        );
         defer file.close();
 
         // Write out samples as 16-bit PCM int.
-        var encoder = try wav.encoder(i16, file.writer(), file.seekableStream(), sample_rate, num_channels);
+        var encoder = try wav.encoder(
+            i16,
+            file.writer(),
+            file.seekableStream(),
+            sample_rate,
+            num_channels
+        );
         try encoder.write(f32, data);
         try encoder.finalize(); // Don't forget to finalize after you're done writing.
     }
 
 }
 
-test "wav.zig generator test (our code)" {
+test "wav.zig generator test (our code)" 
+{
     const samples_48 = SineSampleGenerator{
         .sampling_rate_hz = 48000,
         .signal_frequency_hz = 100,
