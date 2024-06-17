@@ -567,22 +567,18 @@ test "retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
         samples_44_p2p_0p25
     );
 
-    if (true) {
-        return error.SkipZigTest;
-    }
-
     // 2x
     const samples_44_p2p_0p5 = try peak_to_peak_distance(
-        samples_44.buffer[11025..33074]
+        samples_44.buffer[48100..52000]
     );
     try expectEqual(
-        882,
+        883,
         samples_44_p2p_0p5
      );
 
     // identity
     const samples_44_p2p_1p0 = try peak_to_peak_distance(
-        samples_44.buffer[33074..]
+        samples_44.buffer[(3*48000 + 100)..]
     );
     try expectEqual(
         441,
