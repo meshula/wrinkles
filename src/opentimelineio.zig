@@ -17,8 +17,6 @@ const otio_allocator = @import("otio_allocator");
 
 const treecode = @import("treecode");
 
-// const ALLOCATOR = otio_allocator.ALLOCATOR;
-
 // const GRAPH_CONSTRUCTION_TRACE_MESSAGES = true;
 const GRAPH_CONSTRUCTION_TRACE_MESSAGES = false;
 

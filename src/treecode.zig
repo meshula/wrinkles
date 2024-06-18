@@ -390,8 +390,9 @@ test "treecode: @clz" {
     try std.testing.expectEqual(@as(usize, WORD_BIT_COUNT), @clz(x));
 
     var i: TreecodeWord = 0;
-
-    while (i < WORD_BIT_COUNT) : (i += 1) {
+    while (i < WORD_BIT_COUNT) 
+        : (i += 1) 
+    {
         try std.testing.expectEqual(i, WORD_BIT_COUNT - @clz(x));
         x = (x << 1) | 1;
     }
@@ -957,26 +958,6 @@ fn treecode_word_append(a: TreecodeWord, l_or_r_branch: u1) TreecodeWord {
        | leading_bit_shifted
        | l_or_r_branch_shifted
     );
-
-    // std.debug.print(
-    //     "input tc: {b}, " ++
-    //     "input l_or_r_branch: u8: {b}, " ++
-    //     "signficant_bits: {}, " ++
-    //     "a_without_leading_bit: {b}," ++
-    //     " leading_bit_shifted: {b}," ++
-    //     " l_or_r_branch_shifted: {b}, " ++
-    //     " result: {b}, " ++
-    //     "\n",
-    //     .{
-    //         a,
-    //         l_or_r_branch,
-    //         signficant_bits,
-    //         a_without_leading_bit,
-    //         leading_bit_shifted,
-    //         l_or_r_branch_shifted,
-    //         result,
-    //     }
-    // );
 
     return result;
 }
