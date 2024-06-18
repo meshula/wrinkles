@@ -424,10 +424,14 @@ pub const BezierTopology = struct {
                 );
 
                 return .{
-                    .bezier_curve = .{ .curve = projected_curve }
+                    .bezier_curve = .{ 
+                        .curve = projected_curve 
+                    }
                 };
             },
-            .bezier_curve => |bez| switch (curve.bezier_curve.project_algo) {
+            .bezier_curve => |bez| switch (
+                curve.bezier_curve.project_algo
+            ) {
                 .three_point_approx, .two_point_approx => .{
                     .bezier_curve = .{
                         .curve = try self.curve.project_curve(
@@ -441,11 +445,17 @@ pub const BezierTopology = struct {
                         .curve = (
                             try (
                              try self.curve.linearized(
-                                 ALLOCATOR
+                                 allocator
                              )
                             ).project_curve(
-                            ALLOCATOR,
-                            try bez.curve.linearized(ALLOCATOR),
+                            allocator,
+                            lc:{
+                                const result = (
+                                    try bez.curve.linearized(allocator)
+                                );
+                                defer result.deinit(allocator);
+                                break:lc result;
+                            },
                             )
                         )[0]
                     }
@@ -455,17 +465,23 @@ pub const BezierTopology = struct {
                 .linear_curve = .{
                     .curve = (
                         try (
-                            try self.curve.linearized(
-                                ALLOCATOR
-                            )
+                            lc:{
+                                const result = (
+                                    try self.curve.linearized(allocator)
+                                );
+                                defer result.deinit(allocator);
+                                break:lc result;
+                            }
                         ).project_curve(
-                        ALLOCATOR,
+                        allocator,
                         lin.curve,
                         )
                     )[0]
                 }
             },
-            .empty => .{ .empty = EmptyTopology{} },
+            .empty => .{
+                .empty = EmptyTopology{} 
+            },
         };
     }
 };
