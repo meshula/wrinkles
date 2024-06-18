@@ -119,6 +119,28 @@ pub const Item = union(enum) {
             .track => |tr| try tr.duration(),
         };
     }
+
+    pub fn recursively_deinit(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        switch (self) {
+            .track => |tr| {
+                tr.recursively_deinit();
+            },
+            .stack => |st| {
+                st.recursively_deinit();
+            },
+            inline else => |o| {
+                if (o.name)
+                    |n|
+                {
+                    allocator.free(n);
+                }
+            },
+        }
+    }
 };
 
 pub const ItemPtr = union(enum) {
@@ -374,10 +396,25 @@ pub const Track = struct {
         };
     }
 
+    pub fn recursively_deinit(self: @This()) void {
+        for (self.children.items)
+            |c|
+        {
+            c.recursively_deinit(self.children.allocator);
+        }
+
+        self.deinit();
+    }
+
     pub fn deinit(
         self: @This()
     ) void 
     {
+        if (self.name)
+            |n|
+        {
+            self.children.allocator.free(n);
+        }
         self.children.deinit();
     }
 
@@ -2081,6 +2118,10 @@ test "Single Clip bezier transform" {
 /// top level object
 pub const Timeline = struct {
     tracks:Stack = Stack.init(std.testing.allocator),
+
+    pub fn recursively_deinit(self: @This()) void {
+        self.tracks.recursively_deinit();
+    }
 };
 
 /// children of a stack are simultaneous in time
@@ -2094,8 +2135,26 @@ pub const Stack = struct {
         };
     }
 
-    pub fn deinit(self: @This()) void {
+    pub fn deinit(
+        self: @This()
+    ) void 
+    {
+        if (self.name)
+            |n|
+        {
+            self.children.allocator.free(n);
+        }
         self.children.deinit();
+    }
+
+    pub fn recursively_deinit(self: @This()) void {
+        for (self.children.items)
+            |c|
+        {
+            c.recursively_deinit(self.children.allocator);
+        }
+
+        self.deinit();
     }
 
     pub fn topology(self: @This()) !time_topology.TimeTopology {

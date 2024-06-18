@@ -58,21 +58,25 @@ pub fn read_ordinate_from_rt(
 }
 
 pub fn read_time_range(
-    obj:?std.json.ObjectMap
+    maybe_obj:?std.json.ObjectMap
 ) ?interval.ContinuousTimeInterval 
 {
-    if (obj) 
+    if (maybe_obj) 
         |o| 
     {
         const start_time = read_ordinate_from_rt(o.get("start_time").?.object).?;
         const duration = read_ordinate_from_rt(o.get("duration").?.object).?;
-        return .{ .start_seconds = start_time, .end_seconds = start_time + duration };
+        return .{ 
+            .start_seconds = start_time, 
+            .end_seconds = start_time + duration 
+        };
     } else {
         return null;
     }
 }
 
 pub fn read_otio_object(
+    allocator: std.mem.Allocator,
     obj:std.json.ObjectMap
 ) !SerializableObject 
 {
@@ -108,47 +112,62 @@ pub fn read_otio_object(
     const schema_enum = maybe_schema_enum.?;
 
     const name = if (obj.get("name")) 
-        |n| switch (n) 
+        |n| 
+        switch (n) 
     {
         .string => |s| s,
-        else => null
-    } else null;
+        else => ""
+    } else "";
 
     switch (schema_enum) {
         .Timeline => { 
-            var st_json = (
-                try read_otio_object(obj.get("tracks").?.object)
+            const so_stack = (
+                try read_otio_object(
+                    allocator,
+                    obj.get("tracks").?.object
+                )
             );
             const st = otio.Stack{
-                .name = st_json.Stack.name,
-                .children = try st_json.Stack.children.clone(),
+                .name = so_stack.Stack.name,
+                .children = so_stack.Stack.children,
             };
-            const tl = otio.Timeline{ .tracks = st };
+            const tl = otio.Timeline{
+                .tracks = st 
+            };
             return .{ .Timeline = tl };
         },
         .Stack => {
-
-            var st = otio.Stack.init(std.testing.allocator);
-            st.name = name;
+            var st = otio.Stack.init(allocator);
+            st.name = try allocator.dupe(u8, name);
 
             for (obj.get("children").?.array.items) 
                 |track| 
             {
                 try st.children.append(
-                    .{ .track = (try read_otio_object(track.object)).Track }
+                    .{
+                        .track = (
+                            try read_otio_object(
+                                allocator,
+                                track.object
+                            )
+                        ).Track 
+                    }
                 );
             }
 
             return .{ .Stack = st };
         },
         .Track => {
-            var tr = otio.Track.init(std.testing.allocator);
-            tr.name = name;
+            var tr = otio.Track.init(allocator);
+            tr.name = try allocator.dupe(u8, name);
 
             for (obj.get("children").?.array.items) 
                 |child| 
             {
-                switch (try read_otio_object(child.object)) {
+                switch (
+                    try read_otio_object(allocator, child.object)
+                ) 
+                {
                     .Clip => |cl| { try tr.children.append( .{ .clip = cl }); },
                     .Gap => |gp| { try tr.children.append( .{ .gap = gp }); },
                     else => return error.NotImplemented,
@@ -168,7 +187,7 @@ pub fn read_otio_object(
             );
 
             const cl = otio.Clip{
-                .name=name,
+                .name=try allocator.dupe(u8, name),
                 .source_range = source_range,
             };
 
@@ -185,7 +204,7 @@ pub fn read_otio_object(
             );
 
             const gp = otio.Gap{
-                .name=name,
+                .name=try allocator.dupe(u8, name),
                 .duration = source_range.?.duration_seconds(),
             };
 
@@ -201,12 +220,16 @@ pub fn read_otio_object(
 }
 
 pub fn read_from_file(
-    allocator: std.mem.Allocator,
+    in_allocator: std.mem.Allocator,
     file_path: string.latin_s8
 ) !otio.Timeline 
 {
     const fi = try std.fs.cwd().openFile(file_path, .{});
     defer fi.close();
+
+    var arena = std.heap.ArenaAllocator.init(in_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
 
     const source = try fi.readToEndAlloc(
         allocator,
@@ -221,6 +244,7 @@ pub fn read_from_file(
     );
 
     const hopefully_timeline = try read_otio_object(
+        in_allocator,
         result.object
     );
 
@@ -233,28 +257,15 @@ pub fn read_from_file(
 
 test "read_from_file test" 
 {
-    // @TODO: disabled because it has a bonkers amount of leaking in it.
-    //        the JSON reader and json.object.Value -> struct code needs to be
-    //        redone.
-    //
-    //        its a good idea, and can definitely be rescued.
-    // if (true) {
-    //     return error.SkipZigTest;
-    // }
     const root = "simple_cut";
-    // const root = "multiple_track";
     const otio_fpath = root ++ ".otio";
     const dot_fpath = root ++ ".dot";
 
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    const allocator = arena.allocator();
-
     const tl = try read_from_file(
-        allocator,
+        std.testing.allocator,
         "sample_otio_files/"++otio_fpath
     );
-    defer tl.tracks.deinit();
+    defer tl.recursively_deinit();
 
     const track0 = tl.tracks.children.items[0].track;
 
