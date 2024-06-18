@@ -442,11 +442,7 @@ pub fn build(
             .fpath = "src/treecode.zig",
             .target = options.target,
             .test_step = test_step,
-            .deps = &.{
-                // .{ .name = "string_stuff", .module = string_stuff },
-                // .{ .name = "otio_allocator", .module = otio_allocator },
-                // .{ .name = "comath", .module = comath_dep.module("comath") },
-            },
+            .deps = &.{},
             .test_filter = options.test_filter,
         }
     );
