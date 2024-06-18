@@ -451,7 +451,8 @@ const ProjectionOperator = struct {
     }
 };
 
-/// Map of a timeline.  Can find transformations through the map.
+/// Topological Map of a Timeline.  Can be used to build projection operators
+/// to transform between various coordinate spaces within the map.
 const TopologicalMap = struct {
     map_space_to_code:std.AutoHashMap(
           SpaceReference,
@@ -460,14 +461,14 @@ const TopologicalMap = struct {
     map_code_to_space:treecode.TreecodeHashMap(SpaceReference),
 
     pub fn init(
-        allocator: std.mem.Allocator
+        allocator: std.mem.Allocator,
     ) !TopologicalMap 
     {
         return .{ 
             .map_space_to_code = std.AutoHashMap(
-            SpaceReference,
-            treecode.Treecode,
-        ).init(allocator),
+                SpaceReference,
+                treecode.Treecode,
+            ).init(allocator),
             .map_code_to_space = treecode.TreecodeHashMap(
                 SpaceReference,
             ).init(allocator),
@@ -481,12 +482,30 @@ const TopologicalMap = struct {
         // build a mutable alias of self
         var mutable_self = self;
 
+        var keyIter = (
+            mutable_self.map_code_to_space.keyIterator()
+        );
+        while (keyIter.next())
+            |code|
+        {
+            code.deinit();
+        }
+
+        var valueIter = (
+            mutable_self.map_space_to_code.valueIterator()
+        );
+        while (valueIter.next())
+            |code|
+        {
+            code.deinit();
+        }
+
         // free the guts
         mutable_self.map_space_to_code.deinit();
         mutable_self.map_code_to_space.deinit();
     }
 
-    const ROOT_TREECODE:treecode.TreecodeWord = 0b1;
+    pub const ROOT_TREECODE:treecode.TreecodeWord = 0b1;
 
     /// return the root space of this topological map
     pub fn root(
@@ -563,15 +582,19 @@ const TopologicalMap = struct {
 
         while (current_code.eql(destination_code) == false) 
         {
-            const next_step = try current_code.next_step_towards(destination_code);
+            const next_step = try current_code.next_step_towards(
+                destination_code
+            );
 
+            defer current_code.deinit();
             var next_code = try current_code.clone();
             try next_code.append(next_step);
 
             // path has already been verified
             const next = self.map_code_to_space.get(
                 next_code
-            ) orelse unreachable;
+            ) orelse return error.TreeCodeNotInMap;
+
             if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) { 
                 std.debug.print(
                     "  step {b} to next code: {d}\n",
@@ -695,7 +718,8 @@ const TopologicalMap = struct {
             }
         );
 
-        while (stack.items.len > 0) {
+        while (stack.items.len > 0) 
+        {
             const current = stack.pop();
             const current_label = try label_for_node_leaky(
                 allocator,
@@ -703,11 +727,14 @@ const TopologicalMap = struct {
                 current.code
             );
 
+            // left
             {
                 var left = try current.code.clone();
                 try left.append(0);
 
-                if (self.map_code_to_space.get(left)) |next| {
+                if (self.map_code_to_space.get(left)) 
+                    |next| 
+                {
                     const next_label = try label_for_node_leaky(
                         allocator,
                         next,
@@ -720,7 +747,12 @@ const TopologicalMap = struct {
                             .{current_label, next_label}
                         )
                     );
-                    try stack.append(.{.space = next, .code = left});
+                    try stack.append(
+                        .{
+                            .space = next,
+                            .code = left
+                        }
+                    );
                 } else {
                     buf.clearAndFree();
                     try left.to_str(&buf);
@@ -735,11 +767,14 @@ const TopologicalMap = struct {
                 }
             }
 
+            // right
             {
                 var right = try current.code.clone();
                 try right.append(1);
 
-                if (self.map_code_to_space.get(right)) |next| {
+                if (self.map_code_to_space.get(right)) 
+                    |next| 
+                {
                     const next_label = try label_for_node_leaky(
                         allocator,
                         next,
@@ -752,8 +787,8 @@ const TopologicalMap = struct {
                             .{current_label, next_label}
                         )
                     );
-                    try stack.append(.{.space = next, .code = right});
-                } else {
+                } else 
+                {
                     buf.clearAndFree();
                     try right.to_str(&buf);
                     try file.writeAll(
@@ -771,11 +806,21 @@ const TopologicalMap = struct {
     }
 };
 
-pub fn path_exists(fst: treecode.Treecode, snd: treecode.Treecode) bool {
-    return fst.eql(snd) or (fst.is_superset_of(snd) or snd.is_superset_of(fst));
+pub fn path_exists(
+    fst: treecode.Treecode,
+    snd: treecode.Treecode
+) bool 
+{
+    return (
+        fst.eql(snd) 
+        or (
+            fst.is_superset_of(snd) 
+            or snd.is_superset_of(fst)
+        )
+    );
 }
 
-pub fn depth_child_code(
+pub fn depth_child_code_leaky(
     parent_code:treecode.Treecode,
     index: usize
 ) !treecode.Treecode 
@@ -802,7 +847,7 @@ test "depth_child_hash: math" {
     while (i<4) 
         : (i+=1) 
     {
-        var result = try depth_child_code(root, i);
+        var result = try depth_child_code_leaky(root, i);
         defer result.deinit();
 
         const expected = std.math.shl(treecode.TreecodeWord, expected_root, i); 
@@ -815,96 +860,41 @@ test "depth_child_hash: math" {
         try expectEqual(expected, result.treecode_array[0]);
     }
 }
-//
-// // get the index of the child by how many times the child is a "right" from the
-// // parent.
-// //
-// // examples:
-// // 0b11101 2
-// // 0b1011111 0
-// // 0b11100 2
-// // 0b1100111111 1
-// pub fn right_child_index(
-//     child_code:treecode.Treecode
-// ) usize {
-//     // find the marker bit
-//
-//     _ = child_code;
-//
-//     return 0;
-// }
 
-// test "right_child_index" {
-//     const TestData = struct {
-//         leading_ones: usize,
-//         trailing_ones: usize,
-//         middle_zeros: usize,
-//     };
-//
-//     const tests = [_]TestData{
-//         .{ .leading_ones = 1, .trailing_ones = 1, .middle_zeros = 1 },
-//         .{ .leading_ones = 1, .trailing_ones = 10, .middle_zeros = 1 },
-//         .{ .leading_ones = 0, .trailing_ones = 10, .middle_zeros = 1 },
-//         .{ .leading_ones = 128, .trailing_ones = 32, .middle_zeros = 1 },
-//         .{ .leading_ones = 1, .trailing_ones = 2, .middle_zeros = 126 },
-//         .{ .leading_ones = 1024, .trailing_ones = 1, .middle_zeros = 1024 },
-//         .{ .leading_ones = 1024, .trailing_ones = 1, .middle_zeros = 1 },
-//         .{ .leading_ones = 1, .trailing_ones = 1024, .middle_zeros = 1 },
-//     };
-//
-//     for (tests) |t, index| {
-//         var tc = try treecode.Treecode.init_empty(std.testing.allocator);
-//         defer tc.deinit();
-//
-//         var i:usize = 0;
-//         while (i < t.leading_ones) : (i += 1) {
-//             try tc.append(1);
-//         }
-//
-//         i = 0;
-//         while (i < t.middle_zeros) : (i += 1) {
-//             try tc.append(0);
-//         }
-//
-//         i = 0;
-//         while (i  t.trailing_ones) : (i += 1) {
-//             try tc.append(1);
-//         }
-//
-//         errdefer std.debug.print(
-//             "\niteration: {d}\n leading: {d} zeros: {d} trailing: {d} right_child_index: {b}\n",
-//             .{ index, t.leading_ones, t.middle_zeros, t.trailing_ones, right_child_index(tc) },
-//         );
-//         
-//         try std.testing.expectEqual(t.trailing_ones, right_child_index(tc));
-//     }
-// }
-
-// @TODO: this function is super sloppy with its allocations and needs to be
-//        rebuilt
 pub fn build_topological_map(
-    // allocator: std.mem.Allocator,
+    allocator: std.mem.Allocator,
     root_item: ItemPtr
 ) !TopologicalMap 
 {
-    const tmp_allocator = otio_allocator.ALLOCATOR;
-    // var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    // defer arena.deinit();
-    // const tmp_allocator = arena.allocator();
-    //
-    var tmp_topo_map = try TopologicalMap.init(tmp_allocator);
+    var tmp_topo_map = try TopologicalMap.init(allocator);
 
     const Node = struct {
         path_code: treecode.Treecode,
         object: ItemPtr,
     };
 
-    var stack = std.ArrayList(Node).init(tmp_allocator);
+    var stack = std.ArrayList(Node).init(allocator);
+    defer {
+        for (stack.items)
+            |n|
+        {
+            n.path_code.deinit();
+        }
+        stack.deinit();
+    }
 
-    const start_code = try treecode.Treecode.init_word(tmp_allocator, 0b1);
+    const start_code = try treecode.Treecode.init_word(
+        allocator,
+        TopologicalMap.ROOT_TREECODE,
+    );
 
     // root node
-    try stack.append(.{.object = root_item, .path_code = start_code});
+    try stack.append(
+        .{
+            .object = root_item,
+            .path_code = start_code
+        }
+    );
 
     if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
         std.debug.print("starting graph...\n", .{});
@@ -914,21 +904,34 @@ pub fn build_topological_map(
     {
         const current = stack.pop();
 
-        var current_code = try current.path_code.clone();
+        const code_from_stack = current.path_code;
+        defer code_from_stack.deinit();
 
+        var current_code = current.path_code;
+
+        // push the spaces for the current object into the map/stack
         {
-            // object intermediate spaces
             const spaces = try current.object.spaces(
-                tmp_allocator
+                allocator
             );
+            defer allocator.free(spaces);
 
             for (0.., spaces) 
                 |index, space_ref| 
             {
-                const child_code = try depth_child_code(current_code, index);
+                const child_code = try depth_child_code_leaky(
+                    current_code,
+                    index
+                );
+                defer child_code.deinit();
+
                 if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
-                    std.debug.assert(tmp_topo_map.map_code_to_space.get(child_code) == null);
-                    std.debug.assert(tmp_topo_map.map_space_to_code.get(space_ref) == null);
+                    std.debug.assert(
+                        tmp_topo_map.map_code_to_space.get(child_code) == null
+                    );
+                    std.debug.assert(
+                        tmp_topo_map.map_space_to_code.get(space_ref) == null
+                    );
                     std.debug.print(
                         "[{d}] code: {b} hash: {d} adding local space: '{s}.{s}'\n",
                         .{
@@ -940,8 +943,14 @@ pub fn build_topological_map(
                         }
                     );
                 }
-                try tmp_topo_map.map_space_to_code.put(space_ref, child_code);
-                try tmp_topo_map.map_code_to_space.put(child_code, space_ref);
+                try tmp_topo_map.map_space_to_code.put(
+                    space_ref,
+                    try child_code.clone(),
+                );
+                try tmp_topo_map.map_code_to_space.put(
+                    try child_code.clone(),
+                    space_ref
+                );
 
                 if (index == (spaces.len - 1)) {
                     current_code = child_code;
@@ -950,87 +959,100 @@ pub fn build_topological_map(
         }
 
         // transforms to children
-        const children = switch (current.object) {
-            inline .track_ptr, .stack_ptr => |st_or_tr|  st_or_tr.children.items,
-            .timeline_ptr => |tl|  &[_]Item{ .{ .stack = tl.tracks } },
+        const children = switch (current.object) 
+        {
+            inline .track_ptr, .stack_ptr => |st_or_tr| (
+                st_or_tr.children.items
+            ),
+            .timeline_ptr => |tl|  &[_]Item{
+                .{ 
+                    .stack = tl.tracks 
+                } 
+            },
             else => &[_]Item{},
         };
 
         for (children, 0..) 
             |*child, index| 
+        {
+            const item_ptr:ItemPtr = switch (child.*) {
+                .clip => |*cl| .{ .clip_ptr = cl },
+                .gap => |*gp| .{ .gap_ptr = gp },
+                .track => |*tr_p| .{ .track_ptr = tr_p },
+                .stack => |*st_p| .{ .stack_ptr = st_p },
+            };
+
+            const child_space_code = try sequential_child_code_leaky(
+                current_code,
+                index
+            );
+            defer child_space_code.deinit();
+
+            // insert the child scope
+            const space_ref = SpaceReference{
+                .item = current.object,
+                .label = SpaceLabel.child,
+                .child_index = index,
+            };
+
+            if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
             {
-                const item_ptr:ItemPtr = switch (child.*) {
-                    .clip => |*cl| .{ .clip_ptr = cl },
-                    .gap => |*gp| .{ .gap_ptr = gp },
-                    .track => |*tr_p| .{ .track_ptr = tr_p },
-                    .stack => |*st_p| .{ .stack_ptr = st_p },
-                };
+                std.debug.assert(tmp_topo_map.map_code_to_space.get(child_space_code) == null);
 
-                const child_space_code = try sequential_child_code(
-                    current_code,
-                    index
-                );
-
-                // insert the child scope
-                const space_ref = SpaceReference{
-                    .item = current.object,
-                    .label = SpaceLabel.child,
-                    .child_index = index,
-                };
-
-                if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
-                    std.debug.assert(tmp_topo_map.map_code_to_space.get(child_space_code) == null);
-
-                    if (tmp_topo_map.map_space_to_code.get(space_ref)) |other_code| {
-                        std.debug.print(
-                            "\n ERROR SPACE ALREADY PRESENT[{d}] code: {b} other_code: {b} adding child space: '{s}.{s}.{d}'\n",
-                            .{
-                                index,
-                                child_space_code.treecode_array[0],
-                                other_code.treecode_array[0],
-                                @tagName(space_ref.item),
-                                @tagName(space_ref.label),
-                                space_ref.child_index.?,
-                            }
-                        );
-
-                        std.debug.assert(false);
-                    }
+                if (tmp_topo_map.map_space_to_code.get(space_ref)) 
+                    |other_code| 
+                {
                     std.debug.print(
-                        "[{d}] code: {b} hash: {d} adding child space: '{s}.{s}.{d}'\n",
+                        "\n ERROR SPACE ALREADY PRESENT[{d}] code: {b} other_code: {b} adding child space: '{s}.{s}.{d}'\n",
                         .{
                             index,
                             child_space_code.treecode_array[0],
-                            child_space_code.hash(),
+                            other_code.treecode_array[0],
                             @tagName(space_ref.item),
                             @tagName(space_ref.label),
                             space_ref.child_index.?,
                         }
                     );
+
+                    std.debug.assert(false);
                 }
-                try tmp_topo_map.map_space_to_code.put(space_ref, child_space_code);
-                try tmp_topo_map.map_code_to_space.put(child_space_code, space_ref);
-
-                const child_code = try depth_child_code(child_space_code, 1);
-
-                try stack.insert(
-                    0,
-                    .{ .object= item_ptr, .path_code = child_code}
+                std.debug.print(
+                    "[{d}] code: {b} hash: {d} adding child space: '{s}.{s}.{d}'\n",
+                    .{
+                        index,
+                        child_space_code.treecode_array[0],
+                        child_space_code.hash(),
+                        @tagName(space_ref.item),
+                        @tagName(space_ref.label),
+                        space_ref.child_index.?,
+                    }
                 );
             }
-    }
+            try tmp_topo_map.map_space_to_code.put(
+                space_ref,
+                try child_space_code.clone()
+            );
+            try tmp_topo_map.map_code_to_space.put(
+                try child_space_code.clone(),
+                space_ref
+            );
 
-    // var result = try TopologicalMap.init(allocator);
-    //
-    // result.map_code_to_space = try tmp_topo_map.map_code_to_space.cloneWithAllocator(
-    //     allocator
-    // );
-    // result.map_space_to_code = try tmp_topo_map.map_space_to_code.cloneWithAllocator(
-    //     allocator
-    // );
-    //
-    // std.debug.assert(result.map_code_to_space.count() > 0);
-    // std.debug.assert(result.map_space_to_code.count() > 0);
+            // creates a cone of the child_space_code
+            const child_code = try depth_child_code_leaky(
+                child_space_code,
+                1
+            );
+            defer child_code.deinit();
+
+            try stack.insert(
+                0,
+                .{ 
+                    .object= item_ptr,
+                    .path_code = try child_code.clone()
+                }
+            );
+        }
+    }
 
     // return result;
     return tmp_topo_map;
@@ -1090,7 +1112,54 @@ test "track topology construction" {
     );
 }
 
-test "build_topological_map check root node" {
+test "build_topological_map: leak sentinel test - single clip"
+{
+    const start_seconds:f32 = 1;
+    const end_seconds:f32 = 10;
+
+    const cl = Clip {
+        .source_range = .{
+            .start_seconds = start_seconds,
+            .end_seconds = end_seconds 
+        }
+    };
+
+    const map = try build_topological_map(
+        std.testing.allocator,
+        .{ 
+            .clip_ptr =  &cl 
+        },
+    );
+    defer map.deinit();
+}
+
+test "build_topological_map: leak sentinel test track w/ clip"
+{
+    var tr = Track.init(std.testing.allocator);
+    defer tr.deinit();
+
+    const start_seconds:f32 = 1;
+    const end_seconds:f32 = 10;
+
+    const cl = Clip {
+        .source_range = .{
+            .start_seconds = start_seconds,
+            .end_seconds = end_seconds 
+        }
+    };
+    try tr.append(.{ .clip = cl });
+
+    const map = try build_topological_map(
+        std.testing.allocator,
+        .{ 
+            .track_ptr = &tr 
+        },
+    );
+    defer map.deinit();
+}
+
+test "build_topological_map check root node" 
+{
     var tr = Track.init(std.testing.allocator);
     defer tr.deinit();
 
@@ -1106,7 +1175,9 @@ test "build_topological_map check root node" {
     try tr.append(.{ .clip = cl });
 
     var i:i32 = 0;
-    while (i < 10) {
+    while (i < 10) 
+        : (i += 1)
+    {
         const cl2 = Clip {
             .source_range = .{
                 .start_seconds = start_seconds,
@@ -1114,14 +1185,18 @@ test "build_topological_map check root node" {
             }
         };
         try tr.append(.{ .clip = cl2 });
-        i+=1;
     }
 
-    try std.testing.expectEqual(@as(usize, 11), tr.children.items.len);
+    try std.testing.expectEqual(
+        @as(usize, 11),
+        tr.children.items.len
+    );
 
     const map = try build_topological_map(
-        // std.testing.allocator,
-        .{ .track_ptr = &tr },
+        std.testing.allocator,
+        .{ 
+            .track_ptr = &tr 
+        },
     );
     defer map.deinit();
 
@@ -1162,7 +1237,7 @@ test "path_code: graph test" {
     try std.testing.expectEqual(@as(usize, 11), tr.children.items.len);
 
     const map = try build_topological_map(
-        // std.testing.allocator,
+        std.testing.allocator,
         .{ .track_ptr = &tr },
     );
     defer map.deinit();
@@ -1225,7 +1300,8 @@ test "path_code: graph test" {
     }
 }
 
-test "Track with clip with identity transform projection" {
+test "Track with clip with identity transform projection" 
+{
     var tr = Track.init(std.testing.allocator);
     defer tr.deinit();
 
@@ -1247,7 +1323,7 @@ test "Track with clip with identity transform projection" {
     }
 
     const map = try build_topological_map(
-        // std.testing.allocator,
+        std.testing.allocator,
         .{ .track_ptr = &tr },
     );
     defer map.deinit();
@@ -1260,6 +1336,7 @@ test "Track with clip with identity transform projection" {
             .destination =  try clip.space(SpaceLabel.media)
         }
     );
+    defer track_to_clip.deinit(std.testing.allocator);
 
     // check the bounds
     try expectApproxEqAbs(
@@ -1283,11 +1360,17 @@ test "Track with clip with identity transform projection" {
 }
 
 
-test "PathMap: Track with clip with identity transform topological" {
+test "TopologicalMap: Track with clip with identity transform topological" 
+{
     var tr = Track.init(std.testing.allocator);
     defer tr.deinit();
 
-    const cl = Clip { .source_range = .{ .start_seconds = 0, .end_seconds = 2 } };
+    const cl = Clip {
+        .source_range = .{
+            .start_seconds = 0,
+            .end_seconds = 2 
+        } 
+    };
 
     // a copy -- which is why we can't use `cl` in our searches.
     try tr.append(.{ .clip = cl });
@@ -1295,45 +1378,66 @@ test "PathMap: Track with clip with identity transform topological" {
     const root = ItemPtr{ .track_ptr = &tr };
 
     const map = try build_topological_map(
-        // std.testing.allocator,
+        std.testing.allocator,
         root,
     );
     defer map.deinit();
 
-    try expectEqual(@as(usize, 5), map.map_code_to_space.count());
-    try expectEqual(@as(usize, 5), map.map_space_to_code.count());
+    try expectEqual(5, map.map_code_to_space.count());
+    try expectEqual(5, map.map_space_to_code.count());
 
     try expectEqual(root, map.root().item);
 
-    const root_code = map.map_space_to_code.get(map.root()) orelse unreachable;
+    const maybe_root_code = map.map_space_to_code.get(map.root());
+    try std.testing.expect(maybe_root_code != null);
+    const root_code = maybe_root_code.?;
 
+    // root object code
     {
-        var tc = try treecode.Treecode.init_word(std.testing.allocator, 0b1);
+        var tc = try treecode.Treecode.init_word(
+            std.testing.allocator,
+            0b1
+        );
         defer tc.deinit();
         try std.testing.expect(tc.eql(root_code));
+        try expectEqual(0, tc.code_length());
     }
 
     const clip = tr.child_ptr_from_index(0);
-    const clip_code = map.map_space_to_code.get(try clip.space(SpaceLabel.media)) orelse unreachable;
+    const maybe_clip_code = map.map_space_to_code.get(
+        try clip.space(SpaceLabel.media)
+    );
+    try std.testing.expect(maybe_clip_code != null);
+    const clip_code = maybe_clip_code.?;
 
+    // clip object code
     {
-        var tc = try treecode.Treecode.init_word(std.testing.allocator, 0b10010);
+        var tc = try treecode.Treecode.init_word(
+            std.testing.allocator,
+            0b10010
+        );
         defer tc.deinit();
         errdefer std.debug.print(
             "\ntc: {b}, clip_code: {b}\n",
-            .{ tc.treecode_array[0], clip_code.treecode_array[0] },
+            .{
+                tc.treecode_array[0],
+                clip_code.treecode_array[0] 
+            },
         );
+        try expectEqual(4, tc.code_length());
         try std.testing.expect(tc.eql(clip_code));
     }
 
-    try expectEqual(true, path_exists(clip_code, root_code));
+    try std.testing.expect(path_exists(clip_code, root_code));
 
-    const root_output_to_clip_media = try map.build_projection_operator(
-        std.testing.allocator,
-        .{
-            .source = try root.space(SpaceLabel.output),
-            .destination = try clip.space(SpaceLabel.media)
-        }
+    const root_output_to_clip_media = (
+        try map.build_projection_operator(
+            std.testing.allocator,
+            .{
+                .source = try root.space(SpaceLabel.output),
+                .destination = try clip.space(SpaceLabel.media)
+            }
+        )
     );
 
     try expectError(
@@ -1342,7 +1446,7 @@ test "PathMap: Track with clip with identity transform topological" {
     );
 
     try expectApproxEqAbs(
-        @as(f32, 1),
+        1,
         try root_output_to_clip_media.project_ordinate(1),
         util.EPSILON,
     );
@@ -1360,7 +1464,7 @@ test "Projection: Track with single clip with identity transform and bounds" {
     const clip = tr.child_ptr_from_index(0);
 
     const map = try build_topological_map(
-        // std.testing.allocator,
+        std.testing.allocator,
         root,
     );
     defer map.deinit();
@@ -1428,7 +1532,7 @@ test "Projection: Track with multiple clips with identity transform and bounds" 
     };
 
     const map = try build_topological_map(
-        // std.testing.allocator,
+        std.testing.allocator,
         track_ptr,
     );
     defer map.deinit();
@@ -1514,7 +1618,7 @@ test "Single Clip Media to Output Identity transform" {
     const cl_ptr : ItemPtr = .{ .clip_ptr = &cl};
 
     const map = try build_topological_map(
-        // std.testing.allocator,
+        std.testing.allocator,
         cl_ptr,
     );
     // defer map.deinit();
@@ -1600,7 +1704,7 @@ test "Single Clip reverse transform" {
     const cl_ptr : ItemPtr = .{ .clip_ptr = &cl};
 
     const map = try build_topological_map(
-        // std.testing.allocator,
+        std.testing.allocator,
         cl_ptr,
     );
     defer map.deinit();
@@ -1728,7 +1832,7 @@ test "Single Clip bezier transform" {
     const cl_ptr : ItemPtr = .{ .clip_ptr = &cl };
 
     const map = try build_topological_map(
-        // std.testing.allocator,
+        std.testing.allocator,
         cl_ptr
     );
     defer map.deinit();
@@ -2151,7 +2255,7 @@ test "read_from_file test" {
     );
 
     const map = try build_topological_map(
-        // std.testing.allocator,
+        std.testing.allocator,
         tl_ptr
     );
     defer map.deinit();
@@ -2176,16 +2280,23 @@ test "read_from_file test" {
     );
 }
 
-fn sequential_child_code(src: treecode.Treecode, index: usize) !treecode.Treecode {
+fn sequential_child_code_leaky(
+    src: treecode.Treecode,
+    index: usize
+) !treecode.Treecode 
+{
     var result = try src.clone();
     var i:usize = 0;
-    while (i <= index):(i+=1) {
+    while (i <= index)
+        :(i+=1) 
+    {
         try result.append(1);
     }
     return result;
 }
 
-test "sequential_child_hash: math" {
+test "sequential_child_hash: math" 
+{
     var root = try treecode.Treecode.init_word(
         std.testing.allocator,
         0b1000
@@ -2198,7 +2309,7 @@ test "sequential_child_hash: math" {
     defer test_code.deinit();
 
     while (i<4) : (i+=1) {
-        var result = try sequential_child_code(root, i);
+        var result = try sequential_child_code_leaky(root, i);
         defer result.deinit();
 
         try test_code.append(1);
@@ -2236,7 +2347,8 @@ test "label_for_node_leaky" {
     try std.testing.expectEqualStrings("track_output_1101001", result);
 }
 
-test "test spaces list" {
+test "test spaces list" 
+{
     const cl = Clip{};
     const it = ItemPtr{ .clip_ptr = &cl };
     const spaces = try it.spaces(std.testing.allocator);

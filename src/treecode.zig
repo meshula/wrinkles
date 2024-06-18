@@ -4,6 +4,8 @@ pub const TreecodeWord = u128;
 pub const WORD_BIT_COUNT = @bitSizeOf(TreecodeWord);
 pub const Hash = u64;
 
+// @TODO: needs a cleanup pass (this file)
+
 /// An encoding of a path through a binary tree.  The root bit is the right
 /// side of a number, and the directions are read right to left.  
 ///
@@ -1205,7 +1207,8 @@ test "treecode: next_step_towards" {
     }
 }
 
-test "treecode: clone" {
+test "treecode: clone" 
+{
     {
         const tc_src = try Treecode.init_word(std.testing.allocator, 0b1);
         defer tc_src.deinit();
@@ -1230,8 +1233,10 @@ test "treecode: clone" {
 }
 
 
-// pub fn BidirectionalTreecodeHashMap(comptime T: type) type {
-pub fn TreecodeHashMap(comptime V: type) type {
+pub fn TreecodeHashMap(
+    comptime V: type
+) type 
+{
     return std.HashMap(
         Treecode,
         V,
