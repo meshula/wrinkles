@@ -9,7 +9,9 @@ pub fn eval(
     return comath.eval(expr, CTX, inputs);
 }
 
-pub fn DualOf(comptime T: type) type 
+pub fn DualOf(
+    comptime T: type
+) type 
 {
     return switch(@typeInfo(T)) {
         .Struct =>  DualOfStruct(T),
@@ -17,8 +19,12 @@ pub fn DualOf(comptime T: type) type
     };
 }
 
+/// comath context for dual math
 pub const dual_ctx = struct{
-    pub fn EvalNumberLiteral(comptime src: []const u8) type {
+    pub fn EvalNumberLiteral(
+        comptime src: []const u8
+    ) type 
+    {
         const result = comath.ctx.DefaultEvalNumberLiteral(src);
         if (result == comptime_float or result == comptime_int) {
             return Dual_f32; 
@@ -26,6 +32,7 @@ pub const dual_ctx = struct{
             return result;
         }
     }
+
     pub fn evalNumberLiteral(
         comptime src: []const u8
     ) EvalNumberLiteral(src) 
@@ -34,7 +41,12 @@ pub const dual_ctx = struct{
 
         return switch (target_type) {
             .Dual_f32 => .{ 
-                .r = std.fmt.parseFloat(f32, src) catch |err| @compileError(@errorName(err)),
+                .r = std.fmt.parseFloat(
+                    f32,
+                    src
+                ) catch |err| @compileError(
+                @errorName(err)
+                ),
                 .i = 0.0,
             },
             else => comath.ctx.defaultEvalNumberLiteral(src),
@@ -42,7 +54,7 @@ pub const dual_ctx = struct{
     }
 };
 
-// build the context
+/// static instantiation of the comath context
 pub const CTX = comath.ctx.fnMethod(
     comath.ctx.simple({}),
     // dual_ctx,
@@ -52,74 +64,72 @@ pub const CTX = comath.ctx.fnMethod(
     }
 );
 
-pub const CTX2 = comath.ctx.fnMethod(
-    comath.ctx.Simple(dual_ctx),
-    .{
-        .@"+" = "add",
-        .@"*" = "mul",
-    }
-);
+test "dual: float + float" 
+{
+    const result = comath.eval(
+        "x + 3",
+        CTX,
+        .{ .x = 1}
+    ) catch |err| switch (err) {};
+    try std.testing.expectEqual(@as(f32, 4), result);
+}
 
-test "dual: add to float" {
-    {
-        const result = comath.eval(
-            "x + 3",
-            CTX,
-            .{ .x = 1}
-        ) catch |err| switch (err) {};
-        try std.testing.expectEqual(@as(f32, 4), result);
-    }
+test "dual: dual + float"
+{
+    const result = comath.eval(
+        "x + 3",
+        CTX,
+        .{ .x = Dual_f32{ .r = 3, .i = 1 }}
+    ) catch |err| switch (err) {};
+    try std.testing.expectEqual(@as(f32, 6), result.r);
+}
 
-    {
-        const result = comath.eval(
-            "x + 3",
-            CTX,
-            .{ .x = Dual_f32{ .r = 3, .i = 1 }}
-        ) catch |err| switch (err) {};
-        try std.testing.expectEqual(@as(f32, 6), result.r);
-    }
-
-    {
-        const result = comath.eval(
-            "x * 3",
-            CTX,
-            .{ .x = Dual_f32{ .r = 3, .i = 1 }}
-        ) catch |err| switch (err) {};
-        try std.testing.expectEqual(@as(f32, 9), result.r);
-    }
-
-    // {
-    //     const result = comath.eval(
-    //         "3 * x",
-    //         CTX2,
-    //         .{ .x = Dual_f32{ .r = 3, .i = 1 }}
-    //     ) catch |err| switch (err) {};
-    //     try std.testing.expectEqual(@as(f32, 9), result.r);
-    // }
+test "dual * float"
+{
+    const result = comath.eval(
+        "x * 3",
+        CTX,
+        .{ .x = Dual_f32{ .r = 3, .i = 1 }}
+    ) catch |err| switch (err) {};
+    try std.testing.expectEqual(@as(f32, 9), result.r);
 }
 
 pub const Dual_f32 = DualOf(f32);
-pub const Dual_CP = DualOf(ControlPoint);
+const Dual_CP = DualOf(ControlPoint);
 
-// default dual type for opentime
+/// default dual type for opentime
 pub const Dual_t = Dual_f32;
 
-pub fn DualOfNumberType(comptime T: type) type {
+pub fn DualOfNumberType(
+    comptime T: type
+) type 
+{
     return struct {
         /// real component
         r: T = 0,
         /// infinitesimal component
         i: T = 0,
 
-        pub fn init(r: T) @This() {
+        /// initialize with i = 0
+        pub fn init(
+            r: T
+        ) @This() 
+        {
             return .{ .r = r };
         }
 
-        pub inline fn negate(self: @This()) @This() {
+        pub inline fn negate(
+            self: @This()
+        ) @This() 
+        {
             return .{ .r = -self.r, .i = -self.i };
         }
 
-        pub inline fn add(self: @This(), rhs: anytype) @This() {
+        pub inline fn add(
+            self: @This(),
+            rhs: anytype
+        ) @This() 
+        {
             return switch(@typeInfo(@TypeOf(rhs))) {
                 .Struct => .{ 
                     .r = self.r + rhs.r,
@@ -132,7 +142,11 @@ pub fn DualOfNumberType(comptime T: type) type {
             };
         }
 
-        pub inline fn sub(self: @This(), rhs: anytype) @This() {
+        pub inline fn sub(
+            self: @This(),
+            rhs: anytype
+        ) @This() 
+        {
             return switch(@typeInfo(@TypeOf(rhs))) {
                 .Struct => .{ 
                     .r = self.r - rhs.r,
@@ -145,7 +159,11 @@ pub fn DualOfNumberType(comptime T: type) type {
             };
         }
 
-        pub inline fn mul(self: @This(), rhs: anytype) @This() {
+        pub inline fn mul(
+            self: @This(),
+            rhs: anytype
+        ) @This() 
+        {
             return switch(@typeInfo(@TypeOf(rhs))) {
                 .Struct => .{ 
                     .r = self.r * rhs.r,
@@ -158,15 +176,27 @@ pub fn DualOfNumberType(comptime T: type) type {
             };
         }
 
-        pub inline fn lt(self: @This(), rhs: @This()) @This() {
+        pub inline fn lt(
+            self: @This(),
+            rhs: @This()
+        ) @This() 
+        {
             return self.r < rhs.r;
         }
 
-        pub inline fn gt(self: @This(), rhs: @This()) @This() {
+        pub inline fn gt(
+            self: @This(),
+            rhs: @This()
+        ) @This() 
+        {
             return self.r > rhs.r;
         }
 
-        pub inline fn div(self: @This(), rhs: anytype) @This() {
+        pub inline fn div(
+            self: @This(),
+            rhs: anytype
+        ) @This() 
+        {
             return switch(@typeInfo(@TypeOf(rhs))) {
                 .Struct => .{
                     .r = self.r / rhs.r,
@@ -179,29 +209,42 @@ pub fn DualOfNumberType(comptime T: type) type {
             };
         }
 
-        // derivative is self.i * f'(self.r)
-        pub inline fn sqrt(self: @This()) @This() {
+        /// derivative is self.i * f'(self.r)
+        pub inline fn sqrt(
+            self: @This()
+        ) @This() 
+        {
             return .{ 
                 .r = std.math.sqrt(self.r),
                 .i = self.i / (2 * std.math.sqrt(self.r)),
             };
         }
 
-        pub inline fn cos(self: @This()) @This() {
+        pub inline fn cos(
+            self: @This()
+        ) @This() 
+        {
             return .{
                 .r = std.math.cos(self.r),
                 .i = -self.i * std.math.sin(self.r),
             };
         }
 
-        pub inline fn acos(self: @This()) @This() {
+        pub inline fn acos(
+            self: @This()
+        ) @This() 
+        {
             return .{
                 .r = std.math.acos(self.r),
                 .i = -self.i / std.math.sqrt(1 - (self.r * self.r)),
             };
         }
 
-        pub inline fn pow(self: @This(), y: @TypeOf(self.r)) @This() {
+        pub inline fn pow(
+            self: @This(),
+            y: @TypeOf(self.r)
+        ) @This() 
+        {
             return .{
                 .r = std.math.pow(@TypeOf(self.r), self.r, y),
                 .i = (
@@ -214,7 +257,9 @@ pub fn DualOfNumberType(comptime T: type) type {
     };
 }
 
-pub fn DualOfStruct(comptime T: type) type 
+pub fn DualOfStruct(
+    comptime T: type
+) type 
 {
     return struct {
         /// real component
@@ -222,11 +267,18 @@ pub fn DualOfStruct(comptime T: type) type
         /// infinitesimal component
         i: T = .{},
 
-        pub fn from(r: T) @TypeOf(@This()) {
+        pub fn from(
+            r: T
+        ) @TypeOf(@This()) 
+        {
             return .{ .r = r };
         }
 
-        pub inline fn add(self: @This(), rhs: @This()) @This() {
+        pub inline fn add(
+            self: @This(),
+            rhs: @This()
+        ) @This() 
+        {
             return .{
                 .r = comath.eval(
                     "self_r + rhs_r",
@@ -241,7 +293,11 @@ pub fn DualOfStruct(comptime T: type) type
             };
         }
 
-        pub inline fn mul(self: @This(), rhs: anytype) @This() {
+        pub inline fn mul(
+            self: @This(),
+            rhs: anytype
+        ) @This() 
+        {
             return switch(@typeInfo(@TypeOf(rhs))) {
                 .Struct => .{ 
                     .r = self.r.mul(rhs.r),
@@ -257,7 +313,7 @@ pub fn DualOfStruct(comptime T: type) type
 }
 
 /// control point for curve parameterization
-pub const ControlPoint = struct {
+const ControlPoint = struct {
     /// temporal coordinate of the control point
     time: f32 = 0,
     /// value of the Control point at the time cooridnate
@@ -309,7 +365,8 @@ pub const ControlPoint = struct {
     }
 };
 
-test "comath dual test polymorphic" {
+test "comath dual test polymorphic" 
+{
     const test_data = &.{
         // as float
         .{
@@ -379,9 +436,13 @@ test "comath dual test polymorphic" {
     }
 }
 
-test "Dual_f32 sqrt (3-4-5 triangle)" {
+test "Dual_f32 sqrt (3-4-5 triangle)" 
+{
     const d = Dual_f32{ .r = (3*3 + 4*4), .i = 1 };
 
-    try std.testing.expectApproxEqAbs(@as(f32, 5), d.sqrt().r, 0.00000001);
-    // try std.testing.expectApproxEqAbs(@as(f32, 0.1), d.sqrt().i, 0.00000001);
+    try std.testing.expectApproxEqAbs(
+        @as(f32, 5),
+        d.sqrt().r,
+        0.00000001
+    );
 }
