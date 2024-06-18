@@ -573,7 +573,6 @@ pub fn build(
             .target = options.target,
             .test_step = test_step,
             .deps = &.{
-                .{ .name = "otio_allocator", .module = otio_allocator },
                 .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "opentime", .module = opentime },
                 .{ .name = "curve", .module = curve },

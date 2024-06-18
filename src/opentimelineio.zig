@@ -13,7 +13,6 @@ const time_topology = @import("time_topology");
 const string = @import("string_stuff");
 
 const util = opentime.util;
-const otio_allocator = @import("otio_allocator");
 
 const treecode = @import("treecode");
 
@@ -1884,9 +1883,10 @@ test "Single Clip bezier transform" {
         // invert it back and check it against the inpout curve bounds
         const clip_media_to_output = (
             try clip_output_to_media_proj.topology.inverted(
-                otio_allocator.ALLOCATOR
+                std.testing.allocator
             )
         );
+        defer clip_media_to_output.deinit(std.testing.allocator);
         const clip_media_to_output_bounds = (
             clip_media_to_output.bounds()
         );
