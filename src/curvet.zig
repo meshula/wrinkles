@@ -1583,7 +1583,12 @@ fn update(
             },
         }
 
-        _proj = _topology.project_topology(allocator, _proj) catch inf;
+        const tmp = _proj;
+        _proj = _topology.project_topology(
+            allocator,
+            _proj
+        ) catch inf;
+        tmp.deinit(allocator);
     }
 
     zgui.backend.newFrame(
@@ -1772,12 +1777,16 @@ fn update(
                             split_points.items,
                             allocator
                         );
+                        const tmp = other_copy;
                         other_copy = try curve.TimeCurve.init(
                             allocator,
                             result.segments,
                         );
+                        tmp.deinit(allocator);
                         result.deinit(allocator);
                     }
+
+                    defer other_copy.deinit(allocator);
 
                     const result_guts = try self_hodograph.project_curve_guts(
                         other_hodograph,
@@ -2347,6 +2356,8 @@ fn update(
         _ = zgui.showDemoWindow(null);
         _ = zgui.plot.showDemoWindow(null);
     }
+
+    _proj.deinit(allocator);
 }
 
 fn draw(gfx_state: *GraphicsState) void {
