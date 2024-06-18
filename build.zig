@@ -563,7 +563,6 @@ pub fn build(
             .test_step = test_step,
             .deps = &.{
                 .{ .name = "opentime", .module = opentime },
-                .{ .name = "otio_allocator", .module = otio_allocator },
                 .{ .name = "curve", .module = curve },
             },
             .test_filter = options.test_filter,

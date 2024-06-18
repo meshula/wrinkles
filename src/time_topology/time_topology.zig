@@ -10,9 +10,6 @@ const util = opentime.util;
 const curve = @import("curve"); 
 const control_point = curve.control_point; 
 
-const otio_allocator = @import("otio_allocator"); 
-const ALLOCATOR = otio_allocator.ALLOCATOR;
-
 // import more tests
 test {
     _ = @import("test_topology_projections.zig");
@@ -651,9 +648,11 @@ pub const TimeTopology = union (enum) {
     pub fn init_step_mapping(
         allocator: std.mem.Allocator,
         in_bounds: interval.ContinuousTimeInterval,
-        // the value of the function at the initial sample (f(0))
+        /// the value of the function at the initial sample (f(0))
         start_value: f32,
+        /// lenght of each step
         held_duration: f32,
+        /// distance between each step
         increment: f32,
     ) !TimeTopology
     {
@@ -1200,12 +1199,14 @@ pub const StepSampleGenerator = struct {
 
     pub fn sample_over(
         self: @This(), 
+        allocator: std.mem.Allocator,
         topology: TimeTopology
     ) ![]Sample
     {
         var result: std.ArrayList(Sample) = (
-            std.ArrayList(Sample).init(ALLOCATOR)
+            std.ArrayList(Sample).init(allocator)
         );
+        defer result.deinit();
 
         // @TODO:
         // I suspect a better way to do this is to project the numbers into a
@@ -1215,9 +1216,8 @@ pub const StepSampleGenerator = struct {
         var current_coord = self.start_offset;
         const end_seconds = topology.bounds().end_seconds;
 
-        // @breakpoint();
-
         while (current_coord < end_seconds - util.EPSILON) 
+            : (current_coord += increment)
         {
             const next: Sample = .{
                 .ordinate_seconds = current_coord,
@@ -1231,11 +1231,9 @@ pub const StepSampleGenerator = struct {
             if (tp_space) |s| {
                 try result.append(s);
             } 
-
-            current_coord += increment;
         }
 
-        return result.items;
+        return result.toOwnedSlice();
     }
 };
 
@@ -1263,7 +1261,11 @@ test "StepSampleGenerator: sample over step function topology"
     );
     defer target_topology.deinit(std.testing.allocator);
 
-    const result = try sample_generator.sample_over(target_topology);
+    const result = try sample_generator.sample_over(
+        std.testing.allocator,
+        target_topology
+    );
+    defer std.testing.allocator.free(result);
     const expected = target_topology.bounds().duration_seconds() * sample_rate;
 
     try expectApproxEqAbs(
@@ -1288,9 +1290,19 @@ test "StepSampleGenerator: sample over identity topology"
     };
 
     const target_topology = TimeTopology.init_identity(
-        .{ .bounds = .{ .start_seconds = 100, .end_seconds = 103 } }
+        .{ 
+            .bounds = .{ 
+                    .start_seconds = 100,
+                    .end_seconds = 103 
+            } 
+        }
     );
-    const result = try sample_generator.sample_over(target_topology);
+
+    const result = try sample_generator.sample_over(
+        std.testing.allocator,
+        target_topology
+    );
+    defer std.testing.allocator.free(result);
 
     const expected_last_coord = (
         target_topology.bounds().end_seconds 
