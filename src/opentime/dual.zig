@@ -95,7 +95,6 @@ test "dual * float"
 }
 
 pub const Dual_f32 = DualOf(f32);
-const Dual_CP = DualOf(ControlPoint);
 
 /// default dual type for opentime
 pub const Dual_t = Dual_f32;
@@ -312,59 +311,6 @@ pub fn DualOfStruct(
     };
 }
 
-/// control point for curve parameterization
-const ControlPoint = struct {
-    /// temporal coordinate of the control point
-    time: f32 = 0,
-    /// value of the Control point at the time cooridnate
-    value: f32 = 0,
-
-    // multiply with float
-    pub fn mul(self: @This(), rhs: anytype) ControlPoint {
-        return switch(@typeInfo(@TypeOf(rhs))) {
-            .Struct =>  .{
-                .time = rhs.time*self.time,
-                .value = rhs.value*self.value,
-            },
-            else => .{
-                .time = rhs.time*self.time,
-                .value = rhs.value*self.value,
-            },
-        };
-    }
-
-    pub fn div(self: @This(), val: f32) ControlPoint {
-        return .{
-            .time  = self.time/val,
-            .value = self.value/val,
-        };
-    }
-
-    pub fn add(self: @This(), rhs: ControlPoint) ControlPoint {
-        return .{
-            .time = self.time + rhs.time,
-            .value = self.value + rhs.value,
-        };
-    }
-
-    pub fn sub(self: @This(), rhs: ControlPoint) ControlPoint {
-        return .{
-            .time = self.time - rhs.time,
-            .value = self.value - rhs.value,
-        };
-    }
-
-    pub fn distance(self: @This(), rhs: ControlPoint) f32 {
-        const diff = rhs.sub(self);
-        return std.math.sqrt(diff.time * diff.time + diff.value * diff.value);
-    }
-
-    pub fn normalized(self: @This()) ControlPoint {
-        const d = self.distance(.{ .time=0, .value=0 });
-        return .{ .time = self.time/d, .value = self.value/d };
-    }
-};
-
 test "comath dual test polymorphic" 
 {
     const test_data = &.{
@@ -381,39 +327,6 @@ test "comath dual test polymorphic"
             .off1 = Dual_f32{ .r = 2 },
             .off2 = Dual_f32{ .r = 1 }, 
             .expect = Dual_f32{ .r = 20, .i = 9},
-        },
-        // as control point dual
-        .{
-            .x = Dual_CP{
-                .r = .{ .time = 3, .value = 3 },
-                .i = .{ .time = 1, .value = 1 },
-            },
-            .off1 = Dual_CP{
-                .r = .{ .time = 2, .value = 2 },
-            },
-            .off2 = Dual_CP{
-                .r = .{ .time = 1, .value = 1 },
-            },
-            .expect = Dual_CP{
-                .r = .{ .time = 20, .value = 20 },
-                .i = .{ .time = 9, .value = 9 },
-            },
-        },
-        .{
-            .x = Dual_CP{
-                .r = .{ .time = -3, .value = -2 },
-                .i = .{ .time = 1, .value = 1 },
-            },
-            .off1 = Dual_CP{
-                .r = .{ .time = 2, .value = 3 },
-            },
-            .off2 = Dual_CP{
-                .r = .{ .time = 1, .value = 1 },
-            },
-            .expect = Dual_CP{
-                .r = .{ .time = 2, .value = -1 },
-                .i = .{ .time = -3, .value = 0 },
-            },
         },
     };
 
