@@ -534,19 +534,27 @@ const TopologicalMap = struct {
     ) !ProjectionOperator 
     {
         var source_code = (
-            if (self.map_space_to_code.get(args.source)) |code| code 
+            if (self.map_space_to_code.get(args.source)) 
+            |code| 
+            code
             else return error.SourceNotInMap
         );
 
         var destination_code = (
-            if (self.map_space_to_code.get(args.destination)) |code| code 
+            if (self.map_space_to_code.get(args.destination)) 
+            |code| 
+            code
             else return error.DestinationNotInMap
         );
 
-        if (path_exists(source_code, destination_code) == false) {
+        if (path_exists(source_code, destination_code) == false) 
+        {
             errdefer std.debug.print(
                 "\nERROR\nsource: {b} dest: {b}\n",
-                .{ source_code.treecode_array[0], destination_code.treecode_array[0] }
+                .{
+                    source_code.treecode_array[0],
+                    destination_code.treecode_array[0] 
+                }
             );
             return error.NoPathBetweenSpaces;
         }
@@ -557,7 +565,8 @@ const TopologicalMap = struct {
 
         var current = args.source;
 
-        // only supporting forward projection at the moment
+        // path builder walks from the root towards the leaf nodes, and cannot
+        // handle paths that go between siblings
         if (needs_inversion) {
             const tmp = source_code;
             source_code = destination_code;
@@ -566,9 +575,12 @@ const TopologicalMap = struct {
             current = args.destination;
         }
 
-        var current_code = source_code;
+        var current_code = try source_code.clone();
+        defer current_code.deinit();
 
-        var proj = time_topology.TimeTopology.init_identity_infinite();
+        var proj = (
+            time_topology.TimeTopology.init_identity_infinite()
+        );
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
             std.debug.print(
@@ -580,25 +592,24 @@ const TopologicalMap = struct {
             );
         }
 
+        // walk from current_code towards destination_code
         while (current_code.eql(destination_code) == false) 
         {
             const next_step = try current_code.next_step_towards(
                 destination_code
             );
 
-            defer current_code.deinit();
-            var next_code = try current_code.clone();
-            try next_code.append(next_step);
+            try current_code.append(next_step);
 
             // path has already been verified
             const next = self.map_code_to_space.get(
-                next_code
+                current_code
             ) orelse return error.TreeCodeNotInMap;
 
             if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) { 
                 std.debug.print(
                     "  step {b} to next code: {d}\n",
-                    .{ next_step, next_code.hash() }
+                    .{ next_step, current_code.hash() }
                 );
             }
 
@@ -620,7 +631,6 @@ const TopologicalMap = struct {
             );
             proj.deinit(allocator);
 
-            current_code = next_code;
             current = next;
             proj = current_proj;
         }
@@ -883,6 +893,7 @@ pub fn build_topological_map(
         stack.deinit();
     }
 
+    // 1a
     const start_code = try treecode.Treecode.init_word(
         allocator,
         TopologicalMap.ROOT_TREECODE,
@@ -897,7 +908,7 @@ pub fn build_topological_map(
     );
 
     if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
-        std.debug.print("starting graph...\n", .{});
+        std.debug.print("\nstarting graph...\n", .{});
     }
 
     while (stack.items.len > 0) 
@@ -907,7 +918,7 @@ pub fn build_topological_map(
         const code_from_stack = current.path_code;
         defer code_from_stack.deinit();
 
-        var current_code = current.path_code;
+        var current_code = try current.path_code.clone();
 
         // push the spaces for the current object into the map/stack
         {
@@ -933,7 +944,10 @@ pub fn build_topological_map(
                         tmp_topo_map.map_space_to_code.get(space_ref) == null
                     );
                     std.debug.print(
-                        "[{d}] code: {b} hash: {d} adding local space: '{s}.{s}'\n",
+                        (
+                         "[{d}] code: {b} hash: {d} adding local space: "
+                         ++ "'{s}.{s}'\n"
+                        ),
                         .{
                             index,
                             child_code.treecode_array[0],
@@ -953,7 +967,8 @@ pub fn build_topological_map(
                 );
 
                 if (index == (spaces.len - 1)) {
-                    current_code = child_code;
+                    current_code.deinit();
+                    current_code = try child_code.clone();
                 }
             }
         }
@@ -1052,6 +1067,8 @@ pub fn build_topological_map(
                 }
             );
         }
+
+        current_code.deinit();
     }
 
     // return result;
@@ -1602,7 +1619,8 @@ test "Projection: Track with multiple clips with identity transform and bounds" 
     );
 }
 
-test "Single Clip Media to Output Identity transform" {
+test "Single Clip Media to Output Identity transform" 
+{
     //
     //              0                 7           10
     // output space [-----------------*-----------)
@@ -1621,7 +1639,7 @@ test "Single Clip Media to Output Identity transform" {
         std.testing.allocator,
         cl_ptr,
     );
-    // defer map.deinit();
+    defer map.deinit();
 
     try expectEqual(
         @as(usize, 2),
