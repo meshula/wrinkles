@@ -1123,113 +1123,160 @@ test "treecode: init_fill_count" {
     }
 }
 
-test "treecode: next_step_towards" {
-    // single word size
-    {
-        const TestData = struct{
-            source: TreecodeWord,
-            dest: TreecodeWord,
-            expect: u1,
-        };
+test "treecode: next_step_towards - single word size" 
+{
+    const TestData = struct{
+        source: TreecodeWord,
+        dest: TreecodeWord,
+        expect: u1,
+    };
 
-        const test_data = [_]TestData{
-            .{ .source = 0b11,      .dest = 0b101,      .expect = 0b0 },
-            .{ .source = 0b11,      .dest = 0b111,      .expect = 0b1 },
-            .{ .source = 0b10,      .dest = 0b10011100, .expect = 0b0 },
-            .{ .source = 0b10,      .dest = 0b10001100, .expect = 0b0 },
-            .{ .source = 0b10,      .dest = 0b10111110, .expect = 0b1 },
-            .{ .source = 0b11,      .dest = 0b10101111, .expect = 0b1 },
-            .{ .source = 0b101,     .dest = 0b10111101, .expect = 0b1 },
-            .{ .source = 0b101,     .dest = 0b10101001, .expect = 0b0 },
-            .{ .source = 0b1101001, .dest = 0b10101001, .expect = 0b0 },
-        };
+    const test_data = [_]TestData{
+        .{ .source = 0b11,      .dest = 0b101,      .expect = 0b0 },
+        .{ .source = 0b11,      .dest = 0b111,      .expect = 0b1 },
+        .{ .source = 0b10,      .dest = 0b10011100, .expect = 0b0 },
+        .{ .source = 0b10,      .dest = 0b10001100, .expect = 0b0 },
+        .{ .source = 0b10,      .dest = 0b10111110, .expect = 0b1 },
+        .{ .source = 0b11,      .dest = 0b10101111, .expect = 0b1 },
+        .{ .source = 0b101,     .dest = 0b10111101, .expect = 0b1 },
+        .{ .source = 0b101,     .dest = 0b10101001, .expect = 0b0 },
+        .{ .source = 0b1101001, .dest = 0b10101001, .expect = 0b0 },
+    };
 
-        for (test_data, 0..) |t, i| {
-            errdefer std.log.err(
-                "[{d}] source: {b} dest: {b} expected: {b}",
-                .{ i, t.source, t.dest, t.expect }
-            );
+    for (test_data, 0..) |t, i| {
+        errdefer std.log.err(
+            "[{d}] source: {b} dest: {b} expected: {b}",
+            .{ i, t.source, t.dest, t.expect }
+        );
 
-            const tc_src = try Treecode.init_word(std.testing.allocator, t.source);
-            defer tc_src.deinit();
-
-            const tc_dst = try Treecode.init_word(std.testing.allocator, t.dest);
-            defer tc_dst.deinit();
-
-            try std.testing.expectEqual(
-                t.expect,
-                try tc_src.next_step_towards(tc_dst),
-            );
-        }
-    }
-
-    // codes longer than a single word
-    {
-        var tc_src = try Treecode.init_word(std.testing.allocator, 0b1);
+        const tc_src = try Treecode.init_word(std.testing.allocator, t.source);
         defer tc_src.deinit();
-        var tc_dst = try Treecode.init_word(std.testing.allocator, 0b1);
+
+        const tc_dst = try Treecode.init_word(std.testing.allocator, t.dest);
         defer tc_dst.deinit();
 
-        // straddle the word boundary
-        var i:usize = 0;
-        while (i < WORD_BIT_COUNT - 1) : (i += 1) {
-            try tc_src.append(0);
-            try tc_dst.append(0);
-        }
-
         try std.testing.expectEqual(
-            @as(usize, WORD_BIT_COUNT) - 1,
-            tc_src.code_length()
-        );
-
-        try tc_dst.append(1);
-
-        try std.testing.expectEqual(
-            @as(u1, 0b1),
-            try tc_src.next_step_towards(tc_dst)
-        );
-
-        try tc_src.append(1);
-
-        // add a bunch of values
-        i = 0;
-        while (i < 1000) : (i += 1) {
-            try tc_src.append(0);
-            try tc_dst.append(0);
-        }
-
-        try tc_dst.append(1);
-
-        try std.testing.expectEqual(
-            @as(u1, 0b1),
-            try tc_src.next_step_towards(tc_dst)
+            t.expect,
+            try tc_src.next_step_towards(tc_dst),
         );
     }
 }
 
-test "treecode: clone" 
+test "treecode: next_step_towards - larger than a single word" 
 {
-    {
-        const tc_src = try Treecode.init_word(std.testing.allocator, 0b1);
-        defer tc_src.deinit();
-        const tc_cln = try tc_src.clone();
-        defer tc_cln.deinit();
+    var tc_src = try Treecode.init_word(
+        std.testing.allocator,
+        0b1
+    );
+    defer tc_src.deinit();
+    var tc_dst = try Treecode.init_word(
+        std.testing.allocator,
+        0b1
+    );
+    defer tc_dst.deinit();
 
-        try std.testing.expect(tc_src.eql(tc_cln));
+    // straddle the word boundary
+    var i:usize = 0;
+    while (i < WORD_BIT_COUNT - 1) 
+        : (i += 1) 
+    {
+        try tc_src.append(0);
+        try tc_dst.append(0);
     }
 
+    try std.testing.expectEqual(
+        @as(usize, WORD_BIT_COUNT) - 1,
+        tc_src.code_length()
+    );
+
+    try tc_dst.append(1);
+
+    try std.testing.expectEqual(
+        @as(u1, 0b1),
+        try tc_src.next_step_towards(tc_dst)
+    );
+
+    try tc_src.append(1);
+
+    // add a bunch of values
+    i = 0;
+    while (i < 1000) 
+        : (i += 1) 
     {
-        var tc_src = try Treecode.init_word(std.testing.allocator, 0b1);
-        defer tc_src.deinit();
-        var tc_cln = try tc_src.clone();
-        defer tc_cln.deinit();
-
-        try std.testing.expect(tc_src.eql(tc_cln));
-
-        try tc_src.append(1);
-
-        try std.testing.expect(tc_src.eql(tc_cln) == false);
+        try tc_src.append(0);
+        try tc_dst.append(0);
     }
+
+    try tc_dst.append(1);
+
+    try std.testing.expectEqual(
+        @as(u1, 0b1),
+        try tc_src.next_step_towards(tc_dst)
+    );
+}
+
+test "treecode: clone - 0b1" 
+{
+    const tc_src = try Treecode.init_word(
+        std.testing.allocator,
+        0b1
+    );
+    defer tc_src.deinit();
+    const tc_cln = try tc_src.clone();
+    defer tc_cln.deinit();
+
+    // the pointers are different
+    try std.testing.expect(
+        tc_src.treecode_array.ptr != tc_cln.treecode_array.ptr
+    );
+    try std.testing.expectEqual(
+        tc_src.treecode_array.len,
+        tc_cln.treecode_array.len,
+    );
+
+    try std.testing.expect(tc_src.eql(tc_cln));
+}
+
+test "treecode: clone - add items" 
+{
+    var tc_src = try Treecode.init_word(
+        std.testing.allocator,
+        0b1
+    );
+    defer tc_src.deinit();
+    var tc_cln = try tc_src.clone();
+    defer tc_cln.deinit();
+
+    try std.testing.expect(tc_src.eql(tc_cln));
+
+    try std.testing.expect(
+        tc_src.treecode_array.ptr != tc_cln.treecode_array.ptr
+    );
+    try std.testing.expectEqual(
+        tc_src.treecode_array.len,
+        tc_cln.treecode_array.len,
+    );
+
+    try tc_src.append(1);
+
+    try std.testing.expect(tc_src.eql(tc_cln) == false);
+}
+
+test "treecode: clone - with deinit"
+{
+    var tc_src = try Treecode.init_word(
+        std.testing.allocator,
+        0b1
+    );
+
+    var tc_cln = try tc_src.clone();
+
+    defer tc_cln.deinit();
+
+    // explicitly deinit the first
+    tc_src.deinit();
+
+    try std.testing.expect(tc_src.eql(tc_cln) == false);
 }
 
 
@@ -1241,11 +1288,20 @@ pub fn TreecodeHashMap(
         Treecode,
         V,
         struct{
-            pub fn hash(_: @This(), key: Treecode) u64 {
+            pub fn hash(
+                _: @This(),
+                key: Treecode
+            ) u64 
+            {
                 return key.hash();
             }
 
-            pub fn eql(_:@This(), fst: Treecode, snd: Treecode) bool {
+            pub fn eql(
+                _:@This(),
+                fst: Treecode,
+                snd: Treecode
+            ) bool 
+            {
                 return fst.eql(snd);
             }
         },
