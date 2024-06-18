@@ -7,6 +7,12 @@ const expect = std.testing.expect;
 // Intervals and Points @{
 // ////////////////////////////////////////////////////////////////////////////
 
+/// An infinite interval
+pub const INF_CTI: ContinuousTimeInterval = .{
+    .start_seconds = -util.inf, 
+    .end_seconds = util.inf
+};
+
 // right open interval on the time continuum
 // the default CTI splits the timeline at the origin
 pub const ContinuousTimeInterval = struct {
@@ -18,7 +24,9 @@ pub const ContinuousTimeInterval = struct {
 
     // compute the duration of the interval, if either boundary is not finite,
     // the duration is infinite.
-    pub fn duration_seconds(self: @This()) f32 
+    pub fn duration_seconds(
+        self: @This()
+    ) f32 
     {
         if (
             !std.math.isFinite(self.start_seconds) 
@@ -47,7 +55,11 @@ pub const ContinuousTimeInterval = struct {
         };
     }
 
-    pub fn overlaps_seconds(self: @This(), t_seconds: f32) bool {
+    pub fn overlaps_seconds(
+        self: @This(),
+        t_seconds: f32
+    ) bool 
+    {
         return (
             (t_seconds >= self.start_seconds)
             and (t_seconds < self.end_seconds)
@@ -59,27 +71,32 @@ pub const ContinuousTimeInterval = struct {
 pub fn extend(
     fst: ContinuousTimeInterval,
     snd: ContinuousTimeInterval
-) ContinuousTimeInterval {
+) ContinuousTimeInterval 
+{
     return .{
         .start_seconds = @min(fst.start_seconds, snd.start_seconds),
         .end_seconds = @max(fst.end_seconds, snd.end_seconds),
     };
 }
 
+/// return whether there is any overlap between fst and snd
 pub fn any_overlap(
     fst: ContinuousTimeInterval,
     snd: ContinuousTimeInterval
-) bool {
+) bool 
+{
     return (
         fst.start_seconds < snd.end_seconds
         and fst.end_seconds > snd.start_seconds
     );
 }
 
+/// return a new interval of the union or null if they are disjoint
 pub fn union_of(
     fst: ContinuousTimeInterval,
     snd: ContinuousTimeInterval
-) ?ContinuousTimeInterval {
+) ?ContinuousTimeInterval 
+{
     if (!any_overlap(fst, snd)) {
         return null;
     }
@@ -90,10 +107,12 @@ pub fn union_of(
     };
 }
 
+/// return an interval of the intersection or null if they are disjoint
 pub fn intersect(
     fst: ContinuousTimeInterval,
     snd: ContinuousTimeInterval
-) ?ContinuousTimeInterval {
+) ?ContinuousTimeInterval 
+{
     if (!any_overlap(fst, snd)) {
         return null;
     }
@@ -104,65 +123,57 @@ pub fn intersect(
     };
 }
 
-test "intersection test" {
-    {
-        const int1 = ContinuousTimeInterval{.start_seconds = 0, .end_seconds = 10};
-        const int2 = ContinuousTimeInterval{.start_seconds = 1, .end_seconds = 3};
-        const res = intersect(int1, int2) orelse ContinuousTimeInterval{};
+test "intersection test - contained" {
+    const int1 = ContinuousTimeInterval{
+        .start_seconds = 0,
+        .end_seconds = 10
+    };
+    const int2 = ContinuousTimeInterval{
+        .start_seconds = 1,
+        .end_seconds = 3
+    };
+    const res = intersect(
+        int1, 
+        int2
+    ) orelse ContinuousTimeInterval{};
 
-        try std.testing.expectApproxEqAbs(
-            res.start_seconds,
-            int2.start_seconds,
-            util.EPSILON
-        );
-        try std.testing.expectApproxEqAbs(
-            res.end_seconds,
-            int2.end_seconds,
-            util.EPSILON
-        );
-    }
-
-    {
-        const int1 = INF_CTI;
-        const int2 = ContinuousTimeInterval{.start_seconds = 1, .end_seconds = 3};
-        const res = intersect(int1, int2) orelse ContinuousTimeInterval{};
-
-        try std.testing.expectApproxEqAbs(
-            res.start_seconds,
-            int2.start_seconds,
-            util.EPSILON
-        );
-        try std.testing.expectApproxEqAbs(
-            res.end_seconds,
-            int2.end_seconds,
-            util.EPSILON
-        );
-    }
-
-    {
-        const int1 = INF_CTI;
-        const int2 = ContinuousTimeInterval{.start_seconds = 1, .end_seconds = 3};
-        const res = intersect(int2, int1) orelse ContinuousTimeInterval{};
-
-        try std.testing.expectApproxEqAbs(
-            res.start_seconds,
-            int2.start_seconds,
-            util.EPSILON
-        );
-        try std.testing.expectApproxEqAbs(
-            res.end_seconds,
-            int2.end_seconds,
-            util.EPSILON
-        );
-    }
+    try std.testing.expectApproxEqAbs(
+        res.start_seconds,
+        int2.start_seconds,
+        util.EPSILON
+    );
+    try std.testing.expectApproxEqAbs(
+        res.end_seconds,
+        int2.end_seconds,
+        util.EPSILON
+    );
 }
 
-pub const INF_CTI: ContinuousTimeInterval = .{
-    .start_seconds = -util.inf, 
-    .end_seconds = util.inf
-};
+test "intersection test - infinite" {
+    const int1 = INF_CTI;
+    const int2 = ContinuousTimeInterval{
+        .start_seconds = 1,
+        .end_seconds = 3
+    };
+    const res = intersect(
+        int1,
+        int2
+    ) orelse ContinuousTimeInterval{};
 
-test "ContinuousTimeInterval Tests" {
+    try std.testing.expectApproxEqAbs(
+        res.start_seconds,
+        int2.start_seconds,
+        util.EPSILON
+    );
+    try std.testing.expectApproxEqAbs(
+        res.end_seconds,
+        int2.end_seconds,
+        util.EPSILON
+    );
+}
+
+test "ContinuousTimeInterval Tests" 
+{
     const ival : ContinuousTimeInterval = .{
         .start_seconds = 10,
         .end_seconds = 20,
@@ -177,7 +188,8 @@ test "ContinuousTimeInterval Tests" {
     );
 }
 
-test "ContinuousTimeInterval: Overlap tests" {
+test "ContinuousTimeInterval: Overlap tests" 
+{
     const ival : ContinuousTimeInterval = .{
         .start_seconds = 10,
         .end_seconds = 20,
