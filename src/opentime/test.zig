@@ -4,10 +4,6 @@ const otio = @import("opentimelineio");
 
 const STDOUT = std.io.getStdOut().writer();
 
-// global general purpose allocator
-const allocator = @import("./allocator.zig");
-const ALLOCATOR = allocator.ALLOCATOR;
-
 pub fn audio_render_test() !void {
     const tl = try otio.build_single_track_timeline();
     // const tl = otio.build_single_track_timeline() catch |err| return err;
