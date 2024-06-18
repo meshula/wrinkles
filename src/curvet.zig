@@ -89,7 +89,11 @@ const DebugBezierFlags = struct {
 const two_point_approx_flags = struct {
     result_curves: DebugBezierFlags = .{ .bezier = true },
 
-    pub fn draw_ui(self: *@This(), name: [:0]const u8) void {
+    pub fn draw_ui(
+        self: *@This(),
+        name: [:0]const u8
+    ) void 
+    {
         if (zgui.treeNode(name)) 
         {
             defer zgui.treePop();
@@ -128,7 +132,11 @@ const tpa_flags = struct {
     u_3_4: bool = false,
     u_1: bool = false,
 
-    pub fn draw_ui(self: *@This(), name: [:0]const u8) void {
+    pub fn draw_ui(
+        self: *@This(),
+        name: [:0]const u8
+    ) void 
+    {
         if (zgui.treeNode(name)) 
         {
             defer zgui.treePop();
@@ -173,7 +181,11 @@ const DebugDrawCurveFlags = struct {
     },
     two_point_approx: two_point_approx_flags = .{},
 
-    pub fn draw_ui(self: *@This(), name: []const u8) void {
+    pub fn draw_ui(
+        self: *@This(),
+        name: []const u8
+    ) void 
+    {
         zgui.pushStrId(name);
         self.input_curve.draw_ui("input_curve");
         self.split_critical_points.draw_ui("split on critical points");
@@ -198,8 +210,16 @@ const projTmpTest = struct {
     snd: VisCurve,
 };
 
-fn _is_between(val: f32, fst: f32, snd: f32) bool {
-    return ((fst <= val and val < snd) or (fst >= val and val > snd));
+fn _is_between(
+    val: f32,
+    fst: f32,
+    snd: f32
+) bool 
+{
+    return (
+        (fst <= val and val < snd) 
+        or (fst >= val and val > snd)
+    );
 }
 
 const VisTransform = struct {
@@ -390,7 +410,10 @@ const GraphicsState = struct {
         return gfx_state;
     }
 
-    fn deinit(self: *@This()) void {
+    fn deinit(
+        self: *@This()
+    ) void 
+    {
         zgui.backend.deinit();
         zgui.plot.deinit();
         zgui.deinit();
@@ -399,7 +422,9 @@ const GraphicsState = struct {
     }
 };
 
-pub fn main() !void {
+pub fn main(
+) !void 
+{
     zglfw.init() catch {
         std.log.err("GLFW did not initialize properly.", .{});
         return;
