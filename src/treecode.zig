@@ -83,19 +83,16 @@ pub const Treecode = struct {
         self.sz = new_size;
     }
 
-    pub fn clone(self: @This()) !Treecode {
-        var result_array = try self.allocator.alloc(
-            TreecodeWord,
-            self.sz
-        );
-
-        for (self.treecode_array, 0..) |tc, index| {
-            result_array[index] = tc;
-        }
-
+    pub fn clone(
+        self: @This()
+    ) !Treecode 
+    {
         return .{
             .sz = self.sz,
-            .treecode_array = result_array,
+            .treecode_array = try self.allocator.dupe(
+                TreecodeWord,
+                self.treecode_array
+            ),
             .allocator = self.allocator,
         };
     }
