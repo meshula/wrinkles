@@ -5,12 +5,12 @@ const ContinuousTimeInterval = interval.ContinuousTimeInterval;
 
 const expectEqual = std.testing.expectEqual;
 
-// AffineTransform1D @{
-// ////////////////////////////////////////////////////////////////////////////
-// Represents a homogenous-coordinates transform matrix of the form:
-//     | Scale Offset |
-//     |   0     1    | (Implicit)
-// ////////////////////////////////////////////////////////////////////////////
+/// AffineTransform1D @{
+/// ///////////////////////////////////////////////////////////////////////////
+/// Represents a homogenous-coordinates transform matrix of the form:
+///     | Scale Offset |
+///     |   0     1    | (Implicit)
+/// ///////////////////////////////////////////////////////////////////////////
 pub const AffineTransform1D = struct {
     offset_seconds: f32 = 0,
     scale: f32 = 1,
@@ -34,9 +34,9 @@ pub const AffineTransform1D = struct {
         };
     }
 
-    // if the scale of the transform is negative, the ends will flip during
-    // projection.  For bounds, this isn't meaningful and can cause problems.
-    // This function makes sure that result.start_seconds < result.end_seconds
+    /// if the scale of the transform is negative, the ends will flip during
+    /// projection.  For bounds, this isn't meaningful and can cause problems.
+    /// This function makes sure that result.start_seconds < result.end_seconds
     pub fn applied_to_bounds(
         self: @This(),
         bnds: ContinuousTimeInterval,
@@ -62,24 +62,24 @@ pub const AffineTransform1D = struct {
         };
     }
 
-    // Return the inverse of this time transform.
-    //    ** assumes that scale is non-zero **
-    //
-    // Because the AffineTransform1D is a 2x2 matrix of the form:
-    //     | scale offset |
-    //     |   0     1    |
-    //
-    // The inverse is:
-    //     | 1/scale -offset/scale |
-    //     |   0           1       |
-    // To derive this:
-    //     | A B | * | S O |   | 1 0 |
-    //     | C D |   | 0 1 | = | 0 1 |
-    //     =>
-    //     A*S = 1 => A = 1/S
-    //     A*O + B = 0 => B = -O*A => B = -O/S
-    //     C * S = 0 => C = 0
-    //     C * O + D = 1 => D = 1
+    /// Return the inverse of this time transform.
+    ///    ** assumes that scale is non-zero **
+    ///
+    /// Because the AffineTransform1D is a 2x2 matrix of the form:
+    ///     | scale offset |
+    ///     |   0     1    |
+    ///
+    /// The inverse is:
+    ///     | 1/scale -offset/scale |
+    ///     |   0           1       |
+    /// To derive this:
+    ///     | A B | * | S O |   | 1 0 |
+    ///     | C D |   | 0 1 | = | 0 1 |
+    ///     =>
+    ///     A*S = 1 => A = 1/S
+    ///     A*O + B = 0 => B = -O*A => B = -O/S
+    ///     C * S = 0 => C = 0
+    ///     C * O + D = 1 => D = 1
     pub fn inverted(
         self: @This()
     ) AffineTransform1D
@@ -98,7 +98,8 @@ pub const AffineTransform1D = struct {
 };
 
 
-test "AffineTransform1D: offset test" {
+test "AffineTransform1D: offset test" 
+{
     const cti = ContinuousTimeInterval {
         .start_seconds = 10,
         .end_seconds = 20,
@@ -120,7 +121,7 @@ test "AffineTransform1D: offset test" {
     );
 
     try expectEqual(
-        @as(f32, 10),
+        10,
         result.duration_seconds()
     );
 
@@ -140,7 +141,8 @@ test "AffineTransform1D: offset test" {
     );
 }
 
-test "AffineTransform1D: scale test" {
+test "AffineTransform1D: scale test" 
+{
     const cti = ContinuousTimeInterval {
         .start_seconds = 10,
         .end_seconds = 20,
@@ -177,19 +179,21 @@ test "AffineTransform1D: scale test" {
     );
 }
 
-test "AffineTransform1D: invert test" {
+test "AffineTransform1D: invert test" 
+{
     const xform = AffineTransform1D {
         .offset_seconds = 10,
         .scale = 2,
     };
 
-    // const identity = xform.inverted().applied_to_transform(xform);
-    const identity = xform.applied_to_transform(xform.inverted());
+    const identity = xform.applied_to_transform(
+        xform.inverted()
+    );
 
-    try expectEqual(@as(f32, 0), identity.offset_seconds);
-    try expectEqual(@as(f32, 1), identity.scale);
+    try expectEqual(0, identity.offset_seconds);
+    try expectEqual(1, identity.scale);
 
-    const pt = @as(f32, 10);
+    const pt:f32 = 10;
 
     const result = xform.inverted().applied_to_seconds(
         xform.applied_to_seconds(pt)
@@ -198,15 +202,17 @@ test "AffineTransform1D: invert test" {
     try expectEqual(pt, result);
 }
 
-test "AffineTransform1D: applied_to_bounds" {
+test "AffineTransform1D: applied_to_bounds" 
+{
     const xform = AffineTransform1D {
         .offset_seconds = 10,
         .scale = -1,
     };
-    const bounds = ContinuousTimeInterval{.start_seconds = 10, .end_seconds = 20};
+    const bounds = ContinuousTimeInterval{
+        .start_seconds = 10,
+        .end_seconds = 20
+    };
     const result = xform.applied_to_bounds(bounds);
-
-    // errdefer std.log.err("test name: {s}", .{ @src().fn_name });
 
     try std.testing.expect(result.start_seconds < result.end_seconds);
 }
