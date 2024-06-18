@@ -649,6 +649,7 @@ pub const TimeTopology = union (enum) {
     // @TODO: should include a phase offset
     /// builds a TimeTopology out with a mapping that contains a step function
     pub fn init_step_mapping(
+        allocator: std.mem.Allocator,
         in_bounds: interval.ContinuousTimeInterval,
         // the value of the function at the initial sample (f(0))
         start_value: f32,
@@ -656,10 +657,22 @@ pub const TimeTopology = union (enum) {
         increment: f32,
     ) !TimeTopology
     {
-        var segments = std.ArrayList(curve.Segment).init(otio_allocator.ALLOCATOR);
+        var segments = std.ArrayList(curve.Segment).init(
+            allocator,
+        );
+        defer segments.deinit();
+
         var t_seconds = in_bounds.start_seconds;
         var current_value = start_value;
-        while (t_seconds < in_bounds.end_seconds) {
+
+        while (t_seconds < in_bounds.end_seconds) 
+            : (
+                {  
+                    t_seconds += held_duration;
+                    current_value += increment; 
+                }
+            )
+        {
             try segments.append(
                 curve.Segment.init_from_start_end(
                     .{
@@ -672,15 +685,11 @@ pub const TimeTopology = union (enum) {
                     }
                 )
             );
-
-            t_seconds += held_duration;
-            current_value += increment;
         }
 
-        const crv = curve.TimeCurve.init(
-            ALLOCATOR,
-            segments.items,
-        ) catch curve.TimeCurve{};
+        const crv = curve.TimeCurve{
+            .segments = try segments.toOwnedSlice(),
+        };
 
         return TimeTopology.init_bezier_cubic(crv);
     }
@@ -1042,6 +1051,7 @@ test "TimeTopology: staircase constructor"
 {
     const increment:f32 = 2;
     const tp = try TimeTopology.init_step_mapping(
+        std.testing.allocator,
         .{
             .start_seconds = 10,
             .end_seconds = 20
@@ -1050,6 +1060,7 @@ test "TimeTopology: staircase constructor"
         2,
         increment
     );
+    defer tp.deinit(std.testing.allocator);
 
     try expectEqual(
         @as(usize, 5),
@@ -1241,6 +1252,7 @@ test "StepSampleGenerator: sample over step function topology"
 
     // staircase with three steps in it
     var target_topology = try TimeTopology.init_step_mapping(
+        std.testing.allocator,
         .{
             .start_seconds = 100,
             .end_seconds = 103,
@@ -1249,6 +1261,7 @@ test "StepSampleGenerator: sample over step function topology"
         1,
         1
     );
+    defer target_topology.deinit(std.testing.allocator);
 
     const result = try sample_generator.sample_over(target_topology);
     const expected = target_topology.bounds().duration_seconds() * sample_rate;
