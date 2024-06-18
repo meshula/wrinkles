@@ -393,17 +393,6 @@ pub fn build(
         }
     );
 
-    const otio_allocator = module_with_tests_and_artifact(
-        "allocator",
-        .{
-            .b = b,
-            .fpath = "src/allocator.zig",
-            .target = options.target,
-            .test_step = test_step,
-            .test_filter = options.test_filter,
-        }
-    );
-
     const string_stuff = module_with_tests_and_artifact(
         "string_stuff",
         .{
@@ -456,7 +445,6 @@ pub fn build(
             .test_step = test_step,
             .deps = &.{
                 .{ .name = "string_stuff", .module = string_stuff },
-                .{ .name = "otio_allocator", .module = otio_allocator },
                 .{ .name = "comath", .module = comath_dep.module("comath") },
             },
             .test_filter = options.test_filter,
@@ -593,7 +581,6 @@ pub fn build(
         .{ .name = "string_stuff", .module = string_stuff },
         .{ .name = "opentime", .module = opentime },
         .{ .name = "curve", .module = curve },
-        .{ .name = "otio_allocator", .module = otio_allocator },
         .{ .name = "time_topology", .module = time_topology },
 
         // libraries with c components
