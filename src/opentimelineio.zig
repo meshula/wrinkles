@@ -269,6 +269,7 @@ pub const ItemPtr = union(enum) {
                                 output_to_post_transform,
                             )
                         );
+                        defer output_to_intrinsic.deinit(allocator);
 
                         const media_bounds = try cl.*.trimmed_range();
                         const intrinsic_to_media_xform = (
@@ -458,7 +459,10 @@ const TopologicalMap = struct {
     ),
     map_code_to_space:treecode.TreecodeHashMap(SpaceReference),
 
-    pub fn init(allocator: std.mem.Allocator) !TopologicalMap {
+    pub fn init(
+        allocator: std.mem.Allocator
+    ) !TopologicalMap 
+    {
         return .{ 
             .map_space_to_code = std.AutoHashMap(
             SpaceReference,
@@ -470,7 +474,10 @@ const TopologicalMap = struct {
         };
     }
 
-    pub fn deinit(self: @This()) void {
+    pub fn deinit(
+        self: @This()
+    ) void 
+    {
         // build a mutable alias of self
         var mutable_self = self;
 
@@ -481,7 +488,11 @@ const TopologicalMap = struct {
 
     const ROOT_TREECODE:treecode.TreecodeWord = 0b1;
 
-    pub fn root(self: @This()) SpaceReference {
+    /// return the root space of this topological map
+    pub fn root(
+        self: @This()
+    ) SpaceReference 
+    {
         const tree_word = treecode.Treecode{
             .sz = 1,
             .treecode_array = blk: {
@@ -495,11 +506,14 @@ const TopologicalMap = struct {
         return self.map_code_to_space.get(tree_word) orelse unreachable;
     }
 
+    /// build a projection operator that projects from the args.source to
+    /// args.destination spaces
     pub fn build_projection_operator(
         self: @This(),
         allocator: std.mem.Allocator,
         args: ProjectionOperatorArgs,
-    ) !ProjectionOperator {
+    ) !ProjectionOperator 
+    {
         var source_code = (
             if (self.map_space_to_code.get(args.source)) |code| code 
             else return error.SourceNotInMap
@@ -581,6 +595,7 @@ const TopologicalMap = struct {
                 allocator,
                 proj,
             );
+            proj.deinit(allocator);
 
             current_code = next_code;
             current = next;
@@ -588,7 +603,9 @@ const TopologicalMap = struct {
         }
 
         if (needs_inversion) {
+            const old_proj = proj;
             proj = try proj.inverted(allocator);
+            old_proj.deinit(allocator);
         }
 
         return .{
@@ -1725,6 +1742,7 @@ test "Single Clip bezier transform" {
                 .destination = try cl_ptr.space(SpaceLabel.media),
             }
         );
+        defer clip_output_to_media_proj.deinit(std.testing.allocator);
 
         // note that the clips output space is the curve's input space
         const output_bounds = (
@@ -1815,12 +1833,14 @@ test "Single Clip bezier transform" {
 
     // media->output (reverse projection)
     {
-        const clip_media_to_output = try map.build_projection_operator(
-            std.testing.allocator,
-            .{
-                .source =  try cl_ptr.space(SpaceLabel.media),
-                .destination = try cl_ptr.space(SpaceLabel.output),
-            }
+        const clip_media_to_output = (
+            try map.build_projection_operator(
+                std.testing.allocator,
+                .{
+                    .source =  try cl_ptr.space(SpaceLabel.media),
+                    .destination = try cl_ptr.space(SpaceLabel.output),
+                }
+            )
         );
         defer clip_media_to_output.deinit(std.testing.allocator);
 
