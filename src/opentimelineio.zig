@@ -1735,12 +1735,14 @@ test "Single Clip bezier transform" {
 
     // output->media (forward projection)
     {
-        const clip_output_to_media_proj = try map.build_projection_operator(
-            std.testing.allocator,
-            .{
-                .source =  try cl_ptr.space(SpaceLabel.output),
-                .destination = try cl_ptr.space(SpaceLabel.media),
-            }
+        const clip_output_to_media_proj = (
+            try map.build_projection_operator(
+                std.testing.allocator,
+                .{
+                    .source =  try cl_ptr.space(SpaceLabel.output),
+                    .destination = try cl_ptr.space(SpaceLabel.media),
+                }
+            )
         );
         defer clip_output_to_media_proj.deinit(std.testing.allocator);
 

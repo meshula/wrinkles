@@ -1583,7 +1583,7 @@ fn update(
             },
         }
 
-        _proj = _topology.project_topology(_proj) catch inf;
+        _proj = _topology.project_topology(allocator, _proj) catch inf;
     }
 
     zgui.backend.newFrame(
