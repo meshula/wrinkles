@@ -498,14 +498,14 @@ pub const Track = struct {
     }
 };
 
-const SpaceLabel = enum(i8) {
+pub const SpaceLabel = enum(i8) {
     output = 0,
     intrinsic,
     media,
     child,
 };
 
-const SpaceReference = struct {
+pub const SpaceReference = struct {
     item: ItemPtr,
     label: SpaceLabel,
     child_index: ?usize = null,
@@ -2116,22 +2116,6 @@ pub const Stack = struct {
             return time_topology.TimeTopology.init_empty();
         }
     }
-};
-
-pub const SerializableObjectTypes = enum {
-    Timeline,
-    Stack,
-    Track,
-    Clip,
-    Gap,
-};
-
-pub const SerializableObject = union(SerializableObjectTypes) {
-    Timeline:Timeline,
-    Stack:Stack,
-    Track:Track,
-    Clip:Clip,
-    Gap:Gap,
 };
 
 fn sequential_child_code_leaky(

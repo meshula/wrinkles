@@ -3,7 +3,7 @@ const expectApproxEqAbs= std.testing.expectApproxEqAbs;
 const expectEqual = std.testing.expectEqual;
 const util = opentime.util;
 
-const otio  = @import("opentime");
+const otio  = @import("opentimelineio.zig");
 const opentime = @import("opentime");
 const interval = opentime.interval;
 const transform = opentime.transform;
@@ -57,8 +57,13 @@ pub fn read_ordinate_from_rt(
     }
 }
 
-pub fn read_time_range(obj:?std.json.ObjectMap) ?interval.ContinuousTimeInterval {
-    if (obj) |o| {
+pub fn read_time_range(
+    obj:?std.json.ObjectMap
+) ?interval.ContinuousTimeInterval 
+{
+    if (obj) 
+        |o| 
+    {
         const start_time = read_ordinate_from_rt(o.get("start_time").?.object).?;
         const duration = read_ordinate_from_rt(o.get("duration").?.object).?;
         return .{ .start_seconds = start_time, .end_seconds = start_time + duration };
@@ -102,14 +107,18 @@ pub fn read_otio_object(
 
     const schema_enum = maybe_schema_enum.?;
 
-    const name = if (obj.get("name")) |n| switch (n) {
+    const name = if (obj.get("name")) 
+        |n| switch (n) 
+    {
         .string => |s| s,
         else => null
     } else null;
 
     switch (schema_enum) {
         .Timeline => { 
-            var st_json = try read_otio_object(obj.get("tracks").?.object);
+            var st_json = (
+                try read_otio_object(obj.get("tracks").?.object)
+            );
             const st = otio.Stack{
                 .name = st_json.Stack.name,
                 .children = try st_json.Stack.children.clone(),
@@ -122,7 +131,9 @@ pub fn read_otio_object(
             var st = otio.Stack.init(std.testing.allocator);
             st.name = name;
 
-            for (obj.get("children").?.array.items) |track| {
+            for (obj.get("children").?.array.items) 
+                |track| 
+            {
                 try st.children.append(
                     .{ .track = (try read_otio_object(track.object)).Track }
                 );
@@ -134,7 +145,9 @@ pub fn read_otio_object(
             var tr = otio.Track.init(std.testing.allocator);
             tr.name = name;
 
-            for (obj.get("children").?.array.items) |child| {
+            for (obj.get("children").?.array.items) 
+                |child| 
+            {
                 switch (try read_otio_object(child.object)) {
                     .Clip => |cl| { try tr.children.append( .{ .clip = cl }); },
                     .Gap => |gp| { try tr.children.append( .{ .gap = gp }); },
@@ -199,7 +212,6 @@ pub fn read_from_file(
         allocator,
         std.math.maxInt(u32)
     );
-    // defer allocator.free(source);
 
     const result = try std.json.parseFromSliceLeaky(
         std.json.Value,
@@ -207,7 +219,6 @@ pub fn read_from_file(
         source,
         .{}
     );
-    // defer result.object.clearAndFree();
 
     const hopefully_timeline = try read_otio_object(
         result.object
@@ -220,15 +231,16 @@ pub fn read_from_file(
     return error.NotImplemented;
 }
 
-test "read_from_file test" {
+test "read_from_file test" 
+{
     // @TODO: disabled because it has a bonkers amount of leaking in it.
     //        the JSON reader and json.object.Value -> struct code needs to be
     //        redone.
     //
     //        its a good idea, and can definitely be rescued.
-    if (true) {
-        return error.SkipZigTest;
-    }
+    // if (true) {
+    //     return error.SkipZigTest;
+    // }
     const root = "simple_cut";
     // const root = "multiple_track";
     const otio_fpath = root ++ ".otio";
