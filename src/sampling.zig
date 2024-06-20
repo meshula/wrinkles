@@ -12,7 +12,7 @@ const expectEqual = std.testing.expectEqual;
 const EPSILON: f32 = 1.0e-6;
 
 const RETIME_DEBUG_LOGGING = false;
-const WRITE_TEST_FILES = false;
+const WRITE_TEST_FILES = true;
 
 /// alias around the sample type @TODO: make this comptime definable (anytype)
 const sample_t  = f32;
@@ -102,11 +102,12 @@ const Sampling = struct {
 
 test "samples_between_time" 
 {
-    const samples_48 = SineSampleGenerator{
+    const samples_48 = SampleGenerator{
         .sampling_rate_hz = 48000,
         .signal_frequency_hz = 100,
         .signal_amplitude = 1,
         .signal_duration_s = 1,
+        .signal = .sine,
     };
     const s48 = try samples_48.rasterized(std.testing.allocator);
     defer s48.deinit();
@@ -119,11 +120,17 @@ test "samples_between_time"
     );
 }
 
-const SineSampleGenerator = struct {
+const SampleGenerator = struct {
     sampling_rate_hz: u32,
     signal_frequency_hz: u32,
-    signal_amplitude: f32,
+    signal_amplitude: f32 = 1.0,
     signal_duration_s: f32,
+    signal: Signal,
+
+    const Signal= enum {
+        sine,
+        ramp,
+    };
 
     pub fn rasterized(
         self:@This(),
@@ -142,11 +149,27 @@ const SineSampleGenerator = struct {
         for (0.., result.buffer)
             |current_index, *sample|
         {
-            sample.* = std.math.sin(
-                @as(sample_t, @floatFromInt(self.signal_frequency_hz))
-                * 2.0 * std.math.pi 
-                * (@as(sample_t, @floatFromInt(current_index)) / sample_hz)
-            );
+            switch (self.signal) {
+                .sine => {
+                    sample.* = self.signal_amplitude * std.math.sin(
+                        @as(sample_t, @floatFromInt(self.signal_frequency_hz))
+                        * 2.0 * std.math.pi 
+                        * (@as(sample_t, @floatFromInt(current_index)) / sample_hz)
+                    );
+                },
+                // @TODO: not bandwidth-limited, cannot be used for a proper
+                //        synthesizer
+                .ramp => {
+                    sample.* = self.signal_amplitude * curve.bezier_math.lerp(
+                        (
+                         @as(sample_t, @floatFromInt(current_index)) 
+                         / @as(sample_t, sample_hz)
+                        ),
+                        @as(sample_t,0),
+                        1,
+                    );
+                }
+            }
         }
 
         return result;
@@ -155,11 +178,12 @@ const SineSampleGenerator = struct {
 
 test "rasterizing the sine" 
 {
-    const samples_48 = SineSampleGenerator{
+    const samples_48 = SampleGenerator{
         .sampling_rate_hz = 48000,
         .signal_frequency_hz = 100,
         .signal_amplitude = 1,
         .signal_duration_s = 1,
+        .signal = .sine,
     };
     const s48 = try samples_48.rasterized(std.testing.allocator);
     defer s48.deinit();
@@ -212,11 +236,12 @@ pub fn peak_to_peak_distance(
 
 test "peak_to_peak_distance of sine 48khz" 
 {
-    const samples_48_100 = SineSampleGenerator{
+    const samples_48_100 = SampleGenerator{
         .sampling_rate_hz = 48000,
         .signal_frequency_hz = 100,
         .signal_amplitude = 1,
         .signal_duration_s = 1,
+        .signal = .sine,
     };
     const s48_100 = try samples_48_100.rasterized(
         std.testing.allocator
@@ -229,11 +254,12 @@ test "peak_to_peak_distance of sine 48khz"
 
     try expectEqual(480, samples_48_100_p2p);
 
-    const samples_48_50 = SineSampleGenerator{
+    const samples_48_50 = SampleGenerator{
         .sampling_rate_hz = 48000,
         .signal_frequency_hz = 50,
         .signal_amplitude = 1,
         .signal_duration_s = 1,
+        .signal = .sine,
     };
     const s48_50 = try samples_48_50.rasterized(
         std.testing.allocator
@@ -244,11 +270,12 @@ test "peak_to_peak_distance of sine 48khz"
 
     try expectEqual(960, samples_48_50_p2p);
 
-    const samples_96_100 = SineSampleGenerator{
+    const samples_96_100 = SampleGenerator{
         .sampling_rate_hz = 96000,
         .signal_frequency_hz = 100,
         .signal_amplitude = 1,
         .signal_duration_s = 1,
+        .signal = .sine,
     };
     const s96_100 = try samples_96_100.rasterized(
         std.testing.allocator
@@ -510,11 +537,12 @@ pub fn retimed_linear_curve(
 // have a set of samples over 48khz, resample them to 44khz
 test "resample from 48khz to 44" 
 {
-    const samples_48 = SineSampleGenerator{
+    const samples_48 = SampleGenerator{
         .sampling_rate_hz = 48000,
         .signal_frequency_hz = 100,
         .signal_amplitude = 1,
         .signal_duration_s = 1,
+        .signal = .sine,
     };
     const s48 = try samples_48.rasterized(std.testing.allocator);
     defer s48.deinit();
@@ -546,11 +574,12 @@ test "resample from 48khz to 44"
 // resample them to 44khz
 test "retime 48khz samples: ident-2x-ident, then resample to 44.1khz" 
 {
-    const samples_48 = SineSampleGenerator{
+    const samples_48 = SampleGenerator{
         .sampling_rate_hz = 48000,
         .signal_frequency_hz = 100,
         .signal_amplitude = 1,
         .signal_duration_s = 4,
+        .signal = .sine,
     };
     const s48 = try samples_48.rasterized(std.testing.allocator);
     defer s48.deinit();
@@ -652,11 +681,12 @@ test "retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
 // resample to another rate
 test "retime 48khz samples with a nonlinear acceleration curve and resample" 
 {
-    const samples_48 = SineSampleGenerator{
+    const samples_48 = SampleGenerator{
         .sampling_rate_hz = 48000,
         .signal_frequency_hz = 100,
         .signal_amplitude = 1,
         .signal_duration_s = 4,
+        .signal = .sine,
     };
     const s48 = try samples_48.rasterized(std.testing.allocator);
     defer s48.deinit();
@@ -795,7 +825,57 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
      );
 }
 
+test "sampling: frame phase slide 1: (identity) 0,1,2,3->0,1,2,3"
+{
+    const signal_ramp = SampleGenerator{
+        .sampling_rate_hz = 48000,
+        .signal_frequency_hz = 24,
+        .signal_duration_s = 2,
+        .signal = .ramp,
+
+    };
+
+    const s48_ramp = try signal_ramp.rasterized(std.testing.allocator);
+    defer s48_ramp.deinit();
+    if (WRITE_TEST_FILES) {
+        try s48_ramp.write_file(
+            "/var/tmp/ramp_24hz_signal_48kz_sampling.wav"
+        );
+    }
+
+    // return error.NotImplemented;
+}
+
+test "sampling: frame phase slide 2: (time*2 freq*1 phase+0) 0,1,2,3->0,0,1,1"
+{
+    return error.NotImplemented;
+}
+
+// hold on even twos - short frames
+test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(over same duration, but with 2x the hz)"
+{
+    // @TODO: Nick/Stephan pick up here
+    return error.SkipZigError;
+}
+
+// // hold on even twos 2x the number of frames
+// test "sampling: frame phase slide 3: (time*2 freq*2 phase+0) 0,1,2,3->0,0,1,1..(over double duration)"
+// {
+//     return error.SkipZigError;
+// }
 //
+// // hold on odd twos
+// test "sampling: frame phase slide 3: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
+// {
+//     return error.SkipZigError;
+// }
+//
+// test "sampling: frame phase slide 3: arbitrary held frames 0,1,2->0,0,0,0,1,1,2,2,2"
+// {
+//     return error.SkipZigError;
+// }
+
+//@{
 // test 4 <-- goal
 // within the nomenclature of OTIO itself, describe samples on one media and
 // resample them to another space (IE have a clip at 48khz and the timeline at
@@ -803,6 +883,7 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
 // 
 // test 5 
 // resample according to centered kernels
+//@}
 
 /// Naive sine with pitch 440Hz.
 fn generateSine(
@@ -858,11 +939,12 @@ test "wav.zig generator test (purely their code)"
 
 test "wav.zig generator test (our code)" 
 {
-    const samples_48 = SineSampleGenerator{
+    const samples_48 = SampleGenerator{
         .sampling_rate_hz = 48000,
         .signal_frequency_hz = 100,
         .signal_amplitude = 1,
         .signal_duration_s = 1,
+        .signal = .sine,
     };
     const s48 = try samples_48.rasterized(std.testing.allocator);
     defer s48.deinit();
