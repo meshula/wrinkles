@@ -321,7 +321,6 @@ pub fn resampled(
     return result;
 }
 
-/// retime in_samples with xform, return a new Sampling at the same rate
 pub fn retimed(
     allocator: std.mem.Allocator,
     in_samples: Sampling,
@@ -332,6 +331,24 @@ pub fn retimed(
     const lin_curve = try xform.linearized(allocator);
     defer lin_curve.deinit(allocator);
 
+    return retimed_linear_curve(
+        allocator,
+        in_samples,
+        lin_curve,
+        step_retime,
+    );
+}
+
+
+/// retime in_samples with xform, return a new Sampling at the same rate
+pub fn retimed_linear_curve(
+    allocator: std.mem.Allocator,
+    in_samples: Sampling,
+    lin_curve: curve.TimeCurveLinear,
+    step_retime: bool,
+) !Sampling
+{
+    
     var output_buffer_size:usize = 0;
 
     const RetimeSpec = struct {
@@ -683,8 +700,7 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
     const retime_curve_extents = (
         cubic_retime_curve.extents_time()
     );
-    //@TODO: lets try 12/24 increment
-    const inc:sample_t = 1.0/24.0;
+    const inc:sample_t = 4.0/24.0;
 
     var knots = std.ArrayList(curve.ControlPoint).init(
         std.testing.allocator
@@ -717,11 +733,11 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
     };
     defer retime_24hz_lin.deinit(std.testing.allocator);
 
-    const retime_24hz = try curve.TimeCurve.init_from_linear_curve(
-        std.testing.allocator,
-        retime_24hz_lin,
-    );
-    defer retime_24hz.deinit(std.testing.allocator);
+    // const retime_24hz = try curve.TimeCurve.init_from_linear_curve(
+    //     std.testing.allocator,
+    //     retime_24hz_lin,
+    // );
+    // defer retime_24hz.deinit(std.testing.allocator);
 
     if (WRITE_TEST_FILES) {
         try curve.write_json_file_curve(
@@ -736,16 +752,16 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
         );
     }
 
-    const samples_48_retimed = try retimed(
+    const samples_48_retimed = try retimed_linear_curve(
         std.testing.allocator,
         s48,
-        retime_24hz,
+        retime_24hz_lin,
         true,
     );
     defer samples_48_retimed.deinit();
     if (WRITE_TEST_FILES) {
         try samples_48_retimed.write_file(
-            "/var/tmp/ours_s48_retimed_acceleration_24.wav"
+            "/var/tmp/ours_s48_retimed_acceleration_24_aliasing.wav"
         );
     }
     const samples_44 = try resampled(
@@ -774,7 +790,7 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
         samples_44.buffer[(44100+1000)..]
     );
     try expectEqual(
-        210,
+        207,
         samples_44_p2p_0p5
      );
 }
