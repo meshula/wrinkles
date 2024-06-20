@@ -23,7 +23,7 @@ pub const latin_s8 = []const u8;
 // };
 
 
-// concatenate two strings together
+/// concatenate two strings together
 pub fn concatenate(
     one: []const u8,
     two: []const u8
@@ -45,8 +45,11 @@ pub fn generate_spaces(count: i32) ![]const u8 {
     return result;
 }
 
-// used in otvis for commandline argument checking
-pub fn eql_latin_s8(fst: latin_s8, snd: latin_s8) bool
+/// used in otvis for commandline argument checking
+pub fn eql_latin_s8(
+    fst: latin_s8,
+    snd: latin_s8
+) bool
 {
     return std.mem.eql(u8, fst, snd);
 }
