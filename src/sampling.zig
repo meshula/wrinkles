@@ -12,7 +12,7 @@ const expectEqual = std.testing.expectEqual;
 const EPSILON: f32 = 1.0e-6;
 
 const RETIME_DEBUG_LOGGING = false;
-const WRITE_TEST_FILES = true;
+const WRITE_TEST_FILES = false;
 
 /// alias around the sample type @TODO: make this comptime definable (anytype)
 const sample_t  = f32;
@@ -161,9 +161,13 @@ const SampleGenerator = struct {
                 //        synthesizer
                 .ramp => {
                     sample.* = self.signal_amplitude * curve.bezier_math.lerp(
-                        (
-                         @as(sample_t, @floatFromInt(current_index)) 
-                         / @as(sample_t, sample_hz)
+                        @as(
+                            sample_t,
+                            try std.math.mod(
+                                sample_t,
+                                @as(sample_t, @floatFromInt(current_index)),
+                                @as(sample_t, sample_hz)
+                            ) / sample_hz
                         ),
                         @as(sample_t,0),
                         1,
@@ -843,19 +847,25 @@ test "sampling: frame phase slide 1: (identity) 0,1,2,3->0,1,2,3"
         );
     }
 
-    // return error.NotImplemented;
+    try expectEqual(0, s48_ramp.buffer[0]);
+    try std.testing.expectApproxEqAbs(
+        1,
+        s48_ramp.buffer[47999],
+        0.0001,
+    );
+    try expectEqual(0, s48_ramp.buffer[48000]);
 }
 
 test "sampling: frame phase slide 2: (time*2 freq*1 phase+0) 0,1,2,3->0,0,1,1"
 {
-    return error.NotImplemented;
+    return error.SkipZigTest;
 }
 
 // hold on even twos - short frames
 test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(over same duration, but with 2x the hz)"
 {
     // @TODO: Nick/Stephan pick up here
-    return error.SkipZigError;
+    return error.SkipZigTest;
 }
 
 // // hold on even twos 2x the number of frames
@@ -885,59 +895,7 @@ test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(
 // resample according to centered kernels
 //@}
 
-/// Naive sine with pitch 440Hz.
-fn generateSine(
-    sample_rate: f32,
-    data: []f32
-) void 
-{
-    const radians_per_sec: f32 = 440.0 * 2.0 * std.math.pi;
-    for (data, 0..)
-        |*s, i|
-    {
-        s.* = 0.5 * std.math.sin(
-            @as(f32, @floatFromInt(i)) 
-            * radians_per_sec / sample_rate
-        );
-    }
-}
-
-test "wav.zig generator test (purely their code)" 
-{
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const alloc = gpa.allocator();
-
-    const sample_rate: usize = 44100;
-    const num_channels: usize = 1;
-
-    const data = try alloc.alloc(f32, 10 * sample_rate);
-    defer alloc.free(data);
-
-    generateSine(@as(f32, @floatFromInt(sample_rate)), data);
-
-    if (WRITE_TEST_FILES) {
-        var file = try std.fs.cwd().createFile(
-            "/var/tmp/theirs_givemeasine.wav",
-            .{}
-        );
-        defer file.close();
-
-        // Write out samples as 16-bit PCM int.
-        var encoder = try wav.encoder(
-            i16,
-            file.writer(),
-            file.seekableStream(),
-            sample_rate,
-            num_channels
-        );
-        try encoder.write(f32, data);
-        try encoder.finalize(); // Don't forget to finalize after you're done writing.
-    }
-
-}
-
-test "wav.zig generator test (our code)" 
+test "wav.zig generator test" 
 {
     const samples_48 = SampleGenerator{
         .sampling_rate_hz = 48000,
