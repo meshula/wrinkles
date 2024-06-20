@@ -858,6 +858,42 @@ test "sampling: frame phase slide 1: (identity) 0,1,2,3->0,1,2,3"
 
 test "sampling: frame phase slide 2: (time*2 freq*1 phase+0) 0,1,2,3->0,0,1,1"
 {
+    const signal_ramp = SampleGenerator{
+        .sampling_rate_hz = 48000,
+        .signal_frequency_hz = 24,
+        .signal_duration_s = 2,
+        .signal = .ramp,
+
+    };
+
+    const s48_ramp = try signal_ramp.rasterized(std.testing.allocator);
+    defer s48_ramp.deinit();
+    if (WRITE_TEST_FILES) {
+        try s48_ramp.write_file(
+            "/var/tmp/ramp_24hz_signal_48kz_sampling.wav"
+        );
+    }
+
+    try expectEqual(0, s48_ramp.buffer[0]);
+    try std.testing.expectApproxEqAbs(
+        1,
+        s48_ramp.buffer[47999],
+        0.0001,
+    );
+    try expectEqual(0, s48_ramp.buffer[48000]);
+
+    const lin = curve.TimeCurveLinear.init_from_start_end(
+
+    );
+    defer lin.deinit();
+
+    retimed_linear_curve(
+        std.testing.allocator,
+        signal_ramp.buffer,
+        lin,
+        false,
+    );
+
     return error.SkipZigTest;
 }
 
