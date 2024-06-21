@@ -13,6 +13,7 @@ const EPSILON: f32 = 1.0e-4;
 
 const RETIME_DEBUG_LOGGING = false;
 const WRITE_TEST_FILES = true;
+const TMPDIR = "/var/tmp";
 
 /// alias around the sample type @TODO: make this comptime definable (anytype)
 const sample_t  = f32;
@@ -67,6 +68,46 @@ const Sampling = struct {
         defer encoder.finalize() catch unreachable; 
 
         try encoder.write(f32, self.buffer);
+    }
+
+    pub fn write_file_prefix(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        dirname: []const u8,
+        prefix: []const u8,
+        maybe_parent_signal: ?SampleGenerator,
+    ) !void
+    {
+        const name = (
+            if (maybe_parent_signal)
+            |parent_signal|
+             try std.fmt.allocPrint(
+                allocator,
+                "{s}/{s}{s}.amp_{d}_{d}s_{d}hz_signal_{d}hz_samples.wav",
+                .{
+                    dirname,
+                    prefix,
+                    @tagName(parent_signal.signal),
+                    parent_signal.signal_amplitude,
+                    parent_signal.signal_duration_s,
+                    parent_signal.signal_frequency_hz,
+                    self.sample_rate_hz,
+                }
+            )
+        else 
+            try std.fmt.allocPrint(
+                allocator,
+                "{s}/{s}_{d}hz_samples.wav",
+                .{
+                    dirname,
+                    prefix,
+                    self.sample_rate_hz,
+                }
+            )
+        );
+        defer allocator.free(name);
+
+        return self.write_file(name);
     }
 
     pub fn index_at_time(
@@ -582,7 +623,12 @@ test "resample from 48khz to 44"
     defer s48.deinit();
 
     if (WRITE_TEST_FILES) {
-        try s48.write_file("/var/tmp/ours_100hz_48test.wav");
+        try s48.write_file_prefix(
+            std.testing.allocator,
+            TMPDIR,
+            "resample_test_input.",
+            samples_48,
+        );
     }
 
     const samples_44 = try resampled(
@@ -593,7 +639,12 @@ test "resample from 48khz to 44"
     defer samples_44.deinit();
 
     if (WRITE_TEST_FILES) {
-        try samples_44.write_file("/var/tmp/ours_100hz_441test.wav");
+        try samples_44.write_file_prefix(
+            std.testing.allocator,
+            TMPDIR,
+            "resample_test_output.",
+            samples_48,
+        );
     }
 
     const samples_44_p2pd = try peak_to_peak_distance(samples_44.buffer);
@@ -618,7 +669,12 @@ test "retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
     const s48 = try samples_48.rasterized(std.testing.allocator);
     defer s48.deinit();
     if (WRITE_TEST_FILES) {
-        try s48.write_file("/var/tmp/ours_s48_input.wav");
+        try s48.write_file_prefix(
+            std.testing.allocator,
+            TMPDIR,
+            "retime_test_input.",
+            samples_48,
+        );
     }
 
     //
@@ -671,7 +727,12 @@ test "retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
     );
     defer samples_48_retimed.deinit();
     if (WRITE_TEST_FILES) {
-        try samples_48_retimed.write_file("/var/tmp/ours_s48_retimed.wav");
+        try samples_48_retimed.write_file_prefix(
+            std.testing.allocator,
+            TMPDIR,
+            "retime_test_retimed_pre_resample.",
+            samples_48,
+        );
     }
 
     const samples_44 = try resampled(
@@ -681,7 +742,12 @@ test "retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
     );
     defer samples_44.deinit();
     if (WRITE_TEST_FILES) {
-        try samples_44.write_file("/var/tmp/ours_s44_retimed.wav");
+        try samples_44.write_file_prefix(
+            std.testing.allocator,
+            TMPDIR,
+            "retime_test_output.",
+            samples_48,
+        );
     }
 
     // identity
@@ -757,8 +823,11 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
     );
     defer samples_48_retimed_cubic.deinit();
     if (WRITE_TEST_FILES) {
-        try samples_48_retimed_cubic.write_file(
-            "/var/tmp/ours_s48_retimed_acceleration_cubic.wav"
+        try samples_48_retimed_cubic.write_file_prefix(
+            std.testing.allocator,
+            TMPDIR,
+            "retime_cubic_test_retimed_pre_resample.",
+            samples_48,
         );
     }
 
@@ -820,8 +889,11 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
     );
     defer samples_48_retimed.deinit();
     if (WRITE_TEST_FILES) {
-        try samples_48_retimed.write_file(
-            "/var/tmp/ours_s48_retimed_acceleration_24_aliasing.wav"
+        try samples_48_retimed.write_file_prefix(
+            std.testing.allocator,
+            TMPDIR,
+            "retime_cubic_test_retimed_linearized24hz_pre_resample.",
+            samples_48,
         );
     }
     const samples_44 = try resampled(
@@ -831,8 +903,11 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
     );
     defer samples_44.deinit();
     if (WRITE_TEST_FILES) {
-        try samples_44.write_file(
-            "/var/tmp/ours_s44_retimed_acceleration_24.wav"
+        try samples_44.write_file_prefix(
+            std.testing.allocator,
+            TMPDIR,
+            "retime_cubic_test_retimed_linearized24hz_resampled.",
+            samples_48,
         );
     }
 
@@ -869,7 +944,7 @@ test "sampling: frame phase slide 1: (identity) 0,1,2,3->0,1,2,3"
     defer s48_ramp.deinit();
     if (WRITE_TEST_FILES) {
         try s48_ramp.write_file(
-            "/var/tmp/ramp_24hz_signal_48kz_sampling_2s.wav"
+            "/var/tmp/ramp_2s_1hz_signal_48000hz_sampling.wav"
         );
     }
 
@@ -889,6 +964,7 @@ test "sampling: frame phase slide 2: (time*2 freq*1 phase+0) 0,1,2,3->0,0,1,1"
         .signal_frequency_hz = 1,
         .signal_duration_s = 2,
         .signal = .ramp,
+        .signal_amplitude = 4,
     };
 
     const s48_ramp = try signal_ramp.rasterized(std.testing.allocator);
@@ -948,7 +1024,7 @@ test "trying to make a slow signal"
         .signal_frequency_hz = 1,
         .signal_duration_s = 1,
         .signal = .ramp,
-        .signal_amplitude = 4,
+        // .signal_amplitude = 4,
     };
 
     const s48_ramp = try signal_ramp.rasterized(std.testing.allocator);
