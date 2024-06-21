@@ -948,34 +948,36 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
 
 test "sampling: frame phase slide 1: (identity) 0,1,2,3->0,1,2,3"
 {
-    const signal_ramp = SampleGenerator{
+    const ramp_signal = SampleGenerator{
         .sampling_rate_hz = 48000,
         .signal_frequency_hz = 1,
         .signal_duration_s = 2,
         .signal = .ramp,
     };
 
-    const s48_ramp = try signal_ramp.rasterized(std.testing.allocator);
-    defer s48_ramp.deinit();
+    const ramp_samples = try ramp_signal.rasterized(
+        std.testing.allocator
+    );
+    defer ramp_samples.deinit();
     if (WRITE_TEST_FILES) {
-        try s48_ramp.write_file(
+        try ramp_samples.write_file(
             "/var/tmp/ramp_2s_1hz_signal_48000hz_sampling.wav"
         );
     }
 
-    try expectEqual(0, s48_ramp.buffer[0]);
+    try expectEqual(0, ramp_samples.buffer[0]);
     try std.testing.expectApproxEqAbs(
         1,
-        s48_ramp.buffer[47999],
+        ramp_samples.buffer[47999],
         EPSILON
     );
-    try expectEqual(0, s48_ramp.buffer[48000]);
+    try expectEqual(0, ramp_samples.buffer[48000]);
 }
 
 // only meaningfull if serializing test data to disk
 test "24hz samples" 
 {
-    const signal_ramp = SampleGenerator{
+    const ramp_signal = SampleGenerator{
         .sampling_rate_hz = 480,
         .signal_frequency_hz = 24,
         .signal_duration_s = 1,
@@ -983,21 +985,21 @@ test "24hz samples"
         // .signal_amplitude = 4,
     };
 
-    const s48_ramp = try signal_ramp.rasterized(
+    const ramp_samples = try ramp_signal.rasterized(
         std.testing.allocator
     );
-    defer s48_ramp.deinit();
+    defer ramp_samples.deinit();
     if (WRITE_TEST_FILES) {
-        try s48_ramp.write_file_prefix(
+        try ramp_samples.write_file_prefix(
             std.testing.allocator,
             TMPDIR,
             "24hz_signal.",
-            signal_ramp,
+            ramp_signal,
         );
     }
 
     // std.debug.print("\nramp samples:\n", .{});
-    // for (s48_ramp.buffer, 0..)
+    // for (ramp_samples.buffer, 0..)
     //     |v, ind|
     // {
     //     std.debug.print(
@@ -1009,14 +1011,14 @@ test "24hz samples"
 
 test "sampling: frame phase slide 2: (time*2 freq*1 phase+0) 0,1,2,3->0,0,1,1"
 {
-    const signal_ramp = SampleGenerator{
+    const ramp_signal = SampleGenerator{
         .sampling_rate_hz = 48000,
         .signal_frequency_hz = 1,
         .signal_duration_s = 2,
         .signal = .ramp,
     };
 
-    const s48_ramp = try signal_ramp.rasterized(std.testing.allocator);
+    const s48_ramp = try ramp_signal.rasterized(std.testing.allocator);
     defer s48_ramp.deinit();
     if (WRITE_TEST_FILES) {
         try s48_ramp.write_file(
@@ -1064,7 +1066,7 @@ test "sampling: frame phase slide 2: (time*2 freq*1 phase+0) 0,1,2,3->0,0,1,1"
 
 test "trying to make a slow signal" 
 {
-    const signal_ramp = SampleGenerator{
+    const ramp_signal = SampleGenerator{
         .sampling_rate_hz = 4,
         .signal_frequency_hz = 1,
         .signal_duration_s = 4,
@@ -1072,30 +1074,32 @@ test "trying to make a slow signal"
         .signal_amplitude = 4,
     };
 
-    const s48_ramp = try signal_ramp.rasterized(std.testing.allocator);
-    defer s48_ramp.deinit();
+    const ramp_samples = try ramp_signal.rasterized(
+        std.testing.allocator
+    );
+    defer ramp_samples.deinit();
 
     // not worth writing this file because audacity doesn't handle overrange
     // values - signal needs to be [0,1) in amplitude.
     // if (WRITE_TEST_FILES) {
-    //     try s48_ramp.write_file_prefix(
+    //     try ramp_samples.write_file_prefix(
     //         std.testing.allocator,
     //         TMPDIR,
     //         "slow_input.",
-    //         signal_ramp,
+    //         ramp_signal,
     //     );
     // }
 
-    // std.debug.print("\nslow samples:\n", .{});
-    for (s48_ramp.buffer, 0..)
+    std.debug.print("\ninput_samples:\n", .{});
+    for (ramp_samples.buffer, 0..)
         |v, ind|
     {
-        // std.debug.print(
-        //     "[{d}]: {d}\n",
-        //     .{ind, v},
-        // );
+        std.debug.print(
+            "[{d}]: {d}\n",
+            .{ind, v},
+        );
 
-        if (ind < signal_ramp.sampling_rate_hz)
+        if (ind < ramp_signal.sampling_rate_hz)
         {
             try std.testing.expectApproxEqAbs(
                 @as(f32, @floatFromInt(ind)),
@@ -1105,7 +1109,7 @@ test "trying to make a slow signal"
 
             try std.testing.expectApproxEqAbs(
                 @as(f32, @floatFromInt(ind)),
-                s48_ramp.sample_value_at_time(
+                ramp_samples.sample_value_at_time(
                     @as(f32, @floatFromInt(ind))*0.25
                 ),
                 EPSILON,
@@ -1113,36 +1117,42 @@ test "trying to make a slow signal"
         }
     }
 
-    const lin = try curve.TimeCurveLinear.init_identity(
-        std.testing.allocator,
-        &.{0, 2},
+    const lin_slope_two = (
+        try curve.TimeCurveLinear.init_identity(
+            std.testing.allocator,
+            &.{0, 2},
+        )
     );
-    defer lin.deinit(std.testing.allocator);
+    defer lin_slope_two.deinit(std.testing.allocator);
 
-    lin.knots[1].value = 4;
+    lin_slope_two.knots[1].value = 1;
 
     try std.testing.expectApproxEqAbs(
-        @as(f32, 2.0),
-        try lin.evaluate(1.0),
+        @as(f32, 0.5),
+        try lin_slope_two.evaluate(1.0),
         EPSILON
     );
 
     // @TODO: start here Nick/Stephan
-
     if (true) {
         return error.SkipZigTest;
     }
 
-    const ramp_retimed = try retimed_linear_curve(
+    const ramp_samples_retimed = try retimed_linear_curve(
         std.testing.allocator,
-        s48_ramp,
-        lin,
+        ramp_samples,
+        lin_slope_two,
         false,
     );
-    defer ramp_retimed.deinit();
+    defer ramp_samples_retimed.deinit();
+
+    try expectEqual(
+        ramp_samples.buffer.len,
+        ramp_samples_retimed.buffer.len,
+    );
 
     std.debug.print("\nretimed samples:\n", .{});
-    for (ramp_retimed.buffer, 0..)
+    for (ramp_samples_retimed.buffer, 0..)
         |v, ind|
     {
         std.debug.print(
@@ -1150,18 +1160,20 @@ test "trying to make a slow signal"
             .{ind, v},
         );
 
-        try std.testing.expectApproxEqAbs(
-            @as(f32, @floatFromInt(ind)),
-            s48_ramp.sample_value_at_time(
-                @as(f32, @floatFromInt(ind))*0.25
-            ),
-            EPSILON,
-        );
+        // try std.testing.expectApproxEqAbs(
+        //     v,
+        //     ramp_samples.sample_value_at_time(
+        //         @as(f32, @floatFromInt(ind))
+        //     ),
+        //     EPSILON,
+        // );
     }
 
+
+
     // try std.testing.expectApproxEqAbs(
-    //     s48_ramp.buffer[0],
-    //     ramp_retimed.buffer[0],
+    //     ramp_samples.buffer[0],
+    //     ramp_samples_retimed.buffer[0],
     // EPSILON,
     // );
 
