@@ -194,7 +194,7 @@ const SampleGenerator = struct {
     {
         const sample_hz : sample_t = @floatFromInt(self.sampling_rate_hz);
 
-        const cycles_per_sample = (
+        const samples_per_cycle = (
             sample_hz
             / @as(f32, @floatFromInt(self.signal_frequency_hz))
         );
@@ -205,39 +205,52 @@ const SampleGenerator = struct {
             self.sampling_rate_hz,
         );
 
+        const two_pi = std.math.pi * 2.0;
+
         // fill the sample buffer
         for (0.., result.buffer)
             |current_index, *sample|
         {
+            const phase_angle:f32 = (
+                @as(f32, @floatFromInt(current_index)) / samples_per_cycle
+            );
+
+            const mod_phase_angle = try std.math.mod(
+                f32,
+                phase_angle,
+                1.0,
+            );
+
             switch (self.signal) {
                 .sine => {
                     sample.* = self.signal_amplitude * std.math.sin(
-                        @as(sample_t, @floatFromInt(self.signal_frequency_hz))
-                        * 2.0 * std.math.pi 
-                        * (@as(sample_t, @floatFromInt(current_index)) / sample_hz)
+                        two_pi * mod_phase_angle
                     );
                 },
                 // @TODO: not bandwidth-limited, cannot be used for a proper
                 //        synthesizer
                 .ramp => {
-                    const modval = try std.math.mod(
-                        sample_t,
-                        @as(sample_t, @floatFromInt(current_index)),
-                        cycles_per_sample,
-                    );
-
-                    const u = modval / @as(f32, @floatFromInt(self.sampling_rate_hz));
-
                     sample.* = (
                         self.signal_amplitude 
                         * curve.bezier_math.lerp(
-                            u,
+                            mod_phase_angle,
                             @as(sample_t,0),
                             1,
                         )
                     );
+                    std.debug.print(
+                        (
+                         "writing: [{d}] phase_angle: {d} "
+                         ++ "mod_phase_angle: {d} v: {d}\n"
+                        ),
+                        .{ 
+                            current_index,
+                            phase_angle,
+                            mod_phase_angle,
+                            sample.*,
+                        },
+                    );
 
-                    // std.debug.print("writing: [{d}] (mod: {d} u:{d}) {d} \n", .{ current_index, sample.*, modval, u });
                 }
             }
         }
@@ -937,7 +950,6 @@ test "sampling: frame phase slide 1: (identity) 0,1,2,3->0,1,2,3"
         .signal_frequency_hz = 1,
         .signal_duration_s = 2,
         .signal = .ramp,
-
     };
 
     const s48_ramp = try signal_ramp.rasterized(std.testing.allocator);
@@ -957,6 +969,41 @@ test "sampling: frame phase slide 1: (identity) 0,1,2,3->0,1,2,3"
     try expectEqual(0, s48_ramp.buffer[48000]);
 }
 
+// only meaningfull if serializing test data to disk
+test "24hz samples" 
+{
+    const signal_ramp = SampleGenerator{
+        .sampling_rate_hz = 480,
+        .signal_frequency_hz = 24,
+        .signal_duration_s = 1,
+        .signal = .ramp,
+        // .signal_amplitude = 4,
+    };
+
+    const s48_ramp = try signal_ramp.rasterized(
+        std.testing.allocator
+    );
+    defer s48_ramp.deinit();
+    if (WRITE_TEST_FILES) {
+        try s48_ramp.write_file_prefix(
+            std.testing.allocator,
+            TMPDIR,
+            "24hz_signal.",
+            signal_ramp,
+        );
+    }
+
+    // std.debug.print("\nramp samples:\n", .{});
+    // for (s48_ramp.buffer, 0..)
+    //     |v, ind|
+    // {
+    //     std.debug.print(
+    //         "[{d}]: {d}\n",
+    //         .{ind, v},
+    //     );
+    // }
+}
+
 test "sampling: frame phase slide 2: (time*2 freq*1 phase+0) 0,1,2,3->0,0,1,1"
 {
     const signal_ramp = SampleGenerator{
@@ -964,7 +1011,6 @@ test "sampling: frame phase slide 2: (time*2 freq*1 phase+0) 0,1,2,3->0,0,1,1"
         .signal_frequency_hz = 1,
         .signal_duration_s = 2,
         .signal = .ramp,
-        .signal_amplitude = 4,
     };
 
     const s48_ramp = try signal_ramp.rasterized(std.testing.allocator);
@@ -1022,13 +1068,21 @@ test "trying to make a slow signal"
     const signal_ramp = SampleGenerator{
         .sampling_rate_hz = 4,
         .signal_frequency_hz = 1,
-        .signal_duration_s = 1,
+        .signal_duration_s = 4,
         .signal = .ramp,
-        // .signal_amplitude = 4,
     };
 
     const s48_ramp = try signal_ramp.rasterized(std.testing.allocator);
     defer s48_ramp.deinit();
+
+    if (WRITE_TEST_FILES) {
+        try s48_ramp.write_file_prefix(
+            std.testing.allocator,
+            TMPDIR,
+            "slow_input.",
+            signal_ramp,
+        );
+    }
 
     // std.debug.print("\nslow samples:\n", .{});
     for (s48_ramp.buffer, 0..)
@@ -1039,19 +1093,22 @@ test "trying to make a slow signal"
         //     .{ind, v},
         // );
 
-        try std.testing.expectApproxEqAbs(
-            @as(f32, @floatFromInt(ind)),
-            v,
-            EPSILON,
-        );
+        if (ind < signal_ramp.sampling_rate_hz)
+        {
+            try std.testing.expectApproxEqAbs(
+                @as(f32, @floatFromInt(ind)),
+                v,
+                EPSILON,
+            );
 
-        try std.testing.expectApproxEqAbs(
-            @as(f32, @floatFromInt(ind)),
-            s48_ramp.sample_value_at_time(
-                @as(f32, @floatFromInt(ind))*0.25
-            ),
-            EPSILON,
-        );
+            try std.testing.expectApproxEqAbs(
+                @as(f32, @floatFromInt(ind)),
+                s48_ramp.sample_value_at_time(
+                    @as(f32, @floatFromInt(ind))*0.25
+                ),
+                EPSILON,
+            );
+        }
     }
 
     const lin = try curve.TimeCurveLinear.init_identity(
