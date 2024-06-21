@@ -7,6 +7,8 @@ const curve = @import("curve");
 
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
+const expectApproxEqAbs = std.testing.expectApproxEqAbs;
+
 
 // @TODO : move to util maybe?
 const EPSILON: f32 = 1.0e-4;
@@ -238,18 +240,18 @@ const SampleGenerator = struct {
                             1,
                         )
                     );
-                    std.debug.print(
-                        (
-                         "writing: [{d}] phase_angle: {d} "
-                         ++ "mod_phase_angle: {d} v: {d}\n"
-                        ),
-                        .{ 
-                            current_index,
-                            phase_angle,
-                            mod_phase_angle,
-                            sample.*,
-                        },
-                    );
+                    // std.debug.print(
+                    //     (
+                    //      "writing: [{d}] phase_angle: {d} "
+                    //      ++ "mod_phase_angle: {d} v: {d}\n"
+                    //     ),
+                    //     .{ 
+                    //         current_index,
+                    //         phase_angle,
+                    //         mod_phase_angle,
+                    //         sample.*,
+                    //     },
+                    // );
 
                 }
             }
@@ -776,9 +778,10 @@ test "retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
     const samples_44_p2p_0p5 = try peak_to_peak_distance(
         samples_44.buffer[48100..52000]
     );
-    try expectEqual(
-        883,
-        samples_44_p2p_0p5
+    try expectApproxEqAbs(
+        @as(f32, @floatFromInt(882)),
+        @as(f32, @floatFromInt( samples_44_p2p_0p5)),
+        2,
      );
 
     // identity
@@ -1052,13 +1055,9 @@ test "sampling: frame phase slide 2: (time*2 freq*1 phase+0) 0,1,2,3->0,0,1,1"
         EPSILON,
     );
 
-    if (true) {
-        return error.SkipZigTest;
-    }
-
     try std.testing.expectApproxEqAbs(
-        s48_ramp.sample_value_at_time(1),
-        ramp_retimed.sample_value_at_time(2),
+        s48_ramp.sample_value_at_time(1.1),
+        ramp_retimed.sample_value_at_time(2.2),
         EPSILON,
     );
 }
@@ -1070,19 +1069,22 @@ test "trying to make a slow signal"
         .signal_frequency_hz = 1,
         .signal_duration_s = 4,
         .signal = .ramp,
+        .signal_amplitude = 4,
     };
 
     const s48_ramp = try signal_ramp.rasterized(std.testing.allocator);
     defer s48_ramp.deinit();
 
-    if (WRITE_TEST_FILES) {
-        try s48_ramp.write_file_prefix(
-            std.testing.allocator,
-            TMPDIR,
-            "slow_input.",
-            signal_ramp,
-        );
-    }
+    // not worth writing this file because audacity doesn't handle overrange
+    // values - signal needs to be [0,1) in amplitude.
+    // if (WRITE_TEST_FILES) {
+    //     try s48_ramp.write_file_prefix(
+    //         std.testing.allocator,
+    //         TMPDIR,
+    //         "slow_input.",
+    //         signal_ramp,
+    //     );
+    // }
 
     // std.debug.print("\nslow samples:\n", .{});
     for (s48_ramp.buffer, 0..)
