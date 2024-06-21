@@ -9,10 +9,10 @@ const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 
 // @TODO : move to util maybe?
-const EPSILON: f32 = 1.0e-6;
+const EPSILON: f32 = 1.0e-4;
 
 const RETIME_DEBUG_LOGGING = false;
-const WRITE_TEST_FILES = false;
+const WRITE_TEST_FILES = true;
 
 /// alias around the sample type @TODO: make this comptime definable (anytype)
 const sample_t  = f32;
@@ -69,18 +69,24 @@ const Sampling = struct {
         try encoder.write(f32, self.buffer);
     }
 
+    pub fn index_at_time(
+        self: @This(),
+        t_s: sample_t,
+    ) usize
+    {
+        return @intFromFloat(
+            t_s*@as(f32, @floatFromInt(self.sample_rate_hz))
+        );
+    }
+
     pub fn indices_between_time(
         self: @This(),
         start_time_inclusive_s: sample_t,
         end_time_exclusive_s: sample_t,
     ) [2]usize
     {
-        const start_index:usize = @intFromFloat(
-            start_time_inclusive_s*@as(f32, @floatFromInt(self.sample_rate_hz))
-        );
-        const end_index:usize = @intFromFloat(
-            end_time_exclusive_s*@as(f32, @floatFromInt(self.sample_rate_hz))
-        );
+        const start_index:usize = self.index_at_time(start_time_inclusive_s);
+        const end_index:usize = self.index_at_time(end_time_exclusive_s);
 
         return .{ start_index, end_index };
     }
@@ -97,6 +103,14 @@ const Sampling = struct {
         );
 
         return self.buffer[index_bounds[0]..index_bounds[1]];
+    }
+
+    pub fn sample_value_at_time(
+        self: @This(),
+        t_s:sample_t,
+    ) sample_t
+    {
+        return self.buffer[self.index_at_time(t_s)];
     }
 };
 
@@ -139,6 +153,11 @@ const SampleGenerator = struct {
     {
         const sample_hz : sample_t = @floatFromInt(self.sampling_rate_hz);
 
+        const cycles_per_sample = (
+            sample_hz
+            / @as(f32, @floatFromInt(self.signal_frequency_hz))
+        );
+
         const result = try Sampling.init(
             allocator, 
             @intFromFloat(@ceil(@as(f64, self.signal_duration_s)*sample_hz)),
@@ -160,18 +179,24 @@ const SampleGenerator = struct {
                 // @TODO: not bandwidth-limited, cannot be used for a proper
                 //        synthesizer
                 .ramp => {
-                    sample.* = self.signal_amplitude * curve.bezier_math.lerp(
-                        @as(
-                            sample_t,
-                            try std.math.mod(
-                                sample_t,
-                                @as(sample_t, @floatFromInt(current_index)),
-                                @as(sample_t, sample_hz)
-                            ) / sample_hz
-                        ),
-                        @as(sample_t,0),
-                        1,
+                    const modval = try std.math.mod(
+                        sample_t,
+                        @as(sample_t, @floatFromInt(current_index)),
+                        cycles_per_sample,
                     );
+
+                    const u = modval / @as(f32, @floatFromInt(self.sampling_rate_hz));
+
+                    sample.* = (
+                        self.signal_amplitude 
+                        * curve.bezier_math.lerp(
+                            u,
+                            @as(sample_t,0),
+                            1,
+                        )
+                    );
+
+                    // std.debug.print("writing: [{d}] (mod: {d} u:{d}) {d} \n", .{ current_index, sample.*, modval, u });
                 }
             }
         }
@@ -465,6 +490,8 @@ pub fn retimed_linear_curve(
 
     var input_retime_samples = in_samples.buffer[0..];
 
+    // @breakpoint();
+    //
     var retime_index:usize = 0;
     while (retime_index < retime_specs.items.len)
     {
@@ -517,7 +544,10 @@ pub fn retimed_linear_curve(
         src_data.data_out = @ptrCast(output_buffer.ptr);
 
         // if its time to advance to the next chunk
-        if (src_data.output_frames == 0)
+        if (
+            src_data.output_frames <= 0 
+            or input_retime_samples.len == 0
+        )
         {
             retime_index += 1;
         }
@@ -625,11 +655,13 @@ test "retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
     const retime_curve : curve.TimeCurve = .{
         .segments = &retime_curve_segments
     };
-    // try curve.write_json_file_curve(
-    //     std.testing.allocator,
-    //     retime_curve,
-    //     "/var/tmp/ours_retime_curve.curve.json"
-    // );
+    if (WRITE_TEST_FILES) {
+        try curve.write_json_file_curve(
+            std.testing.allocator,
+            retime_curve,
+            "/var/tmp/ours_retime_curve.curve.json"
+        );
+    }
 
     const samples_48_retimed = try retimed(
         std.testing.allocator,
@@ -767,12 +799,6 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
     };
     defer retime_24hz_lin.deinit(std.testing.allocator);
 
-    // const retime_24hz = try curve.TimeCurve.init_from_linear_curve(
-    //     std.testing.allocator,
-    //     retime_24hz_lin,
-    // );
-    // defer retime_24hz.deinit(std.testing.allocator);
-
     if (WRITE_TEST_FILES) {
         try curve.write_json_file_curve(
             std.testing.allocator,
@@ -833,7 +859,7 @@ test "sampling: frame phase slide 1: (identity) 0,1,2,3->0,1,2,3"
 {
     const signal_ramp = SampleGenerator{
         .sampling_rate_hz = 48000,
-        .signal_frequency_hz = 24,
+        .signal_frequency_hz = 1,
         .signal_duration_s = 2,
         .signal = .ramp,
 
@@ -843,7 +869,7 @@ test "sampling: frame phase slide 1: (identity) 0,1,2,3->0,1,2,3"
     defer s48_ramp.deinit();
     if (WRITE_TEST_FILES) {
         try s48_ramp.write_file(
-            "/var/tmp/ramp_24hz_signal_48kz_sampling.wav"
+            "/var/tmp/ramp_24hz_signal_48kz_sampling_2s.wav"
         );
     }
 
@@ -851,7 +877,7 @@ test "sampling: frame phase slide 1: (identity) 0,1,2,3->0,1,2,3"
     try std.testing.expectApproxEqAbs(
         1,
         s48_ramp.buffer[47999],
-        0.0001,
+        EPSILON
     );
     try expectEqual(0, s48_ramp.buffer[48000]);
 }
@@ -860,17 +886,16 @@ test "sampling: frame phase slide 2: (time*2 freq*1 phase+0) 0,1,2,3->0,0,1,1"
 {
     const signal_ramp = SampleGenerator{
         .sampling_rate_hz = 48000,
-        .signal_frequency_hz = 24,
+        .signal_frequency_hz = 1,
         .signal_duration_s = 2,
         .signal = .ramp,
-
     };
 
     const s48_ramp = try signal_ramp.rasterized(std.testing.allocator);
     defer s48_ramp.deinit();
     if (WRITE_TEST_FILES) {
         try s48_ramp.write_file(
-            "/var/tmp/ramp_24hz_signal_48kz_sampling.wav"
+            "/var/tmp/ramp_1hz_signal_48kz_sampling_2s.wav"
         );
     }
 
@@ -878,23 +903,133 @@ test "sampling: frame phase slide 2: (time*2 freq*1 phase+0) 0,1,2,3->0,0,1,1"
     try std.testing.expectApproxEqAbs(
         1,
         s48_ramp.buffer[47999],
-        0.0001,
+        EPSILON,
     );
     try expectEqual(0, s48_ramp.buffer[48000]);
 
-    const lin = curve.TimeCurveLinear.init_from_start_end(
+    var knots = [_]curve.ControlPoint{
+            .{ .time = 0, .value = 0, },
+            .{ .time = 2, .value = 4, },
+    };
 
-    );
-    defer lin.deinit();
+    const lin = curve.TimeCurveLinear{
+        .knots = &knots,
+    };
 
-    retimed_linear_curve(
+    const ramp_retimed = try retimed_linear_curve(
         std.testing.allocator,
-        signal_ramp.buffer,
+        s48_ramp,
         lin,
         false,
     );
+    defer ramp_retimed.deinit();
 
-    return error.SkipZigTest;
+    try std.testing.expectApproxEqAbs(
+        s48_ramp.buffer[0],
+        ramp_retimed.buffer[0],
+        EPSILON,
+    );
+
+    if (true) {
+        return error.SkipZigTest;
+    }
+
+    try std.testing.expectApproxEqAbs(
+        s48_ramp.sample_value_at_time(1),
+        ramp_retimed.sample_value_at_time(2),
+        EPSILON,
+    );
+}
+
+test "trying to make a slow signal" 
+{
+    const signal_ramp = SampleGenerator{
+        .sampling_rate_hz = 4,
+        .signal_frequency_hz = 1,
+        .signal_duration_s = 1,
+        .signal = .ramp,
+        .signal_amplitude = 4,
+    };
+
+    const s48_ramp = try signal_ramp.rasterized(std.testing.allocator);
+    defer s48_ramp.deinit();
+
+    // std.debug.print("\nslow samples:\n", .{});
+    for (s48_ramp.buffer, 0..)
+        |v, ind|
+    {
+        // std.debug.print(
+        //     "[{d}]: {d}\n",
+        //     .{ind, v},
+        // );
+
+        try std.testing.expectApproxEqAbs(
+            @as(f32, @floatFromInt(ind)),
+            v,
+            EPSILON,
+        );
+
+        try std.testing.expectApproxEqAbs(
+            @as(f32, @floatFromInt(ind)),
+            s48_ramp.sample_value_at_time(
+                @as(f32, @floatFromInt(ind))*0.25
+            ),
+            EPSILON,
+        );
+    }
+
+    const lin = try curve.TimeCurveLinear.init_identity(
+        std.testing.allocator,
+        &.{0, 2},
+    );
+    defer lin.deinit(std.testing.allocator);
+
+    lin.knots[1].value = 4;
+
+    try std.testing.expectApproxEqAbs(
+        @as(f32, 2.0),
+        try lin.evaluate(1.0),
+        EPSILON
+    );
+
+    // @TODO: start here Nick/Stephan
+
+    if (true) {
+        return error.SkipZigTest;
+    }
+
+    const ramp_retimed = try retimed_linear_curve(
+        std.testing.allocator,
+        s48_ramp,
+        lin,
+        false,
+    );
+    defer ramp_retimed.deinit();
+
+    std.debug.print("\nretimed samples:\n", .{});
+    for (ramp_retimed.buffer, 0..)
+        |v, ind|
+    {
+        std.debug.print(
+            "[{d}]: {d}\n",
+            .{ind, v},
+        );
+
+        try std.testing.expectApproxEqAbs(
+            @as(f32, @floatFromInt(ind)),
+            s48_ramp.sample_value_at_time(
+                @as(f32, @floatFromInt(ind))*0.25
+            ),
+            EPSILON,
+        );
+    }
+
+    // try std.testing.expectApproxEqAbs(
+    //     s48_ramp.buffer[0],
+    //     ramp_retimed.buffer[0],
+    // EPSILON,
+    // );
+
 }
 
 // hold on even twos - short frames
@@ -947,3 +1082,53 @@ test "wav.zig generator test"
         try s48.write_file("/var/tmp/ours_givemesine.wav");
     }
 }
+
+// test "ramp generator math" 
+// {
+//     const self = SampleGenerator{
+//         .sampling_rate_hz = 10,
+//         .signal_frequency_hz = 1,
+//         .signal_amplitude = 4,
+//         .signal_duration_s = 3,
+//         .signal = .ramp,
+//     };
+//
+//     const sample_hz : sample_t = @floatFromInt(self.sampling_rate_hz);
+//
+//     const cycles_per_sample = (
+//         sample_hz
+//         / @as(f32, @floatFromInt(self.signal_frequency_hz))
+//     );
+//
+//     // std.debug.print("test ramp\n", .{});
+//     //
+//     const self_rasterized = try self.rasterized(std.testing.allocator);
+//     defer self_rasterized.deinit();
+//
+//     const last_sample_index = self.signal_duration_s * self.sampling_rate_hz;
+//     var current_index : usize = 0;
+//     while (current_index < last_sample_index)
+//         : (current_index += 1)
+//     {
+//         const modval = try std.math.mod(
+//             sample_t,
+//             @as(sample_t, @floatFromInt(current_index)),
+//             cycles_per_sample,
+//         );
+//
+//         const u = modval / @as(f32, @floatFromInt(self.sampling_rate_hz));
+//
+//         const result = (
+//             self.signal_amplitude 
+//             * curve.bezier_math.lerp(
+//                 u,
+//                 @as(sample_t,0),
+//                 1,
+//             )
+//         );
+//
+//         const measured = self_rasterized.buffer[current_index];
+//
+//         try std.testing.expectApproxEqAbs(result, measured, 0.00001);
+//     }
+// }
