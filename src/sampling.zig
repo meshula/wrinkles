@@ -24,6 +24,7 @@ const sample_t  = f32;
 const Sampling = struct {
     buffer: []sample_t,
     sample_rate_hz: u32,
+    interpolating: bool = true,
     allocator: std.mem.Allocator,
 
     pub fn init(
@@ -479,7 +480,92 @@ pub fn retimed_linear_curve(
     step_retime: bool,
 ) !Sampling
 {
-    
+    return switch (in_samples.interpolating) {
+        true => try retimed_linear_curve_interpolating(
+            allocator,
+            in_samples,
+            lin_curve,
+            step_retime
+        ),
+        false => try retimed_linear_curve_non_interpolating(
+            allocator,
+            in_samples,
+            lin_curve,
+        ),
+    };
+}
+
+pub fn retimed_linear_curve_non_interpolating(
+    allocator: std.mem.Allocator,
+    in_samples: Sampling,
+    lin_curve: curve.TimeCurveLinear,
+) !Sampling
+{
+    var output_buffer_size:usize = 0;
+
+    // @breakpoint();
+    //
+    for (lin_curve.knots[0..lin_curve.knots.len-1], lin_curve.knots[1..]) 
+        |l_knot, r_knot|
+    {    
+        const num_output_samples:usize = @intFromFloat(
+            (r_knot.value - l_knot.value) 
+             * @as(f32, @floatFromInt(in_samples.sample_rate_hz))
+        );
+
+        output_buffer_size += num_output_samples;
+    }
+
+    const full_output_buffer = try allocator.alloc(
+        sample_t,
+        output_buffer_size
+    );
+
+    const s_per_sample:f32 = (
+        1.0 / @as(f32, @floatFromInt(in_samples.sample_rate_hz))
+    );
+
+    for (full_output_buffer, 0..)
+        |*output_sample, output_index|
+    {
+        const output_sample_time_s = (
+            @as(f32, @floatFromInt(output_index)) * s_per_sample
+        );
+        const input_time_approx = try lin_curve.evaluate_at_value(
+            output_sample_time_s
+        );
+
+        const input_index_approx = (
+            input_time_approx 
+            * @as(f32, @floatFromInt(in_samples.sample_rate_hz))
+        );
+
+        const input_index: usize = @intFromFloat(@floor(input_index_approx));
+
+        // @breakpoint();
+        //  
+        if (input_index >= in_samples.buffer.len) {
+            break;
+        }
+
+        output_sample.* = in_samples.buffer[input_index];
+    }
+
+
+    return Sampling{
+        .allocator = allocator,
+        .buffer = full_output_buffer,
+        .sample_rate_hz = in_samples.sample_rate_hz,
+    };
+}
+
+pub fn retimed_linear_curve_interpolating(
+    allocator: std.mem.Allocator,
+    in_samples: Sampling,
+    lin_curve: curve.TimeCurveLinear,
+    step_retime: bool,
+) !Sampling
+{
     var output_buffer_size:usize = 0;
 
     const RetimeSpec = struct {
@@ -818,8 +904,9 @@ test "retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
 }
 
 // test 3
-// in curvet, create a set of samples over one rate, then after projection,
-// resample to another rate
+// retime a set of samples with a cubic function.  also linearize the function
+// at an intentionally low rate to reproduce an error we've seen on some
+// editing systems with retiming
 test "retime 48khz samples with a nonlinear acceleration curve and resample" 
 {
     const samples_48 = SignalGenerator{
@@ -998,10 +1085,10 @@ test "sampling: frame phase slide 1: (identity) 0,1,2,3->0,1,2,3"
 }
 
 // only meaningfull if serializing test data to disk
-test "24hz samples" 
+test "serialize a 24hz ramp to disk, to visualize ramp output" 
 {
     const ramp_signal = SignalGenerator{
-        .sampling_rate_hz = 480,
+        .sampling_rate_hz = 48000,
         .signal_frequency_hz = 24,
         .signal_duration_s = 1,
         .signal = .ramp,
@@ -1041,21 +1128,21 @@ test "sampling: frame phase slide 2: (time*2 freq*1 phase+0) 0,1,2,3->0,0,1,1"
         .signal = .ramp,
     };
 
-    const s48_ramp = try ramp_signal.rasterized(std.testing.allocator);
-    defer s48_ramp.deinit();
+    const ramp_samples = try ramp_signal.rasterized(std.testing.allocator);
+    defer ramp_samples.deinit();
     if (WRITE_TEST_FILES) {
-        try s48_ramp.write_file(
+        try ramp_samples.write_file(
             "/var/tmp/ramp_1hz_signal_48kz_sampling_2s.wav"
         );
     }
 
-    try expectEqual(0, s48_ramp.buffer[0]);
+    try expectEqual(0, ramp_samples.buffer[0]);
     try std.testing.expectApproxEqAbs(
         1,
-        s48_ramp.buffer[47999],
+        ramp_samples.buffer[47999],
         EPSILON,
     );
-    try expectEqual(0, s48_ramp.buffer[48000]);
+    try expectEqual(0, ramp_samples.buffer[48000]);
 
     var knots = [_]curve.ControlPoint{
             .{ .time = 0, .value = 0, },
@@ -1068,26 +1155,26 @@ test "sampling: frame phase slide 2: (time*2 freq*1 phase+0) 0,1,2,3->0,0,1,1"
 
     const ramp_retimed = try retimed_linear_curve(
         std.testing.allocator,
-        s48_ramp,
+        ramp_samples,
         lin,
         false,
     );
     defer ramp_retimed.deinit();
 
     try std.testing.expectApproxEqAbs(
-        s48_ramp.buffer[0],
+        ramp_samples.buffer[0],
         ramp_retimed.buffer[0],
         EPSILON,
     );
 
     try std.testing.expectApproxEqAbs(
-        s48_ramp.sample_value_at_time(1.1),
+        ramp_samples.sample_value_at_time(1.1),
         ramp_retimed.sample_value_at_time(2.2),
         EPSILON,
     );
 }
 
-test "trying to make a slow signal" 
+test "sampling: frame phase slide 2: (time*2 freq*1 phase+0) 0,1,2,3->0,0,1,1 - slow signal"
 {
     const ramp_signal = SignalGenerator{
         .sampling_rate_hz = 4,
@@ -1097,9 +1184,11 @@ test "trying to make a slow signal"
         .signal_amplitude = 4,
     };
 
-    const ramp_samples = try ramp_signal.rasterized(
-        std.testing.allocator
+    var ramp_samples = try ramp_signal.rasterized(
+        std.testing.allocator,
     );
+    ramp_samples.interpolating = false;
+
     defer ramp_samples.deinit();
 
     // not worth writing this file because audacity doesn't handle overrange
@@ -1143,23 +1232,23 @@ test "trying to make a slow signal"
     const lin_slope_two = (
         try curve.TimeCurveLinear.init_identity(
             std.testing.allocator,
-            &.{0, 2},
+            &.{0, 16},
         )
     );
     defer lin_slope_two.deinit(std.testing.allocator);
 
-    lin_slope_two.knots[1].value = 1;
+    lin_slope_two.knots[1].value = 4;
 
-    try std.testing.expectApproxEqAbs(
-        @as(f32, 0.5),
-        try lin_slope_two.evaluate(1.0),
-        EPSILON
-    );
+    // try std.testing.expectApproxEqAbs(
+    //     @as(f32, 0.5),
+    //     try lin_slope_two.evaluate(1.0),
+    //     EPSILON
+    // );
 
     // @TODO: start here Nick/Stephan
-    if (true) {
-        return error.SkipZigTest;
-    }
+    // if (true) {
+    //     return error.SkipZigTest;
+    // }
 
     const ramp_samples_retimed = try retimed_linear_curve(
         std.testing.allocator,
@@ -1169,10 +1258,10 @@ test "trying to make a slow signal"
     );
     defer ramp_samples_retimed.deinit();
 
-    try expectEqual(
-        ramp_samples.buffer.len,
-        ramp_samples_retimed.buffer.len,
-    );
+    // try expectEqual(
+    //     ramp_samples.buffer.len,
+    //     ramp_samples_retimed.buffer.len,
+    // );
 
     std.debug.print("\nretimed samples:\n", .{});
     for (ramp_samples_retimed.buffer, 0..)

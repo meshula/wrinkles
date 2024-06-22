@@ -71,6 +71,16 @@ pub fn value_at_time_between(
     return lerp(u, fst.value, snd.value);
 }
 
+pub fn time_at_value_between(
+    v: f32,
+    fst: ControlPoint,
+    snd: ControlPoint,
+) f32 
+{
+    const u = invlerp(v, fst.value, snd.value);
+    return lerp(u, fst.time, snd.time);
+}
+
 // dual variety
 pub fn segment_reduce4_dual(
     u: dual.Dual_f32, 

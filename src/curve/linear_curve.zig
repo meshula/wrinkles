@@ -118,6 +118,24 @@ pub const TimeCurveLinear = struct {
         return error.OutOfBounds;
     }
 
+    pub fn evaluate_at_value(
+        self: @This(),
+        value_ord: f32,
+    ) !f32
+    {
+        if (self.nearest_smaller_knot_index_to_value(value_ord)) 
+           |index| 
+        {
+            return bezier_math.time_at_value_between(
+                value_ord,
+                self.knots[index],
+                self.knots[index+1],
+            );
+        }
+
+        return error.OutOfBounds;
+    }
+
     pub fn nearest_smaller_knot_index(
         self: @This(),
         t_arg: f32, 
@@ -140,6 +158,36 @@ pub const TimeCurveLinear = struct {
             |knot, next_knot, index| 
         {
             if ( knot.time <= t_arg and t_arg < next_knot.time) 
+            {
+                return index;
+            }
+        }
+
+        return null;
+    }
+
+    pub fn nearest_smaller_knot_index_to_value(
+        self: @This(),
+        value_ord: f32, 
+    ) ?usize 
+    {
+        const last_index = self.knots.len-1;
+
+        // out of bounds
+        if (
+            self.knots.len == 0 
+            or (value_ord < self.knots[0].value)
+            or value_ord >= self.knots[last_index].value
+        )
+        {
+            return null;
+        }
+
+        // last knot is out of domain
+        for (self.knots[0..last_index], self.knots[1..], 0..) 
+            |knot, next_knot, index| 
+        {
+            if ( knot.value <= value_ord and value_ord < next_knot.value) 
             {
                 return index;
             }
