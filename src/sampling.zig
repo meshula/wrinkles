@@ -495,6 +495,8 @@ pub fn retimed_linear_curve(
     };
 }
 
+/// analytical projection of a sampling modeled by an identity function
+/// through the retiming curve and back to a discrete sampling
 pub fn retimed_linear_curve_non_interpolating(
     allocator: std.mem.Allocator,
     in_samples: Sampling,
@@ -502,6 +504,8 @@ pub fn retimed_linear_curve_non_interpolating(
 ) !Sampling
 {
     var output_buffer_size:usize = 0;
+
+    // @TODO: need a bounding box calculator
 
     // @breakpoint();
     //
@@ -525,30 +529,51 @@ pub fn retimed_linear_curve_non_interpolating(
         1.0 / @as(f32, @floatFromInt(in_samples.sample_rate_hz))
     );
 
-    for (full_output_buffer, 0..)
-        |*output_sample, output_index|
+    // this is an analytical model of a topology for the sampling, projecting
+    // through the retiming curve and then re-rasterizing to a sampling
+    for (in_samples.buffer, 0..)
+        |input_sample, input_index|
     {
-        const output_sample_time_s = (
-            @as(f32, @floatFromInt(output_index)) * s_per_sample
-        );
-        const input_time_approx = try lin_curve.evaluate_at_value(
-            output_sample_time_s
+        const input_sample_time: f32 = (
+            @as(f32, @floatFromInt(input_index)) * s_per_sample
         );
 
-        const input_index_approx = (
-            input_time_approx 
+        const output_sample_time = (
+            try lin_curve.evaluate(input_sample_time)
+        );
+
+        const output_sample_index = (
+            output_sample_time 
             * @as(f32, @floatFromInt(in_samples.sample_rate_hz))
         );
 
-        const input_index: usize = @intFromFloat(@floor(input_index_approx));
+        full_output_buffer[output_sample_index] = input_sample;
 
-        // @breakpoint();
-        //  
-        if (input_index >= in_samples.buffer.len) {
-            break;
-        }
+        // const output_sample_time_s = (
+        //     @as(f32, @floatFromInt(output_index)) * s_per_sample
+        // );
 
-        output_sample.* = in_samples.buffer[input_index];
+        // const output_sample_time_s = (
+        //     @as(f32, @floatFromInt(output_index)) * s_per_sample
+        // );
+        // const input_time_approx = try lin_curve.evaluate_at_value(
+        //     output_sample_time_s
+        // );
+        //
+        // const input_index_approx = (
+        //     input_time_approx 
+        //     * @as(f32, @floatFromInt(in_samples.sample_rate_hz))
+        // );
+        //
+        // const input_index: usize = @intFromFloat(@floor(input_index_approx));
+        //
+        // // @breakpoint();
+        // //  
+        // if (input_index >= in_samples.buffer.len) {
+        //     break;
+        // }
+        //
+        // output_sample.* = in_sample .buffer[input_index];
     }
 
 
