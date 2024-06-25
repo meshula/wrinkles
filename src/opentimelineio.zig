@@ -42,7 +42,9 @@ pub const Clip = struct {
         self: @This()
     ) !opentime.ContinuousTimeInterval 
     {
-        if (self.source_range) |rng| {
+        if (self.source_range) 
+            |rng| 
+        {
             return rng;
         }
 
@@ -65,7 +67,9 @@ pub const Clip = struct {
         self: @This()
     ) !time_topology.TimeTopology 
     {
-        if (self.source_range) |range| {
+        if (self.source_range) 
+            |range| 
+        {
             return time_topology.TimeTopology.init_identity(
                 .{.bounds=range}
             );
@@ -2157,20 +2161,31 @@ pub const Stack = struct {
         self.deinit();
     }
 
-    pub fn topology(self: @This()) !time_topology.TimeTopology {
+    pub fn topology(
+        self: @This()
+    ) !time_topology.TimeTopology 
+    {
         // build the bounds
         var bounds: ?interval.ContinuousTimeInterval = null;
-        for (self.children.items) |it| {
+        for (self.children.items) 
+            |it| 
+        {
             const it_bound = (try it.topology()).bounds();
-            if (bounds) |b| {
+            if (bounds) 
+                |b| 
+            {
                 bounds = interval.extend(b, it_bound);
             } else {
                 bounds = it_bound;
             }
         }
 
-        if (bounds) |b| {
-            return time_topology.TimeTopology.init_affine(.{ .bounds = b });
+        if (bounds) 
+            |b| 
+        {
+            return time_topology.TimeTopology.init_affine(
+                .{ .bounds = b }
+            );
         } else {
             return time_topology.TimeTopology.init_empty();
         }
