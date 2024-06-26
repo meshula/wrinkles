@@ -281,6 +281,23 @@ pub fn executable(
 
         b.getInstallStep().dependOn(install);
     }
+
+    // docs
+    {
+        const install_docs = b.addInstallDirectory(
+            .{
+                .source_dir = exe.getEmittedDocs(),
+                .install_dir = .prefix,
+                .install_subdir = "docs",
+            }
+        );
+
+        const docs_step = b.step(
+            "docs_exe_" ++ name,
+            "Copy documentation artifacts to prefix path"
+        );
+        docs_step.dependOn(&install_docs.step);
+    }
 }
 
 /// options for module_with_tests_and_artifact
@@ -289,6 +306,7 @@ pub const CreateModuleOptions = struct {
     fpath: []const u8,
     target: std.Build.ResolvedTarget,
     test_step: *std.Build.Step,
+    all_docs_step: *std.Build.Step,
     deps: []const std.Build.Module.Import = &.{},
     test_filter: ?[]const u8 = &.{},
 };
@@ -328,6 +346,24 @@ pub fn module_with_tests_and_artifact(
         // also install the test binary for lldb needs
         const install_test_bin = opts.b.addInstallArtifact(mod_unit_tests, .{});
         opts.test_step.dependOn(&install_test_bin.step);
+
+        // docs
+        {
+            const install_docs = opts.b.addInstallDirectory(
+                .{
+                    .source_dir = mod_unit_tests.getEmittedDocs(),
+                    .install_dir = .prefix,
+                    .install_subdir = "docs/" ++ name,
+                }
+            );
+
+            const docs_step = opts.b.step(
+                "docs_" ++ name,
+                "Copy documentation artifacts to prefix path"
+            );
+            docs_step.dependOn(&install_docs.step);
+            opts.all_docs_step.dependOn(docs_step);
+        }
     }
 
     return mod;
@@ -374,6 +410,11 @@ pub fn build(
         "step to run all unit tests"
     );
 
+    const all_docs_step = b.step(
+        "docs",
+        "build the documentation for the entire library",
+    );
+
     // submodules and dependencies
     const comath_dep = b.dependency(
         "comath",
@@ -390,6 +431,7 @@ pub fn build(
             .target = options.target,
             .test_step = test_step,
             .test_filter = options.test_filter,
+            .all_docs_step = all_docs_step,
         }
     );
 
@@ -400,6 +442,7 @@ pub fn build(
             .fpath = "src/string_stuff.zig",
             .target = options.target,
             .test_step = test_step,
+            .all_docs_step = all_docs_step,
             .test_filter = options.test_filter,
         }
     );
@@ -431,6 +474,7 @@ pub fn build(
             .fpath = "src/treecode.zig",
             .target = options.target,
             .test_step = test_step,
+            .all_docs_step = all_docs_step,
             .deps = &.{},
             .test_filter = options.test_filter,
         }
@@ -443,6 +487,7 @@ pub fn build(
             .fpath = "src/opentime/opentime.zig",
             .target = options.target,
             .test_step = test_step,
+            .all_docs_step = all_docs_step,
             .deps = &.{
                 .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "comath", .module = comath_dep.module("comath") },
@@ -479,6 +524,7 @@ pub fn build(
             .fpath = "src/curve/curve.zig",
             .target = options.target,
             .test_step = test_step,
+            .all_docs_step = all_docs_step,
             .deps = &.{
                 .{ .name = "spline_gym", .module = &spline_gym.root_module },
                 .{ .name = "string_stuff", .module = string_stuff },
@@ -522,6 +568,7 @@ pub fn build(
             .fpath = "src/sampling.zig",
             .target = options.target,
             .test_step = test_step,
+            .all_docs_step = all_docs_step,
             .deps = &.{
                 .{ 
                     .name = "libsamplerate",
@@ -545,6 +592,7 @@ pub fn build(
             .fpath = "src/time_topology/time_topology.zig",
             .target = options.target,
             .test_step = test_step,
+            .all_docs_step = all_docs_step,
             .deps = &.{
                 .{ .name = "opentime", .module = opentime },
                 .{ .name = "curve", .module = curve },
@@ -560,6 +608,7 @@ pub fn build(
             .fpath = "src/opentimelineio.zig",
             .target = options.target,
             .test_step = test_step,
+            .all_docs_step = all_docs_step,
             .deps = &.{
                 .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "opentime", .module = opentime },
