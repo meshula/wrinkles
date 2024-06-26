@@ -88,7 +88,7 @@ pub fn read_otio_object(
 
     const full_string = maybe_schema_and_version_str.?.string;
 
-    var split_schema_string = std.mem.split(
+    var split_schema_string = std.mem.splitSequence(
         u8,
         full_string,
         "."
