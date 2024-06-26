@@ -1,3 +1,9 @@
+//! Sampling Library for OTIO V2
+//!
+//! Includes signal generators and samplers as well as tools for integrating
+//! a sampling into the rest of the temporal framework.  Leverages libsamplerate
+//! for test purposes.
+
 const std = @import("std");
 const libsamplerate = @import("libsamplerate").libsamplerate;
 const kissfft = @import("kissfft").c;
@@ -547,7 +553,7 @@ pub fn retimed_linear_curve_non_interpolating(
             * @as(f32, @floatFromInt(in_samples.sample_rate_hz))
         );
 
-        full_output_buffer[output_sample_index] = input_sample;
+        full_output_buffer[@as(usize, @intFromFloat(output_sample_index))] = input_sample;
 
         // const output_sample_time_s = (
         //     @as(f32, @floatFromInt(output_index)) * s_per_sample

@@ -28,7 +28,7 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = false;
 // for VERY LARGE files, turn this off so that dot can process the graphs
 const LABEL_HAS_BINARY_TREECODE = true;
 
-
+/// clip with an implied media reference
 pub const Clip = struct {
     name: ?string.latin_s8 = null,
 

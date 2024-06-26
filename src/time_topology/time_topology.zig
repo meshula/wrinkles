@@ -1,3 +1,13 @@
+//! Time Topology Struct for OpenTime
+//!
+/// The time topology maps an external temporal coordinate system to an
+/// internal one.  Coordinates in the external coordinate system can be
+/// projected through the topology to retrieve values in the internal
+/// coordinate system.
+///
+/// This module implements topogolies for various kinds of transformations, and
+/// also conversions and transformations between these types.
+
 const std = @import("std"); 
 
 const opentime = @import("opentime"); 
