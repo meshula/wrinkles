@@ -193,10 +193,15 @@ pub fn executable(
             }
         );
         exe.step.dependOn(&install_content_step.step);
-        std.debug.print(
-            "[build: {s}] content source directory path: {s}\n",
-            .{name, thisDir() ++ source_dir_path}
-        );
+        // install_content_step.step.dependOn(
+        //     &b.addWriteFile(
+        //         "/dev/stdout",
+        //         (
+        //                "[build: "++name++"] content source directory path: " 
+        //                ++ thisDir() ++ source_dir_path ++ "\n"
+        //         ),
+        //     ).step
+        // );
     }
 
     exe.want_lto = false;
