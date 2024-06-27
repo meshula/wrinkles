@@ -302,12 +302,15 @@ fn _parse_args(
     // ignore the app name, always first in args
     _ = args.skip();
 
-    // inline for (std.meta.fields(@TypeOf(state))) |field| {
+    // inline for (std.meta.fields(@TypeOf(state))) 
+    // |field| 
+    // {
     //     std.debug.print("{s}: {}\n", .{ field.name, @field(state, field.name) });
     // }
 
     // read all the filepaths from the commandline
-    while (args.next()) |nextarg| 
+    while (args.next()) 
+        |nextarg| 
     {
         const fpath: [:0]const u8 = nextarg;
 

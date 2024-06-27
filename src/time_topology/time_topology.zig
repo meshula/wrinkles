@@ -21,7 +21,8 @@ const curve = @import("curve");
 const control_point = curve.control_point; 
 
 // import more tests
-test {
+test 
+{
     _ = @import("test_topology_projections.zig");
 }
 
@@ -93,7 +94,8 @@ pub const AffineTopology = struct {
     pub fn project_sample(
         self: @This(),
         sample: Sample,
-    ) !Sample {
+    ) !Sample 
+    {
         var result = sample;
         result.ordinate_seconds = try self.project_ordinate(
             sample.ordinate_seconds
@@ -177,7 +179,9 @@ pub const AffineTopology = struct {
                    allocator,
                    lin.curve.knots,
                );
-               for (lin.curve.knots, 0..) |knot, knot_index| {
+               for (lin.curve.knots, 0..) 
+                   |knot, knot_index| 
+               {
                     result.knots[knot_index] = .{
                         .time = knot.time,
                         .value = self.transform.applied_to_seconds(knot.value),
@@ -201,7 +205,9 @@ pub const AffineTopology = struct {
                    other_aff.bounds,
                );
 
-               if (bounds) |b| {
+               if (bounds) 
+                   |b| 
+                {
                    return .{
                        .affine = .{ 
                            .bounds = b,
@@ -493,7 +499,8 @@ pub const BezierTopology = struct {
     }
 };
 
-test "BezierTopology: inverted" {
+test "BezierTopology: inverted" 
+{
     const base_curve = try curve.read_curve_json(
         "curves/scurve.curve.json",
         std.testing.allocator,
@@ -855,7 +862,9 @@ test "TimeTopology: finite Affine"
         .{ .seconds = 100, .expected=200, .err = true },
     };
 
-    for (tests, 0..) |t, index| {
+    for (tests, 0..) 
+        |t, index| 
+    {
         errdefer std.log.err(
             "[{d}] time: {d} expected: {d} err: {any}",
             .{index, t.seconds, t.expected, t.err}
@@ -908,7 +917,9 @@ test "TimeTopology: Affine Projected Through inverted Affine"
     // projecting ordinates through both should result in the original argument
     var time:Ordinate = 0;
     const end_point = tp.bounds().end_seconds;
-    while (time < end_point) : (time += 0.1) {
+    while (time < end_point) 
+        : (time += 0.1) 
+    {
         const result = try tp_inv.project_ordinate(try tp.project_ordinate(time));
 
         errdefer std.log.err("time: {any} result: {any}", .{time, result});
@@ -968,7 +979,9 @@ test "TimeTopology: Affine Projected Through infinite Affine"
     // projecting ordinates through both should result in the original argument
     var time:Ordinate = expected_bounds.start_seconds;
     const end_point = expected_bounds.end_seconds;
-    while (time < end_point) : (time += 0.1) {
+    while (time < end_point) 
+        : (time += 0.1) 
+    {
         errdefer std.log.err(
             "time: {any}\n", 
             .{time}
@@ -1032,7 +1045,9 @@ test "TimeTopology: Affine through Affine w/ negative scale"
         .{ .output_s = 10, .media_s=100, .err = true },
     };
 
-    for (output_to_media_tests, 0..) |t, index| {
+    for (output_to_media_tests, 0..) 
+        |t, index| 
+    {
         errdefer std.log.err(
             "[{d}] time: {d} expected: {d} err: {any}",
             .{index, t.output_s, t.media_s, t.err}
@@ -1077,7 +1092,9 @@ test "TimeTopology: staircase constructor"
     );
 
     var value:f32 = 0;
-    for (tp.bezier_curve.curve.segments) |seg| {
+    for (tp.bezier_curve.curve.segments) 
+        |seg| 
+    {
         try expectEqual(value, seg.p0.value);
         value += increment;
     }
@@ -1238,7 +1255,9 @@ pub const StepSampleGenerator = struct {
             const tp_space: ?Sample = try topology.project_sample(next);
 
             // if a sample has a valid projection, append it
-            if (tp_space) |s| {
+            if (tp_space) 
+                |s| 
+            {
                 try result.append(s);
             } 
         }

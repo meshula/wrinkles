@@ -1,3 +1,8 @@
+//! Automatic differentiation with dual numbers library based on the comath
+//! module.
+//!
+//! Math on duals automatically computes derivatives.
+
 const std = @import("std");
 const comath = @import("comath");
 
@@ -333,7 +338,9 @@ test "comath dual test polymorphic"
     // function we want derivatives of
     const fn_str = "(x + off1) * (x + off2)";
 
-    inline for (test_data, 0..) |td, i| {
+    inline for (test_data, 0..) 
+        |td, i| 
+    {
         const value = comath.eval(
             fn_str,
             CTX,

@@ -106,7 +106,9 @@ const two_point_approx_flags = struct {
             // if (zgui.treeNode("two Point Approx internals")) 
             // {
             //     defer zgui.treePop();
-            //     inline for (fields) |field| {
+            //     inline for (fields) 
+            //     |field| 
+            //     {
             //         _ = zgui.checkbox(field, .{ .v = & @field(self, field) });
             //     }
             // }
@@ -163,7 +165,9 @@ const tpa_flags = struct {
             if (zgui.treeNode("Three Point Approx internals")) 
             {
                 defer zgui.treePop();
-                inline for (fields) |field| {
+                inline for (fields) 
+                    |field| 
+                {
                     _ = zgui.checkbox(field, .{ .v = & @field(self, field) });
                 }
             }
@@ -580,7 +584,9 @@ fn plot_cp_line(
     const yv = try allocator.alloc(f32, points.len);
     defer allocator.free(yv);
 
-    for (points, xv, yv) |p, *x, *y| {
+    for (points, xv, yv) 
+        |p, *x, *y| 
+    {
         x.* = p.time;
         y.* = p.value;
     }
@@ -643,7 +649,9 @@ fn plot_knots(
         const endpoints = try hod.segment_endpoints(allocator);
         defer allocator.free(endpoints);
 
-        for (endpoints, 0..) |knot, knot_ind| {
+        for (endpoints, 0..) 
+            |knot, knot_ind| 
+        {
             knots_xv[knot_ind] = knot.time;
             knots_yv[knot_ind] = knot.value;
         }
@@ -658,7 +666,9 @@ fn plot_knots(
             }
         );
 
-        for (endpoints, 0..) |pt, pt_ind| {
+        for (endpoints, 0..) 
+            |pt, pt_ind| 
+        {
             const label = try std.fmt.bufPrintZ(&buf, "{d}", .{ pt_ind });
             zgui.plot.plotText(
                 label,
@@ -692,8 +702,12 @@ fn plot_control_points(
         defer allocator.free(knots_yv);
 
         zgui.pushStrId(name_);
-        for (hod.segments, 0..) |seg, seg_ind| {
-            for (seg.points(), 0..) |pt, pt_ind| {
+        for (hod.segments, 0..) 
+            |seg, seg_ind| 
+        {
+            for (seg.points(), 0..) 
+                |pt, pt_ind| 
+            {
                 knots_xv[seg_ind * 4 + pt_ind] = pt.time;
                 knots_yv[seg_ind * 4 + pt_ind] = pt.value;
                 const pt_text = try std.fmt.bufPrintZ(
@@ -742,7 +756,9 @@ fn plot_linear_curve(
     var yv:[]f32 = try allocator.alloc(f32, lin.knots.len);
     defer allocator.free(yv);
 
-    for (lin.knots, 0..) |knot, knot_index| {
+    for (lin.knots, 0..) 
+        |knot, knot_index| 
+    {
         xv[knot_index] = knot.time;
         yv[knot_index] = knot.value;
     }
@@ -772,11 +788,15 @@ fn plot_editable_bezier_curve(
     const col: [4]f32 = .{ 1, 0, 0, 1 };
 
     var hasher = std.hash.Wyhash.init(0);
-    for (name) |char| {
+    for (name) 
+        |char| 
+    {
         std.hash.autoHash(&hasher, char);
     }
 
-    for (crv.segments, 0..) |*seg, seg_ind| {
+    for (crv.segments, 0..) 
+        |*seg, seg_ind| 
+    {
         std.hash.autoHash(&hasher, seg_ind);
 
         var in_pts = seg.points();
@@ -793,7 +813,9 @@ fn plot_editable_bezier_curve(
             @floatCast(in_pts[3].value),
         };
 
-        inline for (0..4) |idx| {
+        inline for (0..4) 
+            |idx| 
+        {
             std.hash.autoHash(&hasher, idx);
 
             _ = zgui.plot.dragPoint(
@@ -853,7 +875,9 @@ fn plot_bezier_curve(
     }
 
     if (flags.natural_midpoint) {
-        for (crv.segments) |seg| {
+        for (crv.segments) 
+            |seg| 
+        {
             plot_point(
                 label,
                 "midpoint",
@@ -1429,7 +1453,9 @@ fn plot_three_point_approx(
     const u_names = &.{"u_0", "u_1_4", "u_1_2", "u_3_4", "u_1"};
     var u_bools : [u_names.len]bool = undefined;
 
-    inline for (u_names, 0..) |n, i| {
+    inline for (u_names, 0..) 
+        |n, i| 
+    {
         u_bools[i] = @field(flags.three_point_approximation, n);
     }
 
@@ -1827,9 +1853,9 @@ fn update(
                     );
 
                     // zgui.text("Segments to project through indices: ", .{});
-                    // for (
-                    //     result_guts.segments_to_project_through.?
-                    // ) |ind| {
+                    // for (result_guts.segments_to_project_through.?) 
+                    // |ind| 
+                    // {
                     //     zgui.text("{d}", .{ ind });
                     // }
 
@@ -2434,7 +2460,9 @@ fn _parse_args(
     // ignore the app name, always first in args
     _ = args.skip();
 
-    // inline for (std.meta.fields(@TypeOf(state))) |field| {
+    // inline for (std.meta.fields(@TypeOf(state))) 
+    // |field| 
+    // {
     //     std.debug.print("{s}: {}\n", .{ field.name, @field(state, field.name) });
     // }
 

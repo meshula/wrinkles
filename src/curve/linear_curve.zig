@@ -1,3 +1,5 @@
+//! Linear curves are made of connected line segments
+
 const bezier_math = @import("bezier_math.zig");
 const generic_curve = @import("generic_curve.zig");
 const ControlPoint = @import("control_point.zig").ControlPoint;
@@ -375,7 +377,9 @@ pub const TimeCurveLinear = struct {
         var min:ControlPoint = self.knots[0];
         var max:ControlPoint = self.knots[0];
 
-        for (self.knots) |knot| {
+        for (self.knots) 
+            |knot| 
+        {
             min = .{
                 .time = @min(min.time, knot.time),
                 .value = @min(min.value, knot.value),

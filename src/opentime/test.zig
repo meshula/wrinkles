@@ -1,10 +1,18 @@
+//! original test file we wrote when striking out on this iteration of the
+//! prototype.  Helps to explain the goal and terrain we thought we wanted to
+//! cover.  This comment written in 2024.  Rest of the code is ~2022.
+//!
+//! Also the first zig code we wrote, so be kind.
+
 const std = @import("std");
 const opentime = @import("opentime");
 const otio = @import("opentimelineio");
 
 const STDOUT = std.io.getStdOut().writer();
 
-pub fn audio_render_test() !void {
+pub fn audio_render_test(
+) !void 
+{
     const tl = try otio.build_single_track_timeline();
     // const tl = otio.build_single_track_timeline() catch |err| return err;
 
@@ -42,9 +50,11 @@ pub fn audio_render_test() !void {
     const frames_to_render = audio_frames_to_render(tl, output_domain);
 
     try STDOUT.print("\n", .{});
-    for (frames_to_render.items) |audio_frames| 
+    for (frames_to_render.items) 
+        |audio_frames| 
     {
-        for (audio_frames.items) |media_window_to_print| 
+        for (audio_frames.items) 
+            |media_window_to_print| 
         {
             try STDOUT.print(
                     "{s}: {s}", 
@@ -131,7 +141,7 @@ pub fn audio_frames_to_render(
 
     result.resize(picture_od_samples.to_slice().len);
 
-    for (picture_od_samples) 
+    for (picture_od_samples, 0..) 
         |picture_sample, sample_index|
     {
         // for each 24hz sample, convert it to an interval
@@ -148,7 +158,7 @@ pub fn audio_frames_to_render(
 
         //    2a. for each audio reference, find the samples associated with 
         //        this 24hz chunk
-        for (audio_od_samples) 
+        for (audio_od_samples, 0..) 
             |audio_sample, audio_index| 
         {
             // one thing that bumps me is that we've defined the Domains as 
@@ -199,7 +209,9 @@ pub fn main() !void {
     try some_list.append(4);
     try some_list.append(314159);
     try STDOUT.print("List contents:\n", .{});
-    for (some_list.items) |value, index| {
+    for (some_list.items, 0..) 
+        |value, index| 
+    {
         try STDOUT.print("   {d}: {d}\n", .{index, value});
     }
     try STDOUT.print("---\n", .{});
@@ -228,7 +240,9 @@ pub fn main() !void {
     try item_list.append(noname_eref);
 
     try STDOUT.print("\nItem List: \n", .{});
-    for (item_list.items) |value, index| {
+    for (item_list.items, 0..) 
+        |value, index| 
+    {
         var name = value.name orelse "(no name set)";
         try STDOUT.print("   {d}: {s}\n", .{index, name});
     }
@@ -251,7 +265,8 @@ const expectError = @import("std").testing.expectError;
 const expectEqual = @import("std").testing.expectEqual;
 const expectEqualStrings = @import("std").testing.expectEqualStrings;
 
-test "generated_timeline_test" {
+test "generated_timeline_test" 
+{
     const tl = try otio.build_single_track_timeline();
 
     try expectEqual(tl.name, "single track test");
@@ -259,7 +274,8 @@ test "generated_timeline_test" {
     // expectEqual(tl.tracks.children.items[0].name, "simple clip");
 }
 
-test "active union field" {
+test "active union field" 
+{
     const simple = struct {
         name: []const u8 = "",
     };
@@ -300,7 +316,8 @@ test "active union field" {
     // const name = switch (test1) { inline else |*active| => active.name };
 }
 
-test "understanding tagged vs untagged unions" {
+test "understanding tagged vs untagged unions" 
+{
 
     const tagged_example = union (enum) {
         float: f32,

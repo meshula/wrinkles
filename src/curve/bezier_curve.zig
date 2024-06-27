@@ -887,7 +887,8 @@ test "segment: dual_eval_at over linear curve"
     }
 }
 
-test "Segment.init_identity check cubic spline" {
+test "Segment.init_identity check cubic spline" 
+{
     // ensure that points are along line even for linear case
     const seg = Segment.init_identity(0, 1);
 
@@ -1830,7 +1831,9 @@ pub const TimeCurve = struct {
                     if (u > 0 + 0.000001 and u < 1 - 0.000001) {
                         const maybe_split_segments = seg.split_at(u);
 
-                        if (maybe_split_segments) |split_segments| {
+                        if (maybe_split_segments) 
+                            |split_segments| 
+                        {
                             try result_segments.insertSlice(
                                 current_segment_index,
                                 &split_segments
@@ -2792,7 +2795,9 @@ test "TimeCurve: split_at_each_value linear"
         std.testing.allocator
     );
     defer std.testing.allocator.free(endpoints_cp);
-    for (endpoints_cp, 0..) |cp, index| {
+    for (endpoints_cp, 0..) 
+        |cp, index| 
+    {
         fbuf[index] = cp.value;
     }
     const endpoints = fbuf[0..endpoints_cp.len];
@@ -2847,7 +2852,9 @@ test "TimeCurve: split_at_each_input_ordinate linear"
     );
     defer std.testing.allocator.free(endpoints_cp);
 
-    for (endpoints_cp, 0..) |cp, index| {
+    for (endpoints_cp, 0..) 
+        |cp, index| 
+    {
         fbuf[index] = cp.value;
     }
     const endpoints = fbuf[0..endpoints_cp.len];
@@ -2974,7 +2981,9 @@ test "TimeCurve: trimmed_from_input_ordinate"
     defer test_curves[0].deinit(std.testing.allocator);
     defer test_curves[1].deinit(std.testing.allocator);
 
-    for (test_curves, 0..) |ident, curve_index| {
+    for (test_curves, 0..) 
+        |ident, curve_index| 
+    {
         const extents = ident.extents();
 
         // assumes that curve is 0-centered
@@ -3029,7 +3038,9 @@ test "TimeCurve: trimmed_from_input_ordinate"
             },
         };
 
-        for (test_data, 0..) |td, index| {
+        for (test_data, 0..) 
+            |td, index| 
+        {
             errdefer std.debug.print(
                 "\ncurve: {} / loop: {}\n",
                 .{ curve_index, index }
@@ -3086,7 +3097,9 @@ test "TimeCurve: trimmed_in_input_space"
     defer test_curves[1].deinit(std.testing.allocator);
     defer test_curves[2].deinit(std.testing.allocator);
 
-    for (test_curves) |ident| {
+    for (test_curves) 
+        |ident|
+    {
         const extents = ident.extents();
 
         const test_data = [_]TestData{
@@ -3146,7 +3159,9 @@ test "TimeCurve: trimmed_in_input_space"
                 },
             };
 
-        for (test_data) |td| {
+        for (test_data) 
+            |td|
+        {
             const trimmed_curve = try ident.trimmed_in_input_space(
                 td.trim_range,
                 std.testing.allocator
@@ -3312,8 +3327,12 @@ test "affine_project_curve"
         // number of segments shouldn't have changed
         try expectEqual(test_crv.segments.len, result.segments.len);
 
-        for (test_crv.segments, 0..) |t_seg, t_seg_index| {
-            for (t_seg.points(), 0..) |pt, pt_index| {
+        for (test_crv.segments, 0..) 
+            |t_seg, t_seg_index| 
+        {
+            for (t_seg.points(), 0..) 
+                |pt, pt_index| 
+            {
                 const result_pt = result.segments[t_seg_index].points()[pt_index];
                 errdefer  std.debug.print(
                     "\nseg: {} pt: {} ({d:.2}, {d:.2})\n"
@@ -3455,19 +3474,27 @@ test "TimeCurve: split_on_critical_points symmetric about the origin"
 
             errdefer {
                 std.debug.print("\n---\nc left:\n", .{});
-                for (c_split_l.p) |p| {
+                for (c_split_l.p) 
+                    |p| 
+                {
                     std.debug.print("  {d}, {d}\n", .{p.x, p.y});
                 }
                 std.debug.print("\nc right:\n", .{});
-                for (c_split_r.p) |p| {
+                for (c_split_r.p) 
+                    |p| 
+                {
                     std.debug.print("  {d}, {d}\n", .{p.x, p.y});
                 }
                 std.debug.print("\nzig left:\n", .{});
-                for (zig_splits[0].points()) |p| {
+                for (zig_splits[0].points()) 
+                    |p| 
+                {
                     std.debug.print("  {d}, {d}\n", .{p.time, p.value});
                 }
                 std.debug.print("\nzig right:\n", .{});
-                for (zig_splits[1].points()) |p| {
+                for (zig_splits[1].points()) 
+                    |p| 
+                {
                     std.debug.print("  {d}, {d}\n", .{p.time, p.value});
                 }
             }
