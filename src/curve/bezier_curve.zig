@@ -55,7 +55,12 @@ fn expectApproxEql(
 
 /// returns true if val is between fst and snd regardless of whether fst or snd
 /// is greater
-fn _is_between(val: f32, fst: f32, snd: f32) bool {
+fn _is_between(
+    val: f32,
+    fst: f32,
+    snd: f32
+) bool 
+{
     return (
            (fst < val - generic_curve.EPSILON and val < snd - generic_curve.EPSILON) 
         or (fst > val + generic_curve.EPSILON and val > snd + generic_curve.EPSILON)
@@ -172,7 +177,8 @@ pub const Segment = struct {
         end: control_point.ControlPoint
     ) Segment 
     {
-        if (end.time >= start.time) {
+        if (end.time >= start.time) 
+        {
             return .{
                 .p0 = start,
                 .p1 = bezier_math.lerp(1.0/3.0, start, end),
@@ -408,8 +414,9 @@ pub const Segment = struct {
     /// checks if segment can project through this one
     pub fn can_project(
         self: @This(),
-        segment_to_project: Segment
-    ) bool {
+        segment_to_project: Segment,
+    ) bool 
+    {
         const my_extents = self.extents();
         const other_extents = segment_to_project.extents();
 
@@ -1952,7 +1959,10 @@ pub const TimeCurve = struct {
 
             if (is_bounding_point) {
                 return .{
-                    .segments =  try allocator.dupe(Segment, self.segments) 
+                    .segments =  try allocator.dupe(
+                        Segment,
+                        self.segments,
+                    ) 
                 };
             }
         }
@@ -1979,7 +1989,11 @@ pub const TimeCurve = struct {
                 );
 
                 new_segments[0] = new_split;
-                std.mem.copyForwards(Segment, new_segments[1..], segments_to_copy);
+                std.mem.copyForwards(
+                    Segment,
+                    new_segments[1..],
+                    segments_to_copy
+                );
             },
             // keep earlier stuff
             .trim_after => {
@@ -2010,7 +2024,8 @@ pub const TimeCurve = struct {
         self: @This(),
         bounds: ContinuousTimeInterval,
         allocator: std.mem.Allocator,
-    ) !TimeCurve {
+    ) !TimeCurve 
+    {
         // @TODO; implement this using slices of a larger segment buffer to
         //        reduce the number of allocations/copies
         var front_split = try self.trimmed_from_input_ordinate(
@@ -2306,12 +2321,14 @@ test "TimeCurve: project_linear_curve to identity"
     }
     try expectEqual(@as(usize, 1), results.len);
 
-    if (results.len > 0) {
+    if (results.len > 0) 
+    {
         const result = results[0];
         try expectEqual(@as(usize, 2), result.knots.len);
 
         var x:f32 = 0;
-        while (x < 1) {
+        while (x < 1) 
+        {
             // @TODO: fails because evaluating a linear curve
             try expectApproxEql(x, try result.evaluate(x));
             x += 0.1;
@@ -2393,7 +2410,11 @@ test "negative length 1 linear segment test"
     try expectApproxEql(try xform_curve.evaluate(-1.5), 0.5);
 }
 
-fn line_orientation(test_point: control_point.ControlPoint, segment: Segment) f32 {
+fn line_orientation(
+    test_point: control_point.ControlPoint,
+    segment: Segment
+) f32 
+{
     const v1 = control_point.ControlPoint {
         .time  = test_point.time  - segment.p0.time,
         .value = test_point.value - segment.p0.value,
@@ -2425,7 +2446,8 @@ test "convex hull test"
     var right_bound_segment = Segment.init_from_start_end(p2, p3);
 
     // swizzle the right if necessary
-    if (line_orientation(p0, right_bound_segment) < 0) {
+    if (line_orientation(p0, right_bound_segment) < 0) 
+    {
         const tmp = p3;
         p3 = p2;
         p2 = tmp;
@@ -2439,7 +2461,8 @@ test "convex hull test"
     const bottom_bound_segment = Segment.init_from_start_end(p0, p3);
 
     var i: f32 = 0;
-    while (i <= 1) {
+    while (i <= 1) 
+    {
         const test_point = segment.eval_at(i);
 
         try expect(line_orientation(test_point, left_bound_segment) >= 0);
@@ -2818,7 +2841,8 @@ test "TimeCurve: split_at_each_value linear"
         for (endpoints)
             |pt|
         {
-            if (std.math.approxEqAbs(f32, sp_p, pt, 0.00001)) {
+            if (std.math.approxEqAbs(f32, sp_p, pt, 0.00001)) 
+            {
                 found = true;
             }
         }
@@ -2875,7 +2899,8 @@ test "TimeCurve: split_at_each_input_ordinate linear"
         for (endpoints)
             |pt|
         {
-            if (std.math.approxEqAbs(f32, sp_p, pt, 0.00001)) {
+            if (std.math.approxEqAbs(f32, sp_p, pt, 0.00001)) 
+            {
                 found = true;
             }
         }
@@ -2938,7 +2963,9 @@ test "TimeCurve: split_at_input_ordinate"
             );
 
             var i:f32 = extents[0].time;
-            while (i < extents[1].time) : (i += 1) {
+            while (i < extents[1].time) 
+                : (i += 1) 
+            {
                 const fst = try ident.evaluate(i);
                 const snd = try split_ident.evaluate(i);
                 errdefer std.log.err(
