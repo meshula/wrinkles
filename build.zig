@@ -169,7 +169,10 @@ pub fn executable(
     // options for exposing the content directory and build hash
     {
         const exe_options = b.addOptions();
-        exe.root_module.addOptions("build_options", exe_options);
+        exe.root_module.addOptions(
+            "build_options",
+            exe_options
+        );
 
         // @TODO: should this be in the install directory instead of `thisDir()`?
         exe_options.addOption(
@@ -193,6 +196,7 @@ pub fn executable(
             }
         );
         exe.step.dependOn(&install_content_step.step);
+
         // install_content_step.step.dependOn(
         //     &b.addWriteFile(
         //         "/dev/stdout",
@@ -566,6 +570,23 @@ pub fn build(
             }
         );
     }
+
+    const time_topology = module_with_tests_and_artifact(
+        "time_topology",
+        .{ 
+            .b = b,
+            .fpath = "src/time_topology/time_topology.zig",
+            .target = options.target,
+            .test_step = test_step,
+            .all_docs_step = all_docs_step,
+            .deps = &.{
+                .{ .name = "opentime", .module = opentime },
+                .{ .name = "curve", .module = curve },
+            },
+            .test_filter = options.test_filter,
+        }
+    );
+
     const sampling = module_with_tests_and_artifact(
         "sampling",
         .{
@@ -585,22 +606,8 @@ pub fn build(
                 },
                 .{ .name = "curve", .module = curve },
                 .{ .name = "wav", .module = wav_dep },
-            },
-            .test_filter = options.test_filter,
-        }
-    );
-
-    const time_topology = module_with_tests_and_artifact(
-        "time_topology",
-        .{ 
-            .b = b,
-            .fpath = "src/time_topology/time_topology.zig",
-            .target = options.target,
-            .test_step = test_step,
-            .all_docs_step = all_docs_step,
-            .deps = &.{
-                .{ .name = "opentime", .module = opentime },
-                .{ .name = "curve", .module = curve },
+                .{ .name = "opentime", .module = opentime, },
+                .{ .name = "time_topology", .module = time_topology, },
             },
             .test_filter = options.test_filter,
         }
