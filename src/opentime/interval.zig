@@ -13,8 +13,8 @@ pub const INF_CTI: ContinuousTimeInterval = .{
     .end_seconds = util.inf
 };
 
-// right open interval on the time continuum
-// the default CTI splits the timeline at the origin
+/// right open interval on the time continuum
+/// the default CTI splits the timeline at the origin
 pub const ContinuousTimeInterval = struct {
     /// the start time of the interval in seconds, inclusive
     start_seconds: f32 = 0,
