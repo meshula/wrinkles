@@ -12,8 +12,16 @@ const expectApproxEqAbs = std.testing.expectApproxEqAbs;
 const opentime = @import("opentime");
 const ContinuousTimeInterval = opentime.ContinuousTimeInterval;
 
-fn _is_between(val: f32, fst: f32, snd: f32) bool {
-    return ((fst <= val and val < snd) or (fst >= val and val > snd));
+fn _is_between(
+    val: f32,
+    fst: f32,
+    snd: f32
+) bool 
+{
+    return (
+        (fst <= val and val < snd) 
+        or (fst >= val and val > snd)
+    );
 }
 
 /// A polyline that is linearly interpolated between knots
@@ -76,6 +84,35 @@ pub const TimeCurveLinear = struct {
                 self.knots
             ),
         };
+    }
+
+    /// trim this curve via the bounds expressed in the input space of this
+    /// curve.
+    ///
+    /// If the curve isn't trimmed, dupe the curve.
+    pub fn trimmed_in_input_space(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        input_bounds: opentime.ContinuousTimeInterval,
+    ) !TimeCurveLinear
+    {
+        // @TODO CBB - obviously not promoting to bezier_curve and then
+        //             trimming that way only to linearize back to
+        //             TimeCurveLinear would be better than this.
+        //             HACK XXX
+        const tmp_curve = try bezier_curve.TimeCurve.init_from_linear_curve(
+            allocator,
+            self,
+        );
+        defer tmp_curve.deinit(allocator);
+
+        const trimmed_curve = try tmp_curve.trimmed_in_input_space(
+            input_bounds,
+            allocator,
+        );
+        defer trimmed_curve.deinit(allocator);
+
+        return try trimmed_curve.linearized(allocator);
     }
 
     /// project an affine transformation through the curve
@@ -624,4 +661,54 @@ test "TimeCurveLinear: projection_test - compose to identity"
             generic_curve.EPSILON
         );
     }
+}
+test "TimeCurveLinear: trimmed_in_input_space"
+{
+    const crv = try TimeCurveLinear.init(
+        std.testing.allocator,
+        &.{
+            .{ .time = 0, .value = 0, },
+            .{ .time = 4, .value = 8, },
+        }
+    );
+    defer crv.deinit(std.testing.allocator);
+
+    const bounds = opentime.ContinuousTimeInterval{
+        .start_seconds = 1,
+        .end_seconds = 2,
+    };
+    const crv_ext = crv.extents();
+    errdefer std.debug.print(
+        "bounds: [({d}, {d}), ({d}, {d}))\n",
+        .{
+            crv_ext[0].time, crv_ext[0].value,
+            crv_ext[1].time, crv_ext[1].value,
+        }
+    );
+
+    const trimmed_crv = try crv.trimmed_in_input_space(
+        std.testing.allocator,
+        bounds
+    );
+    defer trimmed_crv.deinit(std.testing.allocator);
+    const trimmed_extents = trimmed_crv.extents();
+    errdefer std.debug.print(
+        "found: [({d}, {d}), ({d}, {d}))\n",
+        .{
+            trimmed_extents[0].time, trimmed_extents[0].value,
+            trimmed_extents[1].time, trimmed_extents[1].value,
+        }
+    );
+
+    try expectApproxEqAbs(
+        bounds.start_seconds,
+        trimmed_extents[0].time, 
+        generic_curve.EPSILON,
+    );
+
+    try expectApproxEqAbs(
+        bounds.end_seconds,
+        trimmed_extents[1].time, 
+        generic_curve.EPSILON,
+    );
 }
