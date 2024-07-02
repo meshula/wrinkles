@@ -38,7 +38,7 @@ pub const ProjectionAlgorithms = enum (i32) {
 };
 
 /// the projection algorithm to use when projecting Bezier through Bezier
-pub var project_algo = ProjectionAlgorithms.three_point_approx;
+pub var project_algo = ProjectionAlgorithms.linearized;
 
 /// wrapper that bakes in the epsilon to expectApproxEql
 fn expectApproxEql(
