@@ -441,13 +441,15 @@ test "c lib interface test"
     try expectEqual(cpx.r, 1);
 }
 
-/// computes a resample_ratio based on the destination_sample_rate_hz
+/// resample in_samples to destination_sample_rate_hz' rate
 pub fn resampled(
     allocator: std.mem.Allocator,
     in_samples: Sampling,
     destination_sample_rate_hz: u32,
 ) !Sampling
 {
+    // @TODO: should this only work for interpolating Samplings?
+
     const resample_ratio : f64 = (
         @as(f64, @floatFromInt(destination_sample_rate_hz))
         / @as(f64, @floatFromInt(in_samples.sample_rate_hz))
@@ -550,6 +552,71 @@ pub fn retimed_linear_curve(
 ///
 /// the retiming curve maps the retimed space to the implicit space of the
 /// samples
+///
+/// For example, given:
+///
+/// "A"
+/// (implicit continuous space)
+/// 0s          1s
+/// *--*--*--*--)
+/// 0  1  2  3
+/// (sample indices)
+/// 
+/// -> transform/resample them to this space:
+///
+/// "B"
+/// 0s          1s
+/// *--*--*--*--)
+/// 0  0  1  1
+/// (result sample indices, on the same original media from A)
+///
+/// 1. stretch time by 2:
+///
+/// 0s          1s         2s
+/// *-----*-----*-----*----)
+/// 0     1     2     3
+///
+/// 2. crop to output space
+///
+/// 0s          1s
+/// *-----*-----)
+/// 0     1     
+///
+/// 3. [re]sample the output
+///
+/// 0s          1s
+/// *--*--*--*--)
+/// 0  0  1  1  
+///
+/// or
+/// "B" (with a phase shift)
+///
+/// 0.5         1.5
+/// *--*--*--*--)
+/// 0  1  1  2
+///
+/// 1. start with "A"
+///
+/// 0s          1s
+/// *--*--*--*--)
+/// 0  1  2  3
+///
+/// 2. expand
+/// 0s    0.5   1s    1.5   2s
+/// *-----*-----*-----*----)
+/// 0     1     2     3
+///
+/// 3. crop
+///0s  0.25    1s  1.25   2s
+/// *--[--*-----*--)--*----)
+/// 0     1     2     3
+///
+/// 4. resample
+///
+/// 0.5         1.5
+/// *--*--*--*--)
+/// 0  1  1  2
+///
 ///
 pub fn retimed_linear_curve_non_interpolating(
     allocator: std.mem.Allocator,
@@ -946,7 +1013,7 @@ test "retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
         );
     }
 
-    const output_sampling_info = DiscreteDatasourceIndexGenerator{
+    const output_sampling_info : DiscreteDatasourceIndexGenerator = .{
         .sample_rate_hz = s48.sample_rate_hz,
     };
 
@@ -1052,7 +1119,7 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
         );
     }
 
-    const output_sampling_info = DiscreteDatasourceIndexGenerator{
+    const output_sampling_info : DiscreteDatasourceIndexGenerator = .{
         .sample_rate_hz = s48.sample_rate_hz,
     };
 
@@ -1254,7 +1321,7 @@ test "sampling: frame phase slide 1: (time*1 freq*1 phase+0) 0,1,2,3->0,1,2,3"
     );
     defer sample_to_output_crv.deinit(std.testing.allocator);
 
-    const output_sampling_info = DiscreteDatasourceIndexGenerator{
+    const output_sampling_info : DiscreteDatasourceIndexGenerator = .{
         .sample_rate_hz = 4,
     };
 
@@ -1284,64 +1351,8 @@ test "sampling: frame phase slide 1: (time*1 freq*1 phase+0) 0,1,2,3->0,1,2,3"
 //    input space
 // 2. given the output frequency, how often do we sample the stretched time?
 //
-//    0s          1s
-//    *--*--*--*--)
-//    0  1  2  3
-//    
-//    ->
 //
-//    0s          1s
-//    *--*--*--*--)
-//    0  0  1  1
-//
-//
-// // walk through
-//
-// given:
-//
-// 0s          1s
-// *--*--*--*--)
-// 0  1  2  3
-//
-// 1. stretch time by 2:
-//
-// 0s          1s         2s
-// *-----*-----*-----*----)
-// 0     1     2     3
-//
-// 2. crop to output space
-//
-// 0s          1s
-// *-----*-----)
-// 0     1     
-//
-// 3. [re]sample the output
-//
-// 0s          1s
-// *--*--*--*--)
-// 0  0  1  1  
-//
-// components of a discrete (sampled) transformation
-//
-// TODOHACKCBBXXX NICK AND STEPHAN HERE:
-// * fix the memory leak (stephan)
-// * switch the polarity on the interpolating function + test (stephan)
-// * DiscreteDatasourceIndexGenerator <- what do we do this
-// * rename retimed_linear_curve_{non}_interpolating 
-// * thread ^ function through opentimelineio demo
-//   * demo of using OTIO + libsamplerate together
-//   * and demo of just using OTIO directly to compute frame numbers
-// * let brains cool off <- beers
-// * port to sokol
-// * lumpy bits in the API (project_curve returns a []curve instead of a
-//   topology?, time/value vs input/output, consistent names, )
-// //-------------
-// * what if not beziers internally but instead b-splines with bezier
-//   interfaces
-// * rebuild in c?
-// * PR to OTIO?
-// //-------------
-//
+/
 // continuous transformation components:
 // output time = input time * 2
 // output bounds = input bounds (duration in output space is still 1s)
@@ -1427,7 +1438,7 @@ test "sampling: frame phase slide 2: (time*2 bounds*1 freq*1 phase+0) 0,1,2,3->0
         EPSILON
     );
 
-    const output_sampling_info = DiscreteDatasourceIndexGenerator{
+    const output_sampling_info : DiscreteDatasourceIndexGenerator = .{
         .sample_rate_hz = 4,
     };
 
@@ -1504,7 +1515,7 @@ test "sampling: frame phase slide 2.5: (time*2 bounds*2 freq*1 phase+0) 0,1,2,3-
         EPSILON
     );
 
-    const output_sampling_info = DiscreteDatasourceIndexGenerator{
+    const output_sampling_info : DiscreteDatasourceIndexGenerator = .{
         .sample_rate_hz = 4,
     };
 
@@ -1595,7 +1606,7 @@ test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(
     );
     defer output_to_inter_crv.deinit(std.testing.allocator);
 
-    const output_sampling_info = DiscreteDatasourceIndexGenerator{
+    const output_sampling_info : DiscreteDatasourceIndexGenerator = .{
         .sample_rate_hz = 8,
     };
 
@@ -1716,7 +1727,7 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
         EPSILON
     );
 
-    const output_sampling_info = DiscreteDatasourceIndexGenerator{
+    const output_sampling_info : DiscreteDatasourceIndexGenerator = .{
         .sample_rate_hz = 4,
     };
 
@@ -1785,20 +1796,8 @@ test "sampling: frame phase slide 5: arbitrary held frames 0,1,2->0,0,0,0,1,1,2,
     const output_to_sample_crv = curve.TimeCurveLinear{
         .knots = &knots,
     };
-    // defer sample_to_inter_crv.deinit(std.testing.allocator);
-    //
-    // sample_to_inter_crv.knots[0].value = 0;
-    // sample_to_inter_crv.knots[1].value = 2;
-    //
-    // const inter_to_output_crv = (
-    //     try curve.linear_curve.TimeCurveLinear.init_identity(
-    //         std.testing.allocator,
-    //         &.{0.25, 1.25},
-    //     )
-    // );
-    // defer inter_to_output_crv.deinit(std.testing.allocator);
 
-    const output_sampling_info = DiscreteDatasourceIndexGenerator{
+    const output_sampling_info : DiscreteDatasourceIndexGenerator = .{
         .sample_rate_hz = 4,
     };
 
@@ -1818,12 +1817,6 @@ test "sampling: frame phase slide 5: arbitrary held frames 0,1,2->0,0,0,0,1,1,2,
         expected,
         output_ramp_samples.buffer,
     );
-    
-    // try expectApproxEqAbs(
-    //     1.0,
-    //     output_ramp_samples.extents().end_seconds,
-    //     EPSILON
-    // );
 }
 
 //@{
@@ -1856,56 +1849,6 @@ test "wav.zig generator test"
     }
 }
 
-// test "ramp generator math" 
-// {
-//     const self = SignalGenerator{
-//         .sample_rate_hz = 10,
-//         .signal_frequency_hz = 1,
-//         .signal_amplitude = 4,
-//         .signal_duration_s = 3,
-//         .signal = .ramp,
-//     };
-//
-//     const sample_hz : sample_t = @floatFromInt(self.sample_rate_hz);
-//
-//     const cycles_per_sample = (
-//         sample_hz
-//         / @as(f32, @floatFromInt(self.signal_frequency_hz))
-//     );
-//
-//     // std.debug.print("test ramp\n", .{});
-//     //
-//     const self_rasterized = try self.rasterized(std.testing.allocator);
-//     defer self_rasterized.deinit();
-//
-//     const last_sample_index = self.signal_duration_s * self.sample_rate_hz;
-//     var current_index : usize = 0;
-//     while (current_index < last_sample_index)
-//         : (current_index += 1)
-//     {
-//         const modval = try std.math.mod(
-//             sample_t,
-//             @as(sample_t, @floatFromInt(current_index)),
-//             cycles_per_sample,
-//         );
-//
-//         const u = modval / @as(f32, @floatFromInt(self.sample_rate_hz));
-//
-//         const result = (
-//             self.signal_amplitude 
-//             * curve.bezier_math.lerp(
-//                 u,
-//                 @as(sample_t,0),
-//                 1,
-//             )
-//         );
-//
-//         const measured = self_rasterized.buffer[current_index];
-//
-//         try std.testing.expectApproxEqAbs(result, measured, 0.00001);
-//     }
-// }
-//
 test "retimed leak test"
 {
     var buf = [_]sample_t{0, 1, 2, 3};
@@ -1925,7 +1868,7 @@ test "retimed leak test"
         .knots = &knots,
     };
 
-    const output_sampling_info = DiscreteDatasourceIndexGenerator{
+    const output_sampling_info : DiscreteDatasourceIndexGenerator = .{
         .sample_rate_hz = 8,
     };
 

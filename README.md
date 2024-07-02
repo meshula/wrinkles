@@ -9,9 +9,10 @@ contains:
   * Curve library
     * Bezier Curves
     * Linear curves
+  * Sampling tools, projecting samplings, signal generators, etc.
 * Visualizer apps
     * Wrinkles app for visualizing frequency domain "plaid" charts
-    * otvis, pyguitest for looking at curves/curve projections
+    * curvet, otvis, pyguitest for looking at curves/curve projections
 * OpenTimelineIO prototype library
   * parse .otio files and project through them
   * treecode library (path through a binary tree)
@@ -22,7 +23,8 @@ contains:
  * [x]  switch the polarity on the interpolating function + test (stephan)
  * [x]  all tests should pass
  * [ ]  confirm that project topology should be b2c.project(a2b) -> a2c
- * [ ]  time_topology: is projecting the end point an error?  Or not? 
+ * [ ] should `resampled` only work for interpolating Samplings?
+ * [ ]  time_topology: is projecting the end point an error?  Or not?
         **For context**: for most of the run of the project, we had this return
         an error.OutOfBounds.  For the sampling tests, there are a bunch of
         places where we want to project the end point, so a second check in
@@ -32,13 +34,13 @@ contains:
     * [ ] time_topology.zig
     * [ ] test_topology_projections.zig
  * [ ]  DiscreteDatasourceIndexGenerator <- what do we do this
- * [ ]  rename retimed_linear_curve_{non}_interpolating 
+ * [ ]  rename retimed_linear_curve_{non}_interpolating
  * [ ]  thread ^ function through opentimelineio demo
    * [ ]  demo of using OTIO + libsamplerate together
    * [ ]  and demo of just using OTIO directly to compute frame numbers
  * [ ]  let brains cool off <- beers
  * [ ]  port to sokol
- * [ ]  lumpy bits in the API 
+ * [ ]  lumpy bits in the API
    * [ ] project_curve returns a []curve instead of a topology?
    * [ ] time/value vs input/output
    * [ ] consistent names
@@ -51,7 +53,6 @@ contains:
    interfaces
  * [ ]  rebuild in c?
  * [ ]  PR to OTIO?
-
 
 ## PAST LIST IP
 
@@ -75,6 +76,7 @@ contains:
     * [ ] arbitrary (splitting) inversion
 
 ## Todo
+
 * add back in linear and bezier curve topologies
     * with linearizing
     * add hododrome decomposition to bezier/bezier projection
@@ -87,6 +89,7 @@ contains:
 * transitions
 
 ### later
+
 * schema design
 * `graphviz` viewer for otio files
     * plain format (dot -Tplain) produces a parsable output
@@ -120,7 +123,7 @@ contains:
 * JSON OTIO parsing
     * can parse small OTIO files (but because of path length constraints, can't
       build maps for large files)
- 
+
 * Right now the topology has bounds, transform and curves.  This is
   inconsistent because the curves _inside_ the topology also represent a
   transformation, and implicitly define bounds (in that they're finite lists of
@@ -134,6 +137,7 @@ contains:
     * empty
 
 Two options:
+
 * do what we did for the graph and define a set of operators that bundle up a
   topology and work through the cases, providing clean constructors for those
   useful special types
@@ -182,4 +186,3 @@ const Ordinate = union(enum) {
     pub fn to_float() f32 {}
 };
 ```
-
