@@ -322,12 +322,24 @@ pub const LinearTopology = struct {
             },
             .linear_curve => |lin| .{
                 .linear_curve = .{ 
-                    .curve = (
-                        try self.curve.project_curve(
+                    .curve = crv: {
+                        // @TODO: this should be packed into a topology so that
+                        //        cleanup is more straightforward
+                        const result = try self.curve.project_curve(
                             allocator,
                             lin.curve
-                        )
-                    )[0] 
+                        );
+                        defer { 
+                            for (result)
+                                |crv|
+                            {
+                                crv.deinit(allocator);
+                            }
+                            allocator.free(result);
+                        }
+
+                        break :crv try result[0].clone(allocator);
+                    }
                 }
             },
             .empty => .{ .empty = EmptyTopology{} },
