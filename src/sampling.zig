@@ -20,7 +20,7 @@ const expectApproxEqAbs = std.testing.expectApproxEqAbs;
 const EPSILON: f32 = 1.0e-4;
 
 const RETIME_DEBUG_LOGGING = false;
-const WRITE_TEST_FILES = true;
+const WRITE_TEST_FILES = false;
 const TMPDIR = "/var/tmp";
 
 /// alias around the sample type @TODO: make this comptime definable (anytype)
