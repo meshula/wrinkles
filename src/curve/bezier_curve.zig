@@ -1933,6 +1933,21 @@ pub const TimeCurve = struct {
         allocator: std.mem.Allocator,
     ) !TimeCurve 
     {
+        if (
+            (
+             self.extents_time().start_seconds == ordinate
+             and direction == .trim_before
+            )
+            or
+            (
+             self.extents_time().end_seconds == ordinate
+             and direction == .trim_after
+            )
+
+        ) {
+            return try self.clone(allocator);
+        }
+
         const seg_to_split_index = (
             self.find_segment_index(ordinate)
         ) orelse {
