@@ -115,22 +115,36 @@ pub const TimeCurveLinear = struct {
         return try trimmed_curve.linearized(allocator);
     }
 
-    /// project an affine transformation through the curve
+    /// project an affine transformation through the curve, returning a new
+    /// linear time curve.  If self maps B->C, and xform maps A->B, then the
+    /// result of self.project_affine(xform) will map A->C
     pub fn project_affine(
         self: @This(),
-        aff: opentime.transform.AffineTransform1D,
         allocator: std.mem.Allocator,
+        other_to_input_xform: opentime.transform.AffineTransform1D,
+        /// bounds on the input space of the curve (output space of the affine)
+        /// ("B" in the comment above)
+        input_bounds: opentime.ContinuousTimeInterval,
     ) !TimeCurveLinear 
     {
+        // output bounds of the affine are in the input space of the curve
+        const clipped_curve = try self.trimmed_in_input_space(
+            allocator,
+            input_bounds
+        );
+        defer clipped_curve.deinit(allocator);
+
         const result_knots = try allocator.dupe(
             ControlPoint,
-            self.knots
+            clipped_curve.knots,
         );
 
-        for (self.knots, result_knots) 
+        const input_to_other_xform = other_to_input_xform.inverted();
+
+        for (clipped_curve.knots, result_knots) 
             |pt, *target_knot| 
         {
-            target_knot.time = aff.applied_to_seconds(pt.time);
+            target_knot.time = input_to_other_xform.applied_to_seconds(pt.time);
         }
 
         return .{
@@ -693,6 +707,103 @@ test "TimeCurveLinear: projection_test - compose to identity"
         );
     }
 }
+
+test "TimeCurveLinear: Affine through linear"
+{
+    // given a curve that maps space a -> space b
+    // and a transform that maps b->c
+
+    const b2c_crv= try TimeCurveLinear.init(
+        std.testing.allocator,
+        &.{
+            .{ .time = 0, .value = 0, },
+            .{ .time = 4, .value = 8, },
+        }
+    );
+    defer b2c_crv.deinit(std.testing.allocator);
+    const b2c_extents = b2c_crv.extents();
+
+    errdefer std.debug.print(
+        "b2c_crv_b_extents: [{d}, {d})\nb2c_crv_c_extents: [{d}, {d})\n",
+        .{
+            b2c_extents[0].time, b2c_extents[1].time,
+            b2c_extents[0].value, b2c_extents[1].value,
+        }
+    );
+
+    const b_bound = opentime.ContinuousTimeInterval{
+        .start_seconds = 1,
+        .end_seconds = 2,
+    };
+    errdefer std.debug.print(
+        "b_bound: [{d}, {d})\n",
+        .{
+            b_bound.start_seconds, b_bound.end_seconds,
+        }
+    );
+
+    errdefer std.debug.print("INPUTS:\n", .{});
+
+    const a2b_transformation_tests = (
+        [_]opentime.transform.AffineTransform1D{
+            opentime.transform.AffineTransform1D{
+                .offset_seconds = 0,
+                .scale = 1,
+            },
+            opentime.transform.AffineTransform1D{
+                .offset_seconds = 10,
+                .scale = 1,
+            },
+            opentime.transform.AffineTransform1D{
+                .offset_seconds = 0,
+                .scale = 2,
+            },
+        }
+    );
+
+    for (a2b_transformation_tests, 0..)
+        |a2b_aff, test_ind|
+    {
+        errdefer std.debug.print(
+            "[erroring test iteration {d}]:\n a2b offset: {d}\n a2b scale: {d} \n",
+            .{ test_ind, a2b_aff.offset_seconds, a2b_aff.scale },
+        );
+        const a2c_result = try b2c_crv.project_affine(
+            std.testing.allocator,
+            a2b_aff,
+            b_bound,
+        );
+        defer a2c_result.deinit(std.testing.allocator);
+
+        const a2c_result_extents = a2c_result.extents();
+
+        errdefer std.debug.print(
+            "a2c_result_extents: [({d}, {d}), ({d}, {d}))\n",
+            .{
+                a2c_result_extents[0].time, a2c_result_extents[0].value,
+                a2c_result_extents[1].time, a2c_result_extents[1].value,
+            }
+        );
+
+        const b2a_aff = a2b_aff.inverted();
+        const a_bound = b2a_aff.applied_to_cti(b_bound);
+
+        errdefer std.debug.print(
+            "computed_a_bounds: [{d}, {d})\n",
+            .{
+                a_bound.start_seconds, 
+                a_bound.end_seconds,
+            }
+        );
+
+        try expectApproxEqAbs(
+            a2c_result_extents[0].time,
+            a_bound.start_seconds,
+            generic_curve.EPSILON,
+        );
+    }
+}
+
 test "TimeCurveLinear: trimmed_in_input_space"
 {
     const crv = try TimeCurveLinear.init(
