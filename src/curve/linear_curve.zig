@@ -382,7 +382,37 @@ pub const TimeCurveLinear = struct {
             return error.MoreThanOneCurveIsNotImplemented;
         }
 
+
         return try curves_to_project.toOwnedSlice();
+    }
+
+    /// convienence wrapper around project_curve that assumes a single result
+    /// and returns handles the cleanup of that.
+    pub fn project_curve_single_result(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        other: TimeCurveLinear
+    ) !TimeCurveLinear 
+    {
+        const result = try self.project_curve(
+            allocator,
+            other
+        );
+
+        if (result.len > 1) {
+            @panic("Not Implemented");
+        }
+
+        defer { 
+            for (result)
+                |crv|
+            {
+                crv.deinit(allocator);
+            }
+            allocator.free(result);
+        }
+
+        return try result[0].clone(allocator);
     }
 
     pub fn debug_json_str(
