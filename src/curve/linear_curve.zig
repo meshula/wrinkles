@@ -168,6 +168,12 @@ pub const TimeCurveLinear = struct {
             );
         }
 
+        // specially handle the endpoint
+        const last_knot = self.knots[self.knots.len - 1];
+        if (t_arg == last_knot.time) {
+            return last_knot.value;
+        }
+
         return error.OutOfBounds;
     }
 
