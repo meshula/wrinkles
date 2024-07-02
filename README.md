@@ -20,7 +20,7 @@ contains:
 
  * [x]  fix the memory leak (stephan)
  * [x]  switch the polarity on the interpolating function + test (stephan)
- * [ ]  all tests should pass
+ * [x]  all tests should pass
  * [ ]  confirm that project topology should be b2c.project(a2b) -> a2c
  * [ ]  time_topology: is projecting the end point an error?  Or not? 
         **For context**: for most of the run of the project, we had this return
