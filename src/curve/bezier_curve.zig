@@ -2589,11 +2589,6 @@ test "segment: findU_value"
 
 test "TimeCurve: project u loop bug" 
 {
-    // until projection is worked out
-    if (true) {
-        return error.SkipZigTest;
-    }
-
     // specific to the linearized implementation
     const old_project_algo = project_algo;
     project_algo = ProjectionAlgorithms.linearized;
@@ -2654,7 +2649,7 @@ test "TimeCurve: project u loop bug"
     errdefer std.log.err("u: {!s}\n", .{ upside_down_u.debug_json_str(std.testing.allocator) } );
     errdefer std.log.err("result: {!s}\n", .{ result.debug_json_str(std.testing.allocator) } );
 
-    try expectEqual(@as(usize, 4), result.segments.len);
+    try expectEqual(@as(usize, 5), result.segments.len);
 }
 
 test "TimeCurve: project linear identity with linear 1/2 slope" 
@@ -2671,10 +2666,6 @@ test "TimeCurve: project linear identity with linear 1/2 slope"
     );
     defer linear_crv.deinit(std.testing.allocator);
 
-    if (linear_segment.len > 0) {
-        return error.SkipZigTest;
-    }
-
     const linear_half_segment = [_]Segment{
         Segment.init_from_start_end(
             .{ .time = 0, .value = 100},
@@ -2682,7 +2673,7 @@ test "TimeCurve: project linear identity with linear 1/2 slope"
         ),
     };
     const linear_half_crv = try TimeCurve.init(
-        std.tesitng.allocator,
+        std.testing.allocator,
         &linear_half_segment
     );
     defer linear_half_crv.deinit(std.testing.allocator);
@@ -2710,9 +2701,6 @@ test "TimeCurve: project linear u with out-of-bounds segments"
     );
     defer linear_crv.deinit(std.testing.allocator);
 
-    if (linear_segment.len > 0) {
-        return error.SkipZigTest;
-    }
     const u_seg = [_]Segment{
         Segment{
             .p0 = .{ .time = 0, .value = 0 },
@@ -2727,7 +2715,7 @@ test "TimeCurve: project linear u with out-of-bounds segments"
     );
     defer upside_down_u.deinit(std.testing.allocator);
 
-    const result : TimeCurve = upside_down_u.project_curve(
+    const result : TimeCurve = try upside_down_u.project_curve(
         std.testing.allocator,
         linear_crv,
     );
