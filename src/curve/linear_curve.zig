@@ -301,6 +301,7 @@ pub const TimeCurveLinear = struct {
         var curves_to_project = std.ArrayList(
             TimeCurveLinear,
         ).init(allocator);
+        defer curves_to_project.deinit();
 
         // gather the curves to project by splitting
         {
