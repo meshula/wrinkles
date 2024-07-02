@@ -100,7 +100,12 @@ pub const AffineTopology = struct {
         ordinate: Ordinate,
     ) !Ordinate 
     {
-        if (!self.bounds.overlaps_seconds(ordinate)) {
+        if (
+            !self.bounds.overlaps_seconds(ordinate) 
+            // allow projecting the end point
+            and ordinate != self.bounds.end_seconds
+        )
+        {
             return TimeTopology.ProjectionError.OutOfBounds;
         }
 
@@ -818,9 +823,15 @@ test "TimeTopology: finite identity test"
 
     try expectEqual(tp.bounds().end_seconds, 103);
 
+    // @TODO: this test reveals the question in the end point projection -
+    //        should it be an error or not?
+    //
+    //        See: 103 (index 4) in the test array... was "true" for error for
+    //        a long time, but with the sampling work switched it to false
+
     const times =           [_]f32 {   99,   100,   101,  102,  103,   104, };
     const expected_result = [_]f32 {   99,   100,   101,  102,  103,   104, };
-    const err =             [_]bool{ true, false, false, false, true, true, };
+    const err =            [_]bool{ true, false, false, false, false, true, };
 
     for (times, 0..)
         |t, index| 
@@ -878,12 +889,18 @@ test "TimeTopology: finite Affine"
         err: bool,
     };
 
+    // @TODO: this test reveals the question in the end point projection -
+    //        should it be an error or not?
+    //
+    //        See: 10 (index 4) in the test array... was "true" for error for a
+    //        long time, but with the sampling work switched it to false
+
     const tests = [_]TestData{
         .{ .seconds = 0, .expected=10, .err = false },
         .{ .seconds = 5, .expected=20, .err = false },
         .{ .seconds = 9, .expected=28, .err = false },
         .{ .seconds = -1, .expected=-2, .err = true },
-        .{ .seconds = 10, .expected=20, .err = true },
+        .{ .seconds = 10, .expected=30, .err = false },
         .{ .seconds = 100, .expected=200, .err = true },
     };
 
@@ -1062,12 +1079,19 @@ test "TimeTopology: Affine through Affine w/ negative scale"
         err: bool,
     };
 
+    // @TODO: this test reveals the question in the end point projection -
+    //        should it be an error or not?
+    //
+    //        See: 10 (index 4) in the test array... was "true" for error for
+    //        a long time, but with the sampling work switched it to false
+
     const output_to_media_tests = [_]TestData{
         .{ .output_s = 0, .media_s=100, .err = false },
         .{ .output_s = 3, .media_s=97, .err = false },
         .{ .output_s = 6, .media_s=94, .err = false },
         .{ .output_s = 9, .media_s=91, .err = false },
-        .{ .output_s = 10, .media_s=100, .err = true },
+        .{ .output_s = 10, .media_s=90, .err = false },
+        .{ .output_s = 11, .media_s=89, .err = true },
     };
 
     for (output_to_media_tests, 0..) 
@@ -1140,8 +1164,8 @@ test "TimeTopology: project bezier through affine"
 {
     // affine topology
     //
-    // output: [100, 110)
     // input:  [0, 10)
+    // output: [100, 110)
     //
     const aff_transform = (
         transform.AffineTransform1D{
@@ -1166,8 +1190,8 @@ test "TimeTopology: project bezier through affine"
     // Bezier curve
     //
     // mapping:
-    // output: [0,    10)
     // input:  [100, 110)
+    // output: [0,    10)
     //
     //   shape: (straight line)
     //
@@ -1177,25 +1201,20 @@ test "TimeTopology: project bezier through affine"
     //    +------
     //
 
-    // this curve is [-0.5, 0.5), so needs to be rescaled into the space
-    // of the test/data that we want to do.
-    const crv = try curve.read_curve_json(
-        "curves/linear.curve.json",
+    var knots = [_]curve.ControlPoint{
+        .{ .time = 100, .value = 0 },
+        .{ .time = 110, .value = 10 },
+    };
+    const lin_crv = curve.TimeCurveLinear{
+        .knots = &knots,
+    };
+    const crv = try curve.TimeCurve.init_from_linear_curve(
         std.testing.allocator,
+        lin_crv,
     );
     defer crv.deinit(std.testing.allocator);
-    const xform_curve = try curve.rescaled_curve(
-        std.testing.allocator,
-        //  the range of the clip for testing - rescale factors
-        crv,
-        .{
-            .{ .time = 100, .value = 0, },
-            .{ .time = 110, .value = 10, },
-        }
-    );
-    defer xform_curve.deinit(std.testing.allocator);
 
-    const curve_topo = TimeTopology.init_bezier_cubic(xform_curve);
+    const curve_topo = TimeTopology.init_bezier_cubic(crv);
 
     // bezier through affine
     {

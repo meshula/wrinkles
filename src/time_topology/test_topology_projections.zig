@@ -132,12 +132,18 @@ test "projection test: linear_through_linear with boundary"
     try expectEqual(0, try first.project_ordinate(0));
     try expectEqual(8, try first.project_ordinate(2));
 
-    // because intervals are right-open, projecting the boundary value is 
-    // outside of the boundary condition
-    try std.testing.expectError(
-        error.OutOfBounds,
-        first.project_ordinate(5)
-    );
+    // @TODO: this test reveals the question in the end point projection -
+    //        should it be an error or not?
+    //
+    //        this test did a bound-test as an error.
+    //
+    // // because intervals are right-open, projecting the boundary value is 
+    // // outside of the boundary condition
+    // try std.testing.expectError(
+    //     error.OutOfBounds,
+    //     first.project_ordinate(5)
+    // );
+    try expectEqual(20, try first.project_ordinate(5));
 
     const second= TimeTopology.init_affine(
         .{ 
@@ -171,6 +177,6 @@ test "projection test: linear_through_linear with boundary"
     // ... but after projection, the bounds are smaller
     try std.testing.expectError(
         error.OutOfBounds,
-        first.project_ordinate(5)
+        second_through_first_topo.project_ordinate(5)
     );
 }
