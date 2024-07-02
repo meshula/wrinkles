@@ -65,7 +65,33 @@ pub const ContinuousTimeInterval = struct {
             and (t_seconds < self.end_seconds)
         );
     }
+
+    /// return whether one of the end points of the interval is infinite
+    pub fn is_infinite(
+        self: @This(),
+    ) bool
+    {
+        return (
+            self.start_seconds == util.inf
+            or self.end_seconds == util.inf
+        );
+    }
 };
+
+test "ContinuousTimeInterval: is_infinite"
+{
+    var cti = ContinuousTimeInterval{};
+
+    try expectEqual(true, cti.is_infinite());
+
+    cti.end_seconds = 2;
+
+    try expectEqual(false, cti.is_infinite());
+
+    cti.start_seconds = util.inf;
+
+    try expectEqual(true, cti.is_infinite());
+}
 
 /// return a new interval that spans the duration of both argument intervals
 pub fn extend(
