@@ -21,12 +21,16 @@ contains:
  * [x]  fix the memory leak (stephan)
  * [x]  switch the polarity on the interpolating function + test (stephan)
  * [ ]  all tests should pass
+ * [ ]  confirm that project topology should be b2c.project(a2b) -> a2c
  * [ ]  time_topology: is projecting the end point an error?  Or not? 
         **For context**: for most of the run of the project, we had this return
         an error.OutOfBounds.  For the sampling tests, there are a bunch of
         places where we want to project the end point, so a second check in
         project was added that checked to see if the projected point was the
-        end point
+        end point.  
+    * [ ] See also: the AffineTopology.inverted function
+    * [ ] time_topology.zig
+    * [ ] test_topology_projections.zig
  * [ ]  DiscreteDatasourceIndexGenerator <- what do we do this
  * [ ]  rename retimed_linear_curve_{non}_interpolating 
  * [ ]  thread ^ function through opentimelineio demo
@@ -34,8 +38,12 @@ contains:
    * [ ]  and demo of just using OTIO directly to compute frame numbers
  * [ ]  let brains cool off <- beers
  * [ ]  port to sokol
- * [ ]  lumpy bits in the API (project_curve returns a []curve instead of a
-   topology?, time/value vs input/output, consistent names, )
+ * [ ]  lumpy bits in the API 
+   * [ ] project_curve returns a []curve instead of a topology?
+   * [ ] time/value vs input/output
+   * [ ] consistent names
+   * [ ] linear trimmed_in_input_space: promotes to bezier, trims there and
+         then demotes back.  should do everything on the linear knots
 
 ### Bigger, Later Questions/Todos
 
