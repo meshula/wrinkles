@@ -209,6 +209,9 @@ test "samples_between_time"
     );
 }
 
+// @TODO: should this be folded into the SignalGenerator?
+
+/// generate indices for frame numbers
 const DiscreteDatasourceIndexGenerator = struct {
     sample_rate_hz: u32,
     start_index: usize = 0,
@@ -282,19 +285,6 @@ const SignalGenerator = struct {
                             1,
                         )
                     );
-                    // std.debug.print(
-                    //     (
-                    //      "writing: [{d}] phase_angle: {d} "
-                    //      ++ "mod_phase_angle: {d} v: {d}\n"
-                    //     ),
-                    //     .{ 
-                    //         current_index,
-                    //         phase_angle,
-                    //         mod_phase_angle,
-                    //         sample.*,
-                    //     },
-                    // );
-
                 }
             }
         }
@@ -678,9 +668,11 @@ pub fn retimed_linear_curve_non_interpolating(
         output_buffer_size += num_output_samples;
     }
 
-    const full_output_buffer = try allocator.alloc(
-        sample_t,
-        output_buffer_size
+    const output_sampling = try Sampling.init(
+        allocator,
+        output_buffer_size,
+        output_sampling_info.sample_rate_hz,
+        false,
     );
 
     const s_per_sample_output:f32 = (
@@ -688,7 +680,7 @@ pub fn retimed_linear_curve_non_interpolating(
     );
 
     // fill the output buffer
-    for (full_output_buffer, 0..)
+    for (output_sampling.buffer, 0..)
         |*output_sample, output_index|
     {
         // output index -> output time (discrete->continuous)
@@ -713,12 +705,7 @@ pub fn retimed_linear_curve_non_interpolating(
         output_sample.* = in_samples.buffer[input_sample_index];
     }
 
-    return Sampling{
-        .allocator = allocator,
-        .buffer = full_output_buffer,
-        .sample_rate_hz = output_sampling_info.sample_rate_hz,
-        .interpolating = false,
-    };
+    return output_sampling;
 }
 
 pub fn retimed_linear_curve_interpolating(
@@ -1321,7 +1308,7 @@ test "sampling: frame phase slide 1: (time*1 freq*1 phase+0) 0,1,2,3->0,1,2,3"
     );
     defer sample_to_output_crv.deinit(std.testing.allocator);
 
-    const output_sampling_info : DiscreteDatasourceIndexGenerator = .{
+    const output_sampling_info:DiscreteDatasourceIndexGenerator = .{
         .sample_rate_hz = 4,
     };
 
@@ -1344,40 +1331,6 @@ test "sampling: frame phase slide 1: (time*1 freq*1 phase+0) 0,1,2,3->0,1,2,3"
         retimed_ramp_samples.buffer,
     );
 }
-
-// the three transformations are:
-// 1. stretch time  (ie the amount of time in the output space that samples in
-//    the input space occupy, as a multiplier of the space they occupy in the
-//    input space
-// 2. given the output frequency, how often do we sample the stretched time?
-//
-//
-/
-// continuous transformation components:
-// output time = input time * 2
-// output bounds = input bounds (duration in output space is still 1s)
-// output sampling phase = input sampling phase
-// +
-// output sampling frequency = input sampling frequency
-//
-// 48000                            96000
-// (media to clip) * (clip to track)
-//
-// media space:   clip continuous    track discrete
-// discrete,
-//
-// media space:   clip continuous    track continuous
-// discrete,
-//
-// media space:   clip continuous    track discrete
-// continuous,
-//
-// input space to output space
-//
-// 0,1,2,3 : over 1 s at 4hz
-// ->
-// 0,0,1,1 : over 1 s at 4hz
-//
 
 test "sampling: frame phase slide 2: (time*2 bounds*1 freq*1 phase+0) 0,1,2,3->0,0,1,1"
 {
