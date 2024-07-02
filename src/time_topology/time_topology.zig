@@ -52,43 +52,35 @@ pub const AffineTopology = struct {
         return self.bounds;
     }
 
-    pub fn as_linear_curve_over_output_range(
+    /// if possible, convert the topology to a linear topology with a single
+    /// line segment
+    pub fn linearized(
         self: @This(),
-        output_interval: interval.ContinuousTimeInterval,
+        allocator: std.mem.Allocator,
     ) !curve.TimeCurveLinear 
     {
-        const self_inverted = self.transform.inverted();
 
-        const other_bounds_in_input_space = (
-            self_inverted.applied_to_bounds(output_interval)
-        );
-
-        const result_bounds = interval.intersect(
-            other_bounds_in_input_space,
-            self.bounds
-        );
-
-        if (result_bounds) 
-            |b| 
-        {
-            const bound_points = [2]control_point.ControlPoint{
-                .{
-                    .time = b.start_seconds,
-                    .value = try self.project_ordinate(b.start_seconds) 
-                },
-                .{ 
-                    .time = b.end_seconds,
-                    .value = try self.project_ordinate(b.end_seconds) 
-                },
-            };
-
-            // clone points into the new TimeCurveLinear
-            return curve.TimeCurveLinear.init(&bound_points);
-        } else {
-            return curve.TimeCurveLinear{
-                .knots = &[_]control_point.ControlPoint{}
-            };
+        if (self.bounds.is_infinite()) {
+            return error.CannotLinearizeWithInfiniteBounds;
         }
+
+        const bound_points = [2]control_point.ControlPoint{
+            .{
+                .time = self.bounds.start_seconds,
+                .value = try self.project_ordinate(
+                    self.bounds.start_seconds
+                ),
+            },
+            .{ 
+                .time = self.bounds.end_seconds,
+                .value = try self.project_ordinate(
+                    self.bounds.end_seconds
+                ),
+            },
+        };
+
+        // clone points into the new TimeCurveLinear
+        return curve.TimeCurveLinear.init(allocator, &bound_points);
     }
 
     pub fn project_sample(
@@ -227,6 +219,35 @@ pub const AffineTopology = struct {
         };
     }
 };
+
+test "AffineTopology: linearize"
+{
+    const a2b_aff = AffineTopology{
+        .bounds = .{
+            .start_seconds = 0,
+            .end_seconds = 1,
+        },
+        .transform = .{
+            .offset_seconds = 5,
+            .scale = 3,
+        },
+    };
+    const a2b_lin = try a2b_aff.linearized(std.testing.allocator);
+    defer a2b_lin.deinit(std.testing.allocator);
+
+    for (&[_]f32{-1, 0, 0.5, 0.75, 1.0, 2}, 0..)
+        |ord, ind|
+    {
+        errdefer std.debug.print(
+            "[erroring test: {d}] ord: {d}\n",
+            .{ ind, ord }
+        );
+        try expectEqual(
+            a2b_aff.project_ordinate(ord),
+            a2b_lin.evaluate(ord)
+        );
+    }
+}
 
 pub const LinearTopology = struct {
     curve: curve.TimeCurveLinear,
