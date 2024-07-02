@@ -107,6 +107,7 @@ pub const AffineTopology = struct {
         return self.transform.applied_to_seconds(ordinate);
     }
 
+    /// return an inverted version of the affine transformation
     pub fn inverted(
         self: @This(),
     ) !TimeTopology 
@@ -310,23 +311,28 @@ pub const LinearTopology = struct {
 
     // @TODO: needs to return a list of topologies (imagine a line projected
     //        through a u)
+     
+    /// If self maps B->C, and xform maps A->B, then the result of
+    /// self.project_affine(xform) will map A->C
     pub fn project_topology(
         self: @This(),
         allocator: std.mem.Allocator,
-        other: TimeTopology,
+        a2b: TimeTopology,
         // @TODO: should fill a list of TimeTopology
         // out: *std.ArrayList(TimeTopology),
     ) !TimeTopology 
     {
-        return switch (other) {
-            .affine => |aff| {
-                const projected_curve = try self.curve.project_affine(
-                    aff.transform,
-                    allocator,
-                );
-
+        return switch (a2b) {
+            .affine => |a2b_aff| {
                 return .{
-                    .linear_curve = .{ .curve = projected_curve }
+                    .linear_curve = .{ 
+                        .curve = try self.curve.project_affine(
+                            allocator,
+                            a2b_aff.transform,
+                            // transform "a" bounds to "b" bounds
+                            a2b_aff.transform.applied_to_cti(a2b_aff.bounds),
+                        ) 
+                    }
                 };
             },
             .bezier_curve => |bez| .{
@@ -1143,7 +1149,7 @@ test "TimeTopology: project bezier through affine"
             .scale = 1,
         }
     );
-    const aff_bounds = .{
+    const aff_input_bounds = .{
         .start_seconds = 0,
         .end_seconds = 10,
     };
@@ -1151,7 +1157,7 @@ test "TimeTopology: project bezier through affine"
         TimeTopology.init_affine(
             .{
                 .transform = aff_transform,
-                .bounds = aff_bounds,
+                .bounds = aff_input_bounds,
             }
         )
     );
@@ -1211,6 +1217,98 @@ test "TimeTopology: project bezier through affine"
     }
 
     // affine through bezier
+    {
+        //
+        // should result in a curve mapping:
+        //
+        // (identity curve, 1 segment)
+        //
+        // [0, 10)
+        // [0, 10)
+        //
+        const result = try curve_topo.project_topology(
+            std.testing.allocator,
+            affine_topo,
+        );
+        defer result.deinit(std.testing.allocator);
+
+        try std.testing.expect(std.meta.activeTag(result) != TimeTopology.empty);
+    }
+}
+
+test "TimeTopology: project linear through affine"
+{
+    // affine topology
+    //
+    // input:  [0, 10)
+    // output: [100, 110)
+    //
+    const aff_transform = (
+        transform.AffineTransform1D{
+            .offset_seconds = 100,
+            .scale = 1,
+        }
+    );
+    const aff_input_bounds = .{
+        .start_seconds = 0,
+        .end_seconds = 10,
+    };
+
+    const affine_topo = (
+        TimeTopology.init_affine(
+            .{
+                .transform = aff_transform,
+                .bounds = aff_input_bounds,
+            }
+        )
+    );
+
+    //
+    // Linear curve
+    //
+    // mapping:
+    // input:  [100, 110)
+    // output: [0,    10)
+    //
+    //   shape: (straight line)
+    //
+    //    |   /
+    //    |  /
+    //    | /
+    //    +------
+    //
+
+    var knots = [_]curve.ControlPoint{
+        .{ .time = 100, .value = 0 },
+        .{ .time = 110, .value = 10 },
+    };
+    const crv = curve.TimeCurveLinear{
+        .knots = &knots,
+    };
+    const curve_topo = TimeTopology{
+        .linear_curve = .{ .curve = crv },
+    };
+
+    // linear through affine
+    {
+        //
+        // should result in a curve mapping:
+        //
+        // (identity curve, 1 segment)
+        //
+        // [100, 110)
+        // [100, 110)
+        //
+        const result = try affine_topo.project_topology(
+            std.testing.allocator,
+            curve_topo
+        );
+        defer result.deinit(std.testing.allocator);
+
+        try std.testing.expect(std.meta.activeTag(result) != TimeTopology.empty);
+    }
+
+    // affine through linear
     {
         //
         // should result in a curve mapping:
