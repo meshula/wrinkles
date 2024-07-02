@@ -1,5 +1,6 @@
 //! Linear curves are made of connected line segments
 
+const bezier_curve = @import("bezier_curve.zig");
 const bezier_math = @import("bezier_math.zig");
 const generic_curve = @import("generic_curve.zig");
 const ControlPoint = @import("control_point.zig").ControlPoint;
@@ -860,3 +861,29 @@ test "TimeCurveLinear: trimmed_in_input_space"
         generic_curve.EPSILON,
     );
 }
+
+// @TODO CBB XXX HACK is this the kind of interface that is preferable?
+// /// if an affine transforms from A to B, and a linear curve transforms from B
+// /// to C, compose and build a transformation from A to C
+// pub fn compose_transform_linear_curve_affine(
+//         allocator: std.mem.Allocator,
+//         a2b_crv: opentime.transform.AffineTransform1D,
+//         b2c_crv: TimeCurveLinear,
+// ) !TimeCurveLinear
+// {}
+//
+// /// if an affine transforms from A to B, and a linear curve transforms from B
+// /// to C, compose and build a transformation from A to C
+// pub fn compose_transform_linear_curve_affine(
+//         allocator: std.mem.Allocator,
+//         a2b_aff: opentime.transform.AffineTransform1D,
+//         b_bounds:opentime.ContinuousTimeInterval,
+//         b2c_crv: TimeCurveLinear,
+// ) !TimeCurveLinear
+// {
+//     _ = allocator;
+//     _ = a2b_aff;
+//     _ = b_bounds;
+//
+//     return b2c_crv;
+// }
