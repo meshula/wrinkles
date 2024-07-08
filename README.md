@@ -44,6 +44,10 @@ contains:
    * [ ] consistent names
    * [ ] linear trimmed_in_input_space: promotes to bezier, trims there and
          then demotes back.  should do everything on the linear knots
+   * [ ] should the sampling library be so built around time as the domain
+         to sample over?
+   * [ ] handle acyclical sampling as well (variable bitrate data, held
+         frames, etc).
 
 ### Bigger, Later Questions/Todos
 
