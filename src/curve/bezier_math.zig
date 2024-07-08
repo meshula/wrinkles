@@ -1,3 +1,8 @@
+//! Bezier Math components to use with curves in the curve library
+//!
+//! @TODO: split this library into comath and not comath components... or just
+//!        use the comath components?
+
 const std = @import("std");
 
 const control_point = @import("control_point.zig");
@@ -11,7 +16,12 @@ const comath = @import("comath");
 const dual = @import("opentime").dual;
 
 
-fn expectApproxEql(expected: anytype, actual: @TypeOf(expected)) !void {
+// @TODO: this seems bad?
+fn expectApproxEql(
+    expected: anytype,
+    actual: @TypeOf(expected),
+) !void 
+{
     return std.testing.expectApproxEqAbs(
         expected,
         actual,
@@ -35,7 +45,7 @@ const CTX = comath.ctx.fnMethod(
 pub fn lerp(
     u: anytype,
     a: anytype,
-    b: @TypeOf(a)
+    b: @TypeOf(a),
 ) @TypeOf(a) 
 {
     return comath.eval(
@@ -55,10 +65,24 @@ pub fn lerp(
 //     return ((one_vec - u_vec) * a + b * u_vec);
 // }
 //
-pub fn invlerp(v: f32, a: f32, b: f32) f32 {
-    if (b == a)
+pub fn invlerp(
+    v: anytype,
+    a: anytype,
+    b: @TypeOf(a),
+) @TypeOf(a)
+{
+    if (b == a) {
         return a;
-    return (v - a)/(b - a);
+    }
+    return comath.eval(
+        "(v - a)/(b - a)",
+        CTX,
+        .{
+            .v = v,
+            .a = a,
+            .b = b,
+        }
+    ) catch |err| switch (err) {};
 }
 
 pub fn value_at_time_between(
@@ -121,7 +145,11 @@ pub fn segment_reduce2_dual(
     };
 }
 
-pub fn segment_reduce4(u: f32, segment: curve.Segment) curve.Segment {
+pub fn segment_reduce4(
+    u: f32,
+    segment: curve.Segment,
+) curve.Segment 
+{
     return .{
         .p0 = lerp(u, segment.p0, segment.p1),
         .p1 = lerp(u, segment.p1, segment.p2),
@@ -129,14 +157,22 @@ pub fn segment_reduce4(u: f32, segment: curve.Segment) curve.Segment {
     };
 }
 
-pub fn segment_reduce3(u: f32, segment: curve.Segment) curve.Segment {
+pub fn segment_reduce3(
+    u: f32,
+    segment: curve.Segment,
+) curve.Segment 
+{
     return .{
         .p0 = lerp(u, segment.p0, segment.p1),
         .p1 = lerp(u, segment.p1, segment.p2),
     };
 }
 
-pub fn segment_reduce2(u: f32, segment: curve.Segment) curve.Segment {
+pub fn segment_reduce2(
+    u: f32,
+    segment: curve.Segment,
+) curve.Segment 
+{
     return .{
         .p0 = lerp(u, segment.p0, segment.p1),
     };
@@ -215,7 +251,12 @@ pub fn _bezier0_dual(
 // u so that B(u) == x.
 //
 
-pub fn _findU(x:f32, p1:f32, p2:f32, p3:f32) f32
+pub fn _findU(
+    x:f32,
+    p1:f32,
+    p2:f32,
+    p3:f32,
+) f32
 {
     const MAX_ABS_ERROR = std.math.floatEps(f32) * 2.0;
     const MAX_ITERATIONS: u8 = 45;
@@ -312,7 +353,9 @@ pub fn _findU(x:f32, p1:f32, p2:f32, p3:f32) f32
     return _u2;
 }
 
-fn first_valid_root(possible_roots: [] const dual.Dual_f32 ) dual.Dual_f32
+fn first_valid_root(
+    possible_roots: [] const dual.Dual_f32,
+) dual.Dual_f32
 {
     for (possible_roots)
         |root|
@@ -348,7 +391,6 @@ pub fn actual_order(
 ) !u8 
 {
     const d = try comath.eval(
-        // "(-pa) + (pb * 3.0) - (pc * 3.0) + pd",
         "(-pa) + (pb * 3.0) - (pc * 3.0) + pd",
         CTX,
         .{ 
@@ -398,7 +440,8 @@ pub fn actual_order(
     return 3;
 }
 
-test "actual_order: linear" {
+test "actual_order: linear" 
+{
     const crv = try curve.read_curve_json(
         "curves/linear.curve.json",
         std.testing.allocator
@@ -418,7 +461,8 @@ test "actual_order: linear" {
 }
 
 // @TODO: nick - smell test?
-test "actual_order: quadratic" {
+test "actual_order: quadratic" 
+{
     const crv = try curve.read_curve_json(
         "curves/upside_down_u.curve.json",
         std.testing.allocator
@@ -450,7 +494,8 @@ test "actual_order: quadratic" {
     );
 }
 
-test "actual_order: cubic" {
+test "actual_order: cubic" 
+{
     const crv = try curve.read_curve_json(
         "curves/scurve_extreme.curve.json",
         std.testing.allocator
@@ -794,7 +839,7 @@ pub fn _findU_dual(
     x_input:f32,
     p1:f32,
     p2:f32,
-    p3:f32
+    p3:f32,
 ) dual.Dual_f32
 {
     const MAX_ABS_ERROR = std.math.floatEps(f32) * 2.0;
@@ -952,25 +997,33 @@ pub fn _findU_dual(
     return _u2;
 }
 
-//
-// Given x in the interval [p0, p3], and a monotonically nondecreasing
-// 1-D Bezier curve, B(u), with control points (p0, p1, p2, p3), find
-// u so that B(u) == x.
-//
-pub fn findU(x:f32, p0:f32, p1:f32, p2:f32, p3:f32) f32
+/// Given x in the interval [p0, p3], and a monotonically nondecreasing
+/// 1-D Bezier curve, B(u), with control points (p0, p1, p2, p3), find
+/// u so that B(u) == x.
+pub fn findU(
+    x:f32,
+    p0:f32,
+    p1:f32,
+    p2:f32,
+    p3:f32,
+) f32
 {
     return _findU(x - p0, p1 - p0, p2 - p0, p3 - p0);
 }
 
-pub fn findU_dual(x:f32, p0:f32, p1:f32, p2:f32, p3:f32) dual.Dual_f32
+pub fn findU_dual(
+    x:f32,
+    p0:f32,
+    p1:f32, 
+    p2:f32,
+    p3:f32,
+) dual.Dual_f32
 {
-    // return findU_dual2(x - p0, p1 - p0, p2 - p0, p3 - p0);
-    // return _findU_dual(x - p0, p1 - p0, p2 - p0, p3 - p0);
     return findU_dual3(x, p0, p1, p2, p3);
 }
 
-
-test "lerp" {
+test "lerp" 
+{
     const fst: ControlPoint = .{ .time = 0, .value = 0 };
     const snd: ControlPoint = .{ .time = 1, .value = 1 };
 
@@ -985,37 +1038,38 @@ test "lerp" {
     try expectEqual(@as(f32, 0.75), lerp(0.75, fst, snd).time);
 }
 
-test "findU" {
+test "findU" 
+{
     try expectEqual(@as(f32, 0), findU(0, 0,1,2,3));
     // out of range values are clamped in u
     try expectEqual(@as(f32, 0), findU(-1, 0,1,2,3));
     try expectEqual(@as(f32, 1), findU(4, 0,1,2,3));
 }
 
-test "_bezier0 matches _bezier0_dual" {
-    {
-        const test_data = [_][4]f32{
-            [4]f32{ 0, 1, 2, 3 },
-        };
+test "_bezier0 matches _bezier0_dual" 
+{
+    const test_data = [_][4]f32{
+        [4]f32{ 0, 1, 2, 3 },
+    };
 
-        for (test_data)
-            |t|
+    for (test_data)
+        |t|
+    {
+        var x : f32 = t[0];
+        while (x < t[3])
+            : (x += 0.01)
         {
-            var x : f32 = t[0];
-            while (x < t[3])
-                : (x += 0.01)
-            {
-                errdefer std.log.err("Error on loop: {}\n",.{x});
-                try expectApproxEql(
-                    _bezier0(x, t[1], t[2], t[3]),
-                    _bezier0_dual(.{ .r = x, .i = 1}, t[1], t[2], t[3]).r,
-                );
-            }
+            errdefer std.log.err("Error on loop: {}\n",.{x});
+            try expectApproxEql(
+                _bezier0(x, t[1], t[2], t[3]),
+                _bezier0_dual(.{ .r = x, .i = 1}, t[1], t[2], t[3]).r,
+            );
         }
     }
 }
 
-test "findU_dual matches findU" {
+test "findU_dual matches findU" 
+{
 
     try expectEqual(@as(f32, 0), findU_dual(0, 0,1,2,3).r);
     try expectEqual(@as(f32, 1.0/6.0), findU_dual(0.5, 0,1,2,3).r);
@@ -1056,7 +1110,8 @@ test "findU_dual matches findU" {
     try expectEqual(@as(f32, 1), findU_dual(4, 0,1,2,3).r);
 }
 
-test "dydx matches expected at endpoints" {
+test "dydx matches expected at endpoints" 
+{
     if (true) {
         return error.SkipZigTest;
     }
@@ -1084,7 +1139,8 @@ test "dydx matches expected at endpoints" {
     }
 }
 
-test "findU for upside down u" {
+test "findU for upside down u" 
+{
     const crv = try curve.read_curve_json(
         "curves/upside_down_u.curve.json",
         std.testing.allocator
@@ -1110,7 +1166,8 @@ test "findU for upside down u" {
 
 }
 
-test "derivative at 0 for linear curve" {
+test "derivative at 0 for linear curve" 
+{
     const crv = try curve.read_curve_json(
         "curves/linear.curve.json",
         std.testing.allocator
@@ -1155,6 +1212,7 @@ test "derivative at 0 for linear curve" {
     }
 }
 
+// @TODO: comath?
 fn remap_float(
     val:f32,
     in_min:f32, in_max:f32,
@@ -1206,14 +1264,16 @@ pub fn normalized_to(
     return result;
 }
 
-test "remap_float" {
+test "remap_float" 
+{
     try expectEqual(
         remap_float(0.5, 0.25, 1.25, -4, -5),
         @as(f32, -4.25)
     );
 }
 
-test "normalized_to" {
+test "normalized_to" 
+{
     var slope2 = [_]curve.Segment{
         curve.create_bezier_segment(
             .{.time = -500, .value=600},
@@ -1243,7 +1303,8 @@ test "normalized_to" {
     try expectEqual(max_point.value, result_extents[1].value);
 }
 
-test "normalize_to_screen_coords" {
+test "normalize_to_screen_coords" 
+{
     var segments = [_]curve.Segment{
         curve.create_bezier_segment(
             .{.time = -500, .value=600},
@@ -1275,13 +1336,18 @@ test "normalize_to_screen_coords" {
     try expectEqual(max_point.value, result_extents[1].value);
 }
 
-pub fn _compute_slope(p1: ControlPoint, p2: ControlPoint) f32 {
+// @TODO: comath?
+pub fn _compute_slope(
+    p1: ControlPoint,
+    p2: ControlPoint,
+) f32 
+{
     return (p2.value - p1.value) / (p2.time - p1.time); 
 }
 
 pub fn inverted_linear(
     allocator: std.mem.Allocator,
-    crv: linear_curve.TimeCurveLinear
+    crv: linear_curve.TimeCurveLinear,
 ) !linear_curve.TimeCurveLinear 
 {
     // require two points to define a line
@@ -1358,7 +1424,7 @@ pub fn inverted_linear(
 
 pub fn inverted_bezier(
     allocator: std.mem.Allocator,
-    crv: curve.TimeCurve
+    crv: curve.TimeCurve,
 ) !linear_curve.TimeCurveLinear 
 {
     const lin_crv = try crv.linearized(allocator);
@@ -1367,7 +1433,8 @@ pub fn inverted_bezier(
     return try inverted_linear(allocator, lin_crv);
 }
 
-test "inverted: invert linear" {
+test "inverted: invert linear" 
+{
     // slope 2
     const forward_crv = try curve.TimeCurve.init_from_start_end(
         std.testing.allocator,
@@ -1418,7 +1485,8 @@ test "inverted: invert linear" {
     }
 }
 
-test "invert negative slope linear" {
+test "invert negative slope linear" 
+{
     // slope 2
     const forward_crv = try curve.TimeCurve.init_from_start_end(
         std.testing.allocator,
@@ -1482,12 +1550,8 @@ test "invert negative slope linear" {
     }
 }
 
-test "invert linear complicated curve" {
-    // for now this test builds a more complicated curve than most parts of 
-    // this library supports... disabling
-    // if (true) {
-    //     return error.SkipZigTest;
-    // }
+test "invert linear complicated curve" 
+{
     var segments = [_]curve.Segment{
         // identity
         curve.Segment.init_identity(0, 1),
@@ -1532,10 +1596,10 @@ test "invert linear complicated curve" {
         "/var/tmp/inverse.linear.json"
     );
 
-    // std.debug.print("\n\n  forward: {any}\n", .{ crv_linear.extents() });
-    // std.debug.print("\n\n  inverse: {any}\n", .{ crv_linear_inv.extents() });
-
-    const crv_double_inv = try inverted_linear(std.testing.allocator, crv_linear_inv);
+    const crv_double_inv = try inverted_linear(
+        std.testing.allocator,
+        crv_linear_inv,
+    );
     defer crv_double_inv.deinit(std.testing.allocator);
 
     var t:f32 = 0;
@@ -1563,10 +1627,11 @@ test "invert linear complicated curve" {
     }
 }
 
+// @TODO: comath
 fn _rescale_val(
     t: f32,
     measure_min: f32, measure_max: f32,
-    target_min: f32, target_max: f32
+    target_min: f32, target_max: f32,
 ) f32
 {
     return (
@@ -1578,6 +1643,7 @@ fn _rescale_val(
     );
 }
 
+// @TODO: comath
 fn _rescaled_pt(
     pt:ControlPoint,
     extents: [2]ControlPoint,
@@ -1627,7 +1693,8 @@ pub fn rescaled_curve(
     return result;
 }
 
-test "TimeCurve: rescaled parameter" {
+test "TimeCurve: rescaled parameter" 
+{
     const crv = try curve.read_curve_json(
         "curves/scurve.curve.json",
         std.testing.allocator
@@ -1662,7 +1729,8 @@ test "TimeCurve: rescaled parameter" {
 
 }
 
-test "inverted: invert bezier" {
+test "inverted: invert bezier" 
+{
     const forward_crv = try curve.read_curve_json(
         "curves/scurve.curve.json",
         std.testing.allocator
