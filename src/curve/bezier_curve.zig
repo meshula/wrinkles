@@ -2687,110 +2687,110 @@ test "TimeCurve: project linear identity with linear 1/2 slope"
     try expectEqual(@as(usize, 1), result.segments.len);
 }
 
-// this test is disabled because at it is testing projecting a bezier curve
-// through another bezier curve.  At present, the library only supports
-// this through linearization.  This could be re-enabled at some point if
-// the bezier/bezier projection is implemented correctly or if another curve
-// base was used that wasn't linear - for example b-splines.  At present,
-// this isn't a particularly useful test.
-test "TimeCurve: project linear u with out-of-bounds segments" 
-{
-    if (true) {
-        return error.SkipZigTest;
-    }
-
-    var linear_segment = [_]Segment{
-        Segment.init_from_start_end(
-            .{ .time = 60, .value = 60},
-            .{ .time = 130, .value = 130},
-        ),
-    };
-    const linear_crv = TimeCurve{
-        .segments = &linear_segment,
-    };
-    const linear_crv_lin = try linear_crv.linearized(
-        std.testing.allocator
-    );
-    defer linear_crv_lin.deinit(std.testing.allocator);
-
-    var u_seg = [_]Segment{
-        Segment{
-            .p0 = .{ .time = 0, .value = 0 },
-            .p1 = .{ .time = 0, .value = 100 },
-            .p2 = .{ .time = 100, .value = 100 },
-            .p3 = .{ .time = 100, .value = 0 },
-        },
-    }; 
-    const upside_down_u = TimeCurve{
-        .segments = &u_seg,
-    };
-
-    const upside_down_u_linearizied = try upside_down_u.linearized(
-        std.testing.allocator
-    );
-    defer upside_down_u.deinit(std.testing.allocator);
-
-    const result : TimeCurve = try upside_down_u.project_curve(
-        std.testing.allocator,
-        linear_crv,
-    );
-    defer result.deinit(std.testing.allocator);
-
-    const result_lin = try upside_down_u_linearizied.project_curve(
-        std.testing.allocator,
-        linear_crv_lin
-    );
-    defer {
-        for (result_lin)
-            |crv|
-        {
-            crv.deinit(std.testing.allocator);
-        }
-        std.testing.allocator.free(result_lin);
-    }
-
-    errdefer {
-        std.debug.print( "Projection made result:\n",.{});
-
-        for (result.segments, 0..)
-            |seg, seg_ind|
-        {
-            std.debug.print("  {d}:\n", .{ seg_ind });
-            for (seg.points())
-                |pt|
-            {
-                std.debug.print(
-                    "    ({d}, {d})\n",
-                    .{ pt.time, pt.value }
-                );
-            }
-        }
-
-        std.debug.print( "Linearized result:\n",.{});
-
-        for (result_lin, 0..)
-            |crv, crv_ind|
-        {
-            std.debug.print(
-                "curve: {d}\n",
-                .{ crv_ind }
-            );
-            for (crv.knots, 0..)
-                |knot, knot_ind|
-                {
-                    std.debug.print(
-                        "  {d}: ({d}, {d})\n",
-                        .{ knot_ind, knot.time, knot.value }
-                    );
-                }
-        }
-}
-
-    try expectEqual(
-        @as(usize, 4),
-        result.segments.len
-    );
-}
+// // this test is disabled because at it is testing projecting a bezier curve
+// // through another bezier curve.  At present, the library only supports
+// // this through linearization.  This could be re-enabled at some point if
+// // the bezier/bezier projection is implemented correctly or if another curve
+// // base was used that wasn't linear - for example b-splines.  At present,
+// // this isn't a particularly useful test.
+// test "TimeCurve: project linear u with out-of-bounds segments" 
+// {
+//     if (true) {
+//         return error.SkipZigTest;
+//     }
+//
+//     var linear_segment = [_]Segment{
+//         Segment.init_from_start_end(
+//             .{ .time = 60, .value = 60},
+//             .{ .time = 130, .value = 130},
+//         ),
+//     };
+//     const linear_crv = TimeCurve{
+//         .segments = &linear_segment,
+//     };
+//     const linear_crv_lin = try linear_crv.linearized(
+//         std.testing.allocator
+//     );
+//     defer linear_crv_lin.deinit(std.testing.allocator);
+//
+//     var u_seg = [_]Segment{
+//         Segment{
+//             .p0 = .{ .time = 0, .value = 0 },
+//             .p1 = .{ .time = 0, .value = 100 },
+//             .p2 = .{ .time = 100, .value = 100 },
+//             .p3 = .{ .time = 100, .value = 0 },
+//         },
+//     }; 
+//     const upside_down_u = TimeCurve{
+//         .segments = &u_seg,
+//     };
+//
+//     const upside_down_u_linearizied = try upside_down_u.linearized(
+//         std.testing.allocator
+//     );
+//     defer upside_down_u.deinit(std.testing.allocator);
+//
+//     const result : TimeCurve = try upside_down_u.project_curve(
+//         std.testing.allocator,
+//         linear_crv,
+//     );
+//     defer result.deinit(std.testing.allocator);
+//
+//     const result_lin = try upside_down_u_linearizied.project_curve(
+//         std.testing.allocator,
+//         linear_crv_lin
+//     );
+//     defer {
+//         for (result_lin)
+//             |crv|
+//         {
+//             crv.deinit(std.testing.allocator);
+//         }
+//         std.testing.allocator.free(result_lin);
+//     }
+//
+//     errdefer {
+//         std.debug.print( "Projection made result:\n",.{});
+//
+//         for (result.segments, 0..)
+//             |seg, seg_ind|
+//         {
+//             std.debug.print("  {d}:\n", .{ seg_ind });
+//             for (seg.points())
+//                 |pt|
+//             {
+//                 std.debug.print(
+//                     "    ({d}, {d})\n",
+//                     .{ pt.time, pt.value }
+//                 );
+//             }
+//         }
+//
+//         std.debug.print( "Linearized result:\n",.{});
+//
+//         for (result_lin, 0..)
+//             |crv, crv_ind|
+//         {
+//             std.debug.print(
+//                 "curve: {d}\n",
+//                 .{ crv_ind }
+//             );
+//             for (crv.knots, 0..)
+//                 |knot, knot_ind|
+//                 {
+//                     std.debug.print(
+//                         "  {d}: ({d}, {d})\n",
+//                         .{ knot_ind, knot.time, knot.value }
+//                     );
+//                 }
+//         }
+// }
+//
+//     try expectEqual(
+//         @as(usize, 4),
+//         result.segments.len
+//     );
+// }
 
 test "TimeCurve: split_at_each_value u curve" 
 {
