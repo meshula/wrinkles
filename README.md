@@ -1,6 +1,4 @@
-# Wrinkles app
-
-V3 Prototype Project
+# Wrinkles app - V3 Prototype Project
 
 contains:
 
@@ -33,7 +31,7 @@ contains:
     * [ ] See also: the AffineTopology.inverted function
     * [ ] time_topology.zig
     * [ ] test_topology_projections.zig
- * [ ]  DiscreteDatasourceIndexGenerator <- what do we do this
+ * [ ]  `DiscreteDatasourceIndexGenerator` <- what do we do this
  * [ ]  rename retimed_linear_curve_{non}_interpolating
  * [ ]  thread ^ function through opentimelineio demo
    * [ ]  demo of using OTIO + libsamplerate together
