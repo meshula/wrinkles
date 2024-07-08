@@ -68,11 +68,6 @@ test "curve projection tests: identity projection" {
 
     const result = results.result.?.segments[0];
 
-    // this is not lining up with my expectation
-    if (true) {
-        return error.SkipZigTest;
-    }
-
     try expectEqual(
         double_tc.extents()[0].time,
         result.extents()[0].time,
@@ -85,9 +80,10 @@ test "curve projection tests: identity projection" {
     for (result.points())
         |pt|
     {
-        try expectEqual(
+        try expectApproxEqAbs(
             pt.value,
-            result.eval_at_input(pt.time)
+            result.eval_at_input(pt.time),
+            EPSILON,
         );
     }
 }
