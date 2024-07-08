@@ -125,20 +125,20 @@ const C_ARGS = [_][]const u8{
 };
 
 /// sign the executable
-pub fn codesign_step_for(
-    install_exe_step: *std.Build.Step,
-    comptime name: []const u8,
-    b: *std.Build,
-) *std.Build.Step
-{
-    const codesign = b.addSystemCommand(&.{"codesign"});
-    codesign.addArgs(
-        &.{"-f", "-s", "-", "zig-out/bin/" ++ name  }
-    );
-    codesign.step.dependOn(install_exe_step);
-
-    return &codesign.step;
-}
+// pub fn codesign_step_for(
+//     install_exe_step: *std.Build.Step,
+//     comptime name: []const u8,
+//     b: *std.Build,
+// ) *std.Build.Step
+// {
+//     const codesign = b.addSystemCommand(&.{"codesign"});
+//     codesign.addArgs(
+//         &.{"-f", "-s", "-", "zig-out/bin/" ++ name  }
+//     );
+//     codesign.step.dependOn(install_exe_step);
+//
+//     return &codesign.step;
+// }
 
 /// Returns the result of running `git rev-parse HEAD`
 pub fn rev_HEAD(alloc: std.mem.Allocator) ![]const u8 {
@@ -292,18 +292,18 @@ pub fn executable(
         const install_exe_step = &b.addInstallArtifact(exe, .{}).step;
 
         
-        const codesign_exe_step = codesign_step_for(
-            install_exe_step,
-            name,
-            b
-        );
+        // const codesign_exe_step = codesign_step_for(
+        //     install_exe_step,
+        //     name,
+        //     b
+        // );
 
         const install = b.step(
             name,
             "Build/install '" ++ name ++ "' executable"
         );
-        // install.dependOn(&b.addInstallArtifact(exe, .{}).step);
-        install.dependOn(codesign_exe_step);
+        // install.dependOn(codesign_exe_step);
+        install.dependOn(install_exe_step);
 
 
         var run_cmd = b.addRunArtifact(exe).step;
@@ -382,13 +382,14 @@ pub fn module_with_tests_and_artifact(
         // also install the test binary for lldb needs
         const install_test_bin = opts.b.addInstallArtifact(mod_unit_tests, .{});
 
-        const codesigned_test_step = codesign_step_for(
-            &install_test_bin.step,
-            "test_" ++ name,
-            opts.b
-        );
+        // const codesigned_test_step = codesign_step_for(
+        //     &install_test_bin.step,
+        //     "test_" ++ name,
+        //     opts.b
+        // );
 
-        opts.test_step.dependOn(codesigned_test_step);
+        // opts.test_step.dependOn(codesigned_test_step);
+        opts.test_step.dependOn(&install_test_bin.step);
 
         // docs
         {
