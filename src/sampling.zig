@@ -3,6 +3,12 @@
 //! Includes signal generators and samplers as well as tools for integrating
 //! a sampling into the rest of the temporal framework.  Leverages libsamplerate
 //! for test purposes.
+//!
+//! A "Sampling" represents a cyclical sampling, over time, of a signal,
+//! including a buffer of the sample values.
+//!
+//! @TODO: decoupling time as the domain to sample over
+//! @TODO: handle acyclical sampling (IE - variable bitrate data, held frames)
 
 const std = @import("std");
 const libsamplerate = @import("libsamplerate").libsamplerate;
@@ -125,6 +131,7 @@ const Sampling = struct {
         return self.write_file(name);
     }
 
+    /// map a time to an index in the buffer
     pub fn index_at_time(
         self: @This(),
         t_s: sample_t,
@@ -135,6 +142,8 @@ const Sampling = struct {
         );
     }
 
+    /// return an interval of the indices that span the specified time
+    /// @TODO: assumes that indices will be linearly increasing.  problem?
     pub fn indices_between_time(
         self: @This(),
         start_time_inclusive_s: sample_t,
@@ -147,6 +156,10 @@ const Sampling = struct {
         return .{ start_index, end_index };
     }
 
+    /// fetch the slice of self.buffer that overlaps with the provided range
+    /// @TODO: this should align with the algebra functions (IE is it
+    /// overlaps?) since samples represent regions of time and not
+    /// instantaneous points in time
     pub fn samples_between_time(
         self: @This(),
         start_time_inclusive_s: sample_t,
@@ -161,6 +174,7 @@ const Sampling = struct {
         return self.buffer[index_bounds[0]..index_bounds[1]];
     }
 
+    /// fetch the value of the buffer at the provided time
     pub fn sample_value_at_time(
         self: @This(),
         t_s:sample_t,
@@ -169,6 +183,8 @@ const Sampling = struct {
         return self.buffer[self.index_at_time(t_s)];
     }
 
+    /// assuming a time-0 start, build the range of continuous time
+    /// ("intrisinsic space") of the sampling
     pub fn extents(
         self: @This(),
     ) opentime.ContinuousTimeInterval
@@ -217,6 +233,7 @@ const DiscreteDatasourceIndexGenerator = struct {
     start_index: usize = 0,
 };
 
+/// compact representation of a signal, can be rasterized into a buffer
 const SignalGenerator = struct {
     sample_rate_hz: u32,
     signal_frequency_hz: u32,
@@ -610,12 +627,8 @@ pub fn retimed_linear_curve(
 ///
 pub fn retimed_linear_curve_non_interpolating(
     allocator: std.mem.Allocator,
-    /// sampling in sample space
     in_samples: Sampling,
-    // implicit_to_retimed_crv: curve.TimeCurveLinear,
     retimed_to_implicit_crv: curve.TimeCurveLinear,
-    // retimed_to_sampling_crv: curve.TimeCurveLinear,
-    // input_to_output_crv: curve.TimeCurveLinear,
     output_sampling_info: DiscreteDatasourceIndexGenerator,
 ) !Sampling
 {
@@ -708,10 +721,11 @@ pub fn retimed_linear_curve_non_interpolating(
     return output_sampling;
 }
 
+/// retime and interpolate the in_samples buffer using libsamplerate
 pub fn retimed_linear_curve_interpolating(
     allocator: std.mem.Allocator,
     in_samples: Sampling,
-    lin_curve: curve.TimeCurveLinear,
+    retimed_to_implicit_crv: curve.TimeCurveLinear,
     step_retime: bool,
     output_sampling_info: DiscreteDatasourceIndexGenerator,
 ) !Sampling
@@ -730,7 +744,10 @@ pub fn retimed_linear_curve_interpolating(
     ).init(allocator);
     defer retime_specs.deinit();
 
-    for (lin_curve.knots[0..lin_curve.knots.len-1], lin_curve.knots[1..]) 
+    for (
+        retimed_to_implicit_crv.knots[0..retimed_to_implicit_crv.knots.len-1],
+        retimed_to_implicit_crv.knots[1..]
+    )  
         |l_knot, r_knot|
     {    
         const relevant_sample_indices = in_samples.indices_between_time(
