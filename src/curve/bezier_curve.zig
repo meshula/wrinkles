@@ -1935,12 +1935,12 @@ pub const TimeCurve = struct {
     {
         if (
             (
-             self.extents_time().start_seconds == ordinate
+             self.extents_time().start_seconds >= ordinate
              and direction == .trim_before
             )
             or
             (
-             self.extents_time().end_seconds == ordinate
+             self.extents_time().end_seconds <= ordinate
              and direction == .trim_after
             )
 
@@ -3173,10 +3173,6 @@ test "TimeCurve: trimmed_from_input_ordinate"
 
 test "TimeCurve: trimmed_in_input_space" 
 {
-    if (true) {
-        return error.SkipZigTest;
-    }
-
     const TestData = struct {
         trim_range:ContinuousTimeInterval,
         result_extents:ContinuousTimeInterval,
@@ -3195,8 +3191,8 @@ test "TimeCurve: trimmed_in_input_space"
     defer test_curves[1].deinit(std.testing.allocator);
     defer test_curves[2].deinit(std.testing.allocator);
 
-    for (test_curves) 
-        |ident|
+    for (test_curves, 0..) 
+        |ident, crv_ind|
     {
         const extents = ident.extents();
 
@@ -3241,8 +3237,8 @@ test "TimeCurve: trimmed_in_input_space"
                     .end_seconds = extents[1].time * 1.75,
                 },
                 .result_extents = .{
-                    .start_seconds = extents[0].time * 1.25,
-                    .end_seconds = extents[1].time * 1.75,
+                    .start_seconds = extents[0].time,
+                    .end_seconds = extents[1].time,
                 },
                 },
             .{
@@ -3257,9 +3253,36 @@ test "TimeCurve: trimmed_in_input_space"
                 },
             };
 
-        for (test_data) 
-            |td|
+        for (test_data, 0..) 
+            |td, td_ind|
         {
+            errdefer {
+                const crv_str = ident.debug_json_str(
+                    std.testing.allocator
+                ) catch "ERRMAKESTRING";
+                defer std.testing.allocator.free(crv_str);
+                const crv_extents = ident.extents();
+
+                std.debug.print(
+                    "test curve:{d}\n  {s}\n  extents: (({d}, {d}), ({d}, {d}))\n",
+                    .{
+                        crv_ind,
+                        crv_str,
+                        crv_extents[0].time, crv_extents[0].value,
+                        crv_extents[1].time, crv_extents[1].value,
+                    }
+                );
+                std.debug.print("  Error on iteration: {d}\n", .{ td_ind });
+                std.debug.print(
+                    "    trim_range: ({d}, {d})\n    result_extents: ({d}, {d})\n",
+                    .{
+                        td.trim_range.start_seconds, 
+                        td.trim_range.end_seconds,
+                        td.result_extents.start_seconds, 
+                        td.result_extents.end_seconds,
+                    },
+                );
+            }
             const trimmed_curve = try ident.trimmed_in_input_space(
                 td.trim_range,
                 std.testing.allocator
@@ -3267,6 +3290,17 @@ test "TimeCurve: trimmed_in_input_space"
             defer trimmed_curve.deinit(std.testing.allocator);
 
             const trimmed_extents = trimmed_curve.extents();
+            errdefer {
+                std.debug.print(
+                    "    measured result_extents: ({d}, {d}), ({d}, {d})\n",
+                    .{
+                        trimmed_extents[0].time, 
+                        trimmed_extents[0].value,
+                        trimmed_extents[1].time, 
+                        trimmed_extents[1].value,
+                    },
+                );
+            }
 
             try std.testing.expectApproxEqAbs(
                 td.result_extents.start_seconds,
