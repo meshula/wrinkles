@@ -29,6 +29,8 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = false;
 // for VERY LARGE files, turn this off so that dot can process the graphs
 const LABEL_HAS_BINARY_TREECODE = true;
 
+// @TODO: nick and stephan start here
+//
 // clip intrinsic space -> continuous space of the media -> discrete sample
 // indices of the underlying data
 //
