@@ -59,12 +59,6 @@ pub fn lerp(
     ) catch |err| switch (err) {};
 }
 
-// pub fn lerp_vector(u: anytype, a: anytype, b: @TypeOf(a)) @TypeOf(a) {
-//     const u_vec: @Vector(2, @TypeOf(u)) = @splat(u);
-//     const one_vec:@Vector(2, @TypeOf(u)) = @splat(@as(@TypeOf(u), 1));
-//     return ((one_vec - u_vec) * a + b * u_vec);
-// }
-//
 pub fn invlerp(
     v: anytype,
     a: anytype,
@@ -245,12 +239,11 @@ pub fn _bezier0_dual(
     );
 }
 
-//
-// Given x in the interval [0, p3], and a monotonically nondecreasing
-// 1-D Bezier curve, B(u), with control points (0, p1, p2, p3), find
-// u so that B(u) == x.
-//
-
+///
+/// Given x in the interval [0, p3], and a monotonically nondecreasing
+/// 1-D Bezier curve, B(u), with control points (0, p1, p2, p3), find
+/// u so that B(u) == x.
+///
 pub fn _findU(
     x:f32,
     p1:f32,
@@ -278,14 +271,17 @@ pub fn _findU(
         const _u3 = 1.0 - x2 / (x2 - x1);
         const x3 = _bezier0(_u3, p1, p2, p3) - x;
 
-        if (x3 == 0)
+        if (x3 == 0) {
             return _u3;
+        }
 
         if (x3 < 0)
         {
             if (1.0 - _u3 <= MAX_ABS_ERROR) {
-                if (x2 < -x3)
+                if (x2 < -x3) {
                     return 1.0;
+                }
+
                 return _u3;
             }
 
@@ -297,9 +293,12 @@ pub fn _findU(
             _u1 = 0.0;
             x1 = x1 * x2 / (x2 + x3);
 
-            if (_u3 <= MAX_ABS_ERROR) {
-                if (-x1 < x3)
+            if (_u3 <= MAX_ABS_ERROR) 
+            {
+                if (-x1 < x3) {
                     return 0.0;
+                }
+
                 return _u3;
             }
         }
@@ -315,8 +314,9 @@ pub fn _findU(
         const _u3:f32 = _u2 - x2 * ((_u2 - _u1) / (x2 - x1));
         const x3 = _bezier0 (_u3, p1, p2, p3) - x;
 
-        if (x3 == 0)
+        if (x3 == 0) {
             return _u3;
+        }
 
         if (x2 * x3 <= 0)
         {
@@ -333,23 +333,29 @@ pub fn _findU(
 
         if (_u2 > _u1)
         {
-            if (_u2 - _u1 <= MAX_ABS_ERROR)
+            if (_u2 - _u1 <= MAX_ABS_ERROR) {
                 break;
+            }
         }
         else
         {
-            if (_u1 - _u2 <= MAX_ABS_ERROR)
+            if (_u1 - _u2 <= MAX_ABS_ERROR) {
                 break;
+            }
         }
     }
 
-    if (x1 < 0)
+    if (x1 < 0) {
         x1 = -x1;
-    if (x2 < 0)
+    }
+    if (x2 < 0) {
         x2 = -x2;
+    }
 
-    if (x1 < x2)
+    if (x1 < x2) {
         return _u1;
+    }
+
     return _u2;
 }
 
@@ -997,6 +1003,9 @@ pub fn _findU_dual(
     return _u2;
 }
 
+// @TODO: this has some behavioral differences when set to true
+const ALWAYS_USE_DUALS_FINDU = false;
+
 /// Given x in the interval [p0, p3], and a monotonically nondecreasing
 /// 1-D Bezier curve, B(u), with control points (p0, p1, p2, p3), find
 /// u so that B(u) == x.
@@ -1008,7 +1017,12 @@ pub fn findU(
     p3:f32,
 ) f32
 {
-    return _findU(x - p0, p1 - p0, p2 - p0, p3 - p0);
+    if (ALWAYS_USE_DUALS_FINDU) {
+        return findU_dual(x, p0, p1, p2, p3).r;
+    }
+    else {
+        return _findU(x - p0, p1 - p0, p2 - p0, p3 - p0);
+    }
 }
 
 pub fn findU_dual(
@@ -1112,31 +1126,50 @@ test "findU_dual matches findU"
 
 test "dydx matches expected at endpoints" 
 {
-    if (true) {
-        return error.SkipZigTest;
-    }
-    const crv = try curve.read_curve_json(
-        "curves/scurve_extreme.curve.json",
-        std.testing.allocator
+    var seg0 = curve.create_bezier_segment(
+        .{.time = 0, .value=0},
+        .{.time = 0, .value=1},
+        .{.time = 1, .value=1},
+        .{.time = 1, .value=0},
     );
-    defer std.testing.allocator.free(crv.segments);
 
-    const seg0 = crv.segments[0];
-
+    const test_data = struct {
+        r : f32,
+        e_dydu: f32,
+    };
+    const tests = [_]test_data{
+        .{ .r = 0.0,  .e_dydu = 0.0, },
+        .{ .r = 0.25, .e_dydu = 1.125 ,},
+        .{ .r = 0.5,  .e_dydu = 1.5 ,},
+        .{ .r = 0.75, .e_dydu = 1.125 ,},
+        .{ .r = 1.0,  .e_dydu = 0, }
+    };
+   
+    for (tests, 0..)
+        |t, test_ind|
     {
-        const u_zero_dual = seg0.eval_at_dual(.{ .r = 0.1, .i = 1 });
-        try expectApproxEql(@as(f32, 1.0), u_zero_dual.i.time);
+        errdefer {
+            std.debug.print(
+                "Error on iteration: {d}\n  r: {d} e_dydu: {d}\n",
+               .{ test_ind, t.r, t.e_dydu },
+            );
+        }
+        const u_zero_dual = seg0.eval_at_dual(
+            .{ .r = t.r, .i = 1 }
+        );
+        try expectApproxEql(
+            @as(f32,t.e_dydu),
+            u_zero_dual.i.time
+        );
+
     }
 
-    // {
-    //     const u_zero_dual = seg0.eval_at_dual(.{ .r = 0, .i = 1 });
-    //     try expectApproxEql(@as(f32, 1.0), u_zero_dual.i.time);
-    // }
+    const x_zero_dual = seg0.eval_at_input_dual(seg0.p0.time);
+    try expectApproxEql(
+        seg0.p1.time - seg0.p0.time,
+        x_zero_dual.i.time
+    );
 
-    {
-        const x_zero_dual = seg0.eval_at_input_dual(seg0.p0.time);
-        try expectApproxEql(seg0.p1.time - seg0.p0.time, x_zero_dual.i.time);
-    }
 }
 
 test "findU for upside down u" 
