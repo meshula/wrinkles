@@ -53,6 +53,7 @@ pub const Treecode = struct {
         };
     }
 
+    /// initialize from a single TreecodeWord
     pub fn init_word(
         allocator: std.mem.Allocator,
         input: TreecodeWord,
@@ -116,8 +117,8 @@ pub const Treecode = struct {
             return 0;
         }
         var occupied_words : usize = 0;
-        var i : usize = 0;
 
+        var i : usize = 0;
         while (i < self.sz) 
             : (i += 1)
         {
@@ -150,6 +151,7 @@ pub const Treecode = struct {
         }
 
         const greatest_nozero_index: usize = len_self / WORD_BIT_COUNT;
+
         var i:usize = 0;
         while (i <= greatest_nozero_index)
             : (i += 1) 
@@ -174,7 +176,8 @@ pub const Treecode = struct {
 
         const len = self.code_length();
 
-        if (len < (WORD_BIT_COUNT - 1)) {
+        if (len < (WORD_BIT_COUNT - 1)) 
+        {
             self.treecode_array[0] = treecode_word_append(
                 self.treecode_array[0],
                 l_or_r_branch
@@ -185,7 +188,8 @@ pub const Treecode = struct {
         var space_available = self.sz * WORD_BIT_COUNT - 1;
         const next_index = len + 1;
 
-        if (next_index >= space_available) {
+        if (next_index >= space_available) 
+        {
             // double the size
             try self.realloc(self.sz*2);
             space_available = self.sz * WORD_BIT_COUNT - 1;
@@ -214,7 +218,7 @@ pub const Treecode = struct {
         const old_marker_bit = std.math.shl(
             TreecodeWord,
             1,
-            new_data_location_in_slot
+            new_data_location_in_slot,
         );
 
         // subtract old marker position
@@ -226,7 +230,7 @@ pub const Treecode = struct {
         self.treecode_array[new_data_slot] |= std.math.shl(
             TreecodeWord,
             l_or_r_branch,
-            new_data_location_in_slot
+            new_data_location_in_slot,
         );
 
         return;
@@ -317,7 +321,7 @@ pub const Treecode = struct {
     ) Hash 
     {
         var hasher = std.hash.Wyhash.init(0);
-        
+
         for (self.treecode_array, 0..) 
             |tc, index| 
         {
@@ -357,21 +361,21 @@ test "treecode: code_length"
         var tc  = try Treecode.init_word(std.testing.allocator, 1);
         defer tc.deinit();
 
-        try std.testing.expectEqual(@as(usize, 0), tc.code_length());
+        try std.testing.expectEqual(0, tc.code_length());
     }
 
     {
         var tc  = try Treecode.init_word(std.testing.allocator, 0b11);
         defer tc.deinit();
 
-        try std.testing.expectEqual(@as(usize, 1), tc.code_length());
+        try std.testing.expectEqual(1, tc.code_length());
     }
 
     {
         var tc  = try Treecode.init_word(std.testing.allocator, 0b1111111);
         defer tc.deinit();
 
-        try std.testing.expectEqual(@as(usize, 6), tc.code_length());
+        try std.testing.expectEqual(6, tc.code_length());
     }
 
     {
@@ -381,7 +385,7 @@ test "treecode: code_length"
         defer tc.deinit();
 
         try std.testing.expectEqual(
-            @as(usize, WORD_BIT_COUNT),
+            WORD_BIT_COUNT,
             tc.code_length()
         );
     }
@@ -538,36 +542,36 @@ test "to_string"
 
 test "TreecodeWord: is a subset" 
 {
-        // positive case, ending in 1
-        {
-            const tc_word_superset:TreecodeWord = 0b11001101;
-            const tc_word_subset:TreecodeWord = 0b1101;
+    // positive case, ending in 1
+    {
+        const tc_word_superset:TreecodeWord = 0b11001101;
+        const tc_word_subset:TreecodeWord = 0b1101;
 
-            try std.testing.expect(
-                treecode_word_b_is_a_subset(tc_word_superset, tc_word_subset)
-            );
-        }
+        try std.testing.expect(
+            treecode_word_b_is_a_subset(tc_word_superset, tc_word_subset)
+        );
+    }
 
-        // positive case, ending in 0
-        {
-            const tc_word_superset:TreecodeWord = 0b110011010;
-            const tc_word_subset:TreecodeWord = 0b11010;
+    // positive case, ending in 0
+    {
+        const tc_word_superset:TreecodeWord = 0b110011010;
+        const tc_word_subset:TreecodeWord = 0b11010;
 
-            try std.testing.expect(
-                treecode_word_b_is_a_subset(tc_word_superset, tc_word_subset)
-            );
-        }
+        try std.testing.expect(
+            treecode_word_b_is_a_subset(tc_word_superset, tc_word_subset)
+        );
+    }
 
-        // negative case 
-        {
-            const tc_word_superset:TreecodeWord = 0b11001101;
-            const tc_word_subset:TreecodeWord = 0b11001;
+    // negative case 
+    {
+        const tc_word_superset:TreecodeWord = 0b11001101;
+        const tc_word_subset:TreecodeWord = 0b11001;
 
-            try std.testing.expectEqual(
-                treecode_word_b_is_a_subset(tc_word_superset, tc_word_subset),
-                false
-            );
-        }
+        try std.testing.expectEqual(
+            treecode_word_b_is_a_subset(tc_word_superset, tc_word_subset),
+            false
+        );
+    }
 }
 
 test "treecode: is a superset" 
@@ -1013,161 +1017,168 @@ fn treecode_word_append(
     );
 
     const result = (
-       a_without_leading_bit 
-       | leading_bit_shifted
-       | l_or_r_branch_shifted
+        a_without_leading_bit 
+        | leading_bit_shifted
+        | l_or_r_branch_shifted
     );
 
     return result;
 }
 
-test "treecode: hash" 
+test "treecode: hash - built from init_word" 
 {
+    var tc1 = try Treecode.init_word(
+        std.testing.allocator, 
+        0b101,
+    );
+    defer tc1.deinit();
+
+    var tc2 = try Treecode.init_word(
+        std.testing.allocator,
+        0b101,
+    );
+    defer tc2.deinit();
+
+    try std.testing.expectEqual(
+        tc1.hash(),
+        tc2.hash()
+    );
+
+    try tc1.append(1);
+    try tc2.append(1);
+
+    try std.testing.expectEqual(tc1.hash(), tc2.hash());
+
+    try tc1.append(0);
+    try tc2.append(0);
+
+    try std.testing.expectEqual(tc1.hash(), tc2.hash());
+
+    try tc1.realloc(1024);
+    try std.testing.expectEqual(tc1.hash(), tc2.hash());
+
+    try tc2.append(0);
+    try std.testing.expect(tc1.hash() != tc2.hash());
+
+    try tc1.append(0);
+    try std.testing.expectEqual(tc1.hash(), tc2.hash());
+}
+
+test "treecode: hash - built from init_fill_count"
+{
+    var tc1 = try Treecode.init_fill_count(std.testing.allocator, 2, 0b1);
+    defer tc1.deinit();
+
+    var tc2 = try Treecode.init_fill_count(std.testing.allocator, 2, 0b1);
+    defer tc2.deinit();
+
+    errdefer std.debug.print("\ntc1: {b}\ntc2: {b}\n\n",
+        .{ tc1.treecode_array[1], tc2.treecode_array[1] }
+    );
+
+    try std.testing.expectEqual(tc1.hash(), tc2.hash());
+}
+
+test "treecode: hash - test long treecode hashes"
+{
+    var tc1 = try Treecode.init_word(
+        std.testing.allocator,
+        0b1,
+    );
+    defer tc1.deinit();
+
+    var tc2 = try tc1.clone();
+    defer tc2.deinit();
+
+    try tc1.realloc(1024);
+    var i:usize = 0;
+    while (i < 128) 
+        : (i+=1) 
     {
-        var tc1 = try Treecode.init_word(std.testing.allocator, 0b101);
-        defer tc1.deinit();
-
-        var tc2 = try Treecode.init_word(std.testing.allocator, 0b101);
-        defer tc2.deinit();
-
-        try std.testing.expectEqual(
-            tc1.hash(),
-            tc2.hash()
-        );
-
-        // ensure that the allocator isn't participating in the hash
-        {
-            var tmp = [_]TreecodeWord{ 0b101 };
-            const t1 = Treecode{
-                .allocator = undefined,
-                .sz = 1,
-                .treecode_array = &tmp,
-            };
-            const t2 = try Treecode.init_word(
-                // different allocator
-                std.testing.allocator,
-                0b101
-            );
-            defer t2.deinit();
-            try std.testing.expectEqual(
-                t1.hash(),
-                t2.hash()
-            );
-
-            try std.testing.expect(t1.eql(t2));
-            var thm = TreecodeHashMap(u8).init(std.testing.allocator);
-            defer thm.deinit();
-
-            try thm.put(t1, 4);
-            try std.testing.expectEqual(
-                thm.get(t1), thm.get(t2)
-            );
-
-        }
-
-        try tc1.append(1);
-        try tc2.append(1);
-
-        try std.testing.expectEqual(tc1.hash(), tc2.hash());
-
         try tc1.append(0);
+    }
+
+    errdefer std.debug.print("\ntc1: {b}{b}\ntc2: {b}\n\n",
+        .{ tc1.treecode_array[1], tc1.treecode_array[0], tc2.treecode_array[0] }
+    );
+
+    try std.testing.expect(tc1.eql(tc2) == false);
+    try std.testing.expect(tc1.hash() != tc2.hash());
+
+    i = 0;
+    while (i < 128) 
+        : (i+=1) 
+    {
         try tc2.append(0);
+    }
 
-        try std.testing.expectEqual(tc1.hash(), tc2.hash());
+    try std.testing.expectEqual(tc1.hash(), tc2.hash());
 
-        try tc1.realloc(1024);
-        try std.testing.expectEqual(tc1.hash(), tc2.hash());
-
+    i = 0;
+    while (i < 122) 
+        : (i+=1) 
+    {
         try tc2.append(0);
-        try std.testing.expect(tc1.hash() != tc2.hash());
+    }
 
+    try std.testing.expect(tc1.hash() != tc2.hash());
+
+    i = 0;
+    while (i < 122) 
+        : (i+=1) 
+    {
         try tc1.append(0);
-        try std.testing.expectEqual(tc1.hash(), tc2.hash());
     }
 
-    {
-        var tc1 = try Treecode.init_fill_count(std.testing.allocator, 2, 0b1);
-        defer tc1.deinit();
+    try std.testing.expect(tc1.hash() == tc2.hash());
+}
 
-        var tc2 = try Treecode.init_fill_count(std.testing.allocator, 2, 0b1);
-        defer tc2.deinit();
+test "treecode: allocator doesn't participate in hash"
+{
+    var tmp = [_]TreecodeWord{ 0b101 };
+    const t1 = Treecode{
+        .allocator = undefined,
+        .sz = 1,
+        .treecode_array = &tmp,
+    };
+    const t2 = try Treecode.init_word(
+        // different allocator
+        std.testing.allocator,
+        0b101
+    );
+    defer t2.deinit();
+    try std.testing.expectEqual(
+        t1.hash(),
+        t2.hash()
+    );
 
-        errdefer std.debug.print("\ntc1: {b}\ntc2: {b}\n\n",
-            .{ tc1.treecode_array[1], tc2.treecode_array[1] }
-        );
+    try std.testing.expect(t1.eql(t2));
+    var thm = TreecodeHashMap(u8).init(std.testing.allocator);
+    defer thm.deinit();
 
-        try std.testing.expectEqual(tc1.hash(), tc2.hash());
-    }
-
-    {
-        var tc1 = try Treecode.init_word(std.testing.allocator, 0b1);
-        defer tc1.deinit();
-
-        var tc2 = try Treecode.init_word(std.testing.allocator, 0b1);
-        defer tc2.deinit();
-
-        try tc1.realloc(1024);
-        var i:usize = 0;
-        while (i < 128) 
-            : (i+=1) 
-        {
-            try tc1.append(0);
-        }
-
-        errdefer std.debug.print("\ntc1: {b}{b}\ntc2: {b}\n\n",
-            .{ tc1.treecode_array[1], tc1.treecode_array[0], tc2.treecode_array[0] }
-        );
-
-        try std.testing.expect(tc1.eql(tc2) == false);
-        try std.testing.expect(tc1.hash() != tc2.hash());
-
-        i = 0;
-        while (i < 128) 
-            : (i+=1) 
-        {
-            try tc2.append(0);
-        }
-
-        try std.testing.expectEqual(tc1.hash(), tc2.hash());
-
-        i = 0;
-        while (i < 122) 
-            : (i+=1) 
-        {
-            try tc2.append(0);
-        }
-
-        try std.testing.expect(tc1.hash() != tc2.hash());
-
-        i = 0;
-        while (i < 122) 
-            : (i+=1) 
-        {
-            try tc1.append(0);
-        }
-
-        try std.testing.expect(tc1.hash() == tc2.hash());
-    }
+    try thm.put(t1, 4);
+    try std.testing.expectEqual(
+        thm.get(t1), thm.get(t2)
+    );
 }
 
 test "treecode: init_fill_count" 
 {
-    {
-        const tc = try Treecode.init_fill_count(std.testing.allocator, 2, 0b1);
-        defer tc.deinit();
+    const tc = try Treecode.init_fill_count(
+        std.testing.allocator,
+        2,
+        0b1,
+    );
+    defer tc.deinit();
 
-        try std.testing.expectEqual(
-            @as(TreecodeWord, 0b0),
-            tc.treecode_array[0]
-        );
-        try std.testing.expectEqual(
-            @as(TreecodeWord, 0b1),
-            tc.treecode_array[1]
-        );
-
-        // NOT
-        // try std.testing.expectEqual(@as(TreecodeWord, 0b11), tc.treecode_array[1]);
-    }
+    try std.testing.expectEqual(
+        @as(TreecodeWord, 0b0),
+        tc.treecode_array[0],
+    );
+    try std.testing.expectEqual(
+        @as(TreecodeWord, 0b1),
+        tc.treecode_array[1],
+    );
 }
 
 test "treecode: next_step_towards - single word size" 
@@ -1328,7 +1339,7 @@ test "treecode: clone - with deinit"
     try std.testing.expect(tc_src.eql(tc_cln) == false);
 }
 
-
+/// wrapper around std.HashMap for treecodes
 pub fn TreecodeHashMap(
     comptime V: type
 ) type 
@@ -1361,24 +1372,22 @@ pub fn TreecodeHashMap(
 test "treecode: BidirectionalTreecodeHashMap" 
 {
     const allocator = std.testing.allocator;
-    {
-        const this_type = u64;
+    const this_type = u64;
 
-        var code_to_thing = TreecodeHashMap(this_type).init(allocator);
-        defer code_to_thing.deinit();
+    var code_to_thing = TreecodeHashMap(this_type).init(allocator);
+    defer code_to_thing.deinit();
 
-        var thing_to_code = std.AutoHashMap(this_type, Treecode).init(allocator);
-        defer thing_to_code.deinit();
+    var thing_to_code = std.AutoHashMap(this_type, Treecode).init(allocator);
+    defer thing_to_code.deinit();
 
-        var tc = try Treecode.init_word(allocator, 0b1101);
-        defer tc.deinit();
+    var tc = try Treecode.init_word(allocator, 0b1101);
+    defer tc.deinit();
 
-        const value: this_type = 3651;
+    const value: this_type = 3651;
 
-        try code_to_thing.put(tc, value);
-        try thing_to_code.put(value, tc);
+    try code_to_thing.put(tc, value);
+    try thing_to_code.put(value, tc);
 
-        try std.testing.expectEqual(@as(?this_type, value), code_to_thing.get(tc));
-        try std.testing.expectEqual(@as(?Treecode, tc), thing_to_code.get(value));
-    }
+    try std.testing.expectEqual(value, code_to_thing.get(tc));
+    try std.testing.expectEqual(tc, thing_to_code.get(value));
 }

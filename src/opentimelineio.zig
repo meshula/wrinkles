@@ -815,29 +815,34 @@ const TopologicalMap = struct {
 
     }
 
-    // @TODO: doesn't need an allocator
+    /// write a graphviz (dot) format serialization of this TopologicalMap
     pub fn write_dot_graph(
         self:@This(),
-        allocator_: std.mem.Allocator,
+        parent_allocator: std.mem.Allocator,
         filepath: string.latin_s8
     ) !void 
     {
         const root_space = self.root(); 
-        _ = allocator_;
         
-        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        // note that this function is pretty sloppy with allocations.  it
+        // doesn't do any cleanup until the function ends, when the entire var
+        // arena is cleared in one shot.
+        var arena = std.heap.ArenaAllocator.init(
+            parent_allocator
+        );
         defer arena.deinit();
         const allocator = arena.allocator();
 
         var buf = std.ArrayList(u8).init(allocator);
 
         // open the file
-        const file = try std.fs.createFileAbsolute(filepath,.{});
+        const file = try std.fs.createFileAbsolute(
+            filepath,
+            .{}
+        );
         defer file.close();
-        errdefer file.close();
 
         try file.writeAll("digraph OTIO_TopologicalMap {\n");
-
 
         const Node = struct {
             space: SpaceReference,
@@ -2118,10 +2123,18 @@ test "Single Clip bezier transform" {
     }
 }
 
-// @TODO: this needs to be init/deinit()
 /// top level object
 pub const Timeline = struct {
-    tracks:Stack = Stack.init(std.testing.allocator),
+    tracks:Stack,
+
+    pub fn init(
+        allocator: std.mem.Allocator
+    ) !Timeline
+    {
+        return .{
+            .tracks = Stack.init(allocator),
+        };
+    }
 
     pub fn recursively_deinit(self: @This()) void {
         self.tracks.recursively_deinit();
