@@ -20,7 +20,10 @@ contains:
  * [x]  fix the memory leak (stephan)
  * [x]  switch the polarity on the interpolating function + test (stephan)
  * [x]  all tests should pass
- * [ ]  confirm that project topology should be b2c.project(a2b) -> a2c
+ * [x]  confirm that project topology should be b2c.project(a2b) -> a2c
+ * [ ]  thread ^ function through opentimelineio demo
+   * [ ]  demo of using OTIO + libsamplerate together
+   * [ ]  and demo of just using OTIO directly to compute frame numbers
  * [ ] should `resampled` only work for interpolating Samplings?
  * [ ]  time_topology: is projecting the end point an error?  Or not?
         **For context**: for most of the run of the project, we had this return
@@ -33,9 +36,7 @@ contains:
     * [ ] test_topology_projections.zig
  * [ ]  `DiscreteDatasourceIndexGenerator` <- what do we do this
  * [ ]  rename retimed_linear_curve_{non}_interpolating
- * [ ]  thread ^ function through opentimelineio demo
-   * [ ]  demo of using OTIO + libsamplerate together
-   * [ ]  and demo of just using OTIO directly to compute frame numbers
+ * [ ] should be `a2b.joined_with(b2c)` -> a2c -- thread this through the code
  * [ ]  let brains cool off <- beers
  * [ ]  port to sokol
  * [ ]  lumpy bits in the API
@@ -48,7 +49,7 @@ contains:
          to sample over?
    * [ ] handle acyclical sampling as well (variable bitrate data, held
          frames, etc).
-   * [ ] there is a second set of sampling related bits in the topology
+   * [x] there is a second set of sampling related bits in the topology
          library... see `sample_over` and the step mapping in there
 
 ### Bigger, Later Questions/Todos
