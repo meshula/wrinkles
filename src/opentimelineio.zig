@@ -15,6 +15,7 @@ const string = @import("string_stuff");
 const util = opentime.util;
 
 const treecode = @import("treecode");
+const sampling = @import("sampling");
 
 const otio_json = @import("opentimelineio_json.zig");
 
@@ -28,6 +29,37 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = false;
 // for VERY LARGE files, turn this off so that dot can process the graphs
 const LABEL_HAS_BINARY_TREECODE = true;
 
+// clip intrinsic space -> continuous space of the media -> discrete sample
+// indices of the underlying data
+//
+// 1. EXR frame on disk: discretely sampled, noninterpolating
+// 2. Variable bitrate media: indexed with continuous time
+// 3. Audio: discretely sampled, reconstructable/interpolatable
+// ------
+// 4. no such thing as continuous non-interpolating
+//
+// The implementation options are a bool for discrete and one for
+// interpolating, or a single enum that encodes both dimensions.  Because
+// continuous non-interpolating doesn't make sense, and because all three most
+// likely require distinct codepaths, an enum makes the most sense.
+//
+///////////////////////////////////////////////////////////////////////////////
+pub const SignalSpace = struct {
+    // A sampling represents a continuous cartesian interval with samples at 
+    // ordinates within the interval.  Need enough information to feed a
+    // sampler/reconstruction algorithm, which is implemented outside of OTIO.
+
+    // probably an enum - "Audio" "Picture" "Fireworks", etc
+    signal_domain : []string.latin_s8,
+
+    // regular cyclical sampling
+    //   * sampling hz
+    //   * start index
+    //   * interval in continuous time
+    //   * values need to be interpolated to be reconstructed
+    // continuous signal
+};
+
 /// clip with an implied media reference
 pub const Clip = struct {
     name: ?string.latin_s8 = null,
@@ -37,6 +69,8 @@ pub const Clip = struct {
 
     /// transformation of the media space to the output space
     transform: ?time_topology.TimeTopology = null,
+
+    signal_space: ?SignalSpace = null,
 
     pub fn trimmed_range(
         self: @This()
@@ -1843,7 +1877,8 @@ test "Single Clip Media to Output Identity transform"
     }
 }
 
-test "Single Clip reverse transform" {
+test "Single Clip reverse transform" 
+{
     //
     // xform: reverse (linear w/ -1 slope)
     // note: transforms map from the _output_ space to the _media_ space
@@ -1920,7 +1955,8 @@ test "Single Clip reverse transform" {
     }
 }
 
-test "Single Clip bezier transform" {
+test "Single Clip bezier transform" 
+{
     //
     // xform: s-curve read from sample curve file
     //        curves map from the output space to the intrinsic space for clips
@@ -2249,7 +2285,8 @@ test "sequential_child_hash: math"
 
 }
 
-test "label_for_node_leaky" {
+test "label_for_node_leaky" 
+{
     var tr = Track.init(std.testing.allocator);
     const sr = SpaceReference{
         .label = SpaceLabel.output,
@@ -2290,5 +2327,47 @@ test "test spaces list"
     );
     try expectEqual(
        "media", @tagName(SpaceLabel.media),
+    );
+}
+
+test "opentimeline_sampling track with clip with 24hz sampling"
+{
+    var tr = Track.init(std.testing.allocator);
+    defer tr.deinit();
+
+    const start_seconds:f32 = 1;
+    const end_seconds:f32 = 10;
+
+    // @TODO: how do we say this clip has a 24hz sampling rate
+    const cl = Clip {
+        .source_range = .{
+            .start_seconds = start_seconds,
+            .end_seconds = end_seconds 
+        }
+    };
+    try tr.append(.{ .clip = cl });
+
+    const map = try build_topological_map(
+        std.testing.allocator,
+        .{ 
+            .track_ptr = &tr, 
+        },
+    );
+    defer map.deinit();
+
+    const track_to_clip = try map.build_projection_operator(
+        std.testing.allocator,
+        .{
+            .source = try tr.space(SpaceLabel.output),
+            // do disambiguate from the discrete to the continuous?
+            .destination = try cl.space(SpaceLabel.media),
+        },
+    );
+
+    // what are we projecting, expecting back?
+    try expectApproxEqAbs(
+        @as(f32, 4),
+        try track_to_clip.project_ordinate(3),
+        util.EPSILON,
     );
 }
