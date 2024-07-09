@@ -598,12 +598,45 @@ const ProjectionOperator = struct {
     args: ProjectionOperatorArgs,
     topology: time_topology.TimeTopology,
 
-    pub fn project_ordinate(
+    // options:
+    //  instant
+    //   project_instantaneous_cc
+    //   project_instantaneous_cd
+    //   project_instantaneous_dd
+    //   project_instantaneous_dc
+    //  range
+    //   project_range_cc
+    //   project_range_cd
+    //   project_range_dd
+    //   project_range_dc
+
+    ///project a continuous ordinate to the continuous destination space
+    pub fn project_instantaneous_cc(
         self: @This(),
-        ord_to_project: f32
+        ordinate_in_source_space: f32
     ) !f32 
     {
-        return self.topology.project_ordinate(ord_to_project);
+        return self.topology.project_ordinate(ordinate_in_source_space);
+    }
+
+    pub fn project_instantaneous_cd(
+        self: @This(),
+        ordinate_in_source_space: f32
+    ) !f32 
+    {
+        const continuous_in_destination_space =  (
+            try self.topology.project_ordinate(ordinate_in_source_space)
+        );
+
+        return self.domain.convert(continuous_in_destination_space);
+    }
+
+    /// what discrete index does this continuous ordinate map to
+    pub fn project_ordinate_to_index(
+        self: @This(),
+        ordinate_in_source_space: f32,
+    ) !usize
+    {
     }
 
     pub fn deinit(
@@ -2332,7 +2365,7 @@ test "test spaces list"
     );
 }
 
-test "opentimeline_sampling track with clip with 24hz sampling"
+test "otio proj. sampling track/clip 24hz discretely sampled noninterpolating"
 {
     var tr = Track.init(std.testing.allocator);
     defer tr.deinit();
@@ -2372,12 +2405,51 @@ test "opentimeline_sampling track with clip with 24hz sampling"
         },
     );
 
-    // what are we projecting, expecting back?
+    // continuous time projection to the continuous intrinsic space
+    // for continuous or interpolated samples, this is the only allowed
+    // operation
     try expectApproxEqAbs(
-        @as(f32, 4),
+        4,
         try track_to_clip.project_ordinate(3),
         util.EPSILON,
     );
+
+    // for discrete non-interpolated data sources, allow projection to a
+    // discrete index space
+    try expectEqual(
+        // ??? - can't be prescriptive about how data sources are indexed, ie
+        // paths to EXR frames or something
+        1,
+        try track_to_clip.project_ordinate_to_index(3),
+    );
+
+    // ?
+    const expected = [_]usize{ 0, 1, 2 };
+
+    try std.testing.expectEqualSlices(
+        // ??? - can't be prescriptive about how data sources are indexed, ie
+        // paths to EXR frames or something
+        &expected,
+        try track_to_clip.project_continuous_range_to_indices(
+            opentime.ContinuousTimeInterval{
+                .start_seconds = 3.5,
+                .end_seconds = 4.5,
+            },
+        ),
+    );
+
+    const track_samples = tr.sampling();
+
+    try std.testing.expectEqualSlices(
+        // ??? - can't be prescriptive about how data sources are indexed, ie
+        // paths to EXR frames or something
+        &expected,
+        // would return indices? sample addresses? from the data source
+        try track_to_clip.project_sampling(
+            track_samples
+        ),
+    );
+
 
     return error.NotImplemented;
 }
