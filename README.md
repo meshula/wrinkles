@@ -48,6 +48,8 @@ contains:
          to sample over?
    * [ ] handle acyclical sampling as well (variable bitrate data, held
          frames, etc).
+   * [ ] there is a second set of sampling related bits in the topology
+         library... see `sample_over` and the step mapping in there
 
 ### Bigger, Later Questions/Todos
 
