@@ -1423,11 +1423,14 @@ pub fn inverted_linear(
     );
     for (
         crv.knots[0..ncount-1],
-        crv.knots[1..], 1..,
+        crv.knots[1..],
+        1..,
     )
         |p0, p1, i_p1|
     {
-        const slope_sign = std.math.sign(_compute_slope(p0, p1));
+        const slope_sign = std.math.sign(
+            _compute_slope(p0, p1)
+        );
 
         if (slope_sign == slice_sign) {
             continue;
@@ -1769,7 +1772,10 @@ test "inverted: invert bezier"
         std.testing.allocator
     );
     defer forward_crv.deinit(std.testing.allocator);
-    const inverse_crv = try inverted_bezier(std.testing.allocator, forward_crv);
+    const inverse_crv = try inverted_bezier(
+        std.testing.allocator,
+        forward_crv
+    );
     defer inverse_crv.deinit(std.testing.allocator);
 
     var identity_seg = [_]curve.Segment{
