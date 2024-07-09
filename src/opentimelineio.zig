@@ -2348,21 +2348,27 @@ test "opentimeline_sampling track with clip with 24hz sampling"
         }
     };
     try tr.append(.{ .clip = cl });
+    const tr_ptr : ItemPtr = .{ .track_ptr = &tr };
+    const cl_ptr = tr.child_ptr_from_index(0);
+
 
     const map = try build_topological_map(
         std.testing.allocator,
-        .{ 
-            .track_ptr = &tr, 
-        },
+        tr_ptr
     );
     defer map.deinit();
+
+    try map.write_dot_graph(
+        std.testing.allocator,
+        "/var/tmp/sampling_test.dot"
+    );
 
     const track_to_clip = try map.build_projection_operator(
         std.testing.allocator,
         .{
-            .source = try tr.space(SpaceLabel.output),
-            // do disambiguate from the discrete to the continuous?
-            .destination = try cl.space(SpaceLabel.media),
+            .source = try tr_ptr.space(SpaceLabel.output),
+            // does the discrete / continuous need to be disambiguated?
+            .destination = try cl_ptr.space(SpaceLabel.media),
         },
     );
 
@@ -2372,4 +2378,6 @@ test "opentimeline_sampling track with clip with 24hz sampling"
         try track_to_clip.project_ordinate(3),
         util.EPSILON,
     );
+
+    return error.NotImplemented;
 }
