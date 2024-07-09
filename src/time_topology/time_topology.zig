@@ -13,8 +13,6 @@ const std = @import("std");
 const opentime = @import("opentime"); 
 const interval = opentime.interval;
 const transform = opentime.transform;
-const sample_lib = opentime.sample;
-const Sample = sample_lib.Sample; 
 const util = opentime.util;
 
 const curve = @import("curve"); 
@@ -81,18 +79,6 @@ pub const AffineTopology = struct {
 
         // clone points into the new TimeCurveLinear
         return curve.TimeCurveLinear.init(allocator, &bound_points);
-    }
-
-    pub fn project_sample(
-        self: @This(),
-        sample: Sample,
-    ) !Sample 
-    {
-        var result = sample;
-        result.ordinate_seconds = try self.project_ordinate(
-            sample.ordinate_seconds
-        );
-        return result;
     }
 
     pub fn project_ordinate(
@@ -278,18 +264,6 @@ pub const LinearTopology = struct {
         };
     }
 
-    pub fn project_sample(
-        self: @This(),
-        sample: Sample,
-    ) !Sample 
-    {
-        var result = sample;
-        result.ordinate_seconds = try self.project_ordinate(
-            sample.ordinate_seconds
-        );
-        return result;
-    }
-
     pub fn project_ordinate(
         self: @This(),
         ordinate: Ordinate,
@@ -412,18 +386,6 @@ pub const BezierTopology = struct {
             .start_seconds = extents[0].time,
             .end_seconds = extents[1].time,
         };
-    }
-
-    pub fn project_sample(
-        self: @This(),
-        sample: Sample,
-    ) !Sample 
-    {
-        var result = sample;
-        result.ordinate_seconds = try self.project_ordinate(
-            sample.ordinate_seconds
-        );
-        return result;
     }
 
     pub fn project_ordinate(
@@ -573,9 +535,6 @@ pub const EmptyTopology = struct {
     }
     pub fn compute_bounds(_: @This()) interval.ContinuousTimeInterval {
         return .{ .start_seconds = 0, .end_seconds = 0 };
-    }
-    pub fn project_sample(_: @This(), _: Sample) !Sample {
-        return error.OutOfBounds;
     }
 };
 
@@ -752,16 +711,6 @@ pub const TimeTopology = union (enum) {
     }
 
     // @{ Projections
-    pub fn project_sample(
-        self: @This(),
-        sample: Sample,
-    ) !Sample 
-    {
-        return switch (self) {
-            inline else => |contained| contained.project_sample(sample),
-        };
-    }
-
     pub fn project_ordinate(
         self: @This(),
         ordinate:Ordinate,
@@ -836,10 +785,6 @@ test "TimeTopology: finite identity test"
     for (times, 0..)
         |t, index| 
     {
-        const s = Sample {
-            .ordinate_seconds = t,
-        };
-
         errdefer std.log.err(
             "[{d}] time: {d} expected: {d} err: {any}",
             .{index, t, expected_result[index], err[index]}
@@ -849,22 +794,11 @@ test "TimeTopology: finite identity test"
         {
             try expectError(
                 TimeTopology.ProjectionError.OutOfBounds,
-                tp.project_sample(s),
-            );
-
-            try expectError(
-                TimeTopology.ProjectionError.OutOfBounds,
                 tp.project_ordinate(t),
             );
         } 
         else 
         {
-            try expectApproxEqAbs(
-                (try tp.project_sample(s)).ordinate_seconds,
-                expected_result[index],
-                util.EPSILON
-            );
-
             try expectApproxEqAbs(
                 try tp.project_ordinate(t),
                 expected_result[index],
@@ -1347,145 +1281,4 @@ test "TimeTopology: project linear through affine"
     }
 }
 
-// @{ Sample Generators
-// the pattern for a python style generator is a struct with:
-// pub fn next() ?f32 { // if still iterable return value, otherwise return null }
-// while (iter.next()) |next_value| { // do stuff }
-//
-// for now generates a static array
-//
-/// A Sample generator generates samples in the intrinsic coordinate space of 
-/// the timetopology, according to different functions.
-pub const StepSampleGenerator = struct {
-    start_offset: f32 = 0,
-    rate_hz: f32,
-
-    pub fn sample_over(
-        self: @This(), 
-        allocator: std.mem.Allocator,
-        topology: TimeTopology
-    ) ![]Sample
-    {
-        var result: std.ArrayList(Sample) = (
-            std.ArrayList(Sample).init(allocator)
-        );
-        defer result.deinit();
-
-        // @TODO:
-        // I suspect a better way to do this is to project the numbers into a
-        // space where integer math can be used.
-        // -- Or the ratinoal time engine?
-        const increment: f32 = 1/self.rate_hz;
-        var current_coord = self.start_offset;
-        const end_seconds = topology.bounds().end_seconds;
-
-        while (current_coord < end_seconds - util.EPSILON) 
-            : (current_coord += increment)
-        {
-            const next: Sample = .{
-                .ordinate_seconds = current_coord,
-                .support_negative_seconds = 0,
-                .support_positive_seconds = increment
-            };
-
-            const tp_space: ?Sample = try topology.project_sample(next);
-
-            // if a sample has a valid projection, append it
-            if (tp_space) 
-                |s| 
-            {
-                try result.append(s);
-            } 
-        }
-
-        return result.toOwnedSlice();
-    }
-};
-
-test "StepSampleGenerator: sample over step function topology" 
-{
-    const sample_rate: f32 = 24;
-
-    const sample_generator = StepSampleGenerator{
-        // should this be an absolute coordinate origin instead of an
-        // offset?
-        .start_offset = 100,
-        .rate_hz = sample_rate,
-    };
-
-    // staircase with three steps in it
-    var target_topology = try TimeTopology.init_step_mapping(
-        std.testing.allocator,
-        .{
-            .start_seconds = 100,
-            .end_seconds = 103,
-        },
-        100,
-        1,
-        1
-    );
-    defer target_topology.deinit(std.testing.allocator);
-
-    const result = try sample_generator.sample_over(
-        std.testing.allocator,
-        target_topology
-    );
-    defer std.testing.allocator.free(result);
-    const expected = target_topology.bounds().duration_seconds() * sample_rate;
-
-    try expectApproxEqAbs(
-        @as(f32, 102),
-        result[result.len - 1].ordinate_seconds,
-        util.EPSILON
-    );
-
-    try expectEqual(
-        @as(usize, @intFromFloat(@floor(expected))),
-        result.len,
-    );
-}
-
-test "StepSampleGenerator: sample over identity topology" 
-{
-    const sample_rate: f32 = 24;
-
-    const sample_generator = StepSampleGenerator{
-        .start_offset = 100,
-        .rate_hz = sample_rate,
-    };
-
-    const target_topology = TimeTopology.init_identity(
-        .{ 
-            .bounds = .{ 
-                    .start_seconds = 100,
-                    .end_seconds = 103 
-            } 
-        }
-    );
-
-    const result = try sample_generator.sample_over(
-        std.testing.allocator,
-        target_topology
-    );
-    defer std.testing.allocator.free(result);
-
-    const expected_last_coord = (
-        target_topology.bounds().end_seconds 
-        - 1/@as(f32, 24)
-    );
-
-    const result_s = result[result.len - 1];
-    const actual_ordinate = result_s.ordinate_seconds;
-    expectApproxEqAbs(
-        expected_last_coord,
-        actual_ordinate,
-        util.EPSILON
-    ) catch @breakpoint();
-
-    const expected = target_topology.bounds().duration_seconds() * sample_rate;
-    try expectEqual(
-        @as(usize, @intFromFloat(@floor(expected))),
-        result.len,
-    );
-}
 // @}

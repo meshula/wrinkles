@@ -7,8 +7,6 @@ pub const TreecodeWord = u128;
 pub const WORD_BIT_COUNT = @bitSizeOf(TreecodeWord);
 pub const Hash = u64;
 
-// @TODO: needs a cleanup pass (this file)
-
 /// An encoding of a path through a binary tree.  The root bit is the right
 /// side of a number, and the directions are read right to left.  
 ///
@@ -351,8 +349,6 @@ pub const Treecode = struct {
 
         return @intCast(std.math.shr(TreecodeWord, masked_val, self_len_pos_local));
     }
-
-
 };
 
 test "treecode: code_length" 
