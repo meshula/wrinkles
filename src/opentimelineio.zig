@@ -1029,6 +1029,30 @@ const TopologicalMap = struct {
         }
 
         try file.writeAll("}\n");
+
+        const pngfilepath = try std.fmt.allocPrint(
+            allocator,
+            "{s}.png",
+            .{ filepath }
+        );
+        defer allocator.free(pngfilepath);
+
+        // render to png
+        const result = try std.process.Child.run(
+            .{
+                .allocator = std.heap.page_allocator,
+                .argv = &[_][]const u8{
+                    "dot",
+                    "-Tpng",
+                    filepath,
+                    "-o",
+                    pngfilepath
+
+                },
+            }
+        );
+        _ = result;
+        // std.debug.print("{s}\n", .{result.stdout});
     }
 };
 
