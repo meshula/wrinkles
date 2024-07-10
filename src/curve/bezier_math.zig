@@ -1,7 +1,4 @@
 //! Bezier Math components to use with curves in the curve library
-//!
-//! @TODO: split this library into comath and not comath components... or just
-//!        use the comath components?
 
 const std = @import("std");
 
@@ -1245,15 +1242,6 @@ test "derivative at 0 for linear curve"
     }
 }
 
-// @TODO: comath?
-fn remap_float(
-    val:f32,
-    in_min:f32, in_max:f32,
-    out_min:f32, out_max:f32,
-) f32 {
-    return ((val-in_min)/(in_max-in_min) * (out_max-out_min) + out_min);
-}
-
 /// return crv normalized into the space provided
 pub fn normalized_to(
     allocator: std.mem.Allocator,
@@ -1267,42 +1255,24 @@ pub fn normalized_to(
         return crv;
     }
 
-    const extents = crv.extents();
-    const crv_min = extents[0];
-    const crv_max = extents[1];
+    const src_extents = crv.extents();
 
     const result = try crv.clone(allocator);
-
     for (result.segments) 
         |*seg| 
     {
         for (seg.point_ptrs()) 
             |pt| 
         {
-            pt.* = .{
-                .time = remap_float(
-                    pt.time,
-                    crv_min.time, crv_max.time,
-                    min_point.time, max_point.time
-                ),
-                .value = remap_float(
-                    pt.value,
-                    crv_min.value, crv_max.value,
-                    min_point.value, max_point.value
-                ),
-            };
+            pt.* = _remap(
+                pt.*,
+                src_extents[0], src_extents[1],
+                min_point, max_point
+            );
         }
     }
 
     return result;
-}
-
-test "remap_float" 
-{
-    try expectEqual(
-        remap_float(0.5, 0.25, 1.25, -4, -5),
-        @as(f32, -4.25)
-    );
 }
 
 test "normalized_to" 
@@ -1369,7 +1339,6 @@ test "normalize_to_screen_coords"
     try expectEqual(max_point.value, result_extents[1].value);
 }
 
-// @TODO: comath?
 pub fn _compute_slope(
     p1: ControlPoint,
     p2: ControlPoint,
@@ -1649,55 +1618,51 @@ test "invert linear complicated curve"
         const fwd = try crv_linear.evaluate(t);
         const dbl = try crv_double_inv.evaluate(t);
 
-        // @TODO: this should compare the inverse(forward(t)) => t at some
-        //        point
-        // const inv = try crv_linear_inv.evaluate(fwd);
+        try expectEqual(fwd, dbl);
 
+        // const inv = try crv_linear_inv.evaluate(fwd);
+        //
         // errdefer std.log.err(
         //     "\n  t: {d} not equals projected {d}\n",
         //     .{ t, inv }
         // );
-
-        try expectEqual(fwd, dbl);
         // try expectEqual(t, inv);
     }
 }
 
-// @TODO: comath
-fn _rescale_val(
-    t: f32,
-    measure_min: f32, measure_max: f32,
-    target_min: f32, target_max: f32,
-) f32
+fn _remap(
+    t: anytype,
+    measure_min: @TypeOf(t), measure_max: @TypeOf(t),
+    target_min: @TypeOf(t), target_max: @TypeOf(t),
+) @TypeOf(t)
 {
-    return (
-        (
-         ((t - measure_min)/(measure_max - measure_min))
-         * (target_max - target_min) 
-        )
-        + target_min
-    );
+    return comath.eval(
+        "(((t-measure_min)/(measure_max-measure_min))"
+        ++ " * (target_max - target_min)"
+        ++ ") + target_min"
+        ,
+        CTX,
+        .{
+            .t = t,
+            .measure_min = measure_min,
+            .measure_max = measure_max,
+            .target_min = target_min,
+            .target_max = target_max,
+        }
+    ) catch |err| switch(err) {};
 }
 
-// @TODO: comath
 fn _rescaled_pt(
     pt:ControlPoint,
     extents: [2]ControlPoint,
     target_range: [2]ControlPoint,
 ) ControlPoint
 {
-    return .{
-        .time = _rescale_val(
-            pt.time, 
-            extents[0].time, extents[1].time,
-            target_range[0].time, target_range[1].time
-        ),
-        .value = _rescale_val(
-            pt.value,
-            extents[0].value, extents[1].value,
-            target_range[0].value, target_range[1].value
-        ),
-    };
+    return _remap(
+        pt,
+        extents[0], extents[1],
+        target_range[0], target_range[1],
+    );
 }
 
 /// return a new curve rescaled over the specified target_range

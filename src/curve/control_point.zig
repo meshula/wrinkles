@@ -35,10 +35,24 @@ pub const ControlPoint = struct {
         };
     }
 
-    pub fn div(self: @This(), val: f32) ControlPoint {
+    pub fn div(self: @This(), rhs: anytype) ControlPoint {
+        return switch (@typeInfo(@TypeOf(rhs))) {
+            .Struct => self.div_cp(rhs),
+            else => self.div_num(rhs),
+        };
+    }
+
+    pub fn div_num(self: @This(), val: f32) ControlPoint {
         return .{
             .time  = self.time/val,
             .value = self.value/val,
+        };
+    }
+
+    pub fn div_cp(self: @This(), val: ControlPoint) ControlPoint {
+        return .{
+            .time  = self.time/val.time,
+            .value = self.value/val.value,
         };
     }
 
