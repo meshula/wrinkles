@@ -619,24 +619,38 @@ const ProjectionOperator = struct {
         return self.topology.project_ordinate(ordinate_in_source_space);
     }
 
+    /// project a continuous ordinate to the destination discrete sample index
     pub fn project_instantaneous_cd(
         self: @This(),
-        ordinate_in_source_space: f32
+        ordinate_in_source_space: f32,
     ) !f32 
     {
         const continuous_in_destination_space =  (
             try self.topology.project_ordinate(ordinate_in_source_space)
         );
 
-        return self.domain.convert(continuous_in_destination_space);
+        return self.args.destination.continuous_ordinate_to_discrete_index(
+            continuous_in_destination_space
+        );
     }
 
-    /// what discrete index does this continuous ordinate map to
-    pub fn project_ordinate_to_index(
+    /// project a discete sample index to the destination discrete sample index
+    pub fn project_instantaneous_dd(
         self: @This(),
-        ordinate_in_source_space: f32,
-    ) !usize
+        sample_index_in_source_space: usize,
+    ) !f32 
     {
+        //source discrete -> source continuous
+
+        // source continuous -> destination continuous
+        const continuous_in_destination_space =  (
+            try self.topology.project_ordinate(ordinate_in_source_space)
+        );
+
+        // destination continuous -> destinatino discrete
+        return self.args.destination.continuous_ordinate_to_discrete_index(
+            continuous_in_destination_space
+        );
     }
 
     pub fn deinit(
