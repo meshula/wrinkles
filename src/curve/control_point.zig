@@ -244,4 +244,15 @@ test "ControlPoint: mul"
     try expectControlPointEqual(mul_direct, mul_implct);
     try expectControlPointEqual(expected, mul_implct);
 }
+
+test "distance: 345 triangle" 
+{
+    const a:ControlPoint = .{ .time = 3, .value = -3 };
+    const b:ControlPoint = .{ .time = 6, .value = 1 };
+
+    try expectEqual(
+        @as(f32, 5),
+        a.distance(b)
+    );
+}
 // @}

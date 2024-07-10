@@ -1,3 +1,5 @@
+//! Bezier Curve implementation
+
 const std = @import("std");
 const debug_panic = @import("std").debug.panic;
 const expectEqual = std.testing.expectEqual;
@@ -115,28 +117,6 @@ fn _is_between(
 // library may provide helper functions that aid in the
 // computation of common constraints, such as colinear
 // tangents on end points, and so on.
-
-/// compute the linear distance between two points
-pub fn distance(
-    from: control_point.ControlPoint,
-    to: control_point.ControlPoint
-) f32 
-{
-    const dist = to.sub(from);
-
-    return std.math.sqrt((dist.time*dist.time) + (dist.value*dist.value));
-}
-
-test "distance: 345 triangle" 
-{
-    try expectEqual(
-        @as(f32, 5),
-        distance(
-            .{ .time = 3, .value = -3 },
-            .{ .time = 6, .value = 1 }
-        )
-    );
-}
 
 /// @TODO: time should be an ordinate
 
