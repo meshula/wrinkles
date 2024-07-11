@@ -143,7 +143,7 @@ pub const Segment = struct {
 
     pub fn init_identity(
         start_time: f32,
-        end_time: f32
+        end_time: f32,
     ) Segment
     {
         return Segment.init_from_start_end(
@@ -288,7 +288,6 @@ pub const Segment = struct {
 
             return l_p4;
         }
-
     }
 
     /// returns whether t overlaps the domain of this segment or not
@@ -490,7 +489,7 @@ pub const Segment = struct {
     /// returns the y-value for the given x-value
     pub fn eval_at_input(
         self: @This(),
-        x:f32
+        x:f32,
     ) f32 
     {
         const u:f32 = bezier_math.findU(
@@ -889,27 +888,6 @@ test "Segment.init_identity check cubic spline"
     try expectEqual(@as(f32, 1), seg.p3.value);
 }
 
-pub fn create_bezier_segment(
-    p0: control_point.ControlPoint,
-    p1: control_point.ControlPoint,
-    p2: control_point.ControlPoint,
-    p3: control_point.ControlPoint
-) Segment {
-    if (p3.time >= p2.time and p2.time >= p1.time and p1.time >= p0.time) {
-        return .{
-            .p0 = p0,
-            .p1 = p1,
-            .p2 = p2,
-            .p3 = p3,
-        };
-    }
-
-    debug_panic(
-        "Create bezier segment failed, {}, {}, {}, {}\n",
-        .{p0.time, p1.time, p2.time, p3.time}
-    );
-}
-
 /// TimeCurve maps an input time to an output time.
 ///
 /// The TimeCurve is a sequence of 2d cubic bezier segments,
@@ -1012,7 +990,7 @@ pub const TimeCurve = struct {
     /// evaluate the curve at time t in the space of the curve
     pub fn evaluate(
         self: @This(),
-        t_arg: f32
+        t_arg: f32,
     ) error{OutOfBounds}!f32 
     {
         if (self.find_segment(t_arg)) 
@@ -1025,18 +1003,29 @@ pub const TimeCurve = struct {
         return error.OutOfBounds;
     }
 
-    pub fn find_segment_index(self: @This(), t_arg: f32) ?usize {
+    /// find the index of the segment that overlaps with the ordinate in input
+    /// space
+    pub fn find_segment_index(
+        self: @This(),
+        ord_input: f32,
+    ) ?usize 
+    {
+        const start_time = self.segments[0].p0.time - generic_curve.EPSILON;
+        const last_seg = self.segments[self.segments.len - 1];
+        const end_time = last_seg.p3.time - generic_curve.EPSILON;
+
+        // @TODO: should this be inclusive of the endpoint?
         if (
             self.segments.len == 0 
-            or t_arg < self.segments[0].p0.time - generic_curve.EPSILON
-            or t_arg >= self.segments[self.segments.len - 1].p3.time - generic_curve.EPSILON
+            or ord_input < start_time
+            or ord_input >= end_time
         )
         {
             return null;
         }
 
         // quick check if it is exactly the start time of the first segment
-        if (t_arg < self.segments[0].p0.time + generic_curve.EPSILON) {
+        if (ord_input < start_time) {
             return 0;
         }
 
@@ -1044,8 +1033,8 @@ pub const TimeCurve = struct {
             |seg, index| 
         {
             if (
-                seg.p0.time <= t_arg + generic_curve.EPSILON 
-                and t_arg < seg.p3.time - generic_curve.EPSILON
+                seg.p0.time <= ord_input + generic_curve.EPSILON 
+                and ord_input < seg.p3.time - generic_curve.EPSILON
             ) 
             {
                 // exactly in a segment
@@ -1057,8 +1046,13 @@ pub const TimeCurve = struct {
         return null;
     }
 
-    pub fn find_segment(self: @This(), t_arg: f32) ?*Segment {
-        if (self.find_segment_index(t_arg)) 
+    /// find the segment that overlaps with the input ordinate t_arg
+    pub fn find_segment(
+        self: @This(),
+        ord_input: f32,
+    ) ?*Segment 
+    {
+        if (self.find_segment_index(ord_input)) 
            |ind|
         {
             return &self.segments[ind];
@@ -1173,31 +1167,23 @@ pub const TimeCurve = struct {
         g_prime_of_t: ?[]control_point.ControlPoint = null,
 
         pub fn deinit(
-            self: @This()
+            self: @This(),
         ) void 
         {
-            if (self.result) 
-               |sp| 
+            inline for (
+                &.{
+                    "result",
+                    "self_split",
+                    "other_split",
+                    "to_project",
+                }
+            ) |it|
             {
-                sp.deinit(self.allocator);
-            }
-
-            if (self.self_split) 
-               |sp| 
-            {
-                sp.deinit(self.allocator);
-            }
-
-            if (self.other_split) 
-                |sp| 
-            {
-                sp.deinit(self.allocator);
-            }
-
-            if (self.to_project) 
-                |tp| 
-            {
-                tp.deinit(self.allocator);
+                if (@field(self, it)) 
+                    |thing| 
+                {
+                    thing.deinit(self.allocator);
+                }
             }
 
             const things_to_free = &.{
@@ -2425,12 +2411,12 @@ fn line_orientation(
 
 test "convex hull test" 
 {
-    const segment = create_bezier_segment(
-        .{ .time = 1, .value = 0, },
-        .{ .time = 1.25, .value = 1, },
-        .{ .time = 1.75, .value = 0.65, },
-        .{ .time = 2, .value = 0.24, },
-    );
+    const segment:Segment = .{
+        .p0 = .{ .time = 1, .value = 0, },
+        .p1 = .{ .time = 1.25, .value = 1, },
+        .p2 = .{ .time = 1.75, .value = 0.65, },
+        .p3 = .{ .time = 2, .value = 0.24, },
+    };
 
     const p0 = segment.p0;
     const p1 = segment.p1;

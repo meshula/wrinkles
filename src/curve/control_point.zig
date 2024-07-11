@@ -194,7 +194,7 @@ pub const ControlPoint = struct {
 /// check equality between two control points
 pub fn expectControlPointEqual(
     lhs: ControlPoint,
-    rhs: ControlPoint
+    rhs: ControlPoint,
 ) !void 
 {
     inline for (.{ "time", "value" }) 
@@ -232,10 +232,10 @@ test "ControlPoint: sub"
 
 test "ControlPoint: mul" 
 { 
-    const cp1 = ControlPoint{ .time = 0.0, .value = 10.0 };
+    const cp1:ControlPoint = .{ .time = 0.0, .value = 10.0 };
     const scale = -10.0;
 
-    const expected = ControlPoint{ .time = 0.0, .value = -100 };
+    const expected:ControlPoint = .{ .time = 0.0, .value = -100 };
     const mul_direct = cp1.mul_num(scale);
     const mul_implct = cp1.mul(scale);
 
