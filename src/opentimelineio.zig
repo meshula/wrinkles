@@ -72,7 +72,14 @@ pub const Clip = struct {
     /// transformation of the media space to the output space
     transform: ?time_topology.TimeTopology = null,
 
-    signal_space: ?SignalSpace = null,
+    discrete_info: struct{
+        media:  ?sampling.DiscreteDatasourceIndexGenerator = null,
+    } = .{},
+
+    pub const SPACES = enum(i8) {
+        media = 0,
+        output = 1,
+    };
 
     pub fn trimmed_range(
         self: @This()
@@ -90,7 +97,7 @@ pub const Clip = struct {
 
     pub fn space(
         self: @This(),
-        label: SpaceLabel
+        label: SpaceLabel,
     ) !SpaceReference 
     {
         return .{
@@ -100,7 +107,7 @@ pub const Clip = struct {
     }
 
     pub fn topology(
-        self: @This()
+        self: @This(),
     ) !time_topology.TimeTopology 
     {
         if (self.source_range) 
@@ -113,11 +120,6 @@ pub const Clip = struct {
             return error.NotImplemented;
         }
     }
-
-    pub const SPACES = enum(i8) {
-        media = 0,
-        output = 1,
-    };
 };
 
 pub const Gap = struct {
@@ -207,7 +209,7 @@ pub const ItemPtr = union(enum) {
     ) !time_topology.TimeTopology 
     {
         return switch (self) {
-            inline else => |it_ptr| try it_ptr.toplogy(),
+            inline else => |it_ptr| try it_ptr.topology(),
         };
     }
 
@@ -326,7 +328,7 @@ pub const ItemPtr = union(enum) {
 
                     },
                     // track supports no other spaces
-                    else => unreachable,
+                    else => return error.UnsupportedSpaceError,
                 }
             },
             .clip_ptr => |*cl| {
@@ -417,6 +419,76 @@ pub const ItemPtr = union(enum) {
             //     // return error.NotImplemented;
             //     return time_topology.TimeTopology.init_identity_infinite();
             // },
+        };
+    }
+
+    pub fn continuous_ordinate_to_discrete_index(
+        self: @This(),
+        ord_continuous: f32,
+        in_space: SpaceLabel,
+    ) !usize
+    {
+        const maybe_discrete_info = (
+            try self.discrete_info_for_space(in_space)
+        );
+        if (maybe_discrete_info)
+            |discrete_info|
+        {
+            return sampling.project_instantaneous_cd(
+                discrete_info,
+                ord_continuous
+            );
+        }
+
+        return error.SpaceOnObjectHasNoDiscreteSpecification;
+    }
+   
+    pub fn continuous_to_discrete_topology(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        in_space: SpaceLabel,
+    ) !time_topology.TimeTopology
+    {
+        const maybe_discrete_info = (
+            try self.discrete_info_for_space(in_space)
+        );
+        if (maybe_discrete_info == null)
+        {
+            return error.SpaceOnObjectHasNoDiscreteSpecification;
+        }
+
+        const discrete_info = maybe_discrete_info.?;
+
+        const target_topo = try self.topology();
+        const extents = target_topo.bounds();
+
+        return try time_topology.TimeTopology.init_step_mapping(
+            allocator,
+            extents,
+            // start
+            @floatFromInt(discrete_info.start_index),
+            // held durations
+            1.0 / @as(f32, @floatFromInt(discrete_info.sample_rate_hz)),
+            // increment -- @TODO: support other increments ("on twos", etc)
+            1.0,
+        );
+    }
+
+    pub fn discrete_info_for_space(
+        self: @This(),
+        in_space: SpaceLabel,
+    ) !?sampling.DiscreteDatasourceIndexGenerator
+    {
+        return switch (self) {
+            .timeline_ptr => |tl| switch (in_space) {
+                .output => tl.discrete_info.output,
+                inline else => error.SpaceOnObjectCannotBeDiscrete,
+            },
+            .clip_ptr => |cl| switch (in_space) {
+                .media => cl.discrete_info.media,
+                inline else => error.SpaceOnObjectCannotBeDiscrete,
+            },
+            inline else => error.ObjectDoesNotSupportDiscretespaces,
         };
     }
 };
@@ -619,39 +691,130 @@ const ProjectionOperator = struct {
         return self.topology.project_ordinate(ordinate_in_source_space);
     }
 
+    // @TODO: remove this alias
+    pub const project_ordinate = project_instantaneous_cc;
+
     /// project a continuous ordinate to the destination discrete sample index
     pub fn project_instantaneous_cd(
         self: @This(),
         ordinate_in_source_space: f32,
-    ) !f32 
+    ) !usize 
     {
         const continuous_in_destination_space =  (
             try self.topology.project_ordinate(ordinate_in_source_space)
         );
 
-        return self.args.destination.continuous_ordinate_to_discrete_index(
-            continuous_in_destination_space
+        return try self.args.destination.item.continuous_ordinate_to_discrete_index(
+            continuous_in_destination_space,
+            self.args.destination.label,
         );
     }
 
-    /// project a discete sample index to the destination discrete sample index
-    pub fn project_instantaneous_dd(
+    pub fn project_range_cd(
         self: @This(),
-        sample_index_in_source_space: usize,
-    ) !f32 
+        allocator: std.mem.Allocator,
+        range_in_source: opentime.ContinuousTimeInterval,
+    ) ![]usize
     {
+        // build a topology over the range
+        const topology_in_source = (
+            time_topology.TimeTopology.init_identity(
+                .{ 
+                    .bounds = range_in_source,
+                }
+            )
+        );
+
+        // @TODO: nick... what should this do?
+        // does this even make sense?  I'm not sure what I should be sampling
+        // here.
+
+        const range_in_destination = (
+            try self.topology.project_topology(
+                allocator,
+                topology_in_source
+            )
+        );
+        
+        // sample... something?  or should we only allow discrete->discrete for
+        // ranges?
+
+        const sampling_topology = (
+            try self.args.destination.item.continuous_to_discrete_topology(
+                allocator,
+                self.args.destination.label,
+            )
+        );
+        
+        // // I _Think_ we build a topology that represents the sampling from the
+        // // destination space to the discrete space
+        // const sampling_topology = time_topology.init_step_mapping();
+
+
+        // @TODO: sample generator approach - have a projectable sample
+        //        generator that can build arbitrary bespoke sample index
+        //        buffers
+
+        const range_in_step_function = (
+            try sampling_topology.project_topology(
+                allocator,
+                range_in_destination
+            )
+        );
+
+        const maybe_discrete_info = (
+            try self.args.destination.item.discrete_info_for_space(
+                self.args.destination.label
+            )
+        );
+        const discrete_info = (
+            maybe_discrete_info.?
+        );
+
+        var result_buffer = (
+            std.ArrayList(usize).init(allocator)
+        );
+
+        const topo_extents = (
+            range_in_step_function.bounds()
+        );
+        const duration:f32 = (
+            1.0 / @as(f32, @floatFromInt(discrete_info.sample_rate_hz))
+        );
+        var t = topo_extents.start_seconds;
+        while (t < topo_extents.end_seconds)
+            : (t += duration)
+        {
+            try result_buffer.append(
+                try self.args.destination.item.continuous_ordinate_to_discrete_index(
+                    t,
+                    self.args.destination.label,
+                )
+            );
+        }
+
+        return result_buffer.toOwnedSlice();
+    }
+
+
+    /// project a discete sample index to the destination discrete sample index
+    // pub fn project_instantaneous_dd(
+    //     self: @This(),
+    //     sample_index_in_source_space: usize,
+    // ) !f32 
+    // {
         //source discrete -> source continuous
 
         // source continuous -> destination continuous
-        const continuous_in_destination_space =  (
-            try self.topology.project_ordinate(ordinate_in_source_space)
-        );
-
-        // destination continuous -> destinatino discrete
-        return self.args.destination.continuous_ordinate_to_discrete_index(
-            continuous_in_destination_space
-        );
-    }
+        // const continuous_in_destination_space =  (
+        //     try self.topology.project_ordinate(ordinate_in_source_space)
+        // );
+        //
+        // // destination continuous -> destinatino discrete
+        // return self.args.destination.continuous_ordinate_to_discrete_index(
+        //     continuous_in_destination_space
+        // );
+    // }
 
     pub fn deinit(
         self: @This(),
@@ -2236,6 +2399,10 @@ test "Single Clip bezier transform"
 pub const Timeline = struct {
     tracks:Stack,
 
+    discrete_info: struct{
+        output:  ?sampling.DiscreteDatasourceIndexGenerator = null,
+    } = .{},
+
     pub fn init(
         allocator: std.mem.Allocator
     ) !Timeline
@@ -2247,6 +2414,13 @@ pub const Timeline = struct {
 
     pub fn recursively_deinit(self: @This()) void {
         self.tracks.recursively_deinit();
+    }
+
+    pub fn topology(
+        self: @This()
+    ) !time_topology.TimeTopology
+    {
+        return try self.tracks.topology();
     }
 };
 
@@ -2416,7 +2590,10 @@ test "otio proj. sampling track/clip 24hz discretely sampled noninterpolating"
         .source_range = .{
             .start_seconds = start_seconds,
             .end_seconds = end_seconds 
-        }
+        },
+        .discrete_info = .{
+            .media = .{ .sample_rate_hz = 4 },
+        },
     };
     try tr.append(.{ .clip = cl });
     const tr_ptr : ItemPtr = .{ .track_ptr = &tr };
@@ -2434,13 +2611,15 @@ test "otio proj. sampling track/clip 24hz discretely sampled noninterpolating"
         "/var/tmp/sampling_test.dot"
     );
 
-    const track_to_clip = try map.build_projection_operator(
-        std.testing.allocator,
-        .{
-            .source = try tr_ptr.space(SpaceLabel.output),
-            // does the discrete / continuous need to be disambiguated?
-            .destination = try cl_ptr.space(SpaceLabel.media),
-        },
+    const track_to_media = (
+        try map.build_projection_operator(
+            std.testing.allocator,
+            .{
+                .source = try tr_ptr.space(SpaceLabel.output),
+                // does the discrete / continuous need to be disambiguated?
+                .destination = try cl_ptr.space(SpaceLabel.media),
+            },
+        )
     );
 
     // continuous time projection to the continuous intrinsic space
@@ -2448,7 +2627,7 @@ test "otio proj. sampling track/clip 24hz discretely sampled noninterpolating"
     // operation
     try expectApproxEqAbs(
         4,
-        try track_to_clip.project_ordinate(3),
+        try track_to_media.project_instantaneous_cc(3),
         util.EPSILON,
     );
 
@@ -2457,33 +2636,39 @@ test "otio proj. sampling track/clip 24hz discretely sampled noninterpolating"
     try expectEqual(
         // ??? - can't be prescriptive about how data sources are indexed, ie
         // paths to EXR frames or something
-        1,
-        try track_to_clip.project_ordinate_to_index(3),
+        (3 + 1) * 4,
+        try track_to_media.project_instantaneous_cd(3),
     );
 
     // ?
     const expected = [_]usize{ 0, 1, 2 };
 
-    try std.testing.expectEqualSlices(
-        // ??? - can't be prescriptive about how data sources are indexed, ie
-        // paths to EXR frames or something
-        &expected,
-        try track_to_clip.project_continuous_range_to_indices(
-            opentime.ContinuousTimeInterval{
-                .start_seconds = 3.5,
-                .end_seconds = 4.5,
-            },
-        ),
+    const result_range = try track_to_media.project_range_cd(
+        std.testing.allocator,
+        opentime.ContinuousTimeInterval{
+            .start_seconds = 3.5,
+            .end_seconds = 4.5,
+        },
     );
+    defer std.testing.allocator.free(result_range);
+
+    try std.testing.expectEqualSlices(
+        usize,
+        &expected,
+        result_range,
+    );
+
+    if (true) {
+        return error.NotImplemented;
+    }
 
     const track_samples = tr.sampling();
 
     try std.testing.expectEqualSlices(
-        // ??? - can't be prescriptive about how data sources are indexed, ie
-        // paths to EXR frames or something
+        usize,
         &expected,
         // would return indices? sample addresses? from the data source
-        try track_to_clip.project_sampling(
+        try track_to_media.project_sampling_dd(
             track_samples
         ),
     );
