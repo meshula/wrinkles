@@ -238,7 +238,7 @@ test "samples_between_time"
 // @TODO: should this be folded into the SignalGenerator?
 
 /// generate indices for frame numbers
-const DiscreteDatasourceIndexGenerator = struct {
+pub const DiscreteDatasourceIndexGenerator = struct {
     sample_rate_hz: u32,
     start_index: usize = 0,
 };
