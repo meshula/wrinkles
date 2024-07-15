@@ -34,6 +34,16 @@ const TMPDIR = "/var/tmp";
 /// alias around the sample type @TODO: make this comptime definable (anytype)
 const sample_t  = f32;
 
+pub fn project_instantaneous_cd(
+    self: anytype,
+    ord_continuous: f32
+) usize
+{
+    return @intFromFloat(
+        ord_continuous*@as(f32, @floatFromInt(self.sample_rate_hz))
+    );
+}
+
 /// a set of samples and the parameters of those samples
 const Sampling = struct {
     allocator: std.mem.Allocator,
