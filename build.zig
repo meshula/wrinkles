@@ -662,6 +662,7 @@ pub fn build(
                 .{ .name = "curve", .module = curve },
                 .{ .name = "time_topology", .module = time_topology },
                 .{ .name = "treecode", .module = treecode },
+                .{ .name = "sampling", .module = sampling },
             },
             .test_filter = options.test_filter,
         }
