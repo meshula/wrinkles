@@ -2570,22 +2570,28 @@ test "test spaces list"
     );
 }
 
-test "otio proj. sampling track/clip 24hz discretely sampled noninterpolating"
+test "otio projection: track with single clip"
 {
     var tr = Track.init(std.testing.allocator);
     defer tr.deinit();
 
-    const start_seconds:f32 = 1;
-    const end_seconds:f32 = 10;
+    // media is 9 seconds long and runs at 4 hz.
+    const media_source_range = opentime.ContinuousTimeInterval{
+        .start_seconds = 1,
+        .end_seconds = 10,
+    };
+    const media_discrete_info = (
+        sampling.DiscreteDatasourceIndexGenerator{
+            .sample_rate_hz = 4,
+            .start_index = 0,
+        }
+    );
 
-    // @TODO: how do we say this clip has a 24hz sampling rate
+    // construct the clip and add it to the track
     const cl = Clip {
-        .source_range = .{
-            .start_seconds = start_seconds,
-            .end_seconds = end_seconds 
-        },
+        .source_range = media_source_range,
         .discrete_info = .{
-            .media = .{ .sample_rate_hz = 4 },
+            .media = media_discrete_info 
         },
     };
     try tr.append(.{ .clip = cl });
@@ -2614,56 +2620,78 @@ test "otio proj. sampling track/clip 24hz discretely sampled noninterpolating"
         )
     );
 
-    // continuous time projection to the continuous intrinsic space
-    // for continuous or interpolated samples, this is the only allowed
-    // operation
-    try expectApproxEqAbs(
-        4,
-        try track_to_media.project_instantaneous_cc(3),
-        util.EPSILON,
-    );
+    // instantaneous projectoin tests
+    {
+        // continuous time projection to the continuous intrinsic space for
+        // continuous or interpolated samples
+        try expectApproxEqAbs(
+            4,
+            try track_to_media.project_instantaneous_cc(3),
+            util.EPSILON,
+        );
 
-    // for discrete non-interpolated data sources, allow projection to a
-    // discrete index space
-    try expectEqual(
-        // ??? - can't be prescriptive about how data sources are indexed, ie
-        // paths to EXR frames or something
-        (3 + 1) * 4,
-        try track_to_media.project_instantaneous_cd(3),
-    );
+        // for discrete non-interpolated data sources, allow projection to a
+        // discrete index space
+        try expectEqual(
+            // ??? - can't be prescriptive about how data sources are indexed, ie
+            // paths to EXR frames or something
+            (3 + 1) * 4,
+            try track_to_media.project_instantaneous_cd(3),
+        );
+    }
 
-    // ?
-    const expected = [_]usize{ 0, 1, 2 };
-
-    const result_range = try track_to_media.project_range_cd(
-        std.testing.allocator,
-        opentime.ContinuousTimeInterval{
+    // range projection tests
+    {
+        const test_range = opentime.ContinuousTimeInterval{
             .start_seconds = 3.5,
             .end_seconds = 4.5,
-        },
-    );
-    defer std.testing.allocator.free(result_range);
+        };
 
-    try std.testing.expectEqualSlices(
-        usize,
-        &expected,
-        result_range,
-    );
+        const start_index = try track_to_media.project_instantaneous_cd(
+            test_range.start_seconds
+        );
+        const end_index = try track_to_media.project_instantaneous_cd(
+            test_range.end_seconds
+        );
+
+        errdefer std.debug.print(
+            "start: {d} end: {d}\n",
+            .{ start_index, end_index }
+        );
+
+        //                                   3.5s + 1s
+        const expected = [_]usize{ 18, 19, 20, 21 };
+
+        const result_range = try track_to_media.project_range_cd(
+            std.testing.allocator,
+            opentime.ContinuousTimeInterval{
+                .start_seconds = 3.5,
+                .end_seconds = 4.5,
+            },
+        );
+        defer std.testing.allocator.free(result_range);
+
+        try std.testing.expectEqualSlices(
+            usize,
+            &expected,
+            result_range,
+        );
+    }
 
     if (true) {
         return error.NotImplemented;
     }
 
-    const track_samples = tr.sampling();
-
-    try std.testing.expectEqualSlices(
-        usize,
-        &expected,
-        // would return indices? sample addresses? from the data source
-        try track_to_media.project_sampling_dd(
-            track_samples
-        ),
-    );
+    // const track_samples = tr.sampling();
+    //
+    // try std.testing.expectEqualSlices(
+    //     usize,
+    //     &expected,
+    //     // would return indices? sample addresses? from the data source
+    //     try track_to_media.project_sampling_dd(
+    //         track_samples
+    //     ),
+    // );
 
 
     return error.NotImplemented;
