@@ -735,6 +735,7 @@ const ProjectionOperator = struct {
                 topology_in_source
             )
         );
+        defer range_in_destination.deinit(allocator);
         
         // sample... something?  or should we only allow discrete->discrete for
         // ranges?
@@ -745,6 +746,7 @@ const ProjectionOperator = struct {
                 self.args.destination.label,
             )
         );
+        defer sampling_topology.deinit(allocator);
         
         // // I _Think_ we build a topology that represents the sampling from the
         // // destination space to the discrete space
@@ -761,6 +763,7 @@ const ProjectionOperator = struct {
                 range_in_destination
             )
         );
+        defer range_in_step_function.deinit(allocator);
 
         const maybe_discrete_info = (
             try self.args.destination.item.discrete_info_for_space(
@@ -774,6 +777,7 @@ const ProjectionOperator = struct {
         var result_buffer = (
             std.ArrayList(usize).init(allocator)
         );
+        defer result_buffer.deinit();
 
         const topo_extents = (
             range_in_step_function.bounds()
@@ -2598,7 +2602,6 @@ test "otio proj. sampling track/clip 24hz discretely sampled noninterpolating"
     try tr.append(.{ .clip = cl });
     const tr_ptr : ItemPtr = .{ .track_ptr = &tr };
     const cl_ptr = tr.child_ptr_from_index(0);
-
 
     const map = try build_topological_map(
         std.testing.allocator,
