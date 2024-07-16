@@ -716,7 +716,7 @@ const ProjectionOperator = struct {
         range_in_source: opentime.ContinuousTimeInterval,
     ) ![]usize
     {
-        // build a topology over the range
+        // build a topology over the range in the source space
         const topology_in_source = (
             time_topology.TimeTopology.init_identity(
                 .{ 
@@ -725,10 +725,7 @@ const ProjectionOperator = struct {
             )
         );
 
-        // @TODO: nick... what should this do?
-        // does this even make sense?  I'm not sure what I should be sampling
-        // here.
-
+        // project the source range into the destination space
         const range_in_destination = (
             try self.topology.project_topology(
                 allocator,
@@ -737,9 +734,7 @@ const ProjectionOperator = struct {
         );
         defer range_in_destination.deinit(allocator);
         
-        // sample... something?  or should we only allow discrete->discrete for
-        // ranges?
-
+        // build a topology of the sampling in the destination space
         const sampling_topology = (
             try self.args.destination.item.continuous_to_discrete_topology(
                 allocator,
@@ -748,15 +743,7 @@ const ProjectionOperator = struct {
         );
         defer sampling_topology.deinit(allocator);
         
-        // // I _Think_ we build a topology that represents the sampling from the
-        // // destination space to the discrete space
-        // const sampling_topology = time_topology.init_step_mapping();
-
-
-        // @TODO: sample generator approach - have a projectable sample
-        //        generator that can build arbitrary bespoke sample index
-        //        buffers
-
+        // project the range through the continuous->discrete function
         const range_in_step_function = (
             try sampling_topology.project_topology(
                 allocator,
@@ -785,6 +772,8 @@ const ProjectionOperator = struct {
         const duration:f32 = (
             1.0 / @as(f32, @floatFromInt(discrete_info.sample_rate_hz))
         );
+
+        // convert the range in the discrete space to sample indices
         var t = topo_extents.start_seconds;
         while (t < topo_extents.end_seconds)
             : (t += duration)
