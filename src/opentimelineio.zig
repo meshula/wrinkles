@@ -710,6 +710,32 @@ const ProjectionOperator = struct {
         );
     }
 
+    pub fn project_range_cc(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        range_in_source: opentime.ContinuousTimeInterval,
+    ) !time_topology.TimeTopology
+    {
+        // build a topology over the range in the source space
+        const topology_in_source = (
+            time_topology.TimeTopology.init_identity(
+                .{ 
+                    .bounds = range_in_source,
+                }
+            )
+        );
+
+        // project the source range into the destination space
+        const range_in_destination = (
+            try self.topology.project_topology(
+                allocator,
+                topology_in_source
+            )
+        );
+        
+        return range_in_destination;
+    }
+
     pub fn project_range_cd(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -2647,27 +2673,32 @@ test "otio projection: track with single clip"
             .end_seconds = 4.5,
         };
 
-        const start_index = try track_to_media.project_instantaneous_cd(
-            test_range.start_seconds
-        );
-        const end_index = try track_to_media.project_instantaneous_cd(
-            test_range.end_seconds
-        );
+        {
+            const result_range = try track_to_media.project_range_cc(
+                std.testing.allocator,
+                test_range,
+            );
+            defer result_range.deinit(std.testing.allocator);
 
-        errdefer std.debug.print(
-            "start: {d} end: {d}\n",
-            .{ start_index, end_index }
-        );
+            try std.testing.expectApproxEqAbs(
+                4.5,
+                result_range.bounds().start_seconds,
+                util.EPSILON,
+            );
+
+            try std.testing.expectApproxEqAbs(
+                5.5,
+                result_range.bounds().end_seconds,
+                util.EPSILON,
+            );
+        }
 
         //                                   3.5s + 1s
         const expected = [_]usize{ 18, 19, 20, 21 };
 
         const result_range = try track_to_media.project_range_cd(
             std.testing.allocator,
-            opentime.ContinuousTimeInterval{
-                .start_seconds = 3.5,
-                .end_seconds = 4.5,
-            },
+            test_range,
         );
         defer std.testing.allocator.free(result_range);
 
