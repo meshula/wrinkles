@@ -62,7 +62,7 @@ pub const AffineTopology = struct {
     pub fn linearized(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) !curve.TimeCurveLinear 
+    ) !TimeTopology
     {
 
         if (self.bounds.is_infinite()) {
@@ -85,7 +85,11 @@ pub const AffineTopology = struct {
         };
 
         // clone points into the new TimeCurveLinear
-        return curve.TimeCurveLinear.init(allocator, &bound_points);
+        return .{
+            .linear_curve = .{
+                .curve = try curve.TimeCurveLinear.init(allocator, &bound_points)
+            },
+        };
     }
 
     pub fn project_ordinate(
@@ -360,9 +364,13 @@ pub const LinearTopology = struct {
     pub fn linearized(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) !curve.TimeCurveLinear
+    ) !TimeTopology
     {
-        return try self.curve.clone(allocator);
+        return .{ 
+            .linear_curve = .{
+                .curve = try self.curve.clone(allocator)
+            },
+        };
     }
 };
 
@@ -532,9 +540,13 @@ pub const BezierTopology = struct {
     pub fn linearized(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) !curve.TimeCurveLinear
+    ) !TimeTopology
     {
-        return try self.curve.linearized(allocator);
+        return .{
+            .linear_curve = .{ 
+                .curve = try self.curve.linearized(allocator),
+            },
+        };
     }
 };
 
@@ -817,10 +829,14 @@ pub const TimeTopology = union (enum) {
     pub fn linearized(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) !curve.TimeCurveLinear
+    ) !TimeTopology
     {
         return switch (self) {
-            .empty => curve.TimeCurveLinear{},
+            .empty => .{
+                .linear_curve = .{
+                    .curve = curve.TimeCurveLinear{} 
+                } 
+            },
             inline else => |t| try t.linearized(allocator)
         };
     }

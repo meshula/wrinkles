@@ -749,6 +749,8 @@ const ProjectionOperator = struct {
         range_in_source: opentime.ContinuousTimeInterval,
     ) ![]usize
     {
+        const destination = self.args.destination;
+
         // build a topology over the range in the source space
         const range_in_source_c_topo = (
             time_topology.TimeTopology.init_identity(
@@ -769,14 +771,16 @@ const ProjectionOperator = struct {
         );
         defer range_in_destination_c_topo.deinit(allocator);
 
-        const range_in_destination_c_lin_crv = try range_in_destination_c_topo.linearized(allocator);
-        defer range_in_destination_c_lin_crv.deinit(allocator);
+        const range_in_destination_c_lin = (
+            try range_in_destination_c_topo.linearized(allocator)
+        );
+        defer range_in_destination_c_lin.deinit(allocator);
 
         // build a topology of the sampling in the destination space
         const destination_c2d = (
-            try self.args.destination.item.continuous_to_discrete_topology(
+            try destination.item.continuous_to_discrete_topology(
                 allocator,
-                self.args.destination.label,
+                destination.label,
             )
         );
         defer destination_c2d.deinit(allocator);
@@ -786,57 +790,45 @@ const ProjectionOperator = struct {
 
         // project the range through the continuous->discrete function
         const range_in_destination_d = (
-            try range_in_destination_c_lin_crv.project_curve(
+            try range_in_destination_c_lin.project_topology(
                 allocator,
                 destination_c2d_lin,
             )
         );
-        defer {
-            for (range_in_destination_d) 
-                |crv|
-            {
-                crv.deinit(allocator);
-            }
-            allocator.free(range_in_destination_d);
-        }
-
-        // doesn't support getting more than one curve back at the moment
-        if (range_in_destination_d.len > 1) {
-            return error.NotImplemented;
-        }
+        defer range_in_destination_d.deinit(allocator);
 
         const discrete_info = (
-            try self.args.destination.item.discrete_info_for_space(
-                self.args.destination.label
+            try destination.item.discrete_info_for_space(
+                destination.label
             )
         ).?;
 
-        var result_buffer = (
+        var index_buffer_destination_discrete = (
             std.ArrayList(usize).init(allocator)
         );
-        defer result_buffer.deinit();
+        defer index_buffer_destination_discrete.deinit();
 
         const range_in_destination_d_extents = (
-            range_in_destination_d[0].extents()
+            range_in_destination_d.output_bounds()
         );
         const duration:f32 = (
             1.0 / @as(f32, @floatFromInt(discrete_info.sample_rate_hz))
         );
 
         // convert the range in the discrete space to sample indices
-        var t = range_in_destination_d_extents[0].value;
-        while (t < range_in_destination_d_extents[1].value)
+        var t = range_in_destination_d_extents.start_seconds;
+        while (t < range_in_destination_d_extents.end_seconds)
             : (t += duration)
         {
-            try result_buffer.append(
-                try self.args.destination.item.continuous_ordinate_to_discrete_index(
+            try index_buffer_destination_discrete.append(
+                try destination.item.continuous_ordinate_to_discrete_index(
                     t,
-                    self.args.destination.label,
+                    destination.label,
                 )
             );
         }
 
-        return result_buffer.toOwnedSlice();
+        return index_buffer_destination_discrete.toOwnedSlice();
     }
 
 
