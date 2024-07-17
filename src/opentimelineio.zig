@@ -672,15 +672,17 @@ const ProjectionOperator = struct {
 
     // options:
     //  instant
-    //   project_instantaneous_cc
-    //   project_instantaneous_cd
-    //   project_instantaneous_dd
-    //   project_instantaneous_dc
-    //  range
-    //   project_range_cc
-    //   project_range_cd
-    //   project_range_dd
-    //   project_range_dc
+    //   project_instantaneous_cc -> ordinate -> ordinate
+    //   project_instantaneous_cd -> ordinate -> index
+    //  topology-based
+    //   project_index_dd -> index -> index array
+    //   project_index_dc -> index -> topology
+    //   project_range_cc -> range -> topology
+    //   project_range_cd -> range -> index array
+    //   project_topology_cc -> topology -> topology
+    //   project_topology_cd -> topology -> index array
+    //   project_indices_dd -> index array -> index array
+    //   project_indices_dc -> index array -> topology
 
     ///project a continuous ordinate to the continuous destination space
     pub fn project_instantaneous_cc(
@@ -710,6 +712,7 @@ const ProjectionOperator = struct {
         );
     }
 
+    /// project a continuous range into the continuous destination space
     pub fn project_range_cc(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -743,6 +746,7 @@ const ProjectionOperator = struct {
         return range_in_destination;
     }
 
+    /// project a continuous range into the discrete index space
     pub fn project_range_cd(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -770,6 +774,10 @@ const ProjectionOperator = struct {
             )
         );
         defer range_in_destination_c_topo.deinit(allocator);
+
+        // XXX @TODO BARF HACK: current state of the world requires linearizing
+        //                      explicitly here.  Obviously it would be better
+        //                      to not need to do that.
 
         const range_in_destination_c_lin = (
             try range_in_destination_c_topo.linearized(allocator)
