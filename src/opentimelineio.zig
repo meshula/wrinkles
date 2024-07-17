@@ -1,3 +1,9 @@
+//! Slim OpenTimelineIO Reimplementation for testing high level API
+//!
+//! Uses the rest of the wrinkles library to implement high level functions
+//! that might eventually get ported to 'real' OTIO.
+//!
+
 const std = @import("std");
 const expectApproxEqAbs= std.testing.expectApproxEqAbs;
 const expectEqual = std.testing.expectEqual;
