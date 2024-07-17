@@ -814,6 +814,17 @@ pub const TimeTopology = union (enum) {
         };
     }
 
+    pub fn linearized(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) !curve.TimeCurveLinear
+    {
+        return switch (self) {
+            .empty => curve.TimeCurveLinear{},
+            inline else => |t| try t.linearized(allocator)
+        };
+    }
+
     // @{ ERRORS
     pub const ProjectionError = error { OutOfBounds };
     // @}
