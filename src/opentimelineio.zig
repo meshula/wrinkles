@@ -665,7 +665,8 @@ const ProjectionOperatorArgs = struct {
     destination: SpaceReference,
 };
 
-// @TODO: might boil out over time
+/// Combines a source, destination and transformation from the source to the
+/// destination.  Allows continuous and discrete transformations.
 const ProjectionOperator = struct {
     args: ProjectionOperatorArgs,
     topology: time_topology.TimeTopology,
@@ -675,14 +676,17 @@ const ProjectionOperator = struct {
     //   project_instantaneous_cc -> ordinate -> ordinate
     //   project_instantaneous_cd -> ordinate -> index
     //  topology-based
-    //   project_index_dd -> index -> index array
-    //   project_index_dc -> index -> topology
-    //   project_range_cc -> range -> topology
-    //   project_range_cd -> range -> index array
     //   project_topology_cc -> topology -> topology
     //   project_topology_cd -> topology -> index array
-    //   project_indices_dd -> index array -> index array
-    //   project_indices_dc -> index array -> topology
+    //
+    //   derivatives:
+    //
+    //    project_range_cc -> range -> topology
+    //    project_range_cd -> range -> index array
+    //    project_index_dc -> index -> topology
+    //    project_index_dd -> index -> index array
+    //    project_indices_dc -> index array -> topology
+    //    project_indices_dd -> index array -> index array
 
     ///project a continuous ordinate to the continuous destination space
     pub fn project_instantaneous_cc(
@@ -712,6 +716,106 @@ const ProjectionOperator = struct {
         );
     }
 
+    /// project a topology from the continuous source space into the continuous
+    /// destination space
+    pub fn project_topology_cc(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        topology_in_source: time_topology.TimeTopology,
+    ) !time_topology.TimeTopology
+    {
+        // project the source range into the destination space
+        const topology_in_destination = (
+            try self.topology.project_topology(
+                allocator,
+                topology_in_source
+            )
+        );
+        
+        return topology_in_destination;
+    }
+
+    /// project a topology from the continuous source space into the discrete
+    /// destination space
+    pub fn project_topology_cd(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        topology_in_source: time_topology.TimeTopology,
+    ) ![]usize
+    {
+        // project the source range into the destination space
+        const topology_in_destination_c = (
+            try self.project_topology_cc(
+                allocator,
+                topology_in_source
+            )
+        );
+        defer topology_in_destination_c.deinit(allocator);
+
+        // XXX @TODO BARF HACK: current state of the world requires linearizing
+        //                      explicitly here.  Obviously it would be better
+        //                      to not need to do that.
+
+        const topology_in_destination_c_lin = (
+            try topology_in_destination_c.linearized(allocator)
+        );
+        defer topology_in_destination_c_lin.deinit(allocator);
+
+        // build a topology of the sampling in the destination space
+        const destination_c2d = (
+            try self.args.destination.item.continuous_to_discrete_topology(
+                allocator,
+                self.args.destination.label,
+            )
+        );
+        defer destination_c2d.deinit(allocator);
+
+        const destination_c2d_lin = try destination_c2d.linearized(allocator);
+        defer destination_c2d_lin.deinit(allocator);
+
+        // project the range through the continuous->discrete function
+        const range_in_destination_d = (
+            try topology_in_destination_c_lin.project_topology(
+                allocator,
+                destination_c2d_lin,
+            )
+        );
+        defer range_in_destination_d.deinit(allocator);
+
+        const discrete_info = (
+            try self.args.destination.item.discrete_info_for_space(
+                self.args.destination.label
+            )
+        ).?;
+
+        var index_buffer_destination_discrete = (
+            std.ArrayList(usize).init(allocator)
+        );
+        defer index_buffer_destination_discrete.deinit();
+
+        const range_in_destination_d_extents = (
+            range_in_destination_d.output_bounds()
+        );
+        const duration:f32 = (
+            1.0 / @as(f32, @floatFromInt(discrete_info.sample_rate_hz))
+        );
+
+        // convert the range in the discrete space to sample indices
+        var t = range_in_destination_d_extents.start_seconds;
+        while (t < range_in_destination_d_extents.end_seconds)
+            : (t += duration)
+        {
+            try index_buffer_destination_discrete.append(
+                try self.args.destination.item.continuous_ordinate_to_discrete_index(
+                    t,
+                    self.args.destination.label,
+                )
+            );
+        }
+
+        return index_buffer_destination_discrete.toOwnedSlice();
+    }
+
     /// project a continuous range into the continuous destination space
     pub fn project_range_cc(
         self: @This(),
@@ -735,15 +839,10 @@ const ProjectionOperator = struct {
             )
         );
 
-        // project the source range into the destination space
-        const range_in_destination = (
-            try self.topology.project_topology(
-                allocator,
-                topology_in_source
-            )
+        return try self.project_topology_cc(
+            allocator,
+            topology_in_source,
         );
-        
-        return range_in_destination;
     }
 
     /// project a continuous range into the discrete index space
@@ -753,8 +852,6 @@ const ProjectionOperator = struct {
         range_in_source: opentime.ContinuousTimeInterval,
     ) ![]usize
     {
-        const destination = self.args.destination;
-
         // build a topology over the range in the source space
         const range_in_source_c_topo = (
             time_topology.TimeTopology.init_identity(
@@ -764,79 +861,10 @@ const ProjectionOperator = struct {
             )
         );
 
-        const source_c_to_destination_c_topo = self.topology;
-
-        // project the source range into the destination space
-        const range_in_destination_c_topo = (
-            try source_c_to_destination_c_topo.project_topology(
-                allocator,
-                range_in_source_c_topo
-            )
+        return try self.project_topology_cd(
+            allocator,
+            range_in_source_c_topo,
         );
-        defer range_in_destination_c_topo.deinit(allocator);
-
-        // XXX @TODO BARF HACK: current state of the world requires linearizing
-        //                      explicitly here.  Obviously it would be better
-        //                      to not need to do that.
-
-        const range_in_destination_c_lin = (
-            try range_in_destination_c_topo.linearized(allocator)
-        );
-        defer range_in_destination_c_lin.deinit(allocator);
-
-        // build a topology of the sampling in the destination space
-        const destination_c2d = (
-            try destination.item.continuous_to_discrete_topology(
-                allocator,
-                destination.label,
-            )
-        );
-        defer destination_c2d.deinit(allocator);
-
-        const destination_c2d_lin = try destination_c2d.linearized(allocator);
-        defer destination_c2d_lin.deinit(allocator);
-
-        // project the range through the continuous->discrete function
-        const range_in_destination_d = (
-            try range_in_destination_c_lin.project_topology(
-                allocator,
-                destination_c2d_lin,
-            )
-        );
-        defer range_in_destination_d.deinit(allocator);
-
-        const discrete_info = (
-            try destination.item.discrete_info_for_space(
-                destination.label
-            )
-        ).?;
-
-        var index_buffer_destination_discrete = (
-            std.ArrayList(usize).init(allocator)
-        );
-        defer index_buffer_destination_discrete.deinit();
-
-        const range_in_destination_d_extents = (
-            range_in_destination_d.output_bounds()
-        );
-        const duration:f32 = (
-            1.0 / @as(f32, @floatFromInt(discrete_info.sample_rate_hz))
-        );
-
-        // convert the range in the discrete space to sample indices
-        var t = range_in_destination_d_extents.start_seconds;
-        while (t < range_in_destination_d_extents.end_seconds)
-            : (t += duration)
-        {
-            try index_buffer_destination_discrete.append(
-                try destination.item.continuous_ordinate_to_discrete_index(
-                    t,
-                    destination.label,
-                )
-            );
-        }
-
-        return index_buffer_destination_discrete.toOwnedSlice();
     }
 
 
