@@ -750,7 +750,7 @@ const ProjectionOperator = struct {
     ) ![]usize
     {
         // build a topology over the range in the source space
-        const topology_in_source = (
+        const range_in_source_c_topo = (
             time_topology.TimeTopology.init_identity(
                 .{ 
                     .bounds = range_in_source,
@@ -758,17 +758,19 @@ const ProjectionOperator = struct {
             )
         );
 
+        const source_c_to_destination_c_topo = self.topology;
+
         // project the source range into the destination space
-        const range_in_destination_c = (
-            try self.topology.project_topology(
+        const range_in_destination_c_topo = (
+            try source_c_to_destination_c_topo.project_topology(
                 allocator,
-                topology_in_source
+                range_in_source_c_topo
             )
         );
-        defer range_in_destination_c.deinit(allocator);
+        defer range_in_destination_c_topo.deinit(allocator);
 
-        const tmp_lin_crv = try range_in_destination_c.affine.linearized(allocator);
-        defer tmp_lin_crv.deinit(allocator);
+        const range_in_destination_c_lin_crv = try range_in_destination_c_topo.linearized(allocator);
+        defer range_in_destination_c_lin_crv.deinit(allocator);
 
         // build a topology of the sampling in the destination space
         const destination_c2d = (
@@ -779,29 +781,12 @@ const ProjectionOperator = struct {
         );
         defer destination_c2d.deinit(allocator);
 
-        const destination_c2d_lin = switch (destination_c2d) {
-            .empty => curve.TimeCurveLinear{},
-            inline else => |t| try t.linearized(allocator),
-        };
+        const destination_c2d_lin = try destination_c2d.linearized(allocator);
         defer destination_c2d_lin.deinit(allocator);
 
-        std.debug.print("hello\n", .{});
-        for (destination_c2d_lin.knots, 0..)
-            |k, ind|
-        {
-            std.debug.print(
-                "[{d}] ({d}, {d})\n",
-                .{ 
-                    ind,
-                    k.time,
-                    k.value,
-                },
-            );
-        }
-        
         // project the range through the continuous->discrete function
         const range_in_destination_d = (
-            try tmp_lin_crv.project_curve(
+            try range_in_destination_c_lin_crv.project_curve(
                 allocator,
                 destination_c2d_lin,
             )
@@ -815,32 +800,32 @@ const ProjectionOperator = struct {
             allocator.free(range_in_destination_d);
         }
 
-        const maybe_discrete_info = (
+        // doesn't support getting more than one curve back at the moment
+        if (range_in_destination_d.len > 1) {
+            return error.NotImplemented;
+        }
+
+        const discrete_info = (
             try self.args.destination.item.discrete_info_for_space(
                 self.args.destination.label
             )
-        );
-        const discrete_info = (
-            maybe_discrete_info.?
-        );
+        ).?;
 
         var result_buffer = (
             std.ArrayList(usize).init(allocator)
         );
         defer result_buffer.deinit();
 
-        const crv_extents_discrete = range_in_destination_d[0].extents();
-        const crv_range_discrete:opentime.ContinuousTimeInterval = .{
-            .start_seconds = crv_extents_discrete[0].value,
-            .end_seconds = crv_extents_discrete[1].value,
-        };
+        const range_in_destination_d_extents = (
+            range_in_destination_d[0].extents()
+        );
         const duration:f32 = (
             1.0 / @as(f32, @floatFromInt(discrete_info.sample_rate_hz))
         );
 
         // convert the range in the discrete space to sample indices
-        var t = crv_range_discrete.start_seconds;
-        while (t < crv_range_discrete.end_seconds)
+        var t = range_in_destination_d_extents[0].value;
+        while (t < range_in_destination_d_extents[1].value)
             : (t += duration)
         {
             try result_buffer.append(
