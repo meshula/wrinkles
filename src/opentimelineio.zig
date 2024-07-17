@@ -718,9 +718,16 @@ const ProjectionOperator = struct {
     {
         // build a topology over the range in the source space
         const topology_in_source = (
-            time_topology.TimeTopology.init_identity(
+            time_topology.TimeTopology.init_affine(
                 .{ 
-                    .bounds = range_in_source,
+                    .transform = .{ 
+                        .offset_seconds = range_in_source.start_seconds,
+                        .scale = 1.0,
+                    },
+                    .bounds = .{
+                        .start_seconds = 0,
+                        .end_seconds = range_in_source.duration_seconds(),
+                    },
                 }
             )
         );
@@ -752,31 +759,61 @@ const ProjectionOperator = struct {
         );
 
         // project the source range into the destination space
-        const range_in_destination = (
+        const range_in_destination_c = (
             try self.topology.project_topology(
                 allocator,
                 topology_in_source
             )
         );
-        defer range_in_destination.deinit(allocator);
-        
+        defer range_in_destination_c.deinit(allocator);
+
+        const tmp_lin_crv = try range_in_destination_c.affine.linearized(allocator);
+        defer tmp_lin_crv.deinit(allocator);
+
         // build a topology of the sampling in the destination space
-        const sampling_topology = (
+        const destination_c2d = (
             try self.args.destination.item.continuous_to_discrete_topology(
                 allocator,
                 self.args.destination.label,
             )
         );
-        defer sampling_topology.deinit(allocator);
+        defer destination_c2d.deinit(allocator);
+
+        const destination_c2d_lin = switch (destination_c2d) {
+            .empty => curve.TimeCurveLinear{},
+            inline else => |t| try t.linearized(allocator),
+        };
+        defer destination_c2d_lin.deinit(allocator);
+
+        std.debug.print("hello\n", .{});
+        for (destination_c2d_lin.knots, 0..)
+            |k, ind|
+        {
+            std.debug.print(
+                "[{d}] ({d}, {d})\n",
+                .{ 
+                    ind,
+                    k.time,
+                    k.value,
+                },
+            );
+        }
         
         // project the range through the continuous->discrete function
-        const range_in_step_function = (
-            try sampling_topology.project_topology(
+        const range_in_destination_d = (
+            try tmp_lin_crv.project_curve(
                 allocator,
-                range_in_destination
+                destination_c2d_lin,
             )
         );
-        defer range_in_step_function.deinit(allocator);
+        defer {
+            for (range_in_destination_d) 
+                |crv|
+            {
+                crv.deinit(allocator);
+            }
+            allocator.free(range_in_destination_d);
+        }
 
         const maybe_discrete_info = (
             try self.args.destination.item.discrete_info_for_space(
@@ -792,16 +829,18 @@ const ProjectionOperator = struct {
         );
         defer result_buffer.deinit();
 
-        const topo_extents = (
-            range_in_step_function.input_bounds()
-        );
+        const crv_extents_discrete = range_in_destination_d[0].extents();
+        const crv_range_discrete:opentime.ContinuousTimeInterval = .{
+            .start_seconds = crv_extents_discrete[0].value,
+            .end_seconds = crv_extents_discrete[1].value,
+        };
         const duration:f32 = (
             1.0 / @as(f32, @floatFromInt(discrete_info.sample_rate_hz))
         );
 
         // convert the range in the discrete space to sample indices
-        var t = topo_extents.start_seconds;
-        while (t < topo_extents.end_seconds)
+        var t = crv_range_discrete.start_seconds;
+        while (t < crv_range_discrete.end_seconds)
             : (t += duration)
         {
             try result_buffer.append(
@@ -2306,17 +2345,17 @@ test "Single Clip bezier transform"
         defer clip_output_to_media_proj.deinit(std.testing.allocator);
 
         // note that the clips output space is the curve's input space
-        const output_bounds = (
+        const input_bounds = (
             clip_output_to_media_proj.topology.input_bounds()
         );
         try expectApproxEqAbs(
             curve_bounds_output.start_seconds, 
-            output_bounds.start_seconds,
+            input_bounds.start_seconds,
             util.EPSILON
         );
         try expectApproxEqAbs(
             curve_bounds_output.end_seconds, 
-            output_bounds.end_seconds,
+            input_bounds.end_seconds,
             util.EPSILON
         );
 
@@ -2327,16 +2366,16 @@ test "Single Clip bezier transform"
             )
         );
         defer clip_media_to_output.deinit(std.testing.allocator);
-        const clip_media_to_output_bounds = (
+        const clip_media_to_output_input_bounds = (
             clip_media_to_output.input_bounds()
         );
         try expectApproxEqAbs(
             @as(f32, 100),
-            clip_media_to_output_bounds.start_seconds, util.EPSILON
+            clip_media_to_output_input_bounds.start_seconds, util.EPSILON
         );
         try expectApproxEqAbs(
             @as(f32, 110),
-            clip_media_to_output_bounds.end_seconds, util.EPSILON
+            clip_media_to_output_input_bounds.end_seconds, util.EPSILON
         );
 
         try std.testing.expect(
@@ -2345,8 +2384,8 @@ test "Single Clip bezier transform"
         );
 
         // walk over the output space of the curve
-        const o_s_time = output_bounds.start_seconds;
-        const o_e_time = output_bounds.end_seconds;
+        const o_s_time = input_bounds.start_seconds;
+        const o_e_time = input_bounds.end_seconds;
         var output_time = o_s_time;
         while (output_time < o_e_time) 
             : (output_time += 0.01) 
@@ -2358,7 +2397,7 @@ test "Single Clip bezier transform"
             
             errdefer std.log.err(
         "\nERR1\n  output_time: {d} \n"
-                ++ "  topology output_bounds: {any} \n"
+                ++ "  topology input_bounds: {any} \n"
                 ++ "  topology curve bounds: {any} \n ",
                 .{
                     output_time,
@@ -2381,7 +2420,7 @@ test "Single Clip bezier transform"
                     output_time,
                     computed_output_time,
                     source_range,
-                    output_bounds,
+                    input_bounds,
                 }
             );
 
@@ -2646,13 +2685,13 @@ test "otio projection: track with single clip"
         )
     );
 
-    // instantaneous projectoin tests
+    // instantaneous projection tests
     {
         // continuous time projection to the continuous intrinsic space for
         // continuous or interpolated samples
         try expectApproxEqAbs(
-            4,
-            try track_to_media.project_instantaneous_cc(3),
+            4.5,
+            try track_to_media.project_instantaneous_cc(3.5),
             util.EPSILON,
         );
 
@@ -2668,27 +2707,48 @@ test "otio projection: track with single clip"
 
     // range projection tests
     {
-        const test_range = opentime.ContinuousTimeInterval{
+        const test_range_in_track:opentime.ContinuousTimeInterval = .{
             .start_seconds = 3.5,
             .end_seconds = 4.5,
         };
 
         {
-            const result_range = try track_to_media.project_range_cc(
-                std.testing.allocator,
-                test_range,
+            const result_range_in_media = (
+                try track_to_media.project_range_cc(
+                    std.testing.allocator,
+                    test_range_in_track,
+                )
             );
-            defer result_range.deinit(std.testing.allocator);
+            defer result_range_in_media.deinit(std.testing.allocator);
+
+            const r = try cl.trimmed_range();
+            const b = result_range_in_media.output_bounds();
+            errdefer {
+                std.debug.print(
+                    "clip trimmed range: [{d}, {d})\n",
+                    .{
+                        r.start_seconds,
+                        r.end_seconds,
+                    },
+                );
+                std.debug.print(
+                    "result range: [{d}, {d})\n",
+                    .{
+                        b.start_seconds,
+                        b.end_seconds,
+                    },
+                );
+            }
 
             try std.testing.expectApproxEqAbs(
                 4.5,
-                result_range.bounds().start_seconds,
+                b.start_seconds,
                 util.EPSILON,
             );
 
             try std.testing.expectApproxEqAbs(
                 5.5,
-                result_range.bounds().end_seconds,
+                b.end_seconds,
                 util.EPSILON,
             );
         }
@@ -2698,7 +2758,7 @@ test "otio projection: track with single clip"
 
         const result_range = try track_to_media.project_range_cd(
             std.testing.allocator,
-            test_range,
+            test_range_in_track,
         );
         defer std.testing.allocator.free(result_range);
 
