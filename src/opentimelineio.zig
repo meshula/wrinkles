@@ -2731,6 +2731,7 @@ test "otio projection: track with single clip"
             .end_seconds = 4.5,
         };
 
+        // continuous
         {
             const result_range_in_media = (
                 try track_to_media.project_range_cc(
@@ -2772,37 +2773,22 @@ test "otio projection: track with single clip"
             );
         }
 
-        //                                   3.5s + 1s
-        const expected = [_]usize{ 18, 19, 20, 21 };
+        // discrete
+        {
+            //                                   3.5s + 1s
+            const expected = [_]usize{ 18, 19, 20, 21 };
 
-        const result_range = try track_to_media.project_range_cd(
-            std.testing.allocator,
-            test_range_in_track,
-        );
-        defer std.testing.allocator.free(result_range);
+            const result_media_indices = try track_to_media.project_range_cd(
+                std.testing.allocator,
+                test_range_in_track,
+            );
+            defer std.testing.allocator.free(result_media_indices);
 
-        try std.testing.expectEqualSlices(
-            usize,
-            &expected,
-            result_range,
-        );
+            try std.testing.expectEqualSlices(
+                usize,
+                &expected,
+                result_media_indices,
+            );
+        }
     }
-
-    if (true) {
-        return error.NotImplemented;
-    }
-
-    // const track_samples = tr.sampling();
-    //
-    // try std.testing.expectEqualSlices(
-    //     usize,
-    //     &expected,
-    //     // would return indices? sample addresses? from the data source
-    //     try track_to_media.project_sampling_dd(
-    //         track_samples
-    //     ),
-    // );
-
-
-    return error.NotImplemented;
 }
