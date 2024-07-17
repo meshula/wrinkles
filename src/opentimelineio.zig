@@ -2792,3 +2792,150 @@ test "otio projection: track with single clip"
         }
     }
 }
+
+test "otio projection: track with single clip with transform"
+{
+    var tr = Track.init(std.testing.allocator);
+    defer tr.deinit();
+
+    // media is 9 seconds long and runs at 4 hz.
+    const media_source_range = opentime.ContinuousTimeInterval{
+        .start_seconds = 1,
+        .end_seconds = 10,
+    };
+    const media_discrete_info = (
+        sampling.DiscreteDatasourceIndexGenerator{
+            .sample_rate_hz = 4,
+            .start_index = 0,
+        }
+    );
+
+    var clip_post_transform_to_intrinsic_transform = (
+        time_topology.TimeTopology.init_identity_infinite()
+    );
+    clip_post_transform_to_intrinsic_transform.affine.transform.scale = 2;
+
+    // construct the clip and add it to the track
+    const cl = Clip {
+        .source_range = media_source_range,
+        .discrete_info = .{
+            .media = media_discrete_info 
+        },
+        .transform = clip_post_transform_to_intrinsic_transform,
+    };
+    try tr.append(.{ .clip = cl });
+    const tr_ptr : ItemPtr = .{ .track_ptr = &tr };
+    const cl_ptr = tr.child_ptr_from_index(0);
+
+    const map = try build_topological_map(
+        std.testing.allocator,
+        tr_ptr
+    );
+    defer map.deinit();
+
+    try map.write_dot_graph(
+        std.testing.allocator,
+        "/var/tmp/sampling_test.dot"
+    );
+
+    const track_to_media = (
+        try map.build_projection_operator(
+            std.testing.allocator,
+            .{
+                .source = try tr_ptr.space(SpaceLabel.output),
+                // does the discrete / continuous need to be disambiguated?
+                .destination = try cl_ptr.space(SpaceLabel.media),
+            },
+        )
+    );
+
+    // instantaneous projection tests
+    {
+        // continuous time projection to the continuous intrinsic space for
+        // continuous or interpolated samples
+        try expectApproxEqAbs(
+            // (3.5*2 + 1),
+            8,
+            try track_to_media.project_instantaneous_cc(3.5),
+            util.EPSILON,
+        );
+
+        // for discrete non-interpolated data sources, allow projection to a
+        // discrete index space
+        try expectEqual(
+            // ??? - can't be prescriptive about how data sources are indexed, ie
+            // paths to EXR frames or something
+            (3*2 + 1) * 4,
+            try track_to_media.project_instantaneous_cd(3),
+        );
+    }
+
+    // range projection tests
+    {
+        const test_range_in_track:opentime.ContinuousTimeInterval = .{
+            .start_seconds = 3.5,
+            .end_seconds = 4.5,
+        };
+
+        // continuous
+        {
+            const result_range_in_media = (
+                try track_to_media.project_range_cc(
+                    std.testing.allocator,
+                    test_range_in_track,
+                )
+            );
+            defer result_range_in_media.deinit(std.testing.allocator);
+
+            const r = try cl.trimmed_range();
+            const b = result_range_in_media.output_bounds();
+            errdefer {
+                std.debug.print(
+                    "clip trimmed range: [{d}, {d})\n",
+                    .{
+                        r.start_seconds,
+                        r.end_seconds,
+                    },
+                );
+                std.debug.print(
+                    "result range: [{d}, {d})\n",
+                    .{
+                        b.start_seconds,
+                        b.end_seconds,
+                    },
+                );
+            }
+
+            try std.testing.expectApproxEqAbs(
+                8,
+                b.start_seconds,
+                util.EPSILON,
+            );
+
+            try std.testing.expectApproxEqAbs(
+                // (4.5 * 2 + 1)
+                10,
+                b.end_seconds,
+                util.EPSILON,
+            );
+        }
+
+        // discrete
+        {
+            //                                   (3.5s*2 + 1s)*4
+            const expected = [_]usize{ 32, 33, 34, 35, 36, 37, 38, 39 };
+
+            const result_media_indices = try track_to_media.project_range_cd(
+                std.testing.allocator,
+                test_range_in_track,
+            );
+            defer std.testing.allocator.free(result_media_indices);
+
+            try std.testing.expectEqualSlices(
+                usize,
+                &expected,
+                result_media_indices,
+            );
+        }
+    }
+}
