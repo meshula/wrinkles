@@ -50,6 +50,13 @@ pub const AffineTopology = struct {
         return self.bounds;
     }
 
+    pub fn compute_output_bounds(
+        self: @This(),
+    ) interval.ContinuousTimeInterval 
+    {
+        return self.transform.applied_to_cti(self.bounds);
+    }
+
     /// if possible, convert the topology to a linear topology with a single
     /// line segment
     pub fn linearized(
@@ -264,6 +271,18 @@ pub const LinearTopology = struct {
         };
     }
 
+    pub fn compute_output_bounds(
+        self: @This(),
+    ) interval.ContinuousTimeInterval 
+    {
+        const extents = self.curve.extents();
+
+        return .{
+            .start_seconds = extents[0].value,
+            .end_seconds = extents[1].value,
+        };
+    }
+
     pub fn project_ordinate(
         self: @This(),
         ordinate: Ordinate,
@@ -337,6 +356,14 @@ pub const LinearTopology = struct {
             .empty => .{ .empty = EmptyTopology{} },
         };
     }
+
+    pub fn linearized(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) !curve.TimeCurveLinear
+    {
+        return try self.curve.clone(allocator);
+    }
 };
 
 test "LinearTopology: invert" 
@@ -385,6 +412,18 @@ pub const BezierTopology = struct {
         return .{
             .start_seconds = extents[0].time,
             .end_seconds = extents[1].time,
+        };
+    }
+
+    pub fn compute_output_bounds(
+        self: @This()
+    ) interval.ContinuousTimeInterval 
+    {
+        const extents = self.curve.extents();
+
+        return .{
+            .start_seconds = extents[0].value,
+            .end_seconds = extents[1].value,
         };
     }
 
@@ -453,14 +492,14 @@ pub const BezierTopology = struct {
                                  allocator
                              )
                             ).project_curve(
-                            allocator,
-                            lc:{
-                                const result = (
-                                    try bez.curve.linearized(allocator)
-                                );
-                                defer result.deinit(allocator);
-                                break:lc result;
-                            },
+                                allocator,
+                                lc:{
+                                    const result = (
+                                        try bez.curve.linearized(allocator)
+                                    );
+                                    defer result.deinit(allocator);
+                                    break:lc result;
+                                },
                             )
                         )[0]
                     }
@@ -488,6 +527,14 @@ pub const BezierTopology = struct {
                 .empty = EmptyTopology{} 
             },
         };
+    }
+
+    pub fn linearized(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) !curve.TimeCurveLinear
+    {
+        return try self.curve.linearized(allocator);
     }
 };
 
@@ -534,6 +581,9 @@ pub const EmptyTopology = struct {
         return .{ .empty = .{} };
     }
     pub fn compute_input_bounds(_: @This()) interval.ContinuousTimeInterval {
+        return .{ .start_seconds = 0, .end_seconds = 0 };
+    }
+    pub fn compute_output_bounds(_: @This()) interval.ContinuousTimeInterval {
         return .{ .start_seconds = 0, .end_seconds = 0 };
     }
 };
@@ -707,6 +757,16 @@ pub const TimeTopology = union (enum) {
     {
         return switch (self) {
             inline else => |contained| contained.compute_input_bounds(),
+        };
+    }
+
+    /// the bounding interval of the topology in its output space
+    pub fn output_bounds(
+        self: @This(),
+    ) interval.ContinuousTimeInterval 
+    {
+        return switch (self) {
+            inline else => |contained| contained.compute_output_bounds(),
         };
     }
 
