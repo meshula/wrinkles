@@ -43,7 +43,7 @@ pub const AffineTopology = struct {
     bounds: interval.ContinuousTimeInterval = interval.INF_CTI,
     transform: transform.AffineTransform1D =IDENTITY_TRANSFORM, 
 
-    pub fn compute_bounds(
+    pub fn compute_input_bounds(
         self: @This(),
     ) interval.ContinuousTimeInterval 
     {
@@ -252,7 +252,7 @@ pub const LinearTopology = struct {
         self.curve.deinit(allocator);
     }
 
-    pub fn compute_bounds(
+    pub fn compute_input_bounds(
         self: @This(),
     ) interval.ContinuousTimeInterval 
     {
@@ -353,13 +353,13 @@ test "LinearTopology: invert"
         .linear_curve = .{ .curve = crv }
     };
 
-    const topo_bounds = topo.bounds();
+    const topo_bounds = topo.input_bounds();
     try expectEqual(0, topo_bounds.start_seconds);
     try expectEqual(10, topo_bounds.end_seconds);
 
     const topo_inv = try topo.inverted(std.testing.allocator);
     defer topo_inv.deinit(std.testing.allocator);
-    const topo_inv_bounds = topo_inv.bounds();
+    const topo_inv_bounds = topo_inv.input_bounds();
     try expectEqual(10, topo_inv_bounds.start_seconds);
     try expectEqual(20, topo_inv_bounds.end_seconds);
 
@@ -376,7 +376,7 @@ pub const BezierTopology = struct {
         self.curve.deinit(allocator);
     }
 
-    pub fn compute_bounds(
+    pub fn compute_input_bounds(
         self: @This()
     ) interval.ContinuousTimeInterval 
     {
@@ -513,7 +513,7 @@ test "BezierTopology: inverted"
     const curve_topo = TimeTopology.init_bezier_cubic(
         xform_curve
     );
-    const curve_topo_bounds = curve_topo.bounds();
+    const curve_topo_bounds = curve_topo.input_bounds();
     try expectEqual(100, curve_topo_bounds.start_seconds);
     try expectEqual(110, curve_topo_bounds.end_seconds);
     
@@ -521,7 +521,7 @@ test "BezierTopology: inverted"
         std.testing.allocator
     );
     defer curve_topo_inverted.deinit(std.testing.allocator);
-    const topo_inv_bounds = curve_topo_inverted.bounds();
+    const topo_inv_bounds = curve_topo_inverted.input_bounds();
     try expectEqual(0, topo_inv_bounds.start_seconds);
     try expectEqual(10, topo_inv_bounds.end_seconds);
 }
@@ -533,7 +533,7 @@ pub const EmptyTopology = struct {
     pub fn inverted(_: @This()) !TimeTopology {
         return .{ .empty = .{} };
     }
-    pub fn compute_bounds(_: @This()) interval.ContinuousTimeInterval {
+    pub fn compute_input_bounds(_: @This()) interval.ContinuousTimeInterval {
         return .{ .start_seconds = 0, .end_seconds = 0 };
     }
 };
@@ -701,12 +701,12 @@ pub const TimeTopology = union (enum) {
     // @}
 
     /// the bounding interval of the topology in its input space
-    pub fn bounds(
+    pub fn input_bounds(
         self: @This(),
     ) interval.ContinuousTimeInterval 
     {
         return switch (self) {
-            inline else => |contained| contained.compute_bounds(),
+            inline else => |contained| contained.compute_input_bounds(),
         };
     }
 
@@ -770,7 +770,7 @@ test "TimeTopology: finite identity test"
         },
     );
 
-    try expectEqual(tp.bounds().end_seconds, 103);
+    try expectEqual(tp.input_bounds().end_seconds, 103);
 
     // @TODO: this test reveals the question in the end point projection -
     //        should it be an error or not?
@@ -881,18 +881,18 @@ test "TimeTopology: Affine Projected Through inverted Affine"
     };
     try expectApproxEqAbs(
         expected_bounds.start_seconds,
-        tp_inv.bounds().start_seconds,
+        tp_inv.input_bounds().start_seconds,
         util.EPSILON
     );
     try expectApproxEqAbs(
         expected_bounds.end_seconds,
-        tp_inv.bounds().end_seconds,
+        tp_inv.input_bounds().end_seconds,
         util.EPSILON
     );
 
     // projecting ordinates through both should result in the original argument
     var time:Ordinate = 0;
-    const end_point = tp.bounds().end_seconds;
+    const end_point = tp.input_bounds().end_seconds;
     while (time < end_point) 
         : (time += 0.1) 
     {
@@ -932,23 +932,23 @@ test "TimeTopology: Affine Projected Through infinite Affine"
 
     try expectApproxEqAbs(
         expected_bounds.start_seconds,
-        tp_through_tp_inf.bounds().start_seconds,
+        tp_through_tp_inf.input_bounds().start_seconds,
         util.EPSILON
     );
     try expectApproxEqAbs(
         expected_bounds.start_seconds,
-        tp_inf_through_tp.bounds().start_seconds,
+        tp_inf_through_tp.input_bounds().start_seconds,
         util.EPSILON
     );
 
     try expectApproxEqAbs(
         expected_bounds.end_seconds,
-        tp_through_tp_inf.bounds().end_seconds,
+        tp_through_tp_inf.input_bounds().end_seconds,
         util.EPSILON
     );
     try expectApproxEqAbs(
         expected_bounds.end_seconds,
-        tp_inf_through_tp.bounds().end_seconds,
+        tp_inf_through_tp.input_bounds().end_seconds,
         util.EPSILON
     );
 
@@ -1085,7 +1085,7 @@ test "TimeTopology: staircase constructor"
     // evaluate the curve via the external coordinate system
     try expectEqual(
         @as(f32, 20),
-        tp.bounds().end_seconds
+        tp.input_bounds().end_seconds
     );
 
     try expectEqual(

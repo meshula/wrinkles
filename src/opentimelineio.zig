@@ -460,7 +460,7 @@ pub const ItemPtr = union(enum) {
         const discrete_info = maybe_discrete_info.?;
 
         const target_topo = try self.topology();
-        const extents = target_topo.bounds();
+        const extents = target_topo.input_bounds();
 
         return try time_topology.TimeTopology.init_step_mapping(
             allocator,
@@ -572,7 +572,7 @@ pub const Track = struct {
         for (self.children.items) 
             |it| 
         {
-            const it_bound = (try it.topology()).bounds();
+            const it_bound = (try it.topology()).input_bounds();
             if (maybe_bounds) 
                 |b| 
             {
@@ -793,7 +793,7 @@ const ProjectionOperator = struct {
         defer result_buffer.deinit();
 
         const topo_extents = (
-            range_in_step_function.bounds()
+            range_in_step_function.input_bounds()
         );
         const duration:f32 = (
             1.0 / @as(f32, @floatFromInt(discrete_info.sample_rate_hz))
@@ -1513,13 +1513,13 @@ test "clip topology construction"
 
     try expectApproxEqAbs(
         start_seconds,
-        topo.bounds().start_seconds,
+        topo.input_bounds().start_seconds,
         util.EPSILON,
     );
 
     try expectApproxEqAbs(
         end_seconds,
-        topo.bounds().end_seconds,
+        topo.input_bounds().end_seconds,
         util.EPSILON,
     );
 }
@@ -1543,13 +1543,13 @@ test "track topology construction"
 
     try expectApproxEqAbs(
         start_seconds,
-        topo.bounds().start_seconds,
+        topo.input_bounds().start_seconds,
         util.EPSILON,
     );
 
     try expectApproxEqAbs(
         end_seconds,
-        topo.bounds().end_seconds,
+        topo.input_bounds().end_seconds,
         util.EPSILON,
     );
 }
@@ -1789,13 +1789,13 @@ test "Track with clip with identity transform projection"
     // check the bounds
     try expectApproxEqAbs(
         @as(f32, 0),
-        track_to_clip.topology.bounds().start_seconds,
+        track_to_clip.topology.input_bounds().start_seconds,
         util.EPSILON,
     );
 
     try expectApproxEqAbs(
         end_seconds - start_seconds,
-        track_to_clip.topology.bounds().end_seconds,
+        track_to_clip.topology.input_bounds().end_seconds,
         util.EPSILON,
     );
 
@@ -1938,13 +1938,13 @@ test "Projection: Track with single clip with identity transform and bounds"
     // check the bounds
     try expectApproxEqAbs(
         (cl.source_range orelse interval.ContinuousTimeInterval{}).start_seconds,
-        root_output_to_clip_media.topology.bounds().start_seconds,
+        root_output_to_clip_media.topology.input_bounds().start_seconds,
         util.EPSILON,
     );
 
     try expectApproxEqAbs(
         (cl.source_range orelse interval.ContinuousTimeInterval{}).end_seconds,
-        root_output_to_clip_media.topology.bounds().end_seconds,
+        root_output_to_clip_media.topology.input_bounds().end_seconds,
         util.EPSILON,
     );
 
@@ -2038,13 +2038,13 @@ test "Projection: Track with multiple clips with identity transform and bounds"
     // check the bounds
     try expectApproxEqAbs(
         (cl.source_range orelse interval.ContinuousTimeInterval{}).start_seconds,
-        root_output_to_clip_media.topology.bounds().start_seconds,
+        root_output_to_clip_media.topology.input_bounds().start_seconds,
         util.EPSILON,
     );
 
     try expectApproxEqAbs(
         (cl.source_range orelse interval.ContinuousTimeInterval{}).end_seconds,
-        root_output_to_clip_media.topology.bounds().end_seconds,
+        root_output_to_clip_media.topology.input_bounds().end_seconds,
         util.EPSILON,
     );
 
@@ -2103,13 +2103,13 @@ test "Single Clip Media to Output Identity transform"
 
         try expectApproxEqAbs(
             @as(f32,0),
-            clip_output_to_media.topology.bounds().start_seconds,
+            clip_output_to_media.topology.input_bounds().start_seconds,
             util.EPSILON,
         );
 
         try expectApproxEqAbs(
             source_range.duration_seconds(),
-            clip_output_to_media.topology.bounds().end_seconds,
+            clip_output_to_media.topology.input_bounds().end_seconds,
             util.EPSILON,
         );
     }
@@ -2175,13 +2175,13 @@ test "Single Clip reverse transform"
         
         try expectApproxEqAbs(
             start.time,
-            clip_output_to_media_topo.topology.bounds().start_seconds,
+            clip_output_to_media_topo.topology.input_bounds().start_seconds,
             util.EPSILON,
         );
 
         try expectApproxEqAbs(
             end.time,
-            clip_output_to_media_topo.topology.bounds().end_seconds,
+            clip_output_to_media_topo.topology.input_bounds().end_seconds,
             util.EPSILON,
         );
 
@@ -2251,7 +2251,7 @@ test "Single Clip bezier transform"
     );
 
     // test the input space range
-    const curve_bounds_input = curve_topo.bounds();
+    const curve_bounds_input = curve_topo.input_bounds();
     try expectApproxEqAbs(
         @as(f32, 0),
         curve_bounds_input.start_seconds, util.EPSILON
@@ -2307,7 +2307,7 @@ test "Single Clip bezier transform"
 
         // note that the clips output space is the curve's input space
         const output_bounds = (
-            clip_output_to_media_proj.topology.bounds()
+            clip_output_to_media_proj.topology.input_bounds()
         );
         try expectApproxEqAbs(
             curve_bounds_output.start_seconds, 
@@ -2328,7 +2328,7 @@ test "Single Clip bezier transform"
         );
         defer clip_media_to_output.deinit(std.testing.allocator);
         const clip_media_to_output_bounds = (
-            clip_media_to_output.bounds()
+            clip_media_to_output.input_bounds()
         );
         try expectApproxEqAbs(
             @as(f32, 100),
@@ -2362,7 +2362,7 @@ test "Single Clip bezier transform"
                 ++ "  topology curve bounds: {any} \n ",
                 .{
                     output_time,
-                    clip_output_to_media_proj.topology.bounds(),
+                    clip_output_to_media_proj.topology.input_bounds(),
                     clip_output_to_media_proj.topology.bezier_curve.compute_bounds(),
                 }
             );
@@ -2485,7 +2485,7 @@ pub const Stack = struct {
         for (self.children.items) 
             |it| 
         {
-            const it_bound = (try it.topology()).bounds();
+            const it_bound = (try it.topology()).input_bounds();
             if (bounds) 
                 |b| 
             {
