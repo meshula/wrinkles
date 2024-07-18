@@ -247,7 +247,7 @@ test "AffineTopology: linearize"
         );
         try expectEqual(
             a2b_aff.project_ordinate(ord),
-            a2b_lin.evaluate(ord)
+            a2b_lin.linear_curve.curve.evaluate(ord)
         );
     }
 }

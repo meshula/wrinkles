@@ -2421,7 +2421,7 @@ test "Single Clip bezier transform"
                 .{
                     output_time,
                     clip_output_to_media_proj.topology.input_bounds(),
-                    clip_output_to_media_proj.topology.bezier_curve.compute_bounds(),
+                    clip_output_to_media_proj.topology.bezier_curve.compute_input_bounds(),
                 }
             );
 
@@ -2923,7 +2923,9 @@ test "otio projection: track with single clip with transform"
         // discrete
         {
             //                                   (3.5s*2 + 1s)*4
-            const expected = [_]usize{ 32, 33, 34, 35, 36, 37, 38, 39 };
+            const expected = [_]usize{ 
+                32, 33, 34, 35, 36, 37, 38, 39 
+            };
 
             const result_media_indices = try track_to_media.project_range_cd(
                 std.testing.allocator,

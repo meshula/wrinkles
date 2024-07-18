@@ -657,13 +657,11 @@ pub fn retimed_linear_curve_non_interpolating(
         }
     );
 
-    const implicit_to_sample_topo = time_topology.TimeTopology{
-        .linear_curve = .{ 
-            .curve = try implicit_to_sample_topo_aff.affine.linearized(
-                allocator,
-            ),
-        },
-    };
+    const implicit_to_sample_topo = (
+        try implicit_to_sample_topo_aff.affine.linearized(
+            allocator,
+        )        
+    );
     defer implicit_to_sample_topo.deinit(allocator);
 
     // the output bounds are in this topology
