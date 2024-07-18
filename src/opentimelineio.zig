@@ -3070,7 +3070,46 @@ const TreenodeWalkingIterator = struct{
     }
 };
 
-test "TestWalkingIterator"
+test "TestWalkingIterator: clip"
+{
+    // media is 9 seconds long and runs at 4 hz.
+    const media_source_range = opentime.ContinuousTimeInterval{
+        .start_seconds = 1,
+        .end_seconds = 10,
+    };
+
+    // construct the clip and add it to the track
+    const cl = Clip {
+        .source_range = media_source_range,
+    };
+    const cl_ptr = ItemPtr{ .clip_ptr = &cl };
+
+    const map = try build_topological_map(
+        std.testing.allocator,
+        cl_ptr,
+    );
+    defer map.deinit();
+
+    try map.write_dot_graph(std.testing.allocator, "/var/tmp/walk.dot");
+
+    var count:usize = 0;
+
+    var node_iter = try TreenodeWalkingIterator.init(
+        std.testing.allocator,
+        &map,
+    );
+    defer node_iter.deinit();
+
+     while (try node_iter.next() != null)
+     {
+         count += 1;
+     }
+
+     // 5: clip output, clip media
+     try expectEqual(2, count);
+}
+
+test "TestWalkingIterator: track with clip"
 {
     var tr = Track.init(std.testing.allocator);
     defer tr.deinit();
@@ -3080,25 +3119,10 @@ test "TestWalkingIterator"
         .start_seconds = 1,
         .end_seconds = 10,
     };
-    const media_discrete_info = (
-        sampling.DiscreteDatasourceIndexGenerator{
-            .sample_rate_hz = 4,
-            .start_index = 0,
-        }
-    );
-
-    var clip_post_transform_to_intrinsic_transform = (
-        time_topology.TimeTopology.init_identity_infinite()
-    );
-    clip_post_transform_to_intrinsic_transform.affine.transform.scale = 2;
 
     // construct the clip and add it to the track
     const cl = Clip {
         .source_range = media_source_range,
-        .discrete_info = .{
-            .media = media_discrete_info 
-        },
-        .transform = clip_post_transform_to_intrinsic_transform,
     };
     try tr.append(.{ .clip = cl });
     const tr_ptr : ItemPtr = .{ .track_ptr = &tr };
@@ -3128,3 +3152,4 @@ test "TestWalkingIterator"
      // 5: track output, input, child, clip output, clip media
      try expectEqual(5, count);
 }
+
