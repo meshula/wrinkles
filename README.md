@@ -22,8 +22,14 @@ contains:
  * [x]  all tests should pass
  * [x]  confirm that project topology should be b2c.project(a2b) -> a2c
  * [ ]  thread ^ function through opentimelineio demo
-   * [ ]  demo of using OTIO + libsamplerate together
-   * [ ]  and demo of just using OTIO directly to compute frame numbers
+  * [x] implement projections through the TopologicalMap to specific end points
+  * [ ]  and demo of just using OTIO directly to compute frame numbers
+  * [ ]  demo of using OTIO + libsamplerate together
+   * [ ] build mapping of topology + media references that can be handed to
+         libsamplerate
+   * [ ] build a map of an arbitrary slice of the output timeline to
+         references
+
  * [ ] should `resampled` only work for interpolating Samplings?
  * [ ]  time_topology: is projecting the end point an error?  Or not?
         **For context**: for most of the run of the project, we had this return
