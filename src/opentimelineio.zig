@@ -1219,7 +1219,9 @@ const TopologicalMap = struct {
                             .code = left
                         }
                     );
-                } else {
+                } 
+                else 
+                {
                     buf.clearAndFree();
                     try left.to_str(&buf);
 
@@ -1253,7 +1255,14 @@ const TopologicalMap = struct {
                             .{current_label, next_label}
                         )
                     );
-                } else 
+                    try stack.append(
+                        .{
+                            .space = next,
+                            .code = right
+                        }
+                    );
+                } 
+                else 
                 {
                     buf.clearAndFree();
                     try right.to_str(&buf);
@@ -1284,9 +1293,6 @@ const TopologicalMap = struct {
             .{
                 .allocator = std.heap.page_allocator,
                 .argv = &[_][]const u8{
-                    "which",
-                    "dot",
-                    "&&",
                     "dot",
                     "-Tpng",
                     filepath,
@@ -3103,6 +3109,8 @@ test "TestWalkingIterator"
         tr_ptr
     );
     defer map.deinit();
+
+    try map.write_dot_graph(std.testing.allocator, "/var/tmp/walk.dot");
 
     var count:usize = 0;
 
