@@ -1277,28 +1277,46 @@ const TopologicalMap = struct {
         );
         defer allocator.free(pngfilepath);
 
+        // @TODO: gate the png render on if dot is installed
+
         // render to png
         const result = try std.process.Child.run(
             .{
                 .allocator = std.heap.page_allocator,
                 .argv = &[_][]const u8{
+                    "which",
+                    "dot",
+                    "&&",
                     "dot",
                     "-Tpng",
                     filepath,
                     "-o",
                     pngfilepath
-
                 },
             }
         );
         _ = result;
         // std.debug.print("{s}\n", .{result.stdout});
     }
+
+    // pub fn build_projection_operator_map(
+    //     self: @This(),
+    //     allocator: std.mem.Allocator,
+    //     source: SpaceLabel,
+    // ) !ProjectionOperatorMap
+    // {
+    //
+    // }
+};
+
+/// maps a timeline to sets of projection operators, one set per temporal slice
+const ProjectionOperatorMap = struct {
+    operators : []ProjectionOperator,
 };
 
 pub fn path_exists(
     fst: treecode.Treecode,
-    snd: treecode.Treecode
+    snd: treecode.Treecode,
 ) bool 
 {
     return (
@@ -2941,4 +2959,164 @@ test "otio projection: track with single clip with transform"
             );
         }
     }
+}
+
+/// iterator that walks over the graph, returning the node at each step
+const TreenodeWalkingIterator = struct{
+    const Node = struct {
+        space: SpaceReference,
+        code: treecode.Treecode 
+    };
+
+    stack: std.ArrayList(Node),
+    maybe_current: ?Node,
+    maybe_previous: ?Node,
+    map: *const TopologicalMap,
+    allocator: std.mem.Allocator,
+
+    pub fn init(
+        allocator: std.mem.Allocator,
+        map: *const TopologicalMap,
+    ) !TreenodeWalkingIterator
+    {
+        var result = .{
+            .stack = std.ArrayList(Node).init(allocator),
+            .maybe_current = null,
+            .maybe_previous = null,
+            .map = map,
+            .allocator = allocator,
+        };
+        try result.stack.append(
+            .{
+                .space = map.root(),
+                .code = try treecode.Treecode.init_word(
+                    allocator,
+                    0b1,
+                )
+            }
+        );
+
+        return result;
+    }
+
+    pub fn deinit(
+        self: *@This()
+    ) void
+    {
+        if (self.maybe_previous)
+            |n|
+        {
+            n.code.deinit();
+        }
+        if (self.maybe_current)
+            |n|
+        {
+            n.code.deinit();
+        }
+        for (self.stack.items)
+            |n|
+        {
+            n.code.deinit();
+        }
+        self.stack.deinit();
+    }
+
+    pub fn next(
+        self: *@This()
+    ) !?Node 
+    {
+        if (self.stack.items.len == 0) {
+            return null;
+        }
+
+        if (self.maybe_previous)
+            |prev|
+        {
+            prev.code.deinit();
+        }
+        self.maybe_previous = self.maybe_current;
+
+        self.maybe_current = self.stack.pop();
+        const current = self.maybe_current.?;
+
+        for (0..2)
+            |next_step|
+        {
+            var next_code = try current.code.clone();
+            try next_code.append(@intCast(next_step));
+
+            if (self.map.map_code_to_space.get(next_code))
+                |next_node|
+            {
+                try self.stack.append(
+                    .{
+                        .space = next_node,
+                        .code = next_code,
+                    }
+                );
+            }
+            else {
+                next_code.deinit();
+            }
+        }
+
+        return current;
+    }
+};
+
+test "TestWalkingIterator"
+{
+    var tr = Track.init(std.testing.allocator);
+    defer tr.deinit();
+
+    // media is 9 seconds long and runs at 4 hz.
+    const media_source_range = opentime.ContinuousTimeInterval{
+        .start_seconds = 1,
+        .end_seconds = 10,
+    };
+    const media_discrete_info = (
+        sampling.DiscreteDatasourceIndexGenerator{
+            .sample_rate_hz = 4,
+            .start_index = 0,
+        }
+    );
+
+    var clip_post_transform_to_intrinsic_transform = (
+        time_topology.TimeTopology.init_identity_infinite()
+    );
+    clip_post_transform_to_intrinsic_transform.affine.transform.scale = 2;
+
+    // construct the clip and add it to the track
+    const cl = Clip {
+        .source_range = media_source_range,
+        .discrete_info = .{
+            .media = media_discrete_info 
+        },
+        .transform = clip_post_transform_to_intrinsic_transform,
+    };
+    try tr.append(.{ .clip = cl });
+    const tr_ptr : ItemPtr = .{ .track_ptr = &tr };
+    // const cl_ptr = tr.child_ptr_from_index(0);
+
+    const map = try build_topological_map(
+        std.testing.allocator,
+        tr_ptr
+    );
+    defer map.deinit();
+
+    var count:usize = 0;
+
+    var node_iter = try TreenodeWalkingIterator.init(
+        std.testing.allocator,
+        &map,
+    );
+    defer node_iter.deinit();
+
+     while (try node_iter.next() != null)
+     {
+         count += 1;
+     }
+
+     // 5: track output, input, child, clip output, clip media
+     try expectEqual(5, count);
 }

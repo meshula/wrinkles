@@ -164,7 +164,7 @@ pub const Treecode = struct {
         return true;
     }
 
-    // will realloc if needed
+    /// in place append a bit to this treecode. will realloc if needed.
     pub fn append(
         self: *@This(),
         l_or_r_branch: u1
