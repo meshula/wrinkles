@@ -2413,6 +2413,7 @@ test "Single Clip bezier transform"
             const media_time = (
                 try clip_output_to_media_proj.project_ordinate(output_time)
             );
+            const topo = clip_output_to_media_proj.topology;
             
             errdefer std.log.err(
         "\nERR1\n  output_time: {d} \n"
@@ -2420,8 +2421,8 @@ test "Single Clip bezier transform"
                 ++ "  topology curve bounds: {any} \n ",
                 .{
                     output_time,
-                    clip_output_to_media_proj.topology.input_bounds(),
-                    clip_output_to_media_proj.topology.bezier_curve.compute_input_bounds(),
+                    topo.input_bounds(),
+                    topo.bezier_curve.compute_input_bounds(),
                 }
             );
 
