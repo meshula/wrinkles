@@ -1305,20 +1305,175 @@ const TopologicalMap = struct {
         // std.debug.print("{s}\n", .{result.stdout});
     }
 
-    // pub fn build_projection_operator_map(
-    //     self: @This(),
-    //     allocator: std.mem.Allocator,
-    //     source: SpaceLabel,
-    // ) !ProjectionOperatorMap
-    // {
-    //
-    // }
+    /// maps projections to clip.media spaces to regions of whatever space is
+    /// the source space
+    pub fn build_projection_operator_map(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        source: SpaceReference,
+    ) !ProjectionOperatorMap
+    {
+        const node = struct {
+            range: opentime.ContinuousTimeInterval,
+            source_to_media: ProjectionOperator,
+        };
+        const NodeList = std.MultiArrayList(node);
+        var nodes = NodeList{};
+        defer nodes.deinit(allocator);
+
+        var iter = (
+            try TreenodeWalkingIterator.init(allocator, &self)
+        );
+        defer iter.deinit();
+        while (try iter.next())
+        {
+            const current = iter.maybe_current.?;
+
+            // skip all spaces that are not media spaces
+            if (current.space.label != .media) {
+                continue;
+            }
+
+            // if this is a media space, add a mapping
+            const op = try self.build_projection_operator(
+                allocator,
+                .{
+                    .source = source,
+                    .destination = current.space,
+                },
+            );
+            try nodes.append(
+                allocator,
+                .{
+                    .range = op.topology.input_bounds(),
+                    .source_to_media = op,
+                }
+            );
+        }
+
+        // number of end points
+        const range_count = nodes.items(.range).len;
+        const count = range_count + 1;
+        const end_points = try allocator.alloc(f32, count);
+        for (nodes.items(.range), 0..)
+            |r, ind|
+        {
+            end_points[ind] = r.start_seconds;
+        }
+
+        end_points[end_points.len - 1] = (
+            nodes.items(.range)[range_count - 1].end_seconds
+        );
+
+        return ProjectionOperatorMap{
+            .allocator = allocator,
+            .end_points = end_points,
+            .operators = try allocator.dupe(
+                ProjectionOperator,
+                nodes.items(.source_to_media)
+            )
+        };
+    }
 };
 
 /// maps a timeline to sets of projection operators, one set per temporal slice
 const ProjectionOperatorMap = struct {
+    allocator: std.mem.Allocator,
+
+    /// segment endpoints
+    end_points: []f32,
+    /// segment projection operators 
     operators : []ProjectionOperator,
+
+    pub fn deinit(
+        self: @This()
+    ) void
+    {
+        self.allocator.free(self.end_points);
+        for (self.operators)
+            |op|
+        {
+            op.deinit(self.allocator);
+        }
+        self.allocator.free(self.operators);
+    }
 };
+
+test "ProjectionOperatorMap: clip"
+{
+    const cl = Clip {
+        .source_range = .{
+            .start_seconds = 1,
+            .end_seconds = 9 
+        }
+    };
+    const cl_ptr = ItemPtr{ .clip_ptr = &cl };
+
+    const map = try build_topological_map(
+        std.testing.allocator,
+        cl_ptr,
+    );
+    defer map.deinit();
+
+     const projection_operator_map = (
+         try map.build_projection_operator_map(
+             std.testing.allocator,
+             try cl_ptr.space(.output),
+         )
+     );
+     defer projection_operator_map.deinit();
+
+     try expectEqual(1, projection_operator_map.operators.len);
+     try expectEqual(2, projection_operator_map.end_points.len);
+
+     const known_output_to_media = try map.build_projection_operator(
+         std.testing.allocator,
+         .{
+             .source = try cl_ptr.space(.output),
+             .destination = try cl_ptr.space(.media),
+         },
+     );
+     const known_input_bounds = known_output_to_media.topology.input_bounds();
+
+     const guess_output_to_media = projection_operator_map.operators[0];
+     const guess_input_bounds = guess_output_to_media.topology.input_bounds();
+
+     // topology input bounds match
+     try expectApproxEqAbs(
+         known_input_bounds.start_seconds,
+         guess_input_bounds.start_seconds,
+         util.EPSILON
+     );
+     try expectApproxEqAbs(
+         known_input_bounds.end_seconds,
+         guess_input_bounds.end_seconds,
+         util.EPSILON
+     );
+
+     // end points match topology
+     try expectApproxEqAbs(
+         projection_operator_map.end_points[0],
+         guess_input_bounds.start_seconds,
+         util.EPSILON
+     );
+     try expectApproxEqAbs(
+         projection_operator_map.end_points[1],
+         guess_input_bounds.end_seconds,
+         util.EPSILON
+     );
+
+     // known input bounds matches end point
+     try expectApproxEqAbs(
+         known_input_bounds.start_seconds,
+         projection_operator_map.end_points[0],
+         util.EPSILON
+     );
+     try expectApproxEqAbs(
+         known_input_bounds.end_seconds,
+         projection_operator_map.end_points[1],
+         util.EPSILON
+     );
+}
 
 pub fn path_exists(
     fst: treecode.Treecode,
@@ -2666,16 +2821,20 @@ test "test spaces list"
     defer std.testing.allocator.free(spaces);
 
     try expectEqual(
-       SpaceLabel.output, spaces[0].label, 
+       SpaceLabel.output,
+       spaces[0].label, 
     );
     try expectEqual(
-       SpaceLabel.media, spaces[1].label, 
+       SpaceLabel.media,
+       spaces[1].label, 
     );
     try expectEqual(
-       "output", @tagName(SpaceLabel.output)
+       "output",
+       @tagName(SpaceLabel.output),
     );
     try expectEqual(
-       "media", @tagName(SpaceLabel.media),
+       "media",
+       @tagName(SpaceLabel.media),
     );
 }
 
@@ -3005,6 +3164,33 @@ const TreenodeWalkingIterator = struct{
         return result;
     }
 
+    pub fn init_at(
+        allocator: std.mem.Allocator,
+        map: *const TopologicalMap,
+        /// a source in the map to start the map from
+        source: SpaceReference,
+    ) !TreenodeWalkingIterator
+    {
+        var result = .{
+            .stack = std.ArrayList(Node).init(allocator),
+            .maybe_current = null,
+            .maybe_previous = null,
+            .map = map,
+            .allocator = allocator,
+        };
+        try result.stack.append(
+            .{
+                .space = source,
+                .code = try treecode.Treecode.init_word(
+                    allocator,
+                    0b1,
+                )
+            }
+        );
+
+        return result;
+    }
+
     pub fn deinit(
         self: *@This()
     ) void
@@ -3029,10 +3215,10 @@ const TreenodeWalkingIterator = struct{
 
     pub fn next(
         self: *@This()
-    ) !?Node 
+    ) !bool
     {
         if (self.stack.items.len == 0) {
-            return null;
+            return false;
         }
 
         if (self.maybe_previous)
@@ -3066,7 +3252,7 @@ const TreenodeWalkingIterator = struct{
             }
         }
 
-        return current;
+        return self.maybe_current != null;
     }
 };
 
@@ -3078,7 +3264,6 @@ test "TestWalkingIterator: clip"
         .end_seconds = 10,
     };
 
-    // construct the clip and add it to the track
     const cl = Clip {
         .source_range = media_source_range,
     };
@@ -3092,21 +3277,20 @@ test "TestWalkingIterator: clip"
 
     try map.write_dot_graph(std.testing.allocator, "/var/tmp/walk.dot");
 
-    var count:usize = 0;
-
     var node_iter = try TreenodeWalkingIterator.init(
         std.testing.allocator,
         &map,
     );
     defer node_iter.deinit();
 
-     while (try node_iter.next() != null)
-     {
-         count += 1;
-     }
+    var count:usize = 0;
+    while (try node_iter.next())
+    {
+        count += 1;
+    }
 
-     // 5: clip output, clip media
-     try expectEqual(2, count);
+    // 5: clip output, clip media
+    try expectEqual(2, count);
 }
 
 test "TestWalkingIterator: track with clip"
@@ -3144,12 +3328,12 @@ test "TestWalkingIterator: track with clip"
     );
     defer node_iter.deinit();
 
-     while (try node_iter.next() != null)
-     {
-         count += 1;
-     }
+    while (try node_iter.next())
+    {
+        count += 1;
+    }
 
-     // 5: track output, input, child, clip output, clip media
-     try expectEqual(5, count);
+    // 5: track output, input, child, clip output, clip media
+    try expectEqual(5, count);
 }
 
