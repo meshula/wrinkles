@@ -3178,20 +3178,23 @@ const TreenodeWalkingIterator = struct{
         source: SpaceReference,
     ) !TreenodeWalkingIterator
     {
-        var result = .{
+        var result = TreenodeWalkingIterator{
             .stack = std.ArrayList(Node).init(allocator),
             .maybe_current = null,
             .maybe_previous = null,
             .map = map,
             .allocator = allocator,
         };
+
+        const start_code = (
+            map.map_space_to_code.get(source) 
+            orelse return error.NotInMapError
+        );
+
         try result.stack.append(
             .{
                 .space = source,
-                .code = try treecode.Treecode.init_word(
-                    allocator,
-                    0b1,
-                )
+                .code = try start_code.clone(),
             }
         );
 
@@ -3329,18 +3332,42 @@ test "TestWalkingIterator: track with clip"
 
     var count:usize = 0;
 
-    var node_iter = try TreenodeWalkingIterator.init(
-        std.testing.allocator,
-        &map,
-    );
-    defer node_iter.deinit();
-
-    while (try node_iter.next())
+    // from the top
     {
-        count += 1;
+        var node_iter = try TreenodeWalkingIterator.init(
+            std.testing.allocator,
+            &map,
+        );
+        defer node_iter.deinit();
+
+        while (try node_iter.next())
+        {
+            count += 1;
+        }
+
+        // 5: track output, input, child, clip output, clip media
+        try expectEqual(5, count);
     }
 
-    // 5: track output, input, child, clip output, clip media
-    try expectEqual(5, count);
+    // from the clip
+    {
+        const cl_ptr = tr.child_ptr_from_index(0);
+
+        var node_iter = try TreenodeWalkingIterator.init_at(
+            std.testing.allocator,
+            &map,
+            try cl_ptr.space(.output),
+        );
+        defer node_iter.deinit();
+
+        count = 0;
+        while (try node_iter.next())
+        {
+            count += 1;
+        }
+
+        // 2: clip output, clip media
+        try expectEqual(2, count);
+    }
 }
 
