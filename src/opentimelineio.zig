@@ -1305,76 +1305,82 @@ const TopologicalMap = struct {
         // std.debug.print("{s}\n", .{result.stdout});
     }
 
-    /// maps projections to clip.media spaces to regions of whatever space is
-    /// the source space
-    pub fn build_projection_operator_map(
-        self: @This(),
-        allocator: std.mem.Allocator,
-        source: SpaceReference,
-    ) !ProjectionOperatorMap
-    {
-        const node = struct {
-            range: opentime.ContinuousTimeInterval,
-            source_to_media: ProjectionOperator,
-        };
-        const NodeList = std.MultiArrayList(node);
-        var nodes = NodeList{};
-        defer nodes.deinit(allocator);
-
-        var iter = (
-            try TreenodeWalkingIterator.init(allocator, &self)
-        );
-        defer iter.deinit();
-        while (try iter.next())
-        {
-            const current = iter.maybe_current.?;
-
-            // skip all spaces that are not media spaces
-            if (current.space.label != .media) {
-                continue;
-            }
-
-            // if this is a media space, add a mapping
-            const op = try self.build_projection_operator(
-                allocator,
-                .{
-                    .source = source,
-                    .destination = current.space,
-                },
-            );
-            try nodes.append(
-                allocator,
-                .{
-                    .range = op.topology.input_bounds(),
-                    .source_to_media = op,
-                }
-            );
-        }
-
-        // number of end points
-        const range_count = nodes.items(.range).len;
-        const count = range_count + 1;
-        const end_points = try allocator.alloc(f32, count);
-        for (nodes.items(.range), 0..)
-            |r, ind|
-        {
-            end_points[ind] = r.start_seconds;
-        }
-
-        end_points[end_points.len - 1] = (
-            nodes.items(.range)[range_count - 1].end_seconds
-        );
-
-        return ProjectionOperatorMap{
-            .allocator = allocator,
-            .end_points = end_points,
-            .operators = try allocator.dupe(
-                ProjectionOperator,
-                nodes.items(.source_to_media)
-            )
-        };
-    }
 };
+
+/// maps projections to clip.media spaces to regions of whatever space is
+/// the source space
+pub fn build_projection_operator_map(
+    allocator: std.mem.Allocator,
+    topological_map: TopologicalMap,
+    source: SpaceReference,
+) !ProjectionOperatorMap
+{
+    const node = struct {
+        range: opentime.ContinuousTimeInterval,
+        source_to_media: ProjectionOperator,
+    };
+    const NodeList = std.MultiArrayList(node);
+    var nodes = NodeList{};
+    defer nodes.deinit(allocator);
+
+    var iter = (
+        try TreenodeWalkingIterator.init_at(
+            allocator,
+            &topological_map, 
+            source,
+        )
+    );
+    defer iter.deinit();
+
+    while (try iter.next())
+    {
+        const current = iter.maybe_current.?;
+
+        // skip all spaces that are not media spaces
+        if (current.space.label != .media) {
+            continue;
+        }
+
+        // if this is a media space, add a mapping
+        const op = try topological_map.build_projection_operator(
+            allocator,
+            .{
+                .source = source,
+                .destination = current.space,
+            },
+        );
+        try nodes.append(
+            allocator,
+            .{
+                .range = op.topology.input_bounds(),
+                .source_to_media = op,
+            }
+        );
+    }
+
+    // number of end points
+    const range_count = nodes.items(.range).len;
+    const count = range_count + 1;
+    const end_points = try allocator.alloc(f32, count);
+    for (nodes.items(.range), 0..)
+        |r, ind|
+    {
+        end_points[ind] = r.start_seconds;
+    }
+
+    end_points[end_points.len - 1] = (
+        nodes.items(.range)[range_count - 1].end_seconds
+    );
+
+    return ProjectionOperatorMap{
+        .allocator = allocator,
+        .end_points = end_points,
+        .operators = try allocator.dupe(
+            ProjectionOperator,
+            nodes.items(.source_to_media)
+        )
+    };
+}
 
 /// maps a timeline to sets of projection operators, one set per temporal slice
 const ProjectionOperatorMap = struct {
@@ -1416,8 +1422,9 @@ test "ProjectionOperatorMap: clip"
     defer map.deinit();
 
      const projection_operator_map = (
-         try map.build_projection_operator_map(
+         try build_projection_operator_map(
              std.testing.allocator,
+             map,
              try cl_ptr.space(.output),
          )
      );
