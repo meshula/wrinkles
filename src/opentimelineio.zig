@@ -126,46 +126,6 @@ pub const Clip = struct {
             return error.NotImplemented;
         }
     }
-
-    pub fn projection_map_from(
-        _ : @This(),
-        allocator: std.mem.Allocator,
-        topological_map: TopologicalMap,
-        self_item: ItemPtr,
-        source: SpaceReference,
-    ) !ProjectionOperatorMap
-    {
-        // if this is a media space, add a mapping
-        const op = (
-            try topological_map.build_projection_operator(
-                allocator,
-                .{
-                    .source = source,
-                    .destination = (
-                        try self_item.space(.media)
-                    ),
-                },
-            )
-        );
-
-        const operators = (
-            try allocator.alloc(ProjectionOperator, 1)
-        );
-        operators[0] = op;
-
-        const range = op.topology.input_bounds();
-        const end_points = (
-            try allocator.alloc(f32, 2)
-        );
-        end_points[0] = range.start_seconds;
-        end_points[1] = range.end_seconds;
-
-        return .{
-            .allocator = allocator,
-            .end_points = end_points,
-            .operators = operators,
-        };
-    }
 };
 
 pub const Gap = struct {
@@ -940,6 +900,18 @@ const ProjectionOperator = struct {
     {
         self.topology.deinit(allocator);
     }
+
+    /// return true if lhs.topology.input_bounds().start_time < rhs...
+    pub fn less_than_input_space_start_point(
+        lhs: @This(),
+        rhs: @This(),
+    ) bool
+    {
+        return (
+            lhs.topology.input_bounds().start_time 
+            < rhs.topology.input_bounds().start_time
+        );
+    }
 };
 
 /// Topological Map of a Timeline.  Can be used to build projection operators
@@ -1344,25 +1316,16 @@ const TopologicalMap = struct {
         _ = result;
         // std.debug.print("{s}\n", .{result.stdout});
     }
-
 };
 
 /// maps projections to clip.media spaces to regions of whatever space is
 /// the source space
-pub fn build_projection_operator_map(
+pub fn projection_map_to_media_from(
     allocator: std.mem.Allocator,
     topological_map: TopologicalMap,
     source: SpaceReference,
 ) !ProjectionOperatorMap
 {
-    const node = struct {
-        range: opentime.ContinuousTimeInterval,
-        source_to_media: ProjectionOperator,
-    };
-    const NodeList = std.MultiArrayList(node);
-    var nodes = NodeList{};
-    defer nodes.deinit(allocator);
-
     var iter = (
         try TreenodeWalkingIterator.init_at(
             allocator,
@@ -1372,6 +1335,14 @@ pub fn build_projection_operator_map(
     );
     defer iter.deinit();
 
+    var result = ProjectionOperatorMap{
+        .allocator = allocator,
+    };
+
+    var proj_args = ProjectionOperatorArgs{
+        .source = source,
+        .destination = source,
+    };
     while (try iter.next())
     {
         const current = iter.maybe_current.?;
@@ -1381,30 +1352,33 @@ pub fn build_projection_operator_map(
             continue;
         }
 
+        proj_args.destination = current.space;
+
+        const child_op = (
+            try topological_map.build_projection_operator(
+                allocator,
+                proj_args
+            )
+        );
+
+        const child_op_map = (
+            try ProjectionOperatorMap.init_operator(
+                allocator,
+                child_op,
+            )
+        );
+        defer child_op_map.deinit();
+
+        result = try ProjectionOperatorMap.merge_composite(
+            allocator,
+            .{
+                .over = result,
+                .under = child_op_map,
+            }
+        );
     }
 
-    // number of end points
-    const range_count = nodes.items(.range).len;
-    const count = range_count + 1;
-    const end_points = try allocator.alloc(f32, count);
-    for (nodes.items(.range), 0..)
-        |r, ind|
-    {
-        end_points[ind] = r.start_seconds;
-    }
-
-    end_points[end_points.len - 1] = (
-        nodes.items(.range)[range_count - 1].end_seconds
-    );
-
-    return ProjectionOperatorMap{
-        .allocator = allocator,
-        .end_points = end_points,
-        .operators = try allocator.dupe(
-            ProjectionOperator,
-            nodes.items(.source_to_media)
-        )
-    };
+    return result;
 }
 
 /// maps a timeline to sets of projection operators, one set per temporal slice
@@ -1412,9 +1386,30 @@ const ProjectionOperatorMap = struct {
     allocator: std.mem.Allocator,
 
     /// segment endpoints
-    end_points: []f32,
+    end_points: []f32 = &.{},
     /// segment projection operators 
-    operators : []ProjectionOperator,
+    operators : []ProjectionOperator = &.{},
+
+    pub fn init_operator(
+        allocator: std.mem.Allocator,
+        op: ProjectionOperator,
+    ) !ProjectionOperatorMap
+    {
+        const input_bounds = op.topology.input_bounds();
+
+        var end_points = try allocator.alloc(f32, 2);
+        end_points[0] = input_bounds.start_seconds;
+        end_points[1] = input_bounds.end_seconds;
+        
+        var operators = try allocator.alloc(ProjectionOperator, 1);
+        operators[0] = op;
+
+        return .{
+            .allocator = allocator,
+            .end_points = end_points,
+            .operators = operators,
+        };
+    }
 
     pub fn deinit(
         self: @This()
@@ -1427,6 +1422,22 @@ const ProjectionOperatorMap = struct {
             op.deinit(self.allocator);
         }
         self.allocator.free(self.operators);
+    }
+
+    const OverlayArgs = struct{
+        over: ProjectionOperatorMap,
+        under: ProjectionOperatorMap,
+    };
+    pub fn merge_composite(
+        allocator: std.mem.Allocator,
+        args: OverlayArgs
+    ) !ProjectionOperatorMap
+    {
+        return .{
+            .allocator = allocator,
+            .end_points = try allocator.dupe(f32, args.under.end_points),
+            .operators = try allocator.dupe(ProjectionOperator, args.under.operators),
+        };
     }
 };
 
@@ -1456,10 +1467,9 @@ test "ProjectionOperatorMap: clip"
         //     map,
         //     try cl_ptr.space(.output),
         // ),
-        try cl_ptr.clip_ptr.projection_map_from(
+        try projection_map_to_media_from(
             std.testing.allocator,
             map,
-            cl_ptr,
             try cl_ptr.space(.output),
         ),
     };
