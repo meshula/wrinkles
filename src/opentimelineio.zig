@@ -126,6 +126,46 @@ pub const Clip = struct {
             return error.NotImplemented;
         }
     }
+
+    pub fn projection_map_from(
+        _ : @This(),
+        allocator: std.mem.Allocator,
+        topological_map: TopologicalMap,
+        self_item: ItemPtr,
+        source: SpaceReference,
+    ) !ProjectionOperatorMap
+    {
+        // if this is a media space, add a mapping
+        const op = (
+            try topological_map.build_projection_operator(
+                allocator,
+                .{
+                    .source = source,
+                    .destination = (
+                        try self_item.space(.media)
+                    ),
+                },
+            )
+        );
+
+        const operators = (
+            try allocator.alloc(ProjectionOperator, 1)
+        );
+        operators[0] = op;
+
+        const range = op.topology.input_bounds();
+        const end_points = (
+            try allocator.alloc(f32, 2)
+        );
+        end_points[0] = range.start_seconds;
+        end_points[1] = range.end_seconds;
+
+        return .{
+            .allocator = allocator,
+            .end_points = end_points,
+            .operators = operators,
+        };
+    }
 };
 
 pub const Gap = struct {
@@ -1341,21 +1381,6 @@ pub fn build_projection_operator_map(
             continue;
         }
 
-        // if this is a media space, add a mapping
-        const op = try topological_map.build_projection_operator(
-            allocator,
-            .{
-                .source = source,
-                .destination = current.space,
-            },
-        );
-        try nodes.append(
-            allocator,
-            .{
-                .range = op.topology.input_bounds(),
-                .source_to_media = op,
-            }
-        );
     }
 
     // number of end points
@@ -1421,65 +1446,80 @@ test "ProjectionOperatorMap: clip"
     );
     defer map.deinit();
 
-     const projection_operator_map = (
-         try build_projection_operator_map(
-             std.testing.allocator,
-             map,
-             try cl_ptr.space(.output),
-         )
-     );
-     defer projection_operator_map.deinit();
+    const source_space = try cl_ptr.space(.output);
+    const cd =  map.map_space_to_code.get(source_space);
+    _ = cd;
 
-     try expectEqual(1, projection_operator_map.operators.len);
-     try expectEqual(2, projection_operator_map.end_points.len);
+    const test_maps = &[_]ProjectionOperatorMap{
+        // try build_projection_operator_map(
+        //     std.testing.allocator,
+        //     map,
+        //     try cl_ptr.space(.output),
+        // ),
+        try cl_ptr.clip_ptr.projection_map_from(
+            std.testing.allocator,
+            map,
+            cl_ptr,
+            try cl_ptr.space(.output),
+        ),
+    };
 
-     const known_output_to_media = try map.build_projection_operator(
-         std.testing.allocator,
-         .{
-             .source = try cl_ptr.space(.output),
-             .destination = try cl_ptr.space(.media),
-         },
-     );
-     const known_input_bounds = known_output_to_media.topology.input_bounds();
+    for (test_maps)
+        |projection_operator_map|
+    {
+        defer projection_operator_map.deinit();
 
-     const guess_output_to_media = projection_operator_map.operators[0];
-     const guess_input_bounds = guess_output_to_media.topology.input_bounds();
+        try expectEqual(1, projection_operator_map.operators.len);
+        try expectEqual(2, projection_operator_map.end_points.len);
 
-     // topology input bounds match
-     try expectApproxEqAbs(
-         known_input_bounds.start_seconds,
-         guess_input_bounds.start_seconds,
-         util.EPSILON
-     );
-     try expectApproxEqAbs(
-         known_input_bounds.end_seconds,
-         guess_input_bounds.end_seconds,
-         util.EPSILON
-     );
+        const known_output_to_media = try map.build_projection_operator(
+            std.testing.allocator,
+            .{
+                .source = try cl_ptr.space(.output),
+                .destination = try cl_ptr.space(.media),
+            },
+            );
+        const known_input_bounds = known_output_to_media.topology.input_bounds();
 
-     // end points match topology
-     try expectApproxEqAbs(
-         projection_operator_map.end_points[0],
-         guess_input_bounds.start_seconds,
-         util.EPSILON
-     );
-     try expectApproxEqAbs(
-         projection_operator_map.end_points[1],
-         guess_input_bounds.end_seconds,
-         util.EPSILON
-     );
+        const guess_output_to_media = projection_operator_map.operators[0];
+        const guess_input_bounds = guess_output_to_media.topology.input_bounds();
 
-     // known input bounds matches end point
-     try expectApproxEqAbs(
-         known_input_bounds.start_seconds,
-         projection_operator_map.end_points[0],
-         util.EPSILON
-     );
-     try expectApproxEqAbs(
-         known_input_bounds.end_seconds,
-         projection_operator_map.end_points[1],
-         util.EPSILON
-     );
+        // topology input bounds match
+        try expectApproxEqAbs(
+            known_input_bounds.start_seconds,
+            guess_input_bounds.start_seconds,
+            util.EPSILON
+        );
+        try expectApproxEqAbs(
+            known_input_bounds.end_seconds,
+            guess_input_bounds.end_seconds,
+            util.EPSILON
+        );
+
+        // end points match topology
+        try expectApproxEqAbs(
+            projection_operator_map.end_points[0],
+            guess_input_bounds.start_seconds,
+            util.EPSILON
+        );
+        try expectApproxEqAbs(
+            projection_operator_map.end_points[1],
+            guess_input_bounds.end_seconds,
+            util.EPSILON
+        );
+
+        // known input bounds matches end point
+        try expectApproxEqAbs(
+            known_input_bounds.start_seconds,
+            projection_operator_map.end_points[0],
+            util.EPSILON
+        );
+        try expectApproxEqAbs(
+            known_input_bounds.end_seconds,
+            projection_operator_map.end_points[1],
+            util.EPSILON
+        );
+    }
 }
 
 pub fn path_exists(
