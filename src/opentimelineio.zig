@@ -1636,6 +1636,14 @@ const ProjectionOperatorMap = struct {
             );
         }
 
+        if (range.end_seconds > self.end_points[self.end_points.len - 1]) 
+        {
+            try tmp_pts.append(range.end_seconds);
+            try tmp_ops.append(
+                &.{}
+            );
+        }
+
         return .{
             .allocator = allocator,
             .end_points = try tmp_pts.toOwnedSlice(),
@@ -1704,7 +1712,7 @@ const ProjectionOperatorMap = struct {
 
 };
 
-test "ProjectionOperatorMap: merge_composite"
+test "ProjectionOperatorMap: extend_to"
 {
     const cl = Clip {
         .source_range = .{
@@ -1729,7 +1737,7 @@ test "ProjectionOperatorMap: merge_composite"
     );
     defer cl_output_pmap.deinit();
 
-    // extend_to
+    // extend_to no change
     {
         const result = try cl_output_pmap.extend_to(
             std.testing.allocator,
@@ -1750,6 +1758,78 @@ test "ProjectionOperatorMap: merge_composite"
             result.operators.len,
         );
     }
+
+    // add before
+    {
+        const result = try cl_output_pmap.extend_to(
+            std.testing.allocator,
+            .{
+                .start_seconds = -10,
+                .end_seconds = 8,
+            },
+        );
+        defer result.deinit();
+
+        try std.testing.expectEqualSlices(
+            f32,
+            &.{-10, 0, 8},
+            result.end_points,
+        );
+
+        try std.testing.expectEqual(
+            2,
+            result.operators.len,
+        );
+    }
+
+    // add after
+    {
+        const result = try cl_output_pmap.extend_to(
+            std.testing.allocator,
+            .{
+                .start_seconds = 0,
+                .end_seconds = 18,
+            },
+        );
+        defer result.deinit();
+
+        try std.testing.expectEqualSlices(
+            f32,
+            &.{0, 8, 18},
+            result.end_points,
+        );
+
+        try std.testing.expectEqual(
+            2,
+            result.operators.len,
+        );
+    }
+}
+
+test "ProjectionOperatorMap: merge_composite"
+{
+    const cl = Clip {
+        .source_range = .{
+            .start_seconds = 1,
+            .end_seconds = 9 
+        }
+    };
+    const cl_ptr = ItemPtr{ .clip_ptr = &cl };
+
+    const map = try build_topological_map(
+        std.testing.allocator,
+        cl_ptr,
+    );
+    defer map.deinit();
+
+    const cl_output_pmap = (
+        try projection_map_to_media_from(
+            std.testing.allocator,
+            map,
+            try cl_ptr.space(.output),
+        )
+    );
+    defer cl_output_pmap.deinit();
 
     // split_at_each
     {
