@@ -25,6 +25,8 @@ const sampling = @import("sampling");
 
 const otio_json = @import("opentimelineio_json.zig");
 
+pub const Hash = u64;
+
 test {
     _ = otio_json;
 }
@@ -164,7 +166,7 @@ pub const Item = union(enum) {
         return switch (self) {
             .gap => error.NotImplemented,
             .clip => |cl| (try cl.trimmed_range()).duration_seconds(),
-            .track => |tr| try tr.duration(),
+            inline .track, .stack, => |tr| try tr.duration(),
         };
     }
 
@@ -624,28 +626,23 @@ pub const Track = struct {
     }
 
     pub fn transform_to_child(
-        self: @This(),
-        child_space_reference: SpaceReference,
+        _: @This(),
+        dest_child_space_reference: SpaceReference,
     ) !time_topology.TimeTopology 
     {
-        // [child 1][child 2]
-        const child_index = (
-            child_space_reference.child_index 
-            orelse return error.NoChildIndexOnChildSpaceReference
+        const previous_child_offset = (
+            dest_child_space_reference.previous_child_offset 
+            orelse return error.NoPreviousChildOffsetOnSpaceReference
         );
-
-        const child = self.child_ptr_from_index(child_index);
-        const child_range = try child.clip_ptr.trimmed_range();
-        const child_duration = child_range.duration_seconds();
 
         return time_topology.TimeTopology.init_affine(
             .{
                 .bounds = .{
-                    .start_seconds = child_range.start_seconds + child_duration,
-                    .end_seconds = util.inf
+                    .start_seconds = previous_child_offset,
+                    .end_seconds = util.inf,
                 },
                 .transform = .{
-                    .offset_seconds = -child_duration,
+                    .offset_seconds = -previous_child_offset,
                     .scale = 1,
                 }
             }
@@ -664,7 +661,50 @@ pub const SpaceReference = struct {
     item: ItemPtr,
     label: SpaceLabel,
     child_index: ?usize = null,
+    previous_child_offset: ?f32 = null,
+
+    pub fn hash(
+        self: @This()
+    ) Hash 
+    {
+        var hasher = std.hash.Wyhash.init(0);
+
+        std.hash.autoHash(&hasher, self.item);
+        std.hash.autoHash(&hasher, self.label);
+        std.hash.autoHash(&hasher, self.child_index);
+
+        return hasher.final();
+    }
 };
+
+pub fn SpaceReferenceHashMap(
+    comptime V: type
+) type 
+{
+    return std.HashMap(
+        SpaceReference,
+        V,
+        struct{
+            pub fn hash(
+                _: @This(),
+                key: SpaceReference
+            ) u64 
+            {
+                return key.hash();
+            }
+
+            pub fn eql(
+                _:@This(),
+                fst: SpaceReference,
+                snd: SpaceReference
+            ) bool 
+            {
+                return fst.hash() == snd.hash();
+            }
+        },
+        std.hash_map.default_max_load_percentage
+    );
+}
 
 const ProjectionOperatorArgs = struct {
     source: SpaceReference,
@@ -917,10 +957,7 @@ const ProjectionOperator = struct {
 /// Topological Map of a Timeline.  Can be used to build projection operators
 /// to transform between various coordinate spaces within the map.
 const TopologicalMap = struct {
-    map_space_to_code:std.AutoHashMap(
-          SpaceReference,
-          treecode.Treecode,
-    ),
+    map_space_to_code:SpaceReferenceHashMap(treecode.Treecode),
     map_code_to_space:treecode.TreecodeHashMap(SpaceReference),
 
     pub fn init(
@@ -928,8 +965,7 @@ const TopologicalMap = struct {
     ) !TopologicalMap 
     {
         return .{ 
-            .map_space_to_code = std.AutoHashMap(
-                SpaceReference,
+            .map_space_to_code = SpaceReferenceHashMap(
                 treecode.Treecode,
             ).init(allocator),
             .map_code_to_space = treecode.TreecodeHashMap(
@@ -1361,6 +1397,9 @@ pub fn projection_map_to_media_from(
             )
         );
 
+        const new_bounds = child_op.topology.input_bounds();
+        std.debug.print("[{d}, {d})\n", .{ new_bounds.start_seconds, new_bounds.end_seconds });
+
         const child_op_map = (
             try ProjectionOperatorMap.init_operator(
                 allocator,
@@ -1655,53 +1694,73 @@ const ProjectionOperatorMap = struct {
         self: @This(),
         allocator: std.mem.Allocator,
         /// pts should have the same start and end point as self
-        pts: []f32,
+        pts: []const f32,
     ) !ProjectionOperatorMap
     {
         var tmp_pts = std.ArrayList(f32).init(allocator);
         var tmp_ops = std.ArrayList([]ProjectionOperator).init(allocator);
 
-        try tmp_pts.append(self.end_points[0]);
-        try tmp_ops.append(
-            try allocator.dupe(ProjectionOperator, self.operators[0])
-        );
+        var ind_self:usize = 0;
+        var ind_other:usize = 0;
 
-        var current_i:usize = 0;
-        for (self.end_points[0..self.end_points.len - 1], self.operators)
-            |pt, op|
+        var t_next_self = self.end_points[1];
+        var t_next_other = pts[1];
+
+        // append origin
+        try tmp_pts.append(self.end_points[0]);
+
+        while (
+            ind_self < self.end_points.len - 1
+            and ind_other < pts.len - 1 
+        )
         {
-            const current_t = pts[current_i];
+            if (ind_self < self.end_points.len - 1) {
+                t_next_self = self.end_points[ind_self+1];
+            }
+            if (ind_other < pts.len - 1) {
+                t_next_other = pts[ind_other+1];
+            }
+
             try tmp_ops.append(
                 try allocator.dupe(
                     ProjectionOperator,
-                    op,
+                    self.operators[ind_self],
                 )
             );
 
             if (
                 std.math.approxEqAbs(
                     f32,
-                    pt,
-                    current_t,
+                    t_next_self,
+                    t_next_other,
                     util.EPSILON
                 )
             )
             {
-                current_i += 1;
+                try tmp_pts.append(t_next_self);
+                if (ind_self < self.end_points.len - 1) {
+                    ind_self += 1;
+                }
+                if (ind_other < pts.len - 1) {
+                    ind_other += 1;
+                }
                 continue;
             }
 
-            if (pt < current_t)
+            if (t_next_self < t_next_other)
             {
-                try tmp_pts.append(pt);
+                try tmp_pts.append(t_next_self);
+                if (ind_self < self.end_points.len - 1) {
+                    ind_self += 1;
+                }
             }
             else {
-                try tmp_pts.append(current_t);
-                current_i += 1;
+                try tmp_pts.append(t_next_other);
+                if (ind_other < pts.len - 1) {
+                    ind_other += 1;
+                }
             }
         }
-
-        try tmp_pts.append(self.end_points[self.end_points.len - 1]);
 
         return .{
             .allocator = allocator,
@@ -1806,6 +1865,124 @@ test "ProjectionOperatorMap: extend_to"
     }
 }
 
+test "ProjectionOperatorMap: split_at_each"
+{
+    const cl = Clip {
+        .source_range = .{
+            .start_seconds = 1,
+            .end_seconds = 9 
+        }
+    };
+    const cl_ptr = ItemPtr{ .clip_ptr = &cl };
+
+    const map = try build_topological_map(
+        std.testing.allocator,
+        cl_ptr,
+    );
+    defer map.deinit();
+
+    const cl_output_pmap = (
+        try projection_map_to_media_from(
+            std.testing.allocator,
+            map,
+            try cl_ptr.space(.output),
+        )
+    );
+    defer cl_output_pmap.deinit();
+
+    // split_at_each -- no change
+    {
+        const result = try cl_output_pmap.split_at_each(
+            std.testing.allocator,
+            cl_output_pmap.end_points,
+        );
+        defer result.deinit();
+
+        try std.testing.expectEqualSlices(
+            f32,
+            cl_output_pmap.end_points,
+            result.end_points,
+        );
+        try std.testing.expectEqual(
+            cl_output_pmap.operators.len,
+            result.operators.len,
+        );
+    }
+
+    // split_at_each -- end points are same, split in middle
+    {
+        const pts = [_]f32{ 0, 4, 8 };
+
+        const result = try cl_output_pmap.split_at_each(
+            std.testing.allocator,
+            &pts,
+        );
+        defer result.deinit();
+
+        try std.testing.expectEqualSlices(
+            f32,
+            &pts,
+            result.end_points,
+        );
+
+        try std.testing.expectEqual(
+            cl_output_pmap.operators.len + 1,
+            result.operators.len,
+        );
+    }
+
+    // split_at_each -- end points are same, split in middle twice
+    {
+        const pts = [_]f32{ 0, 1, 4, 8 };
+
+        const result = try cl_output_pmap.split_at_each(
+            std.testing.allocator,
+            &pts,
+        );
+        defer result.deinit();
+
+        try std.testing.expectEqualSlices(
+            f32,
+            &pts,
+            result.end_points,
+        );
+
+        try std.testing.expectEqual(
+            3,
+            result.operators.len,
+        );
+    }
+
+    // split_at_each -- end points are same, split offset
+    {
+        const pts1 = [_]f32{ 0, 4, 8 };
+        const pts2 = [_]f32{ 0, 4, 8 };
+
+        const inter = try cl_output_pmap.split_at_each(
+            std.testing.allocator,
+            &pts1,
+        );
+        defer inter.deinit();
+
+        const result = try inter.split_at_each(
+            std.testing.allocator,
+            &pts2,
+        );
+        defer result.deinit();
+
+        try std.testing.expectEqualSlices(
+            f32,
+            &.{0,4,8},
+            result.end_points,
+        );
+
+        try std.testing.expectEqual(
+            2,
+            result.operators.len,
+        );
+    }
+}
+
 test "ProjectionOperatorMap: merge_composite"
 {
     const cl = Clip {
@@ -1831,24 +2008,6 @@ test "ProjectionOperatorMap: merge_composite"
     );
     defer cl_output_pmap.deinit();
 
-    // split_at_each
-    {
-        const result = try cl_output_pmap.split_at_each(
-            std.testing.allocator,
-            cl_output_pmap.end_points,
-        );
-        defer result.deinit();
-
-        try std.testing.expectEqualSlices(
-            f32,
-            cl_output_pmap.end_points,
-            result.end_points,
-        );
-        try std.testing.expectEqual(
-            cl_output_pmap.operators.len + 1,
-            result.operators.len,
-        );
-    }
 
     {
         const result = (
@@ -2045,6 +2204,73 @@ test "ProjectionOperatorMap: track with single clip"
     }
 }
 
+test "transform: track with two clips"
+{
+    var tr = Track.init(std.testing.allocator);
+    defer tr.deinit();
+
+    const cl1 = Clip {
+        .source_range = .{
+            .start_seconds = 1,
+            .end_seconds = 9 
+        }
+    };
+    const cl2 = Clip {
+        .source_range = .{
+            .start_seconds = 1,
+            .end_seconds = 4 
+        }
+    };
+    try tr.append(.{ .clip = cl1 });
+    try tr.append(.{ .clip = cl2 });
+    const tr_ptr = ItemPtr{ .track_ptr = &tr };
+    const cl_ptr = tr.child_ptr_from_index(1);
+
+    const map = try build_topological_map(
+        std.testing.allocator,
+        tr_ptr,
+    );
+    defer map.deinit();
+
+    const source_space = try tr_ptr.space(.output);
+
+    {
+        const child_code = (
+            try treecode.Treecode.init_word(std.testing.allocator, 0b1110)
+        );
+        defer child_code.deinit();
+
+        const child_space = map.map_code_to_space.get(child_code).?;
+        
+        const xform = try tr.transform_to_child(child_space);
+
+        const b = xform.input_bounds();
+
+        try std.testing.expectEqualSlices(
+            f32,
+            &.{8},
+            &.{b.start_seconds},
+        );
+    }
+
+    {
+        const xform = try map.build_projection_operator(
+            std.testing.allocator,
+            .{
+                .source = source_space,
+                .destination = try cl_ptr.space(.media),
+            }
+        );
+        const b = xform.topology.input_bounds();
+
+        try std.testing.expectEqualSlices(
+            f32,
+            &.{8, 11},
+            &.{b.start_seconds, b.end_seconds},
+        );
+    }
+}
+
 test "ProjectionOperatorMap: track with two clips"
 {
     var tr = Track.init(std.testing.allocator);
@@ -2069,77 +2295,72 @@ test "ProjectionOperatorMap: track with two clips"
 
     const source_space = try tr_ptr.space(.output);
 
-    const test_maps = &[_]ProjectionOperatorMap{
-        // try build_projection_operator_map(
-        //     std.testing.allocator,
-        //     map,
-        //     try cl_ptr.space(.output),
-        // ),
+    const p_o_map = (
         try projection_map_to_media_from(
             std.testing.allocator,
             map,
             source_space,
-        ),
-    };
+        )
+    );
 
-    for (test_maps)
-        |p_o_map|
-    {
-        defer p_o_map.deinit();
+    defer p_o_map.deinit();
 
-        try expectEqual(3, p_o_map.end_points.len);
-        try expectEqual(2, p_o_map.operators.len);
+    try std.testing.expectEqualSlices(
+        f32,
+        &.{0,8,16},
+        p_o_map.end_points,
+    );
+    try expectEqual(2, p_o_map.operators.len);
 
-        const known_output_to_media = (
-            try map.build_projection_operator(
-                std.testing.allocator,
-                .{
-                    .source = try tr_ptr.space(.output),
-                    .destination = try cl_ptr.space(.media),
-                },
-            )
-        );
-        const known_input_bounds = known_output_to_media.topology.input_bounds();
+    const known_output_to_media = (
+        try map.build_projection_operator(
+            std.testing.allocator,
+            .{
+                .source = try tr_ptr.space(.output),
+                .destination = try cl_ptr.space(.media),
+            },
+        )
+    );
+    const known_input_bounds = known_output_to_media.topology.input_bounds();
 
-        const guess_output_to_media = p_o_map.operators[0][0];
-        const guess_input_bounds = guess_output_to_media.topology.input_bounds();
+    const guess_output_to_media = p_o_map.operators[0][0];
+    const guess_input_bounds = guess_output_to_media.topology.input_bounds();
 
-        // topology input bounds match
-        try expectApproxEqAbs(
-            known_input_bounds.start_seconds,
-            guess_input_bounds.start_seconds,
-            util.EPSILON
-        );
-        try expectApproxEqAbs(
-            known_input_bounds.end_seconds,
-            guess_input_bounds.end_seconds,
-            util.EPSILON
-        );
+    // topology input bounds match
+    try expectApproxEqAbs(
+        known_input_bounds.start_seconds,
+        guess_input_bounds.start_seconds,
+        util.EPSILON
+    );
+    try expectApproxEqAbs(
+        known_input_bounds.end_seconds,
+        guess_input_bounds.end_seconds,
+        util.EPSILON
+    );
 
-        // end points match topology
-        try expectApproxEqAbs(
-            p_o_map.end_points[0],
-            guess_input_bounds.start_seconds,
-            util.EPSILON
-        );
-        try expectApproxEqAbs(
-            p_o_map.end_points[1],
-            guess_input_bounds.end_seconds,
-            util.EPSILON
-        );
+    // end points match topology
+    try expectApproxEqAbs(
+        p_o_map.end_points[0],
+        guess_input_bounds.start_seconds,
+        util.EPSILON
+    );
+    try expectApproxEqAbs(
+        p_o_map.end_points[1],
+        guess_input_bounds.end_seconds,
+        util.EPSILON
+    );
 
-        // known input bounds matches end point
-        try expectApproxEqAbs(
-            known_input_bounds.start_seconds,
-            p_o_map.end_points[0],
-            util.EPSILON
-        );
-        try expectApproxEqAbs(
-            known_input_bounds.end_seconds,
-            p_o_map.end_points[1],
-            util.EPSILON
-        );
-    }
+    // known input bounds matches end point
+    try expectApproxEqAbs(
+        known_input_bounds.start_seconds,
+        p_o_map.end_points[0],
+        util.EPSILON
+    );
+    try expectApproxEqAbs(
+        known_input_bounds.end_seconds,
+        p_o_map.end_points[1],
+        util.EPSILON
+    );
 }
 
 pub fn path_exists(
@@ -2314,6 +2535,7 @@ pub fn build_topological_map(
             else => &[_]Item{},
         };
 
+        var child_offset:f32 = 0;
         for (children, 0..) 
             |*child, index| 
         {
@@ -2335,6 +2557,12 @@ pub fn build_topological_map(
                 .item = current.object,
                 .label = SpaceLabel.child,
                 .child_index = index,
+                .previous_child_offset = child_offset,
+            };
+
+            child_offset += switch(current.object) {
+                .track_ptr => try child.duration(),
+                    inline else => 0,
             };
 
             if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
@@ -2359,7 +2587,7 @@ pub fn build_topological_map(
                     std.debug.assert(false);
                 }
                 std.debug.print(
-                    "[{d}] code: {b} hash: {d} adding child space: '{s}.{s}.{d}'\n",
+                    "[{d}] code: {b} hash: {d} adding child space: '{s}.{s}.{d}' with offset: {d}\n",
                     .{
                         index,
                         child_space_code.treecode_array[0],
@@ -2367,6 +2595,7 @@ pub fn build_topological_map(
                         @tagName(space_ref.item),
                         @tagName(space_ref.label),
                         space_ref.child_index.?,
+                        space_ref.previous_child_offset.?,
                     }
                 );
             }
@@ -3380,6 +3609,15 @@ pub const Stack = struct {
 
         self.deinit();
     }
+
+    pub fn duration(
+        self: @This(),
+    ) !f32
+    {
+        const t = try self.topology();
+        return t.input_bounds().duration_seconds();
+    }
+
 
     pub fn topology(
         self: @This()
