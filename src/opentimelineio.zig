@@ -2015,7 +2015,6 @@ test "ProjectionOperatorMap: merge_composite"
     );
     defer cl_output_pmap.deinit();
 
-
     {
         const result = (
             try ProjectionOperatorMap.merge_composite(
@@ -2338,10 +2337,14 @@ test "ProjectionOperatorMap: track with two clips"
             },
         )
     );
-    const known_input_bounds = known_output_to_media.topology.input_bounds();
+    const known_input_bounds = (
+        known_output_to_media.topology.input_bounds()
+    );
 
     const guess_output_to_media = p_o_map.operators[1][0];
-    const guess_input_bounds = guess_output_to_media.topology.input_bounds();
+    const guess_input_bounds = (
+        guess_output_to_media.topology.input_bounds()
+    );
 
     // topology input bounds match
     try expectApproxEqAbs(
