@@ -1627,7 +1627,14 @@ const ProjectionOperatorMap = struct {
         }
 
         try tmp_pts.appendSlice(self.end_points);
-        try tmp_ops.appendSlice(self.operators);
+
+        for (self.operators) 
+            |self_ops|
+        {
+            try tmp_ops.append(
+                try allocator.dupe(ProjectionOperator, self_ops)
+            );
+        }
 
         return .{
             .allocator = allocator,
@@ -1647,25 +1654,46 @@ const ProjectionOperatorMap = struct {
         var tmp_ops = std.ArrayList([]ProjectionOperator).init(allocator);
 
         try tmp_pts.append(self.end_points[0]);
-        try tmp_ops.append(self.operators[0]);
-        
-        var current_i:usize = 1;
-        for (pts)
-            |pt|
+        try tmp_ops.append(
+            try allocator.dupe(ProjectionOperator, self.operators[0])
+        );
+
+        var current_i:usize = 0;
+        for (self.end_points[0..self.end_points.len - 1], self.operators)
+            |pt, op|
         {
-            const current_t = self.end_points[current_i];
+            const current_t = pts[current_i];
+            try tmp_ops.append(
+                try allocator.dupe(
+                    ProjectionOperator,
+                    op,
+                )
+            );
+
+            if (
+                std.math.approxEqAbs(
+                    f32,
+                    pt,
+                    current_t,
+                    util.EPSILON
+                )
+            )
+            {
+                current_i += 1;
+                continue;
+            }
 
             if (pt < current_t)
             {
                 try tmp_pts.append(pt);
-                try tmp_ops.append(self.operators[current_i - 1]);
             }
             else {
                 try tmp_pts.append(current_t);
-                try tmp_ops.append(self.operators[current_i - 1]);
                 current_i += 1;
             }
         }
+
+        try tmp_pts.append(self.end_points[self.end_points.len - 1]);
 
         return .{
             .allocator = allocator,
@@ -1675,6 +1703,92 @@ const ProjectionOperatorMap = struct {
     }
 
 };
+
+test "ProjectionOperatorMap: merge_composite"
+{
+    const cl = Clip {
+        .source_range = .{
+            .start_seconds = 1,
+            .end_seconds = 9 
+        }
+    };
+    const cl_ptr = ItemPtr{ .clip_ptr = &cl };
+
+    const map = try build_topological_map(
+        std.testing.allocator,
+        cl_ptr,
+    );
+    defer map.deinit();
+
+    const cl_output_pmap = (
+        try projection_map_to_media_from(
+            std.testing.allocator,
+            map,
+            try cl_ptr.space(.output),
+        )
+    );
+    defer cl_output_pmap.deinit();
+
+    // extend_to
+    {
+        const result = try cl_output_pmap.extend_to(
+            std.testing.allocator,
+            .{
+                .start_seconds = cl_output_pmap.end_points[0],
+                .end_seconds = cl_output_pmap.end_points[1],
+            },
+        );
+        defer result.deinit();
+
+        try std.testing.expectEqualSlices(
+            f32,
+            cl_output_pmap.end_points,
+            result.end_points,
+        );
+        try std.testing.expectEqual(
+            cl_output_pmap.operators.len,
+            result.operators.len,
+        );
+    }
+
+    // split_at_each
+    {
+        const result = try cl_output_pmap.split_at_each(
+            std.testing.allocator,
+            cl_output_pmap.end_points,
+        );
+        defer result.deinit();
+
+        try std.testing.expectEqualSlices(
+            f32,
+            cl_output_pmap.end_points,
+            result.end_points,
+        );
+        try std.testing.expectEqual(
+            cl_output_pmap.operators.len + 1,
+            result.operators.len,
+        );
+    }
+
+    {
+        const result = (
+            try ProjectionOperatorMap.merge_composite(
+                std.testing.allocator,
+                .{
+                    .over = cl_output_pmap,
+                    .under = cl_output_pmap,
+                }
+            )
+        );
+        defer result.deinit();
+
+        try std.testing.expectEqualSlices(
+            f32,
+            cl_output_pmap.end_points,
+            result.end_points,
+        );
+    }
+}
 
 test "ProjectionOperatorMap: clip"
 {
@@ -1889,23 +2003,25 @@ test "ProjectionOperatorMap: track with two clips"
     };
 
     for (test_maps)
-        |projection_operator_map|
+        |p_o_map|
     {
-        defer projection_operator_map.deinit();
+        defer p_o_map.deinit();
 
-        try expectEqual(1, projection_operator_map.operators.len);
-        try expectEqual(2, projection_operator_map.end_points.len);
+        try expectEqual(3, p_o_map.end_points.len);
+        try expectEqual(2, p_o_map.operators.len);
 
-        const known_output_to_media = try map.build_projection_operator(
-            std.testing.allocator,
-            .{
-                .source = try tr_ptr.space(.output),
-                .destination = try cl_ptr.space(.media),
-            },
+        const known_output_to_media = (
+            try map.build_projection_operator(
+                std.testing.allocator,
+                .{
+                    .source = try tr_ptr.space(.output),
+                    .destination = try cl_ptr.space(.media),
+                },
+            )
         );
         const known_input_bounds = known_output_to_media.topology.input_bounds();
 
-        const guess_output_to_media = projection_operator_map.operators[0][0];
+        const guess_output_to_media = p_o_map.operators[0][0];
         const guess_input_bounds = guess_output_to_media.topology.input_bounds();
 
         // topology input bounds match
@@ -1922,12 +2038,12 @@ test "ProjectionOperatorMap: track with two clips"
 
         // end points match topology
         try expectApproxEqAbs(
-            projection_operator_map.end_points[0],
+            p_o_map.end_points[0],
             guess_input_bounds.start_seconds,
             util.EPSILON
         );
         try expectApproxEqAbs(
-            projection_operator_map.end_points[1],
+            p_o_map.end_points[1],
             guess_input_bounds.end_seconds,
             util.EPSILON
         );
@@ -1935,12 +2051,12 @@ test "ProjectionOperatorMap: track with two clips"
         // known input bounds matches end point
         try expectApproxEqAbs(
             known_input_bounds.start_seconds,
-            projection_operator_map.end_points[0],
+            p_o_map.end_points[0],
             util.EPSILON
         );
         try expectApproxEqAbs(
             known_input_bounds.end_seconds,
-            projection_operator_map.end_points[1],
+            p_o_map.end_points[1],
             util.EPSILON
         );
     }
