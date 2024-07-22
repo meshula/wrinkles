@@ -306,9 +306,20 @@ pub const ItemPtr = union(enum) {
     {
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
             std.debug.print(
-                "transform from space: {s}\n",
-                .{ @tagName(from_space) }
+                "    transform from space: {s} to space: {s} ",
+                .{ @tagName(from_space), @tagName(to_space.label) }
             );
+
+            if (to_space.child_index)
+                |ind|
+            {
+                std.debug.print(
+                    " index: {d}",
+                    .{ind}
+                );
+
+            }
+            std.debug.print( "\n", .{});
         }
 
         return switch (self) {
@@ -322,15 +333,18 @@ pub const ItemPtr = union(enum) {
                     ),
                     SpaceLabel.child => {
                         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
-                            std.debug.print("CHILD {b}\n", .{ step});
+                            std.debug.print("     CHILD STEP: {b}\n", .{ step});
                         }
 
+                        // no further transformation INTO the child
                         if (step == 0) {
                             return (
                                 time_topology.TimeTopology.init_identity_infinite()
                             );
                         } 
-                        else {
+                        else 
+                        {
+                            // transform to the next child
                             return try tr.*.transform_to_child(to_space);
                         }
 
@@ -625,24 +639,51 @@ pub const Track = struct {
         return ItemPtr.init_Item(&self.children.items[index]);
     }
 
+    /// builds a transform from the previous child spce to the one passed in the
+    /// child_space_reference
+    ///
+    /// because graphs are constructed:
+    ///         track
+    ///           |
+    ///           child 0
+    ///           |     \
+    /// child 0.output   child 1
+    ///                   |   \
+    ///       child.1.output   child 2
+    ///                         ...
+    ///
+    ///  if called on child space child 1, will make a transform to child
+    ///  space 1 from child space 0
+    /// 
     pub fn transform_to_child(
-        _: @This(),
-        dest_child_space_reference: SpaceReference,
+        self: @This(),
+        // @TODO: this is super confusing for what it does and should be
+        //        renamed
+        child_space_reference: SpaceReference,
     ) !time_topology.TimeTopology 
     {
-        const previous_child_offset = (
-            dest_child_space_reference.previous_child_offset 
-            orelse return error.NoPreviousChildOffsetOnSpaceReference
+        // [child 1][child 2]
+        const child_index = (
+            child_space_reference.child_index 
+            orelse return error.NoChildIndexOnChildSpaceReference
         );
 
+        // XXX should probably check the index before calling this and call this
+        //     with index - 1 rather than have it do the offset here.
+        const child = self.child_ptr_from_index(child_index - 1);
+        const child_range = try child.clip_ptr.trimmed_range();
+        const child_duration = child_range.duration_seconds();
+
+        // the transform to the next child space, compensates for this duration
         return time_topology.TimeTopology.init_affine(
             .{
                 .bounds = .{
-                    .start_seconds = previous_child_offset,
-                    .end_seconds = util.inf,
+                    // .start_seconds = child_range.start_seconds + child_duration,
+                    .start_seconds = child_duration,
+                    .end_seconds = util.inf
                 },
                 .transform = .{
-                    .offset_seconds = -previous_child_offset,
+                    .offset_seconds = -child_duration,
                     .scale = 1,
                 }
             }
@@ -661,50 +702,7 @@ pub const SpaceReference = struct {
     item: ItemPtr,
     label: SpaceLabel,
     child_index: ?usize = null,
-    previous_child_offset: ?f32 = null,
-
-    pub fn hash(
-        self: @This()
-    ) Hash 
-    {
-        var hasher = std.hash.Wyhash.init(0);
-
-        std.hash.autoHash(&hasher, self.item);
-        std.hash.autoHash(&hasher, self.label);
-        std.hash.autoHash(&hasher, self.child_index);
-
-        return hasher.final();
-    }
 };
-
-pub fn SpaceReferenceHashMap(
-    comptime V: type
-) type 
-{
-    return std.HashMap(
-        SpaceReference,
-        V,
-        struct{
-            pub fn hash(
-                _: @This(),
-                key: SpaceReference
-            ) u64 
-            {
-                return key.hash();
-            }
-
-            pub fn eql(
-                _:@This(),
-                fst: SpaceReference,
-                snd: SpaceReference
-            ) bool 
-            {
-                return fst.hash() == snd.hash();
-            }
-        },
-        std.hash_map.default_max_load_percentage
-    );
-}
 
 const ProjectionOperatorArgs = struct {
     source: SpaceReference,
@@ -957,7 +955,10 @@ const ProjectionOperator = struct {
 /// Topological Map of a Timeline.  Can be used to build projection operators
 /// to transform between various coordinate spaces within the map.
 const TopologicalMap = struct {
-    map_space_to_code:SpaceReferenceHashMap(treecode.Treecode),
+    map_space_to_code:std.AutoHashMap(
+          SpaceReference,
+          treecode.Treecode,
+    ),
     map_code_to_space:treecode.TreecodeHashMap(SpaceReference),
 
     pub fn init(
@@ -965,7 +966,8 @@ const TopologicalMap = struct {
     ) !TopologicalMap 
     {
         return .{ 
-            .map_space_to_code = SpaceReferenceHashMap(
+            .map_space_to_code = std.AutoHashMap(
+                SpaceReference,
                 treecode.Treecode,
             ).init(allocator),
             .map_code_to_space = treecode.TreecodeHashMap(
@@ -2233,7 +2235,7 @@ test "transform: track with two clips"
     try tr.append(.{ .clip = cl1 });
     try tr.append(.{ .clip = cl2 });
     const tr_ptr = ItemPtr{ .track_ptr = &tr };
-    const cl_ptr = tr.child_ptr_from_index(1);
+    const cl_ind1_ptr = tr.child_ptr_from_index(1);
 
     const map = try build_topological_map(
         std.testing.allocator,
@@ -2241,7 +2243,7 @@ test "transform: track with two clips"
     );
     defer map.deinit();
 
-    const source_space = try tr_ptr.space(.output);
+    const track_output_space = try tr_ptr.space(.output);
 
     {
         const child_code = (
@@ -2250,7 +2252,7 @@ test "transform: track with two clips"
         defer child_code.deinit();
 
         const child_space = map.map_code_to_space.get(child_code).?;
-        
+
         const xform = try tr.transform_to_child(child_space);
 
         const b = xform.input_bounds();
@@ -2266,15 +2268,21 @@ test "transform: track with two clips"
         const xform = try map.build_projection_operator(
             std.testing.allocator,
             .{
-                .source = source_space,
-                .destination = try cl_ptr.space(.media),
+                .source = track_output_space,
+                .destination = try cl_ind1_ptr.space(.media),
             }
         );
         const b = xform.topology.input_bounds();
 
+        const cl1_range = try cl1.trimmed_range();
+        const cl2_range = try cl2.trimmed_range();
+
         try std.testing.expectEqualSlices(
             f32,
-            &.{8, 11},
+            &.{
+                cl1_range.duration_seconds(),
+                cl1_range.duration_seconds() + cl2_range.duration_seconds() 
+            },
             &.{b.start_seconds, b.end_seconds},
         );
     }
@@ -2532,7 +2540,6 @@ pub fn build_topological_map(
             else => &[_]Item{},
         };
 
-        var child_offset:f32 = 0;
         for (children, 0..) 
             |*child, index| 
         {
@@ -2554,12 +2561,6 @@ pub fn build_topological_map(
                 .item = current.object,
                 .label = SpaceLabel.child,
                 .child_index = index,
-                .previous_child_offset = child_offset,
-            };
-
-            child_offset += switch(current.object) {
-                .track_ptr => try child.duration(),
-                    inline else => 0,
             };
 
             if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
@@ -3105,9 +3106,9 @@ test "Projection: Track with multiple clips with identity transform and bounds"
     try tr.append(.{ .clip = cl });
 
     const TestData = struct {
-        ind: usize,
-        t_ord: f32,
-        m_ord: f32,
+        index: usize,
+        track_ord: f32,
+        expected_ord: f32,
         err: bool
     };
 
@@ -3118,16 +3119,72 @@ test "Projection: Track with multiple clips with identity transform and bounds"
     defer map.deinit();
 
     const tests = [_]TestData{
-        .{ .ind = 1, .t_ord = 3, .m_ord = 1, .err = false},
-        .{ .ind = 0, .t_ord = 1, .m_ord = 1, .err = false },
-        .{ .ind = 2, .t_ord = 5, .m_ord = 1, .err = false },
-        .{ .ind = 0, .t_ord = 7, .m_ord = 1, .err = true },
+        .{ .index = 1, .track_ord = 3, .expected_ord = 1, .err = false},
+        .{ .index = 0, .track_ord = 1, .expected_ord = 1, .err = false },
+        .{ .index = 2, .track_ord = 5, .expected_ord = 1, .err = false },
+        .{ .index = 0, .track_ord = 7, .expected_ord = 1, .err = true },
     };
+
+
+    // check that the child transform is correctly built
+    {
+        const po = try map.build_projection_operator(
+            std.testing.allocator,
+            .{
+                .source = try track_ptr.space(.output),
+                .destination = (
+                    try tr.child_ptr_from_index(2).space(.media)
+                ),
+            }
+        );
+        defer po.deinit(std.testing.allocator);
+
+        const b = po.topology.input_bounds();
+
+        try std.testing.expectEqualSlices(
+            f32,
+            &.{ 4, 6 },
+            &.{ b.start_seconds, b.end_seconds },
+        );
+    }
+
+    const po_map = try projection_map_to_media_from(
+        std.testing.allocator,
+        map,
+        try track_ptr.space(.output),
+    );
+    defer po_map.deinit();
+
+    try expectEqual(
+        3,
+        po_map.operators.len,
+    );
+
+    // 1
+    for (po_map.operators, &[_][2]f32{ .{ 0, 2}, .{ 2, 4 }, .{ 4, 6 } })
+        |ops, expected|
+    {
+        const b = (
+            ops[0].topology.input_bounds()
+        );
+        try std.testing.expectEqualSlices(
+            f32,
+            &expected,
+            &.{ b.start_seconds, b.end_seconds },
+        );
+    }
+
+    try std.testing.expectEqualSlices(
+        f32,
+        &.{ 0, 2, 4, 6},
+        po_map.end_points,
+    );
+
 
     for (tests, 0..) 
         |t, t_i| 
     {
-        const child = tr.child_ptr_from_index(t.ind);
+        const child = tr.child_ptr_from_index(t.index);
 
         const tr_output_to_clip_media = try map.build_projection_operator(
         std.testing.allocator,
@@ -3139,19 +3196,19 @@ test "Projection: Track with multiple clips with identity transform and bounds"
 
         errdefer std.log.err(
             "[{d}] index: {d} track ordinate: {d} expected: {d} error: {any}\n",
-            .{t_i, t.ind, t.t_ord, t.m_ord, t.err}
+            .{t_i, t.index, t.track_ord, t.expected_ord, t.err}
         );
         if (t.err)
         {
             try expectError(
                 time_topology.TimeTopology.ProjectionError.OutOfBounds,
-                tr_output_to_clip_media.project_ordinate(t.t_ord)
+                tr_output_to_clip_media.project_ordinate(t.track_ord)
             );
         }
         else{
-            const result = try tr_output_to_clip_media.project_ordinate(t.t_ord);
+            const result = try tr_output_to_clip_media.project_ordinate(t.track_ord);
 
-            try expectApproxEqAbs(result, t.m_ord, util.EPSILON);
+            try expectApproxEqAbs(result, t.expected_ord, util.EPSILON);
         }
     }
 
