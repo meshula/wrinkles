@@ -1369,6 +1369,9 @@ pub fn projection_map_to_media_from(
         );
         defer child_op_map.deinit();
 
+        const last = result;
+        defer last.deinit();
+
         result = try ProjectionOperatorMap.merge_composite(
             allocator,
             .{
@@ -1381,6 +1384,52 @@ pub fn projection_map_to_media_from(
     return result;
 }
 
+test "ProjectionOperatorMap: init_operator leak test"
+{
+    const cl = Clip{};
+    const cl_ptr = ItemPtr{ .clip_ptr = &cl };
+    const child_op_map = (
+        try ProjectionOperatorMap.init_operator(
+            std.testing.allocator,
+            .{
+                .args = .{
+                    .source = try cl_ptr.space(.output),
+                    .destination = try cl_ptr.space(.media),
+                },
+                .topology = time_topology.TimeTopology.init_empty(),
+            },
+        )
+    );
+    defer child_op_map.deinit();
+
+    const clone = try child_op_map.clone();
+    clone.deinit();
+}
+
+test "ProjectionOperatorMap: projection_map_to_media_from leak test"
+{
+    const cl = Clip {
+        .source_range = .{
+            .start_seconds = 1,
+            .end_seconds = 9 
+        }
+    };
+    const cl_ptr = ItemPtr{ .clip_ptr = &cl };
+
+    const map = try build_topological_map(
+        std.testing.allocator,
+        cl_ptr,
+    );
+    defer map.deinit();
+
+    const m = try projection_map_to_media_from(
+        std.testing.allocator,
+        map,
+        try cl_ptr.space(.output),
+    );
+    defer m.deinit();
+}
+
 /// maps a timeline to sets of projection operators, one set per temporal slice
 const ProjectionOperatorMap = struct {
     allocator: std.mem.Allocator,
@@ -1388,22 +1437,26 @@ const ProjectionOperatorMap = struct {
     /// segment endpoints
     end_points: []f32 = &.{},
     /// segment projection operators 
-    operators : []ProjectionOperator = &.{},
+    operators : [][]ProjectionOperator = &.{},
 
     pub fn init_operator(
         allocator: std.mem.Allocator,
         op: ProjectionOperator,
     ) !ProjectionOperatorMap
     {
+
         const input_bounds = op.topology.input_bounds();
+        const end_points = try allocator.dupe(
+            f32,
+            &.{ input_bounds.start_seconds, input_bounds.end_seconds } 
+        );
 
-        var end_points = try allocator.alloc(f32, 2);
-        end_points[0] = input_bounds.start_seconds;
-        end_points[1] = input_bounds.end_seconds;
+        var operators = try allocator.alloc(
+            []ProjectionOperator,
+            1
+        );
+        operators[0] = try allocator.dupe(ProjectionOperator, &.{ op });
         
-        var operators = try allocator.alloc(ProjectionOperator, 1);
-        operators[0] = op;
-
         return .{
             .allocator = allocator,
             .end_points = end_points,
@@ -1417,9 +1470,14 @@ const ProjectionOperatorMap = struct {
     {
         self.allocator.free(self.end_points);
         for (self.operators)
-            |op|
+            |segment_ops|
         {
-            op.deinit(self.allocator);
+            for (segment_ops)
+                |op|
+            {
+                op.deinit(self.allocator);
+            }
+            self.allocator.free(segment_ops);
         }
         self.allocator.free(self.operators);
     }
@@ -1429,16 +1487,193 @@ const ProjectionOperatorMap = struct {
         under: ProjectionOperatorMap,
     };
     pub fn merge_composite(
-        allocator: std.mem.Allocator,
+        parent_allocator: std.mem.Allocator,
         args: OverlayArgs
     ) !ProjectionOperatorMap
     {
+        if (args.over.is_empty() and args.under.is_empty())
+        {
+            return .{ .allocator = parent_allocator, };
+        }
+        if (args.over.is_empty())
+        {
+            return try args.under.clone();
+        }
+        if (args.under.is_empty())
+        {
+            return try args.over.clone();
+        }
+
+        var arena = std.heap.ArenaAllocator.init(
+            parent_allocator
+        );
+        defer arena.deinit();
+        const arena_allocator = arena.allocator();
+
+        const over = args.over;
+        const undr = args.under;
+
+        const full_range = opentime.ContinuousTimeInterval{
+            .start_seconds = @min(over.end_points[0], undr.end_points[0]),
+            .end_seconds = @max(
+                over.end_points[over.end_points.len - 1],
+                undr.end_points[undr.end_points.len - 1],
+            ),
+        };
+                
+        const over_extended = try over.extend_to(
+            arena_allocator,
+            full_range,
+        );
+        const undr_extended = try undr.extend_to(
+            arena_allocator,
+            full_range,
+        );
+
+        // project all splits from over to undr
+        const over_conformed = try over_extended.split_at_each(
+            arena_allocator,
+            undr_extended.end_points
+        );
+        const undr_conformed = try undr_extended.split_at_each(
+            arena_allocator,
+            over_conformed.end_points
+        );
+
+        var end_points = std.ArrayList(f32).init(
+            parent_allocator,
+        );
+        var operators = std.ArrayList(
+            []ProjectionOperator
+        ).init(parent_allocator);
+
+        var current_segment = (
+            std.ArrayList([]ProjectionOperator).init(arena_allocator)
+        );
+
+        // both end point arrays are the same
+        for (over_conformed.end_points[0..over_conformed.end_points.len - 1], 0..)
+            |p, ind|
+        {
+            try end_points.append(p);
+            try current_segment.append(over_conformed.operators[ind]);
+            try current_segment.append(undr_conformed.operators[ind]);
+        }
+
+        try end_points.append(
+            over_conformed.end_points[over_conformed.end_points.len - 1]
+        );
+
         return .{
-            .allocator = allocator,
-            .end_points = try allocator.dupe(f32, args.under.end_points),
-            .operators = try allocator.dupe(ProjectionOperator, args.under.operators),
+            .allocator = parent_allocator,
+            .end_points  = try end_points.toOwnedSlice(),
+            .operators  = try operators.toOwnedSlice(),
         };
     }
+
+    pub fn is_empty(
+        self: @This(),
+    ) bool
+    {
+        return self.end_points.len == 0 or self.operators.len == 0;
+    }
+
+    pub fn clone(
+        self: @This(),
+    ) !ProjectionOperatorMap
+    {
+        return .{
+            .allocator = self.allocator,
+            .end_points = try self.allocator.dupe(
+                f32,
+                self.end_points
+            ),
+            .operators = ops: {
+                const outer = (
+                    try self.allocator.alloc(
+                        []ProjectionOperator,
+                        self.operators.len,
+                    )
+                );
+                for (outer, self.operators)
+                    |*inner, source|
+                {
+                    inner.* = try self.allocator.dupe(
+                        ProjectionOperator,
+                        source,
+                    );
+                }
+                break :ops outer;
+            }
+        };
+    }
+
+    pub fn extend_to(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        range: opentime.ContinuousTimeInterval,
+    ) !ProjectionOperatorMap
+    {
+        var tmp_pts = std.ArrayList(f32).init(allocator);
+        defer tmp_pts.deinit();
+        var tmp_ops = std.ArrayList([]ProjectionOperator).init(allocator);
+        defer tmp_ops.deinit();
+
+        if (self.end_points[0] > range.start_seconds) {
+            try tmp_pts.append(range.start_seconds);
+            try tmp_ops.append(
+                &.{}
+            );
+        }
+
+        try tmp_pts.appendSlice(self.end_points);
+        try tmp_ops.appendSlice(self.operators);
+
+        return .{
+            .allocator = allocator,
+            .end_points = try tmp_pts.toOwnedSlice(),
+            .operators = try tmp_ops.toOwnedSlice(),
+        };
+    }
+
+    pub fn split_at_each(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        /// pts should have the same start and end point as self
+        pts: []f32,
+    ) !ProjectionOperatorMap
+    {
+        var tmp_pts = std.ArrayList(f32).init(allocator);
+        var tmp_ops = std.ArrayList([]ProjectionOperator).init(allocator);
+
+        try tmp_pts.append(self.end_points[0]);
+        try tmp_ops.append(self.operators[0]);
+        
+        var current_i:usize = 1;
+        for (pts)
+            |pt|
+        {
+            const current_t = self.end_points[current_i];
+
+            if (pt < current_t)
+            {
+                try tmp_pts.append(pt);
+                try tmp_ops.append(self.operators[current_i - 1]);
+            }
+            else {
+                try tmp_pts.append(current_t);
+                try tmp_ops.append(self.operators[current_i - 1]);
+                current_i += 1;
+            }
+        }
+
+        return .{
+            .allocator = allocator,
+            .end_points = try tmp_pts.toOwnedSlice(),
+            .operators = try tmp_ops.toOwnedSlice(),
+        };
+    }
+
 };
 
 test "ProjectionOperatorMap: clip"
@@ -1457,9 +1692,93 @@ test "ProjectionOperatorMap: clip"
     );
     defer map.deinit();
 
-    const source_space = try cl_ptr.space(.output);
-    const cd =  map.map_space_to_code.get(source_space);
-    _ = cd;
+    const cl_output_pmap = (
+        try projection_map_to_media_from(
+            std.testing.allocator,
+            map,
+            try cl_ptr.space(.output),
+        )
+    );
+    defer cl_output_pmap.deinit();
+
+    try expectEqual(1, cl_output_pmap.operators.len);
+    try expectEqual(2, cl_output_pmap.end_points.len);
+
+    const known_output_to_media = (
+        try map.build_projection_operator(
+            std.testing.allocator,
+            .{
+                .source = try cl_ptr.space(.output),
+                .destination = try cl_ptr.space(.media),
+            },
+        )
+    );
+    const known_input_bounds = known_output_to_media.topology.input_bounds();
+
+    const guess_output_to_media = (
+        cl_output_pmap.operators[0][0]
+    );
+    const guess_input_bounds = guess_output_to_media.topology.input_bounds();
+
+    // topology input bounds match
+    try expectApproxEqAbs(
+        known_input_bounds.start_seconds,
+        guess_input_bounds.start_seconds,
+        util.EPSILON
+    );
+    try expectApproxEqAbs(
+        known_input_bounds.end_seconds,
+        guess_input_bounds.end_seconds,
+        util.EPSILON
+    );
+
+    // end points match topology
+    try expectApproxEqAbs(
+        cl_output_pmap.end_points[0],
+        guess_input_bounds.start_seconds,
+        util.EPSILON
+    );
+    try expectApproxEqAbs(
+        cl_output_pmap.end_points[1],
+        guess_input_bounds.end_seconds,
+        util.EPSILON
+    );
+
+    // known input bounds matches end point
+    try expectApproxEqAbs(
+        known_input_bounds.start_seconds,
+        cl_output_pmap.end_points[0],
+        util.EPSILON
+    );
+    try expectApproxEqAbs(
+        known_input_bounds.end_seconds,
+        cl_output_pmap.end_points[1],
+        util.EPSILON
+    );
+}
+
+test "ProjectionOperatorMap: track with single clip"
+{
+    var tr = Track.init(std.testing.allocator);
+    defer tr.deinit();
+
+    const cl = Clip {
+        .source_range = .{
+            .start_seconds = 1,
+            .end_seconds = 9 
+        }
+    };
+    try tr.append(.{ .clip = cl });
+    const tr_ptr = ItemPtr{ .track_ptr = &tr };
+    const cl_ptr = tr.child_ptr_from_index(0);
+
+    const map = try build_topological_map(
+        std.testing.allocator,
+        tr_ptr,
+    );
+    defer map.deinit();
+
+    const source_space = try tr_ptr.space(.output);
 
     const test_maps = &[_]ProjectionOperatorMap{
         // try build_projection_operator_map(
@@ -1470,7 +1789,7 @@ test "ProjectionOperatorMap: clip"
         try projection_map_to_media_from(
             std.testing.allocator,
             map,
-            try cl_ptr.space(.output),
+            source_space,
         ),
     };
 
@@ -1485,13 +1804,108 @@ test "ProjectionOperatorMap: clip"
         const known_output_to_media = try map.build_projection_operator(
             std.testing.allocator,
             .{
-                .source = try cl_ptr.space(.output),
+                .source = try tr_ptr.space(.output),
                 .destination = try cl_ptr.space(.media),
             },
-            );
+        );
         const known_input_bounds = known_output_to_media.topology.input_bounds();
 
-        const guess_output_to_media = projection_operator_map.operators[0];
+        const guess_output_to_media = projection_operator_map.operators[0][0];
+        const guess_input_bounds = guess_output_to_media.topology.input_bounds();
+
+        // topology input bounds match
+        try expectApproxEqAbs(
+            known_input_bounds.start_seconds,
+            guess_input_bounds.start_seconds,
+            util.EPSILON
+        );
+        try expectApproxEqAbs(
+            known_input_bounds.end_seconds,
+            guess_input_bounds.end_seconds,
+            util.EPSILON
+        );
+
+        // end points match topology
+        try expectApproxEqAbs(
+            projection_operator_map.end_points[0],
+            guess_input_bounds.start_seconds,
+            util.EPSILON
+        );
+        try expectApproxEqAbs(
+            projection_operator_map.end_points[1],
+            guess_input_bounds.end_seconds,
+            util.EPSILON
+        );
+
+        // known input bounds matches end point
+        try expectApproxEqAbs(
+            known_input_bounds.start_seconds,
+            projection_operator_map.end_points[0],
+            util.EPSILON
+        );
+        try expectApproxEqAbs(
+            known_input_bounds.end_seconds,
+            projection_operator_map.end_points[1],
+            util.EPSILON
+        );
+    }
+}
+
+test "ProjectionOperatorMap: track with two clips"
+{
+    var tr = Track.init(std.testing.allocator);
+    defer tr.deinit();
+
+    const cl = Clip {
+        .source_range = .{
+            .start_seconds = 1,
+            .end_seconds = 9 
+        }
+    };
+    try tr.append(.{ .clip = cl });
+    try tr.append(.{ .clip = cl });
+    const tr_ptr = ItemPtr{ .track_ptr = &tr };
+    const cl_ptr = tr.child_ptr_from_index(1);
+
+    const map = try build_topological_map(
+        std.testing.allocator,
+        tr_ptr,
+    );
+    defer map.deinit();
+
+    const source_space = try tr_ptr.space(.output);
+
+    const test_maps = &[_]ProjectionOperatorMap{
+        // try build_projection_operator_map(
+        //     std.testing.allocator,
+        //     map,
+        //     try cl_ptr.space(.output),
+        // ),
+        try projection_map_to_media_from(
+            std.testing.allocator,
+            map,
+            source_space,
+        ),
+    };
+
+    for (test_maps)
+        |projection_operator_map|
+    {
+        defer projection_operator_map.deinit();
+
+        try expectEqual(1, projection_operator_map.operators.len);
+        try expectEqual(2, projection_operator_map.end_points.len);
+
+        const known_output_to_media = try map.build_projection_operator(
+            std.testing.allocator,
+            .{
+                .source = try tr_ptr.space(.output),
+                .destination = try cl_ptr.space(.media),
+            },
+        );
+        const known_input_bounds = known_output_to_media.topology.input_bounds();
+
+        const guess_output_to_media = projection_operator_map.operators[0][0];
         const guess_input_bounds = guess_output_to_media.topology.input_bounds();
 
         // topology input bounds match
