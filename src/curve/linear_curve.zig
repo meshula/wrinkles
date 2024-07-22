@@ -351,7 +351,9 @@ pub const TimeCurveLinear = struct {
                         {
                             try curves_to_project.append(
                                 TimeCurveLinear{
-                                    .knots = try current_curve.toOwnedSlice(),
+                                    .knots = (
+                                        try current_curve.toOwnedSlice()
+                                    ),
                                 }
                             );
                         }
