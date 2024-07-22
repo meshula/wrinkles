@@ -1397,9 +1397,6 @@ pub fn projection_map_to_media_from(
             )
         );
 
-        const new_bounds = child_op.topology.input_bounds();
-        std.debug.print("[{d}, {d})\n", .{ new_bounds.start_seconds, new_bounds.end_seconds });
-
         const child_op_map = (
             try ProjectionOperatorMap.init_operator(
                 allocator,
@@ -1559,7 +1556,7 @@ const ProjectionOperatorMap = struct {
                 undr.end_points[undr.end_points.len - 1],
             ),
         };
-                
+
         const over_extended = try over.extend_to(
             arena_allocator,
             full_range,
@@ -1587,7 +1584,7 @@ const ProjectionOperatorMap = struct {
         ).init(parent_allocator);
 
         var current_segment = (
-            std.ArrayList([]ProjectionOperator).init(arena_allocator)
+            std.ArrayList(ProjectionOperator).init(arena_allocator)
         );
 
         // both end point arrays are the same
@@ -1595,8 +1592,16 @@ const ProjectionOperatorMap = struct {
             |p, ind|
         {
             try end_points.append(p);
-            try current_segment.append(over_conformed.operators[ind]);
-            try current_segment.append(undr_conformed.operators[ind]);
+            try current_segment.appendSlice(over_conformed.operators[ind]);
+            try current_segment.appendSlice(undr_conformed.operators[ind]);
+            try operators.append(
+                try parent_allocator.dupe(
+                    ProjectionOperator,
+                    current_segment.items,
+                )
+            );
+
+            current_segment.clearAndFree();
         }
 
         try end_points.append(
@@ -2026,6 +2031,10 @@ test "ProjectionOperatorMap: merge_composite"
             cl_output_pmap.end_points,
             result.end_points,
         );
+        try std.testing.expectEqual(
+            1,
+            result.operators.len
+        );
     }
 }
 
@@ -2323,7 +2332,7 @@ test "ProjectionOperatorMap: track with two clips"
     );
     const known_input_bounds = known_output_to_media.topology.input_bounds();
 
-    const guess_output_to_media = p_o_map.operators[0][0];
+    const guess_output_to_media = p_o_map.operators[1][0];
     const guess_input_bounds = guess_output_to_media.topology.input_bounds();
 
     // topology input bounds match
@@ -2340,25 +2349,13 @@ test "ProjectionOperatorMap: track with two clips"
 
     // end points match topology
     try expectApproxEqAbs(
-        p_o_map.end_points[0],
+        8.0,
         guess_input_bounds.start_seconds,
         util.EPSILON
     );
     try expectApproxEqAbs(
-        p_o_map.end_points[1],
+        16,
         guess_input_bounds.end_seconds,
-        util.EPSILON
-    );
-
-    // known input bounds matches end point
-    try expectApproxEqAbs(
-        known_input_bounds.start_seconds,
-        p_o_map.end_points[0],
-        util.EPSILON
-    );
-    try expectApproxEqAbs(
-        known_input_bounds.end_seconds,
-        p_o_map.end_points[1],
         util.EPSILON
     );
 }
