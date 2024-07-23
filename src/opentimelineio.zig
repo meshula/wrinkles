@@ -36,6 +36,8 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = false;
 /// for VERY LARGE files, turn this off so that dot can process the graphs
 const LABEL_HAS_BINARY_TREECODE = true;
 
+const WRITE_DOT_GRAPH = false;
+
 // @TODO: nick and stephan start here
 //
 // clip intrinsic space -> continuous space of the media -> discrete sample
@@ -1389,6 +1391,10 @@ const TopologicalMap = struct {
         defer allocator.free(pngfilepath);
 
         // @TODO: gate the dot/png render on if dot is installed
+
+        if (WRITE_DOT_GRAPH == false) {
+            return;
+        }
 
         // render to png
         const result = try std.process.Child.run(
