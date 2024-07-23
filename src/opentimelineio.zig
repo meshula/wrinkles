@@ -31,10 +31,11 @@ test {
     _ = otio_json;
 }
 
+/// annotate the graph algorithms
 // const GRAPH_CONSTRUCTION_TRACE_MESSAGES = true;
 const GRAPH_CONSTRUCTION_TRACE_MESSAGES = false;
 
-// for VERY LARGE files, turn this off so that dot can process the graphs
+/// for VERY LARGE files, turn this off so that dot can process the graphs
 const LABEL_HAS_BINARY_TREECODE = true;
 
 // @TODO: nick and stephan start here
