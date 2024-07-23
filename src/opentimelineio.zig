@@ -130,6 +130,7 @@ pub const Clip = struct {
     }
 };
 
+/// represents a space in the timeline without media
 pub const Gap = struct {
     name: ?string.latin_s8 = null,
     duration: time_topology.Ordinate,
@@ -199,6 +200,7 @@ pub const Item = union(enum) {
     }
 };
 
+/// a pointer to something in the timeline
 pub const ItemPtr = union(enum) {
     clip_ptr: *const Clip,
     gap_ptr: *const Gap,
@@ -270,6 +272,7 @@ pub const ItemPtr = union(enum) {
         };
     }
 
+    /// return the index of the child
     pub fn child_index_of(
         self: @This(),
         child: ItemPtr
@@ -316,6 +319,7 @@ pub const ItemPtr = union(enum) {
         return .{ .item = self, .label = label };
     }
 
+    /// build a topology that projections a value from_space to_space
     pub fn build_transform(
         self: @This(),
         allocator: std.mem.Allocator,
