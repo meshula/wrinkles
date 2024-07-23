@@ -262,6 +262,16 @@ pub const TimeCurveLinear = struct {
     /// function is v_self(v_other(t_other)).  This maps the the v_other value
     /// to the t_self parameter.
     ///
+    /// To put it another way, if self maps B->C
+    /// (B = t_self, C=v_self)
+    /// and other maps A->B
+    /// (A = t_other)
+    /// then self.project_curve(other): A->C
+    /// t_other -> v_self
+    /// or if self.input -> self.output
+    /// and other.input -> other.output
+    /// self.project_topology(other) :: other.input -> self.output
+    ///
     /// curve self:
     /// 
     /// v_self
@@ -434,6 +444,15 @@ pub const TimeCurveLinear = struct {
                 crv.deinit(allocator);
             }
             allocator.free(result);
+        }
+
+        if (result.len < 1)
+        {
+            std.debug.print(
+                "Couldn't project:\n  self: {any}\n  other: {any}\n",
+                .{ self.extents(), other.extents(), },
+            );
+            return error.NoProjectionResultError;
         }
 
         return try result[0].clone(allocator);
