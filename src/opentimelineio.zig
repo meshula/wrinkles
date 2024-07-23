@@ -25,8 +25,6 @@ const sampling = @import("sampling");
 
 const otio_json = @import("opentimelineio_json.zig");
 
-pub const Hash = u64;
-
 test {
     _ = otio_json;
 }
