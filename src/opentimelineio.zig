@@ -135,7 +135,7 @@ pub const Clip = struct {
 /// represents a space in the timeline without media
 pub const Gap = struct {
     name: ?string.latin_s8 = null,
-    duration: time_topology.Ordinate,
+    duration_seconds: time_topology.Ordinate,
 
     pub fn topology(
         self: @This()
@@ -145,7 +145,7 @@ pub const Gap = struct {
             .{ 
                 .bounds = .{
                     .start_seconds = 0,
-                    .end_seconds = self.duration 
+                    .end_seconds = self.duration_seconds 
                 },
             }
         );
@@ -2379,7 +2379,7 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
         }
     };
     const gp = Gap{
-        .duration = 5,
+        .duration_seconds = 5,
     };
     try tr.append(.{ .clip = cl });
     try tr.append(.{ .gap = gp });

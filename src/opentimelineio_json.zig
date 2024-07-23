@@ -205,7 +205,7 @@ pub fn read_otio_object(
 
             const gp = otio.Gap{
                 .name=try allocator.dupe(u8, name),
-                .duration = source_range.?.duration_seconds(),
+                .duration_seconds = source_range.?.duration_seconds(),
             };
 
             return .{ .Gap = gp };
