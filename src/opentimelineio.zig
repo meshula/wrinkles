@@ -139,8 +139,14 @@ pub const Gap = struct {
         self: @This()
     ) !time_topology.TimeTopology 
     {
-        _ = self;
-        return error.NotImplemented;
+        return time_topology.TimeTopology.init_identity(
+            .{ 
+                .bounds = .{
+                    .start_seconds = 0,
+                    .end_seconds = self.duration 
+                },
+            }
+        );
     }
 };
 
@@ -219,6 +225,20 @@ pub const ItemPtr = union(enum) {
     {
         return switch (self) {
             inline else => |it_ptr| try it_ptr.topology(),
+        };
+    }
+
+    pub fn bounds_of(
+        self: @This(),
+        target_space: SpaceLabel,
+    ) !opentime.ContinuousTimeInterval 
+    {
+        const output_to_intrinsic_topo = try self.topology();
+
+        return switch (target_space) {
+            .media, .intrinsic => output_to_intrinsic_topo.output_bounds(),
+            .output => output_to_intrinsic_topo.input_bounds(),
+            else => error.UnsupportedSpaceError,
         };
     }
 
@@ -672,7 +692,7 @@ pub const Track = struct {
         // XXX should probably check the index before calling this and call this
         //     with index - 1 rather than have it do the offset here.
         const child = self.child_ptr_from_index(child_index - 1);
-        const child_range = try child.clip_ptr.bounds_of(.media);
+        const child_range = try child.bounds_of(.media);
         const child_duration = child_range.duration_seconds();
 
         // the transform to the next child space, compensates for this duration
@@ -2383,7 +2403,7 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
     try tr.append(.{ .clip = cl });
 
     const tr_ptr = ItemPtr{ .track_ptr = &tr };
-    const cl_ptr = tr.child_ptr_from_index(1);
+    const cl_ptr = tr.child_ptr_from_index(2);
 
     const map = try build_topological_map(
         std.testing.allocator,
@@ -2405,10 +2425,10 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
 
     try std.testing.expectEqualSlices(
         f32,
-        &.{0,8,16},
+        &.{0,8,13, 21},
         p_o_map.end_points,
     );
-    try expectEqual(2, p_o_map.operators.len);
+    try expectEqual(3, p_o_map.operators.len);
 
     const known_output_to_media = (
         try map.build_projection_operator(
@@ -2423,7 +2443,7 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
         known_output_to_media.topology.input_bounds()
     );
 
-    const guess_output_to_media = p_o_map.operators[1][0];
+    const guess_output_to_media = p_o_map.operators[2][0];
     const guess_input_bounds = (
         guess_output_to_media.topology.input_bounds()
     );
@@ -2442,12 +2462,12 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
 
     // end points match topology
     try expectApproxEqAbs(
-        8.0,
+        13,
         guess_input_bounds.start_seconds,
         util.EPSILON
     );
     try expectApproxEqAbs(
-        16,
+        21,
         guess_input_bounds.end_seconds,
         util.EPSILON
     );
