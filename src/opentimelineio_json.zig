@@ -294,7 +294,7 @@ test "read_from_file test"
     const tl_output_to_clip_media = try map.build_projection_operator(
         std.testing.allocator,
         .{
-            .source = try tl_ptr.space(otio.SpaceLabel.output),
+            .source = try tl_ptr.space(otio.SpaceLabel.presentation),
             .destination = try target_clip_ptr.space(otio.SpaceLabel.media),
         }
     );

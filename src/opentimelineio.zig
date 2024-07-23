@@ -77,7 +77,7 @@ pub const Clip = struct {
     /// a trim on the media space
     media_temporal_bounds: ?opentime.ContinuousTimeInterval = null,
 
-    /// transformation of the media space to the output space
+    /// transformation of the media space to the presentation space
     transform: ?time_topology.TimeTopology = null,
 
     discrete_info: struct{
@@ -86,7 +86,7 @@ pub const Clip = struct {
 
     pub const SPACES = enum(i8) {
         media = 0,
-        output = 1,
+        presentation = 1,
     };
 
     /// compute the bounds of the specified target space
@@ -95,11 +95,11 @@ pub const Clip = struct {
         target_space: SpaceLabel,
     ) !opentime.ContinuousTimeInterval 
     {
-        const output_to_media_topo = try self.topology();
+        const presentation_to_media_topo = try self.topology();
 
         return switch (target_space) {
-            .media => output_to_media_topo.output_bounds(),
-            .output => output_to_media_topo.input_bounds(),
+            .media => presentation_to_media_topo.output_bounds(),
+            .presentation => presentation_to_media_topo.input_bounds(),
             else => error.UnsupportedSpaceError,
         };
     }
@@ -233,11 +233,11 @@ pub const ItemPtr = union(enum) {
         target_space: SpaceLabel,
     ) !opentime.ContinuousTimeInterval 
     {
-        const output_to_intrinsic_topo = try self.topology();
+        const presentation_to_intrinsic_topo = try self.topology();
 
         return switch (target_space) {
-            .media, .intrinsic => output_to_intrinsic_topo.output_bounds(),
-            .output => output_to_intrinsic_topo.input_bounds(),
+            .media, .intrinsic => presentation_to_intrinsic_topo.output_bounds(),
+            .presentation => presentation_to_intrinsic_topo.input_bounds(),
             else => error.UnsupportedSpaceError,
         };
     }
@@ -292,15 +292,15 @@ pub const ItemPtr = union(enum) {
 
         switch (self) {
             .clip_ptr, => {
-                try result.append( .{ .item = self, .label = SpaceLabel.output});
+                try result.append( .{ .item = self, .label = SpaceLabel.presentation});
                 try result.append( .{ .item = self, .label = SpaceLabel.media});
             },
             .track_ptr, .timeline_ptr, .stack_ptr => {
-                try result.append( .{ .item = self, .label = SpaceLabel.output});
+                try result.append( .{ .item = self, .label = SpaceLabel.presentation});
                 try result.append( .{ .item = self, .label = SpaceLabel.intrinsic});
             },
             .gap_ptr => {
-                try result.append( .{ .item = self, .label = SpaceLabel.output});
+                try result.append( .{ .item = self, .label = SpaceLabel.presentation});
             },
             // else => { return error.NotImplemented; }
         }
@@ -346,7 +346,7 @@ pub const ItemPtr = union(enum) {
         return switch (self) {
             .track_ptr => |*tr| {
                 switch (from_space) {
-                    SpaceLabel.output => (
+                    SpaceLabel.presentation => (
                         return time_topology.TimeTopology.init_identity_infinite()
                     ),
                     SpaceLabel.intrinsic => (
@@ -381,9 +381,9 @@ pub const ItemPtr = union(enum) {
                 //   + space
                 //   * transformation
                 //
-                // +--- OUTPUT
+                // +--- presentation
                 // |
-                // *--- (implicit) post transform->OUTPUT space (reset start time to 0)
+                // *--- (implicit) post transform->presentation space (reset start time to 0)
                 // |
                 // +--- (implicit) post effects space
                 // |
@@ -395,13 +395,13 @@ pub const ItemPtr = union(enum) {
                 // |
                 // +--- MEDIA
                 //
-                // initially only exposing the MEDIA and OUTPUT spaces
+                // initially only exposing the MEDIA and presentation spaces
                 //
 
                 return switch (from_space) {
-                    SpaceLabel.output => {
+                    SpaceLabel.presentation => {
                         // goes to media
-                        const output_to_post_transform = (
+                        const presentation_to_post_transform = (
                             time_topology.TimeTopology.init_identity_infinite()
                         );
 
@@ -410,13 +410,13 @@ pub const ItemPtr = union(enum) {
                             orelse time_topology.TimeTopology.init_identity_infinite()
                         );
 
-                        const output_to_intrinsic = (
+                        const presentation_to_intrinsic = (
                             try post_transform_to_intrinsic.project_topology(
                                 allocator,
-                                output_to_post_transform,
+                                presentation_to_post_transform,
                             )
                         );
-                        defer output_to_intrinsic.deinit(allocator);
+                        defer presentation_to_intrinsic.deinit(allocator);
 
                         const media_bounds = try cl.*.bounds_of(.media);
                         const intrinsic_to_media_xform = (
@@ -438,12 +438,12 @@ pub const ItemPtr = union(enum) {
                             )
                         );
 
-                        const output_to_media = try intrinsic_to_media.project_topology(
+                        const presentation_to_media = try intrinsic_to_media.project_topology(
                             allocator,
-                            output_to_intrinsic
+                            presentation_to_intrinsic
                         );
 
-                        return output_to_media;
+                        return presentation_to_media;
                     },
                     else => time_topology.TimeTopology.init_identity(
                         .{
@@ -524,7 +524,7 @@ pub const ItemPtr = union(enum) {
     {
         return switch (self) {
             .timeline_ptr => |tl| switch (in_space) {
-                .output => tl.discrete_info.output,
+                .presentation => tl.discrete_info.presentation,
                 inline else => error.SpaceOnObjectCannotBeDiscrete,
             },
             .clip_ptr => |cl| switch (in_space) {
@@ -668,9 +668,9 @@ pub const Track = struct {
     ///           |
     ///           child 0
     ///           |     \
-    /// child 0.output   child 1
+    /// child 0.presentation   child 1
     ///                   |   \
-    ///       child.1.output   child 2
+    ///       child.1.presentation   child 2
     ///                         ...
     ///
     ///  if called on child space child 1, will make a transform to child
@@ -713,7 +713,7 @@ pub const Track = struct {
 };
 
 pub const SpaceLabel = enum(i8) {
-    output = 0,
+    presentation = 0,
     intrinsic,
     media,
     child,
@@ -1453,7 +1453,7 @@ test "ProjectionOperatorMap: init_operator leak test"
             std.testing.allocator,
             .{
                 .args = .{
-                    .source = try cl_ptr.space(.output),
+                    .source = try cl_ptr.space(.presentation),
                     .destination = try cl_ptr.space(.media),
                 },
                 .topology = time_topology.TimeTopology.init_empty(),
@@ -1485,7 +1485,7 @@ test "ProjectionOperatorMap: projection_map_to_media_from leak test"
     const m = try projection_map_to_media_from(
         std.testing.allocator,
         map,
-        try cl_ptr.space(.output),
+        try cl_ptr.space(.presentation),
     );
     defer m.deinit();
 }
@@ -1807,40 +1807,40 @@ test "ProjectionOperatorMap: extend_to"
     );
     defer map.deinit();
 
-    const cl_output_pmap = (
+    const cl_presentation_pmap = (
         try projection_map_to_media_from(
             std.testing.allocator,
             map,
-            try cl_ptr.space(.output),
+            try cl_ptr.space(.presentation),
         )
     );
-    defer cl_output_pmap.deinit();
+    defer cl_presentation_pmap.deinit();
 
     // extend_to no change
     {
-        const result = try cl_output_pmap.extend_to(
+        const result = try cl_presentation_pmap.extend_to(
             std.testing.allocator,
             .{
-                .start_seconds = cl_output_pmap.end_points[0],
-                .end_seconds = cl_output_pmap.end_points[1],
+                .start_seconds = cl_presentation_pmap.end_points[0],
+                .end_seconds = cl_presentation_pmap.end_points[1],
             },
         );
         defer result.deinit();
 
         try std.testing.expectEqualSlices(
             f32,
-            cl_output_pmap.end_points,
+            cl_presentation_pmap.end_points,
             result.end_points,
         );
         try std.testing.expectEqual(
-            cl_output_pmap.operators.len,
+            cl_presentation_pmap.operators.len,
             result.operators.len,
         );
     }
 
     // add before
     {
-        const result = try cl_output_pmap.extend_to(
+        const result = try cl_presentation_pmap.extend_to(
             std.testing.allocator,
             .{
                 .start_seconds = -10,
@@ -1863,7 +1863,7 @@ test "ProjectionOperatorMap: extend_to"
 
     // add after
     {
-        const result = try cl_output_pmap.extend_to(
+        const result = try cl_presentation_pmap.extend_to(
             std.testing.allocator,
             .{
                 .start_seconds = 0,
@@ -1901,30 +1901,30 @@ test "ProjectionOperatorMap: split_at_each"
     );
     defer map.deinit();
 
-    const cl_output_pmap = (
+    const cl_presentation_pmap = (
         try projection_map_to_media_from(
             std.testing.allocator,
             map,
-            try cl_ptr.space(.output),
+            try cl_ptr.space(.presentation),
         )
     );
-    defer cl_output_pmap.deinit();
+    defer cl_presentation_pmap.deinit();
 
     // split_at_each -- no change
     {
-        const result = try cl_output_pmap.split_at_each(
+        const result = try cl_presentation_pmap.split_at_each(
             std.testing.allocator,
-            cl_output_pmap.end_points,
+            cl_presentation_pmap.end_points,
         );
         defer result.deinit();
 
         try std.testing.expectEqualSlices(
             f32,
-            cl_output_pmap.end_points,
+            cl_presentation_pmap.end_points,
             result.end_points,
         );
         try std.testing.expectEqual(
-            cl_output_pmap.operators.len,
+            cl_presentation_pmap.operators.len,
             result.operators.len,
         );
     }
@@ -1933,7 +1933,7 @@ test "ProjectionOperatorMap: split_at_each"
     {
         const pts = [_]f32{ 0, 4, 8 };
 
-        const result = try cl_output_pmap.split_at_each(
+        const result = try cl_presentation_pmap.split_at_each(
             std.testing.allocator,
             &pts,
         );
@@ -1946,7 +1946,7 @@ test "ProjectionOperatorMap: split_at_each"
         );
 
         try std.testing.expectEqual(
-            cl_output_pmap.operators.len + 1,
+            cl_presentation_pmap.operators.len + 1,
             result.operators.len,
         );
     }
@@ -1955,7 +1955,7 @@ test "ProjectionOperatorMap: split_at_each"
     {
         const pts = [_]f32{ 0, 1, 4, 8 };
 
-        const result = try cl_output_pmap.split_at_each(
+        const result = try cl_presentation_pmap.split_at_each(
             std.testing.allocator,
             &pts,
         );
@@ -1978,7 +1978,7 @@ test "ProjectionOperatorMap: split_at_each"
         const pts1 = [_]f32{ 0, 4, 8 };
         const pts2 = [_]f32{ 0, 4, 8 };
 
-        const inter = try cl_output_pmap.split_at_each(
+        const inter = try cl_presentation_pmap.split_at_each(
             std.testing.allocator,
             &pts1,
         );
@@ -2019,22 +2019,22 @@ test "ProjectionOperatorMap: merge_composite"
     );
     defer map.deinit();
 
-    const cl_output_pmap = (
+    const cl_presentation_pmap = (
         try projection_map_to_media_from(
             std.testing.allocator,
             map,
-            try cl_ptr.space(.output),
+            try cl_ptr.space(.presentation),
         )
     );
-    defer cl_output_pmap.deinit();
+    defer cl_presentation_pmap.deinit();
 
     {
         const result = (
             try ProjectionOperatorMap.merge_composite(
                 std.testing.allocator,
                 .{
-                    .over = cl_output_pmap,
-                    .under = cl_output_pmap,
+                    .over = cl_presentation_pmap,
+                    .under = cl_presentation_pmap,
                 }
             )
         );
@@ -2042,7 +2042,7 @@ test "ProjectionOperatorMap: merge_composite"
 
         try std.testing.expectEqualSlices(
             f32,
-            cl_output_pmap.end_points,
+            cl_presentation_pmap.end_points,
             result.end_points,
         );
         try std.testing.expectEqual(
@@ -2068,33 +2068,33 @@ test "ProjectionOperatorMap: clip"
     );
     defer map.deinit();
 
-    const cl_output_pmap = (
+    const cl_presentation_pmap = (
         try projection_map_to_media_from(
             std.testing.allocator,
             map,
-            try cl_ptr.space(.output),
+            try cl_ptr.space(.presentation),
         )
     );
-    defer cl_output_pmap.deinit();
+    defer cl_presentation_pmap.deinit();
 
-    try expectEqual(1, cl_output_pmap.operators.len);
-    try expectEqual(2, cl_output_pmap.end_points.len);
+    try expectEqual(1, cl_presentation_pmap.operators.len);
+    try expectEqual(2, cl_presentation_pmap.end_points.len);
 
-    const known_output_to_media = (
+    const known_presentation_to_media = (
         try map.build_projection_operator(
             std.testing.allocator,
             .{
-                .source = try cl_ptr.space(.output),
+                .source = try cl_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
             },
         )
     );
-    const known_input_bounds = known_output_to_media.topology.input_bounds();
+    const known_input_bounds = known_presentation_to_media.topology.input_bounds();
 
-    const guess_output_to_media = (
-        cl_output_pmap.operators[0][0]
+    const guess_presentation_to_media = (
+        cl_presentation_pmap.operators[0][0]
     );
-    const guess_input_bounds = guess_output_to_media.topology.input_bounds();
+    const guess_input_bounds = guess_presentation_to_media.topology.input_bounds();
 
     // topology input bounds match
     try expectApproxEqAbs(
@@ -2110,12 +2110,12 @@ test "ProjectionOperatorMap: clip"
 
     // end points match topology
     try expectApproxEqAbs(
-        cl_output_pmap.end_points[0],
+        cl_presentation_pmap.end_points[0],
         guess_input_bounds.start_seconds,
         util.EPSILON
     );
     try expectApproxEqAbs(
-        cl_output_pmap.end_points[1],
+        cl_presentation_pmap.end_points[1],
         guess_input_bounds.end_seconds,
         util.EPSILON
     );
@@ -2123,12 +2123,12 @@ test "ProjectionOperatorMap: clip"
     // known input bounds matches end point
     try expectApproxEqAbs(
         known_input_bounds.start_seconds,
-        cl_output_pmap.end_points[0],
+        cl_presentation_pmap.end_points[0],
         util.EPSILON
     );
     try expectApproxEqAbs(
         known_input_bounds.end_seconds,
-        cl_output_pmap.end_points[1],
+        cl_presentation_pmap.end_points[1],
         util.EPSILON
     );
 }
@@ -2154,13 +2154,13 @@ test "ProjectionOperatorMap: track with single clip"
     );
     defer map.deinit();
 
-    const source_space = try tr_ptr.space(.output);
+    const source_space = try tr_ptr.space(.presentation);
 
     const test_maps = &[_]ProjectionOperatorMap{
         // try build_projection_operator_map(
         //     std.testing.allocator,
         //     map,
-        //     try cl_ptr.space(.output),
+        //     try cl_ptr.space(.presentation),
         // ),
         try projection_map_to_media_from(
             std.testing.allocator,
@@ -2177,17 +2177,17 @@ test "ProjectionOperatorMap: track with single clip"
         try expectEqual(1, projection_operator_map.operators.len);
         try expectEqual(2, projection_operator_map.end_points.len);
 
-        const known_output_to_media = try map.build_projection_operator(
+        const known_presentation_to_media = try map.build_projection_operator(
             std.testing.allocator,
             .{
-                .source = try tr_ptr.space(.output),
+                .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
             },
         );
-        const known_input_bounds = known_output_to_media.topology.input_bounds();
+        const known_input_bounds = known_presentation_to_media.topology.input_bounds();
 
-        const guess_output_to_media = projection_operator_map.operators[0][0];
-        const guess_input_bounds = guess_output_to_media.topology.input_bounds();
+        const guess_presentation_to_media = projection_operator_map.operators[0][0];
+        const guess_input_bounds = guess_presentation_to_media.topology.input_bounds();
 
         // topology input bounds match
         try expectApproxEqAbs(
@@ -2255,7 +2255,7 @@ test "transform: track with two clips"
     );
     defer map.deinit();
 
-    const track_output_space = try tr_ptr.space(.output);
+    const track_presentation_space = try tr_ptr.space(.presentation);
 
     {
         const child_code = (
@@ -2280,7 +2280,7 @@ test "transform: track with two clips"
         const xform = try map.build_projection_operator(
             std.testing.allocator,
             .{
-                .source = track_output_space,
+                .source = track_presentation_space,
                 .destination = try cl_ind1_ptr.space(.media),
             }
         );
@@ -2322,7 +2322,7 @@ test "ProjectionOperatorMap: track with two clips"
     );
     defer map.deinit();
 
-    const source_space = try tr_ptr.space(.output);
+    const source_space = try tr_ptr.space(.presentation);
 
     const p_o_map = (
         try projection_map_to_media_from(
@@ -2341,22 +2341,22 @@ test "ProjectionOperatorMap: track with two clips"
     );
     try expectEqual(2, p_o_map.operators.len);
 
-    const known_output_to_media = (
+    const known_presentation_to_media = (
         try map.build_projection_operator(
             std.testing.allocator,
             .{
-                .source = try tr_ptr.space(.output),
+                .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
             },
         )
     );
     const known_input_bounds = (
-        known_output_to_media.topology.input_bounds()
+        known_presentation_to_media.topology.input_bounds()
     );
 
-    const guess_output_to_media = p_o_map.operators[1][0];
+    const guess_presentation_to_media = p_o_map.operators[1][0];
     const guess_input_bounds = (
-        guess_output_to_media.topology.input_bounds()
+        guess_presentation_to_media.topology.input_bounds()
     );
 
     // topology input bounds match
@@ -2411,7 +2411,7 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
     );
     defer map.deinit();
 
-    const source_space = try tr_ptr.space(.output);
+    const source_space = try tr_ptr.space(.presentation);
 
     const p_o_map = (
         try projection_map_to_media_from(
@@ -2430,22 +2430,22 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
     );
     try expectEqual(3, p_o_map.operators.len);
 
-    const known_output_to_media = (
+    const known_presentation_to_media = (
         try map.build_projection_operator(
             std.testing.allocator,
             .{
-                .source = try tr_ptr.space(.output),
+                .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
             },
         )
     );
     const known_input_bounds = (
-        known_output_to_media.topology.input_bounds()
+        known_presentation_to_media.topology.input_bounds()
     );
 
-    const guess_output_to_media = p_o_map.operators[2][0];
+    const guess_presentation_to_media = p_o_map.operators[2][0];
     const guess_input_bounds = (
-        guess_output_to_media.topology.input_bounds()
+        guess_presentation_to_media.topology.input_bounds()
     );
 
     // topology input bounds match
@@ -2879,7 +2879,7 @@ test "build_topological_map check root node"
     defer map.deinit();
 
     try expectEqual(
-        tr.space(.output),
+        tr.space(.presentation),
         map.root(),
     );
 
@@ -2923,7 +2923,7 @@ test "path_code: graph test"
     defer map.deinit();
 
     try expectEqual(
-        tr.space(.output),
+        tr.space(.presentation),
         map.root(),
     );
 
@@ -2961,7 +2961,7 @@ test "path_code: graph test"
         |t_i, t| 
     {
         const space = (
-            try tr.child_ptr_from_index(t.ind).space(SpaceLabel.output)
+            try tr.child_ptr_from_index(t.ind).space(SpaceLabel.presentation)
         );
         const result = (
             map.map_space_to_code.get(space) 
@@ -3016,7 +3016,7 @@ test "Track with clip with identity transform projection"
     const track_to_clip = try map.build_projection_operator(
         std.testing.allocator,
         .{
-            .source = try tr.space(SpaceLabel.output),
+            .source = try tr.space(SpaceLabel.presentation),
             .destination =  try clip.space(SpaceLabel.media)
         }
     );
@@ -3114,11 +3114,11 @@ test "TopologicalMap: Track with clip with identity transform topological"
 
     try std.testing.expect(path_exists(clip_code, root_code));
 
-    const root_output_to_clip_media = (
+    const root_presentation_to_clip_media = (
         try map.build_projection_operator(
             std.testing.allocator,
             .{
-                .source = try root.space(SpaceLabel.output),
+                .source = try root.space(SpaceLabel.presentation),
                 .destination = try clip.space(SpaceLabel.media)
             }
         )
@@ -3126,12 +3126,12 @@ test "TopologicalMap: Track with clip with identity transform topological"
 
     try expectError(
         time_topology.TimeTopology.ProjectionError.OutOfBounds,
-        root_output_to_clip_media.project_ordinate(3)
+        root_presentation_to_clip_media.project_ordinate(3)
     );
 
     try expectApproxEqAbs(
         1,
-        try root_output_to_clip_media.project_ordinate(1),
+        try root_presentation_to_clip_media.project_ordinate(1),
         util.EPSILON,
     );
 }
@@ -3163,10 +3163,10 @@ test "Projection: Track with single clip with identity transform and bounds"
         map.map_space_to_code.count()
     );
 
-    const root_output_to_clip_media = try map.build_projection_operator(
+    const root_presentation_to_clip_media = try map.build_projection_operator(
         std.testing.allocator,
         .{ 
-            .source = try root.space(SpaceLabel.output),
+            .source = try root.space(SpaceLabel.presentation),
             .destination = try clip.space(SpaceLabel.media),
         }
     );
@@ -3174,19 +3174,19 @@ test "Projection: Track with single clip with identity transform and bounds"
     // check the bounds
     try expectApproxEqAbs(
         (cl.media_temporal_bounds orelse interval.ContinuousTimeInterval{}).start_seconds,
-        root_output_to_clip_media.topology.input_bounds().start_seconds,
+        root_presentation_to_clip_media.topology.input_bounds().start_seconds,
         util.EPSILON,
     );
 
     try expectApproxEqAbs(
         (cl.media_temporal_bounds orelse interval.ContinuousTimeInterval{}).end_seconds,
-        root_output_to_clip_media.topology.input_bounds().end_seconds,
+        root_presentation_to_clip_media.topology.input_bounds().end_seconds,
         util.EPSILON,
     );
 
     try expectError(
         time_topology.TimeTopology.ProjectionError.OutOfBounds,
-        root_output_to_clip_media.project_ordinate(3)
+        root_presentation_to_clip_media.project_ordinate(3)
     );
 }
 
@@ -3194,9 +3194,9 @@ test "Projection: Track with multiple clips with identity transform and bounds"
 {
     //
     //                          0               3             6
-    // track.output space       [---------------*-------------)
+    // track.presentation space       [---------------*-------------)
     // track.intrinsic space    [---------------*-------------)
-    // child.clip output space  [--------)[-----*---)[-*------)
+    // child.clip presentation space  [--------)[-----*---)[-*------)
     //                          0        2 0    1   2 0       2 
     //
     var tr = Track.init(std.testing.allocator);
@@ -3236,7 +3236,7 @@ test "Projection: Track with multiple clips with identity transform and bounds"
         const po = try map.build_projection_operator(
             std.testing.allocator,
             .{
-                .source = try track_ptr.space(.output),
+                .source = try track_ptr.space(.presentation),
                 .destination = (
                     try tr.child_ptr_from_index(2).space(.media)
                 ),
@@ -3256,7 +3256,7 @@ test "Projection: Track with multiple clips with identity transform and bounds"
     const po_map = try projection_map_to_media_from(
         std.testing.allocator,
         map,
-        try track_ptr.space(.output),
+        try track_ptr.space(.presentation),
     );
     defer po_map.deinit();
 
@@ -3291,10 +3291,10 @@ test "Projection: Track with multiple clips with identity transform and bounds"
     {
         const child = tr.child_ptr_from_index(t.index);
 
-        const tr_output_to_clip_media = try map.build_projection_operator(
+        const tr_presentation_to_clip_media = try map.build_projection_operator(
         std.testing.allocator,
             .{
-                .source = try track_ptr.space(SpaceLabel.output),
+                .source = try track_ptr.space(SpaceLabel.presentation),
                 .destination = try child.space(SpaceLabel.media),
             }
         );
@@ -3307,11 +3307,11 @@ test "Projection: Track with multiple clips with identity transform and bounds"
         {
             try expectError(
                 time_topology.TimeTopology.ProjectionError.OutOfBounds,
-                tr_output_to_clip_media.project_ordinate(t.track_ord)
+                tr_presentation_to_clip_media.project_ordinate(t.track_ord)
             );
         }
         else{
-            const result = try tr_output_to_clip_media.project_ordinate(t.track_ord);
+            const result = try tr_presentation_to_clip_media.project_ordinate(t.track_ord);
 
             try expectApproxEqAbs(result, t.expected_ord, util.EPSILON);
         }
@@ -3319,10 +3319,10 @@ test "Projection: Track with multiple clips with identity transform and bounds"
 
     const clip = tr.child_ptr_from_index(0);
 
-    const root_output_to_clip_media = try map.build_projection_operator(
+    const root_presentation_to_clip_media = try map.build_projection_operator(
         std.testing.allocator,
         .{ 
-            .source = try track_ptr.space(SpaceLabel.output),
+            .source = try track_ptr.space(SpaceLabel.presentation),
             .destination = try clip.space(SpaceLabel.media),
         }
     );
@@ -3330,27 +3330,27 @@ test "Projection: Track with multiple clips with identity transform and bounds"
     // check the bounds
     try expectApproxEqAbs(
         (cl.media_temporal_bounds orelse interval.ContinuousTimeInterval{}).start_seconds,
-        root_output_to_clip_media.topology.input_bounds().start_seconds,
+        root_presentation_to_clip_media.topology.input_bounds().start_seconds,
         util.EPSILON,
     );
 
     try expectApproxEqAbs(
         (cl.media_temporal_bounds orelse interval.ContinuousTimeInterval{}).end_seconds,
-        root_output_to_clip_media.topology.input_bounds().end_seconds,
+        root_presentation_to_clip_media.topology.input_bounds().end_seconds,
         util.EPSILON,
     );
 
     try expectError(
         time_topology.TimeTopology.ProjectionError.OutOfBounds,
-        root_output_to_clip_media.project_ordinate(3)
+        root_presentation_to_clip_media.project_ordinate(3)
     );
 }
 
-test "Single Clip Media to Output Identity transform" 
+test "Single Clip Media to presentation Identity transform" 
 {
     //
     //              0                 7           10
-    // output space [-----------------*-----------)
+    // presentation space [-----------------*-----------)
     // media space  [-----------------*-----------)
     //              100               107         110 (seconds)
     //              
@@ -3377,48 +3377,48 @@ test "Single Clip Media to Output Identity transform"
         map.map_space_to_code.count()
     );
 
-    // output->media
+    // presentation->media
     {
-        const clip_output_to_media = try map.build_projection_operator(
+        const clip_presentation_to_media = try map.build_projection_operator(
             std.testing.allocator,
             .{
-                .source =  try cl_ptr.space(SpaceLabel.output),
+                .source =  try cl_ptr.space(SpaceLabel.presentation),
                 .destination = try cl_ptr.space(SpaceLabel.media),
             }
         );
 
         try expectApproxEqAbs(
             @as(f32, 103),
-            try clip_output_to_media.project_ordinate(3),
+            try clip_presentation_to_media.project_ordinate(3),
             util.EPSILON,
         );
 
         try expectApproxEqAbs(
             @as(f32,0),
-            clip_output_to_media.topology.input_bounds().start_seconds,
+            clip_presentation_to_media.topology.input_bounds().start_seconds,
             util.EPSILON,
         );
 
         try expectApproxEqAbs(
             media_temporal_bounds.duration_seconds(),
-            clip_output_to_media.topology.input_bounds().end_seconds,
+            clip_presentation_to_media.topology.input_bounds().end_seconds,
             util.EPSILON,
         );
     }
 
-    // media->output
+    // media->presentation
     {
-        const clip_output_to_media = try map.build_projection_operator(
+        const clip_presentation_to_media = try map.build_projection_operator(
             std.testing.allocator,
             .{
                 .source =  try cl_ptr.space(SpaceLabel.media),
-                .destination = try cl_ptr.space(SpaceLabel.output),
+                .destination = try cl_ptr.space(SpaceLabel.presentation),
             }
         );
 
         try expectApproxEqAbs(
             @as(f32, 3),
-            try clip_output_to_media.project_ordinate(103),
+            try clip_presentation_to_media.project_ordinate(103),
             util.EPSILON,
         );
     }
@@ -3428,10 +3428,10 @@ test "Single Clip reverse transform"
 {
     //
     // xform: reverse (linear w/ -1 slope)
-    // note: transforms map from the _output_ space to the _media_ space
+    // note: transforms map from the _presentation_ space to the _media_ space
     //
     //              0                 7           10
-    // output       [-----------------*-----------)
+    // presentation       [-----------------*-----------)
     // (transform)  10                3           0
     // media        [-----------------*-----------)
     //              110               103         100 (seconds)
@@ -3455,48 +3455,48 @@ test "Single Clip reverse transform"
     );
     defer map.deinit();
 
-    // output->media (forward projection)
+    // presentation->media (forward projection)
     {
-        const clip_output_to_media_topo = try map.build_projection_operator(
+        const clip_presentation_to_media_topo = try map.build_projection_operator(
             std.testing.allocator,
             .{
-                .source =  try cl_ptr.space(SpaceLabel.output),
+                .source =  try cl_ptr.space(SpaceLabel.presentation),
                 .destination = try cl_ptr.space(SpaceLabel.media),
             }
         );
         
         try expectApproxEqAbs(
             start.time,
-            clip_output_to_media_topo.topology.input_bounds().start_seconds,
+            clip_presentation_to_media_topo.topology.input_bounds().start_seconds,
             util.EPSILON,
         );
 
         try expectApproxEqAbs(
             end.time,
-            clip_output_to_media_topo.topology.input_bounds().end_seconds,
+            clip_presentation_to_media_topo.topology.input_bounds().end_seconds,
             util.EPSILON,
         );
 
         try expectApproxEqAbs(
             @as(f32, 107),
-            try clip_output_to_media_topo.project_ordinate(3),
+            try clip_presentation_to_media_topo.project_ordinate(3),
             util.EPSILON,
         );
     }
 
-    // media->output (reverse projection)
+    // media->presentation (reverse projection)
     {
-        const clip_media_to_output = try map.build_projection_operator(
+        const clip_media_to_presentation = try map.build_projection_operator(
             std.testing.allocator,
             .{
                 .source =  try cl_ptr.space(SpaceLabel.media),
-                .destination = try cl_ptr.space(SpaceLabel.output),
+                .destination = try cl_ptr.space(SpaceLabel.presentation),
             }
         );
 
         try expectApproxEqAbs(
             @as(f32, 3),
-            try clip_media_to_output.project_ordinate(107),
+            try clip_media_to_presentation.project_ordinate(107),
             util.EPSILON,
         );
     }
@@ -3506,10 +3506,10 @@ test "Single Clip bezier transform"
 {
     //
     // xform: s-curve read from sample curve file
-    //        curves map from the output space to the intrinsic space for clips
+    //        curves map from the presentation space to the intrinsic space for clips
     //
     //              0                             10
-    // output       [-----------------------------)
+    // presentation       [-----------------------------)
     //                               _,-----------x
     // transform                   _/
     // (curve)                   ,/
@@ -3584,22 +3584,22 @@ test "Single Clip bezier transform"
     );
     defer map.deinit();
 
-    // output->media (forward projection)
+    // presentation->media (forward projection)
     {
-        const clip_output_to_media_proj = (
+        const clip_presentation_to_media_proj = (
             try map.build_projection_operator(
                 std.testing.allocator,
                 .{
-                    .source =  try cl_ptr.space(SpaceLabel.output),
+                    .source =  try cl_ptr.space(SpaceLabel.presentation),
                     .destination = try cl_ptr.space(SpaceLabel.media),
                 }
             )
         );
-        defer clip_output_to_media_proj.deinit(std.testing.allocator);
+        defer clip_presentation_to_media_proj.deinit(std.testing.allocator);
 
-        // note that the clips output space is the curve's input space
+        // note that the clips presentation space is the curve's input space
         const input_bounds = (
-            clip_output_to_media_proj.topology.input_bounds()
+            clip_presentation_to_media_proj.topology.input_bounds()
         );
         try expectApproxEqAbs(
             curve_bounds_output.start_seconds, 
@@ -3614,29 +3614,29 @@ test "Single Clip bezier transform"
 
         // invert it back and check it against the inpout curve bounds
         const clip_media_to_output = (
-            try clip_output_to_media_proj.topology.inverted(
+            try clip_presentation_to_media_proj.topology.inverted(
                 std.testing.allocator
             )
         );
         defer clip_media_to_output.deinit(std.testing.allocator);
-        const clip_media_to_output_input_bounds = (
+        const clip_media_to_presentation_input_bounds = (
             clip_media_to_output.input_bounds()
         );
         try expectApproxEqAbs(
             @as(f32, 100),
-            clip_media_to_output_input_bounds.start_seconds, util.EPSILON
+            clip_media_to_presentation_input_bounds.start_seconds, util.EPSILON
         );
         try expectApproxEqAbs(
             @as(f32, 110),
-            clip_media_to_output_input_bounds.end_seconds, util.EPSILON
+            clip_media_to_presentation_input_bounds.end_seconds, util.EPSILON
         );
 
         try std.testing.expect(
-            std.meta.activeTag(clip_output_to_media_proj.topology) 
+            std.meta.activeTag(clip_presentation_to_media_proj.topology) 
             != time_topology.TimeTopology.empty
         );
 
-        // walk over the output space of the curve
+        // walk over the presentation space of the curve
         const o_s_time = input_bounds.start_seconds;
         const o_e_time = input_bounds.end_seconds;
         var output_time = o_s_time;
@@ -3645,9 +3645,9 @@ test "Single Clip bezier transform"
         {
             // output time -> media time
             const media_time = (
-                try clip_output_to_media_proj.project_ordinate(output_time)
+                try clip_presentation_to_media_proj.project_ordinate(output_time)
             );
-            const topo = clip_output_to_media_proj.topology;
+            const topo = clip_presentation_to_media_proj.topology;
             
             errdefer std.log.err(
         "\nERR1\n  output_time: {d} \n"
@@ -3686,22 +3686,22 @@ test "Single Clip bezier transform"
         }
     }
 
-    // media->output (reverse projection)
+    // media->presentation (reverse projection)
     {
-        const clip_media_to_output = (
+        const clip_media_to_presentation = (
             try map.build_projection_operator(
                 std.testing.allocator,
                 .{
                     .source =  try cl_ptr.space(SpaceLabel.media),
-                    .destination = try cl_ptr.space(SpaceLabel.output),
+                    .destination = try cl_ptr.space(SpaceLabel.presentation),
                 }
             )
         );
-        defer clip_media_to_output.deinit(std.testing.allocator);
+        defer clip_media_to_presentation.deinit(std.testing.allocator);
 
         try expectApproxEqAbs(
             @as(f32, 6.5745),
-            try clip_media_to_output.project_ordinate(107),
+            try clip_media_to_presentation.project_ordinate(107),
             util.EPSILON,
         );
     }
@@ -3712,7 +3712,7 @@ pub const Timeline = struct {
     tracks:Stack,
 
     discrete_info: struct{
-        output:  ?sampling.DiscreteDatasourceIndexGenerator = null,
+        presentation:  ?sampling.DiscreteDatasourceIndexGenerator = null,
     } = .{},
 
     pub fn init(
@@ -3857,7 +3857,7 @@ test "label_for_node_leaky"
 {
     var tr = Track.init(std.testing.allocator);
     const sr = SpaceReference{
-        .label = SpaceLabel.output,
+        .label = SpaceLabel.presentation,
         .item = .{ .track_ptr = &tr } 
     };
 
@@ -3874,7 +3874,7 @@ test "label_for_node_leaky"
     );
     defer std.testing.allocator.free(result);
 
-    try std.testing.expectEqualStrings("track_output_1101001", result);
+    try std.testing.expectEqualStrings("track_presentation_1101001", result);
 }
 
 test "test spaces list" 
@@ -3885,7 +3885,7 @@ test "test spaces list"
     defer std.testing.allocator.free(spaces);
 
     try expectEqual(
-       SpaceLabel.output,
+       SpaceLabel.presentation,
        spaces[0].label, 
     );
     try expectEqual(
@@ -3893,8 +3893,8 @@ test "test spaces list"
        spaces[1].label, 
     );
     try expectEqual(
-       "output",
-       @tagName(SpaceLabel.output),
+       "presentation",
+       @tagName(SpaceLabel.presentation),
     );
     try expectEqual(
        "media",
@@ -3945,7 +3945,7 @@ test "otio projection: track with single clip"
         try map.build_projection_operator(
             std.testing.allocator,
             .{
-                .source = try tr_ptr.space(SpaceLabel.output),
+                .source = try tr_ptr.space(SpaceLabel.presentation),
                 // does the discrete / continuous need to be disambiguated?
                 .destination = try cl_ptr.space(SpaceLabel.media),
             },
@@ -4090,7 +4090,7 @@ test "otio projection: track with single clip with transform"
         try map.build_projection_operator(
             std.testing.allocator,
             .{
-                .source = try tr_ptr.space(SpaceLabel.output),
+                .source = try tr_ptr.space(SpaceLabel.presentation),
                 // does the discrete / continuous need to be disambiguated?
                 .destination = try cl_ptr.space(SpaceLabel.media),
             },
@@ -4356,7 +4356,7 @@ test "TestWalkingIterator: clip"
         count += 1;
     }
 
-    // 5: clip output, clip media
+    // 5: clip presentation, clip media
     try expectEqual(2, count);
 }
 
@@ -4402,7 +4402,7 @@ test "TestWalkingIterator: track with clip"
             count += 1;
         }
 
-        // 5: track output, input, child, clip output, clip media
+        // 5: track presentation, input, child, clip presentation, clip media
         try expectEqual(5, count);
     }
 
@@ -4413,7 +4413,7 @@ test "TestWalkingIterator: track with clip"
         var node_iter = try TreenodeWalkingIterator.init_at(
             std.testing.allocator,
             &map,
-            try cl_ptr.space(.output),
+            try cl_ptr.space(.presentation),
         );
         defer node_iter.deinit();
 
@@ -4423,7 +4423,7 @@ test "TestWalkingIterator: track with clip"
             count += 1;
         }
 
-        // 2: clip output, clip media
+        // 2: clip presentation, clip media
         try expectEqual(2, count);
     }
 }
