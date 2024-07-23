@@ -274,18 +274,6 @@ pub const ItemPtr = union(enum) {
         };
     }
 
-    /// return the index of the child
-    pub fn child_index_of(
-        self: @This(),
-        child: ItemPtr
-    ) !i32 
-    {
-        return switch(self) {
-            .track_ptr => self.track_ptr.child_index_of(child),
-            else => error.NotAContainer,
-        };
-    }
-
     /// return list of SpaceReference for this object
     pub fn spaces(
         self: @This(),
@@ -646,25 +634,6 @@ pub const Track = struct {
         );
     }
 
-    /// find the first instance of object in the track
-    pub fn child_index_of(
-        self: @This(),
-        child_to_find: ItemPtr
-    ) !usize 
-    {
-        for (0..self.children.items.len) 
-            |index| 
-        {
-            const current = self.child_ptr_from_index(index);
-            if (current.equivalent_to(child_to_find)) 
-            {
-                return index;
-            }
-        }
-
-        return error.ChildNotFound;
-    }
-
     pub fn child_ptr_from_index(
         self: @This(),
         index: usize
@@ -724,28 +693,6 @@ pub const Track = struct {
         );
     }
 };
-
-test "Track: child_index_of"
-{
-    var tr = Track.init(std.testing.allocator);
-    defer tr.deinit();
-
-    const cl = Clip {
-        .media_temporal_bounds = .{
-            .start_seconds = 1,
-            .end_seconds = 9 
-        }
-    };
-    try tr.append(.{ .clip = cl });
-    // const tr_ptr = ItemPtr{ .track_ptr = &tr };
-    const cl_ptr = tr.child_ptr_from_index(0);
-
-    try expectEqual(0, tr.child_index_of(cl_ptr));
-
-    try tr.append(.{ .clip = cl });
-    try expectEqual(1, tr.child_index_of(tr.child_ptr_from_index(1)));
-    try expectEqual(0, tr.child_index_of(cl_ptr));
-}
 
 pub const SpaceLabel = enum(i8) {
     presentation = 0,
@@ -3886,7 +3833,6 @@ test "sequential_child_hash: math"
 
         try std.testing.expect(test_code.eql(result));
     }
-
 }
 
 test "label_for_node_leaky" 
