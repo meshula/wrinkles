@@ -694,6 +694,7 @@ pub const Track = struct {
     }
 };
 
+/// used to identify spaces on objects in the hierarchy
 pub const SpaceLabel = enum(i8) {
     presentation = 0,
     intrinsic,
@@ -701,12 +702,14 @@ pub const SpaceLabel = enum(i8) {
     child,
 };
 
+/// references a specific space on a specific object
 pub const SpaceReference = struct {
     item: ItemPtr,
     label: SpaceLabel,
     child_index: ?usize = null,
 };
 
+/// endpoints for a projection
 const ProjectionOperatorArgs = struct {
     source: SpaceReference,
     destination: SpaceReference,
