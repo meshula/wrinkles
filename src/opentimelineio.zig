@@ -539,6 +539,7 @@ pub const ItemPtr = union(enum) {
     }
 };
 
+/// a container in which each contained item is right-met over time
 pub const Track = struct {
     name: ?string.latin_s8 = null,
     children: std.ArrayList(Item),
@@ -576,6 +577,7 @@ pub const Track = struct {
         self.children.deinit();
     }
 
+    /// compute the duration
     pub fn duration(
         self: @This()
     ) !Duration  
@@ -609,6 +611,7 @@ pub const Track = struct {
         };
     }
 
+    /// construct the topology mapping the output to the intrinsic space
     pub fn topology(
         self: @This()
     ) !time_topology.TimeTopology 
@@ -641,18 +644,23 @@ pub const Track = struct {
         );
     }
 
+    /// find the first instance of object in the track
     pub fn child_index_of(
         self: @This(),
         child_to_find: ItemPtr
-    ) !i32 
+    ) !usize 
     {
-        return for (self.children.items, 0..) 
-                   |current, index| 
+        for (0..self.children.items.len) 
+            |index| 
         {
-            if (std.meta.eql(current, child_to_find)) {
-                break index;
+            const current = self.child_ptr_from_index(index);
+            if (current.equivalent_to(child_to_find)) 
+            {
+                return index;
             }
-        } else null;
+        }
+
+        return error.ChildNotFound;
     }
 
     pub fn child_ptr_from_index(
@@ -714,6 +722,28 @@ pub const Track = struct {
         );
     }
 };
+
+test "Track: child_index_of"
+{
+    var tr = Track.init(std.testing.allocator);
+    defer tr.deinit();
+
+    const cl = Clip {
+        .media_temporal_bounds = .{
+            .start_seconds = 1,
+            .end_seconds = 9 
+        }
+    };
+    try tr.append(.{ .clip = cl });
+    // const tr_ptr = ItemPtr{ .track_ptr = &tr };
+    const cl_ptr = tr.child_ptr_from_index(0);
+
+    try expectEqual(0, tr.child_index_of(cl_ptr));
+
+    try tr.append(.{ .clip = cl });
+    try expectEqual(1, tr.child_index_of(tr.child_ptr_from_index(1)));
+    try expectEqual(0, tr.child_index_of(cl_ptr));
+}
 
 pub const SpaceLabel = enum(i8) {
     presentation = 0,
