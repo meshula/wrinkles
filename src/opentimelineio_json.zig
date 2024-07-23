@@ -306,7 +306,7 @@ test "read_from_file test"
 
     try expectApproxEqAbs(
         @as(time_topology.Ordinate, 0.175),
-        try tl_output_to_clip_media.project_ordinate(0.05),
+        try tl_output_to_clip_media.project_instantaneous_cc(0.05),
         util.EPSILON
     );
 }

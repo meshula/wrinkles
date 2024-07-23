@@ -795,9 +795,6 @@ const ProjectionOperator = struct {
         return self.topology.project_ordinate(ordinate_in_source_space);
     }
 
-    // @TODO: remove this alias
-    pub const project_ordinate = project_instantaneous_cc;
-
     /// project a continuous ordinate to the destination discrete sample index
     pub fn project_instantaneous_cd(
         self: @This(),
@@ -3071,7 +3068,7 @@ test "Track with clip with identity transform projection"
     // check the projection
     try expectApproxEqAbs(
         @as(f32, 4),
-        try track_to_clip.project_ordinate(3),
+        try track_to_clip.project_instantaneous_cc(3),
         util.EPSILON,
     );
 }
@@ -3159,12 +3156,12 @@ test "TopologicalMap: Track with clip with identity transform topological"
 
     try expectError(
         time_topology.TimeTopology.ProjectionError.OutOfBounds,
-        root_presentation_to_clip_media.project_ordinate(3)
+        root_presentation_to_clip_media.project_instantaneous_cc(3)
     );
 
     try expectApproxEqAbs(
         1,
-        try root_presentation_to_clip_media.project_ordinate(1),
+        try root_presentation_to_clip_media.project_instantaneous_cc(1),
         util.EPSILON,
     );
 }
@@ -3219,7 +3216,7 @@ test "Projection: Track with single clip with identity transform and bounds"
 
     try expectError(
         time_topology.TimeTopology.ProjectionError.OutOfBounds,
-        root_presentation_to_clip_media.project_ordinate(3)
+        root_presentation_to_clip_media.project_instantaneous_cc(3)
     );
 }
 
@@ -3340,11 +3337,11 @@ test "Projection: Track with multiple clips with identity transform and bounds"
         {
             try expectError(
                 time_topology.TimeTopology.ProjectionError.OutOfBounds,
-                tr_presentation_to_clip_media.project_ordinate(t.track_ord)
+                tr_presentation_to_clip_media.project_instantaneous_cc(t.track_ord)
             );
         }
         else{
-            const result = try tr_presentation_to_clip_media.project_ordinate(t.track_ord);
+            const result = try tr_presentation_to_clip_media.project_instantaneous_cc(t.track_ord);
 
             try expectApproxEqAbs(result, t.expected_ord, util.EPSILON);
         }
@@ -3375,7 +3372,7 @@ test "Projection: Track with multiple clips with identity transform and bounds"
 
     try expectError(
         time_topology.TimeTopology.ProjectionError.OutOfBounds,
-        root_presentation_to_clip_media.project_ordinate(3)
+        root_presentation_to_clip_media.project_instantaneous_cc(3)
     );
 }
 
@@ -3422,7 +3419,7 @@ test "Single Clip Media to presentation Identity transform"
 
         try expectApproxEqAbs(
             @as(f32, 103),
-            try clip_presentation_to_media.project_ordinate(3),
+            try clip_presentation_to_media.project_instantaneous_cc(3),
             util.EPSILON,
         );
 
@@ -3451,7 +3448,7 @@ test "Single Clip Media to presentation Identity transform"
 
         try expectApproxEqAbs(
             @as(f32, 3),
-            try clip_presentation_to_media.project_ordinate(103),
+            try clip_presentation_to_media.project_instantaneous_cc(103),
             util.EPSILON,
         );
     }
@@ -3512,7 +3509,7 @@ test "Single Clip reverse transform"
 
         try expectApproxEqAbs(
             @as(f32, 107),
-            try clip_presentation_to_media_topo.project_ordinate(3),
+            try clip_presentation_to_media_topo.project_instantaneous_cc(3),
             util.EPSILON,
         );
     }
@@ -3529,7 +3526,7 @@ test "Single Clip reverse transform"
 
         try expectApproxEqAbs(
             @as(f32, 3),
-            try clip_media_to_presentation.project_ordinate(107),
+            try clip_media_to_presentation.project_instantaneous_cc(107),
             util.EPSILON,
         );
     }
@@ -3678,7 +3675,7 @@ test "Single Clip bezier transform"
         {
             // output time -> media time
             const media_time = (
-                try clip_presentation_to_media_proj.project_ordinate(output_time)
+                try clip_presentation_to_media_proj.project_instantaneous_cc(output_time)
             );
             const topo = clip_presentation_to_media_proj.topology;
             
@@ -3734,7 +3731,7 @@ test "Single Clip bezier transform"
 
         try expectApproxEqAbs(
             @as(f32, 6.5745),
-            try clip_media_to_presentation.project_ordinate(107),
+            try clip_media_to_presentation.project_instantaneous_cc(107),
             util.EPSILON,
         );
     }
