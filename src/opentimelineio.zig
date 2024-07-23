@@ -1166,7 +1166,6 @@ const TopologicalMap = struct {
             .stack_ptr => "stack",
         };
 
-
         if (LABEL_HAS_BINARY_TREECODE) {
             var buf = std.ArrayList(u8).init(allocator);
             defer buf.deinit();
@@ -1181,11 +1180,13 @@ const TopologicalMap = struct {
             return std.fmt.allocPrint(allocator, "{s}_{s}_{s}", args);
         } 
         else {
-            const args = .{ item_kind, @tagName(ref.label), code.hash(), };
+            const args = .{ 
+                item_kind,
+                @tagName(ref.label), code.hash(), 
+            };
 
             return std.fmt.allocPrint(allocator, "{s}_{s}_{any}", args);
         }
-
     }
 
     /// write a graphviz (dot) format serialization of this TopologicalMap
@@ -1336,7 +1337,7 @@ const TopologicalMap = struct {
         );
         defer allocator.free(pngfilepath);
 
-        // @TODO: gate the png render on if dot is installed
+        // @TODO: gate the dot/png render on if dot is installed
 
         // render to png
         const result = try std.process.Child.run(
@@ -1721,19 +1722,15 @@ const ProjectionOperatorMap = struct {
             and ind_other < pts.len - 1 
         )
         {
-            if (ind_self < self.end_points.len - 1) {
-                t_next_self = self.end_points[ind_self+1];
-            }
-            if (ind_other < pts.len - 1) {
-                t_next_other = pts[ind_other+1];
-            }
-
             try tmp_ops.append(
                 try allocator.dupe(
                     ProjectionOperator,
                     self.operators[ind_self],
                 )
             );
+
+            t_next_self = self.end_points[ind_self+1];
+            t_next_other = pts[ind_other+1];
 
             if (
                 std.math.approxEqAbs(
@@ -1751,21 +1748,16 @@ const ProjectionOperatorMap = struct {
                 if (ind_other < pts.len - 1) {
                     ind_other += 1;
                 }
-                continue;
             }
-
-            if (t_next_self < t_next_other)
+            else if (t_next_self < t_next_other)
             {
                 try tmp_pts.append(t_next_self);
-                if (ind_self < self.end_points.len - 1) {
-                    ind_self += 1;
-                }
+                ind_self += 1;
             }
-            else {
+            else 
+            {
                 try tmp_pts.append(t_next_other);
-                if (ind_other < pts.len - 1) {
-                    ind_other += 1;
-                }
+                ind_other += 1;
             }
         }
 
