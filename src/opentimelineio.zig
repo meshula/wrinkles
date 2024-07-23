@@ -75,7 +75,7 @@ pub const Clip = struct {
     name: ?string.latin_s8 = null,
 
     /// a trim on the media space
-    source_range: ?opentime.ContinuousTimeInterval = null,
+    media_temporal_bounds: ?opentime.ContinuousTimeInterval = null,
 
     /// transformation of the media space to the output space
     transform: ?time_topology.TimeTopology = null,
@@ -89,18 +89,19 @@ pub const Clip = struct {
         output = 1,
     };
 
-    pub fn trimmed_range(
-        self: @This()
+    /// compute the bounds of the specified target space
+    pub fn bounds_of(
+        self: @This(),
+        target_space: SpaceLabel,
     ) !opentime.ContinuousTimeInterval 
     {
-        if (self.source_range) 
-            |rng| 
-        {
-            return rng;
-        }
+        const output_to_media_topo = try self.topology();
 
-        // normally the available range check would go here
-        return error.NoSourceRangeSet;
+        return switch (target_space) {
+            .media => output_to_media_topo.output_bounds(),
+            .output => output_to_media_topo.input_bounds(),
+            else => error.UnsupportedSpaceError,
+        };
     }
 
     pub fn space(
@@ -118,7 +119,7 @@ pub const Clip = struct {
         self: @This(),
     ) !time_topology.TimeTopology 
     {
-        if (self.source_range) 
+        if (self.media_temporal_bounds) 
             |range| 
         {
             return time_topology.TimeTopology.init_identity(
@@ -165,7 +166,7 @@ pub const Item = union(enum) {
     {
         return switch (self) {
             .gap => error.NotImplemented,
-            .clip => |cl| (try cl.trimmed_range()).duration_seconds(),
+            .clip => |cl| (try cl.bounds_of(.media)).duration_seconds(),
             inline .track, .stack, => |tr| try tr.duration(),
         };
     }
@@ -397,7 +398,7 @@ pub const ItemPtr = union(enum) {
                         );
                         defer output_to_intrinsic.deinit(allocator);
 
-                        const media_bounds = try cl.*.trimmed_range();
+                        const media_bounds = try cl.*.bounds_of(.media);
                         const intrinsic_to_media_xform = (
                             transform.AffineTransform1D{
                                 .offset_seconds = media_bounds.start_seconds,
@@ -426,7 +427,7 @@ pub const ItemPtr = union(enum) {
                     },
                     else => time_topology.TimeTopology.init_identity(
                         .{
-                            .bounds = try cl.*.trimmed_range()
+                            .bounds = try cl.*.bounds_of(.media)
                         }
                     ),
                 };
@@ -671,7 +672,7 @@ pub const Track = struct {
         // XXX should probably check the index before calling this and call this
         //     with index - 1 rather than have it do the offset here.
         const child = self.child_ptr_from_index(child_index - 1);
-        const child_range = try child.clip_ptr.trimmed_range();
+        const child_range = try child.clip_ptr.bounds_of(.media);
         const child_duration = child_range.duration_seconds();
 
         // the transform to the next child space, compensates for this duration
@@ -1448,7 +1449,7 @@ test "ProjectionOperatorMap: init_operator leak test"
 test "ProjectionOperatorMap: projection_map_to_media_from leak test"
 {
     const cl = Clip {
-        .source_range = .{
+        .media_temporal_bounds = .{
             .start_seconds = 1,
             .end_seconds = 9 
         }
@@ -1773,7 +1774,7 @@ const ProjectionOperatorMap = struct {
 test "ProjectionOperatorMap: extend_to"
 {
     const cl = Clip {
-        .source_range = .{
+        .media_temporal_bounds = .{
             .start_seconds = 1,
             .end_seconds = 9 
         }
@@ -1867,7 +1868,7 @@ test "ProjectionOperatorMap: extend_to"
 test "ProjectionOperatorMap: split_at_each"
 {
     const cl = Clip {
-        .source_range = .{
+        .media_temporal_bounds = .{
             .start_seconds = 1,
             .end_seconds = 9 
         }
@@ -1985,7 +1986,7 @@ test "ProjectionOperatorMap: split_at_each"
 test "ProjectionOperatorMap: merge_composite"
 {
     const cl = Clip {
-        .source_range = .{
+        .media_temporal_bounds = .{
             .start_seconds = 1,
             .end_seconds = 9 
         }
@@ -2034,7 +2035,7 @@ test "ProjectionOperatorMap: merge_composite"
 test "ProjectionOperatorMap: clip"
 {
     const cl = Clip {
-        .source_range = .{
+        .media_temporal_bounds = .{
             .start_seconds = 1,
             .end_seconds = 9 
         }
@@ -2118,7 +2119,7 @@ test "ProjectionOperatorMap: track with single clip"
     defer tr.deinit();
 
     const cl = Clip {
-        .source_range = .{
+        .media_temporal_bounds = .{
             .start_seconds = 1,
             .end_seconds = 9 
         }
@@ -2212,13 +2213,13 @@ test "transform: track with two clips"
     defer tr.deinit();
 
     const cl1 = Clip {
-        .source_range = .{
+        .media_temporal_bounds = .{
             .start_seconds = 1,
             .end_seconds = 9 
         }
     };
     const cl2 = Clip {
-        .source_range = .{
+        .media_temporal_bounds = .{
             .start_seconds = 1,
             .end_seconds = 4 
         }
@@ -2265,8 +2266,8 @@ test "transform: track with two clips"
         );
         const b = xform.topology.input_bounds();
 
-        const cl1_range = try cl1.trimmed_range();
-        const cl2_range = try cl2.trimmed_range();
+        const cl1_range = try cl1.bounds_of(.media);
+        const cl2_range = try cl2.bounds_of(.media);
 
         try std.testing.expectEqualSlices(
             f32,
@@ -2285,13 +2286,102 @@ test "ProjectionOperatorMap: track with two clips"
     defer tr.deinit();
 
     const cl = Clip {
-        .source_range = .{
+        .media_temporal_bounds = .{
             .start_seconds = 1,
             .end_seconds = 9 
         }
     };
     try tr.append(.{ .clip = cl });
     try tr.append(.{ .clip = cl });
+    const tr_ptr = ItemPtr{ .track_ptr = &tr };
+    const cl_ptr = tr.child_ptr_from_index(1);
+
+    const map = try build_topological_map(
+        std.testing.allocator,
+        tr_ptr,
+    );
+    defer map.deinit();
+
+    const source_space = try tr_ptr.space(.output);
+
+    const p_o_map = (
+        try projection_map_to_media_from(
+            std.testing.allocator,
+            map,
+            source_space,
+        )
+    );
+
+    defer p_o_map.deinit();
+
+    try std.testing.expectEqualSlices(
+        f32,
+        &.{0,8,16},
+        p_o_map.end_points,
+    );
+    try expectEqual(2, p_o_map.operators.len);
+
+    const known_output_to_media = (
+        try map.build_projection_operator(
+            std.testing.allocator,
+            .{
+                .source = try tr_ptr.space(.output),
+                .destination = try cl_ptr.space(.media),
+            },
+        )
+    );
+    const known_input_bounds = (
+        known_output_to_media.topology.input_bounds()
+    );
+
+    const guess_output_to_media = p_o_map.operators[1][0];
+    const guess_input_bounds = (
+        guess_output_to_media.topology.input_bounds()
+    );
+
+    // topology input bounds match
+    try expectApproxEqAbs(
+        known_input_bounds.start_seconds,
+        guess_input_bounds.start_seconds,
+        util.EPSILON
+    );
+    try expectApproxEqAbs(
+        known_input_bounds.end_seconds,
+        guess_input_bounds.end_seconds,
+        util.EPSILON
+    );
+
+    // end points match topology
+    try expectApproxEqAbs(
+        8.0,
+        guess_input_bounds.start_seconds,
+        util.EPSILON
+    );
+    try expectApproxEqAbs(
+        16,
+        guess_input_bounds.end_seconds,
+        util.EPSILON
+    );
+}
+
+test "ProjectionOperatorMap: track [c1][gap][c2]"
+{
+    var tr = Track.init(std.testing.allocator);
+    defer tr.deinit();
+
+    const cl = Clip {
+        .media_temporal_bounds = .{
+            .start_seconds = 1,
+            .end_seconds = 9 
+        }
+    };
+    const gp = Gap{
+        .duration = 5,
+    };
+    try tr.append(.{ .clip = cl });
+    try tr.append(.{ .gap = gp });
+    try tr.append(.{ .clip = cl });
+
     const tr_ptr = ItemPtr{ .track_ptr = &tr };
     const cl_ptr = tr.child_ptr_from_index(1);
 
@@ -2629,7 +2719,7 @@ test "clip topology construction"
     const start_seconds:f32 = 1;
     const end_seconds:f32 = 10;
     const cl = Clip {
-        .source_range = .{
+        .media_temporal_bounds = .{
             .start_seconds = start_seconds,
             .end_seconds = end_seconds 
         }
@@ -2658,7 +2748,7 @@ test "track topology construction"
     const start_seconds:f32 = 1;
     const end_seconds:f32 = 10;
     const cl = Clip {
-        .source_range = .{
+        .media_temporal_bounds = .{
             .start_seconds = start_seconds,
             .end_seconds = end_seconds 
         }
@@ -2686,7 +2776,7 @@ test "build_topological_map: leak sentinel test - single clip"
     const end_seconds:f32 = 10;
 
     const cl = Clip {
-        .source_range = .{
+        .media_temporal_bounds = .{
             .start_seconds = start_seconds,
             .end_seconds = end_seconds 
         }
@@ -2710,7 +2800,7 @@ test "build_topological_map: leak sentinel test track w/ clip"
     const end_seconds:f32 = 10;
 
     const cl = Clip {
-        .source_range = .{
+        .media_temporal_bounds = .{
             .start_seconds = start_seconds,
             .end_seconds = end_seconds 
         }
@@ -2735,7 +2825,7 @@ test "build_topological_map check root node"
     const end_seconds:f32 = 10;
 
     const cl = Clip {
-        .source_range = .{
+        .media_temporal_bounds = .{
             .start_seconds = start_seconds,
             .end_seconds = end_seconds 
         }
@@ -2747,7 +2837,7 @@ test "build_topological_map check root node"
         : (i += 1)
     {
         const cl2 = Clip {
-            .source_range = .{
+            .media_temporal_bounds = .{
                 .start_seconds = start_seconds,
                 .end_seconds = end_seconds 
             }
@@ -2784,7 +2874,7 @@ test "path_code: graph test"
     const end_seconds:f32 = 10;
 
     const cl = Clip {
-        .source_range = .{
+        .media_temporal_bounds = .{
             .start_seconds = start_seconds,
             .end_seconds = end_seconds 
         }
@@ -2796,7 +2886,7 @@ test "path_code: graph test"
         : (i+=1)
     {
         const cl2 = Clip {
-            .source_range = .{
+            .media_temporal_bounds = .{
                 .start_seconds = start_seconds,
                 .end_seconds = end_seconds 
             }
@@ -2885,14 +2975,14 @@ test "Track with clip with identity transform projection"
         .end_seconds = end_seconds,
     };
 
-    const cl = Clip{.source_range = range};
+    const cl = Clip{.media_temporal_bounds = range};
     try tr.append(.{ .clip = cl });
 
     var i:i32 = 0;
     while (i < 10) 
         : (i+=1)
     {
-        const cl2 = Clip {.source_range = range};
+        const cl2 = Clip {.media_temporal_bounds = range};
         try tr.append(.{ .clip = cl2 });
     }
 
@@ -2940,7 +3030,7 @@ test "TopologicalMap: Track with clip with identity transform topological"
     defer tr.deinit();
 
     const cl = Clip {
-        .source_range = .{
+        .media_temporal_bounds = .{
             .start_seconds = 0,
             .end_seconds = 2 
         } 
@@ -3033,7 +3123,7 @@ test "Projection: Track with single clip with identity transform and bounds"
 
     const root = ItemPtr{ .track_ptr = &tr };
 
-    const cl = Clip { .source_range = .{ .start_seconds = 0, .end_seconds = 2 } };
+    const cl = Clip { .media_temporal_bounds = .{ .start_seconds = 0, .end_seconds = 2 } };
     try tr.append(.{ .clip = cl });
 
     const clip = tr.child_ptr_from_index(0);
@@ -3063,13 +3153,13 @@ test "Projection: Track with single clip with identity transform and bounds"
 
     // check the bounds
     try expectApproxEqAbs(
-        (cl.source_range orelse interval.ContinuousTimeInterval{}).start_seconds,
+        (cl.media_temporal_bounds orelse interval.ContinuousTimeInterval{}).start_seconds,
         root_output_to_clip_media.topology.input_bounds().start_seconds,
         util.EPSILON,
     );
 
     try expectApproxEqAbs(
-        (cl.source_range orelse interval.ContinuousTimeInterval{}).end_seconds,
+        (cl.media_temporal_bounds orelse interval.ContinuousTimeInterval{}).end_seconds,
         root_output_to_clip_media.topology.input_bounds().end_seconds,
         util.EPSILON,
     );
@@ -3093,7 +3183,7 @@ test "Projection: Track with multiple clips with identity transform and bounds"
     defer tr.deinit();
     const track_ptr = ItemPtr{ .track_ptr = &tr };
 
-    const cl = Clip { .source_range = .{ .start_seconds = 0, .end_seconds = 2 } };
+    const cl = Clip { .media_temporal_bounds = .{ .start_seconds = 0, .end_seconds = 2 } };
 
     // add three copies
     try tr.append(.{ .clip = cl });
@@ -3219,13 +3309,13 @@ test "Projection: Track with multiple clips with identity transform and bounds"
 
     // check the bounds
     try expectApproxEqAbs(
-        (cl.source_range orelse interval.ContinuousTimeInterval{}).start_seconds,
+        (cl.media_temporal_bounds orelse interval.ContinuousTimeInterval{}).start_seconds,
         root_output_to_clip_media.topology.input_bounds().start_seconds,
         util.EPSILON,
     );
 
     try expectApproxEqAbs(
-        (cl.source_range orelse interval.ContinuousTimeInterval{}).end_seconds,
+        (cl.media_temporal_bounds orelse interval.ContinuousTimeInterval{}).end_seconds,
         root_output_to_clip_media.topology.input_bounds().end_seconds,
         util.EPSILON,
     );
@@ -3244,12 +3334,12 @@ test "Single Clip Media to Output Identity transform"
     // media space  [-----------------*-----------)
     //              100               107         110 (seconds)
     //              
-    const source_range = interval.ContinuousTimeInterval{
+    const media_temporal_bounds = interval.ContinuousTimeInterval{
         .start_seconds = 100,
         .end_seconds = 110 
     };
 
-    const cl = Clip { .source_range = source_range };
+    const cl = Clip { .media_temporal_bounds = media_temporal_bounds };
     const cl_ptr : ItemPtr = .{ .clip_ptr = &cl};
 
     const map = try build_topological_map(
@@ -3290,7 +3380,7 @@ test "Single Clip Media to Output Identity transform"
         );
 
         try expectApproxEqAbs(
-            source_range.duration_seconds(),
+            media_temporal_bounds.duration_seconds(),
             clip_output_to_media.topology.input_bounds().end_seconds,
             util.EPSILON,
         );
@@ -3331,12 +3421,12 @@ test "Single Clip reverse transform"
     const end = curve.ControlPoint{ .time = 10, .value = 0 };
     const inv_tx = time_topology.TimeTopology.init_linear_start_end(start, end);
 
-    const source_range:interval.ContinuousTimeInterval = .{
+    const media_temporal_bounds:interval.ContinuousTimeInterval = .{
         .start_seconds = 100,
         .end_seconds = 110,
     };
 
-    const cl = Clip { .source_range = source_range, .transform = inv_tx };
+    const cl = Clip { .media_temporal_bounds = media_temporal_bounds, .transform = inv_tx };
     const cl_ptr : ItemPtr = .{ .clip_ptr = &cl};
 
     const map = try build_topological_map(
@@ -3458,12 +3548,12 @@ test "Single Clip bezier transform"
         std.meta.activeTag(curve_topo) != time_topology.TimeTopology.empty
     );
 
-    const source_range:interval.ContinuousTimeInterval = .{
+    const media_temporal_bounds:interval.ContinuousTimeInterval = .{
         .start_seconds = 100,
         .end_seconds = 110,
     };
     const cl = Clip {
-        .source_range = source_range,
+        .media_temporal_bounds = media_temporal_bounds,
         .transform = curve_topo 
     };
     const cl_ptr : ItemPtr = .{ .clip_ptr = &cl };
@@ -3558,12 +3648,12 @@ test "Single Clip bezier transform"
             errdefer std.log.err(
                 "\nERR\n  output_time: {d} \n"
                 ++ "  computed_output_time: {d} \n"
-                ++ " source_range: {any}\n"
+                ++ " media_temporal_bounds: {any}\n"
                 ++ "  output_bounds: {any} \n",
                 .{
                     output_time,
                     computed_output_time,
-                    source_range,
+                    media_temporal_bounds,
                     input_bounds,
                 }
             );
@@ -3811,7 +3901,7 @@ test "otio projection: track with single clip"
 
     // construct the clip and add it to the track
     const cl = Clip {
-        .source_range = media_source_range,
+        .media_temporal_bounds = media_source_range,
         .discrete_info = .{
             .media = media_discrete_info 
         },
@@ -3879,7 +3969,7 @@ test "otio projection: track with single clip"
             );
             defer result_range_in_media.deinit(std.testing.allocator);
 
-            const r = try cl.trimmed_range();
+            const r = try cl.bounds_of(.media);
             const b = result_range_in_media.output_bounds();
             errdefer {
                 std.debug.print(
@@ -3955,7 +4045,7 @@ test "otio projection: track with single clip with transform"
 
     // construct the clip and add it to the track
     const cl = Clip {
-        .source_range = media_source_range,
+        .media_temporal_bounds = media_source_range,
         .discrete_info = .{
             .media = media_discrete_info 
         },
@@ -4025,7 +4115,7 @@ test "otio projection: track with single clip with transform"
             );
             defer result_range_in_media.deinit(std.testing.allocator);
 
-            const r = try cl.trimmed_range();
+            const r = try cl.bounds_of(.media);
             const b = result_range_in_media.output_bounds();
             errdefer {
                 std.debug.print(
@@ -4222,7 +4312,7 @@ test "TestWalkingIterator: clip"
     };
 
     const cl = Clip {
-        .source_range = media_source_range,
+        .media_temporal_bounds = media_source_range,
     };
     const cl_ptr = ItemPtr{ .clip_ptr = &cl };
 
@@ -4263,7 +4353,7 @@ test "TestWalkingIterator: track with clip"
 
     // construct the clip and add it to the track
     const cl = Clip {
-        .source_range = media_source_range,
+        .media_temporal_bounds = media_source_range,
     };
     try tr.append(.{ .clip = cl });
     const tr_ptr : ItemPtr = .{ .track_ptr = &tr };

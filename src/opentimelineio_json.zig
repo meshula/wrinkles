@@ -188,7 +188,7 @@ pub fn read_otio_object(
 
             const cl = otio.Clip{
                 .name=try allocator.dupe(u8, name),
-                .source_range = source_range,
+                .media_temporal_bounds  = source_range,
             };
 
             return .{ .Clip = cl };
