@@ -24,9 +24,11 @@ const treecode = @import("treecode");
 const sampling = @import("sampling");
 
 const otio_json = @import("opentimelineio_json.zig");
+const otio_highlevel_tests = @import("opentimelineio_highlevel_test.zig");
 
 test {
     _ = otio_json;
+    _ = otio_highlevel_tests;
 }
 
 /// annotate the graph algorithms
@@ -459,19 +461,20 @@ pub const ItemPtr = union(enum) {
         in_space: SpaceLabel,
     ) !usize
     {
-        const maybe_discrete_info = (
+        const maybe_di = (
             try self.discrete_info_for_space(in_space)
         );
-        if (maybe_discrete_info)
-            |discrete_info|
+
+        if (maybe_di) 
+            |di|
         {
             return sampling.project_instantaneous_cd(
-                discrete_info,
+                di,
                 ord_continuous
             );
         }
 
-        return error.SpaceOnObjectHasNoDiscreteSpecification;
+        return error.NoDiscreteInfoForSpace;
     }
    
     pub fn continuous_to_discrete_topology(
@@ -540,7 +543,10 @@ pub const Track = struct {
         };
     }
 
-    pub fn recursively_deinit(self: @This()) void {
+    pub fn recursively_deinit(
+        self: @This(),
+    ) void 
+    {
         for (self.children.items)
             |c|
         {
@@ -1344,6 +1350,7 @@ pub fn projection_map_to_media_from(
 
     var result = ProjectionOperatorMap{
         .allocator = allocator,
+        .source = source,
     };
 
     var proj_args = ProjectionOperatorArgs{
@@ -1446,6 +1453,9 @@ const ProjectionOperatorMap = struct {
     /// segment projection operators 
     operators : [][]ProjectionOperator = &.{},
 
+    /// root space for the map
+    source : SpaceReference,
+
     pub fn init_operator(
         allocator: std.mem.Allocator,
         op: ProjectionOperator,
@@ -1468,6 +1478,7 @@ const ProjectionOperatorMap = struct {
             .allocator = allocator,
             .end_points = end_points,
             .operators = operators,
+            .source = op.source,
         };
     }
 
@@ -1500,7 +1511,9 @@ const ProjectionOperatorMap = struct {
     {
         if (args.over.is_empty() and args.under.is_empty())
         {
-            return .{ .allocator = parent_allocator, };
+            return .{
+                .allocator = parent_allocator,
+                .source = args.over.source };
         }
         if (args.over.is_empty())
         {
@@ -1583,6 +1596,7 @@ const ProjectionOperatorMap = struct {
             .allocator = parent_allocator,
             .end_points  = try end_points.toOwnedSlice(),
             .operators  = try operators.toOwnedSlice(),
+            .source = args.over.source,
         };
     }
 
@@ -1599,6 +1613,7 @@ const ProjectionOperatorMap = struct {
     {
         return .{
             .allocator = self.allocator,
+            .source = self.source,
             .end_points = try self.allocator.dupe(
                 f32,
                 self.end_points
@@ -1663,6 +1678,7 @@ const ProjectionOperatorMap = struct {
             .allocator = allocator,
             .end_points = try tmp_pts.toOwnedSlice(),
             .operators = try tmp_ops.toOwnedSlice(),
+            .source = self.source,
         };
     }
 
@@ -1733,6 +1749,7 @@ const ProjectionOperatorMap = struct {
             .allocator = allocator,
             .end_points = try tmp_pts.toOwnedSlice(),
             .operators = try tmp_ops.toOwnedSlice(),
+            .source = self.source,
         };
     }
 
@@ -3703,6 +3720,7 @@ test "Single Clip bezier transform"
 
 /// top level object
 pub const Timeline = struct {
+    name: ?string.latin_s8 = null,
     tracks:Stack,
 
     discrete_info: struct{
@@ -3718,7 +3736,15 @@ pub const Timeline = struct {
         };
     }
 
-    pub fn recursively_deinit(self: @This()) void {
+    pub fn recursively_deinit(
+        self: @This()
+    ) void 
+    {
+        if (self.name)
+            |n|
+        {
+            self.tracks.children.allocator.free(n);
+        }
         self.tracks.recursively_deinit();
     }
 
@@ -3751,6 +3777,13 @@ pub const Stack = struct {
             self.children.allocator.free(n);
         }
         self.children.deinit();
+    }
+    pub fn child_ptr_from_index(
+        self: @This(),
+        index: usize
+    ) ItemPtr 
+    {
+        return ItemPtr.init_Item(&self.children.items[index]);
     }
 
     pub fn recursively_deinit(self: @This()) void {
