@@ -168,17 +168,6 @@ pub const Item = union(enum) {
         };
     }
 
-    pub fn duration(
-        self: @This()
-    ) error{NotImplemented,NoSourceRangeSet}!Duration 
-    {
-        return switch (self) {
-            .gap => error.NotImplemented,
-            .clip => |cl| (try cl.bounds_of(.media)).duration_seconds(),
-            inline .track, .stack, => |tr| try tr.duration(),
-        };
-    }
-
     pub fn recursively_deinit(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -567,21 +556,6 @@ pub const Track = struct {
         self.children.deinit();
     }
 
-    /// compute the duration
-    pub fn duration(
-        self: @This()
-    ) !Duration  
-    {
-        var total_duration: Duration = 0;
-        for (self.children.items) 
-            |c| 
-        {
-            total_duration += try c.duration();
-        }
-
-        return total_duration;
-    }
-
     pub fn append(
         self: *Track,
         item: Item
@@ -681,7 +655,6 @@ pub const Track = struct {
         return time_topology.TimeTopology.init_affine(
             .{
                 .bounds = .{
-                    // .start_seconds = child_range.start_seconds + child_duration,
                     .start_seconds = child_duration,
                     .end_seconds = util.inf
                 },
@@ -3811,15 +3784,6 @@ pub const Stack = struct {
 
         self.deinit();
     }
-
-    pub fn duration(
-        self: @This(),
-    ) !f32
-    {
-        const t = try self.topology();
-        return t.input_bounds().duration_seconds();
-    }
-
 
     pub fn topology(
         self: @This()
