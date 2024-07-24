@@ -381,24 +381,27 @@ pub const ItemPtr = union(enum) {
                 //
 
                 return switch (from_space) {
-                    SpaceLabel.presentation => {
+                    .presentation => {
                         // goes to media
-                        const presentation_to_post_transform = (
+                        const pres_to_post_topo = (
                             time_topology.TimeTopology.init_identity_infinite()
                         );
 
-                        const post_transform_to_intrinsic = (
+                        const post_to_intrinsic_topo = (
                             cl.*.transform 
                             orelse time_topology.TimeTopology.init_identity_infinite()
                         );
 
-                        const presentation_to_intrinsic = (
-                            try post_transform_to_intrinsic.project_topology(
+                        const pres_to_intrinsic_topo = (
+                            try time_topology.join(
                                 allocator,
-                                presentation_to_post_transform,
+                                .{
+                                    .a2b = pres_to_post_topo,
+                                    .b2c = post_to_intrinsic_topo,
+                                }
                             )
                         );
-                        defer presentation_to_intrinsic.deinit(allocator);
+                        defer pres_to_intrinsic_topo.deinit(allocator);
 
                         const media_bounds = try cl.*.bounds_of(.media);
                         const intrinsic_to_media_xform = (
@@ -420,9 +423,12 @@ pub const ItemPtr = union(enum) {
                             )
                         );
 
-                        const presentation_to_media = try intrinsic_to_media.project_topology(
+                        const presentation_to_media = try time_topology.join(
                             allocator,
-                            presentation_to_intrinsic
+                            .{ 
+                                .a2b = pres_to_intrinsic_topo,
+                                .b2c = intrinsic_to_media,
+                            },
                         );
 
                         return presentation_to_media;
@@ -741,75 +747,44 @@ const ProjectionOperator = struct {
         );
     }
 
-    /// project a topology from the continuous source space into the continuous
-    /// destination space
+    /// given a topology mapping "A" to "SOURCE" return a topology that maps
+    /// "A" to the "DESTINATION" continuous space of the projection operator
     pub fn project_topology_cc(
         self: @This(),
         allocator: std.mem.Allocator,
-        topology_in_source: time_topology.TimeTopology,
+        in_to_src_topo: time_topology.TimeTopology,
     ) !time_topology.TimeTopology
     {
         // project the source range into the destination space
-        const topology_in_destination = (
-            try self.src_to_dst_topo.project_topology(
+        const in_to_dst_topo = (
+            try time_topology.join(
                 allocator,
-                topology_in_source
+                .{ 
+                .a2b = in_to_src_topo,
+                .b2c = self.src_to_dst_topo,
+                },
             )
         );
         
-        return topology_in_destination;
+        return in_to_dst_topo;
     }
 
-    /// project a topology from the continuous source space into the discrete
-    /// destination space
+    /// given a topology mapping "A" to "SOURCE" return a topology that maps
+    /// "A" to the "DESTINATION" discrete space of the projection operator
     pub fn project_topology_cd(
         self: @This(),
         allocator: std.mem.Allocator,
-        topology_in_source: time_topology.TimeTopology,
+        in_to_src_topo: time_topology.TimeTopology,
     ) ![]usize
     {
         // project the source range into the destination space
-        const topology_in_destination_c = (
+        const in_to_dst_topo_c = (
             try self.project_topology_cc(
                 allocator,
-                topology_in_source
+                in_to_src_topo
             )
         );
-        defer topology_in_destination_c.deinit(allocator);
-
-        // XXX @TODO BARF HACK: current state of the world requires linearizing
-        //                      explicitly here.  Obviously it would be better
-        //                      to not need to do that.
-
-        const topology_in_destination_c_lin = (
-            try topology_in_destination_c.linearized(allocator)
-        );
-        defer topology_in_destination_c_lin.deinit(allocator);
-
-        // build a topology of the sampling in the destination space
-        const destination_c2d = (
-            try self.destination.item.continuous_to_discrete_topology(
-                allocator,
-                self.destination.label,
-            )
-        );
-        defer destination_c2d.deinit(allocator);
-
-        const destination_c2d_lin = try destination_c2d.linearized(allocator);
-        defer destination_c2d_lin.deinit(allocator);
-
-        // project the range through the continuous->discrete function
-        const range_in_destination_d = (
-            try topology_in_destination_c_lin.project_topology(
-                allocator,
-                destination_c2d_lin,
-            )
-            // try destination_c2d_lin.project_topology(
-            //     allocator,
-            //     topology_in_destination_c_lin,
-            // )
-        );
-        defer range_in_destination_d.deinit(allocator);
+        defer in_to_dst_topo_c.deinit(allocator);
 
         const discrete_info = (
             try self.destination.item.discrete_info_for_space(
@@ -822,19 +797,21 @@ const ProjectionOperator = struct {
         );
         defer index_buffer_destination_discrete.deinit();
 
-        const range_in_destination_d_extents = (
-            range_in_destination_d.output_bounds()
+        const dst_c_bounds = (
+            in_to_dst_topo_c.output_bounds()
         );
         const duration:f32 = (
             1.0 / @as(f32, @floatFromInt(discrete_info.sample_rate_hz))
         );
 
-        // convert the range in the discrete space to sample indices
-        var t = range_in_destination_d_extents.start_seconds;
-        while (t < range_in_destination_d_extents.end_seconds)
+        // walk across the continuous space at the sampling rate
+        var t = dst_c_bounds.start_seconds;
+        while (t < dst_c_bounds.end_seconds)
             : (t += duration)
         {
+            // ...project the continuous coordinate into the discrete space
             try index_buffer_destination_discrete.append(
+                // try in_to_dst_d_topo.project_instantaneous_cc(t)
                 try self.destination.item.continuous_ordinate_to_discrete_index(
                     t,
                     self.destination.label,
@@ -881,9 +858,10 @@ const ProjectionOperator = struct {
         range_in_source: opentime.ContinuousTimeInterval,
     ) ![]usize
     {
-        // build a topology over the range in the source space
-        const range_in_source_c_topo = (
-            time_topology.TimeTopology.init_identity(
+        // the range is bounding the source repo.  Therefore the topology is an
+        // identity that is bounded 
+        const in_to_source_topo = (
+            time_topology.TimeTopology.init_affine(
                 .{ 
                     .bounds = range_in_source,
                 }
@@ -892,7 +870,7 @@ const ProjectionOperator = struct {
 
         return try self.project_topology_cd(
             allocator,
-            range_in_source_c_topo,
+            in_to_source_topo
         );
     }
 
@@ -4032,9 +4010,48 @@ test "otio projection: track with single clip"
             //                                   3.5s + 1s
             const expected = [_]usize{ 18, 19, 20, 21 };
 
-            const result_media_indices = try track_to_media.project_range_cd(
-                std.testing.allocator,
-                test_range_in_track,
+            const r = track_to_media.src_to_dst_topo.input_bounds();
+            const b = track_to_media.src_to_dst_topo.output_bounds();
+
+            errdefer {
+                std.debug.print(
+                    "track range (c): [{d}, {d})\n",
+                    .{
+                        r.start_seconds,
+                        r.end_seconds,
+                    },
+                );
+                std.debug.print(
+                    "media range (c): [{d}, {d})\n",
+                    .{
+                        b.start_seconds,
+                        b.end_seconds,
+                    },
+                );
+                std.debug.print(
+                    "test range (c) in track: [{d}, {d})\n",
+                    .{
+                        test_range_in_track.start_seconds,
+                        test_range_in_track.end_seconds,
+                    },
+                );
+            }
+
+            // const result_media_indices = (
+            //     try project_range_cd(
+            //         std.testing.allocator,
+            //         .{
+            //             .po_a2b = track_to_media,
+            //             .r_in_a = test_range_in_track,
+            //         }
+            //     )
+            // );
+
+            const result_media_indices = (
+                try track_to_media.project_range_cd(
+                    std.testing.allocator,
+                    test_range_in_track,
+                )
             );
             defer std.testing.allocator.free(result_media_indices);
 

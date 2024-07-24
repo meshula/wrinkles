@@ -1,5 +1,4 @@
 //! Time Topology Struct for OpenTime
-//!
 //! The time topology maps an external temporal coordinate system to an
 //! internal one.  Coordinates in the external coordinate system can be
 //! projected through the topology to retrieve values in the internal
@@ -625,20 +624,14 @@ pub const TimeTopology = union (enum) {
     bezier_curve: BezierTopology,
     linear_curve: LinearTopology,
 
-    // linear_holodrome_curve: curve.TimeCurveLinearHolodrome,
-    // bezier_holodrome_curve: curve.TimeCurveBezierHolodrome,
-
-    /// default to an infinite identity
-    const IdentityArgs = struct {
-        bounds: interval.ContinuousTimeInterval = interval.INF_CTI,
-        transform: transform.AffineTransform1D = .{},
-    };
-
-    // @{ Initializers
     /// initialize an infinite identity topology
     pub fn init_identity_infinite() TimeTopology {
         return init_identity(.{});
     }
+
+    const IdentityArgs = struct {
+        bounds : interval.ContinuousTimeInterval = interval.INF_CTI,
+    };
 
     ///initialize an identity topology
     pub fn init_identity(
@@ -1373,6 +1366,67 @@ test "TimeTopology: project linear through affine"
         defer result.deinit(std.testing.allocator);
 
         try std.testing.expect(std.meta.activeTag(result) != TimeTopology.empty);
+    }
+}
+
+const JoinArgs = struct {
+    /// projects from A to B
+    a2b: TimeTopology,
+    /// projects from B to C
+    b2c: TimeTopology, 
+};
+
+/// takes a topology that projects from space "A" to space "B" and a topology
+/// that projects from space "B" to space "C" and builds a new topology that
+/// projects from space "A" to space "C"
+pub fn join(
+    allocator: std.mem.Allocator,
+    args: JoinArgs,
+) !TimeTopology
+{
+    return try args.b2c.project_topology(allocator, args.a2b);
+}
+
+test "TimeTopology: join function"
+{
+    const a2b = TimeTopology.init_affine(
+        .{
+            .transform = .{
+                .offset_seconds = 4,
+                .scale = 4.0,
+            }
+        }
+    );
+    const b2c = TimeTopology.init_affine(
+        .{
+            .transform = .{
+                .offset_seconds = 2,
+                .scale = 0.5,
+            },
+        }
+    );
+    const a2c = try join(
+        std.testing.allocator, 
+        .{
+            .a2b = a2b,
+            .b2c = b2c,
+        }
+    );
+
+    for (&[_]f32{ 0, 1, 4, 5 })
+        |val_a|
+    {
+        const known = try b2c.project_instantaneous_cc(
+            try a2b.project_instantaneous_cc(val_a)
+        );
+
+        const actual = try a2c.project_instantaneous_cc(val_a);
+    
+        try expectApproxEqAbs(
+            known,
+            actual,
+            util.EPSILON,
+        );
     }
 }
 
