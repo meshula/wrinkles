@@ -718,7 +718,8 @@ const ProjectionOperatorArgs = struct {
 /// Combines a source, destination and transformation from the source to the
 /// destination.  Allows continuous and discrete transformations.
 const ProjectionOperator = struct {
-    args: ProjectionOperatorArgs,
+    source: SpaceReference,
+    destination: SpaceReference,
     src_to_dst_topo: time_topology.TimeTopology,
 
     // options:
@@ -761,9 +762,9 @@ const ProjectionOperator = struct {
             )
         );
 
-        return try self.args.destination.item.continuous_ordinate_to_discrete_index(
+        return try self.destination.item.continuous_ordinate_to_discrete_index(
             continuous_in_destination_space,
-            self.args.destination.label,
+            self.destination.label,
         );
     }
 
@@ -814,9 +815,9 @@ const ProjectionOperator = struct {
 
         // build a topology of the sampling in the destination space
         const destination_c2d = (
-            try self.args.destination.item.continuous_to_discrete_topology(
+            try self.destination.item.continuous_to_discrete_topology(
                 allocator,
-                self.args.destination.label,
+                self.destination.label,
             )
         );
         defer destination_c2d.deinit(allocator);
@@ -838,8 +839,8 @@ const ProjectionOperator = struct {
         defer range_in_destination_d.deinit(allocator);
 
         const discrete_info = (
-            try self.args.destination.item.discrete_info_for_space(
-                self.args.destination.label
+            try self.destination.item.discrete_info_for_space(
+                self.destination.label
             )
         ).?;
 
@@ -861,9 +862,9 @@ const ProjectionOperator = struct {
             : (t += duration)
         {
             try index_buffer_destination_discrete.append(
-                try self.args.destination.item.continuous_ordinate_to_discrete_index(
+                try self.destination.item.continuous_ordinate_to_discrete_index(
                     t,
-                    self.args.destination.label,
+                    self.destination.label,
                 )
             );
         }
@@ -937,7 +938,7 @@ const ProjectionOperator = struct {
         // );
         //
         // // destination continuous -> destinatino discrete
-        // return self.args.destination.continuous_ordinate_to_discrete_index(
+        // return self.destination.continuous_ordinate_to_discrete_index(
         //     continuous_in_destination_space
         // );
     // }
@@ -1154,7 +1155,8 @@ const TopologicalMap = struct {
         }
 
         return .{
-            .args = args,
+            .source = args.source,
+            .destination = args.destination,
             .src_to_dst_topo = proj,
         };
     }
@@ -1446,10 +1448,8 @@ test "ProjectionOperatorMap: init_operator leak test"
         try ProjectionOperatorMap.init_operator(
             std.testing.allocator,
             .{
-                .args = .{
-                    .source = try cl_ptr.space(.presentation),
-                    .destination = try cl_ptr.space(.media),
-                },
+                .source = try cl_ptr.space(.presentation),
+                .destination = try cl_ptr.space(.media),
                 .src_to_dst_topo = (
                     time_topology.TimeTopology.init_empty()
                 ),
