@@ -744,7 +744,7 @@ const ProjectionOperator = struct {
         ordinate_in_source_space: f32
     ) !f32 
     {
-        return self.topology.project_ordinate(ordinate_in_source_space);
+        return self.topology.project_instantaneous_cc(ordinate_in_source_space);
     }
 
     /// project a continuous ordinate to the destination discrete sample index
@@ -754,7 +754,7 @@ const ProjectionOperator = struct {
     ) !usize 
     {
         const continuous_in_destination_space =  (
-            try self.topology.project_ordinate(ordinate_in_source_space)
+            try self.topology.project_instantaneous_cc(ordinate_in_source_space)
         );
 
         return try self.args.destination.item.continuous_ordinate_to_discrete_index(
@@ -925,7 +925,7 @@ const ProjectionOperator = struct {
 
         // source continuous -> destination continuous
         // const continuous_in_destination_space =  (
-        //     try self.topology.project_ordinate(ordinate_in_source_space)
+        //     try self.topology.project_instantaneous_cc(ordinate_in_source_space)
         // );
         //
         // // destination continuous -> destinatino discrete
@@ -3648,7 +3648,7 @@ test "Single Clip bezier transform"
 
             // media time -> output time
             const computed_output_time = (
-                try clip_media_to_output.project_ordinate(media_time)
+                try clip_media_to_output.project_instantaneous_cc(media_time)
             ); 
 
             errdefer std.log.err(

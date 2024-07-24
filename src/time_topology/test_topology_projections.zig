@@ -34,11 +34,11 @@ test "identity projections"
     );
     try expectError(
         TimeTopology.ProjectionError.OutOfBounds, 
-        identity_bounded.project_ordinate(10),
+        identity_bounded.project_instantaneous_cc(10),
     );
     try expectApproxEqAbs(
         @as(f32, 13),
-        try identity_bounded.project_ordinate(13),
+        try identity_bounded.project_instantaneous_cc(13),
         EPSILON
     );
 
@@ -70,11 +70,11 @@ test "projection test: linear_through_linear"
 
     try expectEqual(
         @as(f32, 0),
-        try first.project_ordinate(0)
+        try first.project_instantaneous_cc(0)
     );
     try expectApproxEqAbs(
         @as(f32, 8),
-        try first.project_ordinate(2),
+        try first.project_instantaneous_cc(2),
         EPSILON
     );
 
@@ -89,11 +89,11 @@ test "projection test: linear_through_linear"
     );
     try expectEqual(
         @as(f32, 0),
-        try second.project_ordinate(0)
+        try second.project_instantaneous_cc(0)
     );
     try expectApproxEqAbs(
         @as(f32, 4),
-        try second.project_ordinate(2),
+        try second.project_instantaneous_cc(2),
         EPSILON
     );
 
@@ -106,11 +106,11 @@ test "projection test: linear_through_linear"
     );
     try expectEqual(
         @as(f32, 0),
-        try second_through_first_topo.project_ordinate(0)
+        try second_through_first_topo.project_instantaneous_cc(0)
     );
     try expectApproxEqAbs(
         @as(f32, 16),
-        try second_through_first_topo.project_ordinate(2),
+        try second_through_first_topo.project_instantaneous_cc(2),
         EPSILON
     );
 }
@@ -129,8 +129,8 @@ test "projection test: linear_through_linear with boundary"
         }
     );
 
-    try expectEqual(0, try first.project_ordinate(0));
-    try expectEqual(8, try first.project_ordinate(2));
+    try expectEqual(0, try first.project_instantaneous_cc(0));
+    try expectEqual(8, try first.project_instantaneous_cc(2));
 
     // @TODO: this test reveals the question in the end point projection -
     //        should it be an error or not?
@@ -141,9 +141,9 @@ test "projection test: linear_through_linear with boundary"
     // // outside of the boundary condition
     // try std.testing.expectError(
     //     error.OutOfBounds,
-    //     first.project_ordinate(5)
+    //     first.project_instantaneous_cc(5)
     // );
-    try expectEqual(20, try first.project_ordinate(5));
+    try expectEqual(20, try first.project_instantaneous_cc(5));
 
     const second= TimeTopology.init_affine(
         .{ 
@@ -154,11 +154,11 @@ test "projection test: linear_through_linear with boundary"
             },
         }
     );
-    try expectEqual(0,  try second.project_ordinate(0));
-    try expectEqual(4,  try second.project_ordinate(2));
+    try expectEqual(0,  try second.project_instantaneous_cc(0));
+    try expectEqual(4,  try second.project_instantaneous_cc(2));
 
     // not out of bounds for the second topology
-    try expectEqual(10, try second.project_ordinate(5));
+    try expectEqual(10, try second.project_instantaneous_cc(5));
 
     // project one through the other
     const second_through_first_topo = try first.project_topology(
@@ -167,16 +167,16 @@ test "projection test: linear_through_linear with boundary"
     );
     try expectEqual(
         @as(f32, 0),
-        try second_through_first_topo.project_ordinate(0)
+        try second_through_first_topo.project_instantaneous_cc(0)
     );
     try expectEqual(
         @as(f32, 16),
-        try second_through_first_topo.project_ordinate(2)
+        try second_through_first_topo.project_instantaneous_cc(2)
     );
 
     // ... but after projection, the bounds are smaller
     try std.testing.expectError(
         error.OutOfBounds,
-        second_through_first_topo.project_ordinate(5)
+        second_through_first_topo.project_instantaneous_cc(5)
     );
 }

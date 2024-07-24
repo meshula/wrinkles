@@ -72,13 +72,13 @@ pub const AffineTopology = struct {
         const bound_points = [2]control_point.ControlPoint{
             .{
                 .time = self.bounds.start_seconds,
-                .value = try self.project_ordinate(
+                .value = try self.project_instantaneous_cc(
                     self.bounds.start_seconds
                 ),
             },
             .{ 
                 .time = self.bounds.end_seconds,
-                .value = try self.project_ordinate(
+                .value = try self.project_instantaneous_cc(
                     self.bounds.end_seconds
                 ),
             },
@@ -92,7 +92,7 @@ pub const AffineTopology = struct {
         };
     }
 
-    pub fn project_ordinate(
+    pub fn project_instantaneous_cc(
         self: @This(),
         ordinate: Ordinate,
     ) !Ordinate 
@@ -116,7 +116,7 @@ pub const AffineTopology = struct {
     {
         var start = self.bounds.start_seconds;
         if (start != interval.INF_CTI.start_seconds) {
-            start = try self.project_ordinate(start);
+            start = try self.project_instantaneous_cc(start);
         }
         var end = self.bounds.end_seconds;
         if (end != interval.INF_CTI.end_seconds) {
@@ -246,7 +246,7 @@ test "AffineTopology: linearize"
             .{ ind, ord }
         );
         try expectEqual(
-            a2b_aff.project_ordinate(ord),
+            a2b_aff.project_instantaneous_cc(ord),
             a2b_lin.linear_curve.curve.evaluate(ord)
         );
     }
@@ -287,7 +287,7 @@ pub const LinearTopology = struct {
         };
     }
 
-    pub fn project_ordinate(
+    pub fn project_instantaneous_cc(
         self: @This(),
         ordinate: Ordinate,
     ) !Ordinate 
@@ -435,7 +435,7 @@ pub const BezierTopology = struct {
         };
     }
 
-    pub fn project_ordinate(
+    pub fn project_instantaneous_cc(
         self: @This(),
         ordinate: Ordinate,
     ) !Ordinate 
@@ -586,7 +586,7 @@ test "BezierTopology: inverted"
 }
 
 pub const EmptyTopology = struct {
-    pub fn project_ordinate(_: @This(), _: Ordinate) !Ordinate {
+    pub fn project_instantaneous_cc(_: @This(), _: Ordinate) !Ordinate {
         return error.OutOfBounds;
     }
     pub fn inverted(_: @This()) !TimeTopology {
@@ -783,13 +783,15 @@ pub const TimeTopology = union (enum) {
     }
 
     // @{ Projections
-    pub fn project_ordinate(
+    pub fn project_instantaneous_cc(
         self: @This(),
-        ordinate:Ordinate,
+        ordinate_in_input_space:Ordinate,
     ) !Ordinate 
     {
         return switch (self) {
-            inline else => |contained| contained.project_ordinate(ordinate),
+            inline else => |contained| contained.project_instantaneous_cc(
+                ordinate_in_input_space
+            ),
         };
     }
 
@@ -881,13 +883,13 @@ test "TimeTopology: finite identity test"
         {
             try expectError(
                 TimeTopology.ProjectionError.OutOfBounds,
-                tp.project_ordinate(t),
+                tp.project_instantaneous_cc(t),
             );
         } 
         else 
         {
             try expectApproxEqAbs(
-                try tp.project_ordinate(t),
+                try tp.project_instantaneous_cc(t),
                 expected_result[index],
                 util.EPSILON
             );
@@ -937,14 +939,14 @@ test "TimeTopology: finite Affine"
         {
             try expectError(
                 TimeTopology.ProjectionError.OutOfBounds,
-                tp.project_ordinate(t.seconds),
+                tp.project_instantaneous_cc(t.seconds),
             );
         } 
         else 
         {
             try expectApproxEqAbs(
                 t.expected,
-                try tp.project_ordinate(t.seconds),
+                try tp.project_instantaneous_cc(t.seconds),
                 util.EPSILON
             );
         }
@@ -983,7 +985,9 @@ test "TimeTopology: Affine Projected Through inverted Affine"
     while (time < end_point) 
         : (time += 0.1) 
     {
-        const result = try tp_inv.project_ordinate(try tp.project_ordinate(time));
+        const result = try tp_inv.project_instantaneous_cc(
+            try tp.project_instantaneous_cc(time)
+        );
 
         errdefer std.log.err("time: {any} result: {any}", .{time, result});
 
@@ -1049,9 +1053,13 @@ test "TimeTopology: Affine Projected Through infinite Affine"
             "time: {any}\n", 
             .{time}
         );
-        const expected = try tp.project_ordinate(time);
-        const result_inf = try tp_inf_through_tp.project_ordinate(time);
-        const result_tp = try tp_through_tp_inf.project_ordinate(time);
+        const expected = try tp.project_instantaneous_cc(time);
+        const result_inf = (
+            try tp_inf_through_tp.project_instantaneous_cc(time)
+        );
+        const result_tp = (
+            try tp_through_tp_inf.project_instantaneous_cc(time)
+        );
         errdefer std.log.err(
             "time: {any} result_tp: {any} result_inf: {any}\n", 
             .{time, result_tp, result_inf}
@@ -1127,14 +1135,14 @@ test "TimeTopology: Affine through Affine w/ negative scale"
         {
             try expectError(
                 TimeTopology.ProjectionError.OutOfBounds,
-                output_to_media.project_ordinate(t.output_s),
+                output_to_media.project_instantaneous_cc(t.output_s),
             );
         } 
         else 
         {
             try expectApproxEqAbs(
                 t.media_s,
-                try output_to_media.project_ordinate(t.output_s),
+                try output_to_media.project_instantaneous_cc(t.output_s),
                 util.EPSILON
             );
         }
@@ -1177,7 +1185,7 @@ test "TimeTopology: staircase constructor"
 
     try expectEqual(
         @as(f32, 8),
-        try tp.project_ordinate(@as(f32, 19)),
+        try tp.project_instantaneous_cc(@as(f32, 19)),
     );
 }
 
