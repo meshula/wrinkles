@@ -163,6 +163,7 @@ pub fn executable(
     comptime name: []const u8,
     comptime main_file_name: []const u8,
     comptime source_dir_path: []const u8,
+    all_check_step : *std.Build.Step,
     options: Options,
     module_deps: []const std.Build.Module.Import,
 ) void 
@@ -176,16 +177,30 @@ pub fn executable(
         }
     );
 
+    const exe_check = b.addExecutable(
+        .{
+            .name = name,
+            .root_source_file = b.path(main_file_name),
+            .target = options.target,
+            .optimize = options.optimize,
+        }
+    );
+
     for (module_deps) 
         |mod| 
     {
         exe.root_module.addImport(mod.name, mod.module);
+        exe_check.root_module.addImport(mod.name, mod.module);
     }
 
     // options for exposing the content directory and build hash
     {
         const exe_options = b.addOptions();
         exe.root_module.addOptions(
+            "build_options",
+            exe_options
+        );
+        exe_check.root_module.addOptions(
             "build_options",
             exe_options
         );
@@ -229,6 +244,7 @@ pub fn executable(
     // zig gamedev dependencies
     {
         @import("zgpu").addLibraryPathsTo(exe);
+        @import("zgpu").addLibraryPathsTo(exe_check);
 
         const zgpu_pkg = b.dependency("zgpu", .{
             .target = options.target,
@@ -239,6 +255,11 @@ pub fn executable(
             zgpu_pkg.module("root")
         );
         exe.linkLibrary(zgpu_pkg.artifact("zdawn"));
+        exe_check.root_module.addImport(
+            "zgpu",
+            zgpu_pkg.module("root")
+        );
+        exe_check.linkLibrary(zgpu_pkg.artifact("zdawn"));
 
         const zgui_pkg = b.dependency(
             "zgui",
@@ -255,6 +276,11 @@ pub fn executable(
             zgui_pkg.module("root")
         );
         exe.linkLibrary(zgui_pkg.artifact("imgui"));
+        exe_check.root_module.addImport(
+            "zgui",
+            zgui_pkg.module("root")
+        );
+        exe_check.linkLibrary(zgui_pkg.artifact("imgui"));
 
         const zglfw_pkg = b.dependency("zglfw", .{
             .target = options.target,
@@ -266,12 +292,21 @@ pub fn executable(
             zglfw_pkg.module("root")
         );
         exe.linkLibrary(zglfw_pkg.artifact("glfw"));
+        exe_check.root_module.addImport(
+            "zglfw",
+            zglfw_pkg.module("root")
+        );
+        exe_check.linkLibrary(zglfw_pkg.artifact("glfw"));
 
         const zpool_pkg = b.dependency("zpool", .{
             .target = options.target,
             .optimize = options.optimize,
         });
         exe.root_module.addImport(
+            "zpool",
+            zpool_pkg.module("root")
+        );
+        exe_check.root_module.addImport(
             "zpool",
             zpool_pkg.module("root")
         );
@@ -285,6 +320,11 @@ pub fn executable(
             zstbi_pkg.module("root")
         );
         exe.linkLibrary(zstbi_pkg.artifact("zstbi"));
+        exe_check.root_module.addImport(
+            "zstbi",
+            zstbi_pkg.module("root")
+        );
+        exe_check.linkLibrary(zstbi_pkg.artifact("zstbi"));
     }
 
     // run and install the executable
@@ -334,6 +374,11 @@ pub fn executable(
         );
         docs_step.dependOn(&install_docs.step);
     }
+
+    // zls check
+    {
+        all_check_step.dependOn(&exe_check.step);
+    }
 }
 
 /// options for module_with_tests_and_artifact
@@ -343,6 +388,7 @@ pub const CreateModuleOptions = struct {
     target: std.Build.ResolvedTarget,
     test_step: *std.Build.Step,
     all_docs_step: *std.Build.Step,
+    all_check_step: *std.Build.Step,
     deps: []const std.Build.Module.Import = &.{},
     test_filter: ?[]const u8 = &.{},
 };
@@ -370,10 +416,21 @@ pub fn module_with_tests_and_artifact(
             }
         );
 
+        // for zls
+        const mod_unit_tests_check = opts.b.addTest(
+            .{
+                .name = "test_" ++ name,
+                .root_source_file = opts.b.path(opts.fpath),
+                .target =opts. target,
+                .filter = opts.test_filter orelse &.{},
+            }
+        );
+
         for (opts.deps) 
             |dep_mod| 
         {
             mod_unit_tests.root_module.addImport(dep_mod.name, dep_mod.module);
+            mod_unit_tests_check.root_module.addImport(dep_mod.name, dep_mod.module);
         }
 
         const run_unit_tests = opts.b.addRunArtifact(mod_unit_tests);
@@ -407,6 +464,11 @@ pub fn module_with_tests_and_artifact(
             );
             docs_step.dependOn(&install_docs.step);
             opts.all_docs_step.dependOn(docs_step);
+        }
+
+        // zls checks
+        {
+            opts.all_check_step.dependOn(&mod_unit_tests_check.step);
         }
     }
 
@@ -459,6 +521,27 @@ pub fn build(
         "build the documentation for the entire library",
     );
 
+    // This is where the interesting part begins.
+// // As you can see we are re-defining the same
+// // executable but we're binding it to a 
+// // dedicated build step.
+// const exe_check = b.addExecutable(.{
+//     .name = "foo",
+//     .root_source_file = b.path("src/main.zig"),
+//     .target = target,
+//     .optimize = optimize,
+// });
+//
+// // Any other code to define dependencies would 
+// // probably be here.
+//
+//
+// // These two lines you might want to copy
+// // (make sure to rename 'exe_check')
+// check.dependOn(&exe_check.step);
+
+    const all_check_step = b.step("check", "Check if everything compiles");
+
     // submodules and dependencies
     const comath_dep = b.dependency(
         "comath",
@@ -476,6 +559,7 @@ pub fn build(
             .test_step = test_step,
             .test_filter = options.test_filter,
             .all_docs_step = all_docs_step,
+            .all_check_step = all_check_step,
         }
     );
 
@@ -487,6 +571,7 @@ pub fn build(
             .target = options.target,
             .test_step = test_step,
             .all_docs_step = all_docs_step,
+            .all_check_step = all_check_step,
             .test_filter = options.test_filter,
         }
     );
@@ -519,6 +604,7 @@ pub fn build(
             .target = options.target,
             .test_step = test_step,
             .all_docs_step = all_docs_step,
+            .all_check_step = all_check_step,
             .deps = &.{},
             .test_filter = options.test_filter,
         }
@@ -532,6 +618,7 @@ pub fn build(
             .target = options.target,
             .test_step = test_step,
             .all_docs_step = all_docs_step,
+            .all_check_step = all_check_step,
             .deps = &.{
                 .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "comath", .module = comath_dep.module("comath") },
@@ -569,6 +656,7 @@ pub fn build(
             .target = options.target,
             .test_step = test_step,
             .all_docs_step = all_docs_step,
+            .all_check_step = all_check_step,
             .deps = &.{
                 .{ .name = "spline_gym", .module = &spline_gym.root_module },
                 .{ .name = "string_stuff", .module = string_stuff },
@@ -614,6 +702,7 @@ pub fn build(
             .target = options.target,
             .test_step = test_step,
             .all_docs_step = all_docs_step,
+            .all_check_step = all_check_step,
             .deps = &.{
                 .{ .name = "opentime", .module = opentime },
                 .{ .name = "curve", .module = curve },
@@ -630,6 +719,7 @@ pub fn build(
             .target = options.target,
             .test_step = test_step,
             .all_docs_step = all_docs_step,
+            .all_check_step = all_check_step,
             .deps = &.{
                 .{ 
                     .name = "libsamplerate",
@@ -656,6 +746,7 @@ pub fn build(
             .target = options.target,
             .test_step = test_step,
             .all_docs_step = all_docs_step,
+            .all_check_step = all_check_step,
             .deps = &.{
                 .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "opentime", .module = opentime },
@@ -690,6 +781,7 @@ pub fn build(
         "wrinkles",
         "src/wrinkles.zig",
         "/wrinkles_content/",
+        all_check_step,
         options,
         common_deps,
     );
@@ -698,6 +790,7 @@ pub fn build(
         "curvet",
         "src/curvet.zig",
         "/wrinkles_content/",
+        all_check_step,
         options,
         common_deps,
     );
@@ -706,6 +799,7 @@ pub fn build(
         "example_zgui_app",
         "src/example_zgui_app.zig",
         "/wrinkles_content/",
+        all_check_step,
         options,
         common_deps,
     );
