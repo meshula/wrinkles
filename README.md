@@ -58,6 +58,11 @@ contains:
    * [x] there is a second set of sampling related bits in the topology
          library... see `sample_over` and the step mapping in there
 
+### Build Questions
+
+* [x] remove the check step (can the regular steps work if all_check_step
+      depends on them?)
+
 ### Bigger, Later Questions/Todos
 
  * [ ]  what if not beziers internally but instead b-splines with bezier
