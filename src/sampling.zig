@@ -40,7 +40,10 @@ pub fn project_instantaneous_cd(
 ) usize
 {
     return @intFromFloat(
-        ord_continuous*@as(f32, @floatFromInt(self.sample_rate_hz))
+        @floor(
+            ord_continuous*@as(f32, @floatFromInt(self.sample_rate_hz))
+            + (1/@as(f32, @floatFromInt(self.sample_rate_hz)))/2
+        )
     );
 }
 
@@ -244,7 +247,7 @@ pub const DiscreteDatasourceIndexGenerator = struct {
 };
 
 /// compact representation of a signal, can be rasterized into a buffer
-const SignalGenerator = struct {
+pub const SignalGenerator = struct {
     sample_rate_hz: u32,
     signal_frequency_hz: u32,
     signal_amplitude: f32 = 1.0,

@@ -38,7 +38,7 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = false;
 /// for VERY LARGE files, turn this off so that dot can process the graphs
 const LABEL_HAS_BINARY_TREECODE = true;
 
-const WRITE_DOT_GRAPH = false;
+const WRITE_DOT_GRAPH = true;
 
 // @TODO: nick and stephan start here
 //
@@ -73,6 +73,17 @@ pub const SignalSpace = struct {
     // continuous signal
 };
 
+/// a reference that points at some reference via a string address
+pub const ExternalReference = struct {
+    target_uri : []const u8,
+};
+
+/// information about the media that this clip is cutting into the timeline
+pub const MediaReference = union(enum) {
+    external_reference : ExternalReference,
+    signal_generator : sampling.SignalGenerator,
+};
+
 /// clip with an implied media reference
 pub const Clip = struct {
     name: ?string.latin_s8 = null,
@@ -82,6 +93,9 @@ pub const Clip = struct {
 
     /// transformation of the media space to the presentation space
     transform: ?time_topology.TimeTopology = null,
+
+    /// Information about the media this points at
+    media_reference: ?MediaReference = null,
 
     discrete_info: struct{
         media:  ?sampling.DiscreteDatasourceIndexGenerator = null,
@@ -425,7 +439,7 @@ pub const ItemPtr = union(enum) {
                             )
                         );
 
-                        const presentation_to_media = try time_topology.join(
+                        const pres_to_media = try time_topology.join(
                             allocator,
                             .{ 
                                 .a2b = pres_to_intrinsic_topo,
@@ -433,7 +447,7 @@ pub const ItemPtr = union(enum) {
                             },
                         );
 
-                        return presentation_to_media;
+                        return pres_to_media;
                     },
                     else => time_topology.TimeTopology.init_identity(
                         .{
@@ -806,18 +820,27 @@ const ProjectionOperator = struct {
         const dst_c_bounds = (
             in_to_dst_topo_c.output_bounds()
         );
+        
+        // const in_c_bounds = in_to_dst_topo_c.input_bounds();
+
+        const bounds_to_walk = dst_c_bounds;
+        // const bounds_to_walk = in_c_bounds;
+
         const duration:f32 = (
             1.0 / @as(f32, @floatFromInt(discrete_info.sample_rate_hz))
         );
 
         // walk across the continuous space at the sampling rate
-        var t = dst_c_bounds.start_seconds;
-        while (t < dst_c_bounds.end_seconds)
+        var t = bounds_to_walk.start_seconds;
+        while (t < bounds_to_walk.end_seconds)
             : (t += duration)
         {
             // ...project the continuous coordinate into the discrete space
             try index_buffer_destination_discrete.append(
-                // try in_to_dst_d_topo.project_instantaneous_cc(t)
+                // try self.destination.item.continuous_ordinate_to_discrete_index(
+                //     try in_to_dst_topo_c.project_instantaneous_cc(t),
+                //     self.destination.label,
+                // )
                 try self.destination.item.continuous_ordinate_to_discrete_index(
                     t,
                     self.destination.label,

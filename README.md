@@ -23,12 +23,13 @@ contains:
  * [x]  confirm that project topology should be b2c.project(a2b) -> a2c
  * [ ]  thread ^ function through opentimelineio demo
   * [x] implement projections through the TopologicalMap to specific end points
-  * [ ]  and demo of just using OTIO directly to compute frame numbers
-  * [ ]  demo of using OTIO + libsamplerate together
-   * [ ] build mapping of topology + media references that can be handed to
+  * [x]  and demo of just using OTIO directly to compute frame numbers
+   * [x] build mapping of topology + media references that can be handed to
          libsamplerate
-   * [ ] build a map of an arbitrary slice of the output timeline to
+   * [x] build a map of an arbitrary slice of the output timeline to
          references
+  * [ ]  demo of using OTIO + libsamplerate together
+   * [ ] app that reads an OTIO file and visualizes the time spaces in it
 
  * [ ] should `resampled` only work for interpolating Samplings?
  * [ ]  time_topology: is projecting the end point an error?  Or not?
@@ -43,6 +44,8 @@ contains:
  * [ ]  `DiscreteDatasourceIndexGenerator` <- what do we do this
  * [ ]  rename retimed_linear_curve_{non}_interpolating
  * [ ] should be `a2b.joined_with(b2c)` -> a2c -- thread this through the code
+   * [x] write `time_topology.join(allocator, .{ .a2b, .b2c })`
+   * [ ] thread this through the code
  * [ ]  let brains cool off <- beers
  * [ ]  port to sokol
  * [ ]  lumpy bits in the API
