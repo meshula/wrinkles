@@ -4,14 +4,19 @@ const std = @import("std");
 const otio = @import("opentimelineio.zig");
 const sampling = @import("sampling");
 
+// for verbose print of test
+const PRINT_DEMO_OUTPUT = false;
+
 test "otio: high level procedural test [clip][   gap    ][clip]"
 {
+    const allocator = std.testing.allocator;
+
     // describe the timeline data structure
     ///////////////////////////////////////////////////////////////////////////
  
     // top level timeline
-    var tl = try otio.Timeline.init(std.testing.allocator);
-    tl.name = try std.testing.allocator.dupe(u8, "Example Timeline");
+    var tl = try otio.Timeline.init(allocator);
+    tl.name = try allocator.dupe(u8, "Example Timeline");
     tl.discrete_info.presentation = .{
         .sample_rate_hz = 24,
         .start_index = 86400,
@@ -23,12 +28,12 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     };
 
     // track
-    var tr = otio.Track.init(std.testing.allocator);
-    tr.name = try std.testing.allocator.dupe(u8, "Example Parent Track");
+    var tr = otio.Track.init(allocator);
+    tr.name = try allocator.dupe(u8, "Example Parent Track");
 
     // clips
     const cl1 = otio.Clip {
-        .name = try std.testing.allocator.dupe(
+        .name = try allocator.dupe(
             u8,
             "Spaghetti.mov",
         ),
@@ -53,7 +58,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
 
     // clip
     const cl2 = otio.Clip {
-        .name = try std.testing.allocator.dupe(
+        .name = try allocator.dupe(
             u8,
             "Taco.mov"
         ),
@@ -79,7 +84,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     // build the topological map
     ///////////////////////////////////////////////////////////////////////////
     const topo_map = try otio.build_topological_map(
-        std.testing.allocator,
+        allocator,
         tl_ptr
     );
     defer topo_map.deinit();
@@ -88,7 +93,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     ///////////////////////////////////////////////////////////////////////////
     const timeline_to_clip2 = (
         try topo_map.build_projection_operator(
-            std.testing.allocator,
+            allocator,
             .{
                 .source = try tl_ptr.space(.presentation),
                 .destination = try cl2_ptr.space(.media),
@@ -96,46 +101,49 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         )
     );
     const clip_indices = try timeline_to_clip2.project_range_cd(
-        std.testing.allocator,
+        allocator,
         timeline_to_clip2.src_to_dst_topo.input_bounds(),
     );
-    defer std.testing.allocator.free(clip_indices);
+    defer allocator.free(clip_indices);
 
     // ...or a general projection: build the projection operator map
     ///////////////////////////////////////////////////////////////////////////
     const proj_map = (
         try otio.projection_map_to_media_from(
-            std.testing.allocator,
+            allocator,
             topo_map, 
             try tl_ptr.space(.presentation)
         )
     );
     defer proj_map.deinit();
 
-    std.debug.print(
-        "Media Frames Needed to Render '{s}'\n",
-        .{
-            tr.name orelse "pasta"
-        }
-    );
     const src_discrete_info = (
         try proj_map.source.item.discrete_info_for_space(.presentation)
     );
 
-    std.debug.print(
-        "  Discrete Info:\n    sampling rate: {d}\n    start index: {d}\n",
-        .{
-            src_discrete_info.?.sample_rate_hz,
-            src_discrete_info.?.start_index,
-        },
-    );
-    std.debug.print(
-        "    interval: [{d}, {d})\n",
-        .{
-            proj_map.end_points[0],
-            proj_map.end_points[proj_map.end_points.len-1],
-        },
-    );
+    if (PRINT_DEMO_OUTPUT) 
+    {
+        std.debug.print(
+            "Media Frames Needed to Render '{s}'\n",
+            .{
+                tr.name orelse "pasta"
+            }
+        );
+        std.debug.print(
+            "  Discrete Info:\n    sampling rate: {d}\n    start index: {d}\n",
+            .{
+                src_discrete_info.?.sample_rate_hz,
+                src_discrete_info.?.start_index,
+            },
+        );
+        std.debug.print(
+            "    interval: [{d}, {d})\n",
+            .{
+                proj_map.end_points[0],
+                proj_map.end_points[proj_map.end_points.len-1],
+            },
+        );
+    }
 
     // walk across the general projection operator map
     ///////////////////////////////////////////////////////////////////////////
@@ -146,60 +154,75 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     )
         |p0, p1, ops|
     {
-        std.debug.print(
-            "  presentation space:\n    interval: [{d}, {d})\n",
-            .{ p0, p1 },
-        );
+        if  (PRINT_DEMO_OUTPUT)
+        {
+            std.debug.print(
+                "  presentation space:\n    interval: [{d}, {d})\n",
+                .{ p0, p1 },
+            );
+        }
         for (ops)
             |op|
         {
-            std.debug.print(
-                "    Topology\n      presentation:  {any}\n"
-                ++ "      media: {any}\n",
-                .{
-                    op.src_to_dst_topo.input_bounds(),
-                    op.src_to_dst_topo.output_bounds(),
-                },
-            );
+            if (PRINT_DEMO_OUTPUT)
+            {
+                std.debug.print(
+                    "    Topology\n      presentation:  {any}\n"
+                    ++ "      media: {any}\n",
+                    .{
+                        op.src_to_dst_topo.input_bounds(),
+                        op.src_to_dst_topo.output_bounds(),
+                    },
+                    );
+            }
             const di = (
                 try op.destination.item.discrete_info_for_space(.media)
             ).?;
-            std.debug.print(
-                "    Discrete Info:\n      sampling rate: {d}\n"
-                ++ "      start index: {d}\n",
-                .{
-                    di.sample_rate_hz,
-                    di.start_index,
-                },
-            );
+            if (PRINT_DEMO_OUTPUT)
+            {
+                std.debug.print(
+                    "    Discrete Info:\n      sampling rate: {d}\n"
+                    ++ "      start index: {d}\n",
+                    .{
+                        di.sample_rate_hz,
+                        di.start_index,
+                    },
+                    );
+            }
 
             const dest_frames = try op.project_range_cd(
-                std.testing.allocator,
+                allocator,
                 .{
                     .start_seconds = p0,
                     .end_seconds = p1 
                 }
             );
-            defer std.testing.allocator.free(dest_frames);
-            std.debug.print(
-                "    Source: \n      target: {?s}\n"
-                ++ "      frames: {any}\n",
-                .{ 
-                    op.destination.item.clip_ptr.name orelse "pasta",
-                    dest_frames,
-                }
-            );
+            defer allocator.free(dest_frames);
+
+            if (PRINT_DEMO_OUTPUT)
+            {
+                std.debug.print(
+                    "    Source: \n      target: {?s}\n"
+                    ++ "      frames: {any}\n",
+                    .{ 
+                        op.destination.item.clip_ptr.name orelse "pasta",
+                        dest_frames,
+                    }
+                );
+            }
         }
     }
 }
 
 test "libsamplerate w/ high level test"
 {
+    const allocator = std.testing.allocator;
+
     // top level timeline
-    var tl = try otio.Timeline.init(std.testing.allocator);
-    tl.name = try std.testing.allocator.dupe(u8, "Example Timeline");
+    var tl = try otio.Timeline.init(allocator);
+    tl.name = try allocator.dupe(u8, "Example Timeline");
     tl.discrete_info.presentation = .{
-        .sample_rate_hz = 24,
+        .sample_rate_hz = 44100,
         .start_index = 86400,
     };
 
@@ -209,18 +232,18 @@ test "libsamplerate w/ high level test"
     };
 
     // track
-    var tr = otio.Track.init(std.testing.allocator);
-    tr.name = try std.testing.allocator.dupe(u8, "Example Parent Track");
+    var tr = otio.Track.init(allocator);
+    tr.name = try allocator.dupe(u8, "Example Parent Track");
 
     // clips
     const cl1 = otio.Clip {
-        .name = try std.testing.allocator.dupe(
+        .name = try allocator.dupe(
             u8,
             "Spaghetti.mov",
         ),
         .media_temporal_bounds = .{
             .start_seconds = 1,
-            .end_seconds = 24/48000,
+            .end_seconds = 6,
         },
         .discrete_info = .{
             .media = .{
@@ -232,11 +255,23 @@ test "libsamplerate w/ high level test"
             .signal_generator = .{
                 .sample_rate_hz = 48000,
                 .signal = .sine,
-                .signal_duration_s = 30/48000,
+                .signal_duration_s = 6.0,
                 .signal_frequency_hz = 200,
             },
         }
     };
+    try std.testing.expect(
+        cl1.media_temporal_bounds.?.start_seconds < 
+        cl1.media_temporal_bounds.?.end_seconds
+    );
+    try std.testing.expect(
+        (try cl1.bounds_of(.media)).end_seconds != 0,
+    );
+    try std.testing.expect(
+        (try cl1.bounds_of(.media)).start_seconds < 
+        (try cl1.bounds_of(.media)).end_seconds
+    );
+
     try tr.append(.{ .clip = cl1 });
     try tl.tracks.children.append(.{ .track = tr });
 
@@ -247,12 +282,83 @@ test "libsamplerate w/ high level test"
     // build the topological map
     ///////////////////////////////////////////////////////////////////////////
     const topo_map = try otio.build_topological_map(
-        std.testing.allocator,
+        allocator,
         tl_ptr
     );
     defer topo_map.deinit();
 
-    _ = cl_ptr;
+    const tr_pres_to_cl_media_po = (
+        try topo_map.build_projection_operator(
+            allocator,
+            .{
+                .source = try tr_ptr.space(.presentation),
+                .destination = try cl_ptr.space(.media),
+            },
+        )
+    );
 
-    // topo_map.build_projection_operator(std.testing.a
+    try std.testing.expectEqual(
+        .affine,
+        std.meta.activeTag(tr_pres_to_cl_media_po.src_to_dst_topo),
+    );
+
+    try std.testing.expect(
+        tr_pres_to_cl_media_po.src_to_dst_topo.affine.bounds.end_seconds > 0,
+    );
+
+    try std.testing.expect(
+        cl1.media_reference.?.signal_generator.signal_duration_s > 0
+    );
+
+    // synthesize media
+    const media = (
+        try cl_ptr.clip_ptr.media_reference.?.signal_generator.rasterized(
+            allocator,
+            true,
+        )
+    );
+    defer media.deinit();
+    try std.testing.expect(media.buffer.len > 0);
+
+    // write the input file
+    try media.write_file_prefix(
+        allocator,
+        "/var/tmp",
+        "highlevel_libsamplerate_test_clip_media.",
+        cl1.media_reference.?.signal_generator,
+    );
+
+    const tr_pres_to_cl_media_lin = (
+        try tr_pres_to_cl_media_po.src_to_dst_topo.linearized(allocator)
+    );
+    defer tr_pres_to_cl_media_lin.deinit(allocator);
+    const tr_pres_to_cl_media_crv = (
+        tr_pres_to_cl_media_lin.linear_curve.curve
+    );
+
+    // goal
+    const result = try sampling.retimed_linear_curve(
+        allocator,
+        media,
+        tr_pres_to_cl_media_crv,
+        false,
+        tl.discrete_info.presentation.?,
+    );
+    defer result.deinit();
+
+    // result should match the timeline's discrete info
+    try std.testing.expectEqual(
+        tl.discrete_info.presentation.?.sample_rate_hz,
+        result.sample_rate_hz
+    );
+
+    try result.write_file_prefix(
+        allocator, 
+        "/var/tmp/",
+        "highlevel_libsamplerate_test_track_presentation.",
+        null,
+ 
+    );
+
+    try std.testing.expect(result.buffer.len > 0);
 }

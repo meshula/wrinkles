@@ -741,6 +741,12 @@ pub fn retimed_linear_curve_interpolating(
     output_sampling_info: DiscreteDatasourceIndexGenerator,
 ) !Sampling
 {
+    // @TODO: its an error if there aren't any input samples to retime, right?
+    if (in_samples.buffer.len == 0)
+    {
+        return error.NoSamplesProvided;
+    }
+
     var output_buffer_size:usize = 0;
 
     const RetimeSpec = struct {
@@ -772,12 +778,19 @@ pub fn retimed_linear_curve_interpolating(
             return error.NoRelevantSamples;
         }
         const input_samples = relevant_sample_indices[1] - relevant_sample_indices[0];
-        // const input_samples = relevant_input_samples.len;
 
         const output_samples:usize = @intFromFloat(
-            (r_knot.value - l_knot.value) 
-             * @as(f32, @floatFromInt(output_sampling_info.sample_rate_hz))
+            // @TODO: is ceil correct?
+            @ceil(
+                (r_knot.value - l_knot.value) 
+                * @as(f32, @floatFromInt(output_sampling_info.sample_rate_hz))
+            )
         );
+
+        // @TODO: should this force at least one output sample?
+        if (output_samples == 0) {
+            return error.NoOutputSamplesToCompute;
+        }
 
         const retime_ratio:f32 = (
             ( @as(f32, @floatFromInt(output_samples ))) 
@@ -902,7 +915,10 @@ pub fn retimed_linear_curve_interpolating(
     return Sampling{
         .allocator = allocator,
         .buffer = full_output_buffer,
-        .sample_rate_hz = in_samples.sample_rate_hz,
+        // @TODO: I remember one conversation about splitting
+        //        retiming/resampling.  If that is the idea here, then the
+        //        output_sampling_info can be trimmed from the function
+        .sample_rate_hz = output_sampling_info.sample_rate_hz,
         .interpolating = true,
     };
 }
