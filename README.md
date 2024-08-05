@@ -28,9 +28,12 @@ contains:
          libsamplerate
    * [x] build a map of an arbitrary slice of the output timeline to
          references
-  * [ ]  demo of using OTIO + libsamplerate together
+  * [x]  demo of using OTIO + libsamplerate together
+  * [ ] demo of using OTIO + time warps
+    * [ ] model an time warp effect
    * [ ] app that reads an OTIO file and visualizes the time spaces in it
 
+ * [ ] retime should not also resample at the same time
  * [ ] should `resampled` only work for interpolating Samplings?
  * [ ]  time_topology: is projecting the end point an error?  Or not?
         **For context**: for most of the run of the project, we had this return

@@ -771,7 +771,9 @@ pub fn retimed_linear_curve_interpolating(
         if (relevant_input_samples.len == 0) {
             return error.NoRelevantSamples;
         }
-        const input_samples = relevant_sample_indices[1] - relevant_sample_indices[0];
+        const input_samples = (
+            relevant_sample_indices[1] - relevant_sample_indices[0]
+        );
 
         const sample_rate_f:f32 = @floatFromInt(
             output_sampling_info.sample_rate_hz
@@ -824,6 +826,7 @@ pub fn retimed_linear_curve_interpolating(
         // error
         null,
     );
+    defer _ = libsamplerate.src_delete(src_state);
 
     var src_data = libsamplerate.SRC_DATA{
         .data_in = @ptrCast(in_samples.buffer.ptr),
@@ -870,7 +873,8 @@ pub fn retimed_linear_curve_interpolating(
 
         if (RETIME_DEBUG_LOGGING) {
             std.debug.print(
-                "in provided: {d} in used: {d} out requested: {d} out generated: {d} ",
+                "in provided: {d} in used: {d} out requested: {d} out "
+                ++ "generated: {d} ",
                 .{
                     src_data.input_frames,
                     src_data.input_frames_used,
@@ -909,16 +913,9 @@ pub fn retimed_linear_curve_interpolating(
         }
     }
 
-    _ = libsamplerate.src_delete(src_state);
-
     return Sampling{
         .allocator = allocator,
         .buffer = full_output_buffer,
-        // @TODO: the non-interpolating retime function does not handle
-        //        resampling.  (I think... need to 2x check that that statement
-        //        is still true).  Currently this (the interpolating case) does
-        //        allow resampling because libsamplerate does it all in one
-        //        pass.
         .sample_rate_hz = output_sampling_info.sample_rate_hz,
         .interpolating = true,
     };
