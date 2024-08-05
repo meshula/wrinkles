@@ -132,6 +132,8 @@ pub const Clip = struct {
         };
     }
 
+    /// build a topology that maps from the presentation space to the media
+    /// space of the clip
     pub fn topology(
         self: @This(),
     ) !time_topology.TimeTopology 
@@ -139,6 +141,8 @@ pub const Clip = struct {
         if (self.media_temporal_bounds) 
             |range| 
         {
+            // @TODO: support non-identity transformation from presentation to
+            //        media
             return time_topology.TimeTopology.init_identity(
                 .{.bounds=range}
             );
@@ -419,7 +423,9 @@ pub const ItemPtr = union(enum) {
                         );
                         defer pres_to_intrinsic_topo.deinit(allocator);
 
-                        const media_bounds = try cl.*.bounds_of(.media);
+                        const media_bounds = (
+                            try cl.*.bounds_of(.media)
+                        );
                         const intrinsic_to_media_xform = (
                             transform.AffineTransform1D{
                                 .offset_seconds = media_bounds.start_seconds,
