@@ -171,8 +171,8 @@ const Sampling = struct {
 
     /// fetch the slice of self.buffer that overlaps with the provided range
     /// @TODO: this should align with the algebra functions (IE is it
-    /// overlaps?) since samples represent regions of time and not
-    /// instantaneous points in time
+    ///        overlaps?) since samples represent regions of time and not
+    ///        instantaneous points in time
     pub fn samples_between_time(
         self: @This(),
         start_time_inclusive_s: sample_t,
@@ -741,12 +741,6 @@ pub fn retimed_linear_curve_interpolating(
     output_sampling_info: DiscreteDatasourceIndexGenerator,
 ) !Sampling
 {
-    // @TODO: its an error if there aren't any input samples to retime, right?
-    if (in_samples.buffer.len == 0)
-    {
-        return error.NoSamplesProvided;
-    }
-
     var output_buffer_size:usize = 0;
 
     const RetimeSpec = struct {
@@ -779,15 +773,20 @@ pub fn retimed_linear_curve_interpolating(
         }
         const input_samples = relevant_sample_indices[1] - relevant_sample_indices[0];
 
+        const sample_rate_f:f32 = @floatFromInt(
+            output_sampling_info.sample_rate_hz
+        );
+
         const output_samples:usize = @intFromFloat(
-            // @TODO: is ceil correct?
-            @ceil(
-                (r_knot.value - l_knot.value) 
-                * @as(f32, @floatFromInt(output_sampling_info.sample_rate_hz))
+            @floor(
+                (
+                 (r_knot.value - l_knot.value) 
+                 * sample_rate_f
+                )
+                + 0.5 / sample_rate_f
             )
         );
 
-        // @TODO: should this force at least one output sample?
         if (output_samples == 0) {
             return error.NoOutputSamplesToCompute;
         }
@@ -915,9 +914,11 @@ pub fn retimed_linear_curve_interpolating(
     return Sampling{
         .allocator = allocator,
         .buffer = full_output_buffer,
-        // @TODO: I remember one conversation about splitting
-        //        retiming/resampling.  If that is the idea here, then the
-        //        output_sampling_info can be trimmed from the function
+        // @TODO: the non-interpolating retime function does not handle
+        //        resampling.  (I think... need to 2x check that that statement
+        //        is still true).  Currently this (the interpolating case) does
+        //        allow resampling because libsamplerate does it all in one
+        //        pass.
         .sample_rate_hz = output_sampling_info.sample_rate_hz,
         .interpolating = true,
     };
