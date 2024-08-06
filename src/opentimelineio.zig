@@ -13,7 +13,7 @@ const opentime = @import("opentime");
 const Duration = f32;
 
 const interval = opentime.interval;
-const transform = opentime.transform;
+const libxform = opentime.transform;
 const curve = @import("curve");
 const time_topology = @import("time_topology");
 const string = @import("string_stuff");
@@ -25,6 +25,8 @@ const sampling = @import("sampling");
 
 const otio_json = @import("opentimelineio_json.zig");
 const otio_highlevel_tests = @import("opentimelineio_highlevel_test.zig");
+
+const Error = error{CannotBuildEffectTransformationError};
 
 test {
     _ = otio_json;
@@ -72,6 +74,112 @@ pub const SignalSpace = struct {
     //   * values need to be interpolated to be reconstructed
     // continuous signal
 };
+
+/// Effect interface
+pub const Effect = struct {
+    effect_name: []const u8,
+
+    payload: struct {
+        transform: *const fn (ctx: *anyopaque) Error!time_topology.TimeTopology,
+        destroy: *const fn (ctx: *anyopaque) void,
+        ptr: *anyopaque,
+    },
+
+    pub fn transform(
+        self: @This()
+    ) !time_topology.TimeTopology
+    {
+        return try self.payload.transform(self.payload.ptr);
+    }
+
+    pub fn destroy(
+        self: @This()
+    ) void
+    {
+        self.payload.destroy(self.payload.ptr);
+    }
+
+};
+
+pub const EffectTimeAffineTransform = struct {
+    _xform: libxform.AffineTransform1D,
+    allocator: std.mem.Allocator,
+
+    pub const effect_name = @typeName(@This());
+
+    pub fn transform(
+        ctx: *anyopaque,
+    ) !time_topology.TimeTopology
+    {
+        const self: *(@This()) = @ptrCast(@alignCast(ctx));
+
+        return time_topology.TimeTopology.init_affine(
+            .{
+                .transform = self._xform,
+                .bounds = interval.INF_CTI,
+            }
+        );
+    }
+
+    pub fn create(
+        allocator: std.mem.Allocator,
+        in_transform: libxform.AffineTransform1D
+    ) !Effect
+    {
+        const local: *EffectTimeAffineTransform = ( 
+            try allocator.create(EffectTimeAffineTransform)
+        );
+
+        local.* = .{
+            ._xform = in_transform,
+            .allocator = allocator,
+        };
+
+        return .{
+            .effect_name = EffectTimeAffineTransform.effect_name,
+            .payload = .{
+                .transform = &EffectTimeAffineTransform.transform,
+                .ptr = local,
+                .destroy = &EffectTimeAffineTransform.destroy,
+            },
+        };
+    }
+
+    pub fn destroy(
+        ctx: *anyopaque
+    ) void
+    {
+        const self: *(@This()) = @ptrCast(@alignCast(ctx));
+    
+        self.allocator.destroy(self);
+    }
+};
+
+test "EffectTimeAffineTransform: construct"
+{
+    const allocator = std.testing.allocator;
+
+    const e_aff = try EffectTimeAffineTransform.create(
+        allocator,
+        .{
+            .offset_seconds = 2,
+            .scale = 3,
+        },
+    );
+    defer e_aff.destroy();
+
+    try std.testing.expectEqualStrings(
+        "opentimelineio.EffectTimeAffineTransform",
+        e_aff.effect_name,
+    );
+
+    const xform = try e_aff.transform();
+
+    try expectEqual(.affine, std.meta.activeTag(xform));
+    try expectEqual(2, xform.affine.transform.offset_seconds);
+    try expectEqual(3, xform.affine.transform.scale);
+    try expectEqual(interval.INF_CTI, xform.affine.bounds);
+}
 
 /// a reference that points at some reference via a string address
 pub const ExternalReference = struct {
@@ -427,7 +535,7 @@ pub const ItemPtr = union(enum) {
                             try cl.*.bounds_of(.media)
                         );
                         const intrinsic_to_media_xform = (
-                            transform.AffineTransform1D{
+                            libxform.AffineTransform1D{
                                 .offset_seconds = media_bounds.start_seconds,
                                 .scale = 1,
                             }
