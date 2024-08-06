@@ -209,6 +209,8 @@ pub const Clip = struct {
         media:  ?sampling.DiscreteDatasourceIndexGenerator = null,
     } = .{},
 
+    effect: ?Effect = null,
+
     pub const SPACES = enum(i8) {
         media = 0,
         presentation = 1,
@@ -256,6 +258,23 @@ pub const Clip = struct {
             );
         } else {
             return error.NotImplemented;
+        }
+    }
+
+    pub fn destroy(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        if (self.name)
+            |n|
+        {
+            allocator.free(n);
+        }
+        if (self.effect)
+            |eff|
+        {
+            eff.destroy();
         }
     }
 };
@@ -307,6 +326,9 @@ pub const Item = union(enum) {
             },
             .stack => |st| {
                 st.recursively_deinit();
+            },
+            .clip => |cl| {
+                cl.destroy(allocator);
             },
             inline else => |o| {
                 if (o.name)
