@@ -150,9 +150,9 @@ const Sampling = struct {
         t_s: sample_t,
     ) usize
     {
-        return @intFromFloat(
-            t_s*@as(f32, @floatFromInt(self.sample_rate_hz))
-        );
+        const hz_f :f32 = @floatFromInt(self.sample_rate_hz);
+
+        return @intFromFloat(@floor(t_s*hz_f + (0.5 / hz_f)));
     }
 
     /// return an interval of the indices that span the specified time
