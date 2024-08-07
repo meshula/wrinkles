@@ -86,14 +86,14 @@ pub const Effect = struct {
     },
 
     pub fn transform(
-        self: @This()
+        self: @This(),
     ) !time_topology.TimeTopology
     {
         return try self.payload.transform(self.payload.ptr);
     }
 
     pub fn destroy(
-        self: @This()
+        self: @This(),
     ) void
     {
         self.payload.destroy(self.payload.ptr);
@@ -200,6 +200,7 @@ pub const Clip = struct {
     media_temporal_bounds: ?opentime.ContinuousTimeInterval = null,
 
     /// transformation of the media space to the presentation space
+    /// @TODO: remove this in favor of the more serializable Effect slot below
     transform: ?time_topology.TimeTopology = null,
 
     /// Information about the media this points at
@@ -219,10 +220,14 @@ pub const Clip = struct {
     /// compute the bounds of the specified target space
     pub fn bounds_of(
         self: @This(),
+        allocator: std.mem.Allocator,
         target_space: SpaceLabel,
     ) !opentime.ContinuousTimeInterval 
     {
-        const presentation_to_media_topo = try self.topology();
+        const presentation_to_media_topo = try self.topology(
+            allocator
+        );
+        defer presentation_to_media_topo.deinit(allocator);
 
         return switch (target_space) {
             .media => presentation_to_media_topo.output_bounds(),
@@ -246,15 +251,29 @@ pub const Clip = struct {
     /// space of the clip
     pub fn topology(
         self: @This(),
+        allocator: std.mem.Allocator,
     ) !time_topology.TimeTopology 
     {
+        const pres_to_media_topo = if (self.effect) 
+            |eff| 
+            try eff.transform() 
+            else time_topology.TimeTopology.init_identity_infinite();
+
         if (self.media_temporal_bounds) 
             |range| 
         {
-            // @TODO: support non-identity transformation from presentation to
-            //        media
-            return time_topology.TimeTopology.init_identity(
-                .{.bounds=range}
+            const media_bounds = (
+                time_topology.TimeTopology.init_identity(
+                    .{.bounds=range}
+                )
+            );
+
+            return time_topology.join(
+                allocator,
+                .{
+                    .a2b = pres_to_media_topo,
+                    .b2c = media_bounds,
+                },
             );
         } else {
             return error.NotImplemented;
@@ -285,7 +304,8 @@ pub const Gap = struct {
     duration_seconds: time_topology.Ordinate,
 
     pub fn topology(
-        self: @This()
+        self: @This(),
+        _: std.mem.Allocator,
     ) !time_topology.TimeTopology 
     {
         return time_topology.TimeTopology.init_identity(
@@ -307,11 +327,22 @@ pub const Item = union(enum) {
     stack: Stack,
 
     pub fn topology(
-        self: @This()
-    ) error{NotImplemented}!time_topology.TimeTopology 
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) error{
+        NotImplemented,
+        CannotBuildEffectTransformationError,
+        OutOfMemory,
+        OutOfBounds,
+        MoreThanOneCurveIsNotImplemented,
+        NoSplitForLinearization,
+        NotInRangeError,
+        NoProjectionResult,
+        NoProjectionResultError,
+    }!time_topology.TimeTopology 
     {
         return switch (self) {
-            inline else => |it| try it.topology(),
+            inline else => |it| try it.topology(allocator),
         };
     }
 
@@ -320,7 +351,8 @@ pub const Item = union(enum) {
         allocator: std.mem.Allocator,
     ) void
     {
-        switch (self) {
+        switch (self) 
+        {
             .track => |tr| {
                 tr.recursively_deinit();
             },
@@ -362,20 +394,25 @@ pub const ItemPtr = union(enum) {
     }
 
     pub fn topology(
-        self: @This()
+        self: @This(),
+        allocator: std.mem.Allocator,
     ) !time_topology.TimeTopology 
     {
         return switch (self) {
-            inline else => |it_ptr| try it_ptr.topology(),
+            inline else => |it_ptr| try it_ptr.topology(allocator),
         };
     }
 
     pub fn bounds_of(
         self: @This(),
+        allocator: std.mem.Allocator,
         target_space: SpaceLabel,
     ) !opentime.ContinuousTimeInterval 
     {
-        const presentation_to_intrinsic_topo = try self.topology();
+        const presentation_to_intrinsic_topo = try self.topology(
+            allocator
+        );
+        defer presentation_to_intrinsic_topo.deinit(allocator);
 
         return switch (target_space) {
             .media, .intrinsic => presentation_to_intrinsic_topo.output_bounds(),
@@ -498,7 +535,10 @@ pub const ItemPtr = union(enum) {
                         else 
                         {
                             // transform to the next child
-                            return try tr.*.transform_to_child(to_space);
+                            return try tr.*.transform_to_child(
+                                allocator,
+                                to_space,
+                            );
                         }
 
                     },
@@ -538,8 +578,10 @@ pub const ItemPtr = union(enum) {
                         );
 
                         const post_to_intrinsic_topo = (
-                            cl.*.transform 
-                            orelse time_topology.TimeTopology.init_identity_infinite()
+                            if (cl.*.effect)
+                                |eff|
+                                try eff.transform()
+                            else time_topology.TimeTopology.init_identity_infinite()
                         );
 
                         const pres_to_intrinsic_topo = (
@@ -554,7 +596,10 @@ pub const ItemPtr = union(enum) {
                         defer pres_to_intrinsic_topo.deinit(allocator);
 
                         const media_bounds = (
-                            try cl.*.bounds_of(.media)
+                            try cl.*.bounds_of(
+                                allocator,
+                                .media
+                            )
                         );
                         const intrinsic_to_media_xform = (
                             libxform.AffineTransform1D{
@@ -587,7 +632,10 @@ pub const ItemPtr = union(enum) {
                     },
                     else => time_topology.TimeTopology.init_identity(
                         .{
-                            .bounds = try cl.*.bounds_of(.media)
+                            .bounds = try cl.*.bounds_of(
+                                allocator,
+                                .media,
+                            )
                         }
                     ),
                 };
@@ -643,7 +691,7 @@ pub const ItemPtr = union(enum) {
 
         const discrete_info = maybe_discrete_info.?;
 
-        const target_topo = try self.topology();
+        const target_topo = try self.topology(allocator);
         const extents = target_topo.input_bounds();
 
         return try time_topology.TimeTopology.init_step_mapping(
@@ -739,7 +787,8 @@ pub const Track = struct {
 
     /// construct the topology mapping the output to the intrinsic space
     pub fn topology(
-        self: @This()
+        self: @This(),
+        allocator: std.mem.Allocator,
     ) !time_topology.TimeTopology 
     {
         // build the maybe_bounds
@@ -747,7 +796,9 @@ pub const Track = struct {
         for (self.children.items) 
             |it| 
         {
-            const it_bound = (try it.topology()).input_bounds();
+            const it_bound = (
+                try it.topology(allocator)
+            ).input_bounds();
             if (maybe_bounds) 
                 |b| 
             {
@@ -796,6 +847,7 @@ pub const Track = struct {
     /// 
     pub fn transform_to_child(
         self: @This(),
+        allocator: std.mem.Allocator,
         // @TODO: this is super confusing for what it does and should be
         //        renamed
         child_space_reference: SpaceReference,
@@ -810,7 +862,10 @@ pub const Track = struct {
         // XXX should probably check the index before calling this and call this
         //     with index - 1 rather than have it do the offset here.
         const child = self.child_ptr_from_index(child_index - 1);
-        const child_range = try child.bounds_of(.media);
+        const child_range = try child.bounds_of(
+            allocator,
+            .media
+        );
         const child_duration = child_range.duration_seconds();
 
         // the transform to the next child space, compensates for this duration
@@ -2362,7 +2417,9 @@ test "ProjectionOperatorMap: track with single clip"
 
 test "transform: track with two clips"
 {
-    var tr = Track.init(std.testing.allocator);
+    const allocator = std.testing.allocator;
+
+    var tr = Track.init(allocator);
     defer tr.deinit();
 
     const cl1 = Clip {
@@ -2383,7 +2440,7 @@ test "transform: track with two clips"
     const cl_ind1_ptr = tr.child_ptr_from_index(1);
 
     const map = try build_topological_map(
-        std.testing.allocator,
+        allocator,
         tr_ptr,
     );
     defer map.deinit();
@@ -2392,13 +2449,17 @@ test "transform: track with two clips"
 
     {
         const child_code = (
-            try treecode.Treecode.init_word(std.testing.allocator, 0b1110)
+            try treecode.Treecode.init_word(allocator, 0b1110)
         );
         defer child_code.deinit();
 
         const child_space = map.map_code_to_space.get(child_code).?;
 
-        const xform = try tr.transform_to_child(child_space);
+        const xform = try tr.transform_to_child(
+            allocator,
+            child_space
+        );
+        defer xform.deinit(allocator);
 
         const b = xform.input_bounds();
 
@@ -2411,7 +2472,7 @@ test "transform: track with two clips"
 
     {
         const xform = try map.build_projection_operator(
-            std.testing.allocator,
+            allocator,
             .{
                 .source = track_presentation_space,
                 .destination = try cl_ind1_ptr.space(.media),
@@ -2419,8 +2480,14 @@ test "transform: track with two clips"
         );
         const b = xform.src_to_dst_topo.input_bounds();
 
-        const cl1_range = try cl1.bounds_of(.media);
-        const cl2_range = try cl2.bounds_of(.media);
+        const cl1_range = try cl1.bounds_of(
+            allocator, 
+            .media,
+        );
+        const cl2_range = try cl2.bounds_of(
+            allocator,
+            .media,
+        );
 
         try std.testing.expectEqualSlices(
             f32,
@@ -2869,6 +2936,8 @@ pub fn build_topological_map(
 
 test "clip topology construction" 
 {
+    const allocator = std.testing.allocator;
+
     const start_seconds:f32 = 1;
     const end_seconds:f32 = 10;
     const cl = Clip {
@@ -2878,7 +2947,7 @@ test "clip topology construction"
         }
     };
 
-    const topo = try cl.topology();
+    const topo = try cl.topology(allocator);
 
     try expectApproxEqAbs(
         start_seconds,
@@ -2895,7 +2964,9 @@ test "clip topology construction"
 
 test "track topology construction" 
 {
-    var tr = Track.init(std.testing.allocator);
+    const allocator = std.testing.allocator;
+
+    var tr = Track.init(allocator);
     defer tr.deinit();
 
     const start_seconds:f32 = 1;
@@ -2908,7 +2979,7 @@ test "track topology construction"
     };
     try tr.append(.{ .clip = cl });
 
-    const topo =  try tr.topology();
+    const topo =  try tr.topology(allocator);
 
     try expectApproxEqAbs(
         start_seconds,
@@ -3908,10 +3979,11 @@ pub const Timeline = struct {
     }
 
     pub fn topology(
-        self: @This()
+        self: @This(),
+        allocator: std.mem.Allocator,
     ) !time_topology.TimeTopology
     {
-        return try self.tracks.topology();
+        return try self.tracks.topology(allocator);
     }
 };
 
@@ -3956,7 +4028,8 @@ pub const Stack = struct {
     }
 
     pub fn topology(
-        self: @This()
+        self: @This(),
+        allocator: std.mem.Allocator,
     ) !time_topology.TimeTopology 
     {
         // build the bounds
@@ -3964,7 +4037,9 @@ pub const Stack = struct {
         for (self.children.items) 
             |it| 
         {
-            const it_bound = (try it.topology()).input_bounds();
+            const it_bound = (
+                (try it.topology(allocator)).input_bounds()
+            );
             if (bounds) 
                 |b| 
             {
@@ -4080,7 +4155,9 @@ test "test spaces list"
 
 test "otio projection: track with single clip"
 {
-    var tr = Track.init(std.testing.allocator);
+    const allocator = std.testing.allocator;
+
+    var tr = Track.init(allocator);
     defer tr.deinit();
 
     // media is 9 seconds long and runs at 4 hz.
@@ -4107,19 +4184,19 @@ test "otio projection: track with single clip"
     const cl_ptr = tr.child_ptr_from_index(0);
 
     const map = try build_topological_map(
-        std.testing.allocator,
+        allocator,
         tr_ptr
     );
     defer map.deinit();
 
     try map.write_dot_graph(
-        std.testing.allocator,
+        allocator,
         "/var/tmp/sampling_test.dot"
     );
 
     const track_to_media = (
         try map.build_projection_operator(
-            std.testing.allocator,
+            allocator,
             .{
                 .source = try tr_ptr.space(SpaceLabel.presentation),
                 // does the discrete / continuous need to be disambiguated?
@@ -4159,13 +4236,16 @@ test "otio projection: track with single clip"
         {
             const result_range_in_media = (
                 try track_to_media.project_range_cc(
-                    std.testing.allocator,
+                    allocator,
                     test_range_in_track,
                 )
             );
-            defer result_range_in_media.deinit(std.testing.allocator);
+            defer result_range_in_media.deinit(allocator);
 
-            const r = try cl.bounds_of(.media);
+            const r = try cl.bounds_of(
+                allocator,
+                .media,
+            );
             const b = result_range_in_media.output_bounds();
             errdefer {
                 std.debug.print(
@@ -4231,7 +4311,7 @@ test "otio projection: track with single clip"
 
             // const result_media_indices = (
             //     try project_range_cd(
-            //         std.testing.allocator,
+            //         allocator,
             //         .{
             //             .po_a2b = track_to_media,
             //             .r_in_a = test_range_in_track,
@@ -4241,11 +4321,11 @@ test "otio projection: track with single clip"
 
             const result_media_indices = (
                 try track_to_media.project_range_cd(
-                    std.testing.allocator,
+                    allocator,
                     test_range_in_track,
                 )
             );
-            defer std.testing.allocator.free(result_media_indices);
+            defer allocator.free(result_media_indices);
 
             try std.testing.expectEqualSlices(
                 usize,
@@ -4258,7 +4338,9 @@ test "otio projection: track with single clip"
 
 test "otio projection: track with single clip with transform"
 {
-    var tr = Track.init(std.testing.allocator);
+    const allocator = std.testing.allocator;
+
+    var tr = Track.init(allocator);
     defer tr.deinit();
 
     // media is 9 seconds long and runs at 4 hz.
@@ -4291,19 +4373,19 @@ test "otio projection: track with single clip with transform"
     const cl_ptr = tr.child_ptr_from_index(0);
 
     const map = try build_topological_map(
-        std.testing.allocator,
+        allocator,
         tr_ptr
     );
     defer map.deinit();
 
     try map.write_dot_graph(
-        std.testing.allocator,
+        allocator,
         "/var/tmp/sampling_test.dot"
     );
 
     const track_to_media = (
         try map.build_projection_operator(
-            std.testing.allocator,
+            allocator,
             .{
                 .source = try tr_ptr.space(SpaceLabel.presentation),
                 // does the discrete / continuous need to be disambiguated?
@@ -4344,13 +4426,16 @@ test "otio projection: track with single clip with transform"
         {
             const result_range_in_media = (
                 try track_to_media.project_range_cc(
-                    std.testing.allocator,
+                    allocator,
                     test_range_in_track,
                 )
             );
-            defer result_range_in_media.deinit(std.testing.allocator);
+            defer result_range_in_media.deinit(allocator);
 
-            const r = try cl.bounds_of(.media);
+            const r = try cl.bounds_of(
+                allocator,
+                .media,
+            );
             const b = result_range_in_media.output_bounds();
             errdefer {
                 std.debug.print(
@@ -4391,10 +4476,10 @@ test "otio projection: track with single clip with transform"
             };
 
             const result_media_indices = try track_to_media.project_range_cd(
-                std.testing.allocator,
+                allocator,
                 test_range_in_track,
             );
-            defer std.testing.allocator.free(result_media_indices);
+            defer allocator.free(result_media_indices);
 
             try std.testing.expectEqualSlices(
                 usize,

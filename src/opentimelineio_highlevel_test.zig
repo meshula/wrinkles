@@ -265,11 +265,11 @@ test "libsamplerate w/ high level test -- resample only"
         cl1.media_temporal_bounds.?.end_seconds
     );
     try std.testing.expect(
-        (try cl1.bounds_of(.media)).end_seconds != 0,
+        (try cl1.bounds_of(allocator, .media)).end_seconds != 0,
     );
     try std.testing.expect(
-        (try cl1.bounds_of(.media)).start_seconds < 
-        (try cl1.bounds_of(.media)).end_seconds
+        (try cl1.bounds_of(allocator, .media)).start_seconds < 
+        (try cl1.bounds_of(allocator, .media)).end_seconds
     );
 
     try tr.append(.{ .clip = cl1 });
@@ -355,7 +355,7 @@ test "libsamplerate w/ high level test -- resample only"
     try result.write_file_prefix(
         allocator, 
         "/var/tmp/",
-        "highlevel_libsamplerate_test_track_presentation.",
+        "highlevel_libsamplerate_test_track_presentation.resampled_only.",
         null,
  
     );
@@ -371,7 +371,8 @@ test "libsamplerate w/ high level test  retime"
     var tl = try otio.Timeline.init(allocator);
     tl.name = try allocator.dupe(u8, "Example Timeline");
     tl.discrete_info.presentation = .{
-        .sample_rate_hz = 44100,
+        // matches the media rate
+        .sample_rate_hz = 48000,
         .start_index = 86400,
     };
 
@@ -412,7 +413,7 @@ test "libsamplerate w/ high level test  retime"
         .effect = try otio.EffectTimeAffineTransform.create(
             allocator, 
             .{
-                .offset_seconds = 1,
+                .offset_seconds = -1,
                 .scale = 2,
             },
         ),
@@ -485,10 +486,15 @@ test "libsamplerate w/ high level test  retime"
         result.sample_rate_hz
     );
 
+    const input_p2p = try sampling.peak_to_peak_distance(media.buffer);
+    const result_p2p = try sampling.peak_to_peak_distance(result.buffer);
+
+    try std.testing.expectEqual(input_p2p * 2, result_p2p);
+
     try result.write_file_prefix(
         allocator, 
         "/var/tmp/",
-        "highlevel_libsamplerate_test_track_presentation.",
+        "highlevel_libsamplerate_test_track_presentation.retimed.",
         null,
  
     );
