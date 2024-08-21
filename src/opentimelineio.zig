@@ -182,148 +182,6 @@ test "EffectTimeAffineTransform: construct"
     try expectEqual(interval.INF_CTI, xform.affine.bounds);
 }
 
-/// build the boilerplate create/destroy functions that build a generic "warp"
-/// out of the concrete structs
-pub fn warp_boilerplate(
-    in_type: anytype
-) type
-{
-    return struct {
-        pub fn create(
-            allocator: std.mem.Allocator,
-            // fetch the type of the second parameter to the underlying
-            // "create" -- parameter 0 is always the allocator
-            input: @typeInfo(@TypeOf(in_type.create)).Fn.params[1].type.?,
-            child: Item,
-        ) !Warp
-        {
-            const local : *in_type  = try in_type.create(allocator, input);
-
-            return .{
-                .warp_name = in_type.warp_name,
-                .allocator = allocator,
-                .child = child,
-                .payload = .{
-                    .transform = &in_type.transform,
-                    .ptr = local,
-                    .destroy = &(@This().destroy),
-                },
-            };
-        }
-
-        pub fn destroy(
-            ctx: *anyopaque
-        ) void
-        {
-            const self: *(in_type) = @ptrCast(@alignCast(ctx));
-
-            self.allocator.destroy(self);
-        }
-
-    };
-}
-
-/// Effect that uses a topology to warp the clip
-pub const WarpTimeTopologyTransform = warp_boilerplate(
-    struct {
-        _xform: time_topology.TimeTopology,
-        allocator: std.mem.Allocator,
-
-        pub const warp_name = @typeName(@This());
-
-        pub fn transform(
-            ctx: *anyopaque,
-        ) !time_topology.TimeTopology
-        {
-            const self: *(@This()) = @ptrCast(@alignCast(ctx));
-
-            return self._xform;
-        }
-
-        pub fn create(
-            allocator: std.mem.Allocator,
-            in_transform: time_topology.TimeTopology,
-        ) !*@This()
-        {
-            const local: *@This() = ( 
-                try allocator.create(@This())
-            );
-
-            local.* = .{
-                ._xform = in_transform,
-                .allocator = allocator,
-            };
-
-            return local;
-        }
-    }
-);
-
-test "warp builder"
-{
-    const allocator = std.testing.allocator;
-
-    const w : Warp =  try WarpTimeTopologyTransform.create(
-        allocator,
-        time_topology.TimeTopology.init_identity_infinite(),
-        .{ .gap = .{ .duration_seconds = 10 } },
-    );
-    defer w.destroy();
-
-    const t = try w.transform();
-    _ = t;
-}
-
-/// Effect that uses a topology to warp the clip
-pub const EffectTimeTopologyTransform = struct {
-    _xform: time_topology.TimeTopology,
-    allocator: std.mem.Allocator,
-
-    pub const effect_name = @typeName(@This());
-
-    pub fn transform(
-        ctx: *anyopaque,
-    ) !time_topology.TimeTopology
-    {
-        const self: *(@This()) = @ptrCast(@alignCast(ctx));
-
-        return self._xform;
-    }
-
-    pub fn create(
-        allocator: std.mem.Allocator,
-        in_transform: time_topology.TimeTopology,
-    ) !Effect
-    {
-        const local: *EffectTimeTopologyTransform = ( 
-            try allocator.create(EffectTimeTopologyTransform)
-        );
-
-        local.* = .{
-            ._xform = in_transform,
-            .allocator = allocator,
-        };
-
-        return .{
-            .effect_name = @This().effect_name,
-            .payload = .{
-                .transform = &@This().transform,
-                .ptr = local,
-                .destroy = &@This().destroy,
-            },
-        };
-    }
-
-    pub fn destroy(
-        ctx: *anyopaque
-    ) void
-    {
-        const self: *(@This()) = @ptrCast(@alignCast(ctx));
-    
-        self.allocator.destroy(self);
-    }
-};
-
 /// a reference that points at some reference via a string address
 pub const ExternalReference = struct {
     target_uri : []const u8,
@@ -349,8 +207,6 @@ pub const Clip = struct {
         media:  ?sampling.DiscreteDatasourceIndexGenerator = null,
     } = .{},
 
-    effect: ?Effect = null,
-
     pub const SPACES = enum(i8) {
         media = 0,
         presentation = 1,
@@ -363,9 +219,7 @@ pub const Clip = struct {
         target_space: SpaceLabel,
     ) !opentime.ContinuousTimeInterval 
     {
-        const presentation_to_media_topo = try self.topology(
-            allocator
-        );
+        const presentation_to_media_topo = try self.topology();
         defer presentation_to_media_topo.deinit(allocator);
 
         return switch (target_space) {
@@ -390,14 +244,8 @@ pub const Clip = struct {
     /// space of the clip
     pub fn topology(
         self: @This(),
-        allocator: std.mem.Allocator,
     ) !time_topology.TimeTopology 
     {
-        const pres_to_media_topo = if (self.effect) 
-            |eff| 
-            try eff.transform() 
-            else time_topology.TimeTopology.init_identity_infinite();
-
         if (self.media_temporal_bounds) 
             |range| 
         {
@@ -407,13 +255,7 @@ pub const Clip = struct {
                 )
             );
 
-            return time_topology.join(
-                allocator,
-                .{
-                    .a2b = pres_to_media_topo,
-                    .b2c = media_bounds,
-                },
-            );
+            return media_bounds;
         } else {
             return error.NotImplemented;
         }
@@ -429,11 +271,6 @@ pub const Clip = struct {
         {
             allocator.free(n);
         }
-        if (self.effect)
-            |eff|
-        {
-            eff.destroy();
-        }
     }
 };
 
@@ -444,7 +281,6 @@ pub const Gap = struct {
 
     pub fn topology(
         self: @This(),
-        _: std.mem.Allocator,
     ) !time_topology.TimeTopology 
     {
         return time_topology.TimeTopology.init_identity(
@@ -464,10 +300,10 @@ pub const Item = union(enum) {
     gap: Gap,
     track: Track,
     stack: Stack,
+    warp: Warp,
 
     pub fn topology(
         self: @This(),
-        allocator: std.mem.Allocator,
     ) error{
         NotImplemented,
         CannotBuildEffectTransformationError,
@@ -481,7 +317,8 @@ pub const Item = union(enum) {
     }!time_topology.TimeTopology 
     {
         return switch (self) {
-            inline else => |it| try it.topology(allocator),
+            .warp => |wp| wp.transform,
+            inline else => |it| try it.topology(),
         };
     }
 
@@ -519,9 +356,10 @@ pub const ItemPtr = union(enum) {
     track_ptr: *const Track,
     timeline_ptr: *const Timeline,
     stack_ptr: *const Stack,
+    warp_ptr: *const Warp,
 
     pub fn init_Item(
-        item: *Item
+        item: *const Item
     ) ItemPtr 
     {
         return switch (item.*) {
@@ -529,16 +367,17 @@ pub const ItemPtr = union(enum) {
             .gap   => |*gp| .{ .gap_ptr= gp    },
             .track => |*tr| .{ .track_ptr = tr },
             .stack => |*st| .{ .stack_ptr = st },
+            .warp => |*wp| .{ .warp_ptr = wp },
         };
     }
 
     pub fn topology(
         self: @This(),
-        allocator: std.mem.Allocator,
     ) !time_topology.TimeTopology 
     {
         return switch (self) {
-            inline else => |it_ptr| try it_ptr.topology(allocator),
+            .warp_ptr => |wp_ptr| wp_ptr.transform,
+            inline else => |it_ptr| try it_ptr.topology(),
         };
     }
 
@@ -549,7 +388,6 @@ pub const ItemPtr = union(enum) {
     ) !opentime.ContinuousTimeInterval 
     {
         const presentation_to_intrinsic_topo = try self.topology(
-            allocator
         );
         defer presentation_to_intrinsic_topo.deinit(allocator);
 
@@ -606,7 +444,7 @@ pub const ItemPtr = union(enum) {
                 try result.append( .{ .item = self, .label = SpaceLabel.presentation});
                 try result.append( .{ .item = self, .label = SpaceLabel.intrinsic});
             },
-            .gap_ptr => {
+            .gap_ptr, .warp_ptr => {
                 try result.append( .{ .item = self, .label = SpaceLabel.presentation});
             },
             // else => { return error.NotImplemented; }
@@ -712,27 +550,9 @@ pub const ItemPtr = union(enum) {
                 return switch (from_space) {
                     .presentation => {
                         // goes to media
-                        const pres_to_post_topo = (
+                        const pres_to_intrinsic_topo = (
                             time_topology.TimeTopology.init_identity_infinite()
                         );
-
-                        const post_to_intrinsic_topo = (
-                            if (cl.*.effect)
-                                |eff|
-                                try eff.transform()
-                            else time_topology.TimeTopology.init_identity_infinite()
-                        );
-
-                        const pres_to_intrinsic_topo = (
-                            try time_topology.join(
-                                allocator,
-                                .{
-                                    .a2b = pres_to_post_topo,
-                                    .b2c = post_to_intrinsic_topo,
-                                }
-                            )
-                        );
-                        defer pres_to_intrinsic_topo.deinit(allocator);
 
                         const media_bounds = (
                             try cl.*.bounds_of(
@@ -778,6 +598,13 @@ pub const ItemPtr = union(enum) {
                         }
                     ),
                 };
+            },
+            .warp_ptr => |wp_ptr| switch(from_space) {
+                // @TODO: maybe we should make the child spaces unreachable?
+                //        ie - if they're always identity, is there anything
+                //        interesting about exposing them in this function?
+                .presentation => wp_ptr.transform.clone(allocator),
+                else => time_topology.TimeTopology.init_identity_infinite(),
             },
             // wrapped as identity
             .gap_ptr, .timeline_ptr, .stack_ptr => (
@@ -864,32 +691,12 @@ pub const ItemPtr = union(enum) {
     }
 };
 
-/// a warp is an additional nonlinear transformation between the warp.parent and
-/// and warp.child.presentation spaces.  Use 
+/// a warp is an additional nonlinear transformation between the warp.parent
+/// and and warp.child.presentation spaces.
 pub const Warp = struct {
-    warp_name: ?string.latin_s8 = null,
-    allocator: std.mem.Allocator,
-    child: Item,
-
-    payload: struct {
-        transform: *const fn (ctx: *anyopaque) Error!time_topology.TimeTopology,
-        destroy: *const fn (ctx: *anyopaque) void,
-        ptr: *anyopaque,
-    },
-
-    pub fn transform(
-        self: @This(),
-    ) !time_topology.TimeTopology
-    {
-        return try self.payload.transform(self.payload.ptr);
-    }
-
-    pub fn destroy(
-        self: @This(),
-    ) void
-    {
-        self.payload.destroy(self.payload.ptr);
-    }
+    name: ?string.latin_s8 = null,
+    child: ItemPtr,
+    transform: time_topology.TimeTopology,
 };
 
 /// a container in which each contained item is right-met over time
@@ -955,7 +762,6 @@ pub const Track = struct {
     /// construct the topology mapping the output to the intrinsic space
     pub fn topology(
         self: @This(),
-        allocator: std.mem.Allocator,
     ) !time_topology.TimeTopology 
     {
         // build the maybe_bounds
@@ -964,7 +770,7 @@ pub const Track = struct {
             |it| 
         {
             const it_bound = (
-                try it.topology(allocator)
+                try it.topology()
             ).input_bounds();
             if (maybe_bounds) 
                 |b| 
@@ -976,10 +782,12 @@ pub const Track = struct {
         }
 
         // unpack the optional
-        const result_bound:interval.ContinuousTimeInterval = maybe_bounds orelse .{
-            .start_seconds = 0,
-            .end_seconds = 0,
-        };
+        const result_bound:interval.ContinuousTimeInterval = (
+            maybe_bounds orelse .{
+                .start_seconds = 0,
+                .end_seconds = 0,
+            }
+        );
 
         return time_topology.TimeTopology.init_identity(
             .{
@@ -1515,6 +1323,7 @@ const TopologicalMap = struct {
             .gap_ptr => "gap",
             .timeline_ptr => "timeline",
             .stack_ptr => "stack",
+            .warp_ptr => "warp",
         };
 
         if (LABEL_HAS_BINARY_TREECODE) {
@@ -2896,6 +2705,10 @@ test "depth_child_hash: math"
     }
 }
 
+/// builds a TopologicalMap, which can then construct projection operators
+/// across the spaces in the map.  A root item is provided, and the map is
+/// built from the presentation space of the root object down towards the
+/// leaves.  See TopologicalMap for more details.
 pub fn build_topological_map(
     allocator: std.mem.Allocator,
     root_item: ItemPtr
@@ -3012,16 +2825,28 @@ pub fn build_topological_map(
             else => &[_]Item{},
         };
 
-        for (children, 0..) 
-            |*child, index| 
+        var children_ptrs = (
+            std.ArrayList(ItemPtr).init(allocator)
+        );
+        defer children_ptrs.deinit();
+        for (children) 
+            |*child| 
         {
-            const item_ptr:ItemPtr = switch (child.*) {
-                .clip => |*cl| .{ .clip_ptr = cl },
-                .gap => |*gp| .{ .gap_ptr = gp },
-                .track => |*tr_p| .{ .track_ptr = tr_p },
-                .stack => |*st_p| .{ .stack_ptr = st_p },
-            };
+            const item_ptr = ItemPtr.init_Item(child);
+            try children_ptrs.append(item_ptr);
+        }
 
+        // for things that already are ItemPtr containers
+        switch (current.object) {
+            .warp_ptr => |wp| {
+                try children_ptrs.append(wp.child);
+            },
+            inline else => {},
+        }
+
+        for (children_ptrs.items, 0..) 
+            |item_ptr, index| 
+        {
             const child_space_code = try sequential_child_code_leaky(
                 current_code,
                 index
@@ -3103,8 +2928,6 @@ pub fn build_topological_map(
 
 test "clip topology construction" 
 {
-    const allocator = std.testing.allocator;
-
     const start_seconds:f32 = 1;
     const end_seconds:f32 = 10;
     const cl = Clip {
@@ -3114,7 +2937,7 @@ test "clip topology construction"
         }
     };
 
-    const topo = try cl.topology(allocator);
+    const topo = try cl.topology();
 
     try expectApproxEqAbs(
         start_seconds,
@@ -3146,7 +2969,7 @@ test "track topology construction"
     };
     try tr.append(.{ .clip = cl });
 
-    const topo =  try tr.topology(allocator);
+    const topo =  try tr.topology();
 
     try expectApproxEqAbs(
         start_seconds,
@@ -3732,7 +3555,7 @@ test "Projection: Track with multiple clips with identity transform and bounds"
     );
 }
 
-test "Single Clip Media to presentation Identity transform" 
+test "Single Warp w/ Clip Media to presentation Identity transform" 
 {
     //
     //              0                 7           10
@@ -3740,26 +3563,34 @@ test "Single Clip Media to presentation Identity transform"
     // media space  [-----------------*-----------)
     //              100               107         110 (seconds)
     //              
-    const media_temporal_bounds = interval.ContinuousTimeInterval{
+    const media_temporal_bounds:interval.ContinuousTimeInterval = .{
         .start_seconds = 100,
         .end_seconds = 110 
     };
 
-    const cl = Clip { .media_temporal_bounds = media_temporal_bounds };
+    const cl:Clip = .{
+        .media_temporal_bounds = media_temporal_bounds 
+    };
     const cl_ptr : ItemPtr = .{ .clip_ptr = &cl};
+
+    const wp : Warp = .{
+        .child = cl_ptr,
+        .transform = time_topology.TimeTopology.init_identity_infinite(),
+    };
+    const wp_ptr : ItemPtr = .{ .warp_ptr = &wp };
 
     const map = try build_topological_map(
         std.testing.allocator,
-        cl_ptr,
+        wp_ptr,
     );
     defer map.deinit();
 
     try expectEqual(
-        @as(usize, 2),
+        @as(usize, 4),
         map.map_code_to_space.count()
     );
     try expectEqual(
-        @as(usize, 2),
+        @as(usize, 4),
         map.map_space_to_code.count()
     );
 
@@ -3818,24 +3649,23 @@ test "Single Clip reverse transform"
 {
     const allocator = std.testing.allocator;
 
-    //
     // xform: reverse (linear w/ -1 slope)
     // note: transforms map from the _presentation_ space to the _media_ space
     //
     //              0                 7           10
     // presentation [-----------------*-----------)
-    // (transform)  10                3           0
-    // media        [-----------------*-----------)
+    // (warp)       10                3           0
+    // clip.media   [-----------------*-----------)
     //              110               103         100 (seconds)
     //
-    //              (0, 10) -> (10, 0)
-    //
 
-    const start = curve.ControlPoint{ .time = 0, .value = 110 };
-    const end = curve.ControlPoint{ .time = 10, .value = 100 };
-    const inv_tx = time_topology.TimeTopology.init_linear_start_end(
-        start,
-        end,
+    const start:curve.ControlPoint = .{ .time = 0, .value = 10 };
+    const end:curve.ControlPoint = .{ .time = 10, .value = 0 };
+    const inv_tx = (
+        time_topology.TimeTopology.init_linear_start_end(
+            start,
+            end,
+        )
     );
 
     const media_temporal_bounds:interval.ContinuousTimeInterval = .{
@@ -3845,28 +3675,36 @@ test "Single Clip reverse transform"
 
     const cl = Clip {
         .media_temporal_bounds = media_temporal_bounds,
-        .effect = try EffectTimeTopologyTransform.create(
-            allocator, 
-            inv_tx,
-        ),
     };
     defer cl.destroy(allocator);
-    const cl_ptr : ItemPtr = .{ .clip_ptr = &cl};
+    const cl_ptr = ItemPtr{.clip_ptr = &cl };
+
+    const w_inv : Warp = .{
+        .child = cl_ptr,
+        .transform = inv_tx,
+    };
+
+    const wp_ptr : ItemPtr = .{ .warp_ptr =  &w_inv };
 
     const map = try build_topological_map(
         allocator,
-        cl_ptr,
+        wp_ptr,
     );
     defer map.deinit();
 
+    try map.write_dot_graph(
+        allocator,
+        "/var/tmp/warp_reverses_clip.dot",
+    );
+
     // presentation->media (forward projection)
     {
-        const clip_pres_to_media_topo = (
+        const warp_pres_to_media_topo = (
             try map.build_projection_operator(
                 allocator,
                 .{
                     .source =  (
-                        try cl_ptr.space(SpaceLabel.presentation)
+                        try wp_ptr.space(SpaceLabel.presentation)
                     ),
                     .destination = (
                         try cl_ptr.space(SpaceLabel.media)
@@ -3876,15 +3714,25 @@ test "Single Clip reverse transform"
         );
 
         const input_bounds = (
-            clip_pres_to_media_topo.src_to_dst_topo.input_bounds()
+            warp_pres_to_media_topo.src_to_dst_topo.input_bounds()
+        );
+        const output_bounds = (
+            warp_pres_to_media_topo.src_to_dst_topo.output_bounds()
         );
 
         errdefer std.debug.print(
-            "known: [{d}, {d})\ntest:  [{d}, {d})\n",
+            "test data:\nprovided: [{d}, {d})\ninput:  [{d}, {d})\n"
+            ++ "output: [{d}, {d})\n",
             .{
                 start.time, end.time,
-                input_bounds.start_seconds, input_bounds.end_seconds 
+                input_bounds.start_seconds, input_bounds.end_seconds ,
+                output_bounds.start_seconds, output_bounds.end_seconds,
             },
+        );
+
+        try std.testing.expect(
+            std.meta.activeTag(warp_pres_to_media_topo.src_to_dst_topo)
+            != .empty
         );
 
         try expectApproxEqAbs(
@@ -3899,9 +3747,10 @@ test "Single Clip reverse transform"
             util.EPSILON,
         );
 
+        // current error
         try expectApproxEqAbs(
             @as(f32, 107),
-            try clip_pres_to_media_topo.project_instantaneous_cc(3),
+            try warp_pres_to_media_topo.project_instantaneous_cc(3),
             util.EPSILON,
         );
     }
@@ -3912,7 +3761,7 @@ test "Single Clip reverse transform"
             allocator,
             .{
                 .source =  try cl_ptr.space(SpaceLabel.media),
-                .destination = try cl_ptr.space(SpaceLabel.presentation),
+                .destination = try wp_ptr.space(SpaceLabel.presentation),
             }
         );
 
@@ -3998,17 +3847,19 @@ test "Single Clip bezier transform"
     };
     const cl = Clip {
         .media_temporal_bounds = media_temporal_bounds,
-        .effect = try EffectTimeTopologyTransform.create(
-            allocator, 
-            curve_topo,
-        ),
     };
-    defer cl.destroy(allocator);
-    const cl_ptr : ItemPtr = .{ .clip_ptr = &cl };
+    const cl_ptr:ItemPtr = .{ .clip_ptr = &cl };
+
+    const wp: Warp = .{
+        .child = cl_ptr,
+        .transform = curve_topo,
+    };
+
+    const wp_ptr : ItemPtr = .{ .warp_ptr = &wp };
 
     const map = try build_topological_map(
         allocator,
-        cl_ptr
+        wp_ptr,
     );
     defer map.deinit();
 
@@ -4018,7 +3869,7 @@ test "Single Clip bezier transform"
             try map.build_projection_operator(
                 allocator,
                 .{
-                    .source =  try cl_ptr.space(SpaceLabel.presentation),
+                    .source =  try wp_ptr.space(SpaceLabel.presentation),
                     .destination = try cl_ptr.space(SpaceLabel.media),
                 }
             )
@@ -4125,7 +3976,7 @@ test "Single Clip bezier transform"
                 allocator,
                 .{
                     .source =  try cl_ptr.space(SpaceLabel.media),
-                    .destination = try cl_ptr.space(SpaceLabel.presentation),
+                    .destination = try wp_ptr.space(SpaceLabel.presentation),
                 }
             )
         );
@@ -4171,10 +4022,9 @@ pub const Timeline = struct {
 
     pub fn topology(
         self: @This(),
-        allocator: std.mem.Allocator,
     ) !time_topology.TimeTopology
     {
-        return try self.tracks.topology(allocator);
+        return try self.tracks.topology();
     }
 };
 
@@ -4220,7 +4070,6 @@ pub const Stack = struct {
 
     pub fn topology(
         self: @This(),
-        allocator: std.mem.Allocator,
     ) !time_topology.TimeTopology 
     {
         // build the bounds
@@ -4229,7 +4078,7 @@ pub const Stack = struct {
             |it| 
         {
             const it_bound = (
-                (try it.topology(allocator)).input_bounds()
+                (try it.topology()).input_bounds()
             );
             if (bounds) 
                 |b| 
@@ -4552,17 +4401,23 @@ test "otio projection: track with single clip with transform"
         .discrete_info = .{
             .media = media_discrete_info 
         },
-        .effect = try EffectTimeAffineTransform.create(
-            allocator, 
+    };
+    defer cl.destroy(allocator);
+
+    const wp : Warp = .{
+        .child = .{ .clip_ptr = &cl },
+        .transform = time_topology.TimeTopology.init_affine(
             .{
-                .scale = 2,
+                .transform = .{
+                    .scale = 2,
+                },
             },
         ),
     };
-    defer cl.destroy(allocator);
-    try tr.append(.{ .clip = cl });
+
+    try tr.append(.{ .warp = wp });
     const tr_ptr : ItemPtr = .{ .track_ptr = &tr };
-    const cl_ptr = tr.child_ptr_from_index(0);
+    const cl_ptr = wp.child;
 
     const map = try build_topological_map(
         allocator,
