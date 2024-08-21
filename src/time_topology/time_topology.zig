@@ -220,6 +220,19 @@ pub const AffineTopology = struct {
            .empty => .{ .empty = .{} },
         };
     }
+
+    pub fn clone(
+        self: @This(),
+        _: std.mem.Allocator,
+    ) !TimeTopology
+    {
+        return .{
+            .affine = .{
+                .bounds = self.bounds,
+                .transform = self.transform,
+            },
+        };
+    }
 };
 
 test "AffineTopology: linearize"
@@ -368,6 +381,18 @@ pub const LinearTopology = struct {
         return .{ 
             .linear_curve = .{
                 .curve = try self.curve.clone(allocator)
+            },
+        };
+    }
+
+    pub fn clone(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) !TimeTopology
+    {
+        return .{
+            .linear_curve = .{
+                .curve = try self.curve.clone(allocator),
             },
         };
     }
@@ -547,6 +572,18 @@ pub const BezierTopology = struct {
             },
         };
     }
+
+    pub fn clone(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) !TimeTopology
+    {
+        return .{
+            .bezier_curve = .{
+                .curve = try self.curve.clone(allocator),
+            },
+        };
+    }
 };
 
 test "BezierTopology: inverted" 
@@ -597,6 +634,17 @@ pub const EmptyTopology = struct {
     pub fn compute_output_bounds(_: @This()) interval.ContinuousTimeInterval {
         return .{ .start_seconds = 0, .end_seconds = 0 };
     }
+
+    pub fn clone(
+        _: @This(),
+        _: std.mem.Allocator,
+    ) !TimeTopology
+    {
+        return .{
+            .empty = .{},
+        };
+    }
+
 };
 
 /// TEMPORAL TOPOLOGY PROTOTYPE V2
@@ -754,6 +802,17 @@ pub const TimeTopology = union (enum) {
         return TimeTopology.init_bezier_cubic(crv);
     }
     // @}
+
+    /// return a caller-owned copy of self
+    pub fn clone(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) !TimeTopology
+    {
+        return switch (self) {
+            inline else => |tt| tt.clone(allocator),
+        };
+    }
 
     /// the bounding interval of the topology in its input space
     pub fn input_bounds(
