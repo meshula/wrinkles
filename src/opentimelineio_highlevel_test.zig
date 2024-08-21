@@ -2,6 +2,7 @@
 
 const std = @import("std");
 const otio = @import("opentimelineio.zig");
+const time_topology = @import("time_topology");
 const sampling = @import("sampling");
 
 // for verbose print of test
@@ -363,7 +364,7 @@ test "libsamplerate w/ high level test -- resample only"
     try std.testing.expect(result.buffer.len > 0);
 }
 
-test "libsamplerate w/ high level test  retime"
+test "libsamplerate w/ high level test.retime.interpolating"
 {
     const allocator = std.testing.allocator;
 
@@ -409,22 +410,27 @@ test "libsamplerate w/ high level test  retime"
                 .signal_frequency_hz = 200,
             },
         },
-        // new for this test - add in an effect on the clip
-        .effect = try otio.EffectTimeAffineTransform.create(
-            allocator, 
-            .{
-                .offset_seconds = -1,
-                .scale = 2,
-            },
-        ),
     };
+    defer cl1.destroy(allocator);
+    const cl_ptr : otio.ItemPtr = .{ .clip_ptr = &cl1 };
 
-    try tr.append(.{ .clip = cl1 });
+    // new for this test - add in an warp on the clip
+    const wp: otio.Warp = .{
+        .child = cl_ptr,
+        .transform = time_topology.TimeTopology.init_affine(
+            .{
+                .transform = .{
+                    .offset_seconds = -1,
+                    .scale = 2,
+                },
+            },
+        )
+    };
+    try tr.append(.{ .warp = wp });
     try tl.tracks.children.append(.{ .track = tr });
 
     // build some pointers into the structure
     const tr_ptr = tl.tracks.child_ptr_from_index(0);
-    const cl_ptr = tr_ptr.track_ptr.child_ptr_from_index(0);
 
     // build the topological map
     ///////////////////////////////////////////////////////////////////////////
@@ -433,6 +439,11 @@ test "libsamplerate w/ high level test  retime"
         tl_ptr
     );
     defer topo_map.deinit();
+
+    try topo_map.write_dot_graph(
+        allocator,
+        "/var/tmp/track_clip_warp.dot"
+    );
 
     const tr_pres_to_cl_media_po = (
         try topo_map.build_projection_operator(
@@ -490,6 +501,159 @@ test "libsamplerate w/ high level test  retime"
     const result_p2p = try sampling.peak_to_peak_distance(result.buffer);
 
     try std.testing.expectEqual(input_p2p * 2, result_p2p);
+
+    try result.write_file_prefix(
+        allocator, 
+        "/var/tmp/",
+        "highlevel_libsamplerate_test_track_presentation.retimed.",
+        null,
+    );
+
+    try std.testing.expect(result.buffer.len > 0);
+}
+
+// last test: use the projection_operator_map to render out the component media
+// to an entire timeline
+//
+// also: same stuff but with non-interpolating media
+
+test "libsamplerate w/ high level test.retime.non_interpolating"
+{
+    const allocator = std.testing.allocator;
+
+    // top level timeline
+    var tl = try otio.Timeline.init(allocator);
+    tl.name = try allocator.dupe(u8, "Example Timeline");
+    tl.discrete_info.presentation = .{
+        // matches the media rate
+        .sample_rate_hz = 48000,
+        .start_index = 86400,
+    };
+
+    defer tl.recursively_deinit();
+    const tl_ptr = otio.ItemPtr{
+        .timeline_ptr = &tl 
+    };
+
+    // track
+    var tr = otio.Track.init(allocator);
+    tr.name = try allocator.dupe(u8, "Example Parent Track");
+
+    // clips
+    const cl1 = otio.Clip {
+        .name = try allocator.dupe(
+            u8,
+            "Spaghetti.mov",
+        ),
+        .media_temporal_bounds = .{
+            .start_seconds = 1,
+            .end_seconds = 6,
+        },
+        .discrete_info = .{
+            .media = .{
+                .sample_rate_hz = 48000,
+                .start_index = 0,
+            },
+        },
+        .media_reference = .{
+            .signal_generator = .{
+                .sample_rate_hz = 48000,
+                .signal = .sine,
+                .signal_duration_s = 6.0,
+                .signal_frequency_hz = 200,
+            },
+        },
+    };
+    defer cl1.destroy(allocator);
+    const cl_ptr : otio.ItemPtr = .{ .clip_ptr = &cl1 };
+
+    // new for this test - add in an warp on the clip
+    const wp: otio.Warp = .{
+        .child = cl_ptr,
+        .transform = time_topology.TimeTopology.init_affine(
+            .{
+                .transform = .{
+                    .offset_seconds = -1,
+                    .scale = 2,
+                },
+            },
+        )
+    };
+    try tr.append(.{ .warp = wp });
+
+    try tl.tracks.children.append(.{ .track = tr });
+
+    // build some pointers into the structure
+    const tr_ptr = tl.tracks.child_ptr_from_index(0);
+
+    // build the topological map
+    ///////////////////////////////////////////////////////////////////////////
+    const topo_map = try otio.build_topological_map(
+        allocator,
+        tl_ptr
+    );
+    defer topo_map.deinit();
+
+    const tr_pres_to_cl_media_po = (
+        try topo_map.build_projection_operator(
+            allocator,
+            .{
+                .source = try tr_ptr.space(.presentation),
+                .destination = try cl_ptr.space(.media),
+            },
+        )
+    );
+
+    // synthesize media
+    const media = (
+        try cl_ptr.clip_ptr.media_reference.?.signal_generator.rasterized(
+            allocator,
+            false,
+        )
+    );
+    defer media.deinit();
+    try std.testing.expect(media.buffer.len > 0);
+
+    // write the input file
+    try media.write_file_prefix(
+        allocator,
+        "/var/tmp",
+        "highlevel_libsamplerate_test_clip_media.",
+        cl1.media_reference.?.signal_generator,
+    );
+
+    const tr_pres_to_cl_media_lin = (
+        try tr_pres_to_cl_media_po.src_to_dst_topo.linearized(allocator)
+    );
+    defer tr_pres_to_cl_media_lin.deinit(allocator);
+    const tr_pres_to_cl_media_crv = (
+        tr_pres_to_cl_media_lin.linear_curve.curve
+    );
+
+    // goal
+    const result = try sampling.retimed_linear_curve(
+        allocator,
+        media,
+        tr_pres_to_cl_media_crv,
+        false,
+        tl.discrete_info.presentation.?,
+    );
+    defer result.deinit();
+
+    // result should match the timeline's discrete info
+    try std.testing.expectEqual(
+        tl.discrete_info.presentation.?.sample_rate_hz,
+        result.sample_rate_hz
+    );
+
+    const input_p2p = try sampling.peak_to_peak_distance(media.buffer);
+    const result_p2p = try sampling.peak_to_peak_distance(result.buffer);
+
+    // because the warp is scaling the presentation space by 2, the
+    // presentation space should have half the peak to peak of the media
+    // @TODO? ^ Nick is this correct?
+
+    try std.testing.expectEqual(input_p2p / 2, result_p2p);
 
     try result.write_file_prefix(
         allocator, 
