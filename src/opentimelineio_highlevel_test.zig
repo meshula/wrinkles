@@ -664,4 +664,29 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     );
 
     try std.testing.expect(result.buffer.len > 0);
+
+    // check the actual indices
+
+    {
+        const start = (
+            tr_pres_to_cl_media_po.src_to_dst_topo.input_bounds().start_seconds
+        );
+
+        const result_buf = (
+            try tr_pres_to_cl_media_po.project_range_cd(
+                allocator,
+                .{
+                    .start_seconds = start,
+                    .end_seconds = start + 2.0/48000.0,
+                },
+            )
+        );
+        defer allocator.free(result_buf);
+
+        try std.testing.expectEqualSlices(
+            usize, 
+            &.{ 48000, 48001, 48002, 48003, },
+            result_buf,
+        );
+    }
 }
