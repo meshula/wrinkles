@@ -15,59 +15,80 @@ contains:
   * parse .otio files and project through them
   * treecode library (path through a binary tree)
 
-## Current Todo List (7/2/24)
+## Ideal Demonstrator Gui App 8/23
 
- * [x]  fix the memory leak (stephan)
- * [x]  switch the polarity on the interpolating function + test (stephan)
- * [x]  all tests should pass
- * [x]  confirm that project topology should be b2c.project(a2b) -> a2c
- * [ ]  thread ^ function through opentimelineio demo
-  * [x] implement projections through the TopologicalMap to specific end points
-  * [x]  and demo of just using OTIO directly to compute frame numbers
-   * [x] build mapping of topology + media references that can be handed to
-         libsamplerate
-   * [x] build a map of an arbitrary slice of the output timeline to
-         references
-  * [x]  demo of using OTIO + libsamplerate together
-  * [ ] demo of using OTIO + time warps
-    * [ ] model an time warp effect
-   * [ ] app that reads an OTIO file and visualizes the time spaces in it
+* app that can open an existing .otio file
+* visualize the presenation time-space of the top level track
+* tlrender++ scrub around the track and see a render of what the composition
+  looks like at that frame decorated with coordinates in the media timespaces
+  and media sources for each section/clip
+* raven/raven++
+* topological view -- for a selection of the document, show the topological
+  graph of the temporal structural, decorated with the Transformation curves
+  * select two nodes to see the projection operator from one to the other
 
- * [ ] retime should not also resample at the same time
- * [ ] should `resampled` only work for interpolating Samplings?
- * [ ]  time_topology: is projecting the end point an error?  Or not?
-        **For context**: for most of the run of the project, we had this return
-        an error.OutOfBounds.  For the sampling tests, there are a bunch of
-        places where we want to project the end point, so a second check in
-        project was added that checked to see if the projected point was the
-        end point.  
-    * [ ] See also: the AffineTopology.inverted function
-    * [ ] time_topology.zig
-    * [ ] test_topology_projections.zig
- * [ ]  `DiscreteDatasourceIndexGenerator` <- what do we do this
- * [ ]  rename retimed_linear_curve_{non}_interpolating
- * [ ] should be `a2b.joined_with(b2c)` -> a2c -- thread this through the code
-   * [x] write `time_topology.join(allocator, .{ .a2b, .b2c })`
-   * [ ] thread this through the code
- * [ ]  let brains cool off <- beers
- * [ ]  port to sokol
- * [ ]  lumpy bits in the API
-   * [ ] project_curve returns a []curve instead of a topology?
-   * [ ] time/value vs input/output
-   * [ ] consistent names
-   * [ ] linear trimmed_in_input_space: promotes to bezier, trims there and
+## Current Todo List (8/23/24)
+
+* refactor gui code
+  * [ ]  port to sokol
+* build new gui app
+  * visual demonstration application for helping demo concepts
+* additional tests/functionality to show the library is capable of handling
+  * cleaning up existing high level tests
+  * arbitrarily held frames
+  * transitions
+  * project_.*_d* functions (coming from discrete indices)
+    * useful because it lets us ask the question: do we really need rational
+      times? ie - RationalTimes exist because they allow integer-like
+      computation in a continuous-like space... but we have explicitly
+      continuous and explicitly discrete spaces...
+    * are bounds on topologies better described with rationals? (no: topologies
+      are continuous, bounds are continuous)
+    * what about NTSC times?
+* refactoring core library pieces to clarify/simplify/improve the
+  implementation
+    * [ ] consistent names
+    * time/value in control points -> input/output
+        * do `ControlPoint.input`/output stay f32?  or do they move to
+          `opentime.Ordinate` to start moving in the direction of a rationaltime
+          or other similar
+          structure
+        * replacing `f32` with `opentime.Ordinate`
+
+        ```zig
+        pub const Ordinate = struct {
+          value : f32,
+
+          pub fn add(self: @This(), rhs: Ordinate) Ordinate{}
+          pub fn sub(self: @This(), rhs: Ordinate) Ordinate{}
+          pub fn mul(self: @This(), rhs: Ordinate) Ordinate{}
+          pub fn div(self: @This(), rhs: Ordinate) Ordinate{}
+        };
+        ```
+            * struct/union with add/mul/div/sub
+            * rational object as an entry in the union (i32/i32)
+    * polymorphism in timetopology->mapping, TimeTopology becomes []Mapping
+       * [ ] project_curve returns a []curve instead of a topology?
+    * switch the join() structure for joining mappings (vs project curve etc)
+    * [ ] linear trimmed_in_input_space: promotes to bezier, trims there and
          then demotes back.  should do everything on the linear knots
-   * [ ] should the sampling library be so built around time as the domain
-         to sample over?
-   * [ ] handle acyclical sampling as well (variable bitrate data, held
-         frames, etc).
-   * [x] there is a second set of sampling related bits in the topology
-         library... see `sample_over` and the step mapping in there
-
-### Build Questions
-
-* [x] remove the check step (can the regular steps work if all_check_step
-      depends on them?)
+     * [ ]  time_topology: is projecting the end point an error?  Or not?
+            **For context**: for most of the run of the project, we had this return
+            an error.OutOfBounds.  For the sampling tests, there are a bunch of
+            places where we want to project the end point, so a second check in
+            project was added that checked to see if the projected point was the
+            end point.  
+            do we define three half planes- before, inside, after?  end points
+            would still project correctly but be present in the 'after' half plane.
+        * [ ] See also: the AffineTopology.inverted function
+        * [ ] time_topology.zig
+        * [ ] test_topology_projections.zig
+        * [ ] should the sampling library be so built around time as the domain
+              to sample over? (ie index_at_time -> output_index_at_input_ordinate)
+        * [ ] handle acyclical sampling as well (variable bitrate data, held
+              frames, etc).
+     * [ ]  `DiscreteDatasourceIndexGenerator` <- what do we do this
+     * [ ]  let brains cool off <- beers
 
 ### Bigger, Later Questions/Todos
 
@@ -76,7 +97,7 @@ contains:
  * [ ]  rebuild in c?
  * [ ]  PR to OTIO?
 
-## PAST LIST IP
+## Lossless bezier projection todo list
 
 * Find the two or three point projection approximation
 * Add the graph to the ui
@@ -99,13 +120,6 @@ contains:
 
 ## Todo
 
-* add back in linear and bezier curve topologies
-    * with linearizing
-    * add hododrome decomposition to bezier/bezier projection
-* `project_topology` in the projection operator (whoops)
-* replacing `f32` with `opentime.Ordinate`
-    * struct/union with add/mul/div/sub
-    * rational object as an entry in the union (i32/i32)
 * sampling
 * domains (how do you handle that you want to evaluate the timeline at 30fps?)
 * transitions
