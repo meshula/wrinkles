@@ -12,7 +12,7 @@ const zstbi = @import("zstbi");
 
 const assert = std.debug.assert;
 
-const content_dir = @import("build_options").wrinkles_content_dir;
+const content_dir = @import("exe_build_options").wrinkles_content_dir;
 const window_title = "zig-gamedev: wrinkles (wgpu)";
 
 const wgsl_common = @embedFile("wrinkles_common.wgsl");

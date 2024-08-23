@@ -5,6 +5,9 @@
 //!
 
 const std = @import("std");
+
+const build_options = @import("build_options");
+
 const expectApproxEqAbs= std.testing.expectApproxEqAbs;
 const expectEqual = std.testing.expectEqual;
 const expectError= std.testing.expectError;
@@ -1504,7 +1507,7 @@ const TopologicalMap = struct {
 
         // @TODO: gate the dot/png render on if dot is installed
 
-        if (WRITE_DOT_GRAPH == false) {
+        if (build_options.graphviz_dot_on == false) {
             return;
         }
 

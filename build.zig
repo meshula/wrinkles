@@ -10,6 +10,22 @@ pub const MIN_ZIG_VERSION = std.SemanticVersion{
     // .pre = "dev.46"  <- for setting the dev version string
 };
 
+/// check for the `dot` program
+fn graphviz_dot_on_path() !bool
+{
+    const result = try std.process.Child.run(
+        .{
+            .allocator = std.heap.page_allocator,
+            .argv = &[_][]const u8{
+                "which",
+                "dot"
+            },
+        }
+    );
+
+    return result.term.Exited == 0;
+}
+
 fn ensureZigVersion() !void {
     var installed_ver = @import("builtin").zig_version;
     installed_ver.build = null;
@@ -113,6 +129,8 @@ pub const Options = struct {
     zd3d12_enable_gbv: bool,
 
     zpix_enable: bool,
+
+    common_build_options: *std.Build.Step.Options,
 };
 
 inline fn thisDir() []const u8 {
@@ -185,9 +203,14 @@ pub fn executable(
 
     // options for exposing the content directory and build hash
     {
-        const exe_options = b.addOptions();
         exe.root_module.addOptions(
             "build_options",
+            options.common_build_options,
+        );
+
+        const exe_options = b.addOptions();
+        exe.root_module.addOptions(
+            "exe_build_options",
             exe_options
         );
 
@@ -197,11 +220,7 @@ pub fn executable(
             name ++ "_content_dir",
             thisDir() ++ "/src" ++ source_dir_path
         );
-        exe_options.addOption(
-            []const u8,
-            "hash",
-            rev_HEAD(ALLOCATOR) catch "COULDNT READ HASH"
-        );
+
 
         const install_content_step = b.addInstallDirectory(
             .{
@@ -345,13 +364,12 @@ pub fn executable(
 /// options for module_with_tests_and_artifact
 pub const CreateModuleOptions = struct {
     b: *std.Build,
+    options: Options,
     fpath: []const u8,
-    target: std.Build.ResolvedTarget,
     test_step: *std.Build.Step,
     all_docs_step: *std.Build.Step,
     all_check_step: *std.Build.Step,
     deps: []const std.Build.Module.Import = &.{},
-    test_filter: ?[]const u8 = &.{},
 };
 
 pub fn module_with_tests_and_artifact(
@@ -366,15 +384,25 @@ pub fn module_with_tests_and_artifact(
         }
     );
 
+    mod.addOptions(
+        "build_options",
+        opts.options.common_build_options,
+    );
+
     // unit tests for the module
     {
         const mod_unit_tests = opts.b.addTest(
             .{
                 .name = "test_" ++ name,
                 .root_source_file = opts.b.path(opts.fpath),
-                .target =opts. target,
-                .filter = opts.test_filter orelse &.{},
+                .target =opts.options.target,
+                .filter = opts.options.test_filter orelse &.{},
             }
+        );
+
+        mod_unit_tests.root_module.addOptions(
+            "build_options",
+            opts.options.common_build_options,
         );
 
         for (opts.deps) 
@@ -464,8 +492,28 @@ pub fn build(
             "test-filter",
             "filter for tests to run"
         ) orelse null,
+
+        .common_build_options = b.addOptions(),
     };
     // ensureTarget(options.target) catch return;
+
+    options.common_build_options.addOption(
+        []const u8,
+        "hash",
+        rev_HEAD(ALLOCATOR) catch "COULDNT READ HASH"
+    );
+
+    const graphviz_dot_on = graphviz_dot_on_path() catch false;
+
+    if (graphviz_dot_on == false) {
+        std.log.warn("Warning: `dot` program not on path.\n",.{});
+    }
+
+    options.common_build_options.addOption(
+        bool,
+        "graphviz_dot_on",
+        graphviz_dot_on,
+    );
 
     const test_step = b.step(
         "test",
@@ -494,10 +542,9 @@ pub fn build(
         "wav",
         .{
             .b = b,
+            .options = options,
             .fpath = "libs/zig-wav/src/wav.zig",
-            .target = options.target,
             .test_step = test_step,
-            .test_filter = options.test_filter,
             .all_docs_step = all_docs_step,
             .all_check_step = all_check_step,
         }
@@ -507,12 +554,11 @@ pub fn build(
         "string_stuff",
         .{
             .b = b,
+            .options = options,
             .fpath = "src/string_stuff.zig",
-            .target = options.target,
             .test_step = test_step,
             .all_docs_step = all_docs_step,
             .all_check_step = all_check_step,
-            .test_filter = options.test_filter,
         }
     );
 
@@ -540,13 +586,12 @@ pub fn build(
         "treecode_lib",
         .{ 
             .b = b,
+            .options = options,
             .fpath = "src/treecode.zig",
-            .target = options.target,
             .test_step = test_step,
             .all_docs_step = all_docs_step,
             .all_check_step = all_check_step,
             .deps = &.{},
-            .test_filter = options.test_filter,
         }
     );
 
@@ -554,8 +599,8 @@ pub fn build(
         "opentime_lib",
         .{ 
             .b = b,
+            .options = options,
             .fpath = "src/opentime/opentime.zig",
-            .target = options.target,
             .test_step = test_step,
             .all_docs_step = all_docs_step,
             .all_check_step = all_check_step,
@@ -563,7 +608,6 @@ pub fn build(
                 .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "comath", .module = comath_dep.module("comath") },
             },
-            .test_filter = options.test_filter,
         }
     );
 
@@ -592,8 +636,8 @@ pub fn build(
         "curve",
         .{ 
             .b = b,
+            .options = options,
             .fpath = "src/curve/curve.zig",
-            .target = options.target,
             .test_step = test_step,
             .all_docs_step = all_docs_step,
             .all_check_step = all_check_step,
@@ -603,7 +647,6 @@ pub fn build(
                 .{ .name = "opentime", .module = opentime },
                 .{ .name = "comath", .module = comath_dep.module("comath") },
             },
-            .test_filter = options.test_filter,
         }
     );
 
@@ -638,8 +681,8 @@ pub fn build(
         "time_topology",
         .{ 
             .b = b,
+            .options = options,
             .fpath = "src/time_topology/time_topology.zig",
-            .target = options.target,
             .test_step = test_step,
             .all_docs_step = all_docs_step,
             .all_check_step = all_check_step,
@@ -647,7 +690,6 @@ pub fn build(
                 .{ .name = "opentime", .module = opentime },
                 .{ .name = "curve", .module = curve },
             },
-            .test_filter = options.test_filter,
         }
     );
 
@@ -655,8 +697,8 @@ pub fn build(
         "sampling",
         .{
             .b = b,
+            .options = options,
             .fpath = "src/sampling.zig",
-            .target = options.target,
             .test_step = test_step,
             .all_docs_step = all_docs_step,
             .all_check_step = all_check_step,
@@ -674,7 +716,6 @@ pub fn build(
                 .{ .name = "opentime", .module = opentime, },
                 .{ .name = "time_topology", .module = time_topology, },
             },
-            .test_filter = options.test_filter,
         }
     );
 
@@ -682,8 +723,8 @@ pub fn build(
         "opentimelineio_lib",
         .{ 
             .b = b,
+            .options = options,
             .fpath = "src/opentimelineio.zig",
-            .target = options.target,
             .test_step = test_step,
             .all_docs_step = all_docs_step,
             .all_check_step = all_check_step,
@@ -695,7 +736,6 @@ pub fn build(
                 .{ .name = "treecode", .module = treecode },
                 .{ .name = "sampling", .module = sampling },
             },
-            .test_filter = options.test_filter,
         }
     );
     _ = opentimelineio;

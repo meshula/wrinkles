@@ -9,7 +9,8 @@ const zm = @import("zmath");
 const zstbi = @import("zstbi");
 
 const build_options = @import("build_options");
-const content_dir = build_options.curvet_content_dir;
+const exe_build_options = @import("exe_build_options");
+const content_dir = exe_build_options.curvet_content_dir;
 
 const opentime = @import("opentime");
 const interval = opentime.interval;

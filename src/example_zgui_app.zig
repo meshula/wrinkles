@@ -8,7 +8,8 @@ const zgui = @import("zgui");
 const zstbi = @import("zstbi");
 
 const build_options = @import("build_options");
-const content_dir = build_options.example_zgui_app_content_dir;
+const exe_build_options = @import("exe_build_options");
+const content_dir = exe_build_options.example_zgui_app_content_dir;
 
 // the state for your app (returned by _parse_args and used by update())
 const VisState = struct {
