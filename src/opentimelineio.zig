@@ -996,10 +996,15 @@ const ProjectionOperator = struct {
             1.0 / @as(f32, @floatFromInt(discrete_info.sample_rate_hz))
         );
 
+        const increasing = bounds_to_walk.end_seconds > bounds_to_walk.start_seconds;
+        const sign:f32 = if (increasing) 1 else -1;
+
         // walk across the continuous space at the sampling rate
         var t = bounds_to_walk.start_seconds;
-        while (t < bounds_to_walk.end_seconds)
-            : (t += duration)
+        while (
+            (increasing and t < bounds_to_walk.end_seconds)
+            or (increasing == false and t > bounds_to_walk.end_seconds)
+        ) : (t += sign*duration)
         {
             // ...project the continuous coordinate into the discrete space
             try index_buffer_destination_discrete.append(
