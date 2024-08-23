@@ -10,22 +10,6 @@ pub const MIN_ZIG_VERSION = std.SemanticVersion{
     // .pre = "dev.46"  <- for setting the dev version string
 };
 
-/// check for the `dot` program
-fn graphviz_dot_on_path() !bool
-{
-    const result = try std.process.Child.run(
-        .{
-            .allocator = std.heap.page_allocator,
-            .argv = &[_][]const u8{
-                "which",
-                "dot"
-            },
-        }
-    );
-
-    return result.term.Exited == 0;
-}
-
 fn ensureZigVersion() !void {
     var installed_ver = @import("builtin").zig_version;
     installed_ver.build = null;
@@ -51,6 +35,23 @@ fn ensureZigVersion() !void {
         return error.ZigIsTooOld;
     }
 }
+
+/// check for the `dot` program
+fn graphviz_dot_on_path() !bool
+{
+    const result = try std.process.Child.run(
+        .{
+            .allocator = std.heap.page_allocator,
+            .argv = &[_][]const u8{
+                "which",
+                "dot"
+            },
+        }
+    );
+
+    return result.term.Exited == 0;
+}
+
 
 // fn ensureTarget(
 //     cross: std.zig.CrossTarget
