@@ -18,7 +18,7 @@ contains:
 ## Ideal Demonstrator Gui App 8/23
 
 * app that can open an existing .otio file
-* visualize the presenation time-space of the top level track
+* visualize the presentation time-space of the top level track
 * tlrender++ scrub around the track and see a render of what the composition
   looks like at that frame decorated with coordinates in the media timespaces
   and media sources for each section/clip
@@ -47,7 +47,9 @@ contains:
     * what about NTSC times?
 * refactoring core library pieces to clarify/simplify/improve the
   implementation
-    * [ ] consistent names
+  * [x] build check for graphviz
+  * [x] add check for graphviz to build system
+  * [ ] consistent names
     * time/value in control points -> input/output
         * do `ControlPoint.input`/output stay f32?  or do they move to
           `opentime.Ordinate` to start moving in the direction of a rationaltime
