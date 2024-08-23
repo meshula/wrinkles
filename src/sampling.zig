@@ -47,6 +47,19 @@ pub fn project_instantaneous_cd(
     );
 }
 
+test "project_range_cd"
+{
+    const result = project_instantaneous_cd(
+        DiscreteDatasourceIndexGenerator{
+            .sample_rate_hz = 24,
+            .start_index = 12,
+        },
+        12,
+    );
+
+    try std.testing.expectEqual(result, 288);
+}
+
 /// a set of samples and the parameters of those samples
 const Sampling = struct {
     allocator: std.mem.Allocator,
