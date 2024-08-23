@@ -131,6 +131,10 @@ pub const Options = struct {
     zpix_enable: bool,
 
     common_build_options: *std.Build.Step.Options,
+
+    test_step: *std.Build.Step,
+    all_docs_step: *std.Build.Step,
+    all_check_step: *std.Build.Step,
 };
 
 inline fn thisDir() []const u8 {
@@ -309,14 +313,10 @@ pub fn executable(
 
     // run and install the executable
     {
-        const install_exe_step = &b.addInstallArtifact(exe, .{}).step;
-
-        
-        // const codesign_exe_step = codesign_step_for(
-        //     install_exe_step,
-        //     name,
-        //     b
-        // );
+        const install_exe_step = &b.addInstallArtifact(
+            exe,
+            .{}
+        ).step;
 
         const install = b.step(
             name,
@@ -366,9 +366,6 @@ pub const CreateModuleOptions = struct {
     b: *std.Build,
     options: Options,
     fpath: []const u8,
-    test_step: *std.Build.Step,
-    all_docs_step: *std.Build.Step,
-    all_check_step: *std.Build.Step,
     deps: []const std.Build.Module.Import = &.{},
 };
 
@@ -415,7 +412,7 @@ pub fn module_with_tests_and_artifact(
         }
 
         const run_unit_tests = opts.b.addRunArtifact(mod_unit_tests);
-        opts.test_step.dependOn(&run_unit_tests.step);
+        opts.options.test_step.dependOn(&run_unit_tests.step);
 
         // also install the test binary for lldb needs
         const install_test_bin = opts.b.addInstallArtifact(
@@ -423,14 +420,7 @@ pub fn module_with_tests_and_artifact(
             .{}
         );
 
-        // const codesigned_test_step = codesign_step_for(
-        //     &install_test_bin.step,
-        //     "test_" ++ name,
-        //     opts.b
-        // );
-
-        // opts.test_step.dependOn(codesigned_test_step);
-        opts.test_step.dependOn(&install_test_bin.step);
+        opts.options.test_step.dependOn(&install_test_bin.step);
 
         // docs
         {
@@ -447,12 +437,12 @@ pub fn module_with_tests_and_artifact(
                 "Copy documentation artifacts to prefix path"
             );
             docs_step.dependOn(&install_docs.step);
-            opts.all_docs_step.dependOn(docs_step);
+            opts.options.all_docs_step.dependOn(docs_step);
         }
 
         // zls checks
         {
-            opts.all_check_step.dependOn(&mod_unit_tests.step);
+            opts.options.all_check_step.dependOn(&mod_unit_tests.step);
         }
     }
 
@@ -465,6 +455,22 @@ pub fn build(
 ) void 
 {
     ensureZigVersion() catch return;
+
+    const test_step = b.step(
+        "test",
+        "step to run all unit tests"
+    );
+
+    const all_docs_step = b.step(
+        "docs",
+        "build the documentation for the entire library",
+    );
+
+    const all_check_step = b.step(
+        "check",
+        "Check if everything compiles"
+    );
+
 
     //
     // Options and system checks
@@ -494,6 +500,11 @@ pub fn build(
         ) orelse null,
 
         .common_build_options = b.addOptions(),
+
+        // steps
+        .test_step = test_step,
+        .all_docs_step = all_docs_step,
+        .all_check_step = all_check_step,
     };
     // ensureTarget(options.target) catch return;
 
@@ -506,28 +517,13 @@ pub fn build(
     const graphviz_dot_on = graphviz_dot_on_path() catch false;
 
     if (graphviz_dot_on == false) {
-        std.log.warn("Warning: `dot` program not on path.\n",.{});
+        std.log.warn("`dot` program not on path.\n",.{});
     }
 
     options.common_build_options.addOption(
         bool,
         "graphviz_dot_on",
         graphviz_dot_on,
-    );
-
-    const test_step = b.step(
-        "test",
-        "step to run all unit tests"
-    );
-
-    const all_docs_step = b.step(
-        "docs",
-        "build the documentation for the entire library",
-    );
-
-    const all_check_step = b.step(
-        "check",
-        "Check if everything compiles"
     );
 
     // submodules and dependencies
@@ -544,9 +540,6 @@ pub fn build(
             .b = b,
             .options = options,
             .fpath = "libs/zig-wav/src/wav.zig",
-            .test_step = test_step,
-            .all_docs_step = all_docs_step,
-            .all_check_step = all_check_step,
         }
     );
 
@@ -556,9 +549,6 @@ pub fn build(
             .b = b,
             .options = options,
             .fpath = "src/string_stuff.zig",
-            .test_step = test_step,
-            .all_docs_step = all_docs_step,
-            .all_check_step = all_check_step,
         }
     );
 
@@ -588,9 +578,6 @@ pub fn build(
             .b = b,
             .options = options,
             .fpath = "src/treecode.zig",
-            .test_step = test_step,
-            .all_docs_step = all_docs_step,
-            .all_check_step = all_check_step,
             .deps = &.{},
         }
     );
@@ -601,9 +588,6 @@ pub fn build(
             .b = b,
             .options = options,
             .fpath = "src/opentime/opentime.zig",
-            .test_step = test_step,
-            .all_docs_step = all_docs_step,
-            .all_check_step = all_check_step,
             .deps = &.{
                 .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "comath", .module = comath_dep.module("comath") },
@@ -638,9 +622,6 @@ pub fn build(
             .b = b,
             .options = options,
             .fpath = "src/curve/curve.zig",
-            .test_step = test_step,
-            .all_docs_step = all_docs_step,
-            .all_check_step = all_check_step,
             .deps = &.{
                 .{ .name = "spline_gym", .module = &spline_gym.root_module },
                 .{ .name = "string_stuff", .module = string_stuff },
@@ -683,9 +664,6 @@ pub fn build(
             .b = b,
             .options = options,
             .fpath = "src/time_topology/time_topology.zig",
-            .test_step = test_step,
-            .all_docs_step = all_docs_step,
-            .all_check_step = all_check_step,
             .deps = &.{
                 .{ .name = "opentime", .module = opentime },
                 .{ .name = "curve", .module = curve },
@@ -699,9 +677,6 @@ pub fn build(
             .b = b,
             .options = options,
             .fpath = "src/sampling.zig",
-            .test_step = test_step,
-            .all_docs_step = all_docs_step,
-            .all_check_step = all_check_step,
             .deps = &.{
                 .{ 
                     .name = "libsamplerate",
@@ -725,9 +700,6 @@ pub fn build(
             .b = b,
             .options = options,
             .fpath = "src/opentimelineio.zig",
-            .test_step = test_step,
-            .all_docs_step = all_docs_step,
-            .all_check_step = all_check_step,
             .deps = &.{
                 .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "opentime", .module = opentime },
