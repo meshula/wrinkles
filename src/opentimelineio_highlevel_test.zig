@@ -690,3 +690,112 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
         );
     }
 }
+
+test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
+{
+    const allocator = std.testing.allocator;
+
+    // top level timeline
+    var tl = try otio.Timeline.init(allocator);
+    tl.name = try allocator.dupe(u8, "Example Timeline");
+    tl.discrete_info.presentation = .{
+        // matches the media rate
+        .sample_rate_hz = 48000,
+        .start_index = 86400,
+    };
+
+    defer tl.recursively_deinit();
+    const tl_ptr = otio.ItemPtr{
+        .timeline_ptr = &tl 
+    };
+
+    // track
+    var tr = otio.Track.init(allocator);
+    tr.name = try allocator.dupe(u8, "Example Parent Track");
+
+    // clips
+    const cl1 = otio.Clip {
+        .name = try allocator.dupe(
+            u8,
+            "Spaghetti.mov",
+        ),
+        .media_temporal_bounds = .{
+            .start_seconds = 1,
+            .end_seconds = 6,
+        },
+        .discrete_info = .{
+            .media = .{
+                .sample_rate_hz = 48000,
+                .start_index = 0,
+            },
+        },
+        .media_reference = .{
+            .signal_generator = .{
+                .sample_rate_hz = 48000,
+                .signal = .sine,
+                .signal_duration_s = 6.0,
+                .signal_frequency_hz = 200,
+            },
+        },
+    };
+    defer cl1.destroy(allocator);
+    const cl_ptr : otio.ItemPtr = .{ .clip_ptr = &cl1 };
+
+    // new for this test - add in an warp on the clip
+    const wp: otio.Warp = .{
+        .child = cl_ptr,
+        .transform = time_topology.TimeTopology.init_linear_start_end(
+            .{ .time = 0, .value = 6 },
+            .{ .time = 6, .value = 0 },   
+        )
+    };
+    try tr.append(.{ .warp = wp });
+
+    try tl.tracks.children.append(.{ .track = tr });
+
+    // build some pointers into the structure
+    const tr_ptr = tl.tracks.child_ptr_from_index(0);
+
+    // build the topological map
+    ///////////////////////////////////////////////////////////////////////////
+    const topo_map = try otio.build_topological_map(
+        allocator,
+        tl_ptr
+    );
+    defer topo_map.deinit();
+
+    const tr_pres_to_cl_media_po = (
+        try topo_map.build_projection_operator(
+            allocator,
+            .{
+                .source = try tr_ptr.space(.presentation),
+                .destination = try cl_ptr.space(.media),
+            },
+        )
+    );
+
+    {
+        const start = (
+            tr_pres_to_cl_media_po.src_to_dst_topo.input_bounds().start_seconds
+        );
+
+        const result_buf = (
+            try tr_pres_to_cl_media_po.project_range_cd(
+                allocator,
+                .{
+                    .start_seconds = start,
+                    .end_seconds = start + 4.0/48000.0,
+                },
+            )
+        );
+        defer allocator.free(result_buf);
+
+        try std.testing.expect(result_buf.len > 0);
+
+        try std.testing.expectEqualSlices(
+            usize, 
+            &.{ 288000, 287999, 287998, 287996,},
+            result_buf,
+        );
+    }
+}
