@@ -622,6 +622,28 @@ pub const ItemPtr = union(enum) {
         };
     }
 
+    pub fn discrete_index_to_continuous_range(
+        self: @This(),
+        ind_discrete: usize,
+        in_space: SpaceLabel,
+    ) !opentime.ContinuousTimeInterval
+    {
+        const maybe_di = (
+            try self.discrete_info_for_space(in_space)
+        );
+
+        if (maybe_di) 
+            |di|
+        {
+            return sampling.project_index_dc(
+                di,
+                ind_discrete
+            );
+        }
+
+        return error.NoDiscreteInfoForSpace;
+    }
+
     pub fn continuous_ordinate_to_discrete_index(
         self: @This(),
         ord_continuous: f32,
@@ -1077,6 +1099,25 @@ const ProjectionOperator = struct {
         );
     }
 
+    /// project a discrete index into the continuous space
+    pub fn project_index_dc(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        index_in_source: usize,
+    ) !time_topology.TimeTopology
+    {
+        const c_range_in_source = (
+            try self.source.item.discrete_index_to_continuous_range(
+                index_in_source,
+                self.source.label,
+            )
+        );
+
+        return try self.project_range_cc(
+            allocator,
+            c_range_in_source,
+        );
+    }
 
     /// project a discete sample index to the destination discrete sample index
     // pub fn project_instantaneous_dd(
@@ -4388,6 +4429,13 @@ test "otio projection: track with single clip with transform"
 {
     const allocator = std.testing.allocator;
 
+    var tl = try Timeline.init(allocator);
+    tl.discrete_info.presentation = .{
+        .sample_rate_hz = 24,
+        .start_index = 12
+    };
+
+
     var tr = Track.init(allocator);
     defer tr.deinit();
 
@@ -4424,22 +4472,32 @@ test "otio projection: track with single clip with transform"
     };
 
     try tr.append(.{ .warp = wp });
-    const tr_ptr : ItemPtr = .{ .track_ptr = &tr };
+    try tl.tracks.children.append(.{ .track = tr });
+    const tl_ptr = ItemPtr{ .timeline_ptr = &tl };
+    defer tl.tracks.deinit();
+
+    const tr_ptr : ItemPtr = tl.tracks.child_ptr_from_index(0);
     const cl_ptr = wp.child;
 
-    const map = try build_topological_map(
+    const map_tr = try build_topological_map(
         allocator,
         tr_ptr
     );
-    defer map.deinit();
+    defer map_tr.deinit();
 
-    try map.write_dot_graph(
+    const map_tl = try build_topological_map(
+        allocator,
+        tl_ptr
+    );
+    defer map_tl.deinit();
+
+    try map_tr.write_dot_graph(
         allocator,
         "/var/tmp/sampling_test.dot"
     );
 
     const track_to_media = (
-        try map.build_projection_operator(
+        try map_tr.build_projection_operator(
             allocator,
             .{
                 .source = try tr_ptr.space(SpaceLabel.presentation),
@@ -4523,16 +4581,18 @@ test "otio projection: track with single clip with transform"
             );
         }
 
-        // discrete
+        // continuous -> discrete
         {
             //                                   (3.5s*2 + 1s)*4
             const expected = [_]usize{ 
                 32, 33, 34, 35, 36, 37, 38, 39 
             };
 
-            const result_media_indices = try track_to_media.project_range_cd(
-                allocator,
-                test_range_in_track,
+            const result_media_indices = (
+                try track_to_media.project_range_cd(
+                    allocator,
+                    test_range_in_track,
+                )
             );
             defer allocator.free(result_media_indices);
 
@@ -4540,6 +4600,65 @@ test "otio projection: track with single clip with transform"
                 usize,
                 &expected,
                 result_media_indices,
+            );
+        }
+
+        // discrete -> continuous
+        {
+            try map_tl.write_dot_graph(
+                allocator,
+                "/var/tmp/discrete_to_continuous_test.dot"
+            );
+
+            const timeline_to_media = (
+                try map_tl.build_projection_operator(
+                    allocator,
+                    .{
+                        .source = try tl_ptr.space(SpaceLabel.presentation),
+                        // does the discrete / continuous need to be disambiguated?
+                        .destination = try cl_ptr.space(SpaceLabel.media),
+                    },
+                )
+            );
+            defer timeline_to_media.deinit(allocator);
+
+            const result_tp = (
+                try timeline_to_media.project_index_dc(
+                    allocator,
+                    12,
+                )
+            );
+            defer result_tp.deinit(allocator);
+
+            const output_range = (
+                result_tp.output_bounds()
+            );
+
+            errdefer std.debug.print(
+                "output_range: {d}, {d}\n",
+                .{ output_range.start_seconds, output_range.end_seconds },
+            );
+
+            try std.testing.expectEqual(
+                track_to_media.src_to_dst_topo.output_bounds().start_seconds,
+                output_range.start_seconds
+            );
+
+            const start = (
+                track_to_media.src_to_dst_topo.output_bounds().start_seconds
+            );
+
+            try std.testing.expectEqual(
+                (
+               // should  v this be a 1.0?
+                 start + 2.0/@as(
+                     f32,
+                     @floatFromInt(
+                         tl.discrete_info.presentation.?.sample_rate_hz
+                     )
+                 )
+                ),
+                output_range.end_seconds,
             );
         }
     }

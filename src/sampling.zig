@@ -47,7 +47,7 @@ pub fn project_instantaneous_cd(
     );
 }
 
-test "project_range_cd"
+test "project_instantaneous_cd"
 {
     const result = project_instantaneous_cd(
         DiscreteDatasourceIndexGenerator{
@@ -58,6 +58,42 @@ test "project_range_cd"
     );
 
     try std.testing.expectEqual(result, 288);
+}
+
+// @TODO: this should be symmetrical with cd - I think it is missing the 0.5
+//        offset from the cd function
+pub fn project_index_dc(
+    self: anytype,
+    ind_discrete: usize,
+) opentime.ContinuousTimeInterval
+{
+    var start:f32 = @floatFromInt(ind_discrete);
+    start -= @floatFromInt(self.start_index);
+    const s_per_cycle = 1 / @as(f32, @floatFromInt(self.sample_rate_hz));
+    start *= s_per_cycle;
+
+    return .{
+        .start_seconds = start,
+        .end_seconds = start + s_per_cycle,
+    };
+}
+
+test "project_index_dc"
+{
+    const result = project_index_dc(
+        DiscreteDatasourceIndexGenerator{
+            .sample_rate_hz = 24,
+            .start_index = 12,
+        },
+        288,
+    );
+
+    try std.testing.expectEqual(result.start_seconds, 11.5);
+    try std.testing.expectApproxEqAbs(
+        result.end_seconds,
+        11.541667,
+        EPSILON,
+    );
 }
 
 /// a set of samples and the parameters of those samples
