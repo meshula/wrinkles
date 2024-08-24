@@ -38,8 +38,8 @@ contains:
   * arbitrarily held frames
   * transitions
   * project_.*_d* functions (coming from discrete indices)
-    * useful because it lets us ask the question: do we really need rational
-      times? ie - RationalTimes exist because they allow integer-like
+    * useful because it lets us ask the question: do we really need
+      rational times? ie - RationalTimes exist because they allow integer-like
       computation in a continuous-like space... but we have explicitly
       continuous and explicitly discrete spaces...
     * are bounds on topologies better described with rationals? (no: topologies
@@ -49,6 +49,9 @@ contains:
   implementation
   * [x] build check for graphviz
   * [x] add check for graphviz to build system
+  * [ ] clarify ownership in the OTIO objects - I think we actually don't
+        want `Item` and want everything to work with `ItemPtr` across the
+        board.
   * [ ] consistent names
     * time/value in control points -> input/output
         * do `ControlPoint.input`/output stay f32?  or do they move to
