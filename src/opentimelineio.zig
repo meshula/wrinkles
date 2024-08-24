@@ -1119,6 +1119,25 @@ const ProjectionOperator = struct {
         );
     }
 
+    pub fn project_index_dd(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        index_in_source: usize,
+    ) ![]usize
+    {
+        const c_range_in_source = (
+            try self.source.item.discrete_index_to_continuous_range(
+                index_in_source,
+                self.source.label,
+            )
+        );
+
+        return try self.project_range_cd(
+            allocator,
+            c_range_in_source,
+        );
+    }
+
     /// project a discete sample index to the destination discrete sample index
     // pub fn project_instantaneous_dd(
     //     self: @This(),
@@ -4659,6 +4678,20 @@ test "otio projection: track with single clip with transform"
                  )
                 ),
                 output_range.end_seconds,
+            );
+
+            const result_indices = (
+                try timeline_to_media.project_index_dd(
+                    allocator,
+                    12,
+                )
+            );
+            defer allocator.free(result_indices);
+
+            try std.testing.expectEqualSlices(
+                usize,
+                &.{ 4 },
+                result_indices,
             );
         }
     }
