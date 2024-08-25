@@ -52,6 +52,8 @@ contains:
   * [ ] clarify ownership in the OTIO objects - I think we actually don't
         want `Item` and want everything to work with `ItemPtr` across the
         board.
+    * [ ] ie: if everything is ItemPtr, then when cleaning up a stack, do you
+          also free the things that its ItemPtrs point at?
   * [ ] consistent names
     * time/value in control points -> input/output
         * do `ControlPoint.input`/output stay f32?  or do they move to
