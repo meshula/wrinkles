@@ -2665,6 +2665,7 @@ pub fn build_topological_map(
 ) !TopologicalMap 
 {
     var tmp_topo_map = try TopologicalMap.init(allocator);
+    errdefer tmp_topo_map.deinit();
 
     const Node = struct {
         path_code: treecode.Treecode,
@@ -2707,6 +2708,7 @@ pub fn build_topological_map(
         defer code_from_stack.deinit();
 
         var current_code = try current.path_code.clone();
+        errdefer current_code.deinit();
 
         // push the spaces for the current object into the map/stack
         {
