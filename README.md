@@ -95,6 +95,8 @@ contains:
         * [ ] handle acyclical sampling as well (variable bitrate data, held
               frames, etc).
      * [ ]  `DiscreteDatasourceIndexGenerator` <- what do we do this
+        * [ ] probably needs to be a bit more indirect so it can support
+              acyclic/weirdly cyclic signals (NTSC)
      * [ ]  let brains cool off <- beers
 
 ### Bigger, Later Questions/Todos
