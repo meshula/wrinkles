@@ -231,3 +231,20 @@ const Ordinate = union(enum) {
     pub fn to_float() f32 {}
 };
 ```
+
+# Memory Management Notes
+
+* The zig pattern has either:
+    * `init` and `deinit`: initialize and return a pointer to new memory
+    * `create` and `destroy` - create single values in memory and return an 
+      `undefined` pointer to the memory.  Equivalent to 
+      `var thing : Something = undefined;`, but on the heap.
+* we have value types that contain references to memory because they are of
+  unknown size - IE "name".  We could fix the size of the name slice, then 
+  they would also be fixed value types
+* ... but the array types (track, stack, etc) would still need allocations
+* if you want the lifetime to extend past the scope, you need to init/deinit
+* the `ItemPtr` is definitely a reference type
+* I think the questions are:
+    * should the containers contain value types?  or reference types?
+    * what should users expect from ownership?

@@ -1,5 +1,4 @@
 //! Slim OpenTimelineIO Reimplementation for testing high level API
-//!
 //! Uses the rest of the wrinkles library to implement high level functions
 //! that might eventually get ported to 'real' OTIO.
 //!
@@ -101,10 +100,22 @@ pub const Clip = struct {
         media:  ?sampling.DiscreteDatasourceIndexGenerator = null,
     } = .{},
 
-    pub const SPACES = enum(i8) {
-        media = 0,
-        presentation = 1,
-    };
+    /// copy values from argument and allocate as necessary
+    pub fn init(
+        allocator: std.mem.Allocator,
+        copy_from: Clip,
+    ) !Clip
+    {
+        var result = copy_from;
+        
+        if (copy_from.name)
+            |n|
+        {
+            result.name = allocator.dupe(u8, n);
+        }
+
+        return result;
+    }
 
     /// compute the bounds of the specified target space
     pub fn bounds_of(
@@ -120,17 +131,6 @@ pub const Clip = struct {
             .media => presentation_to_media_topo.output_bounds(),
             .presentation => presentation_to_media_topo.input_bounds(),
             else => error.UnsupportedSpaceError,
-        };
-    }
-
-    pub fn space(
-        self: @This(),
-        label: SpaceLabel,
-    ) !SpaceReference 
-    {
-        return .{
-            .item = ItemPtr{ .clip_ptr = &self },
-            .label= label,
         };
     }
 
@@ -189,12 +189,35 @@ pub const Gap = struct {
 };
 
 /// anything that can be composed in a track or stack
-pub const Item = union(enum) {
+pub const ComposableValue = union(enum) {
     clip: Clip,
     gap: Gap,
     track: Track,
     stack: Stack,
     warp: Warp,
+
+    pub fn init(
+        val: anytype,
+    ) ComposableValue
+    {
+        if (@TypeOf(val) == ComposableValue) {
+            return val;
+        }
+
+        return switch (@TypeOf(val)) {
+            Clip => return .{ .clip = val },
+            Gap => return .{ .gap = val },
+            Track => return .{ .track = val },
+            Stack => return .{ .stack = val },
+            Warp => return .{ .warp = val },
+            inline else => {
+                @compileError(
+                    "Cannot compose value of type: "
+                    ++ @typeName(@TypeOf(val))
+                );
+            }
+        };
+    }
 
     pub fn topology(
         self: @This(),
@@ -242,8 +265,8 @@ pub const Item = union(enum) {
     }
 };
 
-/// a pointer to something in the timeline
-pub const ItemPtr = union(enum) {
+/// a pointer to something in the composition hierarchy
+pub const ComposedValueRef = union(enum) {
     clip_ptr: *const Clip,
     gap_ptr: *const Gap,
     track_ptr: *const Track,
@@ -251,18 +274,54 @@ pub const ItemPtr = union(enum) {
     stack_ptr: *const Stack,
     warp_ptr: *const Warp,
 
-    pub fn init_Item(
-        item: *const Item
-    ) ItemPtr 
+    /// construct a ComposedValueRef from a ComposableValue or value type
+    pub fn init(
+        input: anytype,
+    ) ComposedValueRef
     {
-        return switch (item.*) {
-            .clip  => |*cp| .{ .clip_ptr = cp  },
-            .gap   => |*gp| .{ .gap_ptr= gp    },
-            .track => |*tr| .{ .track_ptr = tr },
-            .stack => |*st| .{ .stack_ptr = st },
-            .warp => |*wp| .{ .warp_ptr = wp },
-        };
+        comptime {
+            const t= @typeInfo(@TypeOf(input));
+            if (std.meta.activeTag(t) != .Pointer) 
+            {
+                @compileError(
+                    "ComposedValueRef can only be constructed from pointers "
+                    ++ "or ComposableValues, not: "
+                    ++ @typeName(@TypeOf(input))
+                );
+            }
+        }
+
+        if (
+            @TypeOf(input) == (*const ComposableValue)
+            or @TypeOf(input) == (*ComposableValue)
+        ) 
+        {
+            return switch (input.*) 
+            {
+                .clip  => |*cp| .{ .clip_ptr = cp  },
+                .gap   => |*gp| .{ .gap_ptr= gp    },
+                .track => |*tr| .{ .track_ptr = tr },
+                .stack => |*st| .{ .stack_ptr = st },
+                .warp => |*wp| .{ .warp_ptr = wp },
+            };
+        }
+        else {
+            return switch (@TypeOf(input.*)) 
+            {
+                Clip => .{ .clip_ptr = input },
+                Gap   => .{ .gap_ptr = input },
+                Track => .{ .track_ptr = input },
+                Stack => .{ .stack_ptr = input },
+                Warp => .{ .warp_ptr = input },
+                Timeline => .{ .timeline_ptr = input },
+                inline else => @compileError(
+                    "ComposedValueRef cannot reference to type: "
+                    ++ @typeName(@TypeOf(input))
+                ),
+            };
+        }
     }
+
 
     pub fn topology(
         self: @This(),
@@ -294,7 +353,7 @@ pub const ItemPtr = union(enum) {
     /// pointer equivalence
     pub fn equivalent_to(
         self: @This(),
-        other: ItemPtr
+        other: ComposedValueRef
     ) bool 
     {
         return switch(self) {
@@ -303,20 +362,6 @@ pub const ItemPtr = union(enum) {
             .track_ptr => |tr| tr == other.track_ptr,
             .stack_ptr => |st| st == other.stack_ptr,
             .timeline_ptr => |tl| tl == other.timeline_ptr,
-        };
-    }
-
-    /// fetch the contained parent pointer
-    pub fn parent(
-        self: @This()
-    ) ?ItemPtr 
-    {
-        return switch(self) {
-            .clip_ptr => self.clip_ptr.parent,
-            .gap_ptr => null,
-            .track_ptr => null,
-            .stack_ptr => null,
-            .timeline_ptr => null,
         };
     }
 
@@ -330,15 +375,15 @@ pub const ItemPtr = union(enum) {
 
         switch (self) {
             .clip_ptr, => {
-                try result.append( .{ .item = self, .label = SpaceLabel.presentation});
-                try result.append( .{ .item = self, .label = SpaceLabel.media});
+                try result.append( .{ .ref = self, .label = SpaceLabel.presentation});
+                try result.append( .{ .ref = self, .label = SpaceLabel.media});
             },
             .track_ptr, .timeline_ptr, .stack_ptr => {
-                try result.append( .{ .item = self, .label = SpaceLabel.presentation});
-                try result.append( .{ .item = self, .label = SpaceLabel.intrinsic});
+                try result.append( .{ .ref = self, .label = SpaceLabel.presentation});
+                try result.append( .{ .ref = self, .label = SpaceLabel.intrinsic});
             },
             .gap_ptr, .warp_ptr => {
-                try result.append( .{ .item = self, .label = SpaceLabel.presentation});
+                try result.append( .{ .ref = self, .label = SpaceLabel.presentation});
             },
             // else => { return error.NotImplemented; }
         }
@@ -352,7 +397,7 @@ pub const ItemPtr = union(enum) {
         label: SpaceLabel
     ) !SpaceReference 
     {
-        return .{ .item = self, .label = label };
+        return .{ .ref = self, .label = label };
     }
 
     /// build a topology that projections a value from_space to_space
@@ -598,18 +643,31 @@ pub const ItemPtr = union(enum) {
     }
 };
 
+test "ComposedValueRef init test"
+{
+    const cl = Clip{};
+
+    const cl_cv = ComposableValue.init(cl);
+    const cl_ref_init_cv = ComposedValueRef.init(&cl_cv);
+
+    const cl_ref_init_ptr = ComposedValueRef.init(&cl);
+
+    try std.testing.expectEqual(&(cl_cv.clip), cl_ref_init_cv.clip_ptr);
+    try std.testing.expectEqual(&cl, cl_ref_init_ptr.clip_ptr);
+}
+
 /// a warp is an additional nonlinear transformation between the warp.parent
 /// and and warp.child.presentation spaces.
 pub const Warp = struct {
     name: ?string.latin_s8 = null,
-    child: ItemPtr,
+    child: ComposedValueRef,
     transform: time_topology.TimeTopology,
 };
 
 /// a container in which each contained item is right-met over time
 pub const Track = struct {
     name: ?string.latin_s8 = null,
-    children: std.ArrayList(Item),
+    children: std.ArrayList(ComposableValue),
 
     pub fn init(
         allocator: std.mem.Allocator
@@ -617,7 +675,7 @@ pub const Track = struct {
     {
         return .{
             .children = std.ArrayList(
-                Item
+                ComposableValue
             ).init(allocator),
         };
     }
@@ -648,22 +706,22 @@ pub const Track = struct {
     }
 
     pub fn append(
-        self: *Track,
-        item: Item
+        self: *@This(),
+        value: anytype
     ) !void 
     {
-        try self.children.append(item);
+        try self.children.append(ComposableValue.init(value));
     }
 
-    pub fn space(
+    /// append the ComposableValue-compatible val and return a ComposedValueRef
+    /// to the new value
+    pub fn append_fetch_ref(
         self: *Track,
-        label: SpaceLabel
-    ) !SpaceReference 
+        value: anytype,
+    ) !ComposedValueRef 
     {
-        return .{
-            .item = ItemPtr{ .track_ptr = self },
-            .label= label,
-        };
+        try self.children.append(ComposableValue.init(value));
+        return self.child_ptr_from_index(self.children.items.len-1);
     }
 
     /// construct the topology mapping the output to the intrinsic space
@@ -705,10 +763,10 @@ pub const Track = struct {
 
     pub fn child_ptr_from_index(
         self: @This(),
-        index: usize
-    ) ItemPtr 
+        index: usize,
+    ) ComposedValueRef 
     {
-        return ItemPtr.init_Item(&self.children.items[index]);
+        return ComposedValueRef.init(&self.children.items[index]);
     }
 
     /// builds a transform from the previous child spce to the one passed in the
@@ -766,6 +824,20 @@ pub const Track = struct {
     }
 };
 
+test "test append_fetch_ref"
+{
+    const allocator = std.testing.allocator;
+    var tr = Track.init(allocator);
+    defer tr.deinit();
+
+    const tr_ref = try tr.append_fetch_ref(tr);
+
+    try std.testing.expectEqual(
+        tr.child_ptr_from_index(0),
+        tr_ref
+    );
+}
+
 /// used to identify spaces on objects in the hierarchy
 pub const SpaceLabel = enum(i8) {
     presentation = 0,
@@ -776,7 +848,7 @@ pub const SpaceLabel = enum(i8) {
 
 /// references a specific space on a specific object
 pub const SpaceReference = struct {
-    item: ItemPtr,
+    ref: ComposedValueRef,
     label: SpaceLabel,
     child_index: ?usize = null,
 };
@@ -834,7 +906,7 @@ const ProjectionOperator = struct {
             )
         );
 
-        return try self.destination.item.continuous_ordinate_to_discrete_index(
+        return try self.destination.ref.continuous_ordinate_to_discrete_index(
             continuous_in_destination_space,
             self.destination.label,
         );
@@ -880,7 +952,7 @@ const ProjectionOperator = struct {
         defer in_to_dst_topo_c.deinit(allocator);
 
         const discrete_info = (
-            try self.destination.item.discrete_info_for_space(
+            try self.destination.ref.discrete_info_for_space(
                 self.destination.label
             )
         ).?;
@@ -919,7 +991,7 @@ const ProjectionOperator = struct {
                 //     try in_to_dst_topo_c.project_instantaneous_cc(t),
                 //     self.destination.label,
                 // )
-                try self.destination.item.continuous_ordinate_to_discrete_index(
+                try self.destination.ref.continuous_ordinate_to_discrete_index(
                     t,
                     self.destination.label,
                 )
@@ -989,7 +1061,7 @@ const ProjectionOperator = struct {
     ) !time_topology.TimeTopology
     {
         const c_range_in_source = (
-            try self.source.item.discrete_index_to_continuous_range(
+            try self.source.ref.discrete_index_to_continuous_range(
                 index_in_source,
                 self.source.label,
             )
@@ -1008,7 +1080,7 @@ const ProjectionOperator = struct {
     ) ![]usize
     {
         const c_range_in_source = (
-            try self.source.item.discrete_index_to_continuous_range(
+            try self.source.ref.discrete_index_to_continuous_range(
                 index_in_source,
                 self.source.label,
             )
@@ -1222,7 +1294,7 @@ const TopologicalMap = struct {
                 );
             }
 
-            var next_proj = try current.item.build_transform(
+            var next_proj = try current.ref.build_transform(
                 allocator,
                 current.label,
                 next,
@@ -1267,7 +1339,7 @@ const TopologicalMap = struct {
         code: treecode.Treecode,
     ) !string.latin_s8 
     {
-        const item_kind = switch(ref.item) {
+        const item_kind = switch(ref.ref) {
             .track_ptr => "track",
             .clip_ptr => "clip",
             .gap_ptr => "gap",
@@ -1541,7 +1613,7 @@ pub fn projection_map_to_media_from(
 test "ProjectionOperatorMap: init_operator leak test"
 {
     const cl = Clip{};
-    const cl_ptr = ItemPtr{ .clip_ptr = &cl };
+    const cl_ptr = ComposedValueRef{ .clip_ptr = &cl };
     const child_op_map = (
         try ProjectionOperatorMap.init_operator(
             std.testing.allocator,
@@ -1568,7 +1640,7 @@ test "ProjectionOperatorMap: projection_map_to_media_from leak test"
             .end_seconds = 9 
         }
     };
-    const cl_ptr = ItemPtr{ .clip_ptr = &cl };
+    const cl_ptr = ComposedValueRef{ .clip_ptr = &cl };
 
     const map = try build_topological_map(
         std.testing.allocator,
@@ -1596,12 +1668,13 @@ const ProjectionOperatorMap = struct {
     /// root space for the map
     source : SpaceReference,
 
+    /// initialize from an operator, so that the operator can be merged into 
+    /// the map
     pub fn init_operator(
         allocator: std.mem.Allocator,
         op: ProjectionOperator,
     ) !ProjectionOperatorMap
     {
-
         const input_bounds = op.src_to_dst_topo.input_bounds();
         const end_points = try allocator.dupe(
             f32,
@@ -1903,7 +1976,7 @@ test "ProjectionOperatorMap: extend_to"
             .end_seconds = 9 
         }
     };
-    const cl_ptr = ItemPtr{ .clip_ptr = &cl };
+    const cl_ptr = ComposedValueRef{ .clip_ptr = &cl };
 
     const map = try build_topological_map(
         std.testing.allocator,
@@ -1997,7 +2070,7 @@ test "ProjectionOperatorMap: split_at_each"
             .end_seconds = 9 
         }
     };
-    const cl_ptr = ItemPtr{ .clip_ptr = &cl };
+    const cl_ptr = ComposedValueRef{ .clip_ptr = &cl };
 
     const map = try build_topological_map(
         std.testing.allocator,
@@ -2115,7 +2188,7 @@ test "ProjectionOperatorMap: merge_composite"
             .end_seconds = 9 
         }
     };
-    const cl_ptr = ItemPtr{ .clip_ptr = &cl };
+    const cl_ptr = ComposedValueRef{ .clip_ptr = &cl };
 
     const map = try build_topological_map(
         std.testing.allocator,
@@ -2164,7 +2237,7 @@ test "ProjectionOperatorMap: clip"
             .end_seconds = 9 
         }
     };
-    const cl_ptr = ItemPtr{ .clip_ptr = &cl };
+    const cl_ptr = ComposedValueRef{ .clip_ptr = &cl };
 
     const map = try build_topological_map(
         std.testing.allocator,
@@ -2245,6 +2318,7 @@ test "ProjectionOperatorMap: track with single clip"
 {
     var tr = Track.init(std.testing.allocator);
     defer tr.deinit();
+    const tr_ptr = ComposedValueRef.init(&tr);
 
     const cl = Clip {
         .media_temporal_bounds = .{
@@ -2252,9 +2326,7 @@ test "ProjectionOperatorMap: track with single clip"
             .end_seconds = 9 
         }
     };
-    try tr.append(.{ .clip = cl });
-    const tr_ptr = ItemPtr{ .track_ptr = &tr };
-    const cl_ptr = tr.child_ptr_from_index(0);
+    const cl_ptr = try tr.append_fetch_ref(cl);
 
     const map = try build_topological_map(
         std.testing.allocator,
@@ -2360,10 +2432,10 @@ test "transform: track with two clips"
             .end_seconds = 4 
         }
     };
-    try tr.append(.{ .clip = cl1 });
-    try tr.append(.{ .clip = cl2 });
-    const tr_ptr = ItemPtr{ .track_ptr = &tr };
-    const cl_ind1_ptr = tr.child_ptr_from_index(1);
+    try tr.append(cl1);
+
+    const cl2_ref = try tr.append_fetch_ref(cl2);
+    const tr_ptr = ComposedValueRef.init(&tr);
 
     const map = try build_topological_map(
         allocator,
@@ -2401,7 +2473,7 @@ test "transform: track with two clips"
             allocator,
             .{
                 .source = track_presentation_space,
-                .destination = try cl_ind1_ptr.space(.media),
+                .destination = try cl2_ref.space(.media),
             }
         );
         const b = xform.src_to_dst_topo.input_bounds();
@@ -2437,10 +2509,9 @@ test "ProjectionOperatorMap: track with two clips"
             .end_seconds = 9 
         }
     };
-    try tr.append(.{ .clip = cl });
-    try tr.append(.{ .clip = cl });
-    const tr_ptr = ItemPtr{ .track_ptr = &tr };
-    const cl_ptr = tr.child_ptr_from_index(1);
+    try tr.append(cl);
+    const cl_ptr = try tr.append_fetch_ref(cl);
+    const tr_ptr = ComposedValueRef.init(&tr);
 
     const map = try build_topological_map(
         std.testing.allocator,
@@ -2514,6 +2585,7 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
 {
     var tr = Track.init(std.testing.allocator);
     defer tr.deinit();
+    const tr_ptr = ComposedValueRef.init(&tr);
 
     const cl = Clip {
         .media_temporal_bounds = .{
@@ -2521,15 +2593,14 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
             .end_seconds = 9 
         }
     };
-    const gp = Gap{
-        .duration_seconds = 5,
-    };
-    try tr.append(.{ .clip = cl });
-    try tr.append(.{ .gap = gp });
-    try tr.append(.{ .clip = cl });
+    try tr.append(cl);
+    try tr.append(
+        Gap{
+            .duration_seconds = 5,
+        }
+    );
+    const cl_ptr = try tr.append_fetch_ref(cl);
 
-    const tr_ptr = ItemPtr{ .track_ptr = &tr };
-    const cl_ptr = tr.child_ptr_from_index(2);
 
     const map = try build_topological_map(
         std.testing.allocator,
@@ -2661,7 +2732,7 @@ test "depth_child_hash: math"
 /// leaves.  See TopologicalMap for more details.
 pub fn build_topological_map(
     allocator: std.mem.Allocator,
-    root_item: ItemPtr
+    root_item: ComposedValueRef
 ) !TopologicalMap 
 {
     var tmp_topo_map = try TopologicalMap.init(allocator);
@@ -2669,7 +2740,7 @@ pub fn build_topological_map(
 
     const Node = struct {
         path_code: treecode.Treecode,
-        object: ItemPtr,
+        object: ComposedValueRef,
     };
 
     var stack = std.ArrayList(Node).init(allocator);
@@ -2769,26 +2840,26 @@ pub fn build_topological_map(
             inline .track_ptr, .stack_ptr => |st_or_tr| (
                 st_or_tr.children.items
             ),
-            .timeline_ptr => |tl|  &[_]Item{
+            .timeline_ptr => |tl|  &[_]ComposableValue{
                 .{ 
                     .stack = tl.tracks 
                 } 
             },
-            else => &[_]Item{},
+            else => &[_]ComposableValue{},
         };
 
         var children_ptrs = (
-            std.ArrayList(ItemPtr).init(allocator)
+            std.ArrayList(ComposedValueRef).init(allocator)
         );
         defer children_ptrs.deinit();
         for (children) 
             |*child| 
         {
-            const item_ptr = ItemPtr.init_Item(child);
+            const item_ptr = ComposedValueRef.init(child);
             try children_ptrs.append(item_ptr);
         }
 
-        // for things that already are ItemPtr containers
+        // for things that already are ComposedValueRef containers
         switch (current.object) {
             .warp_ptr => |wp| {
                 try children_ptrs.append(wp.child);
@@ -2807,7 +2878,7 @@ pub fn build_topological_map(
 
             // insert the child scope
             const space_ref = SpaceReference{
-                .item = current.object,
+                .ref = current.object,
                 .label = SpaceLabel.child,
                 .child_index = index,
             };
@@ -2825,7 +2896,7 @@ pub fn build_topological_map(
                             index,
                             child_space_code.treecode_array[0],
                             other_code.treecode_array[0],
-                            @tagName(space_ref.item),
+                            @tagName(space_ref.ref),
                             @tagName(space_ref.label),
                             space_ref.child_index.?,
                         }
@@ -2839,7 +2910,7 @@ pub fn build_topological_map(
                         index,
                         child_space_code.treecode_array[0],
                         child_space_code.hash(),
-                        @tagName(space_ref.item),
+                        @tagName(space_ref.ref),
                         @tagName(space_ref.label),
                         space_ref.child_index.?,
                         space_ref.previous_child_offset.?,
@@ -2913,13 +2984,14 @@ test "track topology construction"
 
     const start_seconds:f32 = 1;
     const end_seconds:f32 = 10;
-    const cl = Clip {
-        .media_temporal_bounds = .{
-            .start_seconds = start_seconds,
-            .end_seconds = end_seconds 
+    try tr.append(
+        Clip {
+            .media_temporal_bounds = .{
+                .start_seconds = start_seconds,
+                .end_seconds = end_seconds 
+            }
         }
-    };
-    try tr.append(.{ .clip = cl });
+    );
 
     const topo =  try tr.topology();
 
@@ -2938,21 +3010,11 @@ test "track topology construction"
 
 test "build_topological_map: leak sentinel test - single clip"
 {
-    const start_seconds:f32 = 1;
-    const end_seconds:f32 = 10;
-
-    const cl = Clip {
-        .media_temporal_bounds = .{
-            .start_seconds = start_seconds,
-            .end_seconds = end_seconds 
-        }
-    };
+    const cl = Clip {};
 
     const map = try build_topological_map(
         std.testing.allocator,
-        .{ 
-            .clip_ptr =  &cl 
-        },
+        ComposedValueRef.init(&cl)
     );
     defer map.deinit();
 }
@@ -2961,23 +3023,13 @@ test "build_topological_map: leak sentinel test track w/ clip"
 {
     var tr = Track.init(std.testing.allocator);
     defer tr.deinit();
+    const tr_ref = ComposedValueRef.init(&tr);
 
-    const start_seconds:f32 = 1;
-    const end_seconds:f32 = 10;
-
-    const cl = Clip {
-        .media_temporal_bounds = .{
-            .start_seconds = start_seconds,
-            .end_seconds = end_seconds 
-        }
-    };
-    try tr.append(.{ .clip = cl });
+    try tr.append(Clip{});
 
     const map = try build_topological_map(
         std.testing.allocator,
-        .{ 
-            .track_ptr = &tr 
-        },
+        tr_ref,
     );
     defer map.deinit();
 }
@@ -2986,29 +3038,30 @@ test "build_topological_map check root node"
 {
     var tr = Track.init(std.testing.allocator);
     defer tr.deinit();
+    const tr_ref = ComposedValueRef.init(&tr);
 
     const start_seconds:f32 = 1;
     const end_seconds:f32 = 10;
-
-    const cl = Clip {
-        .media_temporal_bounds = .{
-            .start_seconds = start_seconds,
-            .end_seconds = end_seconds 
-        }
+    const cti = opentime.ContinuousTimeInterval{
+        .start_seconds = start_seconds,
+        .end_seconds = end_seconds 
     };
-    try tr.append(.{ .clip = cl });
+
+    try tr.append(
+        Clip { 
+            .media_temporal_bounds = cti, 
+        }
+    );
 
     var i:i32 = 0;
     while (i < 10) 
         : (i += 1)
     {
-        const cl2 = Clip {
-            .media_temporal_bounds = .{
-                .start_seconds = start_seconds,
-                .end_seconds = end_seconds 
+        try tr.append(
+            Clip {
+                .media_temporal_bounds = cti,
             }
-        };
-        try tr.append(.{ .clip = cl2 });
+        );
     }
 
     try std.testing.expectEqual(
@@ -3018,23 +3071,21 @@ test "build_topological_map check root node"
 
     const map = try build_topological_map(
         std.testing.allocator,
-        .{ 
-            .track_ptr = &tr 
-        },
+        tr_ref,
     );
     defer map.deinit();
 
     try expectEqual(
-        tr.space(.presentation),
+        tr_ref.space(.presentation),
         map.root(),
     );
-
 }
 
 test "path_code: graph test" 
 {
     var tr = Track.init(std.testing.allocator);
     defer tr.deinit();
+    const tr_ref = ComposedValueRef.init(&tr);
 
     const start_seconds:f32 = 1;
     const end_seconds:f32 = 10;
@@ -3045,31 +3096,32 @@ test "path_code: graph test"
             .end_seconds = end_seconds 
         }
     };
-    try tr.append(.{ .clip = cl });
+    try tr.append(cl);
 
     var i:i32 = 0;
     while (i < 10) 
         : (i+=1)
     {
-        const cl2 = Clip {
-            .media_temporal_bounds = .{
-                .start_seconds = start_seconds,
-                .end_seconds = end_seconds 
+        try tr.append(
+            Clip {
+                .media_temporal_bounds = .{
+                    .start_seconds = start_seconds,
+                    .end_seconds = end_seconds 
+                }
             }
-        };
-        try tr.append(.{ .clip = cl2 });
+        );
     }
 
     try std.testing.expectEqual(11, tr.children.items.len);
 
     const map = try build_topological_map(
         std.testing.allocator,
-        .{ .track_ptr = &tr },
+        tr_ref,
     );
     defer map.deinit();
 
     try expectEqual(
-        tr.space(.presentation),
+        tr_ref.space(.presentation),
         map.root(),
     );
 
@@ -3133,6 +3185,7 @@ test "Track with clip with identity transform projection"
 {
     var tr = Track.init(std.testing.allocator);
     defer tr.deinit();
+    const tr_ref = ComposedValueRef.init(&tr);
 
     const start_seconds:f32 = 1;
     const end_seconds:f32 = 10;
@@ -3140,30 +3193,36 @@ test "Track with clip with identity transform projection"
         .start_seconds = start_seconds,
         .end_seconds = end_seconds,
     };
+    
+    const cl_template = Clip{
+        .media_temporal_bounds = range
+    };
 
-    const cl = Clip{.media_temporal_bounds = range};
-    try tr.append(.{ .clip = cl });
+    // reserve capcacity so that the reference isn't invalidated
+    try tr.children.ensureTotalCapacity(11);
+    const cl_ref = try tr.append_fetch_ref(cl_template);
+    try expectEqual(cl_ref, tr.child_ptr_from_index(0));
 
     var i:i32 = 0;
     while (i < 10) 
         : (i+=1)
     {
-        const cl2 = Clip {.media_temporal_bounds = range};
-        try tr.append(.{ .clip = cl2 });
+        try tr.append(cl_template);
     }
 
     const map = try build_topological_map(
         std.testing.allocator,
-        .{ .track_ptr = &tr },
+        tr_ref,
     );
     defer map.deinit();
 
-    const clip = tr.child_ptr_from_index(0);
+    try expectEqual(11, tr_ref.track_ptr.children.items.len);
+
     const track_to_clip = try map.build_projection_operator(
         std.testing.allocator,
         .{
-            .source = try tr.space(SpaceLabel.presentation),
-            .destination =  try clip.space(SpaceLabel.media)
+            .source = try tr_ref.space(SpaceLabel.presentation),
+            .destination =  try cl_ref.space(SpaceLabel.media)
         }
     );
     defer track_to_clip.deinit(std.testing.allocator);
@@ -3195,17 +3254,16 @@ test "TopologicalMap: Track with clip with identity transform topological"
     var tr = Track.init(std.testing.allocator);
     defer tr.deinit();
 
-    const cl = Clip {
-        .media_temporal_bounds = .{
-            .start_seconds = 0,
-            .end_seconds = 2 
-        } 
-    };
+    const cl_ref = try tr.append_fetch_ref(
+        Clip {
+            .media_temporal_bounds = .{
+                .start_seconds = 0,
+                .end_seconds = 2 
+            } 
+        }
+    );
 
-    // a copy -- which is why we can't use `cl` in our searches.
-    try tr.append(.{ .clip = cl });
-
-    const root = ItemPtr{ .track_ptr = &tr };
+    const root = ComposedValueRef.init(&tr);
 
     const map = try build_topological_map(
         std.testing.allocator,
@@ -3216,7 +3274,7 @@ test "TopologicalMap: Track with clip with identity transform topological"
     try expectEqual(5, map.map_code_to_space.count());
     try expectEqual(5, map.map_space_to_code.count());
 
-    try expectEqual(root, map.root().item);
+    try expectEqual(root, map.root().ref);
 
     const maybe_root_code = map.map_space_to_code.get(map.root());
     try std.testing.expect(maybe_root_code != null);
@@ -3233,9 +3291,8 @@ test "TopologicalMap: Track with clip with identity transform topological"
         try expectEqual(0, tc.code_length());
     }
 
-    const clip = tr.child_ptr_from_index(0);
     const maybe_clip_code = map.map_space_to_code.get(
-        try clip.space(SpaceLabel.media)
+        try cl_ref.space(SpaceLabel.media)
     );
     try std.testing.expect(maybe_clip_code != null);
     const clip_code = maybe_clip_code.?;
@@ -3265,7 +3322,7 @@ test "TopologicalMap: Track with clip with identity transform topological"
             std.testing.allocator,
             .{
                 .source = try root.space(SpaceLabel.presentation),
-                .destination = try clip.space(SpaceLabel.media)
+                .destination = try cl_ref.space(SpaceLabel.media)
             }
         )
     );
@@ -3287,12 +3344,15 @@ test "Projection: Track with single clip with identity transform and bounds"
     var tr = Track.init(std.testing.allocator);
     defer tr.deinit();
 
-    const root = ItemPtr{ .track_ptr = &tr };
+    const root = ComposedValueRef{ .track_ptr = &tr };
 
-    const cl = Clip { .media_temporal_bounds = .{ .start_seconds = 0, .end_seconds = 2 } };
-    try tr.append(.{ .clip = cl });
-
-    const clip = tr.child_ptr_from_index(0);
+    const cl = Clip {
+        .media_temporal_bounds = .{
+            .start_seconds = 0,
+            .end_seconds = 2 
+        }
+    };
+    const clip = try tr.append_fetch_ref(cl);
 
     const map = try build_topological_map(
         std.testing.allocator,
@@ -3355,14 +3415,14 @@ test "Projection: Track with multiple clips with identity transform and bounds"
     //
     var tr = Track.init(std.testing.allocator);
     defer tr.deinit();
-    const track_ptr = ItemPtr{ .track_ptr = &tr };
+    const track_ptr = ComposedValueRef{ .track_ptr = &tr };
 
     const cl = Clip { .media_temporal_bounds = .{ .start_seconds = 0, .end_seconds = 2 } };
 
     // add three copies
-    try tr.append(.{ .clip = cl });
-    try tr.append(.{ .clip = cl });
-    try tr.append(.{ .clip = cl });
+    try tr.append(cl);
+    try tr.append(cl);
+    const cl2_ref = try tr.append_fetch_ref(cl);
 
     const TestData = struct {
         index: usize,
@@ -3392,7 +3452,7 @@ test "Projection: Track with multiple clips with identity transform and bounds"
             .{
                 .source = try track_ptr.space(.presentation),
                 .destination = (
-                    try tr.child_ptr_from_index(2).space(.media)
+                    try cl2_ref.space(.media)
                 ),
             }
         );
@@ -3523,13 +3583,13 @@ test "Single Warp w/ Clip Media to presentation Identity transform"
     const cl:Clip = .{
         .media_temporal_bounds = media_temporal_bounds 
     };
-    const cl_ptr : ItemPtr = .{ .clip_ptr = &cl};
+    const cl_ptr : ComposedValueRef = .{ .clip_ptr = &cl};
 
     const wp : Warp = .{
         .child = cl_ptr,
         .transform = time_topology.TimeTopology.init_identity_infinite(),
     };
-    const wp_ptr : ItemPtr = .{ .warp_ptr = &wp };
+    const wp_ptr : ComposedValueRef = .{ .warp_ptr = &wp };
 
     const map = try build_topological_map(
         std.testing.allocator,
@@ -3629,14 +3689,14 @@ test "Single Clip reverse transform"
         .media_temporal_bounds = media_temporal_bounds,
     };
     defer cl.destroy(allocator);
-    const cl_ptr = ItemPtr{.clip_ptr = &cl };
+    const cl_ptr = ComposedValueRef{.clip_ptr = &cl };
 
     const w_inv : Warp = .{
         .child = cl_ptr,
         .transform = inv_tx,
     };
 
-    const wp_ptr : ItemPtr = .{ .warp_ptr =  &w_inv };
+    const wp_ptr : ComposedValueRef = .{ .warp_ptr =  &w_inv };
 
     const map = try build_topological_map(
         allocator,
@@ -3800,14 +3860,14 @@ test "Single Clip bezier transform"
     const cl = Clip {
         .media_temporal_bounds = media_temporal_bounds,
     };
-    const cl_ptr:ItemPtr = .{ .clip_ptr = &cl };
+    const cl_ptr:ComposedValueRef = .{ .clip_ptr = &cl };
 
     const wp: Warp = .{
         .child = cl_ptr,
         .transform = curve_topo,
     };
 
-    const wp_ptr : ItemPtr = .{ .warp_ptr = &wp };
+    const wp_ptr : ComposedValueRef = .{ .warp_ptr = &wp };
 
     const map = try build_topological_map(
         allocator,
@@ -3983,11 +4043,11 @@ pub const Timeline = struct {
 /// children of a stack are simultaneous in time
 pub const Stack = struct {
     name: ?string.latin_s8 = null,
-    children: std.ArrayList(Item),
+    children: std.ArrayList(ComposableValue),
 
     pub fn init(allocator: std.mem.Allocator) Stack { 
         return .{
-            .children = std.ArrayList(Item).init(allocator)
+            .children = std.ArrayList(ComposableValue).init(allocator)
         };
     }
 
@@ -4005,10 +4065,30 @@ pub const Stack = struct {
     pub fn child_ptr_from_index(
         self: @This(),
         index: usize
-    ) ItemPtr 
+    ) ComposedValueRef 
     {
-        return ItemPtr.init_Item(&self.children.items[index]);
+        return ComposedValueRef.init(&self.children.items[index]);
     }
+
+    pub fn append(
+        self: *@This(),
+        value: anytype
+    ) !void 
+    {
+        try self.children.append(ComposableValue.init(value));
+    }
+
+    /// append the ComposableValue-compatible val and return a ComposedValueRef
+    /// to the new value
+    pub fn append_fetch_ref(
+        self: *Track,
+        value: anytype,
+    ) !ComposedValueRef 
+    {
+        try self.children.append(ComposableValue.init(value));
+        return self.child_ptr_from_index(self.children.items.len-1);
+    }
+
 
     pub fn recursively_deinit(self: @This()) void {
         for (self.children.items)
@@ -4076,12 +4156,13 @@ test "sequential_child_hash: math"
     );
     defer root.deinit();
 
-    var i:usize = 0;
-
     var test_code = try root.clone();
     defer test_code.deinit();
 
-    while (i<4) : (i+=1) {
+    var i:usize = 0;
+    while (i<4) 
+        : (i+=1) 
+    {
         var result = try sequential_child_code_leaky(root, i);
         defer result.deinit();
 
@@ -4101,7 +4182,7 @@ test "label_for_node_leaky"
     var tr = Track.init(std.testing.allocator);
     const sr = SpaceReference{
         .label = SpaceLabel.presentation,
-        .item = .{ .track_ptr = &tr } 
+        .ref = .{ .track_ptr = &tr } 
     };
 
     var tc = try treecode.Treecode.init_word(
@@ -4123,7 +4204,7 @@ test "label_for_node_leaky"
 test "test spaces list" 
 {
     const cl = Clip{};
-    const it = ItemPtr{ .clip_ptr = &cl };
+    const it = ComposedValueRef{ .clip_ptr = &cl };
     const spaces = try it.spaces(std.testing.allocator);
     defer std.testing.allocator.free(spaces);
 
@@ -4171,9 +4252,8 @@ test "otio projection: track with single clip"
             .media = media_discrete_info 
         },
     };
-    try tr.append(.{ .clip = cl });
-    const tr_ptr : ItemPtr = .{ .track_ptr = &tr };
-    const cl_ptr = tr.child_ptr_from_index(0);
+    const cl_ptr = try tr.append_fetch_ref(cl);
+    const tr_ptr = ComposedValueRef.init(&tr);
 
     const map = try build_topological_map(
         allocator,
@@ -4374,12 +4454,12 @@ test "otio projection: track with single clip with transform"
         ),
     };
 
-    try tr.append(.{ .warp = wp });
-    try tl.tracks.children.append(.{ .track = tr });
-    const tl_ptr = ItemPtr{ .timeline_ptr = &tl };
+    try tr.append(wp);
+    try tl.tracks.append(tr);
+    const tl_ptr = ComposedValueRef{ .timeline_ptr = &tl };
     defer tl.tracks.deinit();
 
-    const tr_ptr : ItemPtr = tl.tracks.child_ptr_from_index(0);
+    const tr_ptr : ComposedValueRef = tl.tracks.child_ptr_from_index(0);
     const cl_ptr = wp.child;
 
     const map_tr = try build_topological_map(
@@ -4725,7 +4805,7 @@ test "TestWalkingIterator: clip"
     const cl = Clip {
         .media_temporal_bounds = media_source_range,
     };
-    const cl_ptr = ItemPtr{ .clip_ptr = &cl };
+    const cl_ptr = ComposedValueRef.init(&cl);
 
     const map = try build_topological_map(
         std.testing.allocator,
@@ -4766,9 +4846,8 @@ test "TestWalkingIterator: track with clip"
     const cl = Clip {
         .media_temporal_bounds = media_source_range,
     };
-    try tr.append(.{ .clip = cl });
-    const tr_ptr : ItemPtr = .{ .track_ptr = &tr };
-    // const cl_ptr = tr.child_ptr_from_index(0);
+    const cl_ptr = try tr.append_fetch_ref(cl);
+    const tr_ptr = ComposedValueRef.init(&tr);
 
     const map = try build_topological_map(
         std.testing.allocator,
@@ -4799,8 +4878,6 @@ test "TestWalkingIterator: track with clip"
 
     // from the clip
     {
-        const cl_ptr = tr.child_ptr_from_index(0);
-
         var node_iter = try TreenodeWalkingIterator.init_at(
             std.testing.allocator,
             &map,

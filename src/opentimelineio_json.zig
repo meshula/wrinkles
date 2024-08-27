@@ -280,7 +280,7 @@ test "read_from_file test"
         );
     }
 
-    const tl_ptr = otio.ItemPtr{ .timeline_ptr = &tl };
+    const tl_ptr = otio.ComposedValueRef{ .timeline_ptr = &tl };
     const target_clip_ptr = (
         track0.child_ptr_from_index(0)
     );

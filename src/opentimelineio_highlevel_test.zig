@@ -24,7 +24,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     };
 
     defer tl.recursively_deinit();
-    const tl_ptr = otio.ItemPtr{
+    const tl_ptr = otio.ComposedValueRef{
         .timeline_ptr = &tl 
     };
 
@@ -49,13 +49,13 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             },
         },
     };
-    try tr.append(.{ .clip = cl1 });
+    try tr.append(cl1);
 
     // gap
     const gp = otio.Gap{
         .duration_seconds = 1,
     };
-    try tr.append(.{ .gap = gp });
+    try tr.append(gp);
 
     // clip
     const cl2 = otio.Clip {
@@ -74,9 +74,8 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             },
         },
     };
-    try tr.append(.{ .clip = cl2 });
-
-    try tl.tracks.children.append(.{ .track = tr });
+    try tr.append(cl2);
+    try tl.tracks.append(tr);
 
     // build some pointers into the structure
     const tr_ptr = tl.tracks.child_ptr_from_index(0);
@@ -119,7 +118,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     defer proj_map.deinit();
 
     const src_discrete_info = (
-        try proj_map.source.item.discrete_info_for_space(.presentation)
+        try proj_map.source.ref.discrete_info_for_space(.presentation)
     );
 
     if (PRINT_DEMO_OUTPUT) 
@@ -177,7 +176,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
                     );
             }
             const di = (
-                try op.destination.item.discrete_info_for_space(.media)
+                try op.destination.ref.discrete_info_for_space(.media)
             ).?;
             if (PRINT_DEMO_OUTPUT)
             {
@@ -206,7 +205,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
                     "    Source: \n      target: {?s}\n"
                     ++ "      frames: {any}\n",
                     .{ 
-                        op.destination.item.clip_ptr.name orelse "pasta",
+                        op.destination.ref.clip_ptr.name orelse "pasta",
                         dest_frames,
                     }
                 );
@@ -228,7 +227,7 @@ test "libsamplerate w/ high level test -- resample only"
     };
 
     defer tl.recursively_deinit();
-    const tl_ptr = otio.ItemPtr{
+    const tl_ptr = otio.ComposedValueRef{
         .timeline_ptr = &tl 
     };
 
@@ -273,8 +272,8 @@ test "libsamplerate w/ high level test -- resample only"
         (try cl1.bounds_of(allocator, .media)).end_seconds
     );
 
-    try tr.append(.{ .clip = cl1 });
-    try tl.tracks.children.append(.{ .track = tr });
+    try tr.append(cl1);
+    try tl.tracks.append(tr);
 
     // build some pointers into the structure
     const tr_ptr = tl.tracks.child_ptr_from_index(0);
@@ -378,7 +377,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
     };
 
     defer tl.recursively_deinit();
-    const tl_ptr = otio.ItemPtr{
+    const tl_ptr = otio.ComposedValueRef{
         .timeline_ptr = &tl 
     };
 
@@ -412,7 +411,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
         },
     };
     defer cl1.destroy(allocator);
-    const cl_ptr : otio.ItemPtr = .{ .clip_ptr = &cl1 };
+    const cl_ptr : otio.ComposedValueRef = .{ .clip_ptr = &cl1 };
 
     // new for this test - add in an warp on the clip
     const wp: otio.Warp = .{
@@ -426,8 +425,8 @@ test "libsamplerate w/ high level test.retime.interpolating"
             },
         )
     };
-    try tr.append(.{ .warp = wp });
-    try tl.tracks.children.append(.{ .track = tr });
+    try tr.append(wp);
+    try tl.tracks.append(tr);
 
     // build some pointers into the structure
     const tr_ptr = tl.tracks.child_ptr_from_index(0);
@@ -531,7 +530,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     };
 
     defer tl.recursively_deinit();
-    const tl_ptr = otio.ItemPtr{
+    const tl_ptr = otio.ComposedValueRef{
         .timeline_ptr = &tl 
     };
 
@@ -565,7 +564,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
         },
     };
     defer cl1.destroy(allocator);
-    const cl_ptr : otio.ItemPtr = .{ .clip_ptr = &cl1 };
+    const cl_ptr : otio.ComposedValueRef = .{ .clip_ptr = &cl1 };
 
     // new for this test - add in an warp on the clip
     const wp: otio.Warp = .{
@@ -579,9 +578,9 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
             },
         )
     };
-    try tr.append(.{ .warp = wp });
+    try tr.append(wp);
 
-    try tl.tracks.children.append(.{ .track = tr });
+    try tl.tracks.append(tr);
 
     // build some pointers into the structure
     const tr_ptr = tl.tracks.child_ptr_from_index(0);
@@ -705,7 +704,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     };
 
     defer tl.recursively_deinit();
-    const tl_ptr = otio.ItemPtr{
+    const tl_ptr = otio.ComposedValueRef{
         .timeline_ptr = &tl 
     };
 
@@ -739,7 +738,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
         },
     };
     defer cl1.destroy(allocator);
-    const cl_ptr : otio.ItemPtr = .{ .clip_ptr = &cl1 };
+    const cl_ptr : otio.ComposedValueRef = .{ .clip_ptr = &cl1 };
 
     // new for this test - add in an warp on the clip
     const wp: otio.Warp = .{
@@ -749,9 +748,9 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
             .{ .time = 6, .value = 0 },   
         )
     };
-    try tr.append(.{ .warp = wp });
+    try tr.append(wp);
 
-    try tl.tracks.children.append(.{ .track = tr });
+    try tl.tracks.append(tr);
 
     // build some pointers into the structure
     const tr_ptr = tl.tracks.child_ptr_from_index(0);
