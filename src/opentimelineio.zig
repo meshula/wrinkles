@@ -1659,7 +1659,7 @@ test "ProjectionOperatorMap: projection_map_to_media_from leak test"
 }
 
 /// maps a timeline to sets of projection operators, one set per temporal slice
-const ProjectionOperatorMap = struct {
+pub const ProjectionOperatorMap = struct {
     allocator: std.mem.Allocator,
 
     /// segment endpoints

@@ -20,6 +20,9 @@ int main()
     void* map = build_topological_map(tl);
     printf("built map: %p\n", map);
 
+    void* po = build_projection_operator_map_media(map, tl);
+    printf("built po map to media: %p\n", po);
+
     struct ComposedValueRef_c cl = get_child_ref_by_index(tr, 0);
     printf("read clip: %p\n", cl.ref);
 

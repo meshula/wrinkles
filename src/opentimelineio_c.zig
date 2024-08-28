@@ -150,3 +150,33 @@ pub export fn build_topological_map(
     return result;
 }
 
+pub export fn build_projection_operator_map_media(
+    map: ?*anyopaque,
+    source: c.ComposedValueRef_c,
+) ?*anyopaque
+{
+    if (map == null) {
+        return null;
+    }
+
+    const t_map = ptrCast(otio.TopologicalMap, map.?);
+
+    const result = ALLOCATOR.create(
+        otio.ProjectionOperatorMap
+    ) catch return null;
+
+    const src = init_ComposedValueRef(
+        source
+    ) catch return null;
+
+    result.* = otio.projection_map_to_media_from(
+        ALLOCATOR,
+        t_map.*,
+        src.space(.presentation) catch return null,
+    ) catch |err| {
+        std.log.err("Couldn't build map: {any}\n", .{ err});
+        return null;
+    };
+
+    return result;
+}
