@@ -1,6 +1,14 @@
 // header for exposing OTIO functions to c
 
-typedef enum otio_ComposableTypes_t { timeline, stack, track, clip, gap, warp, err } otio_ComposableTypes_t;
+typedef enum otio_ComposableTypes_t { 
+    otio_ct_timeline, 
+    otio_ct_stack,
+    otio_ct_track,
+    otio_ct_clip,
+    otio_ct_gap,
+    otio_ct_warp,
+    otio_ct_err 
+} otio_ComposableTypes_t;
 
 typedef struct otio_ComposedValueRef {
     otio_ComposableTypes_t kind;
@@ -22,6 +30,7 @@ otio_ComposedValueRef otio_fetch_child_cvr_ind(
 );
 int otio_child_count_cvr(otio_ComposedValueRef parent);
 otio_TopologicalMap otio_build_topo_map_cvr(otio_ComposedValueRef root);
+void otio_write_map_to_png(otio_TopologicalMap, const char*);
 otio_ProjectionOperatorMap otio_build_projection_op_map_to_media_tp_cvr(
     otio_TopologicalMap in_map,
     otio_ComposedValueRef root

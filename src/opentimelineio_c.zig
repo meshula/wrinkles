@@ -13,7 +13,7 @@ const ALLOCATOR:std.mem.Allocator = raw.allocator();
 
 /// constant to represent an error (nullpointer)
 const ERR_REF : c.otio_ComposedValueRef = .{
-    .kind = c.err,
+    .kind = c.otio_ct_err,
     .ref = null 
 };
 
@@ -47,7 +47,7 @@ pub export fn otio_read_from_file(
 
     result.* = parsed_tl;
 
-    return .{ .kind = c.timeline, .ref = @as(*anyopaque, result) };
+    return .{ .kind = c.otio_ct_timeline, .ref = @as(*anyopaque, result) };
 }
 
 fn ptrCast(
@@ -66,12 +66,12 @@ fn init_ComposedValueRef(
         |ptr|
     {
         return switch (input.kind) {
-            c.timeline => otio.ComposedValueRef.init(ptrCast(otio.Timeline, ptr)),
-            c.stack => otio.ComposedValueRef.init(ptrCast(otio.Stack, ptr)),
-            c.track => otio.ComposedValueRef.init(ptrCast(otio.Track, ptr)),
-            c.clip =>  otio.ComposedValueRef.init(ptrCast(otio.Clip, ptr)),
-            c.gap =>   otio.ComposedValueRef.init(ptrCast(otio.Gap, ptr)),
-            c.warp =>  otio.ComposedValueRef.init(ptrCast(otio.Warp, ptr)),
+            c.otio_ct_timeline => otio.ComposedValueRef.init(ptrCast(otio.Timeline, ptr)),
+            c.otio_ct_stack => otio.ComposedValueRef.init(ptrCast(otio.Stack, ptr)),
+            c.otio_ct_track => otio.ComposedValueRef.init(ptrCast(otio.Track, ptr)),
+            c.otio_ct_clip =>  otio.ComposedValueRef.init(ptrCast(otio.Clip, ptr)),
+            c.otio_ct_gap =>   otio.ComposedValueRef.init(ptrCast(otio.Gap, ptr)),
+            c.otio_ct_warp =>  otio.ComposedValueRef.init(ptrCast(otio.Warp, ptr)),
             else => return error.ErrorReference,
         };
     }
@@ -80,16 +80,16 @@ fn init_ComposedValueRef(
 }
 
 pub fn to_c_ref(
-    input: *otio.ComposedValueRef,
+    input: otio.ComposedValueRef,
 ) c.otio_ComposedValueRef
 {
-    return switch (input.*) {
-        .timeline_ptr => |*t| .{ .kind = c.timeline, .ref = @ptrCast(t) },
-        .stack_ptr => |*t| .{ .kind = c.stack, .ref = @ptrCast(t) },
-        .track_ptr => |*t| .{ .kind = c.track, .ref = @ptrCast(t) },
-        .clip_ptr =>  |*t| .{ .kind = c.clip, .ref = @ptrCast(t) },
-        .gap_ptr =>   |*t| .{ .kind = c.gap, .ref = @ptrCast(t) },
-        .warp_ptr =>  |*t| .{ .kind = c.warp, .ref = @ptrCast(t) },
+    return switch (input) {
+        .timeline_ptr => |t| .{ .kind = c.otio_ct_timeline, .ref = @ptrCast(@constCast(t)) },
+        .stack_ptr => |t|       .{ .kind = c.otio_ct_stack,    .ref = @ptrCast(@constCast(t)) },
+        .track_ptr => |t|       .{ .kind = c.otio_ct_track,    .ref = @ptrCast(@constCast(t)) },
+        .clip_ptr =>  |t|        .{ .kind = c.otio_ct_clip,     .ref = @ptrCast(@constCast(t)) },
+        .gap_ptr =>   |t|         .{ .kind = c.otio_ct_gap,      .ref = @ptrCast(@constCast(t)) },
+        .warp_ptr =>  |t|        .{ .kind = c.otio_ct_warp,     .ref = @ptrCast(@constCast(t)) },
     };
 }
 
@@ -119,17 +119,17 @@ pub export fn otio_fetch_child_cvr_ind(
 
     const index: usize = @intCast(c_index);
 
-    return switch (ref) {
+    const result = switch (ref) {
         .timeline_ptr => |*tl| res: {
-            var med = tl.*.tracks.child_ptr_from_index(index);
-            break :res to_c_ref(&med);
+            break :res to_c_ref(tl.*.tracks.child_ptr_from_index(index));
         },
         inline .stack_ptr, .track_ptr => |*t|  res: {
-            var med = t.*.child_ptr_from_index(index);
-            break :res to_c_ref(&med);
+            break :res to_c_ref(t.*.child_ptr_from_index(index));
         },
         inline else => return ERR_REF,
     };
+
+    return result;
 }
 
 const ERR_TOPO_MAP = c.otio_TopologicalMap{ .ref = null };
@@ -196,19 +196,19 @@ pub export fn otio_fetch_cvr_type_str(
 ) c_int
 {
     const label: [:0]const u8 = switch (self.kind) {
-        c.timeline => "timeline",
-        c.stack => "stack",
-        c.track => "track",
-        c.clip => "clip",
-        c.gap => "gap",
-        c.warp => "warp",
-        c.err => "err",
+        c.otio_ct_timeline => "timeline",
+        c.otio_ct_stack => "stack",
+        c.otio_ct_track => "track",
+        c.otio_ct_clip => "clip",
+        c.otio_ct_gap => "gap",
+        c.otio_ct_warp => "warp",
+        c.otio_ct_err => "err",
         else => "unknown",
     };
 
     const buf_slice = buf[0..len];
 
-    _ = std.fmt.bufPrint(
+    _ = std.fmt.bufPrintZ(
         buf_slice,
         "{s}",
         .{ label },
@@ -220,4 +220,21 @@ pub export fn otio_fetch_cvr_type_str(
     };
 
     return 0;
+}
+
+pub export fn otio_write_map_to_png(
+    in_map: c.otio_TopologicalMap,
+    filepath_c: [*:0]const u8,
+) void 
+{
+    const t_map = ptrCast(otio.TopologicalMap, in_map.ref.?);
+
+    t_map.write_dot_graph(
+        ALLOCATOR,
+        std.mem.span(filepath_c)
+    ) catch {
+        std.log.err("couldn't write map to: '{s}'\n", .{ filepath_c });
+    };
+
+    std.log.debug("wrote map to: '{s}'\n", .{ filepath_c });
 }
