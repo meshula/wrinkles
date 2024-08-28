@@ -23,12 +23,13 @@ int main()
     ///////////////////////////////////////////////////////////////////////////
 
     otio_ComposedValueRef tl = otio_read_from_file(
-        "/Users/stephan/workspace/wrinkles/sample_otio_files/simple_cut.otio"
+        // "/Users/stephan/workspace/wrinkles/sample_otio_files/simple_cut.otio"
+        "/Users/stephan/workspace/wrinkles/sample_otio_files/multiple_track.otio"
     );
     otio_fetch_cvr_type_str(tl, buf, 512);
     otio_fetch_cvr_name_str(tl, buf+512, 512);
     printf(
-            "read timeline: %s, children: %d type: %s\n",
+            "read timeline: '%s', children: %d type: %s\n",
             buf+512,
             otio_child_count_cvr(tl),
             buf
