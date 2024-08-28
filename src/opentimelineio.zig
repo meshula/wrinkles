@@ -364,6 +364,7 @@ pub const ComposedValueRef = union(enum) {
             .track_ptr => |tr| tr == other.track_ptr,
             .stack_ptr => |st| st == other.stack_ptr,
             .timeline_ptr => |tl| tl == other.timeline_ptr,
+            .warp_ptr => |wp| wp == other.warp_ptr,
         };
     }
 

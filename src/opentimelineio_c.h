@@ -43,3 +43,5 @@ int otio_fetch_cvr_type_str(
         size_t len
 );
 
+size_t otio_po_map_fetch_num_endpoints(otio_ProjectionOperatorMap in_map);
+const float* otio_po_map_fetch_endpoints(otio_ProjectionOperatorMap in_map);

@@ -68,8 +68,22 @@ int main()
     ///////////////////////////////////////////////////////////////////////////
 
     // causes a "not implemented error"
-    otio_ProjectionOperatorMap po = otio_build_projection_op_map_to_media_tp_cvr(map, tl);
-    printf("built po map to media: %p\n", po.ref);
+    otio_ProjectionOperatorMap po = (
+            otio_build_projection_op_map_to_media_tp_cvr(map, tl)
+    );
+    const size_t n_endpoints = otio_po_map_fetch_num_endpoints(po);
+    printf(
+            "built po map to media: %p with %ld endpoints.\n",
+            po.ref,
+            n_endpoints
+    );
+
+    const float* endpoints = otio_po_map_fetch_endpoints(po);
+
+    for (int i=0; i < n_endpoints; i++) 
+    {
+        printf(" [%d]: %g\n", i, endpoints[i]);
+    }
 
     printf("C CODE DONE\n\n");
 }

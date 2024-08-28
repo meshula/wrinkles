@@ -161,13 +161,13 @@ pub export fn otio_build_projection_op_map_to_media_tp_cvr(
     source: c.otio_ComposedValueRef,
 ) c.otio_ProjectionOperatorMap
 {
-    const map = in_map.ref;
-
-    if (map == null) {
+    if (in_map.ref == null) {
         return ERR_PO_MAP;
     }
 
-    const t_map = ptrCast(otio.TopologicalMap, map.?);
+    const map_c = in_map.ref.?;
+
+    const map = ptrCast(otio.TopologicalMap, map_c);
 
     const result = ALLOCATOR.create(
         otio.ProjectionOperatorMap
@@ -179,8 +179,8 @@ pub export fn otio_build_projection_op_map_to_media_tp_cvr(
 
     result.* = otio.projection_map_to_media_from(
         ALLOCATOR,
-        t_map.*,
-        src.space(.presentation) catch return null,
+        map.*,
+        try src.space(.presentation),
     ) catch |err| {
         std.log.err("Couldn't build map: {any}\n", .{ err});
         return ERR_PO_MAP;
@@ -237,4 +237,28 @@ pub export fn otio_write_map_to_png(
     };
 
     std.log.debug("wrote map to: '{s}'\n", .{ filepath_c });
+}
+
+pub export fn otio_po_map_fetch_num_endpoints(
+    in_po_map: c.otio_ProjectionOperatorMap,
+) usize
+{
+    const po_map = ptrCast(
+        otio.ProjectionOperatorMap,
+        in_po_map.ref.?
+    );
+
+    return po_map.end_points.len;
+}
+
+pub export fn otio_po_map_fetch_endpoints(
+    in_po_map: c.otio_ProjectionOperatorMap,
+) [*]f32
+{
+    const po_map = ptrCast(
+        otio.ProjectionOperatorMap,
+        in_po_map.ref.?
+    );
+
+    return po_map.end_points.ptr;
 }

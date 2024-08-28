@@ -75,6 +75,47 @@ pub fn read_time_range(
     }
 }
 
+pub fn _read_range(
+    maybe_obj: ?std.json.ObjectMap
+) ?interval.ContinuousTimeInterval
+{
+    if (maybe_obj == null) {
+        return null;
+    }
+
+    const obj = maybe_obj.?;
+
+    // prefer source range
+    if (obj.get("source_range")) 
+        |sr| 
+    {
+        switch (sr) {
+            .object => |o| return read_time_range(o),
+            else => {},
+        }
+    }
+
+    // otherwise, fetch the media reference and try available range
+    if (obj.get("media_reference"))
+        |mr|
+    {
+        switch (mr) {
+            .object => |mr_o| 
+                if (mr_o.get("available_range")) 
+                    |ar| 
+                {
+                    switch (ar) {
+                        .object => |o| return read_time_range(o),
+                        else => return null,
+                    }
+                },
+                else => return null,
+        }
+    }
+
+    return null;
+}
+
 pub fn read_otio_object(
     allocator: std.mem.Allocator,
     obj:std.json.ObjectMap
@@ -177,31 +218,17 @@ pub fn read_otio_object(
             return .{ .Track = tr };
         },
         .Clip => {
-            const source_range = (
-                if (obj.get("source_range")) 
-                |sr| switch (sr) {
-                    .object => |o| read_time_range(o),
-                    else => null,
-                }
-                else null
-            );
+            const range = _read_range(obj);
 
             const cl = otio.Clip{
                 .name=try allocator.dupe(u8, name),
-                .media_temporal_bounds  = source_range,
+                .media_temporal_bounds  = range,
             };
 
             return .{ .Clip = cl };
         },
         .Gap => {
-            const source_range = (
-                if (obj.get("source_range")) 
-                |sr| switch (sr) {
-                    .object => |o| read_time_range(o),
-                    else => null,
-                }
-                else null
-            );
+            const source_range = _read_range(obj);
 
             const gp = otio.Gap{
                 .name=try allocator.dupe(u8, name),
