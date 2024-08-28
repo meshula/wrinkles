@@ -711,7 +711,23 @@ pub fn build(
             },
         }
     );
-    _ = opentimelineio;
+
+    const opentimelineio_c = b.addStaticLibrary(
+        .{
+            .name = "opentimelineio_c",
+            .target = options.target,
+            .optimize = options.optimize,
+            .root_source_file = b.path("src/opentimelineio_c.zig"),
+        }
+    );
+    {
+        opentimelineio_c.addIncludePath(b.path("src"));
+        opentimelineio_c.root_module.addImport(
+            "opentimelineio",
+            opentimelineio
+        );
+        b.installArtifact(opentimelineio_c);
+    }
 
     const common_deps:[]const std.Build.Module.Import = &.{ 
         // external deps

@@ -33,6 +33,8 @@ test {
     _ = otio_highlevel_tests;
 }
 
+pub const read_from_file = otio_json.read_from_file;
+
 /// annotate the graph algorithms
 // const GRAPH_CONSTRUCTION_TRACE_MESSAGES = true;
 const GRAPH_CONSTRUCTION_TRACE_MESSAGES = false;
@@ -1134,7 +1136,7 @@ const ProjectionOperator = struct {
 
 /// Topological Map of a Timeline.  Can be used to build projection operators
 /// to transform between various coordinate spaces within the map.
-const TopologicalMap = struct {
+pub const TopologicalMap = struct {
     map_space_to_code:std.AutoHashMap(
           SpaceReference,
           treecode.Treecode,
