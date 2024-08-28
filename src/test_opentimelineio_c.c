@@ -19,6 +19,9 @@ int main()
 
     printf("\nTESTING C CALLING ZIG FUNCTIONS\n\n");
 
+    // read the file
+    ///////////////////////////////////////////////////////////////////////////
+
     otio_ComposedValueRef tl = otio_read_from_file(
         "/Users/stephan/workspace/wrinkles/sample_otio_files/simple_cut.otio"
     );
@@ -30,6 +33,9 @@ int main()
             buf
     );
 
+    // traverse children
+    ///////////////////////////////////////////////////////////////////////////
+
     otio_ComposedValueRef tr = otio_fetch_child_cvr_ind(tl, 0);
     otio_fetch_cvr_type_str(tr, buf, 1024);
     printf(
@@ -39,22 +45,31 @@ int main()
         buf
     );
 
-    // why does this cause an index out of bounds panic?
-    otio_ComposedValueRef ch = otio_fetch_child_cvr_ind(tr, 0);
-    otio_fetch_cvr_type_str(ch, buf, 1024);
-    printf("read child: %p, type: %s\n", ch.ref, buf);
+    const int nchildren = otio_child_count_cvr(tr);
 
-    otio_TopologicalMap map = otio_build_topo_map_cvr(tr);
+    printf("children:\n");
+
+    for (int i = 0; i < nchildren; i++)
+    {
+        otio_ComposedValueRef ch = otio_fetch_child_cvr_ind(tr, i);
+        otio_fetch_cvr_type_str(ch, buf, 1024);
+        printf(" [%d] read child: %p, type: %s\n", i, ch.ref, buf);
+    }
+
+    // build a topological map
+    ///////////////////////////////////////////////////////////////////////////
+
+    otio_TopologicalMap map = otio_build_topo_map_cvr(tl);
     printf("built map: %p\n", map.ref);
 
     otio_write_map_to_png(map, "/var/tmp/from_c_map.dot");
 
+    // build a projection operator map to media
+    ///////////////////////////////////////////////////////////////////////////
+
     // causes a "not implemented error"
     otio_ProjectionOperatorMap po = otio_build_projection_op_map_to_media_tp_cvr(map, tl);
     printf("built po map to media: %p\n", po.ref);
-
-    otio_ComposedValueRef cl = otio_fetch_child_cvr_ind(tr, 0);
-    printf("read clip: %p\n", cl.ref);
 
     printf("C CODE DONE\n\n");
 }
