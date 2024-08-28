@@ -1,18 +1,28 @@
 // header for exposing OTIO functions to c
 
-int test_fn();
+typedef enum otio_ComposableTypes_t { timeline, stack, track, clip, gap, warp, err } otio_ComposableTypes_t;
 
-//                      0         1      2     3      4     5    6
-enum ComposableTypes { timeline, stack, track, clip, gap, warp, err };
-typedef enum ComposableTypes ComposableTypes_t;
-
-struct ComposedValueRef_c {
-    ComposableTypes_t kind;
+typedef struct otio_ComposedValueRef {
+    otio_ComposableTypes_t kind;
     void* ref;
-};
+} otio_ComposedValueRef;
 
-struct ComposedValueRef_c read_otio_timeline_from_file(char* filepath);
-struct ComposedValueRef_c get_child_ref_by_index(struct ComposedValueRef_c, int);
-int get_child_count(struct ComposedValueRef_c);
-void* build_topological_map(struct ComposedValueRef_c);
-void* build_projection_operator_map_media(void*, struct ComposedValueRef_c);
+typedef struct otio_TopologicalMap {
+    void* ref;
+} otio_TopologicalMap;
+
+typedef struct otio_ProjectionOperatorMap {
+    void* ref;
+} otio_ProjectionOperatorMap;
+
+otio_ComposedValueRef otio_read_from_file(char* filepath);
+otio_ComposedValueRef otio_fetch_child_cvr_ind(
+        otio_ComposedValueRef parent,
+        int index
+);
+int otio_child_count_cvr(otio_ComposedValueRef parent);
+otio_TopologicalMap otio_build_topo_map_cvr(otio_ComposedValueRef root);
+otio_ProjectionOperatorMap otio_build_projection_op_map_to_media_tp_cvr(
+    otio_TopologicalMap in_map,
+    otio_ComposedValueRef root
+);

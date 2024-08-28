@@ -2,28 +2,35 @@
  
 #include "opentimelineio_c.h"
 
+/* Prototype C wrapper around "wrinkles" codebase
+ *
+ * A C-interface needs to be able to, in order to be considered "complete",
+ * - Read and Write .otio files
+ * - Traverse the Hierarchy
+ * - construct a timeline from scratch
+ * - Quary/set fields on objects (name, ranges, etc)
+ * - build projection operators, maps, and a projection_operator_map
+ */
+
 int main()
 {
     printf("\nTESTING C CALLING ZIG FUNCTIONS\n\n");
-    int result = test_fn();
 
-    printf("result: %d\n", result);
-
-    struct ComposedValueRef_c tl = read_otio_timeline_from_file(
+    otio_ComposedValueRef tl = otio_read_from_file(
         "/Users/stephan/workspace/wrinkles/sample_otio_files/simple_cut.otio"
     );
-    printf("read timeline: %p, children: %d\n", tl.ref, get_child_count(tl));
+    printf("read timeline: %p, children: %d\n", tl.ref, otio_child_count_cvr(tl));
 
-    struct ComposedValueRef_c tr = get_child_ref_by_index(tl, 0);
-    printf("read track: %p, children: %d\n", tr.ref, get_child_count(tr));
+    otio_ComposedValueRef tr = otio_fetch_child_cvr_ind(tl, 0);
+    printf("read track: %p, children: %d\n", tr.ref, otio_child_count_cvr(tr));
 
-    void* map = build_topological_map(tl);
-    printf("built map: %p\n", map);
+    otio_TopologicalMap map = otio_build_topo_map_cvr(tl);
+    printf("built map: %p\n", map.ref);
 
-    void* po = build_projection_operator_map_media(map, tl);
-    printf("built po map to media: %p\n", po);
+    otio_ProjectionOperatorMap po = otio_build_projection_op_map_to_media_tp_cvr(map, tl);
+    printf("built po map to media: %p\n", po.ref);
 
-    struct ComposedValueRef_c cl = get_child_ref_by_index(tr, 0);
+    otio_ComposedValueRef cl = otio_fetch_child_cvr_ind(tr, 0);
     printf("read clip: %p\n", cl.ref);
 
     printf("C CODE DONE\n\n");

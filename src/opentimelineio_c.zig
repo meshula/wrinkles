@@ -8,24 +8,18 @@ const c = @cImport(
     }
 );
 
-pub export fn test_fn(
-) c_int
-{
-    return 4;
-}
-
 var raw = std.heap.GeneralPurposeAllocator(.{}){};
 const ALLOCATOR:std.mem.Allocator = raw.allocator();
 
 /// constant to represent an error (nullpointer)
-const ERR_REF : c.ComposedValueRef_c = .{
+const ERR_REF : c.otio_ComposedValueRef = .{
     .kind = c.err,
     .ref = null 
 };
 
-pub export fn read_otio_timeline_from_file(
+pub export fn otio_read_from_file(
     filepath_c: [*c]u8,
-) c.ComposedValueRef_c
+) c.otio_ComposedValueRef
 {
     const filepath : []u8 = std.mem.span(filepath_c);
     const parsed_tl = otio.read_from_file(
@@ -57,7 +51,7 @@ fn ptrCast(
 }
 
 fn init_ComposedValueRef(
-    input: c.ComposedValueRef_c,
+    input: c.otio_ComposedValueRef,
 ) !otio.ComposedValueRef
 {
     if (input.ref)
@@ -79,7 +73,7 @@ fn init_ComposedValueRef(
 
 pub fn to_c_ref(
     input: *otio.ComposedValueRef,
-) c.ComposedValueRef_c
+) c.otio_ComposedValueRef
 {
     return switch (input.*) {
         .timeline_ptr => |*t| .{ .kind = c.timeline, .ref = @ptrCast(t) },
@@ -91,8 +85,8 @@ pub fn to_c_ref(
     };
 }
 
-pub export fn get_child_count(
-    input: c.ComposedValueRef_c,
+pub export fn otio_child_count_cvr(
+    input: c.otio_ComposedValueRef,
 ) c_int
 {
     const ref: otio.ComposedValueRef = init_ComposedValueRef(input) catch { 
@@ -106,10 +100,10 @@ pub export fn get_child_count(
     };
 }
 
-pub export fn get_child_ref_by_index(
-    input: c.ComposedValueRef_c,
+pub export fn otio_fetch_child_cvr_ind(
+    input: c.otio_ComposedValueRef,
     c_index: c_int,
-) c.ComposedValueRef_c
+) c.otio_ComposedValueRef
 {
     const ref: otio.ComposedValueRef = init_ComposedValueRef(input) catch { 
         return ERR_REF; 
@@ -130,44 +124,50 @@ pub export fn get_child_ref_by_index(
     };
 }
 
-pub export fn build_topological_map(
-    timeline: c.ComposedValueRef_c,
-) ?*anyopaque
+const ERR_TOPO_MAP = c.otio_TopologicalMap{ .ref = null };
+
+pub export fn otio_build_topo_map_cvr(
+    timeline: c.otio_ComposedValueRef,
+) c.otio_TopologicalMap
 {
     const ref = init_ComposedValueRef(
         timeline
-    ) catch return null;
+    ) catch return ERR_TOPO_MAP;
 
     const result = ALLOCATOR.create(
         otio.TopologicalMap
-    ) catch return null;
+    ) catch return ERR_TOPO_MAP;
 
     result.* = otio.build_topological_map(
         ALLOCATOR,
         ref,
-    ) catch return null;
+    ) catch return ERR_TOPO_MAP;
 
-    return result;
+    return .{ .ref = result };
 }
 
-pub export fn build_projection_operator_map_media(
-    map: ?*anyopaque,
-    source: c.ComposedValueRef_c,
-) ?*anyopaque
+const ERR_PO_MAP = c.otio_ProjectionOperatorMap{ .ref = null };
+
+pub export fn otio_build_projection_op_map_to_media_tp_cvr(
+    in_map: c.otio_TopologicalMap,
+    source: c.otio_ComposedValueRef,
+) c.otio_ProjectionOperatorMap
 {
+    const map = in_map.ref;
+
     if (map == null) {
-        return null;
+        return ERR_PO_MAP;
     }
 
     const t_map = ptrCast(otio.TopologicalMap, map.?);
 
     const result = ALLOCATOR.create(
         otio.ProjectionOperatorMap
-    ) catch return null;
+    ) catch return ERR_PO_MAP;
 
     const src = init_ComposedValueRef(
         source
-    ) catch return null;
+    ) catch return ERR_PO_MAP;
 
     result.* = otio.projection_map_to_media_from(
         ALLOCATOR,
@@ -175,8 +175,8 @@ pub export fn build_projection_operator_map_media(
         src.space(.presentation) catch return null,
     ) catch |err| {
         std.log.err("Couldn't build map: {any}\n", .{ err});
-        return null;
+        return ERR_PO_MAP;
     };
 
-    return result;
+    return .{ .ref = result };
 }
