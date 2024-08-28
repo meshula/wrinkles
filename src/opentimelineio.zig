@@ -4045,14 +4045,19 @@ pub const Stack = struct {
     name: ?string.latin_s8 = null,
     children: std.ArrayList(ComposableValue),
 
-    pub fn init(allocator: std.mem.Allocator) Stack { 
+    pub fn init(
+        allocator: std.mem.Allocator,
+    ) Stack 
+    { 
         return .{
-            .children = std.ArrayList(ComposableValue).init(allocator)
+            .children = std.ArrayList(
+                ComposableValue
+            ).init(allocator)
         };
     }
 
     pub fn deinit(
-        self: @This()
+        self: @This(),
     ) void 
     {
         if (self.name)
@@ -4062,9 +4067,10 @@ pub const Stack = struct {
         }
         self.children.deinit();
     }
+
     pub fn child_ptr_from_index(
         self: @This(),
-        index: usize
+        index: usize,
     ) ComposedValueRef 
     {
         return ComposedValueRef.init(&self.children.items[index]);
@@ -4072,7 +4078,7 @@ pub const Stack = struct {
 
     pub fn append(
         self: *@This(),
-        value: anytype
+        value: anytype,
     ) !void 
     {
         try self.children.append(ComposableValue.init(value));
@@ -4081,7 +4087,7 @@ pub const Stack = struct {
     /// append the ComposableValue-compatible val and return a ComposedValueRef
     /// to the new value
     pub fn append_fetch_ref(
-        self: *Track,
+        self: *@This(),
         value: anytype,
     ) !ComposedValueRef 
     {
@@ -4089,8 +4095,10 @@ pub const Stack = struct {
         return self.child_ptr_from_index(self.children.items.len-1);
     }
 
-
-    pub fn recursively_deinit(self: @This()) void {
+    pub fn recursively_deinit(
+        self: @This(),
+    ) void 
+    {
         for (self.children.items)
             |c|
         {

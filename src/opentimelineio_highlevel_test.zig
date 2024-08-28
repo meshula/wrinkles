@@ -74,12 +74,10 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             },
         },
     };
-    try tr.append(cl2);
-    try tl.tracks.append(tr);
 
     // build some pointers into the structure
-    const tr_ptr = tl.tracks.child_ptr_from_index(0);
-    const cl2_ptr = tr_ptr.track_ptr.child_ptr_from_index(2);
+    const cl2_ptr = try tr.append_fetch_ref(cl2);
+    try tl.tracks.append(tr);
 
     // build the topological map
     ///////////////////////////////////////////////////////////////////////////
@@ -272,12 +270,8 @@ test "libsamplerate w/ high level test -- resample only"
         (try cl1.bounds_of(allocator, .media)).end_seconds
     );
 
-    try tr.append(cl1);
-    try tl.tracks.append(tr);
-
-    // build some pointers into the structure
-    const tr_ptr = tl.tracks.child_ptr_from_index(0);
-    const cl_ptr = tr_ptr.track_ptr.child_ptr_from_index(0);
+    const cl_ptr = try tr.append_fetch_ref(cl1);
+    const tr_ptr = try tl.tracks.append_fetch_ref(tr);
 
     // build the topological map
     ///////////////////////////////////////////////////////////////////////////
@@ -426,10 +420,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
         )
     };
     try tr.append(wp);
-    try tl.tracks.append(tr);
-
-    // build some pointers into the structure
-    const tr_ptr = tl.tracks.child_ptr_from_index(0);
+    const tr_ptr = try tl.tracks.append_fetch_ref(tr);
 
     // build the topological map
     ///////////////////////////////////////////////////////////////////////////
@@ -564,26 +555,24 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
         },
     };
     defer cl1.destroy(allocator);
-    const cl_ptr : otio.ComposedValueRef = .{ .clip_ptr = &cl1 };
+    const cl_ptr = otio.ComposedValueRef.init(&cl1);
 
     // new for this test - add in an warp on the clip
-    const wp: otio.Warp = .{
-        .child = cl_ptr,
-        .transform = time_topology.TimeTopology.init_affine(
-            .{
-                .transform = .{
-                    .offset_seconds = -1,
-                    .scale = 2,
-                },
-            },
-        )
-    };
-    try tr.append(wp);
+    try tr.append(
+        otio.Warp{
+            .child = cl_ptr,
+            .transform = time_topology.TimeTopology.init_affine(
+                .{
+                    .transform = .{
+                        .offset_seconds = -1,
+                        .scale = 2,
+                    },
+                    },
+                )
+        }
+    );
 
-    try tl.tracks.append(tr);
-
-    // build some pointers into the structure
-    const tr_ptr = tl.tracks.child_ptr_from_index(0);
+    const tr_ptr = try tl.tracks.append_fetch_ref(tr);
 
     // build the topological map
     ///////////////////////////////////////////////////////////////////////////
@@ -738,7 +727,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
         },
     };
     defer cl1.destroy(allocator);
-    const cl_ptr : otio.ComposedValueRef = .{ .clip_ptr = &cl1 };
+    const cl_ptr = otio.ComposedValueRef.init(&cl1);
 
     // new for this test - add in an warp on the clip
     const wp: otio.Warp = .{
@@ -750,10 +739,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     };
     try tr.append(wp);
 
-    try tl.tracks.append(tr);
-
-    // build some pointers into the structure
-    const tr_ptr = tl.tracks.child_ptr_from_index(0);
+    const tr_ptr = try tl.tracks.append_fetch_ref(tr);
 
     // build the topological map
     ///////////////////////////////////////////////////////////////////////////
