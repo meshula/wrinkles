@@ -89,5 +89,10 @@ int main()
         printf(" [%d]: %g\n", i, endpoints[i]);
     }
 
+    // clean up datastructure
+    ///////////////////////////////////////////////////////////////////////////
+    otio_timeline_deinit(tl);
+    printf("freed tl.\n");
+
     printf("C CODE DONE\n\n");
 }

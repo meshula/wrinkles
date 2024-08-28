@@ -291,3 +291,24 @@ pub export fn otio_po_map_fetch_endpoints(
 
     return po_map.end_points.ptr;
 }
+
+/// attempt to clean up the timeline/object
+pub export fn otio_timeline_deinit(
+    root_c : c.otio_ComposedValueRef,
+) void
+{
+    const root = (
+        init_ComposedValueRef(root_c) catch |err| {
+            std.log.err(
+                "Error converting to object: {any}\n",
+                .{ err} ,
+            );
+            return;
+        }
+    );
+
+    switch (root) {
+        inline .timeline_ptr, .stack_ptr, .track_ptr => |t| t.recursively_deinit(),
+        inline else => {},
+    }
+}
