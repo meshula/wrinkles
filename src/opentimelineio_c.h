@@ -15,7 +15,7 @@ typedef struct otio_ProjectionOperatorMap {
     void* ref;
 } otio_ProjectionOperatorMap;
 
-otio_ComposedValueRef otio_read_from_file(char* filepath);
+otio_ComposedValueRef otio_read_from_file(const char* filepath);
 otio_ComposedValueRef otio_fetch_child_cvr_ind(
         otio_ComposedValueRef parent,
         int index
@@ -26,3 +26,11 @@ otio_ProjectionOperatorMap otio_build_projection_op_map_to_media_tp_cvr(
     otio_TopologicalMap in_map,
     otio_ComposedValueRef root
 );
+
+#include <stdlib.h>
+int otio_fetch_cvr_type_str(
+        otio_ComposedValueRef self,
+        char* result,
+        size_t len
+);
+

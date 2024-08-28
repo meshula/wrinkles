@@ -17,18 +17,26 @@ const ERR_REF : c.otio_ComposedValueRef = .{
     .ref = null 
 };
 
+pub export fn foo(
+    msg: [*:0]const u8
+) void
+{
+    std.log.debug("hello, {s}\n", .{ msg });
+}
+
 pub export fn otio_read_from_file(
-    filepath_c: [*c]u8,
+    filepath_c: [*:0]const u8,
 ) c.otio_ComposedValueRef
 {
-    const filepath : []u8 = std.mem.span(filepath_c);
+    const filepath : []const u8 = std.mem.span(filepath_c);
+
     const parsed_tl = otio.read_from_file(
         ALLOCATOR, 
         filepath,
     ) catch |err| {
         std.log.err(
             "couldn't read file: '{s}', error: {any}\n",
-            .{filepath, err}
+            .{filepath, err},
         );
         return ERR_REF;
     };
@@ -179,4 +187,37 @@ pub export fn otio_build_projection_op_map_to_media_tp_cvr(
     };
 
     return .{ .ref = result };
+}
+
+pub export fn otio_fetch_cvr_type_str(
+    self: c.otio_ComposedValueRef,
+    buf: [*]u8,
+    len: usize,
+) c_int
+{
+    const label: [:0]const u8 = switch (self.kind) {
+        c.timeline => "timeline",
+        c.stack => "stack",
+        c.track => "track",
+        c.clip => "clip",
+        c.gap => "gap",
+        c.warp => "warp",
+        c.err => "err",
+        else => "unknown",
+    };
+
+    const buf_slice = buf[0..len];
+
+    _ = std.fmt.bufPrint(
+        buf_slice,
+        "{s}",
+        .{ label },
+    ) catch |err| {
+        std.log.err("error printing to buffer: {any}\n", .{err});
+        std.log.err("input buffer: '{s}'", .{buf_slice});
+
+        return -1;
+    };
+
+    return 0;
 }
