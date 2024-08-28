@@ -222,6 +222,35 @@ pub export fn otio_fetch_cvr_type_str(
     return 0;
 }
 
+pub export fn otio_fetch_cvr_name_str(
+    self: c.otio_ComposedValueRef,
+    buf: [*]u8,
+    len: usize,
+) c_int
+{
+    const ref = init_ComposedValueRef(self) catch return -1;
+
+    const buf_slice = buf[0..len];
+
+    const name = switch (ref) {
+        .warp_ptr => "",
+        inline else => |r| r.name,
+    };
+
+    _ = std.fmt.bufPrintZ(
+        buf_slice,
+        "{?s}",
+        .{ name },
+    ) catch |err| {
+        std.log.err("error printing to buffer: {any}\n", .{err});
+        std.log.err("input buffer: '{s}'", .{buf_slice});
+
+        return -1;
+    };
+
+    return 0;
+}
+
 pub export fn otio_write_map_to_png(
     in_map: c.otio_TopologicalMap,
     filepath_c: [*:0]const u8,

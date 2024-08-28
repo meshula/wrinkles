@@ -25,10 +25,11 @@ int main()
     otio_ComposedValueRef tl = otio_read_from_file(
         "/Users/stephan/workspace/wrinkles/sample_otio_files/simple_cut.otio"
     );
-    otio_fetch_cvr_type_str(tl, buf, 1024);
+    otio_fetch_cvr_type_str(tl, buf, 512);
+    otio_fetch_cvr_name_str(tl, buf+512, 512);
     printf(
-            "read timeline: %p, children: %d type: %s\n",
-            tl.ref,
+            "read timeline: %s, children: %d type: %s\n",
+            buf+512,
             otio_child_count_cvr(tl),
             buf
     );
@@ -37,10 +38,11 @@ int main()
     ///////////////////////////////////////////////////////////////////////////
 
     otio_ComposedValueRef tr = otio_fetch_child_cvr_ind(tl, 0);
-    otio_fetch_cvr_type_str(tr, buf, 1024);
+    otio_fetch_cvr_type_str(tr, buf, 512);
+    otio_fetch_cvr_name_str(tr, buf+512, 512);
     printf(
-        "read track: %p, children: %d, type: %s\n",
-        tr.ref,
+        "read track: %s, children: %d, type: %s\n",
+        buf+512,
         otio_child_count_cvr(tr),
         buf
     );
@@ -52,8 +54,9 @@ int main()
     for (int i = 0; i < nchildren; i++)
     {
         otio_ComposedValueRef ch = otio_fetch_child_cvr_ind(tr, i);
-        otio_fetch_cvr_type_str(ch, buf, 1024);
-        printf(" [%d] read child: %p, type: %s\n", i, ch.ref, buf);
+        otio_fetch_cvr_type_str(ch, buf, 512);
+        otio_fetch_cvr_name_str(ch, buf+512, 512);
+        printf(" [%d] read child: '%s', type: %s\n", i, buf+512, buf);
     }
 
     // build a topological map
