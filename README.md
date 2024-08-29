@@ -9,11 +9,27 @@ contains:
     * Linear curves
   * Sampling tools, projecting samplings, signal generators, etc.
 * Visualizer apps
-    * Wrinkles app for visualizing frequency domain "plaid" charts
-    * curvet, otvis, pyguitest for looking at curves/curve projections
+  * Wrinkles app for visualizing frequency domain "plaid" charts
+  * curvet, otvis, pyguitest for looking at curves/curve projections
 * OpenTimelineIO prototype library
   * parse .otio files and project through them
   * treecode library (path through a binary tree)
+
+## Lessons/Differences to OTIO V1
+
+* clarify that OTIO is modelling a temporally-oriented hierarchy, not a data
+  model that necessarily resembles an NLE
+* Time is tihe domain that is handled, so model the structure around time
+* transform the data, don't provide a ton of flexibility in the algorithms
+  * makes the algorithms simpler and easier to use as templates for
+    business-logic specific use cases
+* use hierarchy rather than "has-a" to clarify temporal relationships
+* having hierarchy object schemas be runtime definable: juice seems not to have
+  been worth the squeeze
+* explicitly modelling discrete/continuous means no need for rational time
+* implementing in a low level language (zig->C) to allow flatter higher level
+  language bindings
+* explicitly model references into the hierarchy
 
 ## Ideal Demonstrator Gui App 8/23
 
@@ -136,7 +152,6 @@ contains:
 
 ## Todo
 
-* sampling
 * domains (how do you handle that you want to evaluate the timeline at 30fps?)
 * transitions
 
@@ -166,6 +181,7 @@ contains:
 
 ### DONE
 
+* sampling
 ## Path System
 
 * support arbitrary path lengths
