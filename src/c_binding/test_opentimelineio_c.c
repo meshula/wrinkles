@@ -7,14 +7,19 @@
  *
  * A C-interface needs to be able to, in order to be considered "complete",
  * - Read and Write .otio files
+ * - handle updating schemas
  * - Traverse the Hierarchy
  * - construct a timeline from scratch
  * - Quary/set fields on objects (name, ranges, etc)
  * - build projection operators, maps, and a projection_operator_map
  */
 
+// print the tree w/ printf from this node and down
 void
-print_tree(otio_ComposedValueRef root_ref, int indent)
+print_tree(
+        // the reference to start at
+        otio_ComposedValueRef root_ref,
+        int indent)
 {
     const size_t nchildren = otio_child_count_cvr(root_ref);
 
@@ -27,12 +32,12 @@ print_tree(otio_ComposedValueRef root_ref, int indent)
         otio_fetch_cvr_type_str(root_ref, type_buf, 1024);
 
         printf(
-                "%*s%s '%s' ",
-                indent,
-                "",
-                type_buf,
-                name_buf
-              );
+            "%*s%s '%s' ",
+            indent,
+            "",
+            type_buf,
+            name_buf
+        );
 
         {
             const otio_Topology topo = otio_fetch_topology(root_ref);
@@ -62,13 +67,13 @@ print_tree(otio_ComposedValueRef root_ref, int indent)
     }
 }
 
-int main()
+int 
+main()
 {
     printf("\nTESTING C CALLING ZIG FUNCTIONS\n\n");
 
     // read the file
     ///////////////////////////////////////////////////////////////////////////
-
     otio_ComposedValueRef tl = otio_read_from_file(
         "/Users/stephan/workspace/yaml_usd/dino/good_dino.updated.otio"
         // "/Users/stephan/workspace/wrinkles/sample_otio_files/simple_cut.otio"

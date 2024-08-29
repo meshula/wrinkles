@@ -18,17 +18,43 @@ const ERR_REF : c.otio_ComposedValueRef = .{
     .ref = null 
 };
 
-pub export fn foo(
-    msg: [*:0]const u8
+const ERR_ALLOCATOR = c.otio_Allocator{ .ref = null };
+pub export fn otio_fetch_allocator_gpa() c.otio_Allocator
+{
+    return .{ .ref = &ALLOCATOR };
+}
+pub export fn otio_fetch_allocator_new_arena() c.otio_Allocator
+{
+    var arena_all_name = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    const allocator = arena_all_name.allocator();
+    const result = allocator.create(std.mem.Allocator) catch return ERR_ALLOCATOR;
+    result.* = allocator;
+
+    return .{ .ref = result };
+}
+pub export fn otio_arena_deinit(
+    ref_c: otio_Allocator
 ) void
 {
-    std.log.debug("hello, {s}\n", .{ msg });
+    if (ref_c.ref == null)
+    {
+        return;
+    }
+
+    const ref = ptrCast(std.mem.Allocator, ref_c.ref.?);
+    
+    ref.dei
 }
 
 pub export fn otio_read_from_file(
     filepath_c: [*:0]const u8,
 ) c.otio_ComposedValueRef
 {
+    var arena_all_name = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena_all_name.deinit();
+    const allocator = &arena_all_name.allocator;
+    const ptr = try allocator.create(arena_all_name);
+
     const filepath : []const u8 = std.mem.span(filepath_c);
 
     const parsed_tl = otio.read_from_file(

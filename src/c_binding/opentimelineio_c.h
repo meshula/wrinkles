@@ -1,5 +1,14 @@
 // header for exposing OTIO functions to c
 
+// Allocators
+///////////////////////////////////////////////////////////////////////////////
+typedef struct otio_Allocator {
+    void* ref;
+} otio_Allocator;
+otio_Allocator otio_fetch_allocator_gpa();
+otio_Allocator otio_fetch_allocator_new_arena();
+void otio_arena_deinit(otio_Allocator);
+
 // OpenTime
 ///////////////////////////////////////////////////////////////////////////////
 typedef struct otio_ContinuousTimeRange {
