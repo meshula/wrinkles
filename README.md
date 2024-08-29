@@ -61,13 +61,13 @@ contains:
     * are bounds on topologies better described with rationals? (no: topologies
       are continuous, bounds are continuous)
     * what about NTSC times?
-    * [x] demonstration c-api
-        * [ ] show a loop of walking over objects
-        * [ ] add metadata support
-        * [ ] read / return continuous time ranges
-        * [ ] show a projection
-        * [ ] wrap the topology
-        * [ ] what would a C++ layer look like on top of this?
+* [x] demonstration c-api
+  * [ ] show a loop of walking over objects
+  * [ ] add metadata support
+  * [ ] read / return continuous time ranges
+  * [ ] show a projection
+  * [ ] wrap the topology
+  * [ ] what would a C++ layer look like on top of this?
 * refactoring core library pieces to clarify/simplify/improve the
   implementation
   * [x] build check for graphviz
@@ -80,9 +80,8 @@ contains:
   * [ ] consistent names
     * time/value in control points -> input/output
         * do `ControlPoint.input`/output stay f32?  or do they move to
-          `opentime.Ordinate` to start moving in the direction of a rationaltime
-          or other similar
-          structure
+          `opentime.Ordinate` to start moving in the direction of a
+          `RationalTime` or other similar structure
         * replacing `f32` with `opentime.Ordinate`
 
         ```zig
@@ -97,35 +96,36 @@ contains:
         ```
             * struct/union with add/mul/div/sub
             * rational object as an entry in the union (i32/i32)
-    * polymorphism in timetopology->mapping, TimeTopology becomes []Mapping
-       * [ ] project_curve returns a []curve instead of a topology?
-    * switch the join() structure for joining mappings (vs project curve etc)
-    * [ ] linear trimmed_in_input_space: promotes to bezier, trims there and
-         then demotes back.  should do everything on the linear knots
-     * [ ]  time_topology: is projecting the end point an error?  Or not?
-            **For context**: for most of the run of the project, we had this return
-            an error.OutOfBounds.  For the sampling tests, there are a bunch of
-            places where we want to project the end point, so a second check in
-            project was added that checked to see if the projected point was the
-            end point.  
-            do we define three half planes- before, inside, after?  end points
-            would still project correctly but be present in the 'after' half plane.
-        * [ ] See also: the AffineTopology.inverted function
-        * [ ] time_topology.zig
-        * [ ] test_topology_projections.zig
-        * [ ] should the sampling library be so built around time as the domain
-              to sample over? (ie index_at_time -> output_index_at_input_ordinate)
-        * [ ] handle acyclical sampling as well (variable bitrate data, held
-              frames, etc).
-     * [ ]  `DiscreteDatasourceIndexGenerator` <- what do we do this
-        * [ ] probably needs to be a bit more indirect so it can support
-              acyclic/weirdly cyclic signals (NTSC)
-     * [ ]  let brains cool off <- beers
+   * polymorphism in timetopology->mapping, TimeTopology becomes []Mapping
+     * [ ] project_curve returns a []curve instead of a topology?
+   * switch the join() structure for joining mappings (vs project curve etc)
+   * [ ] linear trimmed_in_input_space: promotes to bezier, trims there and
+      then demotes back.  should do everything on the linear knots
+    * [ ]  time_topology: is projecting the end point an error?  Or not?
+           **For context**: for most of the run of the project, we had this
+           return an error.OutOfBounds.  For the sampling tests, there are a
+           bunch of places where we want to project the end point, so a second
+           check in project was added that checked to see if the projected
+           point was the end point.  do we define three half planes- before,
+           inside, after?  
+           end points would still project correctly but be present in the
+           'after' half plane.
+     * [ ] See also: the AffineTopology.inverted function
+     * [ ] time_topology.zig
+     * [ ] test_topology_projections.zig
+     * [ ] should the sampling library be so built around time as the domain
+           to sample over? (ie index_at_time -> output_index_at_input_ordinate)
+     * [ ] handle acyclical sampling as well (variable bitrate data, held
+           frames, etc).
+  * [ ]  `DiscreteDatasourceIndexGenerator` <- what do we do this
+     * [ ] probably needs to be a bit more indirect so it can support
+           acyclic/weirdly cyclic signals (NTSC)
+ * [ ]  let brains cool off <- beers
 
 ### Bigger, Later Questions/Todos
 
  * [ ]  what if not beziers internally but instead b-splines with bezier
-   interfaces
+        interfaces
  * [ ]  rebuild in c?
  * [ ]  PR to OTIO?
 

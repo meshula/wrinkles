@@ -13,6 +13,36 @@
  * - build projection operators, maps, and a projection_operator_map
  */
 
+void
+print_tree(otio_ComposedValueRef root_ref, int indent)
+{
+    const size_t nchildren = otio_child_count_cvr(root_ref);
+
+    char name_buf[1024];
+    otio_fetch_cvr_name_str(root_ref, name_buf, 1024);
+
+    char type_buf[1024];
+    otio_fetch_cvr_type_str(root_ref, type_buf, 1024);
+
+    printf(
+            "%*s%s '%s' ",
+            indent,
+            "",
+            type_buf,
+            name_buf
+    );
+    if (nchildren > 0) 
+    {
+        printf("[children: %lu]", nchildren);
+    }
+    printf("\n");
+
+    for (int i=0; i<nchildren; i++)
+    {
+        print_tree(otio_fetch_child_cvr_ind(root_ref, i), indent + 2);
+    }
+}
+
 int main()
 {
     char buf[1024];
@@ -48,17 +78,7 @@ int main()
         buf
     );
 
-    const int nchildren = otio_child_count_cvr(tr);
-
-    printf("children:\n");
-
-    for (int i = 0; i < nchildren; i++)
-    {
-        otio_ComposedValueRef ch = otio_fetch_child_cvr_ind(tr, i);
-        otio_fetch_cvr_type_str(ch, buf, 512);
-        otio_fetch_cvr_name_str(ch, buf+512, 512);
-        printf(" [%d] read child: '%s', type: %s\n", i, buf+512, buf);
-    }
+    print_tree(tl, 0);
 
     // build a topological map
     ///////////////////////////////////////////////////////////////////////////
