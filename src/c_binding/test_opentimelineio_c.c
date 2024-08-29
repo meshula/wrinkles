@@ -64,40 +64,19 @@ print_tree(otio_ComposedValueRef root_ref, int indent)
 
 int main()
 {
-    char buf[1024];
-
     printf("\nTESTING C CALLING ZIG FUNCTIONS\n\n");
 
     // read the file
     ///////////////////////////////////////////////////////////////////////////
 
     otio_ComposedValueRef tl = otio_read_from_file(
+        "/Users/stephan/workspace/yaml_usd/dino/good_dino.updated.otio"
         // "/Users/stephan/workspace/wrinkles/sample_otio_files/simple_cut.otio"
-        "/Users/stephan/workspace/wrinkles/sample_otio_files/multiple_track.otio"
+        // "/Users/stephan/workspace/wrinkles/sample_otio_files/multiple_track.otio"
     );
-
-    // otio_fetch_cvr_type_str(tl, buf, 512);
-    // otio_fetch_cvr_name_str(tl, buf+512, 512);
-    // printf(
-    //         "read timeline: '%s', children: %d type: %s\n",
-    //         buf+512,
-    //         otio_child_count_cvr(tl),
-    //         buf
-    // );
 
     // traverse children
     ///////////////////////////////////////////////////////////////////////////
-
-    // otio_ComposedValueRef tr = otio_fetch_child_cvr_ind(tl, 0);
-    // otio_fetch_cvr_type_str(tr, buf, 512);
-    // otio_fetch_cvr_name_str(tr, buf+512, 512);
-    // printf(
-    //     "read track: %s, children: %d, type: %s\n",
-    //     buf+512,
-    //     otio_child_count_cvr(tr),
-    //     buf
-    // );
-    //
     print_tree(tl, 0);
 
     // build a topological map
