@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const otio = @import("opentimelineio");
+const time_topology = @import("time_topology");
 
 const c = @cImport(
     {
@@ -311,4 +312,48 @@ pub export fn otio_timeline_deinit(
         inline .timeline_ptr, .stack_ptr, .track_ptr => |t| t.recursively_deinit(),
         inline else => {},
     }
+}
+
+const ERR_TOPO = c.otio_Topology{ .ref = null };
+
+pub export fn otio_fetch_topology(
+    ref_c: c.otio_ComposedValueRef,
+) c.otio_Topology
+{
+    const ref = init_ComposedValueRef(ref_c) 
+        catch return ERR_TOPO;
+
+    const result = ALLOCATOR.create(
+        time_topology.TimeTopology
+    ) catch return ERR_TOPO;
+
+    result.* = ref.topology() catch return ERR_TOPO;
+
+    return .{ .ref = result };
+}
+
+pub export fn otio_topo_fetch_input_bounds(
+    topo_c: c.otio_Topology,
+    result: *c.otio_ContinuousTimeRange,
+) i32
+{
+    if (topo_c.ref == null) {
+        std.log.err("Null topo pointer\n", .{});
+
+        return -1;
+    }
+
+    const ref = topo_c.ref.?;
+
+    const topo = ptrCast(
+        time_topology.TimeTopology,
+        ref,
+    );
+
+    const b = topo.input_bounds();
+
+    result.*.start_seconds = b.start_seconds;
+    result.*.end_seconds = b.end_seconds;
+
+    return 0;
 }

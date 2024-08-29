@@ -728,6 +728,10 @@ pub fn build(
             "opentimelineio",
             opentimelineio
         );
+        opentimelineio_c.root_module.addImport(
+            "time_topology",
+            time_topology
+        );
         b.installArtifact(opentimelineio_c);
     }
 

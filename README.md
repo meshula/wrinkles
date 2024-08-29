@@ -62,12 +62,15 @@ contains:
       are continuous, bounds are continuous)
     * what about NTSC times?
 * [x] demonstration c-api
-  * [ ] show a loop of walking over objects
+  * [x] show a loop of walking over objects
   * [ ] add metadata support
   * [ ] read / return continuous time ranges
   * [ ] show a projection
   * [ ] wrap the topology
   * [ ] what would a C++ layer look like on top of this?
+  * [ ] add some tooling for fetching zig allocators and passing them
+    * [ ] GPA allocator
+    * [ ] creating an arena
 * refactoring core library pieces to clarify/simplify/improve the
   implementation
   * [x] build check for graphviz
