@@ -717,11 +717,13 @@ pub fn build(
             .name = "opentimelineio_c",
             .target = options.target,
             .optimize = options.optimize,
-            .root_source_file = b.path("src/opentimelineio_c.zig"),
+            .root_source_file = b.path(
+                "src/c_binding/opentimelineio_c.zig"
+            ),
         }
     );
     {
-        opentimelineio_c.addIncludePath(b.path("src"));
+        opentimelineio_c.addIncludePath(b.path("src/c_binding/"));
         opentimelineio_c.root_module.addImport(
             "opentimelineio",
             opentimelineio

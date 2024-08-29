@@ -45,6 +45,7 @@ contains:
     * are bounds on topologies better described with rationals? (no: topologies
       are continuous, bounds are continuous)
     * what about NTSC times?
+    * [x] demonstration c-api
 * refactoring core library pieces to clarify/simplify/improve the
   implementation
   * [x] build check for graphviz
