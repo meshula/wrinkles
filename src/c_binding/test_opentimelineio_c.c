@@ -3,6 +3,9 @@
  
 #include "opentimelineio_c.h"
 
+#include <signal.h>
+
+
 /* Prototype C wrapper around "wrinkles" codebase
  *
  * A C-interface needs to be able to, in order to be considered "complete",
@@ -17,6 +20,7 @@
 // print the tree w/ printf from this node and down
 void
 print_tree(
+        otio_Arena arena,
         // the reference to start at
         otio_ComposedValueRef root_ref,
         int indent)
@@ -40,12 +44,17 @@ print_tree(
         );
 
         {
-            const otio_Topology topo = otio_fetch_topology(root_ref);
-            const otio_ContinuousTimeRange input_bounds;
+            otio_Topology topo = otio_fetch_topology(arena.allocator, root_ref);
+            otio_ContinuousTimeRange input_bounds;
 
-             if (topo.ref != 0) {
+             if (topo.ref != 0) 
+             {
                  otio_topo_fetch_input_bounds(topo, &input_bounds);
-                 printf(" [%g, %g) ", input_bounds.start_seconds, input_bounds.end_seconds);
+                 printf(
+                         " [%g, %g) ",
+                         input_bounds.start_seconds,
+                         input_bounds.end_seconds
+                );
              }
         }
 
@@ -63,7 +72,11 @@ print_tree(
     // recurse into children
     for (int i=0; i<nchildren; i++)
     {
-        print_tree(otio_fetch_child_cvr_ind(root_ref, i), indent + 2);
+        print_tree(
+                arena,
+                otio_fetch_child_cvr_ind(root_ref, i),
+                indent + 2
+        );
     }
 }
 
@@ -72,32 +85,43 @@ main()
 {
     printf("\nTESTING C CALLING ZIG FUNCTIONS\n\n");
 
+    // build an arena
+    ///////////////////////////////////////////////////////////////////////////
+    otio_Arena arena = otio_fetch_allocator_new_arena();
+
     // read the file
     ///////////////////////////////////////////////////////////////////////////
     otio_ComposedValueRef tl = otio_read_from_file(
-        "/Users/stephan/workspace/yaml_usd/dino/good_dino.updated.otio"
-        // "/Users/stephan/workspace/wrinkles/sample_otio_files/simple_cut.otio"
+        arena.allocator,
+        // "/Users/stephan/workspace/yaml_usd/dino/good_dino.updated.otio"
+        "/Users/stephan/workspace/wrinkles/sample_otio_files/simple_cut.otio"
         // "/Users/stephan/workspace/wrinkles/sample_otio_files/multiple_track.otio"
     );
 
     // traverse children
     ///////////////////////////////////////////////////////////////////////////
-    print_tree(tl, 0);
+    print_tree(arena, tl, 0);
+
+    printf("done.\n");
 
     // build a topological map
     ///////////////////////////////////////////////////////////////////////////
 
-    otio_TopologicalMap map = otio_build_topo_map_cvr(tl);
+    otio_TopologicalMap map = otio_build_topo_map_cvr(arena.allocator, tl);
     printf("built map: %p\n", map.ref);
 
-    otio_write_map_to_png(map, "/var/tmp/from_c_map.dot");
+    otio_write_map_to_png(arena.allocator, map, "/var/tmp/from_c_map.dot");
 
     // build a projection operator map to media
     ///////////////////////////////////////////////////////////////////////////
 
     // causes a "not implemented error"
     otio_ProjectionOperatorMap po = (
-            otio_build_projection_op_map_to_media_tp_cvr(map, tl)
+            otio_build_projection_op_map_to_media_tp_cvr(
+                arena.allocator,
+                map,
+                tl
+            )
     );
     const size_t n_endpoints = otio_po_map_fetch_num_endpoints(po);
     printf(
@@ -115,7 +139,8 @@ main()
 
     // clean up datastructure
     ///////////////////////////////////////////////////////////////////////////
-    otio_timeline_deinit(tl);
+    otio_arena_deinit(arena);
+
     printf("freed tl.\n");
 
     printf("C CODE DONE\n\n");

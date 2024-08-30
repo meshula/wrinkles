@@ -9,8 +9,8 @@ const c = @cImport(
     }
 );
 
-var raw = std.heap.GeneralPurposeAllocator(.{}){};
-const ALLOCATOR:std.mem.Allocator = raw.allocator();
+var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+const ALLOCATOR:std.mem.Allocator = gpa.allocator();
 
 /// constant to represent an error (nullpointer)
 const ERR_REF : c.otio_ComposedValueRef = .{
@@ -19,46 +19,80 @@ const ERR_REF : c.otio_ComposedValueRef = .{
 };
 
 const ERR_ALLOCATOR = c.otio_Allocator{ .ref = null };
+const ERR_ARENA = c.otio_Arena{ .arena = null, .allocator = ERR_ALLOCATOR };
 pub export fn otio_fetch_allocator_gpa() c.otio_Allocator
 {
-    return .{ .ref = &ALLOCATOR };
+    return .{ .ref = @ptrCast(@constCast(&ALLOCATOR)) };
 }
-pub export fn otio_fetch_allocator_new_arena() c.otio_Allocator
+pub export fn otio_fetch_allocator_new_arena(
+) c.otio_Arena
 {
-    var arena_all_name = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    const allocator = arena_all_name.allocator();
-    const result = allocator.create(std.mem.Allocator) catch return ERR_ALLOCATOR;
-    result.* = allocator;
+    // set up the allocator
+    var arena = std.heap.ArenaAllocator.init(
+        std.heap.page_allocator
+    );
+    const allocator = arena.allocator();
 
-    return .{ .ref = result };
+    // build the longer lifetime pointers
+    const arena_ptr = (
+        allocator.create(std.heap.ArenaAllocator) catch return ERR_ARENA
+    );
+    const alloc_ptr = (
+        allocator.create(std.mem.Allocator) catch return ERR_ARENA
+    );
+    const vtable = (
+        allocator.create(std.mem.Allocator.VTable) catch return ERR_ARENA
+    );
+    vtable.alloc = allocator.vtable.alloc;
+    vtable.resize = allocator.vtable.resize;
+    vtable.free = allocator.vtable.free;
+
+    // build out the result
+    arena_ptr.* = arena;
+    alloc_ptr.* = .{
+        .ptr = arena_ptr,
+        .vtable = vtable,
+    };
+
+    return c.otio_Arena{
+        .arena = arena_ptr,
+        .allocator = .{ .ref = alloc_ptr },
+    };
 }
 pub export fn otio_arena_deinit(
-    ref_c: otio_Allocator
+    ref_c: c.otio_Arena,
 ) void
 {
-    if (ref_c.ref == null)
+    if (ref_c.arena == null)
     {
         return;
     }
 
-    const ref = ptrCast(std.mem.Allocator, ref_c.ref.?);
-    
-    ref.dei
+    const ref = ptrCast(
+        std.heap.ArenaAllocator,
+        ref_c.arena.?
+    );
+
+    ref.*.deinit();
 }
 
 pub export fn otio_read_from_file(
+    allocator_c: c.otio_Allocator,
     filepath_c: [*:0]const u8,
 ) c.otio_ComposedValueRef
 {
-    var arena_all_name = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena_all_name.deinit();
-    const allocator = &arena_all_name.allocator;
-    const ptr = try allocator.create(arena_all_name);
-
     const filepath : []const u8 = std.mem.span(filepath_c);
+    const allocator = fetch_allocator(
+        allocator_c
+    ) catch return ERR_REF;
 
-    const parsed_tl = otio.read_from_file(
-        ALLOCATOR, 
+    const result = allocator.create(otio.Timeline) catch {
+        std.log.err("Problem making thing.\n", .{});
+        return ERR_REF;
+    };
+
+    result.* = otio.read_from_file(
+        allocator,
         filepath,
     ) catch |err| {
         std.log.err(
@@ -68,13 +102,10 @@ pub export fn otio_read_from_file(
         return ERR_REF;
     };
 
-    const result = ALLOCATOR.create(otio.Timeline) catch {
-        return ERR_REF;
+    return .{
+        .kind = c.otio_ct_timeline,
+        .ref = @ptrCast(result),
     };
-
-    result.* = parsed_tl;
-
-    return .{ .kind = c.otio_ct_timeline, .ref = @as(*anyopaque, result) };
 }
 
 fn ptrCast(
@@ -83,6 +114,18 @@ fn ptrCast(
 ) *t
 {
     return @as(*t, @ptrCast(@alignCast(ptr)));
+}
+
+fn fetch_allocator(
+    input: c.otio_Allocator
+) !std.mem.Allocator
+{
+    if (input.ref == null) {
+        std.log.err("Null allocator argument\n",.{});
+        return error.InvalidAllocatorError;
+    }
+
+    return ptrCast(std.mem.Allocator, input.ref.?).*;
 }
 
 fn init_ComposedValueRef(
@@ -162,19 +205,23 @@ pub export fn otio_fetch_child_cvr_ind(
 const ERR_TOPO_MAP = c.otio_TopologicalMap{ .ref = null };
 
 pub export fn otio_build_topo_map_cvr(
+    allocator_c: c.otio_Allocator,
     timeline: c.otio_ComposedValueRef,
 ) c.otio_TopologicalMap
 {
     const ref = init_ComposedValueRef(
         timeline
     ) catch return ERR_TOPO_MAP;
+    const allocator = fetch_allocator(
+        allocator_c
+    ) catch return ERR_TOPO_MAP;
 
-    const result = ALLOCATOR.create(
+    const result = allocator.create(
         otio.TopologicalMap
     ) catch return ERR_TOPO_MAP;
 
     result.* = otio.build_topological_map(
-        ALLOCATOR,
+        allocator,
         ref,
     ) catch return ERR_TOPO_MAP;
 
@@ -184,6 +231,7 @@ pub export fn otio_build_topo_map_cvr(
 const ERR_PO_MAP = c.otio_ProjectionOperatorMap{ .ref = null };
 
 pub export fn otio_build_projection_op_map_to_media_tp_cvr(
+    allocator_c: c.otio_Allocator,
     in_map: c.otio_TopologicalMap,
     source: c.otio_ComposedValueRef,
 ) c.otio_ProjectionOperatorMap
@@ -191,12 +239,15 @@ pub export fn otio_build_projection_op_map_to_media_tp_cvr(
     if (in_map.ref == null) {
         return ERR_PO_MAP;
     }
+    const allocator = fetch_allocator(
+        allocator_c
+    ) catch return ERR_PO_MAP;
 
     const map_c = in_map.ref.?;
 
     const map = ptrCast(otio.TopologicalMap, map_c);
 
-    const result = ALLOCATOR.create(
+    const result = allocator.create(
         otio.ProjectionOperatorMap
     ) catch return ERR_PO_MAP;
 
@@ -205,7 +256,7 @@ pub export fn otio_build_projection_op_map_to_media_tp_cvr(
     ) catch return ERR_PO_MAP;
 
     result.* = otio.projection_map_to_media_from(
-        ALLOCATOR,
+        allocator,
         map.*,
         try src.space(.presentation),
     ) catch |err| {
@@ -279,17 +330,22 @@ pub export fn otio_fetch_cvr_name_str(
 }
 
 pub export fn otio_write_map_to_png(
+    allocator_c: c.otio_Allocator,
     in_map: c.otio_TopologicalMap,
     filepath_c: [*:0]const u8,
 ) void 
 {
     const t_map = ptrCast(otio.TopologicalMap, in_map.ref.?);
+    const allocator = fetch_allocator(
+        allocator_c
+    ) catch  return ; 
 
     t_map.write_dot_graph(
-        ALLOCATOR,
+        allocator,
         std.mem.span(filepath_c)
     ) catch {
         std.log.err("couldn't write map to: '{s}'\n", .{ filepath_c });
+        return;
     };
 
     std.log.debug("wrote map to: '{s}'\n", .{ filepath_c });
@@ -340,18 +396,27 @@ pub export fn otio_timeline_deinit(
     }
 }
 
-const ERR_TOPO = c.otio_Topology{ .ref = null };
+const ERR_TOPO:c.otio_Topology = .{ .ref = null };
 
+/// compute the topology for the ComposedValueRef
 pub export fn otio_fetch_topology(
+    allocator_c: c.otio_Allocator,
     ref_c: c.otio_ComposedValueRef,
 ) c.otio_Topology
 {
     const ref = init_ComposedValueRef(ref_c) 
         catch return ERR_TOPO;
-
-    const result = ALLOCATOR.create(
-        time_topology.TimeTopology
+    const allocator = fetch_allocator(
+        allocator_c
     ) catch return ERR_TOPO;
+
+    const result = allocator.create(
+        time_topology.TimeTopology
+    ) catch |err|
+    {
+        std.log.err("problem building topo: {any}\n", .{ err });
+        return ERR_TOPO;
+    };
 
     result.* = ref.topology() catch return ERR_TOPO;
 

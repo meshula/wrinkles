@@ -5,9 +5,13 @@
 typedef struct otio_Allocator {
     void* ref;
 } otio_Allocator;
+typedef struct otio_Arena {
+    void* arena;
+    otio_Allocator allocator;
+} otio_Arena;
 otio_Allocator otio_fetch_allocator_gpa();
-otio_Allocator otio_fetch_allocator_new_arena();
-void otio_arena_deinit(otio_Allocator);
+otio_Arena otio_fetch_allocator_new_arena();
+void otio_arena_deinit(otio_Arena);
 
 // OpenTime
 ///////////////////////////////////////////////////////////////////////////////
@@ -34,7 +38,10 @@ typedef struct otio_ComposedValueRef {
 } otio_ComposedValueRef;
 
 
-otio_ComposedValueRef otio_read_from_file(const char* filepath);
+otio_ComposedValueRef otio_read_from_file(
+        otio_Allocator,
+        const char* filepath
+ );
 void otio_timeline_deinit(otio_ComposedValueRef root);
 
 otio_ComposedValueRef otio_fetch_child_cvr_ind(
@@ -61,8 +68,15 @@ typedef struct otio_TopologicalMap {
     void* ref;
 } otio_TopologicalMap;
 
-otio_TopologicalMap otio_build_topo_map_cvr(otio_ComposedValueRef root);
-void otio_write_map_to_png(otio_TopologicalMap, const char*);
+otio_TopologicalMap otio_build_topo_map_cvr(
+        otio_Allocator allocator,
+        otio_ComposedValueRef root
+);
+void otio_write_map_to_png(
+        otio_Allocator allocator,
+        otio_TopologicalMap,
+        const char*
+);
 
 
 // ProjectionOperatorMap
@@ -72,6 +86,7 @@ typedef struct otio_ProjectionOperatorMap {
 } otio_ProjectionOperatorMap;
 
 otio_ProjectionOperatorMap otio_build_projection_op_map_to_media_tp_cvr(
+    otio_Allocator allocator,
     otio_TopologicalMap in_map,
     otio_ComposedValueRef root
 );
@@ -85,5 +100,8 @@ typedef struct otio_Topology {
     void* ref;
 } otio_Topology;
 
-otio_Topology otio_fetch_topology(otio_ComposedValueRef ref);
+otio_Topology otio_fetch_topology(
+        otio_Allocator allocator,
+        otio_ComposedValueRef ref
+);
 int otio_topo_fetch_input_bounds(otio_Topology, const otio_ContinuousTimeRange*);
