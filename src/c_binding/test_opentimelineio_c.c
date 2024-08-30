@@ -101,7 +101,6 @@ main()
     ///////////////////////////////////////////////////////////////////////////
     otio_ComposedValueRef tl = otio_read_from_file(
         arena.allocator,
-        // "/Users/stephan/workspace/yaml_usd/dino/good_dino.updated.otio"
         // "/Users/stephan/workspace/wrinkles/sample_otio_files/simple_cut.otio"
         "/Users/stephan/workspace/wrinkles/sample_otio_files/multiple_track.otio"
     );

@@ -281,8 +281,6 @@ pub fn read_otio_object(
             const range = _read_range(obj);
 
             const maybe_rate = _read_rate(obj);
-            std.log.debug("rate: {?d}\n",.{maybe_rate});
-
 
             var cl = otio.Clip{
                 .name=try allocator.dupe(u8, name),
