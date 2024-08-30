@@ -448,3 +448,39 @@ pub export fn otio_topo_fetch_input_bounds(
 
     return 0;
 }
+
+fn init_SpaceLabel(
+    in_c: c.otio_SpaceLabel
+) !otio.SpaceLabel
+{
+    return switch (in_c) {
+        c.otio_sl_presentation => .presentation,
+        c.otio_sl_media => .media,
+        else => error.InvalidSpaceLabel,
+    };
+}
+
+pub export fn otio_fetch_discrete_info(
+    ref_c: c.otio_ComposedValueRef,
+    space: c.otio_SpaceLabel,
+    result: *c.otio_DiscreteDatasourceIndexGenerator,
+) c_int
+{
+    const ref = init_ComposedValueRef(ref_c) catch return -1;
+    const label = init_SpaceLabel(space) catch return -1;
+
+    const maybe_di = ref.discrete_info_for_space(
+        label
+    ) catch return -1;
+
+    if (maybe_di)
+        |di|
+    {
+        result.* = .{
+            .sample_rate_hz = di.sample_rate_hz,
+            .start_index = di.start_index,
+        };
+    }
+
+    return 0;
+}

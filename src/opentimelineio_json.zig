@@ -44,17 +44,30 @@ pub fn read_ordinate_from_rt(
 ) ?time_topology.Ordinate 
 {
     if (obj) 
-       |o| 
-    {
-        const value = read_float(o.get("value").?);
-        const rate = read_float(o.get("rate").?);
+        |o| 
+        {
+            const value = read_float(o.get("value").?);
+            const rate = read_float(o.get("rate").?);
 
-        return @floatCast(value/rate);
-    } 
+            return @floatCast(value/rate);
+        } 
     else 
     {
         return null;
     }
+}
+
+fn read_rate(
+    maybe_obj:?std.json.ObjectMap
+) ?u32
+{
+    if (maybe_obj)
+        |o|
+        {
+            if (o.get("rate")) |r| return @intFromFloat(read_float(r));
+        }
+
+    return null;
 }
 
 pub fn read_time_range(
@@ -63,16 +76,16 @@ pub fn read_time_range(
 {
     if (maybe_obj) 
         |o| 
-    {
-        const start_time = read_ordinate_from_rt(o.get("start_time").?.object).?;
-        const duration = read_ordinate_from_rt(o.get("duration").?.object).?;
-        return .{ 
-            .start_seconds = start_time, 
-            .end_seconds = start_time + duration 
-        };
-    } else {
-        return null;
-    }
+        {
+            const start_time = read_ordinate_from_rt(o.get("start_time").?.object).?;
+            const duration = read_ordinate_from_rt(o.get("duration").?.object).?;
+            return .{ 
+                .start_seconds = start_time, 
+                .end_seconds = start_time + duration 
+            };
+        } else {
+            return null;
+        }
 }
 
 pub fn _read_range(
@@ -88,28 +101,75 @@ pub fn _read_range(
     // prefer source range
     if (obj.get("source_range")) 
         |sr| 
-    {
-        switch (sr) {
-            .object => |o| return read_time_range(o),
-            else => {},
+        {
+            switch (sr) {
+                .object => |o| return read_time_range(o),
+                else => {},
+            }
         }
-    }
 
     // otherwise, fetch the media reference and try available range
     if (obj.get("media_reference"))
         |mr|
-    {
-        switch (mr) {
-            .object => |mr_o| 
-                if (mr_o.get("available_range")) 
-                    |ar| 
-                {
-                    switch (ar) {
-                        .object => |o| return read_time_range(o),
+        {
+            switch (mr) {
+                .object => |mr_o| 
+                    if (mr_o.get("available_range")) 
+                        |ar| 
+                        {
+                            switch (ar) {
+                                .object => |o| return read_time_range(o),
+                                else => return null,
+                            }
+                        },
                         else => return null,
+            }
+        }
+
+    return null;
+}
+
+pub fn _read_rate(
+    maybe_obj: ?std.json.ObjectMap
+) ?u32
+{
+    if (maybe_obj == null) {
+        return null;
+    }
+
+    const obj = maybe_obj.?;
+
+    if (obj.get("source_range")) |sr| {
+        switch (sr) {
+            .object => |o| {
+                if (o.get("start_time")) |st| {
+                    switch (st){
+                        .object => |sto| return read_rate(sto),
+                        else => {},
                     }
-                },
-                else => return null,
+                }
+            },
+            else => {},
+        }
+    } else if (obj.get("media_reference")) |mrv| 
+    {
+        switch (mrv) {
+            .object => |mr| {
+                if (mr.get("available_range")) |ar| {
+                    switch (ar) {
+                        .object => |o| {
+                            if (o.get("start_time")) |st| {
+                                switch (st){
+                                    .object => |sto| return read_rate(sto),
+                                    else => {},
+                                }
+                            }
+                        },
+                        else => {},
+                    }
+                }
+            },
+            else =>{},
         }
     }
 
@@ -220,10 +280,22 @@ pub fn read_otio_object(
         .Clip => {
             const range = _read_range(obj);
 
-            const cl = otio.Clip{
+            const maybe_rate = _read_rate(obj);
+            std.log.debug("rate: {?d}\n",.{maybe_rate});
+
+
+            var cl = otio.Clip{
                 .name=try allocator.dupe(u8, name),
                 .media_temporal_bounds  = range,
             };
+
+            if (maybe_rate)
+                |rate|
+            {
+                cl.discrete_info.media = .{
+                        .sample_rate_hz = rate,
+                };
+            }
 
             return .{ .Clip = cl };
         },

@@ -105,3 +105,20 @@ otio_Topology otio_fetch_topology(
         otio_ComposedValueRef ref
 );
 int otio_topo_fetch_input_bounds(otio_Topology, const otio_ContinuousTimeRange*);
+
+// Spaces
+///////////////////////////////////////////////////////////////////////////////
+typedef enum otio_SpaceLabel { 
+    otio_sl_presentation,
+    otio_sl_media,
+} otio_SpaceLabel;
+typedef struct otio_DiscreteDatasourceIndexGenerator {
+    uint32_t sample_rate_hz;
+    size_t start_index;
+} otio_DiscreteDatasourceIndexGenerator;
+
+int otio_fetch_discrete_info(
+        otio_ComposedValueRef,
+        otio_SpaceLabel,
+        otio_DiscreteDatasourceIndexGenerator*);
+

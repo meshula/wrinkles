@@ -58,6 +58,14 @@ print_tree(
              }
         }
 
+        otio_DiscreteDatasourceIndexGenerator di;
+        if (otio_fetch_discrete_info(root_ref, otio_sl_presentation, &di) == 0) {
+            printf(" | discrete presentation: %d hz ", di.sample_rate_hz );
+        }
+        if (otio_fetch_discrete_info(root_ref, otio_sl_media, &di) == 0) {
+            printf(" | discrete media: %d hz ", di.sample_rate_hz );
+        }
+
         if (nchildren > 0) 
         {
             printf("[children: %lu]", nchildren);
@@ -94,8 +102,8 @@ main()
     otio_ComposedValueRef tl = otio_read_from_file(
         arena.allocator,
         // "/Users/stephan/workspace/yaml_usd/dino/good_dino.updated.otio"
-        "/Users/stephan/workspace/wrinkles/sample_otio_files/simple_cut.otio"
-        // "/Users/stephan/workspace/wrinkles/sample_otio_files/multiple_track.otio"
+        // "/Users/stephan/workspace/wrinkles/sample_otio_files/simple_cut.otio"
+        "/Users/stephan/workspace/wrinkles/sample_otio_files/multiple_track.otio"
     );
 
     // traverse children
