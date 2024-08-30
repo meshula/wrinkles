@@ -733,6 +733,27 @@ pub fn build(
             time_topology
         );
         b.installArtifact(opentimelineio_c);
+
+        const exe = b.addExecutable(
+            .{
+                .name = "test_opentimelineio_c",
+                .optimize = options.optimize,
+                .target = options.target,
+            }
+        );
+        exe.addCSourceFile(
+            .{
+                .file = b.path("src/c_binding/test_opentimelineio_c.c"),
+                .flags = &C_ARGS,
+            },
+        );
+        exe.addIncludePath(b.path("src/c_binding/"));
+        exe.linkLibrary(opentimelineio_c);
+
+        b.installArtifact(exe);
+
+        const run_exe = b.addRunArtifact(exe);
+        test_step.dependOn(&run_exe.step);
     }
 
     const common_deps:[]const std.Build.Module.Import = &.{ 
