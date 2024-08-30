@@ -484,3 +484,11 @@ pub export fn otio_fetch_discrete_info(
 
     return 0;
 }
+
+pub export fn otio_fetch_continuous_ordinate_to_discrete_index(
+    ref_c: c.otio_ComposedValueRef,
+    val: f32,
+    space_c: c.otio_SpaceLabel,
+) usize
+{
+}

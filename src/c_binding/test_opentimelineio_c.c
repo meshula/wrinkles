@@ -47,23 +47,61 @@ print_tree(
             otio_Topology topo = otio_fetch_topology(arena.allocator, root_ref);
             otio_ContinuousTimeRange input_bounds;
 
-             if (topo.ref != 0) 
-             {
-                 otio_topo_fetch_input_bounds(topo, &input_bounds);
-                 printf(
-                         " [%g, %g) ",
-                         input_bounds.start_seconds,
-                         input_bounds.end_seconds
-                );
-             }
-        }
+            otio_DiscreteDatasourceIndexGenerator di;
+            otio_SpaceLabel di_space = -1;
+            if (!otio_fetch_discrete_info( root_ref, otio_sl_presentation, &di)) 
+            {
+                di_space = otio_sl_presentation;
+            }
+            if (!otio_fetch_discrete_info(root_ref, otio_sl_media, &di))
+            {
+                di_space = otio_sl_media;
+            }
 
-        otio_DiscreteDatasourceIndexGenerator di;
-        if (otio_fetch_discrete_info(root_ref, otio_sl_presentation, &di) == 0) {
-            printf(" | discrete presentation: %d hz ", di.sample_rate_hz );
-        }
-        if (otio_fetch_discrete_info(root_ref, otio_sl_media, &di) == 0) {
-            printf(" | discrete media: %d hz ", di.sample_rate_hz );
+            if (topo.ref != 0) 
+            {
+                otio_topo_fetch_input_bounds(topo, &input_bounds);
+
+                if (di_space != -1) {
+                    size_t discrete_start = otio_continuous_ordinate_to_discrete_index(
+                        root_ref, 
+                        input_bounds.start_seconds,
+                        di_space
+                    );
+                    size_t discrete_end = otio_continuous_ordinate_to_discrete_index(
+                        root_ref, 
+                        input_bounds.end_seconds,,
+                        di_space
+                    );
+
+                    const char* d_space_name = (
+                            di_space == otio_sl_media ? 
+                            "media" 
+                            : "presentation"
+                    );
+
+                    printf(
+                            " [%d, %d) | discrete %s: %d ",
+                            discrete_start,
+                            discrete_end
+                    );
+
+                } else {
+                    printf(
+                            " [%g, %g) ",
+                            input_bounds.start_seconds,
+                            input_bounds.end_seconds
+                    );
+                }
+            }
+
+            if (had_ddig_pres) {
+                printf(" | discrete presentation: %d hz ", di.sample_rate_hz );
+            }
+            if (had_ddig_media) {
+                printf(" | discrete media: %d hz ", di.sample_rate_hz );
+            }
+
         }
 
         if (nchildren > 0) 

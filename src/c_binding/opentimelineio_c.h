@@ -5,11 +5,11 @@
 typedef struct otio_Allocator {
     void* ref;
 } otio_Allocator;
+otio_Allocator otio_fetch_allocator_gpa();
 typedef struct otio_Arena {
     void* arena;
     otio_Allocator allocator;
 } otio_Arena;
-otio_Allocator otio_fetch_allocator_gpa();
 otio_Arena otio_fetch_allocator_new_arena();
 void otio_arena_deinit(otio_Arena);
 
@@ -121,4 +121,7 @@ int otio_fetch_discrete_info(
         otio_ComposedValueRef,
         otio_SpaceLabel,
         otio_DiscreteDatasourceIndexGenerator*);
-
+size_t otio_continuous_ordinate_to_discrete_index(
+        otio_ComposedValueRef,
+        float,
+        otio_SpaceLabel);
