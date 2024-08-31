@@ -255,7 +255,10 @@ main(
                                       );
 
                                 if (di_space == otio_sl_media) {
-                                    printf(" | discrete media: %d hz ", di.sample_rate_hz );
+                                    printf(
+                                            " | discrete media: %d hz ",
+                                            di.sample_rate_hz 
+                                    );
                                 }
                             } else {
                                 printf(
