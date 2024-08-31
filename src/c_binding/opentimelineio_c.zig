@@ -364,15 +364,112 @@ pub export fn otio_po_map_fetch_num_endpoints(
 }
 
 pub export fn otio_po_map_fetch_endpoints(
-    in_po_map: c.otio_ProjectionOperatorMap,
+    in_po_map_c: c.otio_ProjectionOperatorMap,
 ) [*]f32
 {
     const po_map = ptrCast(
         otio.ProjectionOperatorMap,
-        in_po_map.ref.?
+        in_po_map_c.ref.?
     );
 
     return po_map.end_points.ptr;
+}
+
+pub export fn otio_po_map_fetch_num_operators_for_segment(
+    in_po_map_c: c.otio_ProjectionOperatorMap,
+    ind: usize,
+) usize
+{
+    const po_map = ptrCast(
+        otio.ProjectionOperatorMap,
+        in_po_map_c.ref.?
+    );
+
+    return po_map.operators[ind].len;
+}
+pub export fn otio_po_map_fetch_op(
+    in_po_map_c: c.otio_ProjectionOperatorMap,
+    segment_ind: usize,
+    operator_ind: usize,
+    result: *c.otio_ProjectionOperator,
+) c_int
+{
+    const po_map = ptrCast(
+        otio.ProjectionOperatorMap,
+        in_po_map_c.ref.?
+    );
+
+    const po = &po_map.operators[segment_ind][operator_ind];
+
+    // std.log.err(
+    //     "po from: {s} to {s}\n",
+    //     .{ 
+    //         @tagName(std.meta.activeTag(po.source.ref)),
+    //         @tagName(std.meta.activeTag(po.destination.ref))
+    //     }
+    // );
+
+    result.ref = po;
+
+    return 0;
+}
+
+fn init_ProjectionOperator(
+    maybe_in_po_c: c.otio_ProjectionOperator,
+) !*otio.ProjectionOperator
+{
+    if (maybe_in_po_c.ref)
+        |in_po_c|
+    {
+        return ptrCast(otio.ProjectionOperator, in_po_c);
+    }
+    else {
+        return error.NullProjectionOperator;
+    }
+}
+
+pub fn otio_po_fetch_topology_erroring(
+    in_po_c: c.otio_ProjectionOperator,
+    result: *c.otio_Topology,
+) !c_int
+{
+    const po = try init_ProjectionOperator(in_po_c);
+
+    result.* = .{ .ref = &po.src_to_dst_topo };
+
+    return 0;
+}
+
+pub export fn otio_po_fetch_topology(
+    in_po_c: c.otio_ProjectionOperator,
+    result: *c.otio_Topology,
+) c_int
+{
+    return otio_po_fetch_topology_erroring(
+        in_po_c,
+        result
+    ) catch {
+        return -1;
+    };
+}
+
+fn otio_po_fetch_destination_erroring(
+    in_po_c: c.otio_ProjectionOperator,
+) !c.otio_ComposedValueRef
+{
+    const po = try init_ProjectionOperator(in_po_c);
+
+    // note - returns a SpaceReference, not a ComposedValueRef
+    return to_c_ref(po.destination.ref);
+}
+
+pub export fn otio_po_fetch_destination(
+    in_po_c: c.otio_ProjectionOperator,
+) c.otio_ComposedValueRef
+{
+    return otio_po_fetch_destination_erroring(in_po_c) catch {
+        return ERR_REF;
+    };
 }
 
 /// attempt to clean up the timeline/object
@@ -449,6 +546,32 @@ pub export fn otio_topo_fetch_input_bounds(
     return 0;
 }
 
+pub export fn otio_topo_fetch_output_bounds(
+    topo_c: c.otio_Topology,
+    result: *c.otio_ContinuousTimeRange,
+) i32
+{
+    if (topo_c.ref == null) {
+        std.log.err("Null topo pointer\n", .{});
+
+        return -1;
+    }
+
+    const ref = topo_c.ref.?;
+
+    const topo = ptrCast(
+        time_topology.TimeTopology,
+        ref,
+    );
+
+    const b = topo.output_bounds();
+
+    result.*.start_seconds = b.start_seconds;
+    result.*.end_seconds = b.end_seconds;
+
+    return 0;
+}
+
 fn init_SpaceLabel(
     in_c: c.otio_SpaceLabel
 ) !otio.SpaceLabel
@@ -498,6 +621,7 @@ pub export fn otio_fetch_discrete_info(
         result
     ) catch 
     {
+        // std.log.err("couldn't fetch discrete info: {any}\n", .{err});
         return -1;
     };
 }

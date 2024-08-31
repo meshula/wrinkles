@@ -78,6 +78,19 @@ void otio_write_map_to_png(
         const char*
 );
 
+// Topologies
+///////////////////////////////////////////////////////////////////////////////
+typedef struct otio_Topology {
+    void* ref;
+} otio_Topology;
+
+otio_Topology otio_fetch_topology(
+        otio_Allocator allocator,
+        otio_ComposedValueRef ref
+);
+int otio_topo_fetch_input_bounds(otio_Topology, const otio_ContinuousTimeRange*);
+int otio_topo_fetch_output_bounds(otio_Topology, const otio_ContinuousTimeRange*);
+
 
 // ProjectionOperatorMap
 ///////////////////////////////////////////////////////////////////////////////
@@ -93,18 +106,22 @@ otio_ProjectionOperatorMap otio_build_projection_op_map_to_media_tp_cvr(
 size_t otio_po_map_fetch_num_endpoints(otio_ProjectionOperatorMap in_map);
 const float* otio_po_map_fetch_endpoints(otio_ProjectionOperatorMap in_map);
 
-
-// Topologies
-///////////////////////////////////////////////////////////////////////////////
-typedef struct otio_Topology {
-    void* ref;
-} otio_Topology;
-
-otio_Topology otio_fetch_topology(
-        otio_Allocator allocator,
-        otio_ComposedValueRef ref
+size_t otio_po_map_fetch_num_operators_for_segment(
+        otio_ProjectionOperatorMap in_map,
+        size_t ind
 );
-int otio_topo_fetch_input_bounds(otio_Topology, const otio_ContinuousTimeRange*);
+typedef struct otio_ProjectionOperator {
+    void* ref;
+} otio_ProjectionOperator;
+int otio_po_map_fetch_op(
+        otio_ProjectionOperatorMap,
+        size_t segment,
+        size_t po_index,
+        otio_ProjectionOperator* result
+);
+int otio_po_fetch_topology(otio_ProjectionOperator, otio_Topology*);
+otio_ComposedValueRef otio_po_fetch_source(otio_ProjectionOperator);
+otio_ComposedValueRef otio_po_fetch_destination(otio_ProjectionOperator);
 
 // Spaces
 ///////////////////////////////////////////////////////////////////////////////

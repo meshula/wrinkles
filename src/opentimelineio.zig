@@ -864,7 +864,7 @@ const ProjectionOperatorArgs = struct {
 
 /// Combines a source, destination and transformation from the source to the
 /// destination.  Allows continuous and discrete transformations.
-const ProjectionOperator = struct {
+pub const ProjectionOperator = struct {
     source: SpaceReference,
     destination: SpaceReference,
     src_to_dst_topo: time_topology.TimeTopology,
