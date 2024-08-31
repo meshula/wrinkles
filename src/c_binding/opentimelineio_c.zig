@@ -491,4 +491,8 @@ pub export fn otio_fetch_continuous_ordinate_to_discrete_index(
     space_c: c.otio_SpaceLabel,
 ) usize
 {
+    _ = ref_c;
+    _ = val;
+    _ = space_c;
+    return 0;
 }

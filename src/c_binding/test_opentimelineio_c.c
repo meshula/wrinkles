@@ -63,29 +63,29 @@ print_tree(
                 otio_topo_fetch_input_bounds(topo, &input_bounds);
 
                 if (di_space != -1) {
-                    size_t discrete_start = otio_continuous_ordinate_to_discrete_index(
-                        root_ref, 
-                        input_bounds.start_seconds,
-                        di_space
-                    );
-                    size_t discrete_end = otio_continuous_ordinate_to_discrete_index(
-                        root_ref, 
-                        input_bounds.end_seconds,,
-                        di_space
-                    );
-
-                    const char* d_space_name = (
-                            di_space == otio_sl_media ? 
-                            "media" 
-                            : "presentation"
-                    );
-
-                    printf(
-                            " [%d, %d) | discrete %s: %d ",
-                            discrete_start,
-                            discrete_end
-                    );
-
+                    // size_t discrete_start = otio_continuous_ordinate_to_discrete_index(
+                    //     root_ref, 
+                    //     input_bounds.start_seconds,
+                    //     di_space
+                    // );
+                    // size_t discrete_end = otio_continuous_ordinate_to_discrete_index(
+                    //     root_ref, 
+                    //     input_bounds.end_seconds,
+                    //     di_space
+                    // );
+                    //
+                    // const char* d_space_name = (
+                    //         di_space == otio_sl_media ? 
+                    //         "media" 
+                    //         : "presentation"
+                    // );
+                    //
+                    // printf(
+                    //         " [%lu, %lu) | discrete %s: %d ",
+                    //         discrete_start,
+                    //         discrete_end
+                    // );
+                    //
                 } else {
                     printf(
                             " [%g, %g) ",
@@ -95,12 +95,12 @@ print_tree(
                 }
             }
 
-            if (had_ddig_pres) {
-                printf(" | discrete presentation: %d hz ", di.sample_rate_hz );
-            }
-            if (had_ddig_media) {
-                printf(" | discrete media: %d hz ", di.sample_rate_hz );
-            }
+            // if () {
+            //     printf(" | discrete presentation: %d hz ", di.sample_rate_hz );
+            // }
+            // if (had_ddig_media) {
+            //     printf(" | discrete media: %d hz ", di.sample_rate_hz );
+            // }
 
         }
 
@@ -127,20 +127,28 @@ print_tree(
 }
 
 int 
-main()
+main(
+        int argc,
+        char** arv
+)
 {
     printf("\nTESTING C CALLING ZIG FUNCTIONS\n\n");
 
     // build an arena
     ///////////////////////////////////////////////////////////////////////////
     otio_Arena arena = otio_fetch_allocator_new_arena();
+    //
+    // if (argc < 2) {
+    //     printf("Error: required argument filepath.\n");
+    //     return -1;
+    // }
 
     // read the file
     ///////////////////////////////////////////////////////////////////////////
     otio_ComposedValueRef tl = otio_read_from_file(
         arena.allocator,
         // "/Users/stephan/workspace/wrinkles/sample_otio_files/simple_cut.otio"
-        "/Users/stephan/workspace/wrinkles/sample_otio_files/multiple_track.otio"
+        "/Users/steinbach/workspace/wrinkles/sample_otio_files/multiple_track.otio"
     );
 
     // traverse children
@@ -155,7 +163,7 @@ main()
     otio_TopologicalMap map = otio_build_topo_map_cvr(arena.allocator, tl);
     printf("built map: %p\n", map.ref);
 
-    otio_write_map_to_png(arena.allocator, map, "/var/tmp/from_c_map.dot");
+    // otio_write_map_to_png(arena.allocator, map, "/var/tmp/from_c_map.dot");
 
     // build a projection operator map to media
     ///////////////////////////////////////////////////////////////////////////
