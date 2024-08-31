@@ -5,6 +5,10 @@
 
 #include <signal.h>
 
+#define PRINTIF(...) \
+    if (should_print) printf(__VA_ARGS__);
+
+int should_print = 0;
 
 /* Prototype C wrapper around "wrinkles" codebase
  *
@@ -17,7 +21,7 @@
  * - build projection operators, maps, and a projection_operator_map
  */
 
-// print the tree w/ printf from this node and down
+// print the tree w/ PRINTIF from this node and down
 void
 print_tree(
         otio_Arena arena,
@@ -35,7 +39,7 @@ print_tree(
         char type_buf[1024];
         otio_fetch_cvr_type_str(root_ref, type_buf, 1024);
 
-        printf(
+        PRINTIF(
             "%*s%s '%s' ",
             indent,
             "",
@@ -81,14 +85,14 @@ print_tree(
                             : "presentation"
                     );
 
-                    printf(
+                    PRINTIF(
                             " [%lu, %lu) ",
                             discrete_start,
                             discrete_end
                     );
 
                 } else {
-                    printf(
+                    PRINTIF(
                             " [%g, %g) ",
                             input_bounds.start_seconds,
                             input_bounds.end_seconds
@@ -97,19 +101,19 @@ print_tree(
             }
 
             if (di_space == otio_sl_presentation) {
-                printf(" | discrete presentation: %d hz ", di.sample_rate_hz );
+                PRINTIF(" | discrete presentation: %d hz ", di.sample_rate_hz );
             }
             if (di_space == otio_sl_media) {
-                printf(" | discrete media: %d hz ", di.sample_rate_hz );
+                PRINTIF(" | discrete media: %d hz ", di.sample_rate_hz );
             }
 
         }
 
         if (nchildren > 0) 
         {
-            printf("[children: %lu]", nchildren);
+            PRINTIF("[children: %lu]", nchildren);
         }
-        printf("\n");
+        PRINTIF("\n");
     }
 
     if (root_ref.kind == otio_ct_err) {
@@ -133,14 +137,14 @@ main(
         char** argv
 )
 {
-    printf("\nTESTING C CALLING ZIG FUNCTIONS\n\n");
+    PRINTIF("\nTESTING C CALLING ZIG FUNCTIONS\n\n");
 
     // build an arena
     ///////////////////////////////////////////////////////////////////////////
     otio_Arena arena = otio_fetch_allocator_new_arena();
 
      if (argc < 2) {
-         printf("Error: required argument filepath.\n");
+         PRINTIF("Error: required argument filepath.\n");
          return -1;
      }
 
@@ -151,6 +155,10 @@ main(
              make_map = 1;
              break;
          }
+         if (strncmp(argv[i], "-v", 2) == 0) {
+             should_print = 1;
+             break;
+         }
      }
 
     // read the file
@@ -158,7 +166,7 @@ main(
     otio_ComposedValueRef tl = otio_read_from_file(arena.allocator, argv[1]);
 
     if (tl.kind == otio_ct_err) {
-        printf("error reading file.\n");
+        PRINTIF("error reading file.\n");
         return -1;
     }
 
@@ -166,13 +174,13 @@ main(
     ///////////////////////////////////////////////////////////////////////////
     print_tree(arena, tl, 0);
 
-    printf("done.\n");
+    PRINTIF("done.\n");
 
     if (make_map == 0) 
     {
         otio_arena_deinit(arena);
 
-        printf("freed tl.\n");
+        PRINTIF("freed tl.\n");
 
         return 0;
     }
@@ -181,7 +189,7 @@ main(
     ///////////////////////////////////////////////////////////////////////////
 
     otio_TopologicalMap map = otio_build_topo_map_cvr(arena.allocator, tl);
-    printf("built map: %p\n", map.ref);
+    PRINTIF("built map: %p\n", map.ref);
 
     // otio_write_map_to_png(arena.allocator, map, "/var/tmp/from_c_map.dot");
 
@@ -197,7 +205,7 @@ main(
             )
     );
     const size_t n_endpoints = otio_po_map_fetch_num_endpoints(po_map);
-    printf(
+    PRINTIF(
             "built po_map to media: %p with %ld endpoints.\n",
             po_map.ref,
             n_endpoints
@@ -207,17 +215,17 @@ main(
 
     for (int i=0; i < n_endpoints; i++) 
     {
-        printf(" [%d]: %g\n", i, endpoints[i]);
+        PRINTIF(" [%d]: %g\n", i, endpoints[i]);
     }
 
-    printf("segments:\n");
+    PRINTIF("segments:\n");
 
     for (int i=0; i < n_endpoints-1; i++) 
     {
 
         const size_t ops = otio_po_map_fetch_num_operators_for_segment(po_map, i);
 
-        printf(" [%d]: ops: %lu [%g, %g) ", i, ops, endpoints[i], endpoints[i+1]);
+        PRINTIF(" [%d]: ops: %lu [%g, %g) ", i, ops, endpoints[i], endpoints[i+1]);
 
         for (int o=0; o<ops; o++)
         {
@@ -248,20 +256,20 @@ main(
                                         di_space
                                 );
 
-                                printf(
+                                PRINTIF(
                                         "\n                    -> [%lu, %lu) ",
                                         discrete_start,
                                         discrete_end
                                       );
 
                                 if (di_space == otio_sl_media) {
-                                    printf(
+                                    PRINTIF(
                                             " | discrete media: %d hz ",
                                             di.sample_rate_hz 
                                     );
                                 }
                             } else {
-                                printf(
+                                PRINTIF(
                                         "-> [%g, %g) ",
                                         tr.start_seconds,
                                         tr.end_seconds
@@ -273,14 +281,14 @@ main(
             }
         }
         
-        printf("\n");
+        PRINTIF("\n");
     }
 
     // clean up datastructure
     ///////////////////////////////////////////////////////////////////////////
     otio_arena_deinit(arena);
 
-    printf("freed tl.\n");
+    PRINTIF("freed tl.\n");
 
-    printf("C CODE DONE\n\n");
+    PRINTIF("C CODE DONE\n\n");
 }
