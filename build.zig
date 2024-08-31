@@ -672,6 +672,19 @@ pub fn build(
         }
     );
 
+    _ = module_with_tests_and_artifact(
+        "mapping",
+        .{ 
+            .b = b,
+            .options = options,
+            .fpath = "src/time_topology//mapping.zig",
+            .deps = &.{
+                .{ .name = "opentime", .module = opentime },
+                .{ .name = "curve", .module = curve },
+            },
+        }
+    );
+
     const sampling = module_with_tests_and_artifact(
         "sampling",
         .{

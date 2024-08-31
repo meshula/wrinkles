@@ -153,11 +153,9 @@ main(
      {
          if (strncmp(argv[i], "-m", 2) == 0) {
              make_map = 1;
-             break;
          }
          if (strncmp(argv[i], "-v", 2) == 0) {
              should_print = 1;
-             break;
          }
      }
 

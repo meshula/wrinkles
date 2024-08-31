@@ -29,3 +29,8 @@ test:
 
 debug:
 	lldb -o run -- $(mkfile_dir)otio_test.out $(shell readlink $(shell which zig))
+
+run_c:
+	zig build 
+	zig-out/bin/test_opentimelineio_c sample_otio_files/multiple_track.otio -v -m
+
