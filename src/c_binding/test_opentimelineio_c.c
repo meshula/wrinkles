@@ -130,7 +130,7 @@ print_tree(
 int 
 main(
         int argc,
-        char** arv
+        char** argv
 )
 {
     printf("\nTESTING C CALLING ZIG FUNCTIONS\n\n");
@@ -138,19 +138,24 @@ main(
     // build an arena
     ///////////////////////////////////////////////////////////////////////////
     otio_Arena arena = otio_fetch_allocator_new_arena();
-    //
-    // if (argc < 2) {
-    //     printf("Error: required argument filepath.\n");
-    //     return -1;
-    // }
+
+     if (argc < 2) {
+         printf("Error: required argument filepath.\n");
+         return -1;
+     }
+
+     int make_map = 0;
+     for (int i=0; i<argc; i++)
+     {
+         if (strncmp(argv[i], "-m", 2) == 0) {
+             make_map = 1;
+             break;
+         }
+     }
 
     // read the file
     ///////////////////////////////////////////////////////////////////////////
-    otio_ComposedValueRef tl = otio_read_from_file(
-        arena.allocator,
-        // "/Users/stephan/workspace/wrinkles/sample_otio_files/simple_cut.otio"
-        "/Users/stephan/workspace/wrinkles/sample_otio_files/multiple_track.otio"
-    );
+    otio_ComposedValueRef tl = otio_read_from_file(arena.allocator, argv[1]);
 
     if (tl.kind == otio_ct_err) {
         printf("error reading file.\n");
@@ -162,6 +167,15 @@ main(
     print_tree(arena, tl, 0);
 
     printf("done.\n");
+
+    if (make_map == 0) 
+    {
+        otio_arena_deinit(arena);
+
+        printf("freed tl.\n");
+
+        return 0;
+    }
 
     // build a topological map
     ///////////////////////////////////////////////////////////////////////////

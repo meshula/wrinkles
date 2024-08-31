@@ -753,6 +753,7 @@ pub fn build(
         b.installArtifact(exe);
 
         const run_exe = b.addRunArtifact(exe);
+        run_exe.addArg("sample_otio_files/multiple_track.otio");
         test_step.dependOn(&run_exe.step);
     }
 
