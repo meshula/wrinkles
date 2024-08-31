@@ -460,18 +460,18 @@ fn init_SpaceLabel(
     };
 }
 
-pub export fn otio_fetch_discrete_info(
+fn otio_fetch_discrete_info_erroring(
     ref_c: c.otio_ComposedValueRef,
     space: c.otio_SpaceLabel,
     result: *c.otio_DiscreteDatasourceIndexGenerator,
-) c_int
+) !c_int
 {
-    const ref = init_ComposedValueRef(ref_c) catch return -1;
-    const label = init_SpaceLabel(space) catch return -1;
+    const ref = try init_ComposedValueRef(ref_c);
+    const label = try init_SpaceLabel(space);
 
-    const maybe_di = ref.discrete_info_for_space(
-        label
-    ) catch return -1;
+    const maybe_di = (
+        try ref.discrete_info_for_space(label)
+    );
 
     if (maybe_di)
         |di|
@@ -480,9 +480,40 @@ pub export fn otio_fetch_discrete_info(
             .sample_rate_hz = di.sample_rate_hz,
             .start_index = di.start_index,
         };
+        return 0;
     }
 
-    return 0;
+    return -1;
+}
+
+pub export fn otio_fetch_discrete_info(
+    ref_c: c.otio_ComposedValueRef,
+    space: c.otio_SpaceLabel,
+    result: *c.otio_DiscreteDatasourceIndexGenerator,
+) c_int
+{
+    return otio_fetch_discrete_info_erroring(
+        ref_c,
+        space,
+        result
+    ) catch 
+    {
+        return -1;
+    };
+}
+
+fn otio_fetch_continuous_ordinate_to_discrete_index_erroring(
+    ref_c: c.otio_ComposedValueRef,
+    val: f32,
+    space_c: c.otio_SpaceLabel,
+) !usize
+{
+    const ref = try init_ComposedValueRef(ref_c);
+    const space = try init_SpaceLabel(space_c);
+    return try ref.continuous_ordinate_to_discrete_index(
+        val,
+        space
+    );
 }
 
 pub export fn otio_fetch_continuous_ordinate_to_discrete_index(
@@ -491,8 +522,15 @@ pub export fn otio_fetch_continuous_ordinate_to_discrete_index(
     space_c: c.otio_SpaceLabel,
 ) usize
 {
-    _ = ref_c;
-    _ = val;
-    _ = space_c;
-    return 0;
+    return otio_fetch_continuous_ordinate_to_discrete_index_erroring(
+        ref_c,
+        val,
+        space_c,
+    ) catch |err| {
+        std.log.err(
+            "Error fetching the continuous value: {any}\n",
+            .{err}
+        );
+        return 0;
+    };
 }

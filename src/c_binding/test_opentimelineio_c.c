@@ -49,7 +49,7 @@ print_tree(
 
             otio_DiscreteDatasourceIndexGenerator di;
             otio_SpaceLabel di_space = -1;
-            if (!otio_fetch_discrete_info( root_ref, otio_sl_presentation, &di)) 
+            if (!otio_fetch_discrete_info(root_ref, otio_sl_presentation, &di)) 
             {
                 di_space = otio_sl_presentation;
             }
@@ -62,30 +62,31 @@ print_tree(
             {
                 otio_topo_fetch_input_bounds(topo, &input_bounds);
 
-                if (di_space != -1) {
-                    // size_t discrete_start = otio_continuous_ordinate_to_discrete_index(
-                    //     root_ref, 
-                    //     input_bounds.start_seconds,
-                    //     di_space
-                    // );
-                    // size_t discrete_end = otio_continuous_ordinate_to_discrete_index(
-                    //     root_ref, 
-                    //     input_bounds.end_seconds,
-                    //     di_space
-                    // );
-                    //
-                    // const char* d_space_name = (
-                    //         di_space == otio_sl_media ? 
-                    //         "media" 
-                    //         : "presentation"
-                    // );
-                    //
-                    // printf(
-                    //         " [%lu, %lu) | discrete %s: %d ",
-                    //         discrete_start,
-                    //         discrete_end
-                    // );
-                    //
+                if (di_space != -1) 
+                {
+                    size_t discrete_start = otio_fetch_continuous_ordinate_to_discrete_index(
+                        root_ref, 
+                        input_bounds.start_seconds,
+                        di_space
+                    );
+                    size_t discrete_end = otio_fetch_continuous_ordinate_to_discrete_index(
+                        root_ref, 
+                        input_bounds.end_seconds,
+                        di_space
+                    );
+
+                    const char* d_space_name = (
+                            di_space == otio_sl_media ? 
+                            "media" 
+                            : "presentation"
+                    );
+
+                    printf(
+                            " [%lu, %lu) ",
+                            discrete_start,
+                            discrete_end
+                    );
+
                 } else {
                     printf(
                             " [%g, %g) ",
@@ -95,12 +96,12 @@ print_tree(
                 }
             }
 
-            // if () {
-            //     printf(" | discrete presentation: %d hz ", di.sample_rate_hz );
-            // }
-            // if (had_ddig_media) {
-            //     printf(" | discrete media: %d hz ", di.sample_rate_hz );
-            // }
+            if (di_space == otio_sl_presentation) {
+                printf(" | discrete presentation: %d hz ", di.sample_rate_hz );
+            }
+            if (di_space == otio_sl_media) {
+                printf(" | discrete media: %d hz ", di.sample_rate_hz );
+            }
 
         }
 
@@ -148,8 +149,13 @@ main(
     otio_ComposedValueRef tl = otio_read_from_file(
         arena.allocator,
         // "/Users/stephan/workspace/wrinkles/sample_otio_files/simple_cut.otio"
-        "/Users/steinbach/workspace/wrinkles/sample_otio_files/multiple_track.otio"
+        "/Users/stephan/workspace/wrinkles/sample_otio_files/multiple_track.otio"
     );
+
+    if (tl.kind == otio_ct_err) {
+        printf("error reading file.\n");
+        return -1;
+    }
 
     // traverse children
     ///////////////////////////////////////////////////////////////////////////

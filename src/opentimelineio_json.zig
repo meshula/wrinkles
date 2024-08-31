@@ -233,7 +233,10 @@ pub fn read_otio_object(
                 .children = so_stack.Stack.children,
             };
             const tl = otio.Timeline{
-                .tracks = st 
+                .tracks = st,
+                .discrete_info = .{
+                    .presentation = null,
+                },
             };
             return .{ .Timeline = tl };
         },

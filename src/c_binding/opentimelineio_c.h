@@ -121,7 +121,7 @@ int otio_fetch_discrete_info(
         otio_ComposedValueRef,
         otio_SpaceLabel,
         otio_DiscreteDatasourceIndexGenerator*);
-size_t otio_continuous_ordinate_to_discrete_index(
+size_t otio_fetch_continuous_ordinate_to_discrete_index(
         otio_ComposedValueRef,
         float,
         otio_SpaceLabel);
