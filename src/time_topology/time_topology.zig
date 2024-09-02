@@ -644,7 +644,6 @@ pub const EmptyTopology = struct {
             .empty = .{},
         };
     }
-
 };
 
 /// TEMPORAL TOPOLOGY PROTOTYPE V2
