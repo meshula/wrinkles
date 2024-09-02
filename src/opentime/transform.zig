@@ -10,6 +10,10 @@ const expectEqual = std.testing.expectEqual;
 /// Represents a homogenous-coordinates transform matrix of the form:
 ///     | Scale Offset |
 ///     |   0     1    | (Implicit)
+///
+/// Transform order scale then offset
+/// @TODO: should it be offset and then scale?  that seems more intuitive to me
+///        but that might be b/c of the order they're listed
 /// ///////////////////////////////////////////////////////////////////////////
 pub const AffineTransform1D = struct {
     offset_seconds: f32 = 0,
@@ -97,6 +101,10 @@ pub const AffineTransform1D = struct {
     }
 };
 
+pub const IDENTITY_TRANSFORM = AffineTransform1D{
+    .offset_seconds = 0,
+    .scale = 1,
+};
 
 test "AffineTransform1D: offset test" 
 {

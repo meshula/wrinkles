@@ -3,9 +3,10 @@
 //! Functions and structs related to the Mapping component of OTIO.
 
 const std = @import("std");
-const opentime = @import("opentime");
 
+const opentime = @import("opentime");
 const serialization = @import("serialization.zig");
+const mapping_empty = @import("mapping_empty.zig");
 
 pub const Ordinate = f32;
 
@@ -14,9 +15,9 @@ pub const Ordinate = f32;
 /// mappings via function composition to build new transformations via common
 /// spaces. Mappings can project ordinates and ranges from their input space
 /// to their output space.  Some (but not all) mappings are also invertible.
-const Mapping = union (enum) {
-    empty: MappingEmpty,
-    // affine: MappingAffine,
+pub const Mapping = union (enum) {
+    empty: mapping_empty.MappingEmpty,
+    affine: MappingAffine,
     // linear: MappingCurveLinear,
     // bezier: MappingCurveBezier,
 
@@ -61,123 +62,101 @@ const Mapping = union (enum) {
             inline else => |contained| contained.clone().mapping(),
         };
     }
+
+    // @{ Errors
+    pub const ProjectionError = error { OutOfBounds };
+    // @}
 };
 
-/// Regardless what the input ordinate is, there is no value mapped to it
-const MappingEmpty = struct {
-    const OTIO_SCHEMA = "MappingEmpty.1";
 
-    /// build a generic mapping from this empty mapping
+/// An affine mapping from intput to output
+pub const MappingAffine = struct {
+    /// defaults to an infinite identity
+    input_bounds_val: opentime.ContinuousTimeInterval = opentime.INF_CTI,
+    input_to_output_xform: opentime.AffineTransform1D = opentime.IDENTITY_TRANSFORM, 
+
     pub fn mapping(
-        self:@This(),
+        self: @This(),
     ) Mapping
     {
-        return .{
-            .empty = self,
-        };
-    }
-
-    pub fn project_instantaneous_cc(
-        _: @This(),
-        _: Ordinate,
-    ) !Ordinate 
-    {
-        return error.OutOfBounds;
-    }
-
-    pub fn inverted(
-        _: @This()
-    ) !MappingEmpty 
-    {
-        return .{};
+        return .{ .affine = self };
     }
 
     pub fn input_bounds(
-        _: @This(),
+        self: @This(),
     ) opentime.ContinuousTimeInterval 
     {
-        return opentime.interval.INF_CTI;
+        return self.input_bounds_val;
     }
 
     pub fn output_bounds(
-        _: @This(),
+        self: @This(),
     ) opentime.ContinuousTimeInterval 
     {
-        return opentime.interval.INF_CTI;
+        return self.input_to_output_xform.applied_to_cti(self.input_bounds_val);
     }
 
-    pub fn clone(
-        _: @This(),
-        _: std.mem.Allocator,
-    ) !MappingEmpty
+    pub fn project_instantaneous_cc(
+        self: @This(),
+        ordinate: Ordinate,
+    ) !Ordinate 
     {
-        return EMPTY;
+        if (
+            !self.input_bounds_val.overlaps_seconds(ordinate) 
+            // allow projecting the end point
+            and ordinate != self.input_bounds_val.end_seconds
+        )
+        {
+            return Mapping.ProjectionError.OutOfBounds;
+        }
+
+        return self.input_to_output_xform.applied_to_seconds(ordinate);
     }
 };
-const EMPTY = MappingEmpty{};
-
-test "MappingEmpty: instantiate and convert"
-{
-    const me = (MappingEmpty{}).mapping();
-    const json_txt =  try serialization.to_string(
-        std.testing.allocator,
-        me
-    );
-    defer std.testing.allocator.free(json_txt);
-}
-
-test "MappingEmpty: Project"
-{
-    const me = (MappingEmpty{}).mapping();
-
-    var v : f32 = -10;
-    while (v < 10)
-        : (v += 0.2)
-    {
-        try std.testing.expectError(
-            error.OutOfBounds,
-            me.project_instantaneous_cc(1.0)
-        );
+pub const INFINITE_IDENTIY = (
+    MappingAffine{
+        .input_bounds_val = opentime.INF_CTI,
+        .input_to_output_xform = opentime.IDENTITY_TRANSFORM,
     }
-}
+).mapping();
 
-test "MappingEmpty: Bounds"
+test "MappingAffine: instantiate (identity)"
 {
-    const me = (MappingEmpty{}).mapping();
+    const ma = (MappingAffine{}).mapping();
 
-    const i_b = me.input_bounds();
-    try std.testing.expect(i_b.is_infinite());
     try std.testing.expectEqual(
-        opentime.interval.INF_CTI.start_seconds,
-        i_b.start_seconds
-    );
-    try std.testing.expectEqual(
-        opentime.interval.INF_CTI.end_seconds,
-        i_b.end_seconds
-    );
-
-    const o_b = me.output_bounds();
-    try std.testing.expect(o_b.is_infinite());
-    try std.testing.expectEqual(
-        opentime.interval.INF_CTI.start_seconds,
-        o_b.start_seconds
-    );
-    try std.testing.expectEqual(
-        opentime.interval.INF_CTI.end_seconds,
-        o_b.end_seconds
+        12, 
+        ma.project_instantaneous_cc(12),
     );
 }
 
-/// An affine mapping from intput to output
-const MappingAffine = struct {
-};
+test "MappingAffine: non-identity"
+{
+    const ma = (
+        MappingAffine{
+            .input_bounds_val = .{
+                .start_seconds = 3,
+                .end_seconds = 6,
+            },
+            .input_to_output_xform = .{
+                .offset_seconds = 2,
+                .scale = 4,
+            },
+        }
+    ).mapping();
+
+   try std.testing.expectEqual(
+       14,
+       ma.project_instantaneous_cc(3),
+    );
+}
 
 /// a linear mapping from input to output
-const MappingCurveLinear = struct {
+pub const MappingCurveLinear = struct {
 };
 
 /// a Cubic Bezier Mapping from input to output
-const MappingCurveBezier = struct {
+pub const MappingCurveBezier = struct {
 };
 
 
