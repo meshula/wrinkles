@@ -832,6 +832,115 @@ test "TimeCurveLinear: Affine through linear"
     }
 }
 
+pub fn join_lin_aff(
+    allocator: std.mem.Allocator,
+    args: struct{
+        a2b: TimeCurveLinear,
+        b2c: opentime.AffineTransform1D,
+    },
+) !TimeCurveLinear
+{
+    const new_knots = try allocator.dupe(
+        ControlPoint,
+        args.a2b.knots,
+    );
+
+    for (new_knots)
+        |*knot|
+    {
+        knot.value = args.b2c.applied_to_seconds(knot.value);
+    }
+
+    return .{
+        .knots = new_knots,
+    };
+}
+
+test "TimeCurveLinear: linear through affine"
+{
+    // given a curve that maps space a -> space b
+    // and a transform that maps b->c
+
+    const a2b_crv= try TimeCurveLinear.init(
+        std.testing.allocator,
+        &.{
+            .{ .time = 0, .value = 0, },
+            .{ .time = 4, .value = 8, },
+        }
+    );
+    defer a2b_crv.deinit(std.testing.allocator);
+    const a2b_extents = a2b_crv.extents();
+
+    errdefer std.debug.print(
+        "b2c_crv_b_extents: [{d}, {d})\nb2c_crv_c_extents: [{d}, {d})\n",
+        .{
+            a2b_extents[0].time,  a2b_extents[1].time,
+            a2b_extents[0].value, a2b_extents[1].value,
+        }
+    );
+
+    const TestThing = struct{
+        xform: opentime.AffineTransform1D,
+        test_pt: [2]f32,
+    };
+
+    const b2c_transformation_tests = (
+        [_]TestThing{
+            .{
+                .xform = opentime.AffineTransform1D{
+                    .offset_seconds = 0,
+                    .scale = 1,
+                },
+                .test_pt = .{ 2, 4 },
+            },
+            .{
+                .xform = opentime.AffineTransform1D{
+                    .offset_seconds = 10,
+                    .scale = 1,
+                },
+                .test_pt = .{ 2, 14 },
+            },
+            .{
+                .xform = opentime.AffineTransform1D{
+                    .offset_seconds = 0,
+                    .scale = 2,
+                },
+                .test_pt = .{ 2, 8 },
+            }
+        }
+    );
+
+    for (b2c_transformation_tests, 0..)
+        |t, test_ind|
+    {
+        const b2c_aff = t.xform;
+
+        errdefer std.debug.print(
+            "[erroring test iteration {d}]:\n b2c offset: {d}\n "
+            ++ "b2c scale: {d} \n",
+            .{ test_ind, b2c_aff.offset_seconds, b2c_aff.scale },
+        );
+
+        const a2c = try join_lin_aff(
+            std.testing.allocator,
+            .{
+                .a2b = a2b_crv,
+                .b2c = b2c_aff,
+            },
+        );
+        defer a2c.deinit(std.testing.allocator);
+
+        const result = try a2c.evaluate(t.test_pt[0]);
+
+        errdefer std.debug.print(
+            "[test: {d}] input: {d} expected: {d} got: {d}\n",
+            .{ test_ind, t.test_pt[0], t.test_pt[1], result }
+        );
+
+        try std.testing.expectEqual( t.test_pt[1], result);
+    }
+}
+
 test "TimeCurveLinear: trimmed_in_input_space"
 {
     const crv = try TimeCurveLinear.init(
