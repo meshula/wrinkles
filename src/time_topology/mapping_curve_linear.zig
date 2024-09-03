@@ -4,7 +4,7 @@
 
 const std = @import("std");
 
-const mapping_mod = @import("mapping");
+const mapping_mod = @import("mapping.zig");
 const curve = @import("curve");
 const opentime = @import("opentime");
 
