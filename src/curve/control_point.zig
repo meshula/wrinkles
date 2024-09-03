@@ -13,21 +13,22 @@
 //!
 
 const std = @import("std");
-const expectEqual = std.testing.expectEqual;
-const dual = @import("opentime").dual;
+
+const opentime = @import("opentime");
 
 const generic_curve = @import("generic_curve.zig");
 
-pub const Dual_CP = dual.DualOf(ControlPoint);
+pub const Dual_CP = opentime.dual.DualOf(ControlPoint);
 
-/// control point for curve parameterization
+/// A control point maps a single instantaneous input ordinate to a single
+/// output ordinate.
 pub const ControlPoint = struct {
-    /// temporal coordinate of the control point
-    time: f32 = 0,
-    /// value of the Control point at the time cooridnate
-    value: f32 = 0,
+    /// input ordinate
+    in: opentime.Ordinate = 0,
+    /// output ordinate
+    out: opentime.Ordinate = 0,
 
-    // polymorphic dispatch
+    /// polymorphic dispatch for multiply
     pub fn mul(
         self: @This(),
         rhs: anytype,
@@ -39,28 +40,31 @@ pub const ControlPoint = struct {
         };
     }
 
+    /// multiply w/ number
     pub fn mul_num(
         self: @This(),
         val: f32,
     ) ControlPoint 
     {
         return .{
-            .time = val*self.time,
-            .value = val*self.value,
+            .in = val*self.in,
+            .out = val*self.out,
         };
     }
 
+    /// multiply w/ struct
     pub fn mul_cp(
         self: @This(),
         rhs: ControlPoint,
     ) ControlPoint 
     {
         return .{
-            .time = rhs.time*self.time,
-            .value = rhs.value*self.value,
+            .in = rhs.in*self.in,
+            .out = rhs.out*self.out,
         };
     }
 
+    /// polymorphic dispatch for divide
     pub fn div(
         self: @This(),
         rhs: anytype,
@@ -72,28 +76,31 @@ pub const ControlPoint = struct {
         };
     }
 
+    /// divide w/ number
     pub fn div_num(
         self: @This(),
         val: f32,
     ) ControlPoint 
     {
         return .{
-            .time  = self.time/val,
-            .value = self.value/val,
+            .in  = self.in/val,
+            .out = self.out/val,
         };
     }
 
+    /// divide w/ struct
     pub fn div_cp(
         self: @This(),
         val: ControlPoint,
     ) ControlPoint 
     {
         return .{
-            .time  = self.time/val.time,
-            .value = self.value/val.value,
+            .in  = self.in/val.in,
+            .out = self.out/val.out,
         };
     }
 
+    /// polymorphic dispatch for addition
     pub fn add(
         self: @This(),
         rhs: anytype,
@@ -105,29 +112,31 @@ pub const ControlPoint = struct {
         };
     }
 
+    /// addition w/ number
     pub fn add_num(
         self: @This(),
         rhs: anytype,
     ) ControlPoint 
     {
         return .{
-            .time = self.time + rhs,
-            .value = self.value + rhs,
+            .in = self.in + rhs,
+            .out = self.out + rhs,
         };
     }
 
-
+    /// addition w/ struct
     pub fn add_cp(
         self: @This(),
         rhs: ControlPoint,
     ) ControlPoint 
     {
         return .{
-            .time = self.time + rhs.time,
-            .value = self.value + rhs.value,
+            .in = self.in + rhs.in,
+            .out = self.out + rhs.out,
         };
     }
 
+    /// polymorphic dispatch for subtract
     pub fn sub(
         self: @This(),
         rhs: anytype,
@@ -139,45 +148,50 @@ pub const ControlPoint = struct {
         };
     }
 
-    pub fn sub_cp(
-        self: @This(),
-        rhs: ControlPoint,
-    ) ControlPoint 
-    {
-        return .{
-            .time = self.time - rhs.time,
-            .value = self.value - rhs.value,
-        };
-    }
-
+    /// subtract w/ struct
     pub fn sub_num(
         self: @This(),
         rhs: anytype,
     ) ControlPoint 
     {
         return .{
-            .time = self.time - rhs,
-            .value = self.value - rhs,
+            .in = self.in - rhs,
+            .out = self.out - rhs,
         };
     }
 
+    /// subtract w/ struct
+    pub fn sub_cp(
+        self: @This(),
+        rhs: ControlPoint,
+    ) ControlPoint 
+    {
+        return .{
+            .in = self.in - rhs.in,
+            .out = self.out - rhs.out,
+        };
+    }
+
+    /// distance of the point from the origin
     pub fn distance(
         self: @This(),
         rhs: ControlPoint,
     ) f32 
     {
         const diff = rhs.sub(self);
-        return std.math.sqrt(diff.time * diff.time + diff.value * diff.value);
+        return std.math.sqrt(diff.in * diff.in + diff.out * diff.out);
     }
 
+    /// compute the normalized vector for the point
     pub fn normalized(
         self: @This(),
     ) ControlPoint 
     {
-        const d = self.distance(.{ .time=0, .value=0 });
-        return .{ .time = self.time/d, .value = self.value/d };
+        const d = self.distance(.{ .in=0, .out=0 });
+        return .{ .in = self.in/d, .out = self.out/d };
     }
     
+    /// build a string of the control point
     pub fn debug_json_str(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -186,7 +200,7 @@ pub const ControlPoint = struct {
         return try std.fmt.allocPrint(
             allocator,
             \\{{ "time": {d:.6}, "value": {d:.6} }}
-            , .{ self.time, self.value, }
+            , .{ self.in, self.out, }
         );
     }
 };
@@ -212,30 +226,30 @@ pub fn expectControlPointEqual(
 // @{ TESTS
 test "ControlPoint: add" 
 { 
-    const cp1 = ControlPoint{ .time = 0, .value = 10 };
-    const cp2 = ControlPoint{ .time = 20, .value = -10 };
+    const cp1 = ControlPoint{ .in = 0, .out = 10 };
+    const cp2 = ControlPoint{ .in = 20, .out = -10 };
 
-    const result = ControlPoint{ .time = 20, .value = 0 };
+    const result = ControlPoint{ .in = 20, .out = 0 };
 
     try expectControlPointEqual(cp1.add(cp2), result);
 }
 
 test "ControlPoint: sub" 
 { 
-    const cp1 = ControlPoint{ .time = 0, .value = 10 };
-    const cp2 = ControlPoint{ .time = 20, .value = -10 };
+    const cp1 = ControlPoint{ .in = 0, .out = 10 };
+    const cp2 = ControlPoint{ .in = 20, .out = -10 };
 
-    const result = ControlPoint{ .time = -20, .value = 20 };
+    const result = ControlPoint{ .in = -20, .out = 20 };
 
     try expectControlPointEqual(cp1.sub(cp2), result);
 }
 
 test "ControlPoint: mul" 
 { 
-    const cp1:ControlPoint = .{ .time = 0.0, .value = 10.0 };
+    const cp1:ControlPoint = .{ .in = 0.0, .out = 10.0 };
     const scale = -10.0;
 
-    const expected:ControlPoint = .{ .time = 0.0, .value = -100 };
+    const expected:ControlPoint = .{ .in = 0.0, .out = -100 };
     const mul_direct = cp1.mul_num(scale);
     const mul_implct = cp1.mul(scale);
 
@@ -247,10 +261,10 @@ test "ControlPoint: mul"
 
 test "distance: 345 triangle" 
 {
-    const a:ControlPoint = .{ .time = 3, .value = -3 };
-    const b:ControlPoint = .{ .time = 6, .value = 1 };
+    const a:ControlPoint = .{ .in = 3, .out = -3 };
+    const b:ControlPoint = .{ .in = 6, .out = 1 };
 
-    try expectEqual(
+    try std.testing.expectEqual(
         @as(f32, 5),
         a.distance(b)
     );
