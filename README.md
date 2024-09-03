@@ -64,13 +64,14 @@ contains:
 * [x] demonstration c-api
   * [x] show a loop of walking over objects
   * [ ] add metadata support
-  * [ ] read / return continuous time ranges
-  * [ ] show a projection
+  * [x] read / return continuous time ranges
+  * [x] show a projection
   * [ ] wrap the topology
   * [ ] what would a C++ layer look like on top of this?
-  * [ ] add some tooling for fetching zig allocators and passing them
-    * [ ] GPA allocator
-    * [ ] creating an arena
+    * [ ] ...and then what would a Pybind layer on top of the C++/C?
+  * [x] add some tooling for fetching zig allocators and passing them
+    * [x] GPA allocator
+    * [x] creating an arena
 * refactoring core library pieces to clarify/simplify/improve the
   implementation
   * [x] build check for graphviz
