@@ -6,6 +6,8 @@
 const std = @import("std");
 const comath = @import("comath");
 
+const ordinate = @import("ordinate.zig");
+
 pub fn eval(
     comptime expr: []const u8, 
     inputs: anytype,
@@ -32,7 +34,7 @@ pub const dual_ctx = struct{
     {
         const result = comath.ctx.DefaultEvalNumberLiteral(src);
         if (result == comptime_float or result == comptime_int) {
-            return Dual_f32; 
+            return Dual_Ord; 
         } else {
             return result;
         }
@@ -45,7 +47,7 @@ pub const dual_ctx = struct{
         const target_type = EvalNumberLiteral(src);
 
         return switch (target_type) {
-            .Dual_f32 => .{ 
+            .Dual_Ord => .{ 
                 .r = std.fmt.parseFloat(
                     f32,
                     src
@@ -84,7 +86,7 @@ test "dual: dual + float"
     const result = comath.eval(
         "x + 3",
         CTX,
-        .{ .x = Dual_f32{ .r = 3, .i = 1 }}
+        .{ .x = Dual_Ord{ .r = 3, .i = 1 }}
     ) catch |err| switch (err) {};
     try std.testing.expectEqual(@as(f32, 6), result.r);
 }
@@ -94,15 +96,13 @@ test "dual * float"
     const result = comath.eval(
         "x * 3",
         CTX,
-        .{ .x = Dual_f32{ .r = 3, .i = 1 }}
+        .{ .x = Dual_Ord{ .r = 3, .i = 1 }}
     ) catch |err| switch (err) {};
     try std.testing.expectEqual(@as(f32, 9), result.r);
 }
 
-pub const Dual_f32 = DualOf(f32);
-
 /// default dual type for opentime
-pub const Dual_t = Dual_f32;
+pub const Dual_Ord = DualOf(ordinate.Ordinate);
 
 pub fn DualOfNumberType(
     comptime T: type
@@ -328,10 +328,10 @@ test "comath dual test polymorphic"
         },
         // as float dual
         .{
-            .x = Dual_f32{.r = 3, .i = 1},
-            .off1 = Dual_f32{ .r = 2 },
-            .off2 = Dual_f32{ .r = 1 }, 
-            .expect = Dual_f32{ .r = 20, .i = 9},
+            .x = Dual_Ord{.r = 3, .i = 1},
+            .off1 = Dual_Ord{ .r = 2 },
+            .off2 = Dual_Ord{ .r = 1 }, 
+            .expect = Dual_Ord{ .r = 20, .i = 9},
         },
     };
 
@@ -356,9 +356,9 @@ test "comath dual test polymorphic"
     }
 }
 
-test "Dual_f32 sqrt (3-4-5 triangle)" 
+test "Dual_Ord sqrt (3-4-5 triangle)" 
 {
-    const d = Dual_f32{ .r = (3*3 + 4*4), .i = 1 };
+    const d = Dual_Ord{ .r = (3*3 + 4*4), .i = 1 };
 
     try std.testing.expectApproxEqAbs(
         @as(f32, 5),

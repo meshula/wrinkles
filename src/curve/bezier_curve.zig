@@ -533,7 +533,7 @@ pub const Bezier = struct {
 
         pub fn eval_at_dual(
             self: @This(),
-            unorm_dual:opentime.dual.Dual_f32,
+            unorm_dual:opentime.Dual_Ord,
         ) control_point.Dual_CP
         {
             var self_dual : [4]control_point.Dual_CP = undefined;
@@ -746,7 +746,7 @@ pub const Bezier = struct {
         pub fn findU_value_dual(
             self:@This(),
             tgt_value: opentime.Ordinate
-        ) opentime.dual.Dual_f32 
+        ) opentime.Dual_Ord 
         {
             return bezier_math.findU_dual(
                 tgt_value,
@@ -774,7 +774,7 @@ pub const Bezier = struct {
         pub fn findU_input_dual(
             self:@This(),
             input_ordinate: opentime.Ordinate
-        ) opentime.dual.Dual_f32 
+        ) opentime.Dual_Ord 
         {
             return bezier_math.findU_dual(
                 input_ordinate,
@@ -891,7 +891,11 @@ pub const Bezier = struct {
         };
     }
 
-    pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
+    pub fn deinit(
+        self: @This(),
+        allocator: std.mem.Allocator
+    ) void 
+    {
         allocator.free(self.segments);
     }
 
@@ -1074,8 +1078,8 @@ pub const Bezier = struct {
     {
         const result = try project_curve_guts(
             self,
+            allocator,
             other,
-            allocator
         );
         defer result.deinit();
 
@@ -1089,13 +1093,13 @@ pub const Bezier = struct {
     }
 
     const ProjectCurveGuts = struct {
+        allocator: std.mem.Allocator,
         result : ?Bezier = null,
         self_split: ?Bezier = null,
         other_split: ?Bezier = null,
         to_project : ?Bezier = null,
         tpa: ?[]tpa_result = null,
         segments_to_project_through: ?[]usize = null,
-        allocator: std.mem.Allocator,
         midpoint_derivatives: ?[]control_point.ControlPoint = null,
         f_prime_of_g_of_t: ?[]control_point.ControlPoint = null,
         g_prime_of_t: ?[]control_point.ControlPoint = null,
@@ -1144,8 +1148,8 @@ pub const Bezier = struct {
     /// instrumentation ("guts") for debugging/visualization purposes
     pub fn project_curve_guts(
         self: @This(),
-        other: Bezier,
         allocator: std.mem.Allocator,
+        other: Bezier,
         // should be []Bezier <-  come back to this later
     ) !ProjectCurveGuts 
     {
@@ -1198,8 +1202,8 @@ pub const Bezier = struct {
 
                 self_split = (
                     try self_split.split_at_each_input_ordinate(
+                        allocator,
                         split_points.items,
-                        allocator
                     )
                 );
             }
@@ -1236,8 +1240,8 @@ pub const Bezier = struct {
 
                 other_split = (
                     try other_split.split_at_each_output_ordinate(
+                        allocator,
                         split_points.items,
-                        allocator
                     )
                 );
             }
@@ -1252,10 +1256,8 @@ pub const Bezier = struct {
         var current_curve = std.ArrayList(Segment).init(allocator);
         defer current_curve.deinit();
 
-        // @breakpoint();
-
-        // having split both curves by both endpoints, throw out the segments in
-        // other that will not be projected
+        // having split both curves by both endpoints, throw out the segments
+        // in other that will not be projected
         for (other_split.segments, 0..) 
             |other_segment, index| 
         {
@@ -1544,8 +1546,8 @@ pub const Bezier = struct {
     /// project an affine transformation through the curve
     pub fn project_affine(
         self: @This(),
-        aff: opentime.transform.AffineTransform1D,
         allocator: std.mem.Allocator,
+        aff: opentime.transform.AffineTransform1D,
     ) !Bezier 
     {
         const result_segments = try allocator.dupe(
@@ -1639,8 +1641,8 @@ pub const Bezier = struct {
     ///       return will a strict copy of self.
     pub fn split_at_input_ordinate(
         self:@This(),
-        ordinate:opentime.Ordinate,
         allocator: std.mem.Allocator,
+        ordinate:opentime.Ordinate,
     ) !Bezier 
     {
         const seg_to_split_index = self.find_segment_index(ordinate) orelse {
@@ -1703,8 +1705,8 @@ pub const Bezier = struct {
     /// [0, 3)[0, 5)[5, 10)[0,2)[2, 4)
     pub fn split_at_each_output_ordinate(
         self:@This(),
-        ordinates:[]const opentime.Ordinate,
         allocator: std.mem.Allocator,
+        ordinates:[]const opentime.Ordinate,
     ) !Bezier 
     {
         var result_segments = std.ArrayList(
@@ -1762,8 +1764,8 @@ pub const Bezier = struct {
 
     pub fn split_at_each_input_ordinate(
         self:@This(),
-        ordinates:[]const opentime.Ordinate,
         allocator: std.mem.Allocator,
+        ordinates:[]const opentime.Ordinate,
     ) !Bezier 
     {
         var result_segments = std.ArrayList(
@@ -1828,9 +1830,9 @@ pub const Bezier = struct {
     ///       strict copy of self.
     pub fn trimmed_from_input_ordinate(
         self: @This(),
+        allocator: std.mem.Allocator,
         ordinate: opentime.Ordinate,
         direction: TrimDir,
-        allocator: std.mem.Allocator,
     ) !Bezier 
     {
         if (
@@ -1937,24 +1939,24 @@ pub const Bezier = struct {
     /// Otherwise the curve is copied, and trimmed to fit the bounds.
     pub fn trimmed_in_input_space(
         self: @This(),
-        bounds: opentime.ContinuousTimeInterval,
         allocator: std.mem.Allocator,
+        bounds: opentime.ContinuousTimeInterval,
     ) !Bezier 
     {
         // @TODO; implement this using slices of a larger segment buffer to
         //        reduce the number of allocations/copies
         var front_split = try self.trimmed_from_input_ordinate(
+            allocator,
             bounds.start_seconds,
             .trim_before,
-            allocator
         );
         defer front_split.deinit(allocator);
 
         // @TODO: - does the above trim reset the origin on the input space?
         const result = try front_split.trimmed_from_input_ordinate(
+            allocator,
             bounds.end_seconds,
             .trim_after,
-            allocator,
         );
 
         return result;
@@ -2731,8 +2733,8 @@ test "Bezier: split_at_each_value u curve"
     };
 
     const result = try upside_down_u_hodo.split_at_each_output_ordinate(
+        std.testing.allocator,
         &split_points,
-        std.testing.allocator
     );
     defer result.deinit(std.testing.allocator);
 
@@ -2788,8 +2790,8 @@ test "Bezier: split_at_each_value linear"
     const split_points = [_]opentime.Ordinate{ -0.2, 0, 0.5, 1 };
 
     const result = try lin.split_at_each_output_ordinate(
+        std.testing.allocator,
         &split_points,
-        std.testing.allocator
     );
     defer result.deinit(std.testing.allocator);
 
@@ -2845,8 +2847,8 @@ test "Bezier: split_at_each_input_ordinate linear"
     const split_points = [_]opentime.Ordinate{ -0.2, 0, 0.5, 1 };
 
     const result = try lin.split_at_each_input_ordinate(
+        std.testing.allocator,
         &split_points,
-        std.testing.allocator
     );
     defer result.deinit(std.testing.allocator);
 
@@ -2922,8 +2924,8 @@ test "Bezier: split_at_input_ordinate"
                 }
             );
             const split_ident = try ident.split_at_input_ordinate(
+                std.testing.allocator,
                 split_loc,
-                std.testing.allocator
             );
             defer split_ident.deinit(std.testing.allocator);
 
@@ -3054,9 +3056,9 @@ test "Bezier: trimmed_from_input_ordinate"
             );
 
             const trimmed_curve = try ident.trimmed_from_input_ordinate(
+                std.testing.allocator,
                 td.ordinate,
                 td.direction,
-                std.testing.allocator,
             );
             const trimmed_extents = trimmed_curve.extents();
             defer trimmed_curve.deinit(std.testing.allocator);
@@ -3193,8 +3195,8 @@ test "Bezier: trimmed_in_input_space"
                 );
             }
             const trimmed_curve = try ident.trimmed_in_input_space(
+                std.testing.allocator,
                 td.trim_range,
-                std.testing.allocator
             );
             defer trimmed_curve.deinit(std.testing.allocator);
 
@@ -3259,8 +3261,8 @@ test "Bezier: project_affine"
         |testdata| 
     {
         const result = try test_crv.project_affine(
+            std.testing.allocator,
             testdata,
-            std.testing.allocator
         );
         defer result.deinit(std.testing.allocator);
 
@@ -3299,9 +3301,9 @@ test "Bezier: project_affine"
 }
 
 pub fn affine_project_curve(
+    allocator: std.mem.Allocator,
     lhs: opentime.transform.AffineTransform1D,
     rhs: Bezier,
-    allocator: std.mem.Allocator,
 ) !Bezier 
 {
     const result_segments = try allocator.dupe(
@@ -3359,9 +3361,9 @@ test "affine_project_curve"
             .{ test_loop_index, testdata.offset_seconds, testdata.scale }
         );
         const result = try affine_project_curve(
+            std.testing.allocator,
             testdata,
             test_crv, 
-            std.testing.allocator
         );
         defer result.deinit(std.testing.allocator);
 

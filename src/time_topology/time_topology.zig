@@ -15,7 +15,6 @@ const transform = opentime.transform;
 const util = opentime.util;
 
 const curve = @import("curve"); 
-const control_point = curve.control_point; 
 
 // import more tests
 test 
@@ -68,7 +67,7 @@ pub const AffineTopology = struct {
             return error.CannotLinearizeWithInfiniteBounds;
         }
 
-        const bound_points = [2]control_point.ControlPoint{
+        const bound_points = [2]curve.ControlPoint{
             .{
                 .in = self.bounds.start_seconds,
                 .out = try self.project_instantaneous_cc(
@@ -162,9 +161,9 @@ pub const AffineTopology = struct {
             .bezier_curve => |other_bez| .{ 
                 .bezier_curve = .{
                     .curve = try curve.affine_project_curve(
+                        allocator,
                         self.transform,
                         other_bez.curve,
-                        allocator
                     )
                 }
             },
@@ -495,14 +494,14 @@ pub const BezierTopology = struct {
         return switch (other) {
             .affine => |aff| {
                 const projected_curve = try self.curve.project_affine(
-                    aff.transform,
                     allocator,
+                    aff.transform,
                 );
 
                 return .{
                     .bezier_curve = .{ 
-                        .curve = projected_curve 
-                    }
+                        .curve = projected_curve,
+                    },
                 };
             },
             .bezier_curve => |bez| switch (
@@ -512,7 +511,7 @@ pub const BezierTopology = struct {
                     .bezier_curve = .{
                         .curve = try self.curve.project_curve(
                             allocator,
-                            bez.curve
+                            bez.curve,
                         )
                     }
                 },
@@ -521,7 +520,7 @@ pub const BezierTopology = struct {
                         .curve = (
                             try (
                              try self.curve.linearized(
-                                 allocator
+                                 allocator,
                              )
                             ).project_curve(
                                 allocator,

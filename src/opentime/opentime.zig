@@ -1,6 +1,4 @@
-//
-// Exports for the `opentime` library
-//
+//! Exports for the `opentime` library
 
 // ordinate @{
 const ordinate = @import("ordinate.zig");
@@ -24,7 +22,8 @@ pub const IDENTITY_TRANSFORM = transform.IDENTITY_TRANSFORM;
 // @}
 
 pub const dual = @import("dual.zig");
-pub const Dual_t = dual.Dual_t;
+pub const Dual_Ord = dual.Dual_Ord;
+pub const dual_ctx = dual.dual_ctx{};
 
 pub const util = @import("util.zig");
 

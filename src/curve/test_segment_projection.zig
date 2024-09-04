@@ -3,7 +3,7 @@ const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const expectApproxEqAbs = std.testing.expectApproxEqAbs;
 
-const curve = @import("./curve.zig");
+const curve = @import("curve.zig");
 
 ///////////////////////////////////////////////////////////////////////////////
 // this file is for testing specifically the curve projection, building up to
@@ -58,8 +58,8 @@ test "curve projection tests: identity projection" {
     defer double_tc.deinit(std.testing.allocator);
 
     const results = try identity_tc.project_curve_guts(
-        double_tc,
         std.testing.allocator,
+        double_tc,
     );
     defer results.deinit();
 

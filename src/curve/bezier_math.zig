@@ -1,16 +1,16 @@
 //! Bezier Math components to use with curves
 
 const std = @import("std");
+const expectEqual = std.testing.expectEqual;
+const expect = std.testing.expect;
+
+const comath = @import("comath");
 
 const control_point = @import("control_point.zig");
-const ControlPoint = control_point.ControlPoint;
 const bezier_curve = @import("bezier_curve.zig");
 const linear_curve = @import("linear_curve.zig");
 const generic_curve = @import("generic_curve.zig");
-const expectEqual = std.testing.expectEqual;
-const expect = std.testing.expect;
-const comath = @import("comath");
-const dual = @import("opentime").dual;
+const opentime = @import("opentime");
 
 
 inline fn expectApproxEql(
@@ -27,7 +27,7 @@ inline fn expectApproxEql(
 
 /// comath context for operations on duals
 const CTX = comath.ctx.fnMethod(
-    comath.ctx.simple(dual.dual_ctx{}),
+    comath.ctx.simple(opentime.dual_ctx),
     .{
         .@"+" = "add",
         .@"-" = &.{"sub", "negate"},
@@ -77,8 +77,8 @@ pub fn invlerp(
 
 pub fn output_at_input_between(
     t: f32,
-    fst: ControlPoint,
-    snd: ControlPoint,
+    fst: control_point.ControlPoint,
+    snd: control_point.ControlPoint,
 ) f32 
 {
     const u = invlerp(t, fst.in, snd.in);
@@ -87,8 +87,8 @@ pub fn output_at_input_between(
 
 pub fn input_at_output_between(
     v: f32,
-    fst: ControlPoint,
-    snd: ControlPoint,
+    fst: control_point.ControlPoint,
+    snd: control_point.ControlPoint,
 ) f32 
 {
     const u = invlerp(v, fst.out, snd.out);
@@ -97,7 +97,7 @@ pub fn input_at_output_between(
 
 // dual variety
 pub fn segment_reduce4_dual(
-    u: dual.Dual_f32, 
+    u: opentime.Dual_Ord, 
     segment: [4]control_point.Dual_CP
 ) [4]control_point.Dual_CP 
 {
@@ -110,7 +110,7 @@ pub fn segment_reduce4_dual(
 }
 
 pub fn segment_reduce3_dual(
-    u: dual.Dual_f32,
+    u: opentime.Dual_Ord,
     segment: [4]control_point.Dual_CP
 ) [4]control_point.Dual_CP 
 {
@@ -123,7 +123,7 @@ pub fn segment_reduce3_dual(
 }
 
 pub fn segment_reduce2_dual(
-    u: dual.Dual_f32,
+    u: opentime.Dual_Ord,
     segment: [4]control_point.Dual_CP
 ) [4]control_point.Dual_CP 
 {
@@ -207,11 +207,11 @@ pub fn _bezier0(
 }
 
 pub fn _bezier0_dual(
-    unorm: dual.Dual_f32,
+    unorm: opentime.Dual_Ord,
     p2: f32,
     p3: f32,
     p4: f32
-) dual.Dual_f32
+) opentime.Dual_Ord
 {
     // original math (p1 = 0, so last term falls out)
     // return (p4 * z3) 
@@ -228,9 +228,9 @@ pub fn _bezier0_dual(
         .{
             .u = unorm,
             .zmo = unorm.sub(.{.r = 1.0, .i = 0.0}),
-            .p2 = dual.Dual_f32{ .r = p2, .i = 0.0 },
-            .p3 = dual.Dual_f32{ .r = p3, .i = 0.0 },
-            .p4 = dual.Dual_f32{ .r = p4, .i = 0.0 },
+            .p2 = opentime.Dual_Ord{ .r = p2, .i = 0.0 },
+            .p3 = opentime.Dual_Ord{ .r = p3, .i = 0.0 },
+            .p4 = opentime.Dual_Ord{ .r = p4, .i = 0.0 },
         }
     );
 }
@@ -356,8 +356,8 @@ pub fn _findU(
 }
 
 fn first_valid_root(
-    possible_roots: [] const dual.Dual_f32,
-) dual.Dual_f32
+    possible_roots: [] const opentime.Dual_Ord,
+) opentime.Dual_Ord
 {
     for (possible_roots)
         |root|
@@ -373,8 +373,8 @@ fn first_valid_root(
 
 /// cube root function yielding real roots
 inline fn crt(
-    v:dual.Dual_f32
-) dual.Dual_f32
+    v:opentime.Dual_Ord
+) opentime.Dual_Ord
 {
     if (v.r < 0) {
         return ((v.negate()).pow(1.0/3.0)).negate();
@@ -531,15 +531,15 @@ pub fn findU_dual3(
     p1: f32,
     p2: f32,
     p3: f32,
-) dual.Dual_f32
+) opentime.Dual_Ord
 {
     // assumes that p3 > p0
     const x = @min(@max(x_input, p0), p3);
 
-    const p0_d = dual.Dual_f32{.r = p0 - x, .i = -1 };
-    const p1_d = dual.Dual_f32{.r = p1 - x, .i = -1 };
-    const p2_d = dual.Dual_f32{.r = p2 - x, .i = -1 };
-    const p3_d = dual.Dual_f32{.r = p3 - x, .i = -1 };
+    const p0_d = opentime.Dual_Ord{.r = p0 - x, .i = -1 };
+    const p1_d = opentime.Dual_Ord{.r = p1 - x, .i = -1 };
+    const p2_d = opentime.Dual_Ord{.r = p2 - x, .i = -1 };
+    const p3_d = opentime.Dual_Ord{.r = p3 - x, .i = -1 };
 
     const d = comath.eval(
         // "(-pa) + (pb * 3.0) - (pc * 3.0) + pd",
@@ -673,7 +673,7 @@ pub fn findU_dual3(
             CTX,
             .{ .q = q, .r = r, },
         );
-        const ONE_DUAL = dual.Dual_f32{ .r = 1.0, .i = t.i };
+        const ONE_DUAL = opentime.Dual_Ord{ .r = 1.0, .i = t.i };
         const cosphi = if (t.r < -1) 
             ONE_DUAL.negate() 
             else (
@@ -748,18 +748,18 @@ pub fn findU_dual2(
     p1: f32,
     p2: f32,
     p3: f32,
-) dual.Dual_f32
+) opentime.Dual_Ord
 {
     // first guess
-    var u_guess: dual.Dual_f32 = .{ .r = 0.5, .i = 1.0 };
+    var u_guess: opentime.Dual_Ord = .{ .r = 0.5, .i = 1.0 };
 
     const MAX_ABS_ERROR = std.math.floatEps(f32) * 2.0;
     const MAX_ITERATIONS = 45;
 
-    var u_max = dual.Dual_f32{.r = 1.0, .i = 0.0 };
-    var u_min = dual.Dual_f32{.r = 0.0, .i = 0.0 };
+    var u_max = opentime.Dual_Ord{.r = 1.0, .i = 0.0 };
+    var u_min = opentime.Dual_Ord{.r = 0.0, .i = 0.0 };
 
-    const TWO = dual.Dual_f32{ .r = 2.0, .i = 0.0 };
+    const TWO = opentime.Dual_Ord{ .r = 2.0, .i = 0.0 };
 
     var iter:usize = 0;
     while (iter < MAX_ITERATIONS) 
@@ -805,8 +805,8 @@ pub fn findU_dual2(
     // best guess
     return u_guess;
 
-    // var u_guess = dual.Dual_f32{ .r =  1.5, .i = 1.0 };
-    // const x_input_dual = dual.Dual_f32{ .r = x_input, .i = 0 };
+    // var u_guess = opentime.Dual_Ord{ .r =  1.5, .i = 1.0 };
+    // const x_input_dual = opentime.Dual_Ord{ .r = x_input, .i = 0 };
     //
     // var iter:usize = 0;
     // while (iter < MAX_ITERATIONS)
@@ -827,7 +827,7 @@ pub fn findU_dual2(
     //             .u_guess = u_guess,
     //             .x_at_u_guess = x_at_u_guess,
     //             .x_input_dual = x_input_dual,
-    //             .dx_at_uguess_du = dual.Dual_f32{ .r = u_guess.i, .i = 0 },
+    //             .dx_at_uguess_du = opentime.Dual_Ord{ .r = u_guess.i, .i = 0 },
     //         },
     //     );
     // }
@@ -851,13 +851,13 @@ pub fn _findU_dual(
     p1:f32,
     p2:f32,
     p3:f32,
-) dual.Dual_f32
+) opentime.Dual_Ord
 {
     const MAX_ABS_ERROR = std.math.floatEps(f32) * 2.0;
     const MAX_ITERATIONS: u8 = 45;
 
-    const ONE_DUAL  = dual.Dual_f32{ .r = 1, .i = 0};
-    const ZERO_DUAL = dual.Dual_f32{ .r = 0, .i = 0};
+    const ONE_DUAL  = opentime.Dual_Ord{ .r = 1, .i = 0};
+    const ZERO_DUAL = opentime.Dual_Ord{ .r = 0, .i = 0};
 
     // if (x_input < 0) {
     //     return ZERO_DUAL;
@@ -868,14 +868,14 @@ pub fn _findU_dual(
     // }
 
     // differentiate from x on
-    const x = dual.Dual_f32{ .r = x_input, .i = 1 };
+    const x = opentime.Dual_Ord{ .r = x_input, .i = 1 };
 
     var _u1=ZERO_DUAL;
     var _u2=ZERO_DUAL;
     var x1 = x.negate(); // same as: bezier0 (0, p1, p2, p3) - x;
     var x2 = try comath.eval(
         "x1 + p3",
-        CTX, .{ .x1 = x1, .p3 = dual.Dual_f32{ .r = p3, .i = 0 } },
+        CTX, .{ .x1 = x1, .p3 = opentime.Dual_Ord{ .r = p3, .i = 0 } },
     ); // same as: bezier0 (1, p1, p2, p3) - x;
 
     // find a good start point for the newton-raphson search, bail out early on
@@ -1036,15 +1036,15 @@ pub fn findU_dual(
     p1:f32, 
     p2:f32,
     p3:f32,
-) dual.Dual_f32
+) opentime.Dual_Ord
 {
     return findU_dual3(x, p0, p1, p2, p3);
 }
 
 test "lerp" 
 {
-    const fst: ControlPoint = .{ .in = 0, .out = 0 };
-    const snd: ControlPoint = .{ .in = 1, .out = 1 };
+    const fst: control_point.ControlPoint = .{ .in = 0, .out = 0 };
+    const snd: control_point.ControlPoint = .{ .in = 1, .out = 1 };
 
     try expectEqual(@as(f32, 0), lerp(0, fst, snd).out);
     try expectEqual(@as(f32, 0.25), lerp(0.25, fst, snd).out);
@@ -1251,8 +1251,8 @@ test "derivative at 0 for linear bezier_curve"
 pub fn normalized_to(
     allocator: std.mem.Allocator,
     crv:bezier_curve.Bezier,
-    min_point:ControlPoint,
-    max_point:ControlPoint,
+    min_point:control_point.ControlPoint,
+    max_point:control_point.ControlPoint,
 ) !bezier_curve.Bezier 
 {
     // return input, bezier_curve is empty
@@ -1292,8 +1292,8 @@ test "normalized_to"
     };
     const input_crv:bezier_curve.Bezier = .{ .segments = &slope2 };
 
-    const min_point: ControlPoint = .{.in=-100, .out=-300};
-    const max_point: ControlPoint = .{.in=100, .out=-200};
+    const min_point: control_point.ControlPoint = .{.in=-100, .out=-300};
+    const max_point: control_point.ControlPoint = .{.in=100, .out=-200};
 
     const result_crv = try normalized_to(
         std.testing.allocator,
@@ -1325,8 +1325,8 @@ test "normalize_to_screen_coords"
         .segments = &segments
     };
 
-    const min_point = ControlPoint{.in=700, .out=100};
-    const max_point = ControlPoint{.in=2500, .out=1900};
+    const min_point = control_point.ControlPoint{.in=700, .out=100};
+    const max_point = control_point.ControlPoint{.in=2500, .out=1900};
 
     const result_crv = try normalized_to(
         std.testing.allocator,
@@ -1345,8 +1345,8 @@ test "normalize_to_screen_coords"
 }
 
 pub fn _compute_slope(
-    p1: ControlPoint,
-    p2: ControlPoint,
+    p1: control_point.ControlPoint,
+    p2: control_point.ControlPoint,
 ) f32 
 {
     return (p2.out - p1.out) / (p2.in - p1.in); 
@@ -1382,7 +1382,7 @@ pub fn inverted_linear(
     // const slope = _compute_slope( crv.knots[0], crv.knots[1]);
     // if (slope < 0) {
     //     std.mem.reverse(
-    //         ControlPoint,
+    //         control_point.ControlPoint,
     //         result.knots
     //     );
     // }
@@ -1412,7 +1412,7 @@ pub fn inverted_linear(
 
         if (slice_sign < 0) {
             std.mem.reverse(
-                ControlPoint,
+                control_point.ControlPoint,
                 result.knots[slice_start..i_p1]
             );
         }
@@ -1424,7 +1424,7 @@ pub fn inverted_linear(
     // if last slice
     if (slice_sign < 0) {
         std.mem.reverse(
-            ControlPoint,
+            control_point.ControlPoint,
             result.knots[slice_start..]
         );
     }
@@ -1658,10 +1658,10 @@ fn _remap(
 }
 
 fn _rescaled_pt(
-    pt:ControlPoint,
-    extents: [2]ControlPoint,
-    target_range: [2]ControlPoint,
-) ControlPoint
+    pt:control_point.ControlPoint,
+    extents: [2]control_point.ControlPoint,
+    target_range: [2]control_point.ControlPoint,
+) control_point.ControlPoint
 {
     return _remap(
         pt,
@@ -1674,7 +1674,7 @@ fn _rescaled_pt(
 pub fn rescaled_curve(
     allocator: std.mem.Allocator,
     crv: bezier_curve.Bezier,
-    target_range: [2]ControlPoint,
+    target_range: [2]control_point.ControlPoint,
 ) !bezier_curve.Bezier
 {
     const extents = crv.extents();
