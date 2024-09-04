@@ -76,13 +76,8 @@ contains:
   implementation
   * [x] build check for graphviz
   * [x] add check for graphviz to build system
-  * [ ] clarify ownership in the OTIO objects - I think we actually don't
-        want `Item` and want everything to work with `ItemPtr` across the
-        board.
-    * [ ] ie: if everything is ItemPtr, then when cleaning up a stack, do you
-          also free the things that its ItemPtrs point at?
   * [ ] consistent names
-    * time/value in control points -> input/output
+    * [x] time/value in control points -> input/output
         * do `ControlPoint.input`/output stay f32?  or do they move to
           `opentime.Ordinate` to start moving in the direction of a
           `RationalTime` or other similar structure
@@ -103,7 +98,7 @@ contains:
    * polymorphism in timetopology->mapping, TimeTopology becomes []Mapping
      * [ ] project_curve returns a []curve instead of a topology?
    * switch the join() structure for joining mappings (vs project curve etc)
-   * [ ] linear trimmed_in_input_space: promotes to bezier, trims there and
+   * [x] linear trimmed_in_input_space: promotes to bezier, trims there and
       then demotes back.  should do everything on the linear knots
     * [ ]  time_topology: is projecting the end point an error?  Or not?
            **For context**: for most of the run of the project, we had this
