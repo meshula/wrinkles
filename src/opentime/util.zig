@@ -9,3 +9,16 @@ pub fn skip_test() error{SkipZigTest}!void {
         return error.SkipZigTest;
     }
 }
+
+/// wrapper around expectApproxEqAbs with baked in epsilon
+pub inline fn expectApproxEql(
+    expected: anytype,
+    actual: @TypeOf(expected)
+) !void 
+{
+    return std.testing.expectApproxEqAbs(
+        expected,
+        actual,
+        EPSILON,
+    );
+}

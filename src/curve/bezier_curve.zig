@@ -2101,7 +2101,7 @@ test "Curve: read_curve_json"
         "curves/linear.curve.json",
         std.testing.allocator
     );
-    defer std.testing.allocator.free(curve.segments);
+    defer curve.deinit(std.testing.allocator);
 
     try expectEqual(1, curve.segments.len);
 
@@ -2117,6 +2117,14 @@ test "Curve: read_curve_json"
 
     // already linear!
     try expectEqual(2, linearized_knots.len);
+    try std.testing.expectEqualSlices(
+        control_point.ControlPoint,
+        &[_]control_point.ControlPoint{
+            .{ .in = -0.5, .out = -0.5 },
+            .{ .in =  0.5, .out =  0.5 },
+        },
+        linearized_knots,
+    );
 }
 
 test "Bezier.Segment: projected_segment to 1/2" 
@@ -2954,7 +2962,11 @@ test "Bezier: split_at_input_ordinate"
                     "Loop: {} orig: {} new: {}",
                     .{i, fst, snd}
                 );
-                try std.testing.expectApproxEqAbs(fst, snd, 0.001);
+                try std.testing.expectApproxEqAbs(
+                    fst,
+                    snd,
+                    0.0001
+                );
             }
         }
     }

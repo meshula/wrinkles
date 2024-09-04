@@ -1,7 +1,6 @@
 //! Linear curves are made of right-met connected line segments
 
 const std = @import("std");
-const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const expectApproxEqAbs = std.testing.expectApproxEqAbs;
 
