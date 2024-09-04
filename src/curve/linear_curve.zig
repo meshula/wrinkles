@@ -1,9 +1,4 @@
-//! Linear curves are made of connected line segments
-
-const bezier_curve = @import("bezier_curve.zig");
-const bezier_math = @import("bezier_math.zig");
-const generic_curve = @import("generic_curve.zig");
-const ControlPoint = @import("control_point.zig").ControlPoint;
+//! Linear curves are made of right-met connected line segments
 
 const std = @import("std");
 const expect = std.testing.expect;
@@ -11,12 +6,16 @@ const expectEqual = std.testing.expectEqual;
 const expectApproxEqAbs = std.testing.expectApproxEqAbs;
 
 const opentime = @import("opentime");
-const ContinuousTimeInterval = opentime.ContinuousTimeInterval;
+
+const bezier_curve = @import("bezier_curve.zig");
+const bezier_math = @import("bezier_math.zig");
+const generic_curve = @import("generic_curve.zig");
+const ControlPoint = @import("control_point.zig").ControlPoint;
 
 fn _is_between(
-    val: f32,
-    fst: f32,
-    snd: f32
+    val: anytype,
+    fst: @TypeOf(val),
+    snd: @TypeOf(val)
 ) bool 
 {
     return (
@@ -29,7 +28,6 @@ fn _is_between(
 pub const Linear = struct {
     knots: []ControlPoint = &.{},
 
-    // @TODO: remove the allocator from this
     /// dupe the provided points into the result
     pub fn init(
         allocator: std.mem.Allocator,
@@ -97,23 +95,39 @@ pub const Linear = struct {
         input_bounds: opentime.ContinuousTimeInterval,
     ) !Linear
     {
-        // @TODO CBB - obviously not promoting to bezier_curve and then
-        //             trimming that way only to linearize back to
-        //             Linear would be better than this.
-        //             HACK XXX
-        const tmp_curve = try bezier_curve.Bezier.init_from_linear_curve(
-            allocator,
-            self,
+        var result = std.ArrayList(ControlPoint).init(
+            allocator
         );
-        defer tmp_curve.deinit(allocator);
+        result.deinit();
 
-        const trimmed_curve = try tmp_curve.trimmed_in_input_space(
-            input_bounds,
-            allocator,
-        );
-        defer trimmed_curve.deinit(allocator);
+        const first_point = ControlPoint{
+            .in = input_bounds.start_seconds,
+            .out = try self.output_at_input(input_bounds.start_seconds),
+        };
+        try result.append(first_point);
 
-        return try trimmed_curve.linearized(allocator);
+        
+        const last_point = if (
+            input_bounds.end_seconds < self.extents()[1].in
+        ) ControlPoint{ 
+            .in = input_bounds.end_seconds,
+            .out = try self.output_at_input(input_bounds.end_seconds),
+        } else self.extents()[1];
+
+        for (self.knots) 
+            |knot|
+        {
+            if (
+                knot.in > first_point.in
+                and knot.in < last_point.in
+            ) {
+                try result.append(knot);
+            }
+        }
+
+        try result.append(last_point);
+
+        return Linear{ .knots = try result.toOwnedSlice() };
     }
 
     /// project an affine transformation through the curve, returning a new
@@ -474,7 +488,7 @@ pub const Linear = struct {
     /// curves are monotonic over their input spaces by definition.
     pub fn extents_input(
         self:@This()
-    ) ContinuousTimeInterval 
+    ) opentime.ContinuousTimeInterval 
     {
         return .{
             .start_seconds = self.knots[0].in,
