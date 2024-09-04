@@ -336,7 +336,7 @@ pub const Linear = struct {
 
         // gather the curves to project by splitting
         {
-            const self_bounds_t = self.extents_time();
+            const self_bounds_t = self.extents_input();
             var last_index:?i32 = null;
             var current_curve = (
                 std.ArrayList(ControlPoint).init(
@@ -472,7 +472,7 @@ pub const Linear = struct {
 
     /// return the extents of the time (input) domain of the curve  - O(1)
     /// because curves are monotonic over time by definition.
-    pub fn extents_time(
+    pub fn extents_input(
         self:@This()
     ) ContinuousTimeInterval 
     {
@@ -566,7 +566,7 @@ test "Linear: extents"
     try expectEqual(@as(f32, 100), bounds[0].in);
     try expectEqual(@as(f32, 200), bounds[1].in);
 
-    const bounds_time = crv.extents_time();
+    const bounds_time = crv.extents_input();
     try expectEqual(@as(f32, 100), bounds_time.start_seconds);
     try expectEqual(@as(f32, 200), bounds_time.end_seconds);
 }

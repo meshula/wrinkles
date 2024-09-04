@@ -3842,7 +3842,7 @@ test "Single Clip bezier transform"
     );
 
     // test the output space range (the media space of the clip)
-    const curve_bounds_output = xform_curve.extents_value();
+    const curve_bounds_output = xform_curve.extents_output();
     try expectApproxEqAbs(
         @as(f32, 0),
         curve_bounds_output.start_seconds, util.EPSILON

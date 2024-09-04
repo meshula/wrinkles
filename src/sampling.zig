@@ -1220,7 +1220,7 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
 
     // linearize at 24hz
     const retime_curve_extents = (
-        cubic_retime_curve.extents_time()
+        cubic_retime_curve.extents_input()
     );
     const inc:sample_t = 4.0/24.0;
 

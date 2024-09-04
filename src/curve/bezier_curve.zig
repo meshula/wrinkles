@@ -274,7 +274,7 @@ pub const Segment = struct {
     }
 
     /// returns whether t overlaps the domain of this segment or not
-    pub fn overlaps_time(
+    pub fn overlaps_input_ordinate(
         self:@This(),
         t:f32
     ) bool 
@@ -338,7 +338,7 @@ pub const Segment = struct {
         };
     }
 
-    pub fn extents_time(
+    pub fn extents_input(
         self: @This()
     ) opentime.ContinuousTimeInterval
     {
@@ -411,8 +411,8 @@ pub const Segment = struct {
     }
 
     /// @TODO: this function only works if the value is increasing over the 
-    ///        segment.  The monotonicity and increasing -ness of a segment
-    ///        is guaranteed for time, but not for the value coordinate.
+    ///        segment.  The monotonicity and increasing -ness of a segment is
+    ///        guaranteed for the input space, but not for the output space.
     pub fn findU_value(
         self:@This(),
         tgt_value: f32
@@ -509,10 +509,10 @@ pub const Segment = struct {
             allocator,
             \\
             \\{{
-            \\    "p0": {{ "time": {d:.6}, "value": {d:.6} }},
-            \\    "p1": {{ "time": {d:.6}, "value": {d:.6} }},
-            \\    "p2": {{ "time": {d:.6}, "value": {d:.6} }},
-            \\    "p3": {{ "time": {d:.6}, "value": {d:.6} }}
+            \\    "p0": {{ "in": {d:.6}, "out": {d:.6} }},
+            \\    "p1": {{ "in": {d:.6}, "out": {d:.6} }},
+            \\    "p2": {{ "in": {d:.6}, "out": {d:.6} }},
+            \\    "p3": {{ "in": {d:.6}, "out": {d:.6} }}
             \\}}
             \\
             ,
@@ -585,10 +585,10 @@ test "Segment: debug_str test"
     const result: []const u8=
         \\
         \\{
-        \\    "p0": { "time": -0.500000, "value": -0.500000 },
-        \\    "p1": { "time": -0.166667, "value": -0.166667 },
-        \\    "p2": { "time": 0.166667, "value": 0.166667 },
-        \\    "p3": { "time": 0.500000, "value": 0.500000 }
+        \\    "p0": { "in": -0.500000, "out": -0.500000 },
+        \\    "p1": { "in": -0.166667, "out": -0.166667 },
+        \\    "p2": { "in": 0.166667, "out": 0.166667 },
+        \\    "p3": { "in": 0.500000, "out": 0.500000 }
         \\}
         \\
             ;
@@ -871,40 +871,16 @@ test "Segment.init_identity check cubic spline"
     try expectEqual(@as(f32, 1), seg.p3.out);
 }
 
-/// Bezier maps an input time to an output time.
+/// A bezier interpolation mapping input times to output times
 ///
-/// The Bezier is a sequence of 2d cubic bezier segments,
-/// closed at the start, and open at the end, where each
-/// segment is met by the previous one.
+/// The Bezier is a sequence of 2d cubic bezier segments, closed at the start,
+/// and open at the end, where each segment is met by the previous one.
 ///
-/// The evaluation of a Bezier (S0, S1, ... Sn) at t, is
-/// therefore t if t < S0.p0.in or t >= S0.p3.in. Otherwise,
-/// the segment S whose interval [S.p0.in, S.p3.in) contains t
-/// is evaluated according to the cubic Bezier equations.
-///
-/// @TODO: we would like to break this down by curve parameterization
-///             - CubicBezierCurve1d/CubicBezierSegment1d (current implementation)
-///                 - can be linearized into a LinearBezierCurve1d
-///                 - can be projected _through_ but not itself projected
-///                   without linearization
-///             - LinearBezierCurve1d/LinearBezierSegment1d
-///                 - optimization, but also invertible and projectible!
-///             - IdentityCurve1d
-///                 - defined over the entire continuum, or within given bounds
-///                 - convienent for interval->Bezier
-///             - NullCurve1d
-///                 - out of bounds everywhere
-///                 - so that topologies can have "holes"
-///            IdentityCurve1d and NullCurve1d
-///            ... but it isn't urgent, I think this can wait
-///
-///            ... there are other procedural curves that we may want to encode:
-///            - mono hermite
-///            - step function
-///
+/// The evaluation of a Bezier (S0, S1, ... Sn) at t, is therefore t if t <
+/// S0.p0.in or t >= S0.p3.in. Otherwise, the segment S whose interval
+/// [S.p0.in, S.p3.in) contains t is evaluated according to the cubic Bezier
+/// equations.
 pub const Bezier = struct {
-    // according to the evaluation specification, an empty
-    // Bezier evaluates t as t, everywhere.
     segments: []Segment = &.{},
 
     /// dupe the segments argument into the returned object
@@ -993,22 +969,22 @@ pub const Bezier = struct {
         ord_input: f32,
     ) ?usize 
     {
-        const start_time = self.segments[0].p0.in - generic_curve.EPSILON;
+        const input_start = self.segments[0].p0.in - generic_curve.EPSILON;
         const last_seg = self.segments[self.segments.len - 1];
-        const end_time = last_seg.p3.in - generic_curve.EPSILON;
+        const input_end = last_seg.p3.in - generic_curve.EPSILON;
 
         // @TODO: should this be inclusive of the endpoint?
         if (
             self.segments.len == 0 
-            or ord_input < start_time
-            or ord_input >= end_time
+            or ord_input < input_start
+            or ord_input >= input_end
         )
         {
             return null;
         }
 
-        // quick check if it is exactly the start time of the first segment
-        if (ord_input < start_time) {
+        // quick check if it is exactly the start ordinate of the first segment
+        if (ord_input < input_start) {
             return 0;
         }
 
@@ -1090,35 +1066,16 @@ pub const Bezier = struct {
         };
     }
 
-    /// project another curve through this one.  A curve maps 'time' to 'value'
-    /// parameters.  if curve self is v_self(t_self), and curve other is 
-    /// v_other(t_other) and other is being projected through self, the result
-    /// function is v_self(v_other(t_other)).  This maps the the v_other value
-    /// to the t_self parameter.
+    /// project another curve through this one.  A curve maps 'input' to
+    /// 'output' parameters.  
     ///
-    /// curve self:
-    /// 
-    /// v_self
-    /// |  /
-    /// | /
-    /// |/
-    /// +--- t_self
-    ///
-    /// curve other:
-    ///   
-    ///  v_other
-    /// |      ,-'
-    /// |   ,-'
-    /// |,-'
-    /// +---------- t_other
-    ///
-    /// @TODO finish this doc
-    ///
+    /// if self maps from space b->c, and other maps from a->b, then the result
+    /// will map a->c.
     pub fn project_curve(
         self: @This(),
         allocator: std.mem.Allocator,
         other: Bezier
-        // should be []Bezier <-  come back to this later
+        // @TODO: should be []Bezier <-  come back to this later
     ) !Bezier 
     {
         const result = try project_curve_guts(
@@ -1628,7 +1585,7 @@ pub const Bezier = struct {
     }
 
     /// return the extents of the curve's input spact /v
-    pub fn extents_time(
+    pub fn extents_input(
         self:@This()
     ) ContinuousTimeInterval 
     {
@@ -1639,7 +1596,7 @@ pub const Bezier = struct {
     }
 
     /// return the extents of the curve's output space
-    pub fn extents_value(
+    pub fn extents_output(
         self:@This()
     ) ContinuousTimeInterval 
     {
@@ -1884,12 +1841,12 @@ pub const Bezier = struct {
     {
         if (
             (
-             self.extents_time().start_seconds >= ordinate
+             self.extents_input().start_seconds >= ordinate
              and direction == .trim_before
             )
             or
             (
-             self.extents_time().end_seconds <= ordinate
+             self.extents_input().end_seconds <= ordinate
              and direction == .trim_after
             )
 
@@ -2415,14 +2372,23 @@ test "convex hull test"
         const tmp = p3;
         p3 = p2;
         p2 = tmp;
-        right_bound_segment = Segment.init_from_start_end(p2, p3);
+        right_bound_segment = Segment.init_from_start_end(
+            p2,
+            p3,
+        );
     }
 
-    const top_bound_segment = Segment.init_from_start_end(p1, p2);
+    const top_bound_segment = Segment.init_from_start_end(
+        p1,
+        p2,
+    );
 
     // NOTE: reverse the winding order because linear segment requires the 
-    //       second point be _after_ the first in time
-    const bottom_bound_segment = Segment.init_from_start_end(p0, p3);
+    //       second point be _after_ the first in input space
+    const bottom_bound_segment = Segment.init_from_start_end(
+        p0,
+        p3,
+    );
 
     var i: f32 = 0;
     while (i <= 1) 

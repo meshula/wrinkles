@@ -58,7 +58,7 @@ pub const MappingCurveBezier = struct {
         self: @This(),
     ) opentime.ContinuousTimeInterval
     {
-        return self.input_to_output_curve.extents_time();
+        return self.input_to_output_curve.extents_input();
     }
 
     /// fetch (computing if necessary) the output bounds of the mapping
@@ -66,7 +66,7 @@ pub const MappingCurveBezier = struct {
         self: @This(),
     ) opentime.ContinuousTimeInterval
     {
-        return self.input_to_output_curve.extents_value();
+        return self.input_to_output_curve.extents_output();
     }
 
     pub fn mapping(
