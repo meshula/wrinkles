@@ -60,9 +60,9 @@ pub fn LinearOf(
             );
             for (knot_input_ords) 
                 |t| 
-                {
-                    try result.append(.{.in = t, .out = t});
-                }
+            {
+                try result.append(.{.in = t, .out = t});
+            }
 
             return LinearType{
                 .knots = try result.toOwnedSlice(), 
@@ -122,14 +122,14 @@ pub fn LinearOf(
 
             for (self.knots) 
                 |knot|
-                {
-                    if (
-                        knot.in > first_point.in
-                        and knot.in < last_point.in
-                    ) {
-                        try result.append(knot);
-                    }
+            {
+                if (
+                    knot.in > first_point.in
+                    and knot.in < last_point.in
+                ) {
+                    try result.append(knot);
                 }
+            }
 
             try result.append(last_point);
 
@@ -137,14 +137,14 @@ pub fn LinearOf(
         }
 
         /// project an affine transformation through the curve, returning a new
-        /// linear curve.  If self maps B->C, and xform maps A->B, then the result
-        /// of self.project_affine(xform) will map A->C
+        /// linear curve.  If self maps B->C, and xform maps A->B, then the
+        /// result of self.project_affine(xform) will map A->C
         pub fn project_affine(
             self: @This(),
             allocator: std.mem.Allocator,
             other_to_input_xform: opentime.transform.AffineTransform1D,
-            /// bounds on the input space of the curve (output space of the affine)
-            /// ("B" in the comment above)
+            /// bounds on the input space of the curve (output space of the
+            /// affine) ("B" in the comment above)
             input_bounds: opentime.ContinuousTimeInterval,
         ) !LinearType 
         {
@@ -164,9 +164,9 @@ pub fn LinearOf(
 
             for (clipped_curve.knots, result_knots) 
                 |pt, *target_knot| 
-                {
-                    target_knot.in = input_to_other_xform.applied_to_seconds(pt.in);
-                }
+            {
+                target_knot.in = input_to_other_xform.applied_to_seconds(pt.in);
+            }
 
             return .{
                 .knots = result_knots,
@@ -181,13 +181,13 @@ pub fn LinearOf(
         {
             if (self.nearest_smaller_knot_index(input_ord)) 
                 |index| 
-                {
-                    return bezier_math.output_at_input_between(
-                        input_ord,
-                        self.knots[index],
-                        self.knots[index+1],
-                    );
-                }
+            {
+                return bezier_math.output_at_input_between(
+                    input_ord,
+                    self.knots[index],
+                    self.knots[index+1],
+                );
+            }
 
             // specially handle the endpoint
             const last_knot = self.knots[self.knots.len - 1];
@@ -205,13 +205,13 @@ pub fn LinearOf(
         {
             if (self.nearest_smaller_knot_index_to_value(value_ord)) 
                 |index| 
-                {
-                    return bezier_math.input_at_output_between(
-                        value_ord,
-                        self.knots[index],
-                        self.knots[index+1],
-                    );
-                }
+            {
+                return bezier_math.input_at_output_between(
+                    value_ord,
+                    self.knots[index],
+                    self.knots[index+1],
+                );
+            }
 
             return error.OutOfBounds;
         }
@@ -236,12 +236,12 @@ pub fn LinearOf(
             // last knot is out of domain
             for (self.knots[0..last_index], self.knots[1..], 0..) 
                 |knot, next_knot, index| 
+            {
+                if ( knot.in <= t_arg and t_arg < next_knot.in) 
                 {
-                    if ( knot.in <= t_arg and t_arg < next_knot.in) 
-                    {
-                        return index;
-                    }
+                    return index;
                 }
+            }
 
             return null;
         }
@@ -266,12 +266,12 @@ pub fn LinearOf(
             // last knot is out of domain
             for (self.knots[0..last_index], self.knots[1..], 0..) 
                 |knot, next_knot, index| 
+            {
+                if ( knot.out <= value_ord and value_ord < next_knot.out) 
                 {
-                    if ( knot.out <= value_ord and value_ord < next_knot.out) 
-                    {
-                        return index;
-                    }
+                    return index;
                 }
+            }
 
             return null;
         }
@@ -331,17 +331,17 @@ pub fn LinearOf(
 
             for (self.knots)
                 |self_knot| 
-                {
-                    if (
-                        _is_between(
-                            self_knot.in,
-                            other_bounds[0].out,
-                            other_bounds[1].out
-                        )
-                    ) {
-                        try split_points.append(self_knot.in);
-                    }
+            {
+                if (
+                    _is_between(
+                        self_knot.in,
+                        other_bounds[0].out,
+                        other_bounds[1].out
+                    )
+                ) {
+                    try split_points.append(self_knot.in);
                 }
+            }
 
             const other_split_at_self_knots = try other.split_at_each_value(
                 allocator,
@@ -366,34 +366,34 @@ pub fn LinearOf(
 
                 for (other_split_at_self_knots.knots, 0..) 
                     |other_knot, index| 
+                {
+                    if (
+                        self_bounds_t.start_seconds <= other_knot.out 
+                        and other_knot.out <= self_bounds_t.end_seconds
+                    ) 
                     {
-                        if (
-                            self_bounds_t.start_seconds <= other_knot.out 
-                            and other_knot.out <= self_bounds_t.end_seconds
-                        ) 
+                        if (last_index == null or index != last_index.?+1) 
                         {
-                            if (last_index == null or index != last_index.?+1) 
+                            // curves of less than one point are trimmed, because they
+                            // have no duration, and therefore are not modelled in our
+                            // system.
+                            if (current_curve.items.len > 1) 
                             {
-                                // curves of less than one point are trimmed, because they
-                                // have no duration, and therefore are not modelled in our
-                                // system.
-                                if (current_curve.items.len > 1) 
-                                {
-                                    try curves_to_project.append(
-                                        LinearType{
-                                            .knots = (
-                                                try current_curve.toOwnedSlice()
-                                            ),
-                                        }
-                                    );
-                                }
-                                current_curve.clearAndFree();
+                                try curves_to_project.append(
+                                    LinearType{
+                                        .knots = (
+                                            try current_curve.toOwnedSlice()
+                                        ),
+                                    }
+                                );
                             }
-
-                            try current_curve.append(other_knot);
-                            last_index = @intCast(index);
+                            current_curve.clearAndFree();
                         }
+
+                        try current_curve.append(other_knot);
+                        last_index = @intCast(index);
                     }
+                }
                 if (current_curve.items.len > 1) {
                     try curves_to_project.append(
                         LinearType{
@@ -411,25 +411,25 @@ pub fn LinearOf(
 
             for (curves_to_project.items) 
                 |crv| 
+            {
+                // project each knot
+                for (crv.knots) 
+                    |*knot| 
                 {
-                    // project each knot
-                    for (crv.knots) 
-                        |*knot| 
-                        {
-                            // 2. output_at_input grows a parameter to treat endpoint as in bounds
-                            // 3. check outside of output_at_input if it sits on a knot and use
-                            //    the value rather than computing
-                            // 4. catch the error and call a different function or do a
-                            //    check in that case
-                            const value = self.output_at_input(knot.out) catch (
-                                if (self.knots[self.knots.len-1].in == knot.out) 
-                                self.knots[self.knots.len-1].out 
-                                else return error.NotInRangeError
-                            );
+                    // 2. output_at_input grows a parameter to treat endpoint as in bounds
+                    // 3. check outside of output_at_input if it sits on a knot and use
+                    //    the value rather than computing
+                    // 4. catch the error and call a different function or do a
+                    //    check in that case
+                    const value = self.output_at_input(knot.out) catch (
+                        if (self.knots[self.knots.len-1].in == knot.out) 
+                        self.knots[self.knots.len-1].out 
+                        else return error.NotInRangeError
+                    );
 
-                            knot.out  = value;
-                        }
+                    knot.out  = value;
                 }
+            }
 
             // @TODO: we should write a test that exersizes this case
             if (curves_to_project.items.len > 1) {
@@ -460,9 +460,9 @@ pub fn LinearOf(
             defer { 
                 for (result)
                     |crv|
-                    {
-                        crv.deinit(allocator);
-                    }
+                {
+                    crv.deinit(allocator);
+                }
                 allocator.free(result);
             }
 
@@ -509,16 +509,16 @@ pub fn LinearOf(
 
             for (self.knots) 
                 |knot| 
-                {
-                    min = .{
-                        .in = @min(min.in, knot.in),
-                        .out = @min(min.out, knot.out),
-                    };
-                    max = .{
-                        .in = @max(max.in, knot.in),
-                        .out = @max(max.out, knot.out),
-                    };
-                }
+            {
+                min = .{
+                    .in = @min(min.in, knot.in),
+                    .out = @min(min.out, knot.out),
+                };
+                max = .{
+                    .in = @max(max.in, knot.in),
+                    .out = @max(max.out, knot.out),
+                };
+            }
             return .{ min, max };
         }
 
@@ -539,32 +539,32 @@ pub fn LinearOf(
             // @TODO: there is probably a more effecient algorithm here than MxN
             for (self.knots[0..last_minus_one], self.knots[1..])
                 |knot, next_knot, |
-                {
-                    try result.append(knot);
+            {
+                try result.append(knot);
 
-                    for (split_points) 
-                        |pt_value_space| 
-                        {
-                            if (
-                                knot.out < pt_value_space 
-                                and pt_value_space < next_knot.out
+                for (split_points) 
+                    |pt_value_space| 
+                {
+                    if (
+                        knot.out < pt_value_space 
+                        and pt_value_space < next_knot.out
+                    )
+                    {
+                        const u = bezier_math.invlerp(
+                            pt_value_space,
+                            knot.out,
+                            next_knot.out
+                        );
+                        try result.append(
+                            bezier_math.lerp(
+                                u,
+                                knot,
+                                next_knot
                             )
-                            {
-                                const u = bezier_math.invlerp(
-                                    pt_value_space,
-                                    knot.out,
-                                    next_knot.out
-                                );
-                                try result.append(
-                                    bezier_math.lerp(
-                                        u,
-                                        knot,
-                                        next_knot
-                                    )
-                                );
-                            }
-                        }
+                        );
+                    }
                 }
+            }
             try result.append(self.knots[last_minus_one]);
 
             return LinearType{
@@ -701,9 +701,9 @@ test "Linear: project s"
     defer {
         for (result)
             |crv|
-            {
-                crv.deinit(std.testing.allocator);
-            }
+        {
+            crv.deinit(std.testing.allocator);
+        }
         std.testing.allocator.free(result);
     }
 
@@ -737,9 +737,9 @@ test "Linear: projection_test - compose to identity"
     defer {
         for (result)
             |crv|
-            {
-                crv.deinit(std.testing.allocator);
-            }
+        {
+            crv.deinit(std.testing.allocator);
+        }
         std.testing.allocator.free(result);
     }
 
