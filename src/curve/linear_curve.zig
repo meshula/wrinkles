@@ -256,11 +256,11 @@ pub const Linear = struct {
         return null;
     }
 
-    /// project another curve through this one.  A curve maps 'time' to 'value'
-    /// parameters.  if curve self is v_self(t_self), and curve other is 
-    /// v_other(t_other) and other is being projected through self, the result
-    /// function is v_self(v_other(t_other)).  This maps the the v_other value
-    /// to the t_self parameter.
+    /// project another curve through this one.  A curve maps 'input' to
+    /// 'output' parameters.  if curve self is v_self(t_self), and curve other
+    /// is v_other(t_other) and other is being projected through self, the
+    /// result function is v_self(v_other(t_other)).  This maps the the v_other
+    /// value to the t_self parameter.
     ///
     /// To put it another way, if self maps B->C
     /// (B = t_self, C=v_self)
@@ -470,8 +470,8 @@ pub const Linear = struct {
         return str.toOwnedSlice();
     }
 
-    /// return the extents of the time (input) domain of the curve  - O(1)
-    /// because curves are monotonic over time by definition.
+    /// return the extents of the input domain of the curve  - O(1) because
+    /// curves are monotonic over their input spaces by definition.
     pub fn extents_input(
         self:@This()
     ) ContinuousTimeInterval 
@@ -566,9 +566,9 @@ test "Linear: extents"
     try expectEqual(@as(f32, 100), bounds[0].in);
     try expectEqual(@as(f32, 200), bounds[1].in);
 
-    const bounds_time = crv.extents_input();
-    try expectEqual(@as(f32, 100), bounds_time.start_seconds);
-    try expectEqual(@as(f32, 200), bounds_time.end_seconds);
+    const bounds_input = crv.extents_input();
+    try expectEqual(@as(f32, 100), bounds_input.start_seconds);
+    try expectEqual(@as(f32, 200), bounds_input.end_seconds);
 }
 
 test "Linear: proj_ident" 
