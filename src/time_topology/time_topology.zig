@@ -70,23 +70,23 @@ pub const AffineTopology = struct {
 
         const bound_points = [2]control_point.ControlPoint{
             .{
-                .time = self.bounds.start_seconds,
-                .value = try self.project_instantaneous_cc(
+                .in = self.bounds.start_seconds,
+                .out = try self.project_instantaneous_cc(
                     self.bounds.start_seconds
                 ),
             },
             .{ 
-                .time = self.bounds.end_seconds,
-                .value = try self.project_instantaneous_cc(
+                .in = self.bounds.end_seconds,
+                .out = try self.project_instantaneous_cc(
                     self.bounds.end_seconds
                 ),
             },
         };
 
-        // clone points into the new TimeCurveLinear
+        // clone points into the new Linear
         return .{
             .linear_curve = .{
-                .curve = try curve.TimeCurveLinear.init(allocator, &bound_points)
+                .curve = try curve.Linear.init(allocator, &bound_points)
             },
         };
     }
@@ -169,7 +169,7 @@ pub const AffineTopology = struct {
                 }
             },
            .linear_curve => |lin| {
-               var result = try curve.TimeCurveLinear.init(
+               var result = try curve.Linear.init(
                    allocator,
                    lin.curve.knots,
                );
@@ -177,8 +177,8 @@ pub const AffineTopology = struct {
                    |knot, knot_index| 
                {
                     result.knots[knot_index] = .{
-                        .time = knot.time,
-                        .value = self.transform.applied_to_seconds(knot.value),
+                        .in = knot.in,
+                        .out = self.transform.applied_to_seconds(knot.out),
                     };
                }
                return .{ 
@@ -265,7 +265,7 @@ test "AffineTopology: linearize"
 }
 
 pub const LinearTopology = struct {
-    curve: curve.TimeCurveLinear,
+    curve: curve.Linear,
     
     pub fn deinit(
         self: @This(),
@@ -282,8 +282,8 @@ pub const LinearTopology = struct {
         const extents = self.curve.extents();
 
         return .{
-            .start_seconds = extents[0].time,
-            .end_seconds = extents[1].time,
+            .start_seconds = extents[0].in,
+            .end_seconds = extents[1].in,
         };
     }
 
@@ -294,8 +294,8 @@ pub const LinearTopology = struct {
         const extents = self.curve.extents();
 
         return .{
-            .start_seconds = extents[0].value,
-            .end_seconds = extents[1].value,
+            .start_seconds = extents[0].out,
+            .end_seconds = extents[1].out,
         };
     }
 
@@ -400,11 +400,11 @@ pub const LinearTopology = struct {
 
 test "LinearTopology: invert" 
 {
-    const crv = try curve.TimeCurveLinear.init(
+    const crv = try curve.Linear.init(
         std.testing.allocator,
         &.{ 
-            .{ .time = 0, .value = 10 },
-            .{ .time = 10, .value = 20 },
+            .{ .in = 0, .out = 10 },
+            .{ .in = 10, .out = 20 },
         },
     );
     defer crv.deinit(std.testing.allocator);
@@ -425,7 +425,7 @@ test "LinearTopology: invert"
 }
 
 pub const BezierTopology = struct {
-    curve: curve.TimeCurve,
+    curve: curve.BezierCurve,
 
     pub fn deinit(
         self: @This(),
@@ -442,8 +442,8 @@ pub const BezierTopology = struct {
         const extents = self.curve.extents();
 
         return .{
-            .start_seconds = extents[0].time,
-            .end_seconds = extents[1].time,
+            .start_seconds = extents[0].in,
+            .end_seconds = extents[1].in,
         };
     }
 
@@ -454,8 +454,8 @@ pub const BezierTopology = struct {
         const extents = self.curve.extents();
 
         return .{
-            .start_seconds = extents[0].value,
-            .end_seconds = extents[1].value,
+            .start_seconds = extents[0].out,
+            .end_seconds = extents[1].out,
         };
     }
 
@@ -600,8 +600,8 @@ test "BezierTopology: inverted"
         base_curve,
         //  the range of the clip for testing - rescale factors
         .{
-            .{ .time = 100, .value = 0, },
-            .{ .time = 110, .value = 10, },
+            .{ .in = 100, .out = 0, },
+            .{ .in = 110, .out = 10, },
         }
     );
     defer xform_curve.deinit(std.testing.allocator);
@@ -706,13 +706,13 @@ pub const TimeTopology = union (enum) {
         end: curve.ControlPoint,
     ) TimeTopology 
     {
-        const slope = (end.value - start.value) / (end.time - start.time);
-        const offset = start.value - start.time * slope;
+        const slope = (end.out - start.out) / (end.in - start.in);
+        const offset = start.out - start.in * slope;
         return init_affine(
             .{
                 .bounds = .{
-                    .start_seconds = start.time,
-                    .end_seconds = end.time 
+                    .start_seconds = start.in,
+                    .end_seconds = end.in 
                 },
                 .transform = .{
                     .scale = slope,
@@ -724,7 +724,7 @@ pub const TimeTopology = union (enum) {
     
     /// initialize a topology with the given bezier cubic
     pub fn init_bezier_cubic(
-        cubic: curve.TimeCurve,
+        cubic: curve.BezierCurve,
     ) TimeTopology 
     {
         return .{
@@ -783,18 +783,18 @@ pub const TimeTopology = union (enum) {
             try segments.append(
                 curve.Segment.init_from_start_end(
                     .{
-                        .time = t_seconds,
-                        .value = current_value
+                        .in = t_seconds,
+                        .out = current_value
                     },
                     .{
-                        .time = t_seconds + held_duration,
-                        .value = current_value
+                        .in = t_seconds + held_duration,
+                        .out = current_value
                     }
                 )
             );
         }
 
-        const crv = curve.TimeCurve{
+        const crv = curve.BezierCurve{
             .segments = try segments.toOwnedSlice(),
         };
 
@@ -887,7 +887,7 @@ pub const TimeTopology = union (enum) {
         return switch (self) {
             .empty => .{
                 .linear_curve = .{
-                    .curve = curve.TimeCurveLinear{} 
+                    .curve = curve.Linear{} 
                 } 
             },
             inline else => |t| try t.linearized(allocator)
@@ -1224,7 +1224,7 @@ test "TimeTopology: staircase constructor"
     for (tp.bezier_curve.curve.segments) 
         |seg| 
     {
-        try expectEqual(value, seg.p0.value);
+        try expectEqual(value, seg.p0.out);
         value += increment;
     }
 
@@ -1282,13 +1282,13 @@ test "TimeTopology: project bezier through affine"
     //
 
     var knots = [_]curve.ControlPoint{
-        .{ .time = 100, .value = 0 },
-        .{ .time = 110, .value = 10 },
+        .{ .in = 100, .out = 0 },
+        .{ .in = 110, .out = 10 },
     };
-    const lin_crv = curve.TimeCurveLinear{
+    const lin_crv = curve.Linear{
         .knots = &knots,
     };
-    const crv = try curve.TimeCurve.init_from_linear_curve(
+    const crv = try curve.BezierCurve.init_from_linear_curve(
         std.testing.allocator,
         lin_crv,
     );
@@ -1378,10 +1378,10 @@ test "TimeTopology: project linear through affine"
     //
 
     var knots = [_]curve.ControlPoint{
-        .{ .time = 100, .value = 0 },
-        .{ .time = 110, .value = 10 },
+        .{ .in = 100, .out = 0 },
+        .{ .in = 110, .out = 10 },
     };
-    const crv = curve.TimeCurveLinear{
+    const crv = curve.Linear{
         .knots = &knots,
     };
     const curve_topo = TimeTopology{

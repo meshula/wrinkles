@@ -5,10 +5,10 @@ pub const bezier_curve = @import("bezier_curve.zig");
 pub const test_segment_projection = @import("test_segment_projection.zig");
 
 // bezier
-pub const TimeCurve = bezier_curve.TimeCurve;
+pub const BezierCurve = bezier_curve.BezierCurve;
 pub const Segment = bezier_curve.Segment;
 
-pub const TimeCurveLinear = linear_curve.TimeCurveLinear;
+pub const Linear = linear_curve.Linear;
 
 pub const ControlPoint = control_point.ControlPoint;
 pub const linearize_segment = bezier_curve.linearize_segment;

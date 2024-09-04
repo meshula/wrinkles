@@ -10,7 +10,7 @@ const opentime = @import("opentime");
 
 /// a linear mapping from input to output
 pub const MappingCurveLinear = struct {
-    input_to_output_curve: curve.TimeCurveLinear,
+    input_to_output_curve: curve.Linear,
 
     pub fn init_knots(
         allocator: std.mem.Allocator,
@@ -29,7 +29,7 @@ pub const MappingCurveLinear = struct {
 
     pub fn init_curve(
         allocator: std.mem.Allocator,
-        crv: curve.TimeCurveLinear,
+        crv: curve.Linear,
     ) !MappingCurveLinear
     {
         return .{
@@ -61,8 +61,8 @@ pub const MappingCurveLinear = struct {
         const extents = self.input_to_output_curve.extents();
 
         return .{
-            .start_seconds = extents[0].time,
-            .end_seconds = extents[1].time,
+            .start_seconds = extents[0].in,
+            .end_seconds = extents[1].in,
         };
     }
 
@@ -73,8 +73,8 @@ pub const MappingCurveLinear = struct {
         const extents = self.input_to_output_curve.extents();
 
         return .{
-            .start_seconds = extents[0].value,
-            .end_seconds = extents[1].value,
+            .start_seconds = extents[0].out,
+            .end_seconds = extents[1].out,
         };
     }
 
@@ -105,8 +105,8 @@ test "MappingCurveLinear: init_knots"
         try MappingCurveLinear.init_knots(
             std.testing.allocator,
             &.{
-                .{ .time = 0,  .value = 0  },
-                .{ .time = 10, .value = 10 },
+                .{ .in = 0,  .out = 0  },
+                .{ .in = 10, .out = 10 },
             },
         )
     ).mapping();

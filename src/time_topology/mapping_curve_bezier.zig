@@ -10,11 +10,11 @@ const mapping_mod = @import("mapping.zig");
 
 /// a Cubic Bezier Mapping from input to output
 pub const MappingCurveBezier = struct {
-    input_to_output_curve: curve.TimeCurve,
+    input_to_output_curve: curve.BezierCurve,
 
     pub fn init_curve(
         allocator: std.mem.Allocator,
-        crv: curve.TimeCurve,
+        crv: curve.BezierCurve,
     ) MappingCurveBezier
     {
         return .{
@@ -28,7 +28,7 @@ pub const MappingCurveBezier = struct {
     ) !MappingCurveBezier
     {
         return .{
-            .input_to_output_curve = try curve.TimeCurve.init(
+            .input_to_output_curve = try curve.BezierCurve.init(
                 allocator,
                 segments,
             )
@@ -86,8 +86,8 @@ test "MappingCurveBezier: init and project"
             std.testing.allocator, 
             &.{ 
                 curve.Segment.init_from_start_end(
-                    .{ .time = 0, .value = 0 },
-                    .{ .time = 10, .value = 20 },
+                    .{ .in = 0, .out = 0 },
+                    .{ .in = 10, .out = 20 },
                 ),
             },
             )

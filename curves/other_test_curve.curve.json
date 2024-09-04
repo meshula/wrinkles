@@ -2,20 +2,20 @@
     "segments": [
         {
             "p0": {
-                "time": -0.5,
-                "value": 0
+                "in": -0.5,
+                "out": 0
             },
             "p1": {
-                "time": 0,
-                "value": -1
+                "in": 0,
+                "out": -1
             },
             "p2": {
-                "time": 0,
-                "value": 1
+                "in": 0,
+                "out": 1
             },
             "p3": {
-                "time": 0.5,
-                "value": 0.00
+                "in": 0.5,
+                "out": 0.00
             }
         }
     ]

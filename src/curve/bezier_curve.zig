@@ -69,28 +69,22 @@ fn _is_between(
     );
 }
 
-// Time curves are functions mapping a time to a value.
-// Time curves are a sequence of right met 2d Bezier curve segments
-// closed on the left and open on the right.
-// If the first formal segment does not start at -inf, there is an
-// implicit interval spanning -inf to the first formal segment.
-// If there final formal segment does not end at +inf, there is an
-// implicit interval spanning the last point in the final formal
-// segment to +inf.
+// A sequence of right met 2d Bezier curve segments closed on the left and open
+// on the right. If the first formal segment does not start at -inf, there is
+// an implicit interval spanning -inf to the first formal segment. If there
+// final formal segment does not end at +inf, there is an implicit interval
+// spanning the last point in the final formal segment to +inf.
 //
-// It is a formal requirement that an application supply control
-// points that satistfy the rules of a function, in other words,
-// a Time Curve cannot contain a 2d Bezier curve segment that has
-// a cusp or a loop.
+// It is a formal requirement that an application supply control points that
+// satistfy the rules of a function, in other words, a Time Curve cannot
+// contain a 2d Bezier curve segment that has a cusp or a loop.
 //
-// We name the parameterization of the time coordinate system t,
-// and we name the parameterization of the Bezier curves u.
-// The parameter t can be any legal timeline value, u must be
-// within the closed interval of [0,1].
+// We name the parameterization of the time coordinate system t, and we name
+// the parameterization of the Bezier curves u. The parameter t can be any
+// legal timeline value, u must be within the closed interval of [0,1].
 //
-// The value of a Bezier at u is B(u). The value of a time curve at
-// t is T(t). If M(x) maps t into u, then the evaluation of B(t) is
-// B(M(C(t))).
+// The value of a Bezier at u is B(u). The value of a time curve at t is T(t).
+// If M(x) maps t into u, then the evaluation of B(t) is B(M(C(t))).
 // 
 
 // A Time Curve with a single segment spanning t1 to t2
@@ -101,22 +95,18 @@ fn _is_between(
 //            p0 p1 p2 p3                curve parameterization
 //
 
-// Each Bezier curve in a TimeCurve is a Bezier segment with
-// four control points. Here we name the components of the
-// control point ordinates time and value, and these axes
-// correspond to the time metric the TimeCurve is embedded in.
-// Note that when the Bezier curve is evaluated, the Bezier
-// parameterization u will be used to evaluate the function
-// nto the time metric space.
+/// A BezierCurve is composed of segments with four control points. Here we name
+/// the components of the control point ordinates time and value, and these axes
+/// correspond to the time metric the BezierCurve is embedded in. Note that when
+/// the Bezier curve is evaluated, the Bezier parameterization u will be used to
+/// evaluate the function nto the time metric space.
 
-// Note that continuity between segments is not dictated by
-// the TimeCurve class. Interested applications should make
-// their own data structure that records continuity data, and
-// are responsible for constraining the control points to 
-// satisfy those continuity constraints. In the future, this
-// library may provide helper functions that aid in the
-// computation of common constraints, such as colinear
-// tangents on end points, and so on.
+/// Note that continuity between segments is not dictated by the BezierCurve
+/// class. Interested applications should make their own data structure that
+/// records continuity data, and are responsible for constraining the control
+/// points to satisfy those continuity constraints. In the future, this library
+/// may provide helper functions that aid in the computation of common
+/// constraints, such as colinear tangents on end points, and so on.
 
 /// @TODO: time should be an ordinate
 
@@ -125,20 +115,20 @@ pub const Segment = struct {
     // time coordinate of each control point is expressed in the coordinate
     // system of the embedding space, ie a clip's intrinsic space.
     p0: control_point.ControlPoint = .{
-        .time = 0,
-        .value = 0,
+        .in = 0,
+        .out = 0,
     },
     p1: control_point.ControlPoint = .{
-        .time = 0,
-        .value = 0,
+        .in = 0,
+        .out = 0,
     },
     p2: control_point.ControlPoint = .{
-        .time = 1,
-        .value = 1,
+        .in = 1,
+        .out = 1,
     },
     p3: control_point.ControlPoint = .{
-        .time = 1,
-        .value = 1,
+        .in = 1,
+        .out = 1,
     },
 
     pub fn init_identity(
@@ -147,8 +137,8 @@ pub const Segment = struct {
     ) Segment
     {
         return Segment.init_from_start_end(
-            .{ .time = start_time, .value = start_time },
-            .{ .time = end_time, .value = end_time }
+            .{ .in = start_time, .out = start_time },
+            .{ .in = end_time, .out = end_time }
         );
     }
 
@@ -157,7 +147,7 @@ pub const Segment = struct {
         end: control_point.ControlPoint
     ) Segment 
     {
-        if (end.time >= start.time) 
+        if (end.in >= start.in) 
         {
             return .{
                 .p0 = start,
@@ -169,7 +159,7 @@ pub const Segment = struct {
 
         debug_panic(
             "Create linear segment failed, t0: {d} > t1: {d}\n",
-            .{start.time, end.time}
+            .{start.in, end.in}
         );
     }
 
@@ -296,7 +286,7 @@ pub const Segment = struct {
         t:f32
     ) bool 
     {
-        return (self.p0.time <= t and self.p3.time > t);
+        return (self.p0.in <= t and self.p3.in > t);
     }
 
     /// return the segment split at u [0, 1.0)
@@ -360,8 +350,8 @@ pub const Segment = struct {
     ) opentime.ContinuousTimeInterval
     {
         return .{
-            .start_seconds = self.p0.time,
-            .end_seconds = self.p3.time,
+            .start_seconds = self.p0.in,
+            .end_seconds = self.p3.in,
         };
     }
 
@@ -378,12 +368,12 @@ pub const Segment = struct {
         {
             const pt = @field(self, field);
             min = .{
-                .time = @min(min.time, pt.time),
-                .value = @min(min.value, pt.value),
+                .in = @min(min.in, pt.in),
+                .out = @min(min.out, pt.out),
             };
             max = .{
-                .time = @max(max.time, pt.time),
-                .value = @max(max.value, pt.value),
+                .in = @max(max.in, pt.in),
+                .out = @max(max.out, pt.out),
             };
         }
 
@@ -400,8 +390,8 @@ pub const Segment = struct {
         const other_extents = segment_to_project.extents();
 
         return (
-            other_extents[0].value >= my_extents[0].time - generic_curve.EPSILON
-            and other_extents[1].value < my_extents[1].time + generic_curve.EPSILON
+            other_extents[0].out >= my_extents[0].in - generic_curve.EPSILON
+            and other_extents[1].out < my_extents[1].in + generic_curve.EPSILON
         );
     }
 
@@ -419,8 +409,8 @@ pub const Segment = struct {
        {
            const pt = @field(segment_to_project, field);
            @field(result, field) = .{
-               .time = pt.time,
-               .value = self.eval_at_input(pt.value),
+               .in = pt.in,
+               .out = self.eval_at_input(pt.out),
            };
        }
 
@@ -437,10 +427,10 @@ pub const Segment = struct {
     {
         return bezier_math.findU(
             tgt_value,
-            self.p0.value,
-            self.p1.value,
-            self.p2.value,
-            self.p3.value,
+            self.p0.out,
+            self.p1.out,
+            self.p2.out,
+            self.p3.out,
         );
     }
 
@@ -451,10 +441,10 @@ pub const Segment = struct {
     {
         return bezier_math.findU_dual(
             tgt_value,
-            self.p0.value,
-            self.p1.value,
-            self.p2.value,
-            self.p3.value,
+            self.p0.out,
+            self.p1.out,
+            self.p2.out,
+            self.p3.out,
         );
     }
 
@@ -465,10 +455,10 @@ pub const Segment = struct {
     {
         return bezier_math.findU(
             input_ordinate,
-            self.p0.time,
-            self.p1.time,
-            self.p2.time,
-            self.p3.time,
+            self.p0.in,
+            self.p1.in,
+            self.p2.in,
+            self.p3.in,
         );
     }
 
@@ -479,10 +469,10 @@ pub const Segment = struct {
     {
         return bezier_math.findU_dual(
             input_ordinate,
-            self.p0.time,
-            self.p1.time,
-            self.p2.time,
-            self.p3.time,
+            self.p0.in,
+            self.p1.in,
+            self.p2.in,
+            self.p3.in,
         );
     }
 
@@ -494,12 +484,12 @@ pub const Segment = struct {
     {
         const u:f32 = bezier_math.findU(
             x,
-            self.p0.time,
-            self.p1.time,
-            self.p2.time,
-            self.p3.time
+            self.p0.in,
+            self.p1.in,
+            self.p2.in,
+            self.p3.in
         );
-        return self.eval_at(u).value;
+        return self.eval_at(u).out;
     }
 
     pub fn eval_at_input_dual(
@@ -509,10 +499,10 @@ pub const Segment = struct {
     {
         const u = bezier_math.findU_dual(
             x,
-            self.p0.time,
-            self.p1.time,
-            self.p2.time,
-            self.p3.time
+            self.p0.in,
+            self.p1.in,
+            self.p2.in,
+            self.p3.in
         );
         return self.eval_at_dual(u);
     }
@@ -534,10 +524,10 @@ pub const Segment = struct {
             \\
             ,
             .{
-                self.p0.time, self.p0.value,
-                self.p1.time, self.p1.value,
-                self.p2.time, self.p2.value,
-                self.p3.time, self.p3.value,
+                self.p0.in, self.p0.out,
+                self.p1.in, self.p1.out,
+                self.p2.in, self.p2.out,
+                self.p3.in, self.p3.out,
             }
         );
     }
@@ -568,7 +558,7 @@ pub const Segment = struct {
                 inline for (&.{ self.p0, self.p1, self.p2, self.p3 }, 0..) 
                            |pt, pt_ind| 
                 {
-                    tmp[pt_ind] = .{ .x = pt.time, .y = pt.value };
+                    tmp[pt_ind] = .{ .x = pt.in, .y = pt.out };
                 }
 
                 break :translate tmp;
@@ -580,12 +570,12 @@ pub const Segment = struct {
 test "Segment: can_project test" 
 {
     const half = Segment.init_from_start_end(
-        .{ .time = -0.5, .value = -0.25, },
-        .{ .time = 0.5, .value = 0.25, },
+        .{ .in = -0.5, .out = -0.25, },
+        .{ .in = 0.5, .out = 0.25, },
     );
     const double = Segment.init_from_start_end(
-        .{ .time = -0.5, .value = -1, },
-        .{ .time = 0.5, .value = 1, },
+        .{ .in = -0.5, .out = -1, },
+        .{ .in = 0.5, .out = 1, },
     );
 
     try expectEqual(true, double.can_project(half));
@@ -595,8 +585,8 @@ test "Segment: can_project test"
 test "Segment: debug_str test" 
 {
     const seg = Segment.init_from_start_end(
-        .{.time = -0.5, .value = -0.5},
-        .{.time =  0.5, .value = 0.5},
+        .{.in = -0.5, .out = -0.5},
+        .{.in =  0.5, .out = 0.5},
     );
 
     const result: []const u8=
@@ -624,14 +614,14 @@ fn _is_approximately_linear(
     const u = (
         (segment.p1.mul(3.0)).sub(segment.p0.mul(2.0)).sub(segment.p3)
     );
-    var ux = u.time * u.time;
-    var uy = u.value * u.value;
+    var ux = u.in * u.in;
+    var uy = u.out * u.out;
 
     const v = (
         (segment.p2.mul(3.0)).sub(segment.p3.mul(2.0)).sub(segment.p0)
     );
-    const vx = v.time * v.time;
-    const vy = v.value * v.value;
+    const vx = v.in * v.in;
+    const vy = v.out * v.out;
 
     if (ux < vx) {
         ux = vx;
@@ -736,14 +726,14 @@ test "segment: linearize basic test"
 test "segment from point array" 
 {
     const original_knots_ident: [4]control_point.ControlPoint = .{
-        .{ .time = -0.5,     .value = -0.5},
-        .{ .time = -0.16666, .value = -0.16666},
-        .{ .time = 0.166666, .value = 0.16666},
-        .{ .time = 0.5,      .value = 0.5}
+        .{ .in = -0.5,     .out = -0.5},
+        .{ .in = -0.16666, .out = -0.16666},
+        .{ .in = 0.166666, .out = 0.16666},
+        .{ .in = 0.5,      .out = 0.5}
     };
     const ident = Segment.from_pt_array(original_knots_ident);
 
-    try expectApproxEql(@as(f32, 0), ident.eval_at(0.5).value);
+    try expectApproxEql(@as(f32, 0), ident.eval_at(0.5).out);
 
     const linearized_ident_knots = try linearize_segment(
         std.testing.allocator,
@@ -754,21 +744,21 @@ test "segment from point array"
     try expectEqual(@as(usize, 2), linearized_ident_knots.len);
 
     try expectApproxEql(
-        original_knots_ident[0].time,
-        linearized_ident_knots[0].time
+        original_knots_ident[0].in,
+        linearized_ident_knots[0].in
     );
     try expectApproxEql(
-        original_knots_ident[0].value,
-        linearized_ident_knots[0].value
+        original_knots_ident[0].out,
+        linearized_ident_knots[0].out
     );
 
     try expectApproxEql(
-        original_knots_ident[3].time,
-        linearized_ident_knots[1].time
+        original_knots_ident[3].in,
+        linearized_ident_knots[1].in
     );
     try expectApproxEql(
-        original_knots_ident[3].value,
-        linearized_ident_knots[1].value
+        original_knots_ident[3].out,
+        linearized_ident_knots[1].out
     );
 }
 
@@ -818,8 +808,8 @@ pub fn read_segment_json(
 test "segment: eval_at_input and findU test over linear curve" 
 {
     const seg = Segment.init_from_start_end(
-        .{.time = 2, .value = 2},
-        .{.time = 3, .value = 3},
+        .{.in = 2, .out = 2},
+        .{.in = 3, .out = 3},
     );
 
     inline for ([_]f32{2.1, 2.2, 2.3, 2.5, 2.7}) 
@@ -843,18 +833,18 @@ test "segment: dual_eval_at over linear curve"
                 "coord: {any}, result: {any}\n",
                 .{ coord, result }
             );
-            try expectApproxEql(coord, result.r.time);
-            try expectApproxEql(coord, result.r.value);
-            try expectApproxEql(@as(f32, 1), result.i.time);
-            try expectApproxEql(@as(f32, 1), result.i.value);
+            try expectApproxEql(coord, result.r.in);
+            try expectApproxEql(coord, result.r.out);
+            try expectApproxEql(@as(f32, 1), result.i.in);
+            try expectApproxEql(@as(f32, 1), result.i.out);
         }
     }
 
     // curve with slope 2
     {
         const seg = Segment.init_from_start_end(
-            .{ .time = 0, .value = 0 },
-            .{ .time = 1, .value = 2 },
+            .{ .in = 0, .out = 0 },
+            .{ .in = 1, .out = 2 },
         );
 
         inline for ([_]f32{0.2, 0.4, 0.5, 0.98}) 
@@ -865,10 +855,10 @@ test "segment: dual_eval_at over linear curve"
                 "coord: {any}, result: {any}\n",
                 .{ coord, result }
             );
-            try expectApproxEql(coord, result.r.time);
-            try expectApproxEql(coord * 2, result.r.value);
-            try expectApproxEql(@as(f32, 1), result.i.time);
-            try expectApproxEql(@as(f32, 2), result.i.value);
+            try expectApproxEql(coord, result.r.in);
+            try expectApproxEql(coord * 2, result.r.out);
+            try expectApproxEql(@as(f32, 1), result.i.in);
+            try expectApproxEql(@as(f32, 2), result.i.out);
         }
     }
 }
@@ -878,25 +868,25 @@ test "Segment.init_identity check cubic spline"
     // ensure that points are along line even for linear case
     const seg = Segment.init_identity(0, 1);
 
-    try expectEqual(@as(f32, 0), seg.p0.time);
-    try expectEqual(@as(f32, 0), seg.p0.value);
-    try expectEqual(@as(f32, 1.0/3.0), seg.p1.time);
-    try expectEqual(@as(f32, 1.0/3.0), seg.p1.value);
-    try expectEqual(@as(f32, 2.0/3.0), seg.p2.time);
-    try expectEqual(@as(f32, 2.0/3.0), seg.p2.value);
-    try expectEqual(@as(f32, 1), seg.p3.time);
-    try expectEqual(@as(f32, 1), seg.p3.value);
+    try expectEqual(@as(f32, 0), seg.p0.in);
+    try expectEqual(@as(f32, 0), seg.p0.out);
+    try expectEqual(@as(f32, 1.0/3.0), seg.p1.in);
+    try expectEqual(@as(f32, 1.0/3.0), seg.p1.out);
+    try expectEqual(@as(f32, 2.0/3.0), seg.p2.in);
+    try expectEqual(@as(f32, 2.0/3.0), seg.p2.out);
+    try expectEqual(@as(f32, 1), seg.p3.in);
+    try expectEqual(@as(f32, 1), seg.p3.out);
 }
 
-/// TimeCurve maps an input time to an output time.
+/// BezierCurve maps an input time to an output time.
 ///
-/// The TimeCurve is a sequence of 2d cubic bezier segments,
+/// The BezierCurve is a sequence of 2d cubic bezier segments,
 /// closed at the start, and open at the end, where each
 /// segment is met by the previous one.
 ///
-/// The evaluation of a TimeCurve (S0, S1, ... Sn) at t, is
-/// therefore t if t < S0.p0.time or t >= S0.p3.time. Otherwise,
-/// the segment S whose interval [S.p0.time, S.p3.time) contains t
+/// The evaluation of a BezierCurve (S0, S1, ... Sn) at t, is
+/// therefore t if t < S0.p0.in or t >= S0.p3.in. Otherwise,
+/// the segment S whose interval [S.p0.in, S.p3.in) contains t
 /// is evaluated according to the cubic Bezier equations.
 ///
 /// @TODO: we would like to break this down by curve parameterization
@@ -908,7 +898,7 @@ test "Segment.init_identity check cubic spline"
 ///                 - optimization, but also invertible and projectible!
 ///             - IdentityCurve1d
 ///                 - defined over the entire continuum, or within given bounds
-///                 - convienent for interval->timecurve
+///                 - convienent for interval->BezierCurve
 ///             - NullCurve1d
 ///                 - out of bounds everywhere
 ///                 - so that topologies can have "holes"
@@ -919,18 +909,18 @@ test "Segment.init_identity check cubic spline"
 ///            - mono hermite
 ///            - step function
 ///
-pub const TimeCurve = struct {
+pub const BezierCurve = struct {
     // according to the evaluation specification, an empty
-    // timecurve evaluates t as t, everywhere.
+    // BezierCurve evaluates t as t, everywhere.
     segments: []Segment = &.{},
 
     /// dupe the segments argument into the returned object
     pub fn init(
         allocator:std.mem.Allocator,
         segments: []const Segment,
-    ) !TimeCurve 
+    ) !BezierCurve 
     {
-        return TimeCurve{ 
+        return BezierCurve{ 
             .segments = try allocator.dupe(
                 Segment,
                 segments
@@ -945,7 +935,7 @@ pub const TimeCurve = struct {
     pub fn clone(
         self: @This(),
         allocator: std.mem.Allocator
-    ) !TimeCurve
+    ) !BezierCurve
     {
         return .{ 
             .segments = try allocator.dupe(
@@ -959,9 +949,9 @@ pub const TimeCurve = struct {
         allocator: std.mem.Allocator,
         p0: control_point.ControlPoint,
         p1: control_point.ControlPoint,
-    ) !TimeCurve 
+    ) !BezierCurve 
     {
-        return try TimeCurve.init(
+        return try BezierCurve.init(
             allocator,
             &.{ Segment.init_from_start_end(p0, p1) }
         );
@@ -970,8 +960,8 @@ pub const TimeCurve = struct {
     /// convert a linear curve into a bezier one
     pub fn init_from_linear_curve(
         allocator:std.mem.Allocator,
-        crv: linear_curve.TimeCurveLinear,
-    ) !TimeCurve 
+        crv: linear_curve.Linear,
+    ) !BezierCurve 
     {
         var result = std.ArrayList(Segment).init(allocator);
         result.deinit();
@@ -984,19 +974,19 @@ pub const TimeCurve = struct {
             try result.append(Segment.init_from_start_end(knot, next_knot));
         }
 
-        return TimeCurve{ .segments = try result.toOwnedSlice() };
+        return BezierCurve{ .segments = try result.toOwnedSlice() };
     }
 
-    /// evaluate the curve at time t in the space of the curve
+    /// evaluate the curve at ordinate t in the input space
     pub fn evaluate(
         self: @This(),
-        t_arg: f32,
+        input_space_ord: f32,
     ) error{OutOfBounds}!f32 
     {
-        if (self.find_segment(t_arg)) 
+        if (self.find_segment(input_space_ord)) 
            |seg|
         {
-            return seg.eval_at_input(t_arg);
+            return seg.eval_at_input(input_space_ord);
         }
 
         // no segment found
@@ -1010,9 +1000,9 @@ pub const TimeCurve = struct {
         ord_input: f32,
     ) ?usize 
     {
-        const start_time = self.segments[0].p0.time - generic_curve.EPSILON;
+        const start_time = self.segments[0].p0.in - generic_curve.EPSILON;
         const last_seg = self.segments[self.segments.len - 1];
-        const end_time = last_seg.p3.time - generic_curve.EPSILON;
+        const end_time = last_seg.p3.in - generic_curve.EPSILON;
 
         // @TODO: should this be inclusive of the endpoint?
         if (
@@ -1033,8 +1023,8 @@ pub const TimeCurve = struct {
             |seg, index| 
         {
             if (
-                seg.p0.time <= ord_input + generic_curve.EPSILON 
-                and ord_input < seg.p3.time - generic_curve.EPSILON
+                seg.p0.in <= ord_input + generic_curve.EPSILON 
+                and ord_input < seg.p3.in - generic_curve.EPSILON
             ) 
             {
                 // exactly in a segment
@@ -1061,11 +1051,11 @@ pub const TimeCurve = struct {
         return null;
     }
 
-    /// build a linearized version of this TimeCurve
+    /// build a linearized version of this BezierCurve
     pub fn linearized(
         self: @This(),
         allocator:std.mem.Allocator,
-    ) !linear_curve.TimeCurveLinear 
+    ) !linear_curve.Linear 
     {
         var linearized_knots = std.ArrayList(
             control_point.ControlPoint
@@ -1134,9 +1124,9 @@ pub const TimeCurve = struct {
     pub fn project_curve(
         self: @This(),
         allocator: std.mem.Allocator,
-        other: TimeCurve
-        // should be []TimeCurve <-  come back to this later
-    ) !TimeCurve 
+        other: BezierCurve
+        // should be []BezierCurve <-  come back to this later
+    ) !BezierCurve 
     {
         const result = try project_curve_guts(
             self,
@@ -1155,10 +1145,10 @@ pub const TimeCurve = struct {
     }
 
     const ProjectCurveGuts = struct {
-        result : ?TimeCurve = null,
-        self_split: ?TimeCurve = null,
-        other_split: ?TimeCurve = null,
-        to_project : ?TimeCurve = null,
+        result : ?BezierCurve = null,
+        self_split: ?BezierCurve = null,
+        other_split: ?BezierCurve = null,
+        to_project : ?BezierCurve = null,
         tpa: ?[]tpa_result = null,
         segments_to_project_through: ?[]usize = null,
         allocator: std.mem.Allocator,
@@ -1210,9 +1200,9 @@ pub const TimeCurve = struct {
     /// instrumentation ("guts") for debugging/visualization purposes
     pub fn project_curve_guts(
         self: @This(),
-        other: TimeCurve,
+        other: BezierCurve,
         allocator: std.mem.Allocator,
-        // should be []TimeCurve <-  come back to this later
+        // should be []BezierCurve <-  come back to this later
     ) !ProjectCurveGuts 
     {
         var result = ProjectCurveGuts{.allocator = allocator};
@@ -1249,14 +1239,14 @@ pub const TimeCurve = struct {
                 {
                     if (
                         _is_between(
-                            other_knot.value,
-                            self_bounds[0].time,
-                            self_bounds[1].time
+                            other_knot.out,
+                            self_bounds[0].in,
+                            self_bounds[1].in
                         )
                         // @TODO: omit cases where either endpoint is within an
                         //        epsilon of an endpoint
                     ) {
-                        try split_points.append(other_knot.value);
+                        try split_points.append(other_knot.out);
                     }
                 }
                 const old_ptr = self_split.segments;
@@ -1289,12 +1279,12 @@ pub const TimeCurve = struct {
                 {
                     if (
                         _is_between(
-                            self_knot.time,
-                            other_bounds[0].value,
-                            other_bounds[1].value
+                            self_knot.in,
+                            other_bounds[0].out,
+                            other_bounds[1].out
                         )
                     ) {
-                        try split_points.append(self_knot.time);
+                        try split_points.append(self_knot.in);
                     }
                 }
                 const old_ptr = other_split.segments;
@@ -1311,7 +1301,7 @@ pub const TimeCurve = struct {
 
         result.other_split = try other_split.clone(allocator);
 
-        var curves_to_project = std.ArrayList(TimeCurve).init(allocator);
+        var curves_to_project = std.ArrayList(BezierCurve).init(allocator);
         defer curves_to_project.deinit();
 
         var last_index: i32 = -10;
@@ -1328,8 +1318,8 @@ pub const TimeCurve = struct {
             const other_seg_ext = other_segment.extents();
 
             if (
-                (other_seg_ext[0].value < self_bounds[1].time - generic_curve.EPSILON)
-                and (other_seg_ext[1].value > self_bounds[0].time + generic_curve.EPSILON)
+                (other_seg_ext[0].out < self_bounds[1].in - generic_curve.EPSILON)
+                and (other_seg_ext[1].out > self_bounds[0].in + generic_curve.EPSILON)
             )
             {
                 if (index != last_index+1) 
@@ -1340,7 +1330,7 @@ pub const TimeCurve = struct {
                     if (current_curve.items.len > 1) 
                     {
                         try curves_to_project.append(
-                            TimeCurve{
+                            BezierCurve{
                                 .segments = try current_curve.toOwnedSlice()
                             }
                         );
@@ -1355,7 +1345,7 @@ pub const TimeCurve = struct {
         if (current_curve.items.len > 0) 
         {
             try curves_to_project.append(
-                TimeCurve{
+                BezierCurve{
                     .segments = try current_curve.toOwnedSlice()
                 }
             );
@@ -1364,7 +1354,7 @@ pub const TimeCurve = struct {
 
         if (curves_to_project.items.len == 0) 
         {
-            result.result = TimeCurve{};
+            result.result = BezierCurve{};
             return result;
         }
         result.to_project = .{ 
@@ -1398,11 +1388,11 @@ pub const TimeCurve = struct {
             for (crv.segments)
                 |*segment|
             {
-                const self_seg = self_split.find_segment(segment.p0.time) orelse {
+                const self_seg = self_split.find_segment(segment.p0.in) orelse {
                     continue;
                 };
                 try segments_to_project_through.append(
-                    self_split.find_segment_index(segment.p0.time) orelse continue
+                    self_split.find_segment_index(segment.p0.in) orelse continue
                 );
 
                 switch (project_algo) {
@@ -1427,8 +1417,8 @@ pub const TimeCurve = struct {
                             |pt, pt_ind|
                         {
                             projected_pts[pt_ind] = .{
-                                .time  = pt.time,
-                                .value = self_seg.eval_at_input(pt.value)
+                                .in  = pt.in,
+                                .out = self_seg.eval_at_input(pt.out)
                             };
                         }
 
@@ -1439,7 +1429,7 @@ pub const TimeCurve = struct {
                         // g'(t) == hodograph of other @ t = 0.5
                         // h'(t) = f'(midpoint) * hodograph of other @ t= 0.5
                         const u_in_self = self_seg.findU_input(
-                            midpoint.value
+                            midpoint.out
                         );
                         const d_mid_point_dt = chain_rule: 
                         {
@@ -1451,8 +1441,8 @@ pub const TimeCurve = struct {
                             );
                             try cache_f_prime_of_g_of_t.append(
                                 .{
-                                    .time = f_prime_of_g_of_t.x, 
-                                    .value= f_prime_of_g_of_t.y
+                                    .in = f_prime_of_g_of_t.x, 
+                                    .out= f_prime_of_g_of_t.y
                                 }
                             );
 
@@ -1465,20 +1455,20 @@ pub const TimeCurve = struct {
                             );
                             try cache_g_prime_of_t.append(
                                 .{
-                                    .time = g_prime_of_t.x, 
-                                    .value= g_prime_of_t.y
+                                    .in = g_prime_of_t.x, 
+                                    .out= g_prime_of_t.y
                                 }
                             );
 
                             if (true) {
                                 break :chain_rule control_point.ControlPoint{
-                                    .time  = f_prime_of_g_of_t.x * g_prime_of_t.x,
-                                    .value = f_prime_of_g_of_t.y * g_prime_of_t.y,
+                                    .in  = f_prime_of_g_of_t.x * g_prime_of_t.x,
+                                    .out = f_prime_of_g_of_t.y * g_prime_of_t.y,
                                 };
                             } else {
                                 break :chain_rule control_point.ControlPoint{
-                                    .time  = g_prime_of_t.x,
-                                    .value = f_prime_of_g_of_t.y * g_prime_of_t.y,
+                                    .in  = g_prime_of_t.x,
+                                    .out = f_prime_of_g_of_t.y * g_prime_of_t.y,
                                 };
                             }
                         };
@@ -1519,13 +1509,13 @@ pub const TimeCurve = struct {
                             |*pt, pt_ind|
                         {
                             const projection_dual = self_seg.eval_at_input_dual(
-                                pt.value
+                                pt.out
                             );
 
                             // project the point
                             pt.* = .{
-                                .time  = pt.time,
-                                .value = projection_dual.r.value,
+                                .in  = pt.in,
+                                .out = projection_dual.r.out,
                             };
                             projected_derivatives[pt_ind] = projection_dual.i;
                         }
@@ -1592,9 +1582,9 @@ pub const TimeCurve = struct {
     pub fn project_linear_curve(
         self: @This(),
         allocator: std.mem.Allocator,
-        other: linear_curve.TimeCurveLinear,
-        // should return []TimeCurve
-    ) ![]linear_curve.TimeCurveLinear
+        other: linear_curve.Linear,
+        // should return []BezierCurve
+    ) ![]linear_curve.Linear
     {
         const self_linearized = try self.linearized(
             allocator
@@ -1612,7 +1602,7 @@ pub const TimeCurve = struct {
         self: @This(),
         aff: opentime.transform.AffineTransform1D,
         allocator: std.mem.Allocator,
-    ) !TimeCurve 
+    ) !BezierCurve 
     {
         const result_segments = try allocator.dupe(
             Segment,
@@ -1625,7 +1615,7 @@ pub const TimeCurve = struct {
             for (seg.point_ptrs()) 
                 |pt |
             {
-                pt.time = aff.applied_to_seconds(pt.time);
+                pt.in = aff.applied_to_seconds(pt.in);
             }
         }
 
@@ -1650,8 +1640,8 @@ pub const TimeCurve = struct {
     ) ContinuousTimeInterval 
     {
         return .{
-            .start_seconds = self.segments[0].p0.time,
-            .end_seconds = self.segments[self.segments.len - 1].p3.time,
+            .start_seconds = self.segments[0].p0.in,
+            .end_seconds = self.segments[self.segments.len - 1].p3.in,
         };
     }
 
@@ -1662,8 +1652,8 @@ pub const TimeCurve = struct {
     {
         const result = self.extents();
         return .{
-            .start_seconds = result[0].value,
-            .end_seconds = result[1].value,
+            .start_seconds = result[0].out,
+            .end_seconds = result[1].out,
         };
     }
 
@@ -1680,12 +1670,12 @@ pub const TimeCurve = struct {
         {
             const seg_extents = seg.extents();
             min = .{
-                .time = @min(min.time, seg_extents[0].time),
-                .value = @min(min.value, seg_extents[0].value),
+                .in = @min(min.in, seg_extents[0].in),
+                .out = @min(min.out, seg_extents[0].out),
             };
             max = .{
-                .time = @max(min.time, seg_extents[1].time),
-                .value = @max(min.value, seg_extents[1].value),
+                .in = @max(min.in, seg_extents[1].in),
+                .out = @max(min.out, seg_extents[1].out),
             };
         }
         return .{ min, max };
@@ -1707,7 +1697,7 @@ pub const TimeCurve = struct {
         self:@This(),
         ordinate:f32,
         allocator: std.mem.Allocator,
-    ) !TimeCurve 
+    ) !BezierCurve 
     {
         const seg_to_split_index = self.find_segment_index(ordinate) orelse {
             return error.OutOfBounds;
@@ -1771,7 +1761,7 @@ pub const TimeCurve = struct {
         self:@This(),
         ordinates:[]const f32,
         allocator: std.mem.Allocator,
-    ) !TimeCurve 
+    ) !BezierCurve 
     {
         var result_segments = std.ArrayList(
             Segment
@@ -1793,8 +1783,8 @@ pub const TimeCurve = struct {
                 if (
                     _is_between(
                         ordinate,
-                        ext[0].value,
-                        ext[1].value
+                        ext[0].out,
+                        ext[1].out
                     )
                 ) 
                 {
@@ -1830,7 +1820,7 @@ pub const TimeCurve = struct {
         self:@This(),
         ordinates:[]const f32,
         allocator: std.mem.Allocator,
-    ) !TimeCurve 
+    ) !BezierCurve 
     {
         var result_segments = std.ArrayList(
             Segment
@@ -1853,8 +1843,8 @@ pub const TimeCurve = struct {
                 if (
                     _is_between(
                         ordinate,
-                        ext[0].time,
-                        ext[1].time
+                        ext[0].in,
+                        ext[1].in
                     )
                 ) 
                 {
@@ -1897,7 +1887,7 @@ pub const TimeCurve = struct {
         ordinate: f32,
         direction: TrimDir,
         allocator: std.mem.Allocator,
-    ) !TimeCurve 
+    ) !BezierCurve 
     {
         if (
             (
@@ -1926,13 +1916,13 @@ pub const TimeCurve = struct {
             const is_bounding_point = (
                 std.math.approxEqAbs(
                     @TypeOf(ordinate),
-                    seg_to_split.p0.time, 
+                    seg_to_split.p0.in, 
                     ordinate,
                     0.00001,
                 )
                 or std.math.approxEqAbs(
                     @TypeOf(ordinate),
-                    seg_to_split.p3.time, 
+                    seg_to_split.p3.in, 
                     ordinate,
                     0.00001,
                 )
@@ -2005,7 +1995,7 @@ pub const TimeCurve = struct {
         self: @This(),
         bounds: ContinuousTimeInterval,
         allocator: std.mem.Allocator,
-    ) !TimeCurve 
+    ) !BezierCurve 
     {
         // @TODO; implement this using slices of a larger segment buffer to
         //        reduce the number of allocations/copies
@@ -2032,7 +2022,7 @@ pub const TimeCurve = struct {
     pub fn split_on_critical_points(
         self: @This(),
         allocator: std.mem.Allocator
-    ) !TimeCurve 
+    ) !BezierCurve 
     {
         var cSeg = hodographs.BezierSegment{
             .order = 3
@@ -2048,8 +2038,8 @@ pub const TimeCurve = struct {
             for (seg.points(), &cSeg.p) 
                 |pt, *p| 
             {
-                p.x = pt.time;
-                p.y = pt.value;
+                p.x = pt.in;
+                p.y = pt.out;
             }
 
             var hodo = hodographs.compute_hodograph(&cSeg);
@@ -2104,7 +2094,7 @@ pub const TimeCurve = struct {
                 |i| 
             {
                 const pt = seg.eval_at(splits[i]);
-                const u = current_seg.findU_input(pt.time);
+                const u = current_seg.findU_input(pt.in);
                 const maybe_xsplits = current_seg.split_at(u);
 
                 if (maybe_xsplits) 
@@ -2121,11 +2111,11 @@ pub const TimeCurve = struct {
     }
 };
 
-/// parse a .curve.json file from disk and return a TimeCurve
+/// parse a .curve.json file from disk and return a BezierCurve
 pub fn read_curve_json(
     file_path: latin_s8,
     allocator:std.mem.Allocator
-) !TimeCurve 
+) !BezierCurve 
 {
     const fi = try std.fs.cwd().openFile(file_path, .{});
     defer fi.close();
@@ -2141,18 +2131,18 @@ pub fn read_curve_json(
         |_|
     {
         const lin_curve = try std.json.parseFromSliceLeaky(
-            linear_curve.TimeCurveLinear,
+            linear_curve.Linear,
             allocator,
             source, .{}
         );
-        return TimeCurve.init_from_linear_curve(
+        return BezierCurve.init_from_linear_curve(
             allocator,
             lin_curve
         );
     }
 
     return try std.json.parseFromSliceLeaky(
-        TimeCurve,
+        BezierCurve,
         allocator,
         source,
         .{}
@@ -2187,12 +2177,12 @@ test "Segment: projected_segment to 1/2"
 {
     {
         const half = Segment.init_from_start_end(
-            .{ .time = -0.5, .value = -0.25, },
-            .{ .time = 0.5, .value = 0.25, },
+            .{ .in = -0.5, .out = -0.25, },
+            .{ .in = 0.5, .out = 0.25, },
         );
         const double = Segment.init_from_start_end(
-            .{ .time = -0.5, .value = -1, },
-            .{ .time = 0.5, .value = 1, },
+            .{ .in = -0.5, .out = -1, },
+            .{ .in = 0.5, .out = 1, },
         );
 
         const half_through_double = double.project_segment(half);
@@ -2204,19 +2194,19 @@ test "Segment: projected_segment to 1/2"
             try expectApproxEql(
                 // t at u = 0 is -0.5
                 u-0.5,
-                half_through_double.eval_at(u).value
+                half_through_double.eval_at(u).out
             );
         }
     }
 
     {
         const half = Segment.init_from_start_end(
-            .{ .time = -0.5, .value = -0.5, },
-            .{ .time = 0.5, .value = 0.0, },
+            .{ .in = -0.5, .out = -0.5, },
+            .{ .in = 0.5, .out = 0.0, },
         );
         const double = Segment.init_from_start_end(
-            .{ .time = -0.5, .value = -0.5, },
-            .{ .time = 0.5, .value = 1.5, },
+            .{ .in = -0.5, .out = -0.5, },
+            .{ .in = 0.5, .out = 1.5, },
         );
 
         const half_through_double = double.project_segment(half);
@@ -2228,21 +2218,21 @@ test "Segment: projected_segment to 1/2"
             try expectApproxEql(
                 // t at u = 0 is -0.5
                 u-0.5,
-                half_through_double.eval_at(u).value
+                half_through_double.eval_at(u).out
             );
         }
     }
 }
 
-test "TimeCurve: positive length 1 linear segment test" 
+test "BezierCurve: positive length 1 linear segment test" 
 {
     var crv_seg = [_]Segment{
         Segment.init_from_start_end(
-            .{ .time = 1, .value = 0, },
-            .{ .time = 2, .value = 1, },
+            .{ .in = 1, .out = 0, },
+            .{ .in = 2, .out = 1, },
         )
     };
-    const xform_curve: TimeCurve = .{ .segments = &crv_seg, };
+    const xform_curve: BezierCurve = .{ .segments = &crv_seg, };
 
     // out of range returns error.OutOfBounds
     try expectError(error.OutOfBounds, xform_curve.evaluate(2));
@@ -2261,24 +2251,24 @@ test "TimeCurve: positive length 1 linear segment test"
     try expectApproxEql(@as(f32, 0.75), try xform_curve.evaluate(1.75));
 }
 
-test "TimeCurve: project_linear_curve to identity" 
+test "BezierCurve: project_linear_curve to identity" 
 {
 
     var seg_0_4 = [_]Segment{
         Segment.init_from_start_end(
-            .{ .time = 0, .value = 0, },
-            .{ .time = 4, .value = 8, },
+            .{ .in = 0, .out = 0, },
+            .{ .in = 4, .out = 8, },
         ) 
     };
-    const fst: TimeCurve = .{ .segments = &seg_0_4 };
+    const fst: BezierCurve = .{ .segments = &seg_0_4 };
 
     var seg_0_8 = [_]Segment{
         Segment.init_from_start_end(
-            .{ .time = 0, .value = 0, },
-            .{ .time = 8, .value = 4, },
+            .{ .in = 0, .out = 0, },
+            .{ .in = 8, .out = 4, },
         )
     };
-    const snd: TimeCurve = .{ .segments = &seg_0_8 };
+    const snd: BezierCurve = .{ .segments = &seg_0_8 };
 
     const fst_lin = try fst.linearized(std.testing.allocator);
     defer fst_lin.deinit(std.testing.allocator);
@@ -2317,18 +2307,18 @@ test "TimeCurve: project_linear_curve to identity"
     }
 }
 
-test "TimeCurve: projection_test non-overlapping" 
+test "BezierCurve: projection_test non-overlapping" 
 {
     var seg_0_1 = [_]Segment{ Segment.init_identity(0, 1) };
-    const fst: TimeCurve = .{ .segments = &seg_0_1 };
+    const fst: BezierCurve = .{ .segments = &seg_0_1 };
 
     var seg_1_9 = [_]Segment{ 
         Segment.init_from_start_end(
-            .{ .time = 1, .value = 1, },
-            .{ .time = 9, .value = 5, },
+            .{ .in = 1, .out = 1, },
+            .{ .in = 9, .out = 5, },
         )
     };
-    const snd: TimeCurve = .{ .segments = &seg_1_9 };
+    const snd: BezierCurve = .{ .segments = &seg_1_9 };
 
     const result = try fst.project_curve(
         std.testing.allocator,
@@ -2343,11 +2333,11 @@ test "positive slope 2 linear segment test"
 {
     var test_segment_arr = [_]Segment{
         Segment.init_from_start_end(
-            .{ .time = 1, .value = 0, },
-            .{ .time = 2, .value = 2, },
+            .{ .in = 1, .out = 0, },
+            .{ .in = 2, .out = 2, },
         )
     };
-    const xform_curve = TimeCurve{ .segments = &test_segment_arr };
+    const xform_curve = BezierCurve{ .segments = &test_segment_arr };
 
     const tests = &.{
         // expect result
@@ -2374,11 +2364,11 @@ test "negative length 1 linear segment test"
     // by stack unwinding
     var segments_xform = [_]Segment{
         Segment.init_from_start_end(
-            .{ .time = -2, .value = 0, },
-            .{ .time = -1, .value = 1, },
+            .{ .in = -2, .out = 0, },
+            .{ .in = -1, .out = 1, },
         )
     };
-    const xform_curve = TimeCurve{ .segments = &segments_xform };
+    const xform_curve = BezierCurve{ .segments = &segments_xform };
 
     // outside of the range should return the original result
     // (identity transform)
@@ -2397,25 +2387,25 @@ fn line_orientation(
 ) f32 
 {
     const v1 = control_point.ControlPoint {
-        .time  = test_point.time  - segment.p0.time,
-        .value = test_point.value - segment.p0.value,
+        .in  = test_point.in  - segment.p0.in,
+        .out = test_point.out - segment.p0.out,
     };
 
     const v2 = control_point.ControlPoint {
-        .time  = segment.p3.time  - segment.p0.time,
-        .value = segment.p3.value - segment.p0.value,
+        .in  = segment.p3.in  - segment.p0.in,
+        .out = segment.p3.out - segment.p0.out,
     };
 
-    return (v1.time * v2.value - v1.value * v2.time);
+    return (v1.in * v2.out - v1.out * v2.in);
 }
 
 test "convex hull test" 
 {
     const segment:Segment = .{
-        .p0 = .{ .time = 1, .value = 0, },
-        .p1 = .{ .time = 1.25, .value = 1, },
-        .p2 = .{ .time = 1.75, .value = 0.65, },
-        .p3 = .{ .time = 2, .value = 0.24, },
+        .p0 = .{ .in = 1, .out = 0, },
+        .p1 = .{ .in = 1.25, .out = 1, },
+        .p2 = .{ .in = 1.75, .out = 0.65, },
+        .p3 = .{ .in = 2, .out = 0.24, },
     };
 
     const p0 = segment.p0;
@@ -2463,7 +2453,7 @@ test "convex hull test"
 test "Segment: eval_at for out of range u" 
 {
     var seg = [1]Segment{Segment.init_identity(3, 4)};
-    const tc = TimeCurve{ .segments = &seg};
+    const tc = BezierCurve{ .segments = &seg};
 
     try expectError(error.OutOfBounds, tc.evaluate(0));
     // right open intervals means the end point is out
@@ -2503,7 +2493,7 @@ pub fn write_json_file_curve(
 
 test "json writer: curve" 
 {
-    const ident = try TimeCurve.init(
+    const ident = try BezierCurve.init(
         std.testing.allocator,
         &.{ Segment.init_identity(-20, 30) },
     );
@@ -2553,7 +2543,7 @@ test "segment: findU_value"
     );
 }
 
-test "TimeCurve: project u loop bug" 
+test "BezierCurve: project u loop bug" 
 {
     // specific to the linearized implementation
     const old_project_algo = project_algo;
@@ -2562,19 +2552,19 @@ test "TimeCurve: project u loop bug"
 
     const simple_s_segments = [_]Segment{
         Segment.init_from_start_end(
-            .{ .time = 0, .value = 0},
-            .{ .time = 30, .value = 10},
+            .{ .in = 0, .out = 0},
+            .{ .in = 30, .out = 10},
         ),
         Segment.init_from_start_end(
-            .{ .time = 30, .value = 10},
-            .{ .time = 60, .value = 90},
+            .{ .in = 30, .out = 10},
+            .{ .in = 60, .out = 90},
         ),
         Segment.init_from_start_end(
-            .{ .time = 60, .value = 90},
-            .{ .time = 100, .value = 100},
+            .{ .in = 60, .out = 90},
+            .{ .in = 100, .out = 100},
         ),
     };
-    const simple_s = try TimeCurve.init(
+    const simple_s = try BezierCurve.init(
         std.testing.allocator,
         &simple_s_segments
     );
@@ -2582,13 +2572,13 @@ test "TimeCurve: project u loop bug"
 
     const u_seg = [_]Segment{
         Segment{
-            .p0 = .{ .time = 0, .value = 0 },
-            .p1 = .{ .time = 0, .value = 100 },
-            .p2 = .{ .time = 100, .value = 100 },
-            .p3 = .{ .time = 100, .value = 0 },
+            .p0 = .{ .in = 0, .out = 0 },
+            .p1 = .{ .in = 0, .out = 100 },
+            .p2 = .{ .in = 100, .out = 100 },
+            .p3 = .{ .in = 100, .out = 0 },
         },
     }; 
-    const upside_down_u = try TimeCurve.init(
+    const upside_down_u = try BezierCurve.init(
         std.testing.allocator,
         &u_seg,
     );
@@ -2606,8 +2596,8 @@ test "TimeCurve: project u loop bug"
         for (seg.points())
             |p|
         {
-            try std.testing.expect(!std.math.isNan(p.time));
-            try std.testing.expect(!std.math.isNan(p.value));
+            try std.testing.expect(!std.math.isNan(p.in));
+            try std.testing.expect(!std.math.isNan(p.out));
         }
     }
 
@@ -2618,15 +2608,15 @@ test "TimeCurve: project u loop bug"
     try expectEqual(@as(usize, 5), result.segments.len);
 }
 
-test "TimeCurve: project linear identity with linear 1/2 slope" 
+test "BezierCurve: project linear identity with linear 1/2 slope" 
 {
     const linear_segment = [_]Segment{
         Segment.init_from_start_end(
-            .{ .time = 60, .value = 60},
-            .{ .time = 230, .value = 230},
+            .{ .in = 60, .out = 60},
+            .{ .in = 230, .out = 230},
         ),
     };
-    const linear_crv = try TimeCurve.init(
+    const linear_crv = try BezierCurve.init(
         std.testing.allocator,
         &linear_segment,
     );
@@ -2634,11 +2624,11 @@ test "TimeCurve: project linear identity with linear 1/2 slope"
 
     const linear_half_segment = [_]Segment{
         Segment.init_from_start_end(
-            .{ .time = 0, .value = 100},
-            .{ .time = 200, .value = 200},
+            .{ .in = 0, .out = 100},
+            .{ .in = 200, .out = 200},
         ),
     };
-    const linear_half_crv = try TimeCurve.init(
+    const linear_half_crv = try BezierCurve.init(
         std.testing.allocator,
         &linear_half_segment
     );
@@ -2659,7 +2649,7 @@ test "TimeCurve: project linear identity with linear 1/2 slope"
 // // the bezier/bezier projection is implemented correctly or if another curve
 // // base was used that wasn't linear - for example b-splines.  At present,
 // // this isn't a particularly useful test.
-// test "TimeCurve: project linear u with out-of-bounds segments" 
+// test "BezierCurve: project linear u with out-of-bounds segments" 
 // {
 //     if (true) {
 //         return error.SkipZigTest;
@@ -2667,11 +2657,11 @@ test "TimeCurve: project linear identity with linear 1/2 slope"
 //
 //     var linear_segment = [_]Segment{
 //         Segment.init_from_start_end(
-//             .{ .time = 60, .value = 60},
-//             .{ .time = 130, .value = 130},
+//             .{ .in = 60, .out = 60},
+//             .{ .in = 130, .out = 130},
 //         ),
 //     };
-//     const linear_crv = TimeCurve{
+//     const linear_crv = BezierCurve{
 //         .segments = &linear_segment,
 //     };
 //     const linear_crv_lin = try linear_crv.linearized(
@@ -2681,13 +2671,13 @@ test "TimeCurve: project linear identity with linear 1/2 slope"
 //
 //     var u_seg = [_]Segment{
 //         Segment{
-//             .p0 = .{ .time = 0, .value = 0 },
-//             .p1 = .{ .time = 0, .value = 100 },
-//             .p2 = .{ .time = 100, .value = 100 },
-//             .p3 = .{ .time = 100, .value = 0 },
+//             .p0 = .{ .in = 0, .out = 0 },
+//             .p1 = .{ .in = 0, .out = 100 },
+//             .p2 = .{ .in = 100, .out = 100 },
+//             .p3 = .{ .in = 100, .out = 0 },
 //         },
 //     }; 
-//     const upside_down_u = TimeCurve{
+//     const upside_down_u = BezierCurve{
 //         .segments = &u_seg,
 //     };
 //
@@ -2696,7 +2686,7 @@ test "TimeCurve: project linear identity with linear 1/2 slope"
 //     );
 //     defer upside_down_u.deinit(std.testing.allocator);
 //
-//     const result : TimeCurve = try upside_down_u.project_curve(
+//     const result : BezierCurve = try upside_down_u.project_curve(
 //         std.testing.allocator,
 //         linear_crv,
 //     );
@@ -2727,7 +2717,7 @@ test "TimeCurve: project linear identity with linear 1/2 slope"
 //             {
 //                 std.debug.print(
 //                     "    ({d}, {d})\n",
-//                     .{ pt.time, pt.value }
+//                     .{ pt.in, pt.out }
 //                 );
 //             }
 //         }
@@ -2746,7 +2736,7 @@ test "TimeCurve: project linear identity with linear 1/2 slope"
 //                 {
 //                     std.debug.print(
 //                         "  {d}: ({d}, {d})\n",
-//                         .{ knot_ind, knot.time, knot.value }
+//                         .{ knot_ind, knot.in, knot.out }
 //                     );
 //                 }
 //         }
@@ -2758,17 +2748,17 @@ test "TimeCurve: project linear identity with linear 1/2 slope"
 //     );
 // }
 
-test "TimeCurve: split_at_each_value u curve" 
+test "BezierCurve: split_at_each_value u curve" 
 {
     const u_seg = [_]Segment{
         Segment{
-            .p0 = .{ .time = 0, .value = 0 },
-            .p1 = .{ .time = 0, .value = 100 },
-            .p2 = .{ .time = 100, .value = 100 },
-            .p3 = .{ .time = 100, .value = 0 },
+            .p0 = .{ .in = 0, .out = 0 },
+            .p1 = .{ .in = 0, .out = 100 },
+            .p2 = .{ .in = 100, .out = 100 },
+            .p3 = .{ .in = 100, .out = 0 },
         },
     }; 
-    const upside_down_u = try TimeCurve.init(
+    const upside_down_u = try BezierCurve.init(
         std.testing.allocator,
         &u_seg
     );
@@ -2780,11 +2770,11 @@ test "TimeCurve: split_at_each_value u curve"
     defer upside_down_u_hodo.deinit(std.testing.allocator);
 
     const split_points = [_]f32{
-        u_seg[0].eval_at(0).value, 
-        u_seg[0].eval_at(0.5).value, 
-        u_seg[0].eval_at(0.75).value, 
-        u_seg[0].eval_at(0.88).value, 
-        u_seg[0].eval_at(1).value, 
+        u_seg[0].eval_at(0).out, 
+        u_seg[0].eval_at(0.5).out, 
+        u_seg[0].eval_at(0.75).out, 
+        u_seg[0].eval_at(0.88).out, 
+        u_seg[0].eval_at(1).out, 
     };
 
     const result = try upside_down_u_hodo.split_at_each_output_ordinate(
@@ -2818,7 +2808,7 @@ test "TimeCurve: split_at_each_value u curve"
                 std.math.approxEqAbs(
                     f32,
                     sp_p,
-                    pt.value,
+                    pt.out,
                     0.00001
                 )
             ) 
@@ -2833,10 +2823,10 @@ test "TimeCurve: split_at_each_value u curve"
     try expectEqual(@as(usize, 4), result.segments.len);
 }
 
-test "TimeCurve: split_at_each_value linear" 
+test "BezierCurve: split_at_each_value linear" 
 {
     const identSeg = Segment.init_identity(-0.2, 1) ;
-    const lin = try TimeCurve.init(
+    const lin = try BezierCurve.init(
         std.testing.allocator,
         &.{identSeg},
     );
@@ -2858,7 +2848,7 @@ test "TimeCurve: split_at_each_value linear"
     for (endpoints_cp, 0..) 
         |cp, index| 
     {
-        fbuf[index] = cp.value;
+        fbuf[index] = cp.out;
     }
     const endpoints = fbuf[0..endpoints_cp.len];
 
@@ -2890,10 +2880,10 @@ test "TimeCurve: split_at_each_value linear"
     try expectEqual(@as(usize, 3), result.segments.len);
 }
 
-test "TimeCurve: split_at_each_input_ordinate linear" 
+test "BezierCurve: split_at_each_input_ordinate linear" 
 {
     const identSeg = Segment.init_identity(-0.2, 1) ;
-    const lin = try TimeCurve.init(
+    const lin = try BezierCurve.init(
         std.testing.allocator,
         &.{identSeg},
     );
@@ -2916,7 +2906,7 @@ test "TimeCurve: split_at_each_input_ordinate linear"
     for (endpoints_cp, 0..) 
         |cp, index| 
     {
-        fbuf[index] = cp.value;
+        fbuf[index] = cp.out;
     }
     const endpoints = fbuf[0..endpoints_cp.len];
 
@@ -2948,11 +2938,11 @@ test "TimeCurve: split_at_each_input_ordinate linear"
     try expectEqual(@as(usize, 3), result.segments.len);
 }
 
-test "TimeCurve: split_at_input_ordinate" 
+test "BezierCurve: split_at_input_ordinate" 
 {
 
-    const test_curves = [_]TimeCurve{
-        try TimeCurve.init(
+    const test_curves = [_]BezierCurve{
+        try BezierCurve.init(
             std.testing.allocator,
             &.{ Segment.init_identity(-20, 30) },
         ),
@@ -2967,9 +2957,9 @@ test "TimeCurve: split_at_input_ordinate"
         |ident, loop| 
     {
         const extents = ident.extents();
-        var split_loc:f32 = extents[0].time + 1;
+        var split_loc:f32 = extents[0].in + 1;
 
-        while (split_loc < extents[1].time) 
+        while (split_loc < extents[1].in) 
             : (split_loc += 1) 
         {
             errdefer std.log.err(
@@ -2991,16 +2981,16 @@ test "TimeCurve: split_at_input_ordinate"
 
             // check that the end points are the same
             try expectEqual(
-                ident.segments[0].p0.time,
-                split_ident.segments[0].p0.time
+                ident.segments[0].p0.in,
+                split_ident.segments[0].p0.in
             );
             try expectEqual(
-                ident.segments[0].p3.time,
-                split_ident.segments[1].p3.time
+                ident.segments[0].p3.in,
+                split_ident.segments[1].p3.in
             );
 
-            var i:f32 = extents[0].time;
-            while (i < extents[1].time) 
+            var i:f32 = extents[0].in;
+            while (i < extents[1].in) 
                 : (i += 1) 
             {
                 const fst = try ident.evaluate(i);
@@ -3015,24 +3005,24 @@ test "TimeCurve: split_at_input_ordinate"
     }
 }
 
-test "TimeCurve: trimmed_from_input_ordinate" 
+test "BezierCurve: trimmed_from_input_ordinate" 
 {
     const TestData = struct {
         // inputs
         ordinate:f32,
-        direction: TimeCurve.TrimDir,
+        direction: BezierCurve.TrimDir,
 
         // expected results
         result_extents:ContinuousTimeInterval,
         result_segment_count: usize,
     };
 
-    const test_curves = [_]TimeCurve{
+    const test_curves = [_]BezierCurve{
         try read_curve_json(
             "curves/linear_scurve_u.curve.json",
             std.testing.allocator
         ), 
-        try TimeCurve.init(
+        try BezierCurve.init(
             std.testing.allocator,
             &.{
                 Segment.init_identity(-25, -5), 
@@ -3054,49 +3044,49 @@ test "TimeCurve: trimmed_from_input_ordinate"
         const test_data = [_]TestData{
             // trim the first segment
             .{
-                .ordinate = extents[0].time * 0.25,
+                .ordinate = extents[0].in * 0.25,
                 .direction = .trim_before,
                 .result_extents = .{
-                    .start_seconds = extents[0].time * 0.25,
-                    .end_seconds = extents[1].time,
+                    .start_seconds = extents[0].in * 0.25,
+                    .end_seconds = extents[1].in,
                 },
                 .result_segment_count = ident.segments.len,
             },
             .{
-                .ordinate = extents[0].time * 0.25,
+                .ordinate = extents[0].in * 0.25,
                 .direction = .trim_after,
                 .result_extents = .{
-                    .start_seconds = extents[0].time,
-                    .end_seconds = extents[0].time * 0.25,
+                    .start_seconds = extents[0].in,
+                    .end_seconds = extents[0].in * 0.25,
                 },
                 .result_segment_count = 1,
             },
             // trim the last segment
             .{
-                .ordinate = extents[1].time * 0.75,
+                .ordinate = extents[1].in * 0.75,
                 .direction = .trim_before,
                 .result_extents = .{
-                    .start_seconds = extents[1].time * 0.75,
-                    .end_seconds = extents[1].time,
+                    .start_seconds = extents[1].in * 0.75,
+                    .end_seconds = extents[1].in,
                 },
                 .result_segment_count = 1,
             },
             .{
-                .ordinate = extents[1].time * 0.75,
+                .ordinate = extents[1].in * 0.75,
                 .direction = .trim_after,
                 .result_extents = .{
-                    .start_seconds = extents[0].time,
-                    .end_seconds = extents[1].time * 0.75,
+                    .start_seconds = extents[0].in,
+                    .end_seconds = extents[1].in * 0.75,
                 },
                 .result_segment_count = ident.segments.len,
             },
             // trim on an existing split
             .{
-                .ordinate = ident.segments[0].p3.time,
+                .ordinate = ident.segments[0].p3.in,
                 .direction = .trim_after,
                 .result_extents = .{
-                    .start_seconds = extents[0].time,
-                    .end_seconds = extents[1].time,
+                    .start_seconds = extents[0].in,
+                    .end_seconds = extents[1].in,
                 },
                 .result_segment_count = ident.segments.len,
             },
@@ -3125,27 +3115,27 @@ test "TimeCurve: trimmed_from_input_ordinate"
 
             try std.testing.expectApproxEqAbs(
                 td.result_extents.start_seconds,
-                trimmed_extents[0].time,
+                trimmed_extents[0].in,
                 0.001
             );
             try std.testing.expectApproxEqAbs(
                 td.result_extents.end_seconds,
-                trimmed_extents[1].time,
+                trimmed_extents[1].in,
                 0.001
             );
         }
     }
 }
 
-test "TimeCurve: trimmed_in_input_space" 
+test "BezierCurve: trimmed_in_input_space" 
 {
     const TestData = struct {
         trim_range:ContinuousTimeInterval,
         result_extents:ContinuousTimeInterval,
     };
 
-    const test_curves = [_]TimeCurve{
-        try TimeCurve.init(
+    const test_curves = [_]BezierCurve{
+        try BezierCurve.init(
             std.testing.allocator,
             &.{ Segment.init_identity(-20, 30) }
         ),
@@ -3166,55 +3156,55 @@ test "TimeCurve: trimmed_in_input_space"
             // trim both
             .{
                 .trim_range = .{
-                    .start_seconds = extents[0].time * 0.25,
-                    .end_seconds = extents[1].time * 0.75,
+                    .start_seconds = extents[0].in * 0.25,
+                    .end_seconds = extents[1].in * 0.75,
                 },
                 .result_extents = .{
-                    .start_seconds = extents[0].time * 0.25,
-                    .end_seconds = extents[1].time * 0.75,
+                    .start_seconds = extents[0].in * 0.25,
+                    .end_seconds = extents[1].in * 0.75,
                 },
                 },
             // trim start
             .{
                 .trim_range = .{
-                    .start_seconds = extents[0].time * 0.25,
-                    .end_seconds = extents[1].time * 1.75,
+                    .start_seconds = extents[0].in * 0.25,
+                    .end_seconds = extents[1].in * 1.75,
                 },
                 .result_extents = .{
-                    .start_seconds = extents[0].time * 0.25,
-                    .end_seconds = extents[1].time,
+                    .start_seconds = extents[0].in * 0.25,
+                    .end_seconds = extents[1].in,
                 },
                 },
             // trim end
             .{
                 .trim_range = .{
-                    .start_seconds = extents[0].time * 1.25,
-                    .end_seconds = extents[1].time * 0.75,
+                    .start_seconds = extents[0].in * 1.25,
+                    .end_seconds = extents[1].in * 0.75,
                 },
                 .result_extents = .{
-                    .start_seconds = extents[0].time,
-                    .end_seconds = extents[1].time * 0.75,
+                    .start_seconds = extents[0].in,
+                    .end_seconds = extents[1].in * 0.75,
                 },
                 },
             // trim neither
             .{
                 .trim_range = .{
-                    .start_seconds = extents[0].time * 1.25,
-                    .end_seconds = extents[1].time * 1.75,
+                    .start_seconds = extents[0].in * 1.25,
+                    .end_seconds = extents[1].in * 1.75,
                 },
                 .result_extents = .{
-                    .start_seconds = extents[0].time,
-                    .end_seconds = extents[1].time,
+                    .start_seconds = extents[0].in,
+                    .end_seconds = extents[1].in,
                 },
                 },
             .{
                 .trim_range = .{
-                    .start_seconds = extents[0].time,
-                    .end_seconds = extents[1].time,
+                    .start_seconds = extents[0].in,
+                    .end_seconds = extents[1].in,
                 },
                 .result_extents = .{
-                    .start_seconds = extents[0].time,
-                    .end_seconds = extents[1].time,
+                    .start_seconds = extents[0].in,
+                    .end_seconds = extents[1].in,
                 },
                 },
             };
@@ -3234,8 +3224,8 @@ test "TimeCurve: trimmed_in_input_space"
                     .{
                         crv_ind,
                         crv_str,
-                        crv_extents[0].time, crv_extents[0].value,
-                        crv_extents[1].time, crv_extents[1].value,
+                        crv_extents[0].in, crv_extents[0].out,
+                        crv_extents[1].in, crv_extents[1].out,
                     }
                 );
                 std.debug.print("  Error on iteration: {d}\n", .{ td_ind });
@@ -3260,29 +3250,29 @@ test "TimeCurve: trimmed_in_input_space"
                 std.debug.print(
                     "    measured result_extents: ({d}, {d}), ({d}, {d})\n",
                     .{
-                        trimmed_extents[0].time, 
-                        trimmed_extents[0].value,
-                        trimmed_extents[1].time, 
-                        trimmed_extents[1].value,
+                        trimmed_extents[0].in, 
+                        trimmed_extents[0].out,
+                        trimmed_extents[1].in, 
+                        trimmed_extents[1].out,
                     },
                 );
             }
 
             try std.testing.expectApproxEqAbs(
                 td.result_extents.start_seconds,
-                trimmed_extents[0].time,
+                trimmed_extents[0].in,
                 0.001
             );
             try std.testing.expectApproxEqAbs(
                 td.result_extents.end_seconds,
-                trimmed_extents[1].time,
+                trimmed_extents[1].in,
                 0.001
             );
         }
     }
 }
 
-test "TimeCurve: project_affine" 
+test "BezierCurve: project_affine" 
 {
     // @TODO: test bounds
 
@@ -3337,18 +3327,18 @@ test "TimeCurve: project_affine"
                     .{
                         t_seg_index,
                         pt_index,
-                        pt.time,
-                        pt.value,
-                        result_pt.time,
-                        result_pt.value, 
+                        pt.in,
+                        pt.out,
+                        result_pt.in,
+                        result_pt.out, 
                     }
                 );
                 try expectApproxEql(
                     @as(
                         f32,
-                        testdata.scale * pt.time + testdata.offset_seconds
+                        testdata.scale * pt.in + testdata.offset_seconds
                     ), 
-                    result_pt.time
+                    result_pt.in
                 );
             }
         }
@@ -3357,9 +3347,9 @@ test "TimeCurve: project_affine"
 
 pub fn affine_project_curve(
     lhs: opentime.transform.AffineTransform1D,
-    rhs: TimeCurve,
+    rhs: BezierCurve,
     allocator: std.mem.Allocator,
-) !TimeCurve 
+) !BezierCurve 
 {
     const result_segments = try allocator.dupe(
         Segment,
@@ -3372,7 +3362,7 @@ pub fn affine_project_curve(
         for (seg.point_ptrs()) 
             |pt| 
         {
-            pt.value = lhs.applied_to_seconds(pt.value);
+            pt.out = lhs.applied_to_seconds(pt.out);
         }
     }
 
@@ -3438,35 +3428,35 @@ test "affine_project_curve"
                     .{
                         t_seg_index,
                         pt_index,
-                        pt.time,
-                        pt.value,
-                        result_pt.time,
-                        result_pt.value, 
+                        pt.in,
+                        pt.out,
+                        result_pt.in,
+                        result_pt.out, 
                     }
                 );
                 try expectApproxEql(
                     @as(
                         f32,
-                        testdata.scale * pt.value + testdata.offset_seconds
+                        testdata.scale * pt.out + testdata.offset_seconds
                     ), 
-                    result_pt.value
+                    result_pt.out
                 );
             }
         }
     }
 }
 
-test "TimeCurve: split_on_critical_points s curve" 
+test "BezierCurve: split_on_critical_points s curve" 
 {
     const s_seg = [_]Segment{
         Segment{
-            .p0 = .{ .time = 0, .value = 0 },
-            .p1 = .{ .time = 0, .value = 200 },
-            .p2 = .{ .time = 100, .value = -100 },
-            .p3 = .{ .time = 100, .value = 100 },
+            .p0 = .{ .in = 0, .out = 0 },
+            .p1 = .{ .in = 0, .out = 200 },
+            .p2 = .{ .in = 100, .out = -100 },
+            .p3 = .{ .in = 100, .out = 100 },
         },
     }; 
-    const s_curve_seg = try TimeCurve.init(
+    const s_curve_seg = try BezierCurve.init(
         std.testing.allocator,
         &s_seg
     );
@@ -3480,7 +3470,7 @@ test "TimeCurve: split_on_critical_points s curve"
     try std.testing.expectEqual(@as(usize, 4), s_curve_split.segments.len);
 }
 
-test "TimeCurve: split_on_critical_points symmetric about the origin" 
+test "BezierCurve: split_on_critical_points symmetric about the origin" 
 {
 
     const TestData = struct {
@@ -3493,10 +3483,10 @@ test "TimeCurve: split_on_critical_points symmetric about the origin"
     const tests = [_]TestData{
         .{
             .segment = Segment{
-                .p0 = .{ .time = -0.5, .value = -0.5 },
-                .p1 = .{ .time =    0, .value = -0.5 },
-                .p2 = .{ .time =    0, .value =  0.5 },
-                .p3 = .{ .time =  0.5, .value =  0.5 },
+                .p0 = .{ .in = -0.5, .out = -0.5 },
+                .p1 = .{ .in =    0, .out = -0.5 },
+                .p2 = .{ .in =    0, .out =  0.5 },
+                .p3 = .{ .in =  0.5, .out =  0.5 },
             },
             .inflection_point = 0.5,
             .roots = .{ -1, -1 },
@@ -3504,10 +3494,10 @@ test "TimeCurve: split_on_critical_points symmetric about the origin"
         },
         .{
             .segment = Segment{
-                .p0 = .{ .time = -0.5, .value =    0 },
-                .p1 = .{ .time =    0, .value =   -1 },
-                .p2 = .{ .time =    0, .value =    1 },
-                .p3 = .{ .time =  0.5, .value =    0 },
+                .p0 = .{ .in = -0.5, .out =    0 },
+                .p1 = .{ .in =    0, .out =   -1 },
+                .p2 = .{ .in =    0, .out =    1 },
+                .p3 = .{ .in =  0.5, .out =    0 },
             },
             .inflection_point = 0.5,
             // assuming this is correct
@@ -3521,7 +3511,7 @@ test "TimeCurve: split_on_critical_points symmetric about the origin"
     {
         errdefer std.debug.print("test that failed: {d}\n", .{ td_ind });
         const s_seg:[1]Segment = .{ td.segment };
-        const s_curve_seg = try TimeCurve.init(
+        const s_curve_seg = try BezierCurve.init(
             std.testing.allocator,
             &s_seg
         );
@@ -3530,10 +3520,10 @@ test "TimeCurve: split_on_critical_points symmetric about the origin"
         const cSeg : hodographs.BezierSegment = .{
             .order = 3,
             .p = .{
-                .{ .x = s_seg[0].p0.time, .y = s_seg[0].p0.value },
-                .{ .x = s_seg[0].p1.time, .y = s_seg[0].p1.value },
-                .{ .x = s_seg[0].p2.time, .y = s_seg[0].p2.value },
-                .{ .x = s_seg[0].p3.time, .y = s_seg[0].p3.value },
+                .{ .x = s_seg[0].p0.in, .y = s_seg[0].p0.out },
+                .{ .x = s_seg[0].p1.in, .y = s_seg[0].p1.out },
+                .{ .x = s_seg[0].p2.in, .y = s_seg[0].p2.out },
+                .{ .x = s_seg[0].p3.in, .y = s_seg[0].p3.out },
             },
         };
         const inflections = hodographs.inflection_points(&cSeg);
@@ -3587,13 +3577,13 @@ test "TimeCurve: split_on_critical_points symmetric about the origin"
                 for (zig_splits[0].points()) 
                     |p| 
                 {
-                    std.debug.print("  {d}, {d}\n", .{p.time, p.value});
+                    std.debug.print("  {d}, {d}\n", .{p.in, p.out});
                 }
                 std.debug.print("\nzig right:\n", .{});
                 for (zig_splits[1].points()) 
                     |p| 
                 {
-                    std.debug.print("  {d}, {d}\n", .{p.time, p.value});
+                    std.debug.print("  {d}, {d}\n", .{p.in, p.out});
                 }
             }
 
@@ -3603,22 +3593,22 @@ test "TimeCurve: split_on_critical_points symmetric about the origin"
                 errdefer std.debug.print("\n\npt: {d} t: {d}\n", .{ i, t });
                 try std.testing.expectApproxEqAbs(
                     c_split_l.p[i].x,
-                    zig_splits[0].points()[i].time,
+                    zig_splits[0].points()[i].in,
                     generic_curve.EPSILON
                 );
                 try std.testing.expectApproxEqAbs(
                     c_split_l.p[i].y,
-                    zig_splits[0].points()[i].value,
+                    zig_splits[0].points()[i].out,
                     generic_curve.EPSILON
                 );
                 try std.testing.expectApproxEqAbs(
                     c_split_r.p[i].x,
-                    zig_splits[1].points()[i].time,
+                    zig_splits[1].points()[i].in,
                     generic_curve.EPSILON
                 );
                 try std.testing.expectApproxEqAbs(
                     c_split_r.p[i].y,
-                    zig_splits[1].points()[i].value,
+                    zig_splits[1].points()[i].out,
                     generic_curve.EPSILON
                 );
             }
@@ -3727,12 +3717,12 @@ pub fn three_point_guts_plot(
 
     // then set up an e1 and e2 parallel to the baseline
     const e1 = control_point.ControlPoint{
-        .time= mid_point.time - d_mid_point_dt.time * (t_mid_point),
-        .value= mid_point.value - d_mid_point_dt.value * (t_mid_point),
+        .in= mid_point.in - d_mid_point_dt.in * (t_mid_point),
+        .out= mid_point.out - d_mid_point_dt.out * (t_mid_point),
     };
     const e2 = control_point.ControlPoint{
-        .time= mid_point.time + d_mid_point_dt.time * (1-t_mid_point),
-        .value = mid_point.value + d_mid_point_dt.value * (1-t_mid_point),
+        .in= mid_point.in + d_mid_point_dt.in * (1-t_mid_point),
+        .out = mid_point.out + d_mid_point_dt.out * (1-t_mid_point),
     };
     final_result.e1 = e1;
     final_result.e2 = e2;

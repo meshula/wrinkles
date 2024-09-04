@@ -26,7 +26,7 @@ fn _is_between(
 }
 
 /// A polyline that is linearly interpolated between knots
-pub const TimeCurveLinear = struct {
+pub const Linear = struct {
     knots: []ControlPoint = &.{},
 
     // @TODO: remove the allocator from this
@@ -34,9 +34,9 @@ pub const TimeCurveLinear = struct {
     pub fn init(
         allocator: std.mem.Allocator,
         knots: []const ControlPoint
-    ) !TimeCurveLinear 
+    ) !Linear 
     {
-        return TimeCurveLinear{
+        return Linear{
             .knots = try allocator.dupe(
                 ControlPoint,
                 knots,
@@ -44,12 +44,12 @@ pub const TimeCurveLinear = struct {
         };
     }
 
-    /// initialize a TimeCurveLinear where each knot time has the same value
+    /// initialize a Linear where each knot time has the same value
     /// as the time (in other words, an identity curve that passes through t=0).
     pub fn init_identity(
         allocator: std.mem.Allocator,
         knot_times:[]const f32
-    ) !TimeCurveLinear 
+    ) !Linear 
     {
         var result = std.ArrayList(ControlPoint).init(
             allocator,
@@ -57,10 +57,10 @@ pub const TimeCurveLinear = struct {
         for (knot_times) 
             |t| 
         {
-            try result.append(.{.time = t, .value = t});
+            try result.append(.{.in = t, .out = t});
         }
 
-        return TimeCurveLinear{
+        return Linear{
             .knots = try result.toOwnedSlice(), 
         };
     }
@@ -77,7 +77,7 @@ pub const TimeCurveLinear = struct {
     pub fn clone(
         self: @This(),
         allocator: std.mem.Allocator
-    ) !TimeCurveLinear
+    ) !Linear
     {
         return .{ 
             .knots = try allocator.dupe(
@@ -95,13 +95,13 @@ pub const TimeCurveLinear = struct {
         self: @This(),
         allocator: std.mem.Allocator,
         input_bounds: opentime.ContinuousTimeInterval,
-    ) !TimeCurveLinear
+    ) !Linear
     {
         // @TODO CBB - obviously not promoting to bezier_curve and then
         //             trimming that way only to linearize back to
-        //             TimeCurveLinear would be better than this.
+        //             Linear would be better than this.
         //             HACK XXX
-        const tmp_curve = try bezier_curve.TimeCurve.init_from_linear_curve(
+        const tmp_curve = try bezier_curve.BezierCurve.init_from_linear_curve(
             allocator,
             self,
         );
@@ -126,7 +126,7 @@ pub const TimeCurveLinear = struct {
         /// bounds on the input space of the curve (output space of the affine)
         /// ("B" in the comment above)
         input_bounds: opentime.ContinuousTimeInterval,
-    ) !TimeCurveLinear 
+    ) !Linear 
     {
         // output bounds of the affine are in the input space of the curve
         const clipped_curve = try self.trimmed_in_input_space(
@@ -145,7 +145,7 @@ pub const TimeCurveLinear = struct {
         for (clipped_curve.knots, result_knots) 
             |pt, *target_knot| 
         {
-            target_knot.time = input_to_other_xform.applied_to_seconds(pt.time);
+            target_knot.in = input_to_other_xform.applied_to_seconds(pt.in);
         }
 
         return .{
@@ -171,8 +171,8 @@ pub const TimeCurveLinear = struct {
 
         // specially handle the endpoint
         const last_knot = self.knots[self.knots.len - 1];
-        if (t_arg == last_knot.time) {
-            return last_knot.value;
+        if (t_arg == last_knot.in) {
+            return last_knot.out;
         }
 
         return error.OutOfBounds;
@@ -206,8 +206,8 @@ pub const TimeCurveLinear = struct {
         // out of bounds
         if (
             self.knots.len == 0 
-            or (t_arg < self.knots[0].time)
-            or t_arg >= self.knots[last_index].time
+            or (t_arg < self.knots[0].in)
+            or t_arg >= self.knots[last_index].in
         )
         {
             return null;
@@ -217,7 +217,7 @@ pub const TimeCurveLinear = struct {
         for (self.knots[0..last_index], self.knots[1..], 0..) 
             |knot, next_knot, index| 
         {
-            if ( knot.time <= t_arg and t_arg < next_knot.time) 
+            if ( knot.in <= t_arg and t_arg < next_knot.in) 
             {
                 return index;
             }
@@ -236,8 +236,8 @@ pub const TimeCurveLinear = struct {
         // out of bounds
         if (
             self.knots.len == 0 
-            or (value_ord < self.knots[0].value)
-            or value_ord >= self.knots[last_index].value
+            or (value_ord < self.knots[0].out)
+            or value_ord >= self.knots[last_index].out
         )
         {
             return null;
@@ -247,7 +247,7 @@ pub const TimeCurveLinear = struct {
         for (self.knots[0..last_index], self.knots[1..], 0..) 
             |knot, next_knot, index| 
         {
-            if ( knot.value <= value_ord and value_ord < next_knot.value) 
+            if ( knot.out <= value_ord and value_ord < next_knot.out) 
             {
                 return index;
             }
@@ -295,8 +295,8 @@ pub const TimeCurveLinear = struct {
         self: @This(),
         allocator: std.mem.Allocator,
         /// curve being projected
-        other: TimeCurveLinear
-    ) ![]TimeCurveLinear 
+        other: Linear
+    ) ![]Linear 
     {
         // @TODO: if there are preserved derivatives, project and compose them
         //        as well
@@ -314,12 +314,12 @@ pub const TimeCurveLinear = struct {
         {
             if (
                 _is_between(
-                    self_knot.time,
-                    other_bounds[0].value,
-                    other_bounds[1].value
+                    self_knot.in,
+                    other_bounds[0].out,
+                    other_bounds[1].out
                 )
             ) {
-                try split_points.append(self_knot.time);
+                try split_points.append(self_knot.in);
             }
         }
 
@@ -330,7 +330,7 @@ pub const TimeCurveLinear = struct {
 
         // split other into curves where it goes in and out of the domain of self
         var curves_to_project = std.ArrayList(
-            TimeCurveLinear,
+            Linear,
         ).init(allocator);
         defer curves_to_project.deinit();
 
@@ -348,8 +348,8 @@ pub const TimeCurveLinear = struct {
                 |other_knot, index| 
             {
                 if (
-                    self_bounds_t.start_seconds <= other_knot.value 
-                    and other_knot.value <= self_bounds_t.end_seconds
+                    self_bounds_t.start_seconds <= other_knot.out 
+                    and other_knot.out <= self_bounds_t.end_seconds
                 ) 
                 {
                     if (last_index == null or index != last_index.?+1) 
@@ -360,7 +360,7 @@ pub const TimeCurveLinear = struct {
                         if (current_curve.items.len > 1) 
                         {
                             try curves_to_project.append(
-                                TimeCurveLinear{
+                                Linear{
                                     .knots = (
                                         try current_curve.toOwnedSlice()
                                     ),
@@ -376,7 +376,7 @@ pub const TimeCurveLinear = struct {
             }
             if (current_curve.items.len > 1) {
                 try curves_to_project.append(
-                    TimeCurveLinear{
+                    Linear{
                         .knots = try current_curve.toOwnedSlice(),
                     }
                 );
@@ -386,7 +386,7 @@ pub const TimeCurveLinear = struct {
         other_split_at_self_knots.deinit(allocator);
 
         if (curves_to_project.items.len == 0) {
-            return &[_]TimeCurveLinear{};
+            return &[_]Linear{};
         }
 
         for (curves_to_project.items) 
@@ -401,13 +401,13 @@ pub const TimeCurveLinear = struct {
                 //    the value rather than computing
                 // 4. catch the error and call a different function or do a
                 //    check in that case
-                const value = self.evaluate(knot.value) catch (
-                    if (self.knots[self.knots.len-1].time == knot.value) 
-                        self.knots[self.knots.len-1].value 
+                const value = self.evaluate(knot.out) catch (
+                    if (self.knots[self.knots.len-1].in == knot.out) 
+                        self.knots[self.knots.len-1].out 
                     else return error.NotInRangeError
                 );
 
-                knot.value  = value;
+                knot.out  = value;
             }
         }
 
@@ -425,8 +425,8 @@ pub const TimeCurveLinear = struct {
     pub fn project_curve_single_result(
         self: @This(),
         allocator: std.mem.Allocator,
-        other: TimeCurveLinear
-    ) !TimeCurveLinear 
+        other: Linear
+    ) !Linear 
     {
         const result = try self.project_curve(
             allocator,
@@ -477,8 +477,8 @@ pub const TimeCurveLinear = struct {
     ) ContinuousTimeInterval 
     {
         return .{
-            .start_seconds = self.knots[0].time,
-            .end_seconds = self.knots[self.knots.len - 1].time,
+            .start_seconds = self.knots[0].in,
+            .end_seconds = self.knots[self.knots.len - 1].in,
         };
     }
 
@@ -491,12 +491,12 @@ pub const TimeCurveLinear = struct {
             |knot| 
         {
             min = .{
-                .time = @min(min.time, knot.time),
-                .value = @min(min.value, knot.value),
+                .in = @min(min.in, knot.in),
+                .out = @min(min.out, knot.out),
             };
             max = .{
-                .time = @max(max.time, knot.time),
-                .value = @max(max.value, knot.value),
+                .in = @max(max.in, knot.in),
+                .out = @max(max.out, knot.out),
             };
         }
         return .{ min, max };
@@ -508,7 +508,7 @@ pub const TimeCurveLinear = struct {
         self: @This(),
         allocator: std.mem.Allocator,
         split_points: []f32,
-    ) !TimeCurveLinear 
+    ) !Linear 
     {
         var result = std.ArrayList(ControlPoint).init(
             allocator,
@@ -526,14 +526,14 @@ pub const TimeCurveLinear = struct {
                 |pt_value_space| 
             {
                 if (
-                    knot.value < pt_value_space 
-                    and pt_value_space < next_knot.value
+                    knot.out < pt_value_space 
+                    and pt_value_space < next_knot.out
                 )
                 {
                     const u = bezier_math.invlerp(
                         pt_value_space,
-                        knot.value,
-                        next_knot.value
+                        knot.out,
+                        next_knot.out
                     );
                     try result.append(
                         bezier_math.lerp(
@@ -547,15 +547,15 @@ pub const TimeCurveLinear = struct {
         }
         try result.append(self.knots[last_minus_one]);
 
-        return TimeCurveLinear{
+        return Linear{
             .knots = try result.toOwnedSlice() 
         };
     }
 };
 
-test "TimeCurveLinear: extents" 
+test "Linear: extents" 
 {
-    const crv = try TimeCurveLinear.init_identity(
+    const crv = try Linear.init_identity(
         std.testing.allocator,
         &.{100, 200},
     );
@@ -563,17 +563,17 @@ test "TimeCurveLinear: extents"
 
     const bounds = crv.extents();
 
-    try expectEqual(@as(f32, 100), bounds[0].time);
-    try expectEqual(@as(f32, 200), bounds[1].time);
+    try expectEqual(@as(f32, 100), bounds[0].in);
+    try expectEqual(@as(f32, 200), bounds[1].in);
 
     const bounds_time = crv.extents_time();
     try expectEqual(@as(f32, 100), bounds_time.start_seconds);
     try expectEqual(@as(f32, 200), bounds_time.end_seconds);
 }
 
-test "TimeCurveLinear: proj_ident" 
+test "Linear: proj_ident" 
 {
-    const ident = try TimeCurveLinear.init_identity(
+    const ident = try Linear.init_identity(
         std.testing.allocator,
         &.{0, 100},
     );
@@ -581,10 +581,10 @@ test "TimeCurveLinear: proj_ident"
 
     {
         var right_overhang= [_]ControlPoint{
-            .{ .time = -10, .value = -10},
-            .{ .time = 30, .value = 10},
+            .{ .in = -10, .out = -10},
+            .{ .in = 30, .out = 10},
         };
-        const right_overhang_lin = TimeCurveLinear{
+        const right_overhang_lin = Linear{
             .knots = &right_overhang,
         };
          
@@ -604,21 +604,21 @@ test "TimeCurveLinear: proj_ident"
         try expectEqual(@as(usize, 1), result.len);
         try expectEqual(@as(usize, 2), result[0].knots.len);
 
-        try expectEqual(@as(f32, 10), result[0].knots[0].time);
-        try expectEqual(@as(f32, 0), result[0].knots[0].value);
+        try expectEqual(@as(f32, 10), result[0].knots[0].in);
+        try expectEqual(@as(f32, 0), result[0].knots[0].out);
 
-        try expectEqual(@as(f32, 30), result[0].knots[1].time);
-        try expectEqual(@as(f32, 10), result[0].knots[1].value);
+        try expectEqual(@as(f32, 30), result[0].knots[1].in);
+        try expectEqual(@as(f32, 10), result[0].knots[1].out);
 
         // @TODO: check the obviously out of bounds results as well
     }
 
     {
         const left_overhang = [_]ControlPoint{
-            .{ .time = 90, .value = 90},
-            .{ .time = 110, .value = 130},
+            .{ .in = 90, .out = 90},
+            .{ .in = 110, .out = 130},
         };
-        const left_overhang_lin = try TimeCurveLinear.init(
+        const left_overhang_lin = try Linear.init(
             std.testing.allocator,
             &left_overhang,
         );
@@ -640,32 +640,32 @@ test "TimeCurveLinear: proj_ident"
         try expectEqual(@as(usize, 1), result.len);
         try expectEqual(@as(usize, 2), result[0].knots.len);
 
-        try expectEqual(@as(f32, 90), result[0].knots[0].time);
-        try expectEqual(@as(f32, 90), result[0].knots[0].value);
+        try expectEqual(@as(f32, 90), result[0].knots[0].in);
+        try expectEqual(@as(f32, 90), result[0].knots[0].out);
 
-        try expectEqual(@as(f32, 95),  result[0].knots[1].time);
-        try expectEqual(@as(f32, 100), result[0].knots[1].value);
+        try expectEqual(@as(f32, 95),  result[0].knots[1].in);
+        try expectEqual(@as(f32, 100), result[0].knots[1].out);
     }
 
     // @TODO: add third test case, with right AND left overhang
 }
 
-test "TimeCurveLinear: project s" 
+test "Linear: project s" 
 {
-    const ident = try TimeCurveLinear.init_identity(
+    const ident = try Linear.init_identity(
         std.testing.allocator,
         &.{0, 100},
     );
     defer ident.deinit(std.testing.allocator);
 
     const simple_s: [4]ControlPoint = .{
-        .{ .time = 0, .value = 0},
-        .{ .time = 30, .value = 10},
-        .{ .time = 60, .value = 90},
-        .{ .time = 100, .value = 100},
+        .{ .in = 0, .out = 0},
+        .{ .in = 30, .out = 10},
+        .{ .in = 60, .out = 90},
+        .{ .in = 100, .out = 100},
     };
 
-    const simple_s_lin = try TimeCurveLinear.init(
+    const simple_s_lin = try Linear.init(
         std.testing.allocator,
         &simple_s,
     );
@@ -688,21 +688,21 @@ test "TimeCurveLinear: project s"
     try expectEqual(@as(usize, 4), result[0].knots.len);
 }
 
-test "TimeCurveLinear: projection_test - compose to identity" 
+test "Linear: projection_test - compose to identity" 
 {
-    const fst= try TimeCurveLinear.init(
+    const fst= try Linear.init(
         std.testing.allocator,
         &.{
-            .{ .time = 0, .value = 0, },
-            .{ .time = 4, .value = 8, },
+            .{ .in = 0, .out = 0, },
+            .{ .in = 4, .out = 8, },
         }
     );
     defer fst.deinit(std.testing.allocator);
-    const snd= try TimeCurveLinear.init(
+    const snd= try Linear.init(
         std.testing.allocator,
         &.{
-            .{ .time = 0, .value = 0, },
-            .{ .time = 8, .value = 4, },
+            .{ .in = 0, .out = 0, },
+            .{ .in = 8, .out = 4, },
         },
     );
     defer snd.deinit(std.testing.allocator);
@@ -721,8 +721,8 @@ test "TimeCurveLinear: projection_test - compose to identity"
     }
 
     try expectEqual(@as(usize, 1), result.len);
-    try expectEqual(@as(f32, 8), result[0].knots[1].time);
-    try expectEqual(@as(f32, 8), result[0].knots[1].value);
+    try expectEqual(@as(f32, 8), result[0].knots[1].in);
+    try expectEqual(@as(f32, 8), result[0].knots[1].out);
 
     var x:f32 = 0;
     while (x < 1) 
@@ -736,16 +736,16 @@ test "TimeCurveLinear: projection_test - compose to identity"
     }
 }
 
-test "TimeCurveLinear: Affine through linear"
+test "Linear: Affine through linear"
 {
     // given a curve that maps space a -> space b
     // and a transform that maps b->c
 
-    const b2c_crv= try TimeCurveLinear.init(
+    const b2c_crv= try Linear.init(
         std.testing.allocator,
         &.{
-            .{ .time = 0, .value = 0, },
-            .{ .time = 4, .value = 8, },
+            .{ .in = 0, .out = 0, },
+            .{ .in = 4, .out = 8, },
         }
     );
     defer b2c_crv.deinit(std.testing.allocator);
@@ -754,8 +754,8 @@ test "TimeCurveLinear: Affine through linear"
     errdefer std.debug.print(
         "b2c_crv_b_extents: [{d}, {d})\nb2c_crv_c_extents: [{d}, {d})\n",
         .{
-            b2c_extents[0].time, b2c_extents[1].time,
-            b2c_extents[0].value, b2c_extents[1].value,
+            b2c_extents[0].in, b2c_extents[1].in,
+            b2c_extents[0].out, b2c_extents[1].out,
         }
     );
 
@@ -808,8 +808,8 @@ test "TimeCurveLinear: Affine through linear"
         errdefer std.debug.print(
             "a2c_result_extents: [({d}, {d}), ({d}, {d}))\n",
             .{
-                a2c_result_extents[0].time, a2c_result_extents[0].value,
-                a2c_result_extents[1].time, a2c_result_extents[1].value,
+                a2c_result_extents[0].in, a2c_result_extents[0].out,
+                a2c_result_extents[1].in, a2c_result_extents[1].out,
             }
         );
 
@@ -825,7 +825,7 @@ test "TimeCurveLinear: Affine through linear"
         );
 
         try expectApproxEqAbs(
-            a2c_result_extents[0].time,
+            a2c_result_extents[0].in,
             a_bound.start_seconds,
             generic_curve.EPSILON,
         );
@@ -835,10 +835,10 @@ test "TimeCurveLinear: Affine through linear"
 pub fn join_lin_aff(
     allocator: std.mem.Allocator,
     args: struct{
-        a2b: TimeCurveLinear,
+        a2b: Linear,
         b2c: opentime.AffineTransform1D,
     },
-) !TimeCurveLinear
+) !Linear
 {
     const new_knots = try allocator.dupe(
         ControlPoint,
@@ -848,7 +848,7 @@ pub fn join_lin_aff(
     for (new_knots)
         |*knot|
     {
-        knot.value = args.b2c.applied_to_seconds(knot.value);
+        knot.out = args.b2c.applied_to_seconds(knot.out);
     }
 
     return .{
@@ -856,16 +856,16 @@ pub fn join_lin_aff(
     };
 }
 
-test "TimeCurveLinear: linear through affine"
+test "Linear: linear through affine"
 {
     // given a curve that maps space a -> space b
     // and a transform that maps b->c
 
-    const a2b_crv= try TimeCurveLinear.init(
+    const a2b_crv= try Linear.init(
         std.testing.allocator,
         &.{
-            .{ .time = 0, .value = 0, },
-            .{ .time = 4, .value = 8, },
+            .{ .in = 0, .out = 0, },
+            .{ .in = 4, .out = 8, },
         }
     );
     defer a2b_crv.deinit(std.testing.allocator);
@@ -874,8 +874,8 @@ test "TimeCurveLinear: linear through affine"
     errdefer std.debug.print(
         "b2c_crv_b_extents: [{d}, {d})\nb2c_crv_c_extents: [{d}, {d})\n",
         .{
-            a2b_extents[0].time,  a2b_extents[1].time,
-            a2b_extents[0].value, a2b_extents[1].value,
+            a2b_extents[0].in,  a2b_extents[1].in,
+            a2b_extents[0].out, a2b_extents[1].out,
         }
     );
 
@@ -941,13 +941,13 @@ test "TimeCurveLinear: linear through affine"
     }
 }
 
-test "TimeCurveLinear: trimmed_in_input_space"
+test "Linear: trimmed_in_input_space"
 {
-    const crv = try TimeCurveLinear.init(
+    const crv = try Linear.init(
         std.testing.allocator,
         &.{
-            .{ .time = 0, .value = 0, },
-            .{ .time = 4, .value = 8, },
+            .{ .in = 0, .out = 0, },
+            .{ .in = 4, .out = 8, },
         }
     );
     defer crv.deinit(std.testing.allocator);
@@ -960,8 +960,8 @@ test "TimeCurveLinear: trimmed_in_input_space"
     errdefer std.debug.print(
         "bounds: [({d}, {d}), ({d}, {d}))\n",
         .{
-            crv_ext[0].time, crv_ext[0].value,
-            crv_ext[1].time, crv_ext[1].value,
+            crv_ext[0].in, crv_ext[0].out,
+            crv_ext[1].in, crv_ext[1].out,
         }
     );
 
@@ -974,20 +974,20 @@ test "TimeCurveLinear: trimmed_in_input_space"
     errdefer std.debug.print(
         "found: [({d}, {d}), ({d}, {d}))\n",
         .{
-            trimmed_extents[0].time, trimmed_extents[0].value,
-            trimmed_extents[1].time, trimmed_extents[1].value,
+            trimmed_extents[0].in, trimmed_extents[0].out,
+            trimmed_extents[1].in, trimmed_extents[1].out,
         }
     );
 
     try expectApproxEqAbs(
         bounds.start_seconds,
-        trimmed_extents[0].time, 
+        trimmed_extents[0].in, 
         generic_curve.EPSILON,
     );
 
     try expectApproxEqAbs(
         bounds.end_seconds,
-        trimmed_extents[1].time, 
+        trimmed_extents[1].in, 
         generic_curve.EPSILON,
     );
 }
@@ -998,8 +998,8 @@ test "TimeCurveLinear: trimmed_in_input_space"
 // pub fn compose_transform_linear_curve_affine(
 //         allocator: std.mem.Allocator,
 //         a2b_crv: opentime.transform.AffineTransform1D,
-//         b2c_crv: TimeCurveLinear,
-// ) !TimeCurveLinear
+//         b2c_crv: Linear,
+// ) !Linear
 // {}
 //
 // /// if an affine transforms from A to B, and a linear curve transforms from B
@@ -1008,8 +1008,8 @@ test "TimeCurveLinear: trimmed_in_input_space"
 //         allocator: std.mem.Allocator,
 //         a2b_aff: opentime.transform.AffineTransform1D,
 //         b_bounds:opentime.ContinuousTimeInterval,
-//         b2c_crv: TimeCurveLinear,
-// ) !TimeCurveLinear
+//         b2c_crv: Linear,
+// ) !Linear
 // {
 //     _ = allocator;
 //     _ = a2b_aff;

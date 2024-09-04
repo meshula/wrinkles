@@ -3674,8 +3674,8 @@ test "Single Clip reverse transform"
     //              110               103         100 (seconds)
     //
 
-    const start:curve.ControlPoint = .{ .time = 0, .value = 10 };
-    const end:curve.ControlPoint = .{ .time = 10, .value = 0 };
+    const start:curve.ControlPoint = .{ .in = 0, .out = 10 };
+    const end:curve.ControlPoint = .{ .in = 10, .out = 0 };
     const inv_tx = (
         time_topology.TimeTopology.init_linear_start_end(
             start,
@@ -3739,7 +3739,7 @@ test "Single Clip reverse transform"
             "test data:\nprovided: [{d}, {d})\ninput:  [{d}, {d})\n"
             ++ "output: [{d}, {d})\n",
             .{
-                start.time, end.time,
+                start.in, end.in,
                 input_bounds.start_seconds, input_bounds.end_seconds ,
                 output_bounds.start_seconds, output_bounds.end_seconds,
             },
@@ -3751,13 +3751,13 @@ test "Single Clip reverse transform"
         );
 
         try expectApproxEqAbs(
-            start.time,
+            start.in,
             input_bounds.start_seconds,
             util.EPSILON,
         );
 
         try expectApproxEqAbs(
-            end.time,
+            end.in,
             input_bounds.end_seconds,
             util.EPSILON,
         );
@@ -3821,8 +3821,8 @@ test "Single Clip bezier transform"
         base_curve,
         //  the range of the clip for testing - rescale factors
         .{
-            .{ .time = 0, .value = 0, },
-            .{ .time = 10, .value = 10, },
+            .{ .in = 0, .out = 0, },
+            .{ .in = 10, .out = 10, },
         }
     );
     defer xform_curve.deinit(allocator);

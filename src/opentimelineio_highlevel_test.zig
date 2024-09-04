@@ -733,8 +733,8 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     const wp: otio.Warp = .{
         .child = cl_ptr,
         .transform = time_topology.TimeTopology.init_linear_start_end(
-            .{ .time = 0, .value = 6 },
-            .{ .time = 6, .value = 0 },   
+            .{ .in = 0, .out = 6 },
+            .{ .in = 6, .out = 0 },   
         )
     };
     try tr.append(wp);

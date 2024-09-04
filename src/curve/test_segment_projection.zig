@@ -43,17 +43,17 @@ fn expectNotEqual(
 
 test "curve projection tests: identity projection" {
     // note that intervals are identical
-    var identity_tc = try curve.TimeCurve.init_from_start_end(
+    var identity_tc = try curve.BezierCurve.init_from_start_end(
         std.testing.allocator,
-        .{ .time = 0, .value = 0 },
-        .{ .time = 10, .value = 10 },
+        .{ .in = 0, .out = 0 },
+        .{ .in = 10, .out = 10 },
     );
     defer identity_tc.deinit(std.testing.allocator);
 
-    const double_tc = try curve.TimeCurve.init_from_start_end(
+    const double_tc = try curve.BezierCurve.init_from_start_end(
         std.testing.allocator,
-        .{ .time = 0, .value = 0 },
-        .{ .time = 1, .value = 2 },
+        .{ .in = 0, .out = 0 },
+        .{ .in = 1, .out = 2 },
     );
     defer double_tc.deinit(std.testing.allocator);
 
@@ -69,20 +69,20 @@ test "curve projection tests: identity projection" {
     const result = results.result.?.segments[0];
 
     try expectEqual(
-        double_tc.extents()[0].time,
-        result.extents()[0].time,
+        double_tc.extents()[0].in,
+        result.extents()[0].in,
     );
     try expectEqual(
-        double_tc.extents()[1].time,
-        result.extents()[1].time,
+        double_tc.extents()[1].in,
+        result.extents()[1].in,
     );
 
     for (result.points())
         |pt|
     {
         try expectApproxEqAbs(
-            pt.value,
-            result.eval_at_input(pt.time),
+            pt.out,
+            result.eval_at_input(pt.in),
             EPSILON,
         );
     }
@@ -91,21 +91,21 @@ test "curve projection tests: identity projection" {
 test "Segment:  identity projection" {
     // note that intervals are identical
     var identity_s = curve.Segment.init_from_start_end(
-        .{ .time = 0, .value = 0 },
-        .{ .time = 10, .value = 10 },
+        .{ .in = 0, .out = 0 },
+        .{ .in = 10, .out = 10 },
     );
     const double_s = curve.Segment.init_from_start_end(
-        .{ .time = 0, .value = 0 },
-        .{ .time = 1, .value = 2 },
+        .{ .in = 0, .out = 0 },
+        .{ .in = 1, .out = 2 },
     );
 
     // both are already linear, should result in a single segment
     const result = identity_s.project_segment(double_s);
 
     try expectEqual(double_s.p0, result.p0);
-    try expectApproxEql(double_s.p1.value, result.p1.value);
-    try expectApproxEql(double_s.p2.value, result.p2.value);
-    try expectApproxEql(double_s.p3.value, result.p3.value);
+    try expectApproxEql(double_s.p1.out, result.p1.out);
+    try expectApproxEql(double_s.p2.out, result.p2.out);
+    try expectApproxEql(double_s.p3.out, result.p3.out);
 }
 
 test "projection tests: linear projection" {
@@ -113,50 +113,50 @@ test "projection tests: linear projection" {
 
     // note that intervals are identical
     var quad_s = curve.Segment.init_from_start_end(
-        .{ .time = 0, .value = 0 },
-        .{ .time = 1, .value = m },
+        .{ .in = 0, .out = 0 },
+        .{ .in = 1, .out = m },
     );
     var double_s = curve.Segment.init_from_start_end(
-        .{ .time = 0, .value = 0 },
-        .{ .time = 0.5, .value = 1 },
+        .{ .in = 0, .out = 0 },
+        .{ .in = 0.5, .out = 1 },
     );
 
     var result = quad_s.project_segment(double_s);
 
-    try expectEqual(m*double_s.p0.value, result.p0.value);
-    try expectApproxEql(m*double_s.p1.value, result.p1.value);
-    try expectApproxEql(m*double_s.p2.value, result.p2.value);
-    try expectApproxEql(m*double_s.p3.value, result.p3.value);
+    try expectEqual(m*double_s.p0.out, result.p0.out);
+    try expectApproxEql(m*double_s.p1.out, result.p1.out);
+    try expectApproxEql(m*double_s.p2.out, result.p2.out);
+    try expectApproxEql(m*double_s.p3.out, result.p3.out);
 
-    try expectEqual(    m*(double_s.eval_at(0).value),   (result.eval_at(0).value));
-    try expectApproxEql(m*(double_s.eval_at(0.25).value),(result.eval_at(0.25).value));
-    try expectApproxEql(m*(double_s.eval_at(0.5).value), (result.eval_at(0.5).value));
-    try expectApproxEql(m*(double_s.eval_at(0.75).value),(result.eval_at(0.75).value));
+    try expectEqual(    m*(double_s.eval_at(0).out),   (result.eval_at(0).out));
+    try expectApproxEql(m*(double_s.eval_at(0.25).out),(result.eval_at(0.25).out));
+    try expectApproxEql(m*(double_s.eval_at(0.5).out), (result.eval_at(0.5).out));
+    try expectApproxEql(m*(double_s.eval_at(0.75).out),(result.eval_at(0.75).out));
 }
 
 test "projection tests: bezier projected through linear" {
     const m: f32 = 2;
 
     var double_s = curve.Segment.init_from_start_end(
-        .{ .time = 0, .value = 0 },
-        .{ .time = 1, .value = m },
+        .{ .in = 0, .out = 0 },
+        .{ .in = 1, .out = m },
     );
 
     // upside down u shaped curve
     var bezier_s = curve.Segment{
-        .p0 = .{ .time = 0, .value = 0 },
-        .p1 = .{ .time = 0, .value = 1 },
-        .p2 = .{ .time = 1, .value = 1 },
-        .p3 = .{ .time = 1, .value = 0 },
+        .p0 = .{ .in = 0, .out = 0 },
+        .p1 = .{ .in = 0, .out = 1 },
+        .p2 = .{ .in = 1, .out = 1 },
+        .p3 = .{ .in = 1, .out = 0 },
     };
 
     var result = double_s.project_segment(bezier_s);
 
-    try expectEqual(m*bezier_s.eval_at(0   ).value, result.eval_at(0   ).value);
+    try expectEqual(m*bezier_s.eval_at(0   ).out, result.eval_at(0   ).out);
 
-    try expectEqual(m*bezier_s.eval_at(0.25).value, result.eval_at(0.25).value);
-    try expectEqual(m*bezier_s.eval_at(0.5 ).value, result.eval_at(0.5 ).value);
-    try expectEqual(m*bezier_s.eval_at(0.75).value, result.eval_at(0.75).value);
+    try expectEqual(m*bezier_s.eval_at(0.25).out, result.eval_at(0.25).out);
+    try expectEqual(m*bezier_s.eval_at(0.5 ).out, result.eval_at(0.5 ).out);
+    try expectEqual(m*bezier_s.eval_at(0.75).out, result.eval_at(0.75).out);
 }
 
 test "projection tests: bezier projected through linear 2" {
@@ -172,24 +172,24 @@ test "projection tests: bezier projected through linear 2" {
 
     // pushing the middle control points up and down to make a slight S curve
     var scurve_s = curve.Segment{
-        .p0 = .{ .time = 0, .value = 0},
-        .p1 = .{ .time = 1.0/3.0, .value = 1.0/3.0 - off },
-        .p2 = .{ .time = 2.0/3.0, .value = 2.0/3.0 + off },
-        .p3 = .{ .time = 1, .value = 1},
+        .p0 = .{ .in = 0, .out = 0},
+        .p1 = .{ .in = 1.0/3.0, .out = 1.0/3.0 - off },
+        .p2 = .{ .in = 2.0/3.0, .out = 2.0/3.0 + off },
+        .p3 = .{ .in = 1, .out = 1},
     };
 
     // upside down u shaped curve
     var ushape_s = curve.Segment{
-        .p0 = .{ .time = 0, .value = 0 },
-        .p1 = .{ .time = 0, .value = 1 },
-        .p2 = .{ .time = 1, .value = 1 },
-        .p3 = .{ .time = 1, .value = 0 },
+        .p0 = .{ .in = 0, .out = 0 },
+        .p1 = .{ .in = 0, .out = 1 },
+        .p2 = .{ .in = 1, .out = 1 },
+        .p3 = .{ .in = 1, .out = 0 },
     };
 
     var result = scurve_s.project_segment(ushape_s);
 
     // the boundaries should still be the same
-    try expectEqual(ushape_s.eval_at(0).value, result.eval_at(0).value);
+    try expectEqual(ushape_s.eval_at(0).out, result.eval_at(0).out);
 
     // ...but midpoints shoulld be different
     // try expectNotEqual(curve._eval_bezier(0.25, ushape_s), curve._eval_bezier(0.25, result));

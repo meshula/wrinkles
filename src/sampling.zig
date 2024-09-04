@@ -568,7 +568,7 @@ pub fn resampled(
 pub fn retimed(
     allocator: std.mem.Allocator,
     in_samples: Sampling,
-    xform: curve.TimeCurve,
+    xform: curve.BezierCurve,
     step_retime: bool,
     output_sampling_info: DiscreteDatasourceIndexGenerator,
 ) !Sampling
@@ -589,7 +589,7 @@ pub fn retimed(
 pub fn retimed_linear_curve(
     allocator: std.mem.Allocator,
     in_samples: Sampling,
-    lin_curve: curve.TimeCurveLinear,
+    lin_curve: curve.Linear,
     step_retime: bool,
     output_sampling_info: DiscreteDatasourceIndexGenerator,
 ) !Sampling
@@ -690,7 +690,7 @@ pub fn retimed_linear_curve(
 pub fn retimed_linear_curve_non_interpolating(
     allocator: std.mem.Allocator,
     in_samples: Sampling,
-    retimed_to_implicit_crv: curve.TimeCurveLinear,
+    retimed_to_implicit_crv: curve.Linear,
     output_sampling_info: DiscreteDatasourceIndexGenerator,
 ) !Sampling
 {
@@ -734,7 +734,7 @@ pub fn retimed_linear_curve_non_interpolating(
         |l_knot, r_knot|
     {    
         const num_output_samples:usize = @intFromFloat(
-            (r_knot.time - l_knot.time) 
+            (r_knot.in - l_knot.in) 
              * @as(f32, @floatFromInt(output_sampling_info.sample_rate_hz))
         );
 
@@ -759,7 +759,7 @@ pub fn retimed_linear_curve_non_interpolating(
         // output index -> output time (discrete->continuous)
         const output_sample_time: f32 = (
             @as(f32, @floatFromInt(output_index)) * s_per_sample_output
-            + ret_to_s_crv.knots[0].time
+            + ret_to_s_crv.knots[0].in
         );
 
         // output -> input time (continuous -> continuous)
@@ -785,7 +785,7 @@ pub fn retimed_linear_curve_non_interpolating(
 pub fn retimed_linear_curve_interpolating(
     allocator: std.mem.Allocator,
     in_samples: Sampling,
-    retimed_to_implicit_crv: curve.TimeCurveLinear,
+    retimed_to_implicit_crv: curve.Linear,
     step_retime: bool,
     output_sampling_info: DiscreteDatasourceIndexGenerator,
 ) !Sampling
@@ -811,8 +811,8 @@ pub fn retimed_linear_curve_interpolating(
         |l_knot, r_knot|
     {    
         const relevant_sample_indices = in_samples.indices_between_time(
-            l_knot.time,
-            r_knot.time
+            l_knot.in,
+            r_knot.in
         );
         const relevant_input_samples = in_samples.buffer[
             relevant_sample_indices[0]..
@@ -831,7 +831,7 @@ pub fn retimed_linear_curve_interpolating(
         const output_samples:usize = @intFromFloat(
             @floor(
                 (
-                 (r_knot.value - l_knot.value) 
+                 (r_knot.out - l_knot.out) 
                  * sample_rate_f
                 )
                 + 0.5 / sample_rate_f
@@ -1071,16 +1071,16 @@ test "retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
         curve.Segment.init_identity(0,  1.0),
         // go up
         curve.Segment.init_from_start_end(
-            .{ .time = 1.0, .value = 1.0 },
-            .{ .time = 2.0, .value = 3.0 },
+            .{ .in = 1.0, .out = 1.0 },
+            .{ .in = 2.0, .out = 3.0 },
         ),
         // identity
         curve.Segment.init_from_start_end(
-            .{ .time = 2.0, .value = 3.0 },
-            .{ .time = 3.0, .value = 4.0 },
+            .{ .in = 2.0, .out = 3.0 },
+            .{ .in = 3.0, .out = 4.0 },
         ),
     };
-    const retime_curve : curve.TimeCurve = .{
+    const retime_curve : curve.BezierCurve = .{
         .segments = &retime_curve_segments
     };
     if (WRITE_TEST_FILES) {
@@ -1180,13 +1180,13 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
         curve.Segment.init_identity(0, 1),
         // go up
         curve.Segment{
-            .p0 = .{ .time = 1, .value = 1.0 },
-            .p1 = .{ .time = 1.5, .value = 1.25 },
-            .p2 = .{ .time = 2, .value = 1.35 },
-            .p3 = .{ .time = 2.5, .value = 1.5 },
+            .p0 = .{ .in = 1, .out = 1.0 },
+            .p1 = .{ .in = 1.5, .out = 1.25 },
+            .p2 = .{ .in = 2, .out = 1.35 },
+            .p3 = .{ .in = 2.5, .out = 1.5 },
         },
     };
-    const cubic_retime_curve : curve.TimeCurve = .{
+    const cubic_retime_curve : curve.BezierCurve = .{
         .segments = &cubic_retime_curve_segments
     };
     if (WRITE_TEST_FILES) {
@@ -1231,8 +1231,8 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
 
     try knots.append(
         .{
-            .time = retime_curve_extents.start_seconds,
-            .value = try cubic_retime_curve.evaluate(
+            .in = retime_curve_extents.start_seconds,
+            .out = try cubic_retime_curve.evaluate(
                 retime_curve_extents.start_seconds
             ),
         }
@@ -1244,13 +1244,13 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
     {
         try knots.append(
             .{
-                .time = t,
-                .value = try cubic_retime_curve.evaluate(t),
+                .in = t,
+                .out = try cubic_retime_curve.evaluate(t),
             }
         );
     }
 
-    const retime_24hz_lin = curve.TimeCurveLinear{
+    const retime_24hz_lin = curve.Linear{
         .knots = try knots.toOwnedSlice(),
     };
     defer retime_24hz_lin.deinit(std.testing.allocator);
@@ -1393,7 +1393,7 @@ test "sampling: frame phase slide 1: (time*1 freq*1 phase+0) 0,1,2,3->0,1,2,3"
     try expectEqual(false, ramp_samples.interpolating);
 
     // @TODO: return here after threading interpolating through
-    const sample_to_output_crv = try curve.linear_curve.TimeCurveLinear.init_identity(
+    const sample_to_output_crv = try curve.linear_curve.Linear.init_identity(
         std.testing.allocator,
         &.{0, 2},
     );
@@ -1451,7 +1451,7 @@ test "sampling: frame phase slide 2: (time*2 bounds*1 freq*1 phase+0) 0,1,2,3->0
 
     // @TODO: return here after threading interpolating through
     const sample_to_output_crv = (
-        try curve.linear_curve.TimeCurveLinear.init_identity(
+        try curve.linear_curve.Linear.init_identity(
             std.testing.allocator,
             &.{0, 1},
         )
@@ -1459,7 +1459,7 @@ test "sampling: frame phase slide 2: (time*2 bounds*1 freq*1 phase+0) 0,1,2,3->0
     defer sample_to_output_crv.deinit(std.testing.allocator);
 
     // don't want an identity
-    sample_to_output_crv.knots[1].value = 0.5;
+    sample_to_output_crv.knots[1].out = 0.5;
 
     const crv_str = try sample_to_output_crv.debug_json_str(
         std.testing.allocator
@@ -1537,7 +1537,7 @@ test "sampling: frame phase slide 2.5: (time*2 bounds*2 freq*1 phase+0) 0,1,2,3-
 
     // @TODO: return here after threading interpolating through
     const retimed_to_sample_crv = (
-        try curve.linear_curve.TimeCurveLinear.init_identity(
+        try curve.linear_curve.Linear.init_identity(
             std.testing.allocator,
             &.{0, 2.0},
         )
@@ -1545,7 +1545,7 @@ test "sampling: frame phase slide 2.5: (time*2 bounds*2 freq*1 phase+0) 0,1,2,3-
     defer retimed_to_sample_crv.deinit(std.testing.allocator);
 
     // don't want an identity
-    retimed_to_sample_crv.knots[1].value = 1;
+    retimed_to_sample_crv.knots[1].out = 1;
 
     // trivial check that curve behaves as expected
     try expectApproxEqAbs(
@@ -1616,7 +1616,7 @@ test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(
 
     // @TODO: return here after threading interpolating through
     const sample_to_output_crv = (
-        try curve.linear_curve.TimeCurveLinear.init_identity(
+        try curve.linear_curve.Linear.init_identity(
             std.testing.allocator,
             &.{0, 1.0},
         )
@@ -1735,18 +1735,18 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
 
     // @TODO: return here after threading interpolating through
     const inter_to_sample_crv = (
-        try curve.linear_curve.TimeCurveLinear.init_identity(
+        try curve.linear_curve.Linear.init_identity(
             std.testing.allocator,
             &.{0, 2},
         )
     );
     defer inter_to_sample_crv.deinit(std.testing.allocator);
 
-    inter_to_sample_crv.knots[0].value = 0;
-    inter_to_sample_crv.knots[1].value = 1;
+    inter_to_sample_crv.knots[0].out = 0;
+    inter_to_sample_crv.knots[1].out = 1;
 
     const retime_to_inter_crv = (
-        try curve.linear_curve.TimeCurveLinear.init_identity(
+        try curve.linear_curve.Linear.init_identity(
             std.testing.allocator,
             &.{0.25, 1.25},
         )
@@ -1829,15 +1829,15 @@ test "sampling: frame phase slide 5: arbitrary held frames 0,1,2->0,0,0,0,1,1,2,
     // ///////////////
 
     var knots = [_]curve.ControlPoint{
-        .{ .time = 0,    .value = 0 },
-        .{ .time = 1.25, .value = 0 },
-        .{ .time = 1.25, .value = 0.25 },
-        .{ .time = 1.75, .value = 0.25 },
-        .{ .time = 1.75, .value = 0.5 },
-        .{ .time = 2.5,  .value = 0.5 },
+        .{ .in = 0,    .out = 0 },
+        .{ .in = 1.25, .out = 0 },
+        .{ .in = 1.25, .out = 0.25 },
+        .{ .in = 1.75, .out = 0.25 },
+        .{ .in = 1.75, .out = 0.5 },
+        .{ .in = 2.5,  .out = 0.5 },
     };
 
-    const output_to_sample_crv = curve.TimeCurveLinear{
+    const output_to_sample_crv = curve.Linear{
         .knots = &knots,
     };
 
@@ -1905,10 +1905,10 @@ test "retimed leak test"
     };
 
     var knots = [_]curve.ControlPoint{
-        .{ .time = 0, .value = 0 },
-        .{ .time = 1, .value = 1 },
+        .{ .in = 0, .out = 0 },
+        .{ .in = 1, .out = 1 },
     };
-    const retimed_to_sample_crv = curve.TimeCurveLinear{
+    const retimed_to_sample_crv = curve.Linear{
         .knots = &knots,
     };
 

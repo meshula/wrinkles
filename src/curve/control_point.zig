@@ -43,7 +43,7 @@ pub const ControlPoint = struct {
     /// multiply w/ number
     pub fn mul_num(
         self: @This(),
-        val: f32,
+        val: opentime.Ordinate,
     ) ControlPoint 
     {
         return .{
@@ -79,7 +79,7 @@ pub const ControlPoint = struct {
     /// divide w/ number
     pub fn div_num(
         self: @This(),
-        val: f32,
+        val: opentime.Ordinate,
     ) ControlPoint 
     {
         return .{
@@ -172,11 +172,11 @@ pub const ControlPoint = struct {
         };
     }
 
-    /// distance of the point from the origin
+    /// distance of this point from another point
     pub fn distance(
         self: @This(),
         rhs: ControlPoint,
-    ) f32 
+    ) opentime.Ordinate 
     {
         const diff = rhs.sub(self);
         return std.math.sqrt(diff.in * diff.in + diff.out * diff.out);
@@ -199,8 +199,8 @@ pub const ControlPoint = struct {
     {
         return try std.fmt.allocPrint(
             allocator,
-            \\{{ "time": {d:.6}, "value": {d:.6} }}
-            , .{ self.in, self.out, }
+            \\{{ "in": {d:.6}, "out": {d:.6} }}
+            , .{ self.in, self.out, },
         );
     }
 };
@@ -211,7 +211,7 @@ pub fn expectControlPointEqual(
     rhs: ControlPoint,
 ) !void 
 {
-    inline for (.{ "time", "value" }) 
+    inline for (.{ "in", "out" }) 
         |k| 
     {
         errdefer std.log.err("Error: expected {any} got {any}\n", .{ lhs, rhs });
@@ -265,7 +265,7 @@ test "distance: 345 triangle"
     const b:ControlPoint = .{ .in = 6, .out = 1 };
 
     try std.testing.expectEqual(
-        @as(f32, 5),
+        @as(opentime.Ordinate, 5),
         a.distance(b)
     );
 }

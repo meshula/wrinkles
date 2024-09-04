@@ -202,8 +202,8 @@ const DebugDrawCurveFlags = struct {
 
 const VisCurve = struct {
     fpath: [:0]const u8,
-    curve: curve.TimeCurve,
-    split_hodograph: curve.TimeCurve,
+    curve: curve.BezierCurve,
+    split_hodograph: curve.BezierCurve,
     active: bool = true,
     editable: bool = false,
     show_approximation: bool = false,
@@ -478,7 +478,7 @@ pub fn main(
 
     // const identSeg = curve.Segment.init_identity(-0.2, 1) ;
     const identSeg = curve.Segment.init_identity(-3, 3) ;
-    const snd_crv = try curve.TimeCurve.init(
+    const snd_crv = try curve.BezierCurve.init(
         allocator,
         &.{identSeg}
     );
@@ -513,7 +513,7 @@ pub fn main(
 
 
 pub fn evaluated_curve(
-    crv: curve.TimeCurve,
+    crv: curve.BezierCurve,
     comptime steps:usize
 ) !struct{ xv: [steps]f32, yv: [steps]f32 }
 {
@@ -522,26 +522,26 @@ pub fn evaluated_curve(
     }
 
     const ext = crv.extents();
-    const stepsize:f32 = (ext[1].time - ext[0].time) / @as(f32, steps);
+    const stepsize:f32 = (ext[1].in - ext[0].in) / @as(f32, steps);
 
     var xv:[steps]f32 = undefined;
     var yv:[steps]f32 = undefined;
 
     var i:usize = 0;
-    var uv:f32 = ext[0].time;
+    var uv:f32 = ext[0].in;
     for (crv.segments) 
         |seg| 
     {
-        uv = seg.p0.time;
+        uv = seg.p0.in;
 
         while (i < steps - 1) 
             : (i += 1) 
         {
             // guarantee that it hits the end point
-            if (uv > seg.p3.time) 
+            if (uv > seg.p3.in) 
             {
-                xv[i] = seg.p3.time;
-                yv[i] = seg.p3.value;
+                xv[i] = seg.p3.in;
+                yv[i] = seg.p3.out;
                 i += 1;
 
                 break;
@@ -554,7 +554,7 @@ pub fn evaluated_curve(
             );
 
             const p = crv.evaluate(uv) catch blk: {
-                break :blk ext[0].value;
+                break :blk ext[0].out;
             };
 
             xv[i] = uv;
@@ -567,8 +567,8 @@ pub fn evaluated_curve(
     if (crv.segments.len > 0) {
         const end_point = crv.segments[crv.segments.len - 1].p3;
 
-        xv[steps - 1] = end_point.time;
-        yv[steps - 1] = end_point.value;
+        xv[steps - 1] = end_point.in;
+        yv[steps - 1] = end_point.out;
     }
 
     return .{ .xv = xv, .yv = yv };
@@ -588,8 +588,8 @@ fn plot_cp_line(
     for (points, xv, yv) 
         |p, *x, *y| 
     {
-        x.* = p.time;
-        y.* = p.value;
+        x.* = p.in;
+        y.* = p.out;
     }
 
     zgui.plot.plotLine(
@@ -611,15 +611,15 @@ fn plot_point(
         full_label,
         f32,
         .{
-            .xv = &.{pt.time},
-            .yv = &.{pt.value},
+            .xv = &.{pt.in},
+            .yv = &.{pt.out},
         }
     );
     zgui.plot.plotText(
         short_label,
         .{
-            .x = pt.time,
-            .y = pt.value,
+            .x = pt.in,
+            .y = pt.out,
             .pix_offset = .{ 0, size * 1.75 },
         }
     );
@@ -627,7 +627,7 @@ fn plot_point(
 }
 
 fn plot_knots(
-    hod: curve.TimeCurve, 
+    hod: curve.BezierCurve, 
     name: [:0]const u8,
     allocator: std.mem.Allocator,
 ) !void 
@@ -653,8 +653,8 @@ fn plot_knots(
         for (endpoints, 0..) 
             |knot, knot_ind| 
         {
-            knots_xv[knot_ind] = knot.time;
-            knots_yv[knot_ind] = knot.value;
+            knots_xv[knot_ind] = knot.in;
+            knots_yv[knot_ind] = knot.out;
         }
 
         zgui.plot.pushStyleVar1f(.{ .idx = .marker_size, .v = 30 });
@@ -673,7 +673,7 @@ fn plot_knots(
             const label = try std.fmt.bufPrintZ(&buf, "{d}", .{ pt_ind });
             zgui.plot.plotText(
                 label,
-                .{ .x = pt.time, .y = pt.value, .pix_offset = .{ 0, 45 } }
+                .{ .x = pt.in, .y = pt.out, .pix_offset = .{ 0, 45 } }
             );
         }
 
@@ -682,7 +682,7 @@ fn plot_knots(
 }
 
 fn plot_control_points(
-    hod: curve.TimeCurve, 
+    hod: curve.BezierCurve, 
     name: [:0]const u8,
     allocator: std.mem.Allocator,
 ) !void 
@@ -709,16 +709,16 @@ fn plot_control_points(
             for (seg.points(), 0..) 
                 |pt, pt_ind| 
             {
-                knots_xv[seg_ind * 4 + pt_ind] = pt.time;
-                knots_yv[seg_ind * 4 + pt_ind] = pt.value;
+                knots_xv[seg_ind * 4 + pt_ind] = pt.in;
+                knots_yv[seg_ind * 4 + pt_ind] = pt.out;
                 const pt_text = try std.fmt.bufPrintZ(
                     buf[512..],
                     "{d}.{d}: ({d:0.2}, {d:0.2})",
-                    .{ seg_ind, pt_ind, pt.time, pt.value },
+                    .{ seg_ind, pt_ind, pt.in, pt.out },
                 );
                 zgui.plot.plotText(
                     pt_text,
-                    .{.x = pt.time, .y = pt.value, .pix_offset = .{0, 36}} 
+                    .{.x = pt.in, .y = pt.out, .pix_offset = .{0, 36}} 
                 );
             }
         }
@@ -747,7 +747,7 @@ fn plot_control_points(
 }
 
 fn plot_linear_curve(
-    lin:curve.TimeCurveLinear,
+    lin:curve.Linear,
     name:[:0]const u8,
     allocator:std.mem.Allocator
 ) !void
@@ -760,8 +760,8 @@ fn plot_linear_curve(
     for (lin.knots, 0..) 
         |knot, knot_index| 
     {
-        xv[knot_index] = knot.time;
-        yv[knot_index] = knot.value;
+        xv[knot_index] = knot.in;
+        yv[knot_index] = knot.out;
     }
 
     var tmp_buf:[1024:0]u8 = undefined;
@@ -781,7 +781,7 @@ fn plot_linear_curve(
 }
 
 fn plot_editable_bezier_curve(
-    crv:*curve.TimeCurve,
+    crv:*curve.BezierCurve,
     name:[:0]const u8,
     allocator:std.mem.Allocator
 ) !void 
@@ -802,16 +802,16 @@ fn plot_editable_bezier_curve(
 
         var in_pts = seg.points();
         var times: [4]f64 = .{ 
-            @floatCast(in_pts[0].time),
-            @floatCast(in_pts[1].time),
-            @floatCast(in_pts[2].time),
-            @floatCast(in_pts[3].time),
+            @floatCast(in_pts[0].in),
+            @floatCast(in_pts[1].in),
+            @floatCast(in_pts[2].in),
+            @floatCast(in_pts[3].in),
         };
         var values: [4]f64 = .{ 
-            @floatCast(in_pts[0].value),
-            @floatCast(in_pts[1].value),
-            @floatCast(in_pts[2].value),
-            @floatCast(in_pts[3].value),
+            @floatCast(in_pts[0].out),
+            @floatCast(in_pts[1].out),
+            @floatCast(in_pts[2].out),
+            @floatCast(in_pts[3].out),
         };
 
         inline for (0..4) 
@@ -829,8 +829,8 @@ fn plot_editable_bezier_curve(
                 }
             );
             in_pts[idx] = .{
-                .time = @floatCast(times[idx]),
-                .value = @floatCast(values[idx]),
+                .in = @floatCast(times[idx]),
+                .out = @floatCast(values[idx]),
             };
         }
 
@@ -841,7 +841,7 @@ fn plot_editable_bezier_curve(
 }
 
 fn plot_bezier_curve(
-    crv:curve.TimeCurve,
+    crv:curve.BezierCurve,
     name:[:0]const u8,
     flags: DebugBezierFlags,
     allocator:std.mem.Allocator
@@ -904,8 +904,8 @@ fn plot_bezier_curve(
         for (crv.segments)
             |seg|
         {
-            var x = seg.p0.time;
-            const xmax = seg.p3.time;
+            var x = seg.p0.in;
+            const xmax = seg.p3.in;
             const step = (xmax - x) / 10.0;
 
             while (x < xmax)
@@ -915,10 +915,10 @@ fn plot_bezier_curve(
                 const pt = seg.eval_at_dual(u_at_x);
 
                 xv[0] = x;
-                xv[1] = pt.r.time;
+                xv[1] = pt.r.in;
 
-                yv[0] = crv_extents[0].value;
-                yv[1] = pt.r.value;
+                yv[0] = crv_extents[0].out;
+                yv[1] = pt.r.out;
 
                 zgui.plot.plotLine(
                     findu_label,
@@ -963,12 +963,12 @@ fn plot_bezier_curve(
                 if (flags.derivatives_ddu) 
                 {
                     const xv : [2]f32 = .{
-                        d_du.r.time,
-                        d_du.r.time + d_du.i.time,
+                        d_du.r.in,
+                        d_du.r.in + d_du.i.in,
                     };
                     const yv : [2]f32 = .{
-                        d_du.r.value,
-                        d_du.r.value + d_du.i.value,
+                        d_du.r.out,
+                        d_du.r.out + d_du.i.out,
                     };
 
                     zgui.plot.plotLine(
@@ -980,15 +980,15 @@ fn plot_bezier_curve(
 
                 if (flags.derivatives_dydx) 
                 {
-                    const d_dx = seg.eval_at_input_dual(d_du.r.time);
+                    const d_dx = seg.eval_at_input_dual(d_du.r.in);
 
                     const xv : [2]f32 = .{
-                        d_dx.r.time,
-                        d_dx.r.time + d_dx.i.time,
+                        d_dx.r.in,
+                        d_dx.r.in + d_dx.i.in,
                     };
                     const yv : [2]f32 = .{
-                        d_dx.r.value,
-                        d_dx.r.value + d_dx.i.value,
+                        d_dx.r.out,
+                        d_dx.r.out + d_dx.i.out,
                     };
 
                     zgui.plot.plotLine(
@@ -1012,12 +1012,12 @@ fn plot_bezier_curve(
                     );
 
                     const xv : [2]f32 = .{
-                        d_du.r.time,
-                        d_du.r.time + hodo_d_du.x,
+                        d_du.r.in,
+                        d_du.r.in + hodo_d_du.x,
                     };
                     const yv : [2]f32 = .{
-                        d_du.r.value,
-                        d_du.r.value + hodo_d_du.y,
+                        d_du.r.out,
+                        d_du.r.out + hodo_d_du.y,
                     };
 
                     zgui.plot.plotLine(
@@ -1050,17 +1050,17 @@ fn plot_bezier_curve(
 
                 if (flags.derivatives_dydx_isect) 
                 {
-                    const d_dx = seg.eval_at_input_dual(d_du.r.time);
+                    const d_dx = seg.eval_at_input_dual(d_du.r.in);
 
                     const xv : [3]f32 = .{
-                        d_dx.r.time - d_dx.i.time,
-                        d_dx.r.time,
-                        d_dx.r.time + d_dx.i.time,
+                        d_dx.r.in - d_dx.i.in,
+                        d_dx.r.in,
+                        d_dx.r.in + d_dx.i.in,
                     };
                     const yv : [3]f32 = .{
-                        d_dx.r.value - d_dx.i.value,
-                        d_dx.r.value,
-                        d_dx.r.value + d_dx.i.value,
+                        d_dx.r.out - d_dx.i.out,
+                        d_dx.r.out,
+                        d_dx.r.out + d_dx.i.out,
                     };
 
                     zgui.plot.plotLine(
@@ -1091,17 +1091,17 @@ fn plot_bezier_curve(
 
             if (flags.show_dydx_point) 
             {
-                const d_dx = seg.eval_at_input_dual(d_du.r.time);
+                const d_dx = seg.eval_at_input_dual(d_du.r.in);
 
                 const xv : [3]f32 = .{
-                    d_dx.r.time - d_dx.i.time,
-                    d_dx.r.time,
-                    d_dx.r.time + d_dx.i.time,
+                    d_dx.r.in - d_dx.i.in,
+                    d_dx.r.in,
+                    d_dx.r.in + d_dx.i.in,
                 };
                 const yv : [3]f32 = .{
-                    d_dx.r.value - d_dx.i.value,
-                    d_dx.r.value,
-                    d_dx.r.value + d_dx.i.value,
+                    d_dx.r.out - d_dx.i.out,
+                    d_dx.r.out,
+                    d_dx.r.out + d_dx.i.out,
                 };
 
                 zgui.plot.plotLine(
@@ -1121,14 +1121,14 @@ fn plot_bezier_curve(
 
                 {
                     const xv = [_]f32{
-                        I1.time,
-                        I2.time,
-                        I3.time,
+                        I1.in,
+                        I2.in,
+                        I3.in,
                     };
                     const yv = [_]f32{
-                        I1.value,
-                        I2.value,
-                        I3.value,
+                        I1.out,
+                        I2.out,
+                        I3.out,
                     };
                     zgui.plot.plotLine(
                         decastlejau_label,
@@ -1142,12 +1142,12 @@ fn plot_bezier_curve(
 
                 {
                     const xv = [_]f32{
-                        e1.time,
-                        e2.time,
+                        e1.in,
+                        e2.in,
                     };
                     const yv = [_]f32{
-                        e1.value,
-                        e2.value,
+                        e1.out,
+                        e2.out,
                     };
                     zgui.plot.plotLine(
                         decastlejau_label,
@@ -1209,8 +1209,8 @@ fn plot_tpa_guts(
         zgui.plot.plotText(
             label,
             .{ 
-                .x = guts.A.?.time, 
-                .y = guts.A.?.value,
+                .x = guts.A.?.in, 
+                .y = guts.A.?.out,
                 .pix_offset = .{ 0, 60 }
             }
         );
@@ -1223,8 +1223,8 @@ fn plot_tpa_guts(
         zgui.plot.plotText(
             label,
             .{ 
-                .x = guts.start.?.time, 
-                .y = guts.start.?.value,
+                .x = guts.start.?.in, 
+                .y = guts.start.?.out,
                 .pix_offset = .{ 0, 60 }
             }
         );
@@ -1234,8 +1234,8 @@ fn plot_tpa_guts(
         const ddt = guts.start_ddt.?;
         const off = guts.start.?.add(ddt);
 
-        const xv = &.{ guts.start.?.time, off.time };
-        const yv = &.{ guts.start.?.value, off.value };
+        const xv = &.{ guts.start.?.in, off.in };
+        const yv = &.{ guts.start.?.out, off.out };
 
         const label =  try std.fmt.bufPrintZ(
             &buf,
@@ -1256,8 +1256,8 @@ fn plot_tpa_guts(
         const ddt = guts.end_ddt.?;
         const off = guts.end.?.sub(ddt);
 
-        const xv = &.{ guts.end.?.time, off.time };
-        const yv = &.{ guts.end.?.value, off.value };
+        const xv = &.{ guts.end.?.in, off.in };
+        const yv = &.{ guts.end.?.out, off.out };
 
         const label =  try std.fmt.bufPrintZ(
             &buf,
@@ -1279,8 +1279,8 @@ fn plot_tpa_guts(
         const e1 = guts.e1.?;
         const e2 = guts.e2.?;
 
-        const xv = &.{ e1.time, guts.midpoint.?.time, e2.time };
-        const yv = &.{ e1.value, guts.midpoint.?.value, e2.value };
+        const xv = &.{ e1.in, guts.midpoint.?.in, e2.in };
+        const yv = &.{ e1.out, guts.midpoint.?.out, e2.out };
 
         const label =  try std.fmt.bufPrintZ(
             &buf,
@@ -1302,13 +1302,13 @@ fn plot_tpa_guts(
             const d_label = try std.fmt.bufPrintZ(
                 &buf,
                 "d/dt: ({d:0.6}, {d:0.6}) len: {d:0.4}",
-                .{d.time, d.value, e1.distance(guts.midpoint.?) },
+                .{d.in, d.out, e1.distance(guts.midpoint.?) },
             );
             zgui.plot.plotText(
                 d_label,
                 .{ 
-                    .x = e1.time, 
-                    .y = e1.value, 
+                    .x = e1.in, 
+                    .y = e1.out, 
                     .pix_offset = .{ 0, 48 } 
                 },
                 );
@@ -1320,8 +1320,8 @@ fn plot_tpa_guts(
         const v1 = guts.v1.?;
         const v2 = guts.v2.?;
 
-        const xv = &.{ v1.time,  guts.A.?.time,  v2.time };
-        const yv = &.{ v1.value, guts.A.?.value, v2.value };
+        const xv = &.{ v1.in,  guts.A.?.in,  v2.in };
+        const yv = &.{ v1.out, guts.A.?.out, v2.out };
 
         const label =  try std.fmt.bufPrintZ(
             &buf,
@@ -1344,8 +1344,8 @@ fn plot_tpa_guts(
         const c1 = guts.C1.?;
         const c2 = guts.C2.?;
 
-        // const xv = &.{ v1.time,  mid_point.time,  v2.time };
-        // const yv = &.{ v1.value, mid_point.value, v2.value };
+        // const xv = &.{ v1.in,  mid_point.in,  v2.in };
+        // const yv = &.{ v1.out, mid_point.out, v2.out };
 
         const label =  try std.fmt.bufPrintZ(
             &buf,
@@ -1366,7 +1366,7 @@ fn plot_tpa_guts(
 
 // plot using a two point approximation
 fn plot_two_point_approx(
-    crv: curve.TimeCurve,
+    crv: curve.BezierCurve,
     flags: DebugDrawCurveFlags,
     name: [:0]const u8,
     allocator: std.mem.Allocator,
@@ -1385,7 +1385,7 @@ fn plot_two_point_approx(
     for (crv.segments) 
         |seg| 
     {
-        if (seg.p0.time > 0) {
+        if (seg.p0.in > 0) {
             continue;
         }
         // const cSeg = seg.to_cSeg();
@@ -1397,8 +1397,8 @@ fn plot_two_point_approx(
         //         )
         //     );
         //     const d_mid_point_dt = curve.ControlPoint{
-        //         .time = d_midpoint_dt.x,
-        //         .value = d_midpoint_dt.y,
+        //         .in = d_midpoint_dt.x,
+        //         .out = d_midpoint_dt.y,
         //     };
         //
         //     const tpa_guts = curve.bezier_curve.three_point_guts_plot(
@@ -1420,7 +1420,7 @@ fn plot_two_point_approx(
         //     );
     }
 
-    const approx_crv = try curve.TimeCurve.init(
+    const approx_crv = try curve.BezierCurve.init(
         allocator,
         approx_segments.items
     );
@@ -1434,7 +1434,7 @@ fn plot_two_point_approx(
 }
 
 fn plot_three_point_approx(
-    crv: curve.TimeCurve,
+    crv: curve.BezierCurve,
     flags: DebugDrawCurveFlags,
     name: [:0]const u8,
     allocator: std.mem.Allocator,
@@ -1492,8 +1492,8 @@ fn plot_three_point_approx(
                 )
             );
             const d_mid_point_dt = curve.ControlPoint{
-                .time = d_midpoint_dt.x,
-                .value = d_midpoint_dt.y,
+                .in = d_midpoint_dt.x,
+                .out = d_midpoint_dt.y,
             };
 
             const tpa_guts = curve.bezier_curve.three_point_guts_plot(
@@ -1515,7 +1515,7 @@ fn plot_three_point_approx(
             );
         }
 
-        const approx_crv = try curve.TimeCurve.init(
+        const approx_crv = try curve.BezierCurve.init(
             allocator,
             approx_segments.items,
         );
@@ -1795,7 +1795,7 @@ fn update(
                     defer other_hodograph.deinit(allocator);
 
                     const other_bounds = other.extents();
-                    var other_copy = try curve.TimeCurve.init(
+                    var other_copy = try curve.BezierCurve.init(
                         allocator,
                         other_hodograph.segments,
                     );
@@ -1815,12 +1815,12 @@ fn update(
                         {
                             if (
                                 _is_between(
-                                    self_knot.time,
-                                    other_bounds[0].value,
-                                    other_bounds[1].value
+                                    self_knot.in,
+                                    other_bounds[0].out,
+                                    other_bounds[1].out
                                 )
                             ) {
-                                try split_points.append(self_knot.time);
+                                try split_points.append(self_knot.in);
                             }
 
                         }
@@ -1830,7 +1830,7 @@ fn update(
                             allocator
                         );
                         const tmp = other_copy;
-                        other_copy = try curve.TimeCurve.init(
+                        other_copy = try curve.BezierCurve.init(
                             allocator,
                             result.segments,
                         );
@@ -1934,8 +1934,8 @@ fn update(
                                 const p1 = midpoint.add(d);
                                 const p2 = midpoint.sub(d);
 
-                                const xv = &.{ p1.time,  midpoint.time,  p2.time };
-                                const yv = &.{ p1.value, midpoint.value, p2.value };
+                                const xv = &.{ p1.in,  midpoint.in,  p2.in };
+                                const yv = &.{ p1.out, midpoint.out, p2.out };
 
                                 zgui.plot.plotLine(
                                     d_name,
@@ -1946,13 +1946,13 @@ fn update(
                                     const label = try std.fmt.bufPrintZ(
                                         &buf,
                                         "d/dt: ({d:0.6}, {d:0.6})",
-                                        .{d.time, d.value},
+                                        .{d.in, d.out},
                                     );
                                     zgui.plot.plotText(
                                         label,
                                         .{ 
-                                            .x = p1.time, 
-                                            .y = p1.value, 
+                                            .x = p1.in, 
+                                            .y = p1.out, 
                                             .pix_offset = .{ 0, 16 } 
                                         },
                                     );
@@ -2126,10 +2126,10 @@ fn update(
                                         "Measured Order [time]: {d}",
                                         .{ 
                                             try curve.bezier_math.actual_order(
-                                                seg.p0.time,
-                                                seg.p1.time,
-                                                seg.p2.time,
-                                                seg.p3.time,
+                                                seg.p0.in,
+                                                seg.p1.in,
+                                                seg.p2.in,
+                                                seg.p3.in,
                                             )
                                         },
                                     );
@@ -2138,10 +2138,10 @@ fn update(
                                         "Measured Order [value]: {d}",
                                         .{ 
                                             try curve.bezier_math.actual_order(
-                                                seg.p0.value,
-                                                seg.p1.value,
-                                                seg.p2.value,
-                                                seg.p3.value,
+                                                seg.p0.out,
+                                                seg.p1.out,
+                                                seg.p2.out,
+                                                seg.p3.out,
                                             )
                                         },
                                     );
@@ -2149,20 +2149,20 @@ fn update(
                                     // dy/dx
                                     {
                                         const d_p0 = seg.eval_at_input_dual(
-                                            seg.p0.time
+                                            seg.p0.in
                                         );
                                         zgui.bulletText(
                                             "[Seg: {}] dy/dx at p0: {}",
                                             .{
                                                 ind,
-                                                d_p0.i.time,
+                                                d_p0.i.in,
                                             },
                                         );
                                         zgui.bulletText(
                                             "[Seg: {}] p1-p0: {}",
                                             .{
                                                 ind,
-                                                seg.p1.time - seg.p0.time,
+                                                seg.p1.in - seg.p0.in,
                                             },
                                         );
                                         zgui.bulletText(
@@ -2170,37 +2170,37 @@ fn update(
                                             .{
                                                 ind,
                                                 (
-                                                 d_p0.i.time 
+                                                 d_p0.i.in 
                                                  / (
-                                                     seg.p1.time 
-                                                     - seg.p0.time
+                                                     seg.p1.in 
+                                                     - seg.p0.in
                                                  )
                                                 ),
                                             },
                                         );
 
                                         const d_p3 = seg.eval_at_input_dual(
-                                            seg.p3.time
+                                            seg.p3.in
                                         );
                                         zgui.bulletText(
                                             "[Seg: {}] dy/dx at p3: {}",
                                             .{
                                                 ind,
-                                                d_p3.i.time,
+                                                d_p3.i.in,
                                             },
                                         );
                                         zgui.bulletText(
                                             "[Seg: {}] p3-p2: {}",
                                             .{
                                                 ind,
-                                                seg.p3.time - seg.p2.time,
+                                                seg.p3.in - seg.p2.in,
                                             },
                                         );
                                         zgui.bulletText(
                                             "[Seg: {}] (dy/dx) / (p3-p2): {}",
                                             .{
                                                 ind,
-                                                d_p3.i.time / (seg.p3.time - seg.p2.time),
+                                                d_p3.i.in / (seg.p3.in - seg.p2.in),
                                             },
                                         );
                                     }
@@ -2214,22 +2214,22 @@ fn update(
                                             "[Seg: {}] dy/du at p0: {}",
                                             .{
                                                 ind,
-                                                d_p0.i.time,
+                                                d_p0.i.in,
                                             },
                                         );
                                         zgui.bulletText(
                                             "[Seg: {}] p1-p0: {}",
                                             .{
                                                 ind,
-                                                seg.p1.time - seg.p0.time,
+                                                seg.p1.in - seg.p0.in,
                                             },
                                         );
                                         zgui.bulletText(
                                             "[Seg: {}] (dy/du) / (p1-p0): {}",
                                             .{
                                                 ind,
-                                                d_p0.i.time / (
-                                                    seg.p1.time - seg.p0.time
+                                                d_p0.i.in / (
+                                                    seg.p1.in - seg.p0.in
                                                 ),
                                             },
                                         );
@@ -2241,21 +2241,21 @@ fn update(
                                             "[Seg: {}] dy/du at p3: {}",
                                             .{
                                                 ind,
-                                                d_p3.i.time,
+                                                d_p3.i.in,
                                             },
                                         );
                                         zgui.bulletText(
                                             "[Seg: {}] p3-p2: {}",
                                             .{
                                                 ind,
-                                                seg.p3.time - seg.p2.time,
+                                                seg.p3.in - seg.p2.in,
                                             },
                                         );
                                         zgui.bulletText(
                                             "[Seg: {}] (dy/du) / (p3-p2): {}",
                                             .{
                                                 ind,
-                                                d_p3.i.time / (seg.p3.time - seg.p2.time),
+                                                d_p3.i.in / (seg.p3.in - seg.p2.in),
                                             },
                                         );
                                     }
@@ -2284,7 +2284,7 @@ fn update(
                                 {
                                     zgui.bulletText(
                                         "{d}: ({d}, {d})",
-                                        .{ ind, pt.time, pt.value },
+                                        .{ ind, pt.in, pt.out },
                                     );
                                 }
                             }
@@ -2327,7 +2327,7 @@ fn update(
                                 {
                                     zgui.bulletText(
                                         "{d}: ({d}, {d})",
-                                        .{ ind, pt.time, pt.value },
+                                        .{ ind, pt.in, pt.out },
                                     );
                                 }
                             }

@@ -82,8 +82,8 @@ pub fn value_at_time_between(
     snd: ControlPoint,
 ) f32 
 {
-    const u = invlerp(t, fst.time, snd.time);
-    return lerp(u, fst.value, snd.value);
+    const u = invlerp(t, fst.in, snd.in);
+    return lerp(u, fst.out, snd.out);
 }
 
 pub fn time_at_value_between(
@@ -92,8 +92,8 @@ pub fn time_at_value_between(
     snd: ControlPoint,
 ) f32 
 {
-    const u = invlerp(v, fst.value, snd.value);
-    return lerp(u, fst.time, snd.time);
+    const u = invlerp(v, fst.out, snd.out);
+    return lerp(u, fst.in, snd.in);
 }
 
 // dual variety
@@ -457,19 +457,19 @@ test "actual_order: linear"
     try expectEqual(
         1,
         try actual_order(
-            seg.p0.time,
-            seg.p1.time,
-            seg.p2.time,
-            seg.p3.time,
+            seg.p0.in,
+            seg.p1.in,
+            seg.p2.in,
+            seg.p3.in,
         )
     );
     try expectEqual(
         1,
         try actual_order(
-            seg.p0.value,
-            seg.p1.value,
-            seg.p2.value,
-            seg.p3.value,
+            seg.p0.out,
+            seg.p1.out,
+            seg.p2.out,
+            seg.p3.out,
         )
     );
 }
@@ -488,20 +488,20 @@ test "actual_order: quadratic"
     try expectEqual(
         @as(u8, 3),
         try actual_order(
-            seg.p0.time,
-            seg.p1.time,
-            seg.p2.time,
-            seg.p3.time
+            seg.p0.in,
+            seg.p1.in,
+            seg.p2.in,
+            seg.p3.in
         )
     );
     // quadratic over value
     try expectEqual(
         @as(u8, 2),
         try actual_order(
-            seg.p0.value,
-            seg.p1.value,
-            seg.p2.value,
-            seg.p3.value
+            seg.p0.out,
+            seg.p1.out,
+            seg.p2.out,
+            seg.p3.out
         )
     );
 }
@@ -518,11 +518,11 @@ test "actual_order: cubic"
 
     try expectEqual(
         @as(u8, 3),
-        try actual_order(seg.p0.time, seg.p1.time, seg.p2.time, seg.p3.time)
+        try actual_order(seg.p0.in, seg.p1.in, seg.p2.in, seg.p3.in)
     );
     try expectEqual(
         @as(u8, 3),
-        try actual_order(seg.p0.value, seg.p1.value, seg.p2.value, seg.p3.value)
+        try actual_order(seg.p0.out, seg.p1.out, seg.p2.out, seg.p3.out)
     );
 }
 
@@ -1044,18 +1044,18 @@ pub fn findU_dual(
 
 test "lerp" 
 {
-    const fst: ControlPoint = .{ .time = 0, .value = 0 };
-    const snd: ControlPoint = .{ .time = 1, .value = 1 };
+    const fst: ControlPoint = .{ .in = 0, .out = 0 };
+    const snd: ControlPoint = .{ .in = 1, .out = 1 };
 
-    try expectEqual(@as(f32, 0), lerp(0, fst, snd).value);
-    try expectEqual(@as(f32, 0.25), lerp(0.25, fst, snd).value);
-    try expectEqual(@as(f32, 0.5), lerp(0.5, fst, snd).value);
-    try expectEqual(@as(f32, 0.75), lerp(0.75, fst, snd).value);
+    try expectEqual(@as(f32, 0), lerp(0, fst, snd).out);
+    try expectEqual(@as(f32, 0.25), lerp(0.25, fst, snd).out);
+    try expectEqual(@as(f32, 0.5), lerp(0.5, fst, snd).out);
+    try expectEqual(@as(f32, 0.75), lerp(0.75, fst, snd).out);
 
-    try expectEqual(@as(f32, 0), lerp(0, fst, snd).time);
-    try expectEqual(@as(f32, 0.25), lerp(0.25, fst, snd).time);
-    try expectEqual(@as(f32, 0.5), lerp(0.5, fst, snd).time);
-    try expectEqual(@as(f32, 0.75), lerp(0.75, fst, snd).time);
+    try expectEqual(@as(f32, 0), lerp(0, fst, snd).in);
+    try expectEqual(@as(f32, 0.25), lerp(0.25, fst, snd).in);
+    try expectEqual(@as(f32, 0.5), lerp(0.5, fst, snd).in);
+    try expectEqual(@as(f32, 0.75), lerp(0.75, fst, snd).in);
 }
 
 test "findU" 
@@ -1133,10 +1133,10 @@ test "findU_dual matches findU"
 test "dydx matches expected at endpoints" 
 {
     var seg0 : curve.Segment = .{
-        .p0 = .{.time = 0, .value=0},
-        .p1 = .{.time = 0, .value=1},
-        .p2 = .{.time = 1, .value=1},
-        .p3 = .{.time = 1, .value=0},
+        .p0 = .{.in = 0, .out=0},
+        .p1 = .{.in = 0, .out=1},
+        .p2 = .{.in = 1, .out=1},
+        .p3 = .{.in = 1, .out=0},
     };
 
     const test_data = struct {
@@ -1165,15 +1165,15 @@ test "dydx matches expected at endpoints"
         );
         try expectApproxEql(
             @as(f32,t.e_dydu),
-            u_zero_dual.i.time
+            u_zero_dual.i.in
         );
 
     }
 
-    const x_zero_dual = seg0.eval_at_input_dual(seg0.p0.time);
+    const x_zero_dual = seg0.eval_at_input_dual(seg0.p0.in);
     try expectApproxEql(
-        seg0.p1.time - seg0.p0.time,
-        x_zero_dual.i.time
+        seg0.p1.in - seg0.p0.in,
+        x_zero_dual.i.in
     );
 
 }
@@ -1188,17 +1188,17 @@ test "findU for upside down u"
 
     const seg_0 = crv.segments[0];
 
-    const u_zero_dual =  seg_0.findU_input_dual(seg_0.p0.time);
+    const u_zero_dual =  seg_0.findU_input_dual(seg_0.p0.in);
     try expectApproxEql(@as(f32, 0), u_zero_dual.r);
 
-    const half_x = lerp(0.5, seg_0.p0.time, seg_0.p3.time);
+    const half_x = lerp(0.5, seg_0.p0.in, seg_0.p3.in);
     const u_half_dual = seg_0.findU_input_dual(half_x);
 
     // u_half_dual = (u, du/dx)
     try expectApproxEql(@as(f32, 0.5), u_half_dual.r);
     try expectApproxEql(@as(f32, 0.666666667), u_half_dual.i);
 
-    const u_one_dual =   seg_0.findU_input_dual(seg_0.p3.time);
+    const u_one_dual =   seg_0.findU_input_dual(seg_0.p3.in);
     try expectApproxEql(@as(f32, 1), u_one_dual.r);
 }
 
@@ -1219,15 +1219,15 @@ test "derivative at 0 for linear curve"
         const u_zero_dual = seg_0.eval_at_dual(.{ .r = 0, .i = 1 });
         const u_half_dual = seg_0.eval_at_dual(.{ .r = 0.5, .i = 1 });
 
-        try expectApproxEql(u_zero_dual.i.time, u_half_dual.i.time);
-        try expectApproxEql(u_zero_dual.i.value, u_half_dual.i.value);
+        try expectApproxEql(u_zero_dual.i.in, u_half_dual.i.in);
+        try expectApproxEql(u_zero_dual.i.out, u_half_dual.i.out);
     }
 
     // findU dual comparison
     {
-        const u_zero_dual =  seg_0.findU_input_dual(seg_0.p0.time);
-        const u_third_dual = seg_0.findU_input_dual(seg_0.p1.time);
-        const u_one_dual =   seg_0.findU_input_dual(seg_0.p3.time);
+        const u_zero_dual =  seg_0.findU_input_dual(seg_0.p0.in);
+        const u_third_dual = seg_0.findU_input_dual(seg_0.p1.in);
+        const u_one_dual =   seg_0.findU_input_dual(seg_0.p3.in);
 
         // known 0 values
         try expectApproxEql(@as(f32, 0), u_zero_dual.r);
@@ -1240,21 +1240,21 @@ test "derivative at 0 for linear curve"
     }
 
     {
-        const x_zero_dual =  seg_0.eval_at_input_dual(crv.segments[0].p0.time);
-        const x_third_dual = seg_0.eval_at_input_dual(crv.segments[0].p1.time);
+        const x_zero_dual =  seg_0.eval_at_input_dual(crv.segments[0].p0.in);
+        const x_third_dual = seg_0.eval_at_input_dual(crv.segments[0].p1.in);
 
-        try expectApproxEql(x_zero_dual.i.time, x_third_dual.i.time);
-        try expectApproxEql(x_zero_dual.i.value, x_third_dual.i.value);
+        try expectApproxEql(x_zero_dual.i.in, x_third_dual.i.in);
+        try expectApproxEql(x_zero_dual.i.out, x_third_dual.i.out);
     }
 }
 
 /// return crv normalized into the space provided
 pub fn normalized_to(
     allocator: std.mem.Allocator,
-    crv:curve.TimeCurve,
+    crv:curve.BezierCurve,
     min_point:ControlPoint,
     max_point:ControlPoint,
-) !curve.TimeCurve 
+) !curve.BezierCurve 
 {
     // return input, curve is empty
     if (crv.segments.len == 0) {
@@ -1285,16 +1285,16 @@ test "normalized_to"
 {
     var slope2 = [_]curve.Segment{
         .{
-            .p0 = .{.time = -500, .value=600},
-            .p1 = .{.time = -300, .value=-100},
-            .p2 = .{.time = 200, .value=300},
-            .p3 = .{.time = 500, .value=700},
+            .p0 = .{.in = -500, .out=600},
+            .p1 = .{.in = -300, .out=-100},
+            .p2 = .{.in = 200, .out=300},
+            .p3 = .{.in = 500, .out=700},
         }
     };
-    const input_crv:curve.TimeCurve = .{ .segments = &slope2 };
+    const input_crv:curve.BezierCurve = .{ .segments = &slope2 };
 
-    const min_point: ControlPoint = .{.time=-100, .value=-300};
-    const max_point: ControlPoint = .{.time=100, .value=-200};
+    const min_point: ControlPoint = .{.in=-100, .out=-300};
+    const max_point: ControlPoint = .{.in=100, .out=-200};
 
     const result_crv = try normalized_to(
         std.testing.allocator,
@@ -1305,29 +1305,29 @@ test "normalized_to"
     defer result_crv.deinit(std.testing.allocator);
     const result_extents = result_crv.extents();
 
-    try expectEqual(min_point.time, result_extents[0].time);
-    try expectEqual(min_point.value, result_extents[0].value);
+    try expectEqual(min_point.in, result_extents[0].in);
+    try expectEqual(min_point.out, result_extents[0].out);
 
-    try expectEqual(max_point.time, result_extents[1].time);
-    try expectEqual(max_point.value, result_extents[1].value);
+    try expectEqual(max_point.in, result_extents[1].in);
+    try expectEqual(max_point.out, result_extents[1].out);
 }
 
 test "normalize_to_screen_coords" 
 {
     var segments = [_]curve.Segment{
         .{
-            .p0 = .{.time = -500, .value=600},
-            .p1 = .{.time = -300, .value=-100},
-            .p2 = .{.time = 200, .value=300},
-            .p3 = .{.time = 500, .value=700},
+            .p0 = .{.in = -500, .out=600},
+            .p1 = .{.in = -300, .out=-100},
+            .p2 = .{.in = 200, .out=300},
+            .p3 = .{.in = 500, .out=700},
         },
     };
-    const input_crv:curve.TimeCurve = .{
+    const input_crv:curve.BezierCurve = .{
         .segments = &segments
     };
 
-    const min_point = ControlPoint{.time=700, .value=100};
-    const max_point = ControlPoint{.time=2500, .value=1900};
+    const min_point = ControlPoint{.in=700, .out=100};
+    const max_point = ControlPoint{.in=2500, .out=1900};
 
     const result_crv = try normalized_to(
         std.testing.allocator,
@@ -1338,11 +1338,11 @@ test "normalize_to_screen_coords"
     defer result_crv.deinit(std.testing.allocator);
     const result_extents = result_crv.extents();
 
-    try expectEqual(min_point.time, result_extents[0].time);
-    try expectEqual(min_point.value, result_extents[0].value);
+    try expectEqual(min_point.in, result_extents[0].in);
+    try expectEqual(min_point.out, result_extents[0].out);
 
-    try expectEqual(max_point.time, result_extents[1].time);
-    try expectEqual(max_point.value, result_extents[1].value);
+    try expectEqual(max_point.in, result_extents[1].in);
+    try expectEqual(max_point.out, result_extents[1].out);
 }
 
 pub fn _compute_slope(
@@ -1350,13 +1350,13 @@ pub fn _compute_slope(
     p2: ControlPoint,
 ) f32 
 {
-    return (p2.value - p1.value) / (p2.time - p1.time); 
+    return (p2.out - p1.out) / (p2.in - p1.in); 
 }
 
 pub fn inverted_linear(
     allocator: std.mem.Allocator,
-    crv: linear_curve.TimeCurveLinear,
-) !linear_curve.TimeCurveLinear 
+    crv: linear_curve.Linear,
+) !linear_curve.Linear 
 {
     // require two points to define a line
     if (crv.knots.len < 2) {
@@ -1369,8 +1369,8 @@ pub fn inverted_linear(
         |src_knot, *dst_knot| 
     {
         dst_knot.* = .{
-            .time = src_knot.value,
-            .value = src_knot.time, 
+            .in = src_knot.out,
+            .out = src_knot.in, 
         };
     }
 
@@ -1435,8 +1435,8 @@ pub fn inverted_linear(
 
 pub fn inverted_bezier(
     allocator: std.mem.Allocator,
-    crv: curve.TimeCurve,
-) !linear_curve.TimeCurveLinear 
+    crv: curve.BezierCurve,
+) !linear_curve.Linear 
 {
     const lin_crv = try crv.linearized(allocator);
     defer lin_crv.deinit(allocator);
@@ -1447,10 +1447,10 @@ pub fn inverted_bezier(
 test "inverted: invert linear" 
 {
     // slope 2
-    const forward_crv = try curve.TimeCurve.init_from_start_end(
+    const forward_crv = try curve.BezierCurve.init_from_start_end(
         std.testing.allocator,
-            .{.time = -1, .value = -3},
-            .{.time = 1, .value = 1}
+            .{.in = -1, .out = -3},
+            .{.in = 1, .out = 1}
     );
     defer forward_crv.deinit(std.testing.allocator);
 
@@ -1463,17 +1463,17 @@ test "inverted: invert linear"
     // ensure that temporal ordering is correct
     { 
         errdefer std.log.err(
-            "knot0.time ({any}) < knot1.time ({any})",
-            .{inverse_crv.knots[0].time, inverse_crv.knots[1].time}
+            "knot0.in ({any}) < knot1.in ({any})",
+            .{inverse_crv.knots[0].in, inverse_crv.knots[1].in}
         );
-        try expect(inverse_crv.knots[0].time < inverse_crv.knots[1].time);
+        try expect(inverse_crv.knots[0].in < inverse_crv.knots[1].in);
     }
 
     var identity_seg = [_]curve.Segment{
         // slope of 2
         curve.Segment.init_identity(-3, 1)
     };
-    const identity_crv:curve.TimeCurve = .{ .segments = &identity_seg };
+    const identity_crv:curve.BezierCurve = .{ .segments = &identity_seg };
 
     var t :f32 = -1;
     //           no split at t=1 (end point)
@@ -1499,10 +1499,10 @@ test "inverted: invert linear"
 test "invert negative slope linear" 
 {
     // slope 2
-    const forward_crv = try curve.TimeCurve.init_from_start_end(
+    const forward_crv = try curve.BezierCurve.init_from_start_end(
         std.testing.allocator,
-            .{.time = -1, .value = 1},
-            .{.time = 1, .value = -3}
+            .{.in = -1, .out = 1},
+            .{.in = 1, .out = -3}
     );
     defer forward_crv.deinit(std.testing.allocator);
 
@@ -1523,10 +1523,10 @@ test "invert negative slope linear"
     // ensure that temporal ordering is correct
     { 
         errdefer std.log.err(
-            "knot0.time ({any}) < knot1.time ({any})",
-            .{inverse_crv_lin.knots[0].time, inverse_crv_lin.knots[1].time}
+            "knot0.in ({any}) < knot1.in ({any})",
+            .{inverse_crv_lin.knots[0].in, inverse_crv_lin.knots[1].in}
         );
-        try expect(inverse_crv_lin.knots[0].time < inverse_crv_lin.knots[1].time);
+        try expect(inverse_crv_lin.knots[0].in < inverse_crv_lin.knots[1].in);
     }
 
     const double_inv_lin = try inverted_linear(
@@ -1568,21 +1568,21 @@ test "invert linear complicated curve"
         curve.Segment.init_identity(0, 1),
         // go up
         curve.Segment.init_from_start_end(
-            .{ .time = 1, .value = 1 },
-            .{ .time = 2, .value = 3 },
+            .{ .in = 1, .out = 1 },
+            .{ .in = 2, .out = 3 },
         ),
         // go down
         curve.Segment.init_from_start_end(
-            .{ .time = 2, .value = 3 },
-            .{ .time = 3, .value = 1 },
+            .{ .in = 2, .out = 3 },
+            .{ .in = 3, .out = 1 },
         ),
         // identity
         curve.Segment.init_from_start_end(
-            .{ .time = 3, .value = 1 },
-            .{ .time = 4, .value = 2 },
+            .{ .in = 3, .out = 1 },
+            .{ .in = 4, .out = 2 },
         ),
     };
-    const crv : curve.TimeCurve = .{
+    const crv : curve.BezierCurve = .{
         .segments = &segments
     };
     const crv_linear = try crv.linearized(
@@ -1674,9 +1674,9 @@ fn _rescaled_pt(
 /// return a new curve rescaled over the specified target_range
 pub fn rescaled_curve(
     allocator: std.mem.Allocator,
-    crv: curve.TimeCurve,
+    crv: curve.BezierCurve,
     target_range: [2]ControlPoint,
-) !curve.TimeCurve
+) !curve.BezierCurve
 {
     const extents = crv.extents();
 
@@ -1700,7 +1700,7 @@ pub fn rescaled_curve(
     return result;
 }
 
-test "TimeCurve: rescaled parameter" 
+test "BezierCurve: rescaled parameter" 
 {
     const crv = try curve.read_curve_json(
         "curves/scurve.curve.json",
@@ -1710,29 +1710,29 @@ test "TimeCurve: rescaled parameter"
 
     const start_extents = crv.extents();
 
-    try expectApproxEql(@as(f32, -0.5), start_extents[0].time);
-    try expectApproxEql(@as(f32,  0.5), start_extents[1].time);
+    try expectApproxEql(@as(f32, -0.5), start_extents[0].in);
+    try expectApproxEql(@as(f32,  0.5), start_extents[1].in);
 
-    try expectApproxEql(@as(f32, -0.5), start_extents[0].value);
-    try expectApproxEql(@as(f32,  0.5), start_extents[1].value);
+    try expectApproxEql(@as(f32, -0.5), start_extents[0].out);
+    try expectApproxEql(@as(f32,  0.5), start_extents[1].out);
 
     const result = try rescaled_curve(
         std.testing.allocator,
         crv,
         .{
-            .{ .time = 100, .value = 0 },
-            .{ .time = 200, .value = 10 },
+            .{ .in = 100, .out = 0 },
+            .{ .in = 200, .out = 10 },
         }
     );
     defer result.deinit(std.testing.allocator);
 
     const end_extents = result.extents();
 
-    try expectApproxEql(@as(f32, 100), end_extents[0].time);
-    try expectApproxEql(@as(f32, 200), end_extents[1].time);
+    try expectApproxEql(@as(f32, 100), end_extents[0].in);
+    try expectApproxEql(@as(f32, 200), end_extents[1].in);
 
-    try expectApproxEql(@as(f32, 0),  end_extents[0].value);
-    try expectApproxEql(@as(f32, 10), end_extents[1].value);
+    try expectApproxEql(@as(f32, 0),  end_extents[0].out);
+    try expectApproxEql(@as(f32, 10), end_extents[1].out);
 
 }
 
@@ -1741,7 +1741,7 @@ test "inverted: invert bezier"
     var identity_seg = [_]curve.Segment{
         curve.Segment.init_identity(-3, 1),
     };
-    const identity_crv:curve.TimeCurve = .{ 
+    const identity_crv:curve.BezierCurve = .{ 
         .segments = &identity_seg 
     };
 
