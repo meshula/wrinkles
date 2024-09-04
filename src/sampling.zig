@@ -568,7 +568,7 @@ pub fn resampled(
 pub fn retimed(
     allocator: std.mem.Allocator,
     in_samples: Sampling,
-    xform: curve.BezierCurve,
+    xform: curve.Bezier,
     step_retime: bool,
     output_sampling_info: DiscreteDatasourceIndexGenerator,
 ) !Sampling
@@ -1080,7 +1080,7 @@ test "retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
             .{ .in = 3.0, .out = 4.0 },
         ),
     };
-    const retime_curve : curve.BezierCurve = .{
+    const retime_curve : curve.Bezier = .{
         .segments = &retime_curve_segments
     };
     if (WRITE_TEST_FILES) {
@@ -1186,7 +1186,7 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
             .p3 = .{ .in = 2.5, .out = 1.5 },
         },
     };
-    const cubic_retime_curve : curve.BezierCurve = .{
+    const cubic_retime_curve : curve.Bezier = .{
         .segments = &cubic_retime_curve_segments
     };
     if (WRITE_TEST_FILES) {

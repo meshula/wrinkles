@@ -43,14 +43,14 @@ fn expectNotEqual(
 
 test "curve projection tests: identity projection" {
     // note that intervals are identical
-    var identity_tc = try curve.BezierCurve.init_from_start_end(
+    var identity_tc = try curve.Bezier.init_from_start_end(
         std.testing.allocator,
         .{ .in = 0, .out = 0 },
         .{ .in = 10, .out = 10 },
     );
     defer identity_tc.deinit(std.testing.allocator);
 
-    const double_tc = try curve.BezierCurve.init_from_start_end(
+    const double_tc = try curve.Bezier.init_from_start_end(
         std.testing.allocator,
         .{ .in = 0, .out = 0 },
         .{ .in = 1, .out = 2 },

@@ -425,7 +425,7 @@ test "LinearTopology: invert"
 }
 
 pub const BezierTopology = struct {
-    curve: curve.BezierCurve,
+    curve: curve.Bezier,
 
     pub fn deinit(
         self: @This(),
@@ -724,7 +724,7 @@ pub const TimeTopology = union (enum) {
     
     /// initialize a topology with the given bezier cubic
     pub fn init_bezier_cubic(
-        cubic: curve.BezierCurve,
+        cubic: curve.Bezier,
     ) TimeTopology 
     {
         return .{
@@ -794,7 +794,7 @@ pub const TimeTopology = union (enum) {
             );
         }
 
-        const crv = curve.BezierCurve{
+        const crv = curve.Bezier{
             .segments = try segments.toOwnedSlice(),
         };
 
@@ -1288,7 +1288,7 @@ test "TimeTopology: project bezier through affine"
     const lin_crv = curve.Linear{
         .knots = &knots,
     };
-    const crv = try curve.BezierCurve.init_from_linear_curve(
+    const crv = try curve.Bezier.init_from_linear_curve(
         std.testing.allocator,
         lin_crv,
     );

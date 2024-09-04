@@ -202,8 +202,8 @@ const DebugDrawCurveFlags = struct {
 
 const VisCurve = struct {
     fpath: [:0]const u8,
-    curve: curve.BezierCurve,
-    split_hodograph: curve.BezierCurve,
+    curve: curve.Bezier,
+    split_hodograph: curve.Bezier,
     active: bool = true,
     editable: bool = false,
     show_approximation: bool = false,
@@ -478,7 +478,7 @@ pub fn main(
 
     // const identSeg = curve.Segment.init_identity(-0.2, 1) ;
     const identSeg = curve.Segment.init_identity(-3, 3) ;
-    const snd_crv = try curve.BezierCurve.init(
+    const snd_crv = try curve.Bezier.init(
         allocator,
         &.{identSeg}
     );
@@ -513,7 +513,7 @@ pub fn main(
 
 
 pub fn evaluated_curve(
-    crv: curve.BezierCurve,
+    crv: curve.Bezier,
     comptime steps:usize
 ) !struct{ xv: [steps]f32, yv: [steps]f32 }
 {
@@ -627,7 +627,7 @@ fn plot_point(
 }
 
 fn plot_knots(
-    hod: curve.BezierCurve, 
+    hod: curve.Bezier, 
     name: [:0]const u8,
     allocator: std.mem.Allocator,
 ) !void 
@@ -682,7 +682,7 @@ fn plot_knots(
 }
 
 fn plot_control_points(
-    hod: curve.BezierCurve, 
+    hod: curve.Bezier, 
     name: [:0]const u8,
     allocator: std.mem.Allocator,
 ) !void 
@@ -781,7 +781,7 @@ fn plot_linear_curve(
 }
 
 fn plot_editable_bezier_curve(
-    crv:*curve.BezierCurve,
+    crv:*curve.Bezier,
     name:[:0]const u8,
     allocator:std.mem.Allocator
 ) !void 
@@ -841,7 +841,7 @@ fn plot_editable_bezier_curve(
 }
 
 fn plot_bezier_curve(
-    crv:curve.BezierCurve,
+    crv:curve.Bezier,
     name:[:0]const u8,
     flags: DebugBezierFlags,
     allocator:std.mem.Allocator
@@ -1366,7 +1366,7 @@ fn plot_tpa_guts(
 
 // plot using a two point approximation
 fn plot_two_point_approx(
-    crv: curve.BezierCurve,
+    crv: curve.Bezier,
     flags: DebugDrawCurveFlags,
     name: [:0]const u8,
     allocator: std.mem.Allocator,
@@ -1420,7 +1420,7 @@ fn plot_two_point_approx(
         //     );
     }
 
-    const approx_crv = try curve.BezierCurve.init(
+    const approx_crv = try curve.Bezier.init(
         allocator,
         approx_segments.items
     );
@@ -1434,7 +1434,7 @@ fn plot_two_point_approx(
 }
 
 fn plot_three_point_approx(
-    crv: curve.BezierCurve,
+    crv: curve.Bezier,
     flags: DebugDrawCurveFlags,
     name: [:0]const u8,
     allocator: std.mem.Allocator,
@@ -1515,7 +1515,7 @@ fn plot_three_point_approx(
             );
         }
 
-        const approx_crv = try curve.BezierCurve.init(
+        const approx_crv = try curve.Bezier.init(
             allocator,
             approx_segments.items,
         );
@@ -1795,7 +1795,7 @@ fn update(
                     defer other_hodograph.deinit(allocator);
 
                     const other_bounds = other.extents();
-                    var other_copy = try curve.BezierCurve.init(
+                    var other_copy = try curve.Bezier.init(
                         allocator,
                         other_hodograph.segments,
                     );
@@ -1830,7 +1830,7 @@ fn update(
                             allocator
                         );
                         const tmp = other_copy;
-                        other_copy = try curve.BezierCurve.init(
+                        other_copy = try curve.Bezier.init(
                             allocator,
                             result.segments,
                         );

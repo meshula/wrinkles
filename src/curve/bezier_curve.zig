@@ -1,4 +1,40 @@
 //! Bezier Curve implementation
+//!
+//! A sequence of right met 2d Bezier curve segments closed on the left and
+//! open on the right. If the first formal segment does not start at -inf,
+//! there is an implicit interval spanning -inf to the first formal segment. If
+//! there final formal segment does not end at +inf, there is an implicit
+//! interval spanning the last point in the final formal segment to +inf.
+//! 
+//! It is a formal requirement that an application supply control points that
+//! satistfy the rules of a function over the input space, in other words, a
+//! Bezier curve cannot contain a 2d Bezier curve segment that has a cusp or a
+//! loop.
+//!
+//! The parameterization of the Bezier curve is named `u`.  `u` must be within
+//! the closed interval of  [0, 1].
+//!
+//! The input and output value of a Bezier at `u` is B_in(u) and B_out(u).  To
+//! compose a function B(in), in other words, then another function is needed,
+//! M(in) which maps in to u.  Then to compute the out value for a given in
+//! value, the functions can be composed: `B_out(M(in))`.
+//!
+//! A Bezier is composed of segments with four control points, which are pairs
+//! of in and out ordinates from the input and output spaces respectively.
+//!
+//! Note that continuity between segments is not dictated by the Bezier
+//! class. Interested applications should make their own data structure that
+//! records continuity data, and are responsible for constraining the control
+//! points to satisfy those continuity constraints. In the future, this library
+//! may provide helper functions that aid in the computation of common
+//! constraints, such as colinear tangents on end points, and so on.
+//!
+//! A Bezier with a single segment spanning t1 to t2 therefore looks like this:
+//! 
+//! -inf ------[---------)------- inf+
+//!            in_1      in_2               input parameterization
+//!            p0 p1 p2 p3                  segment parameterization
+//! 
 
 const std = @import("std");
 const debug_panic = @import("std").debug.panic;
@@ -7,7 +43,6 @@ const expectEqualStrings = std.testing.expectEqualStrings;
 const expectError = std.testing.expectError;
 const expect = std.testing.expect;
 
-// const opentime = @import("opentime");
 const opentime = @import("opentime");
 const ContinuousTimeInterval = opentime.ContinuousTimeInterval;
 
@@ -39,7 +74,7 @@ pub const ProjectionAlgorithms = enum (i32) {
     linearized,
 };
 
-/// the projection algorithm to use when projecting Bezier through Bezier
+/// the projection algorithm to use when projecting a Bezier through a Bezier
 pub var project_algo = ProjectionAlgorithms.linearized;
 
 /// wrapper that bakes in the epsilon to expectApproxEql
@@ -69,51 +104,9 @@ fn _is_between(
     );
 }
 
-// A sequence of right met 2d Bezier curve segments closed on the left and open
-// on the right. If the first formal segment does not start at -inf, there is
-// an implicit interval spanning -inf to the first formal segment. If there
-// final formal segment does not end at +inf, there is an implicit interval
-// spanning the last point in the final formal segment to +inf.
-//
-// It is a formal requirement that an application supply control points that
-// satistfy the rules of a function, in other words, a Time Curve cannot
-// contain a 2d Bezier curve segment that has a cusp or a loop.
-//
-// We name the parameterization of the time coordinate system t, and we name
-// the parameterization of the Bezier curves u. The parameter t can be any
-// legal timeline value, u must be within the closed interval of [0,1].
-//
-// The value of a Bezier at u is B(u). The value of a time curve at t is T(t).
-// If M(x) maps t into u, then the evaluation of B(t) is B(M(C(t))).
-// 
-
-// A Time Curve with a single segment spanning t1 to t2
-// therefore looks like this:
-//
-// -inf ------[---------)------- inf+
-//            t1        t2               time parameterization
-//            p0 p1 p2 p3                curve parameterization
-//
-
-/// A BezierCurve is composed of segments with four control points. Here we name
-/// the components of the control point ordinates time and value, and these axes
-/// correspond to the time metric the BezierCurve is embedded in. Note that when
-/// the Bezier curve is evaluated, the Bezier parameterization u will be used to
-/// evaluate the function nto the time metric space.
-
-/// Note that continuity between segments is not dictated by the BezierCurve
-/// class. Interested applications should make their own data structure that
-/// records continuity data, and are responsible for constraining the control
-/// points to satisfy those continuity constraints. In the future, this library
-/// may provide helper functions that aid in the computation of common
-/// constraints, such as colinear tangents on end points, and so on.
-
-/// @TODO: time should be an ordinate
 
 /// Bezier Curve Segment
 pub const Segment = struct {
-    // time coordinate of each control point is expressed in the coordinate
-    // system of the embedding space, ie a clip's intrinsic space.
     p0: control_point.ControlPoint = .{
         .in = 0,
         .out = 0,
@@ -132,13 +125,13 @@ pub const Segment = struct {
     },
 
     pub fn init_identity(
-        start_time: f32,
-        end_time: f32,
+        input_start: f32,
+        input_end: f32,
     ) Segment
     {
         return Segment.init_from_start_end(
-            .{ .in = start_time, .out = start_time },
-            .{ .in = end_time, .out = end_time }
+            .{ .in = input_start, .out = input_start },
+            .{ .in = input_end, .out = input_end }
         );
     }
 
@@ -878,13 +871,13 @@ test "Segment.init_identity check cubic spline"
     try expectEqual(@as(f32, 1), seg.p3.out);
 }
 
-/// BezierCurve maps an input time to an output time.
+/// Bezier maps an input time to an output time.
 ///
-/// The BezierCurve is a sequence of 2d cubic bezier segments,
+/// The Bezier is a sequence of 2d cubic bezier segments,
 /// closed at the start, and open at the end, where each
 /// segment is met by the previous one.
 ///
-/// The evaluation of a BezierCurve (S0, S1, ... Sn) at t, is
+/// The evaluation of a Bezier (S0, S1, ... Sn) at t, is
 /// therefore t if t < S0.p0.in or t >= S0.p3.in. Otherwise,
 /// the segment S whose interval [S.p0.in, S.p3.in) contains t
 /// is evaluated according to the cubic Bezier equations.
@@ -898,7 +891,7 @@ test "Segment.init_identity check cubic spline"
 ///                 - optimization, but also invertible and projectible!
 ///             - IdentityCurve1d
 ///                 - defined over the entire continuum, or within given bounds
-///                 - convienent for interval->BezierCurve
+///                 - convienent for interval->Bezier
 ///             - NullCurve1d
 ///                 - out of bounds everywhere
 ///                 - so that topologies can have "holes"
@@ -909,18 +902,18 @@ test "Segment.init_identity check cubic spline"
 ///            - mono hermite
 ///            - step function
 ///
-pub const BezierCurve = struct {
+pub const Bezier = struct {
     // according to the evaluation specification, an empty
-    // BezierCurve evaluates t as t, everywhere.
+    // Bezier evaluates t as t, everywhere.
     segments: []Segment = &.{},
 
     /// dupe the segments argument into the returned object
     pub fn init(
         allocator:std.mem.Allocator,
         segments: []const Segment,
-    ) !BezierCurve 
+    ) !Bezier 
     {
-        return BezierCurve{ 
+        return Bezier{ 
             .segments = try allocator.dupe(
                 Segment,
                 segments
@@ -935,7 +928,7 @@ pub const BezierCurve = struct {
     pub fn clone(
         self: @This(),
         allocator: std.mem.Allocator
-    ) !BezierCurve
+    ) !Bezier
     {
         return .{ 
             .segments = try allocator.dupe(
@@ -949,9 +942,9 @@ pub const BezierCurve = struct {
         allocator: std.mem.Allocator,
         p0: control_point.ControlPoint,
         p1: control_point.ControlPoint,
-    ) !BezierCurve 
+    ) !Bezier 
     {
-        return try BezierCurve.init(
+        return try Bezier.init(
             allocator,
             &.{ Segment.init_from_start_end(p0, p1) }
         );
@@ -961,7 +954,7 @@ pub const BezierCurve = struct {
     pub fn init_from_linear_curve(
         allocator:std.mem.Allocator,
         crv: linear_curve.Linear,
-    ) !BezierCurve 
+    ) !Bezier 
     {
         var result = std.ArrayList(Segment).init(allocator);
         result.deinit();
@@ -974,7 +967,7 @@ pub const BezierCurve = struct {
             try result.append(Segment.init_from_start_end(knot, next_knot));
         }
 
-        return BezierCurve{ .segments = try result.toOwnedSlice() };
+        return Bezier{ .segments = try result.toOwnedSlice() };
     }
 
     /// evaluate the curve at ordinate t in the input space
@@ -1051,7 +1044,7 @@ pub const BezierCurve = struct {
         return null;
     }
 
-    /// build a linearized version of this BezierCurve
+    /// build a linearized version of this Bezier
     pub fn linearized(
         self: @This(),
         allocator:std.mem.Allocator,
@@ -1124,9 +1117,9 @@ pub const BezierCurve = struct {
     pub fn project_curve(
         self: @This(),
         allocator: std.mem.Allocator,
-        other: BezierCurve
-        // should be []BezierCurve <-  come back to this later
-    ) !BezierCurve 
+        other: Bezier
+        // should be []Bezier <-  come back to this later
+    ) !Bezier 
     {
         const result = try project_curve_guts(
             self,
@@ -1145,10 +1138,10 @@ pub const BezierCurve = struct {
     }
 
     const ProjectCurveGuts = struct {
-        result : ?BezierCurve = null,
-        self_split: ?BezierCurve = null,
-        other_split: ?BezierCurve = null,
-        to_project : ?BezierCurve = null,
+        result : ?Bezier = null,
+        self_split: ?Bezier = null,
+        other_split: ?Bezier = null,
+        to_project : ?Bezier = null,
         tpa: ?[]tpa_result = null,
         segments_to_project_through: ?[]usize = null,
         allocator: std.mem.Allocator,
@@ -1200,9 +1193,9 @@ pub const BezierCurve = struct {
     /// instrumentation ("guts") for debugging/visualization purposes
     pub fn project_curve_guts(
         self: @This(),
-        other: BezierCurve,
+        other: Bezier,
         allocator: std.mem.Allocator,
-        // should be []BezierCurve <-  come back to this later
+        // should be []Bezier <-  come back to this later
     ) !ProjectCurveGuts 
     {
         var result = ProjectCurveGuts{.allocator = allocator};
@@ -1301,7 +1294,7 @@ pub const BezierCurve = struct {
 
         result.other_split = try other_split.clone(allocator);
 
-        var curves_to_project = std.ArrayList(BezierCurve).init(allocator);
+        var curves_to_project = std.ArrayList(Bezier).init(allocator);
         defer curves_to_project.deinit();
 
         var last_index: i32 = -10;
@@ -1330,7 +1323,7 @@ pub const BezierCurve = struct {
                     if (current_curve.items.len > 1) 
                     {
                         try curves_to_project.append(
-                            BezierCurve{
+                            Bezier{
                                 .segments = try current_curve.toOwnedSlice()
                             }
                         );
@@ -1345,7 +1338,7 @@ pub const BezierCurve = struct {
         if (current_curve.items.len > 0) 
         {
             try curves_to_project.append(
-                BezierCurve{
+                Bezier{
                     .segments = try current_curve.toOwnedSlice()
                 }
             );
@@ -1354,7 +1347,7 @@ pub const BezierCurve = struct {
 
         if (curves_to_project.items.len == 0) 
         {
-            result.result = BezierCurve{};
+            result.result = Bezier{};
             return result;
         }
         result.to_project = .{ 
@@ -1583,7 +1576,7 @@ pub const BezierCurve = struct {
         self: @This(),
         allocator: std.mem.Allocator,
         other: linear_curve.Linear,
-        // should return []BezierCurve
+        // should return []Bezier
     ) ![]linear_curve.Linear
     {
         const self_linearized = try self.linearized(
@@ -1602,7 +1595,7 @@ pub const BezierCurve = struct {
         self: @This(),
         aff: opentime.transform.AffineTransform1D,
         allocator: std.mem.Allocator,
-    ) !BezierCurve 
+    ) !Bezier 
     {
         const result_segments = try allocator.dupe(
             Segment,
@@ -1697,7 +1690,7 @@ pub const BezierCurve = struct {
         self:@This(),
         ordinate:f32,
         allocator: std.mem.Allocator,
-    ) !BezierCurve 
+    ) !Bezier 
     {
         const seg_to_split_index = self.find_segment_index(ordinate) orelse {
             return error.OutOfBounds;
@@ -1761,7 +1754,7 @@ pub const BezierCurve = struct {
         self:@This(),
         ordinates:[]const f32,
         allocator: std.mem.Allocator,
-    ) !BezierCurve 
+    ) !Bezier 
     {
         var result_segments = std.ArrayList(
             Segment
@@ -1820,7 +1813,7 @@ pub const BezierCurve = struct {
         self:@This(),
         ordinates:[]const f32,
         allocator: std.mem.Allocator,
-    ) !BezierCurve 
+    ) !Bezier 
     {
         var result_segments = std.ArrayList(
             Segment
@@ -1887,7 +1880,7 @@ pub const BezierCurve = struct {
         ordinate: f32,
         direction: TrimDir,
         allocator: std.mem.Allocator,
-    ) !BezierCurve 
+    ) !Bezier 
     {
         if (
             (
@@ -1995,7 +1988,7 @@ pub const BezierCurve = struct {
         self: @This(),
         bounds: ContinuousTimeInterval,
         allocator: std.mem.Allocator,
-    ) !BezierCurve 
+    ) !Bezier 
     {
         // @TODO; implement this using slices of a larger segment buffer to
         //        reduce the number of allocations/copies
@@ -2022,7 +2015,7 @@ pub const BezierCurve = struct {
     pub fn split_on_critical_points(
         self: @This(),
         allocator: std.mem.Allocator
-    ) !BezierCurve 
+    ) !Bezier 
     {
         var cSeg = hodographs.BezierSegment{
             .order = 3
@@ -2111,11 +2104,11 @@ pub const BezierCurve = struct {
     }
 };
 
-/// parse a .curve.json file from disk and return a BezierCurve
+/// parse a .curve.json file from disk and return a Bezier
 pub fn read_curve_json(
     file_path: latin_s8,
     allocator:std.mem.Allocator
-) !BezierCurve 
+) !Bezier 
 {
     const fi = try std.fs.cwd().openFile(file_path, .{});
     defer fi.close();
@@ -2135,14 +2128,14 @@ pub fn read_curve_json(
             allocator,
             source, .{}
         );
-        return BezierCurve.init_from_linear_curve(
+        return Bezier.init_from_linear_curve(
             allocator,
             lin_curve
         );
     }
 
     return try std.json.parseFromSliceLeaky(
-        BezierCurve,
+        Bezier,
         allocator,
         source,
         .{}
@@ -2224,7 +2217,7 @@ test "Segment: projected_segment to 1/2"
     }
 }
 
-test "BezierCurve: positive length 1 linear segment test" 
+test "Bezier: positive length 1 linear segment test" 
 {
     var crv_seg = [_]Segment{
         Segment.init_from_start_end(
@@ -2232,7 +2225,7 @@ test "BezierCurve: positive length 1 linear segment test"
             .{ .in = 2, .out = 1, },
         )
     };
-    const xform_curve: BezierCurve = .{ .segments = &crv_seg, };
+    const xform_curve: Bezier = .{ .segments = &crv_seg, };
 
     // out of range returns error.OutOfBounds
     try expectError(error.OutOfBounds, xform_curve.evaluate(2));
@@ -2251,7 +2244,7 @@ test "BezierCurve: positive length 1 linear segment test"
     try expectApproxEql(@as(f32, 0.75), try xform_curve.evaluate(1.75));
 }
 
-test "BezierCurve: project_linear_curve to identity" 
+test "Bezier: project_linear_curve to identity" 
 {
 
     var seg_0_4 = [_]Segment{
@@ -2260,7 +2253,7 @@ test "BezierCurve: project_linear_curve to identity"
             .{ .in = 4, .out = 8, },
         ) 
     };
-    const fst: BezierCurve = .{ .segments = &seg_0_4 };
+    const fst: Bezier = .{ .segments = &seg_0_4 };
 
     var seg_0_8 = [_]Segment{
         Segment.init_from_start_end(
@@ -2268,7 +2261,7 @@ test "BezierCurve: project_linear_curve to identity"
             .{ .in = 8, .out = 4, },
         )
     };
-    const snd: BezierCurve = .{ .segments = &seg_0_8 };
+    const snd: Bezier = .{ .segments = &seg_0_8 };
 
     const fst_lin = try fst.linearized(std.testing.allocator);
     defer fst_lin.deinit(std.testing.allocator);
@@ -2307,10 +2300,10 @@ test "BezierCurve: project_linear_curve to identity"
     }
 }
 
-test "BezierCurve: projection_test non-overlapping" 
+test "Bezier: projection_test non-overlapping" 
 {
     var seg_0_1 = [_]Segment{ Segment.init_identity(0, 1) };
-    const fst: BezierCurve = .{ .segments = &seg_0_1 };
+    const fst: Bezier = .{ .segments = &seg_0_1 };
 
     var seg_1_9 = [_]Segment{ 
         Segment.init_from_start_end(
@@ -2318,7 +2311,7 @@ test "BezierCurve: projection_test non-overlapping"
             .{ .in = 9, .out = 5, },
         )
     };
-    const snd: BezierCurve = .{ .segments = &seg_1_9 };
+    const snd: Bezier = .{ .segments = &seg_1_9 };
 
     const result = try fst.project_curve(
         std.testing.allocator,
@@ -2337,7 +2330,7 @@ test "positive slope 2 linear segment test"
             .{ .in = 2, .out = 2, },
         )
     };
-    const xform_curve = BezierCurve{ .segments = &test_segment_arr };
+    const xform_curve = Bezier{ .segments = &test_segment_arr };
 
     const tests = &.{
         // expect result
@@ -2368,7 +2361,7 @@ test "negative length 1 linear segment test"
             .{ .in = -1, .out = 1, },
         )
     };
-    const xform_curve = BezierCurve{ .segments = &segments_xform };
+    const xform_curve = Bezier{ .segments = &segments_xform };
 
     // outside of the range should return the original result
     // (identity transform)
@@ -2453,7 +2446,7 @@ test "convex hull test"
 test "Segment: eval_at for out of range u" 
 {
     var seg = [1]Segment{Segment.init_identity(3, 4)};
-    const tc = BezierCurve{ .segments = &seg};
+    const tc = Bezier{ .segments = &seg};
 
     try expectError(error.OutOfBounds, tc.evaluate(0));
     // right open intervals means the end point is out
@@ -2493,7 +2486,7 @@ pub fn write_json_file_curve(
 
 test "json writer: curve" 
 {
-    const ident = try BezierCurve.init(
+    const ident = try Bezier.init(
         std.testing.allocator,
         &.{ Segment.init_identity(-20, 30) },
     );
@@ -2543,7 +2536,7 @@ test "segment: findU_value"
     );
 }
 
-test "BezierCurve: project u loop bug" 
+test "Bezier: project u loop bug" 
 {
     // specific to the linearized implementation
     const old_project_algo = project_algo;
@@ -2564,7 +2557,7 @@ test "BezierCurve: project u loop bug"
             .{ .in = 100, .out = 100},
         ),
     };
-    const simple_s = try BezierCurve.init(
+    const simple_s = try Bezier.init(
         std.testing.allocator,
         &simple_s_segments
     );
@@ -2578,7 +2571,7 @@ test "BezierCurve: project u loop bug"
             .p3 = .{ .in = 100, .out = 0 },
         },
     }; 
-    const upside_down_u = try BezierCurve.init(
+    const upside_down_u = try Bezier.init(
         std.testing.allocator,
         &u_seg,
     );
@@ -2608,7 +2601,7 @@ test "BezierCurve: project u loop bug"
     try expectEqual(@as(usize, 5), result.segments.len);
 }
 
-test "BezierCurve: project linear identity with linear 1/2 slope" 
+test "Bezier: project linear identity with linear 1/2 slope" 
 {
     const linear_segment = [_]Segment{
         Segment.init_from_start_end(
@@ -2616,7 +2609,7 @@ test "BezierCurve: project linear identity with linear 1/2 slope"
             .{ .in = 230, .out = 230},
         ),
     };
-    const linear_crv = try BezierCurve.init(
+    const linear_crv = try Bezier.init(
         std.testing.allocator,
         &linear_segment,
     );
@@ -2628,7 +2621,7 @@ test "BezierCurve: project linear identity with linear 1/2 slope"
             .{ .in = 200, .out = 200},
         ),
     };
-    const linear_half_crv = try BezierCurve.init(
+    const linear_half_crv = try Bezier.init(
         std.testing.allocator,
         &linear_half_segment
     );
@@ -2649,7 +2642,7 @@ test "BezierCurve: project linear identity with linear 1/2 slope"
 // // the bezier/bezier projection is implemented correctly or if another curve
 // // base was used that wasn't linear - for example b-splines.  At present,
 // // this isn't a particularly useful test.
-// test "BezierCurve: project linear u with out-of-bounds segments" 
+// test "Bezier: project linear u with out-of-bounds segments" 
 // {
 //     if (true) {
 //         return error.SkipZigTest;
@@ -2661,7 +2654,7 @@ test "BezierCurve: project linear identity with linear 1/2 slope"
 //             .{ .in = 130, .out = 130},
 //         ),
 //     };
-//     const linear_crv = BezierCurve{
+//     const linear_crv = Bezier{
 //         .segments = &linear_segment,
 //     };
 //     const linear_crv_lin = try linear_crv.linearized(
@@ -2677,7 +2670,7 @@ test "BezierCurve: project linear identity with linear 1/2 slope"
 //             .p3 = .{ .in = 100, .out = 0 },
 //         },
 //     }; 
-//     const upside_down_u = BezierCurve{
+//     const upside_down_u = Bezier{
 //         .segments = &u_seg,
 //     };
 //
@@ -2686,7 +2679,7 @@ test "BezierCurve: project linear identity with linear 1/2 slope"
 //     );
 //     defer upside_down_u.deinit(std.testing.allocator);
 //
-//     const result : BezierCurve = try upside_down_u.project_curve(
+//     const result : Bezier = try upside_down_u.project_curve(
 //         std.testing.allocator,
 //         linear_crv,
 //     );
@@ -2748,7 +2741,7 @@ test "BezierCurve: project linear identity with linear 1/2 slope"
 //     );
 // }
 
-test "BezierCurve: split_at_each_value u curve" 
+test "Bezier: split_at_each_value u curve" 
 {
     const u_seg = [_]Segment{
         Segment{
@@ -2758,7 +2751,7 @@ test "BezierCurve: split_at_each_value u curve"
             .p3 = .{ .in = 100, .out = 0 },
         },
     }; 
-    const upside_down_u = try BezierCurve.init(
+    const upside_down_u = try Bezier.init(
         std.testing.allocator,
         &u_seg
     );
@@ -2823,10 +2816,10 @@ test "BezierCurve: split_at_each_value u curve"
     try expectEqual(@as(usize, 4), result.segments.len);
 }
 
-test "BezierCurve: split_at_each_value linear" 
+test "Bezier: split_at_each_value linear" 
 {
     const identSeg = Segment.init_identity(-0.2, 1) ;
-    const lin = try BezierCurve.init(
+    const lin = try Bezier.init(
         std.testing.allocator,
         &.{identSeg},
     );
@@ -2880,10 +2873,10 @@ test "BezierCurve: split_at_each_value linear"
     try expectEqual(@as(usize, 3), result.segments.len);
 }
 
-test "BezierCurve: split_at_each_input_ordinate linear" 
+test "Bezier: split_at_each_input_ordinate linear" 
 {
     const identSeg = Segment.init_identity(-0.2, 1) ;
-    const lin = try BezierCurve.init(
+    const lin = try Bezier.init(
         std.testing.allocator,
         &.{identSeg},
     );
@@ -2938,11 +2931,11 @@ test "BezierCurve: split_at_each_input_ordinate linear"
     try expectEqual(@as(usize, 3), result.segments.len);
 }
 
-test "BezierCurve: split_at_input_ordinate" 
+test "Bezier: split_at_input_ordinate" 
 {
 
-    const test_curves = [_]BezierCurve{
-        try BezierCurve.init(
+    const test_curves = [_]Bezier{
+        try Bezier.init(
             std.testing.allocator,
             &.{ Segment.init_identity(-20, 30) },
         ),
@@ -3005,24 +2998,24 @@ test "BezierCurve: split_at_input_ordinate"
     }
 }
 
-test "BezierCurve: trimmed_from_input_ordinate" 
+test "Bezier: trimmed_from_input_ordinate" 
 {
     const TestData = struct {
         // inputs
         ordinate:f32,
-        direction: BezierCurve.TrimDir,
+        direction: Bezier.TrimDir,
 
         // expected results
         result_extents:ContinuousTimeInterval,
         result_segment_count: usize,
     };
 
-    const test_curves = [_]BezierCurve{
+    const test_curves = [_]Bezier{
         try read_curve_json(
             "curves/linear_scurve_u.curve.json",
             std.testing.allocator
         ), 
-        try BezierCurve.init(
+        try Bezier.init(
             std.testing.allocator,
             &.{
                 Segment.init_identity(-25, -5), 
@@ -3127,15 +3120,15 @@ test "BezierCurve: trimmed_from_input_ordinate"
     }
 }
 
-test "BezierCurve: trimmed_in_input_space" 
+test "Bezier: trimmed_in_input_space" 
 {
     const TestData = struct {
         trim_range:ContinuousTimeInterval,
         result_extents:ContinuousTimeInterval,
     };
 
-    const test_curves = [_]BezierCurve{
-        try BezierCurve.init(
+    const test_curves = [_]Bezier{
+        try Bezier.init(
             std.testing.allocator,
             &.{ Segment.init_identity(-20, 30) }
         ),
@@ -3272,7 +3265,7 @@ test "BezierCurve: trimmed_in_input_space"
     }
 }
 
-test "BezierCurve: project_affine" 
+test "Bezier: project_affine" 
 {
     // @TODO: test bounds
 
@@ -3347,9 +3340,9 @@ test "BezierCurve: project_affine"
 
 pub fn affine_project_curve(
     lhs: opentime.transform.AffineTransform1D,
-    rhs: BezierCurve,
+    rhs: Bezier,
     allocator: std.mem.Allocator,
-) !BezierCurve 
+) !Bezier 
 {
     const result_segments = try allocator.dupe(
         Segment,
@@ -3446,7 +3439,7 @@ test "affine_project_curve"
     }
 }
 
-test "BezierCurve: split_on_critical_points s curve" 
+test "Bezier: split_on_critical_points s curve" 
 {
     const s_seg = [_]Segment{
         Segment{
@@ -3456,7 +3449,7 @@ test "BezierCurve: split_on_critical_points s curve"
             .p3 = .{ .in = 100, .out = 100 },
         },
     }; 
-    const s_curve_seg = try BezierCurve.init(
+    const s_curve_seg = try Bezier.init(
         std.testing.allocator,
         &s_seg
     );
@@ -3470,7 +3463,7 @@ test "BezierCurve: split_on_critical_points s curve"
     try std.testing.expectEqual(@as(usize, 4), s_curve_split.segments.len);
 }
 
-test "BezierCurve: split_on_critical_points symmetric about the origin" 
+test "Bezier: split_on_critical_points symmetric about the origin" 
 {
 
     const TestData = struct {
@@ -3511,7 +3504,7 @@ test "BezierCurve: split_on_critical_points symmetric about the origin"
     {
         errdefer std.debug.print("test that failed: {d}\n", .{ td_ind });
         const s_seg:[1]Segment = .{ td.segment };
-        const s_curve_seg = try BezierCurve.init(
+        const s_curve_seg = try Bezier.init(
             std.testing.allocator,
             &s_seg
         );

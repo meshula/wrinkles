@@ -5,7 +5,7 @@ pub const bezier_curve = @import("bezier_curve.zig");
 pub const test_segment_projection = @import("test_segment_projection.zig");
 
 // bezier
-pub const BezierCurve = bezier_curve.BezierCurve;
+pub const Bezier = bezier_curve.Bezier;
 pub const Segment = bezier_curve.Segment;
 
 pub const Linear = linear_curve.Linear;

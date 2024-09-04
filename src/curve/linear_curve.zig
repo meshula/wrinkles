@@ -101,7 +101,7 @@ pub const Linear = struct {
         //             trimming that way only to linearize back to
         //             Linear would be better than this.
         //             HACK XXX
-        const tmp_curve = try bezier_curve.BezierCurve.init_from_linear_curve(
+        const tmp_curve = try bezier_curve.Bezier.init_from_linear_curve(
             allocator,
             self,
         );
