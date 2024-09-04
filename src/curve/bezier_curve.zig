@@ -44,17 +44,11 @@ const expectError = std.testing.expectError;
 const expect = std.testing.expect;
 
 const opentime = @import("opentime");
-const ContinuousTimeInterval = opentime.ContinuousTimeInterval;
-
 const bezier_math = @import("bezier_math.zig");
 const generic_curve = @import("generic_curve.zig");
 const linear_curve = @import("linear_curve.zig");
 const control_point = @import("control_point.zig");
-
 const string_stuff = @import("string_stuff");
-const latin_s8 = string_stuff.latin_s8;
-
-const dual = opentime.dual;
 
 // hodographs c-library
 pub const hodographs = @import("spline_gym");
@@ -217,7 +211,7 @@ pub const Segment = struct {
 
     pub fn eval_at_dual(
         self: @This(),
-        unorm_dual:dual.Dual_f32,
+        unorm_dual:opentime.dual.Dual_f32,
     ) control_point.Dual_CP
     {
         var self_dual : [4]control_point.Dual_CP = undefined;
@@ -430,7 +424,7 @@ pub const Segment = struct {
     pub fn findU_value_dual(
         self:@This(),
         tgt_value: f32
-    ) dual.Dual_f32 
+    ) opentime.dual.Dual_f32 
     {
         return bezier_math.findU_dual(
             tgt_value,
@@ -458,7 +452,7 @@ pub const Segment = struct {
     pub fn findU_input_dual(
         self:@This(),
         input_ordinate: f32
-    ) dual.Dual_f32 
+    ) opentime.dual.Dual_f32 
     {
         return bezier_math.findU_dual(
             input_ordinate,
@@ -775,7 +769,7 @@ test "segment: linearize already linearized curve"
 /// read a Bezier segment from a json file on disk
 pub fn read_segment_json(
     allocator:std.mem.Allocator,
-    file_path: latin_s8,
+    file_path: string_stuff.latin_s8,
 ) !Segment 
 {
     const fi = try std.fs.cwd().openFile(file_path, .{});
@@ -1587,7 +1581,7 @@ pub const Bezier = struct {
     /// return the extents of the curve's input spact /v
     pub fn extents_input(
         self:@This()
-    ) ContinuousTimeInterval 
+    ) opentime.ContinuousTimeInterval 
     {
         return .{
             .start_seconds = self.segments[0].p0.in,
@@ -1598,7 +1592,7 @@ pub const Bezier = struct {
     /// return the extents of the curve's output space
     pub fn extents_output(
         self:@This()
-    ) ContinuousTimeInterval 
+    ) opentime.ContinuousTimeInterval 
     {
         const result = self.extents();
         return .{
@@ -1943,7 +1937,7 @@ pub const Bezier = struct {
     /// Otherwise the curve is copied, and trimmed to fit the bounds.
     pub fn trimmed_in_input_space(
         self: @This(),
-        bounds: ContinuousTimeInterval,
+        bounds: opentime.ContinuousTimeInterval,
         allocator: std.mem.Allocator,
     ) !Bezier 
     {
@@ -2063,7 +2057,7 @@ pub const Bezier = struct {
 
 /// parse a .curve.json file from disk and return a Bezier
 pub fn read_curve_json(
-    file_path: latin_s8,
+    file_path: string_stuff.latin_s8,
     allocator:std.mem.Allocator
 ) !Bezier 
 {
@@ -2972,7 +2966,7 @@ test "Bezier: trimmed_from_input_ordinate"
         direction: Bezier.TrimDir,
 
         // expected results
-        result_extents:ContinuousTimeInterval,
+        result_extents:opentime.ContinuousTimeInterval,
         result_segment_count: usize,
     };
 
@@ -3089,8 +3083,8 @@ test "Bezier: trimmed_from_input_ordinate"
 test "Bezier: trimmed_in_input_space" 
 {
     const TestData = struct {
-        trim_range:ContinuousTimeInterval,
-        result_extents:ContinuousTimeInterval,
+        trim_range: opentime.ContinuousTimeInterval,
+        result_extents: opentime.ContinuousTimeInterval,
     };
 
     const test_curves = [_]Bezier{
