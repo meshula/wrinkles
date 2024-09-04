@@ -25,549 +25,558 @@ fn _is_between(
 }
 
 /// A polyline that is linearly interpolated between knots
-pub const Linear = struct {
-    knots: []ControlPoint = &.{},
+pub fn LinearOf(
+    comptime ControlPointType: type,
+) type
+{
+    return struct {
+        knots: []ControlPointType = &.{},
 
-    /// dupe the provided points into the result
-    pub fn init(
-        allocator: std.mem.Allocator,
-        knots: []const ControlPoint
-    ) !Linear 
-    {
-        return Linear{
-            .knots = try allocator.dupe(
-                ControlPoint,
-                knots,
-            ) 
-        };
-    }
+        const LinearType = LinearOf(ControlPointType);
 
-    /// initialize an identity Linear with knots at the specified input
-    /// ordinates
-    pub fn init_identity(
-        allocator: std.mem.Allocator,
-        knot_input_ords:[]const f32
-    ) !Linear 
-    {
-        var result = std.ArrayList(ControlPoint).init(
-            allocator,
-        );
-        for (knot_input_ords) 
-            |t| 
+        /// dupe the provided points into the result
+        pub fn init(
+            allocator: std.mem.Allocator,
+            knots: []const ControlPointType
+        ) !LinearType 
         {
-            try result.append(.{.in = t, .out = t});
-        }
-
-        return Linear{
-            .knots = try result.toOwnedSlice(), 
-        };
-    }
-
-    pub fn deinit(
-        self: @This(),
-        allocator: std.mem.Allocator,
-    ) void 
-    {
-        allocator.free(self.knots);
-    }
-
-    // @TODO: the same as init
-    pub fn clone(
-        self: @This(),
-        allocator: std.mem.Allocator
-    ) !Linear
-    {
-        return .{ 
-            .knots = try allocator.dupe(
-                ControlPoint,
-                self.knots
-            ),
-        };
-    }
-
-    /// trim this curve via the bounds expressed in the input space of this
-    /// curve.
-    ///
-    /// If the curve isn't trimmed, dupe the curve.
-    pub fn trimmed_in_input_space(
-        self: @This(),
-        allocator: std.mem.Allocator,
-        input_bounds: opentime.ContinuousTimeInterval,
-    ) !Linear
-    {
-        var result = std.ArrayList(ControlPoint).init(
-            allocator
-        );
-        result.deinit();
-
-        const first_point = ControlPoint{
-            .in = input_bounds.start_seconds,
-            .out = try self.output_at_input(input_bounds.start_seconds),
-        };
-        try result.append(first_point);
-
-        
-        const last_point = if (
-            input_bounds.end_seconds < self.extents()[1].in
-        ) ControlPoint{ 
-            .in = input_bounds.end_seconds,
-            .out = try self.output_at_input(input_bounds.end_seconds),
-        } else self.extents()[1];
-
-        for (self.knots) 
-            |knot|
-        {
-            if (
-                knot.in > first_point.in
-                and knot.in < last_point.in
-            ) {
-                try result.append(knot);
-            }
-        }
-
-        try result.append(last_point);
-
-        return Linear{ .knots = try result.toOwnedSlice() };
-    }
-
-    /// project an affine transformation through the curve, returning a new
-    /// linear curve.  If self maps B->C, and xform maps A->B, then the result
-    /// of self.project_affine(xform) will map A->C
-    pub fn project_affine(
-        self: @This(),
-        allocator: std.mem.Allocator,
-        other_to_input_xform: opentime.transform.AffineTransform1D,
-        /// bounds on the input space of the curve (output space of the affine)
-        /// ("B" in the comment above)
-        input_bounds: opentime.ContinuousTimeInterval,
-    ) !Linear 
-    {
-        // output bounds of the affine are in the input space of the curve
-        const clipped_curve = try self.trimmed_in_input_space(
-            allocator,
-            input_bounds
-        );
-        defer clipped_curve.deinit(allocator);
-
-        const result_knots = try allocator.dupe(
-            ControlPoint,
-            clipped_curve.knots,
-        );
-
-        const input_to_other_xform = other_to_input_xform.inverted();
-
-        for (clipped_curve.knots, result_knots) 
-            |pt, *target_knot| 
-        {
-            target_knot.in = input_to_other_xform.applied_to_seconds(pt.in);
-        }
-
-        return .{
-            .knots = result_knots,
-        };
-    }
-
-    /// compute the output ordinate at the input ordinate
-    pub fn output_at_input(
-        self: @This(),
-        input_ord: f32,
-    ) error{OutOfBounds}!f32 
-    {
-        if (self.nearest_smaller_knot_index(input_ord)) 
-           |index| 
-        {
-            return bezier_math.output_at_input_between(
-                input_ord,
-                self.knots[index],
-                self.knots[index+1],
-            );
-        }
-
-        // specially handle the endpoint
-        const last_knot = self.knots[self.knots.len - 1];
-        if (input_ord == last_knot.in) {
-            return last_knot.out;
-        }
-
-        return error.OutOfBounds;
-    }
-
-    pub fn output_at_input_at_value(
-        self: @This(),
-        value_ord: f32,
-    ) !f32
-    {
-        if (self.nearest_smaller_knot_index_to_value(value_ord)) 
-           |index| 
-        {
-            return bezier_math.input_at_output_between(
-                value_ord,
-                self.knots[index],
-                self.knots[index+1],
-            );
-        }
-
-        return error.OutOfBounds;
-    }
-
-    pub fn nearest_smaller_knot_index(
-        self: @This(),
-        t_arg: f32, 
-    ) ?usize 
-    {
-        const last_index = self.knots.len-1;
-
-        // out of bounds
-        if (
-            self.knots.len == 0 
-            or (t_arg < self.knots[0].in)
-            or t_arg >= self.knots[last_index].in
-        )
-        {
-            return null;
-        }
-
-        // last knot is out of domain
-        for (self.knots[0..last_index], self.knots[1..], 0..) 
-            |knot, next_knot, index| 
-        {
-            if ( knot.in <= t_arg and t_arg < next_knot.in) 
-            {
-                return index;
-            }
-        }
-
-        return null;
-    }
-
-    pub fn nearest_smaller_knot_index_to_value(
-        self: @This(),
-        value_ord: f32, 
-    ) ?usize 
-    {
-        const last_index = self.knots.len-1;
-
-        // out of bounds
-        if (
-            self.knots.len == 0 
-            or (value_ord < self.knots[0].out)
-            or value_ord >= self.knots[last_index].out
-        )
-        {
-            return null;
-        }
-
-        // last knot is out of domain
-        for (self.knots[0..last_index], self.knots[1..], 0..) 
-            |knot, next_knot, index| 
-        {
-            if ( knot.out <= value_ord and value_ord < next_knot.out) 
-            {
-                return index;
-            }
-        }
-
-        return null;
-    }
-
-    /// project another curve through this one.  A curve maps 'input' to
-    /// 'output' parameters.  if curve self is v_self(t_self), and curve other
-    /// is v_other(t_other) and other is being projected through self, the
-    /// result function is v_self(v_other(t_other)).  This maps the the v_other
-    /// value to the t_self parameter.
-    ///
-    /// To put it another way, if self maps B->C
-    /// (B = t_self, C=v_self)
-    /// and other maps A->B
-    /// (A = t_other)
-    /// then self.project_curve(other): A->C
-    /// t_other -> v_self
-    /// or if self.input -> self.output
-    /// and other.input -> other.output
-    /// self.project_topology(other) :: other.input -> self.output
-    ///
-    /// curve self:
-    /// 
-    /// v_self
-    /// |  /
-    /// | /
-    /// |/
-    /// +--- t_self
-    ///
-    /// curve other:
-    ///   
-    ///  v_other
-    /// |      ,-'
-    /// |   ,-'
-    /// |,-'
-    /// +---------- t_other
-    ///
-    /// @TODO finish this doc
-    ///
-    pub fn project_curve(
-        /// curve being projected _through_
-        self: @This(),
-        allocator: std.mem.Allocator,
-        /// curve being projected
-        other: Linear
-    ) ![]Linear 
-    {
-        // @TODO: if there are preserved derivatives, project and compose them
-        //        as well
-        //
-        const other_bounds = other.extents();
-
-        // find all knots in self that are within the other bounds
-        var split_points = std.ArrayList(f32).init(
-            allocator,
-        );
-        defer split_points.deinit();
-
-        for (self.knots)
-            |self_knot| 
-        {
-            if (
-                _is_between(
-                    self_knot.in,
-                    other_bounds[0].out,
-                    other_bounds[1].out
-                )
-            ) {
-                try split_points.append(self_knot.in);
-            }
-        }
-
-        const other_split_at_self_knots = try other.split_at_each_value(
-            allocator,
-            split_points.items
-        );
-
-        // split other into curves where it goes in and out of the domain of self
-        var curves_to_project = std.ArrayList(
-            Linear,
-        ).init(allocator);
-        defer curves_to_project.deinit();
-
-        // gather the curves to project by splitting
-        {
-            const self_bounds_t = self.extents_input();
-            var last_index:?i32 = null;
-            var current_curve = (
-                std.ArrayList(ControlPoint).init(
-                    allocator,
-                )
-            );
-
-            for (other_split_at_self_knots.knots, 0..) 
-                |other_knot, index| 
-            {
-                if (
-                    self_bounds_t.start_seconds <= other_knot.out 
-                    and other_knot.out <= self_bounds_t.end_seconds
+            return LinearType{
+                .knots = try allocator.dupe(
+                    ControlPointType,
+                    knots,
                 ) 
-                {
-                    if (last_index == null or index != last_index.?+1) 
-                    {
-                        // curves of less than one point are trimmed, because they
-                        // have no duration, and therefore are not modelled in our
-                        // system.
-                        if (current_curve.items.len > 1) 
-                        {
-                            try curves_to_project.append(
-                                Linear{
-                                    .knots = (
-                                        try current_curve.toOwnedSlice()
-                                    ),
-                                }
-                            );
-                        }
-                        current_curve.clearAndFree();
-                    }
-
-                    try current_curve.append(other_knot);
-                    last_index = @intCast(index);
-                }
-            }
-            if (current_curve.items.len > 1) {
-                try curves_to_project.append(
-                    Linear{
-                        .knots = try current_curve.toOwnedSlice(),
-                    }
-                );
-            }
-            current_curve.clearAndFree();
-        }
-        other_split_at_self_knots.deinit(allocator);
-
-        if (curves_to_project.items.len == 0) {
-            return &[_]Linear{};
+            };
         }
 
-        for (curves_to_project.items) 
-            |crv| 
+        /// initialize an identity LinearType with knots at the specified input
+        /// ordinates
+        pub fn init_identity(
+            allocator: std.mem.Allocator,
+            knot_input_ords:[]const f32
+        ) !LinearType 
         {
-            // project each knot
-            for (crv.knots) 
-                |*knot| 
-            {
-                // 2. output_at_input grows a parameter to treat endpoint as in bounds
-                // 3. check outside of output_at_input if it sits on a knot and use
-                //    the value rather than computing
-                // 4. catch the error and call a different function or do a
-                //    check in that case
-                const value = self.output_at_input(knot.out) catch (
-                    if (self.knots[self.knots.len-1].in == knot.out) 
-                        self.knots[self.knots.len-1].out 
-                    else return error.NotInRangeError
-                );
-
-                knot.out  = value;
-            }
-        }
-
-        // @TODO: we should write a test that exersizes this case
-        if (curves_to_project.items.len > 1) {
-            return error.MoreThanOneCurveIsNotImplemented;
-        }
-
-
-        return try curves_to_project.toOwnedSlice();
-    }
-
-    /// convienence wrapper around project_curve that assumes a single result
-    /// and returns handles the cleanup of that.
-    pub fn project_curve_single_result(
-        self: @This(),
-        allocator: std.mem.Allocator,
-        other: Linear
-    ) !Linear 
-    {
-        const result = try self.project_curve(
-            allocator,
-            other
-        );
-
-        if (result.len > 1) {
-            @panic("Not Implemented");
-        }
-
-        defer { 
-            for (result)
-                |crv|
-            {
-                crv.deinit(allocator);
-            }
-            allocator.free(result);
-        }
-
-        if (result.len < 1)
-        {
-            std.debug.print(
-                "Couldn't project:\n  self: {any}\n  other: {any}\n",
-                .{ self.extents(), other.extents(), },
+            var result = std.ArrayList(ControlPointType).init(
+                allocator,
             );
-            return error.NoProjectionResultError;
-        }
-
-        return try result[0].clone(allocator);
-    }
-
-    pub fn debug_json_str(
-        self:@This(), 
-        allocator: std.mem.Allocator,
-    ) ![]const u8
-    {
-        var str = std.ArrayList(u8).init(allocator);
-
-        try std.json.stringify(self, .{}, str.writer()); 
-
-        return str.toOwnedSlice();
-    }
-
-    /// return the extents of the input domain of the curve  - O(1) because
-    /// curves are monotonic over their input spaces by definition.
-    pub fn extents_input(
-        self:@This()
-    ) opentime.ContinuousTimeInterval 
-    {
-        return .{
-            .start_seconds = self.knots[0].in,
-            .end_seconds = self.knots[self.knots.len - 1].in,
-        };
-    }
-
-    /// compute the extents for the curve exhaustively
-    pub fn extents(self:@This()) [2]ControlPoint {
-        var min:ControlPoint = self.knots[0];
-        var max:ControlPoint = self.knots[0];
-
-        for (self.knots) 
-            |knot| 
-        {
-            min = .{
-                .in = @min(min.in, knot.in),
-                .out = @min(min.out, knot.out),
-            };
-            max = .{
-                .in = @max(max.in, knot.in),
-                .out = @max(max.out, knot.out),
-            };
-        }
-        return .{ min, max };
-    }
-
-    /// insert a knot each location on the curve that crosses the values in
-    /// split_points
-    pub fn split_at_each_value(
-        self: @This(),
-        allocator: std.mem.Allocator,
-        split_points: []f32,
-    ) !Linear 
-    {
-        var result = std.ArrayList(ControlPoint).init(
-            allocator,
-        );
-
-        const last_minus_one = self.knots.len-1;
-
-        // @TODO: there is probably a more effecient algorithm here than MxN
-        for (self.knots[0..last_minus_one], self.knots[1..])
-            |knot, next_knot, |
-        {
-            try result.append(knot);
-
-            for (split_points) 
-                |pt_value_space| 
-            {
-                if (
-                    knot.out < pt_value_space 
-                    and pt_value_space < next_knot.out
-                )
+            for (knot_input_ords) 
+                |t| 
                 {
-                    const u = bezier_math.invlerp(
-                        pt_value_space,
-                        knot.out,
-                        next_knot.out
-                    );
-                    try result.append(
-                        bezier_math.lerp(
-                            u,
-                            knot,
-                            next_knot
-                        )
+                    try result.append(.{.in = t, .out = t});
+                }
+
+            return LinearType{
+                .knots = try result.toOwnedSlice(), 
+            };
+        }
+
+        pub fn deinit(
+            self: @This(),
+            allocator: std.mem.Allocator,
+        ) void 
+        {
+            allocator.free(self.knots);
+        }
+
+        // @TODO: the same as init
+        pub fn clone(
+            self: @This(),
+            allocator: std.mem.Allocator
+        ) !LinearType
+        {
+            return .{ 
+                .knots = try allocator.dupe(
+                    ControlPointType,
+                    self.knots
+                ),
+            };
+        }
+
+        /// trim this curve via the bounds expressed in the input space of this
+        /// curve.
+        ///
+        /// If the curve isn't trimmed, dupe the curve.
+        pub fn trimmed_in_input_space(
+            self: @This(),
+            allocator: std.mem.Allocator,
+            input_bounds: opentime.ContinuousTimeInterval,
+        ) !LinearType
+        {
+            var result = std.ArrayList(ControlPointType).init(
+                allocator
+            );
+            result.deinit();
+
+            const first_point = ControlPointType{
+                .in = input_bounds.start_seconds,
+                .out = try self.output_at_input(input_bounds.start_seconds),
+            };
+            try result.append(first_point);
+
+
+            const last_point = if (
+                input_bounds.end_seconds < self.extents()[1].in
+            ) ControlPointType{ 
+                .in = input_bounds.end_seconds,
+                .out = try self.output_at_input(input_bounds.end_seconds),
+            } else self.extents()[1];
+
+            for (self.knots) 
+                |knot|
+                {
+                    if (
+                        knot.in > first_point.in
+                        and knot.in < last_point.in
+                    ) {
+                        try result.append(knot);
+                    }
+                }
+
+            try result.append(last_point);
+
+            return LinearType{ .knots = try result.toOwnedSlice() };
+        }
+
+        /// project an affine transformation through the curve, returning a new
+        /// linear curve.  If self maps B->C, and xform maps A->B, then the result
+        /// of self.project_affine(xform) will map A->C
+        pub fn project_affine(
+            self: @This(),
+            allocator: std.mem.Allocator,
+            other_to_input_xform: opentime.transform.AffineTransform1D,
+            /// bounds on the input space of the curve (output space of the affine)
+            /// ("B" in the comment above)
+            input_bounds: opentime.ContinuousTimeInterval,
+        ) !LinearType 
+        {
+            // output bounds of the affine are in the input space of the curve
+            const clipped_curve = try self.trimmed_in_input_space(
+                allocator,
+                input_bounds
+            );
+            defer clipped_curve.deinit(allocator);
+
+            const result_knots = try allocator.dupe(
+                ControlPointType,
+                clipped_curve.knots,
+            );
+
+            const input_to_other_xform = other_to_input_xform.inverted();
+
+            for (clipped_curve.knots, result_knots) 
+                |pt, *target_knot| 
+                {
+                    target_knot.in = input_to_other_xform.applied_to_seconds(pt.in);
+                }
+
+            return .{
+                .knots = result_knots,
+            };
+        }
+
+        /// compute the output ordinate at the input ordinate
+        pub fn output_at_input(
+            self: @This(),
+            input_ord: f32,
+        ) error{OutOfBounds}!f32 
+        {
+            if (self.nearest_smaller_knot_index(input_ord)) 
+                |index| 
+                {
+                    return bezier_math.output_at_input_between(
+                        input_ord,
+                        self.knots[index],
+                        self.knots[index+1],
                     );
                 }
+
+            // specially handle the endpoint
+            const last_knot = self.knots[self.knots.len - 1];
+            if (input_ord == last_knot.in) {
+                return last_knot.out;
             }
+
+            return error.OutOfBounds;
         }
-        try result.append(self.knots[last_minus_one]);
 
-        return Linear{
-            .knots = try result.toOwnedSlice() 
-        };
-    }
-};
+        pub fn output_at_input_at_value(
+            self: @This(),
+            value_ord: f32,
+        ) !f32
+        {
+            if (self.nearest_smaller_knot_index_to_value(value_ord)) 
+                |index| 
+                {
+                    return bezier_math.input_at_output_between(
+                        value_ord,
+                        self.knots[index],
+                        self.knots[index+1],
+                    );
+                }
 
-test "Linear: extents" 
+            return error.OutOfBounds;
+        }
+
+        pub fn nearest_smaller_knot_index(
+            self: @This(),
+            t_arg: f32, 
+        ) ?usize 
+        {
+            const last_index = self.knots.len-1;
+
+            // out of bounds
+            if (
+                self.knots.len == 0 
+                or (t_arg < self.knots[0].in)
+                or t_arg >= self.knots[last_index].in
+            )
+            {
+                return null;
+            }
+
+            // last knot is out of domain
+            for (self.knots[0..last_index], self.knots[1..], 0..) 
+                |knot, next_knot, index| 
+                {
+                    if ( knot.in <= t_arg and t_arg < next_knot.in) 
+                    {
+                        return index;
+                    }
+                }
+
+            return null;
+        }
+
+        pub fn nearest_smaller_knot_index_to_value(
+            self: @This(),
+            value_ord: f32, 
+        ) ?usize 
+        {
+            const last_index = self.knots.len-1;
+
+            // out of bounds
+            if (
+                self.knots.len == 0 
+                or (value_ord < self.knots[0].out)
+                or value_ord >= self.knots[last_index].out
+            )
+            {
+                return null;
+            }
+
+            // last knot is out of domain
+            for (self.knots[0..last_index], self.knots[1..], 0..) 
+                |knot, next_knot, index| 
+                {
+                    if ( knot.out <= value_ord and value_ord < next_knot.out) 
+                    {
+                        return index;
+                    }
+                }
+
+            return null;
+        }
+
+        /// project another curve through this one.  A curve maps 'input' to
+        /// 'output' parameters.  if curve self is v_self(t_self), and curve other
+        /// is v_other(t_other) and other is being projected through self, the
+        /// result function is v_self(v_other(t_other)).  This maps the the v_other
+        /// value to the t_self parameter.
+        ///
+        /// To put it another way, if self maps B->C
+        /// (B = t_self, C=v_self)
+        /// and other maps A->B
+        /// (A = t_other)
+        /// then self.project_curve(other): A->C
+        /// t_other -> v_self
+        /// or if self.input -> self.output
+        /// and other.input -> other.output
+        /// self.project_topology(other) :: other.input -> self.output
+        ///
+        /// curve self:
+        /// 
+        /// v_self
+        /// |  /
+        /// | /
+        /// |/
+        /// +--- t_self
+        ///
+        /// curve other:
+        ///   
+        ///  v_other
+        /// |      ,-'
+        /// |   ,-'
+        /// |,-'
+        /// +---------- t_other
+        ///
+        /// @TODO finish this doc
+        ///
+        pub fn project_curve(
+            /// curve being projected _through_
+            self: @This(),
+            allocator: std.mem.Allocator,
+            /// curve being projected
+            other: LinearType
+        ) ![]LinearType 
+        {
+            // @TODO: if there are preserved derivatives, project and compose them
+            //        as well
+            //
+            const other_bounds = other.extents();
+
+            // find all knots in self that are within the other bounds
+            var split_points = std.ArrayList(f32).init(
+                allocator,
+            );
+            defer split_points.deinit();
+
+            for (self.knots)
+                |self_knot| 
+                {
+                    if (
+                        _is_between(
+                            self_knot.in,
+                            other_bounds[0].out,
+                            other_bounds[1].out
+                        )
+                    ) {
+                        try split_points.append(self_knot.in);
+                    }
+                }
+
+            const other_split_at_self_knots = try other.split_at_each_value(
+                allocator,
+                split_points.items
+            );
+
+            // split other into curves where it goes in and out of the domain of self
+            var curves_to_project = std.ArrayList(
+                LinearType,
+            ).init(allocator);
+            defer curves_to_project.deinit();
+
+            // gather the curves to project by splitting
+            {
+                const self_bounds_t = self.extents_input();
+                var last_index:?i32 = null;
+                var current_curve = (
+                    std.ArrayList(ControlPointType).init(
+                        allocator,
+                    )
+                );
+
+                for (other_split_at_self_knots.knots, 0..) 
+                    |other_knot, index| 
+                    {
+                        if (
+                            self_bounds_t.start_seconds <= other_knot.out 
+                            and other_knot.out <= self_bounds_t.end_seconds
+                        ) 
+                        {
+                            if (last_index == null or index != last_index.?+1) 
+                            {
+                                // curves of less than one point are trimmed, because they
+                                // have no duration, and therefore are not modelled in our
+                                // system.
+                                if (current_curve.items.len > 1) 
+                                {
+                                    try curves_to_project.append(
+                                        LinearType{
+                                            .knots = (
+                                                try current_curve.toOwnedSlice()
+                                            ),
+                                        }
+                                    );
+                                }
+                                current_curve.clearAndFree();
+                            }
+
+                            try current_curve.append(other_knot);
+                            last_index = @intCast(index);
+                        }
+                    }
+                if (current_curve.items.len > 1) {
+                    try curves_to_project.append(
+                        LinearType{
+                            .knots = try current_curve.toOwnedSlice(),
+                        }
+                    );
+                }
+                current_curve.clearAndFree();
+            }
+            other_split_at_self_knots.deinit(allocator);
+
+            if (curves_to_project.items.len == 0) {
+                return &[_]LinearType{};
+            }
+
+            for (curves_to_project.items) 
+                |crv| 
+                {
+                    // project each knot
+                    for (crv.knots) 
+                        |*knot| 
+                        {
+                            // 2. output_at_input grows a parameter to treat endpoint as in bounds
+                            // 3. check outside of output_at_input if it sits on a knot and use
+                            //    the value rather than computing
+                            // 4. catch the error and call a different function or do a
+                            //    check in that case
+                            const value = self.output_at_input(knot.out) catch (
+                                if (self.knots[self.knots.len-1].in == knot.out) 
+                                self.knots[self.knots.len-1].out 
+                                else return error.NotInRangeError
+                            );
+
+                            knot.out  = value;
+                        }
+                }
+
+            // @TODO: we should write a test that exersizes this case
+            if (curves_to_project.items.len > 1) {
+                return error.MoreThanOneCurveIsNotImplemented;
+            }
+
+
+            return try curves_to_project.toOwnedSlice();
+        }
+
+        /// convienence wrapper around project_curve that assumes a single result
+        /// and returns handles the cleanup of that.
+        pub fn project_curve_single_result(
+            self: @This(),
+            allocator: std.mem.Allocator,
+            other: LinearType
+        ) !LinearType 
+        {
+            const result = try self.project_curve(
+                allocator,
+                other
+            );
+
+            if (result.len > 1) {
+                @panic("Not Implemented");
+            }
+
+            defer { 
+                for (result)
+                    |crv|
+                    {
+                        crv.deinit(allocator);
+                    }
+                allocator.free(result);
+            }
+
+            if (result.len < 1)
+            {
+                std.debug.print(
+                    "Couldn't project:\n  self: {any}\n  other: {any}\n",
+                    .{ self.extents(), other.extents(), },
+                );
+                return error.NoProjectionResultError;
+            }
+
+            return try result[0].clone(allocator);
+        }
+
+        pub fn debug_json_str(
+            self:@This(), 
+            allocator: std.mem.Allocator,
+        ) ![]const u8
+        {
+            var str = std.ArrayList(u8).init(allocator);
+
+            try std.json.stringify(self, .{}, str.writer()); 
+
+            return str.toOwnedSlice();
+        }
+
+        /// return the extents of the input domain of the curve  - O(1) because
+        /// curves are monotonic over their input spaces by definition.
+        pub fn extents_input(
+            self:@This()
+        ) opentime.ContinuousTimeInterval 
+        {
+            return .{
+                .start_seconds = self.knots[0].in,
+                .end_seconds = self.knots[self.knots.len - 1].in,
+            };
+        }
+
+        /// compute the extents for the curve exhaustively
+        pub fn extents(self:@This()) [2]ControlPointType {
+            var min:ControlPointType = self.knots[0];
+            var max:ControlPointType = self.knots[0];
+
+            for (self.knots) 
+                |knot| 
+                {
+                    min = .{
+                        .in = @min(min.in, knot.in),
+                        .out = @min(min.out, knot.out),
+                    };
+                    max = .{
+                        .in = @max(max.in, knot.in),
+                        .out = @max(max.out, knot.out),
+                    };
+                }
+            return .{ min, max };
+        }
+
+        /// insert a knot each location on the curve that crosses the values in
+        /// split_points
+        pub fn split_at_each_value(
+            self: @This(),
+            allocator: std.mem.Allocator,
+            split_points: []f32,
+        ) !LinearType 
+        {
+            var result = std.ArrayList(ControlPointType).init(
+                allocator,
+            );
+
+            const last_minus_one = self.knots.len-1;
+
+            // @TODO: there is probably a more effecient algorithm here than MxN
+            for (self.knots[0..last_minus_one], self.knots[1..])
+                |knot, next_knot, |
+                {
+                    try result.append(knot);
+
+                    for (split_points) 
+                        |pt_value_space| 
+                        {
+                            if (
+                                knot.out < pt_value_space 
+                                and pt_value_space < next_knot.out
+                            )
+                            {
+                                const u = bezier_math.invlerp(
+                                    pt_value_space,
+                                    knot.out,
+                                    next_knot.out
+                                );
+                                try result.append(
+                                    bezier_math.lerp(
+                                        u,
+                                        knot,
+                                        next_knot
+                                    )
+                                );
+                            }
+                        }
+                }
+            try result.append(self.knots[last_minus_one]);
+
+            return LinearType{
+                .knots = try result.toOwnedSlice() 
+            };
+        }
+    };
+}
+
+pub const Linear = LinearOf(ControlPoint);
+
+test "LinearType: extents" 
 {
     const crv = try Linear.init_identity(
         std.testing.allocator,
