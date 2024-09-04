@@ -1170,7 +1170,7 @@ test "dydx matches expected at endpoints"
 
     }
 
-    const x_zero_dual = seg0.eval_at_input_dual(seg0.p0.in);
+    const x_zero_dual = seg0.output_at_input_dual(seg0.p0.in);
     try expectApproxEql(
         seg0.p1.in - seg0.p0.in,
         x_zero_dual.i.in
@@ -1240,8 +1240,8 @@ test "derivative at 0 for linear curve"
     }
 
     {
-        const x_zero_dual =  seg_0.eval_at_input_dual(crv.segments[0].p0.in);
-        const x_third_dual = seg_0.eval_at_input_dual(crv.segments[0].p1.in);
+        const x_zero_dual =  seg_0.output_at_input_dual(crv.segments[0].p0.in);
+        const x_third_dual = seg_0.output_at_input_dual(crv.segments[0].p1.in);
 
         try expectApproxEql(x_zero_dual.i.in, x_third_dual.i.in);
         try expectApproxEql(x_zero_dual.i.out, x_third_dual.i.out);
@@ -1480,11 +1480,11 @@ test "inverted: invert linear"
     while (t<1 - 0.01) 
         : (t += 0.01) 
     {
-        const idntity_p = try identity_crv.evaluate(t);
+        const idntity_p = try identity_crv.output_at_input(t);
 
         // identity_p(t) == inverse_p(forward_p(t))
-        const forward_p = try forward_crv.evaluate(t);
-        const inverse_p = try inverse_crv.evaluate(forward_p);
+        const forward_p = try forward_crv.output_at_input(t);
+        const inverse_p = try inverse_crv.output_at_input(forward_p);
 
         errdefer std.log.err(
             "[t: {any}] ident: {any} forwd: {any} inv: {any}",
@@ -1545,8 +1545,8 @@ test "invert negative slope linear"
             .{t, }
         );
 
-        const forward_p = try forward_crv.evaluate(t);
-        const double__p = try double_inv_lin.evaluate(t);
+        const forward_p = try forward_crv.output_at_input(t);
+        const double__p = try double_inv_lin.output_at_input(t);
 
         errdefer std.log.err(
             "[t: {any}] forwd: {any} double_inv: {any}",
@@ -1556,7 +1556,7 @@ test "invert negative slope linear"
         try expectApproxEql(forward_p, double__p);
 
         // A * A-1 => 1
-        // const inverse_p = try inverse_crv_lin.evaluate(forward_p);
+        // const inverse_p = try inverse_crv_lin.output_at_input(forward_p);
         // try expectApproxEql(t, inverse_p);
     }
 }
@@ -1621,12 +1621,12 @@ test "invert linear complicated curve"
             "\n  t: {d} err! \n",
             .{ t, }
         );
-        const fwd = try crv_linear.evaluate(t);
-        const dbl = try crv_double_inv.evaluate(t);
+        const fwd = try crv_linear.output_at_input(t);
+        const dbl = try crv_double_inv.output_at_input(t);
 
         try expectEqual(fwd, dbl);
 
-        // const inv = try crv_linear_inv.evaluate(fwd);
+        // const inv = try crv_linear_inv.output_at_input(fwd);
         //
         // errdefer std.log.err(
         //     "\n  t: {d} not equals projected {d}\n",
@@ -1768,7 +1768,7 @@ test "inverted: invert bezier"
             "[t_a: {any}]",
             .{t_a}
         );
-        const t_a_computed = try identity_crv.evaluate(t_a);
+        const t_a_computed = try identity_crv.output_at_input(t_a);
         try expectApproxEql(t_a, t_a_computed);
 
         errdefer std.log.err(
@@ -1776,13 +1776,13 @@ test "inverted: invert bezier"
             .{t_a_computed}
         );
 
-        const p_b = try a2b_crv.evaluate(t_a);
+        const p_b = try a2b_crv.output_at_input(t_a);
         errdefer std.log.err(
             " forwd: {any}",
             .{p_b}
         );
 
-        const p_a = try b2a_lin.evaluate(p_b);
+        const p_a = try b2a_lin.output_at_input(p_b);
         errdefer std.log.err(
             " inv: {any}\n",
             .{p_a}

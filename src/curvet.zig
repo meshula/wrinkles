@@ -553,7 +553,7 @@ pub fn evaluated_curve(
                 .{ uv, ext }
             );
 
-            const p = crv.evaluate(uv) catch blk: {
+            const p = crv.output_at_input(uv) catch blk: {
                 break :blk ext[0].out;
             };
 

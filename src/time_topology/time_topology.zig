@@ -259,7 +259,7 @@ test "AffineTopology: linearize"
         );
         try expectEqual(
             a2b_aff.project_instantaneous_cc(ord),
-            a2b_lin.linear_curve.curve.evaluate(ord)
+            a2b_lin.linear_curve.curve.output_at_input(ord)
         );
     }
 }
@@ -304,7 +304,7 @@ pub const LinearTopology = struct {
         ordinate: Ordinate,
     ) !Ordinate 
     {
-        return self.curve.evaluate(ordinate);
+        return self.curve.output_at_input(ordinate);
     }
 
     pub fn inverted(
@@ -464,7 +464,7 @@ pub const BezierTopology = struct {
         ordinate: Ordinate,
     ) !Ordinate 
     {
-        return self.curve.evaluate(ordinate);
+        return self.curve.output_at_input(ordinate);
     }
 
     pub fn inverted(

@@ -82,7 +82,7 @@ test "curve projection tests: identity projection" {
     {
         try expectApproxEqAbs(
             pt.out,
-            result.eval_at_input(pt.in),
+            result.output_at_input(pt.in),
             EPSILON,
         );
     }

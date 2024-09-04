@@ -764,7 +764,7 @@ pub fn retimed_linear_curve_non_interpolating(
 
         // output -> input time (continuous -> continuous)
         const input_sample_time = (
-            try ret_to_s_crv.evaluate(output_sample_time)
+            try ret_to_s_crv.output_at_input(output_sample_time)
         );
 
         // input time -> input index (continuous -> discrete)
@@ -1232,7 +1232,7 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
     try knots.append(
         .{
             .in = retime_curve_extents.start_seconds,
-            .out = try cubic_retime_curve.evaluate(
+            .out = try cubic_retime_curve.output_at_input(
                 retime_curve_extents.start_seconds
             ),
         }
@@ -1245,7 +1245,7 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
         try knots.append(
             .{
                 .in = t,
-                .out = try cubic_retime_curve.evaluate(t),
+                .out = try cubic_retime_curve.output_at_input(t),
             }
         );
     }
@@ -1473,12 +1473,12 @@ test "sampling: frame phase slide 2: (time*2 bounds*1 freq*1 phase+0) 0,1,2,3->0
     // trivial check that curve behaves as expected
     try expectApproxEqAbs(
         0.5,
-        try sample_to_output_crv.evaluate(1.0),
+        try sample_to_output_crv.output_at_input(1.0),
         EPSILON
     );
     try expectApproxEqAbs(
         0.0,
-        try sample_to_output_crv.evaluate(0.0),
+        try sample_to_output_crv.output_at_input(0.0),
         EPSILON
     );
 
@@ -1550,12 +1550,12 @@ test "sampling: frame phase slide 2.5: (time*2 bounds*2 freq*1 phase+0) 0,1,2,3-
     // trivial check that curve behaves as expected
     try expectApproxEqAbs(
         0.5,
-        try retimed_to_sample_crv.evaluate(1.0),
+        try retimed_to_sample_crv.output_at_input(1.0),
         EPSILON
     );
     try expectApproxEqAbs(
         0.0,
-        try retimed_to_sample_crv.evaluate(0.0),
+        try retimed_to_sample_crv.output_at_input(0.0),
         EPSILON
     );
 
@@ -1635,12 +1635,12 @@ test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(
     // trivial check that curve behaves as expected
     try expectApproxEqAbs(
         0.5,
-        try sample_to_output_crv.evaluate(0.5),
+        try sample_to_output_crv.output_at_input(0.5),
         EPSILON
     );
     try expectApproxEqAbs(
         0.0,
-        try sample_to_output_crv.evaluate(0.0),
+        try sample_to_output_crv.output_at_input(0.0),
         EPSILON
     );
 
@@ -1762,12 +1762,12 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
     // trivial check that curve behaves as expected
     try expectApproxEqAbs(
         0.375,
-        try retimed_to_sample_crv.evaluate(0.75),
+        try retimed_to_sample_crv.output_at_input(0.75),
         EPSILON
     );
     try expectApproxEqAbs(
         0.125,
-        try retimed_to_sample_crv.evaluate(0.25),
+        try retimed_to_sample_crv.output_at_input(0.25),
         EPSILON
     );
 

@@ -153,8 +153,8 @@ pub const Linear = struct {
         };
     }
 
-    /// evaluate the curve at time t in the space of the curve
-    pub fn evaluate(
+    /// output_at_input the curve at time t in the space of the curve
+    pub fn output_at_input(
         self: @This(),
         t_arg: f32,
     ) error{OutOfBounds}!f32 
@@ -178,7 +178,7 @@ pub const Linear = struct {
         return error.OutOfBounds;
     }
 
-    pub fn evaluate_at_value(
+    pub fn output_at_input_at_value(
         self: @This(),
         value_ord: f32,
     ) !f32
@@ -396,12 +396,12 @@ pub const Linear = struct {
             for (crv.knots) 
                 |*knot| 
             {
-                // 2. evaluate grows a parameter to treat endpoint as in bounds
-                // 3. check outside of evaluate if it sits on a knot and use
+                // 2. output_at_input grows a parameter to treat endpoint as in bounds
+                // 3. check outside of output_at_input if it sits on a knot and use
                 //    the value rather than computing
                 // 4. catch the error and call a different function or do a
                 //    check in that case
-                const value = self.evaluate(knot.out) catch (
+                const value = self.output_at_input(knot.out) catch (
                     if (self.knots[self.knots.len-1].in == knot.out) 
                         self.knots[self.knots.len-1].out 
                     else return error.NotInRangeError
@@ -730,7 +730,7 @@ test "Linear: projection_test - compose to identity"
     {
         try expectApproxEqAbs(
             x,
-            try result[0].evaluate(x),
+            try result[0].output_at_input(x),
             generic_curve.EPSILON
         );
     }
@@ -930,7 +930,7 @@ test "Linear: linear through affine"
         );
         defer a2c.deinit(std.testing.allocator);
 
-        const result = try a2c.evaluate(t.test_pt[0]);
+        const result = try a2c.output_at_input(t.test_pt[0]);
 
         errdefer std.debug.print(
             "[test: {d}] input: {d} expected: {d} got: {d}\n",
