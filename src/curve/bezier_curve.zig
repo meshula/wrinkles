@@ -37,7 +37,6 @@
 //! 
 
 const std = @import("std");
-const debug_panic = @import("std").debug.panic;
 const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
 const expectError = std.testing.expectError;
@@ -144,7 +143,7 @@ pub const Segment = struct {
             };
         }
 
-        debug_panic(
+        std.debug.panic(
             "Create linear segment failed, t0: {d} > t1: {d}\n",
             .{start.in, end.in}
         );
