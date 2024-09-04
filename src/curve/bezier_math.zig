@@ -76,7 +76,7 @@ pub fn invlerp(
     ) catch |err| switch (err) {};
 }
 
-pub fn value_at_time_between(
+pub fn output_at_input_between(
     t: f32,
     fst: ControlPoint,
     snd: ControlPoint,
@@ -86,7 +86,7 @@ pub fn value_at_time_between(
     return lerp(u, fst.out, snd.out);
 }
 
-pub fn time_at_value_between(
+pub fn input_at_output_between(
     v: f32,
     fst: ControlPoint,
     snd: ControlPoint,

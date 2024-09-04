@@ -12,8 +12,6 @@ const mapping_affine = @import("mapping_affine.zig");
 const mapping_curve_linear = @import("mapping_curve_linear.zig");
 const mapping_curve_bezier = @import("mapping_curve_bezier.zig");
 
-pub const Ordinate = f32;
-
 /// A Mapping is a polymorphic container for a function that maps from an
 /// "input" space to an "output" space.  Mappings can be joined with other
 /// mappings via function composition to build new transformations via common
@@ -40,8 +38,8 @@ pub const Mapping = union (enum) {
     /// space
     pub fn project_instantaneous_cc(
         self: @This(),
-        ord: Ordinate,
-    ) !Ordinate 
+        ord: opentime.Ordinate,
+    ) !opentime.Ordinate 
     {
         return switch (self) {
             inline else => |m| m.project_instantaneous_cc(ord),
@@ -88,7 +86,7 @@ pub const Mapping = union (enum) {
 /// "Empty" mappings outside of the end points which map to no values before
 /// and after the segments defined by the Topology.
 pub const TopologyMapping = struct {
-    end_points: []const Ordinate,
+    end_points: []const opentime.Ordinate,
     mappings: []const Mapping,
 };
 

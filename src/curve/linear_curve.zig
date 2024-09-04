@@ -44,17 +44,17 @@ pub const Linear = struct {
         };
     }
 
-    /// initialize a Linear where each knot time has the same value
-    /// as the time (in other words, an identity curve that passes through t=0).
+    /// initialize an identity Linear with knots at the specified input
+    /// ordinates
     pub fn init_identity(
         allocator: std.mem.Allocator,
-        knot_times:[]const f32
+        knot_input_ords:[]const f32
     ) !Linear 
     {
         var result = std.ArrayList(ControlPoint).init(
             allocator,
         );
-        for (knot_times) 
+        for (knot_input_ords) 
             |t| 
         {
             try result.append(.{.in = t, .out = t});
@@ -117,8 +117,8 @@ pub const Linear = struct {
     }
 
     /// project an affine transformation through the curve, returning a new
-    /// linear time curve.  If self maps B->C, and xform maps A->B, then the
-    /// result of self.project_affine(xform) will map A->C
+    /// linear curve.  If self maps B->C, and xform maps A->B, then the result
+    /// of self.project_affine(xform) will map A->C
     pub fn project_affine(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -153,17 +153,17 @@ pub const Linear = struct {
         };
     }
 
-    /// output_at_input the curve at time t in the space of the curve
+    /// compute the output ordinate at the input ordinate
     pub fn output_at_input(
         self: @This(),
-        t_arg: f32,
+        input_ord: f32,
     ) error{OutOfBounds}!f32 
     {
-        if (self.nearest_smaller_knot_index(t_arg)) 
+        if (self.nearest_smaller_knot_index(input_ord)) 
            |index| 
         {
-            return bezier_math.value_at_time_between(
-                t_arg,
+            return bezier_math.output_at_input_between(
+                input_ord,
                 self.knots[index],
                 self.knots[index+1],
             );
@@ -171,7 +171,7 @@ pub const Linear = struct {
 
         // specially handle the endpoint
         const last_knot = self.knots[self.knots.len - 1];
-        if (t_arg == last_knot.in) {
+        if (input_ord == last_knot.in) {
             return last_knot.out;
         }
 
@@ -186,7 +186,7 @@ pub const Linear = struct {
         if (self.nearest_smaller_knot_index_to_value(value_ord)) 
            |index| 
         {
-            return bezier_math.time_at_value_between(
+            return bezier_math.input_at_output_between(
                 value_ord,
                 self.knots[index],
                 self.knots[index+1],

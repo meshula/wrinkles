@@ -4,13 +4,11 @@ pub const control_point = @import("control_point.zig");
 pub const bezier_curve = @import("bezier_curve.zig");
 pub const test_segment_projection = @import("test_segment_projection.zig");
 
-// bezier
 pub const Bezier = bezier_curve.Bezier;
 pub const Segment = bezier_curve.Segment;
-
 pub const Linear = linear_curve.Linear;
-
 pub const ControlPoint = control_point.ControlPoint;
+
 pub const linearize_segment = bezier_curve.linearize_segment;
 pub const read_segment_json = bezier_curve.read_segment_json;
 pub const read_curve_json = bezier_curve.read_curve_json;
