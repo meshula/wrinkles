@@ -1,43 +1,37 @@
-const std = @import("std");
-const TimeTopology = @import("time_topology.zig").TimeTopology;
-const opentime = @import("opentime");
-const util = opentime.util;
-const EPSILON = util.EPSILON;
-const expect = std.testing.expect;
-const expectEqual = std.testing.expectEqual;
-const expectApproxEqAbs= std.testing.expectApproxEqAbs;
-const expectError = @import("std").testing.expectError;
+//! test harness for functionality based on presentation notes
 
-pub fn expectNotNan(
-    val: f32
+const std = @import("std");
+
+const opentime = @import("opentime");
+const EPSILON = opentime.util.EPSILON;
+
+const time_topology = @import("time_topology.zig");
+
+/// check if a float is nan or not
+pub inline fn expectNotNan(
+    val: opentime.Ordinate
 ) !void 
 {
-    return try expect(std.math.isNan(val) == false);
+    return try std.testing.expect(std.math.isNan(val) == false);
 }
-
-///////////////////////////////////////////////////////////////////////////////
-//
-// test harness for functionality based on presentation notes
-//
-///////////////////////////////////////////////////////////////////////////////
 
 test "identity projections" 
 {
-    const identity_inf = TimeTopology.init_identity_infinite();
+    const identity_inf = time_topology.TimeTopology.init_identity_infinite();
 
     const bounds = opentime.ContinuousTimeInterval{
         .start_seconds = 12,
         .end_seconds = 20,
     };
-    const identity_bounded = TimeTopology.init_affine(
+    const identity_bounded = time_topology.TimeTopology.init_affine(
         .{ .bounds = bounds }
     );
-    try expectError(
-        TimeTopology.ProjectionError.OutOfBounds, 
+    try std.testing.expectError(
+        time_topology.TimeTopology.ProjectionError.OutOfBounds, 
         identity_bounded.project_instantaneous_cc(10),
     );
-    try expectApproxEqAbs(
-        @as(f32, 13),
+    try std.testing.expectApproxEqAbs(
+        @as(opentime.Ordinate, 13),
         try identity_bounded.project_instantaneous_cc(13),
         EPSILON
     );
@@ -50,7 +44,7 @@ test "identity projections"
     );
 
     // no segments because identity_inf has no segments
-    try expectEqual(
+    try std.testing.expectEqual(
         inf_through_bounded.affine.bounds,
         bounds
     );
@@ -58,7 +52,7 @@ test "identity projections"
 
 test "projection test: linear_through_linear" 
 {
-    const first = TimeTopology.init_affine(
+    const first = time_topology.TimeTopology.init_affine(
         .{ 
             .transform = .{ .scale = 4 }, 
             .bounds = .{
@@ -68,17 +62,17 @@ test "projection test: linear_through_linear"
         }
     );
 
-    try expectEqual(
-        @as(f32, 0),
+    try std.testing.expectEqual(
+        @as(opentime.Ordinate, 0),
         try first.project_instantaneous_cc(0)
     );
-    try expectApproxEqAbs(
-        @as(f32, 8),
+    try std.testing.expectApproxEqAbs(
+        8,
         try first.project_instantaneous_cc(2),
         EPSILON
     );
 
-    const second = TimeTopology.init_affine(
+    const second = time_topology.TimeTopology.init_affine(
         .{ 
             .transform = .{ .scale = 2},
             .bounds = .{
@@ -87,11 +81,11 @@ test "projection test: linear_through_linear"
             },
         }
     );
-    try expectEqual(
+    try std.testing.expectEqual(
         @as(f32, 0),
         try second.project_instantaneous_cc(0)
     );
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         @as(f32, 4),
         try second.project_instantaneous_cc(2),
         EPSILON
@@ -104,11 +98,11 @@ test "projection test: linear_through_linear"
             second,
         )
     );
-    try expectEqual(
+    try std.testing.expectEqual(
         @as(f32, 0),
         try second_through_first_topo.project_instantaneous_cc(0)
     );
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         @as(f32, 16),
         try second_through_first_topo.project_instantaneous_cc(2),
         EPSILON
@@ -117,7 +111,7 @@ test "projection test: linear_through_linear"
 
 test "projection test: linear_through_linear with boundary" 
 {
-    const first = TimeTopology.init_affine(
+    const first = time_topology.TimeTopology.init_affine(
         .{ 
             .transform = .{ .scale = 4 },
             .bounds = .{
@@ -127,8 +121,8 @@ test "projection test: linear_through_linear with boundary"
         }
     );
 
-    try expectEqual(0, try first.project_instantaneous_cc(0));
-    try expectEqual(8, try first.project_instantaneous_cc(2));
+    try std.testing.expectEqual(0, try first.project_instantaneous_cc(0));
+    try std.testing.expectEqual(8, try first.project_instantaneous_cc(2));
 
     // @TODO: this test reveals the question in the end point projection -
     //        should it be an error or not?
@@ -141,9 +135,9 @@ test "projection test: linear_through_linear with boundary"
     //     error.OutOfBounds,
     //     first.project_instantaneous_cc(5)
     // );
-    try expectEqual(20, try first.project_instantaneous_cc(5));
+    try std.testing.expectEqual(20, try first.project_instantaneous_cc(5));
 
-    const second= TimeTopology.init_affine(
+    const second= time_topology.TimeTopology.init_affine(
         .{ 
             .transform = .{ .scale = 2},
             .bounds = .{
@@ -152,22 +146,22 @@ test "projection test: linear_through_linear with boundary"
             },
         }
     );
-    try expectEqual(0,  try second.project_instantaneous_cc(0));
-    try expectEqual(4,  try second.project_instantaneous_cc(2));
+    try std.testing.expectEqual(0,  try second.project_instantaneous_cc(0));
+    try std.testing.expectEqual(4,  try second.project_instantaneous_cc(2));
 
     // not out of bounds for the second topology
-    try expectEqual(10, try second.project_instantaneous_cc(5));
+    try std.testing.expectEqual(10, try second.project_instantaneous_cc(5));
 
     // project one through the other
     const second_through_first_topo = try first.project_topology(
         std.testing.allocator,
         second
     );
-    try expectEqual(
+    try std.testing.expectEqual(
         @as(f32, 0),
         try second_through_first_topo.project_instantaneous_cc(0)
     );
-    try expectEqual(
+    try std.testing.expectEqual(
         @as(f32, 16),
         try second_through_first_topo.project_instantaneous_cc(2)
     );
