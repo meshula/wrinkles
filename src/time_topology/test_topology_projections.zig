@@ -117,8 +117,6 @@ test "projection test: linear_through_linear"
 
 test "projection test: linear_through_linear with boundary" 
 {
-    // try util.skip_test();
-
     const first = TimeTopology.init_affine(
         .{ 
             .transform = .{ .scale = 4 },
