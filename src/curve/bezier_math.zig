@@ -1755,12 +1755,8 @@ test "inverted: invert bezier"
     );
     defer b2a_lin.deinit(std.testing.allocator);
 
-    if (true) {
-        return error.SkipZigTest;
-    }
-
     var t_a :f32 = -0.5;
-    while (t_a<0.5) 
+    while (t_a<0.5 - generic_curve.EPSILON) 
         : (t_a += 0.01) 
     {
         errdefer std.log.err(
