@@ -2,6 +2,11 @@
 // Exports for the `opentime` library
 //
 
+// ordinate @{
+const ordinate = @import("ordinate.zig");
+pub const Ordinate = ordinate.Ordinate;
+// @}
+
 // interval @{
 pub const interval = @import("interval.zig");
 pub const ContinuousTimeInterval = interval.ContinuousTimeInterval;
