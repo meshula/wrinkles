@@ -1,11 +1,11 @@
-const std = @import("std"); 
-const util = @import("util.zig"); 
+//! Continuous Interval definition/Implementation
 
+const std = @import("std"); 
 const expectEqual = std.testing.expectEqual;
 const expect = std.testing.expect;
 
-// Intervals and Points @{
-// ////////////////////////////////////////////////////////////////////////////
+const util = @import("util.zig"); 
+const ordinate = @import("ordinate.zig"); 
 
 /// An infinite interval
 pub const INF_CTI: ContinuousTimeInterval = .{
@@ -17,16 +17,16 @@ pub const INF_CTI: ContinuousTimeInterval = .{
 /// the default CTI splits the timeline at the origin
 pub const ContinuousTimeInterval = struct {
     /// the start time of the interval in seconds, inclusive
-    start_seconds: f32 = 0,
+    start_seconds: ordinate.Ordinate = 0,
 
     /// the end time of the interval in seconds, exclusive
-    end_seconds: f32 = util.inf,
+    end_seconds: ordinate.Ordinate = util.inf,
 
-    // compute the duration of the interval, if either boundary is not finite,
-    // the duration is infinite.
+    /// compute the duration of the interval, if either boundary is not finite,
+    /// the duration is infinite.
     pub fn duration_seconds(
-        self: @This()
-    ) f32 
+        self: @This(),
+    ) ordinate.Ordinate 
     {
         if (
             !std.math.isFinite(self.start_seconds) 
@@ -40,8 +40,8 @@ pub const ContinuousTimeInterval = struct {
     }
 
     pub fn from_start_duration_seconds(
-        start_seconds: f32,
-        in_duration_seconds: f32
+        start_seconds: ordinate.Ordinate,
+        in_duration_seconds: ordinate.Ordinate,
     ) ContinuousTimeInterval
     {
         if (in_duration_seconds <= 0)
@@ -55,9 +55,10 @@ pub const ContinuousTimeInterval = struct {
         };
     }
 
+    /// return true if t_seconds is within the interval
     pub fn overlaps_seconds(
         self: @This(),
-        t_seconds: f32
+        t_seconds: ordinate.Ordinate,
     ) bool 
     {
         return (
@@ -105,6 +106,88 @@ pub fn extend(
     };
 }
 
+test "ContinuousTimeInterval: extend"
+{
+    const TestStruct = struct {
+        fst: ContinuousTimeInterval,
+        snd: ContinuousTimeInterval,
+        res: ContinuousTimeInterval,
+    };
+    const tests = [_]TestStruct{
+        .{ 
+            .fst = .{
+                .start_seconds = 0,
+                .end_seconds = 10,
+            },
+            .snd = .{
+                .start_seconds = 8,
+                .end_seconds = 12,
+            },
+            .res = .{
+                .start_seconds = 0,
+                .end_seconds = 12,
+            },
+        },
+        .{ 
+            .fst = .{
+                .start_seconds = 0,
+                .end_seconds = 10,
+            },
+            .snd = .{
+                .start_seconds = -2,
+                .end_seconds = 9,
+            },
+            .res = .{
+                .start_seconds = -2,
+                .end_seconds = 10,
+            },
+        },
+        .{ 
+            .fst = .{
+                .start_seconds = 0,
+                .end_seconds = 10,
+            },
+            .snd = .{
+                .start_seconds = -2,
+                .end_seconds = 12,
+            },
+            .res = .{
+                .start_seconds = -2,
+                .end_seconds = 12,
+            },
+        },
+        .{ 
+            .fst = .{
+                .start_seconds = 0,
+                .end_seconds = 2,
+            },
+            .snd = .{
+                .start_seconds = 4,
+                .end_seconds = 12,
+            },
+            .res = .{
+                .start_seconds = 0,
+                .end_seconds = 12,
+            },
+        },
+    };
+
+    for (tests)
+        |t|
+    {
+        const measured = extend(t.fst, t.snd);
+
+        try std.testing.expectEqual(
+            t.res.start_seconds,
+            measured.start_seconds
+        );
+        try std.testing.expectEqual(
+            t.res.end_seconds,
+            measured.end_seconds
+        );
+    }
+}
+
 /// return whether there is any overlap between fst and snd
 pub fn any_overlap(
     fst: ContinuousTimeInterval,
@@ -117,20 +200,81 @@ pub fn any_overlap(
     );
 }
 
-/// return a new interval of the union or null if they are disjoint
-pub fn union_of(
-    fst: ContinuousTimeInterval,
-    snd: ContinuousTimeInterval
-) ?ContinuousTimeInterval 
-{
-    if (!any_overlap(fst, snd)) {
-        return null;
-    }
-
-    return .{
-        .start_seconds = @min(fst.start_seconds, snd.start_seconds),
-        .end_seconds = @max(fst.end_seconds, snd.end_seconds),
+test "ContinuousTimeInterval: any_overlap"
+{ 
+    const TestStruct = struct {
+        fst: ContinuousTimeInterval,
+        snd: ContinuousTimeInterval,
+        res: bool,
     };
+    const tests = [_]TestStruct{
+        .{ 
+            .fst = .{
+                .start_seconds = 0,
+                .end_seconds = 10,
+            },
+            .snd = .{
+                .start_seconds = 8,
+                .end_seconds = 12,
+            },
+            .res = true,
+        },
+        .{ 
+            .fst = .{
+                .start_seconds = 0,
+                .end_seconds = 10,
+            },
+            .snd = .{
+                .start_seconds = -2,
+                .end_seconds = 9,
+            },
+            .res = true,
+        },
+        .{ 
+            .fst = .{
+                .start_seconds = 0,
+                .end_seconds = 10,
+            },
+            .snd = .{
+                .start_seconds = -2,
+                .end_seconds = 12,
+            },
+            .res = true,
+        },
+        .{ 
+            .fst = .{
+                .start_seconds = 0,
+                .end_seconds = 4,
+            },
+            .snd = .{
+                .start_seconds = 5,
+                .end_seconds = 12,
+            },
+            .res = false,
+        },
+        .{ 
+            .fst = .{
+                .start_seconds = 0,
+                .end_seconds = 4,
+            },
+            .snd = .{
+                .start_seconds = -2,
+                .end_seconds = 0,
+            },
+            .res = false,
+        },
+    };
+
+    for (tests)
+        |t|
+    {
+        const measured = any_overlap(t.fst, t.snd);
+
+        try std.testing.expectEqual(
+            t.res,
+            measured,
+        );
+    }
 }
 
 /// return an interval of the intersection or null if they are disjoint
@@ -227,4 +371,3 @@ test "ContinuousTimeInterval: Overlap tests"
     try expect(!ival.overlaps_seconds(20));
     try expect(!ival.overlaps_seconds(30));
 }
-// @}
