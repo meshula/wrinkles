@@ -1,7 +1,9 @@
-// zig std stuff
+//! Build script for wrinkles project
+
 const builtin = @import("builtin");
 const std = @import("std");
 
+/// the minimum required zig version to build this project, manually updated
 pub const MIN_ZIG_VERSION = std.SemanticVersion{
     .major = 0,
     .minor = 13,
@@ -10,8 +12,9 @@ pub const MIN_ZIG_VERSION = std.SemanticVersion{
     // .pre = "dev.46"  <- for setting the dev version string
 };
 
+/// guarantee that the zig compiler version is more than the minimum
 fn ensureZigVersion() !void {
-    var installed_ver = @import("builtin").zig_version;
+    var installed_ver = builtin.zig_version;
     installed_ver.build = null;
 
     if (installed_ver.order(MIN_ZIG_VERSION) == .lt) {
@@ -121,6 +124,7 @@ fn graphviz_dot_on_path() !bool
 var raw = std.heap.GeneralPurposeAllocator(.{}){};
 pub const ALLOCATOR = raw.allocator();
 
+/// build options for the wrinkles project
 pub const Options = struct {
     optimize: std.builtin.Mode,
     target: std.Build.ResolvedTarget,
@@ -138,10 +142,12 @@ pub const Options = struct {
     all_check_step: *std.Build.Step,
 };
 
+/// find the path to the directory containing this build.zig file
 inline fn thisDir() []const u8 {
     return comptime std.fs.path.dirname(@src().file) orelse ".";
 }
 
+/// c-code compilation arguments
 const C_ARGS = [_][]const u8{
     "-std=c11",
     "-fno-sanitize=undefined",
@@ -164,20 +170,31 @@ const C_ARGS = [_][]const u8{
 // }
 
 /// Returns the result of running `git rev-parse HEAD`
-pub fn rev_HEAD(alloc: std.mem.Allocator) ![]const u8 {
+pub fn rev_HEAD(
+    allocator: std.mem.Allocator
+) ![]const u8 
+{
     const max = std.math.maxInt(usize);
     const dirg = try std.fs.cwd().openDir(".git", .{});
-    const h = std.mem.trim(
+    const head_file = std.mem.trim(
         u8,
-        try dirg.readFileAlloc(alloc, "HEAD", max),
+        try dirg.readFileAlloc(
+            allocator,
+            "HEAD",
+            max,
+        ),
         "\n"
     );
-    const r = std.mem.trim(
+    const just_hash = std.mem.trim(
         u8,
-        try dirg.readFileAlloc(alloc, h[5..], max),
+        try dirg.readFileAlloc(
+            allocator,
+            head_file[5..],
+            max
+        ),
         "\n"
     );
-    return r;
+    return just_hash;
 }
 
 /// build an executable that uses zgui/zgflw etc from zig-gamedev
@@ -370,9 +387,10 @@ pub const CreateModuleOptions = struct {
     deps: []const std.Build.Module.Import = &.{},
 };
 
+/// build a submodule w/ unit tests
 pub fn module_with_tests_and_artifact(
     comptime name: []const u8,
-    opts:CreateModuleOptions
+    opts:CreateModuleOptions,
 ) *std.Build.Module 
 {
     const mod = opts.b.createModule(
@@ -450,16 +468,16 @@ pub fn module_with_tests_and_artifact(
     return mod;
 }
 
-// main entry point
+/// main entry point
 pub fn build(
-    b: *std.Build
+    b: *std.Build,
 ) void 
 {
     ensureZigVersion() catch return;
 
     const test_step = b.step(
         "test",
-        "step to run all unit tests"
+        "step to run all unit tests",
     );
 
     const all_docs_step = b.step(
@@ -469,9 +487,8 @@ pub fn build(
 
     const all_check_step = b.step(
         "check",
-        "Check if everything compiles"
+        "Check if everything compiles",
     );
-
 
     //
     // Options and system checks
@@ -512,7 +529,7 @@ pub fn build(
     options.common_build_options.addOption(
         []const u8,
         "hash",
-        rev_HEAD(ALLOCATOR) catch "COULDNT READ HASH"
+        rev_HEAD(ALLOCATOR) catch "COULDNT READ HASH",
     );
 
     const graphviz_dot_on = graphviz_dot_on_path() catch false;
@@ -786,6 +803,7 @@ pub fn build(
         .{ .name = "sampling", .module = sampling },
     };
 
+    // executables
     executable(
         b, 
         "wrinkles",
