@@ -98,468 +98,13 @@ fn _is_between(
 }
 
 
-/// Bezier Curve Segment
-pub const Segment = struct {
-    p0: control_point.ControlPoint = .{
-        .in = 0,
-        .out = 0,
-    },
-    p1: control_point.ControlPoint = .{
-        .in = 0,
-        .out = 0,
-    },
-    p2: control_point.ControlPoint = .{
-        .in = 1,
-        .out = 1,
-    },
-    p3: control_point.ControlPoint = .{
-        .in = 1,
-        .out = 1,
-    },
-
-    pub fn init_identity(
-        input_start: opentime.Ordinate,
-        input_end: opentime.Ordinate,
-    ) Segment
-    {
-        return Segment.init_from_start_end(
-            .{ .in = input_start, .out = input_start },
-            .{ .in = input_end, .out = input_end }
-        );
-    }
-
-    pub fn init_from_start_end(
-        start: control_point.ControlPoint,
-        end: control_point.ControlPoint
-    ) Segment 
-    {
-        if (end.in >= start.in) 
-        {
-            return .{
-                .p0 = start,
-                .p1 = bezier_math.lerp(1.0/3.0, start, end),
-                .p2 = bezier_math.lerp(2.0/3.0, start, end),
-                .p3 = end,
-            };
-        }
-
-        std.debug.panic(
-            "Create linear segment failed, t0: {d} > t1: {d}\n",
-            .{start.in, end.in}
-        );
-    }
-
-    pub fn init_approximate_from_three_points(
-        start_knot: control_point.ControlPoint,
-        mid_point: control_point.ControlPoint,
-        t_mid_point: f32,
-        d_mid_point_dt: control_point.ControlPoint,
-        end_knot: control_point.ControlPoint,
-    ) ?Segment
-    {
-        const result = three_point_guts_plot(
-            start_knot,
-            mid_point,
-            t_mid_point,
-            d_mid_point_dt,
-            end_knot
-        );
-
-        return result.result;
-    }
-
-    /// construct a static array of the points
-    pub fn points(
-        self: @This()
-    ) [4]control_point.ControlPoint 
-    {
-        return .{ self.p0, self.p1, self.p2, self.p3 };
-    }
-
-    /// construct an array of pointers to the points in this segment
-    pub fn point_ptrs(
-        self: *@This()
-    ) [4]*control_point.ControlPoint 
-    {
-        return .{ &self.p0, &self.p1, &self.p2, &self.p3 };
-    }
-
-    /// copy pts over values in self
-    pub fn from_pt_array(
-        pts: [4]control_point.ControlPoint
-    ) Segment 
-    {
-        return .{ 
-            .p0 = pts[0],
-            .p1 = pts[1],
-            .p2 = pts[2],
-            .p3 = pts[3], 
-        };
-    }
-
-    pub fn set_points(
-        self: *@This(),
-        pts: [4]control_point.ControlPoint
-    ) void 
-    {
-        self.p0 = pts[0];
-        self.p1 = pts[1];
-        self.p2 = pts[2];
-        self.p3 = pts[3];
-    }
-
-    pub fn eval_at_dual(
-        self: @This(),
-        unorm_dual:opentime.dual.Dual_f32,
-    ) control_point.Dual_CP
-    {
-        var self_dual : [4]control_point.Dual_CP = undefined;
-        const self_p = self.points();
-
-        inline for (self_p, &self_dual) 
-                   |p, *dual_p| 
-        {
-            dual_p.r = p;
-            dual_p.i = .{};
-        }
-
-        const seg3 = bezier_math.segment_reduce4_dual(unorm_dual, self_dual);
-        const seg2 = bezier_math.segment_reduce3_dual(unorm_dual, seg3);
-        const result = bezier_math.segment_reduce2_dual(unorm_dual, seg2);
-
-        return result[0];
-    }
-
-    /// output value of the segment at parameter unorm, [0, 1)
-    pub fn eval_at(
-        self: @This(),
-        unorm:f32
-    ) control_point.ControlPoint
-    {
-        const use_reducer = true;
-        if (use_reducer) {
-            const seg3 = bezier_math.segment_reduce4(unorm, self);
-            const seg2 = bezier_math.segment_reduce3(unorm, seg3);
-            const result = bezier_math.segment_reduce2(unorm, seg2);
-            return result.p0;
-        }
-        else {
-            const z = unorm;
-            const z2 = z*z;
-            const z3 = z2*z;
-
-            const zmo = z-1.0;
-            const zmo2 = zmo*zmo;
-            const zmo3 = zmo2*zmo;
-
-            const p1: control_point.ControlPoint = self.p0;
-            const p2: control_point.ControlPoint = self.p1;
-            const p3: control_point.ControlPoint = self.p2;
-            const p4: control_point.ControlPoint = self.p3;
-
-            // "p4 * z3 - p3 * z2 * zmo + p2 * 3 * z * zmo2 - (p1 * zmo3)"
-            const l_p4: control_point.ControlPoint = (
-                (p4.mul(z3)).sub(p3.mul(3.0*z2*zmo)).add(p2.mul(3.0*z*zmo2)).sub(p1.mul(zmo3))
-            );
-
-            return l_p4;
-        }
-    }
-
-    /// returns whether t overlaps the domain of this segment or not
-    pub fn overlaps_input_ordinate(
-        self:@This(),
-        t:opentime.Ordinate
-    ) bool 
-    {
-        return (self.p0.in <= t and self.p3.in > t);
-    }
-
-    /// return the segment split at u [0, 1.0)
-    /// note: u of < 0 or >= 1 will result in a null result, no split
-    pub fn split_at(
-        self: @This(),
-        unorm:f32
-    ) ?[2]Segment 
-    {
-        if (unorm < generic_curve.EPSILON or unorm >= 1)
-        {
-            return null;
-        }
-
-        const p = self.points();
-
-        const Q0 = self.p0;
-        const Q1 = bezier_math.lerp(unorm, p[0], p[1]);
-        const Q2 = bezier_math.lerp(
-            unorm,
-            Q1,
-            bezier_math.lerp(unorm, p[1], p[2])
-        );
-        const Q3 = bezier_math.lerp(
-            unorm,
-            Q2,
-            bezier_math.lerp(
-                unorm,
-                bezier_math.lerp(unorm, p[1], p[2]),
-                bezier_math.lerp(unorm, p[2], p[3])
-            )
-        );
-
-        const R0 = Q3;
-        const R2 = bezier_math.lerp(unorm, p[2], p[3]);
-        const R1 = bezier_math.lerp(
-            unorm,
-            bezier_math.lerp(unorm, p[1], p[2]), 
-            R2,
-        );
-        const R3 = p[3];
-
-        return .{
-            Segment{ 
-                .p0 = Q0,
-                .p1 = Q1,
-                .p2 = Q2,
-                .p3 = Q3
-            },
-            Segment{
-                .p0 = R0,
-                .p1 = R1,
-                .p2 = R2,
-                .p3 = R3
-            },
-        };
-    }
-
-    pub fn extents_input(
-        self: @This()
-    ) opentime.ContinuousTimeInterval
-    {
-        return .{
-            .start_seconds = self.p0.in,
-            .end_seconds = self.p3.in,
-        };
-    }
-
-    /// compute the extents of the segment
-    pub fn extents(
-        self: @This()
-    ) [2]control_point.ControlPoint 
-    {
-        var min: control_point.ControlPoint = self.p0;
-        var max: control_point.ControlPoint = self.p0;
-
-        inline for ([3][]const u8{"p1", "p2", "p3"}) 
-            |field| 
-        {
-            const pt = @field(self, field);
-            min = .{
-                .in = @min(min.in, pt.in),
-                .out = @min(min.out, pt.out),
-            };
-            max = .{
-                .in = @max(max.in, pt.in),
-                .out = @max(max.out, pt.out),
-            };
-        }
-
-        return .{ min, max };
-    }
-
-    /// checks if segment can project through this one
-    pub fn can_project(
-        self: @This(),
-        segment_to_project: Segment,
-    ) bool 
-    {
-        const my_extents = self.extents();
-        const other_extents = segment_to_project.extents();
-
-        return (
-            other_extents[0].out >= my_extents[0].in - generic_curve.EPSILON
-            and other_extents[1].out < my_extents[1].in + generic_curve.EPSILON
-        );
-    }
-
-    /// assuming that segment_to_project is contained by self, project the 
-    /// points of segment_to_project through self
-    pub fn project_segment(
-        self: @This(),
-        segment_to_project: Segment,
-    ) Segment
-    {
-        var result: Segment = undefined;
-
-        inline for ([4][]const u8{"p0", "p1", "p2", "p3"}) 
-                   |field| 
-       {
-           const pt = @field(segment_to_project, field);
-           @field(result, field) = .{
-               .in = pt.in,
-               .out = self.output_at_input(pt.out),
-           };
-       }
-
-        return result;
-    }
-
-    /// @TODO: this function only works if the value is increasing over the 
-    ///        segment.  The monotonicity and increasing -ness of a segment is
-    ///        guaranteed for the input space, but not for the output space.
-    pub fn findU_value(
-        self:@This(),
-        tgt_value: opentime.Ordinate
-    ) f32 
-    {
-        return bezier_math.findU(
-            tgt_value,
-            self.p0.out,
-            self.p1.out,
-            self.p2.out,
-            self.p3.out,
-        );
-    }
-
-    pub fn findU_value_dual(
-        self:@This(),
-        tgt_value: opentime.Ordinate
-    ) opentime.dual.Dual_f32 
-    {
-        return bezier_math.findU_dual(
-            tgt_value,
-            self.p0.out,
-            self.p1.out,
-            self.p2.out,
-            self.p3.out,
-        );
-    }
-
-    pub fn findU_input(
-        self:@This(),
-        input_ordinate: opentime.Ordinate
-    ) f32 
-    {
-        return bezier_math.findU(
-            input_ordinate,
-            self.p0.in,
-            self.p1.in,
-            self.p2.in,
-            self.p3.in,
-        );
-    }
-
-    pub fn findU_input_dual(
-        self:@This(),
-        input_ordinate: opentime.Ordinate
-    ) opentime.dual.Dual_f32 
-    {
-        return bezier_math.findU_dual(
-            input_ordinate,
-            self.p0.in,
-            self.p1.in,
-            self.p2.in,
-            self.p3.in,
-        );
-    }
-
-    /// returns the output value for the given input ordinate
-    pub fn output_at_input(
-        self: @This(),
-        input_ord:opentime.Ordinate,
-    ) opentime.Ordinate 
-    {
-        const u:f32 = bezier_math.findU(
-            input_ord,
-            self.p0.in,
-            self.p1.in,
-            self.p2.in,
-            self.p3.in
-        );
-        return self.eval_at(u).out;
-    }
-
-    pub fn output_at_input_dual(
-        self: @This(),
-        x:opentime.Ordinate
-    ) control_point.Dual_CP 
-    {
-        const u = bezier_math.findU_dual(
-            x,
-            self.p0.in,
-            self.p1.in,
-            self.p2.in,
-            self.p3.in
-        );
-        return self.eval_at_dual(u);
-    }
-
-    pub fn debug_json_str(
-        self: @This(),
-        allocator: std.mem.Allocator,
-    ) ![]const u8 
-    {
-        return try std.fmt.allocPrint(
-            allocator,
-            \\
-            \\{{
-            \\    "p0": {{ "in": {d:.6}, "out": {d:.6} }},
-            \\    "p1": {{ "in": {d:.6}, "out": {d:.6} }},
-            \\    "p2": {{ "in": {d:.6}, "out": {d:.6} }},
-            \\    "p3": {{ "in": {d:.6}, "out": {d:.6} }}
-            \\}}
-            \\
-            ,
-            .{
-                self.p0.in, self.p0.out,
-                self.p1.in, self.p1.out,
-                self.p2.in, self.p2.out,
-                self.p3.in, self.p3.out,
-            }
-        );
-    }
-
-    pub fn debug_print_json(
-        self: @This(),
-        allocator: std.mem.Allocator,
-    ) !void 
-    {
-        std.debug.print("\ndebug_print_json] p0: {}\n", .{ self.p0});
-
-        const blob = try self.debug_json_str(allocator);
-        defer allocator.free(blob);
-
-        std.debug.print("{s}", .{ blob });
-    }
-
-    /// convert into the c library hodographs struct
-    pub fn to_cSeg(
-        self: @This()
-    ) hodographs.BezierSegment 
-    {
-        return .{ 
-            .order = 3,
-            .p = translate: {
-                var tmp : [4] hodographs.Vector2 = undefined;
-
-                inline for (&.{ self.p0, self.p1, self.p2, self.p3 }, 0..) 
-                           |pt, pt_ind| 
-                {
-                    tmp[pt_ind] = .{ .x = pt.in, .y = pt.out };
-                }
-
-                break :translate tmp;
-            },
-        };
-    }
-};
-
-test "Segment: can_project test" 
+test "Bezier.Segment: can_project test" 
 {
-    const half = Segment.init_from_start_end(
+    const half = Bezier.Segment.init_from_start_end(
         .{ .in = -0.5, .out = -0.25, },
         .{ .in = 0.5, .out = 0.25, },
     );
-    const double = Segment.init_from_start_end(
+    const double = Bezier.Segment.init_from_start_end(
         .{ .in = -0.5, .out = -1, },
         .{ .in = 0.5, .out = 1, },
     );
@@ -568,9 +113,9 @@ test "Segment: can_project test"
     try expectEqual(false, half.can_project(double));
 }
 
-test "Segment: debug_str test" 
+test "Bezier.Segment: debug_str test" 
 {
-    const seg = Segment.init_from_start_end(
+    const seg = Bezier.Segment.init_from_start_end(
         .{.in = -0.5, .out = -0.5},
         .{.in =  0.5, .out = 0.5},
     );
@@ -593,7 +138,7 @@ test "Segment: debug_str test"
 }
 
 fn _is_approximately_linear(
-    segment: Segment,
+    segment: Bezier.Segment,
     tolerance: f32
 ) bool 
 {
@@ -627,7 +172,7 @@ fn _is_approximately_linear(
 /// ASSUMES THAT ALL POINTS ARE FINITE
 pub fn linearize_segment(
     allocator: std.mem.Allocator,
-    segment: Segment,
+    segment: Bezier.Segment,
     tolerance:f32,
 ) ![]control_point.ControlPoint
 {
@@ -717,7 +262,7 @@ test "segment from point array"
         .{ .in = 0.166666, .out = 0.16666},
         .{ .in = 0.5,      .out = 0.5}
     };
-    const ident = Segment.from_pt_array(original_knots_ident);
+    const ident = Bezier.Segment.from_pt_array(original_knots_ident);
 
     try expectApproxEql(@as(opentime.Ordinate, 0), ident.eval_at(0.5).out);
 
@@ -769,7 +314,7 @@ test "segment: linearize already linearized curve"
 pub fn read_segment_json(
     allocator:std.mem.Allocator,
     file_path: string_stuff.latin_s8,
-) !Segment 
+) !Bezier.Segment 
 {
     const fi = try std.fs.cwd().openFile(file_path, .{});
     defer fi.close();
@@ -781,7 +326,7 @@ pub fn read_segment_json(
     defer allocator.free(source);
 
     const result = try std.json.parseFromSlice(
-        Segment,
+        Bezier.Segment,
         allocator,
         source,
         .{}
@@ -793,7 +338,7 @@ pub fn read_segment_json(
 
 test "segment: output_at_input and findU test over linear curve" 
 {
-    const seg = Segment.init_from_start_end(
+    const seg = Bezier.Segment.init_from_start_end(
         .{.in = 2, .out = 2},
         .{.in = 3, .out = 3},
     );
@@ -809,7 +354,7 @@ test "segment: dual_eval_at over linear curve"
 {
     // identity curve
     {
-        const seg = Segment.init_identity(0, 1);
+        const seg = Bezier.Segment.init_identity(0, 1);
 
         inline for ([_]opentime.Ordinate{0.2, 0.4, 0.5, 0.98}) 
             |coord| 
@@ -828,7 +373,7 @@ test "segment: dual_eval_at over linear curve"
 
     // curve with slope 2
     {
-        const seg = Segment.init_from_start_end(
+        const seg = Bezier.Segment.init_from_start_end(
             .{ .in = 0, .out = 0 },
             .{ .in = 1, .out = 2 },
         );
@@ -849,10 +394,10 @@ test "segment: dual_eval_at over linear curve"
     }
 }
 
-test "Segment.init_identity check cubic spline" 
+test "Bezier.Segment.init_identity check cubic spline" 
 {
     // ensure that points are along line even for linear case
-    const seg = Segment.init_identity(0, 1);
+    const seg = Bezier.Segment.init_identity(0, 1);
 
     try expectEqual(@as(opentime.Ordinate, 0), seg.p0.in);
     try expectEqual(@as(opentime.Ordinate, 0), seg.p0.out);
@@ -875,6 +420,462 @@ test "Segment.init_identity check cubic spline"
 /// equations.
 pub const Bezier = struct {
     segments: []Segment = &.{},
+
+    /// Bezier Curve Segment
+    pub const Segment = struct {
+        p0: control_point.ControlPoint = .{
+            .in = 0,
+            .out = 0,
+        },
+        p1: control_point.ControlPoint = .{
+            .in = 0,
+            .out = 0,
+        },
+        p2: control_point.ControlPoint = .{
+            .in = 1,
+            .out = 1,
+        },
+        p3: control_point.ControlPoint = .{
+            .in = 1,
+            .out = 1,
+        },
+
+        pub fn init_identity(
+            input_start: opentime.Ordinate,
+            input_end: opentime.Ordinate,
+        ) Segment
+        {
+            return Segment.init_from_start_end(
+                .{ .in = input_start, .out = input_start },
+                .{ .in = input_end, .out = input_end }
+            );
+        }
+
+        pub fn init_from_start_end(
+            start: control_point.ControlPoint,
+            end: control_point.ControlPoint
+        ) Segment 
+        {
+            if (end.in >= start.in) 
+            {
+                return .{
+                    .p0 = start,
+                    .p1 = bezier_math.lerp(1.0/3.0, start, end),
+                    .p2 = bezier_math.lerp(2.0/3.0, start, end),
+                    .p3 = end,
+                };
+            }
+
+            std.debug.panic(
+                "Create linear segment failed, t0: {d} > t1: {d}\n",
+                .{start.in, end.in}
+            );
+        }
+
+        pub fn init_approximate_from_three_points(
+            start_knot: control_point.ControlPoint,
+            mid_point: control_point.ControlPoint,
+            t_mid_point: f32,
+            d_mid_point_dt: control_point.ControlPoint,
+            end_knot: control_point.ControlPoint,
+        ) ?Segment
+        {
+            const result = three_point_guts_plot(
+                start_knot,
+                mid_point,
+                t_mid_point,
+                d_mid_point_dt,
+                end_knot
+            );
+
+            return result.result;
+        }
+
+        /// construct a static array of the points
+        pub fn points(
+            self: @This()
+        ) [4]control_point.ControlPoint 
+        {
+            return .{ self.p0, self.p1, self.p2, self.p3 };
+        }
+
+        /// construct an array of pointers to the points in this segment
+        pub fn point_ptrs(
+            self: *@This()
+        ) [4]*control_point.ControlPoint 
+        {
+            return .{ &self.p0, &self.p1, &self.p2, &self.p3 };
+        }
+
+        /// copy pts over values in self
+        pub fn from_pt_array(
+            pts: [4]control_point.ControlPoint
+        ) Segment 
+        {
+            return .{ 
+                .p0 = pts[0],
+                .p1 = pts[1],
+                .p2 = pts[2],
+                .p3 = pts[3], 
+            };
+        }
+
+        pub fn set_points(
+            self: *@This(),
+            pts: [4]control_point.ControlPoint
+        ) void 
+        {
+            self.p0 = pts[0];
+            self.p1 = pts[1];
+            self.p2 = pts[2];
+            self.p3 = pts[3];
+        }
+
+        pub fn eval_at_dual(
+            self: @This(),
+            unorm_dual:opentime.dual.Dual_f32,
+        ) control_point.Dual_CP
+        {
+            var self_dual : [4]control_point.Dual_CP = undefined;
+            const self_p = self.points();
+
+            inline for (self_p, &self_dual) 
+                |p, *dual_p| 
+                {
+                    dual_p.r = p;
+                    dual_p.i = .{};
+                }
+
+            const seg3 = bezier_math.segment_reduce4_dual(unorm_dual, self_dual);
+            const seg2 = bezier_math.segment_reduce3_dual(unorm_dual, seg3);
+            const result = bezier_math.segment_reduce2_dual(unorm_dual, seg2);
+
+            return result[0];
+        }
+
+        /// output value of the segment at parameter unorm, [0, 1)
+        pub fn eval_at(
+            self: @This(),
+            unorm:f32
+        ) control_point.ControlPoint
+        {
+            const use_reducer = true;
+            if (use_reducer) {
+                const seg3 = bezier_math.segment_reduce4(unorm, self);
+                const seg2 = bezier_math.segment_reduce3(unorm, seg3);
+                const result = bezier_math.segment_reduce2(unorm, seg2);
+                return result.p0;
+            }
+            else {
+                const z = unorm;
+                const z2 = z*z;
+                const z3 = z2*z;
+
+                const zmo = z-1.0;
+                const zmo2 = zmo*zmo;
+                const zmo3 = zmo2*zmo;
+
+                const p1: control_point.ControlPoint = self.p0;
+                const p2: control_point.ControlPoint = self.p1;
+                const p3: control_point.ControlPoint = self.p2;
+                const p4: control_point.ControlPoint = self.p3;
+
+                // "p4 * z3 - p3 * z2 * zmo + p2 * 3 * z * zmo2 - (p1 * zmo3)"
+                const l_p4: control_point.ControlPoint = (
+                    (p4.mul(z3)).sub(p3.mul(3.0*z2*zmo)).add(p2.mul(3.0*z*zmo2)).sub(p1.mul(zmo3))
+                );
+
+                return l_p4;
+            }
+        }
+
+        /// returns whether t overlaps the domain of this segment or not
+        pub fn overlaps_input_ordinate(
+            self:@This(),
+            t:opentime.Ordinate
+        ) bool 
+        {
+            return (self.p0.in <= t and self.p3.in > t);
+        }
+
+        /// return the segment split at u [0, 1.0)
+        /// note: u of < 0 or >= 1 will result in a null result, no split
+        pub fn split_at(
+            self: @This(),
+            unorm:f32
+        ) ?[2]Segment 
+        {
+            if (unorm < generic_curve.EPSILON or unorm >= 1)
+            {
+                return null;
+            }
+
+            const p = self.points();
+
+            const Q0 = self.p0;
+            const Q1 = bezier_math.lerp(unorm, p[0], p[1]);
+            const Q2 = bezier_math.lerp(
+                unorm,
+                Q1,
+                bezier_math.lerp(unorm, p[1], p[2])
+            );
+            const Q3 = bezier_math.lerp(
+                unorm,
+                Q2,
+                bezier_math.lerp(
+                    unorm,
+                    bezier_math.lerp(unorm, p[1], p[2]),
+                    bezier_math.lerp(unorm, p[2], p[3])
+                )
+            );
+
+            const R0 = Q3;
+            const R2 = bezier_math.lerp(unorm, p[2], p[3]);
+            const R1 = bezier_math.lerp(
+                unorm,
+                bezier_math.lerp(unorm, p[1], p[2]), 
+                R2,
+            );
+            const R3 = p[3];
+
+            return .{
+                Segment{ 
+                    .p0 = Q0,
+                    .p1 = Q1,
+                    .p2 = Q2,
+                    .p3 = Q3
+                },
+                Segment{
+                    .p0 = R0,
+                    .p1 = R1,
+                    .p2 = R2,
+                    .p3 = R3
+                },
+            };
+        }
+
+        pub fn extents_input(
+            self: @This()
+        ) opentime.ContinuousTimeInterval
+        {
+            return .{
+                .start_seconds = self.p0.in,
+                .end_seconds = self.p3.in,
+            };
+        }
+
+        /// compute the extents of the segment
+        pub fn extents(
+            self: @This()
+        ) [2]control_point.ControlPoint 
+        {
+            var min: control_point.ControlPoint = self.p0;
+            var max: control_point.ControlPoint = self.p0;
+
+            inline for ([3][]const u8{"p1", "p2", "p3"}) 
+                |field| 
+                {
+                    const pt = @field(self, field);
+                    min = .{
+                        .in = @min(min.in, pt.in),
+                        .out = @min(min.out, pt.out),
+                    };
+                    max = .{
+                        .in = @max(max.in, pt.in),
+                        .out = @max(max.out, pt.out),
+                    };
+                }
+
+            return .{ min, max };
+        }
+
+        /// checks if segment can project through this one
+        pub fn can_project(
+            self: @This(),
+            segment_to_project: Segment,
+        ) bool 
+        {
+            const my_extents = self.extents();
+            const other_extents = segment_to_project.extents();
+
+            return (
+                other_extents[0].out >= my_extents[0].in - generic_curve.EPSILON
+                and other_extents[1].out < my_extents[1].in + generic_curve.EPSILON
+            );
+        }
+
+        /// assuming that segment_to_project is contained by self, project the 
+        /// points of segment_to_project through self
+        pub fn project_segment(
+            self: @This(),
+            segment_to_project: Segment,
+        ) Segment
+        {
+            var result: Segment = undefined;
+
+            inline for ([4][]const u8{"p0", "p1", "p2", "p3"}) 
+                |field| 
+                {
+                    const pt = @field(segment_to_project, field);
+                    @field(result, field) = .{
+                        .in = pt.in,
+                        .out = self.output_at_input(pt.out),
+                    };
+                }
+
+            return result;
+        }
+
+        /// @TODO: this function only works if the value is increasing over the 
+        ///        segment.  The monotonicity and increasing -ness of a segment is
+        ///        guaranteed for the input space, but not for the output space.
+        pub fn findU_value(
+            self:@This(),
+            tgt_value: opentime.Ordinate
+        ) f32 
+        {
+            return bezier_math.findU(
+                tgt_value,
+                self.p0.out,
+                self.p1.out,
+                self.p2.out,
+                self.p3.out,
+            );
+        }
+
+        pub fn findU_value_dual(
+            self:@This(),
+            tgt_value: opentime.Ordinate
+        ) opentime.dual.Dual_f32 
+        {
+            return bezier_math.findU_dual(
+                tgt_value,
+                self.p0.out,
+                self.p1.out,
+                self.p2.out,
+                self.p3.out,
+            );
+        }
+
+        pub fn findU_input(
+            self:@This(),
+            input_ordinate: opentime.Ordinate
+        ) f32 
+        {
+            return bezier_math.findU(
+                input_ordinate,
+                self.p0.in,
+                self.p1.in,
+                self.p2.in,
+                self.p3.in,
+            );
+        }
+
+        pub fn findU_input_dual(
+            self:@This(),
+            input_ordinate: opentime.Ordinate
+        ) opentime.dual.Dual_f32 
+        {
+            return bezier_math.findU_dual(
+                input_ordinate,
+                self.p0.in,
+                self.p1.in,
+                self.p2.in,
+                self.p3.in,
+            );
+        }
+
+        /// returns the output value for the given input ordinate
+        pub fn output_at_input(
+            self: @This(),
+            input_ord:opentime.Ordinate,
+        ) opentime.Ordinate 
+        {
+            const u:f32 = bezier_math.findU(
+                input_ord,
+                self.p0.in,
+                self.p1.in,
+                self.p2.in,
+                self.p3.in
+            );
+            return self.eval_at(u).out;
+        }
+
+        pub fn output_at_input_dual(
+            self: @This(),
+            x:opentime.Ordinate
+        ) control_point.Dual_CP 
+        {
+            const u = bezier_math.findU_dual(
+                x,
+                self.p0.in,
+                self.p1.in,
+                self.p2.in,
+                self.p3.in
+            );
+            return self.eval_at_dual(u);
+        }
+
+        pub fn debug_json_str(
+            self: @This(),
+            allocator: std.mem.Allocator,
+        ) ![]const u8 
+        {
+            return try std.fmt.allocPrint(
+                allocator,
+            \\
+            \\{{
+            \\    "p0": {{ "in": {d:.6}, "out": {d:.6} }},
+            \\    "p1": {{ "in": {d:.6}, "out": {d:.6} }},
+            \\    "p2": {{ "in": {d:.6}, "out": {d:.6} }},
+            \\    "p3": {{ "in": {d:.6}, "out": {d:.6} }}
+            \\}}
+            \\
+            ,
+            .{
+                self.p0.in, self.p0.out,
+                self.p1.in, self.p1.out,
+                self.p2.in, self.p2.out,
+                self.p3.in, self.p3.out,
+            }
+            );
+        }
+
+        pub fn debug_print_json(
+            self: @This(),
+            allocator: std.mem.Allocator,
+        ) !void 
+        {
+            std.debug.print("\ndebug_print_json] p0: {}\n", .{ self.p0});
+
+            const blob = try self.debug_json_str(allocator);
+            defer allocator.free(blob);
+
+            std.debug.print("{s}", .{ blob });
+        }
+
+        /// convert into the c library hodographs struct
+        pub fn to_cSeg(
+            self: @This()
+        ) hodographs.BezierSegment 
+        {
+            return .{ 
+                .order = 3,
+                .p = translate: {
+                    var tmp : [4] hodographs.Vector2 = undefined;
+
+                    inline for (&.{ self.p0, self.p1, self.p2, self.p3 }, 0..) 
+                        |pt, pt_ind| 
+                        {
+                            tmp[pt_ind] = .{ .x = pt.in, .y = pt.out };
+                        }
+
+                    break :translate tmp;
+                },
+            };
+        }
+    };
+
 
     /// dupe the segments argument into the returned object
     pub fn init(
@@ -2116,14 +2117,14 @@ test "Curve: read_curve_json"
     try expectEqual(2, linearized_knots.len);
 }
 
-test "Segment: projected_segment to 1/2" 
+test "Bezier.Segment: projected_segment to 1/2" 
 {
     {
-        const half = Segment.init_from_start_end(
+        const half = Bezier.Segment.init_from_start_end(
             .{ .in = -0.5, .out = -0.25, },
             .{ .in = 0.5, .out = 0.25, },
         );
-        const double = Segment.init_from_start_end(
+        const double = Bezier.Segment.init_from_start_end(
             .{ .in = -0.5, .out = -1, },
             .{ .in = 0.5, .out = 1, },
         );
@@ -2143,11 +2144,11 @@ test "Segment: projected_segment to 1/2"
     }
 
     {
-        const half = Segment.init_from_start_end(
+        const half = Bezier.Segment.init_from_start_end(
             .{ .in = -0.5, .out = -0.5, },
             .{ .in = 0.5, .out = 0.0, },
         );
-        const double = Segment.init_from_start_end(
+        const double = Bezier.Segment.init_from_start_end(
             .{ .in = -0.5, .out = -0.5, },
             .{ .in = 0.5, .out = 1.5, },
         );
@@ -2169,8 +2170,8 @@ test "Segment: projected_segment to 1/2"
 
 test "Bezier: positive length 1 linear segment test" 
 {
-    var crv_seg = [_]Segment{
-        Segment.init_from_start_end(
+    var crv_seg = [_]Bezier.Segment{
+        Bezier.Segment.init_from_start_end(
             .{ .in = 1, .out = 0, },
             .{ .in = 2, .out = 1, },
         )
@@ -2185,7 +2186,7 @@ test "Bezier: positive length 1 linear segment test"
     // find segment
     try expect(xform_curve.find_segment(1) != null);
     try expect(xform_curve.find_segment(1.5) != null);
-    try expectEqual(@as(?*Segment, null), xform_curve.find_segment(2));
+    try expectEqual(@as(?*Bezier.Segment, null), xform_curve.find_segment(2));
 
     // within the range of the curve
     try expectEqual(@as(opentime.Ordinate, 0),    try xform_curve.output_at_input(1));
@@ -2197,16 +2198,16 @@ test "Bezier: positive length 1 linear segment test"
 test "Bezier: project_linear_curve to identity" 
 {
 
-    var seg_0_4 = [_]Segment{
-        Segment.init_from_start_end(
+    var seg_0_4 = [_]Bezier.Segment{
+        Bezier.Segment.init_from_start_end(
             .{ .in = 0, .out = 0, },
             .{ .in = 4, .out = 8, },
         ) 
     };
     const fst: Bezier = .{ .segments = &seg_0_4 };
 
-    var seg_0_8 = [_]Segment{
-        Segment.init_from_start_end(
+    var seg_0_8 = [_]Bezier.Segment{
+        Bezier.Segment.init_from_start_end(
             .{ .in = 0, .out = 0, },
             .{ .in = 8, .out = 4, },
         )
@@ -2252,11 +2253,11 @@ test "Bezier: project_linear_curve to identity"
 
 test "Bezier: projection_test non-overlapping" 
 {
-    var seg_0_1 = [_]Segment{ Segment.init_identity(0, 1) };
+    var seg_0_1 = [_]Bezier.Segment{ Bezier.Segment.init_identity(0, 1) };
     const fst: Bezier = .{ .segments = &seg_0_1 };
 
-    var seg_1_9 = [_]Segment{ 
-        Segment.init_from_start_end(
+    var seg_1_9 = [_]Bezier.Segment{ 
+        Bezier.Segment.init_from_start_end(
             .{ .in = 1, .out = 1, },
             .{ .in = 9, .out = 5, },
         )
@@ -2274,8 +2275,8 @@ test "Bezier: projection_test non-overlapping"
 
 test "positive slope 2 linear segment test" 
 {
-    var test_segment_arr = [_]Segment{
-        Segment.init_from_start_end(
+    var test_segment_arr = [_]Bezier.Segment{
+        Bezier.Segment.init_from_start_end(
             .{ .in = 1, .out = 0, },
             .{ .in = 2, .out = 2, },
         )
@@ -2305,8 +2306,8 @@ test "negative length 1 linear segment test"
 {
     // declaring the segment here means that the memory management is handled
     // by stack unwinding
-    var segments_xform = [_]Segment{
-        Segment.init_from_start_end(
+    var segments_xform = [_]Bezier.Segment{
+        Bezier.Segment.init_from_start_end(
             .{ .in = -2, .out = 0, },
             .{ .in = -1, .out = 1, },
         )
@@ -2326,7 +2327,7 @@ test "negative length 1 linear segment test"
 
 fn line_orientation(
     test_point: control_point.ControlPoint,
-    segment: Segment
+    segment: Bezier.Segment
 ) f32 
 {
     const v1 = control_point.ControlPoint {
@@ -2344,7 +2345,7 @@ fn line_orientation(
 
 test "convex hull test" 
 {
-    const segment:Segment = .{
+    const segment:Bezier.Segment = .{
         .p0 = .{ .in = 1, .out = 0, },
         .p1 = .{ .in = 1.25, .out = 1, },
         .p2 = .{ .in = 1.75, .out = 0.65, },
@@ -2356,8 +2357,8 @@ test "convex hull test"
     var p2 = segment.p2;
     var p3 = segment.p3;
 
-    const left_bound_segment = Segment.init_from_start_end(p0, p1);
-    var right_bound_segment = Segment.init_from_start_end(p2, p3);
+    const left_bound_segment = Bezier.Segment.init_from_start_end(p0, p1);
+    var right_bound_segment = Bezier.Segment.init_from_start_end(p2, p3);
 
     // swizzle the right if necessary
     if (line_orientation(p0, right_bound_segment) < 0) 
@@ -2365,20 +2366,20 @@ test "convex hull test"
         const tmp = p3;
         p3 = p2;
         p2 = tmp;
-        right_bound_segment = Segment.init_from_start_end(
+        right_bound_segment = Bezier.Segment.init_from_start_end(
             p2,
             p3,
         );
     }
 
-    const top_bound_segment = Segment.init_from_start_end(
+    const top_bound_segment = Bezier.Segment.init_from_start_end(
         p1,
         p2,
     );
 
     // NOTE: reverse the winding order because linear segment requires the 
     //       second point be _after_ the first in input space
-    const bottom_bound_segment = Segment.init_from_start_end(
+    const bottom_bound_segment = Bezier.Segment.init_from_start_end(
         p0,
         p3,
     );
@@ -2402,9 +2403,9 @@ test "convex hull test"
     }
 }
 
-test "Segment: eval_at for out of range u" 
+test "Bezier.Segment: eval_at for out of range u" 
 {
-    var seg = [1]Segment{Segment.init_identity(3, 4)};
+    var seg = [1]Bezier.Segment{Bezier.Segment.init_identity(3, 4)};
     const tc = Bezier{ .segments = &seg};
 
     try expectError(error.OutOfBounds, tc.output_at_input(0));
@@ -2447,7 +2448,7 @@ test "json writer: curve"
 {
     const ident = try Bezier.init(
         std.testing.allocator,
-        &.{ Segment.init_identity(-20, 30) },
+        &.{ Bezier.Segment.init_identity(-20, 30) },
     );
     defer ident.deinit(std.testing.allocator);
 
@@ -2477,7 +2478,7 @@ test "json writer: curve"
 
 test "segment: findU_value" 
 {
-    const test_segment = Segment.init_identity(1,2);
+    const test_segment = Bezier.Segment.init_identity(1,2);
     try std.testing.expectApproxEqAbs(
         @as(f32, 0.5),
         test_segment.findU_value(1.5),
@@ -2502,16 +2503,16 @@ test "Bezier: project u loop bug"
     project_algo = ProjectionAlgorithms.linearized;
     defer project_algo = old_project_algo;
 
-    const simple_s_segments = [_]Segment{
-        Segment.init_from_start_end(
+    const simple_s_segments = [_]Bezier.Segment{
+        Bezier.Segment.init_from_start_end(
             .{ .in = 0, .out = 0},
             .{ .in = 30, .out = 10},
         ),
-        Segment.init_from_start_end(
+        Bezier.Segment.init_from_start_end(
             .{ .in = 30, .out = 10},
             .{ .in = 60, .out = 90},
         ),
-        Segment.init_from_start_end(
+        Bezier.Segment.init_from_start_end(
             .{ .in = 60, .out = 90},
             .{ .in = 100, .out = 100},
         ),
@@ -2522,8 +2523,8 @@ test "Bezier: project u loop bug"
     );
     defer simple_s.deinit(std.testing.allocator);
 
-    const u_seg = [_]Segment{
-        Segment{
+    const u_seg = [_]Bezier.Segment{
+        Bezier.Segment{
             .p0 = .{ .in = 0, .out = 0 },
             .p1 = .{ .in = 0, .out = 100 },
             .p2 = .{ .in = 100, .out = 100 },
@@ -2562,8 +2563,8 @@ test "Bezier: project u loop bug"
 
 test "Bezier: project linear identity with linear 1/2 slope" 
 {
-    const linear_segment = [_]Segment{
-        Segment.init_from_start_end(
+    const linear_segment = [_]Bezier.Segment{
+        Bezier.Segment.init_from_start_end(
             .{ .in = 60, .out = 60},
             .{ .in = 230, .out = 230},
         ),
@@ -2574,8 +2575,8 @@ test "Bezier: project linear identity with linear 1/2 slope"
     );
     defer linear_crv.deinit(std.testing.allocator);
 
-    const linear_half_segment = [_]Segment{
-        Segment.init_from_start_end(
+    const linear_half_segment = [_]Bezier.Segment{
+        Bezier.Segment.init_from_start_end(
             .{ .in = 0, .out = 100},
             .{ .in = 200, .out = 200},
         ),
@@ -2607,8 +2608,8 @@ test "Bezier: project linear identity with linear 1/2 slope"
 //         return error.SkipZigTest;
 //     }
 //
-//     var linear_segment = [_]Segment{
-//         Segment.init_from_start_end(
+//     var linear_segment = [_]Bezier.Segment{
+//         Bezier.Segment.init_from_start_end(
 //             .{ .in = 60, .out = 60},
 //             .{ .in = 130, .out = 130},
 //         ),
@@ -2621,8 +2622,8 @@ test "Bezier: project linear identity with linear 1/2 slope"
 //     );
 //     defer linear_crv_lin.deinit(std.testing.allocator);
 //
-//     var u_seg = [_]Segment{
-//         Segment{
+//     var u_seg = [_]Bezier.Segment{
+//         Bezier.Segment{
 //             .p0 = .{ .in = 0, .out = 0 },
 //             .p1 = .{ .in = 0, .out = 100 },
 //             .p2 = .{ .in = 100, .out = 100 },
@@ -2702,8 +2703,8 @@ test "Bezier: project linear identity with linear 1/2 slope"
 
 test "Bezier: split_at_each_value u curve" 
 {
-    const u_seg = [_]Segment{
-        Segment{
+    const u_seg = [_]Bezier.Segment{
+        Bezier.Segment{
             .p0 = .{ .in = 0, .out = 0 },
             .p1 = .{ .in = 0, .out = 100 },
             .p2 = .{ .in = 100, .out = 100 },
@@ -2777,7 +2778,7 @@ test "Bezier: split_at_each_value u curve"
 
 test "Bezier: split_at_each_value linear" 
 {
-    const identSeg = Segment.init_identity(-0.2, 1) ;
+    const identSeg = Bezier.Segment.init_identity(-0.2, 1) ;
     const lin = try Bezier.init(
         std.testing.allocator,
         &.{identSeg},
@@ -2834,7 +2835,7 @@ test "Bezier: split_at_each_value linear"
 
 test "Bezier: split_at_each_input_ordinate linear" 
 {
-    const identSeg = Segment.init_identity(-0.2, 1) ;
+    const identSeg = Bezier.Segment.init_identity(-0.2, 1) ;
     const lin = try Bezier.init(
         std.testing.allocator,
         &.{identSeg},
@@ -2896,7 +2897,7 @@ test "Bezier: split_at_input_ordinate"
     const test_curves = [_]Bezier{
         try Bezier.init(
             std.testing.allocator,
-            &.{ Segment.init_identity(-20, 30) },
+            &.{ Bezier.Segment.init_identity(-20, 30) },
         ),
         try read_curve_json("curves/upside_down_u.curve.json", std.testing.allocator), 
         try read_curve_json("curves/scurve.curve.json", std.testing.allocator), 
@@ -2977,9 +2978,9 @@ test "Bezier: trimmed_from_input_ordinate"
         try Bezier.init(
             std.testing.allocator,
             &.{
-                Segment.init_identity(-25, -5), 
-                Segment.init_identity(-5, 5), 
-                Segment.init_identity(5, 25), 
+                Bezier.Segment.init_identity(-25, -5), 
+                Bezier.Segment.init_identity(-5, 5), 
+                Bezier.Segment.init_identity(5, 25), 
             }
         ),
     };
@@ -3089,7 +3090,7 @@ test "Bezier: trimmed_in_input_space"
     const test_curves = [_]Bezier{
         try Bezier.init(
             std.testing.allocator,
-            &.{ Segment.init_identity(-20, 30) }
+            &.{ Bezier.Segment.init_identity(-20, 30) }
         ),
         try read_curve_json("curves/upside_down_u.curve.json", std.testing.allocator), 
         try read_curve_json("curves/scurve.curve.json", std.testing.allocator), 
@@ -3304,7 +3305,7 @@ pub fn affine_project_curve(
 ) !Bezier 
 {
     const result_segments = try allocator.dupe(
-        Segment,
+        Bezier.Segment,
         rhs.segments
     );
 
@@ -3400,8 +3401,8 @@ test "affine_project_curve"
 
 test "Bezier: split_on_critical_points s curve" 
 {
-    const s_seg = [_]Segment{
-        Segment{
+    const s_seg = [_]Bezier.Segment{
+        Bezier.Segment{
             .p0 = .{ .in = 0, .out = 0 },
             .p1 = .{ .in = 0, .out = 200 },
             .p2 = .{ .in = 100, .out = -100 },
@@ -3426,7 +3427,7 @@ test "Bezier: split_on_critical_points symmetric about the origin"
 {
 
     const TestData = struct {
-        segment: Segment,
+        segment: Bezier.Segment,
         inflection_point: opentime.Ordinate,
         roots: [2]opentime.Ordinate,
         split_segments: usize,
@@ -3434,7 +3435,7 @@ test "Bezier: split_on_critical_points symmetric about the origin"
 
     const tests = [_]TestData{
         .{
-            .segment = Segment{
+            .segment = Bezier.Segment{
                 .p0 = .{ .in = -0.5, .out = -0.5 },
                 .p1 = .{ .in =    0, .out = -0.5 },
                 .p2 = .{ .in =    0, .out =  0.5 },
@@ -3445,7 +3446,7 @@ test "Bezier: split_on_critical_points symmetric about the origin"
             .split_segments = 2,
         },
         .{
-            .segment = Segment{
+            .segment = Bezier.Segment{
                 .p0 = .{ .in = -0.5, .out =    0 },
                 .p1 = .{ .in =    0, .out =   -1 },
                 .p2 = .{ .in =    0, .out =    1 },
@@ -3462,7 +3463,7 @@ test "Bezier: split_on_critical_points symmetric about the origin"
         |td, td_ind| 
     {
         errdefer std.debug.print("test that failed: {d}\n", .{ td_ind });
-        const s_seg:[1]Segment = .{ td.segment };
+        const s_seg:[1]Bezier.Segment = .{ td.segment };
         const s_curve_seg = try Bezier.init(
             std.testing.allocator,
             &s_seg
@@ -3600,7 +3601,7 @@ test "Bezier: split_on_critical_points symmetric about the origin"
 }
 
 pub const tpa_result = struct {
-    result: ?Segment = null,
+    result: ?Bezier.Segment = null,
     start_ddt: ?control_point.ControlPoint = null,
     start: ?control_point.ControlPoint = null,
     A:  ?control_point.ControlPoint = null,
@@ -3694,7 +3695,7 @@ pub fn three_point_guts_plot(
     final_result.C1 = C1;
     final_result.C2 = C2;
 
-    const result_seg : Segment = .{
+    const result_seg : Bezier.Segment = .{
         .p0 = start_knot,
         .p1 = C1,
         .p2 = C2,

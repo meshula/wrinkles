@@ -90,11 +90,11 @@ test "curve projection tests: identity projection" {
 
 test "Segment:  identity projection" {
     // note that intervals are identical
-    var identity_s = curve.Segment.init_from_start_end(
+    var identity_s = curve.Bezier.Segment.init_from_start_end(
         .{ .in = 0, .out = 0 },
         .{ .in = 10, .out = 10 },
     );
-    const double_s = curve.Segment.init_from_start_end(
+    const double_s = curve.Bezier.Segment.init_from_start_end(
         .{ .in = 0, .out = 0 },
         .{ .in = 1, .out = 2 },
     );
@@ -112,11 +112,11 @@ test "projection tests: linear projection" {
     const m: f32 = 4;
 
     // note that intervals are identical
-    var quad_s = curve.Segment.init_from_start_end(
+    var quad_s = curve.Bezier.Segment.init_from_start_end(
         .{ .in = 0, .out = 0 },
         .{ .in = 1, .out = m },
     );
-    var double_s = curve.Segment.init_from_start_end(
+    var double_s = curve.Bezier.Segment.init_from_start_end(
         .{ .in = 0, .out = 0 },
         .{ .in = 0.5, .out = 1 },
     );
@@ -137,13 +137,13 @@ test "projection tests: linear projection" {
 test "projection tests: bezier projected through linear" {
     const m: f32 = 2;
 
-    var double_s = curve.Segment.init_from_start_end(
+    var double_s = curve.Bezier.Segment.init_from_start_end(
         .{ .in = 0, .out = 0 },
         .{ .in = 1, .out = m },
     );
 
     // upside down u shaped curve
-    var bezier_s = curve.Segment{
+    var bezier_s = curve.Bezier.Segment{
         .p0 = .{ .in = 0, .out = 0 },
         .p1 = .{ .in = 0, .out = 1 },
         .p2 = .{ .in = 1, .out = 1 },
@@ -171,7 +171,7 @@ test "projection tests: bezier projected through linear 2" {
     const off: f32 = 0.2;
 
     // pushing the middle control points up and down to make a slight S curve
-    var scurve_s = curve.Segment{
+    var scurve_s = curve.Bezier.Segment{
         .p0 = .{ .in = 0, .out = 0},
         .p1 = .{ .in = 1.0/3.0, .out = 1.0/3.0 - off },
         .p2 = .{ .in = 2.0/3.0, .out = 2.0/3.0 + off },
@@ -179,7 +179,7 @@ test "projection tests: bezier projected through linear 2" {
     };
 
     // upside down u shaped curve
-    var ushape_s = curve.Segment{
+    var ushape_s = curve.Bezier.Segment{
         .p0 = .{ .in = 0, .out = 0 },
         .p1 = .{ .in = 0, .out = 1 },
         .p2 = .{ .in = 1, .out = 1 },

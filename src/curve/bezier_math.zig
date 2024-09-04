@@ -1,10 +1,10 @@
-//! Bezier Math components to use with curves in the curve library
+//! Bezier Math components to use with curves
 
 const std = @import("std");
 
 const control_point = @import("control_point.zig");
 const ControlPoint = control_point.ControlPoint;
-const curve = @import("bezier_curve.zig");
+const bezier_curve = @import("bezier_curve.zig");
 const linear_curve = @import("linear_curve.zig");
 const generic_curve = @import("generic_curve.zig");
 const expectEqual = std.testing.expectEqual;
@@ -13,7 +13,6 @@ const comath = @import("comath");
 const dual = @import("opentime").dual;
 
 
-// @TODO: this seems bad?
 inline fn expectApproxEql(
     expected: anytype,
     actual: @TypeOf(expected),
@@ -138,8 +137,8 @@ pub fn segment_reduce2_dual(
 
 pub fn segment_reduce4(
     u: f32,
-    segment: curve.Segment,
-) curve.Segment 
+    segment: bezier_curve.Bezier.Segment,
+) bezier_curve.Bezier.Segment 
 {
     return .{
         .p0 = lerp(u, segment.p0, segment.p1),
@@ -150,8 +149,8 @@ pub fn segment_reduce4(
 
 pub fn segment_reduce3(
     u: f32,
-    segment: curve.Segment,
-) curve.Segment 
+    segment: bezier_curve.Bezier.Segment,
+) bezier_curve.Bezier.Segment 
 {
     return .{
         .p0 = lerp(u, segment.p0, segment.p1),
@@ -161,8 +160,8 @@ pub fn segment_reduce3(
 
 pub fn segment_reduce2(
     u: f32,
-    segment: curve.Segment,
-) curve.Segment 
+    segment: bezier_curve.Bezier.Segment,
+) bezier_curve.Bezier.Segment 
 {
     return .{
         .p0 = lerp(u, segment.p0, segment.p1),
@@ -238,7 +237,7 @@ pub fn _bezier0_dual(
 
 ///
 /// Given x in the interval [0, p3], and a monotonically nondecreasing
-/// 1-D Bezier curve, B(u), with control points (0, p1, p2, p3), find
+/// 1-D Bezier bezier_curve, B(u), with control points (0, p1, p2, p3), find
 /// u so that B(u) == x.
 ///
 pub fn _findU(
@@ -446,7 +445,7 @@ pub fn actual_order(
 
 test "actual_order: linear" 
 {
-    const crv = try curve.read_curve_json(
+    const crv = try bezier_curve.read_curve_json(
         "curves/linear.curve.json",
         std.testing.allocator
     );
@@ -476,7 +475,7 @@ test "actual_order: linear"
 
 test "actual_order: quadratic" 
 {
-    const crv = try curve.read_curve_json(
+    const crv = try bezier_curve.read_curve_json(
         "curves/upside_down_u.curve.json",
         std.testing.allocator
     );
@@ -508,7 +507,7 @@ test "actual_order: quadratic"
 
 test "actual_order: cubic" 
 {
-    const crv = try curve.read_curve_json(
+    const crv = try bezier_curve.read_curve_json(
         "curves/scurve_extreme.curve.json",
         std.testing.allocator
     );
@@ -1013,7 +1012,7 @@ pub fn _findU_dual(
 const ALWAYS_USE_DUALS_FINDU = false;
 
 /// Given x in the interval [p0, p3], and a monotonically nondecreasing
-/// 1-D Bezier curve, B(u), with control points (p0, p1, p2, p3), find
+/// 1-D Bezier bezier_curve, B(u), with control points (p0, p1, p2, p3), find
 /// u so that B(u) == x.
 pub fn findU(
     x:f32,
@@ -1132,7 +1131,7 @@ test "findU_dual matches findU"
 
 test "dydx matches expected at endpoints" 
 {
-    var seg0 : curve.Segment = .{
+    var seg0 : bezier_curve.Bezier.Segment = .{
         .p0 = .{.in = 0, .out=0},
         .p1 = .{.in = 0, .out=1},
         .p2 = .{.in = 1, .out=1},
@@ -1180,7 +1179,7 @@ test "dydx matches expected at endpoints"
 
 test "findU for upside down u" 
 {
-    const crv = try curve.read_curve_json(
+    const crv = try bezier_curve.read_curve_json(
         "curves/upside_down_u.curve.json",
         std.testing.allocator
     );
@@ -1202,9 +1201,9 @@ test "findU for upside down u"
     try expectApproxEql(@as(f32, 1), u_one_dual.r);
 }
 
-test "derivative at 0 for linear curve" 
+test "derivative at 0 for linear bezier_curve" 
 {
-    const crv = try curve.read_curve_json(
+    const crv = try bezier_curve.read_curve_json(
         "curves/linear.curve.json",
         std.testing.allocator
     );
@@ -1251,12 +1250,12 @@ test "derivative at 0 for linear curve"
 /// return crv normalized into the space provided
 pub fn normalized_to(
     allocator: std.mem.Allocator,
-    crv:curve.Bezier,
+    crv:bezier_curve.Bezier,
     min_point:ControlPoint,
     max_point:ControlPoint,
-) !curve.Bezier 
+) !bezier_curve.Bezier 
 {
-    // return input, curve is empty
+    // return input, bezier_curve is empty
     if (crv.segments.len == 0) {
         return crv;
     }
@@ -1283,7 +1282,7 @@ pub fn normalized_to(
 
 test "normalized_to" 
 {
-    var slope2 = [_]curve.Segment{
+    var slope2 = [_]bezier_curve.Bezier.Segment{
         .{
             .p0 = .{.in = -500, .out=600},
             .p1 = .{.in = -300, .out=-100},
@@ -1291,7 +1290,7 @@ test "normalized_to"
             .p3 = .{.in = 500, .out=700},
         }
     };
-    const input_crv:curve.Bezier = .{ .segments = &slope2 };
+    const input_crv:bezier_curve.Bezier = .{ .segments = &slope2 };
 
     const min_point: ControlPoint = .{.in=-100, .out=-300};
     const max_point: ControlPoint = .{.in=100, .out=-200};
@@ -1314,7 +1313,7 @@ test "normalized_to"
 
 test "normalize_to_screen_coords" 
 {
-    var segments = [_]curve.Segment{
+    var segments = [_]bezier_curve.Bezier.Segment{
         .{
             .p0 = .{.in = -500, .out=600},
             .p1 = .{.in = -300, .out=-100},
@@ -1322,7 +1321,7 @@ test "normalize_to_screen_coords"
             .p3 = .{.in = 500, .out=700},
         },
     };
-    const input_crv:curve.Bezier = .{
+    const input_crv:bezier_curve.Bezier = .{
         .segments = &segments
     };
 
@@ -1375,8 +1374,8 @@ pub fn inverted_linear(
     }
 
     // @TODO: the library assumes that all curves are monotonic over
-    //        time. therefore, inverting a curve where the slope changes sign
-    //        will result in an invalid curve.  see the implementation of
+    //        time. therefore, inverting a bezier_curve where the slope changes sign
+    //        will result in an invalid bezier_curve.  see the implementation of
     //        Segment.init_from_start_end for an example of where this assumption is
     //        tested.
     //
@@ -1435,7 +1434,7 @@ pub fn inverted_linear(
 
 pub fn inverted_bezier(
     allocator: std.mem.Allocator,
-    crv: curve.Bezier,
+    crv: bezier_curve.Bezier,
 ) !linear_curve.Linear 
 {
     const lin_crv = try crv.linearized(allocator);
@@ -1447,7 +1446,7 @@ pub fn inverted_bezier(
 test "inverted: invert linear" 
 {
     // slope 2
-    const forward_crv = try curve.Bezier.init_from_start_end(
+    const forward_crv = try bezier_curve.Bezier.init_from_start_end(
         std.testing.allocator,
             .{.in = -1, .out = -3},
             .{.in = 1, .out = 1}
@@ -1469,11 +1468,11 @@ test "inverted: invert linear"
         try expect(inverse_crv.knots[0].in < inverse_crv.knots[1].in);
     }
 
-    var identity_seg = [_]curve.Segment{
+    var identity_seg = [_]bezier_curve.Bezier.Segment{
         // slope of 2
-        curve.Segment.init_identity(-3, 1)
+        bezier_curve.Bezier.Segment.init_identity(-3, 1)
     };
-    const identity_crv:curve.Bezier = .{ .segments = &identity_seg };
+    const identity_crv:bezier_curve.Bezier = .{ .segments = &identity_seg };
 
     var t :f32 = -1;
     //           no split at t=1 (end point)
@@ -1499,7 +1498,7 @@ test "inverted: invert linear"
 test "invert negative slope linear" 
 {
     // slope 2
-    const forward_crv = try curve.Bezier.init_from_start_end(
+    const forward_crv = try bezier_curve.Bezier.init_from_start_end(
         std.testing.allocator,
             .{.in = -1, .out = 1},
             .{.in = 1, .out = -3}
@@ -1561,28 +1560,28 @@ test "invert negative slope linear"
     }
 }
 
-test "invert linear complicated curve" 
+test "invert linear complicated bezier_curve" 
 {
-    var segments = [_]curve.Segment{
+    var segments = [_]bezier_curve.Bezier.Segment{
         // identity
-        curve.Segment.init_identity(0, 1),
+        bezier_curve.Bezier.Segment.init_identity(0, 1),
         // go up
-        curve.Segment.init_from_start_end(
+        bezier_curve.Bezier.Segment.init_from_start_end(
             .{ .in = 1, .out = 1 },
             .{ .in = 2, .out = 3 },
         ),
         // go down
-        curve.Segment.init_from_start_end(
+        bezier_curve.Bezier.Segment.init_from_start_end(
             .{ .in = 2, .out = 3 },
             .{ .in = 3, .out = 1 },
         ),
         // identity
-        curve.Segment.init_from_start_end(
+        bezier_curve.Bezier.Segment.init_from_start_end(
             .{ .in = 3, .out = 1 },
             .{ .in = 4, .out = 2 },
         ),
     };
-    const crv : curve.Bezier = .{
+    const crv : bezier_curve.Bezier = .{
         .segments = &segments
     };
     const crv_linear = try crv.linearized(
@@ -1590,7 +1589,7 @@ test "invert linear complicated curve"
     );
     defer crv_linear.deinit(std.testing.allocator);
 
-    try curve.write_json_file_curve(
+    try bezier_curve.write_json_file_curve(
         std.testing.allocator,
         crv_linear,
         "/var/tmp/forward.linear.json"
@@ -1601,7 +1600,7 @@ test "invert linear complicated curve"
         crv_linear
     );
     defer crv_linear_inv.deinit(std.testing.allocator);
-    try curve.write_json_file_curve(
+    try bezier_curve.write_json_file_curve(
         std.testing.allocator,
         crv_linear_inv,
         "/var/tmp/inverse.linear.json"
@@ -1671,12 +1670,12 @@ fn _rescaled_pt(
     );
 }
 
-/// return a new curve rescaled over the specified target_range
+/// return a new bezier_curve rescaled over the specified target_range
 pub fn rescaled_curve(
     allocator: std.mem.Allocator,
-    crv: curve.Bezier,
+    crv: bezier_curve.Bezier,
     target_range: [2]ControlPoint,
-) !curve.Bezier
+) !bezier_curve.Bezier
 {
     const extents = crv.extents();
 
@@ -1702,7 +1701,7 @@ pub fn rescaled_curve(
 
 test "Bezier: rescaled parameter" 
 {
-    const crv = try curve.read_curve_json(
+    const crv = try bezier_curve.read_curve_json(
         "curves/scurve.curve.json",
         std.testing.allocator
     );
@@ -1738,14 +1737,14 @@ test "Bezier: rescaled parameter"
 
 test "inverted: invert bezier" 
 {
-    var identity_seg = [_]curve.Segment{
-        curve.Segment.init_identity(-3, 1),
+    var identity_seg = [_]bezier_curve.Bezier.Segment{
+        bezier_curve.Bezier.Segment.init_identity(-3, 1),
     };
-    const identity_crv:curve.Bezier = .{ 
+    const identity_crv:bezier_curve.Bezier = .{ 
         .segments = &identity_seg 
     };
 
-    const a2b_crv = try curve.read_curve_json(
+    const a2b_crv = try bezier_curve.read_curve_json(
         "curves/scurve.curve.json",
         std.testing.allocator,
     );

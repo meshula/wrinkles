@@ -24,7 +24,7 @@ pub const MappingCurveBezier = struct {
 
     pub fn init_segments(
         allocator: std.mem.Allocator,
-        segments: []const curve.Segment,
+        segments: []const curve.Bezier.Segment,
     ) !MappingCurveBezier
     {
         return .{
@@ -85,7 +85,7 @@ test "MappingCurveBezier: init and project"
         try MappingCurveBezier.init_segments(
             std.testing.allocator, 
             &.{ 
-                curve.Segment.init_from_start_end(
+                curve.Bezier.Segment.init_from_start_end(
                     .{ .in = 0, .out = 0 },
                     .{ .in = 10, .out = 20 },
                 ),

@@ -476,8 +476,8 @@ pub fn main(
     );
     defer fst_crv.deinit(allocator);
 
-    // const identSeg = curve.Segment.init_identity(-0.2, 1) ;
-    const identSeg = curve.Segment.init_identity(-3, 3) ;
+    // const identSeg = curve.Bezier.Segment.init_identity(-0.2, 1) ;
+    const identSeg = curve.Bezier.Segment.init_identity(-3, 3) ;
     const snd_crv = try curve.Bezier.init(
         allocator,
         &.{identSeg}
@@ -1379,7 +1379,7 @@ fn plot_two_point_approx(
         "{s} / approximation using two point method (+computed derivatives at endpoints)",
         .{ name }
     );
-    var approx_segments = std.ArrayList(curve.Segment).init(allocator);
+    var approx_segments = std.ArrayList(curve.Bezier.Segment).init(allocator);
     defer approx_segments.deinit();
 
     for (crv.segments) 
@@ -1447,7 +1447,7 @@ fn plot_three_point_approx(
         "{s} / approximation using three point method",
         .{ name }
     );
-    var approx_segments = std.ArrayList(curve.Segment).init(allocator);
+    var approx_segments = std.ArrayList(curve.Bezier.Segment).init(allocator);
     defer approx_segments.deinit();
 
     const u_vals:[]const f32 = &.{0, 0.25, 0.5, 0.75, 1};

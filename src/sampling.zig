@@ -1066,16 +1066,16 @@ test "retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
     //
 
     // @TODO: write this to a json file so we can image in curvet
-    var retime_curve_segments = [_]curve.Segment{
+    var retime_curve_segments = [_]curve.Bezier.Segment{
         // identity
-        curve.Segment.init_identity(0,  1.0),
+        curve.Bezier.Segment.init_identity(0,  1.0),
         // go up
-        curve.Segment.init_from_start_end(
+        curve.Bezier.Segment.init_from_start_end(
             .{ .in = 1.0, .out = 1.0 },
             .{ .in = 2.0, .out = 3.0 },
         ),
         // identity
-        curve.Segment.init_from_start_end(
+        curve.Bezier.Segment.init_from_start_end(
             .{ .in = 2.0, .out = 3.0 },
             .{ .in = 3.0, .out = 4.0 },
         ),
@@ -1175,11 +1175,11 @@ test "retime 48khz samples with a nonlinear acceleration curve and resample"
     );
     defer s48.deinit();
 
-    var cubic_retime_curve_segments = [_]curve.Segment{
+    var cubic_retime_curve_segments = [_]curve.Bezier.Segment{
         // identity
-        curve.Segment.init_identity(0, 1),
+        curve.Bezier.Segment.init_identity(0, 1),
         // go up
-        curve.Segment{
+        curve.Bezier.Segment{
             .p0 = .{ .in = 1, .out = 1.0 },
             .p1 = .{ .in = 1.5, .out = 1.25 },
             .p2 = .{ .in = 2, .out = 1.35 },

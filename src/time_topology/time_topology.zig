@@ -764,7 +764,7 @@ pub const TimeTopology = union (enum) {
         increment: f32,
     ) !TimeTopology
     {
-        var segments = std.ArrayList(curve.Segment).init(
+        var segments = std.ArrayList(curve.Bezier.Segment).init(
             allocator,
         );
         defer segments.deinit();
@@ -781,7 +781,7 @@ pub const TimeTopology = union (enum) {
             )
         {
             try segments.append(
-                curve.Segment.init_from_start_end(
+                curve.Bezier.Segment.init_from_start_end(
                     .{
                         .in = t_seconds,
                         .out = current_value
