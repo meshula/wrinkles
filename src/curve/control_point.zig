@@ -186,7 +186,7 @@ pub fn ControlPointOf(
         /// distance of this point from another point
         pub fn distance(
             self: @This(),
-            comptime rhs: ControlPointType,
+            rhs: ControlPointType,
         ) t
         {
             const diff = rhs.sub(self);
