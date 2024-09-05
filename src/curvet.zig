@@ -981,7 +981,7 @@ fn plot_bezier_curve(
 
                 if (flags.derivatives_dydx) 
                 {
-                    const d_dx = seg.eval_at_input_dual(d_du.r.in);
+                    const d_dx = seg.output_at_input_dual(d_du.r.in);
 
                     const xv : [2]f32 = .{
                         d_dx.r.in,
@@ -1051,7 +1051,7 @@ fn plot_bezier_curve(
 
                 if (flags.derivatives_dydx_isect) 
                 {
-                    const d_dx = seg.eval_at_input_dual(d_du.r.in);
+                    const d_dx = seg.output_at_input_dual(d_du.r.in);
 
                     const xv : [3]f32 = .{
                         d_dx.r.in - d_dx.i.in,
@@ -1092,7 +1092,7 @@ fn plot_bezier_curve(
 
             if (flags.show_dydx_point) 
             {
-                const d_dx = seg.eval_at_input_dual(d_du.r.in);
+                const d_dx = seg.output_at_input_dual(d_du.r.in);
 
                 const xv : [3]f32 = .{
                     d_dx.r.in - d_dx.i.in,
@@ -1200,8 +1200,13 @@ fn plot_tpa_guts(
 
     // draw the line from A to C
     if (flags.A and flags.C) {
-        try plot_cp_line("A->C", &.{guts.A.?, guts.C.?}, allocator);
-        const baseline_len = guts.C.?.distance(guts.A.?);
+        try plot_cp_line(
+            "A->C",
+            &.{ guts.A.?, guts.C.? },
+            allocator,
+        );
+        const a = guts.A.?;
+        const baseline_len = guts.C.?.distance(a);
         const label = try std.fmt.bufPrintZ(
             &buf,
             "A->C length {d}\nt: {d}",
@@ -1827,8 +1832,8 @@ fn update(
                         }
 
                         var result = try other_copy.split_at_each_output_ordinate(
+                            allocator,
                             split_points.items,
-                            allocator
                         );
                         const tmp = other_copy;
                         other_copy = try curve.Bezier.init(
@@ -1842,8 +1847,8 @@ fn update(
                     defer other_copy.deinit(allocator);
 
                     const result_guts = try self_hodograph.project_curve_guts(
+                        allocator,
                         other_hodograph,
-                        allocator
                     );
                     defer result_guts.deinit();
 
@@ -2149,7 +2154,7 @@ fn update(
 
                                     // dy/dx
                                     {
-                                        const d_p0 = seg.eval_at_input_dual(
+                                        const d_p0 = seg.output_at_input_dual(
                                             seg.p0.in
                                         );
                                         zgui.bulletText(
@@ -2180,7 +2185,7 @@ fn update(
                                             },
                                         );
 
-                                        const d_p3 = seg.eval_at_input_dual(
+                                        const d_p3 = seg.output_at_input_dual(
                                             seg.p3.in
                                         );
                                         zgui.bulletText(
