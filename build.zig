@@ -300,6 +300,17 @@ pub fn executable(
             );
             exe.linkLibrary(zgui_pkg.artifact("imgui"));
 
+            const zglfw_pkg = b.dependency("zglfw", .{
+                .target = options.target,
+                .optimize = options.optimize,
+                .shared = false,
+            });
+            exe.root_module.addImport(
+                "zglfw",
+                zglfw_pkg.module("root")
+            );
+            exe.linkLibrary(zglfw_pkg.artifact("glfw"));
+
             const zpool_pkg = b.dependency("zpool", .{
                 .target = options.target,
                 .optimize = options.optimize,
