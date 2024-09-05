@@ -31,12 +31,14 @@
         .zpool = .{ .path = "libs/zpool" },
         .zgpu = .{ .path = "libs/zgpu" },
         .zstbi = .{ .path = "libs/zstbi" },
-        .sokol = .{
-            .url = "git+https://github.com/floooh/sokol-zig.git#d9f3ef983b7021417cc91bd5788cd925ca06aa83",
-            .hash = "12200a472b4f1a3a6db1002f39f10ae0cccf58ada45bf25ddc5fd48384dd187f55ea",
+        .zig_imgui = .{
+            .url = "https://github.com/fjebaker/zig-imgui-implot/archive/main.tar.gz",
+            .hash = "1220e5fb819043746e56345723d644fc3261f5a425701d1b5b2fc1198ee792394dce",
         },
-        .cimgui = .{
-            .path = "libs/cimgui",
+        .sokol = .{
+            .url = "https://github.com/floooh/sokol-zig/archive/master.tar.gz",
+            .hash = "122033f5f20ae70760a6fb94b588cbfe4e58b37f0bb0a4e3c311b7b2549def7535d9",
+            
         },
      },
     .paths = .{
