@@ -1,4 +1,5 @@
-// curve visualizer tool for opentime
+//! curve visualizer tool for opentime
+
 const std = @import("std");
 
 const zglfw = @import("zglfw");
