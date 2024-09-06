@@ -8,9 +8,18 @@ const opentime = @import("opentime");
 const serialization = @import("serialization.zig");
 
 const mapping_empty = @import("mapping_empty.zig");
+pub const MappingEmpty = mapping_empty.MappingEmpty;
+pub const EMPTY = mapping_empty.EMPTY;
+
 const mapping_affine = @import("mapping_affine.zig");
+pub const MappingAffine = mapping_affine.MappingAffine;
+pub const INFINITE_IDENTIY = mapping_affine.INFINITE_IDENTIY;
+
 const mapping_curve_linear = @import("mapping_curve_linear.zig");
+pub const MappingCurveLinear = mapping_curve_linear.MappingCurveLinear;
+
 const mapping_curve_bezier = @import("mapping_curve_bezier.zig");
+pub const MappingCurveBezier = mapping_curve_bezier.MappingCurveBezier;
 
 /// A Mapping is a polymorphic container for a function that maps from an
 /// "input" space to an "output" space.  Mappings can be joined with other

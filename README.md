@@ -270,3 +270,19 @@ const Ordinate = union(enum) {
 * I think the questions are:
     * should the containers contain value types?  or reference types?
     * what should users expect from ownership?
+
+## Places for demoing animated parameters on warped scopes
+
+* properties: one time configuration of information (IE, name, temporal
+  bounds, media_reference, discrete_info)
+* parameters: varying data over some domain (a mapping and an embedding
+  domain)
+
+* lens parameters on a clip (ie an animated rack focus or aperture or something)
+  * animated focus distance or aperture
+* parameter that drives a wipe in a transition
+* animating a 2d image space transform 
+* a color correct parameter
+* state of a gyroscope during capture
+* mocap data
+    * floats over time

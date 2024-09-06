@@ -16,6 +16,8 @@ const util = opentime.util;
 
 const curve = @import("curve"); 
 
+pub const mapping = @import("mapping.zig");
+
 // import more tests
 test 
 {

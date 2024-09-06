@@ -102,6 +102,39 @@ pub const Clip = struct {
         media:  ?sampling.DiscreteDatasourceIndexGenerator = null,
     } = .{},
 
+    parameters: ?ParameterMap = null,
+
+    const Domain = enum {
+        time,
+        picture,
+        audio,
+        metadata,
+    };
+    const ParameterVarying = struct {
+        domain: Domain,
+        mapping: time_topology.mapping.Mapping,
+
+        pub fn parameter(
+            self: *const @This()
+        ) Parameter
+        {
+            return .{
+                .value = self,
+            };
+        }
+    };
+    const Parameter = union(enum) {
+        dictionary: *const ParameterMap,
+        value: *const ParameterVarying,
+    };
+    const ParameterMap = std.StringHashMap(Parameter);
+
+    pub fn to_param(m: *ParameterMap) Parameter {
+        return .{
+            .dictionary = m,
+        };
+    }
+
     /// copy values from argument and allocate as necessary
     pub fn init(
         allocator: std.mem.Allocator,
@@ -113,7 +146,14 @@ pub const Clip = struct {
         if (copy_from.name)
             |n|
         {
-            result.name = allocator.dupe(u8, n);
+            result.name = try allocator.dupe(u8, n);
+        }
+        if (copy_from.parameters)
+            |params|
+        {
+            result.parameters = try params.clone();
+        } else {
+            result.parameters = ParameterMap.init(allocator);
         }
 
         return result;
@@ -4907,3 +4947,56 @@ test "TestWalkingIterator: track with clip"
     }
 }
 
+test "Clip: Animated Parameter example"
+{
+    const root_allocator = std.testing.allocator;
+
+    var arena = std.heap.ArenaAllocator.init(root_allocator);
+    const allocator = arena.allocator();
+    defer arena.deinit();
+
+    const media_source_range = opentime.ContinuousTimeInterval{
+        .start_seconds = 1,
+        .end_seconds = 10,
+    };
+    const media_discrete_info = (
+        sampling.DiscreteDatasourceIndexGenerator{
+            .sample_rate_hz = 4,
+            .start_index = 0,
+        }
+    );
+
+    var cl = try Clip.init(
+        allocator,
+        .{ 
+            .media_temporal_bounds = media_source_range,
+            .discrete_info = .{
+                .media = media_discrete_info 
+            },
+        }
+    );
+    defer cl.destroy(allocator);
+
+    const focus_distance = (
+        Clip.ParameterVarying{
+            .domain = .time,
+            .mapping = (
+                try time_topology.mapping.MappingCurveLinear.init_knots(
+                    allocator,
+                    &.{ 
+                        .{ .in = 0, .out = 1 },
+                        .{ .in = 1, .out = 1.25 },
+                        .{ .in = 5, .out = 8},
+                        .{ .in = 8, .out = 10},
+                    },
+                    )
+            ).mapping(),
+        }
+    ).parameter();
+
+    var lens_data = Clip.ParameterMap.init(allocator);
+    try lens_data.put("focus_distance", focus_distance);
+
+    const param = Clip.to_param(&lens_data);
+    try cl.parameters.?.put( "lens",param );
+}
