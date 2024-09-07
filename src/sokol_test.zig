@@ -7,7 +7,6 @@ const slog = sokol.log;
 const sg = sokol.gfx;
 const sapp = sokol.app;
 const sglue = sokol.glue;
-const print = @import("std").debug.print;
 
 var pass_action: sg.PassAction = .{};
 
@@ -15,16 +14,20 @@ var gfx_arena_state : std.heap.ArenaAllocator = undefined;
 var gfx_allocator : std.mem.Allocator = undefined;
 
 
-export fn init() void {
+export fn init(
+) void 
+{
     var arena_state = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     const arena = arena_state.allocator();
     gfx_arena_state = arena_state;
     gfx_allocator = arena;
     
-    sg.setup(.{
-        .environment = sglue.environment(),
-        .logger = .{ .func = slog.func },
-    });
+    sg.setup(
+        .{
+            .environment = sglue.environment(),
+            .logger = .{ .func = slog.func },
+        }
+    );
 
     var desc: c.simgui_desc_t = .{};
     c.simgui_setup(&desc);
@@ -39,7 +42,7 @@ export fn init() void {
         .load_action = .CLEAR,
         .clear_value = .{ .r = 0, .g = 0, .b = 0, .a = 1 },
     };
-    print("Backend: {}\n", .{sg.queryBackend()});
+    std.debug.print("Backend: {}\n", .{sg.queryBackend()});
 
     zgui.init(arena);
     zgui.temp_buffer = std.ArrayList(u8).init(arena);
@@ -47,7 +50,9 @@ export fn init() void {
     zgui.plot.init();
 }
 
-export fn frame() void {
+export fn frame(
+) void 
+{
     var new_frame: c.simgui_frame_desc_t = .{
         .width = sapp.width(),
         .height = sapp.height(),
@@ -67,7 +72,9 @@ export fn frame() void {
     sg.commit();
 }
 
-export fn cleanup() void {
+export fn cleanup(
+) void 
+{
     c.ImPlot_DestroyContext(null);
     gfx_arena_state.deinit();
     c.simgui_shutdown();
@@ -182,17 +189,21 @@ fn drawGui(
     }
 }
 
-pub fn main() void {
-    sapp.run(.{
-        .init_cb = init,
-        .frame_cb = frame,
-        .cleanup_cb = cleanup,
-        .event_cb = event,
-        .width = 640,
-        .height = 480,
-        .icon = .{ .sokol_default = true },
-        .window_title = "Wrinkles Sokol Test",
-        .logger = .{ .func = slog.func },
-        .win32_console_attach = true,
-    });
+pub fn main(
+) void 
+{
+    sapp.run(
+        .{
+            .init_cb = init,
+            .frame_cb = frame,
+            .cleanup_cb = cleanup,
+            .event_cb = event,
+            .width = 800,
+            .height = 800,
+            .icon = .{ .sokol_default = true },
+            .window_title = "Wrinkles Sokol Test",
+            .logger = .{ .func = slog.func },
+            .win32_console_attach = true,
+        }
+    );
 }
