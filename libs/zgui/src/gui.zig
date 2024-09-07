@@ -31,16 +31,16 @@ pub const DrawVert = extern struct {
 //--------------------------------------------------------------------------------------------------
 
 pub fn init(allocator: std.mem.Allocator) void {
-    if (zguiGetCurrentContext() == null) {
         mem_allocator = allocator;
         mem_allocations = std.AutoHashMap(usize, usize).init(allocator);
         mem_allocations.?.ensureTotalCapacity(32) catch @panic("zgui: out of memory");
         zguiSetAllocatorFunctions(zguiMemAlloc, zguiMemFree);
 
-        _ = zguiCreateContext(null);
-
         temp_buffer = std.ArrayList(u8).init(allocator);
         temp_buffer.?.resize(3 * 1024 + 1) catch unreachable;
+
+    if (zguiGetCurrentContext() == null) {
+        _ = zguiCreateContext(null);
 
         if (te_enabled) {
             te.init();

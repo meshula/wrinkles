@@ -5,16 +5,16 @@
 //
 //--------------------------------------------------------------------------------------------------
 pub const plot = @import("plot.zig");
-pub const te = @import("te.zig");
-pub const backend = switch (@import("zgui_options").backend) {
-    .glfw_wgpu => @import("backend_glfw_wgpu.zig"),
-    .glfw_opengl3 => @import("backend_glfw_opengl.zig"),
-    .glfw_dx12 => @import("backend_glfw_dx12.zig"),
-    .glfw => @import("backend_glfw.zig"),
-    .win32_dx12 => @import("backend_win32_dx12.zig"),
-    .no_backend => .{},
-};
-const te_enabled = @import("zgui_options").with_te;
+// pub const te = @import("te.zig");
+// pub const backend = switch (@import("zgui_options").backend) {
+//     .glfw_wgpu => @import("backend_glfw_wgpu.zig"),
+//     .glfw_opengl3 => @import("backend_glfw_opengl.zig"),
+//     .glfw_dx12 => @import("backend_glfw_dx12.zig"),
+//     .glfw => @import("backend_glfw.zig"),
+//     .win32_dx12 => @import("backend_win32_dx12.zig"),
+//     .no_backend => .{},
+// };
+// const te_enabled = @import("zgui_options").with_te;
 //--------------------------------------------------------------------------------------------------
 const std = @import("std");
 const assert = std.debug.assert;
@@ -31,32 +31,36 @@ pub const DrawVert = extern struct {
 //--------------------------------------------------------------------------------------------------
 
 pub fn init(allocator: std.mem.Allocator) void {
+    std.debug.print("outer\n", .{});
     if (zguiGetCurrentContext() == null) {
+        std.debug.print("inner\n", .{});
         mem_allocator = allocator;
         mem_allocations = std.AutoHashMap(usize, usize).init(allocator);
         mem_allocations.?.ensureTotalCapacity(32) catch @panic("zgui: out of memory");
         zguiSetAllocatorFunctions(zguiMemAlloc, zguiMemFree);
 
         _ = zguiCreateContext(null);
+        std.debug.print("conetxt happy\n", .{});
 
         temp_buffer = std.ArrayList(u8).init(allocator);
         temp_buffer.?.resize(3 * 1024 + 1) catch unreachable;
 
-        if (te_enabled) {
-            te.init();
-        }
+        // if (te_enabled) {
+        //     te.init();
+        // }
     }
+    std.debug.print("done init\n", .{});
 }
 pub fn deinit() void {
     if (zguiGetCurrentContext() != null) {
         temp_buffer.?.deinit();
         zguiDestroyContext(null);
 
-        // Must be after destroy imgui context.
-        // And before allocation check
-        if (te_enabled) {
-            te.deinit();
-        }
+        // // Must be after destroy imgui context.
+        // // And before allocation check
+        // if (te_enabled) {
+        //     te.deinit();
+        // }
 
         if (mem_allocations.?.count() > 0) {
             var it = mem_allocations.?.iterator();
@@ -101,6 +105,10 @@ const mem_alignment = 16;
 fn zguiMemAlloc(size: usize, _: ?*anyopaque) callconv(.C) ?*anyopaque {
     mem_mutex.lock();
     defer mem_mutex.unlock();
+
+    if (mem_allocator == null) {
+        @panic("Null allocator");
+    }
 
     const mem = mem_allocator.?.alignedAlloc(
         u8,
@@ -355,7 +363,8 @@ pub const DrawData = *extern struct {
 pub const Font = *opaque {};
 pub const Ident = u32;
 pub const TextureIdent = *anyopaque;
-pub const Wchar = if (@import("zgui_options").use_wchar32) u32 else u16;
+// pub const Wchar = if (@import("zgui_options").use_wchar32) u32 else u16;
+pub const Wchar = if (false) u32 else u16;
 pub const Key = enum(c_int) {
     none = 0,
     tab = 512,
@@ -3300,7 +3309,7 @@ extern fn zguiIsKeyDown(key: Key) bool;
 // Helpers
 //
 //--------------------------------------------------------------------------------------------------
-var temp_buffer: ?std.ArrayList(u8) = null;
+pub var temp_buffer: ?std.ArrayList(u8) = null;
 
 pub fn format(comptime fmt: []const u8, args: anytype) []const u8 {
     const len = std.fmt.count(fmt, args);

@@ -382,7 +382,7 @@ pub fn executable(
             const implot_lib = imgui_dep.artifact("implot");
 
             const wgui_name = "wgui";
-            const root_source_file = b.path("src/main.zig");
+            const root_source_file = b.path("src/sokol_test.zig");
 
             // module to be used by downstream projects
             const mod = b.addModule("zig-sokol-imgui-implot", .{
@@ -400,6 +400,21 @@ pub fn executable(
                     backend_cflags,
                 } },
             );
+            mod.addCSourceFile(
+                .{
+                    .file = b.path("libs/sokol_wrapper/zgui.cpp"),
+                    .flags = &.{
+                        "-DZGUI_IMPLOT",
+                        backend_cflags 
+                    },
+                }
+            );
+            // mod.addCSourceFile(
+            //     .{
+            //         .file = b.path("libs/sokol_wrapper/imgui.cpp"),
+            //         .flags = &.{ backend_cflags },
+            //     }
+            // );
             mod.linkLibrary(imgui_lib);
             mod.linkLibrary(implot_lib);
             mod.addImport("sokol", sokol_mod);
@@ -415,6 +430,7 @@ pub fn executable(
                 // });
                 const example = exe;
                 example.root_module.addImport("imzokol", mod);
+                // exe.linkLibrary(implot_lib);
 
                 const install = b.addInstallArtifact(example, .{});
                 run = b.addRunArtifact(example);
