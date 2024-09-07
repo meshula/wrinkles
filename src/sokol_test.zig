@@ -74,8 +74,25 @@ export fn cleanup() void {
     sg.shutdown();
 }
 
-export fn event(ev: [*c]const sapp.Event) void {
+/// handle keypresses
+export fn event(
+    ev: [*c]const sapp.Event,
+) void 
+{
     _ = c.simgui_handle_event(@ptrCast(ev));
+
+    // Callback function for handling input events 
+    { 
+        // Check if the key event is a key press, and if it is the Escape key 
+        if (
+            ev.*.type == .KEY_DOWN
+            and ev.*.key_code == .ESCAPE
+        ) 
+        { 
+            // Quit the application 
+            c.sapp_request_quit(); 
+        }
+    }
 }
 
 fn drawGui() !void {
@@ -98,21 +115,34 @@ fn drawGui() !void {
     c.igSetNextWindowPos(.{ .x = 0, .y = 0 }, c.ImGuiCond_None, .{},);
     c.igSetNextWindowViewport(viewport.*.ID);
 
-    var main_is_open : bool = true;
+    // var main_is_open : bool = true;
     if (
-        c.igBegin(
+        zgui.begin(
             "###FULLSCREEN",
-            @ptrCast(&main_is_open),
-            c.ImGuiWindowFlags_NoDecoration 
-            | c.ImGuiWindowFlags_NoResize
-            | c.ImGuiWindowFlags_NoScrollWithMouse
-            | c.ImGuiWindowFlags_AlwaysAutoResize
-            | c.ImGuiWindowFlags_NoMove
-            ,
+            .{ 
+                .flags = .{
+                    .no_resize = true, 
+                    .no_scroll_with_mouse  = true, 
+                    .always_auto_resize = true, 
+                    .no_move = true,
+                    .no_collapse = true,
+                    .no_title_bar = true,
+                },
+            }
         )
+        // c.igBegin(
+        //     "###FULLSCREEN",
+        //     @ptrCast(&main_is_open),
+        //     c.ImGuiWindowFlags_NoDecoration 
+        //     | c.ImGuiWindowFlags_NoResize
+        //     | c.ImGuiWindowFlags_NoScrollWithMouse
+        //     | c.ImGuiWindowFlags_AlwaysAutoResize
+        //     | c.ImGuiWindowFlags_NoMove
+        //     ,
+        // )
     )
     {
-        defer c.igEnd();
+        defer zgui.end();
 
         zgui.bulletText("pasta, potato: {d}\n", .{ 12 });
 
