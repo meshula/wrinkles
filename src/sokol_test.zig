@@ -1,6 +1,7 @@
 const std = @import("std");
 const c = @import("imzokol");
 const zgui = c.zgui;
+const zplot = zgui.plot;
 const sokol = c.sokol;
 const slog = sokol.log;
 const sg = sokol.gfx;
@@ -115,8 +116,41 @@ fn drawGui() !void {
 
         zgui.bulletText("pasta, potato: {d}\n", .{ 12 });
 
-        var demo_open = true;
-        zgui.showDemoWindow(&demo_open);
+        // var demo_open = true;
+        // zgui.showDemoWindow(&demo_open);
+        // var demo_open_plot = true;
+        // zgui.plot.showDemoWindow(&demo_open_plot);
+
+        if (c.ImPlot_BeginPlot(
+                "Graph View",
+                viewport.*.Size,
+                c.ImPlotFlags_None,
+        )){
+            const xs= [_]f32{0, 1, 2, 3, 4};
+            const ys= [_]f32{0, 1, 2, 3, 6};
+
+            zplot.plotLine(
+                "test plot",
+                f32, 
+                .{
+                    .xv = &xs,
+                    .yv = &ys 
+                },
+            );
+
+            // c.ImPlot_PlotLine_FloatPtrFloatPtr(
+            //     "test plot",
+            //     &xs,
+            //     &ys,
+            //     5,
+            //     c.ImPlotLineFlags_None,
+            //     0,
+            //     @sizeOf(f32),
+            // );
+            defer c.ImPlot_EndPlot();
+        }
+
+
             // const mem = try gfx_allocator.alloc(u8, 1024);
             // defer gfx_allocator.free(mem);
         // if (zgui.plot.beginPlot("pasta", .{})) {
