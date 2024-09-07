@@ -158,6 +158,7 @@ const SokolApp = struct {
     event: *const fn (ev: [*c]const sapp.Event) callconv(.C) void = &event,
     draw: *const fn () error{}!void,
     content_dir: []const u8 = "",
+    dimensions: [2]i32 = .{ 800, 800 },
 };
 var app : SokolApp = undefined;
 
@@ -174,8 +175,8 @@ pub fn main(
             .frame_cb = frame,
             .cleanup_cb = cleanup,
             .event_cb = app.event,
-            .width = 800,
-            .height = 800,
+            .width = app.dimensions[0],
+            .height = app.dimensions[1],
             .icon = .{ .sokol_default = true },
             .window_title = app.title,
             .logger = .{ .func = slog.func },

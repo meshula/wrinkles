@@ -340,10 +340,10 @@ pub fn main(
             .title = title,
             .draw = update,
             .content_dir = content_dir,
+            .dimensions = .{ 1600, 1000},
         }
     );
 }
-
 
 pub fn evaluated_curve(
     crv: curve.Bezier,
@@ -2285,8 +2285,6 @@ fn _parse_args(
         ) {
             usage();
         }
-
-        std.debug.print("reading curve: '{s}'\n", .{ fpath });
 
         const crv = curve.read_curve_json(fpath, allocator) catch |err| {
             std.debug.print(
