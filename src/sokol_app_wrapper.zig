@@ -61,7 +61,7 @@ export fn frame(
     };
     c.simgui_new_frame(&new_frame);
 
-    app.drawGui() catch |err| {
+    app.draw() catch |err| {
         std.debug.print(">>> ERROR: {any}\n", .{err});
         std.process.exit(1);
     };
@@ -100,8 +100,9 @@ export fn event(
 }
 
 const SokolApp = struct {
+    title: [:0]const u8 = "Wrinkles Sokol Test",
     event: *const fn (ev: [*c]const sapp.Event) callconv(.C) void = &event,
-    drawGui: *const fn () error{}!void,
+    draw: *const fn () error{}!void,
 };
 var app : SokolApp = undefined;
 
@@ -120,7 +121,7 @@ pub fn main(
             .width = 800,
             .height = 800,
             .icon = .{ .sokol_default = true },
-            .window_title = "Wrinkles Sokol Test",
+            .window_title = app.title,
             .logger = .{ .func = slog.func },
             .win32_console_attach = true,
         }

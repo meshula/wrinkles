@@ -2,12 +2,8 @@
 
 const std = @import("std");
 
-const zglfw = @import("zglfw");
-const zgpu = @import("zgpu");
-const wgpu = zgpu.wgpu;
-const zgui = @import("zgui");
-const zm = @import("zmath");
-const zstbi = @import("zstbi");
+const c = @import("imzokol");
+const zgui = c.zgui;
 
 const build_options = @import("build_options");
 const exe_build_options = @import("exe_build_options");
@@ -22,6 +18,8 @@ const util = opentime.util;
 
 const DERIVATIVE_STEPS = 10;
 const CURVE_SAMPLE_COUNT = 1000;
+
+const sokol_app_wrapper = @import("sokol_app_wrapper");
 
 const DebugBezierFlags = struct {
     bezier: bool = true,
@@ -280,194 +278,28 @@ const VisState = struct {
 };
 
 const GraphicsState = struct {
-    gctx: *zgpu.GraphicsContext,
-
     font_normal: zgui.Font,
     font_large: zgui.Font,
 
-    // texture: zgpu.TextureHandle,
-    texture_view: zgpu.TextureViewHandle,
-
     allocator: std.mem.Allocator,
-
-    pub fn init(
-        allocator: std.mem.Allocator,
-        window: *zglfw.Window
-    ) !*GraphicsState 
-    {
-        const gctx = try zgpu.GraphicsContext.create(
-            allocator,
-            .{
-                .window  = window,
-                .fn_getTime = @ptrCast(&zglfw.getTime),
-                .fn_getFramebufferSize = @ptrCast(&zglfw.Window.getFramebufferSize),
-                .fn_getWin32Window = @ptrCast(&zglfw.getWin32Window),
-                .fn_getX11Display = @ptrCast(&zglfw.getX11Display),
-                .fn_getX11Window = @ptrCast(&zglfw.getX11Window),
-                .fn_getCocoaWindow = @ptrCast(&zglfw.getCocoaWindow),
-            },
-            .{}
-        );
-
-        var arena_state = std.heap.ArenaAllocator.init(allocator);
-        defer arena_state.deinit();
-        const arena = arena_state.allocator();
-
-        // Create a texture.
-        zstbi.init(arena);
-        defer zstbi.deinit();
-
-        const font_path = content_dir ++ "genart_0025_5.png";
-
-        var image = try zstbi.Image.loadFromFile(font_path, 4);
-        defer image.deinit();
-
-        const texture = gctx.createTexture(.{
-            .usage = .{ .texture_binding = true, .copy_dst = true },
-            .size = .{
-                .width = image.width,
-                .height = image.height,
-                .depth_or_array_layers = 1,
-            },
-            .format = .rgba8_unorm,
-            .mip_level_count = 1,
-        });
-        const texture_view = gctx.createTextureView(texture, .{});
-
-        gctx.queue.writeTexture(
-            .{ .texture = gctx.lookupResource(texture).? },
-            .{
-                .bytes_per_row = image.bytes_per_row,
-                .rows_per_image = image.height,
-            },
-            .{ .width = image.width, .height = image.height },
-            u8,
-            image.data,
-        );
-
-        zgui.init(allocator);
-        zgui.plot.init();
-        const scale_factor = scale_factor: {
-            const scale = window.getContentScale();
-            break :scale_factor @max(scale[0], scale[1]);
-        };
-
-        // const fira_font_path = content_dir ++ "FiraCode-Medium.ttf";
-        const robota_font_path = content_dir ++ "Roboto-Medium.ttf";
-
-        const font_size = 16.0 * scale_factor;
-        const font_large = zgui.io.addFontFromFile(
-            robota_font_path,
-            font_size * 1.1
-        );
-        const font_normal = zgui.io.addFontFromFile(
-            robota_font_path,
-            font_size
-        );
-        std.debug.assert(zgui.io.getFont(0) == font_large);
-        std.debug.assert(zgui.io.getFont(1) == font_normal);
-
-        // This needs to be called *after* adding your custom fonts.
-        zgui.backend.init(
-            window,
-            gctx.device,
-            @intFromEnum(zgpu.GraphicsContext.swapchain_format),
-            @intFromEnum(zgpu.wgpu.TextureFormat.undef),
-        );
-
-        // This call is optional. Initially, zgui.io.getFont(0) is a default font.
-        zgui.io.setDefaultFont(font_normal);
-
-        // You can directly manipulate zgui.Style *before* `newFrame()` call.
-        // Once frame is started (after `newFrame()` call) you have to use
-        // zgui.pushStyleColor*()/zgui.pushStyleVar*() functions.
-        const style = zgui.getStyle();
-
-        style.window_min_size = .{ 320.0, 240.0 };
-        style.window_border_size = 8.0;
-        style.scrollbar_size = 6.0;
-        {
-            var color = style.getColor(.scrollbar_grab);
-            color[1] = 0.8;
-            style.setColor(.scrollbar_grab, color);
-        }
-        style.scaleAllSizes(scale_factor);
-
-        // To reset zgui.Style with default values:
-        //zgui.getStyle().* = zgui.Style.init();
-
-        {
-            zgui.plot.getStyle().line_weight = 3.0;
-            const plot_style = zgui.plot.getStyle();
-            plot_style.marker = .circle;
-            plot_style.marker_size = 5.0;
-        }
-
-
-        const gfx_state = try allocator.create(GraphicsState);
-        gfx_state.* = .{
-            .gctx = gctx,
-            .texture_view = texture_view,
-            .font_normal = font_normal,
-            .font_large = font_large,
-            .allocator = allocator,
-        };
-
-        return gfx_state;
-    }
-
-    fn deinit(
-        self: *@This()
-    ) void 
-    {
-        zgui.backend.deinit();
-        zgui.plot.deinit();
-        zgui.deinit();
-        self.gctx.destroy(self.allocator);
-        self.allocator.destroy(self);
-    }
 };
 
 pub fn main(
 ) !void 
 {
-    zglfw.init() catch {
-        std.log.err("GLFW did not initialize properly.", .{});
-        return;
-    };
-    defer zglfw.terminate();
-
-    zglfw.WindowHint.set(.cocoa_retina_framebuffer, 1);
-    zglfw.WindowHint.set(.client_api, 0);
-
     const title = (
         "OpenTimelineIO V2 Prototype Bezier Curve Visualizer [" 
         ++ build_options.hash[0..6] 
         ++ "]"
     );
 
-    const window = (
-        zglfw.Window.create(1600, 1000, title, null) 
-        catch {
-            std.log.err("Could not create a window", .{});
-            return;
-        }
-    );
-    defer window.destroy();
-    window.setSizeLimits(400, 400, -1, -1);
-
     var gpa = std.heap.GeneralPurposeAllocator(.{.stack_trace_frames = 32}){};
     defer _ = gpa.deinit();
 
     const allocator = gpa.allocator();
+    ALLOCATOR = allocator;
 
-    const gfx_state = GraphicsState.init(allocator, window) catch {
-        std.log.err("Could not initialize resources", .{});
-        return;
-    };
-    defer gfx_state.deinit();
-
-    var state = try _parse_args(allocator);
+    STATE = try _parse_args(allocator);
 
     // u
     const fst_name:[:0]const u8 = "upside down u";
@@ -486,30 +318,31 @@ pub fn main(
     defer snd_crv.deinit(allocator);
     const snd_name:[:0]const u8 ="linear [-0.2, 1)" ;
 
-    var tmpCurves = projTmpTest{
+    TMPCURVES = projTmpTest{
         // projecting "snd" through "fst"
-        // .snd = .{ 
         .fst = .{ 
             .curve = fst_crv,
             .fpath = fst_name,
             .split_hodograph = try fst_crv.split_on_critical_points(allocator),
         },
-        // .fst = .{ 
         .snd = .{ 
             .curve = snd_crv,
             .fpath = snd_name,
             .split_hodograph = try snd_crv.split_on_critical_points(allocator),
         },
     };
-    defer tmpCurves.fst.split_hodograph.deinit(allocator);
-    defer tmpCurves.snd.split_hodograph.deinit(allocator);
-    defer state.deinit(allocator);
+    defer TMPCURVES.fst.split_hodograph.deinit(allocator);
+    defer TMPCURVES.snd.split_hodograph.deinit(allocator);
+    defer STATE.deinit(allocator);
 
-    while (!window.shouldClose() and window.getKey(.escape) != .press) {
-        zglfw.pollEvents();
-        try update(gfx_state, &state, &tmpCurves, allocator);
-        draw(gfx_state);
-    }
+    // try update(gfx_state, &state, &tmpCurves, allocator);
+
+    sokol_app_wrapper.main(
+        .{
+            .title = title,
+            .draw = update,
+        }
+    );
 }
 
 
@@ -1608,17 +1441,24 @@ fn plot_curve(
 
 }
 
-fn update(
-    gfx_state: *GraphicsState,
-    state: *VisState,
-    tmpCurves: *projTmpTest,
-    allocator: std.mem.Allocator,
+var STATE : VisState = undefined;
+var TMPCURVES : projTmpTest = undefined; 
+var ALLOCATOR : std.mem.Allocator = undefined;
+
+fn update() !void
+{
+    update_with_error() catch {
+        @panic("update hit an error");
+    };
+}
+
+fn update_with_error(
 ) !void 
 {
     var _proj = time_topology.TimeTopology.init_identity_infinite();
     const inf = time_topology.TimeTopology.init_identity_infinite();
 
-    for (state.operations.items) 
+    for (STATE.operations.items) 
         |visop| 
     {
         var _topology: time_topology.TimeTopology = .{ .empty = .{} };
@@ -1643,22 +1483,19 @@ fn update(
 
         const tmp = _proj;
         _proj = _topology.project_topology(
-            allocator,
+            ALLOCATOR,
             _proj
         ) catch inf;
-        tmp.deinit(allocator);
+        tmp.deinit(ALLOCATOR);
     }
-
-    zgui.backend.newFrame(
-        gfx_state.gctx.swapchain_descriptor.width,
-        gfx_state.gctx.swapchain_descriptor.height,
-    );
 
     zgui.setNextWindowPos(.{ .x = 0.0, .y = 0.0, });
 
-    const size = gfx_state.gctx.window_provider.fn_getFramebufferSize(gfx_state.gctx.window_provider.window);
-    const width:f32 = @floatFromInt(size[0]);
-    const height:f32 = @floatFromInt(size[1]);
+    const vp = zgui.getMainViewport();
+    const size = vp.getSize();
+
+    const width:f32 = size[0];
+    const height:f32 = size[1];
 
     zgui.setNextWindowSize(.{ .w = width, .h = height, });
 
@@ -1679,7 +1516,7 @@ fn update(
     // FPS/status line
     zgui.bulletText(
         "Average : {d:.3} ms/frame ({d:.1} fps)",
-        .{ gfx_state.gctx.stats.average_cpu_time, gfx_state.gctx.stats.fps },
+        .{ 0, 0 },
     );
     zgui.spacing();
 
@@ -1709,7 +1546,7 @@ fn update(
                     .{}
                 );
                 zgui.plot.setupFinish();
-                for (state.operations.items, 0..) 
+                for (STATE.operations.items, 0..) 
                     |*visop, op_index| 
                 {
 
@@ -1722,13 +1559,13 @@ fn update(
                                 .{op_index, crv.fpath[0..]}
                             );
 
-                            try plot_curve(crv, name, allocator);
+                            try plot_curve(crv, name, ALLOCATOR);
                         },
                         else => {},
                     }
                 }
 
-                if (state.show_projection_result) 
+                if (STATE.show_projection_result) 
                 {
                     switch (_proj) 
                     {
@@ -1737,7 +1574,7 @@ fn update(
                             try plot_linear_curve(
                                 lin,
                                 "result / linear",
-                                allocator
+                                ALLOCATOR
                             );
                         },
                         .bezier_curve => |bez| {
@@ -1775,46 +1612,46 @@ fn update(
                     }
                 }
 
-                if (state.show_test_curves) 
+                if (STATE.show_test_curves) 
                 {
                     // debug 
-                    var self = tmpCurves.fst.curve;
-                    var other = tmpCurves.snd.curve;
+                    var self = TMPCURVES.fst.curve;
+                    var other = TMPCURVES.snd.curve;
 
                     try plot_bezier_curve(
                         self,
                         "self",
-                        state.show_projection_result_guts.fst,
-                        allocator
+                        STATE.show_projection_result_guts.fst,
+                        ALLOCATOR
                     );
                     try plot_bezier_curve(
                         other,
                         "other",
-                        state.show_projection_result_guts.snd,
-                        allocator
+                        STATE.show_projection_result_guts.snd,
+                        ALLOCATOR
                     );
 
-                    const self_hodograph = try self.split_on_critical_points(allocator);
-                    defer self_hodograph.deinit(allocator);
+                    const self_hodograph = try self.split_on_critical_points(ALLOCATOR);
+                    defer self_hodograph.deinit(ALLOCATOR);
 
-                    const other_hodograph = try other.split_on_critical_points(allocator);
-                    defer other_hodograph.deinit(allocator);
+                    const other_hodograph = try other.split_on_critical_points(ALLOCATOR);
+                    defer other_hodograph.deinit(ALLOCATOR);
 
                     const other_bounds = other.extents();
                     var other_copy = try curve.Bezier.init(
-                        allocator,
+                        ALLOCATOR,
                         other_hodograph.segments,
                     );
 
                     {
-                        var split_points = std.ArrayList(f32).init(allocator);
+                        var split_points = std.ArrayList(f32).init(ALLOCATOR);
                         defer split_points.deinit();
 
                         // find all knots in self that are within the other bounds
                         const endpoints = try self_hodograph.segment_endpoints(
-                            allocator
+                            ALLOCATOR
                         );
-                        defer allocator.free(endpoints);
+                        defer ALLOCATOR.free(endpoints);
 
                         for (endpoints)
                             |self_knot| 
@@ -1832,22 +1669,22 @@ fn update(
                         }
 
                         var result = try other_copy.split_at_each_output_ordinate(
-                            allocator,
+                            ALLOCATOR,
                             split_points.items,
                         );
                         const tmp = other_copy;
                         other_copy = try curve.Bezier.init(
-                            allocator,
+                            ALLOCATOR,
                             result.segments,
                         );
-                        tmp.deinit(allocator);
-                        result.deinit(allocator);
+                        tmp.deinit(ALLOCATOR);
+                        result.deinit(ALLOCATOR);
                     }
 
-                    defer other_copy.deinit(allocator);
+                    defer other_copy.deinit(ALLOCATOR);
 
                     const result_guts = try self_hodograph.project_curve_guts(
-                        allocator,
+                        ALLOCATOR,
                         other_hodograph,
                     );
                     defer result_guts.deinit();
@@ -1855,8 +1692,8 @@ fn update(
                     try plot_bezier_curve(
                         result_guts.self_split.?,
                         "self_split",
-                        state.show_projection_result_guts.self_split,
-                        allocator
+                        STATE.show_projection_result_guts.self_split,
+                        ALLOCATOR
                     );
 
                     // zgui.text("Segments to project through indices: ", .{});
@@ -1869,8 +1706,8 @@ fn update(
                     try plot_bezier_curve(
                         result_guts.other_split.?,
                         "other_split",
-                        state.show_projection_result_guts.other_split,
-                        allocator
+                        STATE.show_projection_result_guts.other_split,
+                        ALLOCATOR
                     );
 
                     var buf:[1024:0]u8 = undefined;
@@ -1888,8 +1725,8 @@ fn update(
                         try plot_bezier_curve(
                             result_guts.result.?,
                             result_name,
-                            state.show_projection_result_guts.tpa_flags.result_curves,
-                            allocator
+                            STATE.show_projection_result_guts.tpa_flags.result_curves,
+                            ALLOCATOR
                         );
                     }
 
@@ -1897,8 +1734,8 @@ fn update(
                         try plot_bezier_curve(
                             result_guts.to_project.?,
                             "Segments of Other that will be projected",
-                            state.show_projection_result_guts.to_project,
-                            allocator
+                            STATE.show_projection_result_guts.to_project,
+                            ALLOCATOR
                         );
                     }
 
@@ -1914,8 +1751,8 @@ fn update(
                             try plot_tpa_guts(
                                 tpa,
                                 label,
-                                state.show_projection_result_guts.tpa_flags,
-                                allocator,
+                                STATE.show_projection_result_guts.tpa_flags,
+                                ALLOCATOR,
                             );
 
                         }
@@ -1931,7 +1768,7 @@ fn update(
                     inline for (derivs) 
                         |d_name| 
                     {
-                        if (@field(state, d_name))
+                        if (@field(STATE, d_name))
                         {
                             for (@field(result_guts, d_name).?, 0..) 
                                 |d, ind|
@@ -1989,15 +1826,15 @@ fn update(
         {
             _ = zgui.checkbox(
                 "Show ZGui Demo Windows",
-                .{ .v = &state.show_demo }
+                .{ .v = &STATE.show_demo }
             );
             _ = zgui.checkbox(
                 "Show Projection Test Curves",
-                .{ .v = &state.show_test_curves }
+                .{ .v = &STATE.show_test_curves }
             );
             _ = zgui.checkbox(
                 "Show Projection Result",
-                .{ .v = &state.show_projection_result }
+                .{ .v = &STATE.show_projection_result }
             );
 
             if (zgui.treeNode("Projection Algorithm Debug Switches")) 
@@ -2031,12 +1868,12 @@ fn update(
             }
 
 
-            if (state.show_test_curves and zgui.treeNode("Test Curve Settings"))
+            if (STATE.show_test_curves and zgui.treeNode("Test Curve Settings"))
             {
                 defer zgui.treePop();
 
                 {
-                    var guts = state.show_projection_result_guts;
+                    var guts = STATE.show_projection_result_guts;
                     guts.fst.draw_ui("self");
                     guts.self_split.draw_ui("self split");
                     guts.snd.draw_ui("other");
@@ -2059,20 +1896,20 @@ fn update(
                     {
                         _ = zgui.checkbox(
                             d_info[1],
-                            .{ .v = &@field(state,d_info[0]) }
+                            .{ .v = &@field(STATE,d_info[0]) }
                         );
                     }
                 }
 
-                state.show_projection_result_guts.tpa_flags.draw_ui(
+                STATE.show_projection_result_guts.tpa_flags.draw_ui(
                     "Projection Result"
                 );
             }
 
-            var remove = std.ArrayList(usize).init(allocator);
+            var remove = std.ArrayList(usize).init(ALLOCATOR);
             defer remove.deinit();
             const op_index:usize = 0;
-            for (state.operations.items) 
+            for (STATE.operations.items) 
                 |*visop| 
             {
                 switch (visop.*) 
@@ -2282,9 +2119,9 @@ fn update(
                                 defer zgui.treePop();
 
                                 const endpoints = (
-                                    try crv.curve.segment_endpoints(allocator)
+                                    try crv.curve.segment_endpoints(ALLOCATOR)
                                 );
-                                defer allocator.free(endpoints);
+                                defer ALLOCATOR.free(endpoints);
                                 for (endpoints, 0..) 
                                     |pt, ind| 
                                 {
@@ -2320,13 +2157,13 @@ fn update(
                             {
                                 defer zgui.treePop();
 
-                                const split = try crv.curve.split_on_critical_points(allocator);
-                                defer split.deinit(allocator);
+                                const split = try crv.curve.split_on_critical_points(ALLOCATOR);
+                                defer split.deinit(ALLOCATOR);
 
                                 const endpoints = try split.segment_endpoints(
-                                    allocator,
+                                    ALLOCATOR,
                                 );
-                                defer allocator.free(endpoints);
+                                defer ALLOCATOR.free(endpoints);
 
                                 for (endpoints, 0..) 
                                     |pt, ind| 
@@ -2396,12 +2233,12 @@ fn update(
             var i:usize = remove.items.len;
             while (i > 0) {
                 i -= 1;
-                const visop = state.operations.orderedRemove(remove.items[i]);
+                const visop = STATE.operations.orderedRemove(remove.items[i]);
                 switch (visop) {
                     .curve => |crv| {
-                        allocator.free(crv.curve.segments);
-                        allocator.free(crv.split_hodograph.segments);
-                        allocator.free(crv.fpath);
+                        ALLOCATOR.free(crv.curve.segments);
+                        ALLOCATOR.free(crv.split_hodograph.segments);
+                        ALLOCATOR.free(crv.fpath);
                     },
                     else => {},
                 }
@@ -2410,50 +2247,12 @@ fn update(
         defer zgui.endChild();
     }
 
-    if (state.show_demo) {
+    if (STATE.show_demo) {
         _ = zgui.showDemoWindow(null);
         _ = zgui.plot.showDemoWindow(null);
     }
 
-    _proj.deinit(allocator);
-}
-
-fn draw(gfx_state: *GraphicsState) void {
-    const gctx = gfx_state.gctx;
-
-    const back_buffer_view = gctx.swapchain.getCurrentTextureView();
-    defer back_buffer_view.release();
-
-    const commands = commands: {
-        const encoder = gctx.device.createCommandEncoder(null);
-        defer encoder.release();
-
-        // Gui pass.
-        {
-            const color_attachments = [_]wgpu.RenderPassColorAttachment{.{
-                .view = back_buffer_view,
-                .load_op = .load,
-                .store_op = .store,
-            }};
-            const render_pass_info = wgpu.RenderPassDescriptor{
-                .color_attachment_count = color_attachments.len,
-                .color_attachments = &color_attachments,
-            };
-            const pass = encoder.beginRenderPass(render_pass_info);
-            defer {
-                pass.end();
-                pass.release();
-            }
-
-            zgui.backend.draw(pass);
-        }
-
-        break :commands encoder.finish(null);
-    };
-    defer commands.release();
-
-    gctx.submit(&.{commands});
-    _ = gctx.present();
+    _proj.deinit(ALLOCATOR);
 }
 
 /// parse the commandline arguments and setup the state
@@ -2466,12 +2265,6 @@ fn _parse_args(
 
     // ignore the app name, always first in args
     _ = args.skip();
-
-    // inline for (std.meta.fields(@TypeOf(state))) 
-    // |field| 
-    // {
-    //     std.debug.print("{s}: {}\n", .{ field.name, @field(state, field.name) });
-    // }
 
     var operations = std.ArrayList(VisOperation).init(allocator);
 

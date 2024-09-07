@@ -968,27 +968,6 @@ pub fn build(
         common_deps,
         true,
     );
-    executable(
-        b,
-        "curvet",
-        "src/curvet.zig",
-        "/wrinkles_content/",
-        all_check_step,
-        options,
-        common_deps,
-        true,
-    );
-    executable(
-        b,
-        "example_zgui_app",
-        "src/example_zgui_app.zig",
-        "/wrinkles_content/",
-        all_check_step,
-        options,
-        common_deps,
-        true,
-    );
-
     const common_deps_with_sokol:[]const std.Build.Module.Import = &.{ 
         // external deps
         .{ .name = "comath", .module = comath_dep.module("comath") },
@@ -1006,6 +985,27 @@ pub fn build(
         .{ .name = "sokol_app_wrapper", .module = sokol_app_wrapper },
         .{ .name = "imzokol", .module = imzokol },
     };
+    executable(
+        b,
+        "curvet",
+        "src/curvet.zig",
+        "/wrinkles_content/",
+        all_check_step,
+        options,
+        common_deps_with_sokol,
+        false,
+    );
+    executable(
+        b,
+        "example_zgui_app",
+        "src/example_zgui_app.zig",
+        "/wrinkles_content/",
+        all_check_step,
+        options,
+        common_deps,
+        true,
+    );
+
     executable(
         b,
         "sokol_test",

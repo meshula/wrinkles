@@ -6,7 +6,7 @@ const zplot = zgui.plot;
 const sokol_app_wrapper = @import("sokol_app_wrapper");
 
 /// draw the UI
-fn drawGui(
+fn draw(
 ) !void 
 {
     const vp = zgui.getMainViewport();
@@ -100,5 +100,5 @@ fn drawGui(
 pub fn main(
 ) void 
 {
-    sokol_app_wrapper.main( .{ .drawGui = drawGui, },);
+    sokol_app_wrapper.main( .{ .draw = draw, },);
 }
