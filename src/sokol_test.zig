@@ -95,27 +95,20 @@ export fn event(
     }
 }
 
-fn drawGui() !void {
-    // c.igShowDemoWindow(null);
-    // c.ImPlot_ShowDemoWindow(null);
-
-    // const size = gfx_state.gctx.window_provider.fn_getFramebufferSize(gfx_state.gctx.window_provider.window);
-    // const width:f32 = @floatFromInt(size[0]);
-    // const height:f32 = @floatFromInt(size[1]);
-    //
-    // zgui.setNextWindowSize(.{ .w = width, .h = height, });
-    //
-
+/// draw the UI
+fn drawGui(
+) !void 
+{
     const viewport = c.igGetMainViewport();
-    // ImGui::SetNextWindowPos(viewport->GetWorkPos());
-    // ImGui::SetNextWindowSize(viewport->GetWorkSize());
-    // ImGui::SetNextWindowViewport(viewport->ID);
-    //
-    c.igSetNextWindowSize(viewport.*.WorkSize, c.ImGuiCond_None);
-    c.igSetNextWindowPos(.{ .x = 0, .y = 0 }, c.ImGuiCond_None, .{},);
-    c.igSetNextWindowViewport(viewport.*.ID);
 
-    // var main_is_open : bool = true;
+    zgui.setNextWindowPos(.{ .x = 0, .y = 0 });
+    zgui.setNextWindowSize(
+        .{ 
+            .w = viewport.*.WorkSize.x,
+            .h = viewport.*.WorkSize.y,
+        }
+    );
+
     if (
         zgui.begin(
             "###FULLSCREEN",
@@ -130,30 +123,11 @@ fn drawGui() !void {
                 },
             }
         )
-        // c.igBegin(
-        //     "###FULLSCREEN",
-        //     @ptrCast(&main_is_open),
-        //     c.ImGuiWindowFlags_NoDecoration 
-        //     | c.ImGuiWindowFlags_NoResize
-        //     | c.ImGuiWindowFlags_NoScrollWithMouse
-        //     | c.ImGuiWindowFlags_AlwaysAutoResize
-        //     | c.ImGuiWindowFlags_NoMove
-        //     ,
-        // )
     )
     {
         defer zgui.end();
 
         zgui.bulletText("pasta, potato: {d}\n", .{ 12 });
-
-        if (zgui.isKeyDown(.escape)) {
-            std.process.exit(0);
-        }
-
-        // var demo_open = true;
-        // zgui.showDemoWindow(&demo_open);
-        // var demo_open_plot = true;
-        // zgui.plot.showDemoWindow(&demo_open_plot);
 
         if (c.ImPlot_BeginPlot(
                 "Graph View",
