@@ -81,17 +81,14 @@ export fn event(
 {
     _ = c.simgui_handle_event(@ptrCast(ev));
 
-    // Callback function for handling input events 
+    // Check if the key event is a key press, and if it is the Escape key 
+    if (
+        ev.*.type == .KEY_DOWN
+        and ev.*.key_code == .ESCAPE
+    ) 
     { 
-        // Check if the key event is a key press, and if it is the Escape key 
-        if (
-            ev.*.type == .KEY_DOWN
-            and ev.*.key_code == .ESCAPE
-        ) 
-        { 
-            // Quit the application 
-            c.sapp_request_quit(); 
-        }
+        // Quit the application 
+        c.sapp_request_quit(); 
     }
 }
 
