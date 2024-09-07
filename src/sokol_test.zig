@@ -116,6 +116,10 @@ fn drawGui() !void {
 
         zgui.bulletText("pasta, potato: {d}\n", .{ 12 });
 
+        if (zgui.isKeyDown(.escape)) {
+            std.process.exit(0);
+        }
+
         // var demo_open = true;
         // zgui.showDemoWindow(&demo_open);
         // var demo_open_plot = true;
