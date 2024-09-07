@@ -103,13 +103,14 @@ export fn event(
 fn drawGui(
 ) !void 
 {
-    const viewport = c.igGetMainViewport();
+    const vp = zgui.getMainViewport();
+    const size = vp.getSize();
 
     zgui.setNextWindowPos(.{ .x = 0, .y = 0 });
     zgui.setNextWindowSize(
         .{ 
-            .w = viewport.*.WorkSize.x,
-            .h = viewport.*.WorkSize.y,
+            .w = size[0],
+            .h = size[1],
         }
     );
 
@@ -146,8 +147,9 @@ fn drawGui(
             defer zgui.endChild();
             if (
                 zgui.plot.beginPlot(
-                    "Curve Plot",
+                    "Test ZPlot Plot",
                     .{ 
+                        .w = -1.0,
                         .h = -1.0,
                         .flags = .{ .equal = true },
                     }
