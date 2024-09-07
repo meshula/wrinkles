@@ -5,6 +5,10 @@ const zplot = zgui.plot;
 
 const sokol_app_wrapper = @import("sokol_app_wrapper");
 
+const build_options = @import("build_options");
+const exe_build_options = @import("exe_build_options");
+const content_dir = exe_build_options.sokol_test_content_dir;
+
 /// draw the UI
 fn draw(
 ) !void 
@@ -100,5 +104,10 @@ fn draw(
 pub fn main(
 ) void 
 {
-    sokol_app_wrapper.main( .{ .draw = draw, },);
+    sokol_app_wrapper.main(
+        .{
+            .draw = draw, 
+            .content_dir = content_dir,
+        },
+    );
 }

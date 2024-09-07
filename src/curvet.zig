@@ -335,12 +335,11 @@ pub fn main(
     defer TMPCURVES.snd.split_hodograph.deinit(allocator);
     defer STATE.deinit(allocator);
 
-    // try update(gfx_state, &state, &tmpCurves, allocator);
-
     sokol_app_wrapper.main(
         .{
             .title = title,
             .draw = update,
+            .content_dir = content_dir,
         }
     );
 }
@@ -1452,9 +1451,15 @@ fn update() !void
     };
 }
 
+var first_time = true;
+
 fn update_with_error(
 ) !void 
 {
+    if (first_time) {
+        
+    }
+
     var _proj = time_topology.TimeTopology.init_identity_infinite();
     const inf = time_topology.TimeTopology.init_identity_infinite();
 

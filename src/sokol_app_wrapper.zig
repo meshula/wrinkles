@@ -13,6 +13,7 @@ var pass_action: sg.PassAction = .{};
 var gfx_arena_state : std.heap.ArenaAllocator = undefined;
 var gfx_allocator : std.mem.Allocator = undefined;
 
+var content_dir : []const u8 = undefined;
 
 export fn init(
 ) void 
@@ -48,6 +49,59 @@ export fn init(
     zgui.temp_buffer = std.ArrayList(u8).init(arena);
     zgui.temp_buffer.?.resize(3 * 1024 + 1) catch unreachable;
     zgui.plot.init();
+
+    {
+        const scale_factor = c.sokol.app.sapp_dpi_scale();
+
+
+        const robota_font_path = std.fs.path.joinZ(
+            gfx_allocator,
+            &.{ content_dir, "Roboto-Medium.ttf" }
+        ) catch @panic("couldn't find font");
+        defer gfx_allocator.free(robota_font_path);
+
+        const font_size = 16.0 * scale_factor;
+        const font_large = zgui.io.addFontFromFile(
+            robota_font_path,
+            font_size * 1.1
+        );
+        _ = font_large;
+        // std.debug.assert(zgui.io.getFont(0) == font_large);
+
+        const font_normal = zgui.io.addFontFromFile(
+            robota_font_path,
+            font_size
+        );
+        // std.debug.assert(zgui.io.getFont(1) == font_normal);
+
+        // This call is optional. Initially, zgui.io.getFont(0) is a default font.
+        zgui.io.setDefaultFont(font_normal);
+
+        // You can directly manipulate zgui.Style *before* `newFrame()` call.
+        // Once frame is started (after `newFrame()` call) you have to use
+        // zgui.pushStyleColor*()/zgui.pushStyleVar*() functions.
+        const style = zgui.getStyle();
+
+        style.window_min_size = .{ 320.0, 240.0 };
+        style.window_border_size = 8.0;
+        style.scrollbar_size = 6.0;
+        {
+            var color = style.getColor(.scrollbar_grab);
+            color[1] = 0.8;
+            style.setColor(.scrollbar_grab, color);
+        }
+        style.scaleAllSizes(scale_factor);
+
+        // To reset zgui.Style with default values:
+        //zgui.getStyle().* = zgui.Style.init();
+
+        {
+            zgui.plot.getStyle().line_weight = 3.0;
+            const plot_style = zgui.plot.getStyle();
+            plot_style.marker = .circle;
+            plot_style.marker_size = 5.0;
+        }
+    }
 }
 
 export fn frame(
@@ -103,6 +157,7 @@ const SokolApp = struct {
     title: [:0]const u8 = "Wrinkles Sokol Test",
     event: *const fn (ev: [*c]const sapp.Event) callconv(.C) void = &event,
     draw: *const fn () error{}!void,
+    content_dir: []const u8 = "",
 };
 var app : SokolApp = undefined;
 
@@ -111,6 +166,7 @@ pub fn main(
 ) void 
 {
     app = app_in;
+    content_dir = app.content_dir;
 
     sapp.run(
         .{
