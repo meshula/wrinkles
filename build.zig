@@ -439,6 +439,14 @@ pub fn executable(
                 .use_filesystem = false,
                 // NOTE: when sokol-zig is used as package, this path needs to be absolute!
                 .shell_file_path = shell_path_abs,
+                .extra_args = &.{
+                    "-sUSE_OFFSET_CONVERTER=1",
+                    // "-sTOTAL_STACK=1024MB",
+                     "-sALLOW_MEMORY_GROWTH=1",
+                     "-sASSERTIONS=1",
+                     "-sSAFE_HEAP=0",
+                     "-sERROR_ON_UNDEFINED_SYMBOLS=0",
+                },
             }
         );
 
