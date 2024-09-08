@@ -1,7 +1,8 @@
 //! Build script for wrinkles project
 
-const builtin = @import("builtin");
 const std = @import("std");
+const sokol_build = @import("sokol");
+const builtin = @import("builtin");
 
 // helper function to build a LazyPath from the emsdk root and provided path components
 fn emSdkLazyPath(
@@ -159,6 +160,10 @@ pub const Options = struct {
     test_step: *std.Build.Step,
     all_docs_step: *std.Build.Step,
     all_check_step: *std.Build.Step,
+
+    sokol_dep: ?*std.Build.Dependency = null,
+    imgui_lib: ?*std.Build.Step.Compile = null,
+    implot_lib: ?*std.Build.Step.Compile = null,
 };
 
 /// find the path to the directory containing this build.zig file
@@ -351,62 +356,10 @@ pub fn executable(
             exe.linkLibrary(zstbi_pkg.artifact("zstbi"));
         } 
         // for emscripten builds
-        // else
-        // {
-        //
-        //     var run: ?*std.Build.Step.Run = null;
-        //     if (!options.target.result.isWasm()) {
-        //         // const install = b.addInstallArtifact(example, .{});
-        //         // run = b.addRunArtifact(example);
-        //         // run.?.step.dependOn(&install.step);
-        //     } else {
-        //         // for WASM, need to build the Zig code as static library, since
-        //         // linking happens via emcc
-        //         const emsdk = sokol_dep.builder.dependency("emsdk", .{});
-        //
-        //         const example = b.addStaticLibrary(.{
-        //             .name = wgui_name,
-        //             .root_source_file = root_source_file,
-        //             .target = options.target,
-        //             .optimize = options.optimize,
-        //         });
-        //
-        //         imgui_lib.addSystemIncludePath(emSdkLazyPath(b, emsdk));
-        //         implot_lib.addSystemIncludePath(emSdkLazyPath(b, emsdk));
-        //         mod.addSystemIncludePath(emSdkLazyPath(b, emsdk));
-        //
-        //         example.root_module.addImport("imzokol", mod);
-        //
-        //         const shell_path = sokol_dep.path(
-        //             "src/sokol/web/shell.html",
-        //         ).getPath(sokol_dep.builder);
-        //
-        //         const link_step = try sokol_build.emLinkStep(
-        //             b,
-        //             .{
-        //                 .lib_main = example,
-        //                 .target = options.target,
-        //                 .optimize = options.optimize,
-        //                 .emsdk = emsdk,
-        //                 .use_webgpu = backend == .wgpu,
-        //                 .use_webgl2 = backend != .wgpu,
-        //                 .use_emmalloc = true,
-        //                 .use_filesystem = false,
-        //                 // NOTE: when sokol-zig is used as package, this path needs to be absolute!
-        //                 .shell_file_path = b.path(shell_path),
-        //             }
-        //         );
-        //
-        //         run = sokol_build.emRunStep(
-        //             b,
-        //             .{ .name = name, .emsdk = emsdk }
-        //         );
-        //         run.?.step.dependOn(&link_step.step);
-        //     }
-        // }
     }
 
     // run and install the executable
+    if (!options.target.result.isWasm())
     {
         const install_exe_step = &b.addInstallArtifact(
             exe,
@@ -431,6 +384,68 @@ pub fn executable(
         run_step.dependOn(&run_cmd);
 
         b.getInstallStep().dependOn(install);
+    }
+    else
+    {
+        // for WASM, need to build the Zig code as static library, since
+        // linking happens via emcc
+        const emsdk = options.sokol_dep.?.builder.dependency(
+            "emsdk",
+            .{}
+        );
+
+        const example = b.addStaticLibrary(
+            .{
+                .name = name,
+                .root_source_file = b.path(main_file_name),
+                .target = options.target,
+                .optimize = options.optimize,
+            }
+        );
+
+        options.imgui_lib.?.addSystemIncludePath(emSdkLazyPath(b, emsdk));
+        options.implot_lib.?.addSystemIncludePath(emSdkLazyPath(b, emsdk));
+        exe.root_module.addSystemIncludePath(emSdkLazyPath(b, emsdk));
+
+        // example.root_module.addImport("imzokol", mod);
+
+        const shell_path_abs = options.sokol_dep.?.path(
+            "src/sokol/web/shell.html",
+        );
+
+        // const sokol_build = @import("sokol");
+        const backend = sokol_build.resolveSokolBackend(
+            .auto,
+            options.target.result,
+        );
+
+        const link_step = try sokol_build.emLinkStep(
+            b,
+            .{
+                .lib_main = example,
+                .target = options.target,
+                .optimize = options.optimize,
+                .emsdk = emsdk,
+                .use_webgpu = backend == .wgpu,
+                .use_webgl2 = backend != .wgpu,
+                .use_emmalloc = true,
+                .use_filesystem = false,
+                // NOTE: when sokol-zig is used as package, this path needs to be absolute!
+                .shell_file_path = shell_path_abs,
+            }
+        );
+
+        const run = sokol_build.emRunStep(
+            b,
+            .{ .name = name, .emsdk = emsdk }
+        );
+        run.step.dependOn(&link_step.step);
+
+        const run_step = b.step(
+            name ++ "-run",
+            "Run '" ++ name ++ "' executable"
+        );
+        run_step.dependOn(&run.step);
     }
 
     // docs
@@ -567,12 +582,19 @@ pub fn build(
         "Check if everything compiles",
     );
 
+
+    const target = b.standardTargetOptions(.{});
+    const sokol_backend = sokol_build.resolveSokolBackend(
+        .auto,
+        target.result,
+    );
+
     //
     // Options and system checks
     //
-    const options = Options{
+    var options = Options{
         .optimize = b.standardOptimizeOption(.{}),
-        .target = b.standardTargetOptions(.{}),
+        .target = target,
         .zd3d12_enable_debug_layer = b.option(
             bool,
             "zd3d12-enable-debug-layer",
@@ -864,14 +886,30 @@ pub fn build(
         test_step.dependOn(&run_exe.step);
     }
 
-    const imzokol = mod: {
-        const sokol_build = @import("sokol");
+    const sokol_dep = b.dependency(
+        "sokol",
+        .{
+            .target = options.target,
+            .optimize = options.optimize,
+        }
+    );
+    options.sokol_dep = sokol_dep;
 
-        const backend = sokol_build.resolveSokolBackend(
-            .auto,
-            options.target.result,
-        );
-        const backend_cflags = switch (backend) {
+    const imgui_dep = b.dependency("zig_imgui", .{
+        .target = options.target,
+        .optimize = options.optimize,
+    });
+    const imgui_include = imgui_dep.path("src");
+    const imgui_lib = imgui_dep.artifact("imgui");
+    const implot_lib = imgui_dep.artifact("implot");
+
+    options.imgui_lib = imgui_lib;
+    options.implot_lib = implot_lib;
+
+    const imzokol = mod: {
+        // const sokol_build = @import("sokol");
+
+        const backend_cflags = switch (sokol_backend) {
             .d3d11 => "-DSOKOL_D3D11",
             .metal => "-DSOKOL_METAL",
             .gl => "-DSOKOL_GLCORE",
@@ -880,19 +918,7 @@ pub fn build(
             else => @panic("unknown sokol backend"),
         };
 
-        const sokol_dep = b.dependency("sokol", .{
-            .target = options.target,
-            .optimize = options.optimize,
-        });
         const sokol_mod = sokol_dep.module("sokol");
-
-        const imgui_dep = b.dependency("zig_imgui", .{
-            .target = options.target,
-            .optimize = options.optimize,
-        });
-        const imgui_include = imgui_dep.path("src");
-        const imgui_lib = imgui_dep.artifact("imgui");
-        const implot_lib = imgui_dep.artifact("implot");
 
         // const wgui_name = "wgui";
         // const root_source_file = b.path("src/sokol_test.zig");
