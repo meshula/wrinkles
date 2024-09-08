@@ -162,7 +162,7 @@ const SokolApp = struct {
 };
 var app : SokolApp = undefined;
 
-pub fn main(
+pub fn sokol_main(
     comptime app_in: SokolApp,
 ) void 
 {

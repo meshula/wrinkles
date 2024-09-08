@@ -104,7 +104,7 @@ fn draw(
 pub fn main(
 ) void 
 {
-    sokol_app_wrapper.main(
+    sokol_app_wrapper.sokol_main(
         .{
             .draw = draw, 
             .content_dir = content_dir,

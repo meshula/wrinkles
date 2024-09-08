@@ -335,7 +335,7 @@ pub fn main(
     defer TMPCURVES.snd.split_hodograph.deinit(allocator);
     defer STATE.deinit(allocator);
 
-    sokol_app_wrapper.main(
+    sokol_app_wrapper.sokol_main(
         .{
             .title = title,
             .draw = update,
