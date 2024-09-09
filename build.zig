@@ -407,7 +407,7 @@ pub fn executable(
 
         options.imgui_lib.?.addSystemIncludePath(emSdkLazyPath(b, emsdk));
         options.implot_lib.?.addSystemIncludePath(emSdkLazyPath(b, emsdk));
-        exe.root_module.addSystemIncludePath(emSdkLazyPath(b, emsdk));
+        // exe.root_module.addSystemIncludePath(emSdkLazyPath(b, emsdk));
 
         for (module_deps) 
             |mod| 
@@ -436,7 +436,7 @@ pub fn executable(
                 .use_webgpu = backend == .wgpu,
                 .use_webgl2 = backend != .wgpu,
                 .use_emmalloc = true,
-                .use_filesystem = false,
+                .use_filesystem = true,
                 // NOTE: when sokol-zig is used as package, this path needs to be absolute!
                 .shell_file_path = shell_path_abs,
                 .extra_args = &.{
@@ -445,7 +445,8 @@ pub fn executable(
                      "-sALLOW_MEMORY_GROWTH=1",
                      "-sASSERTIONS=1",
                      "-sSAFE_HEAP=0",
-                     "-sERROR_ON_UNDEFINED_SYMBOLS=0",
+                     "-g",
+                     "-gsource-map",
                 },
             }
         );
@@ -663,6 +664,10 @@ pub fn build(
         .target = options.target,
         .optimize = options.optimize,
     });
+    const cpp_imgui_dep = imgui_dep.builder.dependency(
+        "imgui",
+        .{ .target = options.target, .optimize = options.optimize }
+    );
     const imgui_include = imgui_dep.path("src");
     const imgui_lib = imgui_dep.artifact("imgui");
     const implot_lib = imgui_dep.artifact("implot");
@@ -697,6 +702,7 @@ pub fn build(
         mod.addIncludePath(sokol_dep.path("src/sokol/c"));
         mod.addIncludePath(imgui_include);
         mod.addIncludePath(b.path("src"));
+        mod.addIncludePath(cpp_imgui_dep.path(""));
         mod.addCSourceFile(
             .{ .file = b.path("libs/sokol_wrapper/sokol_imgui.c"), .flags = &.{
                 "-DSOKOL_IMGUI_IMPL",

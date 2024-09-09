@@ -30,23 +30,25 @@ pub const DrawVert = extern struct {
 };
 //--------------------------------------------------------------------------------------------------
 
-var zgui_initialized = false;
+var initialized_zgui = false;
 
 pub fn init(allocator: std.mem.Allocator) void {
     std.debug.print("outer\n", .{});
     // if (zguiGetCurrentContext() == null) {
-    if (zgui_initialized == false) {
-        zgui_initialized = true;
+    if (initialized_zgui == false) {
+        initialized_zgui = true;
         std.debug.print("inner\n", .{});
         mem_allocator = allocator;
         mem_allocations = std.AutoHashMap(usize, usize).init(allocator);
+        std.debug.print("prealloc\n", .{});
         mem_allocations.?.ensureTotalCapacity(32) catch @panic("zgui: out of memory");
+        std.debug.print("postalloc\n", .{});
         zguiSetAllocatorFunctions(zguiMemAlloc, zguiMemFree);
 
         if (zguiGetCurrentContext() == null) {
             _ = zguiCreateContext(null);
         }
-        std.debug.print("conetxt happy\n", .{});
+        std.debug.print("context happy\n", .{});
 
         temp_buffer = std.ArrayList(u8).init(allocator);
         temp_buffer.?.resize(3 * 1024 + 1) catch unreachable;
