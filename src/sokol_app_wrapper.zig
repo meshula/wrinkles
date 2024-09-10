@@ -126,10 +126,11 @@ export fn frame(
 export fn cleanup(
 ) void 
 {
-    zplot.deinit();
-    zgui.deinit();
     simgui.shutdown();
+    zgui.deinit();
+    zplot.deinit();
     sg.shutdown();
+    arena.deinit();
 }
 
 /// handle keypresses

@@ -304,6 +304,14 @@ pub fn executable(
 
     exe.want_lto = false;
 
+    const dep_ziis = b.dependency(
+        "zgui_cimgui_implot_sokol",
+        .{
+            .target = options.target,
+            .optimize = options.optimize,
+        }
+    );
+
     // zig gamedev dependencies
     {
         if (use_zig_gamedev) 
@@ -366,7 +374,14 @@ pub fn executable(
             );
             exe.linkLibrary(zstbi_pkg.artifact("zstbi"));
         } 
-        // for emscripten builds
+        else 
+        {
+            // for emscripten builds
+            exe.root_module.addImport(
+                "zgui_cimgui_implot_sokol",
+                dep_ziis.module("zgui_cimgui_implot_sokol")
+            );
+        }
     }
 
     // run and install the executable
@@ -384,7 +399,6 @@ pub fn executable(
         // install.dependOn(codesign_exe_step);
         install.dependOn(install_exe_step);
 
-
         var run_cmd = b.addRunArtifact(exe).step;
         run_cmd.dependOn(install);
 
@@ -398,20 +412,13 @@ pub fn executable(
     }
     else
     {
-        const dep_ziis = b.dependency(
-            "zgui_cimgui_implot_sokol",
-            .{
-                .target = options.target,
-                .optimize = options.optimize,
-            }
-        );
-
-        const emsdk = ziis.fetchEmSdk(dep_ziis);
 
         exe.root_module.addImport(
             "zgui_cimgui_implot_sokol",
             dep_ziis.module("zgui_cimgui_implot_sokol")
         );
+
+        const emsdk = ziis.fetchEmSdk(dep_ziis);
 
         for (module_deps) 
             |mod| 
@@ -600,16 +607,13 @@ pub fn build(
     b: *std.Build,
 ) void 
 {
-    std.debug.print("1\n", .{});
     ensureZigVersion() catch return;
-    std.debug.print("2\n", .{});
 
     const test_step = b.step(
         "test",
         "step to run all unit tests",
     );
 
-    std.debug.print("3\n", .{});
 
     const all_docs_step = b.step(
         "docs",
@@ -683,8 +687,6 @@ pub fn build(
         "graphviz_dot_on",
         graphviz_dot_on,
     );
-
-    std.debug.print("4\n", .{});
 
     // submodules and dependencies
     const comath_dep = b.dependency(
@@ -1030,5 +1032,4 @@ pub fn build(
         common_deps_with_sokol,
         false,
     );
-    std.debug.print("last\n", .{});
 }
