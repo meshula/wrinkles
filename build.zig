@@ -412,7 +412,7 @@ pub fn executable(
     }
     else
     {
-
+        // wasm build
         exe.root_module.addImport(
             "zgui_cimgui_implot_sokol",
             dep_ziis.module("zgui_cimgui_implot_sokol")
@@ -475,19 +475,6 @@ pub fn executable(
         const run = ziis.emRunStep(b, .{ .name = name, .emsdk = emsdk });
         run.step.dependOn(&link_step.step);
         b.step(name ++ "-run", "Run " ++ name).dependOn(&run.step);
-
-        //
-        // const run = sokol_build.emRunStep(
-        //     b,
-        //     .{ .name = name, .emsdk = emsdk }
-        // );
-        // run.step.dependOn(&link_step.step);
-        //
-        // const run_step = b.step(
-        //     name ++ "-run",
-        //     "Run '" ++ name ++ "' executable"
-        // );
-        // run_step.dependOn(&run.step);
     }
 
     // docs
