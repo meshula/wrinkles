@@ -1,6 +1,6 @@
 const std = @import("std");
-const c = @import("imzokol");
-const zgui = c.zgui;
+const ziis = @import("zgui_cimgui_implot_sokol");
+const zgui = ziis.zgui;
 const zplot = zgui.plot;
 
 const sokol_app_wrapper = @import("sokol_app_wrapper");
@@ -58,48 +58,49 @@ fn draw(
         )
         {
             defer zgui.endChild();
-            // if (
-            //     zgui.plot.beginPlot(
-            //         "Test ZPlot Plot",
-            //         .{ 
-            //             .w = -1.0,
-            //             .h = -1.0,
-            //             .flags = .{ .equal = true },
-            //         }
-            //     )
-            // ) 
-            // {
-            //     defer zgui.plot.endPlot();
-            //
-            //     zgui.plot.setupAxis(
-            //         .x1,
-            //         .{ .label = "input" }
-            //     );
-            //     zgui.plot.setupAxis(
-            //         .y1,
-            //         .{ .label = "output" }
-            //     );
-            //     zgui.plot.setupLegend(
-            //         .{ 
-            //             .south = true,
-            //             .west = true 
-            //         },
-            //         .{}
-            //     );
-            //     zgui.plot.setupFinish();
-            //
-            //     const xs= [_]f32{0, 1, 2, 3, 4};
-            //     const ys= [_]f32{0, 1, 2, 3, 6};
-            //
-            //     zplot.plotLine(
-            //         "test plot",
-            //         f32, 
-            //         .{
-            //             .xv = &xs,
-            //             .yv = &ys 
-            //         },
-            //     );
-            // }
+
+            if (
+                zgui.plot.beginPlot(
+                    "Test ZPlot Plot",
+                    .{ 
+                        .w = -1.0,
+                        .h = -1.0,
+                        .flags = .{ .equal = true },
+                    }
+                )
+            ) 
+            {
+                defer zgui.plot.endPlot();
+
+                zgui.plot.setupAxis(
+                    .x1,
+                    .{ .label = "input" }
+                );
+                zgui.plot.setupAxis(
+                    .y1,
+                    .{ .label = "output" }
+                );
+                zgui.plot.setupLegend(
+                    .{ 
+                        .south = true,
+                        .west = true 
+                    },
+                    .{}
+                );
+                zgui.plot.setupFinish();
+
+                const xs= [_]f32{0, 1, 2, 3, 4};
+                const ys= [_]f32{0, 1, 2, 3, 6};
+
+                zplot.plotLine(
+                    "test plot",
+                    f32, 
+                    .{
+                        .xv = &xs,
+                        .yv = &ys 
+                    },
+                );
+            }
         }
     }
 }

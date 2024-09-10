@@ -3,6 +3,7 @@
 const std = @import("std");
 const sokol_build = @import("sokol");
 const builtin = @import("builtin");
+const ziis = @import("zgui_cimgui_implot_sokol");
 
 // helper function to build a LazyPath from the emsdk root and provided path components
 fn emSdkLazyPath(
@@ -397,17 +398,20 @@ pub fn executable(
     }
     else
     {
-        std.debug.print("wasm build\n", .{});
-        // for WASM, need to build the Zig code as static library, since
-        // linking happens via emcc
-        const emsdk = options.sokol_dep.?.builder.dependency(
-            "emsdk",
-            .{}
+        const dep_ziis = b.dependency(
+            "zgui_cimgui_implot_sokol",
+            .{
+                .target = options.target,
+                .optimize = options.optimize,
+            }
         );
 
-        options.imgui_lib.?.addSystemIncludePath(emSdkLazyPath(b, emsdk));
-        options.implot_lib.?.addSystemIncludePath(emSdkLazyPath(b, emsdk));
-        // exe.root_module.addSystemIncludePath(emSdkLazyPath(b, emsdk));
+        const emsdk = ziis.fetchEmSdk(dep_ziis);
+
+        exe.root_module.addImport(
+            "zgui_cimgui_implot_sokol",
+            dep_ziis.module("zgui_cimgui_implot_sokol")
+        );
 
         for (module_deps) 
             |mod| 
@@ -415,26 +419,37 @@ pub fn executable(
             mod.module.addSystemIncludePath(emSdkLazyPath(b, emsdk));
         }
 
+        const shell_path_abs = ziis.fetchShellPath(dep_ziis);
 
-        const shell_path_abs = options.sokol_dep.?.path(
-            "src/sokol/web/shell.html",
-        );
+        // std.debug.print("wasm build\n", .{});
+        // // for WASM, need to build the Zig code as static library, since
+        // // linking happens via emcc
+        // options.imgui_lib.?.addSystemIncludePath(emSdkLazyPath(b, emsdk));
+        // options.implot_lib.?.addSystemIncludePath(emSdkLazyPath(b, emsdk));
+        // // exe.root_module.addSystemIncludePath(emSdkLazyPath(b, emsdk));
+        //
+        //
+        //
+        // const shell_path_abs = options.sokol_dep.?.path(
+        //     "src/sokol/web/shell.html",
+        // );
+        //
+        // // const sokol_build = @import("sokol");
+        // const backend = sokol_build.resolveSokolBackend(
+        //     .auto,
+        //     options.target.result,
+        // );
+        //
 
-        // const sokol_build = @import("sokol");
-        const backend = sokol_build.resolveSokolBackend(
-            .auto,
-            options.target.result,
-        );
-
-        const link_step = try sokol_build.emLinkStep(
+        const link_step = try ziis.emLinkStep(
             b,
             .{
                 .lib_main = exe,
                 .target = options.target,
                 .optimize = options.optimize,
                 .emsdk = emsdk,
-                .use_webgpu = backend == .wgpu,
-                .use_webgl2 = backend != .wgpu,
+                // .use_webgpu = backend == .wgpu,
+                .use_webgl2 = true,
                 .use_emmalloc = true,
                 .use_filesystem = true,
                 // NOTE: when sokol-zig is used as package, this path needs to be absolute!
@@ -450,18 +465,22 @@ pub fn executable(
                 },
             }
         );
-
-        const run = sokol_build.emRunStep(
-            b,
-            .{ .name = name, .emsdk = emsdk }
-        );
+        const run = ziis.emRunStep(b, .{ .name = name, .emsdk = emsdk });
         run.step.dependOn(&link_step.step);
+        b.step(name ++ "-run", "Run " ++ name).dependOn(&run.step);
 
-        const run_step = b.step(
-            name ++ "-run",
-            "Run '" ++ name ++ "' executable"
-        );
-        run_step.dependOn(&run.step);
+        //
+        // const run = sokol_build.emRunStep(
+        //     b,
+        //     .{ .name = name, .emsdk = emsdk }
+        // );
+        // run.step.dependOn(&link_step.step);
+        //
+        // const run_step = b.step(
+        //     name ++ "-run",
+        //     "Run '" ++ name ++ "' executable"
+        // );
+        // run_step.dependOn(&run.step);
     }
 
     // docs
@@ -604,10 +623,10 @@ pub fn build(
 
 
     const target = b.standardTargetOptions(.{});
-    const sokol_backend = sokol_build.resolveSokolBackend(
-        .auto,
-        target.result,
-    );
+    // const sokol_backend = sokol_build.resolveSokolBackend(
+    //     .auto,
+    //     target.result,
+    // );
 
     //
     // Options and system checks
@@ -650,84 +669,8 @@ pub fn build(
         "hash",
         rev_HEAD(ALLOCATOR) catch "COULDNT READ HASH",
     );
-
-    const sokol_dep = b.dependency(
-        "sokol",
-        .{
-            .target = options.target,
-            .optimize = options.optimize,
-        }
-    );
-    options.sokol_dep = sokol_dep;
-
-    const imgui_dep = b.dependency("zig_imgui", .{
-        .target = options.target,
-        .optimize = options.optimize,
-    });
-    const cpp_imgui_dep = imgui_dep.builder.dependency(
-        "imgui",
-        .{ .target = options.target, .optimize = options.optimize }
-    );
-    const imgui_include = imgui_dep.path("src");
-    const imgui_lib = imgui_dep.artifact("imgui");
-    const implot_lib = imgui_dep.artifact("implot");
-
-    options.imgui_lib = imgui_lib;
-    options.implot_lib = implot_lib;
-
-    const imzokol = mod: {
-        // const sokol_build = @import("sokol");
-
-        const backend_cflags = switch (sokol_backend) {
-            .d3d11 => "-DSOKOL_D3D11",
-            .metal => "-DSOKOL_METAL",
-            .gl => "-DSOKOL_GLCORE",
-            .gles3 => "-DSOKOL_GLES3",
-            .wgpu => "-DSOKOL_WGPU",
-            else => @panic("unknown sokol backend"),
-        };
-
-        const sokol_mod = sokol_dep.module("sokol");
-
-        // const wgui_name = "wgui";
-        // const root_source_file = b.path("src/sokol_test.zig");
-
-        // module to be used by downstream projects
-        const mod = b.addModule("zig-sokol-imgui-implot", .{
-            .root_source_file = b.path("libs/sokol_wrapper/root.zig"),
-            .target = options.target,
-            .optimize = options.optimize,
-            .link_libcpp = true,
-        });
-        mod.addIncludePath(sokol_dep.path("src/sokol/c"));
-        mod.addIncludePath(imgui_include);
-        mod.addIncludePath(b.path("src"));
-        mod.addIncludePath(cpp_imgui_dep.path(""));
-        mod.addCSourceFile(
-            .{ .file = b.path("libs/sokol_wrapper/sokol_imgui.c"), .flags = &.{
-                "-DSOKOL_IMGUI_IMPL",
-                backend_cflags,
-            } },
-        );
-        mod.addCSourceFile(
-            .{
-                .file = b.path("libs/sokol_wrapper/zgui.cpp"),
-                .flags = &.{
-                    "-DZGUI_IMPLOT",
-                    backend_cflags 
-                },
-            }
-        );
-        mod.linkLibrary(imgui_lib);
-        mod.linkLibrary(implot_lib);
-        mod.addImport("sokol", sokol_mod);
-
-        break :mod mod;
-    };
-    const emsdk = options.sokol_dep.?.builder.dependency(
-        "emsdk",
-        .{}
-    );
+    const dep_ziis = b.dependency("zgui_cimgui_implot_sokol", .{});
+    const emsdk = ziis.fetchEmSdk(dep_ziis);
 
     const graphviz_dot_on = graphviz_dot_on_path() catch false;
 
@@ -999,7 +942,16 @@ pub fn build(
             .options = options,
             .fpath = "src/sokol_app_wrapper.zig",
             .deps = &.{
-                .{ .name = "imzokol", .module = imzokol,},
+                .{ 
+                    .name = "zgui_cimgui_implot_sokol",
+                    .module = b.dependency(
+                        "zgui_cimgui_implot_sokol",
+                        .{
+                            .target = options.target,
+                            .optimize = options.optimize,
+                        }
+                    ).module("zgui_cimgui_implot_sokol")
+                }
             },
         }
     );
@@ -1046,7 +998,6 @@ pub fn build(
         .{ .name = "spline_gym", .module = &spline_gym.root_module },
         .{ .name = "sampling", .module = sampling },
         .{ .name = "sokol_app_wrapper", .module = sokol_app_wrapper },
-        .{ .name = "imzokol", .module = imzokol },
     };
     executable(
         b,

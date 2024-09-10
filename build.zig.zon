@@ -40,6 +40,10 @@
             .hash = "122033f5f20ae70760a6fb94b588cbfe4e58b37f0bb0a4e3c311b7b2549def7535d9",
             
         },
+        .zgui_cimgui_implot_sokol = .{
+            .url="git+https://github.com/ssteinbach/zgui_cimgui_implot_sokol.git#v1.0",
+            .hash ="1220aac5e43a94ea7b0ae291aaa8df2d3ce51a07a6f5496e1ac2e3ca706c4da7bd54"
+        },
      },
     .paths = .{
         "build.zig",

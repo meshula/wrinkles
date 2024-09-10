@@ -1,52 +1,50 @@
 const std = @import("std");
-const c = @import("imzokol");
-const zgui = c.zgui;
-const zplot = zgui.plot;
-const sokol = c.sokol;
+const ig = @import("cimgui");
+const ziis = @import("zgui_cimgui_implot_sokol");
+const zgui = ziis.zgui;
+const zplot = ziis.zgui.plot;
+const sokol = ziis.sokol;
 const slog = sokol.log;
 const sg = sokol.gfx;
 const sapp = sokol.app;
 const sglue = sokol.glue;
+const simgui = sokol.imgui;
 
-var pass_action: sg.PassAction = .{};
+const state = struct {
+    var pass_action: sg.PassAction = .{};
+};
 
 var content_dir : []const u8 = undefined;
 
 // const font_data = @embedFile(content_dir ++ "/Roboto-Medium.ttf");
 
-var arena_state = std.heap.ArenaAllocator.init(std.heap.c_allocator);
-const arena = arena_state.allocator();
+var arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+const allocator = arena.allocator();
 
 export fn init(
 ) void 
 {
-    sg.setup(
-        .{
-            .environment = sglue.environment(),
-            .logger = .{ .func = slog.func },
-        }
-    );
+    // initialize sokol-gfx
+    sg.setup(.{
+        .environment = sglue.environment(),
+        .logger = .{ .func = slog.func },
+    });
+    // initialize sokol-imgui
+    simgui.setup(.{
+        .logger = .{ .func = slog.func },
+    });
 
-    var desc: c.simgui_desc_t = .{};
-    c.simgui_setup(&desc);
-    _ = c.ImPlot_CreateContext();
-
-    var io: *c.ImGuiIO = @ptrCast(c.igGetIO());
-    io.ConfigFlags |= c.ImGuiConfigFlags_NavEnableKeyboard;
-    io.ConfigFlags |= c.ImGuiConfigFlags_DockingEnable;
-    io.FontGlobalScale = 1.0 / io.DisplayFramebufferScale.y;
-
-    pass_action.colors[0] = .{
+    // initial clear color
+    state.pass_action.colors[0] = .{
         .load_action = .CLEAR,
-        .clear_value = .{ .r = 0, .g = 0, .b = 0, .a = 1 },
+        .clear_value = .{ .r = 0.0, .g = 0.5, .b = 1.0, .a = 1.0 },
     };
-    std.debug.print("Backend: {}\n", .{sg.queryBackend()});
 
-    zgui.init(arena);
-    // zgui.plot.init();
+    zgui.init(allocator);
+    zgui.plot.init();
 
     {
-        const scale_factor = c.sokol.app.sapp_dpi_scale();
+        const scale_factor = sokol.app.sapp_dpi_scale();
         //
         // const robota_font_path = std.fs.path.joinZ(
         //     gfx_allocator,
@@ -101,21 +99,26 @@ export fn init(
 export fn frame(
 ) void 
 {
-    var new_frame: c.simgui_frame_desc_t = .{
+    // call simgui.newFrame() before any ImGui calls
+    simgui.newFrame(.{
         .width = sapp.width(),
         .height = sapp.height(),
         .delta_time = sapp.frameDuration(),
         .dpi_scale = sapp.dpiScale(),
-    };
-    c.simgui_new_frame(&new_frame);
+    });
 
     app.draw() catch |err| {
         std.debug.print(">>> ERROR: {any}\n", .{err});
         std.process.exit(1);
     };
 
-    sg.beginPass(.{ .action = pass_action, .swapchain = sglue.swapchain() });
-    c.simgui_render();
+    sg.beginPass(
+        .{
+            .action = state.pass_action,
+            .swapchain = sglue.swapchain()
+        }
+    );
+    simgui.render();
     sg.endPass();
     sg.commit();
 }
@@ -123,8 +126,9 @@ export fn frame(
 export fn cleanup(
 ) void 
 {
-    c.ImPlot_DestroyContext(null);
-    c.simgui_shutdown();
+    zplot.deinit();
+    zgui.deinit();
+    simgui.shutdown();
     sg.shutdown();
 }
 
@@ -133,7 +137,7 @@ export fn event(
     ev: [*c]const sapp.Event,
 ) void 
 {
-    _ = c.simgui_handle_event(@ptrCast(ev));
+    _ = simgui.handleEvent(ev.*);
 
     // Check if the key event is a key press, and if it is the Escape key 
     if (
@@ -142,7 +146,7 @@ export fn event(
     ) 
     { 
         // Quit the application 
-        c.sapp_request_quit(); 
+        sapp.quit();
     }
 }
 
