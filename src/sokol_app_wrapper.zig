@@ -18,8 +18,10 @@ var content_dir : []const u8 = undefined;
 
 // const font_data = @embedFile(content_dir ++ "/Roboto-Medium.ttf");
 
-var raw = std.heap.GeneralPurposeAllocator(.{}){};
-const allocator = raw.allocator();
+const allocator = std.heap.c_allocator;
+
+// var raw = std.heap.GeneralPurposeAllocator(.{}){};
+// const allocator = raw.allocator();
 
 // var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 // const allocator = arena.allocator();
@@ -48,7 +50,7 @@ export fn init(
 
     {
         const scale_factor = sokol.app.sapp_dpi_scale();
-        //
+         
         // const robota_font_path = std.fs.path.joinZ(
         //     gfx_allocator,
         //     &.{ content_dir, "Roboto-Medium.ttf" }
@@ -75,6 +77,7 @@ export fn init(
         // You can directly manipulate zgui.Style *before* `newFrame()` call.
         // Once frame is started (after `newFrame()` call) you have to use
         // zgui.pushStyleColor*()/zgui.pushStyleVar*() functions.
+
         const style = zgui.getStyle();
 
         style.window_min_size = .{ 320.0, 240.0 };
