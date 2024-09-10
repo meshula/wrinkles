@@ -231,7 +231,7 @@ pub fn executable(
     all_check_step : *std.Build.Step,
     options: Options,
     module_deps: []const std.Build.Module.Import,
-    use_zig_gamedev: bool,
+    _: bool,
 ) void 
 {
     const exe = if (options.target.result.isWasm()) 
@@ -314,67 +314,6 @@ pub fn executable(
 
     // zig gamedev dependencies
     {
-        if (use_zig_gamedev) 
-        {
-            @import("zgpu").addLibraryPathsTo(exe);
-
-            const zgpu_pkg = b.dependency("zgpu", .{
-                .target = options.target,
-                .optimize = options.optimize,
-            });
-            exe.root_module.addImport(
-                "zgpu",
-                zgpu_pkg.module("root")
-            );
-            exe.linkLibrary(zgpu_pkg.artifact("zdawn"));
-
-            const zgui_pkg = b.dependency(
-                "zgui",
-                .{
-                    .target = options.target,
-                    .optimize = options.optimize,
-                    .shared = false,
-                    .with_implot = true,
-                    .backend = .glfw_wgpu,
-                }
-            );
-            exe.root_module.addImport(
-                "zgui",
-                zgui_pkg.module("root")
-            );
-            exe.linkLibrary(zgui_pkg.artifact("imgui"));
-
-            const zglfw_pkg = b.dependency("zglfw", .{
-                .target = options.target,
-                .optimize = options.optimize,
-                .shared = false,
-            });
-            exe.root_module.addImport(
-                "zglfw",
-                zglfw_pkg.module("root")
-            );
-            exe.linkLibrary(zglfw_pkg.artifact("glfw"));
-
-            const zpool_pkg = b.dependency("zpool", .{
-                .target = options.target,
-                .optimize = options.optimize,
-            });
-            exe.root_module.addImport(
-                "zpool",
-                zpool_pkg.module("root")
-            );
-
-            const zstbi_pkg = b.dependency("zstbi", .{
-                .target = options.target,
-                .optimize = options.optimize,
-            });
-            exe.root_module.addImport(
-                "zstbi",
-                zstbi_pkg.module("root")
-            );
-            exe.linkLibrary(zstbi_pkg.artifact("zstbi"));
-        } 
-        else 
         {
             // for emscripten builds
             exe.root_module.addImport(
@@ -945,33 +884,7 @@ pub fn build(
         }
     );
 
-    const common_deps:[]const std.Build.Module.Import = &.{ 
-        // external deps
-        .{ .name = "comath", .module = comath_dep.module("comath") },
-        .{ .name = "wav", .module = wav_dep },
-
-        // internal deps
-        .{ .name = "string_stuff", .module = string_stuff },
-        .{ .name = "opentime", .module = opentime },
-        .{ .name = "curve", .module = curve },
-        .{ .name = "time_topology", .module = time_topology },
-
-        // libraries with c components
-        .{ .name = "spline_gym", .module = &spline_gym.root_module },
-        .{ .name = "sampling", .module = sampling },
-    };
-
     // executables
-    executable(
-        b, 
-        "wrinkles",
-        "src/wrinkles.zig",
-        "/wrinkles_content/",
-        all_check_step,
-        options,
-        common_deps,
-        true,
-    );
     const common_deps_with_sokol:[]const std.Build.Module.Import = &.{ 
         // external deps
         .{ .name = "comath", .module = comath_dep.module("comath") },
@@ -997,16 +910,6 @@ pub fn build(
         options,
         common_deps_with_sokol,
         false,
-    );
-    executable(
-        b,
-        "example_zgui_app",
-        "src/example_zgui_app.zig",
-        "/wrinkles_content/",
-        all_check_step,
-        options,
-        common_deps,
-        true,
     );
 
     executable(

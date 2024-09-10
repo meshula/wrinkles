@@ -2,8 +2,8 @@
 
 const std = @import("std");
 
-const c = @import("imzokol");
-const zgui = c.zgui;
+const ziis = @import("zgui_cimgui_implot_sokol");
+const zgui = ziis.zgui;
 
 const build_options = @import("build_options");
 const exe_build_options = @import("exe_build_options");
@@ -1514,6 +1514,7 @@ fn update_with_error(
 
     if (!zgui.begin("###FULLSCREEN", .{ .flags = main_flags })) {
         zgui.end();
+        std.debug.print("early end\n", .{});
         return;
     }
     defer zgui.end();

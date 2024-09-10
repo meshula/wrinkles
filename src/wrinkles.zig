@@ -1,11 +1,7 @@
 const std = @import("std");
 const math = std.math;
-const zglfw = @import("zglfw");
-const zgpu = @import("zgpu");
-const wgpu = zgpu.wgpu;
 const zgui = @import("zgui");
-const zm = @import("zmath");
-const zstbi = @import("zstbi");
+// const zstbi = @import("zstbi");
 // const ot = @cImport({
 //     @cInclude("opentime.h");
 // });
@@ -33,7 +29,7 @@ const Uniforms = extern struct {
 };
 
 const DemoState = struct {
-    gctx: *zgpu.GraphicsContext,
+    // gctx: *zgpu.GraphicsContext,
 
     font_normal: zgui.Font,
     font_large: zgui.Font,
