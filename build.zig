@@ -5,25 +5,6 @@ const sokol_build = @import("sokol");
 const builtin = @import("builtin");
 const ziis = @import("zgui_cimgui_implot_sokol");
 
-// helper function to build a LazyPath from the emsdk root and provided path components
-fn emSdkLazyPath(
-    b: *std.Build,
-    emsdk: *std.Build.Dependency,
-) std.Build.LazyPath 
-{
-    return emsdk.path(
-        b.pathJoin(
-            &.{
-                "upstream",
-                "emscripten",
-                "cache",
-                "sysroot",
-                "include",
-            },
-        )
-    );
-}
-
 /// the minimum required zig version to build this project, manually updated
 pub const MIN_ZIG_VERSION = std.SemanticVersion{
     .major = 0,
@@ -271,35 +252,27 @@ pub fn executable(
             exe_options
         );
 
+        const content_dir = b.path(
+            "src/" ++ source_dir_path
+        );
+
         // @TODO: should this be in the install directory instead of `thisDir()`?
         exe_options.addOption(
             []const u8,
             name ++ "_content_dir",
-            thisDir() ++ "/src" ++ source_dir_path
+            content_dir.getPath(b)
         );
 
         if (!options.target.result.isWasm()) {
             const install_content_step = b.addInstallDirectory(
                 .{
-                    .source_dir = b.path(
-                        "src/" ++ source_dir_path
-                    ),
+                    .source_dir = content_dir,
                     .install_dir = .{ .custom = "" },
                     .install_subdir = "bin/" ++ name ++ "_content",
                 }
             );
             exe.step.dependOn(&install_content_step.step);
         }
-
-        // install_content_step.step.dependOn(
-        //     &b.addWriteFile(
-        //         "/dev/stdout",
-        //         (
-        //                "[build: "++name++"] content source directory path: " 
-        //                ++ thisDir() ++ source_dir_path ++ "\n"
-        //         ),
-        //     ).step
-        // );
     }
 
     exe.want_lto = false;
@@ -312,16 +285,11 @@ pub fn executable(
         }
     );
 
-    // zig gamedev dependencies
-    {
-        {
-            // for emscripten builds
-            exe.root_module.addImport(
-                "zgui_cimgui_implot_sokol",
-                dep_ziis.module("zgui_cimgui_implot_sokol")
-            );
-        }
-    }
+    // add ziis import
+    exe.root_module.addImport(
+        "zgui_cimgui_implot_sokol",
+        dep_ziis.module("zgui_cimgui_implot_sokol")
+    );
 
     // run and install the executable
     if (!options.target.result.isWasm())
@@ -362,30 +330,12 @@ pub fn executable(
         for (module_deps) 
             |mod| 
         {
-            mod.module.addSystemIncludePath(emSdkLazyPath(b, emsdk));
+            mod.module.addSystemIncludePath(
+                ziis.fetchEmSdkIncludePath(dep_ziis)
+            );
         }
 
         const shell_path_abs = ziis.fetchShellPath(dep_ziis);
-
-        // std.debug.print("wasm build\n", .{});
-        // // for WASM, need to build the Zig code as static library, since
-        // // linking happens via emcc
-        // options.imgui_lib.?.addSystemIncludePath(emSdkLazyPath(b, emsdk));
-        // options.implot_lib.?.addSystemIncludePath(emSdkLazyPath(b, emsdk));
-        // // exe.root_module.addSystemIncludePath(emSdkLazyPath(b, emsdk));
-        //
-        //
-        //
-        // const shell_path_abs = options.sokol_dep.?.path(
-        //     "src/sokol/web/shell.html",
-        // );
-        //
-        // // const sokol_build = @import("sokol");
-        // const backend = sokol_build.resolveSokolBackend(
-        //     .auto,
-        //     options.target.result,
-        // );
-        //
 
         const link_step = try ziis.emLinkStep(
             b,
@@ -600,7 +550,6 @@ pub fn build(
         rev_HEAD(ALLOCATOR) catch "COULDNT READ HASH",
     );
     const dep_ziis = b.dependency("zgui_cimgui_implot_sokol", .{});
-    const emsdk = ziis.fetchEmSdk(dep_ziis);
 
     const graphviz_dot_on = graphviz_dot_on_path() catch false;
 
@@ -659,7 +608,7 @@ pub fn build(
             }
         );
         if (options.target.result.isWasm()) {
-            kissfft.addSystemIncludePath(emSdkLazyPath(b, emsdk));
+            kissfft.addSystemIncludePath(ziis.fetchEmSdkIncludePath(dep_ziis));
         }
     }
 
@@ -704,6 +653,9 @@ pub fn build(
                 .flags = &C_ARGS
             }
         );
+        if (options.target.result.isWasm()) {
+            spline_gym.addSystemIncludePath(ziis.fetchEmSdkIncludePath(dep_ziis));
+        }
         b.installArtifact(spline_gym);
     }
 
@@ -748,7 +700,9 @@ pub fn build(
             }
         );
         if (options.target.result.isWasm()) {
-            libsamplerate.addSystemIncludePath(emSdkLazyPath(b, emsdk));
+            libsamplerate.addSystemIncludePath(
+                ziis.fetchEmSdkIncludePath(dep_ziis)
+            );
         }
     }
 
@@ -838,6 +792,12 @@ pub fn build(
             "time_topology",
             time_topology
         );
+        opentimelineio_c.linkLibCpp();
+        if (options.target.result.isWasm()) {
+            opentimelineio_c.addSystemIncludePath(
+                ziis.fetchEmSdkIncludePath(dep_ziis)
+            );
+        }
         b.installArtifact(opentimelineio_c);
 
         const exe = b.addExecutable(
@@ -854,6 +814,12 @@ pub fn build(
             },
         );
         exe.addIncludePath(b.path("src/c_binding/"));
+        exe.linkLibC();
+        if (options.target.result.isWasm()) {
+            exe.addSystemIncludePath(
+                ziis.fetchEmSdkIncludePath(dep_ziis)
+            );
+        }
         exe.linkLibrary(opentimelineio_c);
 
         b.installArtifact(exe);

@@ -26,15 +26,6 @@
             .url = "https://github.com/InKryption/comath/archive/cd2f8170f0440e5d88a734e8d162ad84d3e34290.tar.gz",
             .hash = "12203e39fef4d171fc3ff8e0276bb58679d2b6db10ce6175ad0ecfd2cfc35445febc",
         },
-        .zgui = .{ .path = "libs/zgui" },
-        .zglfw = .{ .path = "libs/zglfw" },
-        .zpool = .{ .path = "libs/zpool" },
-        .zgpu = .{ .path = "libs/zgpu" },
-        .zstbi = .{ .path = "libs/zstbi" },
-        .zig_imgui = .{
-            .url = "https://github.com/fjebaker/zig-imgui-implot/archive/main.tar.gz",
-            .hash = "1220e5fb819043746e56345723d644fc3261f5a425701d1b5b2fc1198ee792394dce",
-        },
         .sokol = .{
             .url = "https://github.com/floooh/sokol-zig/archive/master.tar.gz",
             .hash = "122033f5f20ae70760a6fb94b588cbfe4e58b37f0bb0a4e3c311b7b2549def7535d9",
