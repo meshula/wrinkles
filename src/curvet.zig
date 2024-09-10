@@ -214,8 +214,8 @@ const VisCurve = struct {
 };
 
 const projTmpTest = struct {
-    fst: VisCurve,
-    snd: VisCurve,
+    a2b: VisCurve,
+    b2c: VisCurve,
 };
 
 fn _is_between(
@@ -290,23 +290,35 @@ pub fn main(
         ++ "]"
     );
 
-    var gpa = std.heap.GeneralPurposeAllocator(.{.stack_trace_frames = 32}){};
-    defer _ = gpa.deinit();
+    const builtin = @import("builtin");
 
-    const allocator = gpa.allocator();
-    ALLOCATOR = allocator;
+    ALLOCATOR = alloc: {
+        if (builtin.os.tag == .emscripten) {
+            break :alloc std.heap.c_allocator;
+        } else {
+            var gpa = std.heap.GeneralPurposeAllocator(
+                .{}
+            ){};
+
+            break :alloc gpa.allocator();
+        }
+    };
+    const allocator = ALLOCATOR;
 
     STATE = try _parse_args(allocator);
 
+    const built_in_curve_data = struct{
+        const upside_down_u = @embedFile("upside_down_u.curve.json");
+    };
+
     // u
     const fst_name:[:0]const u8 = "upside down u";
-    const fst_crv = try curve.read_curve_json(
-        "curves/upside_down_u.curve.json" ,
-        allocator
+    const fst_crv = try curve.read_bezier_curve_data(
+        allocator,
+        built_in_curve_data.upside_down_u
     );
     defer fst_crv.deinit(allocator);
 
-    // const identSeg = curve.Bezier.Segment.init_identity(-0.2, 1) ;
     const identSeg = curve.Bezier.Segment.init_identity(-3, 3) ;
     const snd_crv = try curve.Bezier.init(
         allocator,
@@ -317,19 +329,19 @@ pub fn main(
 
     TMPCURVES = projTmpTest{
         // projecting "snd" through "fst"
-        .fst = .{ 
+        .b2c = .{ 
             .curve = fst_crv,
             .fpath = fst_name,
             .split_hodograph = try fst_crv.split_on_critical_points(allocator),
         },
-        .snd = .{ 
+        .a2b = .{ 
             .curve = snd_crv,
             .fpath = snd_name,
             .split_hodograph = try snd_crv.split_on_critical_points(allocator),
         },
     };
-    defer TMPCURVES.fst.split_hodograph.deinit(allocator);
-    defer TMPCURVES.snd.split_hodograph.deinit(allocator);
+    defer TMPCURVES.a2b.split_hodograph.deinit(allocator);
+    defer TMPCURVES.b2c.split_hodograph.deinit(allocator);
     defer STATE.deinit(allocator);
 
     sokol_app_wrapper.sokol_main(
@@ -1618,8 +1630,8 @@ fn update_with_error(
                 if (STATE.show_test_curves) 
                 {
                     // debug 
-                    var self = TMPCURVES.fst.curve;
-                    var other = TMPCURVES.snd.curve;
+                    var self = TMPCURVES.a2b.curve;
+                    var other = TMPCURVES.b2c.curve;
 
                     try plot_bezier_curve(
                         self,
