@@ -16,7 +16,7 @@ const state = struct {
 
 var content_dir : []const u8 = undefined;
 
-// const font_data = @embedFile(content_dir ++ "/Roboto-Medium.ttf");
+const font_data = @embedFile("wrinkles_content/Roboto-Medium.ttf");
 
 const allocator = std.heap.c_allocator;
 
@@ -57,22 +57,24 @@ export fn init(
         // ) catch @panic("couldn't find font");
         // defer gfx_allocator.free(robota_font_path);
         //
-        // const font_size = 16.0 * scale_factor;
-        // const font_large = zgui.io.addFontFromFile(
-        //     robota_font_path,
-        //     font_size * 1.1
-        // );
-        // _ = font_large;
-        // // std.debug.assert(zgui.io.getFont(0) == font_large);
-        //
-        // const font_normal = zgui.io.addFontFromFile(
-        //     robota_font_path,
-        //     font_size
-        // );
+
+        const font_size = 16.0 * scale_factor;
+
+        const font_large = zgui.io.addFontFromMemory(
+            font_data,
+            font_size * 1.1
+        );
+        _ = font_large;
+        // std.debug.assert(zgui.io.getFont(0) == font_large);
+
+        const font_normal = zgui.io.addFontFromMemory(
+            font_data,
+            font_size
+        );
         // // std.debug.assert(zgui.io.getFont(1) == font_normal);
         //
         // // This call is optional. Initially, zgui.io.getFont(0) is a default font.
-        // zgui.io.setDefaultFont(font_normal);
+        zgui.io.setDefaultFont(font_normal);
 
         // You can directly manipulate zgui.Style *before* `newFrame()` call.
         // Once frame is started (after `newFrame()` call) you have to use
