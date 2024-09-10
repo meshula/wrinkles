@@ -2073,25 +2073,46 @@ pub fn read_curve_json(
     defer allocator.free(source);
 
     // if its a linear curve
-    if (std.mem.indexOf(u8, file_path, ".linear.json"))
-        |_|
+    if (
+        std.mem.indexOf(
+            u8,
+            file_path,
+            ".linear.json"
+        ) != null
+    )
     {
-        const lin_curve = try std.json.parseFromSliceLeaky(
-            linear_curve.Linear,
-            allocator,
-            source, .{}
-        );
-        return Bezier.init_from_linear_curve(
-            allocator,
-            lin_curve
-        );
+        return read_linear_curve_data(allocator, source);
     }
 
+    return read_bezier_curve_data(allocator, source);
+}
+
+pub fn read_bezier_curve_data(
+    allocator: std.mem.Allocator,
+    source: []const u8,
+) !Bezier
+{
     return try std.json.parseFromSliceLeaky(
         Bezier,
         allocator,
         source,
         .{}
+    );
+}
+
+pub fn read_linear_curve_data(
+    allocator: std.mem.Allocator,
+    source: []const u8,
+) !Bezier
+{
+    const lin_curve = try std.json.parseFromSliceLeaky(
+        linear_curve.Linear,
+        allocator,
+        source, .{}
+    );
+    return Bezier.init_from_linear_curve(
+        allocator,
+        lin_curve
     );
 }
 
