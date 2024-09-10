@@ -18,8 +18,11 @@ var content_dir : []const u8 = undefined;
 
 // const font_data = @embedFile(content_dir ++ "/Roboto-Medium.ttf");
 
-var arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
-const allocator = arena.allocator();
+var raw = std.heap.GeneralPurposeAllocator(.{}){};
+const allocator = raw.allocator();
+
+// var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+// const allocator = arena.allocator();
 
 export fn init(
 ) void 
@@ -130,7 +133,6 @@ export fn cleanup(
     zgui.deinit();
     zplot.deinit();
     sg.shutdown();
-    arena.deinit();
 }
 
 /// handle keypresses
