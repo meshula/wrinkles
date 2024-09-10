@@ -41,7 +41,11 @@ const DebugBezierFlags = struct {
         name: [:0]const u8
     ) void 
     {
-        if (zgui.treeNodeFlags(name, .{ .default_open = true })) 
+        if (
+            zgui.treeNodeFlags(
+                name,
+                .{ .default_open = true })
+            ) 
         {
             defer zgui.treePop();
             const fields = .{
@@ -275,13 +279,6 @@ const VisState = struct {
         }
         self.operations.deinit();
     }
-};
-
-const GraphicsState = struct {
-    font_normal: zgui.Font,
-    font_large: zgui.Font,
-
-    allocator: std.mem.Allocator,
 };
 
 pub fn main(
