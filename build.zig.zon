@@ -32,8 +32,8 @@
             
         },
         .zgui_cimgui_implot_sokol = .{
-            .url="git+https://github.com/ssteinbach/zgui_cimgui_implot_sokol.git#v1.0",
-            .hash ="1220aac5e43a94ea7b0ae291aaa8df2d3ce51a07a6f5496e1ac2e3ca706c4da7bd54"
+            .url="git+https://github.com/ssteinbach/zgui_cimgui_implot_sokol.git#v1.0.0",
+             .hash = "1220b9493bb770277c07f2bd30f7d41e3cd165d77b791a05fbf297a4581b75fcb2b8",
         },
      },
     .paths = .{
