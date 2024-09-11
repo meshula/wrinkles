@@ -30,14 +30,15 @@ export fn init(
 ) void 
 {
     // initialize sokol-gfx
-    sg.setup(.{
-        .environment = sglue.environment(),
-        .logger = .{ .func = slog.func },
-    });
+    sg.setup(
+        .{
+            .environment = sglue.environment(),
+            .logger = .{ .func = slog.func },
+        }
+    );
+
     // initialize sokol-imgui
-    simgui.setup(.{
-        .logger = .{ .func = slog.func },
-    });
+    simgui.setup( .{ .logger = .{ .func = slog.func }, });
 
     // initial clear color
     state.pass_action.colors[0] = .{
@@ -48,16 +49,10 @@ export fn init(
     zgui.init(allocator);
     zgui.plot.init();
 
+    // set up style and load the font
     {
         const scale_factor = sokol.app.sapp_dpi_scale();
          
-        // const robota_font_path = std.fs.path.joinZ(
-        //     gfx_allocator,
-        //     &.{ content_dir, "Roboto-Medium.ttf" }
-        // ) catch @panic("couldn't find font");
-        // defer gfx_allocator.free(robota_font_path);
-        //
-
         const font_size = 16.0 * scale_factor;
 
         const font_large = zgui.io.addFontFromMemory(
@@ -71,9 +66,7 @@ export fn init(
             font_data,
             font_size
         );
-        // // std.debug.assert(zgui.io.getFont(1) == font_normal);
-        //
-        // // This call is optional. Initially, zgui.io.getFont(0) is a default font.
+        // std.debug.assert(zgui.io.getFont(1) == font_normal);
         zgui.io.setDefaultFont(font_normal);
 
         // You can directly manipulate zgui.Style *before* `newFrame()` call.
@@ -85,11 +78,13 @@ export fn init(
         style.window_min_size = .{ 320.0, 240.0 };
         style.window_border_size = 8.0;
         style.scrollbar_size = 6.0;
+
         {
             var color = style.getColor(.scrollbar_grab);
             color[1] = 0.8;
             style.setColor(.scrollbar_grab, color);
         }
+
         style.scaleAllSizes(scale_factor);
 
         // To reset zgui.Style with default values:

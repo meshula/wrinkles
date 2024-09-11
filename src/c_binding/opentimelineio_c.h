@@ -1,5 +1,7 @@
 // header for exposing OTIO functions to c
 
+#include <stdlib.h>
+
 // Allocators
 ///////////////////////////////////////////////////////////////////////////////
 typedef struct otio_Allocator {
@@ -49,7 +51,6 @@ otio_ComposedValueRef otio_fetch_child_cvr_ind(
         int index
 );
 int otio_child_count_cvr(otio_ComposedValueRef parent);
-#include <stdlib.h>
 int otio_fetch_cvr_type_str(
         otio_ComposedValueRef self,
         char* result,
