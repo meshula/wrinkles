@@ -1530,8 +1530,8 @@ fn update_with_error(
 
     // FPS/status line
     zgui.bulletText(
-        "Average : {d:.3} ms/frame ({d:.1} fps)",
-        .{ 0, 0 },
+        "Average : frame ({d:.1} fps)",
+        .{ zgui.io.getFramerate() },
     );
     zgui.spacing();
 
@@ -1630,8 +1630,8 @@ fn update_with_error(
                 if (STATE.show_test_curves) 
                 {
                     // debug 
-                    var self = TMPCURVES.a2b.curve;
-                    var other = TMPCURVES.b2c.curve;
+                    const self = TMPCURVES.a2b.curve;
+                    const other = TMPCURVES.b2c.curve;
 
                     try plot_bezier_curve(
                         self,
@@ -1646,12 +1646,13 @@ fn update_with_error(
                         ALLOCATOR
                     );
 
+                    //
                     const self_hodograph = try self.split_on_critical_points(ALLOCATOR);
                     defer self_hodograph.deinit(ALLOCATOR);
 
                     const other_hodograph = try other.split_on_critical_points(ALLOCATOR);
                     defer other_hodograph.deinit(ALLOCATOR);
-
+                    //
                     const other_bounds = other.extents();
                     var other_copy = try curve.Bezier.init(
                         ALLOCATOR,
@@ -1696,128 +1697,128 @@ fn update_with_error(
                         result.deinit(ALLOCATOR);
                     }
 
-                    defer other_copy.deinit(ALLOCATOR);
+                     defer other_copy.deinit(ALLOCATOR);
 
-                    const result_guts = try self_hodograph.project_curve_guts(
-                        ALLOCATOR,
-                        other_hodograph,
-                    );
-                    defer result_guts.deinit();
+                     const result_guts = try self_hodograph.project_curve_guts(
+                         ALLOCATOR,
+                         other_hodograph,
+                     );
+                     defer result_guts.deinit();
 
-                    try plot_bezier_curve(
-                        result_guts.self_split.?,
-                        "self_split",
-                        STATE.show_projection_result_guts.self_split,
-                        ALLOCATOR
-                    );
+                     try plot_bezier_curve(
+                         result_guts.self_split.?,
+                         "self_split",
+                         STATE.show_projection_result_guts.self_split,
+                         ALLOCATOR
+                     );
 
-                    // zgui.text("Segments to project through indices: ", .{});
-                    // for (result_guts.segments_to_project_through.?) 
-                    // |ind| 
-                    // {
-                    //     zgui.text("{d}", .{ ind });
-                    // }
+                     zgui.text("Segments to project through indices: ", .{});
+                     for (result_guts.segments_to_project_through.?) 
+                     |ind| 
+                     {
+                         zgui.text("{d}", .{ ind });
+                     }
 
-                    try plot_bezier_curve(
-                        result_guts.other_split.?,
-                        "other_split",
-                        STATE.show_projection_result_guts.other_split,
-                        ALLOCATOR
-                    );
+                     try plot_bezier_curve(
+                         result_guts.other_split.?,
+                         "other_split",
+                         STATE.show_projection_result_guts.other_split,
+                         ALLOCATOR
+                     );
 
-                    var buf:[1024:0]u8 = undefined;
-                    @memset(&buf, 0);
-                    {
-                        const result_name = try std.fmt.bufPrintZ(
-                            &buf,
-                            "result of projection{s}",
-                            .{
-                                if (result_guts.result.?.segments.len > 0) "" 
-                                else " [NO SEGMENTS/EMPTY]",
-                            }
-                        );
+                     var buf:[1024:0]u8 = undefined;
+                     @memset(&buf, 0);
+                     {
+                         const result_name = try std.fmt.bufPrintZ(
+                             &buf,
+                             "result of projection{s}",
+                             .{
+                                 if (result_guts.result.?.segments.len > 0) "" 
+                                 else " [NO SEGMENTS/EMPTY]",
+                             }
+                         );
 
-                        try plot_bezier_curve(
-                            result_guts.result.?,
-                            result_name,
-                            STATE.show_projection_result_guts.tpa_flags.result_curves,
-                            ALLOCATOR
-                        );
-                    }
+                         try plot_bezier_curve(
+                             result_guts.result.?,
+                             result_name,
+                             STATE.show_projection_result_guts.tpa_flags.result_curves,
+                             ALLOCATOR
+                         );
+                     }
 
-                    {
-                        try plot_bezier_curve(
-                            result_guts.to_project.?,
-                            "Segments of Other that will be projected",
-                            STATE.show_projection_result_guts.to_project,
-                            ALLOCATOR
-                        );
-                    }
+                     {
+                         try plot_bezier_curve(
+                             result_guts.to_project.?,
+                             "Segments of Other that will be projected",
+                             STATE.show_projection_result_guts.to_project,
+                             ALLOCATOR
+                         );
+                     }
 
-                    {
-                        for (result_guts.tpa.?, 0..) 
-                            |tpa, ind| 
-                        {
-                            const label = try std.fmt.bufPrintZ(
-                                &buf,
-                                "Three Point Approx Projected.segments[{d}]",
-                                .{ind }
-                            );
-                            try plot_tpa_guts(
-                                tpa,
-                                label,
-                                STATE.show_projection_result_guts.tpa_flags,
-                                ALLOCATOR,
-                            );
+                     {
+                         for (result_guts.tpa.?, 0..) 
+                             |tpa, ind| 
+                         {
+                             const label = try std.fmt.bufPrintZ(
+                                 &buf,
+                                 "Three Point Approx Projected.segments[{d}]",
+                                 .{ind }
+                             );
+                             try plot_tpa_guts(
+                                 tpa,
+                                 label,
+                                 STATE.show_projection_result_guts.tpa_flags,
+                                 ALLOCATOR,
+                             );
 
-                        }
-                    }
+                         }
+                     }
 
-                    const derivs = .{
-                        "f_prime_of_g_of_t",
-                        "g_prime_of_t",
-                        "midpoint_derivatives",
-                    };
+                     const derivs = .{
+                         "f_prime_of_g_of_t",
+                         "g_prime_of_t",
+                         "midpoint_derivatives",
+                     };
 
-                    // midpoint derivatives
-                    inline for (derivs) 
-                        |d_name| 
-                    {
-                        if (@field(STATE, d_name))
-                        {
-                            for (@field(result_guts, d_name).?, 0..) 
-                                |d, ind|
-                            {
-                                const midpoint = result_guts.tpa.?[ind].midpoint.?;
-                                const p1 = midpoint.add(d);
-                                const p2 = midpoint.sub(d);
+                     // midpoint derivatives
+                     inline for (derivs) 
+                         |d_name| 
+                     {
+                         if (@field(STATE, d_name))
+                         {
+                             for (@field(result_guts, d_name).?, 0..) 
+                                 |d, ind|
+                             {
+                                 const midpoint = result_guts.tpa.?[ind].midpoint.?;
+                                 const p1 = midpoint.add(d);
+                                 const p2 = midpoint.sub(d);
 
-                                const xv = &.{ p1.in,  midpoint.in,  p2.in };
-                                const yv = &.{ p1.out, midpoint.out, p2.out };
+                                 const xv = &.{ p1.in,  midpoint.in,  p2.in };
+                                 const yv = &.{ p1.out, midpoint.out, p2.out };
 
-                                zgui.plot.plotLine(
-                                    d_name,
-                                    f32,
-                                    .{ .xv = xv, .yv = yv }
-                                );
-                                {
-                                    const label = try std.fmt.bufPrintZ(
-                                        &buf,
-                                        "d/dt: ({d:0.6}, {d:0.6})",
-                                        .{d.in, d.out},
-                                    );
-                                    zgui.plot.plotText(
-                                        label,
-                                        .{ 
-                                            .x = p1.in, 
-                                            .y = p1.out, 
-                                            .pix_offset = .{ 0, 16 } 
-                                        },
-                                    );
-                                }
-                            }
-                        }
-                    }
+                                 zgui.plot.plotLine(
+                                     d_name,
+                                     f32,
+                                     .{ .xv = xv, .yv = yv }
+                                 );
+                                 {
+                                     const label = try std.fmt.bufPrintZ(
+                                         &buf,
+                                         "d/dt: ({d:0.6}, {d:0.6})",
+                                         .{d.in, d.out},
+                                     );
+                                     zgui.plot.plotText(
+                                         label,
+                                         .{ 
+                                             .x = p1.in, 
+                                             .y = p1.out, 
+                                             .pix_offset = .{ 0, 16 } 
+                                         },
+                                     );
+                                 }
+                             }
+                         }
+                     }
                 }
 
                 zgui.plot.endPlot();
