@@ -1,7 +1,6 @@
 //! Build script for wrinkles project
 
 const std = @import("std");
-const sokol_build = @import("sokol");
 const builtin = @import("builtin");
 const ziis = @import("zgui_cimgui_implot_sokol");
 
@@ -123,19 +122,11 @@ fn graphviz_dot_on_path() !bool
 //     }
 // }
 
-var raw = std.heap.GeneralPurposeAllocator(.{}){};
-pub const ALLOCATOR = raw.allocator();
-
 /// build options for the wrinkles project
 pub const Options = struct {
     optimize: std.builtin.Mode,
     target: std.Build.ResolvedTarget,
     test_filter: ?[]const u8 = null,
-
-    zd3d12_enable_debug_layer: bool,
-    zd3d12_enable_gbv: bool,
-
-    zpix_enable: bool,
 
     common_build_options: *std.Build.Step.Options,
 
@@ -147,11 +138,6 @@ pub const Options = struct {
     imgui_lib: ?*std.Build.Step.Compile = null,
     implot_lib: ?*std.Build.Step.Compile = null,
 };
-
-/// find the path to the directory containing this build.zig file
-inline fn thisDir() []const u8 {
-    return comptime std.fs.path.dirname(@src().file) orelse ".";
-}
 
 /// c-code compilation arguments
 const C_ARGS = [_][]const u8{
@@ -177,11 +163,12 @@ const C_ARGS = [_][]const u8{
 
 /// Returns the result of running `git rev-parse HEAD`
 pub fn rev_HEAD(
-    allocator: std.mem.Allocator
+    allocator: std.mem.Allocator,
 ) ![]const u8 
 {
-    const max = std.math.maxInt(usize);
+    const max = 1024 ;
     const dirg = try std.fs.cwd().openDir(".git", .{});
+
     const head_file = std.mem.trim(
         u8,
         try dirg.readFileAlloc(
@@ -191,7 +178,8 @@ pub fn rev_HEAD(
         ),
         "\n"
     );
-    const just_hash = std.mem.trim(
+
+    return std.mem.trim(
         u8,
         try dirg.readFileAlloc(
             allocator,
@@ -200,7 +188,6 @@ pub fn rev_HEAD(
         ),
         "\n"
     );
-    return just_hash;
 }
 
 /// build an executable that uses zgui/zgflw etc from zig-gamedev
@@ -212,7 +199,6 @@ pub fn executable(
     all_check_step : *std.Build.Step,
     options: Options,
     module_deps: []const std.Build.Module.Import,
-    _: bool,
 ) void 
 {
     const exe = if (options.target.result.isWasm()) 
@@ -252,27 +238,31 @@ pub fn executable(
             exe_options
         );
 
-        const content_dir = b.path(
-            "src/" ++ source_dir_path
-        );
-
-        // @TODO: should this be in the install directory instead of `thisDir()`?
-        exe_options.addOption(
-            []const u8,
-            name ++ "_content_dir",
-            content_dir.getPath(b)
-        );
+        var content_dir_lp = b.path("src/" ++ source_dir_path);
+        var content_dir_path = content_dir_lp.getPath(b);
 
         if (!options.target.result.isWasm()) {
+            const subdir = "bin/" ++ name ++ "_content";
             const install_content_step = b.addInstallDirectory(
                 .{
-                    .source_dir = content_dir,
+                    .source_dir = content_dir_lp,
                     .install_dir = .{ .custom = "" },
-                    .install_subdir = "bin/" ++ name ++ "_content",
+                    .install_subdir = subdir,
                 }
             );
             exe.step.dependOn(&install_content_step.step);
+            content_dir_path = b.getInstallPath(
+                .bin,
+                subdir
+            );
         }
+
+        exe_options.addOption(
+            []const u8,
+            "content_dir",
+            content_dir_path,
+        );
+
     }
 
     exe.want_lto = false;
@@ -348,7 +338,6 @@ pub fn executable(
                 .use_webgl2 = true,
                 .use_emmalloc = true,
                 .use_filesystem = true,
-                // NOTE: when sokol-zig is used as package, this path needs to be absolute!
                 .shell_file_path = shell_path_abs,
                 .extra_args = &.{
                     "-sUSE_OFFSET_CONVERTER=1",
@@ -361,9 +350,18 @@ pub fn executable(
                 },
             }
         );
-        const run = ziis.emRunStep(b, .{ .name = name, .emsdk = emsdk });
+        const run = ziis.emRunStep(
+            b,
+            .{ 
+                .name = name,
+                .emsdk = emsdk 
+            }
+        );
         run.step.dependOn(&link_step.step);
-        b.step(name ++ "-run", "Run " ++ name).dependOn(&run.step);
+        b.step(
+            name ++ "-run",
+            "Run " ++ name
+        ).dependOn(&run.step);
     }
 
     // docs
@@ -415,17 +413,17 @@ pub fn module_with_tests_and_artifact(
         opts.options.common_build_options,
     );
 
+    const mod_unit_tests = opts.b.addTest(
+        .{
+            .name = "test_" ++ name,
+            .root_source_file = opts.b.path(opts.fpath),
+            .target =opts.options.target,
+            .filter = opts.options.test_filter orelse &.{},
+        }
+    );
+
     // unit tests for the module
     {
-        const mod_unit_tests = opts.b.addTest(
-            .{
-                .name = "test_" ++ name,
-                .root_source_file = opts.b.path(opts.fpath),
-                .target =opts.options.target,
-                .filter = opts.options.test_filter orelse &.{},
-            }
-        );
-
         mod_unit_tests.root_module.addOptions(
             "build_options",
             opts.options.common_build_options,
@@ -450,29 +448,29 @@ pub fn module_with_tests_and_artifact(
         );
 
         opts.options.test_step.dependOn(&install_test_bin.step);
+    }
 
-        // docs
-        {
-            const install_docs = opts.b.addInstallDirectory(
-                .{
-                    .source_dir = mod_unit_tests.getEmittedDocs(),
-                    .install_dir = .prefix,
-                    .install_subdir = "docs/" ++ name,
-                }
-            );
+    // docs
+    {
+        const install_docs = opts.b.addInstallDirectory(
+            .{
+                .source_dir = mod_unit_tests.getEmittedDocs(),
+                .install_dir = .prefix,
+                .install_subdir = "docs/" ++ name,
+            }
+        );
 
-            const docs_step = opts.b.step(
-                "docs_" ++ name,
-                "Copy documentation artifacts to prefix path"
-            );
-            docs_step.dependOn(&install_docs.step);
-            opts.options.all_docs_step.dependOn(docs_step);
-        }
+        const docs_step = opts.b.step(
+            "docs_" ++ name,
+            "Copy documentation artifacts to prefix path"
+        );
+        docs_step.dependOn(&install_docs.step);
+        opts.options.all_docs_step.dependOn(docs_step);
+    }
 
-        // zls checks
-        {
-            opts.options.all_check_step.dependOn(&mod_unit_tests.step);
-        }
+    // zls checks
+    {
+        opts.options.all_check_step.dependOn(&mod_unit_tests.step);
     }
 
     return mod;
@@ -485,11 +483,16 @@ pub fn build(
 {
     ensureZigVersion() catch return;
 
+    var raw = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = raw.allocator();
+
+    // 
+    // all-steps (ie run all tests, build all docs, etc)
+    //
     const test_step = b.step(
         "test",
         "step to run all unit tests",
     );
-
 
     const all_docs_step = b.step(
         "docs",
@@ -501,12 +504,7 @@ pub fn build(
         "Check if everything compiles",
     );
 
-
     const target = b.standardTargetOptions(.{});
-    // const sokol_backend = sokol_build.resolveSokolBackend(
-    //     .auto,
-    //     target.result,
-    // );
 
     //
     // Options and system checks
@@ -514,21 +512,6 @@ pub fn build(
     var options = Options{
         .optimize = b.standardOptimizeOption(.{}),
         .target = target,
-        .zd3d12_enable_debug_layer = b.option(
-            bool,
-            "zd3d12-enable-debug-layer",
-            "Enable DirectX 12 debug layer",
-        ) orelse false,
-        .zd3d12_enable_gbv = b.option(
-            bool,
-            "zd3d12-enable-gbv",
-            "Enable DirectX 12 GPU-Based Validation (GBV)",
-        ) orelse false,
-        .zpix_enable = b.option(
-            bool,
-            "zpix-enable",
-            "Enable PIX for Windows profiler"
-        ) orelse false,
         .test_filter = b.option(
             []const u8,
             "test-filter",
@@ -547,7 +530,7 @@ pub fn build(
     options.common_build_options.addOption(
         []const u8,
         "hash",
-        rev_HEAD(ALLOCATOR) catch "COULDNT READ HASH",
+        rev_HEAD(allocator) catch "COULDNT READ HASH",
     );
     const dep_ziis = b.dependency("zgui_cimgui_implot_sokol", .{});
 
@@ -851,7 +834,7 @@ pub fn build(
     );
 
     // executables
-    const common_deps_with_sokol:[]const std.Build.Module.Import = &.{ 
+    const common_deps:[]const std.Build.Module.Import = &.{ 
         // external deps
         .{ .name = "comath", .module = comath_dep.module("comath") },
         .{ .name = "wav", .module = wav_dep },
@@ -874,8 +857,7 @@ pub fn build(
         "/wrinkles_content/",
         all_check_step,
         options,
-        common_deps_with_sokol,
-        false,
+        common_deps,
     );
 
     executable(
@@ -885,8 +867,7 @@ pub fn build(
         "/wrinkles_content/",
         all_check_step,
         options,
-        common_deps_with_sokol,
-        false,
+        common_deps,
     );
 
     executable(
@@ -896,7 +877,6 @@ pub fn build(
         "/wrinkles_content/",
         all_check_step,
         options,
-        common_deps_with_sokol,
-        false,
+        common_deps,
     );
 }
