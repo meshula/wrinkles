@@ -888,4 +888,15 @@ pub fn build(
         common_deps_with_sokol,
         false,
     );
+
+    executable(
+        b,
+        "transformation_visualizer",
+        "src/transformation_visualizer.zig",
+        "/wrinkles_content/",
+        all_check_step,
+        options,
+        common_deps_with_sokol,
+        false,
+    );
 }

@@ -33,6 +33,14 @@ contains:
 
 ## Ideal Demonstrator Gui App 8/23
 
+* timeline view
+* topological graph node view
+* curve projection demonstration app
+  * pick curves to project from presets
+  * edit / drag points
+  * see derivatives
+  * see projection result
+
 * app that can open an existing .otio file
 * visualize the presentation time-space of the top level track
 * tlrender++ scrub around the track and see a render of what the composition
@@ -46,13 +54,13 @@ contains:
 ## Current Todo List (8/23/24)
 
 * refactor gui code
-  * [ ]  port to sokol
+  * [x]  port to sokol
 * build new gui app
   * visual demonstration application for helping demo concepts
 * additional tests/functionality to show the library is capable of handling
-  * cleaning up existing high level tests
-  * arbitrarily held frames
-  * transitions
+  * [ ] cleaning up existing high level tests
+  * [ ] arbitrarily held frames
+  * [ ] transitions
   * project_.*_d* functions (coming from discrete indices)
     * useful because it lets us ask the question: do we really need
       rational times? ie - RationalTimes exist because they allow integer-like
@@ -97,6 +105,9 @@ contains:
             * rational object as an entry in the union (i32/i32)
    * polymorphism in timetopology->mapping, TimeTopology becomes []Mapping
      * [ ] project_curve returns a []curve instead of a topology?
+     * [ ] remove the two point/three point approximations and simplify the
+           curve library
+     * [ ] add a catmull-rom spline basis
    * switch the join() structure for joining mappings (vs project curve etc)
    * [x] linear trimmed_in_input_space: promotes to bezier, trims there and
       then demotes back.  should do everything on the linear knots
