@@ -13,7 +13,7 @@ const WINDOW_TITLE = (
 );
 
 const exe_build_options = @import("exe_build_options");
-const content_dir = exe_build_options.transformation_visualizer_content_dir;
+const content_dir = exe_build_options.content_dir;
 
 var f: f32 = 0;
 

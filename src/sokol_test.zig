@@ -7,7 +7,7 @@ const sokol_app_wrapper = @import("sokol_app_wrapper");
 
 const build_options = @import("build_options");
 const exe_build_options = @import("exe_build_options");
-const content_dir = exe_build_options.sokol_test_content_dir;
+const content_dir = exe_build_options.content_dir;
 
 var f: f32 = 0;
 
