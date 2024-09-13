@@ -34,8 +34,8 @@ pub const MappingAffine = struct {
 
     pub fn project_instantaneous_cc(
         self: @This(),
-        ordinate: mapping_mod.Ordinate,
-    ) !mapping_mod.Ordinate 
+        ordinate: opentime.Ordinate,
+    ) !opentime.Ordinate 
     {
         if (
             !self.input_bounds_val.overlaps_seconds(ordinate) 

@@ -22,8 +22,8 @@ pub const MappingEmpty = struct {
 
     pub fn project_instantaneous_cc(
         _: @This(),
-        _: mapping_mod.Ordinate,
-    ) !mapping_mod.Ordinate 
+        _: opentime.Ordinate
+    ) !opentime.Ordinate 
     {
         return error.OutOfBounds;
     }

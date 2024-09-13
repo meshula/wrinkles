@@ -47,10 +47,10 @@ pub const MappingCurveBezier = struct {
     /// space
     pub fn project_instantaneous_cc(
         self: @This(),
-        ord: mapping_mod.Ordinate,
-    ) !mapping_mod.Ordinate 
+        ord: opentime.Ordinate,
+    ) !opentime.Ordinate 
     {
-        return try self.input_to_output_curve.evaluate(ord);
+        return try self.input_to_output_curve.output_at_input(ord);
     }
 
     /// fetch (computing if necessary) the input bounds of the mapping

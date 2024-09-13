@@ -80,10 +80,10 @@ pub const MappingCurveLinear = struct {
 
     pub fn project_instantaneous_cc(
         self: @This(),
-        ordinate: mapping_mod.Ordinate,
-    ) !mapping_mod.Ordinate 
+        ordinate: opentime.Ordinate,
+    ) !opentime.Ordinate 
     {
-        return self.input_to_output_curve.evaluate(ordinate);
+        return self.input_to_output_curve.output_at_input(ordinate);
     }
 
     pub fn clone(
