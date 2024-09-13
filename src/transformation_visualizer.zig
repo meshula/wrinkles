@@ -6,6 +6,8 @@ const zplot = zgui.plot;
 const sokol_app_wrapper = @import("sokol_app_wrapper");
 
 const time_topology = @import("time_topology");
+const curve = @import("curve");
+const opentime = @import("opentime");
 
 const build_options = @import("build_options");
 const WINDOW_TITLE = (
@@ -21,35 +23,99 @@ const PLOT_STEPS = 1000;
 
 /// plot a given mapping with dear imgui
 pub fn plot_mapping(
+    allocator: std.mem.Allocator,
     map : time_topology.mapping.Mapping,
+    name: [:0]const u8,
 ) !void
 {
-    const limits = zgui.plot.getPlotLimits(.x1,.y1);
-    var inputs : [PLOT_STEPS]f32 = undefined;
-    var outputs : [PLOT_STEPS]f32 = undefined;
+    const input_bounds_ord = map.input_bounds();
+    var input_bounds : [2]f64 = .{
+        @floatCast(input_bounds_ord.start_seconds),
+        @floatCast(input_bounds_ord.end_seconds),
+    };
 
-    const step = (
-        @as(f32, @floatCast(limits.x[1] - limits.x[0])) 
-        / @as(f32, @floatFromInt(PLOT_STEPS))
+    const plot_limits = zgui.plot.getPlotLimits(
+        .x1,
+        .y1
     );
 
-    for (&inputs, &outputs, 0..)
-        |*in, *out, ind|
-    {
-        in.* = @as(f32, @floatCast(limits.x[0])) + @as(f32, @floatFromInt(ind)) * step;
-        out.* = @floatCast(try map.project_instantaneous_cc(@floatCast(in.*)));
+    if (input_bounds_ord.start_seconds == std.math.inf(opentime.Ordinate)) {
+        input_bounds[0] = plot_limits.x[0];
+    }
+    if (input_bounds_ord.end_seconds == std.math.inf(opentime.Ordinate)) {
+        input_bounds[1] = plot_limits.x[1];
     }
 
+    var inputs = std.ArrayList(f64).init(allocator);
+    try inputs.ensureTotalCapacity(PLOT_STEPS);
+    defer inputs.deinit();
+    var outputs = std.ArrayList(f64).init(allocator);
+    try outputs.ensureTotalCapacity(PLOT_STEPS);
+    defer outputs.deinit();
+    var len : usize = 0;
+
+    switch (map) {
+        .affine => |map_aff| {
+            try inputs.append(input_bounds[0]);
+            try inputs.append(input_bounds[1]);
+
+            try outputs.append(
+                try map_aff.project_instantaneous_cc(@floatCast(input_bounds[0]))
+            );
+            try outputs.append(
+                try map_aff.project_instantaneous_cc(@floatCast(input_bounds[1]))
+            );
+
+            len = 2;
+        },
+        .linear => |map_lin| {
+            for (map_lin.input_to_output_curve.knots)
+                |k|
+            {
+                try inputs.append(k.in);
+                try outputs.append(k.out);
+            }
+
+            len = map_lin.input_to_output_curve.knots.len;
+        },
+        .bezier => |map_bez| {
+            const step = (
+                @as(f32, @floatCast(input_bounds[1] - input_bounds[0])) 
+                / @as(f32, @floatFromInt(PLOT_STEPS))
+            );
+
+            var x = input_bounds[0];
+            while (x <= input_bounds[1])
+                : (x += step)
+            {
+                try inputs.append(x);
+                try outputs.append(
+                    try map_bez.project_instantaneous_cc(@floatCast(x))
+                );
+            }
+
+            len = PLOT_STEPS;
+        },
+
+        inline else => {},
+    }
+
+    try inputs.resize(len);
+    const in_im = try inputs.toOwnedSlice();
+    try outputs.resize(len);
+    const out_im = try outputs.toOwnedSlice();
+
     zplot.plotLine(
-        "test plot",
-        f32, 
+        name,
+        f64, 
         .{
-            .xv = &inputs,
-            .yv = &outputs, 
+            .xv = in_im,
+            .yv = out_im, 
         },
     );
 }
 
+/// ui for a particular space
 const SpaceUI = struct {
     name: []const u8,
     input: []const u8,
@@ -58,6 +124,7 @@ const SpaceUI = struct {
 
     pub fn draw_ui(
         self: @This(),
+        allocator: std.mem.Allocator,
     ) !void
     {
         var buf : [1024:0]u8 = undefined;
@@ -104,45 +171,69 @@ const SpaceUI = struct {
                     },
                     .{}
                 );
+                const input_limits = self.mapping.input_bounds();
+                zgui.plot.setupAxisLimits(
+                    .x1, 
+                    .{
+                        .min = input_limits.start_seconds,
+                        .max = input_limits.end_seconds,
+                    },
+                );
+
+                const output_limits = self.mapping.output_bounds();
+                zgui.plot.setupAxisLimits(
+                    .y1, 
+                    .{
+                        .min = output_limits.start_seconds,
+                        .max = output_limits.end_seconds,
+                    },
+                );
+
                 zgui.plot.setupFinish();
 
-                try plot_mapping(self.mapping);
+            const graph_label = try std.fmt.bufPrintZ(
+                buf[label.len + plot_label.len..],
+                "{s}.{s} -> {s}.{s}",
+                .{ self.name, self.input, self.name, self.output },
+            );
+
+                try plot_mapping(
+                    allocator,
+                    self.mapping,
+                    graph_label,
+                );
             }
         }
     }
 };
 
+/// state for the ui
 const UI = struct {
     spaces: []const SpaceUI = &.{},
 };
 
-const PresetNames = enum {
-    single_identity, single_affine,
-};
-
-const PRESETBIN = std.enums.EnumFieldStruct(
-    PresetNames,
-    UI,
-    .{}
-);
-const PRESETS = PRESETBIN{
-        .single_identity = UI{ 
-            .spaces = &.{
-                .{ 
-                    .name = "Clip",
-                    .input = "presentation",
-                    .output = "media",
-                    .mapping = time_topology.mapping.INFINITE_IDENTIY,
-                },
+/// preset examples to choose from... pub const decls get added to an enum
+/// and shown in the dropdown in the menu
+const PRESETS = struct{
+    pub const single_identity = UI{ 
+        .spaces = &.{
+            .{ 
+                .name = "Clip",
+                .input = "presentation",
+                .output = "media",
+                .mapping = time_topology.mapping.INFINITE_IDENTIY,
             },
         },
-        .single_affine = UI{
-            .spaces = &.{
-                .{ 
-                    .name = "Clip",
-                    .input = "presentation",
-                    .output = "media",
-                    .mapping = (time_topology.mapping.MappingAffine{
+    };
+
+    pub const single_affine = UI{
+        .spaces = &.{
+            .{ 
+                .name = "Clip",
+                .input = "presentation",
+                .output = "media",
+                .mapping = (
+                    time_topology.mapping.MappingAffine{
                         .input_bounds_val = .{
                             .start_seconds = -10,
                             .end_seconds = 10,
@@ -151,23 +242,71 @@ const PRESETS = PRESETBIN{
                             .offset_seconds = 10,
                             .scale = 2,
                         },
-                    }).mapping(),
-                },
+                    }
+                ).mapping(),
             },
         },
-};
+    };
 
+    pub const affine_linear = UI{
+        .spaces = &.{
+            .{ 
+                .name = "Clip1",
+                .input = "presentation",
+                .output = "media",
+                .mapping = (
+                    time_topology.mapping.MappingAffine{
+                        .input_bounds_val = .{
+                            .start_seconds = -10,
+                            .end_seconds = 10,
+                        },
+                        .input_to_output_xform = .{
+                            .offset_seconds = 10,
+                            .scale = 2,
+                        },
+                    }
+                ).mapping(),
+            },
+            .{ 
+                .name = "Clip2",
+                .input = "presentation",
+                .output = "media",
+                .mapping = (
+                    time_topology.mapping.MappingCurveLinear{
+                        .input_to_output_curve = 
+                            .{
+                                .knots = @constCast(
+                                    &[_]curve.ControlPoint{
+                                        .{ .in = -10, .out = -10 },
+                                        .{ .in = 0, .out = 0 },
+                                        .{ .in = 5, .out = 10 },
+                                        .{ .in = 10, .out = 3 },
+                                    },
+                                )
+                            },
+                        }
+                ).mapping(),
+            },
+        },
+    };
+};
+const PresetNames = std.meta.DeclEnum(PRESETS);
+
+/// wrap the state for the entire UI
 const State = struct {
     current_preset : PresetNames = .single_affine,
     data : UI = .{}, 
 };
 var STATE = State{};
 
-/// draw the UI
+/// top level draw fn
 fn draw(
 ) !void 
 {
-    draw_err() catch std.log.err("Error running gui.", .{});
+    draw_err() catch |err| std.log.err(
+        "Error running gui. Error: {any}",
+        .{ err }
+    );
 }
 
 fn draw_err(
@@ -183,6 +322,8 @@ fn draw_err(
             .h = size[1],
         }
     );
+
+    const allocator = std.heap.c_allocator;
 
     if (
         zgui.begin(
@@ -205,7 +346,15 @@ fn draw_err(
         if (
             zgui.beginChild(
                 "Options", 
-                .{ .w = 600, .h = -1, .child_flags = .{ .border = true, }, },
+                .{
+                    .w = 600, .h = -1
+                        , .child_flags = .{
+                            .border = true, 
+                        }, 
+                    .window_flags = .{
+                        .always_vertical_scrollbar = true,
+                    },
+                },
             )
         )
         {
@@ -242,7 +391,7 @@ fn draw_err(
                 for (STATE.data.spaces)
                     |s|
                 {
-                    try s.draw_ui();
+                    try s.draw_ui(allocator);
                 }
             }
         }
