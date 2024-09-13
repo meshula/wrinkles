@@ -261,6 +261,7 @@ pub const ComposableValue = union(enum) {
         };
     }
 
+    /// build a topology for the ComposableValue
     pub fn topology(
         self: @This(),
     ) error{
@@ -435,6 +436,7 @@ pub const ComposedValueRef = union(enum) {
 
     }
 
+    /// build a space reference to the specified space on this CV
     pub fn space(
         self: @This(),
         label: SpaceLabel
