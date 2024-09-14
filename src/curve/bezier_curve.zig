@@ -3333,31 +3333,30 @@ test "Bezier: project_affine"
     }
 }
 
-pub fn affine_project_curve(
+pub fn join_bez_aff_unbounded(
     allocator: std.mem.Allocator,
-    lhs: opentime.transform.AffineTransform1D,
-    rhs: Bezier,
+    args: struct {
+        b2c: opentime.transform.AffineTransform1D,
+        a2b: Bezier,
+    },
 ) !Bezier 
 {
-    const result_segments = try allocator.dupe(
-        Bezier.Segment,
-        rhs.segments
-    );
+    const a2c = try args.a2b.clone(allocator);
 
-    for (result_segments) 
+    for (a2c.segments) 
         |*seg| 
     {
         for (seg.point_ptrs()) 
             |pt| 
         {
-            pt.out = lhs.applied_to_seconds(pt.out);
+            pt.out = args.b2c.applied_to_seconds(pt.out);
         }
     }
 
-    return .{ .segments = result_segments };
+    return a2c;
 }
 
-test "affine_project_curve" 
+test "join_bez_aff_unbounded" 
 {
     // @TODO: test bounds
 
@@ -3393,10 +3392,12 @@ test "affine_project_curve"
             "\ntest: {}, offset: {d:.2}, scale: {d:.2}\n",
             .{ test_loop_index, testdata.offset_seconds, testdata.scale }
         );
-        const result = try affine_project_curve(
+        const result = try join_bez_aff_unbounded(
             std.testing.allocator,
-            testdata,
-            test_crv, 
+            .{
+                .a2b = test_crv,
+                .b2c = testdata,
+            },
         );
         defer result.deinit(std.testing.allocator);
 

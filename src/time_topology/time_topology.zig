@@ -162,10 +162,12 @@ pub const AffineTopology = struct {
         return switch (other) {
             .bezier_curve => |other_bez| .{ 
                 .bezier_curve = .{
-                    .curve = try curve.affine_project_curve(
+                    .curve = try curve.join_bez_aff_unbounded(
                         allocator,
-                        self.transform,
-                        other_bez.curve,
+                        .{
+                            .a2b = other_bez.curve,
+                            .b2c = self.transform,
+                        },
                     )
                 }
             },
