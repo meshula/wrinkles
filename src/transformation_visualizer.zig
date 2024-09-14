@@ -251,7 +251,7 @@ const PRESETS = struct{
     pub const affine_linear = UI{
         .spaces = &.{
             .{ 
-                .name = "Clip1",
+                .name = "Track",
                 .input = "presentation",
                 .output = "media",
                 .mapping = (
@@ -268,7 +268,7 @@ const PRESETS = struct{
                 ).mapping(),
             },
             .{ 
-                .name = "Clip2",
+                .name = "Clip",
                 .input = "presentation",
                 .output = "media",
                 .mapping = (
@@ -410,13 +410,26 @@ fn draw_err(
         {
             defer zgui.endChild();
 
+            var buf_raw: [1024:0]u8 = undefined;
+            var buf:[]u8 = buf_raw[0..];
 
+            if (STATE.data.spaces.len == 0) {
+                return;
+            }
 
-            zgui.bulletText("pasta, potato: {d}\n", .{ 12 });
+            const start = STATE.data.spaces[0];
+            const end = STATE.data.spaces[STATE.data.spaces.len-1];
+
+            const plot_label = try std.fmt.bufPrintZ(
+                buf,
+                "Plot of Mapping: {s}.{s} -> {s}.{s}", 
+                .{ start.name, start.input, end.name, end.output }
+            );
+            buf = buf[plot_label.len..];
 
             if (
                 zgui.plot.beginPlot(
-                    "Test ZPlot Plot",
+                    plot_label,
                     .{ 
                         .w = -1.0,
                         .h = -1.0,
@@ -427,13 +440,28 @@ fn draw_err(
             {
                 defer zgui.plot.endPlot();
 
+                const input_label = try std.fmt.bufPrintZ(
+                    buf,
+                    "{s}.{s}",
+                    .{ start.name, start.input },
+                );
+                buf = buf[input_label.len..];
+
                 zgui.plot.setupAxis(
                     .x1,
-                    .{ .label = "input" }
+                    .{ .label = input_label }
                 );
+
+                const output_label = try std.fmt.bufPrintZ(
+                    buf,
+                    "{s}.{s}",
+                    .{ start.name, start.input },
+                );
+                buf = buf[output_label.len..];
+
                 zgui.plot.setupAxis(
                     .y1,
-                    .{ .label = "output" }
+                    .{ .label = output_label }
                 );
                 zgui.plot.setupLegend(
                     .{ 
@@ -444,16 +472,31 @@ fn draw_err(
                 );
                 zgui.plot.setupFinish();
 
-                const xs= [_]f32{0, 1, 2, 3, 4};
-                const ys= [_]f32{0, 1, 2, 3, 6};
+                var total_map = STATE.data.spaces[0].mapping;
 
-                zplot.plotLine(
-                    "test plot",
-                    f32, 
-                    .{
-                        .xv = &xs,
-                        .yv = &ys 
-                    },
+                for (STATE.data.spaces[1..])
+                    |s|
+                {
+                    total_map = try time_topology.mapping.join(
+                        allocator,
+                        .{
+                            .a2b = total_map,
+                            .b2c = s.mapping,
+                        },
+                    );
+                }
+
+                const line_label = try std.fmt.bufPrintZ(
+                    buf,
+                    "{s}.{s}",
+                    .{ start.name, start.input },
+                );
+                buf = buf[line_label.len..];
+
+                try plot_mapping(
+                    allocator,
+                    total_map,
+                    line_label,
                 );
             }
         }
