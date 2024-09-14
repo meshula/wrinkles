@@ -133,10 +133,23 @@ const SpaceUI = struct {
             "Space: {s}",
             .{ self.name }
         );
-        if (zgui.collapsingHeader(label, .{ .default_open = true }))
+        if (
+            zgui.collapsingHeader(
+                label,
+                .{ .default_open = true }
+                )
+            )
         {
-            zgui.text("Input space name: {s}", .{ self.input });
-            zgui.text("output space name: {s}", .{ self.output });
+            zgui.text(
+                "Input space name: {s}\n"
+                ++ "Transform type: {s}\n"
+                ++ "output space name: {s}",
+                .{
+                    self.input,
+                    @tagName(self.mapping),
+                    self.output,
+                }
+            );
 
             const plot_label = try std.fmt.bufPrintZ(
                 buf[label.len..],
@@ -384,7 +397,7 @@ fn draw_err(
             if (
                 zgui.collapsingHeader(
                     "Spaces",
-                    .{ .default_open =  true}
+                    .{ .default_open =  true, },
                 )
             )
             {
