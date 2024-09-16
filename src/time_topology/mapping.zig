@@ -97,9 +97,113 @@ pub const Mapping = union (enum) {
 /// "Empty" mappings outside of the end points which map to no values before
 /// and after the segments defined by the Topology.
 pub const TopologyMapping = struct {
-    end_points: []const opentime.Ordinate,
+    end_points_input: []const opentime.Ordinate,
     mappings: []const Mapping,
+
+    pub fn end_points_output(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) []const opentime.Ordinate
+    {
+        var pts_output_space = try allocator.dupe(
+            opentime.Ordinate,
+            self.end_points_input
+        );
+    }
 };
+
+/// build a topological mapping from a to c
+pub fn join_t(
+    allocator: std.mem.Allocator,
+    args: struct{
+        a2b: TopologyMapping,
+        b2c: TopologyMapping,
+    },
+) TopologyMapping
+{
+    const a2b_b_bounds = a2b.end_points_output(allocator);
+}
+
+// Join Functions
+//
+// These functions are all of the form:
+// fn (
+//   [allocator]
+//   args: struct {
+//     .a2b: MappingSubType,
+//     .b2c: MappingSubType,
+//   }
+// ) MappingSubType
+//
+// The intent is to use the join() function in the interface
+///////////////////////////////////////////////////////////////////////////////
+
+/// Produce test structures at comptime
+fn test_structs(
+    int: opentime.ContinuousTimeInterval,
+) type
+{
+    return struct {
+        pub const START_PT = curve.ControlPoint{
+            .{
+                .in = int.start_seconds,
+                .out = int.start_seconds,
+            },
+        };
+        pub const END_PT = curve.ControlPoint{
+            .in = int.end_seconds,
+            .out = int.end_seconds * 4,
+        };
+        pub const CENTER_PT = (
+            END_PT.sub(START_PT).div(2)
+        );
+
+        pub const INT = int;
+        pub const AFF = mapping_affine.MappingAffine {
+            .input_bounds_val = int,
+            .input_to_output_xform = .{
+                .offset_seconds = 4,
+                .scale = 2,
+            },
+        };
+        pub const LIN = mapping_curve_linear.MappingCurveLinear {
+            .input_to_output_curve = .{
+                .knots = &.{ .{ START_PT, END_PT, }, },
+            },
+        };
+        pub const BEZ = mapping_curve_bezier.MappingCurveBezier {
+            .input_to_output_curve = .{
+                .segments = &.{
+                    .{
+                        curve.Bezier.Segment.init_from_start_end(
+                            START_PT,
+                            END_PT
+                        )
+                    }
+                },
+            },
+        };
+    };
+}
+
+const LEFT = test_structs(
+    .{
+        .start_seconds = -2,
+        .end_seconds = 2,
+    }
+);
+const MIDDLE = test_structs(
+    .{
+        .start_seconds = 0,
+        .end_seconds = 10,
+    }
+);
+const RIGHT = test_structs(
+    .{
+        .start_seconds = 8,
+        .end_seconds = 12,
+    }
+);
 
 pub fn join_aff_aff(
     args: struct{
@@ -115,6 +219,22 @@ pub fn join_aff_aff(
             )
         ),
     };
+}
+
+test "join_aff_aff"
+{
+    // because of the boundary condition, this should return empty
+    // @TODO: enforce the boundary condition!
+    const left_right = join_aff_aff(
+        .{
+            .a2b = LEFT.AFF,
+            .b2c = RIGHT.AFF,
+        },
+    ).mapping();
+    try std.testing.expectEqual(
+        .empty,
+        std.meta.activeTag(left_right),
+    );
 }
 
 pub fn join_aff_lin(
