@@ -100,29 +100,130 @@ pub const TopologyMapping = struct {
     end_points_input: []const opentime.Ordinate,
     mappings: []const Mapping,
 
-    pub fn end_points_output(
+    /// project the segment endpoints into the output space
+    pub fn intervals_output(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) []const opentime.Ordinate
+    ) ![]const opentime.ContinuousTimeInterval
     {
-        var pts_output_space = try allocator.dupe(
-            opentime.Ordinate,
-            self.end_points_input
-        );
+        const result_builder = std.ArrayList(
+            opentime.ContinuousTimeInterval
+        ).init(allocator);
+
+        const in_pts_len = self.end_points_input.len;
+
+        for (
+            self.end_points_input[0..in_pts_len-1], 
+            self.end_points_input[1..in_pts_len], 
+            self.mappings,
+        )
+            |in_start, in_end, m|
+        {
+            try result_builder.append(
+                .{
+                    .start_seconds = m.project_instantaneous_cc(in_start),
+                    .end_seconds = m.project_instantaneous_cc(in_end),
+                },
+            );
+        }
+
+        return try result_builder.toOwnedSlice();
+    }
+
+    /// exhaustively comput the in and output extents of the TopologyMapping 
+    /// [0] is the min point and [1] is the max point
+    pub fn extents(
+        self: @This(),
+    ) [2]curve.ControlPoint
+    {
+        var out_min : ?opentime.Ordinate = null;
+        var out_max : ?opentime.Ordinate = null;
+
+        for (self.mappings)
+            |m|
+        {
+            const b = m.output_bounds();
+
+            out_min = @min(out_min orelse b.start_seconds, b.start_seconds);
+            out_min = @min(out_min.?, b.end_seconds);
+
+            out_max = @max(out_max orelse b.start_seconds, b.start_seconds);
+            out_max = @max(out_max.?, b.end_seconds);
+        }
+
+        return .{
+            .{ 
+                .in = self.end_points_input[0],
+                .out = out_min.?,
+            },
+            .{ 
+                .in = self.end_points_input[self.end_points_input.len - 1],
+                .out = out_max.?,
+            },
+        };
     }
 };
 
-/// build a topological mapping from a to c
-pub fn join_t(
-    allocator: std.mem.Allocator,
-    args: struct{
-        a2b: TopologyMapping,
-        b2c: TopologyMapping,
-    },
-) TopologyMapping
+test "TopologyMapping: extents"
 {
-    const a2b_b_bounds = a2b.end_points_output(allocator);
+    const tm = LEFT.LIN_TOPO;
+
+    const tm_ex = tm.extents();
+    const tm_out_bounds = tm.mappings[0].output_bounds();
+
+    try std.testing.expectApproxEqAbs(
+        tm_ex[0].in,
+        tm.end_points_input[0],
+        opentime.util.EPSILON,
+    );
+    try std.testing.expectApproxEqAbs(
+        tm_ex[1].in,
+        tm.end_points_input[1],
+        opentime.util.EPSILON,
+    );
+
+    try std.testing.expectApproxEqAbs(
+        tm_ex[0].out,
+        tm_out_bounds.start_seconds,
+        opentime.util.EPSILON,
+    );
+    try std.testing.expectApproxEqAbs(
+        tm_ex[1].out,
+        tm_out_bounds.end_seconds,
+        opentime.util.EPSILON,
+    );
 }
+
+/// build a topological mapping from a to c
+// pub fn join_t(
+//     parent_allocator: std.mem.Allocator,
+//     args: struct{
+//         a2b: TopologyMapping,
+//         b2c: TopologyMapping,
+//     },
+// ) TopologyMapping
+// {
+//     // var arena = std.heap.ArenaAllocator.init(parent_allocator);
+//     // defer arena.deinit();
+//     // const allocator = arena.allocator();
+//     //
+//     // {
+//     //     const a2b_extents = args.a2b.extents();
+//     //
+//     //     var a2b_split_points = std.ArrayList(f32).init(
+//     //         allocator
+//     //     );
+//     //
+//     //     const b2c_b_bounds = args.b2c.end_points_input;
+//     //     const bounds_len = b2c_b_bounds.len;
+//     //
+//     //     for (b2c_b_bounds)
+//     //         |b2c_b_ord|
+//     //     {
+//     //         if a2b
+//     //     }
+//     // }
+// }
 
 // Join Functions
 //
@@ -145,10 +246,8 @@ fn test_structs(
 {
     return struct {
         pub const START_PT = curve.ControlPoint{
-            .{
-                .in = int.start_seconds,
-                .out = int.start_seconds,
-            },
+            .in = int.start_seconds,
+            .out = int.start_seconds,
         };
         pub const END_PT = curve.ControlPoint{
             .in = int.end_seconds,
@@ -159,6 +258,8 @@ fn test_structs(
         );
 
         pub const INT = int;
+
+        // mappings and (simple) topologies
         pub const AFF = mapping_affine.MappingAffine {
             .input_bounds_val = int,
             .input_to_output_xform = .{
@@ -166,11 +267,24 @@ fn test_structs(
                 .scale = 2,
             },
         };
+        pub const AFF_TOPO = TopologyMapping {
+            .end_points_input = &.{ int.start_seconds, int.end_seconds },
+            .mappings = &.{ AFF },
+        };
+
         pub const LIN = mapping_curve_linear.MappingCurveLinear {
             .input_to_output_curve = .{
-                .knots = &.{ .{ START_PT, END_PT, }, },
+                .knots = @constCast(&[_]curve.ControlPoint{
+                    START_PT,
+                    END_PT, 
+                }),
             },
         };
+        pub const LIN_TOPO = TopologyMapping {
+            .end_points_input = &.{ int.start_seconds, int.end_seconds },
+            .mappings = &.{ LIN.mapping() },
+        };
+
         pub const BEZ = mapping_curve_bezier.MappingCurveBezier {
             .input_to_output_curve = .{
                 .segments = &.{
@@ -182,6 +296,10 @@ fn test_structs(
                     }
                 },
             },
+        };
+        pub const BEZ_TOPO = TopologyMapping {
+            .end_points_input = &.{ int.start_seconds, int.end_seconds },
+            .mappings = &.{ BEZ },
         };
     };
 }

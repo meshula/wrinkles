@@ -309,6 +309,17 @@ pub fn LinearOf(
         ///
         /// @TODO finish this doc
         ///
+        /// to restate: self B->C
+        ///               input:  B
+        ///               output: C
+        ///            other A->B
+        ///               input:  A
+        ///               output: B
+        ///           result A->C
+        ///               input:  A
+        ///               output: C
+        ///            => other.output space is self.input space
+        ///
         pub fn project_curve(
             /// curve being projected _through_
             self: @This(),
@@ -317,8 +328,10 @@ pub fn LinearOf(
             other: LinearType
         ) ![]LinearType 
         {
-            // @TODO: if there are preserved derivatives, project and compose them
-            //        as well
+
+
+            // @TODO: if there are preserved derivatives, project and compose
+            //        them as well
             //
             const other_bounds = other.extents();
 
@@ -501,8 +514,12 @@ pub fn LinearOf(
             };
         }
 
-        /// compute the extents for the curve exhaustively
-        pub fn extents(self:@This()) [2]ControlPointType {
+        /// compute both the input and output extents for the curve
+        /// exhaustively.  [0] is the minimum and [1] is the maximum
+        pub fn extents(
+            self:@This(),
+        ) [2]ControlPointType 
+        {
             var min:ControlPointType = self.knots[0];
             var max:ControlPointType = self.knots[0];
 
