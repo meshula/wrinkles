@@ -23,6 +23,8 @@ pub const MappingCurveBezier = mapping_curve_bezier.MappingCurveBezier;
 
 const curve = @import("curve");
 
+// const topology = @import("topology.zig");
+
 /// A Mapping is a polymorphic container for a function that maps from an
 /// "input" space to an "output" space.  Mappings can be joined with other
 /// mappings via function composition to build new transformations via common
@@ -92,161 +94,6 @@ pub const Mapping = union (enum) {
     // @}
 };
 
-/// A Topology binds regions of a one dimensional space to a sequence of right
-/// met mappings, separated by a list of end points.  There are implicit
-/// "Empty" mappings outside of the end points which map to no values before
-/// and after the segments defined by the Topology.
-pub const TopologyMapping = struct {
-    end_points_input: []const opentime.Ordinate,
-    mappings: []const Mapping,
-
-    pub fn init(
-        allocator: std.mem.Allocator,
-        in_mappings: []const Mapping,
-    ) !TopologyMapping
-    {
-        var cursor : opentime.Ordinate = 0;
-
-        const end_points = (
-            std.ArrayList(opentime.Ordinate).init(allocator)
-        );
-        end_points.ensureTotalCapacity(in_mappings.len + 1);
-        errdefer end_points.deinit();
-
-        end_points.append(cursor);
-
-        // validate mappings
-        for (in_mappings)
-            |in_m|
-        {
-            const d = in_m.input_bounds().duration;
-            if (d <= 0) {
-                return error.InvalidMappingForTopology;
-            }
-
-            cursor += d;
-
-            try end_points.append(d);
-        }
-
-        return .{
-            .mappings = try allocator.dupe(in_mappings),
-            .end_points_input = try end_points.toOwnedSlice(),
-        };
-    }
-
-    pub fn deinit(
-        self: @This(),
-        allocator: std.mem.Allocator,
-    ) void
-    {
-        allocator.free(self.end_points_input);
-        allocator.free(self.mappings);
-    }
-
-    pub fn intervals_output(
-        self: @This(),
-        allocator: std.mem.Allocator,
-    ) ![]const opentime.ContinuousTimeInterval
-    {
-        const result = std.ArrayList(
-            opentime.ContinuousTimeInterval
-        ).init(allocator);
-
-        for (self.mappings)
-            |m|
-        {
-            try result.append(m.output_bounds());
-        }
-
-        return try result.toOwnedSlice();
-    }
-};
-
-const EMPTY_TM = TopologyMapping{
-    .end_points_input = &.{},
-    .mappings = &.{}
-};
-
-test "examples TopologyMapping"
-{
-    const allocator = std.testing.allocator;
-
-    const tm_left = TopologyMapping.init(
-        allocator,
-        .{ LEFT.AFF,}
-    );
-    defer tm_left.deinit(allocator);
-
-    const tm_right = TopologyMapping.init(
-        allocator,
-        .{ RIGHT.AFF,}
-    );
-    defer tm_right.deinit(allocator);
-
-    const should_be_empty = join_t(
-        allocator,
-        .{
-            .a2b =  tm_left,
-            .b2c = tm_right,
-        }
-    );
-
-    try std.testing.expectEqual(EMPTY_TM, should_be_empty);
-}
-
-/// build a topological mapping from a to c
-pub fn join_t(
-    allocator: std.mem.Allocator,
-    args: struct{
-        a2b: TopologyMapping, // split on output
-        b2c: TopologyMapping, // split in input
-    },
-) TopologyMapping
-{
-    const a2b_b_bounds = a2b.intervals_output(allocator);
-
-    var split_points = std.ArrayList(opentime.Ordinate).init(allocator);
-
-    for (a2b_b_bounds)
-        |a2b_b_int|
-    {
-        if (
-
-    }
-}
-
-/// build a topological mapping from a to c
-// pub fn join_t(
-//     parent_allocator: std.mem.Allocator,
-//     args: struct{
-//         a2b: TopologyMapping,
-//         b2c: TopologyMapping,
-//     },
-// ) TopologyMapping
-// {
-//     // var arena = std.heap.ArenaAllocator.init(parent_allocator);
-//     // defer arena.deinit();
-//     // const allocator = arena.allocator();
-//     //
-//     // {
-//     //     const a2b_extents = args.a2b.extents();
-//     //
-//     //     var a2b_split_points = std.ArrayList(f32).init(
-//     //         allocator
-//     //     );
-//     //
-//     //     const b2c_b_bounds = args.b2c.end_points_input;
-//     //     const bounds_len = b2c_b_bounds.len;
-//     //
-//     //     for (b2c_b_bounds)
-//     //         |b2c_b_ord|
-//     //     {
-//     //         if a2b
-//     //     }
-//     // }
-// }
-
 // Join Functions
 //
 // These functions are all of the form:
@@ -262,7 +109,7 @@ pub fn join_t(
 ///////////////////////////////////////////////////////////////////////////////
 
 /// Produce test structures at comptime
-fn test_structs(
+pub fn test_structs(
     int: opentime.ContinuousTimeInterval,
 ) type
 {
@@ -289,10 +136,10 @@ fn test_structs(
                 .scale = 2,
             },
         };
-        pub const AFF_TOPO = TopologyMapping {
-            .end_points_input = &.{ int.start_seconds, int.end_seconds },
-            .mappings = &.{ AFF },
-        };
+        // pub const AFF_TOPO = topology.TopologyMapping {
+        //     .end_points_input = &.{ int.start_seconds, int.end_seconds },
+        //     .mappings = &.{ AFF },
+        // };
 
         pub const LIN = mapping_curve_linear.MappingCurveLinear {
             .input_to_output_curve = .{
@@ -302,10 +149,10 @@ fn test_structs(
                 }),
             },
         };
-        pub const LIN_TOPO = TopologyMapping {
-            .end_points_input = &.{ int.start_seconds, int.end_seconds },
-            .mappings = &.{ LIN.mapping() },
-        };
+        // pub const LIN_TOPO = topology.TopologyMapping {
+        //     .end_points_input = &.{ int.start_seconds, int.end_seconds },
+        //     .mappings = &.{ LIN.mapping() },
+        // };
 
         pub const BEZ = mapping_curve_bezier.MappingCurveBezier {
             .input_to_output_curve = .{
@@ -319,42 +166,31 @@ fn test_structs(
                 },
             },
         };
-        pub const BEZ_TOPO = TopologyMapping {
-            .end_points_input = &.{ int.start_seconds, int.end_seconds },
-            .mappings = &.{ BEZ },
-        };
+        // pub const BEZ_TOPO = topology.TopologyMapping {
+        //     .end_points_input = &.{ int.start_seconds, int.end_seconds },
+        //     .mappings = &.{ BEZ },
+        // };
     };
 }
 
-const LEFT = test_structs(
+pub const LEFT = test_structs(
     .{
         .start_seconds = -2,
         .end_seconds = 2,
     }
 );
-const MIDDLE = test_structs(
+pub const MIDDLE = test_structs(
     .{
         .start_seconds = 0,
         .end_seconds = 10,
     }
 );
-const RIGHT = test_structs(
+pub const RIGHT = test_structs(
     .{
         .start_seconds = 8,
         .end_seconds = 12,
     }
 );
-
-test "example" 
-{
-    const result = join(
-        .{
-            .a2b = RIGHT.AFF,
-            .b2c = LEFT.LIN,
-        },
-    );
-    _ = result;
-}
 
 pub fn join_aff_aff(
     args: struct{
