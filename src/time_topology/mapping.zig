@@ -100,98 +100,120 @@ pub const TopologyMapping = struct {
     end_points_input: []const opentime.Ordinate,
     mappings: []const Mapping,
 
-    /// project the segment endpoints into the output space
+    pub fn init(
+        allocator: std.mem.Allocator,
+        in_mappings: []const Mapping,
+    ) !TopologyMapping
+    {
+        var cursor : opentime.Ordinate = 0;
+
+        const end_points = (
+            std.ArrayList(opentime.Ordinate).init(allocator)
+        );
+        end_points.ensureTotalCapacity(in_mappings.len + 1);
+        errdefer end_points.deinit();
+
+        end_points.append(cursor);
+
+        // validate mappings
+        for (in_mappings)
+            |in_m|
+        {
+            const d = in_m.input_bounds().duration;
+            if (d <= 0) {
+                return error.InvalidMappingForTopology;
+            }
+
+            cursor += d;
+
+            try end_points.append(d);
+        }
+
+        return .{
+            .mappings = try allocator.dupe(in_mappings),
+            .end_points_input = try end_points.toOwnedSlice(),
+        };
+    }
+
+    pub fn deinit(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        allocator.free(self.end_points_input);
+        allocator.free(self.mappings);
+    }
+
     pub fn intervals_output(
         self: @This(),
         allocator: std.mem.Allocator,
     ) ![]const opentime.ContinuousTimeInterval
     {
-        const result_builder = std.ArrayList(
+        const result = std.ArrayList(
             opentime.ContinuousTimeInterval
         ).init(allocator);
-
-        const in_pts_len = self.end_points_input.len;
-
-        for (
-            self.end_points_input[0..in_pts_len-1], 
-            self.end_points_input[1..in_pts_len], 
-            self.mappings,
-        )
-            |in_start, in_end, m|
-        {
-            try result_builder.append(
-                .{
-                    .start_seconds = m.project_instantaneous_cc(in_start),
-                    .end_seconds = m.project_instantaneous_cc(in_end),
-                },
-            );
-        }
-
-        return try result_builder.toOwnedSlice();
-    }
-
-    /// exhaustively comput the in and output extents of the TopologyMapping 
-    /// [0] is the min point and [1] is the max point
-    pub fn extents(
-        self: @This(),
-    ) [2]curve.ControlPoint
-    {
-        var out_min : ?opentime.Ordinate = null;
-        var out_max : ?opentime.Ordinate = null;
 
         for (self.mappings)
             |m|
         {
-            const b = m.output_bounds();
-
-            out_min = @min(out_min orelse b.start_seconds, b.start_seconds);
-            out_min = @min(out_min.?, b.end_seconds);
-
-            out_max = @max(out_max orelse b.start_seconds, b.start_seconds);
-            out_max = @max(out_max.?, b.end_seconds);
+            try result.append(m.output_bounds());
         }
 
-        return .{
-            .{ 
-                .in = self.end_points_input[0],
-                .out = out_min.?,
-            },
-            .{ 
-                .in = self.end_points_input[self.end_points_input.len - 1],
-                .out = out_max.?,
-            },
-        };
+        return try result.toOwnedSlice();
     }
 };
 
-test "TopologyMapping: extents"
+const EMPTY_TM = TopologyMapping{
+    .end_points_input = &.{},
+    .mappings = &.{}
+};
+
+test "examples TopologyMapping"
 {
-    const tm = LEFT.LIN_TOPO;
+    const allocator = std.testing.allocator;
 
-    const tm_ex = tm.extents();
-    const tm_out_bounds = tm.mappings[0].output_bounds();
+    const tm_left = TopologyMapping.init(
+        allocator,
+        .{ LEFT.AFF,}
+    );
+    defer tm_left.deinit(allocator);
 
-    try std.testing.expectApproxEqAbs(
-        tm_ex[0].in,
-        tm.end_points_input[0],
-        opentime.util.EPSILON,
+    const tm_right = TopologyMapping.init(
+        allocator,
+        .{ RIGHT.AFF,}
     );
-    try std.testing.expectApproxEqAbs(
-        tm_ex[1].in,
-        tm.end_points_input[1],
-        opentime.util.EPSILON,
+    defer tm_right.deinit(allocator);
+
+    const should_be_empty = join_t(
+        allocator,
+        .{
+            .a2b =  tm_left,
+            .b2c = tm_right,
+        }
     );
 
-    try std.testing.expectApproxEqAbs(
-        tm_ex[0].out,
-        tm_out_bounds.start_seconds,
-        opentime.util.EPSILON,
-    );
-    try std.testing.expectApproxEqAbs(
-        tm_ex[1].out,
-        tm_out_bounds.end_seconds,
-        opentime.util.EPSILON,
-    );
+    try std.testing.expectEqual(EMPTY_TM, should_be_empty);
+}
+
+/// build a topological mapping from a to c
+pub fn join_t(
+    allocator: std.mem.Allocator,
+    args: struct{
+        a2b: TopologyMapping, // split on output
+        b2c: TopologyMapping, // split in input
+    },
+) TopologyMapping
+{
+    const a2b_b_bounds = a2b.intervals_output(allocator);
+
+    var split_points = std.ArrayList(opentime.Ordinate).init(allocator);
+
+    for (a2b_b_bounds)
+        |a2b_b_int|
+    {
+        if (
+
+    }
 }
 
 /// build a topological mapping from a to c
@@ -322,6 +344,17 @@ const RIGHT = test_structs(
         .end_seconds = 12,
     }
 );
+
+test "example" 
+{
+    const result = join(
+        .{
+            .a2b = RIGHT.AFF,
+            .b2c = LEFT.LIN,
+        },
+    );
+    _ = result;
+}
 
 pub fn join_aff_aff(
     args: struct{
@@ -577,6 +610,9 @@ pub fn join(
 {
     const a2b = args.a2b;
     const b2c = args.b2c;
+
+    // simplify this by linearizing bezier mappings so that there are
+    // practically only two types we're handling - affine and linear
 
     if (a2b == .empty or b2c == .empty) {
         return mapping_empty.EMPTY;
