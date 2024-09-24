@@ -48,6 +48,54 @@ pub const MappingAffine = struct {
 
         return self.input_to_output_xform.applied_to_seconds(ordinate);
     }
+
+    pub fn clone(
+        self: @This(),
+        _: std.mem.Allocator,
+    ) !MappingAffine
+    {
+        return .{
+            .input_bounds_val = self.input_bounds_val,
+            .input_to_output_xform = self.input_to_output_xform,
+        };
+    }
+
+    pub fn shrink_to_output_interval(
+        self: @This(),
+        _: std.mem.Allocator,
+        target_output_interval: opentime.ContinuousTimeInterval,
+    ) !MappingAffine
+    {
+        const target_input_interval = (
+            self.input_to_output_xform.inverted().applied_to_bounds(
+                target_output_interval
+            )
+        );
+        return .{
+            .input_bounds_val = opentime.interval.intersect(
+                self.input_bounds_val,
+                target_input_interval,
+            ) orelse .{},
+            .input_to_output_xform = self.input_to_output_xform,
+        };
+    }
+
+    pub fn shrink_to_input_interval(
+        self: @This(),
+        _: std.mem.Allocator,
+        target_output_interval: opentime.ContinuousTimeInterval,
+    ) !MappingAffine
+    {
+        return .{
+            .input_bounds_val = (
+                opentime.interval.intersect(
+                    self.input_bounds_val,
+                    target_output_interval,
+                ) orelse return error.NoOverlap
+            ),
+            .input_to_output_xform = self.input_to_output_xform,
+        };
+    }
 };
 pub const INFINITE_IDENTIY = (
     MappingAffine{

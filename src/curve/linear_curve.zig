@@ -587,6 +587,41 @@ pub fn LinearOf(
                 .knots = try result.toOwnedSlice() 
             };
         }
+
+        // pub fn split_at_critical_points(
+        //     self: @This(),
+        //     allocator: std.mem.Allocator,
+        // ) []LinearType
+        // {
+        //     const new_slope = std.math.sign(
+        //         bezier_math.slope(self.knots[0], self.knots[1])
+        //     );
+        //
+        //     var slope_sign = if (new_slope != 0) new_slope else null;
+        //
+        //     if (self.knots.len < 3) {
+        //         return &.{
+        //             try self.clone(allocator),
+        //         };
+        //     }
+        //
+        //     var last_split:usize = 0;
+        //     const splits = std.ArrayList([]ControlPointType).init(allocator);
+        //
+        //     for (self.knots[1..self.knots.len - 1], 1.., self.knots[2..])
+        //         |left, left_ind, right|
+        //     {
+        //         const new_sign = std.math.sign(bezier_math.slope(left, right));
+        //
+        //         if (
+        //             new_sign != null 
+        //             and slope_sign != null 
+        //             and slope_sign != new_sign
+        //         ) {
+        //             try splits.append(self.knots[last_split..left_ind]
+        //         }
+        //     }
+        // }
     };
 }
 

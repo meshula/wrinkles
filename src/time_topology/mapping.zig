@@ -9,7 +9,6 @@ const serialization = @import("serialization.zig");
 
 const mapping_empty = @import("mapping_empty.zig");
 pub const MappingEmpty = mapping_empty.MappingEmpty;
-pub const EMPTY = mapping_empty.EMPTY;
 
 const mapping_affine = @import("mapping_affine.zig");
 pub const MappingAffine = mapping_affine.MappingAffine;
@@ -22,6 +21,12 @@ const mapping_curve_bezier = @import("mapping_curve_bezier.zig");
 pub const MappingCurveBezier = mapping_curve_bezier.MappingCurveBezier;
 
 const curve = @import("curve");
+
+const topology = @import("topology.zig");
+
+test {
+    _ = topology;
+}
 
 // const topology = @import("topology.zig");
 
@@ -82,17 +87,98 @@ pub const Mapping = union (enum) {
     /// Make a copy of this Mapping
     pub fn clone(
         self: @This(),
+        allocator: std.mem.Allocator,
     ) !Mapping
     {
         return switch (self) {
-            inline else => |contained| contained.clone().mapping(),
+            inline else => |contained| (try contained.clone(allocator)).mapping(),
         };
     }
+
+    /// return a new interval with bounds trimmed in the input space to the
+    /// target interval
+    pub fn shrink_to_input_interval(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        target_input_interval: opentime.ContinuousTimeInterval,
+    ) !Mapping
+    {
+        return switch (self) {
+            inline else => |contained| (
+                try contained.shrink_to_input_interval(
+                    allocator,
+                    target_input_interval
+                )
+            ).mapping(),
+        };
+    }
+
+    /// return a new interval with bounds trimmed in the input space to the
+    /// target interval
+    pub fn shrink_to_output_interval(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        target_output_interval: opentime.ContinuousTimeInterval,
+    ) !Mapping
+    {
+        return switch (self) {
+            inline else => |contained| (
+                try contained.shrink_to_output_interval(
+                    allocator,
+                    target_output_interval
+                )
+            ).mapping(),
+        };
+    }
+
+    /// split the mapping at the point in its input space, assumes that a
+    /// bounds check has already been made.  will return an error if the split
+    /// point is invalid
+    pub fn split_at_input_point(
+        self: @This(),
+        pt_input: opentime.Ordinate,
+    ) ![2]Mapping
+    {
+        return switch (self) {
+            inline else => |m| try m.split_at_input_point(pt_input),
+        };
+    }
+
+    /// /// spit this mapping at any critical points, placing the new mappings into
+    /// /// the array list.  returns a slice of the new mappings
+    /// pub fn split_at_critical_points(
+    ///     self: @This(),
+    ///     result: std.ArrayList(Mapping),
+    /// ) ![]Mapping
+    /// {
+    ///     const allocator = result.allocator;
+    ///
+    ///     switch (self) {
+    ///         .empty => {
+    ///             try result.append(EMPTY);
+    ///             return result[result.len - 1..];
+    ///         },
+    ///         .affine => |aff| {
+    ///             try result.append(aff);
+    ///             return result[result.len - 1..];
+    ///         },
+    ///         .linear => |lin| {
+    ///             const new_lin = lin.input_to_output_curve.split_at_critical_points(
+    ///                 allocator
+    ///             );
+    ///         },
+    ///         .bezier => |bez| {
+    ///             bez.input_to_output_curve.split_on_critical_points(allocator);
+    ///         }
+    ///     }
+    /// }
 
     // @{ Errors
     pub const ProjectionError = error { OutOfBounds };
     // @}
 };
+
+const EMPTY = mapping_empty.EMPTY.mapping();
 
 // Join Functions
 //
@@ -136,10 +222,6 @@ pub fn test_structs(
                 .scale = 2,
             },
         };
-        // pub const AFF_TOPO = topology.TopologyMapping {
-        //     .end_points_input = &.{ int.start_seconds, int.end_seconds },
-        //     .mappings = &.{ AFF },
-        // };
 
         pub const LIN = mapping_curve_linear.MappingCurveLinear {
             .input_to_output_curve = .{
@@ -149,10 +231,6 @@ pub fn test_structs(
                 }),
             },
         };
-        // pub const LIN_TOPO = topology.TopologyMapping {
-        //     .end_points_input = &.{ int.start_seconds, int.end_seconds },
-        //     .mappings = &.{ LIN.mapping() },
-        // };
 
         pub const BEZ = mapping_curve_bezier.MappingCurveBezier {
             .input_to_output_curve = .{
@@ -166,26 +244,43 @@ pub fn test_structs(
                 },
             },
         };
-        // pub const BEZ_TOPO = topology.TopologyMapping {
-        //     .end_points_input = &.{ int.start_seconds, int.end_seconds },
-        //     .mappings = &.{ BEZ },
-        // };
+
+        pub const BEZ_U = mapping_curve_bezier.MappingCurveBezier {
+            .input_to_output_curve = .{
+                .segments = @constCast(
+                    &[_]curve.Bezier.Segment{
+                        .{
+                            .p0 = START_PT,
+                            .p1 = .{
+                                .in = START_PT.in,
+                                .out = END_PT.out,
+                            },
+                            .p2 = END_PT,
+                            .p3 = .{
+                                .in = END_PT.in,
+                                .out = START_PT.out,
+                            },
+                        }
+                    }
+                ),
+            },
+        };
     };
 }
 
-pub const LEFT = test_structs(
+const LEFT = test_structs(
     .{
         .start_seconds = -2,
         .end_seconds = 2,
     }
 );
-pub const MIDDLE = test_structs(
+const MIDDLE = test_structs(
     .{
         .start_seconds = 0,
         .end_seconds = 10,
     }
 );
-pub const RIGHT = test_structs(
+const RIGHT = test_structs(
     .{
         .start_seconds = 8,
         .end_seconds = 12,
@@ -212,12 +307,13 @@ test "join_aff_aff"
 {
     // because of the boundary condition, this should return empty
     // @TODO: enforce the boundary condition!
-    const left_right = join_aff_aff(
+    const left_right = try join(
+        std.testing.allocator,
         .{
-            .a2b = LEFT.AFF,
-            .b2c = RIGHT.AFF,
+            .a2b = LEFT.AFF.mapping(),
+            .b2c = RIGHT.AFF.mapping(),
         },
-    ).mapping();
+    );
     try std.testing.expectEqual(
         .empty,
         std.meta.activeTag(left_right),
@@ -266,67 +362,6 @@ pub fn join_lin_aff(
     };
 }
 
-pub fn join_aff_bez(
-    allocator: std.mem.Allocator,
-    args: struct{
-        a2b: mapping_affine.MappingAffine,
-        b2c: mapping_curve_bezier.MappingCurveBezier,
-    },
-) !mapping_curve_bezier.MappingCurveBezier
-{
-    return .{
-        .input_to_output_curve = (
-            try args.b2c.input_to_output_curve.project_affine(
-                allocator,
-                args.a2b.input_to_output_xform,
-            )
-        ),
-    };
-}
-
-pub fn join_bez_aff(
-    allocator: std.mem.Allocator,
-    args: struct{
-        a2b: mapping_curve_bezier.MappingCurveBezier,
-        b2c: mapping_affine.MappingAffine,
-    },
-) !mapping_curve_bezier.MappingCurveBezier
-{
-    const a2c_crv = try args.a2b.input_to_output_curve.clone(allocator);
-
-    const b2a = try curve.inverted(
-        allocator,
-        args.a2b.input_to_output_curve
-    );
-
-    const b_bounds = args.b2c.input_bounds();
-
-    const bounds_in_a:opentime.ContinuousTimeInterval = .{
-        .start_seconds = try b2a.output_at_input(
-            b_bounds.start_seconds
-        ),
-        .end_seconds =  try b2a.output_at_input(
-            b_bounds.end_seconds,
-        ),
-    };
-
-    const a2c_trimmed = try a2c_crv.trimmed_in_input_space(
-        allocator,
-        bounds_in_a
-    );
-
-
-    return .{
-        .input_to_output_curve = try curve.join_bez_aff_unbounded(
-            allocator,
-             .{ 
-                .a2b = a2c_trimmed,
-                .b2c = args.b2c.input_to_output_xform,
-            },
-        ),
-    };
-}
-
 pub fn join_lin_lin(
     allocator: std.mem.Allocator,
     args: struct{
@@ -347,73 +382,6 @@ pub fn join_lin_lin(
     };
 }
 
-pub fn join_bez_lin(
-    allocator: std.mem.Allocator,
-    args: struct{
-        a2b: mapping_curve_bezier.MappingCurveBezier,
-        b2c: mapping_curve_linear.MappingCurveLinear,
-    },
-) !mapping_curve_linear.MappingCurveLinear
-{
-    // @TOOD: promote the linearization to the Mapping
-    const a2b_lin = mapping_curve_linear.MappingCurveLinear{
-        .input_to_output_curve =  (
-            try args.a2b.input_to_output_curve.linearized(allocator)
-        ),
-    };
-
-    return join_lin_lin(
-        allocator,
-        .{
-            .a2b = a2b_lin,
-            .b2c = args.b2c,
-        }
-    );
-}
-
-pub fn join_lin_bez(
-    allocator: std.mem.Allocator,
-    args: struct{
-        a2b: mapping_curve_linear.MappingCurveLinear,
-        b2c: mapping_curve_bezier.MappingCurveBezier,
-    },
-) !mapping_curve_linear.MappingCurveLinear
-{
-    const b2c_lin = mapping_curve_linear.MappingCurveLinear{
-        .input_to_output_curve =  (
-            try args.b2c.input_to_output_curve.linearized(allocator)
-        ),
-    };
-
-    return join_lin_lin(
-        allocator,
-        .{
-            .a2b = args.a2b,
-            .b2c = b2c_lin,
-        }
-    );
-}
-
-pub fn join_bez_bez(
-    allocator: std.mem.Allocator,
-    args: struct{
-        a2b: mapping_curve_bezier.MappingCurveBezier,
-        b2c: mapping_curve_bezier.MappingCurveBezier,
-    },
-) !mapping_curve_linear.MappingCurveLinear
-{
-    const a2b_lin = try args.a2b.linearized(allocator);
-    const b2c_lin = try args.b2c.linearized(allocator);
-
-    return try join_lin_lin(
-        allocator,
-        .{
-            .a2b = a2b_lin,
-            .b2c = b2c_lin,
-        }
-    );
-}
-
 /// Given two mappings, one that maps from space a->space b and a second that
 /// maps from space b to space c, joins two mappings via their common
 /// coordinate system (Referred to in the arguments as "b"), and computes the
@@ -429,9 +397,9 @@ pub fn join_bez_bez(
 /// b2c v  | empty | affine | linear | bezier |
 /// -------|-------|--------|--------|--------|
 /// empty  | empty | empty  | empty  | empty  | 
-/// affine | empty | affine | linear | bezier |
+/// affine | empty | affine | linear | linear |
 /// linear | empty | linear | linear | linear |
-/// bezier | empty | bezier | linear | linear |
+/// bezier | empty | linear | linear | linear |
 /// -------|-------|--------|--------|--------|
 ///
 /// (return value is always a `Mapping`)
@@ -444,18 +412,60 @@ pub fn join(
     },
 ) !Mapping
 {
-    const a2b = args.a2b;
-    const b2c = args.b2c;
+    var a2b: Mapping = args.a2b;
+    var b2c: Mapping = args.b2c;
 
-    // simplify this by linearizing bezier mappings so that there are
-    // practically only two types we're handling - affine and linear
-
+    // joining anything with an empty results in an empty
     if (a2b == .empty or b2c == .empty) {
-        return mapping_empty.EMPTY;
+        return EMPTY;
     }
 
-    return switch (b2c) {
-        .affine => |b2c_aff| switch (a2b) {
+    // linearize beziers that are being projected
+    const a2b_linearized = (
+        if (a2b == .bezier) Mapping{
+            .linear = try a2b.bezier.linearized(allocator),
+        } 
+        else try a2b.clone(allocator)
+    );
+    defer a2b_linearized.deinit(allocator);
+
+    const b2c_linearized = (
+        if (b2c == .bezier) Mapping{
+            .linear = try b2c.bezier.linearized(allocator),
+        } 
+        else try b2c.clone(allocator)
+    );
+    defer b2c_linearized.deinit(allocator);
+
+
+    // manage the boundary conditions
+    const a2b_b_bounds = a2b_linearized.output_bounds();
+    const b2c_b_bounds = b2c_linearized.input_bounds();
+
+    const maybe_b_bounds_intersection = (
+        opentime.interval.intersect(
+            a2b_b_bounds,
+            b2c_b_bounds
+        )
+    );
+
+    const b_bounds_intersection = (
+        // if there is no intersection, the result is empty
+        maybe_b_bounds_intersection orelse return EMPTY
+    );
+
+    // trimmed and linearized
+    const a2b_l_t = try a2b_linearized.shrink_to_output_interval(
+        allocator,
+        b_bounds_intersection
+    );
+    const b2c_l_t = try b2c_linearized.shrink_to_input_interval(
+        allocator,
+        b_bounds_intersection
+    );
+
+    return switch (b2c_l_t) {
+        .affine => |b2c_aff| switch (a2b_l_t) {
             .affine => |a2b_aff| join_aff_aff(
                 .{ .a2b = a2b_aff, .b2c = b2c_aff, },
             ).mapping(),
@@ -468,15 +478,9 @@ pub fn join(
                     }
                 )
             ).mapping(),
-            .bezier => |a2b_bez| (
-                try join_bez_aff(
-                    allocator,
-                    .{ .a2b = a2b_bez, .b2c = b2c_aff }
-                )
-            ).mapping(),
-            .empty => mapping_empty.EMPTY,
+            inline else => unreachable,
         },
-        .linear => |b2c_lin| switch (a2b) {
+        .linear => |b2c_lin| switch (a2b_l_t) {
             .affine => |a2b_aff| ( 
                 try join_aff_lin(
                     allocator,
@@ -492,44 +496,8 @@ pub fn join(
                     },
                 )
             ).mapping(),
-            .bezier => |a2b_bez| (
-                try join_bez_lin(
-                    allocator,
-                    .{ .a2b = a2b_bez, .b2c = b2c_lin }
-                )
-            ).mapping(),
-            .empty => mapping_empty.EMPTY,
+            inline else => unreachable,
         },
-        .bezier => |b2c_bez| switch (a2b) {
-            .affine => |a2b_aff| (
-                try join_aff_bez(
-                allocator,
-                .{
-                    .a2b = a2b_aff,
-                    .b2c = b2c_bez, 
-                },
-                )
-            ).mapping(),
-            .linear => |a2b_lin| (
-                try join_lin_bez(
-                    allocator,
-                    .{ 
-                        .a2b = a2b_lin,
-                        .b2c = b2c_bez 
-                    }
-                )
-            ).mapping(),
-            .bezier => |a2b_bez| (
-                try join_bez_bez(
-                    allocator,
-                    .{
-                        .a2b = a2b_bez,
-                        .b2c = b2c_bez 
-                    }
-                )
-            ).mapping(),
-            .empty => mapping_empty.EMPTY,
-        },
-        .empty => mapping_empty.EMPTY,
+        inline else => unreachable,
     };
 }

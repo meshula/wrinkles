@@ -8,7 +8,6 @@ const mapping_mod = @import("mapping.zig");
 
 /// Regardless what the input ordinate is, there is no value mapped to it
 pub const MappingEmpty = struct {
-    const OTIO_SCHEMA = "MappingEmpty.1";
 
     /// build a generic mapping from this empty mapping
     pub fn mapping(
@@ -56,8 +55,55 @@ pub const MappingEmpty = struct {
     {
         return EMPTY;
     }
+
+    pub fn shrink_to_input_interval(
+        _: @This(),
+        _: std.mem.Allocator,
+        _: opentime.ContinuousTimeInterval,
+    ) !MappingEmpty
+    {
+        return EMPTY;
+    }
+
+    pub fn shrink_to_output_interval(
+        _: @This(),
+        _: std.mem.Allocator,
+        _: opentime.ContinuousTimeInterval,
+    ) !MappingEmpty
+    {
+        return EMPTY;
+    }
+
+    ///
+    pub fn split_at_input_point(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        pt: opentime.Ordinate,
+    ) ![]mapping_mod.Mapping
+    {
+        // @TODO: need bounds on the empty mapping, clearly.  All mappings need
+        //        to know their input bounds
+
+
+        // const out_knots = try allocator.dupe(
+        //     ControlPoint,
+        //     self.knots
+        // )
+        //
+        // for (self.knots[0..self.knots.len - 1], self.knots[1..])
+        //     |left, right|
+        // {
+        //     if (left < pt and right > pt)
+        //     {
+        //         return &.{
+        //
+        //         };
+        //     }
+        // }
+    }
 };
-pub const EMPTY = (MappingEmpty{}).mapping();
+
+pub const EMPTY = MappingEmpty{};
 
 test "MappingEmpty: instantiate and convert"
 {

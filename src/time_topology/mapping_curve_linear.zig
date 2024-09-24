@@ -89,13 +89,67 @@ pub const MappingCurveLinear = struct {
     pub fn clone(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) !mapping_mod.Mapping
+    ) !MappingCurveLinear
     {
         return .{
-            .linear = .{
-                .curve = try self.input_to_output_curve.clone(allocator),
-            },
+            .input_to_output_curve = (
+                try self.input_to_output_curve.clone(allocator)
+            ),
         };
+    }
+
+    pub fn shrink_to_output_interval(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        target_output_interval: opentime.ContinuousTimeInterval,
+    ) !MappingCurveLinear
+    {
+        const output_to_input_crv = try curve.inverted_linear(
+            allocator,
+            self.input_to_output_curve
+        );
+        defer output_to_input_crv.deinit(allocator);
+
+        const target_input_interval_as_crv = try (
+            output_to_input_crv.project_affine(
+                allocator,
+                opentime.transform.IDENTITY_TRANSFORM,
+                target_output_interval
+            )
+        );
+        defer target_input_interval_as_crv.deinit(allocator);
+
+        return .{
+            .input_to_output_curve = (
+                try self.input_to_output_curve.trimmed_in_input_space(
+                    allocator,
+                    target_input_interval_as_crv.extents_input()
+                )
+            ),
+        };
+    }
+
+    pub fn shrink_to_input_interval(
+        self: @This(),
+        _: std.mem.Allocator,
+        target_output_interval: opentime.ContinuousTimeInterval,
+    ) !MappingCurveLinear
+    {
+        _ = self;
+        _ = target_output_interval;
+        if (true) {
+            return error.NotImplemented;
+        }
+        // else 
+        // return .{
+        //     // .input_bounds_val = (
+        //     //     opentime.interval.intersect(
+        //     //         self.input_bounds_val,
+        //     //         target_output_interval,
+        //     //     ) orelse return error.NoOverlap
+        //     // ),
+        //     // .input_to_output_xform = self.input_to_output_xform,
+        // };
     }
 };
 

@@ -1344,12 +1344,33 @@ test "normalize_to_screen_coords"
     try expectEqual(max_point.out, result_extents[1].out);
 }
 
-pub fn _compute_slope(
-    p1: control_point.ControlPoint,
-    p2: control_point.ControlPoint,
-) f32 
+/// compute the slope of the line segment from start to end
+pub fn slope(
+    start: control_point.ControlPoint,
+    end: control_point.ControlPoint,
+) opentime.Ordinate 
 {
-    return (p2.out - p1.out) / (p2.in - p1.in); 
+    return comath.eval(
+        "((end_out - start_out) / (end_in - start_in))",
+        CTX,
+        .{
+            .end_in = end.in,
+            .end_out = end.out,
+            .start_in = start.in,
+            .start_out = start.out,
+        },
+    ) catch {};
+}
+
+test "slope"
+{
+    const start = control_point.ControlPoint{ .in = 0, .out = 0, };
+    const end = control_point.ControlPoint{ .in = 2, .out = 4, };
+
+    try std.testing.expectEqual(
+        2,
+        slope(start, end)
+    );
 }
 
 pub fn inverted_linear(
@@ -1379,7 +1400,7 @@ pub fn inverted_linear(
     //        Segment.init_from_start_end for an example of where this assumption is
     //        tested.
     //
-    // const slope = _compute_slope( crv.knots[0], crv.knots[1]);
+    // const slope = slope( crv.knots[0], crv.knots[1]);
     // if (slope < 0) {
     //     std.mem.reverse(
     //         control_point.ControlPoint,
@@ -1390,7 +1411,7 @@ pub fn inverted_linear(
     const ncount = crv.knots.len;
     var slice_start:usize = 0;
     var slice_sign = std.math.sign(
-        _compute_slope(
+        slope(
             crv.knots[0],
             crv.knots[1]
         )
@@ -1403,7 +1424,7 @@ pub fn inverted_linear(
         |p0, p1, i_p1|
     {
         const slope_sign = std.math.sign(
-            _compute_slope(p0, p1)
+            slope(p0, p1)
         );
 
         if (slope_sign == slice_sign) {
