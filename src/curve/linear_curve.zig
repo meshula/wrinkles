@@ -549,6 +549,8 @@ pub fn LinearOf(
             var result = std.ArrayList(ControlPointType).init(
                 allocator,
             );
+            // make room for all points being splits
+            try result.ensureTotalCapacity(split_points.len + self.knots.len);
 
             const last_minus_one = self.knots.len-1;
 
@@ -556,7 +558,7 @@ pub fn LinearOf(
             for (self.knots[0..last_minus_one], self.knots[1..])
                 |knot, next_knot, |
             {
-                try result.append(knot);
+                result.appendAssumeCapacity(knot);
 
                 for (split_points) 
                     |pt_value_space| 
@@ -571,7 +573,7 @@ pub fn LinearOf(
                             knot.out,
                             next_knot.out
                         );
-                        try result.append(
+                        result.appendAssumeCapacity(
                             bezier_math.lerp(
                                 u,
                                 knot,
@@ -581,7 +583,7 @@ pub fn LinearOf(
                     }
                 }
             }
-            try result.append(self.knots[last_minus_one]);
+            result.appendAssumeCapacity(self.knots[last_minus_one]);
 
             return LinearType{
                 .knots = try result.toOwnedSlice() 
@@ -1063,6 +1065,59 @@ test "Linear: trimmed_in_input_space"
         bounds.end_seconds,
         trimmed_extents[1].in, 
         generic_curve.EPSILON,
+    );
+}
+
+test "Linear perf test"
+{
+    // const SIZE = 20000000;
+    const SIZE = 2000000;
+
+    var t_setup = try std.time.Timer.start();
+
+    var rnd_split_points = (
+        std.ArrayList(opentime.Ordinate).init(std.testing.allocator)
+    );
+    try rnd_split_points.ensureTotalCapacity(SIZE);
+    defer rnd_split_points.deinit();
+
+    try rnd_split_points.append(0);
+
+    var rand_impl = std.rand.DefaultPrng.init(42);
+
+    for (0..SIZE)
+        |_|
+    {
+        const num = (
+             rand_impl.random().float(opentime.Ordinate)
+        );
+        rnd_split_points.appendAssumeCapacity(num);
+    }
+    const crv = try Linear.init_identity(
+        std.testing.allocator,
+        &.{ 0.0, 1.0 }
+    );
+    defer crv.deinit(std.testing.allocator);
+    const t_start_v = t_setup.read();
+
+    var t_algo = try std.time.Timer.start();
+    const crv_split = try crv.split_at_each_value(
+        std.testing.allocator,
+        rnd_split_points.items
+    );
+    const t_algo_v = t_algo.read();
+    defer crv_split.deinit(std.testing.allocator);
+
+    std.debug.print(
+        "Startup time: {d:.4}ms\n"
+        ++ "Time to process is: {d:.4}ms\n"
+        ++ "number of splits: {d}\n"
+        ,
+        .{
+            t_start_v/std.time.ns_per_ms,
+            t_algo_v / std.time.ns_per_ms,
+            crv_split.knots.len,
+        },
     );
 }
 
