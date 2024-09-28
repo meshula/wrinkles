@@ -555,6 +555,8 @@ pub fn LinearOf(
             const last_minus_one = self.knots.len-1;
 
             // @TODO: there is probably a more effecient algorithm here than MxN
+            //        if we can guarantee monotonicity, knots are sorted and
+            //        this can be considerably more efficient
             for (self.knots[0..last_minus_one], self.knots[1..])
                 |knot, next_knot, |
             {

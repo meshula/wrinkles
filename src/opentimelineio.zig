@@ -193,7 +193,7 @@ pub const Clip = struct {
 
             return media_bounds;
         } else {
-            return error.NotImplemented;
+            return error.NotImplementedFetchTopology;
         }
     }
 
@@ -265,7 +265,7 @@ pub const ComposableValue = union(enum) {
     pub fn topology(
         self: @This(),
     ) error{
-        NotImplemented,
+        NotImplementedFetchTopology,
         OutOfMemory,
         OutOfBounds,
         MoreThanOneCurveIsNotImplemented,

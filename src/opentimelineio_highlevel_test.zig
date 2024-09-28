@@ -876,6 +876,12 @@ test "timeline w/ warp that holds the tenth frame"
             tr_pres_to_cl_media_po.src_to_dst_topo.input_bounds().start_seconds
         );
 
+        try std.testing.expect(
+            std.meta.activeTag(
+                tr_pres_to_cl_media_po.src_to_dst_topo
+            ) != .empty
+        );
+
         const result_buf = (
             try tr_pres_to_cl_media_po.project_range_cd(
                 allocator,

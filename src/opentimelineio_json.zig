@@ -274,7 +274,7 @@ pub fn read_otio_object(
                 {
                     .Clip => |cl| { try tr.children.append( .{ .clip = cl }); },
                     .Gap => |gp| { try tr.children.append( .{ .gap = gp }); },
-                    else => return error.NotImplemented,
+                    else => return error.NotImplementedTrackChildJson,
                 }
             }
 
