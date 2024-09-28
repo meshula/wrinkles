@@ -138,7 +138,7 @@ pub const MappingCurveLinear = struct {
         _ = self;
         _ = target_output_interval;
         if (true) {
-            return error.NotImplemented;
+            return error.NotImplementedLinearShringtoInputInterval;
         }
         // else 
         // return .{

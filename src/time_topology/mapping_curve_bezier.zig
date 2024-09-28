@@ -142,7 +142,7 @@ pub const MappingCurveBezier = struct {
         _ = self;
         _ = target_output_interval;
         if (true) {
-            return error.NotImplemented;
+            return error.NotImplementedBezierShringtoInput;
         }
 
         // return .{

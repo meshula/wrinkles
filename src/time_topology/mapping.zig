@@ -22,11 +22,11 @@ pub const MappingCurveBezier = mapping_curve_bezier.MappingCurveBezier;
 
 const curve = @import("curve");
 
-const topology = @import("topology.zig");
+// const topology = @import("topology.zig");
 
-test {
-    _ = topology;
-}
+// test {
+//     _ = topology;
+// }
 
 // const topology = @import("topology.zig");
 
@@ -139,9 +139,11 @@ pub const Mapping = union (enum) {
         pt_input: opentime.Ordinate,
     ) ![2]Mapping
     {
-        return switch (self) {
-            inline else => |m| try m.split_at_input_point(pt_input),
-        };
+        _ = pt_input;
+        return .{ self, self };
+        // return switch (self) {
+        //     inline else => |m| try m.split_at_input_point(pt_input),
+        // };
     }
 
     /// /// spit this mapping at any critical points, placing the new mappings into

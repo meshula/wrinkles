@@ -81,6 +81,10 @@ pub const MappingEmpty = struct {
         pt: opentime.Ordinate,
     ) ![]mapping_mod.Mapping
     {
+        _ = self;
+        _ = allocator;
+        _ = pt;
+
         // @TODO: need bounds on the empty mapping, clearly.  All mappings need
         //        to know their input bounds
 
