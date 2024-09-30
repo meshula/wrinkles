@@ -221,9 +221,15 @@ main(
     for (int i=0; i < n_endpoints-1; i++) 
     {
 
-        const size_t ops = otio_po_map_fetch_num_operators_for_segment(po_map, i);
+        const size_t ops = otio_po_map_fetch_num_operators_for_segment(
+                po_map, 
+                i
+        );
 
-        PRINTIF(" [%d]: ops: %lu [%g, %g) ", i, ops, endpoints[i], endpoints[i+1]);
+        PRINTIF(
+                " [%d]: ops: %lu [%g, %g) ",
+                i, ops, endpoints[i], endpoints[i+1]
+        );
 
         for (int o=0; o<ops; o++)
         {
@@ -231,27 +237,42 @@ main(
             otio_Topology topo;
             otio_ContinuousTimeRange tr;
 
-            if (!otio_po_map_fetch_op( po_map, i, o, &po)) {
+            if (
+                    !otio_po_map_fetch_op( 
+                        po_map,
+                        i,
+                        o,
+                        &po
+                    )
+            ) 
+            {
                 otio_ComposedValueRef dest = otio_po_fetch_destination(po);
 
-                if (!otio_po_fetch_topology(po, &topo)) {
-                    if (!otio_topo_fetch_output_bounds(topo, &tr)) {
+                if (!otio_po_fetch_topology(po, &topo)) 
+                {
+                    if (!otio_topo_fetch_output_bounds(topo, &tr)) 
+                    {
                         otio_DiscreteDatasourceIndexGenerator di;
                         otio_SpaceLabel di_space = -1;
+
                         if (!otio_fetch_discrete_info(dest, otio_sl_media, &di))
                         {
                             di_space = otio_sl_media;
                             if (di_space != -1) 
                             {
-                                size_t discrete_start = otio_fetch_continuous_ordinate_to_discrete_index(
+                                size_t discrete_start = (
+                                    otio_fetch_continuous_ordinate_to_discrete_index(
                                         dest, 
                                         tr.start_seconds,
                                         di_space
+                                    )
                                 );
-                                size_t discrete_end = otio_fetch_continuous_ordinate_to_discrete_index(
+                                size_t discrete_end = (
+                                    otio_fetch_continuous_ordinate_to_discrete_index(
                                         dest, 
                                         tr.end_seconds,
                                         di_space
+                                    )
                                 );
 
                                 PRINTIF(
@@ -260,13 +281,16 @@ main(
                                         discrete_end
                                       );
 
-                                if (di_space == otio_sl_media) {
+                                if (di_space == otio_sl_media) 
+                                {
                                     PRINTIF(
                                             " | discrete media: %d hz ",
                                             di.sample_rate_hz 
                                     );
                                 }
-                            } else {
+                            } 
+                            else 
+                            {
                                 PRINTIF(
                                         "-> [%g, %g) ",
                                         tr.start_seconds,

@@ -14,7 +14,8 @@ pub const MIN_ZIG_VERSION = std.SemanticVersion{
 };
 
 /// guarantee that the zig compiler version is more than the minimum
-fn ensureZigVersion() !void {
+fn ensureZigVersion() !void 
+{
     var installed_ver = builtin.zig_version;
     installed_ver.build = null;
 
@@ -315,17 +316,29 @@ pub fn executable(
             dep_ziis.module("zgui_cimgui_implot_sokol")
         );
 
-        const emsdk = ziis.fetchEmSdk(dep_ziis);
+        const emsdk = ziis.fetchEmSdk(
+            dep_ziis,
+            options.optimize,
+            options.target,
+        );
 
         for (module_deps) 
             |mod| 
         {
             mod.module.addSystemIncludePath(
-                ziis.fetchEmSdkIncludePath(dep_ziis)
+                ziis.fetchEmSdkIncludePath(
+                    dep_ziis,
+                    options.optimize,
+                    options.target,
+                )
             );
         }
 
-        const shell_path_abs = ziis.fetchShellPath(dep_ziis);
+        const shell_path_abs = ziis.fetchShellPath(
+            dep_ziis,
+            options.optimize,
+            options.target,
+        );
 
         const link_step = try ziis.emLinkStep(
             b,
@@ -504,14 +517,12 @@ pub fn build(
         "Check if everything compiles",
     );
 
-    const target = b.standardTargetOptions(.{});
-
     //
     // Options and system checks
     //
     var options = Options{
         .optimize = b.standardOptimizeOption(.{}),
-        .target = target,
+        .target = b.standardTargetOptions(.{}),
         .test_filter = b.option(
             []const u8,
             "test-filter",
@@ -532,7 +543,12 @@ pub fn build(
         "hash",
         rev_HEAD(allocator) catch "COULDNT READ HASH",
     );
-    const dep_ziis = b.dependency("zgui_cimgui_implot_sokol", .{});
+    const dep_ziis = b.dependency(
+        "zgui_cimgui_implot_sokol", .{
+            .optimize = options.optimize,
+            .target = options.target,
+        }
+    );
 
     const graphviz_dot_on = graphviz_dot_on_path() catch false;
 
@@ -591,7 +607,13 @@ pub fn build(
             }
         );
         if (options.target.result.isWasm()) {
-            kissfft.addSystemIncludePath(ziis.fetchEmSdkIncludePath(dep_ziis));
+            kissfft.addSystemIncludePath(
+                ziis.fetchEmSdkIncludePath(
+                    dep_ziis,
+                    options.optimize,
+                    options.target,
+                )
+            );
         }
     }
 
@@ -637,7 +659,13 @@ pub fn build(
             }
         );
         if (options.target.result.isWasm()) {
-            spline_gym.addSystemIncludePath(ziis.fetchEmSdkIncludePath(dep_ziis));
+            spline_gym.addSystemIncludePath(
+                ziis.fetchEmSdkIncludePath(
+                    dep_ziis,
+                    options.optimize,
+                    options.target,
+                )
+            );
         }
         b.installArtifact(spline_gym);
     }
@@ -684,7 +712,11 @@ pub fn build(
         );
         if (options.target.result.isWasm()) {
             libsamplerate.addSystemIncludePath(
-                ziis.fetchEmSdkIncludePath(dep_ziis)
+                ziis.fetchEmSdkIncludePath(
+                    dep_ziis,
+                    options.optimize,
+                    options.target,
+                )
             );
         }
     }
@@ -778,7 +810,11 @@ pub fn build(
         opentimelineio_c.linkLibCpp();
         if (options.target.result.isWasm()) {
             opentimelineio_c.addSystemIncludePath(
-                ziis.fetchEmSdkIncludePath(dep_ziis)
+                ziis.fetchEmSdkIncludePath(
+                    dep_ziis,
+                    options.optimize,
+                    options.target,
+                )
             );
         }
         b.installArtifact(opentimelineio_c);
@@ -800,7 +836,11 @@ pub fn build(
         exe.linkLibC();
         if (options.target.result.isWasm()) {
             exe.addSystemIncludePath(
-                ziis.fetchEmSdkIncludePath(dep_ziis)
+                ziis.fetchEmSdkIncludePath(
+                    dep_ziis,
+                    options.optimize,
+                    options.target,
+                )
             );
         }
         exe.linkLibrary(opentimelineio_c);
@@ -821,13 +861,9 @@ pub fn build(
             .deps = &.{
                 .{ 
                     .name = "zgui_cimgui_implot_sokol",
-                    .module = b.dependency(
-                        "zgui_cimgui_implot_sokol",
-                        .{
-                            .target = options.target,
-                            .optimize = options.optimize,
-                        }
-                    ).module("zgui_cimgui_implot_sokol")
+                    .module = dep_ziis.module(
+                        "zgui_cimgui_implot_sokol"
+                    )
                 }
             },
         }

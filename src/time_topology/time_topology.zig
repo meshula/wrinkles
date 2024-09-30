@@ -30,7 +30,7 @@ const expectEqual = std.testing.expectEqual;
 const expectError = std.testing.expectError;
 const expectApproxEqAbs = std.testing.expectApproxEqAbs;
 
-pub const Ordinate = f32;
+pub const Ordinate = opentime.Ordinate;
 
 const IDENTITY_TRANSFORM = transform.AffineTransform1D{
     .offset_seconds = 0,
@@ -87,7 +87,10 @@ pub const AffineTopology = struct {
         // clone points into the new Linear
         return .{
             .linear_curve = .{
-                .curve = try curve.Linear.init(allocator, &bound_points)
+                .curve = try curve.Linear.init(
+                    allocator,
+                    &bound_points
+                )
             },
         };
     }
@@ -171,7 +174,8 @@ pub const AffineTopology = struct {
                     )
                 }
             },
-           .linear_curve => |lin| {
+           .linear_curve => |lin| 
+           {
                var result = try curve.Linear.init(
                    allocator,
                    lin.curve.knots,
@@ -216,7 +220,9 @@ pub const AffineTopology = struct {
                        },
                    };
                }
-               else {
+               else 
+               {
+                   // no intersection, return empty
                    return .{ .empty = .{} };
                }
            },
