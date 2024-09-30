@@ -99,6 +99,23 @@ pub const AffineTransform1D = struct {
             .scale = 1/self.scale,
         };
     }
+
+    /// custom formatter for std.fmt
+    pub fn format(
+        self: @This(),
+        comptime _: []const u8,
+        _: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void 
+    {
+        try writer.print(
+            "Aff1D{{ offset: {d} scale: {d} }}",
+            .{
+                self.offset_seconds,
+                self.scale,
+            }
+        );
+    }
 };
 
 pub const IDENTITY_TRANSFORM = AffineTransform1D{

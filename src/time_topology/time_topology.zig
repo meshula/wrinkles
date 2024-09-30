@@ -236,6 +236,23 @@ pub const AffineTopology = struct {
             },
         };
     }
+
+    /// custom formatter for std.fmt
+    pub fn format(
+        self: @This(),
+        comptime _: []const u8,
+        _: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void 
+    {
+        try writer.print(
+            "AffineTopology{{ bounds: {s}, xform: {s} }}",
+            .{
+                self.bounds,
+                self.transform,
+            }
+        );
+    }
 };
 
 test "AffineTopology: linearize"
@@ -398,6 +415,22 @@ pub const LinearTopology = struct {
                 .curve = try self.curve.clone(allocator),
             },
         };
+    }
+
+    /// custom formatter
+    pub fn format(
+        self: @This(),
+        comptime _: []const u8,
+        _: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void 
+    {
+        try writer.print(
+            "LinearTopo{{ self.knots.len: {d} }}",
+            .{
+                self.curve.knots.len,
+            }
+        );
     }
 };
 
@@ -587,6 +620,22 @@ pub const BezierTopology = struct {
             },
         };
     }
+
+    /// custom formatter for std.fmt
+    pub fn format(
+        self: @This(),
+        comptime _: []const u8,
+        _: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void 
+    {
+        try writer.print(
+            "BezTopo{{ segments.len: {d} }}",
+            .{
+                self.curve.segments.len,
+            }
+        );
+    }
 };
 
 test "BezierTopology: inverted" 
@@ -647,6 +696,19 @@ pub const EmptyTopology = struct {
             .empty = .{},
         };
     }
+
+    /// custom formatter for std.fmt
+    pub fn format(
+        _: @This(),
+        comptime _: []const u8,
+        _: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void 
+    {
+        try writer.print( "EmptyTopo{{}}", .{});
+    }
+
+
 };
 
 /// TEMPORAL TOPOLOGY PROTOTYPE V2
@@ -803,7 +865,6 @@ pub const TimeTopology = union (enum) {
 
         return TimeTopology.init_bezier_cubic(crv);
     }
-    // @}
 
     /// return a caller-owned copy of self
     pub fn clone(
@@ -895,6 +956,19 @@ pub const TimeTopology = union (enum) {
             },
             inline else => |t| try t.linearized(allocator)
         };
+    }
+    
+    /// custom formatter for std.fmt
+    pub fn format(
+        self: @This(),
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void 
+    {
+        switch (self) {
+            inline else => |t| try t.format(fmt, options, writer),
+        }
     }
 
     // @{ ERRORS
@@ -1340,6 +1414,7 @@ test "TimeTopology: project bezier through affine"
 
 test "TimeTopology: project linear through affine"
 {
+    //
     // affine topology
     //
     // input:  [0, 10)

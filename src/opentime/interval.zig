@@ -77,6 +77,23 @@ pub const ContinuousTimeInterval = struct {
             or self.end_seconds == util.inf
         );
     }
+
+    /// custom formatter for std.fmt
+    pub fn format(
+        self: @This(),
+        comptime _: []const u8,
+        _: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void 
+    {
+        try writer.print(
+            "c@[{d}, {d})",
+            .{
+                self.start_seconds,
+                self.end_seconds,
+            }
+        );
+    }
 };
 
 test "ContinuousTimeInterval: is_infinite"
