@@ -2787,20 +2787,6 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
     );
 }
 
-pub fn path_exists(
-    fst: treecode.Treecode,
-    snd: treecode.Treecode,
-) bool 
-{
-    return (
-        fst.eql(snd) 
-        or (
-            fst.is_superset_of(snd) 
-            or snd.is_superset_of(fst)
-        )
-    );
-}
-
 pub fn depth_child_code_leaky(
     parent_code:treecode.Treecode,
     index: usize
@@ -3432,7 +3418,9 @@ test "TopologicalMap: Track with clip with identity transform topological"
         try std.testing.expect(tc.eql(clip_code));
     }
 
-    try std.testing.expect(path_exists(clip_code, root_code));
+    try std.testing.expect(
+        treecode.path_exists(clip_code, root_code)
+    );
 
     const root_presentation_to_clip_media = (
         try map.build_projection_operator(

@@ -1350,3 +1350,19 @@ test "treecode: BidirectionalTreecodeHashMap"
     try std.testing.expectEqual(value, code_to_thing.get(tc));
     try std.testing.expectEqual(tc, thing_to_code.get(value));
 }
+
+/// determine if there is a path between the two codes.  Either can be parent.
+pub fn path_exists(
+    fst: Treecode,
+    snd: Treecode,
+) bool 
+{
+    return (
+        fst.eql(snd) 
+        or (
+            fst.is_superset_of(snd) 
+            or snd.is_superset_of(fst)
+        )
+    );
+}
+
