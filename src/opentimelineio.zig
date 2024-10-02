@@ -686,6 +686,31 @@ pub const ComposedValueRef = union(enum) {
             inline else => error.ObjectDoesNotSupportDiscretespaces,
         };
     }
+
+    pub fn format(
+        self: @This(),
+        comptime _: []const u8,
+        _: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void 
+    {
+        const str = switch (self) {
+            .clip_ptr => "clip",
+            .gap_ptr => "gap",
+            .track_ptr => "track",
+            .stack_ptr => "stack",
+            .warp_ptr => "warp",
+            .timeline_ptr => "timeline",
+        };
+        const n = self.name() orelse "null";
+        try writer.print(
+            "{s}.{s}",
+            .{
+                n,
+                str,
+            }
+        );
+    }
 };
 
 test "ComposedValueRef init test"
@@ -889,6 +914,26 @@ pub const SpaceLabel = enum(i8) {
     intrinsic,
     media,
     child,
+
+    pub fn format(
+        self: @This(),
+        comptime _: []const u8,
+        _: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void 
+    {
+        try writer.print(
+            "{s}",
+            .{
+                switch (self) {
+                    .presentation => "presentation",
+                    .intrinsic => "intrinsic",
+                    .media => "media",
+                    .child => "child",
+                }
+            }
+        );
+    }
 };
 
 /// references a specific space on a specific object
@@ -896,6 +941,33 @@ pub const SpaceReference = struct {
     ref: ComposedValueRef,
     label: SpaceLabel,
     child_index: ?usize = null,
+
+    pub fn format(
+        self: @This(),
+        comptime _: []const u8,
+        _: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void 
+    {
+        try writer.print(
+            "{s}.{s}",
+            .{
+                self.ref,
+                self.label,
+            }
+        );
+
+        if (self.child_index)
+            |ind|
+        {
+            try writer.print(
+                ".{d}",
+                .{
+                    ind,
+                }
+            );
+        }
+    }
 };
 
 /// endpoints for a projection
