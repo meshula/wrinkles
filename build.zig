@@ -562,6 +562,32 @@ pub fn build(
         graphviz_dot_on,
     );
 
+
+    const debug_graph_construction_trace_messages = b.option(
+        bool,
+        "debug_graph_construction_trace_messages",
+        "print OTIO graph traversal trace info during "
+        ++ "projection operator construction"
+    );
+
+    options.common_build_options.addOption(
+        bool,
+        "debug_graph_construction_trace_messages", 
+        debug_graph_construction_trace_messages orelse false,
+    );
+
+    const run_perf_tests = b.option(
+        bool,
+        "run_perf_tests",
+        "run (potentially slow) performance stress tests",
+    );
+
+    options.common_build_options.addOption(
+        bool,
+        "run_perf_tests", 
+        run_perf_tests orelse false,
+    );
+
     // submodules and dependencies
     const comath_dep = b.dependency(
         "comath",
