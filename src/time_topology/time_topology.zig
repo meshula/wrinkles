@@ -194,19 +194,14 @@ pub const AffineTopology = struct {
                    }
                };
            },
-           .affine => |other_aff| {
-               const inv_xform = other_aff.transform.inverted();
-
-               const self_bounds_in_input_space = (
-                   inv_xform.applied_to_bounds(self.bounds)
-               );
-
-               const bounds = interval.intersect(
-                   self_bounds_in_input_space,
+           .affine => |other_aff| 
+           {
+               const maybe_bounds = interval.intersect(
+                   self.compute_input_bounds(),
                    other_aff.bounds,
                );
 
-               if (bounds) 
+               if (maybe_bounds) 
                    |b| 
                 {
                    return .{
@@ -1570,6 +1565,34 @@ test "TimeTopology: join function"
             util.EPSILON,
         );
     }
+}
+
+test "TimeTopology: held frame w/ identity"
+{
+    const a2b = TimeTopology.init_affine(
+        .{
+            .bounds = .{
+                .start_seconds = 0, 
+                .end_seconds = 5, 
+            },
+            .transform = .{
+                .offset_seconds = 10.0/24.0,
+                .scale = 0,
+            },
+        },
+    );
+
+    const b2c = TimeTopology.init_identity_infinite();
+
+    const a2c = try join(
+        std.testing.allocator, 
+        .{
+            .a2b = a2b,
+            .b2c = b2c,
+        },
+    );
+
+    try std.testing.expect(std.meta.activeTag(a2c) != .empty);
 }
 
 // @}
