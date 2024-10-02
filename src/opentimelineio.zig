@@ -1669,7 +1669,7 @@ pub fn projection_map_to_media_from(
 ) !ProjectionOperatorMap
 {
     var iter = (
-        try TreenodeWalkingIterator.init_at(
+        try TreenodeWalkingIterator.init_from(
             allocator,
             &topological_map, 
             source,
@@ -4786,7 +4786,8 @@ test "otio projection: track with single clip with transform"
     }
 }
 
-/// iterator that walks over the graph, returning the node at each step
+/// iterator that walks over each node in the graph, returning the node at each
+/// step
 const TreenodeWalkingIterator = struct{
     const Node = struct {
         space: SpaceReference,
@@ -4798,6 +4799,7 @@ const TreenodeWalkingIterator = struct{
     maybe_previous: ?Node,
     map: *const TopologicalMap,
     allocator: std.mem.Allocator,
+    maybe_destination: ?treecode.Treecode = null,
 
     pub fn init(
         allocator: std.mem.Allocator,
@@ -4824,7 +4826,7 @@ const TreenodeWalkingIterator = struct{
         return result;
     }
 
-    pub fn init_at(
+    pub fn init_from(
         allocator: std.mem.Allocator,
         map: *const TopologicalMap,
         /// a source in the map to start the map from
@@ -4852,6 +4854,31 @@ const TreenodeWalkingIterator = struct{
         );
 
         return result;
+    }
+
+    /// an iterator that walks from the source node to the destination node
+    pub fn init_from_to(
+        allocator: std.mem.Allocator,
+        map: *const TopologicalMap,
+        endpoints: struct{
+            source: SpaceReference,
+            destination: SpaceReference,
+        },
+    ) !TreenodeWalkingIterator
+    {
+        var iterator = (
+            try TreenodeWalkingIterator.init_from(
+                allocator,
+                map, 
+                endpoints.source,
+            )
+        );
+
+        iterator.maybe_destination = map.map_space_to_code.get(
+            endpoints.destination
+        );
+
+        return iterator;
     }
 
     pub fn deinit(
@@ -4894,7 +4921,18 @@ const TreenodeWalkingIterator = struct{
         self.maybe_current = self.stack.pop();
         const current = self.maybe_current.?;
 
-        for (0..2)
+        // if there is a destination, walk in that direction. Otherwise, walk
+        // exhaustively
+        const next_steps : []const u1 = (
+            if (self.maybe_destination) |dest| &[_]u1{ 
+                try current.code.next_step_towards(dest)
+            }
+            else &.{
+                0, 1
+            }
+        );
+
+        for (next_steps)
             |next_step|
         {
             var next_code = try current.code.clone();
@@ -5003,10 +5041,12 @@ test "TestWalkingIterator: track with clip"
 
     // from the clip
     {
-        var node_iter = try TreenodeWalkingIterator.init_at(
-            std.testing.allocator,
-            &map,
-            try cl_ptr.space(.presentation),
+        var node_iter = (
+            try TreenodeWalkingIterator.init_from(
+                std.testing.allocator,
+                &map,
+                try cl_ptr.space(.presentation),
+            )
         );
         defer node_iter.deinit();
 
@@ -5018,6 +5058,67 @@ test "TestWalkingIterator: track with clip"
 
         // 2: clip presentation, clip media
         try expectEqual(2, count);
+    }
+}
+
+test "TestWalkingIterator: track with clip w/ destination"
+{
+    var tr = Track.init(std.testing.allocator);
+    defer tr.deinit();
+
+    // media is 9 seconds long and runs at 4 hz.
+    const media_source_range = opentime.ContinuousTimeInterval{
+        .start_seconds = 1,
+        .end_seconds = 10,
+    };
+
+    // construct the clip and add it to the track
+    const cl = Clip {
+        .media_temporal_bounds = media_source_range,
+    };
+    try tr.append(cl);
+
+    const cl2 = Clip {
+        .media_temporal_bounds = media_source_range,
+    };
+    const cl_ptr = try tr.append_fetch_ref(cl2);
+    const tr_ptr = ComposedValueRef.init(&tr);
+
+    const map = try build_topological_map(
+        std.testing.allocator,
+        tr_ptr
+    );
+    defer map.deinit();
+
+    try map.write_dot_graph(
+        std.testing.allocator,
+        "/var/tmp/walk.dot"
+    );
+
+    var count:usize = 0;
+
+    // from the top to the second clip
+    {
+        var node_iter = (
+            try TreenodeWalkingIterator.init_from_to(
+                std.testing.allocator,
+                &map,
+                .{
+                    .source = try tr_ptr.space(.presentation),
+                    .destination = try cl_ptr.space(.media),
+                },
+                )
+        );
+        defer node_iter.deinit();
+
+        count = 0;
+        while (try node_iter.next())
+            : (count += 1)
+        {
+        }
+
+        // 2: clip presentation, clip media
+        try expectEqual(6, count);
     }
 }
 
