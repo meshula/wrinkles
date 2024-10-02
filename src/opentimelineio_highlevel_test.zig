@@ -764,6 +764,15 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
             tr_pres_to_cl_media_po.src_to_dst_topo.input_bounds().start_seconds
         );
 
+        const start_frame_in_destination_d = (
+            try tr_pres_to_cl_media_po.project_instantaneous_cd(start)
+        );
+
+        try std.testing.expectEqual(
+            336000,
+            start_frame_in_destination_d
+        );
+
         const result_buf = (
             try tr_pres_to_cl_media_po.project_range_cd(
                 allocator,
@@ -837,10 +846,14 @@ test "timeline w/ warp that holds the tenth frame"
 
     // new for this test - add in an warp on the clip, which holds the frame
     try tr.append(
-        otio.Warp{
+        otio.Warp {
             .child = cl_ptr,
             .transform = time_topology.TimeTopology.init_affine(
                 .{
+                    .bounds = .{
+                        .start_seconds = 0,
+                        .end_seconds = 5,
+                    },
                     .transform = .{
                         .offset_seconds = 10.0/24.0,
                         .scale = 0,
@@ -851,6 +864,27 @@ test "timeline w/ warp that holds the tenth frame"
     );
 
     const tr_ptr = try tl.tracks.append_fetch_ref(tr);
+
+    const warp_ptr = (
+        tr_ptr.track_ptr.child_ptr_from_index(0)
+    );
+    const w_ib = (
+        warp_ptr.warp_ptr.transform.input_bounds()
+    );
+    const w_ob = (
+        warp_ptr.warp_ptr.transform.output_bounds()
+    );
+
+    errdefer std.debug.print(
+        "WARP\n input bounds: {s}\n output bounds: {s}\n",
+        .{ w_ib, w_ob },
+    );
+
+    try std.testing.expect(std.math.isNan(w_ib.start_seconds) == false);
+    try std.testing.expect(std.math.isNan(w_ib.end_seconds) == false);
+
+    try std.testing.expect(std.math.isNan(w_ob.start_seconds) == false);
+    try std.testing.expect(std.math.isNan(w_ob.end_seconds) == false);
 
     // build the topological map
     ///////////////////////////////////////////////////////////////////////////
@@ -875,6 +909,23 @@ test "timeline w/ warp that holds the tenth frame"
         const start = (
             tr_pres_to_cl_media_po.src_to_dst_topo.input_bounds().start_seconds
         );
+
+        const xform = (
+            tr_ptr.track_ptr.child_ptr_from_index(0).warp_ptr.transform
+        );
+        
+        const ident = time_topology.TimeTopology.init_identity(.{});
+
+        const test_result = try xform.project_topology(
+            std.testing.allocator,
+            ident
+        );
+
+        std.debug.print("xform: {any}\n", .{ xform });
+
+        std.debug.print("xform output bounds: {any}\n", .{ xform.output_bounds() });
+        std.debug.print("result: {any}\n", .{ test_result });
+        std.debug.print("result: {any}\n", .{ test_result.output_bounds() });
 
         try std.testing.expect(
             std.meta.activeTag(
