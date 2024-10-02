@@ -37,7 +37,9 @@ pub const read_from_file = otio_json.read_from_file;
 
 /// annotate the graph algorithms
 // const GRAPH_CONSTRUCTION_TRACE_MESSAGES = true;
-const GRAPH_CONSTRUCTION_TRACE_MESSAGES = false;
+const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
+    build_options.debug_graph_construction_trace_messages
+);
 
 /// for VERY LARGE files, turn this off so that dot can process the graphs
 const LABEL_HAS_BINARY_TREECODE = true;
@@ -345,10 +347,11 @@ pub const ComposedValueRef = union(enum) {
                 .gap   => |*gp| .{ .gap_ptr= gp    },
                 .track => |*tr| .{ .track_ptr = tr },
                 .stack => |*st| .{ .stack_ptr = st },
-                .warp => |*wp| .{ .warp_ptr = wp },
+                .warp  => |*wp| .{ .warp_ptr = wp },
             };
         }
-        else {
+        else 
+        {
             return switch (@TypeOf(input.*)) 
             {
                 Clip => .{ .clip_ptr = input },
@@ -365,6 +368,15 @@ pub const ComposedValueRef = union(enum) {
         }
     }
 
+    /// return the name field of the referenced object
+    pub fn name(
+        self: @This(),
+    ) ?[]const u8
+    {
+        return switch (self) {
+            inline else => |t| t.name
+        };
+    }
 
     pub fn topology(
         self: @This(),
@@ -382,7 +394,8 @@ pub const ComposedValueRef = union(enum) {
         target_space: SpaceLabel,
     ) !opentime.ContinuousTimeInterval 
     {
-        const presentation_to_intrinsic_topo = try self.topology(
+        const presentation_to_intrinsic_topo = (
+            try self.topology()
         );
         defer presentation_to_intrinsic_topo.deinit(allocator);
 
@@ -456,8 +469,13 @@ pub const ComposedValueRef = union(enum) {
     {
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
             std.debug.print(
-                "    transform from space: {s} to space: {s} ",
-                .{ @tagName(from_space), @tagName(to_space.label) }
+                "    transform from space: {s}.{s} to space: {s}.{s} ",
+                .{
+                    @tagName(self),
+                    @tagName(from_space),
+                    @tagName(to_space.ref),
+                    @tagName(to_space.label),
+                }
             );
 
             if (to_space.child_index)
@@ -689,7 +707,9 @@ pub const ComposedValueRef = union(enum) {
 
     pub fn format(
         self: @This(),
+        // fmt
         comptime _: []const u8,
+        // options
         _: std.fmt.FormatOptions,
         writer: anytype,
     ) !void 
@@ -702,7 +722,8 @@ pub const ComposedValueRef = union(enum) {
             .warp_ptr => "warp",
             .timeline_ptr => "timeline",
         };
-        const n = self.name() orelse "null";
+        // const n = self.name() orelse "null";
+        const n = "null";
         try writer.print(
             "{s}.{s}",
             .{
@@ -1323,101 +1344,87 @@ pub const TopologicalMap = struct {
         return self.map_code_to_space.get(tree_word) orelse unreachable;
     }
 
-    /// build a projection operator that projects from the args.source to
-    /// args.destination spaces
+    /// build a projection operator that projects from the endpoints.source to
+    /// endpoints.destination spaces
     pub fn build_projection_operator(
         self: @This(),
         allocator: std.mem.Allocator,
-        args: ProjectionOperatorArgs,
+        endpoints_arg: ProjectionOperatorArgs,
     ) !ProjectionOperator 
     {
-        var source_code = (
-            if (self.map_space_to_code.get(args.source)) 
-            |code| 
-            code
-            else return error.SourceNotInMap
-        );
-
-        var destination_code = (
-            if (self.map_space_to_code.get(args.destination)) 
-            |code| 
-            code
-            else return error.DestinationNotInMap
-        );
-
-        if (path_exists(source_code, destination_code) == false) 
-        {
-            errdefer std.debug.print(
-                "\nERROR\nsource: {b} dest: {b}\n",
-                .{
-                    source_code.treecode_array[0],
-                    destination_code.treecode_array[0] 
-                }
-            );
-            return error.NoPathBetweenSpaces;
-        }
-
-        const needs_inversion = (
-            source_code.code_length() > destination_code.code_length()
-        );
-
-        var current = args.source;
-
-        // path builder walks from the root towards the leaf nodes, and cannot
-        // handle paths that go between siblings
-        if (needs_inversion) {
-            const tmp = source_code;
-            source_code = destination_code;
-            destination_code = tmp;
-
-            current = args.destination;
-        }
-
-        var current_code = try source_code.clone();
-        defer current_code.deinit();
+        const path_info_ = try self.path_info( endpoints_arg);
+        const endpoints = path_info_.endpoints;
 
         var proj = (
             time_topology.TimeTopology.init_identity_infinite()
         );
 
+        var iter = (
+            try TreenodeWalkingIterator.init_from_to(
+                allocator,
+                &self,
+                endpoints,
+            )
+        );
+        defer iter.deinit();
+
+        _ = try iter.next();
+
+        var current = iter.maybe_current.?;
+
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
             std.debug.print(
-                "starting walk from: {b} to: {b}\n",
+                "starting walk from: {s} to: {s}\n",
                 .{
-                    current_code.treecode_array[0],
-                    destination_code.treecode_array[0] 
+                    current,
+                    endpoints.destination,
                 }
             );
         }
 
         // walk from current_code towards destination_code
-        while (current_code.eql(destination_code) == false) 
+        while (try iter.next()) 
         {
-            const next_step = try current_code.next_step_towards(
-                destination_code
+            const next = (
+                iter.maybe_current orelse return error.TreeCodeNotInMap
             );
 
-            try current_code.append(next_step);
-
-            // path has already been verified
-            const next = self.map_code_to_space.get(
-                current_code
-            ) orelse return error.TreeCodeNotInMap;
+            const next_step = try current.code.next_step_towards(next.code);
 
             if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) { 
                 std.debug.print(
-                    "  step {b} to next code: {d}\n",
-                    .{ next_step, current_code.hash() }
+                    "  next step {b} towards next code: {b}\n",
+                    .{ next_step, next.code }
                 );
             }
 
-            var next_proj = try current.ref.build_transform(
+            var next_proj = try current.space.ref.build_transform(
                 allocator,
-                current.label,
-                next,
+                current.space.label,
+                next.space,
                 next_step
             );
             defer next_proj.deinit(allocator);
+
+            if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
+            {
+                const i_b = next_proj.input_bounds();
+                const o_b = next_proj.output_bounds();
+
+                std.debug.print(
+                    "    child transform type: {any}\n"
+                    ++ "    child transform: {s}\n"
+                    ++ "    child transform ranges input: [{d}, {d}),"
+                    ++ " output: [{d}, {d})\n"
+                    ,
+                    .{ 
+                        std.meta.activeTag(next_proj),
+                        next_proj,
+                        i_b.start_seconds, i_b.end_seconds,
+                        o_b.start_seconds, o_b.end_seconds,
+                    },
+                );
+            }
 
             // transformation spaces:
             // proj:         input   -> current
@@ -1429,19 +1436,41 @@ pub const TopologicalMap = struct {
             );
             proj.deinit(allocator);
 
+            if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
+            {
+                const i_b = current_proj.input_bounds();
+                const o_b = current_proj.output_bounds();
+
+                std.debug.print(
+                    "    composed transform type: {any}\n"
+                    ++ "    composted topology: {s}\n"
+                    ++ "    composed transform ranges input: [{d}, {d}),"
+                    ++ " output: [{d}, {d})\n"
+                    ,
+                    .{
+                        std.meta.activeTag(current_proj),
+                        current_proj,
+                        i_b.start_seconds, i_b.end_seconds,
+                        o_b.start_seconds, o_b.end_seconds,
+                    },
+                );
+            }
+
             current = next;
             proj = current_proj;
         }
 
-        if (needs_inversion) {
+        // check to see if end points were inverted
+        if (path_info_.inverted) 
+        {
             const old_proj = proj;
             proj = try proj.inverted(allocator);
             old_proj.deinit(allocator);
         }
 
         return .{
-            .source = args.source,
-            .destination = args.destination,
+            .source = endpoints.source,
+            .destination = endpoints.destination,
             .src_to_dst_topo = proj,
         };
     }
@@ -1519,7 +1548,7 @@ pub const TopologicalMap = struct {
 
         const Node = struct {
             space: SpaceReference,
-            code: treecode.Treecode 
+            code: treecode.Treecode,
         };
 
         var stack = std.ArrayList(Node).init(allocator);
@@ -1657,6 +1686,121 @@ pub const TopologicalMap = struct {
         );
         _ = result;
         // std.debug.print("{s}\n", .{result.stdout});
+    }
+
+    pub fn path_info(
+        self: @This(),
+        endpoints: ProjectionOperatorArgs,
+    ) !struct {
+        endpoints: ProjectionOperatorArgs,
+        inverted: bool,
+    }
+    {
+        var source_code = (
+            if (self.map_space_to_code.get(endpoints.source)) 
+            |code| 
+            code
+            else return error.SourceNotInMap
+        );
+
+        var destination_code = (
+            if (self.map_space_to_code.get(endpoints.destination)) 
+            |code| 
+            code
+            else return error.DestinationNotInMap
+        );
+
+        if (treecode.path_exists(source_code, destination_code) == false) 
+        {
+            errdefer std.debug.print(
+                "\nERROR\nsource: {b} dest: {b}\n",
+                .{
+                    source_code.treecode_array[0],
+                    destination_code.treecode_array[0] 
+                }
+            );
+            return error.NoPathBetweenSpaces;
+        }
+
+
+        // inverted
+        if (source_code.code_length() > destination_code.code_length())
+        {
+            return .{
+                .inverted = true,
+                .endpoints = .{
+                    .source = endpoints.destination,
+                    .destination = endpoints.source,
+                },
+            };
+        }
+        else 
+        {
+            return .{
+                .inverted = false,
+                .endpoints = .{
+                    .source = endpoints.source,
+                    .destination = endpoints.destination,
+                },
+            };
+        }
+
+
+    }
+
+    /// build a projection operator that projects from the args.source to
+    /// args.destination spaces
+    pub fn debug_print_time_hierarchy(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        endpoints_arg: ProjectionOperatorArgs,
+    ) !void 
+    {
+        const path_info_ = try self.path_info(endpoints_arg);
+        const endpoints = path_info_.endpoints;
+
+        std.debug.print(
+            "Printing scopes from:\n\n        {s}->{s}\n\n",
+            .{ endpoints.source, endpoints.destination },
+        );
+
+        var iter = try TreenodeWalkingIterator.init_from_to(
+            allocator,
+            &self,
+            endpoints,
+        );
+        defer iter.deinit();
+
+        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
+            std.debug.print(
+                "starting walk from: {s} to: {s}.{s}\n",
+                .{
+                    iter.maybe_current.?.space,
+                    iter.maybe_destination.?.space,
+                }
+            );
+        }
+
+        // walk from current_code towards destination_code
+        while (try iter.next()) 
+        {
+            const dest_to_current = try self.build_projection_operator(
+                allocator,
+                .{
+                    .source = iter.maybe_destination.?.space,
+                    .destination = iter.maybe_current.?.space,
+                },
+            );
+
+            std.debug.print(
+                "space: {s}\n"
+                ++ "      local:  {s}\n",
+                .{ 
+                    iter.maybe_current.?.space,
+                    dest_to_current.src_to_dst_topo.output_bounds(),
+                },
+            );
+        }
     }
 };
 
@@ -2916,7 +3060,7 @@ pub fn build_topological_map(
                             index,
                             child_code.treecode_array[0],
                             child_code.hash(), 
-                            @tagName(space_ref.item),
+                            @tagName(space_ref.ref),
                             @tagName(space_ref.label)
                         }
                     );
@@ -2943,10 +3087,12 @@ pub fn build_topological_map(
             inline .track_ptr, .stack_ptr => |st_or_tr| (
                 st_or_tr.children.items
             ),
-            .timeline_ptr => |tl|  &[_]ComposableValue{
-                .{ 
-                    .stack = tl.tracks 
-                } 
+            // when a pointer is taken from this later, it doesn't persist
+            // (I think)
+            // @TODO: make the timeline hold a CV instead of a Stack directly
+            //        ...then the lifetime of the CVR should be 
+            .timeline_ptr => |tl| &[_]ComposableValue{
+                    ComposableValue.init(tl.tracks),
             },
             else => &[_]ComposableValue{},
         };
@@ -2988,13 +3134,17 @@ pub fn build_topological_map(
 
             if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
             {
-                std.debug.assert(tmp_topo_map.map_code_to_space.get(child_space_code) == null);
+                std.debug.assert(
+                    tmp_topo_map.map_code_to_space.get(child_space_code) == null
+                );
 
                 if (tmp_topo_map.map_space_to_code.get(space_ref)) 
                     |other_code| 
                 {
                     std.debug.print(
-                        "\n ERROR SPACE ALREADY PRESENT[{d}] code: {b} other_code: {b} adding child space: '{s}.{s}.{d}'\n",
+                        "\n ERROR SPACE ALREADY PRESENT[{d}] code: {b} "
+                        ++ "other_code: {b} "
+                        ++ "adding child space: '{s}.{s}.{d}'\n",
                         .{
                             index,
                             child_space_code.treecode_array[0],
@@ -3008,7 +3158,7 @@ pub fn build_topological_map(
                     std.debug.assert(false);
                 }
                 std.debug.print(
-                    "[{d}] code: {b} hash: {d} adding child space: '{s}.{s}.{d}' with offset: {d}\n",
+                    "[{d}] code: {b} hash: {d} adding child space: '{s}.{s}.{d}'\n",
                     .{
                         index,
                         child_space_code.treecode_array[0],
@@ -3016,7 +3166,6 @@ pub fn build_topological_map(
                         @tagName(space_ref.ref),
                         @tagName(space_ref.label),
                         space_ref.child_index.?,
-                        space_ref.previous_child_offset.?,
                     }
                 );
             }
@@ -4117,16 +4266,20 @@ pub const Timeline = struct {
     } = .{},
 
     pub fn init(
-        allocator: std.mem.Allocator
+        allocator: std.mem.Allocator,
     ) !Timeline
     {
-        return .{
+        var result = Timeline{
             .tracks = Stack.init(allocator),
         };
+
+        result.tracks.name = null;
+
+        return result;
     }
 
     pub fn recursively_deinit(
-        self: @This()
+        self: @This(),
     ) void 
     {
         if (self.name)
@@ -4787,31 +4940,19 @@ const TreenodeWalkingIterator = struct{
     maybe_previous: ?Node,
     map: *const TopologicalMap,
     allocator: std.mem.Allocator,
-    maybe_destination: ?treecode.Treecode = null,
+    maybe_source: ?Node = null,
+    maybe_destination: ?Node = null,
 
     pub fn init(
         allocator: std.mem.Allocator,
         map: *const TopologicalMap,
     ) !TreenodeWalkingIterator
     {
-        var result = .{
-            .stack = std.ArrayList(Node).init(allocator),
-            .maybe_current = null,
-            .maybe_previous = null,
-            .map = map,
-            .allocator = allocator,
-        };
-        try result.stack.append(
-            .{
-                .space = map.root(),
-                .code = try treecode.Treecode.init_word(
-                    allocator,
-                    0b1,
-                )
-            }
+        return TreenodeWalkingIterator.init_from(
+            allocator,
+            map, 
+            map.root()
         );
-
-        return result;
     }
 
     pub fn init_from(
@@ -4821,18 +4962,22 @@ const TreenodeWalkingIterator = struct{
         source: SpaceReference,
     ) !TreenodeWalkingIterator
     {
+        const start_code = (
+            map.map_space_to_code.get(source) 
+            orelse return error.NotInMapError
+        );
+
         var result = TreenodeWalkingIterator{
             .stack = std.ArrayList(Node).init(allocator),
             .maybe_current = null,
             .maybe_previous = null,
             .map = map,
             .allocator = allocator,
+            .maybe_source = .{
+                .code = start_code,
+                .space = source,
+            },
         };
-
-        const start_code = (
-            map.map_space_to_code.get(source) 
-            orelse return error.NotInMapError
-        );
 
         try result.stack.append(
             .{
@@ -4848,12 +4993,45 @@ const TreenodeWalkingIterator = struct{
     pub fn init_from_to(
         allocator: std.mem.Allocator,
         map: *const TopologicalMap,
-        endpoints: struct{
-            source: SpaceReference,
-            destination: SpaceReference,
-        },
+        endpoints: ProjectionOperatorArgs,
     ) !TreenodeWalkingIterator
     {
+        var source_code = (
+            if (map.map_space_to_code.get(endpoints.source)) 
+            |code| 
+            code
+            else return error.SourceNotInMap
+        );
+
+        var destination_code = (
+            if (map.map_space_to_code.get(endpoints.destination)) 
+            |code| 
+            code
+            else return error.DestinationNotInMap
+        );
+
+        if (treecode.path_exists(source_code, destination_code) == false) 
+        {
+            errdefer std.debug.print(
+                "\nERROR\nsource: {b} dest: {b}\n",
+                .{
+                    source_code.treecode_array[0],
+                    destination_code.treecode_array[0] 
+                }
+            );
+            return error.NoPathBetweenSpaces;
+        }
+
+        const needs_inversion = (
+            source_code.code_length() > destination_code.code_length()
+        );
+
+        if (needs_inversion) {
+            const tmp = source_code;
+            source_code = destination_code;
+            destination_code = tmp;
+        }
+
         var iterator = (
             try TreenodeWalkingIterator.init_from(
                 allocator,
@@ -4862,9 +5040,13 @@ const TreenodeWalkingIterator = struct{
             )
         );
 
-        iterator.maybe_destination = map.map_space_to_code.get(
-            endpoints.destination
-        );
+        iterator.maybe_destination = .{
+            .code = (
+                map.map_space_to_code.get(endpoints.destination) 
+                orelse return error.SpaceNotInMap
+            ),
+            .space = endpoints.destination,
+        };
 
         return iterator;
     }
@@ -4913,7 +5095,7 @@ const TreenodeWalkingIterator = struct{
         // exhaustively
         const next_steps : []const u1 = (
             if (self.maybe_destination) |dest| &[_]u1{ 
-                try current.code.next_step_towards(dest)
+                try current.code.next_step_towards(dest.code)
             }
             else &.{
                 0, 1
@@ -5095,7 +5277,7 @@ test "TestWalkingIterator: track with clip w/ destination"
                     .source = try tr_ptr.space(.presentation),
                     .destination = try cl_ptr.space(.media),
                 },
-                )
+            )
         );
         defer node_iter.deinit();
 
@@ -5162,4 +5344,159 @@ test "Clip: Animated Parameter example"
 
     const param = Clip.to_param(&lens_data);
     try cl.parameters.?.put( "lens",param );
+}
+
+test "ComposedValueRef: name"
+{
+    const allocator = std.testing.allocator;
+
+    // top level timeline
+    var tl = try Timeline.init(allocator);
+    // tl.name = try allocator.dupe(u8, "Example Timeline");
+    tl.name = try allocator.dupe(u8, "Example Timeline");
+
+    defer tl.recursively_deinit();
+    const tl_ptr = ComposedValueRef{
+        .timeline_ptr = &tl 
+    };
+
+    try std.testing.expectEqualStrings(
+        tl.name.?, 
+        tl_ptr.name().?,
+    );
+
+    const tp = try build_topological_map(
+        allocator,
+        tl_ptr
+    );
+    defer tp.deinit();
+
+    var values = tp.map_code_to_space.valueIterator();
+
+    // search for the stack pointer... its in there somewhere
+    while (values.next())
+        |val|
+    {
+        std.debug.print(" this: {s}\n", .{ val });
+        if (std.meta.activeTag(val.ref) == .stack_ptr) {
+            const st_ptr = val.ref;
+            try std.testing.expectEqual(
+                tl.tracks.name, 
+                st_ptr.name(),
+            );
+
+            try std.testing.expectEqual(
+                tl.tracks.name,
+                st_ptr.name(), 
+            );
+
+            std.debug.print(" this: {s}\n", .{ st_ptr });
+        }
+    }
+}
+
+// 
+// Trace test
+//
+// What I want: trace spaces from a -> b, ie tl.presentation to clip.media
+// 
+// timeline.presentation: [0, 10)
+//
+//  timeline.presentation -> timline.child
+//  affine transform: [blah, blaah)
+//
+// timeline.child: [0, 12)
+//
+test "test debug_print_time_hierarchy"
+{
+    const allocator = std.testing.allocator;
+
+    // top level timeline
+    var tl = try Timeline.init(allocator);
+    // tl.name = try allocator.dupe(u8, "Example Timeline");
+    tl.name = try allocator.dupe(u8, "Example Timeline");
+
+    tl.discrete_info.presentation = .{
+        // matches the media rate
+        .sample_rate_hz = 24,
+        .start_index = 0,
+    };
+
+    defer tl.recursively_deinit();
+    const tl_ptr = ComposedValueRef{
+        .timeline_ptr = &tl 
+    };
+
+    // track
+    var tr = Track.init(allocator);
+    tr.name = try allocator.dupe(u8, "Example Parent Track");
+
+    // clips
+    const cl1 = Clip {
+        .name = try allocator.dupe(
+            u8,
+            "Spaghetti.mov",
+        ),
+        .media_temporal_bounds = .{
+            .start_seconds = 1,
+            .end_seconds = 6,
+        },
+        .discrete_info = .{
+            .media = .{
+                .sample_rate_hz = 24,
+                .start_index = 0,
+            },
+        },
+        .media_reference = .{
+            .signal_generator = .{
+                .sample_rate_hz = 24,
+                .signal = .sine,
+                .signal_duration_s = 6.0,
+                .signal_frequency_hz = 24,
+            },
+        },
+    };
+    defer cl1.destroy(allocator);
+    const cl_ptr = ComposedValueRef.init(&cl1);
+
+    // new for this test - add in an warp on the clip, which holds the frame
+    try tr.append(
+        Warp {
+            .child = cl_ptr,
+            .transform = time_topology.TimeTopology.init_affine(
+                .{
+                    .bounds = .{
+                        .start_seconds = 0,
+                        .end_seconds = 5,
+                    },
+                    .transform = .{
+                        .offset_seconds = 10.0/24.0,
+                        .scale = 0,
+                    },
+                },
+            )
+        }
+    );
+    _ = try tl.tracks.append_fetch_ref(tr);
+
+    const tp = try build_topological_map(
+        allocator,
+        tl_ptr
+    );
+    defer tp.deinit();
+
+    var values = tp.map_code_to_space.valueIterator();
+    while (values.next())
+        |val|
+    {
+        std.debug.print(" this: {s}\n", .{ val });
+    }
+
+    try tp.debug_print_time_hierarchy(
+        allocator,
+        .{
+            .source = try tl_ptr.space(.presentation),
+            .destination = try cl_ptr.space(.media),
+        },
+    );
 }
