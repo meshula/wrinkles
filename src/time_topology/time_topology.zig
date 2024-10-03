@@ -1212,35 +1212,35 @@ test "TimeTopology: Affine Projected Through infinite Affine"
 
 test "TimeTopology: Affine through Affine w/ negative scale" 
 {
-//
-//                         0                 6           10 (duration of the bounds)
+//                        start                         end
+//                    in   0                 6           10 (duration of the bounds)
 // output_to_intrinsic     |-----------------*-----------|
-//                         10                4           0
+//                    out  10                4           0
 //
 //                         0                             10
 // intrinsic_to_media      |-----------------*-----------|
 //                         90                6           100
 //
-    const output_to_intrinsic = TimeTopology.init_affine(
-        .{ 
-            .bounds = .{ .start_seconds = 0, .end_seconds = 10 },
-
-            // @TODO: why does this need an offset of 10? that seems weird
-            .transform = .{ .offset_seconds = 10, .scale = -1 },
-        }
+    const output_to_intrinsic = TimeTopology.init_linear_start_end(
+        .{ .in = 0, .out = 10 },
+        .{ .in = 10, .out = 0 },
     );
 
-    const intrinsic_to_media = TimeTopology.init_affine(
-        .{ 
-            .bounds = .{ .start_seconds = 0, .end_seconds = 10 },
-            .transform = .{ .offset_seconds = 90, .scale = 1 },
-        }
+    const intrinsic_to_media = TimeTopology.init_linear_start_end(
+        .{ .in = 0, .out = 90 },
+        .{ .in = 10, .out = 100 },
     );
 
-    const output_to_media = try intrinsic_to_media.project_topology(
+    // @breakpoint();
+    const output_to_media = try join(
         std.testing.allocator,
-        output_to_intrinsic,
+        .{
+            .a2b = output_to_intrinsic,
+            .b2c = intrinsic_to_media,
+        },
     );
+
+    try std.testing.expect(std.meta.activeTag(output_to_media) != .empty);
 
     const TestData = struct {
         output_s: f32,
