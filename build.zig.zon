@@ -7,7 +7,7 @@
             .hash = "12203e39fef4d171fc3ff8e0276bb58679d2b6db10ce6175ad0ecfd2cfc35445febc",
         },
         .zgui_cimgui_implot_sokol = .{
-            .url="git+https://github.com/ssteinbach/zgui_cimgui_implot_sokol.git#v1.0.1",
+            .url = "git+https://github.com/ssteinbach/zgui_cimgui_implot_sokol.git#v1.0.1",
             .hash = "1220e3d0b12b492eda1c71f8c4e5c61c8afd0b86077500ad7665b109643ff3d8002f",
         },
      },
