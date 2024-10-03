@@ -773,6 +773,9 @@ pub const TimeTopology = union (enum) {
     ) TimeTopology 
     {
         const slope = (end.out - start.out) / (end.in - start.in);
+        if (std.math.isNan(slope) or std.math.isInf(slope)) {
+            @panic("infinite or nan slope");
+        }
         const offset = start.out - start.in * slope;
         return init_affine(
             .{
