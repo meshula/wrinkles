@@ -3929,7 +3929,7 @@ test "Single Warp w/ Clip Media to presentation Identity transform"
     }
 }
 
-test "Single Clip reverse transform" 
+test "Single Clip reverse transform Warp" 
 {
     const allocator = std.testing.allocator;
 
@@ -3943,7 +3943,8 @@ test "Single Clip reverse transform"
     //              110               103         100 (seconds)
     //
 
-    const start:curve.ControlPoint = .{ .in = 0, .out = 10 };
+    // mapping is presentation -> input so in: presentation, out = child
+    const start:curve.ControlPoint = .{ .in = 0, .out = 5 };
     const end:curve.ControlPoint = .{ .in = 10, .out = 0 };
     const inv_tx = (
         time_topology.TimeTopology.init_linear_start_end(
@@ -3976,10 +3977,10 @@ test "Single Clip reverse transform"
     );
     defer map.deinit();
 
-    try map.write_dot_graph(
-        allocator,
-        "/var/tmp/warp_reverses_clip.dot",
-    );
+    // try map.write_dot_graph(
+    //     allocator,
+    //     "/var/tmp/warp_reverses_clip.dot",
+    // );
 
     // presentation->media (forward projection)
     {
@@ -4055,6 +4056,300 @@ test "Single Clip reverse transform"
             util.EPSILON,
         );
     }
+
+    try map.debug_print_time_hierarchy(
+        allocator,
+        .{
+            .source =  (
+                try wp_ptr.space(SpaceLabel.presentation)
+            ),
+            .destination = (
+                try cl_ptr.space(SpaceLabel.media)
+            ),
+        }
+    );
+}
+
+test "Single Clip w/ Warp w/ time scale" 
+{
+    // const allocator = std.testing.allocator;
+
+    var raw = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = raw.allocator();
+
+
+    // xform: reverse (linear w/ -1 slope)
+    // note: transforms map from the _presentation_ space to the _media_ space
+    //
+    //              0                 4           5
+    // presentation [-----------------*-----------)
+    // (warp)       0                 8           10
+    // clip.media   [-----------------*-----------)
+    //              100               108         110 (seconds)
+    //
+
+    // mapping is presentation -> input so in: presentation, out = child
+    const start:curve.ControlPoint = .{ .in = 0, .out = 0 };
+    const end:curve.ControlPoint = .{ .in = 5, .out = 10 };
+    const inv_tx = (
+        time_topology.TimeTopology.init_linear_start_end(
+            start,
+            end,
+        )
+    );
+
+    try std.testing.expectEqual(
+        2,
+        inv_tx.affine.transform.scale,
+    );
+    try std.testing.expectEqual(
+        0,
+        inv_tx.affine.transform.offset_seconds,
+    );
+
+    const media_temporal_bounds:interval.ContinuousTimeInterval = .{
+        .start_seconds = 100,
+        .end_seconds = 110,
+    };
+
+    const cl = Clip {
+        .media_temporal_bounds = media_temporal_bounds,
+    };
+    const cl_ptr = ComposedValueRef{.clip_ptr = &cl };
+
+    const w_inv : Warp = .{
+        .child = cl_ptr,
+        .transform = inv_tx,
+    };
+
+    const wp_ptr = ComposedValueRef.init(&w_inv);
+
+    const map = try build_topological_map(
+        allocator,
+        wp_ptr,
+    );
+    defer map.deinit();
+
+    // presentation->media (forward projection)
+    {
+        const warp_pres_to_media_topo = (
+            try map.build_projection_operator(
+                allocator,
+                .{
+                    .source =  (
+                        try wp_ptr.space(SpaceLabel.presentation)
+                    ),
+                    .destination = (
+                        try cl_ptr.space(SpaceLabel.media)
+                    ),
+                }
+            )
+        );
+
+        const input_bounds = (
+            warp_pres_to_media_topo.src_to_dst_topo.input_bounds()
+        );
+        const output_bounds = (
+            warp_pres_to_media_topo.src_to_dst_topo.output_bounds()
+        );
+
+        errdefer std.debug.print(
+            "test data:\nprovided: [{d}, {d})\nwarp presentation:  {s}\n"
+            ++ "clip media range: {s}\n"
+            ++ "topology: {s}\n"
+            ,
+            .{
+                start.in, end.in,
+                input_bounds,
+                output_bounds,
+                warp_pres_to_media_topo.src_to_dst_topo,
+            },
+        );
+
+        try std.testing.expect(
+            std.meta.activeTag(warp_pres_to_media_topo.src_to_dst_topo)
+            != .empty
+        );
+
+        try expectApproxEqAbs(
+            start.in,
+            input_bounds.start_seconds,
+            util.EPSILON,
+        );
+
+        try expectApproxEqAbs(
+            end.in,
+            input_bounds.end_seconds,
+            util.EPSILON,
+        );
+
+        // current error
+        try expectApproxEqAbs(
+            @as(f32, 104),
+            try warp_pres_to_media_topo.project_instantaneous_cc(2),
+            util.EPSILON,
+        );
+    }
+
+    // media->presentation (reverse projection)
+    {
+        const clip_media_to_presentation = try map.build_projection_operator(
+            allocator,
+            .{
+                .source =  try cl_ptr.space(SpaceLabel.media),
+                .destination = try wp_ptr.space(SpaceLabel.presentation),
+            }
+        );
+
+        try expectApproxEqAbs(
+            @as(f32, 4),
+            try clip_media_to_presentation.project_instantaneous_cc(108),
+            util.EPSILON,
+        );
+    }
+}
+
+test "Single Clip reverse transform Warp w/ time scale" 
+{
+    const allocator = std.testing.allocator;
+
+    // xform: reverse (linear w/ -1 slope)
+    // note: transforms map from the _presentation_ space to the _media_ space
+    //
+    //              0                 4           5
+    // presentation [-----------------*-----------)
+    // (warp)       10                2           0
+    // clip.media   [-----------------*-----------)
+    //              110               103         100 (seconds)
+    //
+
+    // mapping is presentation -> input
+    const start:curve.ControlPoint = .{ .in = 0, .out = 5 };
+    const end:curve.ControlPoint = .{ .in = 10, .out = 0 };
+    const inv_tx = (
+        time_topology.TimeTopology.init_linear_start_end(
+            start,
+            end,
+        )
+    );
+
+    const media_temporal_bounds:interval.ContinuousTimeInterval = .{
+        .start_seconds = 100,
+        .end_seconds = 110,
+    };
+
+    const cl = Clip {
+        .media_temporal_bounds = media_temporal_bounds,
+    };
+    defer cl.destroy(allocator);
+    const cl_ptr = ComposedValueRef{.clip_ptr = &cl };
+
+    const w_inv : Warp = .{
+        .child = cl_ptr,
+        .transform = inv_tx,
+    };
+
+    std.debug.print("_\nwarp transform: {s}\n", .{ w_inv.transform });
+
+    const wp_ptr : ComposedValueRef = .{ .warp_ptr =  &w_inv };
+
+    const map = try build_topological_map(
+        allocator,
+        wp_ptr,
+    );
+    defer map.deinit();
+
+    // try map.write_dot_graph(
+    //     allocator,
+    //     "/var/tmp/warp_reverses_clip.dot",
+    // );
+
+    // presentation->media (forward projection)
+    {
+        const warp_pres_to_media_topo = (
+            try map.build_projection_operator(
+                allocator,
+                .{
+                    .source =  (
+                        try wp_ptr.space(SpaceLabel.presentation)
+                    ),
+                    .destination = (
+                        try cl_ptr.space(SpaceLabel.media)
+                    ),
+                }
+            )
+        );
+
+        const input_bounds = (
+            warp_pres_to_media_topo.src_to_dst_topo.input_bounds()
+        );
+        const output_bounds = (
+            warp_pres_to_media_topo.src_to_dst_topo.output_bounds()
+        );
+
+        errdefer std.debug.print(
+            "test data:\nprovided: [{d}, {d})\nwarp presentation:  {s}\n"
+            ++ "clip media range: {s}\n",
+            .{
+                start.in, end.in,
+                input_bounds,
+                output_bounds,
+            },
+        );
+
+        try std.testing.expect(
+            std.meta.activeTag(warp_pres_to_media_topo.src_to_dst_topo)
+            != .empty
+        );
+
+        try expectApproxEqAbs(
+            start.in,
+            input_bounds.start_seconds,
+            util.EPSILON,
+        );
+
+        try expectApproxEqAbs(
+            end.in,
+            input_bounds.end_seconds,
+            util.EPSILON,
+        );
+
+        // current error
+        try expectApproxEqAbs(
+            @as(f32, 106),
+            try warp_pres_to_media_topo.project_instantaneous_cc(2),
+            util.EPSILON,
+        );
+    }
+
+    // media->presentation (reverse projection)
+    {
+        const clip_media_to_presentation = try map.build_projection_operator(
+            allocator,
+            .{
+                .source =  try cl_ptr.space(SpaceLabel.media),
+                .destination = try wp_ptr.space(SpaceLabel.presentation),
+            }
+        );
+
+        try expectApproxEqAbs(
+            @as(f32, 3),
+            try clip_media_to_presentation.project_instantaneous_cc(107),
+            util.EPSILON,
+        );
+    }
+
+    try map.debug_print_time_hierarchy(
+        allocator,
+        .{
+            .source =  (
+                try wp_ptr.space(SpaceLabel.presentation)
+            ),
+            .destination = (
+                try cl_ptr.space(SpaceLabel.media)
+            ),
+        }
+    );
 }
 
 test "Single Clip bezier transform" 
@@ -4453,8 +4748,8 @@ test "sequential_child_hash: math"
         try test_code.append(1);
 
         errdefer std.debug.print(
-            "iteration: {d}, expected: {b} got: {b}\n",
-            .{ i, test_code.treecode_array[0], result.treecode_array[0] }
+            "iteration: {d}, expected: {s} got: {s}\n",
+            .{ i, test_code, result }
         );
 
         try std.testing.expect(test_code.eql(result));
@@ -5414,20 +5709,6 @@ test "ComposedValueRef: name"
         |val|
     {
         std.debug.print(" this: {s}\n", .{ val });
-        if (std.meta.activeTag(val.ref) == .stack_ptr) {
-            const st_ptr = val.ref;
-            try std.testing.expectEqual(
-                tl.tracks.name, 
-                st_ptr.name(),
-            );
-
-            try std.testing.expectEqual(
-                tl.tracks.name,
-                st_ptr.name(), 
-            );
-
-            std.debug.print(" this: {s}\n", .{ st_ptr });
-        }
     }
 }
 
@@ -5507,7 +5788,7 @@ test "test debug_print_time_hierarchy"
                     },
                     .transform = .{
                         .offset_seconds = 10.0/24.0,
-                        .scale = 0,
+                        .scale = 2,
                     },
                 },
             )
