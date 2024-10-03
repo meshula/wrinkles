@@ -54,7 +54,7 @@ pub const AffineTopology = struct {
         self: @This(),
     ) interval.ContinuousTimeInterval 
     {
-        return self.transform.applied_to_cti(self.bounds);
+        return self.transform.applied_to_bounds(self.bounds);
     }
 
     /// if possible, convert the topology to a linear topology with a single
@@ -197,6 +197,7 @@ pub const AffineTopology = struct {
            .affine => |a2b_aff| 
            {
                const b2c_aff = self;
+
                const maybe_bounds = interval.intersect(
                    a2b_aff.compute_output_bounds(),
                    b2c_aff.compute_input_bounds(),
@@ -206,7 +207,7 @@ pub const AffineTopology = struct {
                    |bounds_b| 
                {
                    const a2c_xform = (
-                       self.transform.applied_to_transform(
+                       b2c_aff.transform.applied_to_transform(
                            a2b_aff.transform
                        )
                    );
@@ -1231,7 +1232,6 @@ test "TimeTopology: Affine through Affine w/ negative scale"
         .{ .in = 10, .out = 100 },
     );
 
-    // @breakpoint();
     const output_to_media = try join(
         std.testing.allocator,
         .{
