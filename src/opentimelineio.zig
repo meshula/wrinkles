@@ -1393,8 +1393,9 @@ pub const TopologicalMap = struct {
 
             if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) { 
                 std.debug.print(
-                    "  next step {b} towards next code: {b}\n",
-                    .{ next_step, next.code }
+                    "  next step {b} towards next node: {s}\n"
+                    ,
+                    .{ next_step, next }
                 );
             }
 
@@ -1412,16 +1413,16 @@ pub const TopologicalMap = struct {
                 const o_b = next_proj.output_bounds();
 
                 std.debug.print(
-                    "    child transform type: {any}\n"
+                    "    child transform type: {s}\n"
                     ++ "    child transform: {s}\n"
-                    ++ "    child transform ranges input: [{d}, {d}),"
-                    ++ " output: [{d}, {d})\n"
+                    ++ "    child transform ranges input: {s}"
+                    ++ " output: {s}\n"
                     ,
                     .{ 
-                        std.meta.activeTag(next_proj),
+                        @tagName(next_proj),
                         next_proj,
-                        i_b.start_seconds, i_b.end_seconds,
-                        o_b.start_seconds, o_b.end_seconds,
+                        i_b,
+                        o_b,
                     },
                 );
             }
@@ -1442,16 +1443,16 @@ pub const TopologicalMap = struct {
                 const o_b = current_proj.output_bounds();
 
                 std.debug.print(
-                    "    composed transform type: {any}\n"
+                    "    composed transform type: {s}\n"
                     ++ "    composted topology: {s}\n"
-                    ++ "    composed transform ranges input: [{d}, {d}),"
-                    ++ " output: [{d}, {d})\n"
+                    ++ "    composed transform ranges input: {s},"
+                    ++ " output: {s}\n"
                     ,
                     .{
-                        std.meta.activeTag(current_proj),
+                        @tagName(current_proj),
                         current_proj,
-                        i_b.start_seconds, i_b.end_seconds,
-                        o_b.start_seconds, o_b.end_seconds,
+                        i_b,
+                        o_b,
                     },
                 );
             }
@@ -1713,10 +1714,10 @@ pub const TopologicalMap = struct {
         if (treecode.path_exists(source_code, destination_code) == false) 
         {
             errdefer std.debug.print(
-                "\nERROR\nsource: {b} dest: {b}\n",
+                "\nERROR\nsource: {s} dest: {s}\n",
                 .{
-                    source_code.treecode_array[0],
-                    destination_code.treecode_array[0] 
+                    source_code,
+                    destination_code,
                 }
             );
             return error.NoPathBetweenSpaces;
@@ -1773,16 +1774,21 @@ pub const TopologicalMap = struct {
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
             std.debug.print(
-                "starting walk from: {s} to: {s}.{s}\n",
+                "starting walk from: {s} to: {s}\n",
                 .{
-                    iter.maybe_current.?.space,
+                    iter.maybe_source.?.space,
                     iter.maybe_destination.?.space,
                 }
             );
         }
 
         // walk from current_code towards destination_code
-        while (try iter.next()) 
+        while (
+            try iter.next()
+            and iter.maybe_current.?.code.eql(
+                iter.maybe_destination.?.code
+            ) == false
+        ) 
         {
             const dest_to_current = try self.build_projection_operator(
                 allocator,
@@ -1801,6 +1807,18 @@ pub const TopologicalMap = struct {
                 },
             );
         }
+
+        std.debug.print(
+            "space: {s}\n"
+            ++ "      destination:  {s}\n",
+            .{ 
+                iter.maybe_current.?.space,
+                try iter.maybe_destination.?.space.ref.bounds_of(
+                    allocator,
+                    iter.maybe_destination.?.space.label
+                ),
+            },
+        );
     }
 };
 
@@ -2965,8 +2983,8 @@ test "depth_child_hash: math"
         const expected = std.math.shl(treecode.TreecodeWord, expected_root, i); 
 
         errdefer std.debug.print(
-            "iteration: {d}, expected: {b} got: {b}\n",
-            .{ i, expected, result.treecode_array[0] }
+            "iteration: {d}, expected: {b} got: {s}\n",
+            .{ i, expected, result }
         );
 
         try expectEqual(expected, result.treecode_array[0]);
@@ -3053,12 +3071,12 @@ pub fn build_topological_map(
                     );
                     std.debug.print(
                         (
-                         "[{d}] code: {b} hash: {d} adding local space: "
+                         "[{d}] code: {s} hash: {d} adding local space: "
                          ++ "'{s}.{s}'\n"
                         ),
                         .{
                             index,
-                            child_code.treecode_array[0],
+                            child_code,
                             child_code.hash(), 
                             @tagName(space_ref.ref),
                             @tagName(space_ref.label)
@@ -3142,13 +3160,13 @@ pub fn build_topological_map(
                     |other_code| 
                 {
                     std.debug.print(
-                        "\n ERROR SPACE ALREADY PRESENT[{d}] code: {b} "
-                        ++ "other_code: {b} "
+                        "\n ERROR SPACE ALREADY PRESENT[{d}] code: {s} "
+                        ++ "other_code: {s} "
                         ++ "adding child space: '{s}.{s}.{d}'\n",
                         .{
                             index,
-                            child_space_code.treecode_array[0],
-                            other_code.treecode_array[0],
+                            child_space_code,
+                            other_code,
                             @tagName(space_ref.ref),
                             @tagName(space_ref.label),
                             space_ref.child_index.?,
@@ -3158,10 +3176,10 @@ pub fn build_topological_map(
                     std.debug.assert(false);
                 }
                 std.debug.print(
-                    "[{d}] code: {b} hash: {d} adding child space: '{s}.{s}.{d}'\n",
+                    "[{d}] code: {s} hash: {d} adding child space: '{s}.{s}.{d}'\n",
                     .{
                         index,
-                        child_space_code.treecode_array[0],
+                        child_space_code,
                         child_space_code.hash(),
                         @tagName(space_ref.ref),
                         @tagName(space_ref.label),
@@ -3419,8 +3437,8 @@ test "path_code: graph test"
         );
 
         errdefer std.log.err(
-            "\n[iteration: {d}] index: {d} expected: {b} result: {b} \n",
-            .{t_i, t.ind, t.expect, result.treecode_array[0]}
+            "\n[iteration: {d}] index: {d} expected: {b} result: {s} \n",
+            .{t_i, t.ind, t.expect, result}
         );
 
         const expect = try treecode.Treecode.init_word(
@@ -3557,10 +3575,10 @@ test "TopologicalMap: Track with clip with identity transform topological"
         );
         defer tc.deinit();
         errdefer std.debug.print(
-            "\ntc: {b}, clip_code: {b}\n",
+            "\ntc: {s}, clip_code: {s}\n",
             .{
-                tc.treecode_array[0],
-                clip_code.treecode_array[0] 
+                tc,
+                clip_code,
             },
         );
         try expectEqual(4, tc.code_length());
@@ -4932,7 +4950,25 @@ test "otio projection: track with single clip with transform"
 const TreenodeWalkingIterator = struct{
     const Node = struct {
         space: SpaceReference,
-        code: treecode.Treecode 
+        code: treecode.Treecode,
+ 
+        pub fn format(
+            self: @This(),
+            // fmt
+            comptime _: []const u8,
+            // options
+            _: std.fmt.FormatOptions,
+            writer: anytype,
+        ) !void 
+        {
+            try writer.print(
+                "Node(.space: {s}, .code: {s})",
+                .{
+                    self.space,
+                    self.code,
+                }
+            );
+        }
     };
 
     stack: std.ArrayList(Node),
@@ -5013,10 +5049,10 @@ const TreenodeWalkingIterator = struct{
         if (treecode.path_exists(source_code, destination_code) == false) 
         {
             errdefer std.debug.print(
-                "\nERROR\nsource: {b} dest: {b}\n",
+                "\nERROR\nsource: {s} dest: {s}\n",
                 .{
-                    source_code.treecode_array[0],
-                    destination_code.treecode_array[0] 
+                    source_code,
+                    destination_code,
                 }
             );
             return error.NoPathBetweenSpaces;
