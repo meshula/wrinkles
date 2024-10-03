@@ -194,24 +194,32 @@ pub const AffineTopology = struct {
                    }
                };
            },
-           .affine => |other_aff| 
+           .affine => |a2b_aff| 
            {
+               const b2c_aff = self;
                const maybe_bounds = interval.intersect(
-                   self.compute_input_bounds(),
-                   other_aff.bounds,
+                   a2b_aff.compute_output_bounds(),
+                   b2c_aff.compute_input_bounds(),
                );
 
                if (maybe_bounds) 
-                   |b| 
-                {
+                   |bounds_b| 
+               {
+                   const a2c_xform = (
+                       self.transform.applied_to_transform(
+                           a2b_aff.transform
+                       )
+                   );
+
+                   const b2a = a2b_aff.transform.inverted();
+                   const bounds_a = (
+                       b2a.applied_to_bounds(bounds_b)
+                   );
+
                    return .{
                        .affine = .{ 
-                           .bounds = b,
-                           .transform = (
-                               self.transform.applied_to_transform(
-                                   other_aff.transform
-                               )
-                           )
+                           .bounds = bounds_a,
+                           .transform = a2c_xform,
                        },
                    };
                }
