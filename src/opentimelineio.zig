@@ -1415,13 +1415,15 @@ pub const TopologicalMap = struct {
                 std.debug.print(
                     "    child transform type: {s}\n"
                     ++ "    child transform: {s}\n"
-                    ++ "    child transform ranges input: {s}"
-                    ++ " output: {s}\n"
+                    ++ "    child transform ranges {s}: {s}"
+                    ++ " {s}: {s}\n"
                     ,
                     .{ 
                         @tagName(next_proj),
                         next_proj,
+                        current.space,
                         i_b,
+                        next.space,
                         o_b,
                     },
                 );
@@ -1445,13 +1447,15 @@ pub const TopologicalMap = struct {
                 std.debug.print(
                     "    composed transform type: {s}\n"
                     ++ "    composted topology: {s}\n"
-                    ++ "    composed transform ranges input: {s},"
-                    ++ " output: {s}\n"
+                    ++ "    composed transform ranges {s}: {s},"
+                    ++ " {s}: {s}\n"
                     ,
                     .{
                         @tagName(current_proj),
                         current_proj,
+                        iter.maybe_source.?.space,
                         i_b,
+                        next.space,
                         o_b,
                     },
                 );
@@ -2748,6 +2752,36 @@ test "transform: track with two clips"
     }
 
     {
+        const xform = time_topology.TimeTopology{
+            .affine = .{
+                .bounds = .{
+                    .start_seconds = 8,
+                },
+                .transform = .{
+                    .offset_seconds = -8,
+                },
+            },
+        };
+        const po = try map.build_projection_operator(
+            allocator,
+            .{
+                .source = try cl2_ref.space(.presentation),
+                .destination = try cl2_ref.space(.media),
+            }
+        );
+        const result = try time_topology.join(
+            allocator,
+            .{
+                .a2b = xform,
+                .b2c = po.src_to_dst_topo,
+            },
+        );
+        try std.testing.expect(
+            std.meta.activeTag(result) != .empty
+        );
+    }
+
+    {
         const xform = try map.build_projection_operator(
             allocator,
             .{
@@ -2756,6 +2790,10 @@ test "transform: track with two clips"
             }
         );
         const b = xform.src_to_dst_topo.input_bounds();
+
+        try std.testing.expect(
+            std.meta.activeTag(xform.src_to_dst_topo) != .empty
+        );
 
         const cl1_range = try cl1.bounds_of(
             allocator, 
