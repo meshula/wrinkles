@@ -356,6 +356,31 @@ pub const Treecode = struct {
 
         return @intCast(std.math.shr(TreecodeWord, masked_val, self_len_pos_local));
     }
+
+    pub fn format(
+        self: @This(),
+        // fmt
+        comptime _: []const u8,
+        // options
+        _: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void 
+    {
+        const marker_pos_abs = self.code_length();
+        const last_index = (marker_pos_abs / WORD_BIT_COUNT);
+
+        var i:usize = 0;
+        while (i <= last_index) 
+            : (i+=1) 
+        {
+            const tcw = self.treecode_array[last_index - i];
+            if (i == 0) {
+                try writer.print("{b}", .{tcw});
+            } else {
+                try writer.print("{b:0>128}", .{tcw});
+            }
+        }
+    }
 };
 
 test "treecode: code_length - init_word" 
