@@ -3839,519 +3839,6 @@ test "Projection: Track with multiple clips with identity transform and bounds"
     );
 }
 
-test "Single Warp w/ Clip Media to presentation Identity transform" 
-{
-    //
-    //              0                 7           10
-    // presentation space [-----------------*-----------)
-    // media space  [-----------------*-----------)
-    //              100               107         110 (seconds)
-    //              
-    const media_temporal_bounds:interval.ContinuousTimeInterval = .{
-        .start_seconds = 100,
-        .end_seconds = 110 
-    };
-
-    const cl:Clip = .{
-        .media_temporal_bounds = media_temporal_bounds 
-    };
-    const cl_ptr : ComposedValueRef = .{ .clip_ptr = &cl};
-
-    const wp : Warp = .{
-        .child = cl_ptr,
-        .transform = time_topology.TimeTopology.init_identity_infinite(),
-    };
-    const wp_ptr : ComposedValueRef = .{ .warp_ptr = &wp };
-
-    const map = try build_topological_map(
-        std.testing.allocator,
-        wp_ptr,
-    );
-    defer map.deinit();
-
-    try expectEqual(
-        @as(usize, 4),
-        map.map_code_to_space.count()
-    );
-    try expectEqual(
-        @as(usize, 4),
-        map.map_space_to_code.count()
-    );
-
-    // presentation->media
-    {
-        const clip_presentation_to_media = try map.build_projection_operator(
-            std.testing.allocator,
-            .{
-                .source =  try cl_ptr.space(SpaceLabel.presentation),
-                .destination = try cl_ptr.space(SpaceLabel.media),
-            }
-        );
-
-        try expectApproxEqAbs(
-            @as(f32, 103),
-            try clip_presentation_to_media.project_instantaneous_cc(3),
-            util.EPSILON,
-        );
-
-        const input_bounds = (
-            clip_presentation_to_media.src_to_dst_topo.input_bounds()
-        );
-
-        try expectApproxEqAbs(
-            @as(f32,0),
-            input_bounds.start_seconds,
-            util.EPSILON,
-        );
-
-        try expectApproxEqAbs(
-            media_temporal_bounds.duration_seconds(),
-            input_bounds.end_seconds,
-            util.EPSILON,
-        );
-    }
-
-    // media->presentation
-    {
-        const clip_presentation_to_media = try map.build_projection_operator(
-            std.testing.allocator,
-            .{
-                .source =  try cl_ptr.space(SpaceLabel.media),
-                .destination = try cl_ptr.space(SpaceLabel.presentation),
-            }
-        );
-
-        try expectApproxEqAbs(
-            @as(f32, 3),
-            try clip_presentation_to_media.project_instantaneous_cc(103),
-            util.EPSILON,
-        );
-    }
-}
-
-test "Single Clip reverse transform Warp" 
-{
-    const allocator = std.testing.allocator;
-
-    // xform: reverse (linear w/ -1 slope)
-    // note: transforms map from the _presentation_ space to the _media_ space
-    //
-    //              0                 7           10
-    // presentation [-----------------*-----------)
-    // (warp)       10                3           0
-    // clip.media   [-----------------*-----------)
-    //              110               103         100 (seconds)
-    //
-
-    // mapping is presentation -> input so in: presentation, out = child
-    const start:curve.ControlPoint = .{ .in = 0, .out = 5 };
-    const end:curve.ControlPoint = .{ .in = 10, .out = 0 };
-    const inv_tx = (
-        time_topology.TimeTopology.init_linear_start_end(
-            start,
-            end,
-        )
-    );
-
-    const media_temporal_bounds:interval.ContinuousTimeInterval = .{
-        .start_seconds = 100,
-        .end_seconds = 110,
-    };
-
-    const cl = Clip {
-        .media_temporal_bounds = media_temporal_bounds,
-    };
-    defer cl.destroy(allocator);
-    const cl_ptr = ComposedValueRef{.clip_ptr = &cl };
-
-    const w_inv : Warp = .{
-        .child = cl_ptr,
-        .transform = inv_tx,
-    };
-
-    const wp_ptr : ComposedValueRef = .{ .warp_ptr =  &w_inv };
-
-    const map = try build_topological_map(
-        allocator,
-        wp_ptr,
-    );
-    defer map.deinit();
-
-    // try map.write_dot_graph(
-    //     allocator,
-    //     "/var/tmp/warp_reverses_clip.dot",
-    // );
-
-    // presentation->media (forward projection)
-    {
-        const warp_pres_to_media_topo = (
-            try map.build_projection_operator(
-                allocator,
-                .{
-                    .source =  (
-                        try wp_ptr.space(SpaceLabel.presentation)
-                    ),
-                    .destination = (
-                        try cl_ptr.space(SpaceLabel.media)
-                    ),
-                }
-            )
-        );
-
-        const input_bounds = (
-            warp_pres_to_media_topo.src_to_dst_topo.input_bounds()
-        );
-        const output_bounds = (
-            warp_pres_to_media_topo.src_to_dst_topo.output_bounds()
-        );
-
-        errdefer std.debug.print(
-            "test data:\nprovided: [{d}, {d})\ninput:  [{d}, {d})\n"
-            ++ "output: [{d}, {d})\n",
-            .{
-                start.in, end.in,
-                input_bounds.start_seconds, input_bounds.end_seconds ,
-                output_bounds.start_seconds, output_bounds.end_seconds,
-            },
-        );
-
-        try std.testing.expect(
-            std.meta.activeTag(warp_pres_to_media_topo.src_to_dst_topo)
-            != .empty
-        );
-
-        try expectApproxEqAbs(
-            start.in,
-            input_bounds.start_seconds,
-            util.EPSILON,
-        );
-
-        try expectApproxEqAbs(
-            end.in,
-            input_bounds.end_seconds,
-            util.EPSILON,
-        );
-
-        // current error
-        try expectApproxEqAbs(
-            @as(f32, 107),
-            try warp_pres_to_media_topo.project_instantaneous_cc(3),
-            util.EPSILON,
-        );
-    }
-
-    // media->presentation (reverse projection)
-    {
-        const clip_media_to_presentation = try map.build_projection_operator(
-            allocator,
-            .{
-                .source =  try cl_ptr.space(SpaceLabel.media),
-                .destination = try wp_ptr.space(SpaceLabel.presentation),
-            }
-        );
-
-        try expectApproxEqAbs(
-            @as(f32, 3),
-            try clip_media_to_presentation.project_instantaneous_cc(107),
-            util.EPSILON,
-        );
-    }
-
-    try map.debug_print_time_hierarchy(
-        allocator,
-        .{
-            .source =  (
-                try wp_ptr.space(SpaceLabel.presentation)
-            ),
-            .destination = (
-                try cl_ptr.space(SpaceLabel.media)
-            ),
-        }
-    );
-}
-
-test "Single Clip w/ Warp w/ time scale" 
-{
-    // const allocator = std.testing.allocator;
-
-    var raw = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = raw.allocator();
-
-
-    // xform: reverse (linear w/ -1 slope)
-    // note: transforms map from the _presentation_ space to the _media_ space
-    //
-    //              0                 4           5
-    // presentation [-----------------*-----------)
-    // (warp)       0                 8           10
-    // clip.media   [-----------------*-----------)
-    //              100               108         110 (seconds)
-    //
-
-    // mapping is presentation -> input so in: presentation, out = child
-    const start:curve.ControlPoint = .{ .in = 0, .out = 0 };
-    const end:curve.ControlPoint = .{ .in = 5, .out = 10 };
-    const inv_tx = (
-        time_topology.TimeTopology.init_linear_start_end(
-            start,
-            end,
-        )
-    );
-
-    try std.testing.expectEqual(
-        2,
-        inv_tx.affine.transform.scale,
-    );
-    try std.testing.expectEqual(
-        0,
-        inv_tx.affine.transform.offset_seconds,
-    );
-
-    const media_temporal_bounds:interval.ContinuousTimeInterval = .{
-        .start_seconds = 100,
-        .end_seconds = 110,
-    };
-
-    const cl = Clip {
-        .media_temporal_bounds = media_temporal_bounds,
-    };
-    const cl_ptr = ComposedValueRef{.clip_ptr = &cl };
-
-    const w_inv : Warp = .{
-        .child = cl_ptr,
-        .transform = inv_tx,
-    };
-
-    const wp_ptr = ComposedValueRef.init(&w_inv);
-
-    const map = try build_topological_map(
-        allocator,
-        wp_ptr,
-    );
-    defer map.deinit();
-
-    // presentation->media (forward projection)
-    {
-        const warp_pres_to_media_topo = (
-            try map.build_projection_operator(
-                allocator,
-                .{
-                    .source =  (
-                        try wp_ptr.space(SpaceLabel.presentation)
-                    ),
-                    .destination = (
-                        try cl_ptr.space(SpaceLabel.media)
-                    ),
-                }
-            )
-        );
-
-        const input_bounds = (
-            warp_pres_to_media_topo.src_to_dst_topo.input_bounds()
-        );
-        const output_bounds = (
-            warp_pres_to_media_topo.src_to_dst_topo.output_bounds()
-        );
-
-        errdefer std.debug.print(
-            "test data:\nprovided: [{d}, {d})\nwarp presentation:  {s}\n"
-            ++ "clip media range: {s}\n"
-            ++ "topology: {s}\n"
-            ,
-            .{
-                start.in, end.in,
-                input_bounds,
-                output_bounds,
-                warp_pres_to_media_topo.src_to_dst_topo,
-            },
-        );
-
-        try std.testing.expect(
-            std.meta.activeTag(warp_pres_to_media_topo.src_to_dst_topo)
-            != .empty
-        );
-
-        try expectApproxEqAbs(
-            start.in,
-            input_bounds.start_seconds,
-            util.EPSILON,
-        );
-
-        try expectApproxEqAbs(
-            end.in,
-            input_bounds.end_seconds,
-            util.EPSILON,
-        );
-
-        // current error
-        try expectApproxEqAbs(
-            @as(f32, 104),
-            try warp_pres_to_media_topo.project_instantaneous_cc(2),
-            util.EPSILON,
-        );
-    }
-
-    // media->presentation (reverse projection)
-    {
-        const clip_media_to_presentation = try map.build_projection_operator(
-            allocator,
-            .{
-                .source =  try cl_ptr.space(SpaceLabel.media),
-                .destination = try wp_ptr.space(SpaceLabel.presentation),
-            }
-        );
-
-        try expectApproxEqAbs(
-            @as(f32, 4),
-            try clip_media_to_presentation.project_instantaneous_cc(108),
-            util.EPSILON,
-        );
-    }
-}
-
-test "Single Clip reverse transform Warp w/ time scale" 
-{
-    const allocator = std.testing.allocator;
-
-    // xform: reverse (linear w/ -1 slope)
-    // note: transforms map from the _presentation_ space to the _media_ space
-    //
-    //              0                 4           5
-    // presentation [-----------------*-----------)
-    // (warp)       10                2           0
-    // clip.media   [-----------------*-----------)
-    //              110               103         100 (seconds)
-    //
-
-    // mapping is presentation -> input
-    const start:curve.ControlPoint = .{ .in = 0, .out = 5 };
-    const end:curve.ControlPoint = .{ .in = 10, .out = 0 };
-    const inv_tx = (
-        time_topology.TimeTopology.init_linear_start_end(
-            start,
-            end,
-        )
-    );
-
-    const media_temporal_bounds:interval.ContinuousTimeInterval = .{
-        .start_seconds = 100,
-        .end_seconds = 110,
-    };
-
-    const cl = Clip {
-        .media_temporal_bounds = media_temporal_bounds,
-    };
-    defer cl.destroy(allocator);
-    const cl_ptr = ComposedValueRef{.clip_ptr = &cl };
-
-    const w_inv : Warp = .{
-        .child = cl_ptr,
-        .transform = inv_tx,
-    };
-
-    std.debug.print("_\nwarp transform: {s}\n", .{ w_inv.transform });
-
-    const wp_ptr : ComposedValueRef = .{ .warp_ptr =  &w_inv };
-
-    const map = try build_topological_map(
-        allocator,
-        wp_ptr,
-    );
-    defer map.deinit();
-
-    // try map.write_dot_graph(
-    //     allocator,
-    //     "/var/tmp/warp_reverses_clip.dot",
-    // );
-
-    // presentation->media (forward projection)
-    {
-        const warp_pres_to_media_topo = (
-            try map.build_projection_operator(
-                allocator,
-                .{
-                    .source =  (
-                        try wp_ptr.space(SpaceLabel.presentation)
-                    ),
-                    .destination = (
-                        try cl_ptr.space(SpaceLabel.media)
-                    ),
-                }
-            )
-        );
-
-        const input_bounds = (
-            warp_pres_to_media_topo.src_to_dst_topo.input_bounds()
-        );
-        const output_bounds = (
-            warp_pres_to_media_topo.src_to_dst_topo.output_bounds()
-        );
-
-        errdefer std.debug.print(
-            "test data:\nprovided: [{d}, {d})\nwarp presentation:  {s}\n"
-            ++ "clip media range: {s}\n",
-            .{
-                start.in, end.in,
-                input_bounds,
-                output_bounds,
-            },
-        );
-
-        try std.testing.expect(
-            std.meta.activeTag(warp_pres_to_media_topo.src_to_dst_topo)
-            != .empty
-        );
-
-        try expectApproxEqAbs(
-            start.in,
-            input_bounds.start_seconds,
-            util.EPSILON,
-        );
-
-        try expectApproxEqAbs(
-            end.in,
-            input_bounds.end_seconds,
-            util.EPSILON,
-        );
-
-        // current error
-        try expectApproxEqAbs(
-            @as(f32, 106),
-            try warp_pres_to_media_topo.project_instantaneous_cc(2),
-            util.EPSILON,
-        );
-    }
-
-    // media->presentation (reverse projection)
-    {
-        const clip_media_to_presentation = try map.build_projection_operator(
-            allocator,
-            .{
-                .source =  try cl_ptr.space(SpaceLabel.media),
-                .destination = try wp_ptr.space(SpaceLabel.presentation),
-            }
-        );
-
-        try expectApproxEqAbs(
-            @as(f32, 3),
-            try clip_media_to_presentation.project_instantaneous_cc(107),
-            util.EPSILON,
-        );
-    }
-
-    try map.debug_print_time_hierarchy(
-        allocator,
-        .{
-            .source =  (
-                try wp_ptr.space(SpaceLabel.presentation)
-            ),
-            .destination = (
-                try cl_ptr.space(SpaceLabel.media)
-            ),
-        }
-    );
-}
-
 test "Single Clip bezier transform" 
 {
     const allocator = std.testing.allocator;
@@ -5816,4 +5303,188 @@ test "test debug_print_time_hierarchy"
             .destination = try cl_ptr.space(.media),
         },
     );
+}
+
+test "Single clip, Warp bulk"
+{
+    //
+    // This test runs through a number of configurations of a warp with a clip.
+    // In each test, the clip has the media range of 100->110.
+    //
+
+    const allocator = std.testing.allocator;
+
+    const media_temporal_bounds:interval.ContinuousTimeInterval = .{
+        .start_seconds = 100,
+        .end_seconds = 110,
+    };
+
+    const cl = Clip {
+        .media_temporal_bounds = media_temporal_bounds,
+    };
+    defer cl.destroy(allocator);
+    const cl_ptr = ComposedValueRef.init(&cl);
+
+    const cl_media = try cl_ptr.space(SpaceLabel.media);
+
+    const TestCase = struct {
+        label: []const u8,
+        presentation_range : [2]opentime.Ordinate, 
+        warp_child_range : [2]opentime.Ordinate,
+        presentation_test : opentime.Ordinate,
+        clip_media_test : opentime.Ordinate,
+    };
+
+    const tests = [_]TestCase{
+        .{
+            .label = "forward identity",
+            .presentation_range = .{ 0, 10 },
+            .warp_child_range = .{ 0, 10 },
+            .presentation_test = 2,
+            .clip_media_test = 102,
+        },
+        .{
+            .label = "forward scale 2",
+            .presentation_range = .{ 0, 5 },
+            .warp_child_range = .{ 0, 10 },
+            .presentation_test = 2,
+            .clip_media_test = 104,
+        },
+        .{
+            .label = "reverse identity",
+            .presentation_range = .{ 0, 10 },
+            .warp_child_range = .{ 10 , 0 },
+            .presentation_test = 2,
+            .clip_media_test = 108,
+        },
+        .{
+            .label = "reverse identity",
+            .presentation_range = .{ 0, 5 },
+            .warp_child_range = .{ 10, 0 },
+            .presentation_test = 2,
+            .clip_media_test = 106,
+        },
+    };
+
+    for (&tests, 0..)
+        |t, ind|
+    {
+        errdefer std.debug.print(
+            "Error\n Error with test: [{d}] {s}\n",
+            .{ ind, t.label },
+        );
+
+        // mapping is presentation -> input so in: presentation, out = child
+        const start:curve.ControlPoint = .{
+            .in = t.presentation_range[0],
+            .out = t.warp_child_range[0],
+        };
+        const end:curve.ControlPoint = .{
+            .in = t.presentation_range[1],
+            .out = t.warp_child_range[1],
+        };
+
+        const xform = (
+            time_topology.TimeTopology.init_linear_start_end(
+                start,
+                end,
+            )
+        );
+
+        const warp : Warp = .{
+            .child = cl_ptr,
+            .transform = xform,
+        };
+
+        const wp_ptr : ComposedValueRef = .{ .warp_ptr =  &warp };
+        const wp_pres = try wp_ptr.space(SpaceLabel.presentation);
+
+        const map = try build_topological_map(
+            allocator,
+            wp_ptr,
+        );
+        defer map.deinit();
+
+        // presentation->media (forward projection)
+        {
+            const warp_pres_to_media_topo = (
+                try map.build_projection_operator(
+                    allocator,
+                    .{
+                        .source =  wp_pres,
+                        .destination = cl_media,
+                    }
+                )
+            );
+
+            const input_bounds = (
+                warp_pres_to_media_topo.src_to_dst_topo.input_bounds()
+            );
+            const output_bounds = (
+                warp_pres_to_media_topo.src_to_dst_topo.output_bounds()
+            );
+
+            errdefer std.debug.print(
+                "test data:\nprovided: {s}\n"
+                ++ "input:  [{d}, {d})\n"
+                ++ "output: [{d}, {d})\n"
+                ,
+                .{
+                    opentime.ContinuousTimeInterval{
+                        .start_seconds =  start.in,
+                        .end_seconds = end.in,
+                    },
+                    input_bounds.start_seconds, input_bounds.end_seconds ,
+                    output_bounds.start_seconds, output_bounds.end_seconds,
+                },
+            );
+
+            try std.testing.expect(
+                warp_pres_to_media_topo.src_to_dst_topo
+                != .empty
+            );
+
+            try expectApproxEqAbs(
+                start.in,
+                input_bounds.start_seconds,
+                util.EPSILON,
+            );
+
+            try expectApproxEqAbs(
+                end.in,
+                input_bounds.end_seconds,
+                util.EPSILON,
+            );
+
+            // current error
+            try expectApproxEqAbs(
+                t.clip_media_test,
+                try warp_pres_to_media_topo.project_instantaneous_cc(
+                    t.presentation_test,
+                ),
+                util.EPSILON,
+            );
+        }
+
+        // media->presentation (reverse projection)
+        {
+            const clip_media_to_presentation = (
+                try map.build_projection_operator(
+                    allocator,
+                    .{
+                        .source =  cl_media,
+                        .destination = wp_pres,
+                    }
+                )
+            );
+
+            try expectApproxEqAbs(
+                t.presentation_test,
+                try clip_media_to_presentation.project_instantaneous_cc(
+                    t.clip_media_test,
+                ),
+                util.EPSILON,
+            );
+        }
+    }
 }
