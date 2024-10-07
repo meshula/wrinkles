@@ -904,34 +904,37 @@ test "timeline w/ warp that holds the tenth frame"
         )
     );
 
+    try std.testing.expect(
+        std.meta.activeTag(
+            tr_pres_to_cl_media_po.src_to_dst_topo
+        ) != .empty
+    );
+
     // check the actual indices
     {
         const start = (
             tr_pres_to_cl_media_po.src_to_dst_topo.input_bounds().start_seconds
         );
 
-        const xform = (
+        const warp_pres_to_warp_child_xform = (
             tr_ptr.track_ptr.child_ptr_from_index(0).warp_ptr.transform
         );
         
         const ident = time_topology.TimeTopology.init_identity(.{});
 
-        const test_result = try xform.project_topology(
+        const test_result = try time_topology.join(
             std.testing.allocator,
-            ident
+            .{ 
+                .a2b = ident,
+                .b2c = warp_pres_to_warp_child_xform,
+            },
         );
 
-        std.debug.print("xform: {any}\n", .{ xform });
+        std.debug.print("xform: {any}\n", .{ warp_pres_to_warp_child_xform });
 
-        std.debug.print("xform output bounds: {any}\n", .{ xform.output_bounds() });
+        std.debug.print("xform output bounds: {any}\n", .{ warp_pres_to_warp_child_xform.output_bounds() });
         std.debug.print("result: {any}\n", .{ test_result });
         std.debug.print("result: {any}\n", .{ test_result.output_bounds() });
-
-        try std.testing.expect(
-            std.meta.activeTag(
-                tr_pres_to_cl_media_po.src_to_dst_topo
-            ) != .empty
-        );
 
         const result_buf = (
             try tr_pres_to_cl_media_po.project_range_cd(

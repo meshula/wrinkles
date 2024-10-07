@@ -198,9 +198,12 @@ pub const AffineTopology = struct {
            {
                const b2c_aff = self;
 
+               const a2b_b_bounds = a2b_aff.compute_output_bounds();
+               const b2c_b_bounds = b2c_aff.compute_input_bounds();
+
                const maybe_bounds = interval.intersect(
-                   a2b_aff.compute_output_bounds(),
-                   b2c_aff.compute_input_bounds(),
+                   a2b_b_bounds,
+                   b2c_b_bounds,
                );
 
                if (maybe_bounds) 
@@ -1532,7 +1535,33 @@ pub fn join(
     args: JoinArgs,
 ) !TimeTopology
 {
-    return try args.b2c.project_topology(allocator, args.a2b);
+    // check to see if forcing linearization helps
+    const a2b = switch (args.a2b) {
+        .affine => |a2b_aff| (
+            if (a2b_aff.transform.scale == 0)
+                try a2b_aff.linearized(allocator)
+                else
+                try args.a2b.clone(allocator)
+        ),
+        else => try args.a2b.clone(allocator),
+    };
+    defer a2b.deinit(allocator);
+
+    const b2c = switch (args.b2c) {
+        .affine => |b2c_aff| (
+            if (b2c_aff.transform.scale == 0)
+                try b2c_aff.linearized(allocator)
+                else
+                try args.b2c.clone(allocator)
+        ),
+        else => try args.b2c.clone(allocator),
+    };
+    defer b2c.deinit(allocator);
+    
+    return try b2c.project_topology(
+        allocator,
+        a2b,
+    );
 }
 
 test "TimeTopology: join function"
@@ -1580,30 +1609,58 @@ test "TimeTopology: join function"
 
 test "TimeTopology: held frame w/ identity"
 {
-    const a2b = TimeTopology.init_affine(
+    const held_aff = TimeTopology.init_affine(
         .{
             .bounds = .{
                 .start_seconds = 0, 
                 .end_seconds = 5, 
             },
             .transform = .{
-                .offset_seconds = 10.0/24.0,
+                .offset_seconds = 7,
                 .scale = 0,
             },
         },
     );
 
-    const b2c = TimeTopology.init_identity_infinite();
+    const ident = TimeTopology.init_identity_infinite();
 
-    const a2c = try join(
-        std.testing.allocator, 
-        .{
-            .a2b = a2b,
-            .b2c = b2c,
-        },
-    );
+    {
+        const a2b = held_aff;
+        const b2c = ident;
 
-    try std.testing.expect(std.meta.activeTag(a2c) != .empty);
+        const a2c = try join(
+            std.testing.allocator, 
+            .{
+                .a2b = a2b,
+                .b2c = b2c,
+            },
+        );
+
+        std.debug.print("a2b: held b2c: ident\n result: {s}\n", .{ a2c });
+        try std.testing.expect(std.meta.activeTag(a2c) != .empty);
+        //
+        // try std.testing.expect(
+        //     std.math.isNan(a2c.affine.bounds.start_seconds) == false
+        //     and std.math.isNan(a2c.affine.bounds.end_seconds) == false
+        // );
+    }
+
+    {
+        const a2b = ident;
+        const b2c = held_aff;
+
+        const a2c = try join(
+            std.testing.allocator, 
+            .{
+                .a2b = a2b,
+                .b2c = b2c,
+            },
+        );
+
+        try std.testing.expect(std.meta.activeTag(a2c) != .empty);
+
+        std.debug.print("a2b: ident b2c: held \n result: {s}\n", .{ a2c });
+    }
 }
 
 // @}

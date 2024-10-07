@@ -5402,6 +5402,13 @@ test "Single clip, Warp bulk"
             .presentation_test = 2,
             .clip_media_test = 106,
         },
+        .{
+            .label = "held frame",
+            .presentation_range = .{ 0, 5 },
+            .warp_child_range = .{7, 7},
+            .presentation_test = 2,
+            .clip_media_test = 107,
+        },
     };
 
     for (&tests, 0..)
@@ -5429,6 +5436,13 @@ test "Single clip, Warp bulk"
             )
         );
 
+        errdefer {
+            std.debug.print(
+                "produced transform: {s}\n",
+                .{ xform }
+            );
+        }
+
         const warp : Warp = .{
             .child = cl_ptr,
             .transform = xform,
@@ -5455,6 +5469,12 @@ test "Single clip, Warp bulk"
                 )
             );
 
+            try std.testing.expect(
+                warp_pres_to_media_topo.src_to_dst_topo
+                != .empty
+            );
+
+
             const input_bounds = (
                 warp_pres_to_media_topo.src_to_dst_topo.input_bounds()
             );
@@ -5475,11 +5495,6 @@ test "Single clip, Warp bulk"
                     input_bounds.start_seconds, input_bounds.end_seconds ,
                     output_bounds.start_seconds, output_bounds.end_seconds,
                 },
-            );
-
-            try std.testing.expect(
-                warp_pres_to_media_topo.src_to_dst_topo
-                != .empty
             );
 
             try expectApproxEqAbs(
