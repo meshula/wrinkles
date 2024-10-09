@@ -4,6 +4,8 @@ const std = @import("std");
 const expectEqual = std.testing.expectEqual;
 const expectApproxEqAbs = std.testing.expectApproxEqAbs;
 
+const RUN_PERF_TESTS = @import("build_options").run_perf_tests;
+
 const opentime = @import("opentime");
 
 const bezier_curve = @import("bezier_curve.zig");
@@ -1072,8 +1074,12 @@ test "Linear: trimmed_in_input_space"
 
 test "Linear perf test"
 {
+    if (RUN_PERF_TESTS == false) {
+        return error.SkipZigTest;
+    }
+
     // const SIZE = 20000000;
-    const SIZE = 2000000;
+    const SIZE = 200000000;
 
     var t_setup = try std.time.Timer.start();
 
