@@ -168,6 +168,11 @@ pub fn executable(
 
     // options for exposing the content directory and build hash
     {
+        exe.root_module.addOptions(
+            "build_options",
+            options.common_build_options,
+        );
+
         const exe_options = b.addOptions();
         exe.root_module.addOptions(
             "exe_build_options",
