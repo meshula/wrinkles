@@ -19,7 +19,8 @@ fn ensureZigVersion() !void
     var installed_ver = builtin.zig_version;
     installed_ver.build = null;
 
-    if (installed_ver.order(MIN_ZIG_VERSION) == .lt) {
+    if (installed_ver.order(MIN_ZIG_VERSION) == .lt) 
+    {
         std.log.err(
             "\n" ++
             \\---------------------------------------------------------------------------
@@ -34,7 +35,8 @@ fn ensureZigVersion() !void
             \\
             \\---------------------------------------------------------------------------
             \\
-            , .{ MIN_ZIG_VERSION, installed_ver }
+            , 
+            .{ MIN_ZIG_VERSION, installed_ver }
         );
 
         return error.ZigIsTooOld;
@@ -57,87 +59,26 @@ fn graphviz_dot_on_path() !bool
     return result.term.Exited == 0;
 }
 
-
-// fn ensureTarget(
-//     cross: std.zig.CrossTarget
-// ) !void 
-// {
-//     // const target = (
-//     //     std.zig.system.NativeTargetInfo.detect(cross) catch unreachable
-//     // ).target;
-//     const target = cross;
-//
-//     const supported = switch (target.os_tag.?) 
-//     {
-//         .windows => target.cpu_arch.?.isX86() and target.abi.?.isGnu(),
-//         .linux => (
-//             target.cpu_arch.?.isX86() 
-//             or target.cpu_arch.?.isAARCH64()
-//         ) and target.abi.?.isGnu(),
-//         .macos => blk: {
-//             if (
-//                 !target.cpu_arch.?.isX86() 
-//                 and !target.cpu_arch.?.isAARCH64()
-//             ) break :blk false;
-//
-//             // If min. target macOS version is lesser than the min version we
-//             // have available, then our Dawn binary is incompatible with the
-//             // target.
-//             const min_available = std.SemanticVersion{
-//                 .major = 12,
-//                 .minor = 0,
-//                 .patch = 0,
-//             };
-//             if (
-//                 target.os_version_min(
-//                     min_available
-//                 ) == .lt
-//             ) {
-//                 break :blk false;
-//             }
-//
-//             break :blk true;
-//         },
-//         else => false,
-//     };
-//     if (!supported) {
-//         std.log.err(
-//             "\n" ++
-//             \\---------------------------------------------------------------------------
-//             \\
-//             \\Unsupported build target. Dawn/WebGPU binary for this target is not available.
-//             \\
-//             \\Following targets are supported:
-//             \\
-//             \\x86_64-windows-gnu
-//             \\x86_64-linux-gnu
-//             \\x86_64-macos.12-none
-//             \\aarch64-linux-gnu
-//             \\aarch64-macos.12-none
-//             \\
-//             \\---------------------------------------------------------------------------
-//             \\
-//             , .{}
-//         );
-//         return error.TargetNotSupported;
-//     }
-// }
-
 /// build options for the wrinkles project
 pub const Options = struct {
     optimize: std.builtin.Mode,
     target: std.Build.ResolvedTarget,
+
+    /// select which tests to run 
     test_filter: ?[]const u8 = null,
 
+    /// place to put general user-facing compile options that get passed to
+    /// each compilation unit.
     common_build_options: *std.Build.Step.Options,
 
-    test_step: *std.Build.Step,
-    all_docs_step: *std.Build.Step,
-    all_check_step: *std.Build.Step,
+    // common build steps to attach artifacts to
 
-    sokol_dep: ?*std.Build.Dependency = null,
-    imgui_lib: ?*std.Build.Step.Compile = null,
-    implot_lib: ?*std.Build.Step.Compile = null,
+    /// unit test step
+    test_step: *std.Build.Step,
+    /// documentation generation step
+    all_docs_step: *std.Build.Step,
+    /// code check step (for zls)
+    all_check_step: *std.Build.Step,
 };
 
 /// c-code compilation arguments
@@ -197,7 +138,6 @@ pub fn executable(
     comptime name: []const u8,
     comptime main_file_name: []const u8,
     comptime source_dir_path: []const u8,
-    all_check_step : *std.Build.Step,
     options: Options,
     module_deps: []const std.Build.Module.Import,
 ) void 
@@ -228,11 +168,6 @@ pub fn executable(
 
     // options for exposing the content directory and build hash
     {
-        exe.root_module.addOptions(
-            "build_options",
-            options.common_build_options,
-        );
-
         const exe_options = b.addOptions();
         exe.root_module.addOptions(
             "exe_build_options",
@@ -396,7 +331,7 @@ pub fn executable(
 
     // zls check
     {
-        all_check_step.dependOn(&exe.step);
+        options.all_check_step.dependOn(&exe.step);
     }
 }
 
@@ -421,11 +356,6 @@ pub fn module_with_tests_and_artifact(
         }
     );
 
-    mod.addOptions(
-        "build_options",
-        opts.options.common_build_options,
-    );
-
     const mod_unit_tests = opts.b.addTest(
         .{
             .name = "test_" ++ name,
@@ -437,11 +367,6 @@ pub fn module_with_tests_and_artifact(
 
     // unit tests for the module
     {
-        mod_unit_tests.root_module.addOptions(
-            "build_options",
-            opts.options.common_build_options,
-        );
-
         for (opts.deps) 
             |dep_mod| 
         {
@@ -496,26 +421,9 @@ pub fn build(
 {
     ensureZigVersion() catch return;
 
-    var raw = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = raw.allocator();
-
-    // 
-    // all-steps (ie run all tests, build all docs, etc)
-    //
-    const test_step = b.step(
-        "test",
-        "step to run all unit tests",
-    );
-
-    const all_docs_step = b.step(
-        "docs",
-        "build the documentation for the entire library",
-    );
-
-    const all_check_step = b.step(
-        "check",
-        "Check if everything compiles",
-    );
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    const allocator = arena.allocator();
+    defer arena.deinit();
 
     //
     // Options and system checks
@@ -532,63 +440,75 @@ pub fn build(
         .common_build_options = b.addOptions(),
 
         // steps
-        .test_step = test_step,
-        .all_docs_step = all_docs_step,
-        .all_check_step = all_check_step,
+        .test_step = b.step(
+            "test",
+            "step to run all unit tests",
+        ),
+        .all_docs_step = b.step(
+            "docs",
+            "build the documentation for the entire library",
+        ),
+        .all_check_step = b.step(
+            "check",
+            "Check if everything compiles",
+        ),
     };
-    // ensureTarget(options.target) catch return;
 
-    options.common_build_options.addOption(
-        []const u8,
-        "hash",
-        rev_HEAD(allocator) catch "COULDNT READ HASH",
-    );
+    {
+        // configure build options (flags from commandline and such)
+        options.common_build_options.addOption(
+            []const u8,
+            "hash",
+            rev_HEAD(allocator) catch "COULDNT READ HASH",
+        );
+
+        const graphviz_dot_on = graphviz_dot_on_path() catch false;
+
+        if (graphviz_dot_on == false) {
+            std.log.warn("`dot` program not on path.\n",.{});
+        }
+
+        options.common_build_options.addOption(
+            bool,
+            "graphviz_dot_on",
+            graphviz_dot_on,
+        );
+
+        const debug_graph_construction_trace_messages = b.option(
+            bool,
+            "debug_graph_construction_trace_messages",
+            "print OTIO graph traversal trace info during "
+            ++ "projection operator construction"
+        ) orelse false;
+
+        options.common_build_options.addOption(
+            bool,
+            "debug_graph_construction_trace_messages", 
+            debug_graph_construction_trace_messages,
+        );
+
+        const run_perf_tests = b.option(
+            bool,
+            "run_perf_tests",
+            "run (potentially slow) performance stress tests",
+        ) orelse false;
+
+        options.common_build_options.addOption(
+            bool,
+            "run_perf_tests", 
+            run_perf_tests,
+        );
+    }
+
+    // submodules and dependencies
     const dep_ziis = b.dependency(
-        "zgui_cimgui_implot_sokol", .{
+        "zgui_cimgui_implot_sokol",
+        .{
             .optimize = options.optimize,
             .target = options.target,
         }
     );
 
-    const graphviz_dot_on = graphviz_dot_on_path() catch false;
-
-    if (graphviz_dot_on == false) {
-        std.log.warn("`dot` program not on path.\n",.{});
-    }
-
-    options.common_build_options.addOption(
-        bool,
-        "graphviz_dot_on",
-        graphviz_dot_on,
-    );
-
-
-    const debug_graph_construction_trace_messages = b.option(
-        bool,
-        "debug_graph_construction_trace_messages",
-        "print OTIO graph traversal trace info during "
-        ++ "projection operator construction"
-    );
-
-    options.common_build_options.addOption(
-        bool,
-        "debug_graph_construction_trace_messages", 
-        debug_graph_construction_trace_messages orelse false,
-    );
-
-    const run_perf_tests = b.option(
-        bool,
-        "run_perf_tests",
-        "run (potentially slow) performance stress tests",
-    );
-
-    options.common_build_options.addOption(
-        bool,
-        "run_perf_tests", 
-        run_perf_tests orelse false,
-    );
-
-    // submodules and dependencies
     const comath_dep = b.dependency(
         "comath",
         .{
@@ -596,6 +516,7 @@ pub fn build(
             .optimize = options.optimize,
         }
     );
+
     const wav_dep = module_with_tests_and_artifact(
         "wav",
         .{
@@ -812,6 +733,10 @@ pub fn build(
             },
         }
     );
+    opentimelineio.addOptions(
+        "build_options",
+        options.common_build_options
+    );
 
     const opentimelineio_c = b.addStaticLibrary(
         .{
@@ -854,13 +779,16 @@ pub fn build(
         );
         exe.addCSourceFile(
             .{
-                .file = b.path("src/c_binding/test_opentimelineio_c.c"),
+                .file = b.path(
+                    "src/c_binding/test_opentimelineio_c.c"
+                ),
                 .flags = &C_ARGS,
             },
         );
         exe.addIncludePath(b.path("src/c_binding/"));
         exe.linkLibC();
-        if (options.target.result.isWasm()) {
+        if (options.target.result.isWasm()) 
+        {
             exe.addSystemIncludePath(
                 ziis.fetchEmSdkIncludePath(
                     dep_ziis,
@@ -869,13 +797,13 @@ pub fn build(
                 )
             );
         }
-        exe.linkLibrary(opentimelineio_c);
 
+        exe.linkLibrary(opentimelineio_c);
         b.installArtifact(exe);
 
         const run_exe = b.addRunArtifact(exe);
         run_exe.addArg("sample_otio_files/multiple_track.otio");
-        test_step.dependOn(&run_exe.step);
+        options.test_step.dependOn(&run_exe.step);
     }
 
     const sokol_app_wrapper = module_with_tests_and_artifact(
@@ -917,7 +845,6 @@ pub fn build(
         "curvet",
         "src/curvet.zig",
         "/wrinkles_content/",
-        all_check_step,
         options,
         common_deps,
     );
@@ -927,7 +854,6 @@ pub fn build(
         "sokol_test",
         "src/sokol_test.zig",
         "/wrinkles_content/",
-        all_check_step,
         options,
         common_deps,
     );
@@ -937,7 +863,6 @@ pub fn build(
         "transformation_visualizer",
         "src/transformation_visualizer.zig",
         "/wrinkles_content/",
-        all_check_step,
         options,
         common_deps,
     );
