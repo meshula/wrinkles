@@ -79,6 +79,9 @@ pub const Options = struct {
     all_docs_step: *std.Build.Step,
     /// code check step (for zls)
     all_check_step: *std.Build.Step,
+
+    // ziis dep is needed for some internal steps
+    dep_ziis: ?*std.Build.Dependency = null,
 };
 
 /// c-code compilation arguments
@@ -208,20 +211,6 @@ pub fn executable(
 
     exe.want_lto = false;
 
-    const dep_ziis = b.dependency(
-        "zgui_cimgui_implot_sokol",
-        .{
-            .target = options.target,
-            .optimize = options.optimize,
-        }
-    );
-
-    // add ziis import
-    exe.root_module.addImport(
-        "zgui_cimgui_implot_sokol",
-        dep_ziis.module("zgui_cimgui_implot_sokol")
-    );
-
     // run and install the executable
     if (!options.target.result.isWasm())
     {
@@ -250,14 +239,8 @@ pub fn executable(
     }
     else
     {
-        // wasm build
-        exe.root_module.addImport(
-            "zgui_cimgui_implot_sokol",
-            dep_ziis.module("zgui_cimgui_implot_sokol")
-        );
-
         const emsdk = ziis.fetchEmSdk(
-            dep_ziis,
+            options.dep_ziis.?,
             options.optimize,
             options.target,
         );
@@ -267,7 +250,7 @@ pub fn executable(
         {
             mod.module.addSystemIncludePath(
                 ziis.fetchEmSdkIncludePath(
-                    dep_ziis,
+                    options.dep_ziis.?,
                     options.optimize,
                     options.target,
                 )
@@ -275,7 +258,7 @@ pub fn executable(
         }
 
         const shell_path_abs = ziis.fetchShellPath(
-            dep_ziis,
+            options.dep_ziis.?,
             options.optimize,
             options.target,
         );
@@ -370,6 +353,11 @@ pub fn module_with_tests_and_artifact(
             .target =opts.options.target,
             .filter = opts.options.test_filter orelse &.{},
         }
+    );
+
+    mod_unit_tests.root_module.addOptions(
+        "build_options",
+        opts.options.common_build_options,
     );
 
     // unit tests for the module
@@ -508,7 +496,7 @@ pub fn build(
     }
 
     // submodules and dependencies
-    const dep_ziis = b.dependency(
+    options.dep_ziis = b.dependency(
         "zgui_cimgui_implot_sokol",
         .{
             .optimize = options.optimize,
@@ -563,7 +551,7 @@ pub fn build(
         if (options.target.result.isWasm()) {
             kissfft.addSystemIncludePath(
                 ziis.fetchEmSdkIncludePath(
-                    dep_ziis,
+                    options.dep_ziis.?,
                     options.optimize,
                     options.target,
                 )
@@ -615,7 +603,7 @@ pub fn build(
         if (options.target.result.isWasm()) {
             spline_gym.addSystemIncludePath(
                 ziis.fetchEmSdkIncludePath(
-                    dep_ziis,
+                    options.dep_ziis.?,
                     options.optimize,
                     options.target,
                 )
@@ -667,7 +655,7 @@ pub fn build(
         if (options.target.result.isWasm()) {
             libsamplerate.addSystemIncludePath(
                 ziis.fetchEmSdkIncludePath(
-                    dep_ziis,
+                    options.dep_ziis.?,
                     options.optimize,
                     options.target,
                 )
@@ -769,7 +757,7 @@ pub fn build(
         if (options.target.result.isWasm()) {
             opentimelineio_c.addSystemIncludePath(
                 ziis.fetchEmSdkIncludePath(
-                    dep_ziis,
+                    options.dep_ziis.?,
                     options.optimize,
                     options.target,
                 )
@@ -798,7 +786,7 @@ pub fn build(
         {
             exe.addSystemIncludePath(
                 ziis.fetchEmSdkIncludePath(
-                    dep_ziis,
+                    options.dep_ziis.?,
                     options.optimize,
                     options.target,
                 )
@@ -822,7 +810,7 @@ pub fn build(
             .deps = &.{
                 .{ 
                     .name = "zgui_cimgui_implot_sokol",
-                    .module = dep_ziis.module(
+                    .module = options.dep_ziis.?.module(
                         "zgui_cimgui_implot_sokol"
                     )
                 }
@@ -835,6 +823,10 @@ pub fn build(
         // external deps
         .{ .name = "comath", .module = comath_dep.module("comath") },
         .{ .name = "wav", .module = wav_dep },
+        .{ 
+            .name = "zgui_cimgui_implot_sokol",
+            .module = options.dep_ziis.?.module("zgui_cimgui_implot_sokol") 
+        },
 
         // internal deps
         .{ .name = "string_stuff", .module = string_stuff },
