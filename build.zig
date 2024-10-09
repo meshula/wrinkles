@@ -358,6 +358,7 @@ pub fn module_with_tests_and_artifact(
         .{
             .root_source_file = opts.b.path(opts.fpath),
             .imports = opts.deps,
+            .optimize = opts.options.optimize,
         }
     );
 
@@ -365,6 +366,7 @@ pub fn module_with_tests_and_artifact(
         .{
             .name = "test_" ++ name,
             .root_source_file = opts.b.path(opts.fpath),
+            .optimize = opts.options.optimize,
             .target =opts.options.target,
             .filter = opts.options.test_filter orelse &.{},
         }
