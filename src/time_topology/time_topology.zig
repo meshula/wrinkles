@@ -157,83 +157,89 @@ pub const AffineTopology = struct {
     /// result.bounds -> other.input
     ///
     pub fn project_topology(
-        self: @This(),
+        b2c: @This(),
         allocator: std.mem.Allocator,
-        other: TimeTopology,
+        a2b: TimeTopology,
+        b_bounds_overlap: opentime.ContinuousTimeInterval,
     ) !TimeTopology 
     {
-        return switch (other) {
-            .bezier_curve => |other_bez| .{ 
+        return switch (a2b) {
+            .bezier_curve => |a2b_bez| .{ 
                 .bezier_curve = .{
                     .curve = try curve.join_bez_aff_unbounded(
                         allocator,
                         .{
-                            .a2b = other_bez.curve,
-                            .b2c = self.transform,
+                            .a2b = a2b_bez.curve,
+                            .b2c = b2c.transform,
                         },
-                    )
+                        )
                 }
             },
-           .linear_curve => |lin| 
-           {
-               var result = try curve.Linear.init(
-                   allocator,
-                   lin.curve.knots,
-               );
-               for (lin.curve.knots, 0..) 
-                   |knot, knot_index| 
-               {
-                    result.knots[knot_index] = .{
-                        .in = knot.in,
-                        .out = self.transform.applied_to_seconds(knot.out),
+            .linear_curve => |a2b_lin| 
+            {
+                var result = try curve.Linear.init(
+                    allocator,
+                    a2b_lin.curve.knots,
+                );
+                for (a2b_lin.curve.knots, 0..) 
+                    |knot, knot_index| 
+                    {
+                        result.knots[knot_index] = .{
+                            .in = knot.in,
+                            .out = b2c.transform.applied_to_seconds(knot.out),
+                        };
+                    }
+                return .{ 
+                    .linear_curve = .{
+                        .curve = result 
+                    }
+                };
+            },
+            .affine => |a2b_aff| 
+            {
+                const a2c_xform = (
+                    b2c.transform.applied_to_transform(
+                        a2b_aff.transform
+                    )
+                );
+
+                const b2a = a2b_aff.transform.inverted();
+                const bounds_a = (
+                    b2a.applied_to_bounds(b_bounds_overlap)
+                );
+
+                return .{
+                    .affine = .{ 
+                        .bounds = bounds_a,
+                        .transform = a2c_xform,
+                    },
+                };
+            },
+            .held => |a2b_held| {
+                if (a2b_held.direction == .ordinate_to_range) {
+                    return .{
+                        .held = .{
+                            .ordinate = a2b_held.ordinate,
+                            .range = (
+                                b2c.transform.applied_to_bounds(a2b_held.range)
+                            ),
+                            .direction = .ordinate_to_range,
+                        }
                     };
-               }
-               return .{ 
-                   .linear_curve = .{
-                       .curve = result 
-                   }
-               };
-           },
-           .affine => |a2b_aff| 
-           {
-               const b2c_aff = self;
-
-               const a2b_b_bounds = a2b_aff.compute_output_bounds();
-               const b2c_b_bounds = b2c_aff.compute_input_bounds();
-
-               const maybe_bounds = interval.intersect(
-                   a2b_b_bounds,
-                   b2c_b_bounds,
-               );
-
-               if (maybe_bounds) 
-                   |bounds_b| 
-               {
-                   const a2c_xform = (
-                       b2c_aff.transform.applied_to_transform(
-                           a2b_aff.transform
-                       )
-                   );
-
-                   const b2a = a2b_aff.transform.inverted();
-                   const bounds_a = (
-                       b2a.applied_to_bounds(bounds_b)
-                   );
-
-                   return .{
-                       .affine = .{ 
-                           .bounds = bounds_a,
-                           .transform = a2c_xform,
-                       },
-                   };
-               }
-               else 
-               {
-                   // no intersection, return empty
-                   return .{ .empty = .{} };
-               }
-           },
-           .empty => .{ .empty = .{} },
+                }
+                else {
+                    return .{
+                        .held = .{
+                            .ordinate = b2c.transform.applied_to_seconds(
+                                a2b_held.ordinate
+                            ),
+                            .range = a2b_held.range,
+                            .direction = .ordinate_to_range,
+                        }
+                    };
+                }
+            },
+            .empty => .{ .empty = .{} },
         };
     }
 
@@ -285,21 +291,21 @@ test "AffineTopology: linearize"
 
     for (&[_]f32{-1, 0, 0.5, 0.75, 1.0, 2}, 0..)
         |ord, ind|
-    {
-        errdefer std.debug.print(
-            "[erroring test: {d}] ord: {d}\n",
-            .{ ind, ord }
-        );
-        try expectEqual(
-            a2b_aff.project_instantaneous_cc(ord),
-            a2b_lin.linear_curve.curve.output_at_input(ord)
-        );
-    }
+        {
+            errdefer std.debug.print(
+                "[erroring test: {d}] ord: {d}\n",
+                .{ ind, ord }
+            );
+            try expectEqual(
+                a2b_aff.project_instantaneous_cc(ord),
+                a2b_lin.linear_curve.curve.output_at_input(ord)
+            );
+        }
 }
 
 pub const LinearTopology = struct {
     curve: curve.Linear,
-    
+
     pub fn deinit(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -358,22 +364,21 @@ pub const LinearTopology = struct {
 
     // @TODO: needs to return a list of topologies (imagine a line projected
     //        through a u)
-     
+
     /// If self maps B->C, and xform maps A->B, then the result of
     /// self.project_affine(xform) will map A->C
     pub fn project_topology(
-        self: @This(),
+        b2c: @This(),
         allocator: std.mem.Allocator,
         a2b: TimeTopology,
-        // @TODO: should fill a list of TimeTopology
-        // out: *std.ArrayList(TimeTopology),
+        b_bounds_overlap: opentime.ContinuousTimeInterval,
     ) !TimeTopology 
     {
         return switch (a2b) {
             .affine => |a2b_aff| {
                 return .{
                     .linear_curve = .{ 
-                        .curve = try self.curve.project_affine(
+                        .curve = try b2c.curve.project_affine(
                             allocator,
                             a2b_aff.transform,
                             // transform "a" bounds to "b" bounds
@@ -382,26 +387,50 @@ pub const LinearTopology = struct {
                     }
                 };
             },
-            .bezier_curve => |bez| .{
+            .bezier_curve => |a2b_bez| .{
                 .linear_curve = .{
                     .curve = (
-                        try self.curve.project_curve(
+                        try b2c.curve.project_curve(
                             allocator,
-                            try bez.curve.linearized(
+                            try a2b_bez.curve.linearized(
                                 allocator
                             )
                         )
                     )[0]
                 }
             },
-            .linear_curve => |lin| .{
+            .linear_curve => |a2b_lin| .{
                 .linear_curve = .{ 
-                    .curve = try self.curve.project_curve_single_result(
+                    .curve = try b2c.curve.project_curve_single_result(
                         allocator,
-                        lin.curve
+                        a2b_lin.curve
                     ),
                 }
             },
+            .held => |a2b_held| (
+                if (a2b_held.direction == .ordinate_to_range) .{
+                    .held = .{
+                        .ordinate = a2b_held.ordinate,
+                        .range = (
+                            try b2c.project_topology(
+                                allocator,
+                                TimeTopology.init_affine(
+                                    .{ .bounds = b_bounds_overlap }
+                                ),
+                                b_bounds_overlap,
+                            )
+                        ).output_bounds(),
+                        .direction = .ordinate_to_range,
+                    },
+                    } 
+                    else .{
+                        .held = .{
+                            .ordinate = try b2c.project_instantaneous_cc(a2b_held.ordinate),
+                            .range = b_bounds_overlap,
+                            .direction = .range_to_ordinate,
+                        },
+                    }
+            ),
             .empty => .{ .empty = EmptyTopology{} },
         };
     }
@@ -455,7 +484,7 @@ test "LinearTopology: invert"
             .{ .in = 0, .out = 10 },
             .{ .in = 10, .out = 20 },
         },
-    );
+        );
     defer crv.deinit(std.testing.allocator);
     const topo = TimeTopology{
         .linear_curve = .{ .curve = crv }
@@ -521,7 +550,7 @@ pub const BezierTopology = struct {
         allocator: std.mem.Allocator
     ) !TimeTopology 
     {
-         return TimeTopology{
+        return TimeTopology{
             .linear_curve = .{ 
                 .curve = try curve.inverted(
                     allocator,
@@ -534,18 +563,19 @@ pub const BezierTopology = struct {
     // @TODO: needs to return a list of topologies (imagine a line projected
     //        through a u)
     pub fn project_topology(
-        self: @This(),
+        b2c: @This(),
         allocator: std.mem.Allocator,
-        other: TimeTopology,
+        a2b: TimeTopology,
+        b_bounds_overlap: opentime.ContinuousTimeInterval,
         // @TODO: should fill a list of TimeTopology
         // out: *std.ArrayList(TimeTopology),
     ) !TimeTopology 
     {
-        return switch (other) {
-            .affine => |aff| {
-                const projected_curve = try self.curve.project_affine(
+        return switch (a2b) {
+            .affine => |a2b_aff| {
+                const projected_curve = try b2c.curve.project_affine(
                     allocator,
-                    aff.transform,
+                    a2b_aff.transform,
                 );
 
                 return .{
@@ -554,14 +584,14 @@ pub const BezierTopology = struct {
                     },
                 };
             },
-            .bezier_curve => |bez| switch (
+            .bezier_curve => |a2b_bez| switch (
                 curve.bezier_curve.project_algo
             ) {
                 .three_point_approx, .two_point_approx => .{
                     .bezier_curve = .{
-                        .curve = try self.curve.project_curve(
+                        .curve = try b2c.curve.project_curve(
                             allocator,
-                            bez.curve,
+                            a2b_bez.curve,
                         )
                     }
                 },
@@ -569,37 +599,37 @@ pub const BezierTopology = struct {
                     .linear_curve = .{
                         .curve = (
                             try (
-                             try self.curve.linearized(
-                                 allocator,
-                             )
+                                try b2c.curve.linearized(
+                                    allocator,
+                                )
                             ).project_curve(
-                                allocator,
-                                lc:{
-                                    const result = (
-                                        try bez.curve.linearized(allocator)
-                                    );
-                                    defer result.deinit(allocator);
-                                    break:lc result;
-                                },
+                            allocator,
+                            lc:{
+                                const result = (
+                                    try a2b_bez.curve.linearized(allocator)
+                                );
+                                defer result.deinit(allocator);
+                                break:lc result;
+                            },
                             )
                         )[0]
                     }
                 },
-            },
-            .linear_curve => |lin| .{
+                },
+            .linear_curve => |a2b_lin| .{
                 .linear_curve = .{
                     .curve = (
                         try (
                             lc:{
                                 const result = (
-                                    try self.curve.linearized(allocator)
+                                    try b2c.curve.linearized(allocator)
                                 );
                                 defer result.deinit(allocator);
                                 break:lc result;
                             }
                         ).project_curve(
                         allocator,
-                        lin.curve,
+                        a2b_lin.curve,
                         )
                     )[0]
                 }
@@ -607,6 +637,30 @@ pub const BezierTopology = struct {
             .empty => .{
                 .empty = EmptyTopology{} 
             },
+            .held => |a2b_held| (
+                if (a2b_held.direction == .ordinate_to_range) .{
+                    .held = .{
+                        .ordinate = a2b_held.ordinate,
+                        .range = (
+                            try b2c.project_topology(
+                                allocator,
+                                TimeTopology.init_affine(
+                                    .{ .bounds = b_bounds_overlap }
+                                ),
+                                b_bounds_overlap,
+                            )
+                        ).output_bounds(),
+                        .direction = .ordinate_to_range,
+                    },
+                    } 
+                    else .{
+                        .held = .{
+                            .ordinate = try b2c.project_instantaneous_cc(a2b_held.ordinate),
+                            .range = b_bounds_overlap,
+                            .direction = .range_to_ordinate,
+                        },
+                    }
+            ),
         };
     }
 
@@ -676,7 +730,7 @@ test "BezierTopology: inverted"
     const curve_topo_bounds = curve_topo.input_bounds();
     try expectEqual(100, curve_topo_bounds.start_seconds);
     try expectEqual(110, curve_topo_bounds.end_seconds);
-    
+
     const curve_topo_inverted = try curve_topo.inverted(
         std.testing.allocator
     );
@@ -724,6 +778,157 @@ pub const EmptyTopology = struct {
 
 };
 
+/// A mapping either from an ordinate to a range or from a range to an
+/// ordinate.  An enum (direction) determines which.
+const RangeToOrdinateTopology = struct {
+    ordinate: opentime.Ordinate,
+    range: opentime.ContinuousTimeInterval,
+    direction : MappingKind,
+
+    /// indicates whether the mapping has been inverted or not
+    const MappingKind = enum {
+        /// inverted
+        ordinate_to_range,
+        /// forward
+        range_to_ordinate,
+    };
+
+    pub fn clone(
+        self: @This(),
+        _: std.mem.Allocator,
+    ) !TimeTopology
+    {
+        return .{
+            .held = .{
+                .ordinate = self.ordinate,
+                .range = self.range,
+                .direction = self.direction,
+            },
+        };
+    }
+
+    pub fn project_instantaneous_cc(
+        self: @This(),
+        ord_in_input_space:Ordinate,
+    ) !Ordinate 
+    {
+        if (
+            self.direction == .range_to_ordinate
+            and (self.range.overlaps_seconds(ord_in_input_space))
+        )
+        {
+            return self.ordinate;
+        }
+        else
+        {
+            // point to range
+            return error.OutOfBounds;
+        }
+    }
+
+    pub fn inverted(
+        self: @This(),
+        _: std.mem.Allocator,
+    ) !TimeTopology 
+    {
+        return .{
+            .held = .{
+                .ordinate = self.ordinate,
+                .range = self.range,
+                .direction = (
+                    if (self.direction == .ordinate_to_range) .range_to_ordinate 
+                    else .ordinate_to_range
+                ),
+            },
+        };
+    }
+
+    pub fn compute_input_bounds(
+        self: @This(),
+    ) interval.ContinuousTimeInterval 
+    {
+        if (self.direction == .ordinate_to_range) 
+        {
+            return .{ 
+                .start_seconds = self.ordinate,
+                .end_seconds = self.ordinate,
+            };
+        }
+        else {
+            return self.range;
+        }
+    }
+
+    pub fn compute_output_bounds(
+        self: @This(),
+    ) interval.ContinuousTimeInterval 
+    {
+        if (self.direction == .range_to_ordinate) 
+        {
+            return .{ 
+                .start_seconds = self.ordinate,
+                .end_seconds = self.ordinate,
+            };
+        }
+        else {
+            return self.range;
+        }
+    }
+
+    pub fn deinit(
+        _: @This(),
+        _: std.mem.Allocator,
+    ) void 
+    {
+    }
+
+    pub fn format(
+        self: @This(),
+        comptime _: []const u8,
+        _: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void 
+    {
+        try writer.print(
+            "Held ({any}) {{ ordinate: {d}, range: {s}, }}",
+            .{
+                self.direction,
+                self.ordinate,
+                self.range,
+            }
+        );
+    }
+
+    pub fn project_topology(
+        b2c: @This(),
+        _: std.mem.Allocator,
+        _: TimeTopology,
+        b_bounds_overlap: opentime.ContinuousTimeInterval,
+    ) !TimeTopology 
+    {
+        if (b2c.direction == .range_to_ordinate)
+        {
+            return .{
+                .held = .{
+                    .ordinate = b2c.ordinate,
+                    .range = b_bounds_overlap,
+                    .direction = .range_to_ordinate,
+                },
+            };
+        }
+        else 
+        {
+            return .{
+                .held = .{
+                    .ordinate = b2c.ordinate,
+                    .range = b2c.range,
+                    .direction = .ordinate_to_range,
+                },
+            };
+        }
+    }
+};
+
 /// TEMPORAL TOPOLOGY PROTOTYPE V2
 /// ///////////////////////////////////////////////////////////////////////////
 /// The time topology maps an external temporal coordinate system to an
@@ -745,6 +950,7 @@ pub const EmptyTopology = struct {
 pub const TimeTopology = union (enum) {
     affine: AffineTopology,
     empty: EmptyTopology,
+    held: RangeToOrdinateTopology,
 
     bezier_curve: BezierTopology,
     linear_curve: LinearTopology,
@@ -928,23 +1134,39 @@ pub const TimeTopology = union (enum) {
 
     /// topology interface for projection
     pub fn project_topology(
-        self: @This(),
+        b2c: @This(),
         allocator: std.mem.Allocator,
-        other: TimeTopology,
+        a2b: TimeTopology,
     ) !TimeTopology 
     {
-        const self_tag_is_empty = std.meta.activeTag(self) == .empty;
-        const other_tag_is_empty = std.meta.activeTag(other) == .empty;
+        const self_tag_is_empty = std.meta.activeTag(b2c) == .empty;
+        const other_tag_is_empty = std.meta.activeTag(a2b) == .empty;
 
         if (self_tag_is_empty or other_tag_is_empty) 
         {
             return .{ .empty = .{} };
         }
 
-        return switch(self) {
-            .empty => .{ .empty = .{} },
-            inline else =>|v| v.project_topology(allocator, other),
-        };
+        // check boundaries
+        const a2b_b_bounds = a2b.output_bounds();
+        const b2c_b_bounds = b2c.input_bounds();
+
+        if (
+            opentime.interval.intersect(a2b_b_bounds, b2c_b_bounds)
+        ) |b_bounds_overlap|
+        {
+            return switch(b2c) {
+                .empty => .{ .empty = .{} },
+                inline else =>|v| v.project_topology(
+                    allocator,
+                    a2b,
+                    b_bounds_overlap
+                ),
+            };
+        }
+        else {
+            return .{ .empty = .{} };
+        }
     }
     // @}
     
@@ -1536,31 +1758,31 @@ pub fn join(
 ) !TimeTopology
 {
     // check to see if forcing linearization helps
-    const a2b = switch (args.a2b) {
-        .affine => |a2b_aff| (
-            if (a2b_aff.transform.scale == 0)
-                try a2b_aff.linearized(allocator)
-                else
-                try args.a2b.clone(allocator)
-        ),
-        else => try args.a2b.clone(allocator),
-    };
-    defer a2b.deinit(allocator);
-
-    const b2c = switch (args.b2c) {
-        .affine => |b2c_aff| (
-            if (b2c_aff.transform.scale == 0)
-                try b2c_aff.linearized(allocator)
-                else
-                try args.b2c.clone(allocator)
-        ),
-        else => try args.b2c.clone(allocator),
-    };
-    defer b2c.deinit(allocator);
+    // const a2b = switch (args.a2b) {
+    //     .affine => |a2b_aff| (
+    //         if (a2b_aff.transform.scale == 0)
+    //             try a2b_aff.linearized(allocator)
+    //             else
+    //             try args.a2b.clone(allocator)
+    //     ),
+    //     else => try args.a2b.clone(allocator),
+    // };
+    // defer a2b.deinit(allocator);
+    //
+    // const b2c = switch (args.b2c) {
+    //     .affine => |b2c_aff| (
+    //         if (b2c_aff.transform.scale == 0)
+    //             try b2c_aff.linearized(allocator)
+    //             else
+    //             try args.b2c.clone(allocator)
+    //     ),
+    //     else => try args.b2c.clone(allocator),
+    // };
+    // defer b2c.deinit(allocator);
     
-    return try b2c.project_topology(
+    return try args.b2c.project_topology(
         allocator,
-        a2b,
+        args.a2b,
     );
 }
 
