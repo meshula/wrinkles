@@ -9,17 +9,17 @@ pub const MIN_ZIG_VERSION = std.SemanticVersion{
     .major = 0,
     .minor = 13,
     .patch = 0,
-    .pre = "" 
+    .pre = "",
     // .pre = "dev.46"  <- for setting the dev version string
 };
 
 /// guarantee that the zig compiler version is more than the minimum
-fn ensureZigVersion() !void 
+fn ensureZigVersion() !void
 {
     var installed_ver = builtin.zig_version;
     installed_ver.build = null;
 
-    if (installed_ver.order(MIN_ZIG_VERSION) == .lt) 
+    if (installed_ver.order(MIN_ZIG_VERSION) == .lt)
     {
         std.log.err(
             "\n" ++
@@ -35,7 +35,7 @@ fn ensureZigVersion() !void
             \\
             \\---------------------------------------------------------------------------
             \\
-            , 
+            ,
             .{ MIN_ZIG_VERSION, installed_ver }
         );
 
@@ -64,7 +64,7 @@ pub const Options = struct {
     optimize: std.builtin.Mode,
     target: std.Build.ResolvedTarget,
 
-    /// select which tests to run 
+    /// select which tests to run
     test_filter: ?[]const u8 = null,
 
     /// place to put general user-facing compile options that get passed to
@@ -109,7 +109,7 @@ const C_ARGS = [_][]const u8{
 /// Returns the result of running `git rev-parse HEAD`
 pub fn rev_HEAD(
     allocator: std.mem.Allocator,
-) ![]const u8 
+) ![]const u8
 {
     const max = 1024 ;
     const dirg = try std.fs.cwd().openDir(".git", .{});
@@ -121,7 +121,7 @@ pub fn rev_HEAD(
             "HEAD",
             max,
         ),
-        "\n"
+        "\n",
     );
 
     return std.mem.trim(
@@ -131,7 +131,7 @@ pub fn rev_HEAD(
             head_file[5..],
             max
         ),
-        "\n"
+        "\n",
     );
 }
 
@@ -143,28 +143,30 @@ pub fn executable(
     comptime source_dir_path: []const u8,
     options: Options,
     module_deps: []const std.Build.Module.Import,
-) void 
+) void
 {
-    const exe = if (options.target.result.isWasm()) 
-        b.addStaticLibrary(
+    const exe = (
+        if (options.target.result.isWasm())
+            b.addStaticLibrary(
+                .{
+                    .name = name,
+                    .root_source_file = b.path(main_file_name),
+                    .target = options.target,
+                    .optimize = options.optimize,
+                },
+            )
+        else b.addExecutable(
             .{
                 .name = name,
                 .root_source_file = b.path(main_file_name),
                 .target = options.target,
                 .optimize = options.optimize,
-            }
+            },
         )
-        else b.addExecutable(
-        .{
-            .name = name,
-            .root_source_file = b.path(main_file_name),
-            .target = options.target,
-            .optimize = options.optimize,
-        }
     );
 
-    for (module_deps) 
-        |mod| 
+    for (module_deps)
+        |mod|
     {
         exe.root_module.addImport(mod.name, mod.module);
     }
@@ -179,13 +181,14 @@ pub fn executable(
         const exe_options = b.addOptions();
         exe.root_module.addOptions(
             "exe_build_options",
-            exe_options
+            exe_options,
         );
 
         var content_dir_lp = b.path("src/" ++ source_dir_path);
         var content_dir_path = content_dir_lp.getPath(b);
 
-        if (!options.target.result.isWasm()) {
+        if (!options.target.result.isWasm())
+        {
             const subdir = "bin/" ++ name ++ "_content";
             const install_content_step = b.addInstallDirectory(
                 .{
@@ -197,7 +200,7 @@ pub fn executable(
             exe.step.dependOn(&install_content_step.step);
             content_dir_path = b.getInstallPath(
                 .bin,
-                subdir
+                subdir,
             );
         }
 
@@ -206,7 +209,6 @@ pub fn executable(
             "content_dir",
             content_dir_path,
         );
-
     }
 
     exe.want_lto = false;
@@ -216,12 +218,12 @@ pub fn executable(
     {
         const install_exe_step = &b.addInstallArtifact(
             exe,
-            .{}
+            .{},
         ).step;
 
         const install = b.step(
             name,
-            "Build/install '" ++ name ++ "' executable"
+            "Build/install '" ++ name ++ "' executable",
         );
         // install.dependOn(codesign_exe_step);
         install.dependOn(install_exe_step);
@@ -231,7 +233,7 @@ pub fn executable(
 
         const run_step = b.step(
             name ++ "-run",
-            "Run '" ++ name ++ "' executable"
+            "Run '" ++ name ++ "' executable",
         );
         run_step.dependOn(&run_cmd);
 
@@ -245,8 +247,8 @@ pub fn executable(
             options.target,
         );
 
-        for (module_deps) 
-            |mod| 
+        for (module_deps)
+            |mod|
         {
             mod.module.addSystemIncludePath(
                 ziis.fetchEmSdkIncludePath(
@@ -284,14 +286,14 @@ pub fn executable(
                      "-g",
                      "-gsource-map",
                 },
-            }
+            },
         );
         const run = ziis.emRunStep(
             b,
-            .{ 
+            .{
                 .name = name,
-                .emsdk = emsdk 
-            }
+                .emsdk = emsdk,
+            },
         );
         run.step.dependOn(&link_step.step);
         b.step(
@@ -307,12 +309,12 @@ pub fn executable(
                 .source_dir = exe.getEmittedDocs(),
                 .install_dir = .prefix,
                 .install_subdir = "docs",
-            }
+            },
         );
 
         const docs_step = b.step(
             "docs_exe_" ++ name,
-            "Copy documentation artifacts to prefix path"
+            "Copy documentation artifacts to prefix path",
         );
         docs_step.dependOn(&install_docs.step);
     }
@@ -335,7 +337,7 @@ pub const CreateModuleOptions = struct {
 pub fn module_with_tests_and_artifact(
     comptime name: []const u8,
     opts:CreateModuleOptions,
-) *std.Build.Module 
+) *std.Build.Module
 {
     const mod = opts.b.createModule(
         .{
@@ -363,8 +365,8 @@ pub fn module_with_tests_and_artifact(
 
     // unit tests for the module
     {
-        for (opts.deps) 
-            |dep_mod| 
+        for (opts.deps)
+            |dep_mod|
         {
             mod_unit_tests.root_module.addImport(
                 dep_mod.name,
@@ -378,7 +380,7 @@ pub fn module_with_tests_and_artifact(
         // also install the test binary for lldb needs
         const install_test_bin = opts.b.addInstallArtifact(
             mod_unit_tests,
-            .{}
+            .{},
         );
 
         opts.options.test_step.dependOn(&install_test_bin.step);
@@ -396,7 +398,7 @@ pub fn module_with_tests_and_artifact(
 
         const docs_step = opts.b.step(
             "docs_" ++ name,
-            "Copy documentation artifacts to prefix path"
+            "Copy documentation artifacts to prefix path",
         );
         docs_step.dependOn(&install_docs.step);
         opts.options.all_docs_step.dependOn(docs_step);
@@ -413,11 +415,13 @@ pub fn module_with_tests_and_artifact(
 /// main entry point
 pub fn build(
     b: *std.Build,
-) void 
+) void
 {
     ensureZigVersion() catch return;
 
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = std.heap.ArenaAllocator.init(
+        std.heap.page_allocator
+    );
     const allocator = arena.allocator();
     defer arena.deinit();
 
@@ -430,7 +434,7 @@ pub fn build(
         .test_filter = b.option(
             []const u8,
             "test-filter",
-            "filter for tests to run"
+            "filter for tests to run",
         ) orelse null,
 
         .common_build_options = b.addOptions(),
@@ -473,13 +477,15 @@ pub fn build(
         const debug_graph_construction_trace_messages = b.option(
             bool,
             "debug_graph_construction_trace_messages",
-            "print OTIO graph traversal trace info during "
-            ++ "projection operator construction"
+            (
+                              "print OTIO graph traversal trace info during "
+                              ++ "projection operator construction"
+            ),
         ) orelse false;
 
         options.common_build_options.addOption(
             bool,
-            "debug_graph_construction_trace_messages", 
+            "debug_graph_construction_trace_messages",
             debug_graph_construction_trace_messages,
         );
 
@@ -491,7 +497,7 @@ pub fn build(
 
         options.common_build_options.addOption(
             bool,
-            "run_perf_tests", 
+            "run_perf_tests",
             run_perf_tests,
         );
     }
@@ -537,19 +543,20 @@ pub fn build(
             .target = options.target,
             .optimize = options.optimize,
             .root_source_file = b.path(
-                "libs/wrapped_kissfft.zig"
+                "libs/wrapped_kissfft.zig",
             ),
         }
     );
     {
         kissfft.addIncludePath(b.path("./libs/kissfft"));
         kissfft.addCSourceFile(
-            .{ 
+            .{
                 .file = b.path("./libs/kissfft/kiss_fft.c"),
-                .flags = &C_ARGS
+                .flags = &C_ARGS,
             }
         );
-        if (options.target.result.isWasm()) {
+        if (options.target.result.isWasm())
+        {
             kissfft.addSystemIncludePath(
                 ziis.fetchEmSdkIncludePath(
                     options.dep_ziis.?,
@@ -562,7 +569,7 @@ pub fn build(
 
     const treecode = module_with_tests_and_artifact(
         "treecode_lib",
-        .{ 
+        .{
             .b = b,
             .options = options,
             .fpath = "src/treecode.zig",
@@ -572,7 +579,7 @@ pub fn build(
 
     const opentime = module_with_tests_and_artifact(
         "opentime_lib",
-        .{ 
+        .{
             .b = b,
             .options = options,
             .fpath = "src/opentime/opentime.zig",
@@ -589,19 +596,20 @@ pub fn build(
             .target = options.target,
             .optimize = options.optimize,
             .root_source_file = b.path(
-                "./spline-gym/src/hodographs.zig" 
+                "./spline-gym/src/hodographs.zig",
             ),
         }
     );
     {
         spline_gym.addIncludePath(b.path("./spline-gym/src"));
         spline_gym.addCSourceFile(
-            .{ 
+            .{
                 .file = b.path("./spline-gym/src/hodographs.c"),
-                .flags = &C_ARGS
+                .flags = &C_ARGS,
             }
         );
-        if (options.target.result.isWasm()) {
+        if (options.target.result.isWasm())
+        {
             spline_gym.addSystemIncludePath(
                 ziis.fetchEmSdkIncludePath(
                     options.dep_ziis.?,
@@ -615,7 +623,7 @@ pub fn build(
 
     const curve = module_with_tests_and_artifact(
         "curve",
-        .{ 
+        .{
             .b = b,
             .options = options,
             .fpath = "src/curve/curve.zig",
@@ -634,7 +642,7 @@ pub fn build(
             .target = options.target,
             .optimize = options.optimize,
             .root_source_file = b.path(
-                    "libs/wrapped_libsamplerate/wrapped_libsamplerate.zig"
+                    "libs/wrapped_libsamplerate/wrapped_libsamplerate.zig",
             ),
         }
     );
@@ -646,14 +654,15 @@ pub fn build(
             b.path("./libs/wrapped_libsamplerate")
         );
         libsamplerate.addCSourceFile(
-            .{ 
+            .{
                 .file = b.path(
-                    "./libs/wrapped_libsamplerate/wrapped_libsamplerate.c"
+                    "./libs/wrapped_libsamplerate/wrapped_libsamplerate.c",
                 ),
                 .flags = &C_ARGS
-            }
+            },
         );
-        if (options.target.result.isWasm()) {
+        if (options.target.result.isWasm())
+        {
             libsamplerate.addSystemIncludePath(
                 ziis.fetchEmSdkIncludePath(
                     options.dep_ziis.?,
@@ -666,7 +675,7 @@ pub fn build(
 
     const time_topology = module_with_tests_and_artifact(
         "time_topology",
-        .{ 
+        .{
             .b = b,
             .options = options,
             .fpath = "src/time_topology/time_topology.zig",
@@ -679,7 +688,7 @@ pub fn build(
 
     _ = module_with_tests_and_artifact(
         "mapping",
-        .{ 
+        .{
             .b = b,
             .options = options,
             .fpath = "src/time_topology/mapping.zig",
@@ -697,9 +706,9 @@ pub fn build(
             .options = options,
             .fpath = "src/sampling.zig",
             .deps = &.{
-                .{ 
+                .{
                     .name = "libsamplerate",
-                    .module = &libsamplerate.root_module, 
+                    .module = &libsamplerate.root_module,
                 },
                 .{
                     .name = "kissfft",
@@ -715,7 +724,7 @@ pub fn build(
 
     const opentimelineio = module_with_tests_and_artifact(
         "opentimelineio_lib",
-        .{ 
+        .{
             .b = b,
             .options = options,
             .fpath = "src/opentimelineio.zig",
@@ -740,7 +749,7 @@ pub fn build(
             .target = options.target,
             .optimize = options.optimize,
             .root_source_file = b.path(
-                "src/c_binding/opentimelineio_c.zig"
+                "src/c_binding/opentimelineio_c.zig",
             ),
         }
     );
@@ -755,7 +764,8 @@ pub fn build(
             time_topology
         );
         opentimelineio_c.linkLibCpp();
-        if (options.target.result.isWasm()) {
+        if (options.target.result.isWasm())
+        {
             opentimelineio_c.addSystemIncludePath(
                 ziis.fetchEmSdkIncludePath(
                     options.dep_ziis.?,
@@ -776,14 +786,14 @@ pub fn build(
         exe.addCSourceFile(
             .{
                 .file = b.path(
-                    "src/c_binding/test_opentimelineio_c.c"
+                    "src/c_binding/test_opentimelineio_c.c",
                 ),
                 .flags = &C_ARGS,
             },
         );
         exe.addIncludePath(b.path("src/c_binding/"));
         exe.linkLibC();
-        if (options.target.result.isWasm()) 
+        if (options.target.result.isWasm())
         {
             exe.addSystemIncludePath(
                 ziis.fetchEmSdkIncludePath(
@@ -804,29 +814,29 @@ pub fn build(
 
     const sokol_app_wrapper = module_with_tests_and_artifact(
         "sokol_app_wrapper",
-        .{ 
+        .{
             .b = b,
             .options = options,
             .fpath = "src/sokol_app_wrapper.zig",
             .deps = &.{
-                .{ 
+                .{
                     .name = "zgui_cimgui_implot_sokol",
                     .module = options.dep_ziis.?.module(
-                        "zgui_cimgui_implot_sokol"
-                    )
-                }
+                        "zgui_cimgui_implot_sokol",
+                    ),
+                },
             },
         }
     );
 
     // executables
-    const common_deps:[]const std.Build.Module.Import = &.{ 
+    const common_deps:[]const std.Build.Module.Import = &.{
         // external deps
         .{ .name = "comath", .module = comath_dep.module("comath") },
         .{ .name = "wav", .module = wav_dep },
-        .{ 
+        .{
             .name = "zgui_cimgui_implot_sokol",
-            .module = options.dep_ziis.?.module("zgui_cimgui_implot_sokol") 
+            .module = options.dep_ziis.?.module("zgui_cimgui_implot_sokol")
         },
 
         // internal deps
