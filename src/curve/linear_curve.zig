@@ -16,13 +16,10 @@ const ControlPoint = @import("control_point.zig").ControlPoint;
 fn _is_between(
     val: anytype,
     fst: @TypeOf(val),
-    snd: @TypeOf(val)
+    snd: @TypeOf(val),
 ) bool 
 {
-    return (
-        (fst <= val and val < snd) 
-        or (fst >= val and val > snd)
-    );
+    return (fst <= val and val < snd) or (fst >= val and val > snd);
 }
 
 /// A polyline that is linearly interpolated between knots
