@@ -1711,6 +1711,28 @@ test "LinearMonotonic Trimmed"
                 .end_seconds = 10,
             },
         },
+        .{
+            .name = "left trim",
+            .target_range = .{
+                .start_seconds = 3,
+                .end_seconds = 11,
+            },
+            .expected_range = .{
+                .start_seconds = 3,
+                .end_seconds = 10,
+            },
+        },
+        .{
+            .name = "right trim",
+            .target_range = .{
+                .start_seconds = -1,
+                .end_seconds = 8,
+            },
+            .expected_range = .{
+                .start_seconds = 0,
+                .end_seconds = 8,
+            },
+        },
     };
 
     for (tests)
