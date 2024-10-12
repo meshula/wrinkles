@@ -138,18 +138,18 @@ pub fn LinearOf(
         /// linear curve.  If self maps B->C, and xform maps A->B, then the
         /// result of self.project_affine(xform) will map A->C
         pub fn project_affine(
-            self: @This(),
+            b2c: @This(),
             allocator: std.mem.Allocator,
-            other_to_input_xform: opentime.transform.AffineTransform1D,
+            a2b_xform: opentime.transform.AffineTransform1D,
             /// bounds on the input space of the curve (output space of the
             /// affine) ("B" in the comment above)
-            input_bounds: opentime.ContinuousTimeInterval,
+            a2b_xform_b_bounds: opentime.ContinuousTimeInterval,
         ) !LinearType 
         {
             // output bounds of the affine are in the input space of the curve
-            const clipped_curve = try self.trimmed_in_input_space(
+            const clipped_curve = try b2c.trimmed_in_input_space(
                 allocator,
-                input_bounds
+                a2b_xform_b_bounds
             );
             defer clipped_curve.deinit(allocator);
 
@@ -158,7 +158,7 @@ pub fn LinearOf(
                 clipped_curve.knots,
             );
 
-            const input_to_other_xform = other_to_input_xform.inverted();
+            const input_to_other_xform = a2b_xform.inverted();
 
             for (clipped_curve.knots, result_knots) 
                 |pt, *target_knot| 
@@ -321,45 +321,45 @@ pub fn LinearOf(
         ///
         pub fn project_curve(
             /// curve being projected _through_
-            self: @This(),
+            b2c: @This(),
             allocator: std.mem.Allocator,
             /// curve being projected
-            other: LinearType
+            a2b: LinearType,
         ) ![]LinearType 
         {
+            const a2b_extents = a2b.extents();
 
-
-            // @TODO: if there are preserved derivatives, project and compose
-            //        them as well
-            //
-            const other_bounds = other.extents();
-
-            // find all knots in self that are within the other bounds
-            var split_points = std.ArrayList(f32).init(
-                allocator,
+            // find all knots in b2c that are within the a2b bounds
+            var points_to_split_a2b_in_b = (
+                std.ArrayList(opentime.Ordinate).init(allocator)
             );
-            defer split_points.deinit();
+            defer points_to_split_a2b_in_b.deinit();
 
-            for (self.knots)
-                |self_knot| 
+            for (b2c.knots)
+                |b2c_knot| 
             {
                 if (
                     _is_between(
-                        self_knot.in,
-                        other_bounds[0].out,
-                        other_bounds[1].out
+                        b2c_knot.in,
+                        a2b_extents[0].out,
+                        a2b_extents[1].out,
                     )
                 ) {
-                    try split_points.append(self_knot.in);
+                    try points_to_split_a2b_in_b.append(b2c_knot.in);
                 }
             }
 
-            const other_split_at_self_knots = try other.split_at_each_value(
-                allocator,
-                split_points.items
+            const a2b_split_at_b2c_knots = (
+                try a2b.split_at_each_ord_output(
+                    allocator,
+                    points_to_split_a2b_in_b.items,
+                )
             );
 
-            // split other into curves where it goes in and out of the domain of self
+            // split a2b into curves where it goes in and out of the b-range of
+            // b2c -- @TODO: again, this is simpler, if curves are already
+            // split on critical points. Then each curve is monotonic both in
+            // input and output
             var curves_to_project = std.ArrayList(
                 LinearType,
             ).init(allocator);
@@ -367,7 +367,7 @@ pub fn LinearOf(
 
             // gather the curves to project by splitting
             {
-                const self_bounds_t = self.extents_input();
+                const b2c_b_bounds = b2c.extents_input();
                 var last_index:?i32 = null;
                 var current_curve = (
                     std.ArrayList(ControlPointType).init(
@@ -375,19 +375,19 @@ pub fn LinearOf(
                     )
                 );
 
-                for (other_split_at_self_knots.knots, 0..) 
-                    |other_knot, index| 
+                for (a2b_split_at_b2c_knots.knots, 0..) 
+                    |a2b_knot, index| 
                 {
                     if (
-                        self_bounds_t.start_seconds <= other_knot.out 
-                        and other_knot.out <= self_bounds_t.end_seconds
+                        b2c_b_bounds.start_seconds <= a2b_knot.out 
+                        and a2b_knot.out <= b2c_b_bounds.end_seconds
                     ) 
                     {
                         if (last_index == null or index != last_index.?+1) 
                         {
-                            // curves of less than one point are trimmed, because they
-                            // have no duration, and therefore are not modelled in our
-                            // system.
+                            // curves of less than one point are trimmed,
+                            // because they have no duration, and therefore are
+                            // not modelled in our system.
                             if (current_curve.items.len > 1) 
                             {
                                 try curves_to_project.append(
@@ -401,7 +401,7 @@ pub fn LinearOf(
                             current_curve.clearAndFree();
                         }
 
-                        try current_curve.append(other_knot);
+                        try current_curve.append(a2b_knot);
                         last_index = @intCast(index);
                     }
                 }
@@ -414,7 +414,7 @@ pub fn LinearOf(
                 }
                 current_curve.clearAndFree();
             }
-            other_split_at_self_knots.deinit(allocator);
+            a2b_split_at_b2c_knots.deinit(allocator);
 
             if (curves_to_project.items.len == 0) {
                 return &[_]LinearType{};
@@ -432,9 +432,9 @@ pub fn LinearOf(
                     //    the value rather than computing
                     // 4. catch the error and call a different function or do a
                     //    check in that case
-                    const value = self.output_at_input(knot.out) catch (
-                        if (self.knots[self.knots.len-1].in == knot.out) 
-                        self.knots[self.knots.len-1].out 
+                    const value = b2c.output_at_input(knot.out) catch (
+                        if (b2c.knots[b2c.knots.len-1].in == knot.out) 
+                        b2c.knots[b2c.knots.len-1].out 
                         else return error.NotInRangeError
                     );
 
@@ -539,14 +539,16 @@ pub fn LinearOf(
 
         /// insert a knot each location on the curve that crosses the values in
         /// split_points
-        pub fn split_at_each_value(
+        pub fn split_at_each_ord_output(
             self: @This(),
             allocator: std.mem.Allocator,
             split_points: []f32,
         ) !LinearType 
         {
-            var result = std.ArrayList(ControlPointType).init(
-                allocator,
+            var result = (
+                std.ArrayList(ControlPointType).init(
+                    allocator,
+                )
             );
             // make room for all points being splits
             try result.ensureTotalCapacity(split_points.len + self.knots.len);
@@ -562,15 +564,15 @@ pub fn LinearOf(
                 result.appendAssumeCapacity(knot);
 
                 for (split_points) 
-                    |pt_value_space| 
+                    |pt_output_space| 
                 {
                     if (
-                        knot.out < pt_value_space 
-                        and pt_value_space < next_knot.out
+                        knot.out < pt_output_space 
+                        and pt_output_space < next_knot.out
                     )
                     {
                         const u = bezier_math.invlerp(
-                            pt_value_space,
+                            pt_output_space,
                             knot.out,
                             next_knot.out
                         );
@@ -591,40 +593,77 @@ pub fn LinearOf(
             };
         }
 
-        // pub fn split_at_critical_points(
-        //     self: @This(),
-        //     allocator: std.mem.Allocator,
-        // ) []LinearType
-        // {
-        //     const new_slope = std.math.sign(
-        //         bezier_math.slope(self.knots[0], self.knots[1])
-        //     );
-        //
-        //     var slope_sign = if (new_slope != 0) new_slope else null;
-        //
-        //     if (self.knots.len < 3) {
-        //         return &.{
-        //             try self.clone(allocator),
-        //         };
-        //     }
-        //
-        //     var last_split:usize = 0;
-        //     const splits = std.ArrayList([]ControlPointType).init(allocator);
-        //
-        //     for (self.knots[1..self.knots.len - 1], 1.., self.knots[2..])
-        //         |left, left_ind, right|
-        //     {
-        //         const new_sign = std.math.sign(bezier_math.slope(left, right));
-        //
-        //         if (
-        //             new_sign != null 
-        //             and slope_sign != null 
-        //             and slope_sign != new_sign
-        //         ) {
-        //             try splits.append(self.knots[last_split..left_ind]
-        //         }
-        //     }
-        // }
+        /// split this curve into monotonic curves over output.  Splits
+        /// whenever the slope changes between rising, falling or flat.
+        pub fn split_at_critical_points(
+            self: @This(),
+            allocator: std.mem.Allocator,
+        ) ![]const LinearMonotonic
+        {
+            var result = std.ArrayList(
+                LinearMonotonic
+            ).init(allocator);
+
+            // single segment line is monotonic by definition
+            if (self.knots.len < 3) {
+                try result.append(
+                    .{
+                        .knots = try allocator.dupe(
+                            ControlPoint,
+                            self.knots
+                        ), 
+                    }
+                );
+                return try result.toOwnedSlice();
+            }
+
+            var splits = std.ArrayList(
+                []ControlPointType
+            ).init(allocator);
+            defer splits.deinit();
+
+            var segment_start_index: usize = 0;
+            var slope = bezier_math.SlopeKind.compute(
+                self.knots[0],
+                self.knots[1]
+            );
+
+            for (self.knots[1..self.knots.len-1], 1.., self.knots[2..])
+                |left, left_ind, right|
+            {
+                const new_slope = bezier_math.SlopeKind.compute(
+                    left,
+                    right
+                );
+
+                if (new_slope != slope)
+                {
+                    try splits.append(
+                        self.knots[segment_start_index..left_ind]
+                    );
+
+                    segment_start_index = left_ind;
+                }
+                slope = new_slope;
+            }
+
+            try splits.append(self.knots[segment_start_index..]);
+
+            for (splits.items)
+                |new_knots|
+            {
+                try result.append(
+                    .{
+                        .knots = try allocator.dupe(
+                            ControlPointType,
+                            new_knots,
+                        ) 
+                    }
+                );
+            }
+
+            return try result.toOwnedSlice();
+        }
     };
 }
 
@@ -1106,7 +1145,7 @@ test "Linear perf test"
     const t_start_v = t_setup.read();
 
     var t_algo = try std.time.Timer.start();
-    const crv_split = try crv.split_at_each_value(
+    const crv_split = try crv.split_at_each_ord_output(
         std.testing.allocator,
         rnd_split_points.items
     );
