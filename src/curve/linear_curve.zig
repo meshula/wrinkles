@@ -34,7 +34,7 @@ pub fn LinearOf(
 
         /// Immutable Monotonic form of the Linear curve.  Constructed by
         /// splitting a Linear with split_at_critical_points
-        const Monotonic = struct {
+        pub const Monotonic = struct {
             knots: []const ControlPointType,
 
             pub fn deinit(
