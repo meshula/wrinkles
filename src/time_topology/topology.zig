@@ -6,9 +6,9 @@ const opentime = @import("opentime");
 const mapping = @import("mapping.zig");
 
 /// A Topology binds regions of a one dimensional space to a sequence of right
-/// met mappings, separated by a list of end points.  There are implicit
-/// "Empty" mappings outside of the end points which map to no values before
-/// and after the segments defined by the Topology.
+/// met monotonic mappings, separated by a list of end points.  There are
+/// implicit "Empty" mappings outside of the end points which map to no values
+/// before and after the segments defined by the Topology.
 pub const TopologyMapping = struct {
     end_points_input: []const opentime.Ordinate,
     mappings: []const mapping.Mapping,
@@ -396,7 +396,7 @@ pub fn join(
     for (
         a2b_split.end_points_input[1..],
         a2b_split.mappings,
-        b2c_split.mappings
+        b2c_split.mappings,
     )
         |a2b_p, a2b_m, b2c_m|
     {
