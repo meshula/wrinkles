@@ -186,7 +186,7 @@ pub const Mapping = union (enum) {
     // @}
 };
 
-const EMPTY = mapping_empty.EMPTY.mapping();
+pub const EMPTY = mapping_empty.EMPTY.mapping();
 
 // Join Functions
 //
@@ -276,19 +276,19 @@ pub fn test_structs(
     };
 }
 
-const LEFT = test_structs(
+pub const LEFT = test_structs(
     .{
         .start_seconds = -2,
         .end_seconds = 2,
     }
 );
-const MIDDLE = test_structs(
+pub const MIDDLE = test_structs(
     .{
         .start_seconds = 0,
         .end_seconds = 10,
     }
 );
-const RIGHT = test_structs(
+pub const RIGHT = test_structs(
     .{
         .start_seconds = 8,
         .end_seconds = 12,
