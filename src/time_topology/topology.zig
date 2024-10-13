@@ -60,24 +60,6 @@ pub const TopologyMapping = struct {
         allocator.free(self.mappings);
     }
 
-    // pub fn intervals_output(
-    //     self: @This(),
-    //     allocator: std.mem.Allocator,
-    // ) ![]const opentime.ContinuousTimeInterval
-    // {
-    //     const result = std.ArrayList(
-    //         opentime.ContinuousTimeInterval
-    //     ).init(allocator);
-    //
-    //     for (self.mappings)
-    //         |m|
-    //     {
-    //         try result.append(m.output_bounds());
-    //     }
-    //
-    //     return try result.toOwnedSlice();
-    // }
-
     pub fn input_bounds(
         self: @This(),
     ) opentime.ContinuousTimeInterval
@@ -194,14 +176,6 @@ pub const TopologyMapping = struct {
         };
     }
 
-    // pub fn trim_in_output_space(
-    //     self: @This(),
-    //     allocator: std.mem.Allocator,
-    //     new_input_bounds: opentime.ContinuousTimeInterval,
-    // ) !TopologyMapping
-    // {
-    // }
-
     pub fn split_at_input_points(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -266,85 +240,10 @@ test "TopologyMapping.trim_in_input_space"
 {
 }
 
-// test "TopologyMapping.split_at_input_points perf test"
-// {
-//     // const SIZE = 20000000;
-//     const SIZE = 2000000;
-//
-//     var t_setup = try std.time.Timer.start();
-//
-//     var rnd_split_points = (
-//         std.ArrayList(opentime.Ordinate).init(std.testing.allocator)
-//     );
-//     try rnd_split_points.ensureTotalCapacity(SIZE);
-//     defer rnd_split_points.deinit();
-//
-//     try rnd_split_points.append(0);
-//
-//     const m_bounds = MIDDLE.AFF_TOPO.input_bounds();
-//
-//     var rand_impl = std.rand.DefaultPrng.init(42);
-//
-//     for (0..SIZE)
-//         |_|
-//     {
-//         const num = (
-//             (
-//              m_bounds.duration_seconds() 
-//              * rand_impl.random().float(opentime.Ordinate)
-//             )
-//             + m_bounds.start_seconds
-//         );
-//         rnd_split_points.appendAssumeCapacity(num);
-//     }
-//     const t_start_v = t_setup.read();
-//
-//     var t_algo = try std.time.Timer.start();
-//     const m_split = try MIDDLE.AFF_TOPO.split_at_input_points(
-//         std.testing.allocator,
-//         rnd_split_points.items,
-//     );
-//     const t_algo_v = t_algo.read();
-//     defer m_split.deinit(std.testing.allocator);
-//
-//     std.debug.print("range: {any}", .{ m_bounds });
-//     for (rnd_split_points.items[0..15])
-//         |n|
-//     {
-//         std.debug.print("n: {d}\n", .{ n });
-//     }
-//
-//     std.debug.print(
-//         "Startup time: {d:.4}ms\n"
-//         ++ "Time to process is: {d:.4}ms\n"
-//         ++ "number of splits: {d}\n"
-//         ,
-//         .{
-//             t_start_v/std.time.ns_per_ms,
-//             t_algo_v / std.time.ns_per_ms,
-//             m_split.end_points_input.len,
-//         },
-//     );
-// }
-
-// test "TopologyMapping: split_at_critical_points"
-// {
-//     const allocator = std.testing.allocator;
-//
-//     const u_split = try MIDDLE.BEZ_U_TOPO.split_at_critical_points(
-//         allocator,
-//     );
-//
-//     try std.testing.expectEqual(2, u_split.mappings.len);
-//
-//     return error.OutOfBounds;
-// }
-
 const EMPTY = TopologyMapping{
     .end_points_input = &.{},
     .mappings = &.{}
 };
-
 
 /// build a topological mapping from a to c
 pub fn join(
@@ -586,36 +485,32 @@ test "TopologyMapping: trim_in_input_space"
     );
 }
 
-// test "TopologyMapping: LEFT/RIGHT -> EMPTY"
-// {
-//     if (true) {
-//         return error.SkipZigTest;
-//     }
-//
-//     const allocator = std.testing.allocator;
-//
-//     const tm_left = TopologyMapping.init(
-//         allocator,
-//         .{ mapping.LEFT.AFF,}
-//     );
-//     defer tm_left.deinit(allocator);
-//
-//     const tm_right = TopologyMapping.init(
-//         allocator,
-//         .{ mapping.RIGHT.AFF,}
-//     );
-//     defer tm_right.deinit(allocator);
-//
-//     const should_be_empty = join(
-//         allocator,
-//         .{
-//             .a2b =  tm_left,
-//             .b2c = tm_right,
-//         }
-//     );
-//
-//     try std.testing.expectEqual(EMPTY, should_be_empty);
-// }
+test "TopologyMapping: LEFT/RIGHT -> EMPTY"
+{
+    const allocator = std.testing.allocator;
+
+    const tm_left = TopologyMapping.init(
+        allocator,
+        .{ mapping.LEFT.AFF,}
+    );
+    defer tm_left.deinit(allocator);
+
+    const tm_right = TopologyMapping.init(
+        allocator,
+        .{ mapping.RIGHT.AFF,}
+    );
+    defer tm_right.deinit(allocator);
+
+    const should_be_empty = join(
+        allocator,
+        .{
+            .a2b =  tm_left,
+            .b2c = tm_right,
+        }
+    );
+
+    try std.testing.expectEqual(EMPTY, should_be_empty);
+}
 
 /// stitch topology test structures onto mapping ones
 fn test_structs(
