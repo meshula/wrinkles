@@ -45,6 +45,19 @@ pub fn LinearOf(
                 allocator.free(self.knots);
             }
 
+            pub fn clone(
+                self: @This(),
+                allocator: std.mem.Allocator
+            ) !@This()
+            {
+                return .{ 
+                    .knots = try allocator.dupe(
+                        ControlPointType,
+                        self.knots
+                    ),
+                };
+            }
+
             /// compute both the input and output extents for the curve
             /// exhaustively.  [0] is the minimum and [1] is the maximum
             pub fn extents(
