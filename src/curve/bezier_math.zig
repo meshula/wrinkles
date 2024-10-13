@@ -26,7 +26,7 @@ inline fn expectApproxEql(
 }
 
 /// comath context for operations on duals
-const CTX = comath.ctx.fnMethod(
+pub const CTX = comath.ctx.fnMethod(
     comath.ctx.simple(opentime.dual_ctx),
     .{
         .@"+" = "add",
