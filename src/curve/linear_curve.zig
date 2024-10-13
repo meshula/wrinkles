@@ -125,11 +125,41 @@ pub fn LinearOf(
                 return null;
             }
 
+            pub fn nearest_smaller_knot_index_output(
+                self: @This(),
+                value_ord: opentime.Ordinate, 
+            ) ?usize 
+            {
+                const last_index = self.knots.len-1;
+
+                // out of bounds
+                if (
+                    self.knots.len == 0 
+                    or (value_ord < self.knots[0].out)
+                    or value_ord >= self.knots[last_index].out
+                )
+                {
+                    return null;
+                }
+
+                // last knot is out of domain
+                for (self.knots[0..last_index], self.knots[1..], 0..) 
+                    |knot, next_knot, index| 
+                {
+                    if ( knot.out <= value_ord and value_ord < next_knot.out) 
+                    {
+                        return index;
+                    }
+                }
+
+                return null;
+            }
+
             /// compute the output ordinate at the input ordinate
             pub fn output_at_input(
                 self: @This(),
-                input_ord: f32,
-            ) error{OutOfBounds}!f32 
+                input_ord: opentime.Ordinate,
+            ) error{OutOfBounds}!opentime.Ordinate 
             {
                 if (self.nearest_smaller_knot_index_input(input_ord)) 
                     |index| 
@@ -144,6 +174,31 @@ pub fn LinearOf(
                 // specially handle the endpoint
                 const last_knot = self.knots[self.knots.len - 1];
                 if (input_ord == last_knot.in) {
+                    return last_knot.out;
+                }
+
+                return error.OutOfBounds;
+            }
+
+            /// compute the input ordinate at the output ordinate
+            pub fn input_at_output(
+                self: @This(),
+                output_ord: opentime.Ordinate,
+            ) error{OutOfBounds}!opentime.Ordinate 
+            {
+                if (self.nearest_smaller_knot_index_output(output_ord)) 
+                    |index| 
+                {
+                    return bezier_math.input_at_output_between(
+                        output_ord,
+                        self.knots[index],
+                        self.knots[index+1],
+                    );
+                }
+
+                // specially handle the endpoint
+                const last_knot = self.knots[self.knots.len - 1];
+                if (output_ord == last_knot.out) {
                     return last_knot.out;
                 }
 
@@ -185,6 +240,52 @@ pub fn LinearOf(
                     if (
                         knot.in > first_point.in
                         and knot.in < last_point.in
+                    ) {
+                        try result.append(knot);
+                    }
+                }
+
+                try result.append(last_point);
+
+                return LinearMonotonic{ 
+                    .knots = try result.toOwnedSlice() 
+                };
+            }
+
+            pub fn trimmed_output(
+                self: @This(),
+                allocator: std.mem.Allocator,
+                output_bounds: opentime.ContinuousTimeInterval,
+            ) !LinearMonotonic
+            {            
+                var result = (
+                    std.ArrayList(ControlPointType).init(allocator)
+                );
+                result.deinit();
+
+                const ext = self.extents_output();
+
+                const first_point = if (
+                    output_bounds.start_seconds >= ext.start_seconds
+                ) ControlPointType{
+                    .in = try self.input_at_output(output_bounds.start_seconds),
+                    .out = output_bounds.start_seconds,
+                } else self.knots[0];
+                try result.append(first_point);
+
+                const last_point = if (
+                    output_bounds.end_seconds < ext.end_seconds
+                ) ControlPointType{ 
+                    .in = try self.input_at_output(output_bounds.end_seconds),
+                    .out = output_bounds.end_seconds,
+                } else self.extents()[1];
+
+                for (self.knots) 
+                    |knot|
+                {
+                    if (
+                        knot.out > first_point.out
+                        and knot.out < last_point.out
                     ) {
                         try result.append(knot);
                     }
@@ -1496,178 +1597,269 @@ test "Linear to Monotonic Test"
     }
 }
 
-// pub fn join(
-//     allocator: std.mem.Allocator,
-//     curves: struct{
-//         a2b: Linear.LinearMonotonic,
-//         b2c: Linear.LinearMonotonic,
-//     },
-// ) !Linear.LinearMonotonic
-// {
-//     // compute domain of projection
-//     const a2b_b_extents = curves.a2b.extents_output();
-//     const b2c_b_extents = curves.b2c.extents_input();
-//
-//     const b_bounds = opentime.interval.intersect(
-//         a2b_b_extents,
-//         b2c_b_extents
-//     ) orelse return .{.knots = &.{} };
-//
-//     // trim curves to domain
-//     const a2b_trimmed = curves.a2b.trimmed_output(allocator, b_bounds);
-//     defer a2b_trimmed.deinit(allocator);
-//
-//     const b2c_trimmed = curves.b2c.trimmed_input(allocator, b_bounds);
-//     defer b2c_trimmed.deinit(allocator);
-//
-//     // splits
-//     var cursor_a2b:usize = 1;
-//     var cursor_b2c:usize = 1;
-//
-//     const total_possible_knots = (
-//         a2b_trimmed.knots.len
-//         + b2c_trimmed.knots.len
-//     );
-//
-//     const result_knots = std.ArrayList(
-//         ControlPoint
-//     ).init(allocator);
-//     try result_knots.ensureTotalCapacity(total_possible_knots);
-//
-//     while (
-//         cursor_a2b < a2b_trimmed.knots.len
-//         and cursor_b2c < b2c_trimmed.knots.len
-//     )
-//     {
-//         const a2b_k = a2b_trimmed.knots[cursor_a2b];
-//         const b2c_k = b2c_trimmed.knots[cursor_b2c];
-//
-//         const a2b_b = a2b_k.out;
-//         const b2c_b = b2c_k.in;
-//
-//         if (a2b_b == b2c_b) 
-//         {
-//             cursor_a2b += 1;
-//             cursor_b2c += 1;
-//
-//             try result_knots.appendAssumeCapacity(
-//                 .{
-//                     .in = a2b_k.in,
-//                     .out = b2c_k.out,
-//                 }
-//             );
-//         }
-//         else if (a2b_b < b2c_b) 
-//         {
-//             cursor_a2b += 1;
-//
-//             try result_knots.appendAssumeCapacity(
-//                 .{
-//                     .in = a2b_b.in,
-//                     .out = try b2c_trimmed.output_for_input(a2b_b),
-//                 }
-//             );
-//         }
-//         else 
-//         {
-//             // b2c_b < a2b_b
-//             cursor_b2c += 1;
-//
-//             try result_knots.appendAssumeCapacity(
-//                 .{
-//                     .in = try a2b_trimmed.input_for_output(b2c_b),
-//                     .out = b2c_k.out,
-//                 }
-//             );
-//         }
-//     }
-//
-//     return .{
-//         .knots = try result_knots.toOwnedSlice(),
-//     };
-// }
+pub fn join(
+    allocator: std.mem.Allocator,
+    curves: struct{
+        a2b: Linear.LinearMonotonic,
+        b2c: Linear.LinearMonotonic,
+    },
+) !Linear.LinearMonotonic
+{
+    // compute domain of projection
+    const a2b_b_extents = curves.a2b.extents_output();
+    const b2c_b_extents = curves.b2c.extents_input();
 
-// test "Linear Join ident -> held"
-// {
-//     const allocator = std.testing.allocator;
-//
-//     const ident = try Linear.init(
-//         allocator,
-//         &.{
-//             .{ .in = 0, .out = 0 },
-//             .{ .in = 10, .out = 10 },
-//         },
-//     );
-//     defer ident.deinit(allocator);
-//
-//     const held = try Linear.init(
-//         allocator,
-//         &.{
-//             .{ .in = 0, .out = 5 },
-//             .{ .in = 10, .out = 5 },
-//         },
-//     );
-//     defer held.deinit(allocator);
-//
-//     const ident_monos = try ident.split_at_critical_points(
-//         allocator
-//     );
-//     const held_monos = try held.split_at_critical_points(
-//         allocator
-//     );
-//     defer {
-//         ident_monos[0].deinit(allocator);
-//         allocator.free(ident_monos);
-//         held_monos[0].deinit(allocator);
-//         allocator.free(held_monos);
-//     }
-//
-//     {
-//         const result = try join(
-//             allocator,
-//             .{
-//                 .a2b = ident_monos[0],
-//                 .b2c = held_monos[0],
-//             },
-//         );
-//         defer result.deinit(allocator);
-//
-//         const result_extents = result.extents();
-//
-//         try std.testing.expectEqual(
-//             5,
-//             result_extents[0].out,
-//         );
-//         try std.testing.expectEqual(
-//             5,
-//             result_extents[1].out,
-//         );
-//     }
-//
-//     {
-//         const result = try join(
-//             allocator,
-//             .{
-//                 .a2b = held_monos[0],
-//                 .b2c = ident_monos[0],
-//             },
-//         );
-//         defer result.deinit(allocator);
-//
-//         const result_extents = result.extents();
-//
-//         try std.testing.expectEqual(
-//             5,
-//             result_extents[0].out,
-//         );
-//         try std.testing.expectEqual(
-//             5,
-//             result_extents[1].out,
-//         );
-//     }
-// }
+    const b_bounds = opentime.interval.intersect(
+        a2b_b_extents,
+        b2c_b_extents
+    ) orelse return .{.knots = &.{} };
 
-test "LinearMonotonic Trimmed"
+    // trim curves to domain
+    const a2b_trimmed = (
+        try curves.a2b.trimmed_output(
+            allocator,
+            b_bounds,
+        )
+    );
+    defer a2b_trimmed.deinit(allocator);
+
+    const b2c_trimmed = (
+        try curves.b2c.trimmed_input(
+            allocator,
+            b_bounds,
+        )
+    );
+    defer b2c_trimmed.deinit(allocator);
+
+    // splits
+    var cursor_a2b:usize = 1;
+    var cursor_b2c:usize = 1;
+
+    const total_possible_knots = (
+        a2b_trimmed.knots.len
+        + b2c_trimmed.knots.len
+    );
+
+    var result_knots = std.ArrayList(
+        ControlPoint
+    ).init(allocator);
+    try result_knots.ensureTotalCapacity(total_possible_knots);
+
+    while (
+        cursor_a2b < a2b_trimmed.knots.len
+        and cursor_b2c < b2c_trimmed.knots.len
+    )
+    {
+        const a2b_k = a2b_trimmed.knots[cursor_a2b];
+        const b2c_k = b2c_trimmed.knots[cursor_b2c];
+
+        const a2b_b = a2b_k.out;
+        const b2c_b = b2c_k.in;
+
+        if (a2b_b == b2c_b) 
+        {
+            cursor_a2b += 1;
+            cursor_b2c += 1;
+
+            result_knots.appendAssumeCapacity(
+                .{
+                    .in = a2b_k.in,
+                    .out = b2c_k.out,
+                }
+            );
+        }
+        else if (a2b_b < b2c_b) 
+        {
+            cursor_a2b += 1;
+
+            result_knots.appendAssumeCapacity(
+                .{
+                    .in = a2b_k.in,
+                    .out = try b2c_trimmed.output_at_input(a2b_b),
+                }
+            );
+        }
+        else 
+        {
+            // b2c_b < a2b_b
+            cursor_b2c += 1;
+
+            result_knots.appendAssumeCapacity(
+                .{
+                    .in = try a2b_trimmed.input_at_output(b2c_b),
+                    .out = b2c_k.out,
+                }
+            );
+        }
+    }
+
+    return .{
+        .knots = try result_knots.toOwnedSlice(),
+    };
+}
+
+test "Linear Join ident -> held"
+{
+    const allocator = std.testing.allocator;
+
+    const ident = try Linear.init(
+        allocator,
+        &.{
+            .{ .in = 0, .out = 0 },
+            .{ .in = 10, .out = 10 },
+        },
+    );
+    defer ident.deinit(allocator);
+
+    const held = try Linear.init(
+        allocator,
+        &.{
+            .{ .in = 0, .out = 5 },
+            .{ .in = 10, .out = 5 },
+        },
+    );
+    defer held.deinit(allocator);
+
+    const ident_monos = (
+        try ident.split_at_critical_points(allocator)
+    );
+    const held_monos = (
+        try held.split_at_critical_points(allocator)
+    );
+    defer {
+        ident_monos[0].deinit(allocator);
+        allocator.free(ident_monos);
+        held_monos[0].deinit(allocator);
+        allocator.free(held_monos);
+    }
+
+    {
+        const result = try join(
+            allocator,
+            .{
+                .a2b = ident_monos[0],
+                .b2c = held_monos[0],
+            },
+        );
+        defer result.deinit(allocator);
+
+        const result_extents = result.extents();
+
+        try std.testing.expectEqual(
+            5,
+            result_extents[0].out,
+        );
+        try std.testing.expectEqual(
+            5,
+            result_extents[1].out,
+        );
+    }
+
+    {
+        const result = try join(
+            allocator,
+            .{
+                .a2b = held_monos[0],
+                .b2c = ident_monos[0],
+            },
+        );
+        defer result.deinit(allocator);
+
+        const result_extents = result.extents();
+
+        try std.testing.expectEqual(
+            5,
+            result_extents[0].out,
+        );
+        try std.testing.expectEqual(
+            5,
+            result_extents[1].out,
+        );
+    }
+}
+
+test "Linear Join held -> non-ident"
+{
+    const allocator = std.testing.allocator;
+
+    const doubler = try Linear.init(
+        allocator,
+        &.{
+            .{ .in = 0, .out = 0 },
+            .{ .in = 10, .out = 20 },
+            .{ .in = 20, .out = 40 },
+        },
+    );
+    defer doubler.deinit(allocator);
+
+    const held = try Linear.init(
+        allocator,
+        &.{
+            .{ .in = 0, .out = 5 },
+            .{ .in = 20, .out = 5 },
+        },
+    );
+    defer held.deinit(allocator);
+
+    const doubler_monos = (
+        try doubler.split_at_critical_points(allocator)
+    );
+    const held_monos = (
+        try held.split_at_critical_points(allocator)
+    );
+    defer {
+        doubler_monos[0].deinit(allocator);
+        allocator.free(doubler_monos);
+        held_monos[0].deinit(allocator);
+        allocator.free(held_monos);
+    }
+
+    {
+        const result = try join(
+            allocator,
+            .{
+                .a2b = doubler_monos[0],
+                .b2c = held_monos[0],
+            },
+        );
+        defer result.deinit(allocator);
+
+        const result_extents = result.extents();
+
+        try std.testing.expectEqual(
+            5,
+            result_extents[0].out,
+        );
+        try std.testing.expectEqual(
+            5,
+            result_extents[1].out,
+        );
+    }
+
+    {
+        const result = try join(
+            allocator,
+            .{
+                .a2b = held_monos[0],
+                .b2c = doubler_monos[0],
+            },
+        );
+        defer result.deinit(allocator);
+
+        const result_extents = result.extents();
+
+        try std.testing.expectEqual(
+            10,
+            result_extents[0].out,
+        );
+        try std.testing.expectEqual(
+            10,
+            result_extents[1].out,
+        );
+    }
+}
+
+test "LinearMonotonic Trimmed Input"
 {
     const allocator = std.testing.allocator;
 
@@ -1759,6 +1951,102 @@ test "LinearMonotonic Trimmed"
         try std.testing.expectEqual(
             t.expected_range.end_seconds,
             result.extents_input().end_seconds,
+        );
+    }
+}
+
+test "LinearMonotonic Trimmed Output"
+{
+    const allocator = std.testing.allocator;
+
+    const ident = try Linear.init(
+        allocator,
+        &.{
+            .{ .in = 0, .out = 0 },
+            .{ .in = 10, .out = 10 },
+        },
+    );
+    defer ident.deinit(allocator);
+
+    const ident_monos = (
+        try ident.split_at_critical_points(allocator)
+    );
+    defer {
+        for (ident_monos)
+            |m|
+        {
+            m.deinit(allocator);
+        }
+        allocator.free(ident_monos);
+    }
+
+    const ident_mono = ident_monos[0];
+
+    const TestCase = struct{
+        name: []const u8,
+        target_range: opentime.interval.ContinuousTimeInterval,
+        expected_range: opentime.interval.ContinuousTimeInterval,
+    };
+    const tests = [_]TestCase{
+        .{
+            .name = "no trim",
+            .target_range = .{
+                .start_seconds = -1,
+                .end_seconds = 11,
+            },
+            .expected_range = .{
+                .start_seconds = 0,
+                .end_seconds = 10,
+            },
+        },
+        .{
+            .name = "left trim",
+            .target_range = .{
+                .start_seconds = 3,
+                .end_seconds = 11,
+            },
+            .expected_range = .{
+                .start_seconds = 3,
+                .end_seconds = 10,
+            },
+        },
+        .{
+            .name = "right trim",
+            .target_range = .{
+                .start_seconds = -1,
+                .end_seconds = 8,
+            },
+            .expected_range = .{
+                .start_seconds = 0,
+                .end_seconds = 8,
+            },
+        },
+    };
+
+    for (tests)
+        |t|
+    {
+        const result = try ident_mono.trimmed_output(
+            allocator,
+            t.target_range
+        );
+        defer result.deinit(allocator);
+
+        errdefer std.debug.print(
+            "test: {s}\n result: {s}\n",
+            .{
+                t.name,
+                result.extents_output(),
+            },
+        );
+        
+        try std.testing.expectEqual(
+            t.expected_range.start_seconds,
+            result.extents_output().start_seconds,
+        );
+        try std.testing.expectEqual(
+            t.expected_range.end_seconds,
+            result.extents_output().end_seconds,
         );
     }
 }
