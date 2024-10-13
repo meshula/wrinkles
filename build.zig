@@ -809,7 +809,10 @@ pub fn build(
 
         const run_exe = b.addRunArtifact(exe);
         run_exe.addArg("sample_otio_files/multiple_track.otio");
-        options.test_step.dependOn(&run_exe.step);
+
+        if (options.test_filter == null) {
+            options.test_step.dependOn(&run_exe.step);
+        }
     }
 
     const sokol_app_wrapper = module_with_tests_and_artifact(
