@@ -15,15 +15,21 @@ pub const MappingAffine = mapping_affine.MappingAffine;
 pub const INFINITE_IDENTIY = mapping_affine.INFINITE_IDENTIY;
 
 const mapping_curve_linear = @import("mapping_curve_linear.zig");
-pub const MappingCurveLinear = mapping_curve_linear.MappingCurveLinear;
+pub const MappingCurveLinearMonotonic = mapping_curve_linear.MappingCurveLinearMonotonic;
 
-const mapping_curve_bezier = @import("mapping_curve_bezier.zig");
-pub const MappingCurveBezier = mapping_curve_bezier.MappingCurveBezier;
+// const mapping_curve_bezier = @import("mapping_curve_bezier.zig");
+// pub const MappingCurveBezier = mapping_curve_bezier.MappingCurveBezier;
 
 const curve = @import("curve");
 
-// const topology = @import("topology.zig");
+test {
+    _ = mapping_affine;
+    _ = mapping_curve_linear;
+    // _ = mapping_curve_bezier;
+}
 
+// const topology = @import("topology.zig");
+//
 // test {
 //     _ = topology;
 // }
@@ -38,8 +44,8 @@ const curve = @import("curve");
 pub const Mapping = union (enum) {
     empty: mapping_empty.MappingEmpty,
     affine: mapping_affine.MappingAffine,
-    linear: mapping_curve_linear.MappingCurveLinear,
-    bezier: mapping_curve_bezier.MappingCurveBezier,
+    linear: mapping_curve_linear.MappingCurveLinearMonotonic,
+    // bezier: mapping_curve_bezier.MappingCurveBezier,
 
     pub fn deinit(
         self: @This(),
@@ -225,7 +231,7 @@ pub fn test_structs(
             },
         };
 
-        pub const LIN = mapping_curve_linear.MappingCurveLinear {
+        pub const LIN = mapping_curve_linear.MappingCurveLinearMonotonic {
             .input_to_output_curve = .{
                 .knots = @constCast(&[_]curve.ControlPoint{
                     START_PT,
@@ -234,39 +240,39 @@ pub fn test_structs(
             },
         };
 
-        pub const BEZ = mapping_curve_bezier.MappingCurveBezier {
-            .input_to_output_curve = .{
-                .segments = &.{
-                    .{
-                        curve.Bezier.Segment.init_from_start_end(
-                            START_PT,
-                            END_PT
-                        )
-                    }
-                },
-            },
-        };
-
-        pub const BEZ_U = mapping_curve_bezier.MappingCurveBezier {
-            .input_to_output_curve = .{
-                .segments = @constCast(
-                    &[_]curve.Bezier.Segment{
-                        .{
-                            .p0 = START_PT,
-                            .p1 = .{
-                                .in = START_PT.in,
-                                .out = END_PT.out,
-                            },
-                            .p2 = END_PT,
-                            .p3 = .{
-                                .in = END_PT.in,
-                                .out = START_PT.out,
-                            },
-                        }
-                    }
-                ),
-            },
-        };
+        // pub const BEZ = mapping_curve_bezier.MappingCurveBezier {
+        //     .input_to_output_curve = .{
+        //         .segments = &.{
+        //             .{
+        //                 curve.Bezier.Segment.init_from_start_end(
+        //                     START_PT,
+        //                     END_PT
+        //                 )
+        //             }
+        //         },
+        //     },
+        // };
+        //
+        // pub const BEZ_U = mapping_curve_bezier.MappingCurveBezier {
+        //     .input_to_output_curve = .{
+        //         .segments = @constCast(
+        //             &[_]curve.Bezier.Segment{
+        //                 .{
+        //                     .p0 = START_PT,
+        //                     .p1 = .{
+        //                         .in = START_PT.in,
+        //                         .out = END_PT.out,
+        //                     },
+        //                     .p2 = END_PT,
+        //                     .p3 = .{
+        //                         .in = END_PT.in,
+        //                         .out = START_PT.out,
+        //                     },
+        //                 }
+        //             }
+        //         ),
+        //     },
+        // };
     };
 }
 
@@ -305,7 +311,7 @@ pub fn join_aff_aff(
     };
 }
 
-test "join_aff_aff"
+test "Mapping: join_aff_aff"
 {
     // because of the boundary condition, this should return empty
     // @TODO: enforce the boundary condition!
@@ -326,60 +332,81 @@ pub fn join_aff_lin(
     allocator: std.mem.Allocator,
     args: struct{
         a2b: mapping_affine.MappingAffine,
-        b2c: mapping_curve_linear.MappingCurveLinear,
+        b2c: mapping_curve_linear.MappingCurveLinearMonotonic,
     },
-) !mapping_curve_linear.MappingCurveLinear
+) !mapping_curve_linear.MappingCurveLinearMonotonic
 {
-    return .{
-        .input_to_output_curve = (
-            try args.b2c.input_to_output_curve.project_affine(
-                allocator,
-                args.a2b.input_to_output_xform,
-                args.a2b.input_bounds_val,
-            )
-        ),
-    };
+    const a2b_input_bounds = args.a2b.input_bounds();
+    const a2b_output_bounds = args.a2b.input_bounds();
+    const a2b_linearized = (
+        mapping_curve_linear.MappingCurveLinearMonotonic{
+            .input_to_output_curve = .{
+                .knots = &.{
+                    .{ 
+                        .in = a2b_input_bounds.start_seconds,
+                        .out = a2b_output_bounds.start_seconds,
+                    },
+                    .{ 
+                        .in = a2b_input_bounds.end_seconds,
+                        .out = a2b_output_bounds.end_seconds,
+                    },
+                },
+            },
+        }
+    );
+
+    return join_lin_lin(
+        allocator,
+        .{
+            .a2b = a2b_linearized,
+            .b2c = args.b2c,
+        },
+    );
 }
 
 pub fn join_lin_aff(
     allocator: std.mem.Allocator,
     args: struct{
-        a2b: mapping_curve_linear.MappingCurveLinear,
+        a2b: mapping_curve_linear.MappingCurveLinearMonotonic,
         b2c: mapping_affine.MappingAffine,
     },
-) !mapping_curve_linear.MappingCurveLinear
+) !mapping_curve_linear.MappingCurveLinearMonotonic
 {
-    const a2c_curve = (
-        try args.a2b.input_to_output_curve.clone(allocator)
+    const a2c_knots = (
+        try allocator.dupe(
+            curve.ControlPoint,
+            args.a2b.input_to_output_curve.knots,
+        )
     );
 
-    for (a2c_curve.knots)
+    for (a2c_knots)
         |*k|
     {
         k.*.out = try args.b2c.project_instantaneous_cc(k.out);
     }
 
     return .{
-        .input_to_output_curve =  a2c_curve,
+        .input_to_output_curve =  .{
+            .knots = a2c_knots,
+        },
     };
 }
 
 pub fn join_lin_lin(
     allocator: std.mem.Allocator,
     args: struct{
-        a2b: mapping_curve_linear.MappingCurveLinear,
-        b2c: mapping_curve_linear.MappingCurveLinear,
+        a2b: mapping_curve_linear.MappingCurveLinearMonotonic,
+        b2c: mapping_curve_linear.MappingCurveLinearMonotonic,
     },
-) !mapping_curve_linear.MappingCurveLinear
+) !mapping_curve_linear.MappingCurveLinearMonotonic
 {
     return .{
-        .input_to_output_curve = (
-            (
-             try args.b2c.input_to_output_curve.project_curve(
-                 allocator,
-                 args.a2b.input_to_output_curve
-             )
-            )[0]
+        .input_to_output_curve = try curve.linear_curve.join(
+            allocator,
+            .{
+                .a2b = args.a2b.input_to_output_curve,
+                .b2c = args.b2c.input_to_output_curve,
+            },
         )
     };
 }
@@ -422,27 +449,27 @@ pub fn join(
         return EMPTY;
     }
 
-    // linearize beziers that are being projected
-    const a2b_linearized = (
-        if (a2b == .bezier) Mapping{
-            .linear = try a2b.bezier.linearized(allocator),
-        } 
-        else try a2b.clone(allocator)
-    );
-    defer a2b_linearized.deinit(allocator);
-
-    const b2c_linearized = (
-        if (b2c == .bezier) Mapping{
-            .linear = try b2c.bezier.linearized(allocator),
-        } 
-        else try b2c.clone(allocator)
-    );
-    defer b2c_linearized.deinit(allocator);
+    // // linearize beziers that are being projected
+    // const a2b_linearized = (
+    //     if (a2b == .bezier) Mapping{
+    //         .linear = try a2b.bezier.linearized(allocator),
+    //     } 
+    //     else try a2b.clone(allocator)
+    // );
+    // defer a2b_linearized.deinit(allocator);
+    //
+    // const b2c_linearized = (
+    //     if (b2c == .bezier) Mapping{
+    //         .linear = try b2c.bezier.linearized(allocator),
+    //     } 
+    //     else try b2c.clone(allocator)
+    // );
+    // defer b2c_linearized.deinit(allocator);
 
 
     // manage the boundary conditions
-    const a2b_b_bounds = a2b_linearized.output_bounds();
-    const b2c_b_bounds = b2c_linearized.input_bounds();
+    const a2b_b_bounds = a2b.output_bounds();
+    const b2c_b_bounds = b2c.input_bounds();
 
     const maybe_b_bounds_intersection = (
         opentime.interval.intersect(
@@ -457,17 +484,17 @@ pub fn join(
     );
 
     // trimmed and linearized
-    const a2b_l_t = try a2b_linearized.shrink_to_output_interval(
+    const a2b_trimmed = try a2b.shrink_to_output_interval(
         allocator,
         b_bounds_intersection
     );
-    const b2c_l_t = try b2c_linearized.shrink_to_input_interval(
+    const b2c_trimmed = try b2c.shrink_to_input_interval(
         allocator,
         b_bounds_intersection
     );
 
-    return switch (b2c_l_t) {
-        .affine => |b2c_aff| switch (a2b_l_t) {
+    return switch (b2c_trimmed) {
+        .affine => |b2c_aff| switch (a2b_trimmed) {
             .affine => |a2b_aff| join_aff_aff(
                 .{ .a2b = a2b_aff, .b2c = b2c_aff, },
             ).mapping(),
@@ -482,7 +509,7 @@ pub fn join(
             ).mapping(),
             inline else => unreachable,
         },
-        .linear => |b2c_lin| switch (a2b_l_t) {
+        .linear => |b2c_lin| switch (a2b_trimmed) {
             .affine => |a2b_aff| ( 
                 try join_aff_lin(
                     allocator,

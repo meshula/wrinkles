@@ -81,7 +81,7 @@ pub const MappingCurveBezier = struct {
     pub fn linearized(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) !mapping_mod.MappingCurveLinear
+    ) !mapping_mod.MappingCurveLinearMonotonic
     {
         return .{ 
             .input_to_output_curve = (

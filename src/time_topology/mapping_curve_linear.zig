@@ -1,5 +1,3 @@
-//! MappingCurveLinear / OpenTimelineIO
-//!
 //! Linear Time Curve Mapping
 
 const std = @import("std");
@@ -9,13 +7,13 @@ const curve = @import("curve");
 const opentime = @import("opentime");
 
 /// a linear mapping from input to output
-pub const MappingCurveLinear = struct {
-    input_to_output_curve: curve.Linear,
+pub const MappingCurveLinearMonotonic = struct {
+    input_to_output_curve: curve.Linear.Monotonic,
 
     pub fn init_knots(
         allocator: std.mem.Allocator,
         knots: []const curve.ControlPoint,
-    ) !MappingCurveLinear
+    ) !MappingCurveLinearMonotonic
     {
         return .{
             .input_to_output_curve = .{
@@ -29,8 +27,8 @@ pub const MappingCurveLinear = struct {
 
     pub fn init_curve(
         allocator: std.mem.Allocator,
-        crv: curve.Linear,
-    ) !MappingCurveLinear
+        crv: curve.Linear.Monotonic,
+    ) !MappingCurveLinearMonotonic
     {
         return .{
             .input_to_output_curve = try crv.clone(allocator),
@@ -58,24 +56,14 @@ pub const MappingCurveLinear = struct {
         self: @This(),
     ) opentime.ContinuousTimeInterval 
     {
-        const extents = self.input_to_output_curve.extents();
-
-        return .{
-            .start_seconds = extents[0].in,
-            .end_seconds = extents[1].in,
-        };
+        return self.input_to_output_curve.extents_input();
     }
 
     pub fn output_bounds(
         self: @This(),
     ) opentime.ContinuousTimeInterval 
     {
-        const extents = self.input_to_output_curve.extents();
-
-        return .{
-            .start_seconds = extents[0].out,
-            .end_seconds = extents[1].out,
-        };
+        return self.input_to_output_curve.extents_output();
     }
 
     pub fn project_instantaneous_cc(
@@ -89,7 +77,7 @@ pub const MappingCurveLinear = struct {
     pub fn clone(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) !MappingCurveLinear
+    ) !MappingCurveLinearMonotonic
     {
         return .{
             .input_to_output_curve = (
@@ -102,28 +90,13 @@ pub const MappingCurveLinear = struct {
         self: @This(),
         allocator: std.mem.Allocator,
         target_output_interval: opentime.ContinuousTimeInterval,
-    ) !MappingCurveLinear
+    ) !MappingCurveLinearMonotonic
     {
-        const output_to_input_crv = try curve.inverted_linear(
-            allocator,
-            self.input_to_output_curve
-        );
-        defer output_to_input_crv.deinit(allocator);
-
-        const target_input_interval_as_crv = try (
-            output_to_input_crv.project_affine(
-                allocator,
-                opentime.transform.IDENTITY_TRANSFORM,
-                target_output_interval
-            )
-        );
-        defer target_input_interval_as_crv.deinit(allocator);
-
         return .{
             .input_to_output_curve = (
-                try self.input_to_output_curve.trimmed_in_input_space(
+                try self.input_to_output_curve.trimmed_output(
                     allocator,
-                    target_input_interval_as_crv.extents_input()
+                    target_output_interval,
                 )
             ),
         };
@@ -131,32 +104,25 @@ pub const MappingCurveLinear = struct {
 
     pub fn shrink_to_input_interval(
         self: @This(),
-        _: std.mem.Allocator,
-        target_output_interval: opentime.ContinuousTimeInterval,
-    ) !MappingCurveLinear
+        allocator: std.mem.Allocator,
+        target_intput_interval: opentime.ContinuousTimeInterval,
+    ) !MappingCurveLinearMonotonic
     {
-        _ = self;
-        _ = target_output_interval;
-        if (true) {
-            return error.NotImplementedLinearShringtoInputInterval;
-        }
-        // else 
-        // return .{
-        //     // .input_bounds_val = (
-        //     //     opentime.interval.intersect(
-        //     //         self.input_bounds_val,
-        //     //         target_output_interval,
-        //     //     ) orelse return error.NoOverlap
-        //     // ),
-        //     // .input_to_output_xform = self.input_to_output_xform,
-        // };
+        return .{
+            .input_to_output_curve = (
+                try self.input_to_output_curve.trimmed_input(
+                    allocator,
+                    target_intput_interval,
+                )
+            ),
+        };
     }
 };
 
-test "MappingCurveLinear: init_knots"
+test "MappingCurveLinearMonotonic: init_knots"
 {
     const mcl = (
-        try MappingCurveLinear.init_knots(
+        try MappingCurveLinearMonotonic.init_knots(
             std.testing.allocator,
             &.{
                 .{ .in = 0,  .out = 0  },
@@ -170,4 +136,57 @@ test "MappingCurveLinear: init_knots"
         2,
         mcl.project_instantaneous_cc(2),
     );
+}
+
+test "Mapping"
+{
+    const mcl = (
+        try MappingCurveLinearMonotonic.init_knots(
+            std.testing.allocator,
+            &.{
+                .{ .in = 0,  .out = 0  },
+                .{ .in = 10, .out = 10 },
+                .{ .in = 20, .out = 30 },
+                .{ .in = 30, .out = 30 },
+                .{ .in = 40, .out = 0 },
+                .{ .in = 50, .out = -10 },
+            },
+        )
+    ).mapping();
+    defer mcl.deinit(std.testing.allocator);
+
+    const TestThing = struct {
+        tp : opentime.Ordinate,
+        exp : opentime.Ordinate,
+        err : bool,
+    };
+    const test_points = [_]TestThing{
+        TestThing{ .tp = -1, .exp = 0, .err = true, },
+        TestThing{ .tp = 0, .exp = 0, .err = false, },
+        TestThing{ .tp = 5, .exp = 5, .err = false, },
+        TestThing{ .tp = 15, .exp = 20, .err = false, },
+        TestThing{ .tp = 25, .exp = 30, .err = false, },
+        TestThing{ .tp = 26, .exp = 30, .err = false, },
+        TestThing{ .tp = 45, .exp = -5, .err = false, },
+    };
+
+    for (test_points)
+        |t|
+    {
+        if (t.err == false)
+        {
+            const measured = try mcl.project_instantaneous_cc(t.tp);
+            try std.testing.expectEqual(
+                t.exp,
+                measured,
+            );
+        }
+        else 
+        {
+            try std.testing.expectError(
+                error.OutOfBounds,
+                mcl.project_instantaneous_cc(t.tp),
+            );
+        }
+    }
 }
