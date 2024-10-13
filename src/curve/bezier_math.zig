@@ -1812,3 +1812,87 @@ test "inverted: invert bezier"
         );
     }
 }
+
+/// encodes and computes the slope of a segment between two ControlPoints
+pub const SlopeKind = enum {
+    flat,
+    rising,
+    falling,
+
+    pub fn compute(
+        start: control_point.ControlPoint,
+        end: control_point.ControlPoint,
+    ) SlopeKind
+    {
+        const s = slope(start, end);
+
+        if (s == 0 or std.math.isNan(s) or std.math.isInf(s))
+        {
+            return .flat;
+        }
+        else if (s > 0) 
+        {
+            return .rising;
+        }
+        else 
+        {
+            return .falling;
+        }
+    }
+};
+
+test "SlopeKind"
+{
+    const TestCase = struct {
+        name: []const u8,
+        points: [2]control_point.ControlPoint,
+        expected: SlopeKind,
+    };
+    const tests: []const TestCase = &.{
+        .{
+            .name = "flat",  
+            .points = .{
+                .{ .in = 0, .out = 5 },
+                .{ .in = 10, .out = 5 },
+            },
+            .expected = .flat,
+        },
+        .{
+            .name = "rising",  
+            .points = .{
+                .{ .in = 0, .out = 0 },
+                .{ .in = 10, .out = 15 },
+            },
+            .expected = .rising,
+        },
+        .{
+            .name = "falling",  
+            .points = .{
+                .{ .in = 0, .out = 10 },
+                .{ .in = 10, .out = 0 },
+            },
+            .expected = .falling,
+        },
+        .{
+            .name = "column",  
+            .points = .{
+                .{ .in = 0, .out = 10 },
+                .{ .in = 0, .out = 0 },
+            },
+            .expected = .flat,
+        },
+    };
+
+    for (tests)
+        |t|
+    {
+        const measured = SlopeKind.compute(
+            t.points[0],
+            t.points[1]
+        );
+        try std.testing.expectEqual(
+            t.expected,
+            measured,
+        );
+    }
+}
