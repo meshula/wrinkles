@@ -10,6 +10,8 @@ const mapping = @import("mapping.zig");
 /// implicit "Empty" mappings outside of the end points which map to no values
 /// before and after the segments defined by the Topology.
 pub const TopologyMapping = struct {
+    /// matches the boundaries of each of the child mappings, which are right
+    /// met and not sparse
     end_points_input: []const opentime.Ordinate,
     mappings: []const mapping.Mapping,
 
@@ -18,7 +20,10 @@ pub const TopologyMapping = struct {
         in_mappings: []const mapping.Mapping,
     ) !TopologyMapping
     {
-        var cursor : opentime.Ordinate = 0;
+        if (in_mappings.len == 0)
+        {
+            return EMPTY;
+        }
 
         var end_points = (
             std.ArrayList(opentime.Ordinate).init(allocator)
@@ -26,20 +31,12 @@ pub const TopologyMapping = struct {
         try end_points.ensureTotalCapacity(in_mappings.len + 1);
         errdefer end_points.deinit();
 
-        try end_points.append(cursor);
+        try end_points.append(in_mappings[0].input_bounds().start_seconds);
 
-        // validate mappings
         for (in_mappings)
-            |in_m|
+            |m|
         {
-            const d = in_m.input_bounds().duration_seconds();
-            if (d <= 0) {
-                return error.InvalidMappingForTopology;
-            }
-
-            cursor += d;
-
-            try end_points.append(d);
+            try end_points.append(m.input_bounds().end_seconds);
         }
 
         return .{
