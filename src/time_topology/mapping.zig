@@ -142,14 +142,13 @@ pub const Mapping = union (enum) {
     /// point is invalid
     pub fn split_at_input_point(
         self: @This(),
+        allocator: std.mem.Allocator,
         pt_input: opentime.Ordinate,
     ) ![2]Mapping
     {
-        _ = pt_input;
-        return .{ self, self };
-        // return switch (self) {
-        //     inline else => |m| try m.split_at_input_point(pt_input),
-        // };
+        return switch (self) {
+            inline else => |m| try m.split_at_input_point(allocator, pt_input),
+        };
     }
 
     /// /// spit this mapping at any critical points, placing the new mappings into

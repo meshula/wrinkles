@@ -96,6 +96,36 @@ pub const MappingAffine = struct {
             .input_to_output_xform = self.input_to_output_xform,
         };
     }
+
+    pub fn split_at_input_point(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        pt_input: opentime.Ordinate,
+    ) ![2]mapping_mod.Mapping
+    {
+        _ = allocator;
+
+        return .{
+            .{ 
+                .affine = .{
+                    .input_bounds_val = .{
+                        .start_seconds = self.input_bounds_val.start_seconds,
+                        .end_seconds = pt_input,
+                    },
+                    .input_to_output_xform = self.input_to_output_xform,
+                },
+            },
+            .{ 
+                .affine = .{
+                    .input_bounds_val = .{
+                        .start_seconds = pt_input,
+                        .end_seconds = self.input_bounds_val.end_seconds,
+                    },
+                    .input_to_output_xform = self.input_to_output_xform,
+                },
+            },
+        };
+    }
 };
 pub const INFINITE_IDENTIY = (
     MappingAffine{

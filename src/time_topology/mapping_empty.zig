@@ -79,31 +79,13 @@ pub const MappingEmpty = struct {
         self: @This(),
         allocator: std.mem.Allocator,
         pt: opentime.Ordinate,
-    ) ![]mapping_mod.Mapping
+    ) ![2]mapping_mod.Mapping
     {
         _ = self;
         _ = allocator;
         _ = pt;
 
-        // @TODO: need bounds on the empty mapping, clearly.  All mappings need
-        //        to know their input bounds
-
-
-        // const out_knots = try allocator.dupe(
-        //     ControlPoint,
-        //     self.knots
-        // )
-        //
-        // for (self.knots[0..self.knots.len - 1], self.knots[1..])
-        //     |left, right|
-        // {
-        //     if (left < pt and right > pt)
-        //     {
-        //         return &.{
-        //
-        //         };
-        //     }
-        // }
+        return .{ EMPTY.mapping(), EMPTY.mapping() };
     }
 };
 

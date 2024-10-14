@@ -236,8 +236,117 @@ test "TopologyMapping.split_at_input_points"
     try std.testing.expectEqual(3, m_split.mappings.len);
 }
 
-test "TopologyMapping.trim_in_input_space"
+test "TopologyMapping trim_in_input_space"
 {
+    const allocator = std.testing.allocator;
+
+    const TestCase = struct {
+        name: []const u8,
+        range: opentime.ContinuousTimeInterval,
+        expected: opentime.ContinuousTimeInterval,
+        mapping_count: usize,
+    };
+
+    const tests = [_]TestCase{
+        .{
+            .name = "no trim",
+            .range = .{
+                .start_seconds = -1,
+                .end_seconds = 11,
+            },
+            .expected = .{
+                .start_seconds = 0,
+                .end_seconds = 10,
+            },
+            .mapping_count = 1,
+        },
+        .{
+            .name = "left",
+            .range = .{
+                .start_seconds = 3,
+                .end_seconds = 11,
+            },
+            .expected = .{
+                .start_seconds = 3,
+                .end_seconds = 10,
+            },
+            .mapping_count = 1,
+        },
+        .{
+            .name = "right trim",
+            .range = .{
+                .start_seconds = -1,
+                .end_seconds = 7,
+            },
+            .expected = .{
+                .start_seconds = 0,
+                .end_seconds = 7,
+            },
+            .mapping_count = 1,
+        },
+        .{
+            .name = "both",
+            .range = .{
+                .start_seconds = 3,
+                .end_seconds = 7,
+            },
+            .expected = .{
+                .start_seconds = 3,
+                .end_seconds = 7,
+            },
+            .mapping_count = 1,
+        },
+    };
+
+    for (tests)
+        |t|
+    {
+        // trim left but not right
+        const tm = try MIDDLE.LIN_TOPO.trim_in_input_space(
+            allocator,
+            t.range,
+        );
+        defer tm.deinit(allocator);
+
+        errdefer std.debug.print(
+            "error with test name: {s}\n",
+            .{ t.name },
+        );
+
+        try std.testing.expectEqual(
+            t.expected.start_seconds,
+            tm.input_bounds().start_seconds,
+        );
+        try std.testing.expectEqual(
+            t.expected.end_seconds,
+            tm.input_bounds().end_seconds,
+        );
+
+        try std.testing.expectEqual(
+            tm.mappings[0].input_bounds().duration_seconds(), 
+            tm.input_bounds().duration_seconds(),
+        );
+
+        try std.testing.expectEqual(
+            t.mapping_count,
+            tm.mappings.len,
+        );
+    }
+
+    // separate "no overlap" test
+    const tm = try MIDDLE.LIN_TOPO.trim_in_input_space(
+        allocator,
+        .{ .start_seconds = 11, .end_seconds = 13 },
+    );
+    defer tm.deinit(allocator);
+
+    try std.testing.expectEqualSlices(
+        mapping.Mapping,
+        EMPTY.mappings,
+        tm.mappings,
+    );
+
+    return error.Barf;
 }
 
 const EMPTY = TopologyMapping{
@@ -269,8 +378,14 @@ pub fn join(
         // or return an empty topology
     ) orelse return EMPTY;
 
-    const a2b_trimmed_in_b = a2b.trim_in_output_space(b_range);
-    const b2c_trimmed_in_b = b2c.trim_in_input_space(b_range);
+    const a2b_trimmed_in_b = a2b.trim_in_output_space(
+        allocator,
+        b_range,
+    );
+    const b2c_trimmed_in_b = b2c.trim_in_input_space(
+        allocator,
+        b_range,
+    );
 
     // split in common points in b
     const a2b_split: TopologyMapping = a2b_trimmed_in_b.split_at_output_points(
@@ -317,48 +432,61 @@ pub fn join(
     };
 }
 
+const TestToposFromSlides = struct{
+    a2b: TopologyMapping,
+    b2c: TopologyMapping,
+
+    pub fn deinit(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        self.a2b.deinit(allocator);
+        self.b2c.deinit(allocator);
+    }
+};
+
 fn build_test_topo_from_slides(
     allocator: std.mem.Allocator,
-) !type
+) !TestToposFromSlides
 {
     const m_b2c_left = (
-        try mapping.MappingCurveLinear.init_knots(
-            allocator, 
-            &.{
-                .{ .in = 0, .out = 0, },
-                .{ .in = 2, .out = 4, },
-            },
-        )
+        mapping.MappingCurveLinearMonotonic{
+            .input_to_output_curve = .{
+                .knots = &.{
+                    .{ .in = 0, .out = 0, },
+                    .{ .in = 2, .out = 4, },
+                },
+            }
+        }
     ).mapping();
-    defer m_b2c_left.deinit(allocator);
 
     const m_b2c_middle = (
-        try mapping.MappingCurveLinear.init_knots(
-        allocator, 
-        &.{
-            .{ .in = 2, .out = 2, },
-            .{ .in = 4, .out = 2, },
-        },
-    )
+        mapping.MappingCurveLinearMonotonic{
+            .input_to_output_curve = .{
+                .knots = &.{
+                    .{ .in = 2, .out = 2, },
+                    .{ .in = 4, .out = 2, },
+                },
+            }
+        }
     ).mapping();
-    defer m_b2c_middle.deinit(allocator);
 
     const m_b2c_right = (
-        try mapping.MappingCurveLinear.init_knots(
-        allocator, 
-        &.{
-            .{ .in = 4, .out = 2, },
-            .{ .in = 6, .out = 0, },
-        },
-    )
+        mapping.MappingCurveLinearMonotonic{
+            .input_to_output_curve = .{
+                .knots = &.{
+                    .{ .in = 4, .out = 2, },
+                    .{ .in = 6, .out = 0, },
+                },
+            }
+        }
     ).mapping();
-    defer m_b2c_right.deinit(allocator);
 
     const tm_b2c = try TopologyMapping.init(
         allocator,
         &.{ m_b2c_left, m_b2c_middle, m_b2c_right, },
     );
-    tm_b2c.deinit(allocator);
 
     // b2c mapping and topology
     const m_a2b = (
@@ -380,19 +508,10 @@ fn build_test_topo_from_slides(
         allocator,
         &.{ m_a2b },
     );
-    tm_a2b.deinit(allocator);
 
-    return struct{
-        var a2b = tm_a2b;
-        var b2c = tm_b2c;
-
-        pub fn deinit(
-            self: @This(),
-        ) void
-        {
-            self.a2b.deinit(allocator);
-            self.b2c.deinit(allocator);
-        }
+    return .{
+        .a2b = tm_a2b,
+        .b2c = tm_b2c,
     };
 }
 
@@ -401,7 +520,7 @@ test "TopologyMapping"
     const allocator = std.testing.allocator;
 
     const slides_test_data = (
-        build_test_topo_from_slides(std.testing.allocator){}
+        build_test_topo_from_slides(allocator){}
     );
     defer slides_test_data.deinit();
 
@@ -428,80 +547,25 @@ test "TopologyMapping"
         a2c.output_bounds().start_seconds,
         opentime.util.EPSILON,
     );
-
-    // const tm_right = TopologyMapping.init(
-    //     allocator,
-    //                   .{ MIDDLE2.AFF.mapping(), RIGHT.AFF.mapping(), },
-    // );
-    //
-    // const result = join(
-    //     allocator,
-    //     .{
-    //         .a2b = tm_left,
-    //         .b2c = tm_right,
-    //     },
-    // );
-    //
-    // mappings.join(
-    //     allocator,
-    //     .{
-    //         .a2b = MIDDLE.AFF.mapping(),
-    //         .b2c = MIDDLE.AFF.mapping(),
-    //     },
-    // );
-}
-
-test "TopologyMapping: trim_in_input_space"
-{
-    const allocator = std.testing.allocator;
-
-    const slides_test_data = (
-        build_test_topo_from_slides(allocator)
-    );
-    defer slides_test_data.deinit();
-
-    const a2b_in_bounds = slides_test_data.a2b.input_bounds();
-    var d = a2b_in_bounds.duration_seconds();
-    d *= 0.15;
-    const new_bounds: opentime.ContinuousTimeInterval = .{
-        .start_seconds = a2b_in_bounds.start_seconds + d,
-        .end_seconds = a2b_in_bounds.end_seconds + d,
-    };
-
-    const a2b_trimmed = slides_test_data.a2b.trim_in_input_space(
-        allocator,
-        new_bounds,
-    );
-
-    try std.testing.expectApproxEqAbs(
-        new_bounds.start_seconds,
-        a2b_trimmed.input_bounds().start_seconds,
-        opentime.util.EPSILON,
-    );
-    try std.testing.expectApproxEqAbs(
-        new_bounds.end_seconds,
-        a2b_trimmed.input_bounds().end_seconds,
-        opentime.util.EPSILON,
-    );
 }
 
 test "TopologyMapping: LEFT/RIGHT -> EMPTY"
 {
     const allocator = std.testing.allocator;
 
-    const tm_left = TopologyMapping.init(
+    const tm_left = try TopologyMapping.init(
         allocator,
-        .{ mapping.LEFT.AFF,}
+         &.{ mapping.LEFT.AFF.mapping(),}
     );
     defer tm_left.deinit(allocator);
 
-    const tm_right = TopologyMapping.init(
+    const tm_right = try TopologyMapping.init(
         allocator,
-        .{ mapping.RIGHT.AFF,}
+        &.{ mapping.RIGHT.AFF.mapping(),}
     );
     defer tm_right.deinit(allocator);
 
-    const should_be_empty = join(
+    const should_be_empty = try join(
         allocator,
         .{
             .a2b =  tm_left,
