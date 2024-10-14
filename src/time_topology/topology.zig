@@ -434,6 +434,21 @@ test "TopologyMapping trim_in_input_space"
 {
     const allocator = std.testing.allocator;
 
+    const TopoTypes = struct {
+        name : []const u8,
+        topo: TopologyMapping,
+    };
+    const topos= [_]TopoTypes{
+        .{
+            .name = "linear",
+            .topo = MIDDLE.LIN_TOPO,
+        },
+        .{
+            .name = "affine",
+            .topo = MIDDLE.AFF_TOPO,
+        },
+    };
+
     const TestCase = struct {
         name: []const u8,
         range: opentime.ContinuousTimeInterval,
@@ -492,55 +507,62 @@ test "TopologyMapping trim_in_input_space"
         },
     };
 
-    for (tests)
-        |t|
+    for (topos)
+        |tp|
     {
-        // trim left but not right
-        const tm = try MIDDLE.LIN_TOPO.trim_in_input_space(
+        errdefer std.debug.print(
+            "over topology: {s}\n",
+            .{ tp.name },
+        );
+
+        for (tests)
+            |t|
+        {
+            // trim left but not right
+            const tm = try tp.topo.trim_in_input_space(
+                allocator,
+                t.range,
+            );
+            defer tm.deinit(allocator);
+
+            errdefer std.debug.print(
+                "error with test name: {s}\n",
+                .{ t.name },
+            );
+
+            try std.testing.expectEqual(
+                t.expected.start_seconds,
+                tm.input_bounds().start_seconds,
+            );
+            try std.testing.expectEqual(
+                t.expected.end_seconds,
+                tm.input_bounds().end_seconds,
+            );
+
+            try std.testing.expectEqual(
+                tm.mappings[0].input_bounds().duration_seconds(), 
+                tm.input_bounds().duration_seconds(),
+            );
+
+            try std.testing.expectEqual(
+                t.mapping_count,
+                tm.mappings.len,
+            );
+        }
+
+        // separate "no overlap" test
+        const tm = try tp.topo.trim_in_input_space(
             allocator,
-            t.range,
+            .{ .start_seconds = 11, .end_seconds = 13 },
         );
         defer tm.deinit(allocator);
 
-        errdefer std.debug.print(
-            "error with test name: {s}\n",
-            .{ t.name },
-        );
-
-        try std.testing.expectEqual(
-            t.expected.start_seconds,
-            tm.input_bounds().start_seconds,
-        );
-        try std.testing.expectEqual(
-            t.expected.end_seconds,
-            tm.input_bounds().end_seconds,
-        );
-
-        try std.testing.expectEqual(
-            tm.mappings[0].input_bounds().duration_seconds(), 
-            tm.input_bounds().duration_seconds(),
-        );
-
-        try std.testing.expectEqual(
-            t.mapping_count,
-            tm.mappings.len,
+        try std.testing.expectEqualSlices(
+            mapping.Mapping,
+            EMPTY.mappings,
+            tm.mappings,
         );
     }
-
-    // separate "no overlap" test
-    const tm = try MIDDLE.LIN_TOPO.trim_in_input_space(
-        allocator,
-        .{ .start_seconds = 11, .end_seconds = 13 },
-    );
-    defer tm.deinit(allocator);
-
-    try std.testing.expectEqualSlices(
-        mapping.Mapping,
-        EMPTY.mappings,
-        tm.mappings,
-    );
-
-    return error.Barf;
 }
 
 const EMPTY = TopologyMapping{
