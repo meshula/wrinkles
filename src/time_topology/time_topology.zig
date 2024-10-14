@@ -17,11 +17,14 @@ const util = opentime.util;
 const curve = @import("curve"); 
 
 pub const mapping = @import("mapping.zig");
+pub const topology = @import("topology.zig");
 
 // import more tests
 test 
 {
     _ = @import("test_topology_projections.zig");
+    _ = topology;
+    _ = mapping;
 }
 
 // assertions

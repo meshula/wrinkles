@@ -51,12 +51,40 @@ pub const TopologyMapping = struct {
         };
     }
 
+    pub fn clone(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) !TopologyMapping
+    {
+        var new_mappings = std.ArrayList(
+            mapping.Mapping,
+        ).init(allocator);
+        for (self.mappings)
+            |m|
+        {
+            try new_mappings.append(try m.clone(allocator));
+        }
+
+        return .{
+            .end_points_input = try allocator.dupe(
+                opentime.Ordinate,
+                self.end_points_input,
+            ),
+            .mappings = try new_mappings.toOwnedSlice(),
+        };
+    }
+
     pub fn deinit(
         self: @This(),
         allocator: std.mem.Allocator,
     ) void
     {
         allocator.free(self.end_points_input);
+        for (self.mappings)
+            |m|
+        {
+            m.deinit(allocator);
+        }
         allocator.free(self.mappings);
     }
 
@@ -99,10 +127,28 @@ pub const TopologyMapping = struct {
         new_input_bounds: opentime.ContinuousTimeInterval,
     ) !TopologyMapping
     {
-        const new_bounds = opentime.interval.intersect(
+        const ib = self.input_bounds();
+        var new_bounds = opentime.interval.intersect(
             new_input_bounds,
-            self.input_bounds(),
+            ib,
         ) orelse return EMPTY;
+
+        if (
+            new_bounds.start_seconds <= ib.start_seconds
+            and new_bounds.end_seconds >= ib.end_seconds
+        ) 
+        {
+            return self.clone(allocator);
+        }
+
+        new_bounds.start_seconds = @max(
+            new_bounds.start_seconds,
+            ib.start_seconds,
+        );
+        new_bounds.end_seconds = @min(
+            new_bounds.end_seconds,
+            ib.end_seconds,
+        );
 
         var trimmed_endpoints = (
             std.ArrayList(opentime.Ordinate).init(allocator)
@@ -120,27 +166,34 @@ pub const TopologyMapping = struct {
             if (right > new_bounds.start_seconds) 
             {
                 start_ind = ind;
-                try self.trimmed_endpoints.append(
+                try trimmed_endpoints.append(
                     new_bounds.start_seconds
                 );
                 break;
             }
         }
 
-        try trimmed_mappings.append(
-            self.mappings[start_ind].split_at_input_point(
-                new_bounds.start_seconds
+        try trimmed_mappings.appendSlice(
+            &(
+                try self.mappings[start_ind].split_at_input_point(
+                    allocator,
+                    new_bounds.start_seconds
+                )
             )
         );
 
         if (start_ind < self.mappings.len - 1) 
         {
-            trimmed_mappings.appendSlice(self.mappings[start_ind+1..]);
+            for (self.mappings[start_ind+1..])
+                |m|
+            {
+                try trimmed_mappings.append(try m.clone(allocator));
+            }
         }
 
         // trim right
-        var end_ind : usize = trimmed_mappings.len;
-        while (end_ind > 0)
+        var end_ind : usize = trimmed_mappings.items.len - 1;
+        while (end_ind > 1)
             : (end_ind -= 1)
         {
             if (self.end_points_input[end_ind] < new_bounds.end_seconds)
@@ -154,26 +207,86 @@ pub const TopologyMapping = struct {
             trimmed_mappings.shrinkAndFree(trimmed_mappings.items.len - end_ind);
         }
 
-        try trimmed_mappings.itmes[trimmed_mappings.items.len-1].split_at_input_point(
-            new_bounds.end_seconds
-        );
+        // try trimmed_mappings.items[trimmed_mappings.items.len-1].split_at_input_point(
+        //     new_bounds.end_seconds
+        // );
 
         // @TOOD: split the mappings on either end
 
-        try trimmed_endpoints.append(new_bounds.start_seconds);
-        try trimmed_endpoints.appendSlice(
-            self.end_points_input[start_ind+1..end_ind-1]
-        );
-        try trimmed_endpoints.append(new_bounds.end_seconds);
-
-        try trimmed_mappings.appendSlice(
-            self.end_points_input[start_ind..end_ind]
-        );
+        // try trimmed_endpoints.append(new_bounds.start_seconds);
+        // try trimmed_endpoints.appendSlice(
+        //     self.end_points_input[start_ind+1..end_ind-1]
+        // );
+        // try trimmed_endpoints.append(new_bounds.end_seconds);
+        //
+        // try trimmed_endpoints.appendSlice(
+        //     self.end_points_input[start_ind..end_ind]
+        // );
 
         return .{
             .end_points_input = try trimmed_endpoints.toOwnedSlice(),
             .mappings = try trimmed_mappings.toOwnedSlice(),
         };
+    }
+
+    /// trims the mappings, inserting empty mappings where child mappings have
+    /// been cut away
+    pub fn trim_in_output_space(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        target_output_range: opentime.interval.ContinuousTimeInterval,
+    ) !TopologyMapping
+    {
+        var new_endpoints = (
+            std.ArrayList(opentime.Ordinate).init(allocator)
+        );
+        var new_mappings = (
+            std.ArrayList(mapping.Mapping).init(allocator)
+        );
+
+        const last_ep = self.end_points_input.len - 1;
+
+        for (
+            self.mappings,
+            self.end_points_input[0..last_ep-1],
+            self.end_points_input[1..]
+        )
+            |m, tm_input_start, tm_input_end|
+        {
+            _ = tm_input_end;
+            const m_input_range = m.input_bounds();
+            const m_output_range = m.output_bounds();
+
+            if (
+                opentime.interval.intersect(
+                    target_output_range,
+                    m_output_range
+                )
+            ) |new_input_range|
+            {
+                _ = new_input_range;
+                const shrunk_m = try m.shrink_to_output_interval(
+                    allocator,
+                    target_output_range,
+                );
+
+                const shrunk_input_bounds = (
+                    shrunk_m.input_bounds()
+                );
+
+                if (
+                    shrunk_input_bounds.start_seconds 
+                    > m_input_range.start_seconds
+                ) {
+                }
+            }
+            else 
+            {
+                // no intersection
+                try new_endpoints.append(tm_input_start);
+                try new_mappings.append(mapping.EMPTY);
+            }
+        }
     }
 
     pub fn split_at_input_points(
@@ -574,6 +687,7 @@ test "TopologyMapping: LEFT/RIGHT -> EMPTY"
     );
 
     try std.testing.expectEqual(EMPTY, should_be_empty);
+    return error.Barf;
 }
 
 /// stitch topology test structures onto mapping ones

@@ -102,6 +102,64 @@ pub const MappingCurveBezier = struct {
         };
     }
 
+    pub fn split_at_input_point(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        pt_input: opentime.Ordinate,
+    ) ![2]mapping_mod.Mapping
+    {
+        var left_knots = (
+            std.ArrayList(curve.ControlPoint).init(allocator)
+        );
+        var right_knots = (
+            std.ArrayList(curve.ControlPoint).init(allocator)
+        );
+
+        const start_knots = self.input_to_output_curve.knots;
+
+        for (start_knots[1..], 1..)
+            |k, k_ind|
+        {
+            if (k.in == pt_input)
+            {
+                try left_knots.appendSlice(start_knots[0..k_ind]);
+                try right_knots.appendSlice(start_knots[k_ind..]);
+                break;
+            }
+            if (k.in > pt_input)
+            {
+                const new_knot = curve.ControlPoint{
+                    .in = pt_input,
+                    .out = try self.input_to_output_curve.output_at_input(pt_input),
+                };
+
+                try left_knots.appendSlice(start_knots[0..k_ind]);
+                try left_knots.append(new_knot);
+
+                try right_knots.append(new_knot);
+                try right_knots.appendSlice(start_knots[k_ind..]);
+                break;
+            }
+        }
+
+        return .{
+            .{
+                .linear = .{
+                    .input_to_output_curve = .{
+                        .knots = try left_knots.toOwnedSlice(),
+                    },
+                },
+            },
+            .{
+                .linear = .{
+                    .input_to_output_curve = .{
+                        .knots = try right_knots.toOwnedSlice(),
+                    },
+                },
+            },
+        };
+    }
+
     pub fn shrink_to_output_interval(
         self: @This(),
         allocator: std.mem.Allocator,
