@@ -108,52 +108,136 @@ pub const MappingCurveBezier = struct {
         pt_input: opentime.Ordinate,
     ) ![2]mapping_mod.Mapping
     {
-        var left_knots = (
-            std.ArrayList(curve.ControlPoint).init(allocator)
-        );
-        var right_knots = (
-            std.ArrayList(curve.ControlPoint).init(allocator)
+        const start_segments = self.input_to_output_curve.segments;
+
+        const segment_to_split_ind = (
+            self.input_to_output_curve.find_segment_index(pt_input)
+        ) orelse return error.NoSegmentToSplit;
+        const segment_to_split = start_segments[segment_to_split_ind];
+        const split_segments = segment_to_split.split_at(
+            segment_to_split.findU_input(pt_input)
+        ).?;
+
+        var left_segments = (
+            std.ArrayList(curve.Bezier.Segment).init(allocator)
         );
 
-        const start_knots = self.input_to_output_curve.knots;
+        if (segment_to_split_ind > 0) {
+            try left_segments.appendSlice(
+                start_segments[0..segment_to_split_ind]
+            );
+        }
 
-        for (start_knots[1..], 1..)
-            |k, k_ind|
+        try left_segments.append(split_segments[0]);
+
+        var right_segments = (
+            std.ArrayList(curve.Bezier.Segment).init(allocator)
+        );
+        try right_segments.append(split_segments[1]);
+
+        if (segment_to_split_ind < start_segments.len - 1) {
+            try right_segments.appendSlice(
+                start_segments[segment_to_split_ind..]
+            );
+        }
+
+        return .{
+            .{
+                .bezier = .{
+                    .input_to_output_curve = .{
+                        .segments = try left_segments.toOwnedSlice(),
+                    },
+                },
+            },
+            .{
+                .bezier = .{
+                    .input_to_output_curve = .{
+                        .segments = try right_segments.toOwnedSlice(),
+                    },
+                },
+            },
+        };
+    }
+
+    pub fn split_at_input_points(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        /// assumes that input points is sorted in the input domain
+        input_points: []const opentime.Ordinate,
+    ) ![]mapping_mod.Mapping
+    {
+        const start_segments = self.input_to_output_curve.segments;
+        const last_segment = start_segments[start_segments.len - 1];
+
+        var input_pt_cursor:usize = 0;
+        var segment_cursor:usize = 0;
+
+        var new_segments = (
+            std.ArrayList(curve.Bezier.Segment).init(allocator)
+        );
+
+        // trim any points that are before the first segment
+        for (input_points, 0..)
+            |pt, pt_ind|
         {
-            if (k.in == pt_input)
+            if (
+                pt > start_segments[0].p0.in 
+                and pt < last_segment.p3.in
+            )
             {
-                try left_knots.appendSlice(start_knots[0..k_ind]);
-                try right_knots.appendSlice(start_knots[k_ind..]);
+                input_pt_cursor = pt_ind;
                 break;
             }
-            if (k.in > pt_input)
+        }
+
+        while (
+            input_pt_cursor != input_points.len
+            and segment_cursor != start_segments.len
+        )
+        {
+            const input_pt = input_points[input_pt_cursor];
+            const seg_current = start_segments[segment_cursor];
+
+            if (input_pt > last_segment.p3.in)
             {
-                const new_knot = curve.ControlPoint{
-                    .in = pt_input,
-                    .out = try self.input_to_output_curve.output_at_input(pt_input),
-                };
-
-                try left_knots.appendSlice(start_knots[0..k_ind]);
-                try left_knots.append(new_knot);
-
-                try right_knots.append(new_knot);
-                try right_knots.appendSlice(start_knots[k_ind..]);
+                input_pt_cursor = input_points.len;
                 break;
+            }
+
+            if (input_pt > seg_current.p3.in)
+            {
+                try new_segments.append(seg_current);
+                segment_cursor += 1;
+            }
+            if (input_pt > seg_current.p0.in)
+            {
+                const split_segments = seg_current.split_at(
+                    seg_current.findU_input(input_pt)
+                ).?;
+
+                try new_segments.append(&split_segments);
+
+                input_pt_cursor += 1;
+            }
+            // input_pt == seg_current.p0.in
+            else
+            {
+                input_pt_cursor += 1;
             }
         }
 
         return .{
             .{
-                .linear = .{
+                .bezier = .{
                     .input_to_output_curve = .{
-                        .knots = try left_knots.toOwnedSlice(),
+                        .segments = try left_segments.toOwnedSlice(),
                     },
                 },
             },
             .{
-                .linear = .{
+                .bezier = .{
                     .input_to_output_curve = .{
-                        .knots = try right_knots.toOwnedSlice(),
+                        .segments = try right_segments.toOwnedSlice(),
                     },
                 },
             },
