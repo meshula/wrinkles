@@ -604,8 +604,11 @@ pub fn join(
     );
 
     // split in common points in b
-    const a2b_split: TopologyMapping = a2b_trimmed_in_b.split_at_output_points(
-        b2c.end_points_input
+    const a2b_split: TopologyMapping = (
+        try a2b_trimmed_in_b.split_at_output_points(
+            allocator,
+            b2c.end_points_input
+        )
     );
 
     const b2c_split: TopologyMapping = b2c_trimmed_in_b.split_at_input_points(
