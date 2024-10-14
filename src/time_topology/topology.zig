@@ -177,83 +177,134 @@ pub const TopologyMapping = struct {
             ib.end_seconds,
         );
 
-        var trimmed_endpoints = (
-            std.ArrayList(opentime.Ordinate).init(allocator)
-        );
+        var maybe_left_map_ind: ?usize = null;
+        var maybe_right_map_ind: ?usize = null;
+
+        const n_pts = self.end_points_input.len;
+
+        // find the segments that need to be trimmed
+        for (
+            self.end_points_input[0..n_pts-1],
+            self.end_points_input[1..],
+            0..n_pts-1,
+            // 1..
+        )
+            |left_pt, right_pt, left_ind |//, right_ind|
+        {
+            if (
+                left_pt < new_bounds.start_seconds 
+                and right_pt > new_bounds.start_seconds
+            )
+            {
+                maybe_left_map_ind = left_ind;
+            }
+
+            if (
+                left_pt < new_bounds.end_seconds 
+                and right_pt > new_bounds.end_seconds
+            )
+            {
+                maybe_right_map_ind = left_ind;
+            }
+        }
+
+        // trim the same mapping, toss the rest
+        if (
+            maybe_left_map_ind != null 
+            and maybe_right_map_ind != null 
+            and maybe_left_map_ind.? == maybe_right_map_ind.?
+        )
+        {
+            var mapping_to_trim = self.mappings[maybe_left_map_ind.?];
+
+            var left_splits = (
+                try mapping_to_trim.split_at_input_point(
+                    allocator,
+                    new_bounds.start_seconds,
+                )
+            );
+
+            left_splits[0].deinit(allocator);
+            defer left_splits[1].deinit(allocator);
+
+            var right_splits = (
+                try left_splits[1].split_at_input_point(
+                    allocator,
+                    new_bounds.end_seconds,
+                )
+            );
+            right_splits[1].deinit(allocator);
+
+            return .{
+                .end_points_input = try allocator.dupe(
+                    opentime.Ordinate,
+                    &.{ new_bounds.start_seconds, new_bounds.end_seconds },
+                ),
+                .mappings = try allocator.dupe(
+                    mapping.Mapping,
+                    &.{ right_splits[0] }
+                ),
+            };
+        }
+
+        // either only one side is being trimmed, or different mappings are
+        // being trimmed
         var trimmed_mappings = (
             std.ArrayList(mapping.Mapping).init(allocator)
         );
+        defer trimmed_mappings.deinit();
 
-        // trim left
-        var start_ind : usize = self.mappings.len;
+        var middle_start:usize = 0;
+        var middle_end:usize = self.mappings.len;
 
-        for (self.end_points_input[1..], 0..,)
-            |right, ind|
+        if (maybe_left_map_ind)
+            |left_ind|
         {
-            if (right > new_bounds.start_seconds) 
-            {
-                start_ind = ind;
-                try trimmed_endpoints.append(
-                    new_bounds.start_seconds
-                );
-                break;
-            }
-        }
-
-        try trimmed_mappings.appendSlice(
-            &(
-                try self.mappings[start_ind].split_at_input_point(
+            const split_mapping_left = (
+                try self.mappings[left_ind].split_at_input_point(
                     allocator,
-                    new_bounds.start_seconds
+                    new_bounds.start_seconds,
                 )
-            )
-        );
-
-        if (start_ind < self.mappings.len - 1) 
-        {
-            for (self.mappings[start_ind+1..])
-                |m|
-            {
-                try trimmed_mappings.append(try m.clone(allocator));
+            );
+            try trimmed_mappings.append(split_mapping_left[1]);
+            defer {
+                split_mapping_left[0].deinit(allocator);
             }
+
+            middle_start = left_ind + 1;
         }
 
-        // trim right
-        var end_ind : usize = trimmed_mappings.items.len - 1;
-        while (end_ind > 1)
-            : (end_ind -= 1)
+        if (maybe_right_map_ind)
+            |right_ind|
         {
-            if (self.end_points_input[end_ind] < new_bounds.end_seconds)
-            {
-                break;
-            }
+            middle_end = right_ind;
         }
 
-        if (end_ind > 0)
+        for (self.mappings[middle_start..middle_end])
+            |m|
         {
-            trimmed_mappings.shrinkAndFree(trimmed_mappings.items.len - end_ind);
+            try trimmed_mappings.append(try m.clone(allocator));
         }
 
-        // try trimmed_mappings.items[trimmed_mappings.items.len-1].split_at_input_point(
-        //     new_bounds.end_seconds
-        // );
+         if (maybe_right_map_ind)
+             |right_ind|
+         {
+             const split_mapping_right = (
+                 try self.mappings[right_ind].split_at_input_point(
+                     allocator,
+                     new_bounds.end_seconds,
+                 )
+             );
+             try trimmed_mappings.append(split_mapping_right[0]);
+             defer {
+                 split_mapping_right[1].deinit(allocator);
+             }
+         }
 
-        // @TOOD: split the mappings on either end
-
-        // try trimmed_endpoints.append(new_bounds.start_seconds);
-        // try trimmed_endpoints.appendSlice(
-        //     self.end_points_input[start_ind+1..end_ind-1]
-        // );
-        // try trimmed_endpoints.append(new_bounds.end_seconds);
-        //
-        // try trimmed_endpoints.appendSlice(
-        //     self.end_points_input[start_ind..end_ind]
-        // );
-
-        return .{
-            .end_points_input = try trimmed_endpoints.toOwnedSlice(),
-            .mappings = try trimmed_mappings.toOwnedSlice(),
-        };
+         return try TopologyMapping.init(
+             allocator,
+             trimmed_mappings.items,
+         );
     }
 
     /// trims the mappings, inserting empty mappings where child mappings have
@@ -346,7 +397,10 @@ pub const TopologyMapping = struct {
                 if (m.input_bounds().overlaps_seconds(pt)) 
                 {
                     // [2]Mapping
-                    const m_split = try m.split_at_input_point(pt);
+                    const m_split = try m.split_at_input_point(
+                        allocator,
+                        pt,
+                    );
                     try result_mappings.append(m_split[0]);
                     try q.append(m_split[1]);
                     try result_endpoints.append(pt);
