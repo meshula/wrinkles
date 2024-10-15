@@ -248,6 +248,23 @@ pub const Mapping = union (enum) {
     ///     }
     /// }
 
+    pub fn format(
+        self: @This(),
+        comptime _: []const u8,
+        _: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void 
+    {
+        try writer.print(
+            "Mapping {s} mapping space {s} to {s}",
+            .{
+                @tagName(self),
+                self.input_bounds(),
+                self.output_bounds(),
+            },
+        );
+    }
+
     // @{ Errors
     pub const ProjectionError = error { OutOfBounds };
     // @}
