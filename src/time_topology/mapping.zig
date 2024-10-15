@@ -17,8 +17,8 @@ pub const INFINITE_IDENTIY = mapping_affine.INFINITE_IDENTIY;
 const mapping_curve_linear = @import("mapping_curve_linear.zig");
 pub const MappingCurveLinearMonotonic = mapping_curve_linear.MappingCurveLinearMonotonic;
 
-// const mapping_curve_bezier = @import("mapping_curve_bezier.zig");
-// pub const MappingCurveBezier = mapping_curve_bezier.MappingCurveBezier;
+const mapping_curve_bezier = @import("mapping_curve_bezier.zig");
+pub const MappingCurveBezier = mapping_curve_bezier.MappingCurveBezier;
 
 const curve = @import("curve");
 
