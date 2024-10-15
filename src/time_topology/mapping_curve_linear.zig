@@ -74,6 +74,15 @@ pub const MappingCurveLinearMonotonic = struct {
         return self.input_to_output_curve.output_at_input(ordinate);
     }
 
+    pub fn project_instantaneous_cc_inv(
+        self: @This(),
+        output_ordinate: opentime.Ordinate,
+    ) !opentime.Ordinate 
+    {
+        return self.input_to_output_curve.input_at_output(output_ordinate);
+    }
+
+
     pub fn clone(
         self: @This(),
         allocator: std.mem.Allocator,
