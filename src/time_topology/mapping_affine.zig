@@ -49,6 +49,26 @@ pub const MappingAffine = struct {
         return self.input_to_output_xform.applied_to_seconds(ordinate);
     }
 
+    /// project from the output space back to the input space
+    pub fn project_instantaneous_cc_inv(
+        self: @This(),
+        output_ordinate: opentime.Ordinate,
+    ) !opentime.Ordinate 
+    {
+        if (
+            !self.output_bounds().overlaps_seconds(output_ordinate) 
+            // allow projecting the end point
+            and output_ordinate != self.output_bounds().end_seconds
+        )
+        {
+            return mapping_mod.Mapping.ProjectionError.OutOfBounds;
+        }
+
+        return self.input_to_output_xform.inverted().applied_to_seconds(
+            output_ordinate
+        );
+    }
+
     pub fn clone(
         self: @This(),
         _: std.mem.Allocator,
