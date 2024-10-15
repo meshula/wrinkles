@@ -62,11 +62,23 @@ pub const Mapping = union (enum) {
     /// space
     pub fn project_instantaneous_cc(
         self: @This(),
-        ord: opentime.Ordinate,
+        input_ord: opentime.Ordinate,
     ) !opentime.Ordinate 
     {
         return switch (self) {
-            inline else => |m| m.project_instantaneous_cc(ord),
+            inline else => |m| m.project_instantaneous_cc(input_ord),
+        };
+    }
+
+    /// project an instantaneous ordinate from the output space to the input
+    /// space
+    pub fn project_instantaneous_cc_inv(
+        self: @This(),
+        output_ord: opentime.Ordinate,
+    ) !opentime.Ordinate 
+    {
+        return switch (self) {
+            inline else => |m| m.project_instantaneous_cc_inv(output_ord),
         };
     }
 
