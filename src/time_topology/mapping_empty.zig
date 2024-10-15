@@ -27,6 +27,14 @@ pub const MappingEmpty = struct {
         return error.OutOfBounds;
     }
 
+    pub fn project_instantaneous_cc_inv(
+        _: @This(),
+        _: opentime.Ordinate
+    ) !opentime.Ordinate 
+    {
+        return error.OutOfBounds;
+    }
+
     pub fn inverted(
         _: @This()
     ) !MappingEmpty 
