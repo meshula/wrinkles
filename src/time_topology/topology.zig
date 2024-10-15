@@ -127,10 +127,15 @@ pub const TopologyMapping = struct {
         for (self.mappings[1..])
             |m|
         {
-            bounds = opentime.interval.extend(
-                bounds,
-                m.output_bounds()
-            );
+            switch (m) {
+                .empty => continue,
+                else => {
+                    bounds = opentime.interval.extend(
+                        bounds,
+                        m.output_bounds()
+                    );
+                }
+            }
         }
 
         return bounds;
@@ -796,15 +801,17 @@ pub fn join(
         allocator,
         b_range,
     );
-    // if (a2b_trimmed_in_b.mappings.len == 0) {
-    //     return error.ShouldntBeEmpty;
-    // }
-    std.debug.print("a2b_trimmed: {s}\n", .{ a2b_trimmed_in_b });
+    std.debug.print(
+        "a2b_trimmed: {s} output: {s}\n",
+        .{ a2b_trimmed_in_b, a2b_trimmed_in_b.output_bounds() }
+    );
     const b2c_trimmed_in_b = try b2c.trim_in_input_space(
         allocator,
         b_range,
     );
-    std.debug.print("b2c_trimmed: {s}\n", .{ b2c_trimmed_in_b });
+    std.debug.print(
+        "b2c_trimmed: {s} input (b): {s}\n",
+        .{ b2c_trimmed_in_b, b2c_trimmed_in_b.input_bounds() });
 
     // split in common points in b
     const a2b_split: TopologyMapping = (
@@ -814,10 +821,17 @@ pub fn join(
         )
     );
 
+    std.debug.print(
+        "a2b_split: {s} output (b): {s}\n",
+        .{ a2b_split, a2b_split.output_bounds() });
+
     const b2c_split: TopologyMapping = try b2c_trimmed_in_b.split_at_input_points(
         allocator,
         try a2b.end_points_output(allocator),
     );
+    std.debug.print(
+        "b2c_split: {s} input (b): {s}\n",
+        .{ b2c_split, b2c_split.input_bounds() });
 
     var a2c_endpoints = (
         std.ArrayList(opentime.Ordinate).init(parent_allocator)
@@ -847,6 +861,11 @@ pub fn join(
 
         try a2c_endpoints.append(a2b_p);
         try a2c_mappings.append(try a2c_m.clone(parent_allocator));
+
+        std.debug.print(
+            "adding: {s} with endpoint {d} \n",
+            .{ a2c_m, a2b_p },
+        );
     }
 
     return TopologyMapping{
@@ -968,12 +987,12 @@ test "TopologyMapping: join"
     );
     std.debug.print("result: {s}\n", .{ a2c.output_bounds() });
     try std.testing.expectApproxEqAbs(
-        0,
+        0.123208,
         a2c.output_bounds().start_seconds,
         opentime.util.EPSILON,
     );
     try std.testing.expectApproxEqAbs(
-        0,
+        3.999999995,
         a2c.output_bounds().end_seconds,
         opentime.util.EPSILON,
     );
