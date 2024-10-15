@@ -48,6 +48,23 @@ pub const TopologyMapping = struct {
         };
     }
 
+    /// custom formatter for std.fmt
+    pub fn format(
+        self: @This(),
+        comptime _: []const u8,
+        _: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void 
+    {
+        try writer.print(
+            "TopologyMapping{{ end_points_input: {any}, mappings: {d} }}",
+            .{
+                self.end_points_input,
+                self.mappings.len,
+            }
+        );
+    }
+
     pub fn clone(
         self: @This(),
         allocator: std.mem.Allocator,
