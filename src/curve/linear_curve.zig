@@ -138,18 +138,21 @@ pub fn LinearOf(
                 return null;
             }
 
+            /// find the nearest knot to the output value that is before the 
+            /// value in the input space
             pub fn nearest_smaller_knot_index_output(
                 self: @This(),
-                value_ord: opentime.Ordinate, 
+                output_ord: opentime.Ordinate, 
             ) ?usize 
             {
                 const last_index = self.knots.len-1;
 
+                const ext_out = self.extents_output();
+
                 // out of bounds
                 if (
                     self.knots.len == 0 
-                    or (value_ord < self.knots[0].out)
-                    or value_ord >= self.knots[last_index].out
+                    or ext_out.overlaps_seconds(output_ord) == false
                 )
                 {
                     return null;
@@ -159,7 +162,10 @@ pub fn LinearOf(
                 for (self.knots[0..last_index], self.knots[1..], 0..) 
                     |knot, next_knot, index| 
                 {
-                    if ( knot.out <= value_ord and value_ord < next_knot.out) 
+                    if (
+                        (knot.out <= output_ord and output_ord < next_knot.out)
+                        or (knot.out > output_ord and output_ord >= next_knot.out)
+                    ) 
                     {
                         return index;
                     }
@@ -189,6 +195,14 @@ pub fn LinearOf(
                 if (input_ord == last_knot.in) {
                     return last_knot.out;
                 }
+                if (input_ord == self.knots[0].in) {
+                    return last_knot.out;
+                }
+
+                std.debug.print(
+                    "query: {d}\n  range: {any}\n",
+                    .{ input_ord, self.extents_input() },
+                );
 
                 return error.OutOfBounds;
             }
@@ -2005,5 +2019,60 @@ test "Monotonic Trimmed Output"
             t.expected_range.end_seconds,
             result.extents_output().end_seconds,
         );
+    }
+}
+
+test "Linear.Monotonic.nearest_smaller_knot_index_output"
+{
+    const falling = Linear.Monotonic{
+        .knots = &.{
+            .{ .in = 10, .out = 10 },
+            .{ .in = 20, .out = 0 },
+            .{ .in = 30, .out = -10 },
+        },
+    };
+
+    {
+        const measured = (
+            falling.nearest_smaller_knot_index_output(-3) 
+            orelse return error.OutOfBounds
+        );
+
+        try std.testing.expectEqual(1, measured);
+    }
+
+    {
+        const measured = (
+            falling.nearest_smaller_knot_index_input(23) 
+            orelse return error.OutOfBounds
+        );
+
+        try std.testing.expectEqual(1, measured);
+    }
+
+    const rising = Linear.Monotonic{
+        .knots = &.{
+            .{ .in = 10, .out = 0 },
+            .{ .in = 20, .out = 10 },
+            .{ .in = 30, .out = 20 },
+        },
+    };
+
+    {
+        const measured = (
+            rising.nearest_smaller_knot_index_output(3) 
+            orelse return error.OutOfBounds
+        );
+
+        try std.testing.expectEqual(0, measured);
+    }
+
+    {
+        const measured = (
+            rising.nearest_smaller_knot_index_input(23) 
+            orelse return error.OutOfBounds
+        );
+
+        try std.testing.expectEqual(1, measured);
     }
 }
