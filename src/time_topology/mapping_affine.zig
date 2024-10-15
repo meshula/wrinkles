@@ -146,6 +146,73 @@ pub const MappingAffine = struct {
             },
         };
     }
+
+    /// split at any of the points that are within the bounds of the mapping
+    pub fn split_at_input_points(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        input_points: []const opentime.Ordinate,
+    ) ![]mapping_mod.Mapping
+    {
+        var result_mappings = (
+            std.ArrayList(mapping_mod.Mapping).init(allocator)
+        );
+
+        var maybe_first_pt: ?usize = null;
+        
+        for (input_points, 0..)
+            |pt, pt_ind|
+        {
+            if (
+                pt > self.input_bounds_val.start_seconds
+                and pt < self.input_bounds_val.end_seconds
+            )
+            {
+                maybe_first_pt = pt_ind;
+                break;
+            }
+        }
+
+        // none of the points map
+        if (maybe_first_pt == null)
+        {
+            try result_mappings.append(self.mapping());
+            return try result_mappings.toOwnedSlice();
+        }
+
+        var current_start = self.input_bounds_val.start_seconds;
+        var current_end_ind = maybe_first_pt.?;
+
+        while (current_end_ind < input_points.len)
+        {
+            var current_end = input_points[current_end_ind];
+
+            if (current_end > self.input_bounds_val.end_seconds)
+            {
+                current_end = self.input_bounds_val.end_seconds;
+                current_end_ind = input_points.len;
+            }
+
+            try result_mappings.append(
+                .{
+                    .affine = .{
+                        .input_bounds_val = .{
+                            .start_seconds = current_start,
+                            .end_seconds = current_end,
+                        },
+                        .input_to_output_xform = (
+                            self.input_to_output_xform
+                        ),
+                    },
+                },
+            );
+
+            current_start = current_end;
+            current_end_ind += 1;
+        }
+
+        return try result_mappings.toOwnedSlice();
+    }
 };
 pub const INFINITE_IDENTIY = (
     MappingAffine{

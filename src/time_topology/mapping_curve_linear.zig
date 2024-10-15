@@ -68,10 +68,10 @@ pub const MappingCurveLinearMonotonic = struct {
 
     pub fn project_instantaneous_cc(
         self: @This(),
-        ordinate: opentime.Ordinate,
+        input_ordinate: opentime.Ordinate,
     ) !opentime.Ordinate 
     {
-        return self.input_to_output_curve.output_at_input(ordinate);
+        return self.input_to_output_curve.output_at_input(input_ordinate);
     }
 
     pub fn project_instantaneous_cc_inv(
@@ -125,6 +125,34 @@ pub const MappingCurveLinearMonotonic = struct {
                 )
             ),
         };
+    }
+
+    pub fn split_at_input_points(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        input_points: []const opentime.Ordinate,
+    ) ![]mapping_mod.Mapping
+    {
+        const new_curves = (
+            try self.input_to_output_curve.split_at_input_ordinates(
+                allocator,
+                input_points,
+            )
+        );
+
+        var result_mappings = (
+            std.ArrayList(mapping_mod.Mapping).init(allocator)
+        );
+
+        for (new_curves)
+            |crv|
+        {
+            try result_mappings.append(
+                MappingCurveLinearMonotonic.init_curve(crv).mapping()
+            );
+        }
+
+        return result_mappings.toOwnedSlice();
     }
 
     pub fn split_at_input_point(

@@ -163,6 +163,62 @@ pub const Mapping = union (enum) {
         };
     }
 
+    /// split the mapping at the point in its input space, assumes that a
+    /// bounds check has already been made.  will return an error if the split
+    /// point is invalid
+    pub fn split_at_input_points(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        input_points: []const opentime.Ordinate,
+    ) ![]Mapping
+    {
+        return switch (self) {
+            .empty => try allocator.dupe(Mapping, &.{ self }),
+            inline else => |m| try m.split_at_input_points(
+                allocator, 
+                input_points
+            ),
+        };
+    }
+
+    /// split the mapping at each point in output space
+    pub fn split_at_output_points(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        output_points: []const opentime.Ordinate,
+    ) ![]Mapping
+    {
+        var result_mappings = (
+            std.ArrayList(Mapping).init(allocator)
+        );
+
+        if (self == .empty) {
+            try result_mappings.append(self);
+            return result_mappings.toOwnedSlice();
+        }
+
+        // project all the points back to input points
+        var input_points = (
+            std.ArrayList(opentime.Ordinate).init(allocator)
+        );
+        try input_points.ensureTotalCapacity(output_points.len);
+        defer input_points.deinit();
+
+        const out_bounds = self.output_bounds();
+
+        for (output_points)
+            |o_p|
+        {
+            if (out_bounds.overlaps_seconds(o_p))
+            {
+                input_points.appendAssumeCapacity(
+                    try self.project_instantaneous_cc_inv(o_p)
+                );
+            }
+        }
+
+        return self.split_at_input_points(allocator, input_points.items);
+    }
     /// /// spit this mapping at any critical points, placing the new mappings into
     /// /// the array list.  returns a slice of the new mappings
     /// pub fn split_at_critical_points(
