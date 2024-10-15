@@ -820,10 +820,10 @@ pub fn join(
     );
 
     var a2c_endpoints = (
-        std.ArrayList(opentime.Ordinate).init(allocator)
+        std.ArrayList(opentime.Ordinate).init(parent_allocator)
     );
     var a2c_mappings = (
-        std.ArrayList(mapping.Mapping).init(allocator)
+        std.ArrayList(mapping.Mapping).init(parent_allocator)
     );
 
     try a2c_endpoints.append(a2b_split.end_points_input[0]);
@@ -846,7 +846,7 @@ pub fn join(
         );
 
         try a2c_endpoints.append(a2b_p);
-        try a2c_mappings.append(a2c_m);
+        try a2c_mappings.append(try a2c_m.clone(parent_allocator));
     }
 
     return TopologyMapping{
@@ -943,7 +943,7 @@ test "TopologyMapping: join"
     const slides_test_data = (
         try build_test_topo_from_slides(allocator)
     );
-    // defer slides_test_data.deinit(allocator);
+    defer slides_test_data.deinit(allocator);
 
     const a2c = try join(
         allocator,
@@ -952,6 +952,9 @@ test "TopologyMapping: join"
             .b2c = slides_test_data.b2c,
         },
     );
+    defer a2c.deinit(allocator);
+
+    try std.testing.expect(a2c.end_points_input.len > 0);
     
     try std.testing.expectApproxEqAbs(
         1,
@@ -963,9 +966,15 @@ test "TopologyMapping: join"
         a2c.input_bounds().end_seconds,
         opentime.util.EPSILON,
     );
+    std.debug.print("result: {s}\n", .{ a2c.output_bounds() });
     try std.testing.expectApproxEqAbs(
         0,
         a2c.output_bounds().start_seconds,
+        opentime.util.EPSILON,
+    );
+    try std.testing.expectApproxEqAbs(
+        0,
+        a2c.output_bounds().end_seconds,
         opentime.util.EPSILON,
     );
 }
