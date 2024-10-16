@@ -285,3 +285,39 @@ test "Mapping"
         }
     }
 }
+
+test "Linear.Monotonic: shrink_to_output_interval"
+{
+    const allocator = std.testing.allocator;
+
+    const mcl = (
+        try MappingCurveLinearMonotonic.init_curve(
+            allocator,
+            .{
+                .knots = &.{
+                    .{ .in = 0,  .out = 0  },
+                    .{ .in = 10, .out = 10 },
+                    .{ .in = 20, .out = 30 },
+                },
+            },
+        )
+    );
+    defer mcl.deinit(allocator);
+
+    const result = try mcl.shrink_to_output_interval(
+        allocator,
+        .{ .start_seconds = 5, .end_seconds = 25 },
+    );
+
+    defer result.deinit(allocator);
+
+    const result_extents = result.output_bounds();
+    try std.testing.expectEqual(
+        5,
+        result_extents.start_seconds,
+    );
+    try std.testing.expectEqual(
+        25,
+        result_extents.end_seconds,
+    );
+}
