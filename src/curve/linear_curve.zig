@@ -290,7 +290,7 @@ pub fn LinearOf(
                 var result = (
                     std.ArrayList(ControlPointType).init(allocator)
                 );
-                result.deinit();
+                defer result.deinit();
 
                 const ext = self.extents_output();
 
