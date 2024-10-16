@@ -533,24 +533,6 @@ pub fn join(
         return EMPTY;
     }
 
-    // // linearize beziers that are being projected
-    // const a2b_linearized = (
-    //     if (a2b == .bezier) Mapping{
-    //         .linear = try a2b.bezier.linearized(allocator),
-    //     } 
-    //     else try a2b.clone(allocator)
-    // );
-    // defer a2b_linearized.deinit(allocator);
-    //
-    // const b2c_linearized = (
-    //     if (b2c == .bezier) Mapping{
-    //         .linear = try b2c.bezier.linearized(allocator),
-    //     } 
-    //     else try b2c.clone(allocator)
-    // );
-    // defer b2c_linearized.deinit(allocator);
-
-
     // manage the boundary conditions
     const a2b_b_bounds = a2b.output_bounds();
     const b2c_b_bounds = b2c.input_bounds();
