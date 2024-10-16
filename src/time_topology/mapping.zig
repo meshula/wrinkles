@@ -580,7 +580,10 @@ pub fn join(
     return switch (b2c_trimmed) {
         .affine => |b2c_aff| switch (a2b_trimmed) {
             .affine => |a2b_aff| join_aff_aff(
-                .{ .a2b = a2b_aff, .b2c = b2c_aff, },
+                .{
+                    .a2b = a2b_aff, 
+                    .b2c = b2c_aff, 
+                },
             ).mapping(),
             .linear => |a2b_lin| (
                 try join_lin_aff(
@@ -597,7 +600,10 @@ pub fn join(
             .affine => |a2b_aff| ( 
                 try join_aff_lin(
                     allocator,
-                    .{ .a2b = a2b_aff, .b2c = b2c_lin, },
+                    .{
+                        .a2b = a2b_aff,
+                        .b2c = b2c_lin, 
+                    },
                 )
             ).mapping(),
             .linear => |a2b_lin| (

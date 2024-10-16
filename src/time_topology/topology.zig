@@ -1274,7 +1274,7 @@ test "TopologyMapping: split_at_output_points"
         mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = curve.Linear.Monotonic {
                 .knots = &.{
-                    .{ .in =10, .out = 10, },
+                    .{ .in = 10, .out = 10, },
                     .{ .in = 20, .out = 0, },
                 },
             },
