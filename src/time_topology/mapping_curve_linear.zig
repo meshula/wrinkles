@@ -301,15 +301,24 @@ test "Linear.Monotonic: shrink_to_output_interval"
                 },
             },
         )
-    );
+    ).mapping();
     defer mcl.deinit(allocator);
 
     const result = try mcl.shrink_to_output_interval(
         allocator,
-        .{ .start_seconds = 5, .end_seconds = 25 },
+        .{ 
+            .start_seconds = 5,
+            .end_seconds = 25,
+        },
     );
 
     defer result.deinit(allocator);
+
+    const m2 = try mcl.clone(allocator);
+    defer m2.deinit(allocator);
+
+    const c = try result.clone(allocator);
+    defer c.deinit(allocator);
 
     const result_extents = result.output_bounds();
     try std.testing.expectEqual(
