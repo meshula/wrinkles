@@ -57,13 +57,31 @@ pub const TopologyMapping = struct {
         writer: anytype,
     ) !void 
     {
-        try writer.print(
-            "TopologyMapping{{ end_points_input: {any}, mappings: {d} }}",
-            .{
-                self.end_points_input,
-                self.mappings.len,
+        try writer.print("TopologyMapping{{ end_points_input: [", .{});
+
+        for (self.end_points_input, 0..)
+            |p, ind|
+        {
+            if (ind > 0)
+            {
+                try writer.print(", ", .{});
             }
-        );
+            try writer.print("{d}", .{ p });
+        }
+
+        try writer.print("], mappings: [", .{});
+
+        for (self.mappings, 0..)
+            |m, ind|
+        {
+            if (ind > 0)
+            {
+                try writer.print(", ", .{});
+            }
+            try writer.print("{s}", .{ @tagName(m) });
+        }
+
+        try writer.print("] }}", .{});
     }
 
     pub fn clone(
