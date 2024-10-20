@@ -140,7 +140,7 @@ pub const TopologyMapping = struct {
             unreachable;
         }
 
-        var bounds = self.mappings[0].output_bounds();
+        var bounds:?opentime.ContinuousTimeInterval = null;
 
         for (self.mappings[1..])
             |m|
@@ -148,15 +148,22 @@ pub const TopologyMapping = struct {
             switch (m) {
                 .empty => continue,
                 else => {
-                    bounds = opentime.interval.extend(
-                        bounds,
-                        m.output_bounds()
-                    );
+                    if (bounds)
+                        |b|
+                    {
+                        bounds = opentime.interval.extend(
+                            bounds orelse b,
+                            m.output_bounds()
+                        );
+                    }
+                    else {
+                        bounds = m.output_bounds();
+                    }
                 }
             }
         }
 
-        return bounds;
+        return bounds orelse opentime.INF_CTI;
     }
 
     // pub fn mapping_at_input(
