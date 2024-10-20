@@ -900,11 +900,6 @@ pub fn join(
 
         try a2c_endpoints.append(a2b_p);
         try a2c_mappings.append(try a2c_m.clone(parent_allocator));
-
-        std.debug.print(
-            "adding: {s} with endpoint {d} \n",
-            .{ a2c_m, a2b_p },
-        );
     }
 
     return TopologyMapping{
@@ -1024,7 +1019,6 @@ test "TopologyMapping: join"
         a2c.input_bounds().end_seconds,
         opentime.util.EPSILON,
     );
-    std.debug.print("result: {s}\n", .{ a2c.output_bounds() });
     try std.testing.expectApproxEqAbs(
         0.123208,
         a2c.output_bounds().start_seconds,
