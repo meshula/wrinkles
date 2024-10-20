@@ -389,9 +389,9 @@ pub const TopologyMapping = struct {
                     and m_output_range.end_seconds >= target_output_range.end_seconds
                 )
                 {
-                    try new_mappings.append(m);
+                    // nothing to trim
+                    try new_mappings.append(try m.clone(allocator));
                     try new_endpoints.append(m_input_range.start_seconds);
-                    try new_endpoints.append(m_input_range.end_seconds);
                     continue;
                 }
 
@@ -399,39 +399,53 @@ pub const TopologyMapping = struct {
                     allocator,
                     target_output_range,
                 );
+                defer shrunk_m.deinit(allocator);
 
                 const shrunk_input_bounds = (
                     shrunk_m.input_bounds()
                 );
 
-                // insert an "empty" mapping in the new gap
                 if (
                     shrunk_input_bounds.start_seconds 
                     > m_input_range.start_seconds
                 ) 
                 {
+                    // empty left
                     try new_mappings.append(mapping.EMPTY);
                     try new_endpoints.append(m_input_range.start_seconds);
                 }
 
-                try new_endpoints.append(shrunk_input_bounds.start_seconds);
-                try new_endpoints.append(shrunk_input_bounds.end_seconds);
-                try new_mappings.append(shrunk_m);
+                if (
+                    shrunk_input_bounds.start_seconds 
+                    < shrunk_input_bounds.end_seconds
+                )
+                {
+                    // trimmed mapping
+                    try new_endpoints.append(shrunk_input_bounds.start_seconds);
+                    try new_mappings.append(try shrunk_m.clone(allocator));
+                }
 
                 if (shrunk_input_bounds.end_seconds < m_input_range.end_seconds)
                 {
+                    // empty right
                     try new_endpoints.append(shrunk_input_bounds.end_seconds);
-                    try new_mappings.append(shrunk_m);
+                    try new_mappings.append(try shrunk_m.clone(allocator));
                 }
             }
             else 
             {
                 // no intersection
                 try new_endpoints.append(m_input_range.start_seconds);
-                try new_endpoints.append(m_input_range.end_seconds);
                 try new_mappings.append(mapping.EMPTY);
             }
         }
+
+        // add the end time
+        try new_endpoints.append(
+            new_mappings.items[
+                new_mappings.items.len - 1
+            ].input_bounds().end_seconds
+        );
 
         return .{
             .mappings = try new_mappings.toOwnedSlice(),
@@ -1123,11 +1137,11 @@ test "TopologyMapping: trim_in_output_space"
             .name = "no trim",
             .target = .{
                 .start_seconds = -1,
-                .end_seconds = 11 
+                .end_seconds = 41 
             },
             .expected = .{
                 .start_seconds = 0,
-                .end_seconds = 10,
+                .end_seconds = 40,
             },
             .result_mappings = 1,
         },
@@ -1135,11 +1149,11 @@ test "TopologyMapping: trim_in_output_space"
             .name = "left trim",
             .target = .{
                 .start_seconds = 3,
-                .end_seconds = 11 
+                .end_seconds = 41 
             },
             .expected = .{
                 .start_seconds = 3,
-                .end_seconds = 10,
+                .end_seconds = 40,
             },
             .result_mappings = 2,
         },
@@ -1170,11 +1184,13 @@ test "TopologyMapping: trim_in_output_space"
         //       all trimmed
     };
 
+    const INPUT_TOPO = MIDDLE.LIN_TOPO;
+
     for (tests)
         |t|
     {
         const trimmed = (
-            try MIDDLE.LIN_TOPO.trim_in_output_space(
+            try INPUT_TOPO.trim_in_output_space(
                 allocator,
                 t.target,
             )
@@ -1183,8 +1199,19 @@ test "TopologyMapping: trim_in_output_space"
 
         errdefer {
             std.debug.print(
-                "error with test: {s}\n trimmed: {s}\n",
-               .{ t.name, trimmed }
+                (
+                      "error with test: {s}\n input: {s} / output range: {s}\n"
+                      ++ " target range: {s}\n"
+                      ++ " trimmed: {s} / output range: {s}\n"
+                ),
+               .{
+                   t.name,
+                   INPUT_TOPO,
+                   INPUT_TOPO.output_bounds(),
+                   t.target,
+                   trimmed,
+                   trimmed.output_bounds(),
+               }
             );
         }
 
@@ -1248,6 +1275,42 @@ test "TopologyMapping: trim_in_output_space"
     try std.testing.expectEqual(
         8,
         result.end_seconds,
+    );
+
+}
+
+test "TopologyMapping: trim_in_output_space (slides)"
+{
+
+    const allocator = std.testing.allocator;
+
+    const slides_test_data = (
+        try build_test_topo_from_slides(allocator)
+    );
+    defer slides_test_data.deinit(allocator);
+    const a2b = slides_test_data.a2b;
+    const b2c = slides_test_data.b2c;
+
+    const b_range = opentime.interval.intersect(
+        a2b.output_bounds(),
+        b2c.input_bounds(),
+    ) orelse return error.OutOfBounds;
+
+    const a2b_trimmed = (
+        try a2b.trim_in_output_space(
+            allocator,
+            b_range,
+        )
+    );
+    defer a2b_trimmed.deinit(allocator);
+
+    try std.testing.expectEqual(
+        b_range.start_seconds,
+        a2b_trimmed.output_bounds().start_seconds,
+    );
+    try std.testing.expectEqual(
+        b_range.end_seconds,
+        a2b_trimmed.output_bounds().end_seconds,
     );
 }
 
@@ -1322,4 +1385,26 @@ test "TopologyMapping: split_at_output_points"
     defer split_topo.deinit(allocator);
 
     try std.testing.expectEqual(6, split_topo.mappings.len);
+}
+
+test "TopologyMapping: output_bounds w/ empty"
+{
+    const tm = TopologyMapping{
+        .end_points_input = &.{ -2, 0, 13 },
+        .mappings = &.{
+            mapping.EMPTY,
+            .{ .linear = MIDDLE.MAPPINGS.LIN},
+        },
+    };
+    const expected = MIDDLE.MAPPINGS.LIN.output_bounds();
+
+    try std.testing.expectEqual(
+        expected.start_seconds,
+        tm.output_bounds().start_seconds,
+    );
+
+    try std.testing.expectEqual(
+        expected.end_seconds,
+        tm.output_bounds().end_seconds,
+    );
 }
