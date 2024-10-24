@@ -17,7 +17,7 @@ pub const MappingCurveBezier = struct {
     pub fn init_curve(
         allocator: std.mem.Allocator,
         crv: curve.Bezier,
-    ) !topology.TopologyMapping
+    ) !topology.Topology
     {
         var result_mappings = (
             std.ArrayList(mapping_mod.Mapping).init(allocator)
@@ -44,7 +44,7 @@ pub const MappingCurveBezier = struct {
             try result_mappings.append(map_mono.mapping());
         }
 
-        return topology.TopologyMapping{
+        return topology.Topology{
             .mappings = try result_mappings.toOwnedSlice(),
         };
     }
@@ -52,7 +52,7 @@ pub const MappingCurveBezier = struct {
     pub fn init_segments(
         allocator: std.mem.Allocator,
         segments: []const curve.Bezier.Segment,
-    ) !topology.TopologyMapping
+    ) !topology.Topology
     {
         const crv = try curve.Bezier.init(
             allocator,
