@@ -923,8 +923,8 @@ pub fn LinearOf(
                 self.knots[1]
             );
 
-            for (self.knots[1..self.knots.len-1], 1.., self.knots[2..])
-                |left, left_ind, right|
+            for (self.knots[1..self.knots.len-1], 2.., self.knots[2..])
+                |left, right_ind, right|
             {
                 const new_slope = bezier_math.SlopeKind.compute(
                     left,
@@ -934,10 +934,15 @@ pub fn LinearOf(
                 if (new_slope != slope)
                 {
                     try splits.append(
-                        self.knots[segment_start_index..left_ind]
+                        self.knots[segment_start_index..right_ind]
                     );
 
-                    segment_start_index = left_ind;
+                    // because the slope changes between the left and the right
+                    // index, the left index is the last knot in the left
+                    // segment and the first knot in the right.  Slice indices
+                    // are left inclusive and right exclusive, so the slice
+                    // ENDS on the right index but starts on the previous index
+                    segment_start_index = right_ind-1;
                 }
                 slope = new_slope;
             }
@@ -2074,5 +2079,42 @@ test "Linear.Monotonic.nearest_smaller_knot_index_output"
         );
 
         try std.testing.expectEqual(1, measured);
+    }
+}
+
+test "Linear.Monotonic.SplitAtCriticalPoints"
+{
+    const allocator = std.testing.allocator;
+
+    const crv = try bezier_curve.Bezier.init(
+        allocator,
+        &.{
+            .{
+                .p0 = .{ .in = 1, .out = 0 },
+                .p1 = .{ .in = 1, .out = 5 },
+                .p2 = .{ .in = 5, .out = 5 },
+                .p3 = .{ .in = 5, .out = 1 },
+            }
+        },
+    );
+    defer crv.deinit(allocator);
+    
+    const lin = try crv.linearized(allocator);
+    defer lin.deinit(allocator);
+
+    const lin_split = try lin.split_at_critical_points(
+        allocator
+    );
+    defer allocator.free(lin_split);
+
+    var last = lin_split[0].knots[0].in;
+    for (lin_split)
+        |lin_crv|
+    {
+        // also clean up the curves
+        defer lin_crv.deinit(allocator);
+        const range = lin_crv.extents_input();
+        try std.testing.expectEqual(last, range.start_seconds);
+        last = range.end_seconds;
     }
 }
