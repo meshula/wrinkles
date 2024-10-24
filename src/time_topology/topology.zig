@@ -37,6 +37,9 @@ pub const TopologyMapping = struct {
         for (in_mappings)
             |m|
         {
+            if (m == .empty) {
+                return error.NotSupported;
+            }
             try end_points.append(m.input_bounds().end_seconds);
         }
 
@@ -370,9 +373,12 @@ pub const TopologyMapping = struct {
             std.ArrayList(mapping.Mapping).init(allocator)
         );
 
-        for (self.mappings)
-            |m|
+        std.debug.print("TRIM START\n----------\n", .{});
+
+        for (self.mappings, 0..)
+            |m, m_ind|
         {
+            std.debug.print("Trimming Mapping: {d}\n", .{ m_ind });
             const m_input_range = m.input_bounds();
             const m_output_range = m.output_bounds();
 
@@ -380,6 +386,10 @@ pub const TopologyMapping = struct {
                 target_output_range,
                 m_output_range
             );
+
+            std.debug.print(" m_input_range: {s}\n", .{ m_input_range });
+            std.debug.print(" m_output_range: {s}\n", .{ m_output_range });
+            std.debug.print(" target_output_range: {s}\n", .{ target_output_range });
 
             if (maybe_overlap != null)
             {
@@ -389,6 +399,7 @@ pub const TopologyMapping = struct {
                     and m_output_range.end_seconds >= target_output_range.end_seconds
                 )
                 {
+                    std.debug.print(" No trim: {s}\n", .{ m });
                     // nothing to trim
                     try new_mappings.append(try m.clone(allocator));
                     try new_endpoints.append(m_input_range.start_seconds);
@@ -410,6 +421,10 @@ pub const TopologyMapping = struct {
                     > m_input_range.start_seconds
                 ) 
                 {
+                    std.debug.print(
+                        " empty left: start: {d}\n",
+                        .{m_input_range.start_seconds}
+                    );
                     // empty left
                     try new_mappings.append(mapping.EMPTY);
                     try new_endpoints.append(m_input_range.start_seconds);
@@ -420,6 +435,7 @@ pub const TopologyMapping = struct {
                     < shrunk_input_bounds.end_seconds
                 )
                 {
+                    std.debug.print(" trimed middle / start: {d}\n", .{shrunk_input_bounds.start_seconds});
                     // trimmed mapping
                     try new_endpoints.append(shrunk_input_bounds.start_seconds);
                     try new_mappings.append(try shrunk_m.clone(allocator));
@@ -427,6 +443,7 @@ pub const TopologyMapping = struct {
 
                 if (shrunk_input_bounds.end_seconds < m_input_range.end_seconds)
                 {
+                    std.debug.print(" empty right\n", .{});
                     // empty right
                     try new_endpoints.append(shrunk_input_bounds.end_seconds);
                     try new_mappings.append(try shrunk_m.clone(allocator));
@@ -434,6 +451,7 @@ pub const TopologyMapping = struct {
             }
             else 
             {
+                std.debug.print(" all cut\n", .{});
                 // no intersection
                 try new_endpoints.append(m_input_range.start_seconds);
                 try new_mappings.append(mapping.EMPTY);
@@ -564,6 +582,11 @@ pub const TopologyMapping = struct {
             return self.clone(allocator);
         }
 
+        var result_endpoints = (
+            std.ArrayList(opentime.Ordinate).init(allocator)
+        );
+        defer result_endpoints.deinit();
+
         var result_mappings = (
             std.ArrayList(mapping.Mapping).init(allocator)
         );
@@ -575,11 +598,14 @@ pub const TopologyMapping = struct {
         try input_points_in_bounds.ensureTotalCapacity(output_points.len);
         defer input_points_in_bounds.deinit();
 
-        for (self.mappings)
-            |m|
+        for (self.mappings, 0..)
+            |m, m_ind|
         {
             switch (m) {
-                .empty => try result_mappings.append(try m.clone(allocator)),
+                .empty => {
+                    try result_mappings.append(try m.clone(allocator));
+                    try result_endpoints.append(self.end_points_input[m_ind]);
+                },
                 else => {
                     const m_bounds_out = m.output_bounds();
                     const m_bounds_in = m.input_bounds();
@@ -614,6 +640,9 @@ pub const TopologyMapping = struct {
                     {
                         // just append the mapping as is
                         try result_mappings.append(try m.clone(allocator));
+                        try result_endpoints.append(
+                            self.end_points_input[m_ind]
+                        );
                         continue;
                     }
 
@@ -640,19 +669,28 @@ pub const TopologyMapping = struct {
                         try result_mappings.append(
                             try new_mappings[0].clone(allocator)
                         );
+                        
                         m_clone.deinit(allocator);
                         m_clone = try new_mappings[1].clone(allocator);
                     }
 
                     try result_mappings.append(m_clone);
+                    try result_endpoints.appendSlice(
+                        input_points_in_bounds.items
+                    );
                 },
             }
         }
 
-        return try TopologyMapping.init(
-            allocator,
-            result_mappings.items,
-        );
+        return TopologyMapping{
+            .end_points_input = try result_endpoints.toOwnedSlice(),
+            .mappings = try result_mappings.toOwnedSlice(),
+        };
+
+        // return try TopologyMapping.init(
+        //     allocator,
+        //     result_mappings.items,
+        // );
     }
 };
 
@@ -824,6 +862,17 @@ pub fn join(
     const a2b = args.a2b;
     const b2c = args.b2c;
 
+    std.debug.print("---\nJOIN START\n------------\n", .{});
+    std.debug.print(
+        "a2b: {s}\n output range: {s}\n",
+        .{ a2b, a2b.output_bounds(), }
+    );
+    std.debug.print(
+        "b2c: {s}\n output range: {s}\n",
+        .{ b2c, b2c.output_bounds(), }
+    );
+    std.debug.print("------\n", .{});
+
     // first trim both to the intersection range
     const b_range = opentime.interval.intersect(
         a2b.output_bounds(),
@@ -835,11 +884,14 @@ pub fn join(
         "b_range: {s}, a2b.output_bounds: {s}\n",
         .{ b_range, a2b.output_bounds(), },
     );
+    std.debug.print("------\n", .{});
 
+    std.debug.print("a2b_trimmed_in_b TRIM\n---------------------\n", .{});
     const a2b_trimmed_in_b = try a2b.trim_in_output_space(
         allocator,
         b_range,
     );
+    std.debug.print("a2b_trimmed_in_b TRIM DONE\n---------------------\n", .{});
     std.debug.print(
         "a2b_trimmed: {s} output: {s}\n",
         .{ a2b_trimmed_in_b, a2b_trimmed_in_b.output_bounds() }
@@ -850,7 +902,11 @@ pub fn join(
     );
     std.debug.print(
         "b2c_trimmed: {s} input (b): {s}\n",
-        .{ b2c_trimmed_in_b, b2c_trimmed_in_b.input_bounds() });
+        .{ b2c_trimmed_in_b, b2c_trimmed_in_b.input_bounds() }
+    );
+    std.debug.print("------\n", .{});
+
+    // @TODO: looks like splitting a2b is doing weird things
 
     // split in common points in b
     const a2b_split: TopologyMapping = (
@@ -862,15 +918,33 @@ pub fn join(
 
     std.debug.print(
         "a2b_split: {s} output (b): {s}\n",
-        .{ a2b_split, a2b_split.output_bounds() });
+        .{ a2b_split, a2b_split.output_bounds() }
+    );
 
-    const b2c_split: TopologyMapping = try b2c_trimmed_in_b.split_at_input_points(
-        allocator,
-        try a2b.end_points_output(allocator),
+    ////// ASSERT /////////////////////////////////////////////////////////////
+    //two problems currently: 1) a2b looks totally messed up
+    //                        2) repeated identical knots (need epsilon checks)
+    //                        in b2c
+    std.debug.assert(std.math.isFinite(a2b_split.end_points_input[0]));
+    ///////////////////////////////////////////////////////////////////////////
+
+    const b2c_split = (
+        try b2c_trimmed_in_b.split_at_input_points(
+            allocator,
+            try a2b.end_points_output(allocator),
+        )
     );
     std.debug.print(
         "b2c_split: {s} input (b): {s}\n",
         .{ b2c_split, b2c_split.input_bounds() });
+    std.debug.print("------\n", .{});
+
+    ////// ASSERT
+    //two problems currently: 1) a2b looks totally messed up
+    //                        2) repeated identical knots (need epsilon checks)
+    //                        in b2c
+    std.debug.assert(a2b_split.mappings.len == b2c_split.mappings.len);
+    //////
 
     var a2c_endpoints = (
         std.ArrayList(opentime.Ordinate).init(parent_allocator)
