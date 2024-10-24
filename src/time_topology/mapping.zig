@@ -270,7 +270,7 @@ pub const Mapping = union (enum) {
     // @}
 };
 
-pub const EMPTY = mapping_empty.EMPTY.mapping();
+pub const EMPTY_INF = mapping_empty.EMPTY_INF.mapping();
 
 // Join Functions
 //
@@ -528,9 +528,16 @@ pub fn join(
     var a2b: Mapping = args.a2b;
     var b2c: Mapping = args.b2c;
 
+    const empty_result = (
+        MappingEmpty{
+            .defined_range = a2b.input_bounds(),
+        }
+    ).mapping();
+
+
     // joining anything with an empty results in an empty
     if (a2b == .empty or b2c == .empty) {
-        return EMPTY;
+        return empty_result;
     }
 
     // manage the boundary conditions
@@ -546,7 +553,7 @@ pub fn join(
 
     const b_bounds_intersection = (
         // if there is no intersection, the result is empty
-        maybe_b_bounds_intersection orelse return EMPTY
+        maybe_b_bounds_intersection orelse return empty_result
     );
 
     // trimmed and linearized

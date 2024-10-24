@@ -44,10 +44,9 @@ pub const MappingCurveBezier = struct {
             try result_mappings.append(map_mono.mapping());
         }
 
-        return try topology.TopologyMapping.init(
-            allocator,
-            result_mappings.items,
-        );
+        return topology.TopologyMapping{
+            .mappings = try result_mappings.toOwnedSlice(),
+        };
     }
 
     pub fn init_segments(
@@ -63,7 +62,7 @@ pub const MappingCurveBezier = struct {
 
         return try MappingCurveBezier.init_curve(
             allocator,
-            crv
+            crv,
         );
     }
 
