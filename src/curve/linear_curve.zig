@@ -326,6 +326,29 @@ pub fn LinearOf(
                     .knots = try result.toOwnedSlice() 
                 };
             }
+
+            pub fn format(
+                self: @This(),
+                comptime _: []const u8,
+                _: std.fmt.FormatOptions,
+                writer: anytype,
+            ) !void 
+            {
+                try writer.print("Linear.Monotonic{{\n  .knots: [\n", .{});
+
+                for (self.knots, 0..)
+                    |k, ind|
+                {
+                    if (ind > 0)
+                    {
+                        try writer.print(",\n", .{});
+                    }
+                    try writer.print("    {s}", .{ k});
+                }
+
+                try writer.print("\n  ]\n}}", .{});
+            }
+
         };
 
         /// dupe the provided points into the result
