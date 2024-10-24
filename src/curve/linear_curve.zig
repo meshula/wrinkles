@@ -199,11 +199,6 @@ pub fn LinearOf(
                     return last_knot.out;
                 }
 
-                std.debug.print(
-                    "query: {d}\n  range: {any}\n",
-                    .{ input_ord, self.extents_input() },
-                );
-
                 return error.OutOfBounds;
             }
 
