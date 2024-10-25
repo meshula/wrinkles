@@ -1039,25 +1039,25 @@ pub const Bezier = struct {
 
         for (self_split_on_critical_points.segments, 0..) 
             |seg, seg_ind| 
-            {
-                if (seg_ind > 0) {
-                    start_knot = 1;
-                }
-
-                const subseg = try linearize_segment(
-                    allocator,
-                    seg,
-                    0.000001
-                );
-                defer allocator.free(subseg);
-
-                // @TODO: expose the tolerance as a parameter(?)
-                try linearized_knots.appendSlice(
-                    // first knot of all interior segments should match the 
-                    // last knot of the previous segment, so can be skipped
-                    subseg[start_knot..]
-                );
+        {
+            if (seg_ind > 0) {
+                start_knot = 1;
             }
+
+            // @TODO: expose the tolerance as a parameter(?)
+            const subseg = try linearize_segment(
+                allocator,
+                seg,
+                0.000001
+            );
+            defer allocator.free(subseg);
+
+            try linearized_knots.appendSlice(
+                // first knot of all interior segments should match the 
+                // last knot of the previous segment, so can be skipped
+                subseg[start_knot..]
+            );
+        }
 
         return .{
             .knots = try linearized_knots.toOwnedSlice()

@@ -40,7 +40,7 @@ test {
 /// "input" space to an "output" space.  Mappings can be joined with other
 /// mappings via function composition to build new transformations via common
 /// spaces. Mappings can project ordinates and ranges from their input space
-/// to their output space.  Some (but not all) mappings are also invertible.
+/// to their output space.
 pub const Mapping = union (enum) {
     empty: mapping_empty.MappingEmpty,
     affine: mapping_affine.MappingAffine,

@@ -1,10 +1,40 @@
-//! TopologyMapping implementation
+//! Topology implementation
 
 const std = @import("std");
 
 const opentime = @import("opentime");
-const mapping = @import("mapping.zig");
 const curve = @import("curve");
+
+pub const mapping = @import("mapping.zig");
+
+
+// Questions for 10/25 @Nick
+//
+// - project_instantaneous_cc -- I like that it connects up with the discrete
+//   transformations, but I also like output_at_input_cc, since that connects
+//   up with the curve.  Thoughts?
+// - Topology{} right now contains a list of mappings, but I could see also
+//   precomputing the input endpoints. If we needed to improve the performance
+//   we could also have a binary tree for finding the mappings over the input
+//   domain (or some other spatial subdivision)... but I'm not sure it'll
+//   matter
+// - for the retiming functions in sampling, which operate over a single curve,
+//   I think having a linearize() function that returns a Topology where each
+//   mapping is either empty or LinearMonotonic would be the way to go.  The
+//   resampling algorithm would stil need to be reworked to walk across all the
+//   mappings, but it would be otherwise largely the same
+// - in particular, `retimed` takes a bezier curve and retimes the argument
+//   in_samples accordingly.  I think this either needs a flavor that uses a
+//   topology rather than a single curve to retime.  I _think_ then that it has
+//   Mapping-specific types.
+// - what does it mean in a retime if a mapping is empty? The samples are
+//   valued at 0?
+// - sampling.zig also refers to time, but I think we also want to move that
+//   language to "ordinate", following the practice of the new topology/mapping
+// - in `signal_generator.rasterized`, the count field of sampling.init is
+//   promoted to f64 - is that right?  I think that should be opentime.Ordinate
+// - mapping.join and assuming that mappings are aligned/bounded already
+
 
 /// A Topology binds regions of a one dimensional space to a sequence of right
 /// met monotonic mappings, separated by a list of end points.  There are
@@ -31,6 +61,46 @@ pub const Topology = struct {
         };
     }
 
+    pub fn init_from_linear(
+        allocator: std.mem.Allocator,
+        crv: curve.Linear,
+    ) !Topology
+    {
+        const mono_crvs = (
+            try crv.split_at_critical_points(allocator)
+        );
+
+        var result_mappings = (
+            std.ArrayList(mapping.Mapping).init(allocator)
+        );
+        defer result_mappings.deinit();
+
+        for (mono_crvs)
+            |mc|
+        {
+            try result_mappings.append(
+                (
+                 mapping.MappingCurveLinearMonotonic{
+                    .input_to_output_curve = mc,
+                }
+                ).mapping()
+            );
+        }
+
+        return .{
+            .mappings = try result_mappings.toOwnedSlice(),
+        };
+    }
+
+    pub fn init_affine(
+        aff: mapping.MappingAffine,
+    ) Topology
+    {
+        return .{
+            .mappings = &.{ aff.mapping() },
+        };
+    }
+
     /// custom formatter for std.fmt
     pub fn format(
         self: @This(),
@@ -39,7 +109,10 @@ pub const Topology = struct {
         writer: anytype,
     ) !void 
     {
-        try writer.print("TopologyMapping{{ mappings ({d}): [", .{self.mappings.len});
+        try writer.print(
+            "Topology{{ mappings ({d}): [",
+            .{self.mappings.len}
+        );
 
         for (self.mappings, 0..)
             |m, ind|
@@ -140,7 +213,6 @@ pub const Topology = struct {
         allocator: std.mem.Allocator,
     ) ![]opentime.Ordinate
     {
-
         if (self.mappings.len == 0)
         {
             return &.{};
@@ -493,7 +565,9 @@ pub const Topology = struct {
         )
         {
             const current_mapping = mappings_to_split.pop();
-            const current_range = current_mapping.input_bounds();
+            const current_range = (
+                current_mapping.input_bounds()
+            );
 
             const current_pt = input_points[current_pt_index];
 
@@ -501,9 +575,11 @@ pub const Topology = struct {
             {
                 if (current_pt > current_range.start_seconds)
                 {
-                    const new_mappings = try current_mapping.split_at_input_point(
-                        allocator,
-                        current_pt,
+                    const new_mappings = (
+                        try current_mapping.split_at_input_point(
+                            allocator,
+                            current_pt,
+                        )
                     );
 
                     try result_mappings.append(new_mappings[0]);
@@ -579,14 +655,15 @@ pub const Topology = struct {
         for (self.mappings)
             |m|
         {
+
+            const m_bounds_in = m.input_bounds();
+            const m_bounds_out = m.output_bounds();
+
             switch (m) {
                 .empty => {
                     try result_mappings.append(try m.clone(allocator));
                 },
                 else => {
-                    const m_bounds_out = m.output_bounds();
-                    const m_bounds_in = m.input_bounds();
-
                     input_points_in_bounds.clearRetainingCapacity();
 
                     for (output_points)
@@ -661,9 +738,26 @@ pub const Topology = struct {
             result_mappings.items,
         );
     }
+
+    pub fn project_instantaneous_cc(
+        self: @This(),
+        input_ord: opentime.Ordinate
+    ) !opentime.Ordinate
+    {
+        for (self.mappings)
+            |m|
+        {
+            if (m.input_bounds().overlaps_seconds(input_ord))
+            {
+                return try m.project_instantaneous_cc(input_ord);
+            }
+        }
+
+        return error.OutOfBounds;
+    }
 };
 
-test "TopologyMapping.split_at_input_points"
+test "Topology.split_at_input_points"
 {
     const m_split = try MIDDLE.AFF_TOPO.split_at_input_points(
         std.testing.allocator,
@@ -674,7 +768,7 @@ test "TopologyMapping.split_at_input_points"
     try std.testing.expectEqual(3, m_split.mappings.len);
 }
 
-test "TopologyMapping trim_in_input_space"
+test "Topology trim_in_input_space"
 {
     const allocator = std.testing.allocator;
 
@@ -797,7 +891,10 @@ test "TopologyMapping trim_in_input_space"
         // separate "no overlap" test
         const tm = try tp.topo.trim_in_input_space(
             allocator,
-            .{ .start_seconds = 11, .end_seconds = 13 },
+            .{ 
+                .start_seconds = 11,
+                .end_seconds = 13,
+            },
         );
         defer tm.deinit(allocator);
 
@@ -999,7 +1096,7 @@ fn build_test_topo_from_slides(
     };
 }
 
-test "TopologyMapping: join" 
+test "Topology: join" 
 {
     const allocator = std.testing.allocator;
 
@@ -1044,7 +1141,7 @@ test "TopologyMapping: join"
     );
 }
 
-test "TopologyMapping: LEFT/RIGHT -> EMPTY"
+test "Topology: LEFT/RIGHT -> EMPTY"
 {
     const allocator = std.testing.allocator;
 
@@ -1117,7 +1214,7 @@ const RIGHT = test_structs(
     }
 );
 
-test "TopologyMapping: trim_in_output_space"
+test "Topology: trim_in_output_space"
 {
     const allocator = std.testing.allocator;
 
@@ -1281,7 +1378,7 @@ test "TopologyMapping: trim_in_output_space"
 
 }
 
-test "TopologyMapping: trim_in_output_space (slides)"
+test "Topology: trim_in_output_space (slides)"
 {
 
     const allocator = std.testing.allocator;
@@ -1316,7 +1413,7 @@ test "TopologyMapping: trim_in_output_space (slides)"
     );
 }
 
-test "TopologyMapping: Bezier construction/leak"
+test "Topology: Bezier construction/leak"
 {
     const allocator = std.testing.allocator;
     
@@ -1336,7 +1433,7 @@ test "TopologyMapping: Bezier construction/leak"
     defer tm_a2b.deinit(allocator);
 }
 
-test "TopologyMapping: split_at_output_points"
+test "Topology: split_at_output_points"
 {
     const allocator = std.testing.allocator;
 
@@ -1379,7 +1476,7 @@ test "TopologyMapping: split_at_output_points"
     try std.testing.expectEqual(6, split_topo.mappings.len);
 }
 
-test "TopologyMapping: output_bounds w/ empty"
+test "Topology: output_bounds w/ empty"
 {
     const tm = Topology{
         .mappings = &.{

@@ -31,18 +31,24 @@ const RETIME_DEBUG_LOGGING = false;
 const WRITE_TEST_FILES = false;
 const TMPDIR = "/var/tmp";
 
-/// alias around the sample type @TODO: make this comptime definable (anytype)
+/// type of a sample VALUE (type of a sample ordinate is usize for a discrete
+/// index or opentime.Ordinate for continuous
+/// @TODO: make this comptime definable (anytype)
 const sample_t  = f32;
 
+/// project a continuous ordinate into a discrete index sequence
 pub fn project_instantaneous_cd(
     self: anytype,
-    ord_continuous: f32
+    ord_continuous: opentime.Ordinate,
 ) usize
 {
     return @intFromFloat(
         @floor(
-            ord_continuous*@as(f32, @floatFromInt(self.sample_rate_hz))
-            + (1/@as(f32, @floatFromInt(self.sample_rate_hz)))/2
+            ord_continuous*@as(
+                opentime.Ordinate,
+                @floatFromInt(self.sample_rate_hz)
+            )
+            + (1/@as(opentime.Ordinate, @floatFromInt(self.sample_rate_hz)))/2
         )
     );
 }
@@ -69,7 +75,10 @@ pub fn project_index_dc(
 {
     var start:f32 = @floatFromInt(ind_discrete);
     start -= @floatFromInt(self.start_index);
-    const s_per_cycle = 1 / @as(f32, @floatFromInt(self.sample_rate_hz));
+    const s_per_cycle = 1 / @as(
+        opentime.Ordinate,
+        @floatFromInt(self.sample_rate_hz)
+    );
     start *= s_per_cycle;
 
     return .{
@@ -130,12 +139,12 @@ const Sampling = struct {
     /// serialize the sampling to a wav file
     pub fn write_file(
         self: @This(),
-        fpath: []const u8
+        fpath: []const u8,
     ) !void 
     {
         var file = try std.fs.cwd().createFile(
             fpath,
-            .{}
+            .{},
         );
         defer file.close();
 
@@ -144,7 +153,7 @@ const Sampling = struct {
             file.writer(),
             file.seekableStream(),
             self.sample_rate_hz,
-            1
+            1,
         );
         defer encoder.finalize() catch unreachable; 
 
@@ -196,10 +205,10 @@ const Sampling = struct {
     /// map a time to an index in the buffer
     pub fn index_at_time(
         self: @This(),
-        t_s: sample_t,
+        t_s: opentime.Ordinate,
     ) usize
     {
-        const hz_f :f32 = @floatFromInt(self.sample_rate_hz);
+        const hz_f:opentime.Ordinate = @floatFromInt(self.sample_rate_hz);
 
         return @intFromFloat(@floor(t_s*hz_f + (0.5 / hz_f)));
     }
@@ -208,8 +217,8 @@ const Sampling = struct {
     /// @TODO: assumes that indices will be linearly increasing.  problem?
     pub fn indices_between_time(
         self: @This(),
-        start_time_inclusive_s: sample_t,
-        end_time_exclusive_s: sample_t,
+        start_time_inclusive_s: opentime.Ordinate,
+        end_time_exclusive_s: opentime.Ordinate,
     ) [2]usize
     {
         const start_index:usize = self.index_at_time(start_time_inclusive_s);
@@ -254,8 +263,8 @@ const Sampling = struct {
         return .{
             .start_seconds = 0,
             .end_seconds = (
-                @as(f32, @floatFromInt(self.buffer.len)) 
-                / @as(f32, @floatFromInt(self.sample_rate_hz))
+                @as(opentime.Ordinate, @floatFromInt(self.buffer.len)) 
+                / @as(opentime.Ordinate, @floatFromInt(self.sample_rate_hz))
             ),
         };
     }
@@ -299,8 +308,8 @@ pub const DiscreteDatasourceIndexGenerator = struct {
 pub const SignalGenerator = struct {
     sample_rate_hz: u32,
     signal_frequency_hz: u32,
-    signal_amplitude: f32 = 1.0,
-    signal_duration_s: f32,
+    signal_amplitude: sample_t = 1.0,
+    signal_duration_s: opentime.Ordinate,
     signal: Signal,
 
     const Signal= enum {
@@ -317,15 +326,16 @@ pub const SignalGenerator = struct {
         interpolating_samples: bool,
     ) !Sampling
     {
-        const sample_hz : sample_t = @floatFromInt(self.sample_rate_hz);
+        const sample_hz : opentime.Ordinate = @floatFromInt(self.sample_rate_hz);
 
         const samples_per_cycle = (
             sample_hz
-            / @as(f32, @floatFromInt(self.signal_frequency_hz))
+            / @as(opentime.Ordinate, @floatFromInt(self.signal_frequency_hz))
         );
 
         const result = try Sampling.init(
             allocator, 
+            // @TODO: f64 promotion of the signal duration?
             @intFromFloat(@ceil(@as(f64, self.signal_duration_s)*sample_hz)),
             self.sample_rate_hz,
             interpolating_samples,
@@ -589,7 +599,7 @@ pub fn retimed(
 pub fn retimed_linear_curve(
     allocator: std.mem.Allocator,
     in_samples: Sampling,
-    lin_curve: curve.Linear,
+    lin_curve: curve.Linear.Monotonic,
     step_retime: bool,
     output_sampling_info: DiscreteDatasourceIndexGenerator,
 ) !Sampling
@@ -698,48 +708,48 @@ pub fn retimed_linear_curve_non_interpolating(
     // curve: continuous sample -> continuous output space
     // need to build discrete sampling -> continuous transform
 
-    const retimed_to_implicit_topo = time_topology.TimeTopology{
-        .linear_curve = .{ .curve = retimed_to_implicit_crv }
-    };
+    const retimed_to_implicit_topo = (
+        try time_topology.Topology.init_from_linear(
+            allocator,
+            retimed_to_implicit_crv
+        )
+    );
 
     const extents = in_samples.extents();
-    const implicit_to_sample_topo_aff = time_topology.TimeTopology.init_affine(
-        .{
-            .bounds = extents,
-        }
-    );
-
-    const implicit_to_sample_topo = (
-        try implicit_to_sample_topo_aff.affine.linearized(
-            allocator,
-        )        
-    );
-    defer implicit_to_sample_topo.deinit(allocator);
-
-    // the output bounds are in this topology
-    const retimed_to_sample_topo = (
-        try implicit_to_sample_topo.project_topology(
-            allocator,
-            retimed_to_implicit_topo
+    const implicit_to_sample_topo_aff = (
+        time_topology.Topology.init_affine(
+            .{
+                .input_bounds_val = extents,
+            }
         )
+    );
+
+    // const implicit_to_sample_topo = (
+    //     try implicit_to_sample_topo_aff.affine.linearized(
+    //         allocator,
+    //     )        
+    // );
+    // defer implicit_to_sample_topo.deinit(allocator);
+
+    const retimed_to_sample_topo = try time_topology.join(
+        allocator,
+        .{
+            .a2b = retimed_to_implicit_topo,
+            .b2c = implicit_to_sample_topo_aff,
+        },
     );
     defer retimed_to_sample_topo.deinit(allocator);
 
-    // ...and in this curve
-    const ret_to_s_crv = retimed_to_sample_topo.linear_curve.curve;
+    const input_range = (
+        retimed_to_sample_topo.input_bounds()
+    );
 
-    // compute size of output buffer
-    var output_buffer_size:usize = 0;
-    for (ret_to_s_crv.knots[0..ret_to_s_crv.knots.len-1], ret_to_s_crv.knots[1..]) 
-        |l_knot, r_knot|
-    {    
-        const num_output_samples:usize = @intFromFloat(
-            (r_knot.in - l_knot.in) 
-             * @as(f32, @floatFromInt(output_sampling_info.sample_rate_hz))
-        );
+    const num_output_samples:usize = @intFromFloat(
+        input_range.duration_seconds() 
+        * @as(f32, @floatFromInt(output_sampling_info.sample_rate_hz))
+    );
 
-        output_buffer_size += num_output_samples;
-    }
+    const output_buffer_size = num_output_samples;
 
     const output_sampling = try Sampling.init(
         allocator,
@@ -759,12 +769,12 @@ pub fn retimed_linear_curve_non_interpolating(
         // output index -> output time (discrete->continuous)
         const output_sample_time: f32 = (
             @as(f32, @floatFromInt(output_index)) * s_per_sample_output
-            + ret_to_s_crv.knots[0].in
+            + input_range.start_seconds
         );
 
         // output -> input time (continuous -> continuous)
         const input_sample_time = (
-            try ret_to_s_crv.output_at_input(output_sample_time)
+            try retimed_to_sample_topo.project_instantaneous_cc(output_sample_time)
         );
 
         // input time -> input index (continuous -> discrete)
@@ -810,9 +820,11 @@ pub fn retimed_linear_curve_interpolating(
     )  
         |l_knot, r_knot|
     {    
-        const relevant_sample_indices = in_samples.indices_between_time(
-            l_knot.in,
-            r_knot.in
+        const relevant_sample_indices = (
+            in_samples.indices_between_time(
+                l_knot.in,
+                r_knot.in
+            )
         );
         const relevant_input_samples = in_samples.buffer[
             relevant_sample_indices[0]..
@@ -1393,9 +1405,11 @@ test "sampling: frame phase slide 1: (time*1 freq*1 phase+0) 0,1,2,3->0,1,2,3"
     try expectEqual(false, ramp_samples.interpolating);
 
     // @TODO: return here after threading interpolating through
-    const sample_to_output_crv = try curve.linear_curve.Linear.init_identity(
-        std.testing.allocator,
-        &.{0, 2},
+    const sample_to_output_crv = (
+        try curve.linear_curve.Linear.init_identity(
+            std.testing.allocator,
+            &.{0, 2},
+        )
     );
     defer sample_to_output_crv.deinit(std.testing.allocator);
 

@@ -678,7 +678,7 @@ pub fn build(
         .{
             .b = b,
             .options = options,
-            .fpath = "src/time_topology/time_topology.zig",
+            .fpath = "src/time_topology/topology.zig",
             .deps = &.{
                 .{ .name = "opentime", .module = opentime },
                 .{ .name = "curve", .module = curve },

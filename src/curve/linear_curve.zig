@@ -365,7 +365,7 @@ pub fn LinearOf(
         pub fn init_identity(
             allocator: std.mem.Allocator,
             knot_input_ords:[]const opentime.Ordinate
-        ) !LinearType 
+        ) !LinearType.Monotonic 
         {
             var result = std.ArrayList(ControlPointType).init(
                 allocator,
@@ -376,7 +376,7 @@ pub fn LinearOf(
                 try result.append(.{.in = t, .out = t});
             }
 
-            return LinearType{
+            return LinearType.Monotonic{
                 .knots = try result.toOwnedSlice(), 
             };
         }
