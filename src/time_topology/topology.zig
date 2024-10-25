@@ -1140,43 +1140,43 @@ test "TopologyMapping: trim_in_output_space"
             },
             .result_mappings = 1,
         },
-        // .{
-        //     .name = "left trim",
-        //     .target = .{
-        //         .start_seconds = 3,
-        //         .end_seconds = 41 
-        //     },
-        //     .expected = .{
-        //         .start_seconds = 3,
-        //         .end_seconds = 40,
-        //     },
-        //     .result_mappings = 2,
-        // },
-        // .{
-        //     .name = "right trim",
-        //     .target = .{
-        //         .start_seconds = 0,
-        //         .end_seconds = 7 
-        //     },
-        //     .expected = .{
-        //         .start_seconds = 3,
-        //         .end_seconds = 7,
-        //     },
-        //     .result_mappings = 2,
-        // },
-        // .{
-        //     .name = "both trim",
-        //     .target = .{
-        //         .start_seconds = 3,
-        //         .end_seconds = 7 
-        //     },
-        //     .expected = .{
-        //         .start_seconds = 3,
-        //         .end_seconds = 7,
-        //     },
-        //     .result_mappings = 3,
-        // },
-        //       all trimmed
+        .{
+            .name = "left trim",
+            .target = .{
+                .start_seconds = 3,
+                .end_seconds = 41 
+            },
+            .expected = .{
+                .start_seconds = 3,
+                .end_seconds = 40,
+            },
+            .result_mappings = 2,
+        },
+        .{
+            .name = "right trim",
+            .target = .{
+                .start_seconds = -1,
+                .end_seconds = 7 
+            },
+            .expected = .{
+                .start_seconds = 0,
+                .end_seconds = 7,
+            },
+            .result_mappings = 2,
+        },
+        .{
+            .name = "both trim",
+            .target = .{
+                .start_seconds = 3,
+                .end_seconds = 7 
+            },
+            .expected = .{
+                .start_seconds = 3,
+                .end_seconds = 7,
+            },
+            .result_mappings = 3,
+        },
+        // all trimmed
     };
 
     const INPUT_TOPO = MIDDLE.LIN_TOPO;
@@ -1205,6 +1205,7 @@ test "TopologyMapping: trim_in_output_space"
                       ++ " input: {s} / output range: {s}\n"
                       ++ " target range: {s}\n"
                       ++ " trimmed: {s} / output range: {s}\n"
+                      ++ " expected: {s}\n"
                 ),
                .{
                    t.name,
@@ -1213,6 +1214,7 @@ test "TopologyMapping: trim_in_output_space"
                    t.target,
                    trimmed,
                    trimmed.output_bounds(),
+                   t.expected,
                }
             );
         }
