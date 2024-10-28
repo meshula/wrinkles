@@ -1375,17 +1375,20 @@ test "slope"
 
 pub fn inverted_linear(
     allocator: std.mem.Allocator,
-    crv: linear_curve.Linear,
-) !linear_curve.Linear 
+    crv: linear_curve.Linear.Monotonic,
+) !linear_curve.Linear.Monotonic 
 {
     // require two points to define a line
     if (crv.knots.len < 2) {
         return crv;
     }
 
-    const result = try crv.clone(allocator);
+    var result = (
+        std.ArrayList(control_point.ControlPoint).init(allocator)
+    );
+    try result.appendSlice(crv.knots);
 
-    for (crv.knots, result.knots) 
+    for (crv.knots, result.items) 
         |src_knot, *dst_knot| 
     {
         dst_knot.* = .{
@@ -1394,63 +1397,18 @@ pub fn inverted_linear(
         };
     }
 
-    // @TODO: the library assumes that all curves are monotonic over
-    //        time. therefore, inverting a bezier_curve where the slope changes sign
-    //        will result in an invalid bezier_curve.  see the implementation of
-    //        Segment.init_from_start_end for an example of where this assumption is
-    //        tested.
-    //
-    // const slope = slope( crv.knots[0], crv.knots[1]);
-    // if (slope < 0) {
-    //     std.mem.reverse(
-    //         control_point.ControlPoint,
-    //         result.knots
-    //     );
-    // }
-
-    const ncount = crv.knots.len;
-    var slice_start:usize = 0;
-    var slice_sign = std.math.sign(
-        slope(
-            crv.knots[0],
-            crv.knots[1]
-        )
+    const slope_kind = SlopeKind.compute(
+        crv.knots[0],
+        crv.knots[1]
     );
-    for (
-        crv.knots[0..ncount-1],
-        crv.knots[1..],
-        1..,
-    )
-        |p0, p1, i_p1|
-    {
-        const slope_sign = std.math.sign(
-            slope(p0, p1)
-        );
-
-        if (slope_sign == slice_sign) {
-            continue;
-        }
-
-        if (slice_sign < 0) {
-            std.mem.reverse(
-                control_point.ControlPoint,
-                result.knots[slice_start..i_p1]
-            );
-        }
-
-        slice_start = i_p1;
-        slice_sign = slope_sign;
-    }
-
-    // if last slice
-    if (slice_sign < 0) {
+    if (slope_kind == .falling) {
         std.mem.reverse(
             control_point.ControlPoint,
-            result.knots[slice_start..]
+            result.items
         );
     }
 
-    return result;
+    return .{ .knots = try result.toOwnedSlice() };
 }
 
 pub fn inverted_bezier(
