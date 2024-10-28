@@ -1819,18 +1819,20 @@ pub const SlopeKind = enum {
     rising,
     falling,
 
+    /// compute the slope kind between the two control points
     pub fn compute(
         start: control_point.ControlPoint,
         end: control_point.ControlPoint,
     ) SlopeKind
     {
-        const s = slope(start, end);
-
-        if (s == 0 or std.math.isNan(s) or std.math.isInf(s))
+        if (start.in == end.in or start.out == end.out) 
         {
             return .flat;
         }
-        else if (s > 0) 
+
+        const s = slope(start, end);
+
+        if (s > 0) 
         {
             return .rising;
         }
