@@ -25,7 +25,7 @@ const curve = @import("curve");
 test {
     _ = mapping_affine;
     _ = mapping_curve_linear;
-    // _ = mapping_curve_bezier;
+    _ = mapping_curve_bezier;
 }
 
 // const topology = @import("topology.zig");
