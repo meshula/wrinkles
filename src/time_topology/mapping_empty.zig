@@ -52,10 +52,10 @@ pub const MappingEmpty = struct {
     }
 
     pub fn output_bounds(
-        _: @This(),
+        self: @This(),
     ) opentime.ContinuousTimeInterval 
     {
-        return opentime.interval.INF_CTI;
+        return self.input_bounds();
     }
 
     pub fn clone(
@@ -186,13 +186,12 @@ test "MappingEmpty: Bounds"
 
     // returns an infinite output bounds
     const o_b = me.output_bounds();
-    try std.testing.expect(o_b.is_infinite());
     try std.testing.expectEqual(
-        opentime.interval.INF_CTI.start_seconds,
+        -2,
         o_b.start_seconds
     );
     try std.testing.expectEqual(
-        opentime.interval.INF_CTI.end_seconds,
+        2,
         o_b.end_seconds
     );
 }
