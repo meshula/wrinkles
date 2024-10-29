@@ -433,8 +433,8 @@ pub const Topology = struct {
             std.ArrayList(mapping.Mapping).init(allocator)
         );
 
-        for (self.mappings)
-            |m|
+        for (self.mappings, 0..)
+            |m, m_ind|
         {
             const m_in_range = m.input_bounds();
             const m_out_range = m.output_bounds();
@@ -468,8 +468,9 @@ pub const Topology = struct {
                 );
 
                 if (
-                    shrunk_input_bounds.start_seconds 
-                    > m_in_range.start_seconds
+                    shrunk_input_bounds.start_seconds > m_in_range.start_seconds
+                    and m_ind > 0
+
                 ) 
                 {
                     // empty left
@@ -494,10 +495,22 @@ pub const Topology = struct {
                     try new_mappings.append(try shrunk_m.clone(allocator));
                 }
 
-                if (shrunk_input_bounds.end_seconds < m_in_range.end_seconds)
+                if (
+                    shrunk_input_bounds.end_seconds < m_in_range.end_seconds
+                    and m_ind < self.mappings.len-1
+                )
                 {
                     // empty right
-                    try new_mappings.append(try shrunk_m.clone(allocator));
+                    try new_mappings.append(
+                        (
+                         mapping.MappingEmpty{
+                             .defined_range = .{
+                                 .start_seconds = shrunk_input_bounds.end_seconds,
+                                 .end_seconds = m_in_range.end_seconds,
+                             },
+                         }
+                        ).mapping()
+                    );
                 }
             }
             else 
@@ -1413,12 +1426,51 @@ test "Topology: trim_in_output_space (slides)"
     );
 }
 
+test "Topology: trim_in_output_space (trim to multiple split bug)"
+{
+    const allocator = std.testing.allocator;
+
+    const a2b = try Topology.init_from_linear_monotonic(
+        allocator,
+        .{
+            .knots = &.{
+                .{ .in = 0, .out = 0},
+                .{ .in = 2, .out = 2},
+            }
+        }
+    );
+    defer a2b.deinit(allocator);
+
+    const a2b_trimmed = try a2b.trim_in_output_space(
+        allocator, 
+        .{ .start_seconds = 0.5, .end_seconds = 1 },
+    );
+    defer a2b_trimmed.deinit(allocator);
+
+    try std.testing.expectEqual(
+        1,
+        a2b_trimmed.mappings.len
+    );
+    try std.testing.expectEqual(
+        .linear,
+        std.meta.activeTag(a2b_trimmed.mappings[0])
+    );
+    try std.testing.expectEqual(
+        0.5,
+        a2b_trimmed.mappings[0].input_bounds().start_seconds,
+    );
+    try std.testing.expectEqual(
+        1,
+        a2b_trimmed.mappings[0].input_bounds().end_seconds,
+    );
+}
+
 test "Topology: Bezier construction/leak"
 {
     const allocator = std.testing.allocator;
     
     const tm_a2b = (
-        try mapping.MappingCurveBezier.init_segments(
+        try Topology.init_bezier(
             allocator, 
             &.{
                 .{
