@@ -170,7 +170,7 @@ pub const Mapping = union (enum) {
         self: @This(),
         allocator: std.mem.Allocator,
         input_points: []const opentime.Ordinate,
-    ) ![]Mapping
+    ) ![]const Mapping
     {
         return switch (self) {
             .empty => try allocator.dupe(Mapping, &.{ self }),
@@ -186,7 +186,7 @@ pub const Mapping = union (enum) {
         self: @This(),
         allocator: std.mem.Allocator,
         output_points: []const opentime.Ordinate,
-    ) ![]Mapping
+    ) ![]const Mapping
     {
         var result_mappings = (
             std.ArrayList(Mapping).init(allocator)

@@ -131,7 +131,7 @@ pub const MappingCurveLinearMonotonic = struct {
         self: @This(),
         allocator: std.mem.Allocator,
         input_points: []const opentime.Ordinate,
-    ) ![]mapping_mod.Mapping
+    ) ![]const mapping_mod.Mapping
     {
         const new_curves = (
             try self.input_to_output_curve.split_at_input_ordinates(
@@ -148,7 +148,12 @@ pub const MappingCurveLinearMonotonic = struct {
             |crv|
         {
             try result_mappings.append(
-                MappingCurveLinearMonotonic.init_curve(crv).mapping()
+                (
+                 try MappingCurveLinearMonotonic.init_curve(
+                     allocator,
+                     crv,
+                 )
+                ).mapping()
             );
         }
 

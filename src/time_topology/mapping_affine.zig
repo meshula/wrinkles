@@ -152,7 +152,7 @@ pub const MappingAffine = struct {
         self: @This(),
         allocator: std.mem.Allocator,
         input_points: []const opentime.Ordinate,
-    ) ![]mapping_mod.Mapping
+    ) ![]const mapping_mod.Mapping
     {
         var result_mappings = (
             std.ArrayList(mapping_mod.Mapping).init(allocator)
