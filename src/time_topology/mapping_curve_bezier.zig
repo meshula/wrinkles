@@ -30,14 +30,21 @@ pub const MappingCurveBezier = struct {
         const lin_split = try lin.split_at_critical_points(
             allocator
         );
-        defer allocator.free(lin_split);
+        defer {
+            for (lin_split) 
+                |mono|
+            {
+                mono.deinit(allocator);
+            }
+            allocator.free(lin_split);
+        }
 
         for (lin_split)
             |mono_lin|
         {
             const map_mono =(
                 mapping_mod.MappingCurveLinearMonotonic{
-                    .input_to_output_curve = mono_lin,
+                    .input_to_output_curve = try mono_lin.clone(allocator),
                 }
             );
 
@@ -47,23 +54,6 @@ pub const MappingCurveBezier = struct {
         return topology.Topology{
             .mappings = try result_mappings.toOwnedSlice(),
         };
-    }
-
-    pub fn init_segments(
-        allocator: std.mem.Allocator,
-        segments: []const curve.Bezier.Segment,
-    ) !topology.Topology
-    {
-        const crv = try curve.Bezier.init(
-            allocator,
-            segments
-        );
-        defer crv.deinit(allocator);
-
-        return try MappingCurveBezier.init_curve(
-            allocator,
-            crv,
-        );
     }
 
     pub fn deinit(
@@ -331,23 +321,31 @@ pub const MappingCurveBezier = struct {
 //     }
 // };
 //
-// test "MappingCurveBezier: init and project"
-// {
-//     const mcb = (
-//         try MappingCurveBezier.init_segments(
-//             std.testing.allocator, 
-//             &.{ 
-//                 curve.Bezier.Segment.init_from_start_end(
-//                     .{ .in = 0, .out = 0 },
-//                     .{ .in = 10, .out = 20 },
-//                 ),
-//             },
-//             )
-//     ).mapping();
-//     defer mcb.deinit(std.testing.allocator);
-//
-//     try std.testing.expectEqual(
-//         10,  
-//         mcb.project_instantaneous_cc(5),
-//     );
-// }
+test "MappingCurveBezier: init and project"
+{
+    const allocator = std.testing.allocator;
+
+    const crv = try curve.Bezier.init(
+        allocator,
+        &.{ 
+            curve.Bezier.Segment.init_from_start_end(
+                .{ .in = 0, .out = 0 },
+                .{ .in = 10, .out = 20 },
+            ),
+        }
+    );
+    defer crv.deinit(allocator);
+
+    const t_bez = (
+        try MappingCurveBezier.init_curve(
+            allocator,
+            crv,
+        )
+    );
+    defer t_bez.deinit(std.testing.allocator);
+
+    try std.testing.expectEqual(
+        10,  
+        t_bez.project_instantaneous_cc(5),
+    );
+}
