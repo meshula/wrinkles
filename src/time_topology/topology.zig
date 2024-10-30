@@ -167,7 +167,13 @@ pub const Topology = struct {
             {
                 try writer.print(", ", .{});
             }
-            try writer.print("({s}, {s})", .{ @tagName(m), m.input_bounds() });
+            try writer.print(
+                "({s}, {s})",
+                .{
+                    @tagName(m),
+                    m.input_bounds(),
+                },
+            );
         }
 
         try writer.print("] }}", .{});
