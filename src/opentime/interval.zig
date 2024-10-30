@@ -208,12 +208,26 @@ test "ContinuousTimeInterval: extend"
 /// return whether there is any overlap between fst and snd
 pub fn any_overlap(
     fst: ContinuousTimeInterval,
-    snd: ContinuousTimeInterval
+    snd: ContinuousTimeInterval,
 ) bool 
 {
     return (
-        fst.start_seconds < snd.end_seconds
-        and fst.end_seconds > snd.start_seconds
+        // for cases when one interval starts and ends on the same point, allow
+        // allow that point to overlap (because of the clusivity the start
+        // point).
+        (
+             fst.start_seconds == fst.end_seconds
+             and fst.start_seconds >= snd.start_seconds
+             and fst.start_seconds < snd.end_seconds
+        ) or (
+            snd.start_seconds == snd.end_seconds
+            and snd.start_seconds >= fst.start_seconds
+            and snd.start_seconds <  fst.end_seconds
+        ) or (
+        // general case
+         fst.start_seconds < snd.end_seconds
+         and fst.end_seconds > snd.start_seconds
+        )
     );
 }
 
