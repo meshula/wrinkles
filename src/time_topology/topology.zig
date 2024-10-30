@@ -1049,11 +1049,11 @@ const EMPTY = Topology{
 
 /// build a topological mapping from a to c
 pub fn join(
- parent_allocator: std.mem.Allocator,
- args: struct{
-     a2b: Topology, // split on output
-     b2c: Topology, // split in input
- },
+    parent_allocator: std.mem.Allocator,
+    topologies: struct{
+        a2b: Topology, // split on output
+        b2c: Topology, // split in input
+    },
 ) !Topology
 {
     var arena = std.heap.ArenaAllocator.init(parent_allocator);
@@ -1061,8 +1061,8 @@ pub fn join(
 
     const allocator = arena.allocator();
 
-    const a2b = args.a2b;
-    const b2c = args.b2c;
+    const a2b = topologies.a2b;
+    const b2c = topologies.b2c;
 
     // first trim both to the intersection range
     const b_range = opentime.interval.intersect(
