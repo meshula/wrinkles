@@ -677,13 +677,53 @@ pub const Topology = struct {
             std.ArrayList(opentime.Ordinate).init(allocator)
         );
 
-        try result.append(self.mappings[0].output_bounds().start_seconds);
+        var set = (
+            std.HashMap(
+                opentime.Ordinate,
+                void,
+                struct{
+                    pub fn hash(
+                        _: @This(),
+                        key: opentime.Ordinate,
+                    ) u64
+                    {
+                        return @bitCast(@as(f64, @floatCast(key)));
+                    }
+
+                    pub fn eql(
+                        _: @This(),
+                        fst: opentime.Ordinate,
+                        snd: opentime.Ordinate,
+                    ) bool
+                    {
+                        return fst == snd;
+                    }
+                },
+                std.hash_map.default_max_load_percentage,
+            ).init(allocator)
+        );
+        defer set.deinit();
 
         for (self.mappings)
             |m|
         {
-            try result.append(m.output_bounds().end_seconds);
+            const b = m.output_bounds();
+            for (&[_]opentime.Ordinate{ b.start_seconds, b.end_seconds })
+                |new_point|
+            {
+                if (set.get(new_point) == null) {
+                    try result.append(new_point);
+                    try set.put(new_point, {});
+                }
+            }
         }
+
+        std.mem.sort(
+            opentime.Ordinate,
+            result.items,
+            {},
+            std.sort.asc(opentime.Ordinate)
+        );
 
         return try result.toOwnedSlice();
     }
