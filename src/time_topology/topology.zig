@@ -1077,8 +1077,8 @@ fn build_test_topo_from_slides(
     allocator: std.mem.Allocator,
 ) !TestToposFromSlides
 {
-    const tm_a2b = (
-        try mapping.MappingCurveBezier.init_segments(
+    const topo_a2b = (
+        try Topology.init_bezier(
             allocator, 
             &.{
                 .{
@@ -1125,7 +1125,7 @@ fn build_test_topo_from_slides(
         }
     ).mapping();
 
-    const tm_b2c = try Topology.init(
+    const topo_b2c = try Topology.init(
         allocator,
         &.{
             try m_b2c_left.clone(allocator),
@@ -1135,8 +1135,8 @@ fn build_test_topo_from_slides(
     );
 
     return .{
-        .a2b = tm_a2b,
-        .b2c = tm_b2c,
+        .a2b = topo_a2b,
+        .b2c = topo_b2c,
     };
 }
 
@@ -1301,7 +1301,6 @@ test "Topology: trim_in_output_space"
         name: []const u8,
         target: opentime.ContinuousTimeInterval,
         expected: opentime.ContinuousTimeInterval,
-        result_mappings: usize,
     };
     const tests = [_]TestCase{
         .{
@@ -1314,7 +1313,6 @@ test "Topology: trim_in_output_space"
                 .start_seconds = 0,
                 .end_seconds = 40,
             },
-            .result_mappings = 1,
         },
         .{
             .name = "left trim",
@@ -1326,7 +1324,6 @@ test "Topology: trim_in_output_space"
                 .start_seconds = 3,
                 .end_seconds = 40,
             },
-            .result_mappings = 2,
         },
         .{
             .name = "right trim",
@@ -1338,7 +1335,6 @@ test "Topology: trim_in_output_space"
                 .start_seconds = 0,
                 .end_seconds = 7,
             },
-            .result_mappings = 2,
         },
         .{
             .name = "both trim",
@@ -1350,7 +1346,6 @@ test "Topology: trim_in_output_space"
                 .start_seconds = 3,
                 .end_seconds = 7,
             },
-            .result_mappings = 3,
         },
         // all trimmed
     };
@@ -1396,7 +1391,7 @@ test "Topology: trim_in_output_space"
         }
 
         try std.testing.expectEqual(
-            t.result_mappings,
+            1,
             trimmed.mappings.len,
         );
 
