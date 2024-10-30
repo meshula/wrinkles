@@ -108,7 +108,7 @@ pub const Topology = struct {
             try result_mappings.append(
                 (
                  mapping.MappingCurveLinearMonotonic{
-                    .input_to_output_curve = mc,
+                    .input_to_output_curve = try mc.clone(allocator),
                 }
                 ).mapping()
             );
