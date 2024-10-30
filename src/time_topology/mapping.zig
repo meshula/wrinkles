@@ -301,7 +301,7 @@ pub fn test_structs(
             .out = int.end_seconds * 4,
         };
         pub const CENTER_PT = (
-            END_PT.sub(START_PT).div(2)
+            curve.bezier_math.lerp(0.5, START_PT, END_PT)
         );
 
         pub const INT = int;
