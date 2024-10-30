@@ -317,12 +317,13 @@ pub fn test_structs(
 
         pub const LIN = mapping_curve_linear.MappingCurveLinearMonotonic {
             .input_to_output_curve = .{
-                .knots = @constCast(&[_]curve.ControlPoint{
+                .knots = &.{
                     START_PT,
                     END_PT, 
-                }),
+                },
             },
         };
+
 
         // pub const BEZ = mapping_curve_bezier.MappingCurveBezier {
         //     .input_to_output_curve = .{
