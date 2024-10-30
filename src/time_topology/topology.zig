@@ -61,6 +61,25 @@ pub const Topology = struct {
         };
     }
 
+    pub fn init_from_linear_monotonic(
+        allocator: std.mem.Allocator,
+        crv: curve.Linear.Monotonic,
+    ) !Topology
+    {
+        return try Topology.init(
+            allocator,
+            &.{ 
+                (
+                 mapping.MappingCurveLinearMonotonic {
+                     .input_to_output_curve = try crv.clone(
+                         allocator,
+                     ),
+                 }
+                ).mapping(),
+            }
+        );
+    }
+
     pub fn init_from_linear(
         allocator: std.mem.Allocator,
         crv: curve.Linear,
@@ -93,12 +112,31 @@ pub const Topology = struct {
     }
 
     pub fn init_affine(
+        allocator: std.mem.Allocator,
         aff: mapping.MappingAffine,
-    ) Topology
+    ) !Topology
     {
-        return .{
-            .mappings = &.{ aff.mapping() },
-        };
+        return Topology.init(
+            allocator,
+            &.{ aff.mapping() }
+        );
+    }
+
+    pub fn init_bezier(
+        allocator: std.mem.Allocator,
+        segments: []const curve.Bezier.Segment,
+    ) !Topology
+    {
+        const crv = try curve.Bezier.init(
+            allocator,
+            segments
+        );
+        defer crv.deinit(allocator);
+
+        return try mapping.MappingCurveBezier.init_curve(
+            allocator,
+            crv,
+        );
     }
 
     /// custom formatter for std.fmt
