@@ -768,6 +768,37 @@ pub const Topology = struct {
 
         return error.OutOfBounds;
     }
+
+    /// project the output space ordinate into the input space.  Because
+    /// monotonicity is only guaranteed in the forward direction, projects to a
+    /// slice.
+    pub fn project_instantaneous_cc_inv(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        output_ord: opentime.Ordinate
+    ) ![]const opentime.Ordinate
+    {
+        var input_ordinates = (
+            std.ArrayList(opentime.Ordinate).init(allocator)
+        );
+        errdefer input_ordinates.deinit();
+
+        for (self.mappings)
+            |m|
+        {
+            if (
+                m.output_bounds().overlaps_seconds(output_ord)
+                or output_ord == m.output_bounds().end_seconds
+            )
+            {
+                try input_ordinates.append(
+                    try m.project_instantaneous_cc_inv(output_ord)
+                );
+            }
+        }
+
+        return try input_ordinates.toOwnedSlice();
+    }
 };
 
 test "Topology.split_at_input_points"
@@ -1199,6 +1230,41 @@ fn test_structs(
         pub const LIN_TOPO = Topology {
             .mappings = &.{ MAPPINGS.LIN.mapping() },
         };
+        pub const LIN_V_TOPO = Topology {
+            .mappings = &.{
+                (
+                 mapping.MappingCurveLinearMonotonic{
+                     .input_to_output_curve = .{
+                         .knots = &.{
+                             MAPPINGS.START_PT,
+                             .{
+                                 .in = MAPPINGS.CENTER_PT.in,
+                                 .out = MAPPINGS.END_PT.out,
+                             },
+                         },
+                     },
+                 }
+                ).mapping(),
+                (
+                 mapping.MappingCurveLinearMonotonic{
+                     .input_to_output_curve = .{
+                         .knots = (
+                             &.{
+                                 .{
+                                     .in = MAPPINGS.CENTER_PT.in,
+                                     .out = MAPPINGS.END_PT.out,
+                                 },
+                                 .{
+                                     .in = MAPPINGS.END_PT.in,
+                                     .out = MAPPINGS.START_PT.in,  
+                                 },
+                             }
+                         ),
+                     },
+                 }
+                ).mapping()
+            },
+        };
         pub const BEZ_TOPO = Topology {
             .mappings = &.{ MAPPINGS.BEZ.mapping() },
         };
@@ -1554,4 +1620,91 @@ test "Topology: output_bounds w/ empty"
         expected.end_seconds,
         tm.output_bounds().end_seconds,
     );
+}
+
+test "Topology: project_instantaneous_cc and project_instantaneous_cc_inv"
+{
+    const allocator = std.testing.allocator;
+
+    const TestFixture = struct {
+        name: []const u8,
+        input_to_output_topo: Topology,
+        test_pts_fwd: []const curve.ControlPoint,
+        test_pts_inv: []const [3]opentime.Ordinate,
+        out_of_bounds_pts: []const opentime.Ordinate,
+    };
+
+    const tests = [_]TestFixture {
+        .{
+            .name = "v",
+            .input_to_output_topo = MIDDLE.LIN_V_TOPO,
+            .test_pts_fwd = &.{
+                .{ .in = 0, .out = 0 },
+                .{ .in = 2, .out = 16 },
+                .{ .in = 4, .out = 32 },
+                .{ .in = 5, .out = 40 },
+                .{ .in = 6, .out = 32 },
+                .{ .in = 8, .out = 16 },
+            },
+            .test_pts_inv = &.{
+                .{ 32, 4, 6, },
+                .{ 16, 2, 8, },
+            },
+            .out_of_bounds_pts = &.{
+                -1, 11,
+            },
+        },
+    };
+
+    for (tests)
+        |t|
+    {
+        errdefer std.debug.print(
+            "topo: {s}\n",
+            .{ t.input_to_output_topo }
+        );
+        for (t.test_pts_fwd)
+            |pt|
+        {
+            errdefer {
+                std.debug.print(
+                    "error with test: {s} pt: {d}\n",
+                    .{
+                        t.name,
+                        pt,
+                    }
+                );
+            }
+
+            // forward
+            const measured_out = (
+                try t.input_to_output_topo.project_instantaneous_cc(pt.in)
+            );
+
+            try std.testing.expectApproxEqAbs(
+                pt.out,
+                measured_out,
+                opentime.util.EPSILON,
+            );
+        }
+
+        for (t.test_pts_inv)
+            |pts|
+        {
+            // reverse
+            const measured_in = (
+                try t.input_to_output_topo.project_instantaneous_cc_inv(
+                    allocator,
+                    pts[0],
+                )
+            );
+            defer allocator.free(measured_in);
+
+            try std.testing.expectEqualSlices(
+                opentime.Ordinate,
+                pts[1..],
+                measured_in,
+            );
+        }
+    }
 }
