@@ -535,7 +535,6 @@ pub fn join(
         }
     ).mapping();
 
-
     // joining anything with an empty results in an empty
     if (a2b == .empty or b2c == .empty) {
         return empty_result;
@@ -560,11 +559,14 @@ pub fn join(
     // trimmed and linearized
     const a2b_trimmed = try a2b.shrink_to_output_interval(
         allocator,
-        b_bounds_intersection
+        b_bounds_intersection,
     );
+    defer a2b_trimmed.deinit(allocator);
     const b2c_trimmed = try b2c.shrink_to_input_interval(
         allocator,
-        b_bounds_intersection
+        b_bounds_intersection,
+    );
+    defer b2c_trimmed.deinit(allocator);
     );
 
     return switch (b2c_trimmed) {
