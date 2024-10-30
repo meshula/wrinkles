@@ -88,6 +88,14 @@ pub const Topology = struct {
         const mono_crvs = (
             try crv.split_at_critical_points(allocator)
         );
+        defer {
+            for (mono_crvs)
+                |mc|
+            {
+                mc.deinit(allocator);
+            }
+            allocator.free(mono_crvs);
+        }
 
         var result_mappings = (
             std.ArrayList(mapping.Mapping).init(allocator)
