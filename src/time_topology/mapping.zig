@@ -520,14 +520,14 @@ pub fn join_lin_lin(
 ///
 pub fn join(
     allocator: std.mem.Allocator,
-    args: struct{
+    mappings: struct{
         a2b: Mapping,
         b2c: Mapping,
     },
 ) !Mapping
 {
-    var a2b: Mapping = args.a2b;
-    var b2c: Mapping = args.b2c;
+    var a2b: Mapping = mappings.a2b;
+    var b2c: Mapping = mappings.b2c;
 
     const empty_result = (
         MappingEmpty{
