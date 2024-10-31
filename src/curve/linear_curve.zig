@@ -344,6 +344,178 @@ pub fn LinearOf(
                 try writer.print("\n  ]\n}}", .{});
             }
 
+            pub fn split_at_input_ordinates(
+                self: @This(),
+                allocator: std.mem.Allocator,
+                /// a sorted, ascending, list of points in the input space
+                input_points: []const opentime.Ordinate,
+            ) ![]const Monotonic
+            {
+                const ib = self.extents_input();
+
+                std.debug.print(
+                    "[split_at_input_ordinates_curve] pts: {any}\n",
+                    .{input_points}
+                );
+
+                if (
+                    // empty
+                    input_points.len == 0
+                    // out of range
+                    or input_points[0] > ib.end_seconds 
+                    or input_points[input_points.len - 1] < ib.start_seconds
+                )
+                {
+                    std.debug.print(
+                        "[split_at_input_ordinates_curve] empty/out of range\n",
+                        .{}
+                    );
+                    return &.{ try self.clone(allocator) };
+                }
+
+                var new_knot_slices = (
+                    std.ArrayList([]ControlPointType).init(allocator)
+                );
+                defer new_knot_slices.deinit();
+
+                var current_curve = (
+                    std.ArrayList(ControlPointType).init(allocator)
+                );
+                defer current_curve.deinit();
+
+                // search for first point that is in range
+                var left_knot_ind:usize = 0;
+                var left_knot = self.knots[left_knot_ind];
+
+                // left knot is always in the list
+                std.debug.print(
+                    "appending: {s}\n",
+                    .{
+                        left_knot
+                    }
+                );
+                try current_curve.append(left_knot);
+
+                var right_knot_ind:usize = 1;
+                var right_knot = self.knots[right_knot_ind];
+
+                for (input_points)
+                    |in_pt|
+                {
+                    std.debug.print(
+                        "processing: {d}\n",
+                        .{
+                            in_pt
+                        }
+                    );
+                    // point is before range, skip
+                    if (
+                        in_pt < ib.start_seconds 
+                        or in_pt <= left_knot.in + generic_curve.EPSILON
+                    ) 
+                    {
+                        std.debug.print(
+                            "[split_at_input_ordinates_curve] skipping: {d}\n",
+                            .{in_pt}
+                        );
+                        continue;
+                    }
+
+                    // points are sorted, so once a point is out of range,
+                    // split is done
+                    if (in_pt > ib.end_seconds) {
+                        std.debug.print(
+                            "break: over range {d} / ib: {s}\n",
+                            .{in_pt, ib}
+                        );
+                        break;
+                    }
+
+                    std.debug.print(
+                        "check: left {d}/{d} right {d}/{d} in_pt {d}\n",
+                        .{
+                            left_knot, left_knot_ind,
+                            right_knot,right_knot_ind,
+                            in_pt
+                        }
+                    );
+
+                    // move current pt until it is the point on the curve AFTER
+                    // the input pt
+                    while (
+                        right_knot.in < in_pt 
+                        and right_knot_ind < self.knots.len
+                    ) : ({ right_knot_ind += 1; left_knot_ind += 1; })
+                    {
+                        std.debug.print(
+                            "advance: left {d}/{d} right {d}/{d} in_pt {d}\n",
+                            .{
+                                left_knot, left_knot_ind,
+                                right_knot,right_knot_ind,
+                                in_pt
+                            }
+                        );
+                        left_knot = self.knots[left_knot_ind];
+                        right_knot = self.knots[right_knot_ind];
+                        std.debug.print(
+                            "appending {s}\n",
+                            .{left_knot}
+                        );
+                        try current_curve.append(left_knot);
+                    }
+
+                    if (right_knot_ind >= self.knots.len) {
+                        std.debug.print(
+                            "break: over index ({d}/{d})\n",
+                            .{in_pt, right_knot_ind}
+                        );
+                        break;
+                    }
+
+                    const new_knot = ControlPointType{
+                        .in = in_pt,
+                        .out = try self.output_at_input(in_pt),
+                    };
+
+                    std.debug.print(
+                        "appending {s}\n",
+                        .{new_knot}
+                    );
+
+                    try current_curve.append(new_knot);
+                    try new_knot_slices.append(
+                        try current_curve.toOwnedSlice(),
+                    );
+
+                    current_curve.clearRetainingCapacity();
+                    try current_curve.append(new_knot);
+                }
+
+                try current_curve.appendSlice(self.knots[right_knot_ind..]);
+                try new_knot_slices.append(
+                    try current_curve.toOwnedSlice(),
+                );
+                errdefer new_knot_slices.deinit();
+
+                var new_curves = (
+                    std.ArrayList(Monotonic).init(allocator)
+                );
+                defer new_curves.deinit();
+
+                for (new_knot_slices.items)
+                    |new_knots|
+                {
+                    try new_curves.append(
+                        .{
+                            .knots = new_knots,
+                        },
+                    );
+                }
+
+                return try new_curves.toOwnedSlice();
+            }
+
+
         };
 
         /// dupe the provided points into the result
@@ -2135,4 +2307,34 @@ test "Linear.Monotonic.SplitAtCriticalPoints"
         try std.testing.expectEqual(last, range.start_seconds);
         last = range.end_seconds;
     }
+}
+
+test "Linear.Monotonic.split_at_input_ordinates"
+{
+    const allocator = std.testing.allocator;
+
+    const crv = Linear.Monotonic{
+        .knots = &.{
+            .{ .in = 0, .out = 0, },
+            .{ .in = 2, .out = 4, },
+        },
+    };
+
+    const new_curves = try crv.split_at_input_ordinates(
+        allocator,
+        &.{ -1, 0, 1.0, 1.5, 2.0, 2.1, 4.5 },
+    );
+    defer {
+        for (new_curves)
+            |m|
+        {
+            m.deinit(allocator);
+        }
+        allocator.free(new_curves);
+    }
+
+    try std.testing.expectEqual(
+        4,
+        new_curves.len,
+    );
 }
