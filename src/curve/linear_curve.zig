@@ -87,6 +87,9 @@ pub fn LinearOf(
                 self:@This(),
             ) opentime.interval.ContinuousTimeInterval
             {
+                if (self.knots.len == 0) {
+                    return .{ .start_seconds = 0, .end_seconds = 0 };
+                }
                 const fst = self.knots[0].in;
                 const lst = self.knots[self.knots.len-1].in;
                 return .{
@@ -100,6 +103,9 @@ pub fn LinearOf(
                 self:@This(),
             ) opentime.interval.ContinuousTimeInterval
             {
+                if (self.knots.len == 0) {
+                    return .{ .start_seconds = 0, .end_seconds = 0 };
+                }
                 const fst = self.knots[0].out;
                 const lst = self.knots[self.knots.len-1].out;
                 return .{
@@ -145,6 +151,10 @@ pub fn LinearOf(
                 output_ord: opentime.Ordinate, 
             ) ?usize 
             {
+                if (self.knots.len == 0) {
+                    return null;
+                }
+
                 const last_index = self.knots.len-1;
 
                 const ext_out = self.extents_output();
@@ -208,6 +218,10 @@ pub fn LinearOf(
                 output_ord: opentime.Ordinate,
             ) error{OutOfBounds}!opentime.Ordinate 
             {
+                if (self.knots.len == 0) {
+                    return error.OutOfBounds;
+                }
+
                 if (self.nearest_smaller_knot_index_output(output_ord)) 
                     |index| 
                 {
