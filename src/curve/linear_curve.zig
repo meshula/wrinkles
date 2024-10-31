@@ -234,9 +234,19 @@ pub fn LinearOf(
 
                 // specially handle the endpoint
                 const last_knot = self.knots[self.knots.len - 1];
-                if (output_ord == last_knot.out) {
-                    return last_knot.out;
+                if ( output_ord == last_knot.out) {
+                    return last_knot.in;
                 }
+
+                const first_knot = self.knots[0];
+                if ( output_ord == first_knot.out) {
+                    return first_knot.in;
+                }
+
+                std.debug.print(
+                    "output_ord: {d} last_knot: {s} first_knot: {s} \n",
+                    .{ output_ord, last_knot, first_knot }
+                );
 
                 return error.OutOfBounds;
             }
