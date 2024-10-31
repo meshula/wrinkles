@@ -410,9 +410,9 @@ test "libsamplerate w/ high level test.retime.interpolating"
     // new for this test - add in an warp on the clip
     const wp: otio.Warp = .{
         .child = cl_ptr,
-        .transform = time_topology.TimeTopology.init_affine(
+        .transform = time_topology.Topology.init_affine(
             .{
-                .transform = .{
+                .input_to_output_xform = .{
                     .offset_seconds = -1,
                     .scale = 2,
                 },
@@ -561,14 +561,14 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     try tr.append(
         otio.Warp{
             .child = cl_ptr,
-            .transform = time_topology.TimeTopology.init_affine(
+            .transform = time_topology.Topology.init_affine(
                 .{
-                    .transform = .{
+                    .input_to_output_xform = .{
                         .offset_seconds = -1,
                         .scale = 2,
                     },
-                    },
-                )
+                }
+            )
         }
     );
 
@@ -732,9 +732,14 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     // new for this test - add in an warp on the clip
     const wp: otio.Warp = .{
         .child = cl_ptr,
-        .transform = time_topology.TimeTopology.init_linear_start_end(
-            .{ .in = 0, .out = 6 },
-            .{ .in = 6, .out = 0 },   
+        .transform = try time_topology.Topology.init_from_linear_monotonic(
+            allocator,
+            .{
+                .knots = &.{
+                    .{ .in = 0, .out = 6 },
+                    .{ .in = 6, .out = 0 },   
+                },
+            },
         )
     };
     try tr.append(wp);
@@ -848,15 +853,15 @@ test "timeline w/ warp that holds the tenth frame"
     try tr.append(
         otio.Warp {
             .child = cl_ptr,
-            .transform = time_topology.TimeTopology.init_affine(
+            .transform = time_topology.Topology.init_affine(
                 .{
-                    .bounds = .{
+                    .input_bounds_val = .{
                         .start_seconds = 0,
                         .end_seconds = 5,
                     },
-                    .transform = .{
-                        .offset_seconds = 10.0/24.0,
-                        .scale = 0,
+                    .input_to_output_xform = .{
+                        .offset_seconds = -1,
+                        .scale = 2,
                     },
                 },
             )
@@ -920,7 +925,7 @@ test "timeline w/ warp that holds the tenth frame"
             tr_ptr.track_ptr.child_ptr_from_index(0).warp_ptr.transform
         );
         
-        const ident = time_topology.TimeTopology.init_identity(.{});
+        const ident = time_topology.Topology.init_identity(.{});
 
         const test_result = try time_topology.join(
             std.testing.allocator,
