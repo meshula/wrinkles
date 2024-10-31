@@ -314,7 +314,7 @@ pub fn intersect(
     snd: ContinuousTimeInterval
 ) ?ContinuousTimeInterval 
 {
-    if (!any_overlap(fst, snd)) {
+    if (any_overlap(fst, snd) == false) {
         return null;
     }
 

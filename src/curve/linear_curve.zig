@@ -200,11 +200,6 @@ pub fn LinearOf(
                     return last_knot.out;
                 }
 
-                std.debug.print(
-                    "input: {d} range: {s}\n",
-                    .{ input_ord, self.extents_input() },
-                );
-
                 return error.OutOfBounds;
             }
 
@@ -238,11 +233,6 @@ pub fn LinearOf(
                 if ( output_ord == first_knot.out) {
                     return first_knot.in;
                 }
-
-                std.debug.print(
-                    "output_ord: {d} last_knot: {s} first_knot: {s} \n",
-                    .{ output_ord, last_knot, first_knot }
-                );
 
                 return error.OutOfBounds;
             }
@@ -373,11 +363,6 @@ pub fn LinearOf(
             {
                 const ib = self.extents_input();
 
-                std.debug.print(
-                    "[split_at_input_ordinates_curve] pts: {any}\n",
-                    .{input_points}
-                );
-
                 if (
                     // empty
                     input_points.len == 0
@@ -386,10 +371,6 @@ pub fn LinearOf(
                     or input_points[input_points.len - 1] < ib.start_seconds
                 )
                 {
-                    std.debug.print(
-                        "[split_at_input_ordinates_curve] empty/out of range\n",
-                        .{}
-                    );
                     return &.{ try self.clone(allocator) };
                 }
 
@@ -408,12 +389,6 @@ pub fn LinearOf(
                 var left_knot = self.knots[left_knot_ind];
 
                 // left knot is always in the list
-                std.debug.print(
-                    "appending: {s}\n",
-                    .{
-                        left_knot
-                    }
-                );
                 try current_curve.append(left_knot);
 
                 var right_knot_ind:usize = 1;
@@ -422,43 +397,20 @@ pub fn LinearOf(
                 for (input_points)
                     |in_pt|
                 {
-                    std.debug.print(
-                        "processing: {d}\n",
-                        .{
-                            in_pt
-                        }
-                    );
                     // point is before range, skip
                     if (
                         in_pt < ib.start_seconds 
                         or in_pt <= left_knot.in + generic_curve.EPSILON
                     ) 
                     {
-                        std.debug.print(
-                            "[split_at_input_ordinates_curve] skipping: {d}\n",
-                            .{in_pt}
-                        );
                         continue;
                     }
 
                     // points are sorted, so once a point is out of range,
                     // split is done
                     if (in_pt > ib.end_seconds) {
-                        std.debug.print(
-                            "break: over range {d} / ib: {s}\n",
-                            .{in_pt, ib}
-                        );
                         break;
                     }
-
-                    std.debug.print(
-                        "check: left {d}/{d} right {d}/{d} in_pt {d}\n",
-                        .{
-                            left_knot, left_knot_ind,
-                            right_knot,right_knot_ind,
-                            in_pt
-                        }
-                    );
 
                     // move current pt until it is the point on the curve AFTER
                     // the input pt
@@ -467,28 +419,12 @@ pub fn LinearOf(
                         and right_knot_ind < self.knots.len
                     ) : ({ right_knot_ind += 1; left_knot_ind += 1; })
                     {
-                        std.debug.print(
-                            "advance: left {d}/{d} right {d}/{d} in_pt {d}\n",
-                            .{
-                                left_knot, left_knot_ind,
-                                right_knot,right_knot_ind,
-                                in_pt
-                            }
-                        );
                         left_knot = self.knots[left_knot_ind];
                         right_knot = self.knots[right_knot_ind];
-                        std.debug.print(
-                            "appending {s}\n",
-                            .{left_knot}
-                        );
                         try current_curve.append(left_knot);
                     }
 
                     if (right_knot_ind >= self.knots.len) {
-                        std.debug.print(
-                            "break: over index ({d}/{d})\n",
-                            .{in_pt, right_knot_ind}
-                        );
                         break;
                     }
 
@@ -496,11 +432,6 @@ pub fn LinearOf(
                         .in = in_pt,
                         .out = try self.output_at_input(in_pt),
                     };
-
-                    std.debug.print(
-                        "appending {s}\n",
-                        .{new_knot}
-                    );
 
                     try current_curve.append(new_knot);
                     try new_knot_slices.append(
@@ -960,11 +891,6 @@ pub fn join(
         b2c_b_extents,
     ) orelse return .{.knots = &.{} };
 
-    std.debug.print(
-        "b_bounds: {s}\n",
-        .{b_bounds}
-    );
-
     // trim curves to domain
     const a2b_trimmed = (
         try curves.a2b.trimmed_output(
@@ -973,10 +899,6 @@ pub fn join(
         )
     );
     defer a2b_trimmed.deinit(allocator);
-    std.debug.print(
-        "a2b_trimmed: {s}\n",
-        .{ a2b_trimmed },
-    );
 
     const b2c_trimmed = (
         try curves.b2c.trimmed_input(
@@ -985,10 +907,6 @@ pub fn join(
         )
     );
     defer b2c_trimmed.deinit(allocator);
-    std.debug.print(
-        "b2c_trimmed: {s}\n",
-        .{b2c_trimmed },
-    );
 
     // splits
     var cursor_a2b:usize = 0;
