@@ -30,7 +30,7 @@ pub const SerializableObject = union(SerializableObjectTypes) {
 
 pub fn read_float(
     obj:std.json.Value
-) time_topology.Ordinate 
+) opentime.Ordinate 
 {
     return switch (obj) {
         .integer => |i| @floatFromInt(i),
@@ -41,7 +41,7 @@ pub fn read_float(
 
 pub fn read_ordinate_from_rt(
     obj:?std.json.ObjectMap
-) ?time_topology.Ordinate 
+) ?opentime.Ordinate 
 {
     if (obj) 
         |o| 
@@ -405,7 +405,7 @@ test "read_from_file test"
     );
 
     try expectApproxEqAbs(
-        @as(time_topology.Ordinate, 0.175),
+        @as(opentime.Ordinate, 0.175),
         try tl_output_to_clip_media.project_instantaneous_cc(0.05),
         util.EPSILON
     );
