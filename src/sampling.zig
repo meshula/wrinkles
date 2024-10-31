@@ -627,13 +627,6 @@ pub fn transform_resample_dd(
     // bound input_c_to_output_c_topo by the implicit space of in_samples
     const input_c_bound = input_d_sampling.extents();
 
-    std.debug.print(
-        "input_c_bound: {s}\n",
-        .{
-            input_c_bound
-        }
-    );
-
     const output_c_to_input_c_trimmed = (
         try output_c_to_input_c.trim_in_output_space(
             allocator,
@@ -641,15 +634,6 @@ pub fn transform_resample_dd(
         )
     );
     defer output_c_to_input_c_trimmed.deinit(allocator);
-
-    std.debug.print(
-        "output_c_to_input_c_trimmed: {s} mapping {s}->{s}\n",
-        .{
-            output_c_to_input_c_trimmed,
-            output_c_to_input_c_trimmed.input_bounds(),
-            output_c_to_input_c_trimmed.output_bounds()
-        }
-    );
 
     var output_buffer = (
         std.ArrayList(sample_value_t).init(allocator)
@@ -681,7 +665,6 @@ pub fn transform_resample_dd(
                 try output_buffer.appendSlice(empty_sampling.buffer);
             },
             .linear => |lin| {
-                std.debug.print("linear branch\n", .{});
                 const new_sampling = (
                     try transform_resample_linear_dd(
                         allocator,
@@ -718,10 +701,6 @@ pub fn transform_resample_linear_dd(
     step_retime: bool,
 ) !Sampling
 {
-    std.debug.print(
-        "interpolating: {any}\n",
-        .{ input_d_samples.interpolating }
-    );
     return switch (input_d_samples.interpolating) {
         true => try transform_resample_linear_interpolating_dd(
             allocator,
@@ -822,28 +801,11 @@ pub fn transform_resample_linear_non_interpolating_dd(
     output_d_sampling_info: DiscreteDatasourceIndexGenerator,
 ) !Sampling
 {
-    std.debug.print(
-        "output_c_to_input_c_crv: {s}\n",
-        .{ output_c_to_input_c_crv.mapping() },
-    );
-
     const input_d_extents_c = input_d_samples.extents();
-    std.debug.print("input_d_extents_c: {s}\n", .{input_d_extents_c});
 
     const input_c_to_input_d = topology.mapping.MappingAffine{
         .input_bounds_val = input_d_extents_c,
     };
-
-    std.debug.print(
-        "input_c_to_input_d: {s} mapping {s}->{s}\n",
-        .{
-            input_c_to_input_d.mapping(),
-            input_c_to_input_d.input_bounds(),
-            input_c_to_input_d.output_bounds()
-        }
-    );
-
-    std.debug.print("JOIN HERE2\n-----------------\n", .{});
 
     const output_c_to_input_d = (
         try topology.mapping.join(
@@ -856,32 +818,12 @@ pub fn transform_resample_linear_non_interpolating_dd(
     );
     defer output_c_to_input_d.deinit(allocator);
 
-    std.debug.print(
-        "output_c_to_input_d: {s} curve: {s}\n",
-        .{ 
-            output_c_to_input_d,
-            output_c_to_input_d.linear.input_to_output_curve,
-        }
-    );
-
     const output_d_extents = (
         output_c_to_input_d.input_bounds()
     );
 
-    std.debug.print(
-        "output_d_extents: {s}\n",
-        .{ output_d_extents },
-    );
     std.debug.assert(output_d_extents.is_infinite() == false);
 
-    // @TODO: should be encapsulated in the DiscreteDatasourceIndexGenerator
-    // const num_output_samples:usize = @intFromFloat(
-    //     output_d_extents.duration_seconds() 
-    //     * @as(
-    //         sample_ordinate_t,
-    //         @floatFromInt(output_d_sampling_info.sample_rate_hz)
-    //     )
-    // );
     const num_output_samples = (
         output_d_sampling_info.buffer_size_for_length(
             output_d_extents.duration_seconds()
@@ -890,13 +832,6 @@ pub fn transform_resample_linear_non_interpolating_dd(
 
     const output_buffer_size = num_output_samples;
 
-    std.debug.print(
-        "output_buffer_size: {d}\n",
-        .{
-            output_buffer_size
-        }
-    );
-
     const output_sampling = try Sampling.init(
         allocator,
         output_buffer_size,
@@ -904,13 +839,6 @@ pub fn transform_resample_linear_non_interpolating_dd(
         false,
     );
     errdefer output_sampling.deinit();
-
-    // const s_per_sample_output:sample_ordinate_t = (
-    //     1.0 / @as(
-    //         sample_ordinate_t,
-    //         @floatFromInt(output_d_sampling_info.sample_rate_hz)
-    //     )
-    // );
 
     // fill the output buffer
     for (output_sampling.buffer, 0..)
@@ -923,14 +851,6 @@ pub fn transform_resample_linear_non_interpolating_dd(
         const output_sample_time = (
             output_sample_interval.start_seconds 
             + output_d_extents.start_seconds
-        );
-
-        std.debug.print(
-            "projecting output_sample_time: {d} interval: {s}\n",
-            .{
-                output_sample_time,
-                output_sample_interval,
-            }
         );
 
         // output -> input time (continuous -> continuous)
@@ -959,17 +879,6 @@ pub fn transform_resample_linear_non_interpolating_dd(
                     @floatFromInt(input_d_samples.sample_rate_hz)
                 )
             )
-        );
-
-        std.debug.print(
-            "output_index: {d} output_sample_time: {d} input_ord: {d} input_Sample_index: {d} input buffer len: {d}\n",
-            .{
-                output_index,
-                output_sample_time,
-                input_ord,
-                input_sample_index,
-                input_d_samples.buffer.len,
-            },
         );
 
         output_sample.* = input_d_samples.buffer[input_sample_index];
@@ -1631,16 +1540,6 @@ test "sampling: frame phase slide 1: (time*1 freq*1 phase+0) 0,1,2,3->0,1,2,3"
         .sample_rate_hz = 4,
     };
 
-    std.debug.print(
-        "===========\nREGION OF INTEREST\n----------\n",
-        .{}
-    );
-
-    std.debug.print(
-        "sample_to_output_crv: {s}\n",
-        .{ sample_to_output_crv.mapping() }
-    );
-
     const retimed_ramp_samples = try transform_resample_linear_dd(
         std.testing.allocator, 
         ramp_samples,
@@ -1799,8 +1698,6 @@ test "sampling: frame phase slide 2.5: (time*2 bounds*2 freq*1 phase+0) 0,1,2,3-
     const output_sampling_info : DiscreteDatasourceIndexGenerator = .{
         .sample_rate_hz = 4,
     };
-
-    std.debug.print("TRANSFORM\n----------------\n", .{});
 
     const output_ramp_samples = try transform_resample_linear_dd(
         std.testing.allocator, 
@@ -1982,10 +1879,6 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
             }
         }
     ).mapping();
-    std.debug.print(
-        "retime_to_inter_crv: {s}\n",
-        .{retime_to_inter_crv}
-    );
 
     const inter_to_sample_crv = (
         topology.mapping.MappingCurveLinearMonotonic {
@@ -1997,15 +1890,6 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
             },
         }
     ).mapping();
-    std.debug.print(
-        "inter_to_sample_crv: {s}\n",
-        .{inter_to_sample_crv}
-    );
-
-    std.debug.print(
-        "MAPPING JOIN\n-----------\n",
-        .{}
-    );
 
     const retimed_to_sample_crv = try topology.mapping.join(
         allocator,
@@ -2015,11 +1899,6 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
         }
     );
     defer retimed_to_sample_crv.deinit(std.testing.allocator);
-
-    std.debug.print(
-        "retimed_to_sample_crv: {s}\n",
-        .{retimed_to_sample_crv}
-    );
 
     // trivial check that curve behaves as expected
     try std.testing.expectApproxEqAbs(
@@ -2162,8 +2041,6 @@ test "sampling: frame phase slide 5: arbitrary held frames 0,1,2->0,0,0,0,1,1,2,
     const output_sampling_info : DiscreteDatasourceIndexGenerator = .{
         .sample_rate_hz = 4,
     };
-
-    std.debug.print(" \n\nTRANSFORM BEGIN\n----------------------\n\n",.{});
 
     const output_ramp_samples = try transform_resample_dd(
         std.testing.allocator, 
