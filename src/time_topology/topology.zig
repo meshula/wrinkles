@@ -116,6 +116,36 @@ pub const Topology = struct {
         );
     }
 
+    /// build a topology with a single identity mapping over the range
+    /// specified
+    pub fn init_identity(
+        range: opentime.ContinuousTimeInterval,
+    ) Topology
+    {
+        return .{
+            .mappings = &.{
+                (
+                 mapping.MappingAffine{
+                     .input_bounds_val = range,
+                 }
+                ).mapping(),
+            },
+        };
+    }
+
+    /// build a topology with a single identity mapping with an infinite range
+    pub fn init_identity_infinite(
+    ) Topology
+    {
+        return .{
+            .mappings = &.{
+                (
+                 mapping.MappingAffine{}
+                ).mapping(),
+            },
+        };
+    }
+
     /// custom formatter for std.fmt
     pub fn format(
         self: @This(),
@@ -822,6 +852,9 @@ pub const Topology = struct {
     }
 };
 
+/// an empty topology
+pub const EMPTY = Topology{ .mappings = &.{} };
+
 test "Topology.split_at_input_points"
 {
     const m_split = try MIDDLE.AFF_TOPO.split_at_input_points(
@@ -970,11 +1003,6 @@ test "Topology trim_in_input_space"
         );
     }
 }
-
-/// an empty topology
-const EMPTY = Topology{
-    .mappings = &.{}
-};
 
 /// build a topological mapping from a to c
 pub fn join(
