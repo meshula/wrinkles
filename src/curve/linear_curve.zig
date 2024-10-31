@@ -1187,7 +1187,6 @@ test "Linear: proj_ident"
             .{ .in = 100, .out = 100, },
         },
     };
-    defer ident.deinit(allocator);
 
     {
         const right_overhang_lin = Linear.Monotonic{
