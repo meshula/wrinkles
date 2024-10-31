@@ -463,6 +463,7 @@ pub fn join_lin_aff(
             args.a2b.input_to_output_curve.knots,
         )
     );
+    errdefer allocator.free(a2c_knots);
 
     for (a2c_knots)
         |*k|
@@ -544,6 +545,16 @@ pub fn join(
     const a2b_b_bounds = a2b.output_bounds();
     const b2c_b_bounds = b2c.input_bounds();
 
+    // if a2b has a flat output interval, and that interval overlaps with the
+    // b2c b space, then return a2b.
+    if (
+        a2b_b_bounds.start_seconds == a2b_b_bounds.end_seconds
+        and b2c.input_bounds().overlaps_seconds(a2b_b_bounds.start_seconds)
+    )
+    {
+        return a2b.clone(allocator);
+    }
+
     const maybe_b_bounds_intersection = (
         opentime.interval.intersect(
             a2b_b_bounds,
@@ -562,12 +573,12 @@ pub fn join(
         b_bounds_intersection,
     );
     defer a2b_trimmed.deinit(allocator);
+
     const b2c_trimmed = try b2c.shrink_to_input_interval(
         allocator,
         b_bounds_intersection,
     );
     defer b2c_trimmed.deinit(allocator);
-    );
 
     return switch (b2c_trimmed) {
         .affine => |b2c_aff| switch (a2b_trimmed) {
