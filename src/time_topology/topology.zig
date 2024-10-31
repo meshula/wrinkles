@@ -91,14 +91,12 @@ pub const Topology = struct {
     }
 
     pub fn init_affine(
-        allocator: std.mem.Allocator,
         aff: mapping.MappingAffine,
-    ) !Topology
+    ) Topology
     {
-        return Topology.init(
-            allocator,
-            &.{ aff.mapping() }
-        );
+        return Topology{
+            .mappings = &.{ aff.mapping() }
+        };
     }
 
     pub fn init_bezier(
@@ -1740,4 +1738,25 @@ test "Topology: project_instantaneous_cc and project_instantaneous_cc_inv"
             );
         }
     }
+}
+
+test "Topology: init_affine"
+{
+    const t_aff = Topology.init_affine(
+        .{
+            .input_bounds_val = .{
+                .start_seconds = 0, 
+                .end_seconds = 10,
+            },
+            .input_to_output_xform = .{
+                .offset_seconds = 12,
+                .scale = 2,
+            },
+        },
+    );
+
+    try std.testing.expectEqual(
+        20,
+        t_aff.project_instantaneous_cc(4),
+    );
 }
