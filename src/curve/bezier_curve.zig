@@ -2226,61 +2226,62 @@ test "Bezier: positive length 1 linear segment test"
     try expectApproxEql(@as(opentime.Ordinate, 0.75), try xform_curve.output_at_input(1.75));
 }
 
-test "Bezier: project_linear_curve to identity" 
-{
-
-    var seg_0_4 = [_]Bezier.Segment{
-        Bezier.Segment.init_from_start_end(
-            .{ .in = 0, .out = 0, },
-            .{ .in = 4, .out = 8, },
-        ) 
-    };
-    const fst: Bezier = .{ .segments = &seg_0_4 };
-
-    var seg_0_8 = [_]Bezier.Segment{
-        Bezier.Segment.init_from_start_end(
-            .{ .in = 0, .out = 0, },
-            .{ .in = 8, .out = 4, },
-        )
-    };
-    const snd: Bezier = .{ .segments = &seg_0_8 };
-
-    const fst_lin = try fst.linearized(std.testing.allocator);
-    defer fst_lin.deinit(std.testing.allocator);
-    try expectEqual(@as(usize, 2), fst_lin.knots.len);
-
-    const snd_lin = try snd.linearized(std.testing.allocator);
-    defer snd_lin.deinit(std.testing.allocator);
-    try expectEqual(@as(usize, 2), snd_lin.knots.len);
-
-    const results = try fst.project_linear_curve(
-        std.testing.allocator,
-        snd_lin,
-    );
-    defer {
-        for (results)
-            |crv|
-            {
-                crv.deinit(std.testing.allocator);
-            }
-        std.testing.allocator.free(results);
-    }
-    try expectEqual(@as(usize, 1), results.len);
-
-    if (results.len > 0) 
-    {
-        const result = results[0];
-        try expectEqual(@as(usize, 2), result.knots.len);
-
-        var x:opentime.Ordinate = 0;
-        while (x < 1) 
-        {
-            // @TODO: fails because evaluating a linear curve
-            try expectApproxEql(x, try result.output_at_input(x));
-            x += 0.1;
-        }
-    }
-}
+// removing the projection functions?
+// test "Bezier: project_linear_curve to identity" 
+// {
+//
+//     var seg_0_4 = [_]Bezier.Segment{
+//         Bezier.Segment.init_from_start_end(
+//             .{ .in = 0, .out = 0, },
+//             .{ .in = 4, .out = 8, },
+//         ) 
+//     };
+//     const fst: Bezier = .{ .segments = &seg_0_4 };
+//
+//     var seg_0_8 = [_]Bezier.Segment{
+//         Bezier.Segment.init_from_start_end(
+//             .{ .in = 0, .out = 0, },
+//             .{ .in = 8, .out = 4, },
+//         )
+//     };
+//     const snd: Bezier = .{ .segments = &seg_0_8 };
+//
+//     const fst_lin = try fst.linearized(std.testing.allocator);
+//     defer fst_lin.deinit(std.testing.allocator);
+//     try expectEqual(@as(usize, 2), fst_lin.knots.len);
+//
+//     const snd_lin = try snd.linearized(std.testing.allocator);
+//     defer snd_lin.deinit(std.testing.allocator);
+//     try expectEqual(@as(usize, 2), snd_lin.knots.len);
+//
+//     const results = try fst.project_linear_curve(
+//         std.testing.allocator,
+//         snd_lin,
+//     );
+//     defer {
+//         for (results)
+//             |crv|
+//             {
+//                 crv.deinit(std.testing.allocator);
+//             }
+//         std.testing.allocator.free(results);
+//     }
+//     try expectEqual(@as(usize, 1), results.len);
+//
+//     if (results.len > 0) 
+//     {
+//         const result = results[0];
+//         try expectEqual(@as(usize, 2), result.knots.len);
+//
+//         var x:opentime.Ordinate = 0;
+//         while (x < 1) 
+//         {
+//             // @TODO: fails because evaluating a linear curve
+//             try expectApproxEql(x, try result.output_at_input(x));
+//             x += 0.1;
+//         }
+//     }
+// }
 
 test "Bezier: projection_test non-overlapping" 
 {

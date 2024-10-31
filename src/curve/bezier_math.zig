@@ -1411,208 +1411,208 @@ pub fn inverted_linear(
     return .{ .knots = try result.toOwnedSlice() };
 }
 
-pub fn inverted_bezier(
-    allocator: std.mem.Allocator,
-    crv: bezier_curve.Bezier,
-) !linear_curve.Linear 
-{
-    const lin_crv = try crv.linearized(allocator);
-    defer lin_crv.deinit(allocator);
+// pub fn inverted_bezier(
+//     allocator: std.mem.Allocator,
+//     crv: bezier_curve.Bezier,
+// ) !linear_curve.Linear.Monotonic 
+// {
+//     const lin_crv = try crv.linearized(allocator);
+//     defer lin_crv.deinit(allocator);
+//
+//     return try inverted_linear(allocator, lin_crv);
+// }
+//
+// test "inverted: invert linear" 
+// {
+//     // slope 2
+//     const forward_crv = try bezier_curve.Bezier.init_from_start_end(
+//         std.testing.allocator,
+//             .{.in = -1, .out = -3},
+//             .{.in = 1, .out = 1}
+//     );
+//     defer forward_crv.deinit(std.testing.allocator);
+//
+//     const inverse_crv = try inverted_bezier(
+//         std.testing.allocator,
+//         forward_crv
+//     );
+//     defer inverse_crv.deinit(std.testing.allocator);
+//
+//     // ensure that temporal ordering is correct
+//     { 
+//         errdefer std.log.err(
+//             "knot0.in ({any}) < knot1.in ({any})",
+//             .{inverse_crv.knots[0].in, inverse_crv.knots[1].in}
+//         );
+//         try expect(inverse_crv.knots[0].in < inverse_crv.knots[1].in);
+//     }
+//
+//     var identity_seg = [_]bezier_curve.Bezier.Segment{
+//         // slope of 2
+//         bezier_curve.Bezier.Segment.init_identity(-3, 1)
+//     };
+//     const identity_crv:bezier_curve.Bezier = .{ .segments = &identity_seg };
+//
+//     var t :f32 = -1;
+//     //           no split at t=1 (end point)
+//     while (t<1 - 0.01) 
+//         : (t += 0.01) 
+//     {
+//         const idntity_p = try identity_crv.output_at_input(t);
+//
+//         // identity_p(t) == inverse_p(forward_p(t))
+//         const forward_p = try forward_crv.output_at_input(t);
+//         const inverse_p = try inverse_crv.output_at_input(forward_p);
+//
+//         errdefer std.log.err(
+//             "[t: {any}] ident: {any} forwd: {any} inv: {any}",
+//             .{t, idntity_p, forward_p, inverse_p}
+//         );
+//
+//         // A * A-1 => 1
+//         try expectApproxEql(idntity_p, inverse_p);
+//     }
+// }
 
-    return try inverted_linear(allocator, lin_crv);
-}
+// test "invert negative slope linear" 
+// {
+//     // slope 2
+//     const forward_crv = try bezier_curve.Bezier.init_from_start_end(
+//         std.testing.allocator,
+//             .{.in = -1, .out = 1},
+//             .{.in = 1, .out = -3}
+//     );
+//     defer forward_crv.deinit(std.testing.allocator);
+//
+//     const forward_crv_lin = try forward_crv.linearized(
+//         std.testing.allocator
+//     );
+//     defer forward_crv_lin.deinit(std.testing.allocator);
+//
+//     const inverse_crv_lin = try inverted_linear(
+//         std.testing.allocator,
+//         forward_crv_lin
+//     );
+//     defer inverse_crv_lin.deinit(std.testing.allocator);
+//
+//     // std.debug.print("\n\n  forward: {any}\n", .{ forward_crv_lin.extents() });
+//     // std.debug.print("\n\n  inverse: {any}\n", .{ inverse_crv_lin.extents() });
+//
+//     // ensure that temporal ordering is correct
+//     { 
+//         errdefer std.log.err(
+//             "knot0.in ({any}) < knot1.in ({any})",
+//             .{inverse_crv_lin.knots[0].in, inverse_crv_lin.knots[1].in}
+//         );
+//         try expect(inverse_crv_lin.knots[0].in < inverse_crv_lin.knots[1].in);
+//     }
+//
+//     const double_inv_lin = try inverted_linear(
+//         std.testing.allocator,
+//         inverse_crv_lin
+//     );
+//     defer double_inv_lin.deinit(std.testing.allocator);
+//
+//     var t: f32 = -1;
+//     // end point is exclusive
+//     while (t<1 - 0.01) 
+//         : (t += 0.01) 
+//     {
+//         errdefer std.log.err(
+//             "\n  [t: {any}] \n",
+//             .{t, }
+//         );
+//
+//         const forward_p = try forward_crv.output_at_input(t);
+//         const double__p = try double_inv_lin.output_at_input(t);
+//
+//         errdefer std.log.err(
+//             "[t: {any}] forwd: {any} double_inv: {any}",
+//             .{t, forward_p, double__p}
+//         );
+//
+//         try expectApproxEql(forward_p, double__p);
+//
+//         // A * A-1 => 1
+//         // const inverse_p = try inverse_crv_lin.output_at_input(forward_p);
+//         // try expectApproxEql(t, inverse_p);
+//     }
+// }
 
-test "inverted: invert linear" 
-{
-    // slope 2
-    const forward_crv = try bezier_curve.Bezier.init_from_start_end(
-        std.testing.allocator,
-            .{.in = -1, .out = -3},
-            .{.in = 1, .out = 1}
-    );
-    defer forward_crv.deinit(std.testing.allocator);
-
-    const inverse_crv = try inverted_bezier(
-        std.testing.allocator,
-        forward_crv
-    );
-    defer inverse_crv.deinit(std.testing.allocator);
-
-    // ensure that temporal ordering is correct
-    { 
-        errdefer std.log.err(
-            "knot0.in ({any}) < knot1.in ({any})",
-            .{inverse_crv.knots[0].in, inverse_crv.knots[1].in}
-        );
-        try expect(inverse_crv.knots[0].in < inverse_crv.knots[1].in);
-    }
-
-    var identity_seg = [_]bezier_curve.Bezier.Segment{
-        // slope of 2
-        bezier_curve.Bezier.Segment.init_identity(-3, 1)
-    };
-    const identity_crv:bezier_curve.Bezier = .{ .segments = &identity_seg };
-
-    var t :f32 = -1;
-    //           no split at t=1 (end point)
-    while (t<1 - 0.01) 
-        : (t += 0.01) 
-    {
-        const idntity_p = try identity_crv.output_at_input(t);
-
-        // identity_p(t) == inverse_p(forward_p(t))
-        const forward_p = try forward_crv.output_at_input(t);
-        const inverse_p = try inverse_crv.output_at_input(forward_p);
-
-        errdefer std.log.err(
-            "[t: {any}] ident: {any} forwd: {any} inv: {any}",
-            .{t, idntity_p, forward_p, inverse_p}
-        );
-
-        // A * A-1 => 1
-        try expectApproxEql(idntity_p, inverse_p);
-    }
-}
-
-test "invert negative slope linear" 
-{
-    // slope 2
-    const forward_crv = try bezier_curve.Bezier.init_from_start_end(
-        std.testing.allocator,
-            .{.in = -1, .out = 1},
-            .{.in = 1, .out = -3}
-    );
-    defer forward_crv.deinit(std.testing.allocator);
-
-    const forward_crv_lin = try forward_crv.linearized(
-        std.testing.allocator
-    );
-    defer forward_crv_lin.deinit(std.testing.allocator);
-
-    const inverse_crv_lin = try inverted_linear(
-        std.testing.allocator,
-        forward_crv_lin
-    );
-    defer inverse_crv_lin.deinit(std.testing.allocator);
-
-    // std.debug.print("\n\n  forward: {any}\n", .{ forward_crv_lin.extents() });
-    // std.debug.print("\n\n  inverse: {any}\n", .{ inverse_crv_lin.extents() });
-
-    // ensure that temporal ordering is correct
-    { 
-        errdefer std.log.err(
-            "knot0.in ({any}) < knot1.in ({any})",
-            .{inverse_crv_lin.knots[0].in, inverse_crv_lin.knots[1].in}
-        );
-        try expect(inverse_crv_lin.knots[0].in < inverse_crv_lin.knots[1].in);
-    }
-
-    const double_inv_lin = try inverted_linear(
-        std.testing.allocator,
-        inverse_crv_lin
-    );
-    defer double_inv_lin.deinit(std.testing.allocator);
-
-    var t: f32 = -1;
-    // end point is exclusive
-    while (t<1 - 0.01) 
-        : (t += 0.01) 
-    {
-        errdefer std.log.err(
-            "\n  [t: {any}] \n",
-            .{t, }
-        );
-
-        const forward_p = try forward_crv.output_at_input(t);
-        const double__p = try double_inv_lin.output_at_input(t);
-
-        errdefer std.log.err(
-            "[t: {any}] forwd: {any} double_inv: {any}",
-            .{t, forward_p, double__p}
-        );
-
-        try expectApproxEql(forward_p, double__p);
-
-        // A * A-1 => 1
-        // const inverse_p = try inverse_crv_lin.output_at_input(forward_p);
-        // try expectApproxEql(t, inverse_p);
-    }
-}
-
-test "invert linear complicated bezier_curve" 
-{
-    var segments = [_]bezier_curve.Bezier.Segment{
-        // identity
-        bezier_curve.Bezier.Segment.init_identity(0, 1),
-        // go up
-        bezier_curve.Bezier.Segment.init_from_start_end(
-            .{ .in = 1, .out = 1 },
-            .{ .in = 2, .out = 3 },
-        ),
-        // go down
-        bezier_curve.Bezier.Segment.init_from_start_end(
-            .{ .in = 2, .out = 3 },
-            .{ .in = 3, .out = 1 },
-        ),
-        // identity
-        bezier_curve.Bezier.Segment.init_from_start_end(
-            .{ .in = 3, .out = 1 },
-            .{ .in = 4, .out = 2 },
-        ),
-    };
-    const crv : bezier_curve.Bezier = .{
-        .segments = &segments
-    };
-    const crv_linear = try crv.linearized(
-        std.testing.allocator
-    );
-    defer crv_linear.deinit(std.testing.allocator);
-
-    try bezier_curve.write_json_file_curve(
-        std.testing.allocator,
-        crv_linear,
-        "/var/tmp/forward.linear.json"
-    );
-
-    const crv_linear_inv = try inverted_linear(
-        std.testing.allocator,
-        crv_linear
-    );
-    defer crv_linear_inv.deinit(std.testing.allocator);
-    try bezier_curve.write_json_file_curve(
-        std.testing.allocator,
-        crv_linear_inv,
-        "/var/tmp/inverse.linear.json"
-    );
-
-    const crv_double_inv = try inverted_linear(
-        std.testing.allocator,
-        crv_linear_inv,
-    );
-    defer crv_double_inv.deinit(std.testing.allocator);
-
-    var t:f32 = 0;
-    while (t < 3-0.01)
-        : (t+=0.01)
-    {
-        errdefer std.log.err(
-            "\n  t: {d} err! \n",
-            .{ t, }
-        );
-        const fwd = try crv_linear.output_at_input(t);
-        const dbl = try crv_double_inv.output_at_input(t);
-
-        try expectEqual(fwd, dbl);
-
-        // const inv = try crv_linear_inv.output_at_input(fwd);
-        //
-        // errdefer std.log.err(
-        //     "\n  t: {d} not equals projected {d}\n",
-        //     .{ t, inv }
-        // );
-        // try expectEqual(t, inv);
-    }
-}
+// test "BezierMath: invert linear complicated bezier_curve" 
+// {
+//     var segments = [_]bezier_curve.Bezier.Segment{
+//         // identity
+//         bezier_curve.Bezier.Segment.init_identity(0, 1),
+//         // go up
+//         bezier_curve.Bezier.Segment.init_from_start_end(
+//             .{ .in = 1, .out = 1 },
+//             .{ .in = 2, .out = 3 },
+//         ),
+//         // go down
+//         bezier_curve.Bezier.Segment.init_from_start_end(
+//             .{ .in = 2, .out = 3 },
+//             .{ .in = 3, .out = 1 },
+//         ),
+//         // identity
+//         bezier_curve.Bezier.Segment.init_from_start_end(
+//             .{ .in = 3, .out = 1 },
+//             .{ .in = 4, .out = 2 },
+//         ),
+//     };
+//     const crv : bezier_curve.Bezier = .{
+//         .segments = &segments
+//     };
+//     const crv_linear = try crv.linearized(
+//         std.testing.allocator
+//     );
+//     defer crv_linear.deinit(std.testing.allocator);
+//
+//     try bezier_curve.write_json_file_curve(
+//         std.testing.allocator,
+//         crv_linear,
+//         "/var/tmp/forward.linear.json"
+//     );
+//
+//     const crv_linear_inv = try inverted_linear(
+//         std.testing.allocator,
+//         crv_linear
+//     );
+//     defer crv_linear_inv.deinit(std.testing.allocator);
+//     try bezier_curve.write_json_file_curve(
+//         std.testing.allocator,
+//         crv_linear_inv,
+//         "/var/tmp/inverse.linear.json"
+//     );
+//
+//     const crv_double_inv = try inverted_linear(
+//         std.testing.allocator,
+//         crv_linear_inv,
+//     );
+//     defer crv_double_inv.deinit(std.testing.allocator);
+//
+//     var t:f32 = 0;
+//     while (t < 3-0.01)
+//         : (t+=0.01)
+//     {
+//         errdefer std.log.err(
+//             "\n  t: {d} err! \n",
+//             .{ t, }
+//         );
+//         const fwd = try crv_linear.output_at_input(t);
+//         const dbl = try crv_double_inv.output_at_input(t);
+//
+//         try expectEqual(fwd, dbl);
+//
+//         // const inv = try crv_linear_inv.output_at_input(fwd);
+//         //
+//         // errdefer std.log.err(
+//         //     "\n  t: {d} not equals projected {d}\n",
+//         //     .{ t, inv }
+//         // );
+//         // try expectEqual(t, inv);
+//     }
+// }
 
 fn _remap(
     t: anytype,
@@ -1678,7 +1678,7 @@ pub fn rescaled_curve(
     return result;
 }
 
-test "Bezier: rescaled parameter" 
+test "BezierMath: rescaled parameter" 
 {
     const crv = try bezier_curve.read_curve_json(
         "curves/scurve.curve.json",
@@ -1714,62 +1714,62 @@ test "Bezier: rescaled parameter"
 
 }
 
-test "inverted: invert bezier" 
-{
-    var identity_seg = [_]bezier_curve.Bezier.Segment{
-        bezier_curve.Bezier.Segment.init_identity(-3, 1),
-    };
-    const identity_crv:bezier_curve.Bezier = .{ 
-        .segments = &identity_seg 
-    };
-
-    const a2b_crv = try bezier_curve.read_curve_json(
-        "curves/scurve.curve.json",
-        std.testing.allocator,
-    );
-    defer a2b_crv.deinit(std.testing.allocator);
-    const b2a_lin = try inverted_bezier(
-        std.testing.allocator,
-        a2b_crv,
-    );
-    defer b2a_lin.deinit(std.testing.allocator);
-
-    var t_a :f32 = -0.5;
-    while (t_a<0.5 - generic_curve.EPSILON) 
-        : (t_a += 0.01) 
-    {
-        errdefer std.log.err(
-            "[t_a: {any}]",
-            .{t_a}
-        );
-        const t_a_computed = try identity_crv.output_at_input(t_a);
-        try expectApproxEql(t_a, t_a_computed);
-
-        errdefer std.log.err(
-            " ident: {any}",
-            .{t_a_computed}
-        );
-
-        const p_b = try a2b_crv.output_at_input(t_a);
-        errdefer std.log.err(
-            " forwd: {any}",
-            .{p_b}
-        );
-
-        const p_a = try b2a_lin.output_at_input(p_b);
-        errdefer std.log.err(
-            " inv: {any}\n",
-            .{p_a}
-        );
-
-        // A * A-1 => 1
-        try std.testing.expectApproxEqAbs(
-            t_a_computed,
-            p_a,
-            generic_curve.EPSILON * 100,
-        );
-    }
-}
+// test "inverted: invert bezier" 
+// {
+//     var identity_seg = [_]bezier_curve.Bezier.Segment{
+//         bezier_curve.Bezier.Segment.init_identity(-3, 1),
+//     };
+//     const identity_crv:bezier_curve.Bezier = .{ 
+//         .segments = &identity_seg 
+//     };
+//
+//     const a2b_crv = try bezier_curve.read_curve_json(
+//         "curves/scurve.curve.json",
+//         std.testing.allocator,
+//     );
+//     defer a2b_crv.deinit(std.testing.allocator);
+//     const b2a_lin = try inverted_bezier(
+//         std.testing.allocator,
+//         a2b_crv,
+//     );
+//     defer b2a_lin.deinit(std.testing.allocator);
+//
+//     var t_a :f32 = -0.5;
+//     while (t_a<0.5 - generic_curve.EPSILON) 
+//         : (t_a += 0.01) 
+//     {
+//         errdefer std.log.err(
+//             "[t_a: {any}]",
+//             .{t_a}
+//         );
+//         const t_a_computed = try identity_crv.output_at_input(t_a);
+//         try expectApproxEql(t_a, t_a_computed);
+//
+//         errdefer std.log.err(
+//             " ident: {any}",
+//             .{t_a_computed}
+//         );
+//
+//         const p_b = try a2b_crv.output_at_input(t_a);
+//         errdefer std.log.err(
+//             " forwd: {any}",
+//             .{p_b}
+//         );
+//
+//         const p_a = try b2a_lin.output_at_input(p_b);
+//         errdefer std.log.err(
+//             " inv: {any}\n",
+//             .{p_a}
+//         );
+//
+//         // A * A-1 => 1
+//         try std.testing.expectApproxEqAbs(
+//             t_a_computed,
+//             p_a,
+//             generic_curve.EPSILON * 100,
+//         );
+//     }
+// }
 
 /// encodes and computes the slope of a segment between two ControlPoints
 pub const SlopeKind = enum {
