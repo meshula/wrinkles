@@ -78,6 +78,14 @@ pub const ContinuousTimeInterval = struct {
         );
     }
 
+    /// detect if this interval starts and ends at the same ordinate
+    pub fn is_instant(
+        self: @This(),
+    ) bool
+    {
+        return (self.start_seconds == self.end_seconds);
+    }
+
     /// custom formatter for std.fmt
     pub fn format(
         self: @This(),
@@ -211,16 +219,18 @@ pub fn any_overlap(
     snd: ContinuousTimeInterval,
 ) bool 
 {
+    const fst_is_instant = fst.is_instant();
+    const snd_is_instant = snd.is_instant();
     return (
         // for cases when one interval starts and ends on the same point, allow
         // allow that point to overlap (because of the clusivity the start
         // point).
         (
-             fst.start_seconds == fst.end_seconds
+             fst_is_instant
              and fst.start_seconds >= snd.start_seconds
              and fst.start_seconds < snd.end_seconds
         ) or (
-            snd.start_seconds == snd.end_seconds
+            snd_is_instant
             and snd.start_seconds >= fst.start_seconds
             and snd.start_seconds <  fst.end_seconds
         ) or (
@@ -401,4 +411,21 @@ test "ContinuousTimeInterval: Overlap tests"
     try expect(ival.overlaps_seconds(15));
     try expect(!ival.overlaps_seconds(20));
     try expect(!ival.overlaps_seconds(30));
+}
+
+test "ContinuousTimeInterval: is_instant"
+{
+    const is_not_point = ContinuousTimeInterval {
+        .start_seconds = 0,
+        .end_seconds = 0.1,
+    };
+
+    try std.testing.expect(is_not_point.is_instant() != true);
+
+    const collapsed = ContinuousTimeInterval {
+        .start_seconds = 10,
+        .end_seconds = 10,
+    };
+
+    try std.testing.expect(collapsed.is_instant());
 }
