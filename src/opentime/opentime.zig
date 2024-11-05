@@ -37,3 +37,23 @@ test "all opentime tests" {
     _ = transform;
     _ = dual;
 }
+
+const std = @import("std");
+
+/// utility function that injects the calling info into the debug print
+pub fn dbg_print(
+    src: std.builtin.SourceLocation,
+    comptime fmt: []const u8,
+    args: anytype,
+) void 
+{
+    std.debug.print(
+        "[{s}:{s}:{d}] " ++ fmt,
+        .{
+            src.file,
+            src.fn_name,
+            src.line,
+        } ++ args,
+    );
+}
+
