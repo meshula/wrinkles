@@ -62,8 +62,15 @@ pub const ContinuousTimeInterval = struct {
     ) bool 
     {
         return (
-            (t_seconds >= self.start_seconds)
-            and (t_seconds < self.end_seconds)
+            (
+             self.is_instant()
+             and self.start_seconds == t_seconds
+            )
+            or 
+            (
+             (t_seconds >= self.start_seconds)
+             and (t_seconds < self.end_seconds)
+            )
         );
     }
 
@@ -233,6 +240,13 @@ pub fn any_overlap(
             snd_is_instant
             and snd.start_seconds >= fst.start_seconds
             and snd.start_seconds <  fst.end_seconds
+        ) or (
+        // for cases where BOTH intervals are the same point, check if they all
+        // match
+        //
+            fst_is_instant
+            and snd_is_instant
+            and fst.start_seconds == snd.start_seconds
         ) or (
         // general case
          fst.start_seconds < snd.end_seconds
