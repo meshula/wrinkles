@@ -1,26 +1,44 @@
-const ordinate = @import("ordinate.zig");
-const interval = @import("interval.zig");
+//! ProjectionResult implementation
 
 const std = @import("std");
 
+const ordinate_m = @import("ordinate.zig");
+const interval_m = @import("interval.zig");
+
+/// Contains the result of a projection, which can be an instant (single
+/// ordinate), a range (contuous interval) or an out of bounds result.
 pub const ProjectionResult = union (enum) {
-    SuccessFinite : ordinate.Ordinate,
-    SuccessInfinite : interval.ContinuousTimeInterval,
+    SuccessOrdinate : ordinate_m.Ordinate,
+    SuccessInterval : interval_m.ContinuousTimeInterval,
     OutOfBounds : ?void,
 
     pub const Errors = struct {
-        pub const NotAFiniteProjectionResult = error.NotAFiniteProjectionResult;
+        pub const NotAnOrdinateResult = error.NotAnOrdinateResult;
+        pub const NotAnIntervalResult = error.NotAnIntervalResult;
         pub const OutOfBounds = error.OutOfBounds;
     };
 
     /// fetch the finite result or return an error if it is not a finite sucess
-    pub fn finite(
+    pub fn ordinate(
         self: @This(),
-    ) !f32
+    ) !ordinate_m.Ordinate
     {
         switch (self) {
-            .SuccessFinite => |val| return val,
-            else => return Errors.NotAFiniteProjectionResult,
+            .SuccessOrdinate => |val| return val,
+            .OutOfBounds => return Errors.OutOfBounds,
+            else => return Errors.NotAnOrdinateResult,
+        }
+    }
+
+    /// fetch a range result or return an error if the result isn't a range
+    pub fn interval(
+        self: @This(),
+    ) !interval_m.ContinuousTimeInterval
+    {
+        switch (self) {
+            .SuccessInterval => |val| return val,
+            .OutOfBounds => return Errors.OutOfBounds,
+            else => return Errors.NotAnIntervalResult,
         }
     }
 
