@@ -80,8 +80,8 @@ pub const ContinuousTimeInterval = struct {
     ) bool
     {
         return (
-            self.start_seconds == util.inf
-            or self.end_seconds == util.inf
+            std.math.isInf(self.start_seconds)
+            or std.math.isInf(self.end_seconds)
         );
     }
 
