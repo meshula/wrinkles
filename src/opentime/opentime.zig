@@ -27,6 +27,10 @@ pub const dual_ctx = dual.dual_ctx{};
 
 pub const util = @import("util.zig");
 
+const projection_result = @import("projection_result.zig");
+pub const ProjectionResult = projection_result.ProjectionResult;
+pub const OUTOFBOUNDS = projection_result.OUTOFBOUNDS;
+
 test "all opentime tests" {
     _ = interval;
     // _ = Domain;
