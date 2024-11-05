@@ -34,16 +34,16 @@ pub const ProjectionResult = union (enum) {
     ) !void 
     {
         switch (self) {
-            .SuccessFinite => |ord| try writer.print(
-                "ProjResult{ .finite = {d} }",
+            .SuccessOrdinate => |ord| try writer.print(
+                "ProjResult{{ .ordinate = {d} }}",
                 .{ ord },
             ),
-            .SuccessInfinite => |inf| try writer.print(
-                "ProjResult{ .inifinte = {s} }",
+            .SuccessInterval => |inf| try writer.print(
+                "ProjResult{{ .interval = {s} }}",
                 .{ inf },
             ),
             .OutOfBounds => try writer.print(
-                "ProjResult{ .OutOfBounds }",
+                "ProjResult{{ .OutOfBounds }}",
                 .{},
             ),
         }
