@@ -1656,7 +1656,7 @@ pub fn rescaled_curve(
     target_range: [2]control_point.ControlPoint,
 ) !bezier_curve.Bezier
 {
-    const extents = crv.extents();
+    const original_extents = crv.extents();
 
     const result = try crv.clone(allocator);
 
@@ -1669,7 +1669,7 @@ pub fn rescaled_curve(
 
             pt.* = _rescaled_pt(
                 pt.*,
-                extents,
+                original_extents,
                 target_range
             );
         }
