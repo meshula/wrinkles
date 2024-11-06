@@ -40,6 +40,9 @@ test "all opentime tests" {
 
 const std = @import("std");
 
+// @TODO: make this a build flag
+pub const DEBUG_MESSAGES=false;
+
 /// utility function that injects the calling info into the debug print
 pub fn dbg_print(
     src: std.builtin.SourceLocation,
@@ -47,13 +50,15 @@ pub fn dbg_print(
     args: anytype,
 ) void 
 {
-    std.debug.print(
-        "[{s}:{s}:{d}] " ++ fmt,
-        .{
-            src.file,
-            src.fn_name,
-            src.line,
-        } ++ args,
-    );
+    if (DEBUG_MESSAGES) {
+        std.debug.print(
+            "[{s}:{s}:{d}] " ++ fmt ++ "\n",
+            .{
+                src.file,
+                src.fn_name,
+                src.line,
+            } ++ args,
+        );
+    }
 }
 
