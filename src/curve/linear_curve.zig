@@ -105,6 +105,65 @@ pub fn LinearOf(
                 };
             }
 
+            const NearestIndices = struct {
+                lt_output: usize,
+                gt_output: usize,
+            };
+
+            pub fn nearest_knot_indices_output(
+                self: @This(),
+                output_ord: f32, 
+            ) ?NearestIndices
+            {
+                opentime.dbg_print(
+                    @src(), 
+                    "searching for: {d}",
+                    .{ 
+                        output_ord
+                    }
+                );
+
+                const ob = self.extents_output();
+
+                // out of bounds
+                if (
+                    self.knots.len == 0 
+                    or (output_ord > ob.end_seconds)
+                    or (output_ord < ob.start_seconds)
+                )
+                {
+                    opentime.dbg_print(@src(), "out of bounds", .{ });
+                    return null;
+                }
+
+                var befre_pts = self.knots[0..self.knots.len-1];
+                var after_pts = self.knots[1..];
+
+                const slope = self.slope_kind();
+
+                if (slope == .falling) {
+                    after_pts = befre_pts;
+                    befre_pts = self.knots[1..];
+                }
+
+                // last knot is out of domain
+                for (befre_pts, after_pts, 0..) 
+                    |before, after, index| 
+                {
+                    if (before.out <= output_ord and output_ord <= after.out) 
+                    {
+                        if (slope == .rising) {
+                            return .{ .lt_output = index, .gt_output = index + 1 };
+                        } else {
+                            return .{ .lt_output = index + 1, .gt_output = index };
+                        }
+                    }
+                }
+
+                opentime.dbg_print(@src(), "out of bounds (post search)", .{ });
+                return null;
+            }
+
             pub fn nearest_smaller_knot_index_input(
                 self: @This(),
                 input_ord: f32, 
@@ -1459,6 +1518,64 @@ test "Linear.Monotonic.split_at_input_ordinates"
         new_curves.len,
     );
 }
+
+test "Linear.Monotonic: nearest_knot_indices_output"
+{
+    const crv = Linear.Monotonic{
+        .knots = &.{
+            .{ .in = 0, .out = 0, },
+            .{ .in = 4, .out = 4, },
+            .{ .in = 6, .out = 8, },
+        },
+    };
+
+    const TestCase = struct {
+        name: []const u8,
+        pt: opentime.Ordinate,
+        expected: ?Linear.Monotonic.NearestIndices,
+    };
+
+    const tests = &[_]TestCase{
+        .{
+            .name = "between first two points",
+            .pt = 3,
+            .expected = .{
+                .lt_output = 0,
+                .gt_output = 1 
+            },
+        },
+        .{
+            .name = "between second two points",
+            .pt = 4.5,
+            .expected = .{
+                .lt_output = 1,
+                .gt_output = 2 
+            },
+        },
+        .{
+            .name = "no overlap before",
+            .pt = -8.5,
+            .expected = null,
+        },
+        .{
+            .name = "no overlap after",
+            .pt = 8.5,
+            .expected = null,
+        },
+    };
+
+    for (tests)
+        |t|
+    {
+        const measured = crv.nearest_knot_indices_output(t.pt);
+
+        try std.testing.expectEqual(
+            t.expected,
+            measured,
+        );
+    }
+}
+
 test "Linear.Monotonic: slope_kind"
 {
     {
