@@ -5491,20 +5491,16 @@ test "test debug_print_time_hierarchy"
     );
     defer tp.deinit();
 
+    // count the scopes
+    var i: usize = 0;
     var values = tp.map_code_to_space.valueIterator();
     while (values.next())
-        |val|
+        |_|
     {
-        std.debug.print(" this: {s}\n", .{ val });
+        i += 1;
     }
 
-    try tp.debug_print_time_hierarchy(
-        allocator,
-        .{
-            .source = try tl_ptr.space(.presentation),
-            .destination = try cl_ptr.space(.media),
-        },
-    );
+    try std.testing.expectEqual(13, i);
 }
 
 test "Single clip, Warp bulk"
