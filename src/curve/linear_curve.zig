@@ -175,6 +175,16 @@ pub fn LinearOf(
                 return null;
             }
 
+            pub fn slope_kind(
+                self: @This(),
+            ) bezier_math.SlopeKind
+            {
+                return bezier_math.SlopeKind.compute(
+                    self.knots[0],
+                    self.knots[self.knots.len-1],
+                );
+            }
+
             /// compute the output ordinate at the input ordinate
             pub fn output_at_input(
                 self: @This(),
@@ -1448,4 +1458,48 @@ test "Linear.Monotonic.split_at_input_ordinates"
         4,
         new_curves.len,
     );
+}
+test "Linear.Monotonic: slope_kind"
+{
+    {
+        const crv_rising = Linear.Monotonic{
+            .knots = &.{
+                .{ .in = 0, .out = 0, },
+                .{ .in = 2, .out = 4, },
+            },
+        };
+
+        try std.testing.expectEqual(
+            .rising,
+            crv_rising.slope_kind(),
+        );
+    }
+
+    {
+        const crv_flat = Linear.Monotonic{
+            .knots = &.{
+                .{ .in = 0, .out = 2, },
+                .{ .in = 2, .out = 2, },
+            },
+        };
+
+        try std.testing.expectEqual(
+            .flat,
+            crv_flat.slope_kind(),
+        );
+    }
+
+    {
+        const crv_falling = Linear.Monotonic{
+            .knots = &.{
+                .{ .in = 0, .out = 4, },
+                .{ .in = 2, .out = 0, },
+            },
+        };
+
+        try std.testing.expectEqual(
+            .falling,
+            crv_falling.slope_kind(),
+        );
+    }
 }
