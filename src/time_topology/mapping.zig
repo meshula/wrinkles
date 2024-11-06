@@ -259,6 +259,38 @@ pub const Mapping = union (enum) {
         );
     }
 
+    pub fn inverted(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) !Mapping
+    {
+        switch (self) {
+            .empty => |empty| return (
+                try empty.clone(allocator)
+            ).mapping(),
+            .affine => |aff| return .{
+                .affine = .{
+                    .input_bounds_val = (
+                        aff.output_bounds()
+                    ),
+                    .input_to_output_xform = (
+                        aff.input_to_output_xform.inverted()
+                    ),
+                },
+            },
+            .linear => |lin| return .{
+                .linear = .{
+                    .input_to_output_curve = (
+                        try curve.bezier_math.inverted_linear(
+                            allocator,
+                           lin.input_to_output_curve
+                        )
+                    ),
+                },
+            },
+        }
+    }
+
     // @{ Errors
     pub const ProjectionError = error { OutOfBounds };
     // @}
