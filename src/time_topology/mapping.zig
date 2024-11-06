@@ -101,7 +101,9 @@ pub const Mapping = union (enum) {
     ) !Mapping
     {
         return switch (self) {
-            inline else => |contained| (try contained.clone(allocator)).mapping(),
+            inline else => |contained| (
+                try contained.clone(allocator)
+            ).mapping(),
         };
     }
 
@@ -554,22 +556,12 @@ pub fn join(
     const a2b_b_bounds = a2b.output_bounds();
     const b2c_b_bounds = b2c.input_bounds();
 
-    // if a2b has a flat output interval, and that interval overlaps with the
-    // b2c b space, then return a2b.
-    if (
-        a2b_b_bounds.start_seconds == a2b_b_bounds.end_seconds
-        and b2c.input_bounds().overlaps_seconds(a2b_b_bounds.start_seconds)
-    )
-    {
-        return a2b.clone(allocator);
-    }
-
     opentime.dbg_print(@src(), "a2b_b_bounds: {s}\n", .{ a2b_b_bounds });
     opentime.dbg_print(@src(), "b2c_b_bounds: {s}\n", .{ b2c_b_bounds });
     const maybe_b_bounds_intersection = (
         opentime.interval.intersect(
             a2b_b_bounds,
-            b2c_b_bounds
+            b2c_b_bounds,
         )
     );
     opentime.dbg_print(
