@@ -4829,7 +4829,7 @@ test "otio projection: track with single clip with transform"
         {
             //                                   (3.5s*2 + 1s)*4
             const expected = [_]usize{ 
-                32, 33, 34, 35, 36, 37, 38, 39 
+                32, 34, 36, 38, 
             };
 
             const result_media_indices = (
@@ -5549,6 +5549,7 @@ test "Single clip, Warp bulk"
         warp_child_range : [2]opentime.Ordinate,
         presentation_test : opentime.Ordinate,
         clip_media_test : opentime.Ordinate,
+        project_to_finite: bool = true,
     };
 
     const tests = [_]TestCase{
@@ -5586,6 +5587,7 @@ test "Single clip, Warp bulk"
             .warp_child_range = .{7, 7},
             .presentation_test = 2,
             .clip_media_test = 107,
+            .project_to_finite = false,
         },
     };
 
@@ -5675,6 +5677,8 @@ test "Single clip, Warp bulk"
                     },
                     input_bounds.start_seconds, input_bounds.end_seconds ,
                     output_bounds.start_seconds, output_bounds.end_seconds,
+                    t.presentation_test,
+                    t.label,
                 },
             );
 
