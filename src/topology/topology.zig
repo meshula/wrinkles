@@ -310,36 +310,6 @@ pub const Topology = struct {
         return try result.toOwnedSlice();
     }
 
-    // pub fn mapping_at_input(
-    //     self: @This(),
-    //     input_ord: opentime.Ordinate,
-    // ) !usize
-    // {
-    //     if (self.input_bounds().overlaps_seconds(input_ord) == false)
-    //     {
-    //         return error.OutOfBounds;
-    //     }
-    //
-    //     return self.mapping_at_input_assume_overlap(input_ord);
-    // }
-    //
-    // pub fn mapping_at_input_assume_overlap(
-    //     self: @This(),
-    //     input_ord: opentime.Ordinate,
-    // ) usize
-    // {
-    //     for (self.end_points_input[1..], 0..)
-    //         |right_knot, m_ind|
-    //     {
-    //         if (right_knot > input_ord)
-    //         {
-    //             return m_ind;
-    //         }
-    //     }
-    //
-    //     return self.mappings.len-1;
-    // }
-
     pub fn trim_in_input_space(
         self: @This(),
         allocator: std.mem.Allocator,
