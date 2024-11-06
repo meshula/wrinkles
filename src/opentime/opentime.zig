@@ -65,7 +65,7 @@ pub fn dbg_print(
 /// clone return a new slice with each thing in the slice having been .cloned()
 /// from the thing in the original list.  Assumes that clone takes an allocator
 /// argument and returns in the same order.
-fn slice_with_cloned_contents_allocator(
+pub fn slice_with_cloned_contents_allocator(
     allocator: std.mem.Allocator,
     comptime T: type,
     slice_to_clone: []const T,
@@ -82,7 +82,7 @@ fn slice_with_cloned_contents_allocator(
     return try result.toOwnedSlice();
 }
 
-fn deinit_slice(
+pub fn deinit_slice(
     allocator: std.mem.Allocator,
     comptime T:type,
     slice_to_deinit: []const T,
