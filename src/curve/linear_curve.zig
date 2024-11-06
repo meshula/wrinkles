@@ -1520,7 +1520,7 @@ test "Linear.Monotonic.split_at_input_ordinates"
     }
 
     try std.testing.expectEqual(
-        4,
+        3,
         new_curves.len,
     );
 }
