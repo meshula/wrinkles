@@ -357,6 +357,8 @@ pub fn read_from_file(
 
 test "read_from_file test" 
 {
+    const allocator = std.testing.allocator;
+
     const root = "simple_cut";
     const otio_fpath = root ++ ".otio";
     const dot_fpath = root ++ ".dot";
@@ -398,6 +400,7 @@ test "read_from_file test"
             .destination = try target_clip_ptr.space(otio.SpaceLabel.media),
         }
     );
+    defer tl_output_to_clip_media.deinit(allocator);
     
     try map.write_dot_graph(
         std.testing.allocator,
