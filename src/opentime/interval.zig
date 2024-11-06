@@ -335,7 +335,7 @@ test "ContinuousTimeInterval: any_overlap"
 /// return an interval of the intersection or null if they are disjoint
 pub fn intersect(
     fst: ContinuousTimeInterval,
-    snd: ContinuousTimeInterval
+    snd: ContinuousTimeInterval,
 ) ?ContinuousTimeInterval 
 {
     if (any_overlap(fst, snd) == false) {
