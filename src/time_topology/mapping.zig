@@ -644,3 +644,59 @@ pub fn join(
         inline else => unreachable,
     };
 }
+
+test "Mapping: join aff/aff"
+{
+    const allocator = std.testing.allocator;
+    const ident = INFINITE_IDENTIY;
+
+    const aff = (
+        MappingAffine{
+            .input_bounds_val = .{
+                .start_seconds = 0,
+                .end_seconds = 8,
+            },
+            .input_to_output_xform = .{
+                .offset_seconds = 1,
+            },
+        }
+    );
+
+    const result = try join(
+        allocator,
+        .{
+            .a2b = ident,
+            .b2c = aff.mapping(),
+        },
+    );
+
+    try std.testing.expectEqual(
+        4,
+        aff.project_instantaneous_cc(3).ordinate(),
+    );
+    try std.testing.expectEqual(
+        4,
+        result.project_instantaneous_cc(3).ordinate(),
+    );
+    try std.testing.expectEqual(
+        aff.input_bounds().start_seconds,
+        result.input_bounds().start_seconds,
+    );
+    try std.testing.expectEqual(
+        aff.input_bounds().end_seconds,
+        result.input_bounds().end_seconds,
+    );
+    try std.testing.expectEqual(
+        aff.output_bounds().start_seconds,
+        result.output_bounds().start_seconds,
+    );
+    try std.testing.expectEqual(
+        aff.output_bounds().end_seconds,
+        result.output_bounds().end_seconds,
+    );
+
+    try std.testing.expectEqual(
+        .affine,
+        std.meta.activeTag(result)
+    );
+}
