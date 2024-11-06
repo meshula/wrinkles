@@ -1146,6 +1146,7 @@ pub const ProjectionOperator = struct {
             or (increasing == false and t > bounds_to_walk.end_seconds)
         ) : (t += sign*duration)
         {
+            const out_ord = try in_to_dst_topo_c.project_instantaneous_cc(t).ordinate();
             // ...project the continuous coordinate into the discrete space
             try index_buffer_destination_discrete.append(
                 try self.destination.ref.continuous_ordinate_to_discrete_index(
@@ -3801,8 +3802,8 @@ test "Projection: Track with single clip with identity transform and bounds"
     );
 
     try expectError(
-        time_topology.Topology.ProjectionError.OutOfBounds,
-        root_presentation_to_clip_media.project_instantaneous_cc(3)
+        time_topology.mapping.Mapping.ProjectionError.OutOfBounds,
+        root_presentation_to_clip_media.project_instantaneous_cc(3).ordinate()
     );
 }
 
@@ -4031,7 +4032,9 @@ test "Single Clip bezier transform"
     );
 
     // test the output space range (the media space of the clip)
-    const curve_bounds_output = xform_curve.extents_output();
+    const curve_bounds_output = (
+        xform_curve.extents_output()
+    );
     try expectApproxEqAbs(
         @as(f32, 0),
         curve_bounds_output.start_seconds, util.EPSILON
@@ -4520,7 +4523,7 @@ test "otio projection: track with single clip"
         // continuous or interpolated samples
         try expectApproxEqAbs(
             4.5,
-            try track_to_media.project_instantaneous_cc(3.5),
+            try track_to_media.project_instantaneous_cc(3.5).ordinate(),
             util.EPSILON,
         );
 
