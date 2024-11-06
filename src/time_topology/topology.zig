@@ -91,11 +91,15 @@ pub const Topology = struct {
     }
 
     pub fn init_affine(
+        allocator: std.mem.Allocator,
         aff: mapping.MappingAffine,
-    ) Topology
+    ) !Topology
     {
         return Topology{
-            .mappings = &.{ aff.mapping() }
+            .mappings = try allocator.dupe(
+                mapping.Mapping,
+                &.{ aff.mapping() }
+            )
         };
     }
 
@@ -119,30 +123,37 @@ pub const Topology = struct {
     /// build a topology with a single identity mapping over the range
     /// specified
     pub fn init_identity(
+        allocator: std.mem.Allocator,
         range: opentime.ContinuousTimeInterval,
-    ) Topology
+    ) !Topology
     {
         return .{
-            .mappings = &.{
-                (
-                 mapping.MappingAffine{
-                     .input_bounds_val = range,
-                 }
-                ).mapping(),
-            },
+            .mappings = try allocator.dupe(
+                mapping.Mapping,
+                &.{
+                    (
+                     mapping.MappingAffine{
+                         .input_bounds_val = range,
+                     }
+                    ).mapping(),
+                },
+            )
         };
     }
 
     /// build a topology with a single identity mapping with an infinite range
     pub fn init_identity_infinite(
-    ) Topology
+        allocator: std.mem.Allocator,
+    ) !Topology
     {
         return .{
-            .mappings = &.{
-                (
-                 mapping.MappingAffine{}
-                ).mapping(),
-            },
+            .mappings = try allocator.dupe(mapping.Mapping,
+                &.{
+                    (
+                     mapping.MappingAffine{}
+                    ).mapping(),
+                }
+            ),
         };
     }
 
@@ -175,7 +186,15 @@ pub const Topology = struct {
             );
         }
 
-        try writer.print("] }}", .{});
+        if (self.mappings.len > 0) {
+            try writer.print(
+                "] -> output space: {s} }}",
+                .{ self.output_bounds() }
+            );
+        }
+        else {
+            try writer.print("] -> output space: (null) }}", .{});
+        }
     }
 
     pub fn clone(
@@ -207,7 +226,10 @@ pub const Topology = struct {
         {
             m.deinit(allocator);
         }
-        allocator.free(self.mappings);
+        if (self.mappings.len > 0) 
+        {
+            allocator.free(self.mappings);
+        }
     }
 
     pub fn input_bounds(
@@ -1966,7 +1988,10 @@ test "Topology: project_instantaneous_cc and project_instantaneous_cc_inv"
 
 test "Topology: init_affine"
 {
-    const t_aff = Topology.init_affine(
+    const allocator = std.testing.allocator;
+
+    const t_aff = try Topology.init_affine(
+        allocator,
         .{
             .input_bounds_val = .{
                 .start_seconds = 0, 
