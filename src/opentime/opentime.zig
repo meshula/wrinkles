@@ -50,7 +50,8 @@ pub fn dbg_print(
     args: anytype,
 ) void 
 {
-    if (DEBUG_MESSAGES) {
+    if (DEBUG_MESSAGES) 
+    {
         std.debug.print(
             "[{s}:{s}:{d}] " ++ fmt ++ "\n",
             .{
@@ -82,6 +83,7 @@ pub fn slice_with_cloned_contents_allocator(
     return try result.toOwnedSlice();
 }
 
+/// call .deinit(allocator) on all the items in the slice, then free the slice
 pub fn deinit_slice(
     allocator: std.mem.Allocator,
     comptime T:type,
