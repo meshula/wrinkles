@@ -365,7 +365,7 @@ pub export fn otio_po_map_fetch_num_endpoints(
 
 pub export fn otio_po_map_fetch_endpoints(
     in_po_map_c: c.otio_ProjectionOperatorMap,
-) [*]f32
+) [*]const f32
 {
     const po_map = ptrCast(
         otio.ProjectionOperatorMap,
@@ -515,7 +515,7 @@ pub export fn otio_fetch_topology(
         return ERR_TOPO;
     };
 
-    result.* = ref.topology() catch return ERR_TOPO;
+    result.* = ref.topology(allocator) catch return ERR_TOPO;
 
     return .{ .ref = result };
 }
