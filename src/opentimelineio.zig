@@ -2165,7 +2165,11 @@ pub const ProjectionOperatorMap = struct {
             |self_ops|
         {
             try tmp_ops.append(
-                try allocator.dupe(ProjectionOperator, self_ops)
+                try opentime.slice_with_cloned_contents_allocator(
+                    allocator,
+                    ProjectionOperator,
+                    self_ops,
+                )
             );
         }
 
@@ -2210,7 +2214,8 @@ pub const ProjectionOperatorMap = struct {
         )
         {
             try tmp_ops.append(
-                try allocator.dupe(
+                try opentime.slice_with_cloned_contents_allocator(
+                    allocator,
                     ProjectionOperator,
                     self.operators[ind_self],
                 )
