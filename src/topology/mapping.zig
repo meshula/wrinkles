@@ -12,7 +12,7 @@ pub const MappingEmpty = mapping_empty.MappingEmpty;
 
 const mapping_affine = @import("mapping_affine.zig");
 pub const MappingAffine = mapping_affine.MappingAffine;
-pub const INFINITE_IDENTIY = mapping_affine.INFINITE_IDENTIY;
+pub const INFINITE_IDENTITY = mapping_affine.INFINITE_IDENTITY;
 
 const mapping_curve_linear = @import("mapping_curve_linear.zig");
 pub const MappingCurveLinearMonotonic = mapping_curve_linear.MappingCurveLinearMonotonic;
@@ -680,7 +680,7 @@ pub fn join(
 test "Mapping: join aff/aff"
 {
     const allocator = std.testing.allocator;
-    const ident = INFINITE_IDENTIY;
+    const ident = INFINITE_IDENTITY;
 
     const aff = (
         MappingAffine{

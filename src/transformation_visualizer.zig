@@ -234,7 +234,7 @@ const PRESETS = struct{
                 .name = "Clip",
                 .input = "presentation",
                 .output = "media",
-                .mapping = topology.mapping.INFINITE_IDENTIY,
+                .mapping = topology.mapping.INFINITE_IDENTITY,
             },
         },
     };
@@ -261,47 +261,45 @@ const PRESETS = struct{
         },
     };
 
-    // pub const affine_linear = UI{
-    //     .spaces = &.{
-    //         .{ 
-    //             .name = "Track",
-    //             .input = "presentation",
-    //             .output = "media",
-    //             .mapping = (
-    //                 topology.mapping.MappingAffine{
-    //                     .input_bounds_val = .{
-    //                         .start_seconds = -10,
-    //                         .end_seconds = 10,
-    //                     },
-    //                     .input_to_output_xform = .{
-    //                         .offset_seconds = 10,
-    //                         .scale = 2,
-    //                     },
-    //                 }
-    //             ).mapping(),
-    //         },
-    //         .{ 
-    //             .name = "Clip",
-    //             .input = "presentation",
-    //             .output = "media",
-    //             .mapping = (
-    //                 topology.mapping.MappingCurveBezier.init_curve(
-    //                     .input_to_output_curve = 
-    //                         .{
-    //                             .knots = @constCast(
-    //                                 &[_]curve.ControlPoint{
-    //                                     .{ .in = -10, .out = -10 },
-    //                                     .{ .in = 0, .out = 0 },
-    //                                     .{ .in = 5, .out = 10 },
-    //                                     .{ .in = 10, .out = 3 },
-    //                                 },
-    //                             )
-    //                         },
-    //                     }
-    //             ).mapping(),
-    //         },
-    //     },
-    // };
+    pub const affine_linear = UI{
+        .spaces = &.{
+            .{ 
+                .name = "Track",
+                .input = "presentation",
+                .output = "media",
+                .mapping = (
+                    topology.mapping.MappingAffine{
+                        .input_bounds_val = .{
+                            .start_seconds = -10,
+                            .end_seconds = 10,
+                        },
+                        .input_to_output_xform = .{
+                            .offset_seconds = 10,
+                            .scale = 2,
+                        },
+                    }
+                ).mapping(),
+            },
+            .{ 
+                .name = "Clip",
+                .input = "presentation",
+                .output = "media",
+                .mapping = (
+                    topology.mapping.MappingCurveLinearMonotonic{
+                        .input_to_output_curve = .{
+                                .knots = @constCast(
+                                    &[_]curve.ControlPoint{
+                                        .{ .in = -10, .out = -10 },
+                                        .{ .in = 0, .out = 0 },
+                                        .{ .in = 5, .out = 10 },
+                                    },
+                                )
+                            },
+                        }
+                ).mapping(),
+            },
+        },
+    };
 };
 const PresetNames = std.meta.DeclEnum(PRESETS);
 

@@ -1025,7 +1025,7 @@ pub const Topology = struct {
 pub const EMPTY = Topology{ .mappings = &.{} };
 pub const INFINITE_IDENTIY = Topology{
     .mappings = &.{
-        mapping.INFINITE_IDENTIY,
+        mapping.INFINITE_IDENTITY,
     }
 };
 

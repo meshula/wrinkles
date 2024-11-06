@@ -217,7 +217,7 @@ pub const MappingAffine = struct {
         return try result_mappings.toOwnedSlice();
     }
 };
-pub const INFINITE_IDENTIY = (
+pub const INFINITE_IDENTITY = (
     MappingAffine{
         .input_bounds_val = opentime.INF_CTI,
         .input_to_output_xform = opentime.IDENTITY_TRANSFORM,

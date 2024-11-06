@@ -1470,7 +1470,7 @@ fn update_with_error(
     }
 
     var _proj = topology.Topology.init_identity_infinite(allocator);
-    const inf = trytopology.Topology.init_identity_infinite(allocator);
+    const inf = topology.Topology.init_identity_infinite(allocator);
 
     for (STATE.operations.items) 
         |visop| 
