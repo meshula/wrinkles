@@ -660,7 +660,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
 
         try std.testing.expectEqualSlices(
             usize, 
-            &.{ 48000, 48001, 48002, 48003, },
+            &.{ 48000, 48002, },
             result_buf,
         );
     }
@@ -762,8 +762,10 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
             try tr_pres_to_cl_media_po.project_instantaneous_cd(start)
         );
 
+        // 6 second signal at 48000 that starts 1 second in = 
+        // [48000, 288000) -> [288000, 48000)
         try std.testing.expectEqual(
-            336000,
+            288000,
             start_frame_in_destination_d
         );
 
@@ -928,8 +930,8 @@ test "timeline w/ warp that holds the tenth frame"
             try tr_pres_to_cl_media_po.project_range_cd(
                 allocator,
                 .{
-                    .start_seconds = start,
-                    .end_seconds = start + 3,
+                    .start_seconds = 0,
+                    .end_seconds =  4.0/24.0,
                 },
             )
         );
@@ -937,7 +939,8 @@ test "timeline w/ warp that holds the tenth frame"
 
         try std.testing.expectEqualSlices(
             usize, 
-            &.{ 10 },
+            // 34 because of the 1 second start time in the destination
+            &.{ 34, 34, 34, 34, },
             result_buf,
         );
     }
