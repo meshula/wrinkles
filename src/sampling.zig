@@ -690,8 +690,29 @@ pub fn transform_resample_dd(
                 try output_buffer.appendSlice(new_sampling.buffer);
             },
             .affine => |aff| {
-                _ = aff;
-                return error.NotImplementedAffineResampling;
+                const ib = aff.input_bounds();
+                const ob = aff.output_bounds();
+
+                const lin = topology.mapping.MappingCurveLinearMonotonic{
+                    .input_to_output_curve = .{
+                        .knots = &.{
+                            .{ .in = ib.start_seconds, .out = ob.start_seconds },
+                            .{ .in = ib.end_seconds, .out = ob.end_seconds },
+                        },
+                    },
+                };
+
+                const new_sampling = (
+                    try transform_resample_linear_dd(
+                        allocator,
+                        input_d_sampling,
+                        lin,
+                        output_d_sampling_info,
+                        step_retime,
+                    )
+                );
+                defer new_sampling.deinit();
+                try output_buffer.appendSlice(new_sampling.buffer);
             },
         }
     }
