@@ -740,7 +740,7 @@ pub const Topology = struct {
                         )
                         {
                             const in_pt = (
-                                try m.project_instantaneous_cc_inv(pt)
+                                try m.project_instantaneous_cc_inv(out_pt).ordinate()
                             );
 
                             if (
@@ -806,18 +806,33 @@ pub const Topology = struct {
     pub fn project_instantaneous_cc(
         self: @This(),
         input_ord: opentime.Ordinate
-    ) !opentime.Ordinate
+    ) opentime.ProjectionResult
     {
+        const ib = self.input_bounds();
+        if (ib.is_instant()) 
+        {
+            if (ib.start_seconds == input_ord) {
+                return .{ 
+                    .SuccessInterval = self.output_bounds(),
+                };
+            }
+            return .{
+                .OutOfBounds = null,
+            };
+        }
+
         for (self.mappings)
             |m|
         {
             if (m.input_bounds().overlaps_seconds(input_ord))
             {
-                return try m.project_instantaneous_cc(input_ord);
+                return m.project_instantaneous_cc(input_ord);
             }
         }
 
-        return error.OutOfBounds;
+        return .{
+            .OutOfBounds = null,
+        };
     }
 
     /// project the output space ordinate into the input space.  Because
@@ -843,12 +858,97 @@ pub const Topology = struct {
             )
             {
                 try input_ordinates.append(
-                    try m.project_instantaneous_cc_inv(output_ord)
+                    try m.project_instantaneous_cc_inv(output_ord).ordinate()
                 );
             }
         }
 
         return try input_ordinates.toOwnedSlice();
+    }
+
+    /// Topology guarantees a monotonic, continuous input space.  When
+    /// inverting, the output space must be split at critical points and put
+    /// into different Topologies for the caller to manage.
+    pub fn inverted(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) ![]const Topology
+    {
+        if (self.mappings.len == 0) {
+            return try allocator.dupe(Topology, &.{ EMPTY });
+        }
+
+        var result = (
+            std.ArrayList(Topology).init(allocator)
+        );
+
+        var current_mappings =(
+            std.ArrayList(mapping.Mapping).init(allocator)
+        );
+        defer current_mappings.deinit();
+
+        var maybe_input_range: ?opentime.ContinuousTimeInterval = null;
+
+        for (self.mappings)
+            |m|
+        {
+            // mappings are 1:1, can always invert
+            const m_inverted = try m.inverted(allocator);
+            opentime.dbg_print(@src(), "m_inverted: {s}", .{ m_inverted});
+
+            if (maybe_input_range)
+                |current_range|
+            {
+                if (
+                    opentime.interval.intersect(
+                        current_range,
+                        m_inverted.input_bounds(),
+                    ) != null
+                    and current_mappings.items.len > 0
+                )
+                {
+                    try result.append(
+                        .{
+                            .mappings = (
+                                try current_mappings.toOwnedSlice()
+                            ),
+                        },
+                    );
+                }
+                else 
+                {
+                    // continue the current topology
+                    maybe_input_range = opentime.interval.extend(
+                        current_range,
+                        m_inverted.input_bounds(),
+                    );
+                    opentime.dbg_print(@src(), "      appending (1) {s}", .{m_inverted});
+                    try current_mappings.append(m_inverted);
+                }
+            }
+            else {
+                opentime.dbg_print(@src(), "      appending (2) {s}", .{m_inverted});
+                try current_mappings.append(m_inverted);
+                maybe_input_range = m_inverted.input_bounds();
+            }
+        }
+
+        try result.append(
+            .{
+                .mappings = (
+                    try current_mappings.toOwnedSlice()
+                ),
+            },
+        );
+
+        opentime.dbg_print(@src(), "      done {s}", .{result.items});
+        for (result.items)
+            |m|
+        {
+            opentime.dbg_print(@src(), "result.m: {s}", .{ m });
+        }
+
+        return try result.toOwnedSlice();
     }
 };
 
@@ -1019,8 +1119,38 @@ pub fn join(
     const allocator = arena.allocator();
 
     const a2b = topologies.a2b;
-
     const b2c = topologies.b2c;
+
+    if (a2b.output_bounds().is_instant())
+    {
+        // compute the projected flat value
+        const maybe_output_value = b2c.project_instantaneous_cc(
+            a2b.output_bounds().start_seconds
+        );
+
+        const output_value = switch (maybe_output_value) {
+            .OutOfBounds,  => {
+                return EMPTY;
+            },
+            .SuccessInterval => unreachable,
+            .SuccessOrdinate => |val| val,
+        };
+
+        const input_range = a2b.input_bounds();
+
+        return Topology.init_from_linear_monotonic(
+            parent_allocator,
+            .{
+                .knots = &.{
+                    .{ .in = input_range.start_seconds, .out = output_value },
+                    .{ .in = input_range.end_seconds, .out = output_value },
+                },
+            },
+        );
+    }
+
+    opentime.dbg_print(@src(), "    JOIN\n    ----", .{});
+    opentime.dbg_print(@src(), "     a2b: {s}\n     b2c: {s}", .{ a2b, b2c });
 
     // first trim both to the intersection range
     const b_range = opentime.interval.intersect(
@@ -1737,12 +1867,12 @@ test "Topology: project_instantaneous_cc and project_instantaneous_cc_inv"
 
             // forward
             const measured_out = (
-                try t.input_to_output_topo.project_instantaneous_cc(pt.in)
+                t.input_to_output_topo.project_instantaneous_cc(pt.in)
             );
 
             try std.testing.expectApproxEqAbs(
                 pt.out,
-                measured_out,
+                measured_out.SuccessOrdinate,
                 opentime.util.EPSILON,
             );
         }
@@ -1782,9 +1912,53 @@ test "Topology: init_affine"
             },
         },
     );
+    defer t_aff.deinit(allocator);
 
     try std.testing.expectEqual(
         20,
-        t_aff.project_instantaneous_cc(4),
+        t_aff.project_instantaneous_cc(4).ordinate(),
+    );
+}
+
+test "Topology: join affine with affine"
+{
+    const allocator = std.testing.allocator;
+
+    const ident = try Topology.init_identity_infinite(
+        allocator
+    );
+    defer ident.deinit(allocator);
+
+    const aff1 = try Topology.init_affine(
+        allocator,
+        .{
+            .input_bounds_val = .{
+                .start_seconds = 0,
+                .end_seconds = 8,
+            },
+            .input_to_output_xform = .{
+                .offset_seconds = 1,
+            },
+        },
+    );
+    defer aff1.deinit(allocator);
+
+    const result = try join(
+        allocator,
+        .{
+            .a2b = ident,
+            .b2c = aff1,
+        },
+    );
+    defer result.deinit(allocator);
+
+    try std.testing.expect(result.mappings.len > 0);
+    try std.testing.expectEqual(
+        .affine,
+        std.meta.activeTag(result.mappings[0]),
+    );
+    try std.testing.expectEqual(
+        4,
+        try result.project_instantaneous_cc(3).ordinate(),
     );
 }

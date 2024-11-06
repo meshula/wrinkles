@@ -208,63 +208,91 @@ pub fn LinearOf(
             pub fn output_at_input(
                 self: @This(),
                 input_ord: opentime.Ordinate,
-            ) error{OutOfBounds}!opentime.Ordinate 
+            ) opentime.ProjectionResult
             {
+                const slope = self.slope_kind();
+                if (
+                    slope == .flat 
+                    and self.extents_input().overlaps_seconds(input_ord)
+                ) 
+                {
+                    const self_ob = self.extents_output();
+                    
+                    if (self_ob.is_instant()) {
+                        return .{
+                            .SuccessOrdinate = self_ob.start_seconds,
+                        };
+                    }
+
+                    return .{
+                        .SuccessInterval = self.extents_output(),
+                    };
+                }
+
                 if (self.nearest_smaller_knot_index_input(input_ord)) 
                     |index| 
                 {
-                    return bezier_math.output_at_input_between(
-                        input_ord,
-                        self.knots[index],
-                        self.knots[index+1],
-                    );
+                    return .{
+                        .SuccessOrdinate = bezier_math.output_at_input_between(
+                            input_ord,
+                            self.knots[index],
+                            self.knots[index+1],
+                        ),
+                    };
                 }
 
                 // specially handle the endpoint
                 const last_knot = self.knots[self.knots.len - 1];
                 if (input_ord == last_knot.in) {
-                    return last_knot.out;
+                    return .{
+                        .SuccessOrdinate = last_knot.out,
+                    };
                 }
                 if (input_ord == self.knots[0].in) {
-                    return last_knot.out;
+                    return .{
+                        .SuccessOrdinate = last_knot.out,
+                    };
                 }
 
-                return error.OutOfBounds;
+                return opentime.OUTOFBOUNDS;
             }
 
             /// compute the input ordinate at the output ordinate
             pub fn input_at_output(
                 self: @This(),
                 output_ord: opentime.Ordinate,
-            ) error{OutOfBounds}!opentime.Ordinate 
+            ) opentime.ProjectionResult
             {
                 if (self.knots.len == 0) {
-                    return error.OutOfBounds;
+                    return opentime.OUTOFBOUNDS;
                 }
 
-                if (self.nearest_smaller_knot_index_output(output_ord)) 
-                    |index| 
+                if (self.nearest_knot_indices_output(output_ord)) 
+                    |indices| 
                 {
-                    return bezier_math.input_at_output_between(
-                        output_ord,
-                        self.knots[index],
-                        self.knots[index+1],
-                    );
+                    return .{
+                        .SuccessOrdinate = bezier_math.input_at_output_between(
+                            output_ord,
+                            self.knots[indices.lt_output],
+                            self.knots[indices.gt_output],
+                        )
+                    };
                 }
+                
                 opentime.dbg_print(@src(), "Ack: {d}", .{output_ord} );
 
                 // specially handle the endpoint
                 const last_knot = self.knots[self.knots.len - 1];
                 if ( output_ord == last_knot.out) {
-                    return last_knot.in;
+                    return .{ .SuccessOrdinate = last_knot.in };
                 }
 
                 const first_knot = self.knots[0];
                 if ( output_ord == first_knot.out) {
-                    return first_knot.in;
+                    return .{ .SuccessOrdinate = first_knot.in };
                 }
 
-                return error.OutOfBounds;
+                return opentime.OUTOFBOUNDS;
             }
 
             /// trim the curve to a range in the input space
@@ -297,16 +325,17 @@ pub fn LinearOf(
                     input_bounds.start_seconds >= ext.start_seconds
                 ) ControlPointType{
                     .in = input_bounds.start_seconds,
-                    .out = try self.output_at_input(input_bounds.start_seconds),
+                    .out = try self.output_at_input(input_bounds.start_seconds).ordinate(),
                 } else self.knots[0];
                 try result.append(first_point);
-
 
                 const last_point = if (
                     input_bounds.end_seconds < ext.end_seconds
                 ) ControlPointType{ 
                     .in = input_bounds.end_seconds,
-                    .out = try self.output_at_input(input_bounds.end_seconds),
+                    .out = try self.output_at_input(
+                        input_bounds.end_seconds
+                    ).ordinate(),
                 } else self.extents()[1];
 
                 opentime.dbg_print(@src(), 
@@ -346,6 +375,7 @@ pub fn LinearOf(
                     "   result: {s}",
                     .{ result.items }
                 );
+
                 const out = Monotonic{ 
                     .knots = try result.toOwnedSlice() 
                 };
@@ -365,26 +395,63 @@ pub fn LinearOf(
                 output_bounds: opentime.ContinuousTimeInterval,
             ) !Monotonic
             {            
+                if (self.knots.len < 2) {
+                    return try self.clone(allocator);
+                }
+
+                const ext = self.extents_output();
+                if (
+                    ext.end_seconds < output_bounds.end_seconds
+                    and ext.start_seconds > output_bounds.start_seconds
+                ) {
+                    return try self.clone(allocator);
+                }
+
+                const segment_slope = bezier_math.SlopeKind.compute(
+                    self.knots[0],
+                    self.knots[self.knots.len-1],
+                );
+
+                if (
+                    segment_slope == .flat
+                    and (output_bounds.overlaps_seconds(self.knots[0].out))
+                ) 
+                {
+                    return try self.clone(allocator);
+                }
+
+                var knots = (
+                    std.ArrayList(ControlPointType).init(allocator)
+                );
+                defer knots.deinit();
+
+                try knots.appendSlice(self.knots);
+
                 opentime.dbg_print(
                     @src(),
                     "input knots: {s}",
                     .{ knots.items}
                 );
+
+                // always process as if it was rising
+                if (segment_slope == .falling) {
+                    std.mem.reverse(ControlPointType, knots.items);
+                }
+
                 opentime.dbg_print(@src(), "@@ trimmed_output_start ", .{});
                 var result = (
                     std.ArrayList(ControlPointType).init(allocator)
                 );
                 defer result.deinit();
 
-                const ext = self.extents_output();
                 opentime.dbg_print(@src(), "@@ ext output: {s} ", .{ext});
 
                 const first_point = if (
                     output_bounds.start_seconds >= ext.start_seconds
                 ) ControlPointType{
-                    .in = try self.input_at_output(output_bounds.start_seconds),
+                    .in = try self.input_at_output(output_bounds.start_seconds).ordinate(),
                     .out = output_bounds.start_seconds,
-                } else self.knots[0];
+                } else knots.items[0];
                 try result.append(first_point);
                 opentime.dbg_print(
                     @src(),
@@ -395,16 +462,16 @@ pub fn LinearOf(
                 const last_point = if (
                     output_bounds.end_seconds < ext.end_seconds
                 ) ControlPointType{ 
-                    .in = try self.input_at_output(output_bounds.end_seconds),
+                    .in = try self.input_at_output(output_bounds.end_seconds).ordinate(),
                     .out = output_bounds.end_seconds,
-                } else self.extents()[1];
+                } else knots.items[knots.items.len-1];
                 opentime.dbg_print(
                     @src(),
                     "last_point: {s}",
                     .{ last_point },
                 );
 
-                for (self.knots) 
+                for (knots.items) 
                     |knot|
                 {
                     if (
@@ -429,9 +496,27 @@ pub fn LinearOf(
 
                 try result.append(last_point);
 
-                return Monotonic{ 
+                if (segment_slope == .falling) {
+                    opentime.dbg_print(
+                        @src(),
+                        "falling, reversing knots",
+                        .{}
+                    );
+
+                    std.mem.reverse(ControlPointType, result.items);
+                }
+                else {
+                    opentime.dbg_print(
+                        @src(),
+                        "rising, knots: {s}",
+                        .{result.items}
+                    );
+                }
+
+                const out = Monotonic{ 
                     .knots = try result.toOwnedSlice() 
                 };
+
                 opentime.dbg_print(
                     @src(),
                     "trimmed_monotone: {s}->{s}"
@@ -441,6 +526,8 @@ pub fn LinearOf(
                         out.extents_output(),
                     },
                 );
+
+                return out;
             }
 
             pub fn format(
@@ -546,12 +633,13 @@ pub fn LinearOf(
 
                     if (right_knot_ind >= self.knots.len) {
                         opentime.dbg_print(@src(), "      in_pt: {d} (break2)", .{in_pt});
+                        try current_curve.append(right_knot);
                         break;
                     }
 
                     const new_knot = ControlPointType{
                         .in = in_pt,
-                        .out = try self.output_at_input(in_pt),
+                        .out = try self.output_at_input(in_pt).ordinate(),
                     };
 
                     opentime.dbg_print(@src(), 
@@ -572,12 +660,27 @@ pub fn LinearOf(
                     opentime.dbg_print(@src(), "      in_pt: {d} (start new curve w/ knot: {s}", .{in_pt, new_knot});
                 }
 
-                try current_curve.appendSlice(self.knots[right_knot_ind..]);
-                try new_knot_slices.append(
-                    try current_curve.toOwnedSlice(),
-                );
-                errdefer new_knot_slices.deinit();
+                right_knot_ind+=1;
 
+                if (right_knot_ind <= self.knots.len-1) {
+                    opentime.dbg_print(@src(), 
+                        "   (append rest of knots: {s})",
+                        .{ self.knots[right_knot_ind..] }
+                    );
+                    try current_curve.appendSlice(self.knots[right_knot_ind..]);
+                }
+
+                if (current_curve.items.len > 1) {
+                    opentime.dbg_print(@src(), 
+                        "   (append last new curve: {s})",
+                        .{ current_curve.items }
+                    );
+                    try new_knot_slices.append(
+                        try current_curve.toOwnedSlice(),
+                    );
+                }
+
+                // build knot slices into curves
                 var new_curves = (
                     std.ArrayList(Monotonic).init(allocator)
                 );
@@ -595,8 +698,6 @@ pub fn LinearOf(
 
                 return try new_curves.toOwnedSlice();
             }
-
-
         };
 
         /// dupe the provided points into the result
@@ -872,7 +973,7 @@ test "Linear: projection_test - compose to identity"
     {
         try expectApproxEqAbs(
             x,
-            try result.output_at_input(x),
+            try result.output_at_input(x).ordinate(),
             generic_curve.EPSILON
         );
     }
@@ -1082,7 +1183,7 @@ pub fn join(
             result_knots.appendAssumeCapacity(
                 .{
                     .in = a2b_k.in,
-                    .out = try b2c_trimmed.output_at_input(a2b_b),
+                    .out = try b2c_trimmed.output_at_input(a2b_b).ordinate(),
                 }
             );
         }
@@ -1093,7 +1194,7 @@ pub fn join(
 
             result_knots.appendAssumeCapacity(
                 .{
-                    .in = try a2b_trimmed.input_at_output(b2c_b),
+                    .in = try a2b_trimmed.input_at_output(b2c_b).ordinate(),
                     .out = b2c_k.out,
                 }
             );

@@ -69,7 +69,7 @@ pub const MappingCurveLinearMonotonic = struct {
     pub fn project_instantaneous_cc(
         self: @This(),
         input_ordinate: opentime.Ordinate,
-    ) !opentime.Ordinate 
+    ) opentime.ProjectionResult 
     {
         return self.input_to_output_curve.output_at_input(input_ordinate);
     }
@@ -77,7 +77,7 @@ pub const MappingCurveLinearMonotonic = struct {
     pub fn project_instantaneous_cc_inv(
         self: @This(),
         output_ordinate: opentime.Ordinate,
-    ) !opentime.Ordinate 
+    ) opentime.ProjectionResult
     {
         return self.input_to_output_curve.input_at_output(output_ordinate);
     }
@@ -188,7 +188,7 @@ pub const MappingCurveLinearMonotonic = struct {
             {
                 const new_knot = curve.ControlPoint{
                     .in = pt_input,
-                    .out = try self.input_to_output_curve.output_at_input(pt_input),
+                    .out = try self.input_to_output_curve.output_at_input(pt_input).ordinate(),
                 };
 
                 try left_knots.appendSlice(start_knots[0..k_ind]);
@@ -234,7 +234,7 @@ test "MappingCurveLinearMonotonic: init_knots"
 
     try std.testing.expectEqual(
         2,
-        mcl.project_instantaneous_cc(2),
+        mcl.project_instantaneous_cc(2).ordinate(),
     );
 }
 
@@ -275,17 +275,17 @@ test "Mapping"
     {
         if (t.err == false)
         {
-            const measured = try mcl.project_instantaneous_cc(t.tp);
+            const measured = mcl.project_instantaneous_cc(t.tp);
             try std.testing.expectEqual(
                 t.exp,
-                measured,
+                try measured.ordinate(),
             );
         }
         else 
         {
             try std.testing.expectError(
                 error.OutOfBounds,
-                mcl.project_instantaneous_cc(t.tp),
+                mcl.project_instantaneous_cc(t.tp).ordinate(),
             );
         }
     }

@@ -346,6 +346,6 @@ test "MappingCurveBezier: init and project"
 
     try std.testing.expectEqual(
         10,  
-        t_bez.project_instantaneous_cc(5),
+        t_bez.project_instantaneous_cc(5).ordinate(),
     );
 }

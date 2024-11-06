@@ -24,17 +24,17 @@ pub const MappingEmpty = struct {
     pub fn project_instantaneous_cc(
         _: @This(),
         _: opentime.Ordinate
-    ) !opentime.Ordinate 
+    ) opentime.ProjectionResult
     {
-        return error.OutOfBounds;
+        return opentime.OUTOFBOUNDS;
     }
 
     pub fn project_instantaneous_cc_inv(
         _: @This(),
         _: opentime.Ordinate
-    ) !opentime.Ordinate 
+    ) opentime.ProjectionResult
     {
-        return error.OutOfBounds;
+        return opentime.OUTOFBOUNDS;
     }
 
     pub fn inverted(
@@ -158,7 +158,7 @@ test "MappingEmpty: Project"
     {
         try std.testing.expectError(
             error.OutOfBounds,
-            me.project_instantaneous_cc(v)
+            me.project_instantaneous_cc(v).ordinate()
         );
     }
 }

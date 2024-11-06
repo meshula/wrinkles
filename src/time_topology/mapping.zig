@@ -63,7 +63,7 @@ pub const Mapping = union (enum) {
     pub fn project_instantaneous_cc(
         self: @This(),
         input_ord: opentime.Ordinate,
-    ) !opentime.Ordinate 
+    ) opentime.ProjectionResult 
     {
         return switch (self) {
             inline else => |m| m.project_instantaneous_cc(input_ord),
@@ -75,7 +75,7 @@ pub const Mapping = union (enum) {
     pub fn project_instantaneous_cc_inv(
         self: @This(),
         output_ord: opentime.Ordinate,
-    ) !opentime.Ordinate 
+    ) opentime.ProjectionResult
     {
         return switch (self) {
             inline else => |m| m.project_instantaneous_cc_inv(output_ord),
@@ -468,14 +468,18 @@ pub fn join_lin_aff(
     for (a2c_knots)
         |*k|
     {
-        k.*.out = try args.b2c.project_instantaneous_cc(k.out);
+        k.*.out = try args.b2c.project_instantaneous_cc(k.out).ordinate();
     }
 
-    return .{
+    const result= mapping_curve_linear.MappingCurveLinearMonotonic{
         .input_to_output_curve =  .{
             .knots = a2c_knots,
         },
     };
+
+    opentime.dbg_print(@src(), "    ****lin/aff: {s}\n", .{ result.mapping() });
+
+    return result;
 }
 
 pub fn join_lin_lin(

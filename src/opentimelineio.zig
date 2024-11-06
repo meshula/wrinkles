@@ -1017,7 +1017,7 @@ pub const ProjectionOperator = struct {
     pub fn project_instantaneous_cc(
         self: @This(),
         ordinate_in_source_space: f32
-    ) !f32 
+    ) opentime.ProjectionResult
     {
         return self.src_to_dst_topo.project_instantaneous_cc(
             ordinate_in_source_space
@@ -1033,7 +1033,7 @@ pub const ProjectionOperator = struct {
         const continuous_in_destination_space =  (
             try self.src_to_dst_topo.project_instantaneous_cc(
                 ordinate_in_source_space
-            )
+            ).ordinate()
         );
 
         return try self.destination.ref.continuous_ordinate_to_discrete_index(
@@ -1902,31 +1902,44 @@ test "ProjectionOperatorMap: init_operator leak test"
     defer child_op_map.deinit();
 
     const clone = try child_op_map.clone();
-    clone.deinit();
+    defer clone.deinit();
 }
 
 test "ProjectionOperatorMap: projection_map_to_media_from leak test"
 {
+    const allocator = std.testing.allocator;
+
     const cl = Clip {
         .media_temporal_bounds = .{
             .start_seconds = 1,
             .end_seconds = 9 
         }
     };
-    const cl_ptr = ComposedValueRef{ .clip_ptr = &cl };
+    const cl_ptr = ComposedValueRef.init(&cl);
 
     const map = try build_topological_map(
-        std.testing.allocator,
+        allocator,
         cl_ptr,
     );
     defer map.deinit();
 
     const m = try projection_map_to_media_from(
-        std.testing.allocator,
+        allocator,
         map,
         try cl_ptr.space(.presentation),
     );
     defer m.deinit();
+
+    const mapp = m.operators[0][0].src_to_dst_topo.mappings[0];
+    try std.testing.expectEqual(
+        4,
+        mapp.project_instantaneous_cc(3).ordinate()
+    );
+
+    try std.testing.expectEqual(
+       4,
+       try m.operators[0][0].project_instantaneous_cc(3).ordinate(),
+    );
 }
 
 /// maps a timeline to sets of projection operators, one set per temporal slice
@@ -3541,7 +3554,7 @@ test "Track with clip with identity transform projection"
     // check the projection
     try expectApproxEqAbs(
         @as(f32, 4),
-        try track_to_clip.project_instantaneous_cc(3),
+        try track_to_clip.project_instantaneous_cc(3).ordinate(),
         util.EPSILON,
     );
 }
@@ -3626,21 +3639,24 @@ test "TopologicalMap: Track with clip with identity transform topological"
             }
         )
     );
+    defer root_presentation_to_clip_media.deinit(allocator);
 
     try expectError(
-        time_topology.Topology.ProjectionError.OutOfBounds,
-        root_presentation_to_clip_media.project_instantaneous_cc(3)
+        time_topology.mapping.Mapping.ProjectionError.OutOfBounds,
+        root_presentation_to_clip_media.project_instantaneous_cc(3).ordinate()
     );
 
     try expectApproxEqAbs(
         1,
-        try root_presentation_to_clip_media.project_instantaneous_cc(1),
+        try root_presentation_to_clip_media.project_instantaneous_cc(1).ordinate(),
         util.EPSILON,
     );
 }
 
 test "Projection: Track with single clip with identity transform and bounds" 
 {
+    const allocator = std.testing.allocator;
+
     var tr = Track.init(std.testing.allocator);
     defer tr.deinit();
 
@@ -3820,12 +3836,12 @@ test "Projection: Track with multiple clips with identity transform and bounds"
         if (t.err)
         {
             try expectError(
-                time_topology.Topology.ProjectionError.OutOfBounds,
-                tr_presentation_to_clip_media.project_instantaneous_cc(t.track_ord)
+                opentime.ProjectionResult.Errors.OutOfBounds,
+                tr_presentation_to_clip_media.project_instantaneous_cc(t.track_ord).ordinate()
             );
         }
         else{
-            const result = try tr_presentation_to_clip_media.project_instantaneous_cc(t.track_ord);
+            const result = try tr_presentation_to_clip_media.project_instantaneous_cc(t.track_ord).ordinate();
 
             try expectApproxEqAbs(result, t.expected_ord, util.EPSILON);
         }
@@ -3862,8 +3878,8 @@ test "Projection: Track with multiple clips with identity transform and bounds"
     );
 
     try expectError(
-        time_topology.Topology.ProjectionError.OutOfBounds,
-        root_presentation_to_clip_media.project_instantaneous_cc(3)
+        opentime.ProjectionResult.Errors.OutOfBounds,
+        root_presentation_to_clip_media.project_instantaneous_cc(3).ordinate(),
     );
 }
 
@@ -3992,75 +4008,85 @@ test "Single Clip bezier transform"
                 allocator
             )
         );
-        defer clip_media_to_output.deinit(allocator);
-        const clip_media_to_presentation_input_bounds = (
-            clip_media_to_output.input_bounds()
-        );
-        try expectApproxEqAbs(
-            @as(f32, 100),
-            clip_media_to_presentation_input_bounds.start_seconds, util.EPSILON
-        );
-        try expectApproxEqAbs(
-            @as(f32, 110),
-            clip_media_to_presentation_input_bounds.end_seconds, util.EPSILON
-        );
+        defer {
+            for (clip_media_to_output)
+                |t|
+            {
+                t.deinit(allocator);
+            }
+            allocator.free(clip_media_to_output);
+        }
 
-        try std.testing.expect(
-            std.meta.activeTag(
-                clip_presentation_to_media_proj.src_to_dst_topo
-            ) 
-            != time_topology.Topology.empty
-        );
-
-        // walk over the presentation space of the curve
-        const o_s_time = input_bounds.start_seconds;
-        const o_e_time = input_bounds.end_seconds;
-        var output_time = o_s_time;
-        while (output_time < o_e_time) 
-            : (output_time += 0.01) 
+        for (clip_media_to_output)
+            |topo|
         {
-            // output time -> media time
-            const media_time = (
-                try clip_presentation_to_media_proj.project_instantaneous_cc(output_time)
+            const clip_media_to_presentation_input_bounds = (
+                topo.input_bounds()
             );
-            const clip_pres_to_media_topo = (
-                clip_presentation_to_media_proj.src_to_dst_topo
-            );
-            
-            errdefer std.log.err(
-        "\nERR1\n  output_time: {d} \n"
-                ++ "  topology input_bounds: {any} \n"
-                ++ "  topology curve bounds: {any} \n ",
-                .{
-                    output_time,
-                    clip_pres_to_media_topo.input_bounds(),
-                    clip_pres_to_media_topo.bezier_curve.compute_input_bounds(),
-                }
-            );
-
-            // media time -> output time
-            const computed_output_time = (
-                try clip_media_to_output.project_instantaneous_cc(media_time)
-            ); 
-
-            errdefer std.log.err(
-                "\nERR\n  output_time: {d} \n"
-                ++ "  computed_output_time: {d} \n"
-                ++ " media_temporal_bounds: {any}\n"
-                ++ "  output_bounds: {any} \n",
-                .{
-                    output_time,
-                    computed_output_time,
-                    media_temporal_bounds,
-                    input_bounds,
-                }
-            );
-
             try expectApproxEqAbs(
-                computed_output_time,
-                output_time,
-                util.EPSILON
+                @as(f32, 100),
+                clip_media_to_presentation_input_bounds.start_seconds, util.EPSILON
             );
+            try expectApproxEqAbs(
+                @as(f32, 110),
+                clip_media_to_presentation_input_bounds.end_seconds, util.EPSILON
+            );
+
+            try std.testing.expect(
+                clip_presentation_to_media_proj.src_to_dst_topo.mappings.len > 0
+            );
+
+            // walk over the presentation space of the curve
+            const o_s_time = input_bounds.start_seconds;
+            const o_e_time = input_bounds.end_seconds;
+            var output_time = o_s_time;
+            while (output_time < o_e_time) 
+                : (output_time += 0.01) 
+            {
+                // output time -> media time
+                const media_time = (
+                    try clip_presentation_to_media_proj.project_instantaneous_cc(
+                        output_time
+                    ).ordinate()
+                );
+                const clip_pres_to_media_topo = (
+                    clip_presentation_to_media_proj.src_to_dst_topo
+                );
+
+                errdefer std.log.err(
+                    "\nERR1\n  output_time: {d} \n"
+                    ++ "  topology input_bounds: {any} \n"
+                    ,
+                    .{
+                        output_time,
+                        clip_pres_to_media_topo.input_bounds(),
+                    }
+                );
+
+                // media time -> output time
+                const computed_output_time = (
+                    try topo.project_instantaneous_cc(media_time).ordinate()
+                ); 
+
+                errdefer std.log.err(
+                    "\nERR\n  output_time: {d} \n"
+                    ++ "  computed_output_time: {d} \n"
+                    ++ " media_temporal_bounds: {any}\n"
+                    ++ "  output_bounds: {any} \n",
+                    .{
+                        output_time,
+                        computed_output_time,
+                        media_temporal_bounds,
+                        input_bounds,
+                    }
+                );
+
+                try expectApproxEqAbs(
+                    computed_output_time,
+                    output_time,
+                    util.EPSILON
+                );
+            }
         }
     }
 
@@ -4079,7 +4105,9 @@ test "Single Clip bezier transform"
 
         try expectApproxEqAbs(
             @as(f32, 6.5745),
-            try clip_media_to_presentation.project_instantaneous_cc(107),
+            try clip_media_to_presentation.project_instantaneous_cc(
+                107
+            ).ordinate(),
             util.EPSILON,
         );
     }
@@ -4592,7 +4620,7 @@ test "otio projection: track with single clip with transform"
         try expectApproxEqAbs(
             // (3.5*2 + 1),
             8,
-            try track_to_media.project_instantaneous_cc(3.5),
+            try track_to_media.project_instantaneous_cc(3.5).ordinate(),
             util.EPSILON,
         );
 
@@ -5506,12 +5534,21 @@ test "Single clip, Warp bulk"
                 util.EPSILON,
             );
 
-            // current error
+            opentime.dbg_print(@src(),
+                "\n\n\nresult: {s}\n\n\n",
+                .{ 
+                    warp_pres_to_media_topo.project_instantaneous_cc(
+                        t.presentation_test,
+                    ),
+
+                }
+            );
+
             try expectApproxEqAbs(
                 t.clip_media_test,
                 try warp_pres_to_media_topo.project_instantaneous_cc(
                     t.presentation_test,
-                ),
+                ).ordinate(),
                 util.EPSILON,
             );
         }
@@ -5527,14 +5564,114 @@ test "Single clip, Warp bulk"
                     }
                 )
             );
+            defer clip_media_to_presentation.deinit(allocator);
 
-            try expectApproxEqAbs(
-                t.presentation_test,
-                try clip_media_to_presentation.project_instantaneous_cc(
+            // @TODO: XXX deal with this check
+            if (t.project_to_finite) {
+                try expectApproxEqAbs(
+                    t.presentation_test,
+                    try clip_media_to_presentation.project_instantaneous_cc(
+                        t.clip_media_test,
+                    ).ordinate(),
+                    util.EPSILON,
+                );
+            }
+            else 
+            {
+                const r = clip_media_to_presentation.project_instantaneous_cc(
                     t.clip_media_test,
-                ),
-                util.EPSILON,
-            );
+                );
+                try std.testing.expectEqual(
+                    0,
+                    r.SuccessInterval.start_seconds
+                );
+                try std.testing.expectEqual(
+                    5,
+                    r.SuccessInterval.end_seconds
+                );
+            }
         }
     }
 }
+
+test "ProjectionOperator: clone"
+{
+    const allocator = std.testing.allocator;
+
+    const aff1 = try time_topology.Topology.init_affine(
+        allocator,
+        .{
+            .input_bounds_val = .{
+                .start_seconds = 0,
+                .end_seconds = 8,
+            },
+            .input_to_output_xform = .{
+                .offset_seconds = 1,
+            },
+        },
+    );
+    defer aff1.deinit(allocator);
+
+    const cl = Clip{};
+    const cl_ptr = ComposedValueRef.init(&cl);
+
+    const po = ProjectionOperator{
+        .source = try cl_ptr.space(.presentation),
+        .destination = try cl_ptr.space(.media),
+        .src_to_dst_topo = aff1,
+    };
+
+    const po_cloned = try po.clone(allocator);
+    const po_cloned_again = try po_cloned.clone(allocator);
+    defer po_cloned_again.deinit(allocator);
+    po_cloned.deinit(allocator);
+
+    try std.testing.expectEqual(
+        4,
+        try po_cloned_again.project_instantaneous_cc(3).ordinate(),
+    );
+}
+
+test "ProjectionOperatorMap: clone"
+{
+    const allocator = std.testing.allocator;
+    const cl = Clip{};
+    const cl_ptr = ComposedValueRef{ 
+        .clip_ptr = &cl 
+    };
+    const aff1 = try time_topology.Topology.init_affine(
+        allocator,
+        .{
+            .input_bounds_val = .{
+                .start_seconds = 0,
+                .end_seconds = 8,
+            },
+            .input_to_output_xform = .{
+                .offset_seconds = 1,
+            },
+        },
+    );
+    const child_op_map = (
+        try ProjectionOperatorMap.init_operator(
+            std.testing.allocator,
+            .{
+                .source = try cl_ptr.space(.presentation),
+                .destination = try cl_ptr.space(.media),
+                .src_to_dst_topo = aff1,
+            },
+        )
+    );
+
+    const clone = try child_op_map.clone();
+    defer clone.deinit();
+
+    child_op_map.deinit();
+
+    const topo = clone.operators[0][0].src_to_dst_topo;
+
+    try std.testing.expectEqual(
+        4,
+        try topo.project_instantaneous_cc(3).ordinate()
+    );
+}
+

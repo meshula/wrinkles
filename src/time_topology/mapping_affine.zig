@@ -35,7 +35,7 @@ pub const MappingAffine = struct {
     pub fn project_instantaneous_cc(
         self: @This(),
         ordinate: opentime.Ordinate,
-    ) !opentime.Ordinate 
+    ) opentime.ProjectionResult
     {
         if (
             !self.input_bounds_val.overlaps_seconds(ordinate) 
@@ -43,17 +43,19 @@ pub const MappingAffine = struct {
             and ordinate != self.input_bounds_val.end_seconds
         )
         {
-            return mapping_mod.Mapping.ProjectionError.OutOfBounds;
+            return opentime.OUTOFBOUNDS;
         }
 
-        return self.input_to_output_xform.applied_to_seconds(ordinate);
+        return .{ 
+            .SuccessOrdinate = self.input_to_output_xform.applied_to_seconds(ordinate),
+        };
     }
 
     /// project from the output space back to the input space
     pub fn project_instantaneous_cc_inv(
         self: @This(),
         output_ordinate: opentime.Ordinate,
-    ) !opentime.Ordinate 
+    ) opentime.ProjectionResult
     {
         if (
             !self.output_bounds().overlaps_seconds(output_ordinate) 
@@ -61,12 +63,13 @@ pub const MappingAffine = struct {
             and output_ordinate != self.output_bounds().end_seconds
         )
         {
-            return mapping_mod.Mapping.ProjectionError.OutOfBounds;
+            return opentime.OUTOFBOUNDS;
         }
 
-        return self.input_to_output_xform.inverted().applied_to_seconds(
-            output_ordinate
-        );
+        return .{
+            .SuccessOrdinate = self.input_to_output_xform.inverted(
+            ).applied_to_seconds(output_ordinate)
+        };
     }
 
     pub fn clone(
@@ -227,7 +230,7 @@ test "MappingAffine: instantiate (identity)"
 
     try std.testing.expectEqual(
         12, 
-        ma.project_instantaneous_cc(12),
+        ma.project_instantaneous_cc(12).ordinate(),
     );
 }
 
@@ -248,7 +251,7 @@ test "MappingAffine: non-identity"
 
    try std.testing.expectEqual(
        14,
-       ma.project_instantaneous_cc(3),
+       ma.project_instantaneous_cc(3).ordinate(),
     );
 }
 

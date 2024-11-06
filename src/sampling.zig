@@ -855,9 +855,11 @@ pub fn transform_resample_linear_non_interpolating_dd(
 
         // output -> input time (continuous -> continuous)
         const input_ord = (
-            output_c_to_input_d.project_instantaneous_cc(
-                output_sample_time,
-            ) 
+            (
+             output_c_to_input_d.project_instantaneous_cc(
+                 output_sample_time,
+             ).ordinate() 
+            )
             catch |err| 
             {
                 // out of bounds means that this sample has a value of 0
@@ -1609,12 +1611,12 @@ test "sampling: frame phase slide 2: (time*2 bounds*1 freq*1 phase+0) 0,1,2,3->0
     // trivial check that curve behaves as expected
     try std.testing.expectApproxEqAbs(
         0.5,
-        try sample_to_output_crv.project_instantaneous_cc(1.0),
+        try sample_to_output_crv.project_instantaneous_cc(1.0).ordinate(),
         EPSILON_ORD
     );
     try std.testing.expectApproxEqAbs(
         0.0,
-        try sample_to_output_crv.project_instantaneous_cc(0.0),
+        try sample_to_output_crv.project_instantaneous_cc(0.0).ordinate(),
         EPSILON_ORD
     );
 
@@ -1686,12 +1688,12 @@ test "sampling: frame phase slide 2.5: (time*2 bounds*2 freq*1 phase+0) 0,1,2,3-
     // trivial check that curve behaves as expected
     try std.testing.expectApproxEqAbs(
         0.5,
-        try retimed_to_sample_crv.project_instantaneous_cc(1.0),
+        try retimed_to_sample_crv.project_instantaneous_cc(1.0).ordinate(),
         EPSILON_ORD
     );
     try std.testing.expectApproxEqAbs(
         0.0,
-        try retimed_to_sample_crv.project_instantaneous_cc(0.0),
+        try retimed_to_sample_crv.project_instantaneous_cc(0.0).ordinate(),
         EPSILON_ORD
     );
 
@@ -1771,12 +1773,12 @@ test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(
     // trivial check that curve behaves as expected
     try std.testing.expectApproxEqAbs(
         0.5,
-        try sample_to_output_crv.project_instantaneous_cc(0.5),
+        try sample_to_output_crv.project_instantaneous_cc(0.5).ordinate(),
         EPSILON_ORD
     );
     try std.testing.expectApproxEqAbs(
         0.0,
-        try sample_to_output_crv.project_instantaneous_cc(0.0),
+        try sample_to_output_crv.project_instantaneous_cc(0.0).ordinate(),
         EPSILON_ORD
     );
 
@@ -1903,12 +1905,12 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
     // trivial check that curve behaves as expected
     try std.testing.expectApproxEqAbs(
         0.375,
-        try retimed_to_sample_crv.project_instantaneous_cc(0.75),
+        try retimed_to_sample_crv.project_instantaneous_cc(0.75).ordinate(),
         EPSILON_ORD
     );
     try std.testing.expectApproxEqAbs(
         0.125,
-        try retimed_to_sample_crv.project_instantaneous_cc(0.25),
+        try retimed_to_sample_crv.project_instantaneous_cc(0.25).ordinate(),
         EPSILON_ORD
     );
 
