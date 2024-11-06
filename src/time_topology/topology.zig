@@ -1301,14 +1301,21 @@ pub fn join(
     )
         |a2b_m|
     {
+        const a2b_m_ob = a2b_m.output_bounds();
         for (b2c_split.mappings)
             |b2c_m|
         {
+            const b2c_m_ib = b2c_m.input_bounds();
             if (
                 opentime.interval.intersect(
-                    a2b_m.output_bounds(),
-                    b2c_m.input_bounds(),
+                    a2b_m_ob,
+                    b2c_m_ib,
                 ) != null
+                or (
+                    a2b_m_ob.is_instant()
+                    and b2c_m_ib.start_seconds <= a2b_m_ob.start_seconds
+                    and b2c_m_ib.end_seconds >= a2b_m_ob.end_seconds
+                )
             ) 
             {
                 opentime.dbg_print(@src(), "joining", .{});
