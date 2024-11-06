@@ -474,7 +474,7 @@ pub const ComposedValueRef = union(enum) {
         allocator: std.mem.Allocator,
         from_space: SpaceLabel,
         to_space: SpaceReference,
-        step: u1
+        step: u1,
     ) !time_topology.Topology 
     {
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
@@ -1127,14 +1127,10 @@ pub const ProjectionOperator = struct {
         );
         defer index_buffer_destination_discrete.deinit();
 
-        const dst_c_bounds = (
-            in_to_dst_topo_c.output_bounds()
-        );
-        
-        // const in_c_bounds = in_to_dst_topo_c.input_bounds();
+        const in_c_bounds = in_to_dst_topo_c.input_bounds();
 
-        const bounds_to_walk = dst_c_bounds;
-        // const bounds_to_walk = in_c_bounds;
+        // const bounds_to_walk = dst_c_bounds;
+        const bounds_to_walk = in_c_bounds;
 
         const duration:f32 = (
             1.0 / @as(f32, @floatFromInt(discrete_info.sample_rate_hz))
@@ -1152,10 +1148,6 @@ pub const ProjectionOperator = struct {
         {
             // ...project the continuous coordinate into the discrete space
             try index_buffer_destination_discrete.append(
-                // try self.destination.item.continuous_ordinate_to_discrete_index(
-                //     try in_to_dst_topo_c.project_instantaneous_cc(t),
-                //     self.destination.label,
-                // )
                 try self.destination.ref.continuous_ordinate_to_discrete_index(
                     t,
                     self.destination.label,
@@ -1189,6 +1181,7 @@ pub const ProjectionOperator = struct {
                 }
             )
         );
+        defer topology_in_source.deinit(allocator);
 
         return try self.project_topology_cc(
             allocator,
@@ -1913,7 +1906,7 @@ pub fn projection_map_to_media_from(
         const child_op = (
             try topological_map.build_projection_operator(
                 allocator,
-                proj_args
+                proj_args,
             )
         );
 
@@ -1943,7 +1936,9 @@ pub fn projection_map_to_media_from(
 test "ProjectionOperatorMap: init_operator leak test"
 {
     const cl = Clip{};
-    const cl_ptr = ComposedValueRef{ .clip_ptr = &cl };
+    const cl_ptr = ComposedValueRef{ 
+        .clip_ptr = &cl 
+    };
     const child_op_map = (
         try ProjectionOperatorMap.init_operator(
             std.testing.allocator,
@@ -2002,9 +1997,9 @@ pub const ProjectionOperatorMap = struct {
     allocator: std.mem.Allocator,
 
     /// segment endpoints
-    end_points: []f32 = &.{},
+    end_points: []const f32 = &.{},
     /// segment projection operators 
-    operators : [][]ProjectionOperator = &.{},
+    operators : [][]const ProjectionOperator = &.{},
 
     /// root space for the map
     source : SpaceReference,
@@ -4046,9 +4041,7 @@ test "Single Clip bezier transform"
         curve_bounds_output.end_seconds, util.EPSILON
     );
 
-    try std.testing.expect(
-        std.meta.activeTag(curve_topo) != time_topology.Topology.empty
-    );
+    try std.testing.expect(curve_topo.mappings.len > 0);
 
     const media_temporal_bounds:interval.ContinuousTimeInterval = .{
         .start_seconds = 100,
@@ -4475,10 +4468,12 @@ test "otio projection: track with single clip"
     defer tr.deinit();
 
     // media is 9 seconds long and runs at 4 hz.
-    const media_source_range = opentime.ContinuousTimeInterval{
-        .start_seconds = 1,
-        .end_seconds = 10,
-    };
+    const media_source_range = (
+        opentime.ContinuousTimeInterval{
+            .start_seconds = 1,
+            .end_seconds = 10,
+        }
+    );
     const media_discrete_info = (
         sampling.DiscreteDatasourceIndexGenerator{
             .sample_rate_hz = 4,
@@ -5562,7 +5557,7 @@ test "Single clip, Warp bulk"
             .clip_media_test = 108,
         },
         .{
-            .label = "reverse identity",
+            .label = "reverse identity 2",
             .presentation_range = .{ 0, 5 },
             .warp_child_range = .{ 10, 0 },
             .presentation_test = 2,
