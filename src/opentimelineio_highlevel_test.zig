@@ -99,6 +99,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             }
         )
     );
+    defer timeline_to_clip2.deinit(allocator);
     const clip_indices = try timeline_to_clip2.project_range_cd(
         allocator,
         timeline_to_clip2.src_to_dst_topo.input_bounds(),
@@ -291,14 +292,17 @@ test "libsamplerate w/ high level test -- resample only"
             },
         )
     );
+    defer tr_pres_to_cl_media_po.deinit(allocator);
 
     try std.testing.expectEqual(
         .affine,
-        std.meta.activeTag(tr_pres_to_cl_media_po.src_to_dst_topo),
+        std.meta.activeTag(
+            tr_pres_to_cl_media_po.src_to_dst_topo.mappings[0]
+        ),
     );
 
     try std.testing.expect(
-        tr_pres_to_cl_media_po.src_to_dst_topo.affine.bounds.end_seconds > 0,
+        tr_pres_to_cl_media_po.src_to_dst_topo.input_bounds().end_seconds > 0,
     );
 
     try std.testing.expect(
@@ -323,21 +327,13 @@ test "libsamplerate w/ high level test -- resample only"
         cl1.media_reference.?.signal_generator,
     );
 
-    const tr_pres_to_cl_media_lin = (
-        try tr_pres_to_cl_media_po.src_to_dst_topo.linearized(allocator)
-    );
-    defer tr_pres_to_cl_media_lin.deinit(allocator);
-    const tr_pres_to_cl_media_crv = (
-        tr_pres_to_cl_media_lin.linear_curve.curve
-    );
-
     // goal
-    const result = try sampling.retimed_linear_curve(
+    const result = try sampling.transform_resample_dd(
         allocator,
         media,
-        tr_pres_to_cl_media_crv,
-        false,
+        tr_pres_to_cl_media_po.src_to_dst_topo,
         tl.discrete_info.presentation.?,
+        false,
     );
     defer result.deinit();
 
@@ -411,7 +407,8 @@ test "libsamplerate w/ high level test.retime.interpolating"
     // new for this test - add in an warp on the clip
     const wp: otio.Warp = .{
         .child = cl_ptr,
-        .transform = time_topology.Topology.init_affine(
+        .transform = try time_topology.Topology.init_affine(
+            allocator,
             .{
                 .input_to_output_xform = .{
                     .offset_seconds = -1,
@@ -420,6 +417,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
             },
         )
     };
+    defer wp.transform.deinit(allocator);
     try tr.append(wp);
     const tr_ptr = try tl.tracks.append_fetch_ref(tr);
 
@@ -445,6 +443,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
             },
         )
     );
+    defer tr_pres_to_cl_media_po.deinit(allocator);
 
     // synthesize media
     const media = (
@@ -464,21 +463,13 @@ test "libsamplerate w/ high level test.retime.interpolating"
         cl1.media_reference.?.signal_generator,
     );
 
-    const tr_pres_to_cl_media_lin = (
-        try tr_pres_to_cl_media_po.src_to_dst_topo.linearized(allocator)
-    );
-    defer tr_pres_to_cl_media_lin.deinit(allocator);
-    const tr_pres_to_cl_media_crv = (
-        tr_pres_to_cl_media_lin.linear_curve.curve
-    );
-
     // goal
-    const result = try sampling.retimed_linear_curve(
+    const result = try sampling.transform_resample_dd(
         allocator,
         media,
-        tr_pres_to_cl_media_crv,
-        false,
+        tr_pres_to_cl_media_po.src_to_dst_topo,
         tl.discrete_info.presentation.?,
+        false,
     );
     defer result.deinit();
 
@@ -558,20 +549,22 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     defer cl1.destroy(allocator);
     const cl_ptr = otio.ComposedValueRef.init(&cl1);
 
+    const warp = otio.Warp{
+        .child = cl_ptr,
+        .transform = try time_topology.Topology.init_affine(
+            allocator,
+            .{
+                .input_to_output_xform = .{
+                    .offset_seconds = -1,
+                    .scale = 2,
+                },
+            }
+        )
+    };
+    defer warp.transform.deinit(allocator);
+
     // new for this test - add in an warp on the clip
-    try tr.append(
-        otio.Warp{
-            .child = cl_ptr,
-            .transform = time_topology.Topology.init_affine(
-                .{
-                    .input_to_output_xform = .{
-                        .offset_seconds = -1,
-                        .scale = 2,
-                    },
-                }
-            )
-        }
-    );
+    try tr.append(warp);
 
     const tr_ptr = try tl.tracks.append_fetch_ref(tr);
 
@@ -592,6 +585,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
             },
         )
     );
+    defer tr_pres_to_cl_media_po.deinit(allocator);
 
     // synthesize media
     const media = (
@@ -611,21 +605,13 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
         cl1.media_reference.?.signal_generator,
     );
 
-    const tr_pres_to_cl_media_lin = (
-        try tr_pres_to_cl_media_po.src_to_dst_topo.linearized(allocator)
-    );
-    defer tr_pres_to_cl_media_lin.deinit(allocator);
-    const tr_pres_to_cl_media_crv = (
-        tr_pres_to_cl_media_lin.linear_curve.curve
-    );
-
     // goal
-    const result = try sampling.retimed_linear_curve(
+    const result = try sampling.transform_resample_dd(
         allocator,
         media,
-        tr_pres_to_cl_media_crv,
-        false,
+        tr_pres_to_cl_media_po.src_to_dst_topo,
         tl.discrete_info.presentation.?,
+        false,
     );
     defer result.deinit();
 
@@ -743,6 +729,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
             },
         )
     };
+    defer wp.transform.deinit(allocator);
     try tr.append(wp);
 
     const tr_ptr = try tl.tracks.append_fetch_ref(tr);
@@ -764,6 +751,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
             },
         )
     );
+    defer tr_pres_to_cl_media_po.deinit(allocator);
 
     {
         const start = (
@@ -851,23 +839,20 @@ test "timeline w/ warp that holds the tenth frame"
     const cl_ptr = otio.ComposedValueRef.init(&cl1);
 
     // new for this test - add in an warp on the clip, which holds the frame
-    try tr.append(
-        otio.Warp {
-            .child = cl_ptr,
-            .transform = time_topology.Topology.init_affine(
-                .{
-                    .input_bounds_val = .{
-                        .start_seconds = 0,
-                        .end_seconds = 5,
-                    },
-                    .input_to_output_xform = .{
-                        .offset_seconds = -1,
-                        .scale = 2,
-                    },
+    const wp = otio.Warp {
+        .child = cl_ptr,
+        .transform = try time_topology.Topology.init_from_linear_monotonic(
+            allocator,
+            .{
+                .knots = &.{
+                    .{ .in = 0, .out = 10.0/24.0,},
+                    .{ .in = 5, .out = 10.0/24.0,},
                 },
-            )
-        }
-    );
+            },
+        )
+    };
+    defer wp.transform.deinit(allocator);
+    try tr.append(wp);
 
     const tr_ptr = try tl.tracks.append_fetch_ref(tr);
 
@@ -909,24 +894,26 @@ test "timeline w/ warp that holds the tenth frame"
             },
         )
     );
+    defer tr_pres_to_cl_media_po.deinit(allocator);
 
     try std.testing.expect(
         std.meta.activeTag(
-            tr_pres_to_cl_media_po.src_to_dst_topo
+            tr_pres_to_cl_media_po.src_to_dst_topo.mappings[0]
         ) != .empty
     );
 
     // check the actual indices
     {
-        const start = (
-            tr_pres_to_cl_media_po.src_to_dst_topo.input_bounds().start_seconds
-        );
-
         const warp_pres_to_warp_child_xform = (
             tr_ptr.track_ptr.child_ptr_from_index(0).warp_ptr.transform
         );
         
-        const ident = time_topology.Topology.init_identity(.{});
+        const ident = (
+            try time_topology.Topology.init_identity_infinite(
+                allocator
+            )
+        );
+        defer ident.deinit(allocator);
 
         const test_result = try time_topology.join(
             std.testing.allocator,
@@ -935,12 +922,7 @@ test "timeline w/ warp that holds the tenth frame"
                 .b2c = warp_pres_to_warp_child_xform,
             },
         );
-
-        std.debug.print("xform: {any}\n", .{ warp_pres_to_warp_child_xform });
-
-        std.debug.print("xform output bounds: {any}\n", .{ warp_pres_to_warp_child_xform.output_bounds() });
-        std.debug.print("result: {any}\n", .{ test_result });
-        std.debug.print("result: {any}\n", .{ test_result.output_bounds() });
+        defer test_result.deinit(allocator);
 
         const result_buf = (
             try tr_pres_to_cl_media_po.project_range_cd(
