@@ -251,6 +251,7 @@ pub fn LinearOf(
                         self.knots[index+1],
                     );
                 }
+                opentime.dbg_print(@src(), "Ack: {d}", .{output_ord} );
 
                 // specially handle the endpoint
                 const last_knot = self.knots[self.knots.len - 1];
@@ -273,6 +274,18 @@ pub fn LinearOf(
                 input_bounds: opentime.ContinuousTimeInterval,
             ) !Monotonic
             {
+                const current_bounds = self.extents_input();
+                if (
+                    current_bounds.start_seconds >= input_bounds.start_seconds
+                    and current_bounds.end_seconds <= input_bounds.end_seconds
+                ) {
+                    return try self.clone(allocator);
+                }
+
+                opentime.dbg_print(@src(), 
+                    "   trim input",
+                    .{}
+                );
                 var result = (
                     std.ArrayList(ControlPointType).init(allocator)
                 );
@@ -296,22 +309,53 @@ pub fn LinearOf(
                     .out = try self.output_at_input(input_bounds.end_seconds),
                 } else self.extents()[1];
 
+                opentime.dbg_print(@src(), 
+                    "     target range: {s}",
+                    .{input_bounds}
+                );
+
                 for (self.knots) 
                     |knot|
                 {
+                    opentime.dbg_print(@src(), 
+                        "   processing: {s}",
+                        .{knot}
+                    );
                     if (
                         knot.in > first_point.in
                         and knot.in < last_point.in
                     ) {
+                        opentime.dbg_print(@src(), 
+                            "    appending: {s}",
+                            .{knot}
+                        );
                         try result.append(knot);
+                    }
+                    else
+                    {
+                        opentime.dbg_print(@src(), 
+                            "    skipping: {s}",
+                            .{knot}
+                        );
                     }
                 }
 
                 try result.append(last_point);
 
-                return Monotonic{ 
+                opentime.dbg_print(@src(), 
+                    "   result: {s}",
+                    .{ result.items }
+                );
+                const out = Monotonic{ 
                     .knots = try result.toOwnedSlice() 
                 };
+
+                opentime.dbg_print(@src(), 
+                    "   out: {s}",
+                    .{ out.extents_output() }
+                );
+
+                return out;
             }
 
             /// trim the curve to a range in the output space
@@ -321,12 +365,19 @@ pub fn LinearOf(
                 output_bounds: opentime.ContinuousTimeInterval,
             ) !Monotonic
             {            
+                opentime.dbg_print(
+                    @src(),
+                    "input knots: {s}",
+                    .{ knots.items}
+                );
+                opentime.dbg_print(@src(), "@@ trimmed_output_start ", .{});
                 var result = (
                     std.ArrayList(ControlPointType).init(allocator)
                 );
                 defer result.deinit();
 
                 const ext = self.extents_output();
+                opentime.dbg_print(@src(), "@@ ext output: {s} ", .{ext});
 
                 const first_point = if (
                     output_bounds.start_seconds >= ext.start_seconds
@@ -335,6 +386,11 @@ pub fn LinearOf(
                     .out = output_bounds.start_seconds,
                 } else self.knots[0];
                 try result.append(first_point);
+                opentime.dbg_print(
+                    @src(),
+                    "first_point: {s}",
+                    .{ first_point },
+                );
 
                 const last_point = if (
                     output_bounds.end_seconds < ext.end_seconds
@@ -342,6 +398,11 @@ pub fn LinearOf(
                     .in = try self.input_at_output(output_bounds.end_seconds),
                     .out = output_bounds.end_seconds,
                 } else self.extents()[1];
+                opentime.dbg_print(
+                    @src(),
+                    "last_point: {s}",
+                    .{ last_point },
+                );
 
                 for (self.knots) 
                     |knot|
@@ -350,7 +411,19 @@ pub fn LinearOf(
                         knot.out > first_point.out
                         and knot.out < last_point.out
                     ) {
+                        opentime.dbg_print(
+                            @src(),
+                            "in_pt: {s} (append)",
+                            .{ knot },
+                        );
                         try result.append(knot);
+                    }
+                    else {
+                        opentime.dbg_print(
+                            @src(),
+                            "in_pt: {s} (skip)",
+                            .{ knot },
+                        );
                     }
                 }
 
@@ -359,6 +432,15 @@ pub fn LinearOf(
                 return Monotonic{ 
                     .knots = try result.toOwnedSlice() 
                 };
+                opentime.dbg_print(
+                    @src(),
+                    "trimmed_monotone: {s}->{s}"
+                    ,
+                    .{
+                        out.extents_input(),
+                        out.extents_output(),
+                    },
+                );
             }
 
             pub fn format(
@@ -392,6 +474,9 @@ pub fn LinearOf(
             {
                 const ib = self.extents_input();
 
+                opentime.dbg_print(@src(), "       split curve at: {d}", .{ input_points });
+
+
                 if (
                     // empty
                     input_points.len == 0
@@ -402,6 +487,8 @@ pub fn LinearOf(
                 {
                     return &.{ try self.clone(allocator) };
                 }
+
+                opentime.dbg_print(@src(), "       starting split", .{});
 
                 var new_knot_slices = (
                     std.ArrayList([]ControlPointType).init(allocator)
@@ -426,18 +513,21 @@ pub fn LinearOf(
                 for (input_points)
                     |in_pt|
                 {
+                    opentime.dbg_print(@src(), "      in_pt: {d}", .{in_pt});
                     // point is before range, skip
                     if (
                         in_pt < ib.start_seconds 
                         or in_pt <= left_knot.in + generic_curve.EPSILON
                     ) 
                     {
+                        opentime.dbg_print(@src(), "      in_pt: {d} (skip)", .{in_pt});
                         continue;
                     }
 
                     // points are sorted, so once a point is out of range,
                     // split is done
                     if (in_pt > ib.end_seconds) {
+                        opentime.dbg_print(@src(), "      in_pt: {d} (break)", .{in_pt});
                         break;
                     }
 
@@ -451,9 +541,11 @@ pub fn LinearOf(
                         left_knot = self.knots[left_knot_ind];
                         right_knot = self.knots[right_knot_ind];
                         try current_curve.append(left_knot);
+                        opentime.dbg_print(@src(), "      in_pt: {d} (append: {d})", .{in_pt, left_knot});
                     }
 
                     if (right_knot_ind >= self.knots.len) {
+                        opentime.dbg_print(@src(), "      in_pt: {d} (break2)", .{in_pt});
                         break;
                     }
 
@@ -462,13 +554,22 @@ pub fn LinearOf(
                         .out = try self.output_at_input(in_pt),
                     };
 
+                    opentime.dbg_print(@src(), 
+                        "   in_pt {d}: (append new knot: {s})",
+                        .{ in_pt, new_knot }
+                    );
                     try current_curve.append(new_knot);
                     try new_knot_slices.append(
                         try current_curve.toOwnedSlice(),
                     );
+                    opentime.dbg_print(@src(), 
+                        "   in_pt {d}: (split curve)",
+                        .{ in_pt }
+                    );
 
                     current_curve.clearRetainingCapacity();
                     try current_curve.append(new_knot);
+                    opentime.dbg_print(@src(), "      in_pt: {d} (start new curve w/ knot: {s}", .{in_pt, new_knot});
                 }
 
                 try current_curve.appendSlice(self.knots[right_knot_ind..]);
@@ -874,8 +975,8 @@ test "Linear to Monotonic Test"
     for (tests)
         |t|
     {
-        errdefer std.debug.print(
-            "error with test: {s}\n",
+        errdefer opentime.dbg_print(@src(), 
+            "error with test: {s}",
             .{ t.name }
         );
         const monotonic_curves = (
@@ -1242,8 +1343,8 @@ test "Monotonic Trimmed Input"
         );
         defer result.deinit(allocator);
 
-        errdefer std.debug.print(
-            "test: {s}\n result: {s}\n",
+        errdefer opentime.dbg_print(@src(), 
+            "test: {s}\n result: {s}",
             .{
                 t.name,
                 result.extents_input(),
@@ -1338,8 +1439,8 @@ test "Monotonic Trimmed Output"
         );
         defer result.deinit(allocator);
 
-        errdefer std.debug.print(
-            "test: {s}\n result: {s}\n",
+        errdefer opentime.dbg_print(@src(), 
+            "test: {s}\n result: {s}",
             .{
                 t.name,
                 result.extents_output(),
