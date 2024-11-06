@@ -164,18 +164,22 @@ pub const Clip = struct {
     /// compute the bounds of the specified target space
     pub fn bounds_of(
         self: @This(),
-        allocator: std.mem.Allocator,
+        _: std.mem.Allocator,
         target_space: SpaceLabel,
     ) !opentime.ContinuousTimeInterval 
     {
-        const presentation_to_media_topo = try self.topology();
-        defer presentation_to_media_topo.deinit(allocator);
+        if (self.media_temporal_bounds)
+            |bounds|
+        {
+            return switch (target_space) {
+                .media => bounds,
+                .presentation => bounds,
+                else => error.UnsupportedSpaceError,
+            };
+        }
 
-        return switch (target_space) {
-            .media => presentation_to_media_topo.output_bounds(),
-            .presentation => presentation_to_media_topo.input_bounds(),
-            else => error.UnsupportedSpaceError,
-        };
+        return error.NotImplementedFetchTopology;
+
     }
 
     /// build a topology that maps from the presentation space to the media
