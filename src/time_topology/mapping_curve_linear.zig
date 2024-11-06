@@ -133,6 +133,8 @@ pub const MappingCurveLinearMonotonic = struct {
         input_points: []const opentime.Ordinate,
     ) ![]const mapping_mod.Mapping
     {
+        opentime.dbg_print(@src(),"       split points: {d}\n", .{ input_points });
+
         const new_curves = (
             try self.input_to_output_curve.split_at_input_ordinates(
                 allocator,

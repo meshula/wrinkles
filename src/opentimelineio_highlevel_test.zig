@@ -2,6 +2,7 @@
 
 const std = @import("std");
 const otio = @import("opentimelineio.zig");
+const opentime = @import("opentime");
 const time_topology = @import("time_topology");
 const sampling = @import("sampling");
 
@@ -121,20 +122,20 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
 
     if (PRINT_DEMO_OUTPUT) 
     {
-        std.debug.print(
+        opentime.dbg_print(@src(),
             "Media Frames Needed to Render '{s}'\n",
             .{
                 tr.name orelse "pasta"
             }
         );
-        std.debug.print(
+        opentime.dbg_print(@src(),
             "  Discrete Info:\n    sampling rate: {d}\n    start index: {d}\n",
             .{
                 src_discrete_info.?.sample_rate_hz,
                 src_discrete_info.?.start_index,
             },
         );
-        std.debug.print(
+        opentime.dbg_print(@src(),
             "    interval: [{d}, {d})\n",
             .{
                 proj_map.end_points[0],
@@ -154,7 +155,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     {
         if  (PRINT_DEMO_OUTPUT)
         {
-            std.debug.print(
+            opentime.dbg_print(@src(),
                 "  presentation space:\n    interval: [{d}, {d})\n",
                 .{ p0, p1 },
             );
@@ -164,7 +165,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         {
             if (PRINT_DEMO_OUTPUT)
             {
-                std.debug.print(
+                opentime.dbg_print(@src(),
                     "    Topology\n      presentation:  {any}\n"
                     ++ "      media: {any}\n",
                     .{
@@ -178,7 +179,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             ).?;
             if (PRINT_DEMO_OUTPUT)
             {
-                std.debug.print(
+                opentime.dbg_print(@src(),
                     "    Discrete Info:\n      sampling rate: {d}\n"
                     ++ "      start index: {d}\n",
                     .{
@@ -199,7 +200,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
 
             if (PRINT_DEMO_OUTPUT)
             {
-                std.debug.print(
+                opentime.dbg_print(@src(),
                     "    Source: \n      target: {?s}\n"
                     ++ "      frames: {any}\n",
                     .{ 
@@ -880,7 +881,7 @@ test "timeline w/ warp that holds the tenth frame"
         warp_ptr.warp_ptr.transform.output_bounds()
     );
 
-    errdefer std.debug.print(
+    errdefer opentime.dbg_print(@src(),
         "WARP\n input bounds: {s}\n output bounds: {s}\n",
         .{ w_ib, w_ob },
     );

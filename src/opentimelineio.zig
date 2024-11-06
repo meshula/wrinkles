@@ -466,7 +466,7 @@ pub const ComposedValueRef = union(enum) {
     ) !time_topology.Topology 
     {
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
-            std.debug.print(
+            opentime.dbg_print(@src(), 
                 "    transform from space: {s}.{s} to space: {s}.{s} ",
                 .{
                     @tagName(self),
@@ -479,13 +479,13 @@ pub const ComposedValueRef = union(enum) {
             if (to_space.child_index)
                 |ind|
             {
-                std.debug.print(
+                opentime.dbg_print(@src(), 
                     " index: {d}",
                     .{ind}
                 );
 
             }
-            std.debug.print( "\n", .{});
+            opentime.dbg_print(@src(),  "\n", .{});
         }
 
         return switch (self) {
@@ -499,7 +499,7 @@ pub const ComposedValueRef = union(enum) {
                     ),
                     SpaceLabel.child => {
                         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
-                            std.debug.print("     CHILD STEP: {b}\n", .{ step});
+                            opentime.dbg_print(@src(), "     CHILD STEP: {b}\n", .{ step});
                         }
 
                         // no further transformation INTO the child
@@ -1081,6 +1081,8 @@ pub const ProjectionOperator = struct {
         );
         defer in_to_dst_topo_c.deinit(allocator);
 
+        opentime.dbg_print(@src(), "in_to_dst_topo: {s}\n", .{ in_to_dst_topo_c });
+
         const discrete_info = (
             try self.destination.ref.discrete_info_for_space(
                 self.destination.label
@@ -1351,6 +1353,13 @@ pub const TopologicalMap = struct {
             time_topology.Topology.init_identity_infinite()
         );
 
+        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
+            opentime.dbg_print(@src(), 
+                "[START] root_to_current: {s}\n",
+                .{ root_to_current }
+            );
+        }
+
         var iter = (
             try TreenodeWalkingIterator.init_from_to(
                 allocator,
@@ -1365,11 +1374,14 @@ pub const TopologicalMap = struct {
         var current = iter.maybe_current.?;
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
-            std.debug.print(
-                "starting walk from: {s} to: {s}\n",
+            opentime.dbg_print(@src(), 
+                "starting walk from: {s} to: {s}\n"
+                ++ "starting projection: {s}\n"
+                ,
                 .{
                     current,
                     endpoints.destination,
+                    root_to_current,
                 }
             );
         }
@@ -1384,7 +1396,7 @@ pub const TopologicalMap = struct {
             const next_step = try current.code.next_step_towards(next.code);
 
             if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) { 
-                std.debug.print(
+                opentime.dbg_print(@src(), 
                     "  next step {b} towards next node: {s}\n"
                     ,
                     .{ next_step, next }
@@ -1401,28 +1413,17 @@ pub const TopologicalMap = struct {
 
             if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
             {
-                const i_b = current_to_next.input_bounds();
-                const o_b = current_to_next.output_bounds();
-
-                std.debug.print(
-                    "    child transform: {s}\n"
-                    ++ "    child transform ranges {s}: {s}"
-                    ++ " {s}: {s}\n"
+                opentime.dbg_print(@src(), 
+                    "    joining!\n"
+                    ++ "    a2b/root_to_current: {s}\n"
+                    ++ "    b2c/current_to_next: {s}\n"
                     ,
-                    .{ 
+                    .{
+                        root_to_current,
                         current_to_next,
-                        current.space,
-                        i_b,
-                        next.space,
-                        o_b,
                     },
                 );
             }
-
-            // const current_proj = try next_proj.project_topology(
-            //     allocator,
-            //     proj,
-            // );
 
             const root_to_next = try time_topology.join(
                 allocator,
@@ -1431,15 +1432,18 @@ pub const TopologicalMap = struct {
                     .b2c = current_to_next,
                 },
             );
-            root_to_current.deinit(allocator);
 
             if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
             {
+                opentime.dbg_print(@src(), 
+                    "    root_to_next: {s}\n",
+                    .{root_to_next}
+                );
                 const i_b = root_to_next.input_bounds();
                 const o_b = root_to_next.output_bounds();
 
-                std.debug.print(
-                    "    composed topology: {s}\n"
+                opentime.dbg_print(@src(), 
+                    "    root_to_next (next root to current!): {s}\n"
                     ++ "    composed transform ranges {s}: {s},"
                     ++ " {s}: {s}\n"
                     ,
@@ -1463,6 +1467,7 @@ pub const TopologicalMap = struct {
             const old_proj = root_to_current;
             root_to_current = try root_to_current.inverted(allocator);
             old_proj.deinit(allocator);
+            opentime.dbg_print(@src(), "here {s}\n", .{inverted_topologies});
         }
 
         return .{
@@ -1682,7 +1687,6 @@ pub const TopologicalMap = struct {
             }
         );
         _ = result;
-        // std.debug.print("{s}\n", .{result.stdout});
     }
 
     pub fn path_info(
@@ -1709,7 +1713,7 @@ pub const TopologicalMap = struct {
 
         if (treecode.path_exists(source_code, destination_code) == false) 
         {
-            errdefer std.debug.print(
+            errdefer opentime.dbg_print(@src(), 
                 "\nERROR\nsource: {s} dest: {s}\n",
                 .{
                     source_code,
@@ -1756,7 +1760,7 @@ pub const TopologicalMap = struct {
         const path_info_ = try self.path_info(endpoints_arg);
         const endpoints = path_info_.endpoints;
 
-        std.debug.print(
+        opentime.dbg_print(@src(), 
             "Printing scopes from:\n\n        {s}->{s}\n\n",
             .{ endpoints.source, endpoints.destination },
         );
@@ -1769,7 +1773,7 @@ pub const TopologicalMap = struct {
         defer iter.deinit();
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
-            std.debug.print(
+            opentime.dbg_print(@src(), 
                 "starting walk from: {s} to: {s}\n",
                 .{
                     iter.maybe_source.?.space,
@@ -1794,7 +1798,7 @@ pub const TopologicalMap = struct {
                 },
             );
 
-            std.debug.print(
+            opentime.dbg_print(@src(), 
                 "space: {s}\n"
                 ++ "      local:  {s}\n",
                 .{ 
@@ -1804,7 +1808,7 @@ pub const TopologicalMap = struct {
             );
         }
 
-        std.debug.print(
+        opentime.dbg_print(@src(), 
             "space: {s}\n"
             ++ "      destination:  {s}\n",
             .{ 
@@ -3023,7 +3027,7 @@ test "depth_child_hash: math"
 
         const expected = std.math.shl(treecode.TreecodeWord, expected_root, i); 
 
-        errdefer std.debug.print(
+        errdefer opentime.dbg_print(@src(), 
             "iteration: {d}, expected: {b} got: {s}\n",
             .{ i, expected, result }
         );
@@ -3074,7 +3078,7 @@ pub fn build_topological_map(
     );
 
     if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
-        std.debug.print("\nstarting graph...\n", .{});
+        opentime.dbg_print(@src(), "\nstarting graph...\n", .{});
     }
 
     while (stack.items.len > 0) 
@@ -3110,7 +3114,7 @@ pub fn build_topological_map(
                     std.debug.assert(
                         tmp_topo_map.map_space_to_code.get(space_ref) == null
                     );
-                    std.debug.print(
+                    opentime.dbg_print(@src(), 
                         (
                          "[{d}] code: {s} hash: {d} adding local space: "
                          ++ "'{s}.{s}'\n"
@@ -3200,7 +3204,7 @@ pub fn build_topological_map(
                 if (tmp_topo_map.map_space_to_code.get(space_ref)) 
                     |other_code| 
                 {
-                    std.debug.print(
+                    opentime.dbg_print(@src(), 
                         "\n ERROR SPACE ALREADY PRESENT[{d}] code: {s} "
                         ++ "other_code: {s} "
                         ++ "adding child space: '{s}.{s}.{d}'\n",
@@ -3216,7 +3220,7 @@ pub fn build_topological_map(
 
                     std.debug.assert(false);
                 }
-                std.debug.print(
+                opentime.dbg_print(@src(), 
                     "[{d}] code: {s} hash: {d} adding child space: '{s}.{s}.{d}'\n",
                     .{
                         index,
@@ -3615,7 +3619,7 @@ test "TopologicalMap: Track with clip with identity transform topological"
             0b10010
         );
         defer tc.deinit();
-        errdefer std.debug.print(
+        errdefer opentime.dbg_print(@src(), 
             "\ntc: {s}, clip_code: {s}\n",
             .{
                 tc,
@@ -3910,6 +3914,8 @@ test "Single Clip bezier transform"
     );
     defer base_curve.deinit(allocator);
 
+    opentime.dbg_print(@src(), "original scale: {s}\n", .{ base_curve.extents_input() });
+
     // this curve is [-0.5, 0.5), rescale it into test range
     const xform_curve = try curve.rescaled_curve(
         allocator,
@@ -3986,6 +3992,23 @@ test "Single Clip bezier transform"
             )
         );
         defer clip_presentation_to_media_proj.deinit(allocator);
+
+        opentime.dbg_print(@src(), 
+            "clip_presentation_to_media_proj: {s}\n",
+            .{ clip_presentation_to_media_proj.src_to_dst_topo },
+        );
+        for (clip_presentation_to_media_proj.src_to_dst_topo.mappings)
+            |m|
+        {
+            opentime.dbg_print(@src(), " m: {s}\n", .{ m });
+            switch (m) {
+                .linear => |lin| opentime.dbg_print(@src(), 
+                    "    [linear]: {s}\n",
+                    .{ lin.input_to_output_curve }
+                ),
+                else => {},
+            }
+        }
 
         // note that the clips presentation space is the curve's input space
         const input_bounds = (
@@ -4291,7 +4314,7 @@ test "sequential_child_hash: math"
 
         try test_code.append(1);
 
-        errdefer std.debug.print(
+        errdefer opentime.dbg_print(@src(), 
             "iteration: {d}, expected: {s} got: {s}\n",
             .{ i, test_code, result }
         );
@@ -4443,14 +4466,14 @@ test "otio projection: track with single clip"
             );
             const b = result_range_in_media.output_bounds();
             errdefer {
-                std.debug.print(
+                opentime.dbg_print(@src(), 
                     "clip trimmed range: [{d}, {d})\n",
                     .{
                         r.start_seconds,
                         r.end_seconds,
                     },
                 );
-                std.debug.print(
+                opentime.dbg_print(@src(), 
                     "result range: [{d}, {d})\n",
                     .{
                         b.start_seconds,
@@ -4481,21 +4504,21 @@ test "otio projection: track with single clip"
             const b = track_to_media.src_to_dst_topo.output_bounds();
 
             errdefer {
-                std.debug.print(
+                opentime.dbg_print(@src(), 
                     "track range (c): [{d}, {d})\n",
                     .{
                         r.start_seconds,
                         r.end_seconds,
                     },
                 );
-                std.debug.print(
+                opentime.dbg_print(@src(), 
                     "media range (c): [{d}, {d})\n",
                     .{
                         b.start_seconds,
                         b.end_seconds,
                     },
                 );
-                std.debug.print(
+                opentime.dbg_print(@src(), 
                     "test range (c) in track: [{d}, {d})\n",
                     .{
                         test_range_in_track.start_seconds,
@@ -4657,14 +4680,14 @@ test "otio projection: track with single clip with transform"
             );
             const b = result_range_in_media.output_bounds();
             errdefer {
-                std.debug.print(
+                opentime.dbg_print(@src(), 
                     "clip trimmed range: [{d}, {d})\n",
                     .{
                         r.start_seconds,
                         r.end_seconds,
                     },
                 );
-                std.debug.print(
+                opentime.dbg_print(@src(), 
                     "result range: [{d}, {d})\n",
                     .{
                         b.start_seconds,
@@ -4700,6 +4723,28 @@ test "otio projection: track with single clip with transform"
                     test_range_in_track,
                 )
             );
+
+            opentime.dbg_print(
+                @src(),
+                "src discrete info: {!?s}",
+                .{ track_to_media.source.ref.discrete_info_for_space(.presentation) },
+            );
+            opentime.dbg_print(
+                @src(),
+                "dest discrete info: {!?s}",
+                .{ track_to_media.destination.ref.discrete_info_for_space(.media) },
+            );
+            opentime.dbg_print(
+                @src(),
+                "test_range_in_track: {s}",
+                .{ test_range_in_track}
+            );
+            opentime.dbg_print(
+                @src(),
+                "track_to_media: {s}",
+                .{ track_to_media.src_to_dst_topo }
+            );
+
             defer allocator.free(result_media_indices);
 
             try std.testing.expectEqualSlices(
@@ -4740,7 +4785,7 @@ test "otio projection: track with single clip with transform"
                 result_tp.output_bounds()
             );
 
-            errdefer std.debug.print(
+            errdefer opentime.dbg_print(@src(), 
                 "output_range: {d}, {d}\n",
                 .{ output_range.start_seconds, output_range.end_seconds },
             );
@@ -4887,7 +4932,7 @@ const TreenodeWalkingIterator = struct{
 
         if (treecode.path_exists(source_code, destination_code) == false) 
         {
-            errdefer std.debug.print(
+            errdefer opentime.dbg_print(@src(), 
                 "\nERROR\nsource: {s} dest: {s}\n",
                 .{
                     source_code,
@@ -5253,7 +5298,7 @@ test "ComposedValueRef: name"
     while (values.next())
         |val|
     {
-        std.debug.print(" this: {s}\n", .{ val });
+        opentime.dbg_print(@src(), " this: {s}\n", .{ val });
     }
 }
 
@@ -5434,7 +5479,8 @@ test "Single clip, Warp bulk"
     for (&tests, 0..)
         |t, ind|
     {
-        errdefer std.debug.print(
+        opentime.dbg_print(@src(), " \n\n\n STARTING TEST: {s}\n----------------\n\n\n", .{ t.label });
+        errdefer opentime.dbg_print(@src(), 
             "Error\n Error with test: [{d}] {s}\n",
             .{ ind, t.label },
         );
@@ -5462,7 +5508,7 @@ test "Single clip, Warp bulk"
         );
 
         errdefer {
-            std.debug.print(
+            opentime.dbg_print(@src(), 
                 "produced transform: {s}\n",
                 .{ xform }
             );
@@ -5507,10 +5553,12 @@ test "Single clip, Warp bulk"
                 warp_pres_to_media_topo.src_to_dst_topo.output_bounds()
             );
 
-            errdefer std.debug.print(
+            errdefer opentime.dbg_print(@src(), 
                 "test data:\nprovided: {s}\n"
                 ++ "input:  [{d}, {d})\n"
                 ++ "output: [{d}, {d})\n"
+                ++ "test presentaiton pt: {d}\n"
+                ++ "TEST NAME: {s}\n"
                 ,
                 .{
                     opentime.ContinuousTimeInterval{
