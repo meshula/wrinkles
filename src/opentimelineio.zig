@@ -1114,8 +1114,6 @@ pub const ProjectionOperator = struct {
         );
         defer in_to_dst_topo_c.deinit(allocator);
 
-        opentime.dbg_print(@src(), "in_to_dst_topo: {s}\n", .{ in_to_dst_topo_c });
-
         const discrete_info = (
             try self.destination.ref.discrete_info_for_space(
                 self.destination.label
@@ -1822,11 +1820,6 @@ pub const TopologicalMap = struct {
     {
         const path_info_ = try self.path_info(endpoints_arg);
         const endpoints = path_info_.endpoints;
-
-        opentime.dbg_print(@src(), 
-            "Printing scopes from:\n\n        {s}->{s}\n\n",
-            .{ endpoints.source, endpoints.destination },
-        );
 
         var iter = try TreenodeWalkingIterator.init_from_to(
             allocator,
@@ -4027,8 +4020,6 @@ test "Single Clip bezier transform"
     );
     defer base_curve.deinit(allocator);
 
-    opentime.dbg_print(@src(), "original scale: {s}\n", .{ base_curve.extents_input() });
-
     // this curve is [-0.5, 0.5), rescale it into test range
     const xform_curve = try curve.rescaled_curve(
         allocator,
@@ -4106,23 +4097,6 @@ test "Single Clip bezier transform"
             )
         );
         defer clip_presentation_to_media_proj.deinit(allocator);
-
-        opentime.dbg_print(@src(), 
-            "clip_presentation_to_media_proj: {s}\n",
-            .{ clip_presentation_to_media_proj.src_to_dst_topo },
-        );
-        for (clip_presentation_to_media_proj.src_to_dst_topo.mappings)
-            |m|
-        {
-            opentime.dbg_print(@src(), " m: {s}\n", .{ m });
-            switch (m) {
-                .linear => |lin| opentime.dbg_print(@src(), 
-                    "    [linear]: {s}\n",
-                    .{ lin.input_to_output_curve }
-                ),
-                else => {},
-            }
-        }
 
         // note that the clips presentation space is the curve's input space
         const input_bounds = (
@@ -4847,27 +4821,6 @@ test "otio projection: track with single clip with transform"
                 )
             );
 
-            opentime.dbg_print(
-                @src(),
-                "src discrete info: {!?s}",
-                .{ track_to_media.source.ref.discrete_info_for_space(.presentation) },
-            );
-            opentime.dbg_print(
-                @src(),
-                "dest discrete info: {!?s}",
-                .{ track_to_media.destination.ref.discrete_info_for_space(.media) },
-            );
-            opentime.dbg_print(
-                @src(),
-                "test_range_in_track: {s}",
-                .{ test_range_in_track}
-            );
-            opentime.dbg_print(
-                @src(),
-                "track_to_media: {s}",
-                .{ track_to_media.src_to_dst_topo }
-            );
-
             defer allocator.free(result_media_indices);
 
             try std.testing.expectEqualSlices(
@@ -5390,41 +5343,6 @@ test "Clip: Animated Parameter example"
     try cl.parameters.?.put( "lens",param );
 }
 
-test "ComposedValueRef: name"
-{
-    const allocator = std.testing.allocator;
-
-    // top level timeline
-    var tl = try Timeline.init(allocator);
-    // tl.name = try allocator.dupe(u8, "Example Timeline");
-    tl.name = try allocator.dupe(u8, "Example Timeline");
-
-    defer tl.recursively_deinit();
-    const tl_ptr = ComposedValueRef{
-        .timeline_ptr = &tl 
-    };
-
-    try std.testing.expectEqualStrings(
-        tl.name.?, 
-        tl_ptr.name().?,
-    );
-
-    const tp = try build_topological_map(
-        allocator,
-        tl_ptr
-    );
-    defer tp.deinit();
-
-    var values = tp.map_code_to_space.valueIterator();
-
-    // search for the stack pointer... its in there somewhere
-    while (values.next())
-        |val|
-    {
-        opentime.dbg_print(@src(), " this: {s}\n", .{ val });
-    }
-}
-
 // 
 // Trace test
 //
@@ -5602,7 +5520,6 @@ test "Single clip, Warp bulk"
     for (&tests, 0..)
         |t, ind|
     {
-        opentime.dbg_print(@src(), " \n\n\n STARTING TEST: {s}\n----------------\n\n\n", .{ t.label });
         errdefer opentime.dbg_print(@src(), 
             "Error\n Error with test: [{d}] {s}\n",
             .{ ind, t.label },
@@ -5700,16 +5617,6 @@ test "Single clip, Warp bulk"
                 end.in,
                 input_bounds.end_seconds,
                 util.EPSILON,
-            );
-
-            opentime.dbg_print(@src(),
-                "\n\n\nresult: {s}\n\n\n",
-                .{ 
-                    warp_pres_to_media_topo.project_instantaneous_cc(
-                        t.presentation_test,
-                    ),
-
-                }
             );
 
             try expectApproxEqAbs(

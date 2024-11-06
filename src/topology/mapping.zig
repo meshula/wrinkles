@@ -421,7 +421,7 @@ pub fn join_aff_aff(
         ),
         .input_bounds_val = args.a2b.input_bounds(),
     };
-    opentime.dbg_print(@src(), "   aff/aff: {s}\n",.{result.mapping()});
+
     return result;
 }
 
@@ -506,8 +506,6 @@ pub fn join_lin_aff(
         },
     };
 
-    opentime.dbg_print(@src(), "    ****lin/aff: {s}\n", .{ result.mapping() });
-
     return result;
 }
 
@@ -519,11 +517,6 @@ pub fn join_lin_lin(
     },
 ) !mapping_curve_linear.MappingCurveLinearMonotonic
 {
-    opentime.dbg_print(@src(), "    join lin/lin :\n     a2b: {s}\n     b2c: {s}\n", .{
-        args.a2b.mapping(),
-        args.b2c.mapping(),
-    }
-    );
     return .{
         .input_to_output_curve = try curve.linear_curve.join(
             allocator,
@@ -568,11 +561,6 @@ pub fn join(
     var a2b: Mapping = mappings.a2b;
     var b2c: Mapping = mappings.b2c;
 
-    opentime.dbg_print(@src(), 
-        "   (m) a2b: {s}\n    (m) b2c: {s}\n",
-        .{ a2b, b2c}
-    );
-
     const empty_result = (
         MappingEmpty{
             .defined_range = a2b.input_bounds(),
@@ -588,24 +576,16 @@ pub fn join(
     const a2b_b_bounds = a2b.output_bounds();
     const b2c_b_bounds = b2c.input_bounds();
 
-    opentime.dbg_print(@src(), "a2b_b_bounds: {s}\n", .{ a2b_b_bounds });
-    opentime.dbg_print(@src(), "b2c_b_bounds: {s}\n", .{ b2c_b_bounds });
     const maybe_b_bounds_intersection = (
         opentime.interval.intersect(
             a2b_b_bounds,
             b2c_b_bounds,
         )
     );
-    opentime.dbg_print(
-        @src(),
-        "b_bounds intersect: {?s}\n",
-        .{ maybe_b_bounds_intersection}
-    );
 
     const b_bounds_intersection = (
         // if there is no intersection, the result is empty
         maybe_b_bounds_intersection orelse {
-            opentime.dbg_print(@src(), "returning empty!\n",.{});
             return empty_result;
         }
     );
@@ -617,21 +597,11 @@ pub fn join(
     );
     defer a2b_trimmed.deinit(allocator);
 
-    opentime.dbg_print(@src(), "   shrinking...\n", .{});
     const b2c_trimmed = try b2c.shrink_to_input_interval(
         allocator,
         b_bounds_intersection,
     );
     defer b2c_trimmed.deinit(allocator);
-
-    opentime.dbg_print(@src(), 
-        "   ****joining mappings of type a2b_trimmed: {s} and b2c_trimmed: {s}\n",
-        .{ @tagName(a2b_trimmed), @tagName(b2c_trimmed) }
-    );
-    opentime.dbg_print(@src(), 
-        "   **a2b_trimmed: {s}\n    b2c_trimmed: {s}\n",
-        .{ a2b_trimmed, b2c_trimmed }
-    );
 
     return switch (b2c_trimmed) {
         .affine => |b2c_aff| switch (a2b_trimmed) {
