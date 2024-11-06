@@ -13,7 +13,7 @@ const opentime = @import("opentime");
 const interval = opentime.interval;
 const curve = @import("curve");
 const string = @import("string_stuff");
-const time_topology = @import("time_topology");
+const topology = @import("topology");
 const util = opentime.util;
 
 const DERIVATIVE_STEPS = 10;
@@ -231,7 +231,7 @@ fn _is_between(
 }
 
 const VisTransform = struct {
-    topology: time_topology.AffineTopology = .{},
+    topology: topology.AffineTopology = .{},
     active: bool = true,
 };
 
@@ -1469,13 +1469,13 @@ fn update_with_error(
         
     }
 
-    var _proj = time_topology.TimeTopology.init_identity_infinite();
-    const inf = time_topology.TimeTopology.init_identity_infinite();
+    var _proj = topology.TimeTopology.init_identity_infinite();
+    const inf = topology.TimeTopology.init_identity_infinite();
 
     for (STATE.operations.items) 
         |visop| 
     {
-        var _topology: time_topology.TimeTopology = .{ .empty = .{} };
+        var _topology: topology.TimeTopology = .{ .empty = .{} };
 
         switch (visop) 
         {

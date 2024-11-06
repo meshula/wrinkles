@@ -5,7 +5,7 @@ const zplot = zgui.plot;
 
 const sokol_app_wrapper = @import("sokol_app_wrapper");
 
-const time_topology = @import("time_topology");
+const topology = @import("topology");
 const curve = @import("curve");
 const opentime = @import("opentime");
 
@@ -24,7 +24,7 @@ const PLOT_STEPS = 1000;
 /// plot a given mapping with dear imgui
 pub fn plot_mapping(
     allocator: std.mem.Allocator,
-    map : time_topology.mapping.Mapping,
+    map : topology.mapping.Mapping,
     name: [:0]const u8,
 ) !void
 {
@@ -120,7 +120,7 @@ const SpaceUI = struct {
     name: []const u8,
     input: []const u8,
     output: []const u8,
-    mapping: time_topology.mapping.Mapping,
+    mapping: topology.mapping.Mapping,
 
     pub fn draw_ui(
         self: @This(),
@@ -234,7 +234,7 @@ const PRESETS = struct{
                 .name = "Clip",
                 .input = "presentation",
                 .output = "media",
-                .mapping = time_topology.mapping.INFINITE_IDENTIY,
+                .mapping = topology.mapping.INFINITE_IDENTIY,
             },
         },
     };
@@ -246,7 +246,7 @@ const PRESETS = struct{
                 .input = "presentation",
                 .output = "media",
                 .mapping = (
-                    time_topology.mapping.MappingAffine{
+                    topology.mapping.MappingAffine{
                         .input_bounds_val = .{
                             .start_seconds = -10,
                             .end_seconds = 10,
@@ -268,7 +268,7 @@ const PRESETS = struct{
                 .input = "presentation",
                 .output = "media",
                 .mapping = (
-                    time_topology.mapping.MappingAffine{
+                    topology.mapping.MappingAffine{
                         .input_bounds_val = .{
                             .start_seconds = -10,
                             .end_seconds = 10,
@@ -285,7 +285,7 @@ const PRESETS = struct{
                 .input = "presentation",
                 .output = "media",
                 .mapping = (
-                    time_topology.mapping.MappingCurveLinear{
+                    topology.mapping.MappingCurveLinear{
                         .input_to_output_curve = 
                             .{
                                 .knots = @constCast(
@@ -490,7 +490,7 @@ fn draw_err(
                 for (STATE.data.spaces[1..])
                     |s|
                 {
-                    total_map = try time_topology.mapping.join(
+                    total_map = try topology.mapping.join(
                         allocator,
                         .{
                             .a2b = total_map,

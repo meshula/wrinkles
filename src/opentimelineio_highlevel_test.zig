@@ -3,7 +3,7 @@
 const std = @import("std");
 const otio = @import("opentimelineio.zig");
 const opentime = @import("opentime");
-const time_topology = @import("time_topology");
+const topology = @import("topology");
 const sampling = @import("sampling");
 
 // for verbose print of test
@@ -407,7 +407,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
     // new for this test - add in an warp on the clip
     const wp: otio.Warp = .{
         .child = cl_ptr,
-        .transform = try time_topology.Topology.init_affine(
+        .transform = try topology.Topology.init_affine(
             allocator,
             .{
                 .input_to_output_xform = .{
@@ -551,7 +551,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
 
     const warp = otio.Warp{
         .child = cl_ptr,
-        .transform = try time_topology.Topology.init_affine(
+        .transform = try topology.Topology.init_affine(
             allocator,
             .{
                 .input_to_output_xform = .{
@@ -719,7 +719,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     // new for this test - add in an warp on the clip
     const wp: otio.Warp = .{
         .child = cl_ptr,
-        .transform = try time_topology.Topology.init_from_linear_monotonic(
+        .transform = try topology.Topology.init_from_linear_monotonic(
             allocator,
             .{
                 .knots = &.{
@@ -843,7 +843,7 @@ test "timeline w/ warp that holds the tenth frame"
     // new for this test - add in an warp on the clip, which holds the frame
     const wp = otio.Warp {
         .child = cl_ptr,
-        .transform = try time_topology.Topology.init_from_linear_monotonic(
+        .transform = try topology.Topology.init_from_linear_monotonic(
             allocator,
             .{
                 .knots = &.{
@@ -911,13 +911,13 @@ test "timeline w/ warp that holds the tenth frame"
         );
         
         const ident = (
-            try time_topology.Topology.init_identity_infinite(
+            try topology.Topology.init_identity_infinite(
                 allocator
             )
         );
         defer ident.deinit(allocator);
 
-        const test_result = try time_topology.join(
+        const test_result = try topology.join(
             std.testing.allocator,
             .{ 
                 .a2b = ident,

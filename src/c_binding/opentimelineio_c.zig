@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const otio = @import("opentimelineio");
-const time_topology = @import("time_topology");
+const topology = @import("topology");
 
 const c = @cImport(
     {
@@ -508,7 +508,7 @@ pub export fn otio_fetch_topology(
     ) catch return ERR_TOPO;
 
     const result = allocator.create(
-        time_topology.TimeTopology
+        topology.TimeTopology
     ) catch |err|
     {
         std.log.err("problem building topo: {any}\n", .{ err });
@@ -534,7 +534,7 @@ pub export fn otio_topo_fetch_input_bounds(
     const ref = topo_c.ref.?;
 
     const topo = ptrCast(
-        time_topology.TimeTopology,
+        topology.TimeTopology,
         ref,
     );
 
@@ -560,7 +560,7 @@ pub export fn otio_topo_fetch_output_bounds(
     const ref = topo_c.ref.?;
 
     const topo = ptrCast(
-        time_topology.TimeTopology,
+        topology.TimeTopology,
         ref,
     );
 

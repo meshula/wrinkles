@@ -16,7 +16,7 @@ const wav = @import("wav");
 
 const curve = @import("curve");
 const opentime = @import("opentime");
-const topology = @import("time_topology");
+const topology = @import("topology");
 
 // configuration
 const RETIME_DEBUG_LOGGING = false;

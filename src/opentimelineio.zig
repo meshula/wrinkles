@@ -17,7 +17,7 @@ const Duration = f32;
 const interval = opentime.interval;
 const libxform = opentime.transform;
 const curve = @import("curve");
-const time_topology = @import("time_topology");
+const topology_m = @import("topology");
 const string = @import("string_stuff");
 
 const util = opentime.util;
@@ -114,7 +114,7 @@ pub const Clip = struct {
     };
     const ParameterVarying = struct {
         domain: Domain,
-        mapping: time_topology.Topology,
+        mapping: topology_m.Topology,
 
         pub fn parameter(
             self: *const @This()
@@ -187,13 +187,13 @@ pub const Clip = struct {
     pub fn topology(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) !time_topology.Topology 
+    ) !topology_m.Topology 
     {
         if (self.media_temporal_bounds) 
             |range| 
         {
             const media_bounds = (
-                try time_topology.Topology.init_identity(
+                try topology_m.Topology.init_identity(
                     allocator,
                     range
                 )
@@ -228,9 +228,9 @@ pub const Gap = struct {
     pub fn topology(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) !time_topology.Topology 
+    ) !topology_m.Topology 
     {
-        return try time_topology.Topology.init_identity(
+        return try topology_m.Topology.init_identity(
             allocator,
             .{
                 .start_seconds = 0,
@@ -284,7 +284,7 @@ pub const ComposableValue = union(enum) {
         NotInRangeError,
         NoProjectionResult,
         NoProjectionResultError,
-    }!time_topology.Topology 
+    }!topology_m.Topology 
     {
         return switch (self) {
             .warp => |wp| wp.transform,
@@ -390,7 +390,7 @@ pub const ComposedValueRef = union(enum) {
     pub fn topology(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) !time_topology.Topology 
+    ) !topology_m.Topology 
     {
         return switch (self) {
             .warp_ptr => |wp_ptr| wp_ptr.transform,
@@ -475,7 +475,7 @@ pub const ComposedValueRef = union(enum) {
         from_space: SpaceLabel,
         to_space: SpaceReference,
         step: u1,
-    ) !time_topology.Topology 
+    ) !topology_m.Topology 
     {
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
             opentime.dbg_print(@src(), 
@@ -504,12 +504,12 @@ pub const ComposedValueRef = union(enum) {
             .track_ptr => |*tr| {
                 switch (from_space) {
                     SpaceLabel.presentation => (
-                        return try time_topology.Topology.init_identity_infinite(
+                        return try topology_m.Topology.init_identity_infinite(
                             allocator
                         )
                     ),
                     SpaceLabel.intrinsic => (
-                        return try time_topology.Topology.init_identity_infinite(
+                        return try topology_m.Topology.init_identity_infinite(
                             allocator
                         )
                     ),
@@ -521,7 +521,7 @@ pub const ComposedValueRef = union(enum) {
                         // no further transformation INTO the child
                         if (step == 0) {
                             return (
-                                try time_topology.Topology.init_identity_infinite(
+                                try topology_m.Topology.init_identity_infinite(
                                     allocator
                                 )
                             );
@@ -560,7 +560,7 @@ pub const ComposedValueRef = union(enum) {
                     .presentation => {
                         // goes to media
                         const pres_to_intrinsic_topo = (
-                            try time_topology.Topology.init_identity_infinite(
+                            try topology_m.Topology.init_identity_infinite(
                                 allocator
                             )
                         );
@@ -583,7 +583,7 @@ pub const ComposedValueRef = union(enum) {
                             .end_seconds = media_bounds.duration_seconds()
                         };
                         const intrinsic_to_media = (
-                            try time_topology.Topology.init_affine(
+                            try topology_m.Topology.init_affine(
                                 allocator,
                                 .{
                                     .input_to_output_xform = intrinsic_to_media_xform,
@@ -593,7 +593,7 @@ pub const ComposedValueRef = union(enum) {
                         );
                         defer intrinsic_to_media.deinit(allocator);
 
-                        const pres_to_media = try time_topology.join(
+                        const pres_to_media = try topology_m.join(
                             allocator,
                             .{ 
                                 .a2b = pres_to_intrinsic_topo,
@@ -603,7 +603,7 @@ pub const ComposedValueRef = union(enum) {
 
                         return pres_to_media;
                     },
-                    else => try time_topology.Topology.init_identity(
+                    else => try topology_m.Topology.init_identity(
                         allocator,
                         try cl.*.bounds_of(
                             allocator,
@@ -617,13 +617,13 @@ pub const ComposedValueRef = union(enum) {
                 //        ie - if they're always identity, is there anything
                 //        interesting about exposing them in this function?
                 .presentation => wp_ptr.transform.clone(allocator),
-                else => try time_topology.Topology.init_identity_infinite(
+                else => try topology_m.Topology.init_identity_infinite(
                     allocator
                 ),
             },
             // wrapped as identity
             .gap_ptr, .timeline_ptr, .stack_ptr => (
-                try time_topology.Topology.init_identity_infinite(
+                try topology_m.Topology.init_identity_infinite(
                     allocator
                 )
             ),
@@ -631,7 +631,7 @@ pub const ComposedValueRef = union(enum) {
             //     std.log.err("Not Implemented: {any}\n", .{ case });
             //
             //     // return error.NotImplemented;
-            //     return time_topology.Topology.init_identity_infinite();
+            //     return topology_m.Topology.init_identity_infinite();
             // },
         };
     }
@@ -684,7 +684,7 @@ pub const ComposedValueRef = union(enum) {
         self: @This(),
         allocator: std.mem.Allocator,
         in_space: SpaceLabel,
-    ) !time_topology.Topology
+    ) !topology_m.Topology
     {
         const maybe_discrete_info = (
             try self.discrete_info_for_space(in_space)
@@ -699,7 +699,7 @@ pub const ComposedValueRef = union(enum) {
         const target_topo = try self.topology(allocator);
         const extents = target_topo.input_bounds();
 
-        return try time_topology.Topology.init_step_mapping(
+        return try topology_m.Topology.init_step_mapping(
             allocator,
             extents,
             // start
@@ -776,7 +776,7 @@ test "ComposedValueRef init test"
 pub const Warp = struct {
     name: ?string.latin_s8 = null,
     child: ComposedValueRef,
-    transform: time_topology.Topology,
+    transform: topology_m.Topology,
 };
 
 /// a container in which each contained item is right-met over time
@@ -843,7 +843,7 @@ pub const Track = struct {
     pub fn topology(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) !time_topology.Topology 
+    ) !topology_m.Topology 
     {
         // build the maybe_bounds
         var maybe_bounds: ?interval.ContinuousTimeInterval = null;
@@ -870,7 +870,7 @@ pub const Track = struct {
             }
         );
 
-        return try time_topology.Topology.init_identity(
+        return try topology_m.Topology.init_identity(
             allocator,
             result_bound
         );
@@ -906,7 +906,7 @@ pub const Track = struct {
         // @TODO: this is super confusing for what it does and should be
         //        renamed
         child_space_reference: SpaceReference,
-    ) !time_topology.Topology 
+    ) !topology_m.Topology 
     {
         // [child 1][child 2]
         const child_index = (
@@ -924,7 +924,7 @@ pub const Track = struct {
         const child_duration = child_range.duration_seconds();
 
         // the transform to the next child space, compensates for this duration
-        return try time_topology.Topology.init_affine(
+        return try topology_m.Topology.init_affine(
             allocator,
             .{
                 .input_bounds_val = .{
@@ -1027,7 +1027,7 @@ const ProjectionOperatorArgs = struct {
 pub const ProjectionOperator = struct {
     source: SpaceReference,
     destination: SpaceReference,
-    src_to_dst_topo: time_topology.Topology,
+    src_to_dst_topo: topology_m.Topology,
 
     // options:
     //  instant
@@ -1080,12 +1080,12 @@ pub const ProjectionOperator = struct {
     pub fn project_topology_cc(
         self: @This(),
         allocator: std.mem.Allocator,
-        in_to_src_topo: time_topology.Topology,
-    ) !time_topology.Topology
+        in_to_src_topo: topology_m.Topology,
+    ) !topology_m.Topology
     {
         // project the source range into the destination space
         const in_to_dst_topo = (
-            try time_topology.join(
+            try topology_m.join(
                 allocator,
                 .{ 
                 .a2b = in_to_src_topo,
@@ -1102,7 +1102,7 @@ pub const ProjectionOperator = struct {
     pub fn project_topology_cd(
         self: @This(),
         allocator: std.mem.Allocator,
-        in_to_src_topo: time_topology.Topology,
+        in_to_src_topo: topology_m.Topology,
     ) ![]usize
     {
         // project the source range into the destination space
@@ -1165,11 +1165,11 @@ pub const ProjectionOperator = struct {
         self: @This(),
         allocator: std.mem.Allocator,
         range_in_source: opentime.ContinuousTimeInterval,
-    ) !time_topology.Topology
+    ) !topology_m.Topology
     {
         // build a topology over the range in the source space
         const topology_in_source = (
-            try time_topology.Topology.init_affine(
+            try topology_m.Topology.init_affine(
                 allocator,
                 .{ 
                     .input_to_output_xform = .{ 
@@ -1201,7 +1201,7 @@ pub const ProjectionOperator = struct {
         // the range is bounding the source repo.  Therefore the topology is an
         // identity that is bounded 
         const in_to_source_topo = (
-            try time_topology.Topology.init_affine(
+            try topology_m.Topology.init_affine(
                 allocator,
                 .{ 
                     .input_bounds_val = range_in_source,
@@ -1221,7 +1221,7 @@ pub const ProjectionOperator = struct {
         self: @This(),
         allocator: std.mem.Allocator,
         index_in_source: usize,
-    ) !time_topology.Topology
+    ) !topology_m.Topology
     {
         const c_range_in_source = (
             try self.source.ref.discrete_index_to_continuous_range(
@@ -1395,7 +1395,7 @@ pub const TopologicalMap = struct {
         const endpoints = path_info_.endpoints;
 
         var root_to_current = (
-            try time_topology.Topology.init_identity_infinite(allocator)
+            try topology_m.Topology.init_identity_infinite(allocator)
         );
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
@@ -1470,7 +1470,7 @@ pub const TopologicalMap = struct {
                 );
             }
 
-            const root_to_next = try time_topology.join(
+            const root_to_next = try topology_m.join(
                 allocator,
                 .{
                     .a2b = root_to_current,
@@ -1518,7 +1518,7 @@ pub const TopologicalMap = struct {
             root_to_current.deinit(allocator);
             errdefer opentime.deinit_slice(
                 allocator,
-                time_topology.Topology,
+                topology_m.Topology,
                 inverted_topologies
             );
             if (inverted_topologies.len > 1)
@@ -1964,7 +1964,7 @@ test "ProjectionOperatorMap: init_operator leak test"
             .{
                 .source = try cl_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
-                .src_to_dst_topo = time_topology.EMPTY,
+                .src_to_dst_topo = topology_m.EMPTY,
             },
         )
     );
@@ -2850,7 +2850,7 @@ test "transform: track with two clips"
     }
 
     {
-        const xform = try time_topology.Topology.init_affine(
+        const xform = try topology_m.Topology.init_affine(
             allocator,
             .{
                 .input_bounds_val = .{
@@ -2870,7 +2870,7 @@ test "transform: track with two clips"
             }
         );
         defer po.deinit(allocator);
-        const result = try time_topology.join(
+        const result = try topology_m.join(
             allocator,
             .{
                 .a2b = xform,
@@ -3754,7 +3754,7 @@ test "TopologicalMap: Track with clip with identity transform topological"
     defer root_presentation_to_clip_media.deinit(allocator);
 
     try expectError(
-        time_topology.mapping.Mapping.ProjectionError.OutOfBounds,
+        topology_m.mapping.Mapping.ProjectionError.OutOfBounds,
         root_presentation_to_clip_media.project_instantaneous_cc(3).ordinate()
     );
 
@@ -3828,7 +3828,7 @@ test "Projection: Track with single clip with identity transform and bounds"
     );
 
     try expectError(
-        time_topology.mapping.Mapping.ProjectionError.OutOfBounds,
+        topology_m.mapping.Mapping.ProjectionError.OutOfBounds,
         root_presentation_to_clip_media.project_instantaneous_cc(3).ordinate()
     );
 }
@@ -4040,7 +4040,7 @@ test "Single Clip bezier transform"
         }
     );
     defer xform_curve.deinit(allocator);
-    const curve_topo = try time_topology.Topology.init_bezier(
+    const curve_topo = try topology_m.Topology.init_bezier(
         allocator,
         xform_curve.segments,
     );
@@ -4287,7 +4287,7 @@ pub const Timeline = struct {
     pub fn topology(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) !time_topology.Topology
+    ) !topology_m.Topology
     {
         return try self.tracks.topology(allocator);
     }
@@ -4364,7 +4364,7 @@ pub const Stack = struct {
     pub fn topology(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) !time_topology.Topology 
+    ) !topology_m.Topology 
     {
         // build the bounds
         var bounds: ?interval.ContinuousTimeInterval = null;
@@ -4386,12 +4386,12 @@ pub const Stack = struct {
         if (bounds) 
             |b| 
         {
-            return try time_topology.Topology.init_affine(
+            return try topology_m.Topology.init_affine(
                 allocator,
                 .{ .input_bounds_val = b }
             );
         } else {
-            return time_topology.EMPTY;
+            return topology_m.EMPTY;
         }
     }
 };
@@ -4711,7 +4711,7 @@ test "otio projection: track with single clip with transform"
 
     const wp : Warp = .{
         .child = .{ .clip_ptr = &cl },
-        .transform = try time_topology.Topology.init_affine(
+        .transform = try topology_m.Topology.init_affine(
             allocator,
             .{
                 .input_to_output_xform = .{
@@ -5368,7 +5368,7 @@ test "Clip: Animated Parameter example"
     const focus_distance = (
         Clip.ParameterVarying{
             .domain = .time,
-            .mapping = try time_topology.Topology.init_from_linear(
+            .mapping = try topology_m.Topology.init_from_linear(
                 allocator,
                 try curve.Linear.init(
                     allocator,
@@ -5492,7 +5492,7 @@ test "test debug_print_time_hierarchy"
     // new for this test - add in an warp on the clip, which holds the frame
     const wp = Warp {
         .child = cl_ptr,
-        .transform = try time_topology.Topology.init_affine(
+        .transform = try topology_m.Topology.init_affine(
             allocator,
             .{
                 .input_bounds_val = .{
@@ -5619,7 +5619,7 @@ test "Single clip, Warp bulk"
         };
 
         const xform = (
-            try time_topology.Topology.init_from_linear_monotonic(
+            try topology_m.Topology.init_from_linear_monotonic(
                 allocator,
                 .{
                     .knots = &.{
@@ -5766,7 +5766,7 @@ test "ProjectionOperator: clone"
 {
     const allocator = std.testing.allocator;
 
-    const aff1 = try time_topology.Topology.init_affine(
+    const aff1 = try topology_m.Topology.init_affine(
         allocator,
         .{
             .input_bounds_val = .{
@@ -5807,7 +5807,7 @@ test "ProjectionOperatorMap: clone"
     const cl_ptr = ComposedValueRef{ 
         .clip_ptr = &cl 
     };
-    const aff1 = try time_topology.Topology.init_affine(
+    const aff1 = try topology_m.Topology.init_affine(
         allocator,
         .{
             .input_bounds_val = .{

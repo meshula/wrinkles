@@ -673,25 +673,12 @@ pub fn build(
         }
     }
 
-    const time_topology = module_with_tests_and_artifact(
-        "time_topology",
+    const topology = module_with_tests_and_artifact(
+        "topology",
         .{
             .b = b,
             .options = options,
-            .fpath = "src/time_topology/topology.zig",
-            .deps = &.{
-                .{ .name = "opentime", .module = opentime },
-                .{ .name = "curve", .module = curve },
-            },
-        }
-    );
-
-    _ = module_with_tests_and_artifact(
-        "mapping",
-        .{
-            .b = b,
-            .options = options,
-            .fpath = "src/time_topology/mapping.zig",
+            .fpath = "src/topology/topology.zig",
             .deps = &.{
                 .{ .name = "opentime", .module = opentime },
                 .{ .name = "curve", .module = curve },
@@ -717,7 +704,7 @@ pub fn build(
                 .{ .name = "curve", .module = curve },
                 .{ .name = "wav", .module = wav_dep },
                 .{ .name = "opentime", .module = opentime, },
-                .{ .name = "time_topology", .module = time_topology, },
+                .{ .name = "topology", .module = topology, },
             },
         }
     );
@@ -732,7 +719,7 @@ pub fn build(
                 .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "opentime", .module = opentime },
                 .{ .name = "curve", .module = curve },
-                .{ .name = "time_topology", .module = time_topology },
+                .{ .name = "topology", .module = topology },
                 .{ .name = "treecode", .module = treecode },
                 .{ .name = "sampling", .module = sampling },
             },
@@ -760,8 +747,8 @@ pub fn build(
             opentimelineio
         );
         opentimelineio_c.root_module.addImport(
-            "time_topology",
-            time_topology
+            "topology",
+            topology
         );
         opentimelineio_c.linkLibCpp();
         if (options.target.result.isWasm())
@@ -846,7 +833,7 @@ pub fn build(
         .{ .name = "string_stuff", .module = string_stuff },
         .{ .name = "opentime", .module = opentime },
         .{ .name = "curve", .module = curve },
-        .{ .name = "time_topology", .module = time_topology },
+        .{ .name = "topology", .module = topology },
 
         // libraries with c components
         .{ .name = "spline_gym", .module = &spline_gym.root_module },

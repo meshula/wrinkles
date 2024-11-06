@@ -8,7 +8,6 @@ const opentime = @import("opentime");
 const interval = opentime.interval;
 const transform = opentime.transform;
 const curve = @import("curve");
-const time_topology = @import("time_topology");
 const string = @import("string_stuff");
 
 pub const SerializableObjectTypes = enum {
