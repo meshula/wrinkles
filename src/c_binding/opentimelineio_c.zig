@@ -401,15 +401,7 @@ pub export fn otio_po_map_fetch_op(
 
     const po = &po_map.operators[segment_ind][operator_ind];
 
-    // std.log.err(
-    //     "po from: {s} to {s}\n",
-    //     .{ 
-    //         @tagName(std.meta.activeTag(po.source.ref)),
-    //         @tagName(std.meta.activeTag(po.destination.ref))
-    //     }
-    // );
-
-    result.ref = po;
+    result.ref = @constCast(@ptrCast(po));
 
     return 0;
 }
@@ -508,7 +500,7 @@ pub export fn otio_fetch_topology(
     ) catch return ERR_TOPO;
 
     const result = allocator.create(
-        topology.TimeTopology
+        topology.Topology
     ) catch |err|
     {
         std.log.err("problem building topo: {any}\n", .{ err });
@@ -534,7 +526,7 @@ pub export fn otio_topo_fetch_input_bounds(
     const ref = topo_c.ref.?;
 
     const topo = ptrCast(
-        topology.TimeTopology,
+        topology.Topology,
         ref,
     );
 
@@ -560,7 +552,7 @@ pub export fn otio_topo_fetch_output_bounds(
     const ref = topo_c.ref.?;
 
     const topo = ptrCast(
-        topology.TimeTopology,
+        topology.Topology,
         ref,
     );
 

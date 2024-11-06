@@ -231,7 +231,7 @@ fn _is_between(
 }
 
 const VisTransform = struct {
-    topology: topology.AffineTopology = .{},
+    topology: topology.Topology = topology.INFINITE_IDENTIY,
     active: bool = true,
 };
 
@@ -1469,13 +1469,13 @@ fn update_with_error(
         
     }
 
-    var _proj = topology.TimeTopology.init_identity_infinite();
-    const inf = topology.TimeTopology.init_identity_infinite();
+    var _proj = topology.Topology.init_identity_infinite(allocator);
+    const inf = trytopology.Topology.init_identity_infinite(allocator);
 
     for (STATE.operations.items) 
         |visop| 
     {
-        var _topology: topology.TimeTopology = .{ .empty = .{} };
+        var _topology: topology.Topology = .{ .empty = .{} };
 
         switch (visop) 
         {

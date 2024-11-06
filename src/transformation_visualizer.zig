@@ -60,10 +60,10 @@ pub fn plot_mapping(
             try inputs.append(input_bounds[1]);
 
             try outputs.append(
-                try map_aff.project_instantaneous_cc(@floatCast(input_bounds[0]))
+                try map_aff.project_instantaneous_cc(@floatCast(input_bounds[0])).ordinate()
             );
             try outputs.append(
-                try map_aff.project_instantaneous_cc(@floatCast(input_bounds[1]))
+                try map_aff.project_instantaneous_cc(@floatCast(input_bounds[1])).ordinate()
             );
 
             len = 2;
@@ -78,24 +78,24 @@ pub fn plot_mapping(
 
             len = map_lin.input_to_output_curve.knots.len;
         },
-        .bezier => |map_bez| {
-            const step = (
-                @as(f32, @floatCast(input_bounds[1] - input_bounds[0])) 
-                / @as(f32, @floatFromInt(PLOT_STEPS))
-            );
-
-            var x = input_bounds[0];
-            while (x <= input_bounds[1])
-                : (x += step)
-            {
-                try inputs.append(x);
-                try outputs.append(
-                    try map_bez.project_instantaneous_cc(@floatCast(x))
-                );
-            }
-
-            len = PLOT_STEPS;
-        },
+        // .bezier => |map_bez| {
+        //     const step = (
+        //         @as(f32, @floatCast(input_bounds[1] - input_bounds[0])) 
+        //         / @as(f32, @floatFromInt(PLOT_STEPS))
+        //     );
+        //
+        //     var x = input_bounds[0];
+        //     while (x <= input_bounds[1])
+        //         : (x += step)
+        //     {
+        //         try inputs.append(x);
+        //         try outputs.append(
+        //             try map_bez.project_instantaneous_cc(@floatCast(x))
+        //         );
+        //     }
+        //
+        //     len = PLOT_STEPS;
+        // },
 
         inline else => {},
     }
@@ -261,47 +261,47 @@ const PRESETS = struct{
         },
     };
 
-    pub const affine_linear = UI{
-        .spaces = &.{
-            .{ 
-                .name = "Track",
-                .input = "presentation",
-                .output = "media",
-                .mapping = (
-                    topology.mapping.MappingAffine{
-                        .input_bounds_val = .{
-                            .start_seconds = -10,
-                            .end_seconds = 10,
-                        },
-                        .input_to_output_xform = .{
-                            .offset_seconds = 10,
-                            .scale = 2,
-                        },
-                    }
-                ).mapping(),
-            },
-            .{ 
-                .name = "Clip",
-                .input = "presentation",
-                .output = "media",
-                .mapping = (
-                    topology.mapping.MappingCurveLinear{
-                        .input_to_output_curve = 
-                            .{
-                                .knots = @constCast(
-                                    &[_]curve.ControlPoint{
-                                        .{ .in = -10, .out = -10 },
-                                        .{ .in = 0, .out = 0 },
-                                        .{ .in = 5, .out = 10 },
-                                        .{ .in = 10, .out = 3 },
-                                    },
-                                )
-                            },
-                        }
-                ).mapping(),
-            },
-        },
-    };
+    // pub const affine_linear = UI{
+    //     .spaces = &.{
+    //         .{ 
+    //             .name = "Track",
+    //             .input = "presentation",
+    //             .output = "media",
+    //             .mapping = (
+    //                 topology.mapping.MappingAffine{
+    //                     .input_bounds_val = .{
+    //                         .start_seconds = -10,
+    //                         .end_seconds = 10,
+    //                     },
+    //                     .input_to_output_xform = .{
+    //                         .offset_seconds = 10,
+    //                         .scale = 2,
+    //                     },
+    //                 }
+    //             ).mapping(),
+    //         },
+    //         .{ 
+    //             .name = "Clip",
+    //             .input = "presentation",
+    //             .output = "media",
+    //             .mapping = (
+    //                 topology.mapping.MappingCurveBezier.init_curve(
+    //                     .input_to_output_curve = 
+    //                         .{
+    //                             .knots = @constCast(
+    //                                 &[_]curve.ControlPoint{
+    //                                     .{ .in = -10, .out = -10 },
+    //                                     .{ .in = 0, .out = 0 },
+    //                                     .{ .in = 5, .out = 10 },
+    //                                     .{ .in = 10, .out = 3 },
+    //                                 },
+    //                             )
+    //                         },
+    //                     }
+    //             ).mapping(),
+    //         },
+    //     },
+    // };
 };
 const PresetNames = std.meta.DeclEnum(PRESETS);
 

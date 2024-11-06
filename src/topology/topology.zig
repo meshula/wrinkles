@@ -1023,6 +1023,11 @@ pub const Topology = struct {
 
 /// an empty topology
 pub const EMPTY = Topology{ .mappings = &.{} };
+pub const INFINITE_IDENTIY = Topology{
+    .mappings = &.{
+        mapping.INFINITE_IDENTIY,
+    }
+};
 
 test "Topology.split_at_input_points"
 {

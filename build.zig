@@ -840,14 +840,14 @@ pub fn build(
         .{ .name = "sampling", .module = sampling },
         .{ .name = "sokol_app_wrapper", .module = sokol_app_wrapper },
     };
-    executable(
-        b,
-        "curvet",
-        "src/curvet.zig",
-        "/wrinkles_content/",
-        options,
-        common_deps,
-    );
+    // executable(
+    //     b,
+    //     "curvet",
+    //     "src/curvet.zig",
+    //     "/wrinkles_content/",
+    //     options,
+    //     common_deps,
+    // );
 
     executable(
         b,
