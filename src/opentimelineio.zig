@@ -2144,8 +2144,16 @@ pub const ProjectionOperatorMap = struct {
             |p, ind|
         {
             try end_points.append(p);
-            try current_segment.appendSlice(over_conformed.operators[ind]);
-            try current_segment.appendSlice(undr_conformed.operators[ind]);
+            for (over_conformed.operators[ind])
+                |op|
+            {
+                try current_segment.append(try op.clone(parent_allocator));
+            }
+            for (undr_conformed.operators[ind])
+                |op|
+            {
+                try current_segment.append(try op.clone(parent_allocator));
+            }
             try operators.append(
                 try current_segment.toOwnedSlice(),
             );
