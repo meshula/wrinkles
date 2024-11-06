@@ -1328,11 +1328,12 @@ pub fn join(
                         .a2b = a2b_m,
                         .b2c = b2c_m,
                     },
-                    );
+                );
 
                 opentime.dbg_print(@src(), "a2c_m: {s}", .{ a2c_m });
 
                 try a2c_mappings.append(try a2c_m.clone(parent_allocator));
+                break;
             }
         }
     }
