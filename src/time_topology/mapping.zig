@@ -28,14 +28,6 @@ test {
     _ = mapping_curve_bezier;
 }
 
-// const topology = @import("topology.zig");
-//
-// test {
-//     _ = topology;
-// }
-
-// const topology = @import("topology.zig");
-
 /// A Mapping is a polymorphic container for a function that maps from an
 /// "input" space to an "output" space.  Mappings can be joined with other
 /// mappings via function composition to build new transformations via common
