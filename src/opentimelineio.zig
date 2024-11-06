@@ -1147,10 +1147,11 @@ pub const ProjectionOperator = struct {
         ) : (t += sign*duration)
         {
             const out_ord = try in_to_dst_topo_c.project_instantaneous_cc(t).ordinate();
+
             // ...project the continuous coordinate into the discrete space
             try index_buffer_destination_discrete.append(
                 try self.destination.ref.continuous_ordinate_to_discrete_index(
-                    t,
+                    out_ord,
                     self.destination.label,
                 )
             );
@@ -1171,11 +1172,11 @@ pub const ProjectionOperator = struct {
             try time_topology.Topology.init_affine(
                 allocator,
                 .{ 
-                    .transform = .{ 
+                    .input_to_output_xform = .{ 
                         .offset_seconds = range_in_source.start_seconds,
                         .scale = 1.0,
                     },
-                    .bounds = .{
+                    .input_bounds_val = .{
                         .start_seconds = 0,
                         .end_seconds = range_in_source.duration_seconds(),
                     },
@@ -1203,7 +1204,7 @@ pub const ProjectionOperator = struct {
             try time_topology.Topology.init_affine(
                 allocator,
                 .{ 
-                    .bounds = range_in_source,
+                    .input_bounds_val = range_in_source,
                 }
             )
         );
