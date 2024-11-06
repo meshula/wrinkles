@@ -352,9 +352,8 @@ pub const Topology = struct {
             end_points[0..n_pts-1],
             end_points[1..],
             0..n_pts-1,
-            // 1..
         )
-            |left_pt, right_pt, left_ind |//, right_ind|
+            |left_pt, right_pt, left_ind |
         {
             if (
                 left_pt < new_bounds.start_seconds 
