@@ -1508,12 +1508,29 @@ pub const TopologicalMap = struct {
         }
 
         // check to see if end points were inverted
-        if (path_info_.inverted) 
+        if (path_info_.inverted and root_to_current.mappings.len > 0) 
         {
-            const old_proj = root_to_current;
-            root_to_current = try root_to_current.inverted(allocator);
-            old_proj.deinit(allocator);
-            opentime.dbg_print(@src(), "here {s}\n", .{inverted_topologies});
+            // const old_proj = root_to_current;
+            const inverted_topologies = (
+                try root_to_current.inverted(allocator)
+            );
+            defer allocator.free(inverted_topologies);
+            root_to_current.deinit(allocator);
+            errdefer opentime.deinit_slice(
+                allocator,
+                time_topology.Topology,
+                inverted_topologies
+            );
+            if (inverted_topologies.len > 1)
+            {
+                return error.MoreThanOneCurveIsNotImplemented;
+            }
+            if (inverted_topologies.len > 0) {
+                root_to_current = inverted_topologies[0];
+            }
+            else {
+                return error.NoInvertedTopologies;
+            }
         }
 
         return .{
