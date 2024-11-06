@@ -78,7 +78,7 @@ pub fn LinearOf(
                 self:@This(),
             ) opentime.interval.ContinuousTimeInterval
             {
-                if (self.knots.len == 0) {
+                if (self.knots.len < 1) {
                     return .{ .start_seconds = 0, .end_seconds = 0 };
                 }
                 const fst = self.knots[0].in;
