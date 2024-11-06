@@ -767,7 +767,10 @@ test "ComposedValueRef init test"
 
     const cl_ref_init_ptr = ComposedValueRef.init(&cl);
 
-    try std.testing.expectEqual(&(cl_cv.clip), cl_ref_init_cv.clip_ptr);
+    try std.testing.expectEqual(
+        &(cl_cv.clip),
+        cl_ref_init_cv.clip_ptr
+    );
     try std.testing.expectEqual(&cl, cl_ref_init_ptr.clip_ptr);
 }
 
