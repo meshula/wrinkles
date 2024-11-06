@@ -321,9 +321,6 @@ pub const Topology = struct {
             new_input_bounds,
             ib,
         ) orelse return EMPTY;
-        opentime.dbg_print(@src(), "input_bounds: {s}", .{ib});
-        opentime.dbg_print(@src(), "new_input_bounds: {s}", .{new_input_bounds});
-        opentime.dbg_print(@src(), "new_bounds: {s}", .{new_bounds});
 
         if (
             new_bounds.start_seconds <= ib.start_seconds
@@ -332,8 +329,6 @@ pub const Topology = struct {
         {
             return self.clone(allocator);
         }
-
-        opentime.dbg_print(@src(), "not cloning but trimming in input space", .{});
 
         new_bounds.start_seconds = @max(
             new_bounds.start_seconds,
@@ -361,7 +356,6 @@ pub const Topology = struct {
         )
             |left_pt, right_pt, left_ind |//, right_ind|
         {
-            opentime.dbg_print(@src(), "left_pt: {d} right_pt: {d} left_ind: {d}", .{ left_pt, right_pt, left_ind});
             if (
                 left_pt < new_bounds.start_seconds 
                 and right_pt > new_bounds.start_seconds
@@ -378,8 +372,6 @@ pub const Topology = struct {
                 maybe_right_map_ind = left_ind;
             }
         }
-
-        opentime.dbg_print(@src(), "left_map_ind: {?d} right_map_ind: {?d}", .{maybe_left_map_ind, maybe_right_map_ind});
 
         // trim the same mapping, toss the rest
         if (
@@ -435,7 +427,6 @@ pub const Topology = struct {
                     new_bounds.start_seconds,
                 )
             );
-            opentime.dbg_print(@src(), "split_mapping_left: {s}", .{ split_mapping_left});
             try trimmed_mappings.append(split_mapping_left[1]);
             defer {
                 split_mapping_left[0].deinit(allocator);
@@ -459,7 +450,6 @@ pub const Topology = struct {
          if (maybe_right_map_ind)
              |right_ind|
          {
-             opentime.dbg_print(@src(), "new_bounds: {s}", .{new_bounds});
              const split_mapping_right = (
                  try self.mappings[right_ind].split_at_input_point(
                      allocator,
@@ -470,10 +460,7 @@ pub const Topology = struct {
              defer {
                  split_mapping_right[1].deinit(allocator);
              }
-             opentime.dbg_print(@src(), "right split: {s}", .{ split_mapping_right[0]});
          }
-
-         opentime.dbg_print(@src(), "trimmed_mappings: {s}", .{trimmed_mappings.items});
 
          return try Topology.init(
              allocator,
@@ -489,21 +476,15 @@ pub const Topology = struct {
         target_output_range: opentime.interval.ContinuousTimeInterval,
     ) !Topology
     {
-        opentime.dbg_print(@src(), "TRIMMING OMG", .{});
         var new_mappings = (
             std.ArrayList(mapping.Mapping).init(allocator)
         );
 
-        opentime.dbg_print(@src(), "self {s}", .{ self });
-        opentime.dbg_print(@src(), "target output range: {s}", .{target_output_range});
-
         const ob = self.output_bounds();
         if (
-            target_output_range.start_seconds == ob.start_seconds
-            and target_output_range.end_seconds == ob.end_seconds
+            target_output_range.start_seconds <= ob.start_seconds
+            and target_output_range.end_seconds >= ob.end_seconds
         ) {
-            opentime.dbg_print(@src(), "shortcut", .{});
-
             return try self.clone(allocator);
         }
 
@@ -538,11 +519,6 @@ pub const Topology = struct {
                     target_output_range,
                 );
                 defer shrunk_m.deinit(allocator);
-
-                opentime.dbg_print(@src(), 
-                    "shrunk_m: {s}", .{ shrunk_m}
-                );
-
 
                 const shrunk_input_bounds = (
                     shrunk_m.input_bounds()
@@ -607,7 +583,6 @@ pub const Topology = struct {
             }
         }
 
-        opentime.dbg_print(@src(), "TRIM DONE!",.{});
         return .{
             .mappings = try new_mappings.toOwnedSlice(),
         };
@@ -646,16 +621,12 @@ pub const Topology = struct {
             );
             defer allocator.free(new_result);
 
-            opentime.dbg_print(@src(), "      new split: {s}", .{ new_result });
-
             try result_mappings.appendSlice(new_result);
         }
 
         const result = Topology{
             .mappings = try result_mappings.toOwnedSlice(),
         };
-
-        opentime.dbg_print(@src(), "      RESULT SPLIT: {s}", .{ result });
 
         return result;
     }
@@ -729,7 +700,6 @@ pub const Topology = struct {
         output_points: []const opentime.Ordinate,
     ) !Topology
     {
-        opentime.dbg_print(@src(), "output_points: {d}", .{output_points});
         if (output_points.len == 0) {
             return self.clone(allocator);
         }
@@ -753,8 +723,6 @@ pub const Topology = struct {
         for (self.mappings)
             |m|
         {
-            opentime.dbg_print(@src(), "splitting: {s}", .{m});
-
             const m_bounds_in = m.input_bounds();
             const m_bounds_out = m.output_bounds();
 
@@ -768,19 +736,15 @@ pub const Topology = struct {
                     for (output_points)
                         |out_pt|
                     {
-                        opentime.dbg_print(@src(), "out_pt: {d}", .{out_pt});
                         if (
                             m_bounds_out.overlaps_seconds(out_pt)
                             and out_pt > m_bounds_out.start_seconds
                             and out_pt < m_bounds_out.end_seconds
                         )
                         {
-                            opentime.dbg_print(@src(), "out_pt: {d} (split)", .{out_pt});
                             const in_pt = (
                                 try m.project_instantaneous_cc_inv(out_pt).ordinate()
                             );
-                            opentime.dbg_print(@src(), "in_pt: {d} (split)", .{in_pt});
-
 
                             if (
                                 in_pt > m_bounds_in.start_seconds 
@@ -933,7 +897,6 @@ pub const Topology = struct {
         {
             // mappings are 1:1, can always invert
             const m_inverted = try m.inverted(allocator);
-            opentime.dbg_print(@src(), "m_inverted: {s}", .{ m_inverted});
 
             if (maybe_input_range)
                 |current_range|
@@ -961,12 +924,10 @@ pub const Topology = struct {
                         current_range,
                         m_inverted.input_bounds(),
                     );
-                    opentime.dbg_print(@src(), "      appending (1) {s}", .{m_inverted});
                     try current_mappings.append(m_inverted);
                 }
             }
             else {
-                opentime.dbg_print(@src(), "      appending (2) {s}", .{m_inverted});
                 try current_mappings.append(m_inverted);
                 maybe_input_range = m_inverted.input_bounds();
             }
@@ -979,13 +940,6 @@ pub const Topology = struct {
                 ),
             },
         );
-
-        opentime.dbg_print(@src(), "      done {s}", .{result.items});
-        for (result.items)
-            |m|
-        {
-            opentime.dbg_print(@src(), "result.m: {s}", .{ m });
-        }
 
         return try result.toOwnedSlice();
     }
@@ -1193,9 +1147,6 @@ pub fn join(
         );
     }
 
-    opentime.dbg_print(@src(), "    JOIN\n    ----", .{});
-    opentime.dbg_print(@src(), "     a2b: {s}\n     b2c: {s}", .{ a2b, b2c });
-
     // first trim both to the intersection range
     const b_range = opentime.interval.intersect(
         a2b.output_bounds(),
@@ -1204,24 +1155,14 @@ pub fn join(
     ) orelse {
         return EMPTY;
     };
-    opentime.dbg_print(@src(), "    a2b.output_bounds: {s}\n    b2c.input_bounds(): {s}", .{ a2b.output_bounds(), b2c.input_bounds() });
-
-    opentime.dbg_print(@src(), "    b_range: {s}", .{ b_range });
-
-    opentime.dbg_print(@src(), "trimming a2b in b", .{});
     const a2b_trimmed_in_b = try a2b.trim_in_output_space(
         allocator,
         b_range,
     );
-    opentime.dbg_print( @src(), "a2b_trimmed: {s}", .{ a2b_trimmed_in_b },);
-    opentime.dbg_print(@src(), "trimming b2c in b, from: {s}", .{b2c});
     const b2c_trimmed_in_b = try b2c.trim_in_input_space(
         allocator,
         b_range,
     );
-    opentime.dbg_print( @src(), "b2c_trimmed: {s}", .{ b2c_trimmed_in_b },);
-
-    // @TODO: looks like splitting a2b is doing weird things
 
     const b2c_split_pts_b = try b2c.end_points_input(allocator);
     defer allocator.free(b2c_split_pts_b);
@@ -1233,7 +1174,6 @@ pub fn join(
             b2c_split_pts_b,
         )
     );
-    opentime.dbg_print(@src(), "a2b_split: {s}", .{a2b_split});
     const a2b_split_endpoints_b = try a2b_split.end_points_output(
         allocator
     );
@@ -1246,7 +1186,6 @@ pub fn join(
     );
     defer allocator.free(a2b_split_endpoints_b);
 
-    opentime.dbg_print(@src(), "     a2b_split_endpoints_b: {any}", .{ a2b_split_endpoints_b});
 
 
     const b2c_split = (
@@ -1255,15 +1194,6 @@ pub fn join(
             a2b_split_endpoints_b,
         )
     );
-    opentime.dbg_print(@src(), "     a2b_split: {s}\n     b2c_split: {s}", .{ a2b_split, b2c_split });
-
-    ////// ASSERT
-    //two problems currently: 1) a2b looks totally messed up
-    //                        2) repeated identical knots (need epsilon checks)
-    //                        in b2c
-    // std.debug.assert(a2b_split_by_b.mappings.len == b2c_split.mappings.len);
-    // std.debug.assert(a2b_split.mappings.len == b2c_split.mappings.len);
-    //////
 
     var a2c_mappings = (
         std.ArrayList(mapping.Mapping).init(parent_allocator)
@@ -1293,10 +1223,6 @@ pub fn join(
                 )
             ) 
             {
-                opentime.dbg_print(@src(), "joining", .{});
-                opentime.dbg_print(@src(), "a2b_m: {s}", .{a2b_m});
-                opentime.dbg_print(@src(), "b2c_m: {s}", .{b2c_m});
-
                 const a2c_m = try mapping.join(
                     allocator,
                     .{ 
@@ -1304,8 +1230,6 @@ pub fn join(
                         .b2c = b2c_m,
                     },
                 );
-
-                opentime.dbg_print(@src(), "a2c_m: {s}", .{ a2c_m });
 
                 try a2c_mappings.append(try a2c_m.clone(parent_allocator));
                 break;
@@ -1316,8 +1240,6 @@ pub fn join(
     const result= Topology{
         .mappings = try a2c_mappings.toOwnedSlice(),
     };
-
-    opentime.dbg_print(@src(), "     join result: {s}", .{ result });
 
     return result;
 }
