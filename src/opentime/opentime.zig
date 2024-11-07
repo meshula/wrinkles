@@ -1,5 +1,7 @@
 //! Exports for the `opentime` library
 
+const std = @import("std");
+
 // ordinate @{
 const ordinate = @import("ordinate.zig");
 pub const Ordinate = ordinate.Ordinate;
@@ -38,30 +40,8 @@ test "all opentime tests" {
     _ = dual;
 }
 
-const std = @import("std");
-
-// @TODO: make this a build flag
-pub const DEBUG_MESSAGES=false;
-
-/// utility function that injects the calling info into the debug print
-pub fn dbg_print(
-    src: std.builtin.SourceLocation,
-    comptime fmt: []const u8,
-    args: anytype,
-) void 
-{
-    if (DEBUG_MESSAGES) 
-    {
-        std.debug.print(
-            "[{s}:{s}:{d}] " ++ fmt ++ "\n",
-            .{
-                src.file,
-                src.fn_name,
-                src.line,
-            } ++ args,
-        );
-    }
-}
+const dbg_print_mod = @import("dbg_print.zig");
+pub const dbg_print = dbg_print_mod.dbg_print;
 
 /// clone return a new slice with each thing in the slice having been .cloned()
 /// from the thing in the original list.  Assumes that clone takes an allocator

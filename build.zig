@@ -67,10 +67,6 @@ pub const Options = struct {
     /// select which tests to run
     test_filter: ?[]const u8 = null,
 
-    /// place to put general user-facing compile options that get passed to
-    /// each compilation unit.
-    common_build_options: *std.Build.Step.Options,
-
     // common build steps to attach artifacts to
 
     /// unit test step
@@ -173,11 +169,6 @@ pub fn executable(
 
     // options for exposing the content directory and build hash
     {
-        exe.root_module.addOptions(
-            "build_options",
-            options.common_build_options,
-        );
-
         const exe_options = b.addOptions();
         exe.root_module.addOptions(
             "exe_build_options",
@@ -358,11 +349,6 @@ pub fn module_with_tests_and_artifact(
         }
     );
 
-    mod_unit_tests.root_module.addOptions(
-        "build_options",
-        opts.options.common_build_options,
-    );
-
     // unit tests for the module
     {
         for (opts.deps)
@@ -425,6 +411,8 @@ pub fn build(
     const allocator = arena.allocator();
     defer arena.deinit();
 
+    const build_options = b.addOptions();
+
     //
     // Options and system checks
     //
@@ -436,8 +424,6 @@ pub fn build(
             "test-filter",
             "filter for tests to run",
         ) orelse null,
-
-        .common_build_options = b.addOptions(),
 
         // steps
         .test_step = b.step(
@@ -456,7 +442,7 @@ pub fn build(
 
     {
         // configure build options (flags from commandline and such)
-        options.common_build_options.addOption(
+        build_options.addOption(
             []const u8,
             "hash",
             rev_HEAD(allocator) catch "COULDNT READ HASH",
@@ -468,7 +454,7 @@ pub fn build(
             std.log.warn("`dot` program not on path.\n",.{});
         }
 
-        options.common_build_options.addOption(
+        build_options.addOption(
             bool,
             "graphviz_dot_on",
             graphviz_dot_on,
@@ -479,11 +465,12 @@ pub fn build(
             "debug_graph_construction_trace_messages",
             (
                               "print OTIO graph traversal trace info during "
-                              ++ "projection operator construction"
+                              ++ "projection operator construction.  Implies "
+                              ++ "-Ddebug_print_messages=true"
             ),
         ) orelse false;
 
-        options.common_build_options.addOption(
+        build_options.addOption(
             bool,
             "debug_graph_construction_trace_messages",
             debug_graph_construction_trace_messages,
@@ -495,12 +482,27 @@ pub fn build(
             "run (potentially slow) performance stress tests",
         ) orelse false;
 
-        options.common_build_options.addOption(
+        build_options.addOption(
             bool,
             "run_perf_tests",
             run_perf_tests,
         );
+
+        const debug_print_messages = b.option(
+            bool,
+            "debug_print_messages",
+            "enable print messages from opentime.dbg_print"
+
+        ) orelse false;
+
+        build_options.addOption(
+            bool,
+            "debug_print_messages",
+            debug_print_messages,
+        );
     }
+
+    const build_options_mod = build_options.createModule();
 
     // submodules and dependencies
     options.dep_ziis = b.dependency(
@@ -586,6 +588,7 @@ pub fn build(
             .deps = &.{
                 .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "comath", .module = comath_dep.module("comath") },
+                .{ .name = "build_options", .module = build_options_mod},
             },
         }
     );
@@ -722,12 +725,13 @@ pub fn build(
                 .{ .name = "topology", .module = topology },
                 .{ .name = "treecode", .module = treecode },
                 .{ .name = "sampling", .module = sampling },
+                .{ .name = "build_options", .module = build_options_mod},
             },
         }
     );
     opentimelineio.addOptions(
         "build_options",
-        options.common_build_options
+        build_options
     );
 
     const opentimelineio_c = b.addStaticLibrary(
@@ -821,6 +825,8 @@ pub fn build(
 
     // executables
     const common_deps:[]const std.Build.Module.Import = &.{
+        .{ .name = "build_options", .module = build_options_mod},
+
         // external deps
         .{ .name = "comath", .module = comath_dep.module("comath") },
         .{ .name = "wav", .module = wav_dep },
