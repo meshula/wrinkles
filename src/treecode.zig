@@ -19,15 +19,21 @@ pub const Hash = u64;
 /// - 0b111001 => right, left, left, right, right
 /// - 0b1010 => left, right, left
 pub const Treecode = struct {
-    sz: usize,
+    /// the array of words that make up the treecode
     treecode_array: []TreecodeWord,
+    /// index in treecode_array of the leftmost bit in the treecode
+    sz: usize,
+
+    /// do not touch, for internal purposes
     allocator: std.mem.Allocator,
 
     /// preallocate a Treecode of size count and stamp input into the LSB
     /// (leftmost)
     pub fn init_fill_count(
         allocator: std.mem.Allocator,
+        /// number of inputs to stamp into result
         count: usize,
+        /// word to stamp into each block of the result
         input: TreecodeWord,
     ) !Treecode 
     {
