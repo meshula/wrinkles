@@ -520,7 +520,7 @@ test "to_string"
 
     try std.testing.expectEqualStrings(known.items, buf);
 
-    errdefer std.debug.print(
+    errdefer std.log.err(
         "known: {s} buf: {s} \n",
         .{ known.items, buf } 
     );
@@ -531,7 +531,7 @@ test "to_string"
     allocator.free(buf);
     buf = try std.fmt.allocPrint(allocator,"{s}", .{ tc });
 
-    errdefer std.debug.print(
+    errdefer std.log.err(
         "known: {s} buf: {s} \n",
         .{ known.items, buf } 
     );
@@ -551,7 +551,7 @@ test "to_string"
         buf.clearAndFree();
         try tc.to_str(&buf);
 
-        errdefer std.debug.print(
+        errdefer std.log.err(
             "iteration: {} known: {s} buf: {s} \n",
             .{ i, known.items, buf.items } 
         );
@@ -629,7 +629,7 @@ test "treecode: is superset very long"
         try tc_subset.append(1);
     }
 
-    errdefer std.debug.print(
+    errdefer std.log.err(
         "\n\niteration: {}\n superset: {b} \n subset:   {b}\n\n",
         .{i, tc_superset.treecode_array[1], tc_subset.treecode_array[1]}
     );
@@ -640,7 +640,7 @@ test "treecode: is superset very long"
     while (i < 1000)  
         : (i += 1) 
     {
-        errdefer std.debug.print(
+        errdefer std.log.err(
             "\n\niteration: {}\n superset: {b} \n subset:   {b}\n\n",
             .{i, tc_superset.treecode_array[1], tc_subset.treecode_array[1]}
         );
@@ -681,7 +681,7 @@ test "treecode: apped lots of 0"
         try tc.append(0);
     }
 
-    errdefer std.debug.print(
+    errdefer std.log.err(
         "tc[1]: {b} tc[0]: {b}\n",
         .{ tc.treecode_array[1], tc.treecode_array[0] }
     );
@@ -713,7 +713,7 @@ test "treecode: append lots of 1"
         try tc.append(1);
     }
 
-    errdefer std.debug.print(
+    errdefer std.log.err(
         "tc[1]: {b} tc[0]: {b}\n",
         .{ tc.treecode_array[1], tc.treecode_array[0] }
     );
@@ -745,7 +745,7 @@ test "treecode: append beyond one word w/ 1"
         try tc.append(1);
     }
 
-    errdefer std.debug.print(
+    errdefer std.log.err(
         "tc[2]: {b} \n",
         .{ tc.treecode_array[2] }
     );
@@ -777,7 +777,7 @@ test "treecode: append beyond one word w/ 0"
         try tc.append(0);
     }
 
-    errdefer std.debug.print(
+    errdefer std.log.err(
         "tc[2]: {b} \n",
         .{ tc.treecode_array[2] }
     );
@@ -820,7 +820,7 @@ test "treecode: append alternating 0 and 1"
         |i|
     {
 
-        errdefer std.debug.print("iteration: {} \n", .{i});
+        errdefer std.log.err("iteration: {} \n", .{i});
 
         const next:u1 = if (@rem(i, 5) == 0) 0 else 1;
         const next_str = (if (@rem(i, 5) == 0) "0" else "1")[0];
@@ -832,7 +832,7 @@ test "treecode: append alternating 0 and 1"
     buf_tc.clearAndFree();
     try tc.to_str(&buf_tc);
 
-    errdefer std.debug.print(
+    errdefer std.log.err(
         "iteration: {} \n  buf_tc:    {s}\n  expected:  {s}\n",
         .{256, buf_tc.items, buf_known.items}
     );
@@ -876,17 +876,17 @@ test "treecode: append variable size"
         const next_str = if (@rem(i, 5) == 0) zero else one;
         try buf_known.insert(1, next_str);
 
-        errdefer std.debug.print(
+        errdefer std.log.err(
             "\niteration: {} \n  buf_tc:    {s}\n  buf_known: {s}\n  next: {b}\n\n",
             .{i, buf_tc.items, buf_known.items, next}
         );
 
-        errdefer std.debug.print(
+        errdefer std.log.err(
             "\ntc[2]tc[1]tc[0]: {b}{b}{b}",
             .{tc.treecode_array[0], tc.treecode_array[1], tc.treecode_array[2]}
         );
 
-        errdefer std.debug.print(
+        errdefer std.log.err(
             "\niteration: {} \n  buf_tc:    {s} {s}\n  buf_known: {s} {s}\n  next: {b}\n\n",
             .{
                 i, 
@@ -920,7 +920,7 @@ test "treecode: Treecode.eql positive"
     for (0..1000)
        |i|
     {
-        errdefer std.debug.print(
+        errdefer std.log.err(
             "iteration: {} a: {b} b: {b}\n",
             .{i, a.treecode_array[0], b.treecode_array[0]}
         );
@@ -966,7 +966,7 @@ test "treecode: Treecode.eql preallocated"
     while (i < 1000)  
         : (i += 1) 
     {
-        errdefer std.debug.print(
+        errdefer std.log.err(
             "iteration: {} a: {b} b: {b}\n",
             .{i, a.treecode_array[0], b.treecode_array[0]}
         );
@@ -1053,7 +1053,7 @@ test "treecode: hash - built from init_fill_count"
     var tc2 = try Treecode.init_fill_count(std.testing.allocator, 2, 0b1);
     defer tc2.deinit();
 
-    errdefer std.debug.print("\ntc1: {b}\ntc2: {b}\n\n",
+    errdefer std.log.err("\ntc1: {b}\ntc2: {b}\n\n",
         .{ tc1.treecode_array[1], tc2.treecode_array[1] }
     );
 
@@ -1079,8 +1079,12 @@ test "treecode: hash - test long treecode hashes"
         try tc1.append(0);
     }
 
-    errdefer std.debug.print("\ntc1: {b}{b}\ntc2: {b}\n\n",
-        .{ tc1.treecode_array[1], tc1.treecode_array[0], tc2.treecode_array[0] }
+    errdefer std.log.err("\ntc1: {b}{b}\ntc2: {b}\n\n",
+        .{
+            tc1.treecode_array[1],
+            tc1.treecode_array[0],
+            tc2.treecode_array[0] 
+        }
     );
 
     try std.testing.expect(tc1.eql(tc2) == false);
