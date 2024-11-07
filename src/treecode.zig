@@ -482,9 +482,8 @@ test "fmt all ones"
     defer ltc.deinit();
 
     try ltc.append(1);
-    var i:usize = 0;
-    while (i < 125)
-        :(i+=1) 
+    for (0..125)
+        |_|
     {
         try ltc.append(0);
     }
@@ -538,9 +537,10 @@ test "to_string"
     );
     try std.testing.expectEqualStrings(known.items, buf);
 
-    var i : usize= 0;
-    while (i < 10) 
-        : (i += 1) 
+    allocator.free(buf);
+
+    for (0..10)
+       |i|
     {
         // const next:u1 = if (i & 5 != 0) 0 else 1;
         const next:u1 = 1;
@@ -814,8 +814,10 @@ test "treecode: append alternating 0 and 1"
     try tc.to_str(&buf_tc);
     // try std.testing.expectEqualStrings(buf_known.items, buf_tc.items);
 
-    var i:usize = 0;
-    while (i < 1)  : (i += 1) 
+    allocator.free(buf_tc);
+
+    for (0..1)
+        |i|
     {
 
         errdefer std.debug.print("iteration: {} \n", .{i});
@@ -860,8 +862,8 @@ test "treecode: append variable size"
     try tc.to_str(&buf_tc);
     try std.testing.expectEqualStrings(buf_known.items, buf_tc.items);
 
-    var i:usize = 0;
-    while (i < 1000)  : (i += 1) 
+    for (0..1000)
+        |i|
     {
         // do the append
         const next:u1 = if (@rem(i, 5) == 0) 0 else 1;
@@ -915,9 +917,8 @@ test "treecode: Treecode.eql positive"
     var b  = try Treecode.init_word(std.testing.allocator, 1);
     defer b.deinit();
 
-    var i:usize = 0;
-    while (i < 1000)  
-        : (i += 1) 
+    for (0..1000)
+       |i|
     {
         errdefer std.debug.print(
             "iteration: {} a: {b} b: {b}\n",
