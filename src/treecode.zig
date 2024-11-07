@@ -365,16 +365,13 @@ pub const Treecode = struct {
         const marker_pos_abs = self.code_length();
         const last_index = (marker_pos_abs / WORD_BIT_COUNT);
 
-        var i:usize = 0;
-        while (i <= last_index) 
-            : (i+=1) 
+        try writer.print("{b}", .{self.treecode_array[last_index]});
+
+        for (1..last_index+1)
+           |i|
         {
             const tcw = self.treecode_array[last_index - i];
-            if (i == 0) {
-                try writer.print("{b}", .{tcw});
-            } else {
-                try writer.print("{b:0>128}", .{tcw});
-            }
+            try writer.print("{b:0>128}", .{tcw});
         }
     }
 };
