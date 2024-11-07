@@ -65,9 +65,9 @@ pub const Treecode = struct {
         input: TreecodeWord,
     ) !Treecode 
     {
-        var treecode_array:[]TreecodeWord = try allocator.alloc(
+        var treecode_array = try allocator.alloc(
             TreecodeWord,
-            1
+            1,
         );
 
         treecode_array[0] = input;
@@ -80,7 +80,7 @@ pub const Treecode = struct {
 
     fn realloc(
         self: *@This(),
-        new_size: usize
+        new_size: usize,
     ) !void 
     {
         self.treecode_array = try self.allocator.realloc(
@@ -94,7 +94,7 @@ pub const Treecode = struct {
     }
 
     pub fn clone(
-        self: @This()
+        self: @This(),
     ) !Treecode 
     {
         return .{
@@ -108,7 +108,7 @@ pub const Treecode = struct {
     }
 
     pub fn deinit(
-        self: @This()
+        self: @This(),
     ) void 
     {
         self.allocator.free(self.treecode_array);
@@ -116,7 +116,7 @@ pub const Treecode = struct {
 
     /// sentinel bit is not included in the code_length (hence the 127 - )
     pub fn code_length(
-        self: @This()
+        self: @This(),
     ) usize 
     {
         if (self.sz == 0) {
@@ -146,7 +146,7 @@ pub const Treecode = struct {
 
     pub fn eql(
         self: @This(),
-        other: Treecode
+        other: Treecode,
     ) bool 
     {
         const len_self = self.code_length();
@@ -173,7 +173,7 @@ pub const Treecode = struct {
     /// in place append a bit to this treecode. will realloc if needed.
     pub fn append(
         self: *@This(),
-        l_or_r_branch: u1
+        l_or_r_branch: u1,
     ) !void 
     {
         if (self.sz == 0) {
@@ -242,9 +242,10 @@ pub const Treecode = struct {
         return;
     }
 
+    /// determine whether self is a strict superset of rhs
     pub fn is_superset_of(
         self: @This(),
-        rhs: Treecode
+        rhs: Treecode,
     ) bool 
     {
         const len_self: usize = self.code_length();
@@ -298,30 +299,7 @@ pub const Treecode = struct {
         return (self_masked == rhs_masked);
     }
 
-    pub fn to_str(
-        self: @This(),
-        buf:*std.ArrayList(u8)
-    ) error{OutOfMemory}!void 
-    {
-        try buf.ensureTotalCapacity(self.code_length()+1);
-        var writer = buf.writer();
-
-        const marker_pos_abs = self.code_length();
-        const last_index = (marker_pos_abs / WORD_BIT_COUNT);
-
-        var i:usize = 0;
-        while (i <= last_index) 
-            : (i+=1) 
-        {
-            const tcw = self.treecode_array[last_index - i];
-            if (i == 0) {
-                try writer.print("{b}", .{tcw});
-            } else {
-                try writer.print("{b:0>128}", .{tcw});
-            }
-        }
-    }
-
+    /// compute a hash for this treecode
     pub fn hash(
         self: @This()
     ) Hash 
@@ -346,9 +324,11 @@ pub const Treecode = struct {
         return hasher.final();
     }
 
+    /// return a 0 or 1 for appending to self to approach dest.  Assumes that
+    /// dest is longer than self.
     pub fn next_step_towards(
         self: @This(),
-        dest: Treecode
+        dest: Treecode,
     ) !u1 
     {
         const self_len = self.code_length();
@@ -356,11 +336,21 @@ pub const Treecode = struct {
         const self_len_pos_local = @rem(self_len, WORD_BIT_COUNT);
         const self_len_word = self_len / WORD_BIT_COUNT;
 
-        const mask = std.math.shl(TreecodeWord, 1, self_len_pos_local);
+        const mask = std.math.shl(
+            TreecodeWord,
+            1,
+            self_len_pos_local,
+        );
 
         const masked_val = dest.treecode_array[self_len_word] & mask;
 
-        return @intCast(std.math.shr(TreecodeWord, masked_val, self_len_pos_local));
+        return @intCast(
+            std.math.shr(
+                TreecodeWord,
+                masked_val,
+                self_len_pos_local,
+            )
+        );
     }
 
     pub fn format(
@@ -489,7 +479,7 @@ fn treecode_word_b_is_a_subset(
     return a_masked == b_masked;
 }
 
-test "to_string_all_ones"
+test "fmt all ones"
 {
     var ltc = try Treecode.init_word(std.testing.allocator, 0b1);
     defer ltc.deinit();
@@ -508,45 +498,48 @@ test "to_string_all_ones"
     var buf = std.ArrayList(u8).init(std.testing.allocator);
     defer buf.deinit();
 
-    try ltc.to_str(&buf);
+    const result = try std.fmt.bufPrint(buf.items, "{s}", ltc);
 
-    try std.testing.expectEqual(ltc.code_length() + 1, buf.items.len);
+    try std.testing.expectEqual(ltc.code_length() + 1, result.len);
 }
 
 test "to_string" 
 {
+    const allocator = std.testing.allocator;
     const one = "1"[0];
 
-    var tc = try Treecode.init_word(std.testing.allocator, 0b1);
+    var tc = try Treecode.init_word(allocator, 0b1);
     defer tc.deinit();
 
-    var known = std.ArrayList(u8).init(std.testing.allocator);
+    var known = std.ArrayList(u8).init(allocator);
     defer known.deinit();
     try known.append(one);
 
 
-    var buf = std.ArrayList(u8).init(std.testing.allocator);
-    defer buf.deinit();
-    try tc.to_str(&buf);
+    var buf = try std.fmt.allocPrint(
+        allocator,
+        "{s}",
+        .{ tc }
+    );
 
-    try std.testing.expectEqualStrings(known.items, buf.items);
+    try std.testing.expectEqualStrings(known.items, buf);
 
     errdefer std.debug.print(
         "known: {s} buf: {s} \n",
-        .{ known.items, buf.items } 
+        .{ known.items, buf } 
     );
 
     try tc.append(1);
     try known.append(one);
 
-    buf.clearAndFree();
-    try tc.to_str(&buf);
+    allocator.free(buf);
+    buf = try std.fmt.allocPrint(allocator,"{s}", .{ tc });
 
     errdefer std.debug.print(
         "known: {s} buf: {s} \n",
-        .{ known.items, buf.items } 
+        .{ known.items, buf } 
     );
-    try std.testing.expectEqualStrings(known.items, buf.items);
+    try std.testing.expectEqualStrings(known.items, buf);
 
     var i : usize= 0;
     while (i < 10) 
