@@ -4,8 +4,6 @@ const std = @import("std");
 const expectEqual = std.testing.expectEqual;
 const expectApproxEqAbs = std.testing.expectApproxEqAbs;
 
-const RUN_PERF_TESTS = @import("build_options").run_perf_tests;
-
 const opentime = @import("opentime");
 
 const bezier_curve = @import("bezier_curve.zig");

@@ -43,10 +43,10 @@ fn ensureZigVersion() !void
     }
 }
 
-/// check for the `dot` program
-fn graphviz_dot_on_path() !bool
+/// check for the `dot` program on $PATH
+fn graphviz_dot_on_path() ?[]const u8
 {
-    const result = try std.process.Child.run(
+    const result = std.process.Child.run(
         .{
             .allocator = std.heap.page_allocator,
             .argv = &[_][]const u8{
@@ -54,9 +54,18 @@ fn graphviz_dot_on_path() !bool
                 "dot"
             },
         }
-    );
+    ) catch return null;
 
-    return result.term.Exited == 0;
+    if (result.term.Exited == 0) {
+        const path = std.mem.trim(
+            u8,
+            result.stdout,
+            "\n "
+        );
+        return path;
+    }
+
+    return null;
 }
 
 /// build options for the wrinkles project
@@ -448,16 +457,27 @@ pub fn build(
             rev_HEAD(allocator) catch "COULDNT READ HASH",
         );
 
-        const graphviz_dot_on = graphviz_dot_on_path() catch false;
+        const graphviz_path = b.option(
+            []const u8,
+            "graphviz_path",
+            (
+             "path to the `dot` executable from graphviz. Used to generate "
+             ++ "diagrams of temporal hierarchies."
+            ),
+        ) orelse graphviz_dot_on_path();
 
-        if (graphviz_dot_on == false) {
-            std.log.warn("`dot` program not on path.\n",.{});
+        if (graphviz_path == null) {
+            std.log.warn(
+                "`dot` program not on path and not passed in, disabling"
+                ++ " graphviz/dot support.\n",
+                .{}
+            );
         }
 
         build_options.addOption(
-            bool,
-            "graphviz_dot_on",
-            graphviz_dot_on,
+            ?[]const u8,
+            "graphviz_dot_path",
+            graphviz_path,
         );
 
         const debug_graph_construction_trace_messages = b.option(
@@ -476,18 +496,6 @@ pub fn build(
             debug_graph_construction_trace_messages,
         );
 
-        const run_perf_tests = b.option(
-            bool,
-            "run_perf_tests",
-            "run (potentially slow) performance stress tests",
-        ) orelse false;
-
-        build_options.addOption(
-            bool,
-            "run_perf_tests",
-            run_perf_tests,
-        );
-
         const debug_print_messages = b.option(
             bool,
             "debug_print_messages",
@@ -502,6 +510,9 @@ pub fn build(
         );
     }
 
+    // create module turns the options into a module that can be linked into
+    // stuff.  Bafflingly, without this you get "this is in multiple files"
+    // error.
     const build_options_mod = build_options.createModule();
 
     // submodules and dependencies
@@ -729,10 +740,6 @@ pub fn build(
             },
         }
     );
-    opentimelineio.addOptions(
-        "build_options",
-        build_options
-    );
 
     const opentimelineio_c = b.addStaticLibrary(
         .{
@@ -846,6 +853,8 @@ pub fn build(
         .{ .name = "sampling", .module = sampling },
         .{ .name = "sokol_app_wrapper", .module = sokol_app_wrapper },
     };
+
+    // probably gone for good, but haven't removed yet
     // executable(
     //     b,
     //     "curvet",

@@ -1731,23 +1731,24 @@ pub const TopologicalMap = struct {
         );
         defer allocator.free(pngfilepath);
 
-        // @TODO: gate the dot/png render on if dot is installed
-
-        if (build_options.graphviz_dot_on == false) {
+        if (build_options.graphviz_dot_path == null) {
             return;
         }
+
+        const arg = &[_][]const u8{
+            // fetched from build configuration
+            build_options.graphviz_dot_path.?,
+            "-Tpng",
+            filepath,
+            "-o",
+            pngfilepath,
+        };
 
         // render to png
         const result = try std.process.Child.run(
             .{
-                .allocator = std.heap.page_allocator,
-                .argv = &[_][]const u8{
-                    "dot",
-                    "-Tpng",
-                    filepath,
-                    "-o",
-                    pngfilepath
-                },
+                .allocator = allocator,
+                .argv = arg,
             }
         );
         _ = result;
