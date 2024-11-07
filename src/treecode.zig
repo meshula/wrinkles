@@ -478,7 +478,12 @@ fn treecode_word_b_is_a_subset(
 
 test "fmt all ones"
 {
-    var ltc = try Treecode.init_word(std.testing.allocator, 0b1);
+    const allocator = std.testing.allocator;
+
+    var ltc = try Treecode.init_word(
+        allocator,
+        0b1
+    );
     defer ltc.deinit();
 
     try ltc.append(1);
@@ -491,12 +496,17 @@ test "fmt all ones"
     try ltc.append(0);
     try ltc.append(1);
 
-    var buf = std.ArrayList(u8).init(std.testing.allocator);
-    defer buf.deinit();
+    const result = try std.fmt.allocPrint(
+        allocator,
+        "{s}",
+        .{ ltc },
+    );
+    defer allocator.free(result);
 
-    const result = try std.fmt.bufPrint(buf.items, "{s}", ltc);
-
-    try std.testing.expectEqual(ltc.code_length() + 1, result.len);
+    try std.testing.expectEqual(
+        ltc.code_length() + 1,
+        result.len,
+    );
 }
 
 test "to_string" 
@@ -548,15 +558,15 @@ test "to_string"
         try known.insert(1, one);
         try tc.append(next);
 
-        buf.clearAndFree();
-        try tc.to_str(&buf);
+        buf = try std.fmt.allocPrint(allocator,"{s}", .{ tc });
+        defer allocator.free(buf);
 
         errdefer std.log.err(
             "iteration: {} known: {s} buf: {s} \n",
-            .{ i, known.items, buf.items } 
+            .{ i, known.items, buf } 
         );
 
-        try std.testing.expectEqualStrings(known.items, buf.items);
+        try std.testing.expectEqualStrings(known.items, buf);
     }
 }
 
@@ -799,20 +809,18 @@ test "treecode: append beyond one word w/ 0"
 
 test "treecode: append alternating 0 and 1"
 {   
-    var tc = try Treecode.init_word(std.testing.allocator, 0b1);
+    const allocator = std.testing.allocator;
+
+    var tc = try Treecode.init_word(allocator, 0b1);
     defer tc.deinit();
 
-    var buf_tc = std.ArrayList(u8).init(std.testing.allocator);
-    defer buf_tc.deinit();
-
-    var buf_known = std.ArrayList(u8).init(std.testing.allocator);
+    var buf_known = std.ArrayList(u8).init(allocator);
     defer buf_known.deinit();
     try buf_known.ensureTotalCapacity(1024);
     try buf_known.append("1"[0]);
 
-    buf_tc.clearAndFree();
-    try tc.to_str(&buf_tc);
-    // try std.testing.expectEqualStrings(buf_known.items, buf_tc.items);
+    var buf_tc = try std.fmt.allocPrint(allocator,"{s}", .{ tc });
+    try std.testing.expectEqualStrings(buf_known.items, buf_tc);
 
     allocator.free(buf_tc);
 
@@ -829,38 +837,37 @@ test "treecode: append alternating 0 and 1"
         try buf_known.insert(1, next_str);
     }
 
-    buf_tc.clearAndFree();
-    try tc.to_str(&buf_tc);
+    buf_tc = try std.fmt.allocPrint(allocator,"{s}", .{ tc });
+    defer allocator.free(buf_tc);
 
     errdefer std.log.err(
         "iteration: {} \n  buf_tc:    {s}\n  expected:  {s}\n",
-        .{256, buf_tc.items, buf_known.items}
+        .{256, buf_tc, buf_known.items}
     );
 
     try std.testing.expectEqual(buf_known.items.len-1, tc.code_length());
-    try std.testing.expectEqualStrings(buf_known.items, buf_tc.items);
+    try std.testing.expectEqualStrings(buf_known.items, buf_tc);
 }
 
 test "treecode: append variable size"
 {
+    const allocator = std.testing.allocator;
+
     const one = "1"[0];
     const zero = "0"[0];
 
     // Variable size flavor, adding a mix of 0s and 1s
-    var tc = try Treecode.init_word(std.testing.allocator, 0b1);
+    var tc = try Treecode.init_word(allocator, 0b1);
     defer tc.deinit();
 
-    var buf_tc = std.ArrayList(u8).init(std.testing.allocator);
-    defer buf_tc.deinit();
-
-    var buf_known = std.ArrayList(u8).init(std.testing.allocator);
+    var buf_known = std.ArrayList(u8).init(allocator);
     defer buf_known.deinit();
     try buf_known.ensureTotalCapacity(1024);
     try buf_known.append(one);
 
-    buf_tc.clearAndFree();
-    try tc.to_str(&buf_tc);
-    try std.testing.expectEqualStrings(buf_known.items, buf_tc.items);
+    var buf = try std.fmt.allocPrint(allocator,"{s}", .{ tc });
+    try std.testing.expectEqualStrings(buf_known.items, buf);
+    allocator.free(buf);
 
     for (0..1000)
         |i|
@@ -869,16 +876,15 @@ test "treecode: append variable size"
         const next:u1 = if (@rem(i, 5) == 0) 0 else 1;
         try tc.append(next);
 
-        buf_tc.clearAndFree();
-
-        try tc.to_str(&buf_tc);
+        buf = try std.fmt.allocPrint(allocator,"{s}", .{ tc });
+        defer allocator.free(buf);
 
         const next_str = if (@rem(i, 5) == 0) zero else one;
         try buf_known.insert(1, next_str);
 
         errdefer std.log.err(
             "\niteration: {} \n  buf_tc:    {s}\n  buf_known: {s}\n  next: {b}\n\n",
-            .{i, buf_tc.items, buf_known.items, next}
+            .{i, buf, buf_known.items, next}
         );
 
         errdefer std.log.err(
@@ -890,31 +896,33 @@ test "treecode: append variable size"
             "\niteration: {} \n  buf_tc:    {s} {s}\n  buf_known: {s} {s}\n  next: {b}\n\n",
             .{
                 i, 
-                buf_tc.items[128..],
-                buf_tc.items[0..127],
+                buf[128..],
+                buf[0..127],
                 buf_known.items[128..],
                 buf_known.items[0..127],
-                next
+                next,
             }
         );
 
         try std.testing.expectEqual(
             buf_known.items.len - 1,
-            tc.code_length()
+            tc.code_length(),
         );
         try std.testing.expectEqualStrings(
             buf_known.items,
-            buf_tc.items
+            buf,
         );
     }
 }
 
 test "treecode: Treecode.eql positive" 
 {
-    var a  = try Treecode.init_word(std.testing.allocator, 1);
+    const allocator = std.testing.allocator;
+
+    var a  = try Treecode.init_word(allocator, 1);
     defer a.deinit();
 
-    var b  = try Treecode.init_word(std.testing.allocator, 1);
+    var b  = try Treecode.init_word(allocator, 1);
     defer b.deinit();
 
     for (0..1000)
@@ -979,7 +987,7 @@ test "treecode: Treecode.eql preallocated"
 
 fn treecode_word_append(
     a: TreecodeWord,
-    l_or_r_branch: u1
+    l_or_r_branch: u1,
 ) TreecodeWord 
 {
     const signficant_bits:u8 = WORD_BIT_COUNT - 1 - @clz(a);
@@ -1047,7 +1055,11 @@ test "treecode: hash - built from init_word"
 
 test "treecode: hash - built from init_fill_count"
 {
-    var tc1 = try Treecode.init_fill_count(std.testing.allocator, 2, 0b1);
+    var tc1 = try Treecode.init_fill_count(
+        std.testing.allocator,
+        2,
+        0b1
+    );
     defer tc1.deinit();
 
     var tc2 = try Treecode.init_fill_count(std.testing.allocator, 2, 0b1);
