@@ -1544,17 +1544,15 @@ pub const TopologicalMap = struct {
         };
 
         if (LABEL_HAS_BINARY_TREECODE) {
-            var buf = std.ArrayList(u8).init(allocator);
-            defer buf.deinit();
-
-            try code.to_str(&buf);
-
-            const args = .{
-                item_kind,
-                @tagName(ref.label),
-                buf.items,
-            };
-            return std.fmt.allocPrint(allocator, "{s}_{s}_{s}", args);
+            return std.fmt.allocPrint(
+                allocator,
+                "{s}_{s}_{s}",
+                .{
+                    item_kind,
+                    @tagName(ref.label),
+                    code,
+                }
+            );
         } 
         else {
             const args = .{ 
