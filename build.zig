@@ -421,8 +421,6 @@ pub fn build(
     const allocator = arena.allocator();
     defer arena.deinit();
 
-    const build_options = b.addOptions();
-
     //
     // Options and system checks
     //
@@ -450,6 +448,7 @@ pub fn build(
         ),
     };
 
+    const build_options = b.addOptions();
     {
         // configure build options (flags from commandline and such)
         build_options.addOption(
