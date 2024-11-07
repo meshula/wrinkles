@@ -129,6 +129,7 @@ pub fn rev_HEAD(
         "\n",
     );
 
+    // trim spaces and newlines out of returned string
     return std.mem.trim(
         u8,
         try dirg.readFileAlloc(
@@ -407,7 +408,7 @@ pub fn module_with_tests_and_artifact(
     return mod;
 }
 
-/// main entry point
+/// main entry point for building wrinkles
 pub fn build(
     b: *std.Build,
 ) void
