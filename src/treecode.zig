@@ -126,9 +126,8 @@ pub const Treecode = struct {
         }
         var occupied_words : usize = 0;
 
-        var i : usize = 0;
-        while (i < self.sz) 
-            : (i += 1)
+        for (0..self.sz)
+            |i|
         {
             if (self.treecode_array[i] != 0) {
                 occupied_words = i;
@@ -161,9 +160,8 @@ pub const Treecode = struct {
 
         const greatest_nozero_index: usize = len_self / WORD_BIT_COUNT;
 
-        var i:usize = 0;
-        while (i <= greatest_nozero_index)
-            : (i += 1) 
+        for (0..greatest_nozero_index+1)
+            |i|
         {
             if (self.treecode_array[i] != other.treecode_array[i]) {
                 return false;
@@ -273,9 +271,9 @@ pub const Treecode = struct {
         const greatest_nonzero_rhs_index: usize = (
             len_rhs / WORD_BIT_COUNT
         );
-        var i:usize = 0;
-        while (i < greatest_nonzero_rhs_index) 
-            : (i += 1) 
+
+        for (0..greatest_nonzero_rhs_index)
+            |i|
         {
             if (self.treecode_array[i] != rhs.treecode_array[i]) {
                 return false;
@@ -437,9 +435,8 @@ test "treecode: @clz"
     var x: TreecodeWord = 0;
     try std.testing.expectEqual(@as(usize, WORD_BIT_COUNT), @clz(x));
 
-    var i: TreecodeWord = 0;
-    while (i < WORD_BIT_COUNT) 
-        : (i += 1) 
+    for (0..WORD_BIT_COUNT)
+        |i|
     {
         try std.testing.expectEqual(i, WORD_BIT_COUNT - @clz(x));
         x = (x << 1) | 1;
@@ -633,10 +630,8 @@ test "treecode: is superset very long"
     );
     defer tc_subset.deinit();
 
-    var i:usize = 0;
-    // walk exactly off the end of one span
-    while (i < 124)  
-        : (i += 1) 
+    for (0..124)
+        |i|
     {
         try tc_superset.append(1);
         try tc_subset.append(1);
@@ -649,9 +644,8 @@ test "treecode: is superset very long"
 
     try std.testing.expect(tc_superset.is_superset_of(tc_subset));
 
-    i = 4;
-    while (i < 1000)  
-        : (i += 1) 
+    for (4..1000)
+        |i|
     {
         errdefer std.log.err(
             "\n\niteration: {}\n superset: {b} \n subset:   {b}\n\n",
@@ -687,9 +681,8 @@ test "treecode: apped lots of 0"
     var tc = try Treecode.init_word(std.testing.allocator, 0b1);
     defer tc.deinit();
 
-    var i:usize = 0;
-    while (i < 130) 
-        : (i += 1) 
+    for (0..130)
+        |_|
     {
         try tc.append(0);
     }
@@ -719,9 +712,8 @@ test "treecode: append lots of 1"
     var tc = try Treecode.init_word(std.testing.allocator, 0b1);
     defer tc.deinit();
 
-    var i:usize = 0;
-    while (i < 130) 
-        : (i += 1) 
+    for (0..130)
+        |_|
     {
         try tc.append(1);
     }
@@ -751,9 +743,8 @@ test "treecode: append beyond one word w/ 1"
     var tc = try Treecode.init_word(std.testing.allocator, 0b1);
     defer tc.deinit();
 
-    var i:usize = 0;
-    while (i < 258) 
-        : (i += 1) 
+    for (0..258)
+        |_|
     {
         try tc.append(1);
     }
@@ -783,9 +774,8 @@ test "treecode: append beyond one word w/ 0"
     var tc = try Treecode.init_word(std.testing.allocator, 0b1);
     defer tc.deinit();
 
-    var i:usize = 0;
-    while (i < 258) 
-        : (i += 1) 
+    for (0..258)
+        |_|
     {
         try tc.append(0);
     }
@@ -973,9 +963,8 @@ test "treecode: Treecode.eql preallocated"
     var b  = try Treecode.init_word(std.testing.allocator, 10);
     defer b.deinit();
 
-    var i:usize = 0;
-    while (i < 1000)  
-        : (i += 1) 
+    for (0..1000)
+        |i|
     {
         errdefer std.log.err(
             "iteration: {} a: {b} b: {b}\n",
@@ -1087,9 +1076,9 @@ test "treecode: hash - test long treecode hashes"
     defer tc2.deinit();
 
     try tc1.realloc(1024);
-    var i:usize = 0;
-    while (i < 128) 
-        : (i+=1) 
+    
+    for (0..128)
+        |_|
     {
         try tc1.append(0);
     }
@@ -1105,27 +1094,24 @@ test "treecode: hash - test long treecode hashes"
     try std.testing.expect(tc1.eql(tc2) == false);
     try std.testing.expect(tc1.hash() != tc2.hash());
 
-    i = 0;
-    while (i < 128) 
-        : (i+=1) 
+    for (0..128)
+        |_|
     {
         try tc2.append(0);
     }
 
     try std.testing.expectEqual(tc1.hash(), tc2.hash());
 
-    i = 0;
-    while (i < 122) 
-        : (i+=1) 
+    for (0..122)
+        |_|
     {
         try tc2.append(0);
     }
 
     try std.testing.expect(tc1.hash() != tc2.hash());
 
-    i = 0;
-    while (i < 122) 
-        : (i+=1) 
+    for (0..122)
+        |_|
     {
         try tc1.append(0);
     }
@@ -1236,9 +1222,8 @@ test "treecode: next_step_towards - larger than a single word"
     defer tc_dst.deinit();
 
     // straddle the word boundary
-    var i:usize = 0;
-    while (i < WORD_BIT_COUNT - 1) 
-        : (i += 1) 
+    for (0..WORD_BIT_COUNT-1)
+        |_|
     {
         try tc_src.append(0);
         try tc_dst.append(0);
@@ -1259,9 +1244,8 @@ test "treecode: next_step_towards - larger than a single word"
     try tc_src.append(1);
 
     // add a bunch of values
-    i = 0;
-    while (i < 1000) 
-        : (i += 1) 
+    for (0..1000)
+        |_|
     {
         try tc_src.append(0);
         try tc_dst.append(0);
