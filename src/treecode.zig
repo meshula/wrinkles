@@ -78,6 +78,7 @@ pub const Treecode = struct {
         };
     }
 
+    /// reallocate in place to a larger size container
     fn realloc(
         self: *@This(),
         new_size: usize,
@@ -93,6 +94,7 @@ pub const Treecode = struct {
         self.sz = new_size;
     }
 
+    /// return a clone of self
     pub fn clone(
         self: @This(),
     ) !Treecode 
@@ -144,6 +146,7 @@ pub const Treecode = struct {
         return count + (occupied_words) * WORD_BIT_COUNT;
     }
 
+    /// check equality of the treecode (not the allocator or array structure)
     pub fn eql(
         self: @This(),
         other: Treecode,
