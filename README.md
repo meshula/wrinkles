@@ -53,8 +53,10 @@ contains:
 
 ## Current Todo List (11/6/24)
 
-* [ ] add build variable for debug messages
-* [ ] prune existing debug messages out
+* [x] add build variable for debug messages
+* [x] prune existing debug messages out
+* [x] clean up how graphviz is found
+* [ ] decompose opentimelineio.zig into a library w/ multiple modules
 * [ ] boil time out of opentime (hm might need to rename this library) —
   particularly ContinuousTimeInterval->Interval
     * [ ] and the rest of the library (notably sampling.zig)
