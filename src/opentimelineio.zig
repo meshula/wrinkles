@@ -1052,7 +1052,7 @@ pub const ProjectionOperator = struct {
     ///project a continuous ordinate to the continuous destination space
     pub fn project_instantaneous_cc(
         self: @This(),
-        ordinate_in_source_space: f32
+        ordinate_in_source_space: f32,
     ) opentime.ProjectionResult
     {
         return self.src_to_dst_topo.project_instantaneous_cc(
@@ -1237,6 +1237,8 @@ pub const ProjectionOperator = struct {
         );
     }
 
+    /// project an index from the source to the overlapping indices in the
+    /// destination discrete space
     pub fn project_index_dd(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -1255,25 +1257,6 @@ pub const ProjectionOperator = struct {
             c_range_in_source,
         );
     }
-
-    /// project a discete sample index to the destination discrete sample index
-    // pub fn project_instantaneous_dd(
-    //     self: @This(),
-    //     sample_index_in_source_space: usize,
-    // ) !f32 
-    // {
-        //source discrete -> source continuous
-
-        // source continuous -> destination continuous
-        // const continuous_in_destination_space =  (
-        //     try self.topology.project_instantaneous_cc(ordinate_in_source_space)
-        // );
-        //
-        // // destination continuous -> destinatino discrete
-        // return self.destination.continuous_ordinate_to_discrete_index(
-        //     continuous_in_destination_space
-        // );
-    // }
 
     pub fn deinit(
         self: @This(),
@@ -1368,7 +1351,7 @@ pub const TopologicalMap = struct {
 
     /// return the root space of this topological map
     pub fn root(
-        self: @This()
+        self: @This(),
     ) SpaceReference 
     {
         const tree_word = treecode.Treecode{
@@ -1587,9 +1570,13 @@ pub const TopologicalMap = struct {
     pub fn write_dot_graph(
         self:@This(),
         parent_allocator: std.mem.Allocator,
-        filepath: string.latin_s8
+        filepath: string.latin_s8,
     ) !void 
     {
+        if (build_options.graphviz_dot_path == null) {
+            return;
+        }
+
         const root_space = self.root(); 
         
         // note that this function is pretty sloppy with allocations.  it
@@ -1730,10 +1717,6 @@ pub const TopologicalMap = struct {
             .{ filepath }
         );
         defer allocator.free(pngfilepath);
-
-        if (build_options.graphviz_dot_path == null) {
-            return;
-        }
 
         const arg = &[_][]const u8{
             // fetched from build configuration
