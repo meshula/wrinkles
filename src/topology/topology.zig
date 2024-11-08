@@ -737,7 +737,7 @@ pub const Topology = struct {
                         |out_pt|
                     {
                         if (
-                            m_bounds_out.overlaps_seconds(out_pt)
+                            m_bounds_out.overlaps(out_pt)
                             and out_pt > m_bounds_out.start
                             and out_pt < m_bounds_out.end
                         )
@@ -827,7 +827,7 @@ pub const Topology = struct {
         for (self.mappings)
             |m|
         {
-            if (m.input_bounds().overlaps_seconds(input_ord))
+            if (m.input_bounds().overlaps(input_ord))
             {
                 return m.project_instantaneous_cc(input_ord);
             }
@@ -856,7 +856,7 @@ pub const Topology = struct {
             |m|
         {
             if (
-                m.output_bounds().overlaps_seconds(output_ord)
+                m.output_bounds().overlaps(output_ord)
                 or output_ord == m.output_bounds().end
             )
             {

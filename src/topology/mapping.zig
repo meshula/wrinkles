@@ -203,7 +203,7 @@ pub const Mapping = union (enum) {
         for (output_points)
             |o_p|
         {
-            if (out_bounds.overlaps_seconds(o_p))
+            if (out_bounds.overlaps(o_p))
             {
                 input_points.appendAssumeCapacity(
                     try self.project_instantaneous_cc_inv(o_p)

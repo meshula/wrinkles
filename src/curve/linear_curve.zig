@@ -201,7 +201,7 @@ pub fn LinearOf(
                 const slope = self.slope_kind();
                 if (
                     slope == .flat 
-                    and self.extents_input().overlaps_seconds(input_ord)
+                    and self.extents_input().overlaps(input_ord)
                 ) 
                 {
                     const self_ob = self.extents_output();
@@ -366,7 +366,7 @@ pub fn LinearOf(
 
                 if (
                     segment_slope == .flat
-                    and (output_bounds.overlaps_seconds(self.knots[0].out))
+                    and (output_bounds.overlaps(self.knots[0].out))
                 ) 
                 {
                     return try self.clone(allocator);

@@ -53,21 +53,21 @@ pub const ContinuousInterval = struct {
         };
     }
 
-    /// return true if t_seconds is within the interval
-    pub fn overlaps_seconds(
+    /// return true if ord is within the interval
+    pub fn overlaps(
         self: @This(),
-        t_seconds: ordinate.Ordinate,
+        ord: ordinate.Ordinate,
     ) bool 
     {
         return (
             (
              self.is_instant()
-             and self.start == t_seconds
+             and self.start == ord
             )
             or 
             (
-             (t_seconds >= self.start)
-             and (t_seconds < self.end)
+             (ord >= self.start)
+             and (ord < self.end)
             )
         );
     }
@@ -418,11 +418,11 @@ test "ContinuousTimeInterval: Overlap tests"
         .end = 20,
     };
 
-    try std.testing.expect(!ival.overlaps_seconds(0));
-    try std.testing.expect(ival.overlaps_seconds(10));
-    try std.testing.expect(ival.overlaps_seconds(15));
-    try std.testing.expect(!ival.overlaps_seconds(20));
-    try std.testing.expect(!ival.overlaps_seconds(30));
+    try std.testing.expect(!ival.overlaps(0));
+    try std.testing.expect(ival.overlaps(10));
+    try std.testing.expect(ival.overlaps(15));
+    try std.testing.expect(!ival.overlaps(20));
+    try std.testing.expect(!ival.overlaps(30));
 }
 
 test "ContinuousTimeInterval: is_instant"

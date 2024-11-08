@@ -38,7 +38,7 @@ pub const MappingAffine = struct {
     ) opentime.ProjectionResult
     {
         if (
-            !self.input_bounds_val.overlaps_seconds(ordinate) 
+            !self.input_bounds_val.overlaps(ordinate) 
             // allow projecting the end point
             and ordinate != self.input_bounds_val.end
         )
@@ -58,7 +58,7 @@ pub const MappingAffine = struct {
     ) opentime.ProjectionResult
     {
         if (
-            !self.output_bounds().overlaps_seconds(output_ordinate) 
+            !self.output_bounds().overlaps(output_ordinate) 
             // allow projecting the end point
             and output_ordinate != self.output_bounds().end
         )
