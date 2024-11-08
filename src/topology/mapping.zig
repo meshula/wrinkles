@@ -77,7 +77,7 @@ pub const Mapping = union (enum) {
     /// fetch (computing if necessary) the input bounds of the mapping
     pub fn input_bounds(
         self: @This(),
-    ) opentime.ContinuousTimeInterval
+    ) opentime.ContinuousInterval
     {
         return switch (self) {
             inline else => |contained| contained.input_bounds(),
@@ -87,7 +87,7 @@ pub const Mapping = union (enum) {
     /// fetch (computing if necessary) the output bounds of the mapping
     pub fn output_bounds(
         self: @This(),
-    ) opentime.ContinuousTimeInterval
+    ) opentime.ContinuousInterval
     {
         return switch (self) {
             inline else => |contained| contained.output_bounds(),
@@ -112,7 +112,7 @@ pub const Mapping = union (enum) {
     pub fn shrink_to_input_interval(
         self: @This(),
         allocator: std.mem.Allocator,
-        target_input_interval: opentime.ContinuousTimeInterval,
+        target_input_interval: opentime.ContinuousInterval,
     ) !Mapping
     {
         return switch (self) {
@@ -130,7 +130,7 @@ pub const Mapping = union (enum) {
     pub fn shrink_to_output_interval(
         self: @This(),
         allocator: std.mem.Allocator,
-        target_output_interval: opentime.ContinuousTimeInterval,
+        target_output_interval: opentime.ContinuousInterval,
     ) !Mapping
     {
         return switch (self) {
@@ -314,7 +314,7 @@ pub const EMPTY_INF = mapping_empty.EMPTY_INF.mapping();
 
 /// Produce test structures at comptime
 pub fn test_structs(
-    int: opentime.ContinuousTimeInterval,
+    int: opentime.ContinuousInterval,
 ) type
 {
     return struct {

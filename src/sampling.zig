@@ -69,7 +69,7 @@ test "sampling: project_instantaneous_cd"
 pub fn project_index_dc(
     self: anytype,
     ind_discrete: usize,
-) opentime.ContinuousTimeInterval
+) opentime.ContinuousInterval
 {
     var start:sample_ordinate_t = @floatFromInt(ind_discrete);
     start -= @floatFromInt(self.start_index);
@@ -256,7 +256,7 @@ const Sampling = struct {
     /// ("intrisinsic space") of the sampling
     pub fn extents(
         self: @This(),
-    ) opentime.ContinuousTimeInterval
+    ) opentime.ContinuousInterval
     {
         return .{
             .start = 0,

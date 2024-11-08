@@ -93,7 +93,7 @@ pub const Clip = struct {
     name: ?string.latin_s8 = null,
 
     /// a trim on the media space
-    media_temporal_bounds: ?opentime.ContinuousTimeInterval = null,
+    media_temporal_bounds: ?opentime.ContinuousInterval = null,
 
     /// Information about the media this points at
     media_reference: ?MediaReference = null,
@@ -164,7 +164,7 @@ pub const Clip = struct {
         self: @This(),
         _: std.mem.Allocator,
         target_space: SpaceLabel,
-    ) !opentime.ContinuousTimeInterval 
+    ) !opentime.ContinuousInterval 
     {
         if (self.media_temporal_bounds)
             |bounds|
@@ -400,7 +400,7 @@ pub const ComposedValueRef = union(enum) {
         self: @This(),
         allocator: std.mem.Allocator,
         target_space: SpaceLabel,
-    ) !opentime.ContinuousTimeInterval 
+    ) !opentime.ContinuousInterval 
     {
         const presentation_to_intrinsic_topo = (
             try self.topology(allocator)
@@ -638,7 +638,7 @@ pub const ComposedValueRef = union(enum) {
         self: @This(),
         ind_discrete: usize,
         in_space: SpaceLabel,
-    ) !opentime.ContinuousTimeInterval
+    ) !opentime.ContinuousInterval
     {
         const maybe_di = (
             try self.discrete_info_for_space(in_space)
@@ -1163,7 +1163,7 @@ pub const ProjectionOperator = struct {
     pub fn project_range_cc(
         self: @This(),
         allocator: std.mem.Allocator,
-        range_in_source: opentime.ContinuousTimeInterval,
+        range_in_source: opentime.ContinuousInterval,
     ) !topology_m.Topology
     {
         // build a topology over the range in the source space
@@ -1194,7 +1194,7 @@ pub const ProjectionOperator = struct {
     pub fn project_range_cd(
         self: @This(),
         allocator: std.mem.Allocator,
-        range_in_source: opentime.ContinuousTimeInterval,
+        range_in_source: opentime.ContinuousInterval,
     ) ![]usize
     {
         // the range is bounding the source repo.  Therefore the topology is an
@@ -2077,7 +2077,7 @@ pub const ProjectionOperatorMap = struct {
         const over = args.over;
         const undr = args.under;
 
-        const full_range = opentime.ContinuousTimeInterval{
+        const full_range = opentime.ContinuousInterval{
             .start = @min(over.end_points[0], undr.end_points[0]),
             .end = @max(
                 over.end_points[over.end_points.len - 1],
@@ -2199,7 +2199,7 @@ pub const ProjectionOperatorMap = struct {
     pub fn extend_to(
         self: @This(),
         allocator: std.mem.Allocator,
-        range: opentime.ContinuousTimeInterval,
+        range: opentime.ContinuousInterval,
     ) !ProjectionOperatorMap
     {
         var tmp_pts = std.ArrayList(f32).init(allocator);
@@ -3439,7 +3439,7 @@ test "build_topological_map check root node"
 
     const start:f32 = 1;
     const end:f32 = 10;
-    const cti = opentime.ContinuousTimeInterval{
+    const cti = opentime.ContinuousInterval{
         .start = start,
         .end = end 
     };
@@ -4455,7 +4455,7 @@ test "otio projection: track with single clip"
 
     // media is 9 seconds long and runs at 4 hz.
     const media_source_range = (
-        opentime.ContinuousTimeInterval{
+        opentime.ContinuousInterval{
             .start = 1,
             .end = 10,
         }
@@ -4522,7 +4522,7 @@ test "otio projection: track with single clip"
 
     // range projection tests
     {
-        const test_range_in_track:opentime.ContinuousTimeInterval = .{
+        const test_range_in_track:opentime.ContinuousInterval = .{
             .start = 3.5,
             .end = 4.5,
         };
@@ -4646,7 +4646,7 @@ test "otio projection: track with single clip with transform"
     defer tr.deinit();
 
     // media is 9 seconds long and runs at 4 hz.
-    const media_source_range = opentime.ContinuousTimeInterval{
+    const media_source_range = opentime.ContinuousInterval{
         .start = 1,
         .end = 10,
     };
@@ -4739,7 +4739,7 @@ test "otio projection: track with single clip with transform"
 
     // range projection tests
     {
-        const test_range_in_track:opentime.ContinuousTimeInterval = .{
+        const test_range_in_track:opentime.ContinuousInterval = .{
             .start = 3.5,
             .end = 4.5,
         };
@@ -5109,7 +5109,7 @@ const TreenodeWalkingIterator = struct{
 test "TestWalkingIterator: clip"
 {
     // media is 9 seconds long and runs at 4 hz.
-    const media_source_range = opentime.ContinuousTimeInterval{
+    const media_source_range = opentime.ContinuousInterval{
         .start = 1,
         .end = 10,
     };
@@ -5149,7 +5149,7 @@ test "TestWalkingIterator: track with clip"
     defer tr.deinit();
 
     // media is 9 seconds long and runs at 4 hz.
-    const media_source_range = opentime.ContinuousTimeInterval{
+    const media_source_range = opentime.ContinuousInterval{
         .start = 1,
         .end = 10,
     };
@@ -5216,7 +5216,7 @@ test "TestWalkingIterator: track with clip w/ destination"
     defer tr.deinit();
 
     // media is 9 seconds long and runs at 4 hz.
-    const media_source_range = opentime.ContinuousTimeInterval{
+    const media_source_range = opentime.ContinuousInterval{
         .start = 1,
         .end = 10,
     };
@@ -5279,7 +5279,7 @@ test "Clip: Animated Parameter example"
     const allocator = arena.allocator();
     defer arena.deinit();
 
-    const media_source_range = opentime.ContinuousTimeInterval{
+    const media_source_range = opentime.ContinuousInterval{
         .start = 1,
         .end = 10,
     };
@@ -5579,7 +5579,7 @@ test "Single clip, Warp bulk"
                 ++ "TEST NAME: {s}\n"
                 ,
                 .{
-                    opentime.ContinuousTimeInterval{
+                    opentime.ContinuousInterval{
                         .start =  start.in,
                         .end = end.in,
                     },

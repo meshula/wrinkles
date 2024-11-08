@@ -54,14 +54,14 @@ pub const MappingCurveLinearMonotonic = struct {
 
     pub fn input_bounds(
         self: @This(),
-    ) opentime.ContinuousTimeInterval 
+    ) opentime.ContinuousInterval 
     {
         return self.input_to_output_curve.extents_input();
     }
 
     pub fn output_bounds(
         self: @This(),
-    ) opentime.ContinuousTimeInterval 
+    ) opentime.ContinuousInterval 
     {
         return self.input_to_output_curve.extents_output();
     }
@@ -98,7 +98,7 @@ pub const MappingCurveLinearMonotonic = struct {
     pub fn shrink_to_output_interval(
         self: @This(),
         allocator: std.mem.Allocator,
-        target_output_interval: opentime.ContinuousTimeInterval,
+        target_output_interval: opentime.ContinuousInterval,
     ) !MappingCurveLinearMonotonic
     {
         return .{
@@ -114,7 +114,7 @@ pub const MappingCurveLinearMonotonic = struct {
     pub fn shrink_to_input_interval(
         self: @This(),
         allocator: std.mem.Allocator,
-        target_intput_interval: opentime.ContinuousTimeInterval,
+        target_intput_interval: opentime.ContinuousInterval,
     ) !MappingCurveLinearMonotonic
     {
         return .{

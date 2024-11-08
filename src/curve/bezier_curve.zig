@@ -656,7 +656,7 @@ pub const Bezier = struct {
 
         pub fn extents_input(
             self: @This()
-        ) opentime.ContinuousTimeInterval
+        ) opentime.ContinuousInterval
         {
             return .{
                 .start = self.p0.in,
@@ -1583,7 +1583,7 @@ pub const Bezier = struct {
     /// return the extents of the curve's input spact /v
     pub fn extents_input(
         self:@This()
-    ) opentime.ContinuousTimeInterval 
+    ) opentime.ContinuousInterval 
     {
         return .{
             .start = self.segments[0].p0.in,
@@ -1594,7 +1594,7 @@ pub const Bezier = struct {
     /// return the extents of the curve's output space
     pub fn extents_output(
         self:@This()
-    ) opentime.ContinuousTimeInterval 
+    ) opentime.ContinuousInterval 
     {
         const result = self.extents();
         return .{
@@ -1940,7 +1940,7 @@ pub const Bezier = struct {
     pub fn trimmed_in_input_space(
         self: @This(),
         allocator: std.mem.Allocator,
-        bounds: opentime.ContinuousTimeInterval,
+        bounds: opentime.ContinuousInterval,
     ) !Bezier 
     {
         // @TODO; implement this using slices of a larger segment buffer to
@@ -3002,7 +3002,7 @@ test "Bezier: trimmed_from_input_ordinate"
         direction: Bezier.TrimDir,
 
         // expected results
-        result_extents:opentime.ContinuousTimeInterval,
+        result_extents:opentime.ContinuousInterval,
         result_segment_count: usize,
     };
 
@@ -3119,8 +3119,8 @@ test "Bezier: trimmed_from_input_ordinate"
 test "Bezier: trimmed_in_input_space" 
 {
     const TestData = struct {
-        trim_range: opentime.ContinuousTimeInterval,
-        result_extents: opentime.ContinuousTimeInterval,
+        trim_range: opentime.ContinuousInterval,
+        result_extents: opentime.ContinuousInterval,
     };
 
     const test_curves = [_]Bezier{

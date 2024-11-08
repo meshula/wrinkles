@@ -285,7 +285,7 @@ pub fn LinearOf(
             pub fn trimmed_input(
                 self: @This(),
                 allocator: std.mem.Allocator,
-                input_bounds: opentime.ContinuousTimeInterval,
+                input_bounds: opentime.ContinuousInterval,
             ) !Monotonic
             {
                 const current_bounds = self.extents_input();
@@ -344,7 +344,7 @@ pub fn LinearOf(
             pub fn trimmed_output(
                 self: @This(),
                 allocator: std.mem.Allocator,
-                output_bounds: opentime.ContinuousTimeInterval,
+                output_bounds: opentime.ContinuousInterval,
             ) !Monotonic
             {            
                 if (self.knots.len < 2) {

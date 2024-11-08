@@ -9,7 +9,7 @@ const mapping_mod = @import("mapping.zig");
 /// Regardless what the input ordinate is, there is no value mapped to it
 pub const MappingEmpty = struct {
     /// represents the input range (and effective output range) of the mapping
-    defined_range: opentime.ContinuousTimeInterval,
+    defined_range: opentime.ContinuousInterval,
 
     /// build a generic mapping from this empty mapping
     pub fn mapping(
@@ -46,14 +46,14 @@ pub const MappingEmpty = struct {
 
     pub fn input_bounds(
         self: @This(),
-    ) opentime.ContinuousTimeInterval 
+    ) opentime.ContinuousInterval 
     {
         return self.defined_range;
     }
 
     pub fn output_bounds(
         self: @This(),
-    ) opentime.ContinuousTimeInterval 
+    ) opentime.ContinuousInterval 
     {
         return self.input_bounds();
     }
@@ -74,7 +74,7 @@ pub const MappingEmpty = struct {
     pub fn shrink_to_input_interval(
         self: @This(),
         _: std.mem.Allocator,
-        target_range: opentime.ContinuousTimeInterval,
+        target_range: opentime.ContinuousInterval,
     ) !MappingEmpty
     {
         const maybe_new_range = (
@@ -98,7 +98,7 @@ pub const MappingEmpty = struct {
     pub fn shrink_to_output_interval(
         self: @This(),
         _: std.mem.Allocator,
-        _: opentime.ContinuousTimeInterval,
+        _: opentime.ContinuousInterval,
     ) !MappingEmpty
     {
         return self;

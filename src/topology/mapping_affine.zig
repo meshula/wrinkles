@@ -8,7 +8,7 @@ const mapping_mod = @import("mapping.zig");
 /// An affine mapping from intput to output
 pub const MappingAffine = struct {
     /// defaults to an infinite identity
-    input_bounds_val: opentime.ContinuousTimeInterval = opentime.INF_INTERVAL,
+    input_bounds_val: opentime.ContinuousInterval = opentime.INF_INTERVAL,
     input_to_output_xform: opentime.AffineTransform1D = opentime.IDENTITY_TRANSFORM, 
 
     pub fn mapping(
@@ -20,14 +20,14 @@ pub const MappingAffine = struct {
 
     pub fn input_bounds(
         self: @This(),
-    ) opentime.ContinuousTimeInterval 
+    ) opentime.ContinuousInterval 
     {
         return self.input_bounds_val;
     }
 
     pub fn output_bounds(
         self: @This(),
-    ) opentime.ContinuousTimeInterval 
+    ) opentime.ContinuousInterval 
     {
         return self.input_to_output_xform.applied_to_interval(self.input_bounds_val);
     }
@@ -86,7 +86,7 @@ pub const MappingAffine = struct {
     pub fn shrink_to_output_interval(
         self: @This(),
         _: std.mem.Allocator,
-        target_output_interval: opentime.ContinuousTimeInterval,
+        target_output_interval: opentime.ContinuousInterval,
     ) !MappingAffine
     {
         const target_input_interval = (
@@ -106,7 +106,7 @@ pub const MappingAffine = struct {
     pub fn shrink_to_input_interval(
         self: @This(),
         _: std.mem.Allocator,
-        target_output_interval: opentime.ContinuousTimeInterval,
+        target_output_interval: opentime.ContinuousInterval,
     ) !MappingAffine
     {
         return .{

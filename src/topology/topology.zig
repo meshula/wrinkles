@@ -125,7 +125,7 @@ pub const Topology = struct {
     /// specified
     pub fn init_identity(
         allocator: std.mem.Allocator,
-        range: opentime.ContinuousTimeInterval,
+        range: opentime.ContinuousInterval,
     ) !Topology
     {
         return .{
@@ -235,7 +235,7 @@ pub const Topology = struct {
 
     pub fn input_bounds(
         self: @This(),
-    ) opentime.ContinuousTimeInterval
+    ) opentime.ContinuousInterval
     {
         if (self.mappings.len == 0)
         {
@@ -253,14 +253,14 @@ pub const Topology = struct {
 
     pub fn output_bounds(
         self: @This(),
-    ) opentime.ContinuousTimeInterval
+    ) opentime.ContinuousInterval
     {
         // @TODO: handle this case
         if (self.mappings.len == 0) {
             unreachable;
         }
 
-        var bounds:?opentime.ContinuousTimeInterval = null;
+        var bounds:?opentime.ContinuousInterval = null;
 
         for (self.mappings)
             |m|
@@ -314,7 +314,7 @@ pub const Topology = struct {
     pub fn trim_in_input_space(
         self: @This(),
         allocator: std.mem.Allocator,
-        new_input_bounds: opentime.ContinuousTimeInterval,
+        new_input_bounds: opentime.ContinuousInterval,
     ) !Topology
     {
         const ib = self.input_bounds();
@@ -890,7 +890,7 @@ pub const Topology = struct {
         );
         defer current_mappings.deinit();
 
-        var maybe_input_range: ?opentime.ContinuousTimeInterval = null;
+        var maybe_input_range: ?opentime.ContinuousInterval = null;
 
         for (self.mappings)
             |m|
@@ -985,8 +985,8 @@ test "Topology trim_in_input_space"
 
     const TestCase = struct {
         name: []const u8,
-        range: opentime.ContinuousTimeInterval,
-        expected: opentime.ContinuousTimeInterval,
+        range: opentime.ContinuousInterval,
+        expected: opentime.ContinuousInterval,
         mapping_count: usize,
     };
 
@@ -1404,7 +1404,7 @@ test "Topology: LEFT/RIGHT -> EMPTY"
 
 /// stitch topology test structures onto mapping ones
 fn test_structs(
-    comptime int: opentime.ContinuousTimeInterval,
+    comptime int: opentime.ContinuousInterval,
 ) type
 {
     return struct {
@@ -1485,8 +1485,8 @@ test "Topology: trim_in_output_space"
 
     const TestCase = struct {
         name: []const u8,
-        target: opentime.ContinuousTimeInterval,
-        expected: opentime.ContinuousTimeInterval,
+        target: opentime.ContinuousInterval,
+        expected: opentime.ContinuousInterval,
     };
     const tests = [_]TestCase{
         .{
