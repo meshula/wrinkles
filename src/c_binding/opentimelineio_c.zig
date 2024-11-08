@@ -532,7 +532,7 @@ pub export fn otio_topo_fetch_input_bounds(
 
     const b = topo.input_bounds();
 
-    result.*.start_seconds = b.start_seconds;
+    result.*.start_ordinate = b.start_ordinate;
     result.*.end_seconds = b.end_seconds;
 
     return 0;
@@ -558,7 +558,7 @@ pub export fn otio_topo_fetch_output_bounds(
 
     const b = topo.output_bounds();
 
-    result.*.start_seconds = b.start_seconds;
+    result.*.start_ordinate = b.start_ordinate;
     result.*.end_seconds = b.end_seconds;
 
     return 0;

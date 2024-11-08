@@ -132,7 +132,7 @@ pub const MappingAffine = struct {
             .{ 
                 .affine = .{
                     .input_bounds_val = .{
-                        .start_seconds = self.input_bounds_val.start_seconds,
+                        .start_ordinate = self.input_bounds_val.start_ordinate,
                         .end_seconds = pt_input,
                     },
                     .input_to_output_xform = self.input_to_output_xform,
@@ -141,7 +141,7 @@ pub const MappingAffine = struct {
             .{ 
                 .affine = .{
                     .input_bounds_val = .{
-                        .start_seconds = pt_input,
+                        .start_ordinate = pt_input,
                         .end_seconds = self.input_bounds_val.end_seconds,
                     },
                     .input_to_output_xform = self.input_to_output_xform,
@@ -167,7 +167,7 @@ pub const MappingAffine = struct {
             |pt, pt_ind|
         {
             if (
-                pt > self.input_bounds_val.start_seconds
+                pt > self.input_bounds_val.start_ordinate
                 and pt < self.input_bounds_val.end_seconds
             )
             {
@@ -183,7 +183,7 @@ pub const MappingAffine = struct {
             return try result_mappings.toOwnedSlice();
         }
 
-        var current_start = self.input_bounds_val.start_seconds;
+        var current_start = self.input_bounds_val.start_ordinate;
         var current_end_ind = maybe_first_pt.?;
 
         while (current_end_ind < input_points.len)
@@ -200,7 +200,7 @@ pub const MappingAffine = struct {
                 .{
                     .affine = .{
                         .input_bounds_val = .{
-                            .start_seconds = current_start,
+                            .start_ordinate = current_start,
                             .end_seconds = current_end,
                         },
                         .input_to_output_xform = (
@@ -239,7 +239,7 @@ test "MappingAffine: non-identity"
     const ma = (
         MappingAffine{
             .input_bounds_val = .{
-                .start_seconds = 3,
+                .start_ordinate = 3,
                 .end_seconds = 6,
             },
             .input_to_output_xform = .{

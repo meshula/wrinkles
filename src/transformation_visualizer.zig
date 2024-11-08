@@ -30,7 +30,7 @@ pub fn plot_mapping(
 {
     const input_bounds_ord = map.input_bounds();
     var input_bounds : [2]f64 = .{
-        @floatCast(input_bounds_ord.start_seconds),
+        @floatCast(input_bounds_ord.start_ordinate),
         @floatCast(input_bounds_ord.end_seconds),
     };
 
@@ -39,7 +39,7 @@ pub fn plot_mapping(
         .y1
     );
 
-    if (input_bounds_ord.start_seconds == std.math.inf(opentime.Ordinate)) {
+    if (input_bounds_ord.start_ordinate == std.math.inf(opentime.Ordinate)) {
         input_bounds[0] = plot_limits.x[0];
     }
     if (input_bounds_ord.end_seconds == std.math.inf(opentime.Ordinate)) {
@@ -188,7 +188,7 @@ const SpaceUI = struct {
                 zgui.plot.setupAxisLimits(
                     .x1, 
                     .{
-                        .min = input_limits.start_seconds,
+                        .min = input_limits.start_ordinate,
                         .max = input_limits.end_seconds,
                     },
                 );
@@ -197,7 +197,7 @@ const SpaceUI = struct {
                 zgui.plot.setupAxisLimits(
                     .y1, 
                     .{
-                        .min = output_limits.start_seconds,
+                        .min = output_limits.start_ordinate,
                         .max = output_limits.end_seconds,
                     },
                 );
@@ -248,7 +248,7 @@ const PRESETS = struct{
                 .mapping = (
                     topology.mapping.MappingAffine{
                         .input_bounds_val = .{
-                            .start_seconds = -10,
+                            .start_ordinate = -10,
                             .end_seconds = 10,
                         },
                         .input_to_output_xform = .{
@@ -270,7 +270,7 @@ const PRESETS = struct{
                 .mapping = (
                     topology.mapping.MappingAffine{
                         .input_bounds_val = .{
-                            .start_seconds = -10,
+                            .start_ordinate = -10,
                             .end_seconds = 10,
                         },
                         .input_to_output_xform = .{

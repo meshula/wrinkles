@@ -312,7 +312,7 @@ test "Linear.Monotonic: shrink_to_output_interval"
     const result = try mcl.shrink_to_output_interval(
         allocator,
         .{ 
-            .start_seconds = 5,
+            .start_ordinate = 5,
             .end_seconds = 25,
         },
     );
@@ -328,7 +328,7 @@ test "Linear.Monotonic: shrink_to_output_interval"
     const result_extents = result.output_bounds();
     try std.testing.expectEqual(
         5,
-        result_extents.start_seconds,
+        result_extents.start_ordinate,
     );
     try std.testing.expectEqual(
         25,

@@ -18,7 +18,7 @@ void otio_arena_deinit(otio_Arena);
 // OpenTime
 ///////////////////////////////////////////////////////////////////////////////
 typedef struct otio_ContinuousTimeRange {
-    float start_seconds;
+    float start_ordinate;
     float end_seconds;
 } otio_ContinuousTimeRange;
 

@@ -79,7 +79,7 @@ pub fn read_time_range(
             const start_time = read_ordinate_from_rt(o.get("start_time").?.object).?;
             const duration = read_ordinate_from_rt(o.get("duration").?.object).?;
             return .{ 
-                .start_seconds = start_time, 
+                .start_ordinate = start_time, 
                 .end_seconds = start_time + duration 
             };
         } else {

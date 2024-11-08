@@ -40,7 +40,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             "Spaghetti.mov",
         ),
         .media_temporal_bounds = .{
-            .start_seconds = 1,
+            .start_ordinate = 1,
             .end_seconds = 3 
         },
         .discrete_info = .{
@@ -65,7 +65,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             "Taco.mov"
         ),
         .media_temporal_bounds = .{
-            .start_seconds = 10,
+            .start_ordinate = 10,
             .end_seconds = 11, 
         },
         .discrete_info = .{
@@ -193,7 +193,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             const dest_frames = try op.project_range_cd(
                 allocator,
                 .{
-                    .start_seconds = p0,
+                    .start_ordinate = p0,
                     .end_seconds = p1 
                 }
             );
@@ -242,7 +242,7 @@ test "libsamplerate w/ high level test -- resample only"
             "Spaghetti.mov",
         ),
         .media_temporal_bounds = .{
-            .start_seconds = 1,
+            .start_ordinate = 1,
             .end_seconds = 6,
         },
         .discrete_info = .{
@@ -261,14 +261,14 @@ test "libsamplerate w/ high level test -- resample only"
         }
     };
     try std.testing.expect(
-        cl1.media_temporal_bounds.?.start_seconds < 
+        cl1.media_temporal_bounds.?.start_ordinate < 
         cl1.media_temporal_bounds.?.end_seconds
     );
     try std.testing.expect(
         (try cl1.bounds_of(allocator, .media)).end_seconds != 0,
     );
     try std.testing.expect(
-        (try cl1.bounds_of(allocator, .media)).start_seconds < 
+        (try cl1.bounds_of(allocator, .media)).start_ordinate < 
         (try cl1.bounds_of(allocator, .media)).end_seconds
     );
 
@@ -383,7 +383,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
             "Spaghetti.mov",
         ),
         .media_temporal_bounds = .{
-            .start_seconds = 1,
+            .start_ordinate = 1,
             .end_seconds = 6,
         },
         .discrete_info = .{
@@ -528,7 +528,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
             "Spaghetti.mov",
         ),
         .media_temporal_bounds = .{
-            .start_seconds = 1,
+            .start_ordinate = 1,
             .end_seconds = 6,
         },
         .discrete_info = .{
@@ -644,14 +644,14 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
 
     {
         const start = (
-            tr_pres_to_cl_media_po.src_to_dst_topo.input_bounds().start_seconds
+            tr_pres_to_cl_media_po.src_to_dst_topo.input_bounds().start_ordinate
         );
 
         const result_buf = (
             try tr_pres_to_cl_media_po.project_range_cd(
                 allocator,
                 .{
-                    .start_seconds = start,
+                    .start_ordinate = start,
                     .end_seconds = start + 2.0/48000.0,
                 },
             )
@@ -695,7 +695,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
             "Spaghetti.mov",
         ),
         .media_temporal_bounds = .{
-            .start_seconds = 1,
+            .start_ordinate = 1,
             .end_seconds = 6,
         },
         .discrete_info = .{
@@ -755,7 +755,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
 
     {
         const start = (
-            tr_pres_to_cl_media_po.src_to_dst_topo.input_bounds().start_seconds
+            tr_pres_to_cl_media_po.src_to_dst_topo.input_bounds().start_ordinate
         );
 
         const start_frame_in_destination_d = (
@@ -773,7 +773,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
             try tr_pres_to_cl_media_po.project_range_cd(
                 allocator,
                 .{
-                    .start_seconds = start,
+                    .start_ordinate = start,
                     .end_seconds = start + 4.0/48000.0,
                 },
             )
@@ -819,7 +819,7 @@ test "timeline w/ warp that holds the tenth frame"
             "Spaghetti.mov",
         ),
         .media_temporal_bounds = .{
-            .start_seconds = 1,
+            .start_ordinate = 1,
             .end_seconds = 6,
         },
         .discrete_info = .{
@@ -873,10 +873,10 @@ test "timeline w/ warp that holds the tenth frame"
         .{ w_ib, w_ob },
     );
 
-    try std.testing.expect(std.math.isNan(w_ib.start_seconds) == false);
+    try std.testing.expect(std.math.isNan(w_ib.start_ordinate) == false);
     try std.testing.expect(std.math.isNan(w_ib.end_seconds) == false);
 
-    try std.testing.expect(std.math.isNan(w_ob.start_seconds) == false);
+    try std.testing.expect(std.math.isNan(w_ob.start_ordinate) == false);
     try std.testing.expect(std.math.isNan(w_ob.end_seconds) == false);
 
     // build the topological map
@@ -930,7 +930,7 @@ test "timeline w/ warp that holds the tenth frame"
             try tr_pres_to_cl_media_po.project_range_cd(
                 allocator,
                 .{
-                    .start_seconds = 0,
+                    .start_ordinate = 0,
                     .end_seconds =  4.0/24.0,
                 },
             )
