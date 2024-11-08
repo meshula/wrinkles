@@ -68,6 +68,7 @@ pub const ProjectionResult = union (enum) {
     }
 };
 
+/// an out of bounds projection result
 pub const OUTOFBOUNDS = ProjectionResult{
     .OutOfBounds = null,
 };

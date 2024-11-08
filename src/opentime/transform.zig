@@ -4,7 +4,7 @@ const std = @import("std");
 
 const ordinate = @import("ordinate.zig");
 const interval = @import("interval.zig");
-const ContinuousTimeInterval = interval.ContinuousInterval; 
+const ContinuousInterval = interval.ContinuousInterval; 
 
 /// AffineTransform1D @{
 /// ///////////////////////////////////////////////////////////////////////////
@@ -30,8 +30,8 @@ pub const AffineTransform1D = struct {
     /// transform the interval by transforming its endpoints.
     pub fn applied_to_interval(
         self: @This(),
-        cint: ContinuousTimeInterval,
-    ) ContinuousTimeInterval
+        cint: ContinuousInterval,
+    ) ContinuousInterval
     {
         return .{
             .start = self.applied_to_ordinate(cint.start),
@@ -44,8 +44,8 @@ pub const AffineTransform1D = struct {
     /// This function makes sure that result.start < result.end
     pub fn applied_to_bounds(
         self: @This(),
-        bnds: ContinuousTimeInterval,
-    ) ContinuousTimeInterval {
+        bnds: ContinuousInterval,
+    ) ContinuousInterval {
         if (self.scale < 0) {
             return .{
                 .start = self.applied_to_ordinate(bnds.end),
@@ -68,7 +68,7 @@ pub const AffineTransform1D = struct {
         };
     }
 
-    /// Return the inverse of this time transform.
+    /// Return the inverse of this transform.
     ///    ** assumes that scale is non-zero **
     ///
     /// Because the AffineTransform1D is a 2x2 matrix of the form:
@@ -126,7 +126,7 @@ pub const IDENTITY_TRANSFORM = AffineTransform1D{
 
 test "AffineTransform1D: offset test" 
 {
-    const cti = ContinuousTimeInterval {
+    const cti = ContinuousInterval {
         .start = 10,
         .end = 20,
     };
@@ -136,10 +136,10 @@ test "AffineTransform1D: offset test"
         .scale = 1,
     };
 
-    const result: ContinuousTimeInterval = xform.applied_to_interval(cti);
+    const result: ContinuousInterval = xform.applied_to_interval(cti);
     
     try std.testing.expectEqual(
-        ContinuousTimeInterval {
+        ContinuousInterval {
             .start = 20,
             .end = 30
         },
@@ -169,7 +169,7 @@ test "AffineTransform1D: offset test"
 
 test "AffineTransform1D: scale test" 
 {
-    const cti = ContinuousTimeInterval {
+    const cti = ContinuousInterval {
         .start = 10,
         .end = 20,
     };
@@ -182,7 +182,7 @@ test "AffineTransform1D: scale test"
     const result = xform.applied_to_interval(cti);
 
     try std.testing.expectEqual(
-        ContinuousTimeInterval {
+        ContinuousInterval {
             .start = 30,
             .end = 50,
         },
@@ -234,7 +234,7 @@ test "AffineTransform1D: applied_to_bounds"
         .offset = 10,
         .scale = -1,
     };
-    const bounds = ContinuousTimeInterval{
+    const bounds = ContinuousInterval{
         .start = 10,
         .end = 20,
     };
