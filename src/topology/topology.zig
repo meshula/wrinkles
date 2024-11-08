@@ -472,7 +472,7 @@ pub const Topology = struct {
     pub fn trim_in_output_space(
         self: @This(),
         allocator: std.mem.Allocator,
-        target_output_range: opentime.interval.ContinuousTimeInterval,
+        target_output_range: opentime.interval.ContinuousInterval,
     ) !Topology
     {
         var new_mappings = (

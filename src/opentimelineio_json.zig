@@ -71,7 +71,7 @@ fn read_rate(
 
 pub fn read_time_range(
     maybe_obj:?std.json.ObjectMap
-) ?interval.ContinuousTimeInterval 
+) ?interval.ContinuousInterval 
 {
     if (maybe_obj) 
         |o| 
@@ -89,7 +89,7 @@ pub fn read_time_range(
 
 pub fn _read_range(
     maybe_obj: ?std.json.ObjectMap
-) ?interval.ContinuousTimeInterval
+) ?interval.ContinuousInterval
 {
     if (maybe_obj == null) {
         return null;

@@ -74,7 +74,7 @@ pub fn LinearOf(
             /// compute both the input extents for the curve exhaustively
             pub fn extents_input(
                 self:@This(),
-            ) opentime.interval.ContinuousTimeInterval
+            ) opentime.interval.ContinuousInterval
             {
                 if (self.knots.len < 1) {
                     return .{ .start_seconds = 0, .end_seconds = 0 };
@@ -90,7 +90,7 @@ pub fn LinearOf(
             /// compute both the output extents for the curve exhaustively
             pub fn extents_output(
                 self:@This(),
-            ) opentime.interval.ContinuousTimeInterval
+            ) opentime.interval.ContinuousInterval
             {
                 if (self.knots.len == 0) {
                     return .{ .start_seconds = 0, .end_seconds = 0 };
@@ -1267,8 +1267,8 @@ test "Monotonic Trimmed Input"
 
     const TestCase = struct{
         name: []const u8,
-        target_range: opentime.interval.ContinuousTimeInterval,
-        expected_range: opentime.interval.ContinuousTimeInterval,
+        target_range: opentime.interval.ContinuousInterval,
+        expected_range: opentime.interval.ContinuousInterval,
     };
     const tests = [_]TestCase{
         .{
@@ -1363,8 +1363,8 @@ test "Monotonic Trimmed Output"
 
     const TestCase = struct{
         name: []const u8,
-        target_range: opentime.interval.ContinuousTimeInterval,
-        expected_range: opentime.interval.ContinuousTimeInterval,
+        target_range: opentime.interval.ContinuousInterval,
+        expected_range: opentime.interval.ContinuousInterval,
     };
     const tests = [_]TestCase{
         .{

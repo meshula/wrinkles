@@ -849,7 +849,7 @@ pub const Track = struct {
     ) !topology_m.Topology 
     {
         // build the maybe_bounds
-        var maybe_bounds: ?interval.ContinuousTimeInterval = null;
+        var maybe_bounds: ?interval.ContinuousInterval = null;
         for (self.children.items) 
             |it| 
         {
@@ -866,7 +866,7 @@ pub const Track = struct {
         }
 
         // unpack the optional
-        const result_bound:interval.ContinuousTimeInterval = (
+        const result_bound:interval.ContinuousInterval = (
             maybe_bounds orelse .{
                 .start_seconds = 0,
                 .end_seconds = 0,
@@ -3588,7 +3588,7 @@ test "Track with clip with identity transform projection"
 
     const start_seconds:f32 = 1;
     const end_seconds:f32 = 10;
-    const range = interval.ContinuousTimeInterval{
+    const range = interval.ContinuousInterval{
         .start_seconds = start_seconds,
         .end_seconds = end_seconds,
     };
@@ -3785,7 +3785,7 @@ test "Projection: Track with single clip with identity transform and bounds"
     defer root_presentation_to_clip_media.deinit(allocator);
 
     const expected_media_temporal_bounds = (
-        cl.media_temporal_bounds orelse interval.ContinuousTimeInterval{}
+        cl.media_temporal_bounds orelse interval.ContinuousInterval{}
     );
 
     const actual_media_temporal_bounds = (
@@ -3953,7 +3953,7 @@ test "Projection: Track with multiple clips with identity transform and bounds"
     defer root_presentation_to_clip_media.deinit(allocator);
 
     const expected_range = (
-        cl.media_temporal_bounds orelse interval.ContinuousTimeInterval{}
+        cl.media_temporal_bounds orelse interval.ContinuousInterval{}
     );
     const actual_range = (
         root_presentation_to_clip_media.src_to_dst_topo.input_bounds()
@@ -4048,7 +4048,7 @@ test "Single Clip bezier transform"
 
     try std.testing.expect(curve_topo.mappings.len > 0);
 
-    const media_temporal_bounds:interval.ContinuousTimeInterval = .{
+    const media_temporal_bounds:interval.ContinuousInterval = .{
         .start_seconds = 100,
         .end_seconds = 110,
     };
@@ -4326,7 +4326,7 @@ pub const Stack = struct {
     ) !topology_m.Topology 
     {
         // build the bounds
-        var bounds: ?interval.ContinuousTimeInterval = null;
+        var bounds: ?interval.ContinuousInterval = null;
         for (self.children.items) 
             |it| 
         {
@@ -5441,7 +5441,7 @@ test "Single clip, Warp bulk"
 
     const allocator = std.testing.allocator;
 
-    const media_temporal_bounds:interval.ContinuousTimeInterval = .{
+    const media_temporal_bounds:interval.ContinuousInterval = .{
         .start_seconds = 100,
         .end_seconds = 110,
     };

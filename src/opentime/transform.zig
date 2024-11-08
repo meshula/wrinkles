@@ -4,7 +4,7 @@ const std = @import("std");
 
 const ordinate = @import("ordinate.zig");
 const interval = @import("interval.zig");
-const ContinuousTimeInterval = interval.ContinuousTimeInterval; 
+const ContinuousTimeInterval = interval.ContinuousInterval; 
 
 /// AffineTransform1D @{
 /// ///////////////////////////////////////////////////////////////////////////

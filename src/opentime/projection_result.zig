@@ -9,7 +9,7 @@ const interval_m = @import("interval.zig");
 /// ordinate), a range (contuous interval) or an out of bounds result.
 pub const ProjectionResult = union (enum) {
     SuccessOrdinate : ordinate_m.Ordinate,
-    SuccessInterval : interval_m.ContinuousTimeInterval,
+    SuccessInterval : interval_m.ContinuousInterval,
     OutOfBounds : ?void,
 
     pub const Errors = struct {
@@ -33,7 +33,7 @@ pub const ProjectionResult = union (enum) {
     /// fetch a range result or return an error if the result isn't a range
     pub fn interval(
         self: @This(),
-    ) !interval_m.ContinuousTimeInterval
+    ) !interval_m.ContinuousInterval
     {
         switch (self) {
             .SuccessInterval => |val| return val,

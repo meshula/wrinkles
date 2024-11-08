@@ -9,8 +9,8 @@ pub const Ordinate = ordinate.Ordinate;
 
 // interval @{
 pub const interval = @import("interval.zig");
-pub const ContinuousTimeInterval = interval.ContinuousTimeInterval;
-pub const INF_CTI = interval.INF_CTI;
+pub const ContinuousTimeInterval = interval.ContinuousInterval;
+pub const INF_CTI = interval.INFINITE_INTERVAL;
 // @}
 
 // Domain @{

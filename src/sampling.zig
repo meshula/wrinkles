@@ -317,7 +317,7 @@ pub const DiscreteDatasourceIndexGenerator = struct {
     pub fn ord_interval_for_index(
         self: @This(),
         index: sample_index_t,
-    ) opentime.interval.ContinuousTimeInterval
+    ) opentime.interval.ContinuousInterval
     {
         const s_per_cycle = (
             1.0 /
