@@ -893,7 +893,7 @@ pub fn transform_resample_linear_non_interpolating_dd(
             output_d_sampling_info.ord_interval_for_index(output_index)
         );
 
-        const output_sample_time = (
+        const output_sample_ord = (
             output_sample_interval.start 
             + output_d_extents.start
         );
@@ -902,7 +902,7 @@ pub fn transform_resample_linear_non_interpolating_dd(
         const input_ord = (
             (
              output_c_to_input_d.project_instantaneous_cc(
-                 output_sample_time,
+                 output_sample_ord,
              ).ordinate() 
             )
             catch |err| 
@@ -917,7 +917,7 @@ pub fn transform_resample_linear_non_interpolating_dd(
             }
         );
 
-        // input time -> input index (continuous -> discrete)
+        // input ordinate -> input index (continuous -> discrete)
         const input_sample_index = (
             input_d_samples.index_generator.index_at_ordinate(input_ord)
         );
