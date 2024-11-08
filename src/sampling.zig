@@ -18,9 +18,11 @@ const curve = @import("curve");
 const opentime = @import("opentime");
 const topology = @import("topology");
 
+const build_options = @import("build_options");
+
 // configuration
 const RETIME_DEBUG_LOGGING = false;
-const WRITE_TEST_FILES = false;
+const WRITE_TEST_FILES = build_options.write_sampling_test_wave_files;
 const TMPDIR = "/var/tmp";
 
 /// type of a sample value, ie the amplitude in a sample in an audio buffer
