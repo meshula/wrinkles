@@ -1,9 +1,10 @@
+//! Implementation of a 1d Affine transformation
+
 const std = @import("std"); 
 
+const ordinate = @import("ordinate.zig");
 const interval = @import("interval.zig");
 const ContinuousTimeInterval = interval.ContinuousTimeInterval; 
-
-const expectEqual = std.testing.expectEqual;
 
 /// AffineTransform1D @{
 /// ///////////////////////////////////////////////////////////////////////////
@@ -11,30 +12,30 @@ const expectEqual = std.testing.expectEqual;
 ///     | Scale Offset |
 ///     |   0     1    | (Implicit)
 ///
-/// Transform order scale then offset
-/// @TODO: should it be offset and then scale?  that seems more intuitive to me
-///        but that might be b/c of the order they're listed
+/// Transform order scale then offset, ie y = T(x) = (x * Scale + offset)
 /// ///////////////////////////////////////////////////////////////////////////
 pub const AffineTransform1D = struct {
-    offset_seconds: f32 = 0,
-    scale: f32 = 1,
+    offset: ordinate.Ordinate = 0,
+    scale: ordinate.Ordinate = 1,
 
-    pub fn applied_to_seconds(
+    /// transform the ordinate.  Order is scale and then offset.
+    pub fn applied_to_ordinate(
         self: @This(),
-        t_seconds: f32
-    ) f32
+        ord: ordinate.Ordinate,
+    ) ordinate.Ordinate
     {
-        return t_seconds * self.scale + self.offset_seconds;
+        return ord * self.scale + self.offset;
     }
 
-    pub fn applied_to_cti(
+    /// transform the interval by transforming its endpoints.
+    pub fn applied_to_interval(
         self: @This(),
-        cti: ContinuousTimeInterval,
+        cint: ContinuousTimeInterval,
     ) ContinuousTimeInterval
     {
         return .{
-            .start_seconds = self.applied_to_seconds(cti.start_seconds),
-            .end_seconds = self.applied_to_seconds(cti.end_seconds)
+            .start_seconds = self.applied_to_ordinate(cint.start_seconds),
+            .end_seconds = self.applied_to_ordinate(cint.end_seconds)
         };
     }
 
@@ -47,21 +48,22 @@ pub const AffineTransform1D = struct {
     ) ContinuousTimeInterval {
         if (self.scale < 0) {
             return .{
-                .start_seconds = self.applied_to_seconds(bnds.end_seconds),
-                .end_seconds = self.applied_to_seconds(bnds.start_seconds),
+                .start_seconds = self.applied_to_ordinate(bnds.end_seconds),
+                .end_seconds = self.applied_to_ordinate(bnds.start_seconds),
             };
         }
 
-        return self.applied_to_cti(bnds);
+        return self.applied_to_interval(bnds);
     }
 
+    /// transform the transform
     pub fn applied_to_transform(
         self: @This(),
         rhs: AffineTransform1D,
     ) AffineTransform1D 
     {
         return .{
-            .offset_seconds = self.applied_to_seconds(rhs.offset_seconds),
+            .offset = self.applied_to_ordinate(rhs.offset),
             .scale = rhs.scale * self.scale,
         };
     }
@@ -85,7 +87,7 @@ pub const AffineTransform1D = struct {
     ///     C * S = 0 => C = 0
     ///     C * O + D = 1 => D = 1
     pub fn inverted(
-        self: @This()
+        self: @This(),
     ) AffineTransform1D
     {
         // @QUESTION: should this do a check for 0 scale?  That could make
@@ -95,7 +97,7 @@ pub const AffineTransform1D = struct {
         // }
 
         return .{
-            .offset_seconds = -self.offset_seconds/self.scale,
+            .offset = -self.offset/self.scale,
             .scale = 1/self.scale,
         };
     }
@@ -111,7 +113,7 @@ pub const AffineTransform1D = struct {
         try writer.print(
             "Aff1D{{ offset: {d} scale: {d} }}",
             .{
-                self.offset_seconds,
+                self.offset,
                 self.scale,
             }
         );
@@ -119,7 +121,7 @@ pub const AffineTransform1D = struct {
 };
 
 pub const IDENTITY_TRANSFORM = AffineTransform1D{
-    .offset_seconds = 0,
+    .offset = 0,
     .scale = 1,
 };
 
@@ -131,13 +133,13 @@ test "AffineTransform1D: offset test"
     };
 
     const xform = AffineTransform1D {
-        .offset_seconds = 10,
+        .offset = 10,
         .scale = 1,
     };
 
-    const result: ContinuousTimeInterval = xform.applied_to_cti(cti);
+    const result: ContinuousTimeInterval = xform.applied_to_interval(cti);
     
-    try expectEqual(
+    try std.testing.expectEqual(
         ContinuousTimeInterval {
             .start_seconds = 20,
             .end_seconds = 30
@@ -145,22 +147,22 @@ test "AffineTransform1D: offset test"
         result
     );
 
-    try expectEqual(
+    try std.testing.expectEqual(
         10,
         result.duration_seconds()
     );
 
-    try expectEqual(
+    try std.testing.expectEqual(
         cti.duration_seconds(),
         result.duration_seconds()
     );
 
     const result_xform = xform.applied_to_transform(xform);
 
-    try expectEqual(
+    try std.testing.expectEqual(
         result_xform,
         AffineTransform1D{
-            .offset_seconds = 20,
+            .offset = 20,
             .scale = 1
         }
     );
@@ -174,40 +176,40 @@ test "AffineTransform1D: scale test"
     };
 
     const xform = AffineTransform1D {
-        .offset_seconds = 10,
+        .offset = 10,
         .scale = 2,
     };
 
-    const result = xform.applied_to_cti(cti);
+    const result = xform.applied_to_interval(cti);
 
-    try expectEqual(
+    try std.testing.expectEqual(
         ContinuousTimeInterval {
             .start_seconds = 30,
-            .end_seconds = 50
+            .end_seconds = 50,
         },
         result
     );
 
-    try expectEqual(
+    try std.testing.expectEqual(
         result.duration_seconds(),
-        cti.duration_seconds() * xform.scale
+        cti.duration_seconds() * xform.scale,
     );
 
     const result_xform = xform.applied_to_transform(xform);
 
-    try expectEqual(
+    try std.testing.expectEqual(
         AffineTransform1D {
-            .offset_seconds = 30,
+            .offset = 30,
             .scale = 4,
         },
-        result_xform
+        result_xform,
     );
 }
 
 test "AffineTransform1D: invert test" 
 {
     const xform = AffineTransform1D {
-        .offset_seconds = 10,
+        .offset = 10,
         .scale = 2,
     };
 
@@ -215,27 +217,27 @@ test "AffineTransform1D: invert test"
         xform.inverted()
     );
 
-    try expectEqual(0, identity.offset_seconds);
-    try expectEqual(1, identity.scale);
+    try std.testing.expectEqual(0, identity.offset);
+    try std.testing.expectEqual(1, identity.scale);
 
-    const pt:f32 = 10;
+    const pt:ordinate.Ordinate = 10;
 
-    const result = xform.inverted().applied_to_seconds(
-        xform.applied_to_seconds(pt)
+    const result = xform.inverted().applied_to_ordinate(
+        xform.applied_to_ordinate(pt)
     );
 
-    try expectEqual(pt, result);
+    try std.testing.expectEqual(pt, result);
 }
 
 test "AffineTransform1D: applied_to_bounds" 
 {
     const xform = AffineTransform1D {
-        .offset_seconds = 10,
+        .offset = 10,
         .scale = -1,
     };
     const bounds = ContinuousTimeInterval{
         .start_seconds = 10,
-        .end_seconds = 20
+        .end_seconds = 20,
     };
     const result = xform.applied_to_bounds(bounds);
 
