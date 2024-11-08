@@ -1351,23 +1351,23 @@ test "Topology: join (slides)"
     try std.testing.expectApproxEqAbs(
         1,
         a2c.input_bounds().start,
-        opentime.util.EPSILON,
+        opentime.EPSILON_ORD,
     );
     try std.testing.expectApproxEqAbs(
         5,
         a2c.input_bounds().end,
-        opentime.util.EPSILON,
+        opentime.EPSILON_ORD,
     );
     try std.testing.expectApproxEqAbs(
         // 0.123208,
         0,
         a2c.output_bounds().start,
-        opentime.util.EPSILON,
+        opentime.EPSILON_ORD,
     );
     try std.testing.expectApproxEqAbs(
         3.999999995,
         a2c.output_bounds().end,
-        opentime.util.EPSILON,
+        opentime.EPSILON_ORD,
     );
 }
 
@@ -1866,7 +1866,7 @@ test "Topology: project_instantaneous_cc and project_instantaneous_cc_inv"
             try std.testing.expectApproxEqAbs(
                 pt.out,
                 measured_out.SuccessOrdinate,
-                opentime.util.EPSILON,
+                opentime.EPSILON_ORD,
             );
         }
 

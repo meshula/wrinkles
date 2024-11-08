@@ -20,8 +20,6 @@ const curve = @import("curve");
 const topology_m = @import("topology");
 const string = @import("string_stuff");
 
-const util = opentime.util;
-
 const treecode = @import("treecode");
 const sampling = @import("sampling");
 
@@ -932,7 +930,7 @@ pub const Track = struct {
             .{
                 .input_bounds_val = .{
                     .start = child_duration,
-                    .end = util.inf
+                    .end = opentime.INF_ORD,
                 },
                 .input_to_output_xform = .{
                     .offset = -child_duration,
@@ -2286,7 +2284,7 @@ pub const ProjectionOperatorMap = struct {
                     f32,
                     t_next_self,
                     t_next_other,
-                    util.EPSILON
+                    opentime.EPSILON_ORD
                 )
             )
             {
@@ -2637,36 +2635,36 @@ test "ProjectionOperatorMap: clip"
     try expectApproxEqAbs(
         known_input_bounds.start,
         guess_input_bounds.start,
-        util.EPSILON
+        opentime.EPSILON_ORD
     );
     try expectApproxEqAbs(
         known_input_bounds.end,
         guess_input_bounds.end,
-        util.EPSILON
+        opentime.EPSILON_ORD
     );
 
     // end points match topology
     try expectApproxEqAbs(
         cl_presentation_pmap.end_points[0],
         guess_input_bounds.start,
-        util.EPSILON
+        opentime.EPSILON_ORD
     );
     try expectApproxEqAbs(
         cl_presentation_pmap.end_points[1],
         guess_input_bounds.end,
-        util.EPSILON
+        opentime.EPSILON_ORD
     );
 
     // known input bounds matches end point
     try expectApproxEqAbs(
         known_input_bounds.start,
         cl_presentation_pmap.end_points[0],
-        util.EPSILON
+        opentime.EPSILON_ORD
     );
     try expectApproxEqAbs(
         known_input_bounds.end,
         cl_presentation_pmap.end_points[1],
-        util.EPSILON
+        opentime.EPSILON_ORD
     );
 }
 
@@ -2738,36 +2736,36 @@ test "ProjectionOperatorMap: track with single clip"
         try expectApproxEqAbs(
             known_input_bounds.start,
             guess_input_bounds.start,
-            util.EPSILON
+            opentime.EPSILON_ORD
         );
         try expectApproxEqAbs(
             known_input_bounds.end,
             guess_input_bounds.end,
-            util.EPSILON
+            opentime.EPSILON_ORD
         );
 
         // end points match topology
         try expectApproxEqAbs(
             projection_operator_map.end_points[0],
             guess_input_bounds.start,
-            util.EPSILON
+            opentime.EPSILON_ORD
         );
         try expectApproxEqAbs(
             projection_operator_map.end_points[1],
             guess_input_bounds.end,
-            util.EPSILON
+            opentime.EPSILON_ORD
         );
 
         // known input bounds matches end point
         try expectApproxEqAbs(
             known_input_bounds.start,
             projection_operator_map.end_points[0],
-            util.EPSILON
+            opentime.EPSILON_ORD
         );
         try expectApproxEqAbs(
             known_input_bounds.end,
             projection_operator_map.end_points[1],
-            util.EPSILON
+            opentime.EPSILON_ORD
         );
     }
 }
@@ -2960,24 +2958,24 @@ test "ProjectionOperatorMap: track with two clips"
     try expectApproxEqAbs(
         known_input_bounds.start,
         guess_input_bounds.start,
-        util.EPSILON
+        opentime.EPSILON_ORD
     );
     try expectApproxEqAbs(
         known_input_bounds.end,
         guess_input_bounds.end,
-        util.EPSILON
+        opentime.EPSILON_ORD
     );
 
     // end points match topology
     try expectApproxEqAbs(
         8.0,
         guess_input_bounds.start,
-        util.EPSILON
+        opentime.EPSILON_ORD
     );
     try expectApproxEqAbs(
         16,
         guess_input_bounds.end,
-        util.EPSILON
+        opentime.EPSILON_ORD
     );
 }
 
@@ -3053,24 +3051,24 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
     try expectApproxEqAbs(
         known_input_bounds.start,
         guess_input_bounds.start,
-        util.EPSILON
+        opentime.EPSILON_ORD
     );
     try expectApproxEqAbs(
         known_input_bounds.end,
         guess_input_bounds.end,
-        util.EPSILON
+        opentime.EPSILON_ORD
     );
 
     // end points match topology
     try expectApproxEqAbs(
         13,
         guess_input_bounds.start,
-        util.EPSILON
+        opentime.EPSILON_ORD
     );
     try expectApproxEqAbs(
         21,
         guess_input_bounds.end,
-        util.EPSILON
+        opentime.EPSILON_ORD
     );
 }
 
@@ -3363,13 +3361,13 @@ test "clip topology construction"
     try expectApproxEqAbs(
         start,
         topo.input_bounds().start,
-        util.EPSILON,
+        opentime.EPSILON_ORD,
     );
 
     try expectApproxEqAbs(
         end,
         topo.input_bounds().end,
-        util.EPSILON,
+        opentime.EPSILON_ORD,
     );
 }
 
@@ -3397,13 +3395,13 @@ test "track topology construction"
     try expectApproxEqAbs(
         start,
         topo.input_bounds().start,
-        util.EPSILON,
+        opentime.EPSILON_ORD,
     );
 
     try expectApproxEqAbs(
         end,
         topo.input_bounds().end,
-        util.EPSILON,
+        opentime.EPSILON_ORD,
     );
 }
 
@@ -3630,20 +3628,20 @@ test "Track with clip with identity transform projection"
     try expectApproxEqAbs(
         @as(f32, 0),
         track_to_clip.src_to_dst_topo.input_bounds().start,
-        util.EPSILON,
+        opentime.EPSILON_ORD,
     );
 
     try expectApproxEqAbs(
         end - start,
         track_to_clip.src_to_dst_topo.input_bounds().end,
-        util.EPSILON,
+        opentime.EPSILON_ORD,
     );
 
     // check the projection
     try expectApproxEqAbs(
         @as(f32, 4),
         try track_to_clip.project_instantaneous_cc(3).ordinate(),
-        util.EPSILON,
+        opentime.EPSILON_ORD,
     );
 }
 
@@ -3739,7 +3737,7 @@ test "TopologicalMap: Track with clip with identity transform topological"
     try expectApproxEqAbs(
         1,
         try root_presentation_to_clip_media.project_instantaneous_cc(1).ordinate(),
-        util.EPSILON,
+        opentime.EPSILON_ORD,
     );
 }
 
@@ -3796,13 +3794,13 @@ test "Projection: Track with single clip with identity transform and bounds"
     try expectApproxEqAbs(
         expected_media_temporal_bounds.start,
         actual_media_temporal_bounds.start,
-        util.EPSILON,
+        opentime.EPSILON_ORD,
     );
 
     try expectApproxEqAbs(
         expected_media_temporal_bounds.end,
         actual_media_temporal_bounds.end,
-        util.EPSILON,
+        opentime.EPSILON_ORD,
     );
 
     try expectError(
@@ -3937,7 +3935,7 @@ test "Projection: Track with multiple clips with identity transform and bounds"
         else{
             const result = try tr_presentation_to_clip_media.project_instantaneous_cc(t.track_ord).ordinate();
 
-            try expectApproxEqAbs(result, t.expected_ord, util.EPSILON);
+            try expectApproxEqAbs(result, t.expected_ord, opentime.EPSILON_ORD);
         }
     }
 
@@ -3963,13 +3961,13 @@ test "Projection: Track with multiple clips with identity transform and bounds"
     try expectApproxEqAbs(
         expected_range.start,
         actual_range.start,
-        util.EPSILON,
+        opentime.EPSILON_ORD,
     );
 
     try expectApproxEqAbs(
         expected_range.end,
         actual_range.end,
-        util.EPSILON,
+        opentime.EPSILON_ORD,
     );
 
     try expectError(
@@ -4026,11 +4024,11 @@ test "Single Clip bezier transform"
     const curve_bounds_input = curve_topo.input_bounds();
     try expectApproxEqAbs(
         @as(f32, 0),
-        curve_bounds_input.start, util.EPSILON
+        curve_bounds_input.start, opentime.EPSILON_ORD
     );
     try expectApproxEqAbs(
         @as(f32, 10),
-        curve_bounds_input.end, util.EPSILON
+        curve_bounds_input.end, opentime.EPSILON_ORD
     );
 
     // test the output space range (the media space of the clip)
@@ -4039,11 +4037,11 @@ test "Single Clip bezier transform"
     );
     try expectApproxEqAbs(
         @as(f32, 0),
-        curve_bounds_output.start, util.EPSILON
+        curve_bounds_output.start, opentime.EPSILON_ORD
     );
     try expectApproxEqAbs(
         @as(f32, 10),
-        curve_bounds_output.end, util.EPSILON
+        curve_bounds_output.end, opentime.EPSILON_ORD
     );
 
     try std.testing.expect(curve_topo.mappings.len > 0);
@@ -4090,12 +4088,12 @@ test "Single Clip bezier transform"
         try expectApproxEqAbs(
             curve_bounds_output.start, 
             input_bounds.start,
-            util.EPSILON
+            opentime.EPSILON_ORD
         );
         try expectApproxEqAbs(
             curve_bounds_output.end, 
             input_bounds.end,
-            util.EPSILON
+            opentime.EPSILON_ORD
         );
 
         // invert it back and check it against the inpout curve bounds
@@ -4121,11 +4119,11 @@ test "Single Clip bezier transform"
             );
             try expectApproxEqAbs(
                 @as(f32, 100),
-                clip_media_to_presentation_input_bounds.start, util.EPSILON
+                clip_media_to_presentation_input_bounds.start, opentime.EPSILON_ORD
             );
             try expectApproxEqAbs(
                 @as(f32, 110),
-                clip_media_to_presentation_input_bounds.end, util.EPSILON
+                clip_media_to_presentation_input_bounds.end, opentime.EPSILON_ORD
             );
 
             try std.testing.expect(
@@ -4180,7 +4178,7 @@ test "Single Clip bezier transform"
                 try expectApproxEqAbs(
                     computed_output_time,
                     output_time,
-                    util.EPSILON
+                    opentime.EPSILON_ORD
                 );
             }
         }
@@ -4204,7 +4202,7 @@ test "Single Clip bezier transform"
             try clip_media_to_presentation.project_instantaneous_cc(
                 107
             ).ordinate(),
-            util.EPSILON,
+            opentime.EPSILON_ORD,
         );
     }
 }
@@ -4509,7 +4507,7 @@ test "otio projection: track with single clip"
         try expectApproxEqAbs(
             4.5,
             try track_to_media.project_instantaneous_cc(3.5).ordinate(),
-            util.EPSILON,
+            opentime.EPSILON_ORD,
         );
 
         // for discrete non-interpolated data sources, allow projection to a
@@ -4564,13 +4562,13 @@ test "otio projection: track with single clip"
             try std.testing.expectApproxEqAbs(
                 4.5,
                 b.start,
-                util.EPSILON,
+                opentime.EPSILON_ORD,
             );
 
             try std.testing.expectApproxEqAbs(
                 5.5,
                 b.end,
-                util.EPSILON,
+                opentime.EPSILON_ORD,
             );
         }
 
@@ -4726,7 +4724,7 @@ test "otio projection: track with single clip with transform"
             // (3.5*2 + 1),
             8,
             try track_to_media.project_instantaneous_cc(3.5).ordinate(),
-            util.EPSILON,
+            opentime.EPSILON_ORD,
         );
 
         // for discrete non-interpolated data sources, allow projection to a
@@ -4781,14 +4779,14 @@ test "otio projection: track with single clip with transform"
             try std.testing.expectApproxEqAbs(
                 8,
                 b.start,
-                util.EPSILON,
+                opentime.EPSILON_ORD,
             );
 
             try std.testing.expectApproxEqAbs(
                 // (4.5 * 2 + 1)
                 10,
                 b.end,
-                util.EPSILON,
+                opentime.EPSILON_ORD,
             );
         }
 
@@ -5595,13 +5593,13 @@ test "Single clip, Warp bulk"
             try expectApproxEqAbs(
                 start.in,
                 input_bounds.start,
-                util.EPSILON,
+                opentime.EPSILON_ORD,
             );
 
             try expectApproxEqAbs(
                 end.in,
                 input_bounds.end,
-                util.EPSILON,
+                opentime.EPSILON_ORD,
             );
 
             try expectApproxEqAbs(
@@ -5609,7 +5607,7 @@ test "Single clip, Warp bulk"
                 try warp_pres_to_media_topo.project_instantaneous_cc(
                     t.presentation_test,
                 ).ordinate(),
-                util.EPSILON,
+                opentime.EPSILON_ORD,
             );
         }
 
@@ -5633,7 +5631,7 @@ test "Single clip, Warp bulk"
                     try clip_media_to_presentation.project_instantaneous_cc(
                         t.clip_media_test,
                     ).ordinate(),
-                    util.EPSILON,
+                    opentime.EPSILON_ORD,
                 );
             }
             else 

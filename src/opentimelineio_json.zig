@@ -1,7 +1,6 @@
 const std = @import("std");
 const expectApproxEqAbs= std.testing.expectApproxEqAbs;
 const expectEqual = std.testing.expectEqual;
-const util = opentime.util;
 
 const otio  = @import("opentimelineio.zig");
 const opentime = @import("opentime");
@@ -409,6 +408,6 @@ test "read_from_file test"
     try expectApproxEqAbs(
         @as(opentime.Ordinate, 0.175),
         try tl_output_to_clip_media.project_instantaneous_cc(0.05).ordinate(),
-        util.EPSILON
+        opentime.EPSILON_ORD
     );
 }
