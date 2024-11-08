@@ -226,58 +226,28 @@ test "ContinuousInterval: any_overlap"
     };
     const tests = [_]TestStruct{
         .{ 
-            .fst = .{
-                .start = 0,
-                .end = 10,
-            },
-            .snd = .{
-                .start = 8,
-                .end = 12,
-            },
+            .fst = .{ .start = 0, .end = 10, },
+            .snd = .{ .start = 8, .end = 12, },
             .res = true,
         },
         .{ 
-            .fst = .{
-                .start = 0,
-                .end = 10,
-            },
-            .snd = .{
-                .start = -2,
-                .end = 9,
-            },
+            .fst = .{ .start = 0, .end = 10, },
+            .snd = .{ .start = -2, .end = 9, },
             .res = true,
         },
         .{ 
-            .fst = .{
-                .start = 0,
-                .end = 10,
-            },
-            .snd = .{
-                .start = -2,
-                .end = 12,
-            },
+            .fst = .{ .start = 0, .end = 10, },
+            .snd = .{ .start = -2, .end = 12, },
             .res = true,
         },
         .{ 
-            .fst = .{
-                .start = 0,
-                .end = 4,
-            },
-            .snd = .{
-                .start = 5,
-                .end = 12,
-            },
+            .fst = .{ .start = 0, .end = 4, },
+            .snd = .{ .start = 5, .end = 12, },
             .res = false,
         },
         .{ 
-            .fst = .{
-                .start = 0,
-                .end = 4,
-            },
-            .snd = .{
-                .start = -2,
-                .end = 0,
-            },
+            .fst = .{ .start = 0, .end = 4, },
+            .snd = .{ .start = -2, .end = 0, },
             .res = false,
         },
     };
