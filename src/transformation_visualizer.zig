@@ -31,7 +31,7 @@ pub fn plot_mapping(
     const input_bounds_ord = map.input_bounds();
     var input_bounds : [2]f64 = .{
         @floatCast(input_bounds_ord.start_ordinate),
-        @floatCast(input_bounds_ord.end_seconds),
+        @floatCast(input_bounds_ord.end_ordinate),
     };
 
     const plot_limits = zgui.plot.getPlotLimits(
@@ -42,7 +42,7 @@ pub fn plot_mapping(
     if (input_bounds_ord.start_ordinate == std.math.inf(opentime.Ordinate)) {
         input_bounds[0] = plot_limits.x[0];
     }
-    if (input_bounds_ord.end_seconds == std.math.inf(opentime.Ordinate)) {
+    if (input_bounds_ord.end_ordinate == std.math.inf(opentime.Ordinate)) {
         input_bounds[1] = plot_limits.x[1];
     }
 
@@ -189,7 +189,7 @@ const SpaceUI = struct {
                     .x1, 
                     .{
                         .min = input_limits.start_ordinate,
-                        .max = input_limits.end_seconds,
+                        .max = input_limits.end_ordinate,
                     },
                 );
 
@@ -198,7 +198,7 @@ const SpaceUI = struct {
                     .y1, 
                     .{
                         .min = output_limits.start_ordinate,
-                        .max = output_limits.end_seconds,
+                        .max = output_limits.end_ordinate,
                     },
                 );
 

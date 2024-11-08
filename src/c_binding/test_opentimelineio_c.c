@@ -68,15 +68,19 @@ print_tree(
 
                 if (di_space != -1) 
                 {
-                    size_t discrete_start = otio_fetch_continuous_ordinate_to_discrete_index(
-                        root_ref, 
-                        input_bounds.start_seconds,
-                        di_space
+                    size_t discrete_start =(
+                        otio_fetch_continuous_ordinate_to_discrete_index(
+                            root_ref, 
+                            input_bounds.start_ordinate,
+                            di_space
+                        )
                     );
-                    size_t discrete_end = otio_fetch_continuous_ordinate_to_discrete_index(
-                        root_ref, 
-                        input_bounds.end_seconds,
-                        di_space
+                    size_t discrete_end = (
+                        otio_fetch_continuous_ordinate_to_discrete_index(
+                            root_ref, 
+                            input_bounds.end_seconds,
+                            di_space
+                        )
                     );
 
                     const char* d_space_name = (
@@ -94,7 +98,7 @@ print_tree(
                 } else {
                     PRINTIF(
                             " [%g, %g) ",
-                            input_bounds.start_seconds,
+                            input_bounds.start_ordinate,
                             input_bounds.end_seconds
                     );
                 }
@@ -248,55 +252,57 @@ main(
             {
                 otio_ComposedValueRef dest = otio_po_fetch_destination(po);
 
-                if (!otio_po_fetch_topology(po, &topo)) 
+                // error fetching topology, skip this projection operator
+                if (otio_po_fetch_topology(po, &topo)) {
+                    continue;
+                }
+
+                if (!otio_topo_fetch_output_bounds(topo, &tr)) 
                 {
-                    if (!otio_topo_fetch_output_bounds(topo, &tr)) 
+                    otio_DiscreteDatasourceIndexGenerator di;
+                    otio_SpaceLabel di_space = -1;
+
+                    if (!otio_fetch_discrete_info(dest, otio_sl_media, &di))
                     {
-                        otio_DiscreteDatasourceIndexGenerator di;
-                        otio_SpaceLabel di_space = -1;
-
-                        if (!otio_fetch_discrete_info(dest, otio_sl_media, &di))
+                        di_space = otio_sl_media;
+                        if (di_space != -1) 
                         {
-                            di_space = otio_sl_media;
-                            if (di_space != -1) 
-                            {
-                                size_t discrete_start = (
-                                    otio_fetch_continuous_ordinate_to_discrete_index(
-                                        dest, 
-                                        tr.start_seconds,
-                                        di_space
-                                    )
-                                );
-                                size_t discrete_end = (
-                                    otio_fetch_continuous_ordinate_to_discrete_index(
-                                        dest, 
-                                        tr.end_seconds,
-                                        di_space
-                                    )
-                                );
+                            size_t discrete_start = (
+                                otio_fetch_continuous_ordinate_to_discrete_index(
+                                    dest, 
+                                    tr.start_ordinate,
+                                    di_space
+                                )
+                            );
+                            size_t discrete_end = (
+                                otio_fetch_continuous_ordinate_to_discrete_index(
+                                    dest, 
+                                    tr.end_seconds,
+                                    di_space
+                                )
+                            );
 
-                                PRINTIF(
-                                        "\n                    -> [%lu, %lu) ",
-                                        discrete_start,
-                                        discrete_end
-                                      );
+                            PRINTIF(
+                                    "\n                    -> [%lu, %lu) ",
+                                    discrete_start,
+                                    discrete_end
+                                  );
 
-                                if (di_space == otio_sl_media) 
-                                {
-                                    PRINTIF(
-                                            " | discrete media: %d hz ",
-                                            di.sample_rate_hz 
-                                    );
-                                }
-                            } 
-                            else 
+                            if (di_space == otio_sl_media) 
                             {
                                 PRINTIF(
-                                        "-> [%g, %g) ",
-                                        tr.start_seconds,
-                                        tr.end_seconds
-                                      );
+                                        " | discrete media: %d hz ",
+                                        di.sample_rate_hz 
+                                );
                             }
+                        } 
+                        else 
+                        {
+                            PRINTIF(
+                                    "-> [%g, %g) ",
+                                    tr.start_ordinate,
+                                    tr.end_seconds
+                                  );
                         }
                     }
                 }

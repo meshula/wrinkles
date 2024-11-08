@@ -242,10 +242,10 @@ pub const Topology = struct {
         }
         return .{
             .start_ordinate = self.mappings[0].input_bounds().start_ordinate,
-            .end_seconds = (
+            .end_ordinate = (
                 self.mappings[
                     self.mappings.len - 1
-                ].input_bounds().end_seconds
+                ].input_bounds().end_ordinate
             ),
         };
     }
@@ -304,7 +304,7 @@ pub const Topology = struct {
         for (self.mappings)
             |m|
         {
-            try result.append(m.input_bounds().end_seconds);
+            try result.append(m.input_bounds().end_ordinate);
         }
 
         return try result.toOwnedSlice();
@@ -324,7 +324,7 @@ pub const Topology = struct {
 
         if (
             new_bounds.start_ordinate <= ib.start_ordinate
-            and new_bounds.end_seconds >= ib.end_seconds
+            and new_bounds.end_ordinate >= ib.end_ordinate
         ) 
         {
             return self.clone(allocator);
@@ -334,9 +334,9 @@ pub const Topology = struct {
             new_bounds.start_ordinate,
             ib.start_ordinate,
         );
-        new_bounds.end_seconds = @min(
-            new_bounds.end_seconds,
-            ib.end_seconds,
+        new_bounds.end_ordinate = @min(
+            new_bounds.end_ordinate,
+            ib.end_ordinate,
         );
 
         var maybe_left_map_ind: ?usize = null;
@@ -364,8 +364,8 @@ pub const Topology = struct {
             }
 
             if (
-                left_pt < new_bounds.end_seconds 
-                and right_pt > new_bounds.end_seconds
+                left_pt < new_bounds.end_ordinate 
+                and right_pt > new_bounds.end_ordinate
             )
             {
                 maybe_right_map_ind = left_ind;
@@ -394,7 +394,7 @@ pub const Topology = struct {
             var right_splits = (
                 try left_splits[1].split_at_input_point(
                     allocator,
-                    new_bounds.end_seconds,
+                    new_bounds.end_ordinate,
                 )
             );
             right_splits[1].deinit(allocator);
@@ -452,7 +452,7 @@ pub const Topology = struct {
              const split_mapping_right = (
                  try self.mappings[right_ind].split_at_input_point(
                      allocator,
-                     new_bounds.end_seconds,
+                     new_bounds.end_ordinate,
                  )
              );
              try trimmed_mappings.append(split_mapping_right[0]);
@@ -482,7 +482,7 @@ pub const Topology = struct {
         const ob = self.output_bounds();
         if (
             target_output_range.start_ordinate <= ob.start_ordinate
-            and target_output_range.end_seconds >= ob.end_seconds
+            and target_output_range.end_ordinate >= ob.end_ordinate
         ) {
             return try self.clone(allocator);
         }
@@ -505,7 +505,7 @@ pub const Topology = struct {
                 // nothing to trim
                 if (
                     m_out_range.start_ordinate >= target_output_range.start_ordinate
-                    and m_out_range.end_seconds <= target_output_range.end_seconds
+                    and m_out_range.end_ordinate <= target_output_range.end_ordinate
                 )
                 {
                     // nothing to trim
@@ -535,7 +535,7 @@ pub const Topology = struct {
                          mapping.MappingEmpty{
                              .defined_range = .{
                                  .start_ordinate = m_in_range.start_ordinate,
-                                 .end_seconds = shrunk_input_bounds.start_ordinate,
+                                 .end_ordinate = shrunk_input_bounds.start_ordinate,
                              },
                          }
                         ).mapping(),
@@ -544,7 +544,7 @@ pub const Topology = struct {
 
                 if (
                     shrunk_input_bounds.start_ordinate 
-                    < shrunk_input_bounds.end_seconds
+                    < shrunk_input_bounds.end_ordinate
                 )
                 {
                     // trimmed mapping
@@ -552,7 +552,7 @@ pub const Topology = struct {
                 }
 
                 if (
-                    shrunk_input_bounds.end_seconds < m_in_range.end_seconds
+                    shrunk_input_bounds.end_ordinate < m_in_range.end_ordinate
                     and m_ind < self.mappings.len-1
                 )
                 {
@@ -561,8 +561,8 @@ pub const Topology = struct {
                         (
                          mapping.MappingEmpty{
                              .defined_range = .{
-                                 .start_ordinate = shrunk_input_bounds.end_seconds,
-                                 .end_seconds = m_in_range.end_seconds,
+                                 .start_ordinate = shrunk_input_bounds.end_ordinate,
+                                 .end_ordinate = m_in_range.end_ordinate,
                              },
                          }
                         ).mapping()
@@ -600,7 +600,7 @@ pub const Topology = struct {
 
         if (
             input_points.len == 0
-            or (input_points[0] >= ib.end_seconds)
+            or (input_points[0] >= ib.end_ordinate)
             or (input_points[input_points.len-1] <= ib.start_ordinate)
         ) 
         {
@@ -671,7 +671,7 @@ pub const Topology = struct {
             |m|
         {
             const b = m.output_bounds();
-            for (&[_]opentime.Ordinate{ b.start_ordinate, b.end_seconds })
+            for (&[_]opentime.Ordinate{ b.start_ordinate, b.end_ordinate })
                 |new_point|
             {
                 if (set.get(new_point) == null) {
@@ -738,7 +738,7 @@ pub const Topology = struct {
                         if (
                             m_bounds_out.overlaps_seconds(out_pt)
                             and out_pt > m_bounds_out.start_ordinate
-                            and out_pt < m_bounds_out.end_seconds
+                            and out_pt < m_bounds_out.end_ordinate
                         )
                         {
                             const in_pt = (
@@ -747,7 +747,7 @@ pub const Topology = struct {
 
                             if (
                                 in_pt > m_bounds_in.start_ordinate 
-                                and in_pt < m_bounds_in.end_seconds
+                                and in_pt < m_bounds_in.end_ordinate
                             )
                             {
                                 try input_points_in_bounds.append(in_pt);
@@ -856,7 +856,7 @@ pub const Topology = struct {
         {
             if (
                 m.output_bounds().overlaps_seconds(output_ord)
-                or output_ord == m.output_bounds().end_seconds
+                or output_ord == m.output_bounds().end_ordinate
             )
             {
                 try input_ordinates.append(
@@ -994,11 +994,11 @@ test "Topology trim_in_input_space"
             .name = "no trim",
             .range = .{
                 .start_ordinate = -1,
-                .end_seconds = 11,
+                .end_ordinate = 11,
             },
             .expected = .{
                 .start_ordinate = 0,
-                .end_seconds = 10,
+                .end_ordinate = 10,
             },
             .mapping_count = 1,
         },
@@ -1006,11 +1006,11 @@ test "Topology trim_in_input_space"
             .name = "left",
             .range = .{
                 .start_ordinate = 3,
-                .end_seconds = 11,
+                .end_ordinate = 11,
             },
             .expected = .{
                 .start_ordinate = 3,
-                .end_seconds = 10,
+                .end_ordinate = 10,
             },
             .mapping_count = 1,
         },
@@ -1018,11 +1018,11 @@ test "Topology trim_in_input_space"
             .name = "right trim",
             .range = .{
                 .start_ordinate = -1,
-                .end_seconds = 7,
+                .end_ordinate = 7,
             },
             .expected = .{
                 .start_ordinate = 0,
-                .end_seconds = 7,
+                .end_ordinate = 7,
             },
             .mapping_count = 1,
         },
@@ -1030,11 +1030,11 @@ test "Topology trim_in_input_space"
             .name = "both",
             .range = .{
                 .start_ordinate = 3,
-                .end_seconds = 7,
+                .end_ordinate = 7,
             },
             .expected = .{
                 .start_ordinate = 3,
-                .end_seconds = 7,
+                .end_ordinate = 7,
             },
             .mapping_count = 1,
         },
@@ -1068,8 +1068,8 @@ test "Topology trim_in_input_space"
                 tm.input_bounds().start_ordinate,
             );
             try std.testing.expectEqual(
-                t.expected.end_seconds,
-                tm.input_bounds().end_seconds,
+                t.expected.end_ordinate,
+                tm.input_bounds().end_ordinate,
             );
 
             try std.testing.expectEqual(
@@ -1088,7 +1088,7 @@ test "Topology trim_in_input_space"
             allocator,
             .{ 
                 .start_ordinate = 11,
-                .end_seconds = 13,
+                .end_ordinate = 13,
             },
         );
         defer tm.deinit(allocator);
@@ -1140,7 +1140,7 @@ pub fn join(
             .{
                 .knots = &.{
                     .{ .in = input_range.start_ordinate, .out = output_value },
-                    .{ .in = input_range.end_seconds, .out = output_value },
+                    .{ .in = input_range.end_ordinate, .out = output_value },
                 },
             },
         );
@@ -1218,7 +1218,7 @@ pub fn join(
                 or (
                     a2b_m_ob.is_instant()
                     and b2c_m_ib.start_ordinate <= a2b_m_ob.start_ordinate
-                    and b2c_m_ib.end_seconds >= a2b_m_ob.end_seconds
+                    and b2c_m_ib.end_ordinate >= a2b_m_ob.end_ordinate
                 )
             ) 
             {
@@ -1354,7 +1354,7 @@ test "Topology: join (slides)"
     );
     try std.testing.expectApproxEqAbs(
         5,
-        a2c.input_bounds().end_seconds,
+        a2c.input_bounds().end_ordinate,
         opentime.util.EPSILON,
     );
     try std.testing.expectApproxEqAbs(
@@ -1365,7 +1365,7 @@ test "Topology: join (slides)"
     );
     try std.testing.expectApproxEqAbs(
         3.999999995,
-        a2c.output_bounds().end_seconds,
+        a2c.output_bounds().end_ordinate,
         opentime.util.EPSILON,
     );
 }
@@ -1462,19 +1462,19 @@ fn test_structs(
 const LEFT = test_structs(
     .{
         .start_ordinate = -2,
-        .end_seconds = 2,
+        .end_ordinate = 2,
     }
 );
 const MIDDLE = test_structs(
     .{
         .start_ordinate = 0,
-        .end_seconds = 10,
+        .end_ordinate = 10,
     }
 );
 const RIGHT = test_structs(
     .{
         .start_ordinate = 8,
-        .end_seconds = 12,
+        .end_ordinate = 12,
     }
 );
 
@@ -1492,44 +1492,44 @@ test "Topology: trim_in_output_space"
             .name = "no trim",
             .target = .{
                 .start_ordinate = -1,
-                .end_seconds = 41 
+                .end_ordinate = 41 
             },
             .expected = .{
                 .start_ordinate = 0,
-                .end_seconds = 40,
+                .end_ordinate = 40,
             },
         },
         .{
             .name = "left trim",
             .target = .{
                 .start_ordinate = 3,
-                .end_seconds = 41 
+                .end_ordinate = 41 
             },
             .expected = .{
                 .start_ordinate = 3,
-                .end_seconds = 40,
+                .end_ordinate = 40,
             },
         },
         .{
             .name = "right trim",
             .target = .{
                 .start_ordinate = -1,
-                .end_seconds = 7 
+                .end_ordinate = 7 
             },
             .expected = .{
                 .start_ordinate = 0,
-                .end_seconds = 7,
+                .end_ordinate = 7,
             },
         },
         .{
             .name = "both trim",
             .target = .{
                 .start_ordinate = 3,
-                .end_seconds = 7 
+                .end_ordinate = 7 
             },
             .expected = .{
                 .start_ordinate = 3,
-                .end_seconds = 7,
+                .end_ordinate = 7,
             },
         },
         // all trimmed
@@ -1540,7 +1540,7 @@ test "Topology: trim_in_output_space"
         std.math.isFinite(INPUT_TOPO.output_bounds().start_ordinate)
     );
     try std.testing.expect(
-        std.math.isFinite(INPUT_TOPO.output_bounds().end_seconds)
+        std.math.isFinite(INPUT_TOPO.output_bounds().end_ordinate)
     );
 
     for (tests)
@@ -1585,8 +1585,8 @@ test "Topology: trim_in_output_space"
             trimmed.output_bounds().start_ordinate,
         );
         try std.testing.expectEqual(
-            t.expected.end_seconds,
-            trimmed.output_bounds().end_seconds,
+            t.expected.end_ordinate,
+            trimmed.output_bounds().end_ordinate,
         );
     }
 
@@ -1619,7 +1619,7 @@ test "Topology: trim_in_output_space"
         allocator,
         .{ 
             .start_ordinate = 1,
-            .end_seconds = 8,
+            .end_ordinate = 8,
         }
     );
     defer rf_topo_trimmed.deinit(allocator);
@@ -1633,7 +1633,7 @@ test "Topology: trim_in_output_space"
         );
         try std.testing.expectEqual(
             8,
-            result.end_seconds,
+            result.end_ordinate,
         );
     }
 }
@@ -1668,8 +1668,8 @@ test "Topology: trim_in_output_space (slides)"
         a2b_trimmed.output_bounds().start_ordinate,
     );
     try std.testing.expectEqual(
-        b_range.end_seconds,
-        a2b_trimmed.output_bounds().end_seconds,
+        b_range.end_ordinate,
+        a2b_trimmed.output_bounds().end_ordinate,
     );
 }
 
@@ -1690,7 +1690,7 @@ test "Topology: trim_in_output_space (trim to multiple split bug)"
 
     const a2b_trimmed = try a2b.trim_in_output_space(
         allocator, 
-        .{ .start_ordinate = 0.5, .end_seconds = 1 },
+        .{ .start_ordinate = 0.5, .end_ordinate = 1 },
     );
     defer a2b_trimmed.deinit(allocator);
 
@@ -1708,7 +1708,7 @@ test "Topology: trim_in_output_space (trim to multiple split bug)"
     );
     try std.testing.expectEqual(
         1,
-        a2b_trimmed.mappings[0].input_bounds().end_seconds,
+        a2b_trimmed.mappings[0].input_bounds().end_ordinate,
     );
 }
 
@@ -1783,7 +1783,7 @@ test "Topology: output_bounds w/ empty"
              mapping.MappingEmpty{
                  .defined_range = .{
                      .start_ordinate = -2,
-                     .end_seconds = 0,
+                     .end_ordinate = 0,
                  },
              }
             ).mapping(),
@@ -1798,8 +1798,8 @@ test "Topology: output_bounds w/ empty"
     );
 
     try std.testing.expectEqual(
-        expected.end_seconds,
-        tm.output_bounds().end_seconds,
+        expected.end_ordinate,
+        tm.output_bounds().end_ordinate,
     );
 }
 
@@ -1899,7 +1899,7 @@ test "Topology: init_affine"
         .{
             .input_bounds_val = .{
                 .start_ordinate = 0, 
-                .end_seconds = 10,
+                .end_ordinate = 10,
             },
             .input_to_output_xform = .{
                 .offset = 12,
@@ -1929,7 +1929,7 @@ test "Topology: join affine with affine"
         .{
             .input_bounds_val = .{
                 .start_ordinate = 0,
-                .end_seconds = 8,
+                .end_ordinate = 8,
             },
             .input_to_output_xform = .{
                 .offset = 1,

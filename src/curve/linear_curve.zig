@@ -77,13 +77,13 @@ pub fn LinearOf(
             ) opentime.interval.ContinuousInterval
             {
                 if (self.knots.len < 1) {
-                    return .{ .start_ordinate = 0, .end_seconds = 0 };
+                    return .{ .start_ordinate = 0, .end_ordinate = 0 };
                 }
                 const fst = self.knots[0].in;
                 const lst = self.knots[self.knots.len-1].in;
                 return .{
                     .start_ordinate = @min(fst, lst),
-                    .end_seconds = @max(fst, lst),
+                    .end_ordinate = @max(fst, lst),
                 };
             }
 
@@ -93,13 +93,13 @@ pub fn LinearOf(
             ) opentime.interval.ContinuousInterval
             {
                 if (self.knots.len == 0) {
-                    return .{ .start_ordinate = 0, .end_seconds = 0 };
+                    return .{ .start_ordinate = 0, .end_ordinate = 0 };
                 }
                 const fst = self.knots[0].out;
                 const lst = self.knots[self.knots.len-1].out;
                 return .{
                     .start_ordinate = @min(fst, lst),
-                    .end_seconds = @max(fst, lst),
+                    .end_ordinate = @max(fst, lst),
                 };
             }
 
@@ -118,7 +118,7 @@ pub fn LinearOf(
                 // out of bounds
                 if (
                     self.knots.len == 0 
-                    or (output_ord > ob.end_seconds)
+                    or (output_ord > ob.end_ordinate)
                     or (output_ord < ob.start_ordinate)
                 )
                 {
@@ -291,7 +291,7 @@ pub fn LinearOf(
                 const current_bounds = self.extents_input();
                 if (
                     current_bounds.start_ordinate >= input_bounds.start_ordinate
-                    and current_bounds.end_seconds <= input_bounds.end_seconds
+                    and current_bounds.end_ordinate <= input_bounds.end_ordinate
                 ) {
                     return try self.clone(allocator);
                 }
@@ -312,11 +312,11 @@ pub fn LinearOf(
                 try result.append(first_point);
 
                 const last_point = if (
-                    input_bounds.end_seconds < ext.end_seconds
+                    input_bounds.end_ordinate < ext.end_ordinate
                 ) ControlPointType{ 
-                    .in = input_bounds.end_seconds,
+                    .in = input_bounds.end_ordinate,
                     .out = try self.output_at_input(
-                        input_bounds.end_seconds
+                        input_bounds.end_ordinate
                     ).ordinate(),
                 } else self.extents()[1];
 
@@ -353,7 +353,7 @@ pub fn LinearOf(
 
                 const ext = self.extents_output();
                 if (
-                    ext.end_seconds < output_bounds.end_seconds
+                    ext.end_ordinate < output_bounds.end_ordinate
                     and ext.start_ordinate > output_bounds.start_ordinate
                 ) {
                     return try self.clone(allocator);
@@ -398,10 +398,10 @@ pub fn LinearOf(
                 try result.append(first_point);
 
                 const last_point = if (
-                    output_bounds.end_seconds < ext.end_seconds
+                    output_bounds.end_ordinate < ext.end_ordinate
                 ) ControlPointType{ 
-                    .in = try self.input_at_output(output_bounds.end_seconds).ordinate(),
-                    .out = output_bounds.end_seconds,
+                    .in = try self.input_at_output(output_bounds.end_ordinate).ordinate(),
+                    .out = output_bounds.end_ordinate,
                 } else knots.items[knots.items.len-1];
 
                 for (knots.items) 
@@ -463,7 +463,7 @@ pub fn LinearOf(
                     // empty
                     input_points.len == 0
                     // out of range
-                    or input_points[0] > ib.end_seconds 
+                    or input_points[0] > ib.end_ordinate 
                     or input_points[input_points.len - 1] < ib.start_ordinate
                 )
                 {
@@ -504,7 +504,7 @@ pub fn LinearOf(
 
                     // points are sorted, so once a point is out of range,
                     // split is done
-                    if (in_pt > ib.end_seconds) {
+                    if (in_pt > ib.end_ordinate) {
                         break;
                     }
 
@@ -739,7 +739,7 @@ test "Linear: extents"
 
     const bounds_input = crv.extents_input();
     try expectEqual(@as(f32, 100), bounds_input.start_ordinate);
-    try expectEqual(@as(f32, 200), bounds_input.end_seconds);
+    try expectEqual(@as(f32, 200), bounds_input.end_ordinate);
 }
 
 test "Linear: proj_ident" 
@@ -1275,33 +1275,33 @@ test "Monotonic Trimmed Input"
             .name = "no trim",
             .target_range = .{
                 .start_ordinate = -1,
-                .end_seconds = 11,
+                .end_ordinate = 11,
             },
             .expected_range = .{
                 .start_ordinate = 0,
-                .end_seconds = 10,
+                .end_ordinate = 10,
             },
         },
         .{
             .name = "left trim",
             .target_range = .{
                 .start_ordinate = 3,
-                .end_seconds = 11,
+                .end_ordinate = 11,
             },
             .expected_range = .{
                 .start_ordinate = 3,
-                .end_seconds = 10,
+                .end_ordinate = 10,
             },
         },
         .{
             .name = "right trim",
             .target_range = .{
                 .start_ordinate = -1,
-                .end_seconds = 8,
+                .end_ordinate = 8,
             },
             .expected_range = .{
                 .start_ordinate = 0,
-                .end_seconds = 8,
+                .end_ordinate = 8,
             },
         },
     };
@@ -1328,8 +1328,8 @@ test "Monotonic Trimmed Input"
             result.extents_input().start_ordinate,
         );
         try std.testing.expectEqual(
-            t.expected_range.end_seconds,
-            result.extents_input().end_seconds,
+            t.expected_range.end_ordinate,
+            result.extents_input().end_ordinate,
         );
     }
 }
@@ -1371,33 +1371,33 @@ test "Monotonic Trimmed Output"
             .name = "no trim",
             .target_range = .{
                 .start_ordinate = -1,
-                .end_seconds = 11,
+                .end_ordinate = 11,
             },
             .expected_range = .{
                 .start_ordinate = 0,
-                .end_seconds = 10,
+                .end_ordinate = 10,
             },
         },
         .{
             .name = "left trim",
             .target_range = .{
                 .start_ordinate = 3,
-                .end_seconds = 11,
+                .end_ordinate = 11,
             },
             .expected_range = .{
                 .start_ordinate = 3,
-                .end_seconds = 10,
+                .end_ordinate = 10,
             },
         },
         .{
             .name = "right trim",
             .target_range = .{
                 .start_ordinate = -1,
-                .end_seconds = 8,
+                .end_ordinate = 8,
             },
             .expected_range = .{
                 .start_ordinate = 0,
-                .end_seconds = 8,
+                .end_ordinate = 8,
             },
         },
     };
@@ -1424,8 +1424,8 @@ test "Monotonic Trimmed Output"
             result.extents_output().start_ordinate,
         );
         try std.testing.expectEqual(
-            t.expected_range.end_seconds,
-            result.extents_output().end_seconds,
+            t.expected_range.end_ordinate,
+            result.extents_output().end_ordinate,
         );
     }
 }
@@ -1463,7 +1463,7 @@ test "Linear.Monotonic.SplitAtCriticalPoints"
         defer lin_crv.deinit(allocator);
         const range = lin_crv.extents_input();
         try std.testing.expectEqual(last, range.start_ordinate);
-        last = range.end_seconds;
+        last = range.end_ordinate;
     }
 }
 

@@ -323,8 +323,8 @@ pub fn test_structs(
             .out = int.start_ordinate,
         };
         pub const END_PT = curve.ControlPoint{
-            .in = int.end_seconds,
-            .out = int.end_seconds * 4,
+            .in = int.end_ordinate,
+            .out = int.end_ordinate * 4,
         };
         pub const CENTER_PT = (
             curve.bezier_math.lerp(0.5, START_PT, END_PT)
@@ -390,19 +390,19 @@ pub fn test_structs(
 pub const LEFT = test_structs(
     .{
         .start_ordinate = -2,
-        .end_seconds = 2,
+        .end_ordinate = 2,
     }
 );
 pub const MIDDLE = test_structs(
     .{
         .start_ordinate = 0,
-        .end_seconds = 10,
+        .end_ordinate = 10,
     }
 );
 pub const RIGHT = test_structs(
     .{
         .start_ordinate = 8,
-        .end_seconds = 12,
+        .end_ordinate = 12,
     }
 );
 
@@ -461,8 +461,8 @@ pub fn join_aff_lin(
                         .out = a2b_output_bounds.start_ordinate,
                     },
                     .{ 
-                        .in = a2b_input_bounds.end_seconds,
-                        .out = a2b_output_bounds.end_seconds,
+                        .in = a2b_input_bounds.end_ordinate,
+                        .out = a2b_output_bounds.end_ordinate,
                     },
                 },
             },
@@ -656,7 +656,7 @@ test "Mapping: join aff/aff"
         MappingAffine{
             .input_bounds_val = .{
                 .start_ordinate = 0,
-                .end_seconds = 8,
+                .end_ordinate = 8,
             },
             .input_to_output_xform = .{
                 .offset = 1,
@@ -685,16 +685,16 @@ test "Mapping: join aff/aff"
         result.input_bounds().start_ordinate,
     );
     try std.testing.expectEqual(
-        aff.input_bounds().end_seconds,
-        result.input_bounds().end_seconds,
+        aff.input_bounds().end_ordinate,
+        result.input_bounds().end_ordinate,
     );
     try std.testing.expectEqual(
         aff.output_bounds().start_ordinate,
         result.output_bounds().start_ordinate,
     );
     try std.testing.expectEqual(
-        aff.output_bounds().end_seconds,
-        result.output_bounds().end_seconds,
+        aff.output_bounds().end_ordinate,
+        result.output_bounds().end_ordinate,
     );
 
     try std.testing.expectEqual(

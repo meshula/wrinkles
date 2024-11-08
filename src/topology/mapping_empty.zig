@@ -66,7 +66,7 @@ pub const MappingEmpty = struct {
         return .{
             .defined_range = .{
                 .start_ordinate = self.defined_range.start_ordinate,
-                .end_seconds = self.defined_range.end_seconds,
+                .end_ordinate = self.defined_range.end_ordinate,
             },
         };
     }
@@ -118,7 +118,7 @@ pub const MappingEmpty = struct {
                 .empty = .{
                     .defined_range = .{
                         .start_ordinate = self.defined_range.start_ordinate,
-                        .end_seconds = pt,
+                        .end_ordinate = pt,
                     },
                 },
             },
@@ -126,7 +126,7 @@ pub const MappingEmpty = struct {
                 .empty = .{
                     .defined_range = .{
                         .start_ordinate = pt,
-                        .end_seconds = self.defined_range.end_seconds,
+                        .end_ordinate = self.defined_range.end_ordinate,
                     },
                 },
             },
@@ -169,7 +169,7 @@ test "MappingEmpty: Bounds"
         MappingEmpty{
             .defined_range = .{
                 .start_ordinate = -2,
-                .end_seconds = 2,
+                .end_ordinate = 2,
             },
         }
     ).mapping();
@@ -181,7 +181,7 @@ test "MappingEmpty: Bounds"
     );
     try std.testing.expectEqual(
         2,
-        i_b.end_seconds
+        i_b.end_ordinate
     );
 
     // returns an infinite output bounds
@@ -192,6 +192,6 @@ test "MappingEmpty: Bounds"
     );
     try std.testing.expectEqual(
         2,
-        o_b.end_seconds
+        o_b.end_ordinate
     );
 }
