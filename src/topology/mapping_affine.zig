@@ -8,7 +8,7 @@ const mapping_mod = @import("mapping.zig");
 /// An affine mapping from intput to output
 pub const MappingAffine = struct {
     /// defaults to an infinite identity
-    input_bounds_val: opentime.ContinuousTimeInterval = opentime.INF_CTI,
+    input_bounds_val: opentime.ContinuousTimeInterval = opentime.INF_INTERVAL,
     input_to_output_xform: opentime.AffineTransform1D = opentime.IDENTITY_TRANSFORM, 
 
     pub fn mapping(
@@ -219,7 +219,7 @@ pub const MappingAffine = struct {
 };
 pub const INFINITE_IDENTITY = (
     MappingAffine{
-        .input_bounds_val = opentime.INF_CTI,
+        .input_bounds_val = opentime.INF_INTERVAL,
         .input_to_output_xform = opentime.IDENTITY_TRANSFORM,
     }
 ).mapping();

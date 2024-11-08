@@ -16,7 +16,7 @@ pub const Ordinate = ordinate.Ordinate;
 // interval @{
 pub const interval = @import("interval.zig");
 pub const ContinuousTimeInterval = interval.ContinuousInterval;
-pub const INF_CTI = interval.INFINITE_INTERVAL;
+pub const INF_INTERVAL = interval.INFINITE_INTERVAL;
 // @}
 
 // transform @{

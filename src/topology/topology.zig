@@ -283,7 +283,7 @@ pub const Topology = struct {
             }
         }
 
-        return bounds orelse opentime.INF_CTI;
+        return bounds orelse opentime.INF_INTERVAL;
     }
 
     pub fn end_points_input(

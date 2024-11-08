@@ -135,7 +135,7 @@ pub const MappingEmpty = struct {
 };
 
 pub const EMPTY_INF = MappingEmpty{
-    .defined_range = opentime.INF_CTI,
+    .defined_range = opentime.INF_INTERVAL,
 };
 
 test "MappingEmpty: instantiate and convert"
