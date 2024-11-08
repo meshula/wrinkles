@@ -1,8 +1,6 @@
 //! Continuous Interval definition/Implementation
 
 const std = @import("std"); 
-const expectEqual = std.testing.expectEqual;
-const expect = std.testing.expect;
 
 const util = @import("util.zig"); 
 const ordinate = @import("ordinate.zig"); 
@@ -115,15 +113,15 @@ test "ContinuousTimeInterval: is_infinite"
 {
     var cti = ContinuousInterval{};
 
-    try expectEqual(true, cti.is_infinite());
+    try std.testing.expectEqual(true, cti.is_infinite());
 
     cti.end_ordinate = 2;
 
-    try expectEqual(false, cti.is_infinite());
+    try std.testing.expectEqual(false, cti.is_infinite());
 
     cti.start_ordinate = util.inf;
 
-    try expectEqual(true, cti.is_infinite());
+    try std.testing.expectEqual(true, cti.is_infinite());
 }
 
 /// return a new interval that spans the duration of both argument intervals
@@ -404,7 +402,7 @@ test "ContinuousTimeInterval Tests"
         .end_ordinate = 20,
     };
 
-    try expectEqual(
+    try std.testing.expectEqual(
         ival,
         ContinuousInterval.from_start_duration_seconds(
             ival.start_ordinate,
@@ -420,11 +418,11 @@ test "ContinuousTimeInterval: Overlap tests"
         .end_ordinate = 20,
     };
 
-    try expect(!ival.overlaps_seconds(0));
-    try expect(ival.overlaps_seconds(10));
-    try expect(ival.overlaps_seconds(15));
-    try expect(!ival.overlaps_seconds(20));
-    try expect(!ival.overlaps_seconds(30));
+    try std.testing.expect(!ival.overlaps_seconds(0));
+    try std.testing.expect(ival.overlaps_seconds(10));
+    try std.testing.expect(ival.overlaps_seconds(15));
+    try std.testing.expect(!ival.overlaps_seconds(20));
+    try std.testing.expect(!ival.overlaps_seconds(30));
 }
 
 test "ContinuousTimeInterval: is_instant"
