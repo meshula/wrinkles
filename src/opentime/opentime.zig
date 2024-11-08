@@ -1,4 +1,10 @@
 //! Exports for the `opentime` library
+//!
+//! The opentime library has tools for dealing with points, intervals and
+//! affine transforms in a continuous 1d metric space.
+//!
+//! It also has some tools for doing dual-arithmetic based implicit
+//! differentiation.
 
 const std = @import("std");
 
@@ -11,10 +17,6 @@ pub const Ordinate = ordinate.Ordinate;
 pub const interval = @import("interval.zig");
 pub const ContinuousTimeInterval = interval.ContinuousInterval;
 pub const INF_CTI = interval.INFINITE_INTERVAL;
-// @}
-
-// Domain @{
-// pub const Domain = @import("domain.zig").Domain;
 // @}
 
 // transform @{
