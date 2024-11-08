@@ -253,7 +253,7 @@ test "libsamplerate w/ high level test -- resample only"
         },
         .media_reference = .{
             .signal_generator = .{
-                .sample_rate_hz = 48000,
+                .index_generator = .{ .sample_rate_hz = 48000, },
                 .signal = .sine,
                 .signal_duration_s = 6.0,
                 .signal_frequency_hz = 200,
@@ -340,7 +340,7 @@ test "libsamplerate w/ high level test -- resample only"
     // result should match the timeline's discrete info
     try std.testing.expectEqual(
         tl.discrete_info.presentation.?.sample_rate_hz,
-        result.sample_rate_hz
+        result.index_generator.sample_rate_hz
     );
 
     try result.write_file_prefix(
@@ -394,7 +394,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
         },
         .media_reference = .{
             .signal_generator = .{
-                .sample_rate_hz = 48000,
+                .index_generator = .{ .sample_rate_hz = 48000, },
                 .signal = .sine,
                 .signal_duration_s = 6.0,
                 .signal_frequency_hz = 200,
@@ -476,7 +476,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
     // result should match the timeline's discrete info
     try std.testing.expectEqual(
         tl.discrete_info.presentation.?.sample_rate_hz,
-        result.sample_rate_hz
+        result.index_generator.sample_rate_hz
     );
 
     const input_p2p = try sampling.peak_to_peak_distance(media.buffer);
@@ -539,7 +539,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
         },
         .media_reference = .{
             .signal_generator = .{
-                .sample_rate_hz = 48000,
+                .index_generator = .{ .sample_rate_hz = 48000, },
                 .signal = .sine,
                 .signal_duration_s = 6.0,
                 .signal_frequency_hz = 200,
@@ -618,7 +618,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     // result should match the timeline's discrete info
     try std.testing.expectEqual(
         tl.discrete_info.presentation.?.sample_rate_hz,
-        result.sample_rate_hz
+        result.index_generator.sample_rate_hz
     );
 
     const input_p2p = try sampling.peak_to_peak_distance(media.buffer);
@@ -706,7 +706,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
         },
         .media_reference = .{
             .signal_generator = .{
-                .sample_rate_hz = 48000,
+                .index_generator = .{ .sample_rate_hz = 48000, },
                 .signal = .sine,
                 .signal_duration_s = 6.0,
                 .signal_frequency_hz = 200,
@@ -830,7 +830,7 @@ test "timeline w/ warp that holds the tenth frame"
         },
         .media_reference = .{
             .signal_generator = .{
-                .sample_rate_hz = 24,
+                .index_generator = .{ .sample_rate_hz = 24, },
                 .signal = .sine,
                 .signal_duration_s = 6.0,
                 .signal_frequency_hz = 24,

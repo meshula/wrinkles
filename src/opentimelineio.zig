@@ -5380,7 +5380,9 @@ test "test debug_print_time_hierarchy"
         },
         .media_reference = .{
             .signal_generator = .{
-                .sample_rate_hz = 24,
+                .index_generator = .{
+                    .sample_rate_hz = 24, 
+                },
                 .signal = .sine,
                 .signal_duration_s = 6.0,
                 .signal_frequency_hz = 24,

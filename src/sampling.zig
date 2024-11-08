@@ -109,13 +109,13 @@ test "sampling: project_index_dc"
 const Sampling = struct {
     allocator: std.mem.Allocator,
     buffer: []sample_value_t,
-    sample_rate_hz: u32,
+    index_generator: SignalIndexGenerator,
     interpolating: bool,
 
     pub fn init(
         allocator: std.mem.Allocator,
         count:usize,
-        sample_rate_hz: u32,
+        index_generator: SignalIndexGenerator,
         interpolating: bool,
     ) !Sampling
     {
@@ -124,7 +124,7 @@ const Sampling = struct {
         return .{
             .allocator = allocator,
             .buffer = buffer,
-            .sample_rate_hz = sample_rate_hz,
+            .index_generator = index_generator,
             .interpolating = interpolating,
         };
     }
@@ -152,7 +152,7 @@ const Sampling = struct {
             i16,
             file.writer(),
             file.seekableStream(),
-            self.sample_rate_hz,
+            self.index_generator.sample_rate_hz,
             1,
         );
         defer encoder.finalize() catch unreachable; 
@@ -183,7 +183,7 @@ const Sampling = struct {
                     parent_signal.signal_amplitude,
                     parent_signal.signal_duration_s,
                     parent_signal.signal_frequency_hz,
-                    self.sample_rate_hz,
+                    self.index_generator.sample_rate_hz,
                 }
             )
         else 
@@ -193,24 +193,13 @@ const Sampling = struct {
                 .{
                     dirname,
                     prefix,
-                    self.sample_rate_hz,
+                    self.index_generator.sample_rate_hz,
                 }
             )
         );
         defer allocator.free(name);
 
         return self.write_file(name);
-    }
-
-    /// fetch the sample index corresponding to the continuous ordinate
-    pub fn index_at_ordinate(
-        self: @This(),
-        continuous_ord: sample_ordinate_t,
-    ) usize
-    {
-        const hz_f:sample_ordinate_t = @floatFromInt(self.sample_rate_hz);
-
-        return @intFromFloat(@floor(continuous_ord*hz_f + (0.5 / hz_f)));
     }
 
     /// fetch the value of the buffer at the provided ordinate
@@ -231,8 +220,12 @@ const Sampling = struct {
         input_interval: opentime.ContinuousInterval,
     ) [2]usize
     {
-        const start_index:usize = self.index_at_ordinate(input_interval.start);
-        const end_index:usize = self.index_at_ordinate(input_interval.end);
+        const start_index = self.index_generator.index_at_ordinate(
+            input_interval.start
+        );
+        const end_index = self.index_generator.index_at_ordinate(
+            input_interval.end
+        );
 
         return .{ start_index, end_index };
     }
@@ -258,10 +251,7 @@ const Sampling = struct {
     {
         return .{
             .start = 0,
-            .end = (
-                @as(sample_ordinate_t, @floatFromInt(self.buffer.len)) 
-                / @as(sample_ordinate_t, @floatFromInt(self.sample_rate_hz))
-            ),
+            .end = self.index_generator.ordinate_at_index(self.buffer.len),
         };
     }
 };
@@ -269,7 +259,7 @@ const Sampling = struct {
 test "sampling: samples_overlapping_interval" 
 {
     const sine_signal_48khz = SignalGenerator{
-        .sample_rate_hz = 48000,
+        .index_generator = .{ .sample_rate_hz = 48000 },
         .signal_frequency_hz = 100,
         .signal_amplitude = 1,
         .signal_duration_s = 1,
@@ -286,7 +276,7 @@ test "sampling: samples_overlapping_interval"
     );
 
     try std.testing.expectEqual(
-        sine_signal_48khz.sample_rate_hz/2,
+        sine_signal_48khz.index_generator.sample_rate_hz/2,
         first_half_samples.len,
     );
 }
@@ -295,6 +285,27 @@ test "sampling: samples_overlapping_interval"
 pub const SignalIndexGenerator = struct {
     sample_rate_hz: u32,
     start_index: usize = 0,
+
+    pub fn index_at_ordinate(
+        self: @This(),
+        continuous_ord: sample_ordinate_t,
+    ) sample_index_t
+    {
+        const hz_f:sample_ordinate_t = @floatFromInt(self.sample_rate_hz);
+
+        return @intFromFloat(@floor(continuous_ord*hz_f + (0.5 / hz_f)));
+    }
+
+    pub fn ordinate_at_index(
+        self: @This(),
+        index: sample_index_t,
+    ) sample_ordinate_t
+    {
+        return (
+            @as(sample_ordinate_t, @floatFromInt(index)) 
+            / @as(sample_ordinate_t, @floatFromInt(self.sample_rate_hz))
+        );
+    }
 
     // @TODO: make sure that this is used, probably also add some xform
     //        functions?
@@ -346,7 +357,7 @@ pub const SignalIndexGenerator = struct {
 
 /// compact representation of a signal, can be rasterized into a buffer
 pub const SignalGenerator = struct {
-    sample_rate_hz: u32,
+    index_generator: SignalIndexGenerator,
     signal_frequency_hz: u32,
     signal_amplitude: sample_value_t = 1.0,
     signal_duration_s: sample_ordinate_t,
@@ -364,7 +375,9 @@ pub const SignalGenerator = struct {
         interpolating_samples: bool,
     ) !Sampling
     {
-        const sample_hz : sample_ordinate_t = @floatFromInt(self.sample_rate_hz);
+        const sample_hz : sample_ordinate_t = @floatFromInt(
+            self.index_generator.sample_rate_hz
+        );
 
         const samples_per_cycle = (
             sample_hz
@@ -376,7 +389,7 @@ pub const SignalGenerator = struct {
             // signal_duration_s is promoted to an f64 for precision in the
             // loop boundary
             @intFromFloat(@ceil(@as(f64, self.signal_duration_s)*sample_hz)),
-            self.sample_rate_hz,
+            self.index_generator,
             interpolating_samples,
         );
 
@@ -421,7 +434,7 @@ pub const SignalGenerator = struct {
 test "sampling: rasterizing the sine" 
 {
     const sine_signal_48khz = SignalGenerator{
-        .sample_rate_hz = 48000,
+        .index_generator = .{ .sample_rate_hz = 48000 },
         .signal_frequency_hz = 100,
         .signal_amplitude = 1,
         .signal_duration_s = 1,
@@ -482,7 +495,7 @@ pub fn peak_to_peak_distance(
 test "sampling: peak_to_peak_distance: sine/48khz sample/100hz signal"
 {
         const sine_signal_48khz_100 = SignalGenerator{
-            .sample_rate_hz = 48000,
+            .index_generator = .{ .sample_rate_hz = 48000, },
             .signal_frequency_hz = 100,
             .signal_amplitude = 1,
             .signal_duration_s = 1,
@@ -504,7 +517,7 @@ test "sampling: peak_to_peak_distance: sine/48khz sample/100hz signal"
 test "sampling: peak_to_peak_distance: sine/48khz sample/50hz signal"
 {
     const sine_signal_48khz_50 = SignalGenerator{
-        .sample_rate_hz = 48000,
+        .index_generator = .{ .sample_rate_hz = 48000, },
         .signal_frequency_hz = 50,
         .signal_amplitude = 1,
         .signal_duration_s = 1,
@@ -526,7 +539,7 @@ test "sampling: peak_to_peak_distance: sine/48khz sample/50hz signal"
 test "sampling: peak_to_peak_distance: sine/96khz sample/100hz signal"
 {
     const sine_signal_96_100 = SignalGenerator{
-        .sample_rate_hz = 96000,
+        .index_generator = .{ .sample_rate_hz = 96000, },
         .signal_frequency_hz = 100,
         .signal_amplitude = 1,
         .signal_duration_s = 1,
@@ -567,7 +580,7 @@ pub fn resampled_dd(
 
     const resample_ratio : f64 = (
         @as(f64, @floatFromInt(output_d_sampling_info.sample_rate_hz))
-        / @as(f64, @floatFromInt(input_d_samples.sample_rate_hz))
+        / @as(f64, @floatFromInt(input_d_samples.index_generator.sample_rate_hz))
     );
 
     const num_output_samples: usize = @as(
@@ -583,7 +596,7 @@ pub fn resampled_dd(
     const result = try Sampling.init(
         allocator,
         num_output_samples,
-        output_d_sampling_info.sample_rate_hz,
+        output_d_sampling_info,
         input_d_samples.interpolating,
     );
 
@@ -662,7 +675,7 @@ pub fn transform_resample_dd(
                 const empty_sampling = try Sampling.init(
                     allocator,
                     output_buffer_size,
-                    output_d_sampling_info.sample_rate_hz,
+                    output_d_sampling_info,
                     false,
                 );
                 defer empty_sampling.deinit();
@@ -713,7 +726,7 @@ pub fn transform_resample_dd(
     return .{
         .allocator = allocator,
         .buffer = try output_buffer.toOwnedSlice(),
-        .sample_rate_hz = output_d_sampling_info.sample_rate_hz,
+        .index_generator = output_d_sampling_info,
         .interpolating = input_d_sampling.interpolating,
     };
 }
@@ -861,7 +874,7 @@ pub fn transform_resample_linear_non_interpolating_dd(
     const output_sampling = try Sampling.init(
         allocator,
         output_buffer_size,
-        output_d_sampling_info.sample_rate_hz,
+        output_d_sampling_info,
         false,
     );
     errdefer output_sampling.deinit();
@@ -899,14 +912,8 @@ pub fn transform_resample_linear_non_interpolating_dd(
         );
 
         // input time -> input index (continuous -> discrete)
-        const input_sample_index :usize = @intFromFloat(
-            @floor(
-                input_ord 
-                * @as(
-                    sample_ordinate_t,
-                    @floatFromInt(input_d_samples.sample_rate_hz)
-                )
-            )
+        const input_sample_index = (
+            input_d_samples.index_generator.index_at_ordinate(input_ord)
         );
 
         output_sample.* = input_d_samples.buffer[input_sample_index];
@@ -1099,7 +1106,7 @@ pub fn transform_resample_linear_interpolating_dd(
     return Sampling{
         .allocator = allocator,
         .buffer = full_output_buffer,
-        .sample_rate_hz = output_sampling_info.sample_rate_hz,
+        .index_generator = output_sampling_info,
         .interpolating = true,
     };
 }
@@ -1109,7 +1116,7 @@ pub fn transform_resample_linear_interpolating_dd(
 test "sampling: resample from 48khz to 44" 
 {
     const sine_signal_48kz_100 = SignalGenerator{
-        .sample_rate_hz = 48000,
+        .index_generator = .{ .sample_rate_hz = 48000, },
         .signal_frequency_hz = 100,
         .signal_amplitude = 1,
         .signal_duration_s = 1,
@@ -1165,7 +1172,7 @@ test "sampling: retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
     const allocator = std.testing.allocator;
 
     const samples_48 = SignalGenerator{
-        .sample_rate_hz = 48000,
+        .index_generator = .{ .sample_rate_hz = 48000, },
         .signal_frequency_hz = 100,
         .signal_amplitude = 1,
         .signal_duration_s = 4,
@@ -1227,9 +1234,7 @@ test "sampling: retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
         );
     }
 
-    const output_sampling_info : SignalIndexGenerator = .{
-        .sample_rate_hz = s48.sample_rate_hz,
-    };
+    const output_sampling_info = s48.index_generator;
 
     const input_to_output_cc = try topology.Topology.init_bezier(
         allocator,
@@ -1307,7 +1312,7 @@ test "sampling: retime 48khz samples with a nonlinear acceleration curve and res
     const allocator = std.testing.allocator;
 
     const samples_48 = SignalGenerator{
-        .sample_rate_hz = 48000,
+        .index_generator = .{ .sample_rate_hz = 48000, },
         .signal_frequency_hz = 100,
         .signal_amplitude = 1,
         .signal_duration_s = 4,
@@ -1341,9 +1346,7 @@ test "sampling: retime 48khz samples with a nonlinear acceleration curve and res
         );
     }
 
-    const output_sampling_info : SignalIndexGenerator = .{
-        .sample_rate_hz = s48.sample_rate_hz,
-    };
+    const output_sampling_info = s48.index_generator;
 
     const input_to_output_cc = try topology.Topology.init_bezier(
         allocator,
@@ -1480,7 +1483,7 @@ test "sampling: retime 48khz samples with a nonlinear acceleration curve and res
 test "sampling: frame phase slide 1: (identity) 0,1,2,3->0,1,2,3"
 {
     const ramp_signal = SignalGenerator{
-        .sample_rate_hz = 48000,
+        .index_generator = .{ .sample_rate_hz = 48000, },
         .signal_frequency_hz = 1,
         .signal_duration_s = 2,
         .signal = .ramp,
@@ -1510,7 +1513,7 @@ test "sampling: frame phase slide 1: (identity) 0,1,2,3->0,1,2,3"
 test "sampling: serialize a 24hz ramp to disk, to visualize ramp output" 
 {
     const ramp_signal = SignalGenerator{
-        .sample_rate_hz = 48000,
+        .index_generator = .{ .sample_rate_hz = 48000, },
         .signal_frequency_hz = 24,
         .signal_duration_s = 1,
         .signal = .ramp,
@@ -1535,7 +1538,7 @@ test "sampling: serialize a 24hz ramp to disk, to visualize ramp output"
 test "sampling: frame phase slide 1: (time*1 freq*1 phase+0) 0,1,2,3->0,1,2,3"
 {    
     const ramp_signal = SignalGenerator{
-        .sample_rate_hz = 4,
+        .index_generator = .{ .sample_rate_hz = 4, },
         .signal_frequency_hz = 1,
         .signal_duration_s = 1,
         .signal = .ramp,
@@ -1593,7 +1596,7 @@ test "sampling: frame phase slide 1: (time*1 freq*1 phase+0) 0,1,2,3->0,1,2,3"
 test "sampling: frame phase slide 2: (time*2 bounds*1 freq*1 phase+0) 0,1,2,3->0,0,1,1"
 {
     const ramp_signal = SignalGenerator{
-        .sample_rate_hz = 4,
+        .index_generator = .{ .sample_rate_hz = 4, },
         .signal_frequency_hz = 1,
         .signal_duration_s = 1,
         .signal = .ramp,
@@ -1675,7 +1678,7 @@ test "sampling: frame phase slide 2: (time*2 bounds*1 freq*1 phase+0) 0,1,2,3->0
 test "sampling: frame phase slide 2.5: (time*2 bounds*2 freq*1 phase+0) 0,1,2,3->0,0,1,1,2,2,3,3"
 {
     const ramp_signal = SignalGenerator{
-        .sample_rate_hz = 4,
+        .index_generator = .{ .sample_rate_hz = 4, },
         .signal_frequency_hz = 1,
         .signal_duration_s = 1,
         .signal = .ramp,
@@ -1754,7 +1757,7 @@ test "sampling: frame phase slide 2.5: (time*2 bounds*2 freq*1 phase+0) 0,1,2,3-
 test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(over same duration, but with 2x the hz)"
 {
     const ramp_signal = SignalGenerator{
-        .sample_rate_hz = 4,
+        .index_generator = .{ .sample_rate_hz = 4, },
         .signal_frequency_hz = 1,
         .signal_duration_s = 1,
         .signal = .ramp,
@@ -1847,7 +1850,7 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
     const allocator = std.testing.allocator;
 
     const ramp_signal = SignalGenerator{
-        .sample_rate_hz = 4,
+        .index_generator = .{ .sample_rate_hz = 4, },
         .signal_frequency_hz = 1,
         .signal_duration_s = 1,
         .signal = .ramp,
@@ -1972,7 +1975,7 @@ test "sampling: frame phase slide 5: arbitrary held frames 0,1,2->0,0,0,0,1,1,2,
     const allocator = std.testing.allocator;
 
     const ramp_signal = SignalGenerator{
-        .sample_rate_hz = 4,
+        .index_generator = .{ .sample_rate_hz = 4, },
         .signal_frequency_hz = 1,
         .signal_duration_s = 1,
         .signal = .ramp,
@@ -2100,7 +2103,7 @@ test "sampling: frame phase slide 5: arbitrary held frames 0,1,2->0,0,0,0,1,1,2,
 test "sampling: wav.zig generator test" 
 {
     const samples_48 = SignalGenerator{
-        .sample_rate_hz = 48000,
+        .index_generator = .{ .sample_rate_hz = 48000, },
         .signal_frequency_hz = 100,
         .signal_amplitude = 1,
         .signal_duration_s = 1,
@@ -2124,7 +2127,7 @@ test "sampling: retimed leak test"
     const ramp_samples = Sampling{
         .allocator = std.testing.allocator,
         .interpolating = false,
-        .sample_rate_hz = 4,
+        .index_generator = .{ .sample_rate_hz = 4, },
         .buffer = &buf,
     };
 
