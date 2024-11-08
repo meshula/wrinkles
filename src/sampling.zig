@@ -281,7 +281,7 @@ test "sampling: samples_overlapping_interval"
     );
 }
 
-/// generate indices for frame numbers
+/// generate indices based on a sample rate
 pub const SignalIndexGenerator = struct {
     sample_rate_hz: u32,
     start_index: usize = 0,
@@ -307,8 +307,6 @@ pub const SignalIndexGenerator = struct {
         );
     }
 
-    // @TODO: make sure that this is used, probably also add some xform
-    //        functions?
     pub fn buffer_size_for_length(
         self: @This(),
         length: sample_ordinate_t,
