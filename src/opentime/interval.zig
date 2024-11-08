@@ -37,19 +37,19 @@ pub const ContinuousInterval = struct {
         return self.end - self.start;
     }
 
-    pub fn from_start_duration_seconds(
+    pub fn from_start_duration(
         start: ordinate.Ordinate,
-        in_duration_seconds: ordinate.Ordinate,
+        in_duration: ordinate.Ordinate,
     ) ContinuousInterval
     {
-        if (in_duration_seconds <= 0)
+        if (in_duration <= 0)
         {
             @panic("duration <= 0");
         }
 
         return .{
             .start = start,
-            .end = start + in_duration_seconds
+            .end = start + in_duration
         };
     }
 
@@ -404,7 +404,7 @@ test "ContinuousTimeInterval Tests"
 
     try std.testing.expectEqual(
         ival,
-        ContinuousInterval.from_start_duration_seconds(
+        ContinuousInterval.from_start_duration(
             ival.start,
             ival.duration()
         )
