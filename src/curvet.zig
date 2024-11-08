@@ -2219,7 +2219,7 @@ fn update_with_error(
                                 .{
                                     .min = -10,
                                     .max = 10,
-                                    .v = &xform.topology.transform.offset_seconds
+                                    .v = &xform.topology.transform.offset
                                 }
                             );
                             _ = zgui.sliderFloat(

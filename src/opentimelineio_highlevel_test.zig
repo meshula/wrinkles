@@ -411,7 +411,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
             allocator,
             .{
                 .input_to_output_xform = .{
-                    .offset_seconds = -1,
+                    .offset = -1,
                     .scale = 2,
                 },
             },
@@ -555,7 +555,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
             allocator,
             .{
                 .input_to_output_xform = .{
-                    .offset_seconds = -1,
+                    .offset = -1,
                     .scale = 2,
                 },
             }

@@ -29,7 +29,7 @@ pub const MappingAffine = struct {
         self: @This(),
     ) opentime.ContinuousTimeInterval 
     {
-        return self.input_to_output_xform.applied_to_cti(self.input_bounds_val);
+        return self.input_to_output_xform.applied_to_interval(self.input_bounds_val);
     }
 
     pub fn project_instantaneous_cc(
@@ -47,7 +47,7 @@ pub const MappingAffine = struct {
         }
 
         return .{ 
-            .SuccessOrdinate = self.input_to_output_xform.applied_to_seconds(ordinate),
+            .SuccessOrdinate = self.input_to_output_xform.applied_to_ordinate(ordinate),
         };
     }
 
@@ -68,7 +68,7 @@ pub const MappingAffine = struct {
 
         return .{
             .SuccessOrdinate = self.input_to_output_xform.inverted(
-            ).applied_to_seconds(output_ordinate)
+            ).applied_to_ordinate(output_ordinate)
         };
     }
 
@@ -243,7 +243,7 @@ test "MappingAffine: non-identity"
                 .end_seconds = 6,
             },
             .input_to_output_xform = .{
-                .offset_seconds = 2,
+                .offset = 2,
                 .scale = 4,
             },
         }

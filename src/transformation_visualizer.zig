@@ -252,7 +252,7 @@ const PRESETS = struct{
                             .end_seconds = 10,
                         },
                         .input_to_output_xform = .{
-                            .offset_seconds = 10,
+                            .offset = 10,
                             .scale = 2,
                         },
                     }
@@ -274,7 +274,7 @@ const PRESETS = struct{
                             .end_seconds = 10,
                         },
                         .input_to_output_xform = .{
-                            .offset_seconds = 10,
+                            .offset = 10,
                             .scale = 2,
                         },
                     }

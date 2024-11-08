@@ -1561,7 +1561,7 @@ pub const Bezier = struct {
             for (seg.point_ptrs()) 
                 |pt |
             {
-                pt.in = aff.applied_to_seconds(pt.in);
+                pt.in = aff.applied_to_ordinate(pt.in);
             }
         }
 
@@ -3273,19 +3273,19 @@ test "Bezier: project_affine"
 
     const test_affine = [_]opentime.transform.AffineTransform1D{
         .{
-            .offset_seconds = -10,
+            .offset = -10,
             .scale = 0.5,
         },
         .{
-            .offset_seconds = 0,
+            .offset = 0,
             .scale = 1,
         },
         .{
-            .offset_seconds = 0,
+            .offset = 0,
             .scale = 2,
         },
         .{
-            .offset_seconds = 10,
+            .offset = 10,
             .scale = 1,
         },
     };
@@ -3325,7 +3325,7 @@ test "Bezier: project_affine"
                 try expectApproxEql(
                     @as(
                         opentime.Ordinate,
-                        testdata.scale * pt.in + testdata.offset_seconds
+                        testdata.scale * pt.in + testdata.offset
                     ), 
                     result_pt.in
                 );
@@ -3350,7 +3350,7 @@ pub fn join_bez_aff_unbounded(
         for (seg.point_ptrs()) 
             |pt| 
         {
-            pt.out = args.b2c.applied_to_seconds(pt.out);
+            pt.out = args.b2c.applied_to_ordinate(pt.out);
         }
     }
 
@@ -3369,19 +3369,19 @@ test "join_bez_aff_unbounded"
 
     const test_affine = [_]opentime.transform.AffineTransform1D{
         .{
-            .offset_seconds = -10,
+            .offset = -10,
             .scale = 0.5,
         },
         .{
-            .offset_seconds = 0,
+            .offset = 0,
             .scale = 1,
         },
         .{
-            .offset_seconds = 0,
+            .offset = 0,
             .scale = 2,
         },
         .{
-            .offset_seconds = 10,
+            .offset = 10,
             .scale = 1,
         },
     };
@@ -3391,7 +3391,7 @@ test "join_bez_aff_unbounded"
     {
         errdefer std.debug.print(
             "\ntest: {}, offset: {d:.2}, scale: {d:.2}\n",
-            .{ test_loop_index, testdata.offset_seconds, testdata.scale }
+            .{ test_loop_index, testdata.offset, testdata.scale }
         );
         const result = try join_bez_aff_unbounded(
             std.testing.allocator,
@@ -3427,7 +3427,7 @@ test "join_bez_aff_unbounded"
                 try expectApproxEql(
                     @as(
                         opentime.Ordinate,
-                        testdata.scale * pt.out + testdata.offset_seconds
+                        testdata.scale * pt.out + testdata.offset
                     ), 
                     result_pt.out
                 );

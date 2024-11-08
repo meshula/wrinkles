@@ -1902,7 +1902,7 @@ test "Topology: init_affine"
                 .end_seconds = 10,
             },
             .input_to_output_xform = .{
-                .offset_seconds = 12,
+                .offset = 12,
                 .scale = 2,
             },
         },
@@ -1932,7 +1932,7 @@ test "Topology: join affine with affine"
                 .end_seconds = 8,
             },
             .input_to_output_xform = .{
-                .offset_seconds = 1,
+                .offset = 1,
             },
         },
     );

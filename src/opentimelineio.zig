@@ -574,7 +574,7 @@ pub const ComposedValueRef = union(enum) {
                         );
                         const intrinsic_to_media_xform = (
                             libxform.AffineTransform1D{
-                                .offset_seconds = media_bounds.start_seconds,
+                                .offset = media_bounds.start_seconds,
                                 .scale = 1,
                             }
                         );
@@ -935,7 +935,7 @@ pub const Track = struct {
                     .end_seconds = util.inf
                 },
                 .input_to_output_xform = .{
-                    .offset_seconds = -child_duration,
+                    .offset = -child_duration,
                     .scale = 1,
                 }
             }
@@ -1174,7 +1174,7 @@ pub const ProjectionOperator = struct {
                 allocator,
                 .{ 
                     .input_to_output_xform = .{ 
-                        .offset_seconds = range_in_source.start_seconds,
+                        .offset = range_in_source.start_seconds,
                         .scale = 1.0,
                     },
                     .input_bounds_val = .{
@@ -2835,7 +2835,7 @@ test "transform: track with two clips"
                     .start_seconds = 8,
                 },
                 .input_to_output_xform = .{
-                    .offset_seconds = -8,
+                    .offset = -8,
                 },
             }
         );
@@ -5403,7 +5403,7 @@ test "test debug_print_time_hierarchy"
                     .end_seconds = 5,
                 },
                 .input_to_output_xform = .{
-                    .offset_seconds = 10.0/24.0,
+                    .offset = 10.0/24.0,
                     .scale = 2,
                 },
             },
@@ -5666,7 +5666,7 @@ test "ProjectionOperator: clone"
                 .end_seconds = 8,
             },
             .input_to_output_xform = .{
-                .offset_seconds = 1,
+                .offset = 1,
             },
         },
     );
@@ -5707,7 +5707,7 @@ test "ProjectionOperatorMap: clone"
                 .end_seconds = 8,
             },
             .input_to_output_xform = .{
-                .offset_seconds = 1,
+                .offset = 1,
             },
         },
     );

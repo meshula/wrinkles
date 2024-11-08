@@ -336,7 +336,7 @@ pub fn test_structs(
         pub const AFF = mapping_affine.MappingAffine {
             .input_bounds_val = int,
             .input_to_output_xform = .{
-                .offset_seconds = 4,
+                .offset = 4,
                 .scale = 2,
             },
         };
@@ -659,7 +659,7 @@ test "Mapping: join aff/aff"
                 .end_seconds = 8,
             },
             .input_to_output_xform = .{
-                .offset_seconds = 1,
+                .offset = 1,
             },
         }
     );
