@@ -99,7 +99,7 @@ pub const Clip = struct {
     media_reference: ?MediaReference = null,
 
     discrete_info: struct{
-        media:  ?sampling.SignalIndexGenerator = null,
+        media:  ?sampling.SampleIndexGenerator = null,
     } = .{},
 
     parameters: ?ParameterMap = null,
@@ -712,7 +712,7 @@ pub const ComposedValueRef = union(enum) {
     pub fn discrete_info_for_space(
         self: @This(),
         in_space: SpaceLabel,
-    ) !?sampling.SignalIndexGenerator
+    ) !?sampling.SampleIndexGenerator
     {
         return switch (self) {
             .timeline_ptr => |tl| switch (in_space) {
@@ -4213,7 +4213,7 @@ pub const Timeline = struct {
     tracks:Stack,
 
     discrete_info: struct{
-        presentation:  ?sampling.SignalIndexGenerator = null,
+        presentation:  ?sampling.SampleIndexGenerator = null,
     } = .{},
 
     pub fn init(
@@ -4461,7 +4461,7 @@ test "otio projection: track with single clip"
         }
     );
     const media_discrete_info = (
-        sampling.SignalIndexGenerator{
+        sampling.SampleIndexGenerator{
             .sample_rate_hz = 4,
             .start_index = 0,
         }
@@ -4651,7 +4651,7 @@ test "otio projection: track with single clip with transform"
         .end = 10,
     };
     const media_discrete_info = (
-        sampling.SignalIndexGenerator{
+        sampling.SampleIndexGenerator{
             .sample_rate_hz = 4,
             .start_index = 0,
         }
@@ -5284,7 +5284,7 @@ test "Clip: Animated Parameter example"
         .end = 10,
     };
     const media_discrete_info = (
-        sampling.SignalIndexGenerator{
+        sampling.SampleIndexGenerator{
             .sample_rate_hz = 4,
             .start_index = 0,
         }
