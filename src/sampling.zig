@@ -291,8 +291,6 @@ test "sampling: samples_overlapping_interval"
     );
 }
 
-// @TODO: should this be folded into the SignalGenerator?
-
 /// generate indices for frame numbers
 pub const DiscreteDatasourceIndexGenerator = struct {
     sample_rate_hz: u32,
