@@ -580,7 +580,7 @@ pub const ComposedValueRef = union(enum) {
                         );
                         const intrinsic_bounds = .{
                             .start = 0,
-                            .end = media_bounds.duration_seconds()
+                            .end = media_bounds.duration()
                         };
                         const intrinsic_to_media = (
                             try topology_m.Topology.init_affine(
@@ -924,7 +924,7 @@ pub const Track = struct {
             allocator,
             .media
         );
-        const child_duration = child_range.duration_seconds();
+        const child_duration = child_range.duration();
 
         // the transform to the next child space, compensates for this duration
         return try topology_m.Topology.init_affine(
@@ -1179,7 +1179,7 @@ pub const ProjectionOperator = struct {
                     },
                     .input_bounds_val = .{
                         .start = 0,
-                        .end = range_in_source.duration_seconds(),
+                        .end = range_in_source.duration(),
                     },
                 }
             )
@@ -2886,8 +2886,8 @@ test "transform: track with two clips"
         try std.testing.expectEqualSlices(
             f32,
             &.{
-                cl1_range.duration_seconds(),
-                cl1_range.duration_seconds() + cl2_range.duration_seconds() 
+                cl1_range.duration(),
+                cl1_range.duration() + cl2_range.duration() 
             },
             &.{b.start, b.end},
         );

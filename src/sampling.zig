@@ -662,7 +662,7 @@ pub fn transform_resample_dd(
 
                 const output_buffer_size = (
                     output_d_sampling_info.buffer_size_for_length(
-                        output_range.duration_seconds()
+                        output_range.duration()
                     )
                 );
 
@@ -859,7 +859,7 @@ pub fn transform_resample_linear_non_interpolating_dd(
 
     const num_output_samples = (
         output_d_sampling_info.buffer_size_for_length(
-            output_d_extents.duration_seconds()
+            output_d_extents.duration()
         )
     );
 

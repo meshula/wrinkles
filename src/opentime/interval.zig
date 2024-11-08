@@ -22,7 +22,7 @@ pub const ContinuousInterval = struct {
 
     /// compute the duration of the interval, if either boundary is not finite,
     /// the duration is infinite.
-    pub fn duration_seconds(
+    pub fn duration(
         self: @This(),
     ) ordinate.Ordinate 
     {
@@ -406,7 +406,7 @@ test "ContinuousTimeInterval Tests"
         ival,
         ContinuousInterval.from_start_duration_seconds(
             ival.start,
-            ival.duration_seconds()
+            ival.duration()
         )
     );
 }

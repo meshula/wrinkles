@@ -1074,8 +1074,8 @@ test "Topology trim_in_input_space"
             );
 
             try std.testing.expectEqual(
-                tm.mappings[0].input_bounds().duration_seconds(), 
-                tm.input_bounds().duration_seconds(),
+                tm.mappings[0].input_bounds().duration(), 
+                tm.input_bounds().duration(),
             );
 
             try std.testing.expectEqual(

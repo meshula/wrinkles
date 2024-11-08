@@ -148,12 +148,12 @@ test "AffineTransform1D: offset test"
 
     try std.testing.expectEqual(
         10,
-        result.duration_seconds()
+        result.duration()
     );
 
     try std.testing.expectEqual(
-        cti.duration_seconds(),
-        result.duration_seconds()
+        cti.duration(),
+        result.duration()
     );
 
     const result_xform = xform.applied_to_transform(xform);
@@ -190,8 +190,8 @@ test "AffineTransform1D: scale test"
     );
 
     try std.testing.expectEqual(
-        result.duration_seconds(),
-        cti.duration_seconds() * xform.scale,
+        result.duration(),
+        cti.duration() * xform.scale,
     );
 
     const result_xform = xform.applied_to_transform(xform);
