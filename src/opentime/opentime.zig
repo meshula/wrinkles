@@ -28,6 +28,8 @@ pub const Dual_Ord = dual.Dual_Ord;
 pub const dual_ctx = dual.dual_ctx{};
 
 pub const util = @import("util.zig");
+pub const EPSILON_ORD = util.EPSILON_ORD;
+pub const INF_ORD = util.INF_ORD;
 
 const projection_result = @import("projection_result.zig");
 pub const ProjectionResult = projection_result.ProjectionResult;

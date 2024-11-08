@@ -7,8 +7,8 @@ const ordinate = @import("ordinate.zig");
 
 /// An infinite interval
 pub const INFINITE_INTERVAL: ContinuousInterval = .{
-    .start = -util.inf, 
-    .end = util.inf,
+    .start = -util.INF_ORD, 
+    .end = util.INF_ORD,
 };
 
 /// Right open interval in a continuous metric space.  Default interval starts
@@ -18,7 +18,7 @@ pub const ContinuousInterval = struct {
     start: ordinate.Ordinate = 0,
 
     /// the end ordinate of the interval, exclusive
-    end: ordinate.Ordinate = util.inf,
+    end: ordinate.Ordinate = util.INF_ORD,
 
     /// compute the duration of the interval, if either boundary is not finite,
     /// the duration is infinite.
@@ -31,7 +31,7 @@ pub const ContinuousInterval = struct {
             or !std.math.isFinite(self.end)
         )
         {
-            return util.inf;
+            return util.INF_ORD;
         }
 
         return self.end - self.start;
@@ -119,7 +119,7 @@ test "ContinuousInterval: is_infinite"
 
     try std.testing.expectEqual(false, cti.is_infinite());
 
-    cti.start = util.inf;
+    cti.start = util.INF_ORD;
 
     try std.testing.expectEqual(true, cti.is_infinite());
 }
@@ -297,12 +297,12 @@ test "intersection test - contained" {
     try std.testing.expectApproxEqAbs(
         res.start,
         int2.start,
-        util.EPSILON
+        util.EPSILON_ORD
     );
     try std.testing.expectApproxEqAbs(
         res.end,
         int2.end,
-        util.EPSILON
+        util.EPSILON_ORD
     );
 }
 
@@ -320,12 +320,12 @@ test "intersection test - infinite" {
     try std.testing.expectApproxEqAbs(
         res.start,
         int2.start,
-        util.EPSILON
+        util.EPSILON_ORD
     );
     try std.testing.expectApproxEqAbs(
         res.end,
         int2.end,
-        util.EPSILON
+        util.EPSILON_ORD
     );
 }
 
