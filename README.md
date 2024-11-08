@@ -59,7 +59,7 @@ contains:
 * [ ] decompose opentimelineio.zig into a library w/ multiple modules
 * [ ] boil time out of opentime (hm might need to rename this library) —
     * [x] particularly ContinuousTimeInterval->ContinuousInterval
-    * [ ] opentime
+    * [x] opentime
     * [ ] and the rest of the library (notably sampling.zig)
     * [ ] ripple out into the c library too
 * [ ] review the high level tests and make sure they’re covering all the stuff
