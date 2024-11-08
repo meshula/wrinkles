@@ -90,8 +90,7 @@ pub const AffineTransform1D = struct {
         self: @This(),
     ) AffineTransform1D
     {
-        // @QUESTION: should this do a check for 0 scale?  That could make
-        //            this return type !AffineTransform1D.
+        // !! Assumes that scale is not 0
         // if (self.scale == 0) {
         //     return ZeroScaleError;
         // }
