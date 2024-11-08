@@ -29,7 +29,7 @@ pub fn DualOf(
 /// comath context for dual math
 pub const dual_ctx = struct{
     pub fn EvalNumberLiteral(
-        comptime src: []const u8
+        comptime src: []const u8,
     ) type 
     {
         const result = comath.ctx.DefaultEvalNumberLiteral(src);
@@ -41,7 +41,7 @@ pub const dual_ctx = struct{
     }
 
     pub fn evalNumberLiteral(
-        comptime src: []const u8
+        comptime src: []const u8,
     ) EvalNumberLiteral(src) 
     {
         const target_type = EvalNumberLiteral(src);
@@ -68,7 +68,7 @@ pub const CTX = comath.ctx.fnMethod(
     .{
         .@"+" = "add",
         .@"*" = "mul",
-    }
+    },
 );
 
 test "dual: float + float" 
@@ -105,7 +105,7 @@ test "dual * float"
 pub const Dual_Ord = DualOf(ordinate.Ordinate);
 
 pub fn DualOfNumberType(
-    comptime T: type
+    comptime T: type,
 ) type 
 {
     return struct {
@@ -262,7 +262,7 @@ pub fn DualOfNumberType(
 }
 
 pub fn DualOfStruct(
-    comptime T: type
+    comptime T: type,
 ) type 
 {
     return struct {
