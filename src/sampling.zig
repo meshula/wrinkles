@@ -203,55 +203,51 @@ const Sampling = struct {
     }
 
     /// fetch the sample index corresponding to the continuous ordinate
-    pub fn index_at_time(
+    pub fn index_at_ordinate(
         self: @This(),
-        t_s: sample_ordinate_t,
+        continuous_ord: sample_ordinate_t,
     ) usize
     {
         const hz_f:sample_ordinate_t = @floatFromInt(self.sample_rate_hz);
 
-        return @intFromFloat(@floor(t_s*hz_f + (0.5 / hz_f)));
+        return @intFromFloat(@floor(continuous_ord*hz_f + (0.5 / hz_f)));
     }
 
-    /// return an interval of the indices that span the specified time
-    /// @TODO: assumes that indices will be linearly increasing.  problem?
-    pub fn indices_between_time(
+    /// return the end points of an interval of the indices that fall within
+    /// the bounds of the continuous interval in the input space
+    ///
+    /// assumes that indices will be linearly increasing.
+    pub fn indices_within_interval(
         self: @This(),
-        start_time_inclusive_s: sample_ordinate_t,
-        end_time_exclusive_s: sample_ordinate_t,
+        input_interval: opentime.ContinuousInterval,
     ) [2]usize
     {
-        const start_index:usize = self.index_at_time(start_time_inclusive_s);
-        const end_index:usize = self.index_at_time(end_time_exclusive_s);
+        const start_index:usize = self.index_at_ordinate(input_interval.start);
+        const end_index:usize = self.index_at_ordinate(input_interval.end);
 
         return .{ start_index, end_index };
     }
 
     /// fetch the slice of self.buffer that overlaps with the provided range
-    /// @TODO: this should align with the algebra functions (IE is it
-    ///        overlaps?) since samples represent regions of time and not
-    ///        instantaneous points in time
-    pub fn samples_between_time(
+    pub fn samples_overlapping_interval(
         self: @This(),
-        start_time_inclusive_s: sample_ordinate_t,
-        end_time_exclusive_s: sample_ordinate_t,
+        input_interval: opentime.ContinuousInterval,
     ) []sample_value_t
     {
-        const index_bounds = self.indices_between_time(
-            start_time_inclusive_s,
-            end_time_exclusive_s
+        const index_bounds = self.indices_within_interval(
+            input_interval,
         );
 
         return self.buffer[index_bounds[0]..index_bounds[1]];
     }
 
-    /// fetch the value of the buffer at the provided time
+    /// fetch the value of the buffer at the provided ordinate
     pub fn sample_value_at_time(
         self: @This(),
         t_s:sample_ordinate_t,
     ) sample_value_t
     {
-        return self.buffer[self.index_at_time(t_s)];
+        return self.buffer[self.index_at_ordinate(t_s)];
     }
 
     /// assuming a time-0 start, build the range of continuous time
@@ -285,9 +281,8 @@ test "sampling: samples_between_time"
     );
     defer sine_samples.deinit();
 
-    const first_half_samples = sine_samples.samples_between_time(
-        0,
-        0.5
+    const first_half_samples = sine_samples.samples_overlapping_interval(
+        .{ .start = 0, .end = 0.5 },
     );
 
     try std.testing.expectEqual(
@@ -954,9 +949,8 @@ pub fn transform_resample_linear_interpolating_dd(
         |l_knot, r_knot|
     {    
         const relevant_sample_indices = (
-            input_d_samples.indices_between_time(
-                l_knot.in,
-                r_knot.in
+            input_d_samples.indices_within_interval(
+                .{.start = l_knot.in,.end = r_knot.in },
             )
         );
         const relevant_input_samples = input_d_samples.buffer[
