@@ -18,8 +18,8 @@ void otio_arena_deinit(otio_Arena);
 // OpenTime
 ///////////////////////////////////////////////////////////////////////////////
 typedef struct otio_ContinuousInterval {
-    float start_ordinate;
-    float end_seconds;
+    float start;
+    float end_ordinate;
 } otio_ContinuousInterval;
 
 // Hierarchy

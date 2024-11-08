@@ -80,7 +80,7 @@ pub fn project_index_dc(
     start *= s_per_cycle;
 
     return .{
-        .start_ordinate = start,
+        .start = start,
         .end_ordinate = start + s_per_cycle,
     };
 }
@@ -95,7 +95,7 @@ test "sampling: project_index_dc"
         288,
     );
 
-    try std.testing.expectEqual(result.start_ordinate, 11.5);
+    try std.testing.expectEqual(result.start, 11.5);
     try std.testing.expectApproxEqAbs(
         result.end_ordinate,
         11.541667,
@@ -259,7 +259,7 @@ const Sampling = struct {
     ) opentime.ContinuousTimeInterval
     {
         return .{
-            .start_ordinate = 0,
+            .start = 0,
             .end_ordinate = (
                 @as(sample_ordinate_t, @floatFromInt(self.buffer.len)) 
                 / @as(sample_ordinate_t, @floatFromInt(self.sample_rate_hz))
@@ -330,7 +330,7 @@ pub const DiscreteDatasourceIndexGenerator = struct {
         const index_ord:sample_ordinate_t = @floatFromInt(index);
 
         return .{
-            .start_ordinate = index_ord * s_per_cycle,
+            .start = index_ord * s_per_cycle,
             .end_ordinate = (index_ord+1) * s_per_cycle,
         };
     }
@@ -696,7 +696,7 @@ pub fn transform_resample_dd(
                 const lin = topology.mapping.MappingCurveLinearMonotonic{
                     .input_to_output_curve = .{
                         .knots = &.{
-                            .{ .in = ib.start_ordinate, .out = ob.start_ordinate },
+                            .{ .in = ib.start, .out = ob.start },
                             .{ .in = ib.end_ordinate, .out = ob.end_ordinate },
                         },
                     },
@@ -882,8 +882,8 @@ pub fn transform_resample_linear_non_interpolating_dd(
         );
 
         const output_sample_time = (
-            output_sample_interval.start_ordinate 
-            + output_d_extents.start_ordinate
+            output_sample_interval.start 
+            + output_d_extents.start
         );
 
         // output -> input time (continuous -> continuous)
@@ -1389,14 +1389,14 @@ test "sampling: retime 48khz samples with a nonlinear acceleration curve and res
 
     try knots.append(
         .{
-            .in = retime_curve_extents.start_ordinate,
+            .in = retime_curve_extents.start,
             .out = try cubic_retime_curve.output_at_input(
-                retime_curve_extents.start_ordinate
+                retime_curve_extents.start
             ),
         }
     );
 
-    var t = retime_curve_extents.start_ordinate + inc;
+    var t = retime_curve_extents.start + inc;
     while (t < retime_curve_extents.end_ordinate)
         : (t += inc)
     {

@@ -132,7 +132,7 @@ pub const MappingAffine = struct {
             .{ 
                 .affine = .{
                     .input_bounds_val = .{
-                        .start_ordinate = self.input_bounds_val.start_ordinate,
+                        .start = self.input_bounds_val.start,
                         .end_ordinate = pt_input,
                     },
                     .input_to_output_xform = self.input_to_output_xform,
@@ -141,7 +141,7 @@ pub const MappingAffine = struct {
             .{ 
                 .affine = .{
                     .input_bounds_val = .{
-                        .start_ordinate = pt_input,
+                        .start = pt_input,
                         .end_ordinate = self.input_bounds_val.end_ordinate,
                     },
                     .input_to_output_xform = self.input_to_output_xform,
@@ -167,7 +167,7 @@ pub const MappingAffine = struct {
             |pt, pt_ind|
         {
             if (
-                pt > self.input_bounds_val.start_ordinate
+                pt > self.input_bounds_val.start
                 and pt < self.input_bounds_val.end_ordinate
             )
             {
@@ -183,7 +183,7 @@ pub const MappingAffine = struct {
             return try result_mappings.toOwnedSlice();
         }
 
-        var current_start = self.input_bounds_val.start_ordinate;
+        var current_start = self.input_bounds_val.start;
         var current_end_ind = maybe_first_pt.?;
 
         while (current_end_ind < input_points.len)
@@ -200,7 +200,7 @@ pub const MappingAffine = struct {
                 .{
                     .affine = .{
                         .input_bounds_val = .{
-                            .start_ordinate = current_start,
+                            .start = current_start,
                             .end_ordinate = current_end,
                         },
                         .input_to_output_xform = (
@@ -239,7 +239,7 @@ test "MappingAffine: non-identity"
     const ma = (
         MappingAffine{
             .input_bounds_val = .{
-                .start_ordinate = 3,
+                .start = 3,
                 .end_ordinate = 6,
             },
             .input_to_output_xform = .{

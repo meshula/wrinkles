@@ -74,14 +74,14 @@ print_tree(
                     size_t discrete_start =(
                         otio_fetch_continuous_ordinate_to_discrete_index(
                             root_ref, 
-                            input_bounds.start_ordinate,
+                            input_bounds.start,
                             di_space
                         )
                     );
                     size_t discrete_end = (
                         otio_fetch_continuous_ordinate_to_discrete_index(
                             root_ref, 
-                            input_bounds.end_seconds,
+                            input_bounds.end_ordinate,
                             di_space
                         )
                     );
@@ -101,8 +101,8 @@ print_tree(
                 } else {
                     PRINTIF(
                             " [%g, %g) ",
-                            input_bounds.start_ordinate,
-                            input_bounds.end_seconds
+                            input_bounds.start,
+                            input_bounds.end_ordinate
                     );
                 }
             }
@@ -279,14 +279,14 @@ main(
                             size_t discrete_start = (
                                 otio_fetch_continuous_ordinate_to_discrete_index(
                                     dest, 
-                                    tr.start_ordinate,
+                                    tr.start,
                                     di_space
                                 )
                             );
                             size_t discrete_end = (
                                 otio_fetch_continuous_ordinate_to_discrete_index(
                                     dest, 
-                                    tr.end_seconds,
+                                    tr.end_ordinate,
                                     di_space
                                 )
                             );
@@ -309,8 +309,8 @@ main(
                         {
                             PRINTIF(
                                     "-> [%g, %g) ",
-                                    tr.start_ordinate,
-                                    tr.end_seconds
+                                    tr.start,
+                                    tr.end_ordinate
                                   );
                         }
                     }

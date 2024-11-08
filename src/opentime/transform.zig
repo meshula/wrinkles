@@ -34,22 +34,22 @@ pub const AffineTransform1D = struct {
     ) ContinuousTimeInterval
     {
         return .{
-            .start_ordinate = self.applied_to_ordinate(cint.start_ordinate),
+            .start = self.applied_to_ordinate(cint.start),
             .end_ordinate = self.applied_to_ordinate(cint.end_ordinate)
         };
     }
 
     /// if the scale of the transform is negative, the ends will flip during
     /// projection.  For bounds, this isn't meaningful and can cause problems.
-    /// This function makes sure that result.start_ordinate < result.end_ordinate
+    /// This function makes sure that result.start < result.end_ordinate
     pub fn applied_to_bounds(
         self: @This(),
         bnds: ContinuousTimeInterval,
     ) ContinuousTimeInterval {
         if (self.scale < 0) {
             return .{
-                .start_ordinate = self.applied_to_ordinate(bnds.end_ordinate),
-                .end_ordinate = self.applied_to_ordinate(bnds.start_ordinate),
+                .start = self.applied_to_ordinate(bnds.end_ordinate),
+                .end_ordinate = self.applied_to_ordinate(bnds.start),
             };
         }
 
@@ -127,7 +127,7 @@ pub const IDENTITY_TRANSFORM = AffineTransform1D{
 test "AffineTransform1D: offset test" 
 {
     const cti = ContinuousTimeInterval {
-        .start_ordinate = 10,
+        .start = 10,
         .end_ordinate = 20,
     };
 
@@ -140,7 +140,7 @@ test "AffineTransform1D: offset test"
     
     try std.testing.expectEqual(
         ContinuousTimeInterval {
-            .start_ordinate = 20,
+            .start = 20,
             .end_ordinate = 30
         },
         result
@@ -170,7 +170,7 @@ test "AffineTransform1D: offset test"
 test "AffineTransform1D: scale test" 
 {
     const cti = ContinuousTimeInterval {
-        .start_ordinate = 10,
+        .start = 10,
         .end_ordinate = 20,
     };
 
@@ -183,7 +183,7 @@ test "AffineTransform1D: scale test"
 
     try std.testing.expectEqual(
         ContinuousTimeInterval {
-            .start_ordinate = 30,
+            .start = 30,
             .end_ordinate = 50,
         },
         result
@@ -235,10 +235,10 @@ test "AffineTransform1D: applied_to_bounds"
         .scale = -1,
     };
     const bounds = ContinuousTimeInterval{
-        .start_ordinate = 10,
+        .start = 10,
         .end_ordinate = 20,
     };
     const result = xform.applied_to_bounds(bounds);
 
-    try std.testing.expect(result.start_ordinate < result.end_ordinate);
+    try std.testing.expect(result.start < result.end_ordinate);
 }
