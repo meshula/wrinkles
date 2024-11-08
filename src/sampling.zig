@@ -56,7 +56,7 @@ pub fn project_instantaneous_cd(
 test "sampling: project_instantaneous_cd"
 {
     const result = project_instantaneous_cd(
-        DiscreteDatasourceIndexGenerator{
+        SignalIndexGenerator{
             .sample_rate_hz = 24,
             .start_index = 12,
         },
@@ -90,7 +90,7 @@ pub fn project_index_dc(
 test "sampling: project_index_dc"
 {
     const result = project_index_dc(
-        DiscreteDatasourceIndexGenerator{
+        SignalIndexGenerator{
             .sample_rate_hz = 24,
             .start_index = 12,
         },
@@ -292,7 +292,7 @@ test "sampling: samples_overlapping_interval"
 }
 
 /// generate indices for frame numbers
-pub const DiscreteDatasourceIndexGenerator = struct {
+pub const SignalIndexGenerator = struct {
     sample_rate_hz: u32,
     start_index: usize = 0,
 
@@ -560,7 +560,7 @@ test "sampling: c lib interface test"
 pub fn resampled_dd(
     allocator: std.mem.Allocator,
     input_d_samples: Sampling,
-    output_d_sampling_info: DiscreteDatasourceIndexGenerator,
+    output_d_sampling_info: SignalIndexGenerator,
 ) !Sampling
 {
     // @TODO: should this only work for interpolating Samplings?
@@ -622,7 +622,7 @@ pub fn transform_resample_dd(
     allocator: std.mem.Allocator,
     input_d_sampling: Sampling,
     output_c_to_input_c: topology.Topology,
-    output_d_sampling_info: DiscreteDatasourceIndexGenerator,
+    output_d_sampling_info: SignalIndexGenerator,
     /// for interpolating samplings, libsamplerate can be told to make the rate 
     /// of change be a step function rather than using the linearized curve in
     /// the output_c_to_input_c directly.
@@ -723,7 +723,7 @@ pub fn transform_resample_linear_dd(
     allocator: std.mem.Allocator,
     input_d_samples: Sampling,
     output_c_to_input_c_crv: topology.mapping.MappingCurveLinearMonotonic,
-    output_d_sampling_info: DiscreteDatasourceIndexGenerator,
+    output_d_sampling_info: SignalIndexGenerator,
     step_retime: bool,
 ) !Sampling
 {
@@ -824,7 +824,7 @@ pub fn transform_resample_linear_non_interpolating_dd(
     allocator: std.mem.Allocator,
     input_d_samples: Sampling,
     output_c_to_input_c_crv: topology.mapping.MappingCurveLinearMonotonic,
-    output_d_sampling_info: DiscreteDatasourceIndexGenerator,
+    output_d_sampling_info: SignalIndexGenerator,
 ) !Sampling
 {
     const input_d_extents_c = input_d_samples.extents();
@@ -920,7 +920,7 @@ pub fn transform_resample_linear_interpolating_dd(
     allocator: std.mem.Allocator,
     input_d_samples: Sampling,
     output_c_to_input_c_crv: curve.Linear.Monotonic,
-    output_sampling_info: DiscreteDatasourceIndexGenerator,
+    output_sampling_info: SignalIndexGenerator,
     step_retime: bool,
 ) !Sampling
 {
@@ -1227,7 +1227,7 @@ test "sampling: retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
         );
     }
 
-    const output_sampling_info : DiscreteDatasourceIndexGenerator = .{
+    const output_sampling_info : SignalIndexGenerator = .{
         .sample_rate_hz = s48.sample_rate_hz,
     };
 
@@ -1341,7 +1341,7 @@ test "sampling: retime 48khz samples with a nonlinear acceleration curve and res
         );
     }
 
-    const output_sampling_info : DiscreteDatasourceIndexGenerator = .{
+    const output_sampling_info : SignalIndexGenerator = .{
         .sample_rate_hz = s48.sample_rate_hz,
     };
 
@@ -1563,7 +1563,7 @@ test "sampling: frame phase slide 1: (time*1 freq*1 phase+0) 0,1,2,3->0,1,2,3"
     );
     defer sample_to_output_crv.deinit(std.testing.allocator);
 
-    const output_sampling_info:DiscreteDatasourceIndexGenerator = .{
+    const output_sampling_info:SignalIndexGenerator = .{
         .sample_rate_hz = 4,
     };
 
@@ -1645,7 +1645,7 @@ test "sampling: frame phase slide 2: (time*2 bounds*1 freq*1 phase+0) 0,1,2,3->0
         EPSILON_ORD
     );
 
-    const output_sampling_info : DiscreteDatasourceIndexGenerator = .{
+    const output_sampling_info : SignalIndexGenerator = .{
         .sample_rate_hz = 4,
     };
 
@@ -1722,7 +1722,7 @@ test "sampling: frame phase slide 2.5: (time*2 bounds*2 freq*1 phase+0) 0,1,2,3-
         EPSILON_ORD
     );
 
-    const output_sampling_info : DiscreteDatasourceIndexGenerator = .{
+    const output_sampling_info : SignalIndexGenerator = .{
         .sample_rate_hz = 4,
     };
 
@@ -1807,7 +1807,7 @@ test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(
         EPSILON_ORD
     );
 
-    const output_sampling_info : DiscreteDatasourceIndexGenerator = .{
+    const output_sampling_info : SignalIndexGenerator = .{
         .sample_rate_hz = 8,
     };
 
@@ -1939,7 +1939,7 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
         EPSILON_ORD
     );
 
-    const output_sampling_info : DiscreteDatasourceIndexGenerator = .{
+    const output_sampling_info : SignalIndexGenerator = .{
         .sample_rate_hz = 4,
     };
 
@@ -2065,7 +2065,7 @@ test "sampling: frame phase slide 5: arbitrary held frames 0,1,2->0,0,0,0,1,1,2,
         output_to_input_topo.mappings.len
     );
 
-    const output_sampling_info : DiscreteDatasourceIndexGenerator = .{
+    const output_sampling_info : SignalIndexGenerator = .{
         .sample_rate_hz = 4,
     };
 
@@ -2142,7 +2142,7 @@ test "sampling: retimed leak test"
         }
     );
 
-    const output_sampling_info : DiscreteDatasourceIndexGenerator = .{
+    const output_sampling_info : SignalIndexGenerator = .{
         .sample_rate_hz = 8,
     };
 
