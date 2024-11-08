@@ -17,10 +17,10 @@ void otio_arena_deinit(otio_Arena);
 
 // OpenTime
 ///////////////////////////////////////////////////////////////////////////////
-typedef struct otio_ContinuousTimeRange {
+typedef struct otio_ContinuousInterval {
     float start_ordinate;
     float end_seconds;
-} otio_ContinuousTimeRange;
+} otio_ContinuousInterval;
 
 // Hierarchy
 ///////////////////////////////////////////////////////////////////////////////
@@ -89,8 +89,8 @@ otio_Topology otio_fetch_topology(
         otio_Allocator allocator,
         otio_ComposedValueRef ref
 );
-int otio_topo_fetch_input_bounds(otio_Topology, const otio_ContinuousTimeRange*);
-int otio_topo_fetch_output_bounds(otio_Topology, const otio_ContinuousTimeRange*);
+int otio_topo_fetch_input_bounds(otio_Topology, const otio_ContinuousInterval*);
+int otio_topo_fetch_output_bounds(otio_Topology, const otio_ContinuousInterval*);
 
 
 // ProjectionOperatorMap

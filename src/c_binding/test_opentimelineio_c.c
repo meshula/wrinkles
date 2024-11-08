@@ -49,7 +49,7 @@ print_tree(
 
         {
             otio_Topology topo = otio_fetch_topology(arena.allocator, root_ref);
-            otio_ContinuousTimeRange input_bounds;
+            otio_ContinuousInterval input_bounds;
 
             otio_DiscreteDatasourceIndexGenerator di;
             otio_SpaceLabel di_space = -1;
@@ -235,7 +235,7 @@ main(
         {
             otio_ProjectionOperator po;
             otio_Topology topo;
-            otio_ContinuousTimeRange tr;
+            otio_ContinuousInterval tr;
 
             if (
                     !otio_po_map_fetch_op( 

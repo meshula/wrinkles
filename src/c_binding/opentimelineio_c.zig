@@ -514,7 +514,7 @@ pub export fn otio_fetch_topology(
 
 pub export fn otio_topo_fetch_input_bounds(
     topo_c: c.otio_Topology,
-    result: *c.otio_ContinuousTimeRange,
+    result: *c.otio_ContinuousInterval,
 ) i32
 {
     if (topo_c.ref == null) {
@@ -540,7 +540,7 @@ pub export fn otio_topo_fetch_input_bounds(
 
 pub export fn otio_topo_fetch_output_bounds(
     topo_c: c.otio_Topology,
-    result: *c.otio_ContinuousTimeRange,
+    result: *c.otio_ContinuousInterval,
 ) i32
 {
     if (topo_c.ref == null) {
