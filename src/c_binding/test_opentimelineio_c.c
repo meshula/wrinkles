@@ -48,7 +48,10 @@ print_tree(
         );
 
         {
-            otio_Topology topo = otio_fetch_topology(arena.allocator, root_ref);
+            otio_Topology topo = otio_fetch_topology(
+                    arena.allocator,
+                    root_ref
+            );
             otio_ContinuousInterval input_bounds;
 
             otio_DiscreteDatasourceIndexGenerator di;
@@ -165,7 +168,10 @@ main(
 
     // read the file
     ///////////////////////////////////////////////////////////////////////////
-    otio_ComposedValueRef tl = otio_read_from_file(arena.allocator, argv[1]);
+    otio_ComposedValueRef tl = otio_read_from_file(
+            arena.allocator,
+            argv[1]
+    );
 
     if (tl.kind == otio_ct_err) {
         PRINTIF("error reading file.\n");
@@ -190,7 +196,10 @@ main(
     // build a topological map
     ///////////////////////////////////////////////////////////////////////////
 
-    otio_TopologicalMap map = otio_build_topo_map_cvr(arena.allocator, tl);
+    otio_TopologicalMap map = otio_build_topo_map_cvr(
+            arena.allocator,
+            tl
+    );
     PRINTIF("built map: %p\n", map.ref);
 
     // otio_write_map_to_png(arena.allocator, map, "/var/tmp/from_c_map.dot");

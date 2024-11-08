@@ -13,13 +13,13 @@ pub const INFINITE_INTERVAL: ContinuousInterval = .{
     .end_ordinate = util.inf
 };
 
-/// right open interval on the time continuum
-/// the default CTI splits the timeline at the origin
+/// Right open interval in a continuous metric space.  Default interval starts
+/// at 0 and has no end.
 pub const ContinuousInterval = struct {
-    /// the start time of the interval in seconds, inclusive
+    /// the start ordinate of the interval, inclusive
     start_ordinate: ordinate.Ordinate = 0,
 
-    /// the end time of the interval in seconds, exclusive
+    /// the end ordinate of the interval, exclusive
     end_ordinate: ordinate.Ordinate = util.inf,
 
     /// compute the duration of the interval, if either boundary is not finite,
