@@ -35,7 +35,6 @@ pub const OUTOFBOUNDS = projection_result.OUTOFBOUNDS;
 
 test "all opentime tests" {
     _ = interval;
-    // _ = Domain;
     _ = transform;
     _ = dual;
 }
