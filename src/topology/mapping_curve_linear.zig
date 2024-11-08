@@ -313,7 +313,7 @@ test "Linear.Monotonic: shrink_to_output_interval"
         allocator,
         .{ 
             .start = 5,
-            .end_ordinate = 25,
+            .end = 25,
         },
     );
 
@@ -332,6 +332,6 @@ test "Linear.Monotonic: shrink_to_output_interval"
     );
     try std.testing.expectEqual(
         25,
-        result_extents.end_ordinate,
+        result_extents.end,
     );
 }

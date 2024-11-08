@@ -81,7 +81,7 @@ print_tree(
                     size_t discrete_end = (
                         otio_fetch_continuous_ordinate_to_discrete_index(
                             root_ref, 
-                            input_bounds.end_ordinate,
+                            input_bounds.end,
                             di_space
                         )
                     );
@@ -102,7 +102,7 @@ print_tree(
                     PRINTIF(
                             " [%g, %g) ",
                             input_bounds.start,
-                            input_bounds.end_ordinate
+                            input_bounds.end
                     );
                 }
             }
@@ -286,7 +286,7 @@ main(
                             size_t discrete_end = (
                                 otio_fetch_continuous_ordinate_to_discrete_index(
                                     dest, 
-                                    tr.end_ordinate,
+                                    tr.end,
                                     di_space
                                 )
                             );
@@ -307,11 +307,7 @@ main(
                         } 
                         else 
                         {
-                            PRINTIF(
-                                    "-> [%g, %g) ",
-                                    tr.start,
-                                    tr.end_ordinate
-                                  );
+                            PRINTIF("-> [%g, %g) ", tr.start, tr.end);
                         }
                     }
                 }

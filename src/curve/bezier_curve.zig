@@ -660,7 +660,7 @@ pub const Bezier = struct {
         {
             return .{
                 .start = self.p0.in,
-                .end_ordinate = self.p3.in,
+                .end = self.p3.in,
             };
         }
 
@@ -1587,7 +1587,7 @@ pub const Bezier = struct {
     {
         return .{
             .start = self.segments[0].p0.in,
-            .end_ordinate = self.segments[self.segments.len - 1].p3.in,
+            .end = self.segments[self.segments.len - 1].p3.in,
         };
     }
 
@@ -1599,7 +1599,7 @@ pub const Bezier = struct {
         const result = self.extents();
         return .{
             .start = result[0].out,
-            .end_ordinate = result[1].out,
+            .end = result[1].out,
         };
     }
 
@@ -1842,7 +1842,7 @@ pub const Bezier = struct {
             )
             or
             (
-             self.extents_input().end_ordinate <= ordinate
+             self.extents_input().end <= ordinate
              and direction == .trim_after
             )
 
@@ -1955,7 +1955,7 @@ pub const Bezier = struct {
         // @TODO: - does the above trim reset the origin on the input space?
         const result = try front_split.trimmed_from_input_ordinate(
             allocator,
-            bounds.end_ordinate,
+            bounds.end,
             .trim_after,
         );
 
@@ -3037,7 +3037,7 @@ test "Bezier: trimmed_from_input_ordinate"
                 .direction = .trim_before,
                 .result_extents = .{
                     .start = extents[0].in * 0.25,
-                    .end_ordinate = extents[1].in,
+                    .end = extents[1].in,
                 },
                 .result_segment_count = ident.segments.len,
             },
@@ -3046,7 +3046,7 @@ test "Bezier: trimmed_from_input_ordinate"
                 .direction = .trim_after,
                 .result_extents = .{
                     .start = extents[0].in,
-                    .end_ordinate = extents[0].in * 0.25,
+                    .end = extents[0].in * 0.25,
                 },
                 .result_segment_count = 1,
             },
@@ -3056,7 +3056,7 @@ test "Bezier: trimmed_from_input_ordinate"
                 .direction = .trim_before,
                 .result_extents = .{
                     .start = extents[1].in * 0.75,
-                    .end_ordinate = extents[1].in,
+                    .end = extents[1].in,
                 },
                 .result_segment_count = 1,
             },
@@ -3065,7 +3065,7 @@ test "Bezier: trimmed_from_input_ordinate"
                 .direction = .trim_after,
                 .result_extents = .{
                     .start = extents[0].in,
-                    .end_ordinate = extents[1].in * 0.75,
+                    .end = extents[1].in * 0.75,
                 },
                 .result_segment_count = ident.segments.len,
             },
@@ -3075,7 +3075,7 @@ test "Bezier: trimmed_from_input_ordinate"
                 .direction = .trim_after,
                 .result_extents = .{
                     .start = extents[0].in,
-                    .end_ordinate = extents[1].in,
+                    .end = extents[1].in,
                 },
                 .result_segment_count = ident.segments.len,
             },
@@ -3108,7 +3108,7 @@ test "Bezier: trimmed_from_input_ordinate"
                 0.001
             );
             try std.testing.expectApproxEqAbs(
-                td.result_extents.end_ordinate,
+                td.result_extents.end,
                 trimmed_extents[1].in,
                 0.001
             );
@@ -3146,54 +3146,54 @@ test "Bezier: trimmed_in_input_space"
             .{
                 .trim_range = .{
                     .start = extents[0].in * 0.25,
-                    .end_ordinate = extents[1].in * 0.75,
+                    .end = extents[1].in * 0.75,
                 },
                 .result_extents = .{
                     .start = extents[0].in * 0.25,
-                    .end_ordinate = extents[1].in * 0.75,
+                    .end = extents[1].in * 0.75,
                 },
                 },
             // trim start
             .{
                 .trim_range = .{
                     .start = extents[0].in * 0.25,
-                    .end_ordinate = extents[1].in * 1.75,
+                    .end = extents[1].in * 1.75,
                 },
                 .result_extents = .{
                     .start = extents[0].in * 0.25,
-                    .end_ordinate = extents[1].in,
+                    .end = extents[1].in,
                 },
                 },
             // trim end
             .{
                 .trim_range = .{
                     .start = extents[0].in * 1.25,
-                    .end_ordinate = extents[1].in * 0.75,
+                    .end = extents[1].in * 0.75,
                 },
                 .result_extents = .{
                     .start = extents[0].in,
-                    .end_ordinate = extents[1].in * 0.75,
+                    .end = extents[1].in * 0.75,
                 },
                 },
             // trim neither
             .{
                 .trim_range = .{
                     .start = extents[0].in * 1.25,
-                    .end_ordinate = extents[1].in * 1.75,
+                    .end = extents[1].in * 1.75,
                 },
                 .result_extents = .{
                     .start = extents[0].in,
-                    .end_ordinate = extents[1].in,
+                    .end = extents[1].in,
                 },
                 },
             .{
                 .trim_range = .{
                     .start = extents[0].in,
-                    .end_ordinate = extents[1].in,
+                    .end = extents[1].in,
                 },
                 .result_extents = .{
                     .start = extents[0].in,
-                    .end_ordinate = extents[1].in,
+                    .end = extents[1].in,
                 },
                 },
             };
@@ -3222,9 +3222,9 @@ test "Bezier: trimmed_in_input_space"
                     "    trim_range: ({d}, {d})\n    result_extents: ({d}, {d})\n",
                     .{
                         td.trim_range.start, 
-                        td.trim_range.end_ordinate,
+                        td.trim_range.end,
                         td.result_extents.start, 
-                        td.result_extents.end_ordinate,
+                        td.result_extents.end,
                     },
                 );
             }
@@ -3253,7 +3253,7 @@ test "Bezier: trimmed_in_input_space"
                 0.001
             );
             try std.testing.expectApproxEqAbs(
-                td.result_extents.end_ordinate,
+                td.result_extents.end,
                 trimmed_extents[1].in,
                 0.001
             );

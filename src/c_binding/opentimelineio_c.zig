@@ -533,7 +533,7 @@ pub export fn otio_topo_fetch_input_bounds(
     const b = topo.input_bounds();
 
     result.*.start = b.start;
-    result.*.end_ordinate = b.end_ordinate;
+    result.*.end = b.end;
 
     return 0;
 }
@@ -559,7 +559,7 @@ pub export fn otio_topo_fetch_output_bounds(
     const b = topo.output_bounds();
 
     result.*.start = b.start;
-    result.*.end_ordinate = b.end_ordinate;
+    result.*.end = b.end;
 
     return 0;
 }

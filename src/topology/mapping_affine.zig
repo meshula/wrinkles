@@ -40,7 +40,7 @@ pub const MappingAffine = struct {
         if (
             !self.input_bounds_val.overlaps_seconds(ordinate) 
             // allow projecting the end point
-            and ordinate != self.input_bounds_val.end_ordinate
+            and ordinate != self.input_bounds_val.end
         )
         {
             return opentime.OUTOFBOUNDS;
@@ -60,7 +60,7 @@ pub const MappingAffine = struct {
         if (
             !self.output_bounds().overlaps_seconds(output_ordinate) 
             // allow projecting the end point
-            and output_ordinate != self.output_bounds().end_ordinate
+            and output_ordinate != self.output_bounds().end
         )
         {
             return opentime.OUTOFBOUNDS;
@@ -133,7 +133,7 @@ pub const MappingAffine = struct {
                 .affine = .{
                     .input_bounds_val = .{
                         .start = self.input_bounds_val.start,
-                        .end_ordinate = pt_input,
+                        .end = pt_input,
                     },
                     .input_to_output_xform = self.input_to_output_xform,
                 },
@@ -142,7 +142,7 @@ pub const MappingAffine = struct {
                 .affine = .{
                     .input_bounds_val = .{
                         .start = pt_input,
-                        .end_ordinate = self.input_bounds_val.end_ordinate,
+                        .end = self.input_bounds_val.end,
                     },
                     .input_to_output_xform = self.input_to_output_xform,
                 },
@@ -168,7 +168,7 @@ pub const MappingAffine = struct {
         {
             if (
                 pt > self.input_bounds_val.start
-                and pt < self.input_bounds_val.end_ordinate
+                and pt < self.input_bounds_val.end
             )
             {
                 maybe_first_pt = pt_ind;
@@ -190,9 +190,9 @@ pub const MappingAffine = struct {
         {
             var current_end = input_points[current_end_ind];
 
-            if (current_end > self.input_bounds_val.end_ordinate)
+            if (current_end > self.input_bounds_val.end)
             {
-                current_end = self.input_bounds_val.end_ordinate;
+                current_end = self.input_bounds_val.end;
                 current_end_ind = input_points.len;
             }
 
@@ -201,7 +201,7 @@ pub const MappingAffine = struct {
                     .affine = .{
                         .input_bounds_val = .{
                             .start = current_start,
-                            .end_ordinate = current_end,
+                            .end = current_end,
                         },
                         .input_to_output_xform = (
                             self.input_to_output_xform
@@ -240,7 +240,7 @@ test "MappingAffine: non-identity"
         MappingAffine{
             .input_bounds_val = .{
                 .start = 3,
-                .end_ordinate = 6,
+                .end = 6,
             },
             .input_to_output_xform = .{
                 .offset = 2,

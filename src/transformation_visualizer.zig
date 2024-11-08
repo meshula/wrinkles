@@ -31,7 +31,7 @@ pub fn plot_mapping(
     const input_bounds_ord = map.input_bounds();
     var input_bounds : [2]f64 = .{
         @floatCast(input_bounds_ord.start),
-        @floatCast(input_bounds_ord.end_ordinate),
+        @floatCast(input_bounds_ord.end),
     };
 
     const plot_limits = zgui.plot.getPlotLimits(
@@ -42,7 +42,7 @@ pub fn plot_mapping(
     if (input_bounds_ord.start == std.math.inf(opentime.Ordinate)) {
         input_bounds[0] = plot_limits.x[0];
     }
-    if (input_bounds_ord.end_ordinate == std.math.inf(opentime.Ordinate)) {
+    if (input_bounds_ord.end == std.math.inf(opentime.Ordinate)) {
         input_bounds[1] = plot_limits.x[1];
     }
 
@@ -189,7 +189,7 @@ const SpaceUI = struct {
                     .x1, 
                     .{
                         .min = input_limits.start,
-                        .max = input_limits.end_ordinate,
+                        .max = input_limits.end,
                     },
                 );
 
@@ -198,7 +198,7 @@ const SpaceUI = struct {
                     .y1, 
                     .{
                         .min = output_limits.start,
-                        .max = output_limits.end_ordinate,
+                        .max = output_limits.end,
                     },
                 );
 
@@ -249,7 +249,7 @@ const PRESETS = struct{
                     topology.mapping.MappingAffine{
                         .input_bounds_val = .{
                             .start = -10,
-                            .end_ordinate = 10,
+                            .end = 10,
                         },
                         .input_to_output_xform = .{
                             .offset = 10,
@@ -271,7 +271,7 @@ const PRESETS = struct{
                     topology.mapping.MappingAffine{
                         .input_bounds_val = .{
                             .start = -10,
-                            .end_ordinate = 10,
+                            .end = 10,
                         },
                         .input_to_output_xform = .{
                             .offset = 10,

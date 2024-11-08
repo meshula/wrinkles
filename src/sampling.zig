@@ -81,7 +81,7 @@ pub fn project_index_dc(
 
     return .{
         .start = start,
-        .end_ordinate = start + s_per_cycle,
+        .end = start + s_per_cycle,
     };
 }
 
@@ -97,7 +97,7 @@ test "sampling: project_index_dc"
 
     try std.testing.expectEqual(result.start, 11.5);
     try std.testing.expectApproxEqAbs(
-        result.end_ordinate,
+        result.end,
         11.541667,
         EPSILON_ORD,
     );
@@ -260,7 +260,7 @@ const Sampling = struct {
     {
         return .{
             .start = 0,
-            .end_ordinate = (
+            .end = (
                 @as(sample_ordinate_t, @floatFromInt(self.buffer.len)) 
                 / @as(sample_ordinate_t, @floatFromInt(self.sample_rate_hz))
             ),
@@ -331,7 +331,7 @@ pub const DiscreteDatasourceIndexGenerator = struct {
 
         return .{
             .start = index_ord * s_per_cycle,
-            .end_ordinate = (index_ord+1) * s_per_cycle,
+            .end = (index_ord+1) * s_per_cycle,
         };
     }
 
@@ -697,7 +697,7 @@ pub fn transform_resample_dd(
                     .input_to_output_curve = .{
                         .knots = &.{
                             .{ .in = ib.start, .out = ob.start },
-                            .{ .in = ib.end_ordinate, .out = ob.end_ordinate },
+                            .{ .in = ib.end, .out = ob.end },
                         },
                     },
                 };
@@ -1397,7 +1397,7 @@ test "sampling: retime 48khz samples with a nonlinear acceleration curve and res
     );
 
     var t = retime_curve_extents.start + inc;
-    while (t < retime_curve_extents.end_ordinate)
+    while (t < retime_curve_extents.end)
         : (t += inc)
     {
         try knots.append(
@@ -1838,7 +1838,7 @@ test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(
     
     try std.testing.expectApproxEqAbs(
         1.0,
-        output_ramp_samples.extents().end_ordinate,
+        output_ramp_samples.extents().end,
         EPSILON_ORD
     );
 
@@ -1970,7 +1970,7 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
     
     try std.testing.expectApproxEqAbs(
         1.0,
-        output_ramp_samples.extents().end_ordinate,
+        output_ramp_samples.extents().end,
         EPSILON_ORD
     );
 }

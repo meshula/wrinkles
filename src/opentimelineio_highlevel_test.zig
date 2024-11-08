@@ -41,7 +41,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         ),
         .media_temporal_bounds = .{
             .start = 1,
-            .end_ordinate = 3 
+            .end = 3 
         },
         .discrete_info = .{
             .media = .{
@@ -66,7 +66,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         ),
         .media_temporal_bounds = .{
             .start = 10,
-            .end_ordinate = 11, 
+            .end = 11, 
         },
         .discrete_info = .{
             .media = .{
@@ -194,7 +194,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
                 allocator,
                 .{
                     .start = p0,
-                    .end_ordinate = p1 
+                    .end = p1 
                 }
             );
             defer allocator.free(dest_frames);
@@ -243,7 +243,7 @@ test "libsamplerate w/ high level test -- resample only"
         ),
         .media_temporal_bounds = .{
             .start = 1,
-            .end_ordinate = 6,
+            .end = 6,
         },
         .discrete_info = .{
             .media = .{
@@ -262,14 +262,14 @@ test "libsamplerate w/ high level test -- resample only"
     };
     try std.testing.expect(
         cl1.media_temporal_bounds.?.start < 
-        cl1.media_temporal_bounds.?.end_ordinate
+        cl1.media_temporal_bounds.?.end
     );
     try std.testing.expect(
-        (try cl1.bounds_of(allocator, .media)).end_ordinate != 0,
+        (try cl1.bounds_of(allocator, .media)).end != 0,
     );
     try std.testing.expect(
         (try cl1.bounds_of(allocator, .media)).start < 
-        (try cl1.bounds_of(allocator, .media)).end_ordinate
+        (try cl1.bounds_of(allocator, .media)).end
     );
 
     const cl_ptr = try tr.append_fetch_ref(cl1);
@@ -302,7 +302,7 @@ test "libsamplerate w/ high level test -- resample only"
     );
 
     try std.testing.expect(
-        tr_pres_to_cl_media_po.src_to_dst_topo.input_bounds().end_ordinate > 0,
+        tr_pres_to_cl_media_po.src_to_dst_topo.input_bounds().end > 0,
     );
 
     try std.testing.expect(
@@ -384,7 +384,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
         ),
         .media_temporal_bounds = .{
             .start = 1,
-            .end_ordinate = 6,
+            .end = 6,
         },
         .discrete_info = .{
             .media = .{
@@ -529,7 +529,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
         ),
         .media_temporal_bounds = .{
             .start = 1,
-            .end_ordinate = 6,
+            .end = 6,
         },
         .discrete_info = .{
             .media = .{
@@ -652,7 +652,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
                 allocator,
                 .{
                     .start = start,
-                    .end_ordinate = start + 2.0/48000.0,
+                    .end = start + 2.0/48000.0,
                 },
             )
         );
@@ -696,7 +696,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
         ),
         .media_temporal_bounds = .{
             .start = 1,
-            .end_ordinate = 6,
+            .end = 6,
         },
         .discrete_info = .{
             .media = .{
@@ -774,7 +774,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
                 allocator,
                 .{
                     .start = start,
-                    .end_ordinate = start + 4.0/48000.0,
+                    .end = start + 4.0/48000.0,
                 },
             )
         );
@@ -820,7 +820,7 @@ test "timeline w/ warp that holds the tenth frame"
         ),
         .media_temporal_bounds = .{
             .start = 1,
-            .end_ordinate = 6,
+            .end = 6,
         },
         .discrete_info = .{
             .media = .{
@@ -874,10 +874,10 @@ test "timeline w/ warp that holds the tenth frame"
     );
 
     try std.testing.expect(std.math.isNan(w_ib.start) == false);
-    try std.testing.expect(std.math.isNan(w_ib.end_ordinate) == false);
+    try std.testing.expect(std.math.isNan(w_ib.end) == false);
 
     try std.testing.expect(std.math.isNan(w_ob.start) == false);
-    try std.testing.expect(std.math.isNan(w_ob.end_ordinate) == false);
+    try std.testing.expect(std.math.isNan(w_ob.end) == false);
 
     // build the topological map
     ///////////////////////////////////////////////////////////////////////////
@@ -931,7 +931,7 @@ test "timeline w/ warp that holds the tenth frame"
                 allocator,
                 .{
                     .start = 0,
-                    .end_ordinate =  4.0/24.0,
+                    .end =  4.0/24.0,
                 },
             )
         );

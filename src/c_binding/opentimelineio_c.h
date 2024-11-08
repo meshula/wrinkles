@@ -19,7 +19,7 @@ void otio_arena_deinit(otio_Arena);
 ///////////////////////////////////////////////////////////////////////////////
 typedef struct otio_ContinuousInterval {
     float start;
-    float end_ordinate;
+    float end;
 } otio_ContinuousInterval;
 
 // Hierarchy

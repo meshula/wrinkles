@@ -80,7 +80,7 @@ pub fn read_time_range(
             const duration = read_ordinate_from_rt(o.get("duration").?.object).?;
             return .{ 
                 .start = start_time, 
-                .end_ordinate = start_time + duration 
+                .end = start_time + duration 
             };
         } else {
             return null;

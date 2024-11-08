@@ -8,7 +8,7 @@ const ordinate = @import("ordinate.zig");
 /// An infinite interval
 pub const INFINITE_INTERVAL: ContinuousInterval = .{
     .start = -util.inf, 
-    .end_ordinate = util.inf,
+    .end = util.inf,
 };
 
 /// Right open interval in a continuous metric space.  Default interval starts
@@ -18,7 +18,7 @@ pub const ContinuousInterval = struct {
     start: ordinate.Ordinate = 0,
 
     /// the end ordinate of the interval, exclusive
-    end_ordinate: ordinate.Ordinate = util.inf,
+    end: ordinate.Ordinate = util.inf,
 
     /// compute the duration of the interval, if either boundary is not finite,
     /// the duration is infinite.
@@ -28,13 +28,13 @@ pub const ContinuousInterval = struct {
     {
         if (
             !std.math.isFinite(self.start) 
-            or !std.math.isFinite(self.end_ordinate)
+            or !std.math.isFinite(self.end)
         )
         {
             return util.inf;
         }
 
-        return self.end_ordinate - self.start;
+        return self.end - self.start;
     }
 
     pub fn from_start_duration_seconds(
@@ -49,7 +49,7 @@ pub const ContinuousInterval = struct {
 
         return .{
             .start = start,
-            .end_ordinate = start + in_duration_seconds
+            .end = start + in_duration_seconds
         };
     }
 
@@ -67,7 +67,7 @@ pub const ContinuousInterval = struct {
             or 
             (
              (t_seconds >= self.start)
-             and (t_seconds < self.end_ordinate)
+             and (t_seconds < self.end)
             )
         );
     }
@@ -79,7 +79,7 @@ pub const ContinuousInterval = struct {
     {
         return (
             std.math.isInf(self.start)
-            or std.math.isInf(self.end_ordinate)
+            or std.math.isInf(self.end)
         );
     }
 
@@ -88,7 +88,7 @@ pub const ContinuousInterval = struct {
         self: @This(),
     ) bool
     {
-        return (self.start == self.end_ordinate);
+        return (self.start == self.end);
     }
 
     /// custom formatter for std.fmt
@@ -103,7 +103,7 @@ pub const ContinuousInterval = struct {
             "c@[{d}, {d})",
             .{
                 self.start,
-                self.end_ordinate,
+                self.end,
             }
         );
     }
@@ -115,7 +115,7 @@ test "ContinuousTimeInterval: is_infinite"
 
     try std.testing.expectEqual(true, cti.is_infinite());
 
-    cti.end_ordinate = 2;
+    cti.end = 2;
 
     try std.testing.expectEqual(false, cti.is_infinite());
 
@@ -132,7 +132,7 @@ pub fn extend(
 {
     return .{
         .start = @min(fst.start, snd.start),
-        .end_ordinate = @max(fst.end_ordinate, snd.end_ordinate),
+        .end = @max(fst.end, snd.end),
     };
 }
 
@@ -147,57 +147,57 @@ test "ContinuousTimeInterval: extend"
         .{ 
             .fst = .{
                 .start = 0,
-                .end_ordinate = 10,
+                .end = 10,
             },
             .snd = .{
                 .start = 8,
-                .end_ordinate = 12,
+                .end = 12,
             },
             .res = .{
                 .start = 0,
-                .end_ordinate = 12,
+                .end = 12,
             },
         },
         .{ 
             .fst = .{
                 .start = 0,
-                .end_ordinate = 10,
+                .end = 10,
             },
             .snd = .{
                 .start = -2,
-                .end_ordinate = 9,
+                .end = 9,
             },
             .res = .{
                 .start = -2,
-                .end_ordinate = 10,
+                .end = 10,
             },
         },
         .{ 
             .fst = .{
                 .start = 0,
-                .end_ordinate = 10,
+                .end = 10,
             },
             .snd = .{
                 .start = -2,
-                .end_ordinate = 12,
+                .end = 12,
             },
             .res = .{
                 .start = -2,
-                .end_ordinate = 12,
+                .end = 12,
             },
         },
         .{ 
             .fst = .{
                 .start = 0,
-                .end_ordinate = 2,
+                .end = 2,
             },
             .snd = .{
                 .start = 4,
-                .end_ordinate = 12,
+                .end = 12,
             },
             .res = .{
                 .start = 0,
-                .end_ordinate = 12,
+                .end = 12,
             },
         },
     };
@@ -212,8 +212,8 @@ test "ContinuousTimeInterval: extend"
             measured.start
         );
         try std.testing.expectEqual(
-            t.res.end_ordinate,
-            measured.end_ordinate
+            t.res.end,
+            measured.end
         );
     }
 }
@@ -233,11 +233,11 @@ pub fn any_overlap(
         (
              fst_is_instant
              and fst.start >= snd.start
-             and fst.start < snd.end_ordinate
+             and fst.start < snd.end
         ) or (
             snd_is_instant
             and snd.start >= fst.start
-            and snd.start <  fst.end_ordinate
+            and snd.start <  fst.end
         ) or (
         // for cases where BOTH intervals are the same point, check if they all
         // match
@@ -247,8 +247,8 @@ pub fn any_overlap(
             and fst.start == snd.start
         ) or (
         // general case
-         fst.start < snd.end_ordinate
-         and fst.end_ordinate > snd.start
+         fst.start < snd.end
+         and fst.end > snd.start
         )
     );
 }
@@ -264,55 +264,55 @@ test "ContinuousTimeInterval: any_overlap"
         .{ 
             .fst = .{
                 .start = 0,
-                .end_ordinate = 10,
+                .end = 10,
             },
             .snd = .{
                 .start = 8,
-                .end_ordinate = 12,
+                .end = 12,
             },
             .res = true,
         },
         .{ 
             .fst = .{
                 .start = 0,
-                .end_ordinate = 10,
+                .end = 10,
             },
             .snd = .{
                 .start = -2,
-                .end_ordinate = 9,
+                .end = 9,
             },
             .res = true,
         },
         .{ 
             .fst = .{
                 .start = 0,
-                .end_ordinate = 10,
+                .end = 10,
             },
             .snd = .{
                 .start = -2,
-                .end_ordinate = 12,
+                .end = 12,
             },
             .res = true,
         },
         .{ 
             .fst = .{
                 .start = 0,
-                .end_ordinate = 4,
+                .end = 4,
             },
             .snd = .{
                 .start = 5,
-                .end_ordinate = 12,
+                .end = 12,
             },
             .res = false,
         },
         .{ 
             .fst = .{
                 .start = 0,
-                .end_ordinate = 4,
+                .end = 4,
             },
             .snd = .{
                 .start = -2,
-                .end_ordinate = 0,
+                .end = 0,
             },
             .res = false,
         },
@@ -342,18 +342,18 @@ pub fn intersect(
 
     return .{
         .start = @max(fst.start, snd.start),
-        .end_ordinate = @min(fst.end_ordinate, snd.end_ordinate),
+        .end = @min(fst.end, snd.end),
     };
 }
 
 test "intersection test - contained" {
     const int1 = ContinuousInterval{
         .start = 0,
-        .end_ordinate = 10
+        .end = 10
     };
     const int2 = ContinuousInterval{
         .start = 1,
-        .end_ordinate = 3
+        .end = 3
     };
     const res = intersect(
         int1, 
@@ -366,8 +366,8 @@ test "intersection test - contained" {
         util.EPSILON
     );
     try std.testing.expectApproxEqAbs(
-        res.end_ordinate,
-        int2.end_ordinate,
+        res.end,
+        int2.end,
         util.EPSILON
     );
 }
@@ -376,7 +376,7 @@ test "intersection test - infinite" {
     const int1 = INFINITE_INTERVAL;
     const int2 = ContinuousInterval{
         .start = 1,
-        .end_ordinate = 3
+        .end = 3
     };
     const res = intersect(
         int1,
@@ -389,8 +389,8 @@ test "intersection test - infinite" {
         util.EPSILON
     );
     try std.testing.expectApproxEqAbs(
-        res.end_ordinate,
-        int2.end_ordinate,
+        res.end,
+        int2.end,
         util.EPSILON
     );
 }
@@ -399,7 +399,7 @@ test "ContinuousTimeInterval Tests"
 {
     const ival : ContinuousInterval = .{
         .start = 10,
-        .end_ordinate = 20,
+        .end = 20,
     };
 
     try std.testing.expectEqual(
@@ -415,7 +415,7 @@ test "ContinuousTimeInterval: Overlap tests"
 {
     const ival : ContinuousInterval = .{
         .start = 10,
-        .end_ordinate = 20,
+        .end = 20,
     };
 
     try std.testing.expect(!ival.overlaps_seconds(0));
@@ -429,14 +429,14 @@ test "ContinuousTimeInterval: is_instant"
 {
     const is_not_point = ContinuousInterval {
         .start = 0,
-        .end_ordinate = 0.1,
+        .end = 0.1,
     };
 
     try std.testing.expect(is_not_point.is_instant() != true);
 
     const collapsed = ContinuousInterval {
         .start = 10,
-        .end_ordinate = 10,
+        .end = 10,
     };
 
     try std.testing.expect(collapsed.is_instant());
