@@ -1,5 +1,5 @@
 //! This module implements the Treecode struct for encoding paths through
-//! binary trees.
+//! binary trees. Also provides a TreecodeHashMap for mapping paths to things.
 
 const std = @import("std");
 
@@ -7,17 +7,22 @@ pub const TreecodeWord = u128;
 pub const WORD_BIT_COUNT = @bitSizeOf(TreecodeWord);
 pub const Hash = u64;
 
-/// An encoding of a path through a binary tree.  The root bit is the right
-/// side of a number, and the directions are read right to left.  
+/// A binary encoding of a path through a binary tree.  The root bit is the
+/// right side of a number, and the directions are read right to left.  The
+/// last (right most) bit is always a 1 and is not part of the path.
 ///
 /// The directions:
 /// - 0: left child
 /// - 1: right child
 ///
 /// Examples:
-/// - 0b1001 => right, left, left
-/// - 0b111001 => right, left, left, right, right
-/// - 0b1010 => left, right, left
+/// - 0b1001 => 0b1 001 -> right, left, left
+/// - 0b111001 => 0b1 11001 -> right, left, left, right, right
+/// - 0b1010 => 0b1 010 -> left, right, left
+///
+/// In memory, the treecode is implemented as an array of TreecodeWords.  When
+/// a path is appended path the capacity of the current word, realloc is
+/// triggered to increase capacity.
 pub const Treecode = struct {
     /// the array of words that make up the treecode
     treecode_array: []TreecodeWord,
@@ -302,7 +307,7 @@ pub const Treecode = struct {
 
     /// compute a hash for this treecode
     pub fn hash(
-        self: @This()
+        self: @This(),
     ) Hash 
     {
         var hasher = std.hash.Wyhash.init(0);
