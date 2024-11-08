@@ -252,11 +252,16 @@ test "libsamplerate w/ high level test -- resample only"
             },
         },
         .media_reference = .{
-            .signal_generator = .{
-                .index_generator = .{ .sample_rate_hz = 48000, },
-                .signal = .sine,
-                .signal_duration_s = 6.0,
-                .signal_frequency_hz = 200,
+            .signal_reference = .{
+                .sample_index_generator = .{
+                    .sample_rate_hz = 48000, 
+                },
+                .signal_generator = .{ 
+                    .signal = .sine,
+                    .duration_s = 6.0,
+                    .frequency_hz = 200,
+                },
+                .interpolating = true,
             },
         }
     };
@@ -306,14 +311,13 @@ test "libsamplerate w/ high level test -- resample only"
     );
 
     try std.testing.expect(
-        cl1.media_reference.?.signal_generator.signal_duration_s > 0
+        cl1.media_reference.?.signal_reference.signal_generator.duration_s > 0
     );
 
     // synthesize media
     const media = (
-        try cl_ptr.clip_ptr.media_reference.?.signal_generator.rasterized(
+        try cl_ptr.clip_ptr.media_reference.?.signal_reference.rasterized(
             allocator,
-            true,
         )
     );
     defer media.deinit();
@@ -324,7 +328,7 @@ test "libsamplerate w/ high level test -- resample only"
         allocator,
         "/var/tmp",
         "highlevel_libsamplerate_test_clip_media.",
-        cl1.media_reference.?.signal_generator,
+        cl1.media_reference.?.signal_reference.signal_generator,
     );
 
     // goal
@@ -393,11 +397,16 @@ test "libsamplerate w/ high level test.retime.interpolating"
             },
         },
         .media_reference = .{
-            .signal_generator = .{
-                .index_generator = .{ .sample_rate_hz = 48000, },
-                .signal = .sine,
-                .signal_duration_s = 6.0,
-                .signal_frequency_hz = 200,
+            .signal_reference = .{
+                .sample_index_generator = .{
+                    .sample_rate_hz = 48000, 
+                },
+                .signal_generator = .{
+                    .signal = .sine,
+                    .duration_s = 6.0,
+                    .frequency_hz = 200,
+                },
+                .interpolating = true,
             },
         },
     };
@@ -447,9 +456,8 @@ test "libsamplerate w/ high level test.retime.interpolating"
 
     // synthesize media
     const media = (
-        try cl_ptr.clip_ptr.media_reference.?.signal_generator.rasterized(
+        try cl_ptr.clip_ptr.media_reference.?.signal_reference.rasterized(
             allocator,
-            true,
         )
     );
     defer media.deinit();
@@ -460,7 +468,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
         allocator,
         "/var/tmp",
         "highlevel_libsamplerate_test_clip_media.",
-        cl1.media_reference.?.signal_generator,
+        cl1.media_reference.?.signal_reference.signal_generator,
     );
 
     // goal
@@ -538,11 +546,16 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
             },
         },
         .media_reference = .{
-            .signal_generator = .{
-                .index_generator = .{ .sample_rate_hz = 48000, },
-                .signal = .sine,
-                .signal_duration_s = 6.0,
-                .signal_frequency_hz = 200,
+            .signal_reference = .{
+                .sample_index_generator = .{
+                    .sample_rate_hz = 48000, 
+                },
+                .signal_generator = .{
+                    .signal = .sine,
+                    .duration_s = 6.0,
+                    .frequency_hz = 200,
+                },
+                .interpolating = false,
             },
         },
     };
@@ -589,9 +602,8 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
 
     // synthesize media
     const media = (
-        try cl_ptr.clip_ptr.media_reference.?.signal_generator.rasterized(
+        try cl_ptr.clip_ptr.media_reference.?.signal_reference.rasterized(
             allocator,
-            false,
         )
     );
     defer media.deinit();
@@ -602,7 +614,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
         allocator,
         "/var/tmp",
         "highlevel_libsamplerate_test_clip_media.",
-        cl1.media_reference.?.signal_generator,
+        cl1.media_reference.?.signal_reference.signal_generator,
     );
 
     // goal
@@ -705,11 +717,16 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
             },
         },
         .media_reference = .{
-            .signal_generator = .{
-                .index_generator = .{ .sample_rate_hz = 48000, },
-                .signal = .sine,
-                .signal_duration_s = 6.0,
-                .signal_frequency_hz = 200,
+            .signal_reference = .{
+                .sample_index_generator = .{
+                    .sample_rate_hz = 48000, 
+                },
+                .signal_generator = .{
+                    .signal = .sine,
+                    .duration_s = 6.0,
+                    .frequency_hz = 200,
+                },
+                .interpolating = true,
             },
         },
     };
@@ -829,11 +846,16 @@ test "timeline w/ warp that holds the tenth frame"
             },
         },
         .media_reference = .{
-            .signal_generator = .{
-                .index_generator = .{ .sample_rate_hz = 24, },
-                .signal = .sine,
-                .signal_duration_s = 6.0,
-                .signal_frequency_hz = 24,
+            .signal_reference = .{
+                .sample_index_generator = .{
+                    .sample_rate_hz = 24, 
+                },
+                .signal_generator = .{ 
+                    .signal = .sine,
+                    .duration_s = 6.0,
+                    .frequency_hz = 24,
+                },
+                .interpolating = true,
             },
         },
     };

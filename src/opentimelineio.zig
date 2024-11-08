@@ -82,10 +82,28 @@ pub const ExternalReference = struct {
     target_uri : []const u8,
 };
 
+pub const SignalReference = struct {
+    signal_generator: sampling.SignalGenerator,
+    sample_index_generator: sampling.SampleIndexGenerator,
+    interpolating: bool,
+
+    pub fn rasterized(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) !sampling.Sampling
+    {
+        return try self.signal_generator.rasterized(
+            allocator,
+            self.sample_index_generator,
+            self.interpolating,
+        );
+    }
+};
+
 /// information about the media that this clip is cutting into the timeline
 pub const MediaReference = union(enum) {
     external_reference : ExternalReference,
-    signal_generator : sampling.SignalGenerator,
+    signal_reference : SignalReference,
 };
 
 /// clip with an implied media reference
@@ -5379,13 +5397,16 @@ test "test debug_print_time_hierarchy"
             },
         },
         .media_reference = .{
-            .signal_generator = .{
-                .index_generator = .{
+            .signal_reference = .{
+                .sample_index_generator = .{
                     .sample_rate_hz = 24, 
                 },
-                .signal = .sine,
-                .signal_duration_s = 6.0,
-                .signal_frequency_hz = 24,
+                .signal_generator = .{
+                    .signal = .sine,
+                    .duration_s = 6.0,
+                    .frequency_hz = 24,
+                },
+                .interpolating = true,
             },
         },
     };
