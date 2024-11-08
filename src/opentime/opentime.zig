@@ -37,12 +37,6 @@ const projection_result = @import("projection_result.zig");
 pub const ProjectionResult = projection_result.ProjectionResult;
 pub const OUTOFBOUNDS = projection_result.OUTOFBOUNDS;
 
-test "all opentime tests" {
-    _ = interval;
-    _ = transform;
-    _ = dual;
-}
-
 const dbg_print_mod = @import("dbg_print.zig");
 pub const dbg_print = dbg_print_mod.dbg_print;
 
@@ -81,4 +75,9 @@ pub fn deinit_slice(
     allocator.free(slice_to_deinit);
 }
 
+test "all opentime tests" {
+    _ = interval;
+    _ = transform;
+    _ = dual;
+}
 
