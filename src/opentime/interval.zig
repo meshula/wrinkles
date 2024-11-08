@@ -109,7 +109,7 @@ pub const ContinuousInterval = struct {
     }
 };
 
-test "ContinuousTimeInterval: is_infinite"
+test "ContinuousInterval: is_infinite"
 {
     var cti = ContinuousInterval{};
 
@@ -136,7 +136,7 @@ pub fn extend(
     };
 }
 
-test "ContinuousTimeInterval: extend"
+test "ContinuousInterval: extend"
 {
     const TestStruct = struct {
         fst: ContinuousInterval,
@@ -145,60 +145,24 @@ test "ContinuousTimeInterval: extend"
     };
     const tests = [_]TestStruct{
         .{ 
-            .fst = .{
-                .start = 0,
-                .end = 10,
-            },
-            .snd = .{
-                .start = 8,
-                .end = 12,
-            },
-            .res = .{
-                .start = 0,
-                .end = 12,
-            },
+            .fst = .{ .start = 0, .end = 10, },
+            .snd = .{ .start = 8, .end = 12, },
+            .res = .{ .start = 0, .end = 12, },
         },
         .{ 
-            .fst = .{
-                .start = 0,
-                .end = 10,
-            },
-            .snd = .{
-                .start = -2,
-                .end = 9,
-            },
-            .res = .{
-                .start = -2,
-                .end = 10,
-            },
+            .fst = .{ .start = 0, .end = 10, },
+            .snd = .{ .start = -2, .end = 9, },
+            .res = .{ .start = -2, .end = 10, },
         },
         .{ 
-            .fst = .{
-                .start = 0,
-                .end = 10,
-            },
-            .snd = .{
-                .start = -2,
-                .end = 12,
-            },
-            .res = .{
-                .start = -2,
-                .end = 12,
-            },
+            .fst = .{ .start = 0, .end = 10, },
+            .snd = .{ .start = -2, .end = 12, },
+            .res = .{ .start = -2, .end = 12, },
         },
         .{ 
-            .fst = .{
-                .start = 0,
-                .end = 2,
-            },
-            .snd = .{
-                .start = 4,
-                .end = 12,
-            },
-            .res = .{
-                .start = 0,
-                .end = 12,
-            },
+            .fst = .{ .start = 0, .end = 2, },
+            .snd = .{ .start = 4, .end = 12, },
+            .res = .{ .start = 0, .end = 12, },
         },
     };
 
@@ -253,7 +217,7 @@ pub fn any_overlap(
     );
 }
 
-test "ContinuousTimeInterval: any_overlap"
+test "ContinuousInterval: any_overlap"
 { 
     const TestStruct = struct {
         fst: ContinuousInterval,
@@ -395,7 +359,7 @@ test "intersection test - infinite" {
     );
 }
 
-test "ContinuousTimeInterval Tests" 
+test "ContinuousInterval Tests" 
 {
     const ival : ContinuousInterval = .{
         .start = 10,
@@ -411,7 +375,7 @@ test "ContinuousTimeInterval Tests"
     );
 }
 
-test "ContinuousTimeInterval: Overlap tests" 
+test "ContinuousInterval: Overlap tests" 
 {
     const ival : ContinuousInterval = .{
         .start = 10,
@@ -425,7 +389,7 @@ test "ContinuousTimeInterval: Overlap tests"
     try std.testing.expect(!ival.overlaps(30));
 }
 
-test "ContinuousTimeInterval: is_instant"
+test "ContinuousInterval: is_instant"
 {
     const is_not_point = ContinuousInterval {
         .start = 0,
