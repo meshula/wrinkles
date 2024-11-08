@@ -25,6 +25,7 @@ pub const Topology = struct {
         }
 
         return .{
+            // @TODO: should clone() mappings as well
             .mappings = try allocator.dupe(
                 mapping.Mapping,
                 in_mappings
