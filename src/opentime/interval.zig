@@ -10,7 +10,7 @@ const ordinate = @import("ordinate.zig");
 /// An infinite interval
 pub const INFINITE_INTERVAL: ContinuousInterval = .{
     .start_ordinate = -util.inf, 
-    .end_ordinate = util.inf
+    .end_ordinate = util.inf,
 };
 
 /// Right open interval in a continuous metric space.  Default interval starts
@@ -129,7 +129,7 @@ test "ContinuousTimeInterval: is_infinite"
 /// return a new interval that spans the duration of both argument intervals
 pub fn extend(
     fst: ContinuousInterval,
-    snd: ContinuousInterval
+    snd: ContinuousInterval,
 ) ContinuousInterval 
 {
     return .{
