@@ -26,11 +26,11 @@ const WRITE_TEST_FILES = build_options.write_sampling_test_wave_files;
 const TMPDIR = build_options.test_data_out_dir;
 
 /// type of a sample value, ie the amplitude in a sample in an audio buffer
-const sample_value_t  = f32;
+pub const sample_value_t  = f32;
 /// the type of an index of a sample in a sample buffer
-const sample_index_t  = usize;
+pub const sample_index_t  = usize;
 /// type of an ordinate in a continuous space that spans a sampling
-const sample_ordinate_t  = opentime.Ordinate;
+pub const sample_ordinate_t  = opentime.Ordinate;
 
 // epsilon values for comparison against zero
 const EPSILON_VALUE: sample_value_t = 1.0e-4;

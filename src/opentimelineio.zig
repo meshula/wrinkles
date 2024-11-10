@@ -15,9 +15,12 @@ const string = @import("string_stuff");
 const treecode = @import("treecode");
 const sampling = @import("sampling");
 const otio_json = @import("opentimelineio_json.zig");
-const otio_highlevel_tests = @import("opentimelineio_highlevel_test.zig");
 
 test {
+    const otio_highlevel_tests = @import(
+        "opentimelineio_highlevel_test.zig"
+    );
+
     _ = otio_json;
     _ = otio_highlevel_tests;
 }
@@ -838,7 +841,7 @@ pub const Track = struct {
             if (maybe_bounds) 
                 |b| 
             {
-                maybe_bounds = opentime.extend(b, it_bound);
+                maybe_bounds = opentime.interval.extend(b, it_bound);
             } else {
                 maybe_bounds = it_bound;
             }
@@ -4322,7 +4325,7 @@ pub const Stack = struct {
             if (bounds) 
                 |b| 
             {
-                bounds = opentime.extend(b, it_bound);
+                bounds = opentime.interval.extend(b, it_bound);
             } else {
                 bounds = it_bound;
             }
@@ -4592,16 +4595,6 @@ test "otio projection: track with single clip"
                 );
             }
 
-            // const result_media_indices = (
-            //     try project_range_cd(
-            //         allocator,
-            //         .{
-            //             .po_a2b = track_to_media,
-            //             .r_in_a = test_range_in_track,
-            //         }
-            //     )
-            // );
-
             const result_media_indices = (
                 try track_to_media.project_range_cd(
                     allocator,
@@ -4611,7 +4604,7 @@ test "otio projection: track with single clip"
             defer allocator.free(result_media_indices);
 
             try std.testing.expectEqualSlices(
-                usize,
+                sampling.sample_index_t,
                 &expected,
                 result_media_indices,
             );
@@ -4669,7 +4662,9 @@ test "otio projection: track with single clip with transform"
 
     try tr.append(wp);
     try tl.tracks.append(tr);
-    const tl_ptr = ComposedValueRef{ .timeline_ptr = &tl };
+    const tl_ptr = ComposedValueRef{
+        .timeline_ptr = &tl 
+    };
     defer tl.tracks.deinit();
 
     const tr_ptr : ComposedValueRef = tl.tracks.child_ptr_from_index(0);
@@ -4781,7 +4776,7 @@ test "otio projection: track with single clip with transform"
         // continuous -> discrete
         {
             //                                   (3.5s*2 + 1s)*4
-            const expected = [_]usize{ 
+            const expected = [_]sampling.sample_index_t{ 
                 32, 34, 36, 38, 
             };
 
