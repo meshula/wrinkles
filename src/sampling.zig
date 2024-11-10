@@ -21,7 +21,7 @@ const topology = @import("topology");
 const build_options = @import("build_options");
 
 // configuration
-const RETIME_DEBUG_LOGGING = false;
+const RESAMPLE_DEBUG_LOGGING = false;
 const WRITE_TEST_FILES = build_options.write_sampling_test_wave_files;
 const TMPDIR = "/var/tmp";
 
@@ -645,7 +645,7 @@ pub fn transform_resample_dd(
     /// for interpolating samplings, libsamplerate can be told to make the rate 
     /// of change be a step function rather than using the linearized curve in
     /// the output_c_to_input_c directly.
-    step_retime: bool,
+    step_transform: bool,
 ) !Sampling
 {
     // bound input_c_to_output_c_topo by the implicit space of in_samples
@@ -695,7 +695,7 @@ pub fn transform_resample_dd(
                         input_d_sampling,
                         lin,
                         output_d_sampling_info,
-                        step_retime,
+                        step_transform,
                     )
                 );
                 defer new_sampling.deinit();
@@ -720,7 +720,7 @@ pub fn transform_resample_dd(
                         input_d_sampling,
                         lin,
                         output_d_sampling_info,
-                        step_retime,
+                        step_transform,
                     )
                 );
                 defer new_sampling.deinit();
@@ -737,13 +737,13 @@ pub fn transform_resample_dd(
     };
 }
 
-/// retime in_samples with xform, return a new Sampling at the same sample rate
+/// transform and resample in_samples into a new Sampling
 pub fn transform_resample_linear_dd(
     allocator: std.mem.Allocator,
     input_d_samples: Sampling,
     output_c_to_input_c_crv: topology.mapping.MappingCurveLinearMonotonic,
     output_d_sampling_info: SampleIndexGenerator,
-    step_retime: bool,
+    step_transform: bool,
 ) !Sampling
 {
     return switch (input_d_samples.interpolating) {
@@ -752,7 +752,7 @@ pub fn transform_resample_linear_dd(
             input_d_samples,
             output_c_to_input_c_crv.input_to_output_curve,
             output_d_sampling_info,
-            step_retime,
+            step_transform,
         ),
         false => try transform_resample_linear_non_interpolating_dd(
             allocator,
@@ -767,11 +767,11 @@ pub fn transform_resample_linear_dd(
 /// through the retiming curve and back to a discrete sampling
 ///
 /// the retiming curve maps an implicit continuous space of the samples to the
-/// retimed space
+/// transformed space
 /// 
 /// ->
 ///
-/// the retiming curve maps the retimed space to the implicit space of the
+/// the retiming curve maps the transformed space to the implicit space of the
 /// samples
 ///
 /// For example, given:
@@ -928,28 +928,29 @@ pub fn transform_resample_linear_non_interpolating_dd(
     return output_sampling;
 }
 
-/// retime and interpolate the in_samples buffer using libsamplerate
+/// transform and interpolate the in_samples buffer using libsamplerate
 pub fn transform_resample_linear_interpolating_dd(
     allocator: std.mem.Allocator,
     input_d_samples: Sampling,
     output_c_to_input_c_crv: curve.Linear.Monotonic,
     output_sampling_info: SampleIndexGenerator,
-    step_retime: bool,
+    step_transform: bool,
 ) !Sampling
 {
     var output_buffer_size:usize = 0;
 
-    const RetimeSpec = struct {
-        retime_ratio: f32,
+    const TransformSpec = struct {
+        /// ratio of output sample count to input sample count
+        transform_ratio: f32,
         output_samples: usize,
         input_samples: usize,
         input_data: []sample_value_t,
     };
 
-    var retime_specs = std.ArrayList(
-        RetimeSpec
+    var transform_specs = std.ArrayList(
+        TransformSpec
     ).init(allocator);
-    defer retime_specs.deinit();
+    defer transform_specs.deinit();
 
     for (
         output_c_to_input_c_crv.knots[0..output_c_to_input_c_crv.knots.len-1],
@@ -990,7 +991,7 @@ pub fn transform_resample_linear_interpolating_dd(
             return error.NoOutputSamplesToCompute;
         }
 
-        const retime_ratio:f32 = (
+        const transform_ratio:f32 = (
             ( @as(f32, @floatFromInt(output_samples ))) 
             / (
                 @as(f32, @floatFromInt(input_samples))
@@ -999,9 +1000,9 @@ pub fn transform_resample_linear_interpolating_dd(
 
         output_buffer_size += output_samples;
 
-        try retime_specs.append(
+        try transform_specs.append(
             .{
-                .retime_ratio = retime_ratio,
+                .transform_ratio = transform_ratio,
                 .output_samples = output_samples,
                 .input_data = relevant_input_samples,
                 .input_samples = input_samples,
@@ -1035,28 +1036,28 @@ pub fn transform_resample_linear_interpolating_dd(
         .end_of_input = 0,
     };
 
-    if (RETIME_DEBUG_LOGGING) {
-        std.debug.print(" \n\n----- retime info dump -----\n", .{});
+    if (RESAMPLE_DEBUG_LOGGING) {
+        std.debug.print(" \n\n----- resample info dump -----\n", .{});
     }
 
-    var input_retime_samples = input_d_samples.buffer[0..];
+    var input_transform_samples = input_d_samples.buffer[0..];
 
-    // walk across each retime spec to compute the output samples
-    var retime_index:usize = 0;
-    while (retime_index < retime_specs.items.len)
+    // walk across each transform spec to compute the output samples
+    var transform_index:usize = 0;
+    while (transform_index < transform_specs.items.len)
     {
         // setup this chunk
-        var spec = &retime_specs.items[retime_index];
-        src_data.src_ratio = spec.retime_ratio;
-        src_data.input_frames = @intCast(input_retime_samples.len);
+        var spec = &transform_specs.items[transform_index];
+        src_data.src_ratio = spec.transform_ratio;
+        src_data.input_frames = @intCast(input_transform_samples.len);
         src_data.output_frames = @intCast(spec.output_samples);
         
-        if (step_retime) {
+        if (step_transform) {
             // calling this function forces it to be a step function
-            _ = libsamplerate.src_set_ratio(src_state, spec.retime_ratio);
+            _ = libsamplerate.src_set_ratio(src_state, spec.transform_ratio);
         }
 
-        if (retime_index == retime_specs.items.len - 1)
+        if (transform_index == transform_specs.items.len - 1)
         {
             src_data.end_of_input = 1;
         }
@@ -1067,7 +1068,7 @@ pub fn transform_resample_linear_interpolating_dd(
             return error.LibSampleRateError;
         }
 
-        if (RETIME_DEBUG_LOGGING) {
+        if (RESAMPLE_DEBUG_LOGGING) {
             std.debug.print(
                 "in provided: {d} in used: {d} out requested: {d} out "
                 ++ "generated: {d} ",
@@ -1087,20 +1088,20 @@ pub fn transform_resample_linear_interpolating_dd(
         }
 
         // slide buffers forward
-        input_retime_samples = input_retime_samples[
+        input_transform_samples = input_transform_samples[
             @intCast(src_data.input_frames_used)..
         ];
-        src_data.data_in = @ptrCast(input_retime_samples.ptr);
+        src_data.data_in = @ptrCast(input_transform_samples.ptr);
         output_buffer = output_buffer[@intCast(src_data.output_frames_gen)..];
         src_data.data_out = @ptrCast(output_buffer.ptr);
 
         // if its time to advance to the next chunk
         if (
             src_data.output_frames <= 0 
-            or input_retime_samples.len == 0
+            or input_transform_samples.len == 0
         )
         {
-            retime_index += 1;
+            transform_index += 1;
         }
         else
         {
@@ -1171,9 +1172,9 @@ test "sampling: resample from 48khz to 44"
 }
 
 // test 2
-// have a set of samples over 48khz, retime them with a linear curve and then
+// have a set of samples over 48khz, transform them with a linear curve and then
 // resample them to 44khz
-test "sampling: retime 48khz samples: ident-2x-ident, then resample to 44.1khz" 
+test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1khz" 
 {
     const allocator = std.testing.allocator;
 
@@ -1193,7 +1194,7 @@ test "sampling: retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
         try s48.write_file_prefix(
             allocator,
             TMPDIR,
-            "retime_test_input.",
+            "transform_test_input.",
             samples_48,
         );
     }
@@ -1215,7 +1216,7 @@ test "sampling: retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
     //
 
     // @TODO: write this to a json file so we can image in curvet
-    var retime_curve_segments = [_]curve.Bezier.Segment{
+    var transform_curve_segments = [_]curve.Bezier.Segment{
         // identity
         curve.Bezier.Segment.init_identity(0,  1.0),
         // go up
@@ -1229,14 +1230,14 @@ test "sampling: retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
             .{ .in = 3.0, .out = 4.0 },
         ),
     };
-    const retime_curve : curve.Bezier = .{
-        .segments = &retime_curve_segments,
+    const transform_curve : curve.Bezier = .{
+        .segments = &transform_curve_segments,
     };
     if (WRITE_TEST_FILES) {
         try curve.write_json_file_curve(
             allocator,
-            retime_curve,
-            "/var/tmp/ours_retime_curve.curve.json"
+            transform_curve,
+            "/var/tmp/ours_transform_curve.curve.json"
         );
     }
 
@@ -1244,30 +1245,30 @@ test "sampling: retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
 
     const input_to_output_cc = try topology.Topology.init_bezier(
         allocator,
-        retime_curve.segments,
+        transform_curve.segments,
     );
     defer input_to_output_cc.deinit(allocator);
 
-    const samples_48_retimed = try transform_resample_dd(
+    const samples_48_transformd = try transform_resample_dd(
         allocator,
         s48,
         input_to_output_cc,
         output_sampling_info,
         true,
     );
-    defer samples_48_retimed.deinit();
+    defer samples_48_transformd.deinit();
     if (WRITE_TEST_FILES) {
-        try samples_48_retimed.write_file_prefix(
+        try samples_48_transformd.write_file_prefix(
             allocator,
             TMPDIR,
-            "retime_test_retimed_pre_resample.",
+            "transform_test_transformd_pre_resample.",
             samples_48,
         );
     }
 
     const samples_44 = try resampled_dd(
         allocator,
-        samples_48_retimed,
+        samples_48_transformd,
         .{ .sample_rate_hz = 44100 },
     );
     defer samples_44.deinit();
@@ -1275,7 +1276,7 @@ test "sampling: retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
         try samples_44.write_file_prefix(
             allocator,
             TMPDIR,
-            "retime_test_output.",
+            "transform_test_output.",
             samples_48,
         );
     }
@@ -1293,27 +1294,20 @@ test "sampling: retime 48khz samples: ident-2x-ident, then resample to 44.1khz"
     const samples_44_p2p_0p5 = try peak_to_peak_distance(
         samples_44.buffer[48100..52000]
     );
-    try std.testing.expectApproxEqAbs(
-        @as(f32, @floatFromInt(882)),
-        @as(f32, @floatFromInt( samples_44_p2p_0p5)),
-        2,
-     );
+    try std.testing.expectEqual(882, samples_44_p2p_0p5);
 
     // identity
     const samples_44_p2p_1p0 = try peak_to_peak_distance(
         samples_44.buffer[(3*48000 + 100)..]
     );
-    try std.testing.expectEqual(
-        441,
-        samples_44_p2p_1p0
-    );
+    try std.testing.expectEqual(441, samples_44_p2p_1p0);
 }
 
 // test 3
-// retime a set of samples with a cubic function.  also linearize the function
+// transform a set of samples with a cubic function.  also linearize the function
 // at an intentionally low rate to reproduce an error we've seen on some
 // editing systems with retiming
-test "sampling: retime 48khz samples with a nonlinear acceleration curve and resample" 
+test "sampling: transform 48khz samples with a nonlinear acceleration curve and resample" 
 {
     const allocator = std.testing.allocator;
 
@@ -1330,7 +1324,7 @@ test "sampling: retime 48khz samples with a nonlinear acceleration curve and res
     );
     defer s48.deinit();
 
-    var cubic_retime_curve_segments = [_]curve.Bezier.Segment{
+    var cubic_transform_curve_segments = [_]curve.Bezier.Segment{
         // identity
         curve.Bezier.Segment.init_identity(0, 1),
         // go up
@@ -1341,14 +1335,14 @@ test "sampling: retime 48khz samples with a nonlinear acceleration curve and res
             .p3 = .{ .in = 2.5, .out = 1.5 },
         },
     };
-    const cubic_retime_curve : curve.Bezier = .{
-        .segments = &cubic_retime_curve_segments
+    const cubic_transform_curve : curve.Bezier = .{
+        .segments = &cubic_transform_curve_segments
     };
     if (WRITE_TEST_FILES) {
         try curve.write_json_file_curve(
             std.testing.allocator,
-            cubic_retime_curve,
-            "/var/tmp/ours_retime_24hz.linear.json"
+            cubic_transform_curve,
+            "/var/tmp/ours_transform_24hz.linear.json"
         );
     }
 
@@ -1356,30 +1350,32 @@ test "sampling: retime 48khz samples with a nonlinear acceleration curve and res
 
     const input_to_output_cc = try topology.Topology.init_bezier(
         allocator,
-        cubic_retime_curve.segments,
+        cubic_transform_curve.segments,
     );
     defer input_to_output_cc.deinit(allocator);
 
-    const samples_48_retimed_cubic = try transform_resample_dd(
+    const samples_48_transformd_cubic = try transform_resample_dd(
         std.testing.allocator,
         s48,
         input_to_output_cc,
         output_sampling_info,
         true,
     );
-    defer samples_48_retimed_cubic.deinit();
-    if (WRITE_TEST_FILES) {
-        try samples_48_retimed_cubic.write_file_prefix(
+    defer samples_48_transformd_cubic.deinit();
+
+    if (WRITE_TEST_FILES)
+    {
+        try samples_48_transformd_cubic.write_file_prefix(
             std.testing.allocator,
             TMPDIR,
-            "retime_cubic_test_retimed_pre_resample.",
+            "transform_cubic_test_transformd_pre_resample.",
             samples_48,
         );
     }
 
     // linearize at 24hz
-    const retime_curve_extents = (
-        cubic_retime_curve.extents_input()
+    const transform_curve_extents = (
+        cubic_transform_curve.extents_input()
     );
     const inc:sample_value_t = 4.0/24.0;
 
@@ -1390,35 +1386,35 @@ test "sampling: retime 48khz samples with a nonlinear acceleration curve and res
 
     try knots.append(
         .{
-            .in = retime_curve_extents.start,
-            .out = try cubic_retime_curve.output_at_input(
-                retime_curve_extents.start
+            .in = transform_curve_extents.start,
+            .out = try cubic_transform_curve.output_at_input(
+                transform_curve_extents.start
             ),
         }
     );
 
-    var t = retime_curve_extents.start + inc;
-    while (t < retime_curve_extents.end)
+    var t = transform_curve_extents.start + inc;
+    while (t < transform_curve_extents.end)
         : (t += inc)
     {
         try knots.append(
             .{
                 .in = t,
-                .out = try cubic_retime_curve.output_at_input(t),
+                .out = try cubic_transform_curve.output_at_input(t),
             }
         );
     }
 
-    const retime_24hz_lin = curve.Linear{
+    const transform_24hz_lin = curve.Linear{
         .knots = try knots.toOwnedSlice(),
     };
-    defer retime_24hz_lin.deinit(std.testing.allocator);
+    defer transform_24hz_lin.deinit(std.testing.allocator);
 
     const input_to_output_lin_cc = 
         (
          try topology.Topology.init_from_linear(
              allocator,
-             retime_24hz_lin,
+             transform_24hz_lin,
          )
     );
     defer input_to_output_lin_cc.deinit(allocator);
@@ -1426,43 +1422,46 @@ test "sampling: retime 48khz samples with a nonlinear acceleration curve and res
     if (WRITE_TEST_FILES) {
         try curve.write_json_file_curve(
             std.testing.allocator,
-            retime_24hz_lin,
-            "/var/tmp/ours_retime_24hz.linear.json"
+            transform_24hz_lin,
+            "/var/tmp/ours_transform_24hz.linear.json"
         );
         try curve.write_json_file_curve(
             std.testing.allocator,
-            cubic_retime_curve,
-            "/var/tmp/ours_retime_acceleration.curve.json"
+            cubic_transform_curve,
+            "/var/tmp/ours_transform_acceleration.curve.json"
         );
     }
 
-    const samples_48_retimed = try transform_resample_dd(
+    const samples_48_transformd = try transform_resample_dd(
         std.testing.allocator,
         s48,
         input_to_output_lin_cc,
         output_sampling_info,
         true,
     );
-    defer samples_48_retimed.deinit();
+    defer samples_48_transformd.deinit();
+
     if (WRITE_TEST_FILES) {
-        try samples_48_retimed.write_file_prefix(
+        try samples_48_transformd.write_file_prefix(
             std.testing.allocator,
             TMPDIR,
-            "retime_cubic_test_retimed_linearized24hz_pre_resample.",
+            "transform_cubic_test_transformd_linearized24hz_pre_resample.",
             samples_48,
         );
     }
+
     const samples_44 = try resampled_dd(
         std.testing.allocator,
-        samples_48_retimed,
+        samples_48_transformd,
         .{ .sample_rate_hz = 44100 },
     );
     defer samples_44.deinit();
+
     if (WRITE_TEST_FILES) {
         try samples_44.write_file_prefix(
             std.testing.allocator,
             TMPDIR,
-            "retime_cubic_test_retimed_linearized24hz_resampled.",
+            "transform_cubic_test_transformd_linearized24hz_resampled.",
             samples_48,
         );
     }
@@ -1576,18 +1575,18 @@ test "sampling: frame phase slide 1: (time*1 freq*1 phase+0) 0,1,2,3->0,1,2,3"
         .sample_rate_hz = 4,
     };
 
-    const retimed_ramp_samples = try transform_resample_linear_dd(
+    const transformd_ramp_samples = try transform_resample_linear_dd(
         std.testing.allocator, 
         ramp_samples,
         sample_to_output_crv,
         output_sampling_info,
         false,
     );
-    defer retimed_ramp_samples.deinit();
+    defer transformd_ramp_samples.deinit();
 
     try std.testing.expectEqual(
         4,
-        retimed_ramp_samples.buffer.len
+        transformd_ramp_samples.buffer.len
     );
 
     const expected = &[_]sample_value_t{ 0, 1, 2, 3};
@@ -1595,7 +1594,7 @@ test "sampling: frame phase slide 1: (time*1 freq*1 phase+0) 0,1,2,3->0,1,2,3"
     try std.testing.expectEqualSlices(
         sample_value_t,
         expected,
-        retimed_ramp_samples.buffer,
+        transformd_ramp_samples.buffer,
     );
 }
 
@@ -1708,7 +1707,7 @@ test "sampling: frame phase slide 2.5: (time*2 bounds*2 freq*1 phase+0) 0,1,2,3-
     try std.testing.expectEqual(false, ramp_samples.interpolating);
 
     // @TODO: return here after threading interpolating through
-    const retimed_to_sample_crv = (
+    const transformd_to_sample_crv = (
         topology.mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = curve.linear_curve.Linear.Monotonic {
                 .knots = &.{
@@ -1722,12 +1721,12 @@ test "sampling: frame phase slide 2.5: (time*2 bounds*2 freq*1 phase+0) 0,1,2,3-
     // trivial check that curve behaves as expected
     try std.testing.expectApproxEqAbs(
         0.5,
-        try retimed_to_sample_crv.project_instantaneous_cc(1.0).ordinate(),
+        try transformd_to_sample_crv.project_instantaneous_cc(1.0).ordinate(),
         EPSILON_ORD
     );
     try std.testing.expectApproxEqAbs(
         0.0,
-        try retimed_to_sample_crv.project_instantaneous_cc(0.0).ordinate(),
+        try transformd_to_sample_crv.project_instantaneous_cc(0.0).ordinate(),
         EPSILON_ORD
     );
 
@@ -1738,7 +1737,7 @@ test "sampling: frame phase slide 2.5: (time*2 bounds*2 freq*1 phase+0) 0,1,2,3-
     const output_ramp_samples = try transform_resample_linear_dd(
         std.testing.allocator, 
         ramp_samples,
-        retimed_to_sample_crv,
+        transformd_to_sample_crv,
         output_sampling_info,
         false,
     );
@@ -1905,7 +1904,7 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
     );
 
     // @TODO: return here after threading interpolating through
-    const retime_to_inter_crv = (
+    const transform_to_inter_crv = (
         topology.mapping.MappingCurveLinearMonotonic {
             .input_to_output_curve = curve.linear_curve.Linear.Monotonic {
                 .knots = &.{ 
@@ -1927,24 +1926,24 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
         }
     ).mapping();
 
-    const retimed_to_sample_crv = try topology.mapping.join(
+    const transformd_to_sample_crv = try topology.mapping.join(
         allocator,
         .{ 
-            .a2b = retime_to_inter_crv,
+            .a2b = transform_to_inter_crv,
             .b2c = inter_to_sample_crv,
         }
     );
-    defer retimed_to_sample_crv.deinit(std.testing.allocator);
+    defer transformd_to_sample_crv.deinit(std.testing.allocator);
 
     // trivial check that curve behaves as expected
     try std.testing.expectApproxEqAbs(
         0.375,
-        try retimed_to_sample_crv.project_instantaneous_cc(0.75).ordinate(),
+        try transformd_to_sample_crv.project_instantaneous_cc(0.75).ordinate(),
         EPSILON_ORD
     );
     try std.testing.expectApproxEqAbs(
         0.125,
-        try retimed_to_sample_crv.project_instantaneous_cc(0.25).ordinate(),
+        try transformd_to_sample_crv.project_instantaneous_cc(0.25).ordinate(),
         EPSILON_ORD
     );
 
@@ -1955,7 +1954,7 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
     const output_ramp_samples = try transform_resample_linear_dd(
         std.testing.allocator, 
         ramp_samples,
-        retimed_to_sample_crv.linear,
+        transformd_to_sample_crv.linear,
         output_sampling_info,
         false,
     );
@@ -2126,7 +2125,7 @@ test "sampling: wav.zig generator test"
     }
 }
 
-test "sampling: retimed leak test"
+test "sampling: transformed leak test"
 {
     var buf = [_]sample_value_t{0, 1, 2, 3};
 
@@ -2141,7 +2140,7 @@ test "sampling: retimed leak test"
         .{ .in = 0, .out = 0 },
         .{ .in = 1, .out = 1 },
     };
-    const retimed_to_sample_crv = (
+    const transformed_to_sample_crv = (
         topology.mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = (
                 curve.Linear.Monotonic{
@@ -2158,7 +2157,7 @@ test "sampling: retimed leak test"
     const output_ramp_samples = try transform_resample_linear_dd(
         std.testing.allocator, 
         ramp_samples,
-        retimed_to_sample_crv,
+        transformed_to_sample_crv,
         output_sampling_info,
         false,
     );
