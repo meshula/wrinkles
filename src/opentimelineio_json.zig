@@ -285,14 +285,17 @@ pub fn read_otio_object(
 
             var cl = otio.Clip{
                 .name=try allocator.dupe(u8, name),
-                .media_temporal_bounds  = range,
+                .bounds_s  = range,
             };
+
+            // @TODO: read more of the media reference
+            // @TODO: read metadata
 
             if (maybe_rate)
                 |rate|
             {
-                cl.discrete_info.media = .{
-                        .sample_rate_hz = rate,
+                cl.media.discrete_info = .{
+                    .sample_rate_hz = rate,
                 };
             }
 

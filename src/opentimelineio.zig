@@ -49,41 +49,41 @@ pub const ExternalReference = struct {
 
 pub const SignalReference = struct {
     signal_generator: sampling.SignalGenerator,
-    sample_index_generator: sampling.SampleIndexGenerator,
-    interpolating: bool,
+};
 
-    pub fn rasterized(
-        self: @This(),
-        allocator: std.mem.Allocator,
-    ) !sampling.Sampling
-    {
-        return try self.signal_generator.rasterized(
-            allocator,
-            self.sample_index_generator,
-            self.interpolating,
-        );
-    }
+pub const EmptyReference = struct {
 };
 
 /// information about the media that this clip is cutting into the timeline
-pub const MediaReference = union(enum) {
-    external_reference : ExternalReference,
-    signal_reference : SignalReference,
+pub const MediaDataReference = union(enum) {
+    external: ExternalReference,
+    signal: SignalReference,
+    empty: EmptyReference,
+};
+
+pub const EMPTY_REF = MediaDataReference{
+    .empty = .{} 
+};
+
+pub const MediaReference = struct {
+    ref: MediaDataReference = EMPTY_REF,
+
+    bounds_s: ?opentime.ContinuousInterval = null,
+    discrete_info: ?sampling.SampleIndexGenerator = null,
+    // should be part of the transform?
+    interpolating: bool = false,
 };
 
 /// clip with an implied media reference
 pub const Clip = struct {
+    /// identifier name
     name: ?string.latin_s8 = null,
 
-    /// a trim on the media space
-    media_temporal_bounds: ?opentime.ContinuousInterval = null,
+    /// a trim on the media space, in the media coordinate system
+    bounds_s: ?opentime.ContinuousInterval = null,
 
-    /// Information about the media this points at
-    media_reference: ?MediaReference = null,
-
-    discrete_info: struct{
-        media:  ?sampling.SampleIndexGenerator = null,
-    } = .{},
+    /// Information about the media this clip cuts into the track
+    media: MediaReference = .{},
 
     parameters: ?ParameterMap = null,
 
@@ -149,7 +149,11 @@ pub const Clip = struct {
         target_space: SpaceLabel,
     ) !opentime.ContinuousInterval 
     {
-        if (self.media_temporal_bounds)
+        const maybe_bounds_s = (
+            self.bounds_s orelse self.media.bounds_s
+        );
+
+        if (maybe_bounds_s)
             |bounds|
         {
             return switch (target_space) {
@@ -170,7 +174,7 @@ pub const Clip = struct {
         allocator: std.mem.Allocator,
     ) !topology_m.Topology 
     {
-        if (self.media_temporal_bounds) 
+        if (self.bounds_s) 
             |range| 
         {
             const media_bounds = (
@@ -703,7 +707,7 @@ pub const ComposedValueRef = union(enum) {
                 inline else => error.SpaceOnObjectCannotBeDiscrete,
             },
             .clip_ptr => |cl| switch (in_space) {
-                .media => cl.discrete_info.media,
+                .media => cl.media.discrete_info,
                 inline else => error.SpaceOnObjectCannotBeDiscrete,
             },
             inline else => error.ObjectDoesNotSupportDiscretespaces,
@@ -761,6 +765,7 @@ pub const Warp = struct {
     name: ?string.latin_s8 = null,
     child: ComposedValueRef,
     transform: topology_m.Topology,
+    interpolating: bool = false,
 };
 
 /// a container in which each contained item is right-met over time
@@ -1413,6 +1418,9 @@ pub const TopologicalMap = struct {
                 );
             }
 
+            // in case build_transform errors
+            errdefer root_to_current.deinit(allocator);
+
             var current_to_next = try current.space.ref.build_transform(
                 allocator,
                 current.space.label,
@@ -1505,10 +1513,6 @@ pub const TopologicalMap = struct {
         };
     }
 
-    // @TODO: add a print for the enum of the transform on the node
-    //        that at least lets you spot empty/bezier/affine etc
-    //        transforms
-    //
     fn label_for_node_leaky(
         allocator: std.mem.Allocator,
         ref: SpaceReference,
@@ -1524,7 +1528,8 @@ pub const TopologicalMap = struct {
             .warp_ptr => "warp",
         };
 
-        if (LABEL_HAS_BINARY_TREECODE) {
+        if (LABEL_HAS_BINARY_TREECODE) 
+        {
             return std.fmt.allocPrint(
                 allocator,
                 "{s}_{s}_{s}",
@@ -1535,13 +1540,18 @@ pub const TopologicalMap = struct {
                 }
             );
         } 
-        else {
+        else 
+        {
             const args = .{ 
                 item_kind,
                 @tagName(ref.label), code.hash(), 
             };
 
-            return std.fmt.allocPrint(allocator, "{s}_{s}_{any}", args);
+            return std.fmt.allocPrint(
+                allocator,
+                "{s}_{s}_{any}",
+                args
+            );
         }
     }
 
@@ -1938,7 +1948,7 @@ test "ProjectionOperatorMap: projection_map_to_media_from leak test"
     const allocator = std.testing.allocator;
 
     const cl = Clip {
-        .media_temporal_bounds = .{
+        .bounds_s = .{
             .start = 1,
             .end = 9 
         }
@@ -2304,7 +2314,7 @@ pub const ProjectionOperatorMap = struct {
 test "ProjectionOperatorMap: extend_to"
 {
     const cl = Clip {
-        .media_temporal_bounds = .{
+        .bounds_s = .{
             .start = 1,
             .end = 9 
         }
@@ -2398,7 +2408,7 @@ test "ProjectionOperatorMap: extend_to"
 test "ProjectionOperatorMap: split_at_each"
 {
     const cl = Clip {
-        .media_temporal_bounds = .{
+        .bounds_s = .{
             .start = 1,
             .end = 9 
         }
@@ -2516,7 +2526,7 @@ test "ProjectionOperatorMap: split_at_each"
 test "ProjectionOperatorMap: merge_composite"
 {
     const cl = Clip {
-        .media_temporal_bounds = .{
+        .bounds_s = .{
             .start = 1,
             .end = 9 
         }
@@ -2567,7 +2577,7 @@ test "ProjectionOperatorMap: clip"
     const allocator = std.testing.allocator;
 
     const cl = Clip {
-        .media_temporal_bounds = .{
+        .bounds_s = .{
             .start = 1,
             .end = 9 
         }
@@ -2660,7 +2670,7 @@ test "ProjectionOperatorMap: track with single clip"
     const tr_ptr = ComposedValueRef.init(&tr);
 
     const cl = Clip {
-        .media_temporal_bounds = .{
+        .bounds_s = .{
             .start = 1,
             .end = 9 
         }
@@ -2761,13 +2771,13 @@ test "transform: track with two clips"
     defer tr.deinit();
 
     const cl1 = Clip {
-        .media_temporal_bounds = .{
+        .bounds_s = .{
             .start = 1,
             .end = 9 
         }
     };
     const cl2 = Clip {
-        .media_temporal_bounds = .{
+        .bounds_s = .{
             .start = 1,
             .end = 4 
         }
@@ -2883,7 +2893,7 @@ test "ProjectionOperatorMap: track with two clips"
     defer tr.deinit();
 
     const cl = Clip {
-        .media_temporal_bounds = .{
+        .bounds_s = .{
             .start = 1,
             .end = 9 
         }
@@ -2971,7 +2981,7 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
     const tr_ptr = ComposedValueRef.init(&tr);
 
     const cl = Clip {
-        .media_temporal_bounds = .{
+        .bounds_s = .{
             .start = 1,
             .end = 9 
         }
@@ -3332,7 +3342,7 @@ test "clip topology construction"
     const start:f32 = 1;
     const end:f32 = 10;
     const cl = Clip {
-        .media_temporal_bounds = .{
+        .bounds_s = .{
             .start = start,
             .end = end 
         }
@@ -3365,7 +3375,7 @@ test "track topology construction"
     const end:f32 = 10;
     try tr.append(
         Clip {
-            .media_temporal_bounds = .{
+            .bounds_s = .{
                 .start = start,
                 .end = end 
             }
@@ -3429,7 +3439,7 @@ test "build_topological_map check root node"
 
     try tr.append(
         Clip { 
-            .media_temporal_bounds = cti, 
+            .bounds_s = cti, 
         }
     );
 
@@ -3439,7 +3449,7 @@ test "build_topological_map check root node"
     {
         try tr.append(
             Clip {
-                .media_temporal_bounds = cti,
+                .bounds_s = cti,
             }
         );
     }
@@ -3471,7 +3481,7 @@ test "path_code: graph test"
     const end:f32 = 10;
 
     const cl = Clip {
-        .media_temporal_bounds = .{
+        .bounds_s = .{
             .start = start,
             .end = end 
         }
@@ -3484,7 +3494,7 @@ test "path_code: graph test"
     {
         try tr.append(
             Clip {
-                .media_temporal_bounds = .{
+                .bounds_s = .{
                     .start = start,
                     .end = end 
                 }
@@ -3575,7 +3585,7 @@ test "Track with clip with identity transform projection"
     };
     
     const cl_template = Clip{
-        .media_temporal_bounds = range
+        .bounds_s = range
     };
 
     // reserve capcacity so that the reference isn't invalidated
@@ -3638,7 +3648,7 @@ test "TopologicalMap: Track with clip with identity transform topological"
 
     const cl_ref = try tr.append_fetch_ref(
         Clip {
-            .media_temporal_bounds = .{
+            .bounds_s = .{
                 .start = 0,
                 .end = 2 
             } 
@@ -3734,7 +3744,7 @@ test "Projection: Track with single clip with identity transform and bounds"
     const root = ComposedValueRef{ .track_ptr = &tr };
 
     const cl = Clip {
-        .media_temporal_bounds = .{
+        .bounds_s = .{
             .start = 0,
             .end = 2 
         }
@@ -3766,7 +3776,7 @@ test "Projection: Track with single clip with identity transform and bounds"
     defer root_presentation_to_clip_media.deinit(allocator);
 
     const expected_media_temporal_bounds = (
-        cl.media_temporal_bounds orelse interval.ContinuousInterval{}
+        cl.bounds_s orelse interval.ContinuousInterval{}
     );
 
     const actual_media_temporal_bounds = (
@@ -3807,7 +3817,7 @@ test "Projection: Track with multiple clips with identity transform and bounds"
     defer tr.deinit();
     const track_ptr = ComposedValueRef{ .track_ptr = &tr };
 
-    const cl = Clip { .media_temporal_bounds = .{ .start = 0, .end = 2 } };
+    const cl = Clip { .bounds_s = .{ .start = 0, .end = 2 } };
 
     // add three copies
     try tr.append(cl);
@@ -3934,7 +3944,7 @@ test "Projection: Track with multiple clips with identity transform and bounds"
     defer root_presentation_to_clip_media.deinit(allocator);
 
     const expected_range = (
-        cl.media_temporal_bounds orelse interval.ContinuousInterval{}
+        cl.bounds_s orelse interval.ContinuousInterval{}
     );
     const actual_range = (
         root_presentation_to_clip_media.src_to_dst_topo.input_bounds()
@@ -4034,7 +4044,7 @@ test "Single Clip bezier transform"
         .end = 110,
     };
     const cl = Clip {
-        .media_temporal_bounds = media_temporal_bounds,
+        .bounds_s = media_temporal_bounds,
     };
     const cl_ptr:ComposedValueRef = .{ .clip_ptr = &cl };
 
@@ -4452,9 +4462,9 @@ test "otio projection: track with single clip"
 
     // construct the clip and add it to the track
     const cl = Clip {
-        .media_temporal_bounds = media_source_range,
-        .discrete_info = .{
-            .media = media_discrete_info 
+        .media = .{
+            .bounds_s = media_source_range,
+            .discrete_info = media_discrete_info,
         },
     };
     const cl_ptr = try tr.append_fetch_ref(cl);
@@ -4642,9 +4652,9 @@ test "otio projection: track with single clip with transform"
 
     // construct the clip and add it to the track
     const cl = Clip {
-        .media_temporal_bounds = media_source_range,
-        .discrete_info = .{
-            .media = media_discrete_info 
+        .media = .{
+            .bounds_s = media_source_range,
+            .discrete_info = media_discrete_info,
         },
     };
     defer cl.destroy(allocator);
@@ -5098,7 +5108,7 @@ test "TestWalkingIterator: clip"
     };
 
     const cl = Clip {
-        .media_temporal_bounds = media_source_range,
+        .bounds_s = media_source_range,
     };
     const cl_ptr = ComposedValueRef.init(&cl);
 
@@ -5139,7 +5149,7 @@ test "TestWalkingIterator: track with clip"
 
     // construct the clip and add it to the track
     const cl = Clip {
-        .media_temporal_bounds = media_source_range,
+        .bounds_s = media_source_range,
     };
     const cl_ptr = try tr.append_fetch_ref(cl);
     const tr_ptr = ComposedValueRef.init(&tr);
@@ -5206,12 +5216,12 @@ test "TestWalkingIterator: track with clip w/ destination"
 
     // construct the clip and add it to the track
     const cl = Clip {
-        .media_temporal_bounds = media_source_range,
+        .bounds_s = media_source_range,
     };
     try tr.append(cl);
 
     const cl2 = Clip {
-        .media_temporal_bounds = media_source_range,
+        .bounds_s = media_source_range,
     };
     const cl_ptr = try tr.append_fetch_ref(cl2);
     const tr_ptr = ComposedValueRef.init(&tr);
@@ -5276,9 +5286,9 @@ test "Clip: Animated Parameter example"
     var cl = try Clip.init(
         allocator,
         .{ 
-            .media_temporal_bounds = media_source_range,
-            .discrete_info = .{
-                .media = media_discrete_info 
+            .media = .{
+                .bounds_s = media_source_range,
+                .discrete_info = media_discrete_info 
             },
         }
     );
@@ -5349,31 +5359,27 @@ test "test debug_print_time_hierarchy"
     const cl1 = Clip {
         .name = try allocator.dupe(
             u8,
-            "Spaghetti.mov",
+            "Spaghetti.wav",
         ),
-        .media_temporal_bounds = .{
-            .start = 1,
-            .end = 6,
-        },
-        .discrete_info = .{
-            .media = .{
+        .media = .{
+            .bounds_s = .{
+                .start = 1,
+                .end = 6,
+            },
+            .discrete_info = .{
                 .sample_rate_hz = 24,
                 .start_index = 0,
             },
-        },
-        .media_reference = .{
-            .signal_reference = .{
-                .sample_index_generator = .{
-                    .sample_rate_hz = 24, 
+            .ref = .{ 
+                .signal = .{
+                    .signal_generator = .{
+                        .signal = .sine,
+                        .duration_s = 6.0,
+                        .frequency_hz = 24,
+                    },
                 },
-                .signal_generator = .{
-                    .signal = .sine,
-                    .duration_s = 6.0,
-                    .frequency_hz = 24,
-                },
-                .interpolating = true,
             },
-        },
+        }
     };
     defer cl1.destroy(allocator);
     const cl_ptr = ComposedValueRef.init(&cl1);
@@ -5381,6 +5387,7 @@ test "test debug_print_time_hierarchy"
     // new for this test - add in an warp on the clip, which holds the frame
     const wp = Warp {
         .child = cl_ptr,
+        .interpolating = true,
         .transform = try topology_m.Topology.init_affine(
             allocator,
             .{
@@ -5433,7 +5440,7 @@ test "Single clip, Warp bulk"
     };
 
     const cl = Clip {
-        .media_temporal_bounds = media_temporal_bounds,
+        .bounds_s = media_temporal_bounds,
     };
     defer cl.destroy(allocator);
     const cl_ptr = ComposedValueRef.init(&cl);

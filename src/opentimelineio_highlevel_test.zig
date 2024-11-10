@@ -39,12 +39,12 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             u8,
             "Spaghetti.mov",
         ),
-        .media_temporal_bounds = .{
+        .bounds_s = .{
             .start = 1,
             .end = 3 
         },
-        .discrete_info = .{
-            .media = .{
+        .media = .{
+            .discrete_info = .{
                 .sample_rate_hz = 24,
                 .start_index = 10,
             },
@@ -64,12 +64,12 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             u8,
             "Taco.mov"
         ),
-        .media_temporal_bounds = .{
-            .start = 10,
-            .end = 11, 
-        },
-        .discrete_info = .{
-            .media = .{
+        .media = .{
+            .bounds_s = .{
+                .start = 10,
+                .end = 11, 
+            },
+            .discrete_info = .{
                 .sample_rate_hz = 30,
                 .start_index = 10,
             },
@@ -241,33 +241,28 @@ test "libsamplerate w/ high level test -- resample only"
             u8,
             "Spaghetti.mov",
         ),
-        .media_temporal_bounds = .{
-            .start = 1,
-            .end = 6,
-        },
-        .discrete_info = .{
-            .media = .{
+        .media = .{
+            .bounds_s = .{
+                .start = 1,
+                .end = 6,
+            },
+            .discrete_info = .{
                 .sample_rate_hz = 48000,
                 .start_index = 0,
             },
-        },
-        .media_reference = .{
-            .signal_reference = .{
-                .sample_index_generator = .{
-                    .sample_rate_hz = 48000, 
-                },
-                .signal_generator = .{ 
-                    .signal = .sine,
-                    .duration_s = 6.0,
-                    .frequency_hz = 200,
-                },
-                .interpolating = true,
+            .ref = .{ 
+                .signal = .{
+                    .signal_generator = .{
+                        .signal = .sine,
+                        .duration_s = 6.0,
+                        .frequency_hz = 200,
+                    }
+                }
             },
         }
     };
     try std.testing.expect(
-        cl1.media_temporal_bounds.?.start < 
-        cl1.media_temporal_bounds.?.end
+        cl1.media.bounds_s.?.start < cl1.media.bounds_s.?.end
     );
     try std.testing.expect(
         (try cl1.bounds_of(allocator, .media)).end != 0,
@@ -311,13 +306,15 @@ test "libsamplerate w/ high level test -- resample only"
     );
 
     try std.testing.expect(
-        cl1.media_reference.?.signal_reference.signal_generator.duration_s > 0
+        cl1.media.ref.signal.signal_generator.duration_s > 0
     );
 
     // synthesize media
     const media = (
-        try cl_ptr.clip_ptr.media_reference.?.signal_reference.rasterized(
+        try cl_ptr.clip_ptr.media.ref.signal.signal_generator.rasterized(
             allocator,
+            cl_ptr.clip_ptr.media.discrete_info.?,
+            true,
         )
     );
     defer media.deinit();
@@ -328,7 +325,7 @@ test "libsamplerate w/ high level test -- resample only"
         allocator,
         "/var/tmp",
         "highlevel_libsamplerate_test_clip_media.",
-        cl1.media_reference.?.signal_reference.signal_generator,
+        cl1.media.ref.signal.signal_generator,
     );
 
     // goal
@@ -386,27 +383,23 @@ test "libsamplerate w/ high level test.retime.interpolating"
             u8,
             "Spaghetti.mov",
         ),
-        .media_temporal_bounds = .{
-            .start = 1,
-            .end = 6,
-        },
-        .discrete_info = .{
-            .media = .{
+        .media = .{
+            .bounds_s = .{
+                .start = 1,
+                .end = 6,
+            },
+            .discrete_info = .{
                 .sample_rate_hz = 48000,
                 .start_index = 0,
             },
-        },
-        .media_reference = .{
-            .signal_reference = .{
-                .sample_index_generator = .{
-                    .sample_rate_hz = 48000, 
+            .ref = .{ 
+                .signal = .{
+                    .signal_generator = .{
+                        .signal = .sine,
+                        .duration_s = 6.0,
+                        .frequency_hz = 200,
+                    },
                 },
-                .signal_generator = .{
-                    .signal = .sine,
-                    .duration_s = 6.0,
-                    .frequency_hz = 200,
-                },
-                .interpolating = true,
             },
         },
     };
@@ -456,8 +449,10 @@ test "libsamplerate w/ high level test.retime.interpolating"
 
     // synthesize media
     const media = (
-        try cl_ptr.clip_ptr.media_reference.?.signal_reference.rasterized(
+        try cl_ptr.clip_ptr.media.ref.signal.signal_generator.rasterized(
             allocator,
+            cl_ptr.clip_ptr.media.discrete_info.?,
+            true,
         )
     );
     defer media.deinit();
@@ -468,7 +463,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
         allocator,
         "/var/tmp",
         "highlevel_libsamplerate_test_clip_media.",
-        cl1.media_reference.?.signal_reference.signal_generator,
+        cl1.media.ref.signal.signal_generator,
     );
 
     // goal
@@ -535,29 +530,25 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
             u8,
             "Spaghetti.mov",
         ),
-        .media_temporal_bounds = .{
-            .start = 1,
-            .end = 6,
-        },
-        .discrete_info = .{
-            .media = .{
+        .media = .{
+            .bounds_s = .{
+                .start = 1,
+                .end = 6,
+            },
+            .discrete_info = .{
                 .sample_rate_hz = 48000,
                 .start_index = 0,
             },
-        },
-        .media_reference = .{
-            .signal_reference = .{
-                .sample_index_generator = .{
-                    .sample_rate_hz = 48000, 
+            .ref = .{
+                .signal = .{
+                    .signal_generator = .{
+                        .signal = .sine,
+                        .duration_s = 6.0,
+                        .frequency_hz = 200,
+                    },
                 },
-                .signal_generator = .{
-                    .signal = .sine,
-                    .duration_s = 6.0,
-                    .frequency_hz = 200,
-                },
-                .interpolating = false,
             },
-        },
+        }
     };
     defer cl1.destroy(allocator);
     const cl_ptr = otio.ComposedValueRef.init(&cl1);
@@ -602,8 +593,10 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
 
     // synthesize media
     const media = (
-        try cl_ptr.clip_ptr.media_reference.?.signal_reference.rasterized(
+        try cl_ptr.clip_ptr.media.ref.signal.signal_generator.rasterized(
             allocator,
+            cl_ptr.clip_ptr.media.discrete_info.?,
+            false,
         )
     );
     defer media.deinit();
@@ -614,7 +607,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
         allocator,
         "/var/tmp",
         "highlevel_libsamplerate_test_clip_media.",
-        cl1.media_reference.?.signal_reference.signal_generator,
+        cl1.media.ref.signal.signal_generator,
     );
 
     // goal
@@ -706,27 +699,23 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
             u8,
             "Spaghetti.mov",
         ),
-        .media_temporal_bounds = .{
-            .start = 1,
-            .end = 6,
-        },
-        .discrete_info = .{
-            .media = .{
+        .media = .{
+            .bounds_s = .{
+                .start = 1,
+                .end = 6,
+            },
+            .discrete_info = .{
                 .sample_rate_hz = 48000,
                 .start_index = 0,
             },
-        },
-        .media_reference = .{
-            .signal_reference = .{
-                .sample_index_generator = .{
-                    .sample_rate_hz = 48000, 
+            .ref = .{
+                .signal = .{
+                    .signal_generator = .{
+                        .signal = .sine,
+                        .duration_s = 6.0,
+                        .frequency_hz = 200,
+                    },
                 },
-                .signal_generator = .{
-                    .signal = .sine,
-                    .duration_s = 6.0,
-                    .frequency_hz = 200,
-                },
-                .interpolating = true,
             },
         },
     };
@@ -835,27 +824,23 @@ test "timeline w/ warp that holds the tenth frame"
             u8,
             "Spaghetti.mov",
         ),
-        .media_temporal_bounds = .{
-            .start = 1,
-            .end = 6,
-        },
-        .discrete_info = .{
-            .media = .{
+        .media = .{
+            .bounds_s = .{
+                .start = 1,
+                .end = 6,
+            },
+            .discrete_info = .{
                 .sample_rate_hz = 24,
                 .start_index = 0,
             },
-        },
-        .media_reference = .{
-            .signal_reference = .{
-                .sample_index_generator = .{
-                    .sample_rate_hz = 24, 
+            .ref = .{
+                .signal = .{
+                    .signal_generator = .{ 
+                        .signal = .sine,
+                        .duration_s = 6.0,
+                        .frequency_hz = 24,
+                    },
                 },
-                .signal_generator = .{ 
-                    .signal = .sine,
-                    .duration_s = 6.0,
-                    .frequency_hz = 24,
-                },
-                .interpolating = true,
             },
         },
     };
