@@ -4169,9 +4169,9 @@ test "otio projection: track with single clip with transform"
         try map_tr.build_projection_operator(
             allocator,
             .{
-                .source = try tr_ptr.space(SpaceLabel.presentation),
+                .source = try tr_ptr.space(.presentation),
                 // does the discrete / continuous need to be disambiguated?
-                .destination = try cl_ptr.space(SpaceLabel.media),
+                .destination = try cl_ptr.space(.media),
             },
         )
     );
@@ -4285,9 +4285,9 @@ test "otio projection: track with single clip with transform"
                 try map_tl.build_projection_operator(
                     allocator,
                     .{
-                        .source = try tl_ptr.space(SpaceLabel.presentation),
+                        .source = try tl_ptr.space(.presentation),
                         // does the discrete / continuous need to be disambiguated?
-                        .destination = try cl_ptr.space(SpaceLabel.media),
+                        .destination = try cl_ptr.space(.media),
                     },
                 )
             );
