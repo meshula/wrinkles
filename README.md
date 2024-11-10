@@ -57,19 +57,19 @@ contains:
 * [x] prune existing debug messages out
 * [x] clean up how graphviz is found
 * [ ] decompose opentimelineio.zig into a library w/ multiple modules
-* [ ] boil time out of opentime (hm might need to rename this library) —
+* [x] boil time out of opentime (hm might need to rename this library) —
     * [x] particularly ContinuousTimeInterval->ContinuousInterval
     * [x] opentime
-    * [ ] and the rest of the library (notably sampling.zig)
+* [ ] and the rest of the library (notably sampling.zig)
+    * [ ] sampling
     * [ ] ripple out into the c library too
 * [ ] review the high level tests and make sure they’re covering all the stuff
   in the slides
 * [ ] write the slide examples in C
-* [ ] fold DiscreteDatasourceIndexGenerator into Sampling
-    * [ ] -> SignalIndexGenerator
-    * [ ] add more functionality to the DiscreteDatasourceIndexGenerator so that
-      those little functions that handle continuous -> discrete transformations are
-      more explicitly placed
+* [x] fold DiscreteDatasourceIndexGenerator into Sampling
+    * [x] -> SignalIndexGenerator
+    * [x] add more functionality to the DiscreteDatasourceIndexGenerator so that
+    * [x] build out into the otio layer too
 * [x] rename “time_topology” build unit to “topology”
 * [ ] handle/test cases where projection results in multiple solutions (maybe
   because inversion creates multiple concurrent topologies?)
