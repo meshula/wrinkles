@@ -23,7 +23,7 @@ const build_options = @import("build_options");
 // configuration
 const RESAMPLE_DEBUG_LOGGING = false;
 const WRITE_TEST_FILES = build_options.write_sampling_test_wave_files;
-const TMPDIR = "/var/tmp";
+const TMPDIR = build_options.test_data_out_dir;
 
 /// type of a sample value, ie the amplitude in a sample in an audio buffer
 const sample_value_t  = f32;
@@ -992,7 +992,7 @@ pub fn transform_resample_linear_interpolating_dd(
         }
 
         const transform_ratio:f32 = (
-            ( @as(f32, @floatFromInt(output_samples ))) 
+            ( @as(f32, @floatFromInt(output_samples))) 
             / (
                 @as(f32, @floatFromInt(input_samples))
             )
@@ -1052,7 +1052,8 @@ pub fn transform_resample_linear_interpolating_dd(
         src_data.input_frames = @intCast(input_transform_samples.len);
         src_data.output_frames = @intCast(spec.output_samples);
         
-        if (step_transform) {
+        if (step_transform) 
+        {
             // calling this function forces it to be a step function
             _ = libsamplerate.src_set_ratio(src_state, spec.transform_ratio);
         }
@@ -1068,7 +1069,8 @@ pub fn transform_resample_linear_interpolating_dd(
             return error.LibSampleRateError;
         }
 
-        if (RESAMPLE_DEBUG_LOGGING) {
+        if (RESAMPLE_DEBUG_LOGGING) 
+        {
             std.debug.print(
                 "in provided: {d} in used: {d} out requested: {d} out "
                 ++ "generated: {d} ",
@@ -1168,7 +1170,7 @@ test "sampling: resample from 48khz to 44"
 
     // peak to peak distance (a distance in sample indices) should be the same
     // independent of retiming those samples
-    try std.testing.expectEqual(@as(usize, 441), sine_samples_44khz_p2p);
+    try std.testing.expectEqual(441, sine_samples_44khz_p2p);
 }
 
 // test 2
@@ -1184,12 +1186,14 @@ test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1kh
         .duration_s = 4,
         .signal = .sine,
     };
+
     const s48 = try samples_48.rasterized(
         allocator,
         .{ .sample_rate_hz = 48000, },
         true,
     );
     defer s48.deinit();
+
     if (WRITE_TEST_FILES) {
         try s48.write_file_prefix(
             allocator,
