@@ -525,7 +525,7 @@ pub const ComposedValueRef = union(enum) {
     ) !void 
     {
         const str = switch (self) {
-            .clip_ptr => "schema.clip",
+            .clip_ptr => "clip",
             .gap_ptr => "gap",
             .track_ptr => "track",
             .stack_ptr => "stack",
@@ -1139,7 +1139,7 @@ pub const TopologicalMap = struct {
     {
         const item_kind = switch(ref.ref) {
             .track_ptr => "track",
-            .clip_ptr => "schema.clip",
+            .clip_ptr => "clip",
             .gap_ptr => "gap",
             .timeline_ptr => "timeline",
             .stack_ptr => "stack",
@@ -1472,7 +1472,7 @@ pub const TopologicalMap = struct {
     }
 };
 
-/// maps projections to schema.clip.media spaces to regions of whatever space is
+/// maps projections to clip.media spaces to regions of whatever space is
 /// the source space
 pub fn projection_map_to_media_from(
     allocator: std.mem.Allocator,
@@ -2190,7 +2190,7 @@ test "ProjectionOperatorMap: merge_composite"
     }
 }
 
-test "ProjectionOperatorMap: schema.clip"
+test "ProjectionOperatorMap: clip"
 {
     const allocator = std.testing.allocator;
 
@@ -2279,7 +2279,7 @@ test "ProjectionOperatorMap: schema.clip"
     );
 }
 
-test "ProjectionOperatorMap: track with single schema.clip"
+test "ProjectionOperatorMap: track with single clip"
 {
     const allocator = std.testing.allocator;
 
@@ -2953,7 +2953,7 @@ pub fn build_topological_map(
     return tmp_topo_map;
 }
 
-test "schema.clip topology construction" 
+test "clip topology construction" 
 {
     const allocator = std.testing.allocator;
 
@@ -3016,7 +3016,7 @@ test "track topology construction"
     );
 }
 
-test "build_topological_map: leak sentinel test - single schema.clip"
+test "build_topological_map: leak sentinel test - single clip"
 {
     const cl = schema.Clip {};
 
@@ -3027,7 +3027,7 @@ test "build_topological_map: leak sentinel test - single schema.clip"
     defer map.deinit();
 }
 
-test "build_topological_map: leak sentinel test track w/ schema.clip"
+test "build_topological_map: leak sentinel test track w/ clip"
 {
     var tr = schema.Track.init(std.testing.allocator);
     defer tr.deinit();
@@ -3189,7 +3189,7 @@ test "path_code: graph test"
     }
 }
 
-test "schema.Track with schema.clip with identity transform projection" 
+test "schema.Track with clip with identity transform projection" 
 {
     var tr = schema.Track.init(std.testing.allocator);
     defer tr.deinit();
@@ -3257,7 +3257,7 @@ test "schema.Track with schema.clip with identity transform projection"
 }
 
 
-test "TopologicalMap: schema.Track with schema.clip with identity transform topological" 
+test "TopologicalMap: schema.Track with clip with identity transform topological" 
 {
     const allocator = std.testing.allocator;
 
@@ -3307,7 +3307,7 @@ test "TopologicalMap: schema.Track with schema.clip with identity transform topo
     try std.testing.expect(maybe_clip_code != null);
     const clip_code = maybe_clip_code.?;
 
-    // schema.clip object code
+    // clip object code
     {
         var tc = try treecode.Treecode.init_word(
             std.testing.allocator,
@@ -3352,7 +3352,7 @@ test "TopologicalMap: schema.Track with schema.clip with identity transform topo
     );
 }
 
-test "Projection: schema.Track with single schema.clip with identity transform and bounds" 
+test "Projection: schema.Track with single clip with identity transform and bounds" 
 {
     const allocator = std.testing.allocator;
 
@@ -3428,7 +3428,7 @@ test "Projection: schema.Track with multiple clips with identity transform and b
     //                          0               3             6
     // track.presentation space       [---------------*-------------)
     // track.intrinsic space    [---------------*-------------)
-    // child.schema.clip presentation space  [--------)[-----*---)[-*------)
+    // child.clip presentation space  [--------)[-----*---)[-*------)
     //                          0        2 0    1   2 0       2 
     //
     var tr = schema.Track.init(std.testing.allocator);
@@ -3618,7 +3618,7 @@ test "Single schema.Clip bezier transform"
     const xform_curve = try curve.rescaled_curve(
         allocator,
         base_curve,
-        //  the range of the schema.clip for testing - rescale factors
+        //  the range of the clip for testing - rescale factors
         .{
             .{ .in = 0, .out = 0, },
             .{ .in = 10, .out = 10, },
@@ -3642,7 +3642,7 @@ test "Single schema.Clip bezier transform"
         curve_bounds_input.end, opentime.EPSILON_ORD
     );
 
-    // test the output space range (the media space of the schema.clip)
+    // test the output space range (the media space of the clip)
     const curve_bounds_output = (
         xform_curve.extents_output()
     );
@@ -3913,7 +3913,7 @@ test "test spaces list"
     );
 }
 
-test "otio projection: track with single schema.clip"
+test "otio projection: track with single clip"
 {
     const allocator = std.testing.allocator;
 
@@ -3934,7 +3934,7 @@ test "otio projection: track with single schema.clip"
         }
     );
 
-    // construct the schema.clip and add it to the track
+    // construct the clip and add it to the track
     const cl = schema.Clip {
         .media = .{
             .bounds_s = media_source_range,
@@ -4011,7 +4011,7 @@ test "otio projection: track with single schema.clip"
             const b = result_range_in_media.output_bounds();
             errdefer {
                 opentime.dbg_print(@src(), 
-                    "schema.clip trimmed range: [{d}, {d})\n",
+                    "clip trimmed range: [{d}, {d})\n",
                     .{
                         r.start,
                         r.end,
@@ -4090,7 +4090,7 @@ test "otio projection: track with single schema.clip"
     }
 }
 
-test "otio projection: track with single schema.clip with transform"
+test "otio projection: track with single clip with transform"
 {
     const allocator = std.testing.allocator;
 
@@ -4116,7 +4116,7 @@ test "otio projection: track with single schema.clip with transform"
         }
     );
 
-    // construct the schema.clip and add it to the track
+    // construct the clip and add it to the track
     const cl = schema.Clip {
         .media = .{
             .bounds_s = media_source_range,
@@ -4222,7 +4222,7 @@ test "otio projection: track with single schema.clip with transform"
             const b = result_range_in_media.output_bounds();
             errdefer {
                 opentime.dbg_print(@src(), 
-                    "schema.clip trimmed range: [{d}, {d})\n",
+                    "clip trimmed range: [{d}, {d})\n",
                     .{
                         r.start,
                         r.end,
@@ -4567,7 +4567,7 @@ const TreenodeWalkingIterator = struct{
     }
 };
 
-test "TestWalkingIterator: schema.clip"
+test "TestWalkingIterator: clip"
 {
     // media is 9 seconds long and runs at 4 hz.
     const media_source_range = opentime.ContinuousInterval{
@@ -4600,11 +4600,11 @@ test "TestWalkingIterator: schema.clip"
         count += 1;
     }
 
-    // 5: schema.clip presentation, schema.clip media
+    // 5: clip presentation, clip media
     try std.testing.expectEqual(2, count);
 }
 
-test "TestWalkingIterator: track with schema.clip"
+test "TestWalkingIterator: track with clip"
 {
     var tr = schema.Track.init(std.testing.allocator);
     defer tr.deinit();
@@ -4615,7 +4615,7 @@ test "TestWalkingIterator: track with schema.clip"
         .end = 10,
     };
 
-    // construct the schema.clip and add it to the track
+    // construct the clip and add it to the track
     const cl = schema.Clip {
         .bounds_s = media_source_range,
     };
@@ -4645,11 +4645,11 @@ test "TestWalkingIterator: track with schema.clip"
             count += 1;
         }
 
-        // 5: track presentation, input, child, schema.clip presentation, schema.clip media
+        // 5: track presentation, input, child, clip presentation, clip media
         try std.testing.expectEqual(5, count);
     }
 
-    // from the schema.clip
+    // from the clip
     {
         var node_iter = (
             try TreenodeWalkingIterator.init_from(
@@ -4666,12 +4666,12 @@ test "TestWalkingIterator: track with schema.clip"
             count += 1;
         }
 
-        // 2: schema.clip presentation, schema.clip media
+        // 2: clip presentation, clip media
         try std.testing.expectEqual(2, count);
     }
 }
 
-test "TestWalkingIterator: track with schema.clip w/ destination"
+test "TestWalkingIterator: track with clip w/ destination"
 {
     var tr = schema.Track.init(std.testing.allocator);
     defer tr.deinit();
@@ -4682,7 +4682,7 @@ test "TestWalkingIterator: track with schema.clip w/ destination"
         .end = 10,
     };
 
-    // construct the schema.clip and add it to the track
+    // construct the clip and add it to the track
     const cl = schema.Clip {
         .bounds_s = media_source_range,
     };
@@ -4707,7 +4707,7 @@ test "TestWalkingIterator: track with schema.clip w/ destination"
 
     var count:usize = 0;
 
-    // from the top to the second schema.clip
+    // from the top to the second clip
     {
         var node_iter = (
             try TreenodeWalkingIterator.init_from_to(
@@ -4727,7 +4727,7 @@ test "TestWalkingIterator: track with schema.clip w/ destination"
         {
         }
 
-        // 2: schema.clip presentation, schema.clip media
+        // 2: clip presentation, clip media
         try std.testing.expectEqual(6, count);
     }
 }
@@ -4790,7 +4790,7 @@ test "schema.Clip: Animated Parameter example"
 // 
 // Trace test
 //
-// What I want: trace spaces from a -> b, ie tl.presentation to schema.clip.media
+// What I want: trace spaces from a -> b, ie tl.presentation to clip.media
 // 
 // timeline.presentation: [0, 10)
 //
@@ -4852,7 +4852,7 @@ test "test debug_print_time_hierarchy"
     defer cl1.destroy(allocator);
     const cl_ptr = ComposedValueRef.init(&cl1);
 
-    // new for this test - add in an warp on the schema.clip, which holds the frame
+    // new for this test - add in an warp on the clip, which holds the frame
     const wp = schema.Warp {
         .child = cl_ptr,
         .interpolating = true,
@@ -4893,11 +4893,11 @@ test "test debug_print_time_hierarchy"
     try std.testing.expectEqual(13, i);
 }
 
-test "Single schema.clip, schema.Warp bulk"
+test "Single clip, schema.Warp bulk"
 {
     //
-    // This test runs through a number of configurations of a warp with a schema.clip.
-    // In each test, the schema.clip has the media range of 100->110.
+    // This test runs through a number of configurations of a warp with a clip.
+    // In each test, the clip has the media range of 100->110.
     //
 
     const allocator = std.testing.allocator;
