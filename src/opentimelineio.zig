@@ -42,41 +42,6 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
 /// for VERY LARGE files, turn this off so that dot can process the graphs
 const LABEL_HAS_BINARY_TREECODE = true;
 
-const WRITE_DOT_GRAPH = true;
-
-// @TODO: nick and stephan start here
-//
-// clip intrinsic space -> continuous space of the media -> discrete sample
-// indices of the underlying data
-//
-// 1. EXR frame on disk: discretely sampled, noninterpolating
-// 2. Variable bitrate media: indexed with continuous time
-// 3. Audio: discretely sampled, reconstructable/interpolatable
-// ------
-// 4. no such thing as continuous non-interpolating
-//
-// The implementation options are a bool for discrete and one for
-// interpolating, or a single enum that encodes both dimensions.  Because
-// continuous non-interpolating doesn't make sense, and because all three most
-// likely require distinct codepaths, an enum makes the most sense.
-//
-///////////////////////////////////////////////////////////////////////////////
-pub const SignalSpace = struct {
-    // A sampling represents a continuous cartesian interval with samples at 
-    // ordinates within the interval.  Need enough information to feed a
-    // sampler/reconstruction algorithm, which is implemented outside of OTIO.
-
-    // probably an enum - "Audio" "Picture" "Fireworks", etc
-    signal_domain : []string.latin_s8,
-
-    // regular cyclical sampling
-    //   * sampling hz
-    //   * start index
-    //   * interval in continuous time
-    //   * values need to be interpolated to be reconstructed
-    // continuous signal
-};
-
 /// a reference that points at some reference via a string address
 pub const ExternalReference = struct {
     target_uri : []const u8,
