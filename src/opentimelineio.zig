@@ -47,10 +47,12 @@ pub const ExternalReference = struct {
     target_uri : []const u8,
 };
 
+/// a procedural signal
 pub const SignalReference = struct {
     signal_generator: sampling.SignalGenerator,
 };
 
+/// an opaque reference
 pub const EmptyReference = struct {
 };
 
