@@ -624,7 +624,7 @@ pub const SpaceReference = struct {
 };
 
 /// endpoints for a projection
-const ProjectionOperatorArgs = struct {
+const ProjectionOperatorEndPoints = struct {
     source: SpaceReference,
     destination: SpaceReference,
 };
@@ -976,7 +976,7 @@ pub const TopologicalMap = struct {
     pub fn build_projection_operator(
         self: @This(),
         allocator: std.mem.Allocator,
-        endpoints_arg: ProjectionOperatorArgs,
+        endpoints_arg: ProjectionOperatorEndPoints,
     ) !ProjectionOperator 
     {
         const path_info_ = try self.path_info( endpoints_arg);
@@ -1346,9 +1346,9 @@ pub const TopologicalMap = struct {
 
     pub fn path_info(
         self: @This(),
-        endpoints: ProjectionOperatorArgs,
+        endpoints: ProjectionOperatorEndPoints,
     ) !struct {
-        endpoints: ProjectionOperatorArgs,
+        endpoints: ProjectionOperatorEndPoints,
         inverted: bool,
     }
     {
@@ -1409,7 +1409,7 @@ pub const TopologicalMap = struct {
     pub fn debug_print_time_hierarchy(
         self: @This(),
         allocator: std.mem.Allocator,
-        endpoints_arg: ProjectionOperatorArgs,
+        endpoints_arg: ProjectionOperatorEndPoints,
     ) !void 
     {
         const path_info_ = try self.path_info(endpoints_arg);
@@ -1494,7 +1494,7 @@ pub fn projection_map_to_media_from(
         .source = source,
     };
 
-    var proj_args = ProjectionOperatorArgs{
+    var proj_args = ProjectionOperatorEndPoints{
         .source = source,
         .destination = source,
     };
@@ -4433,7 +4433,7 @@ const TreenodeWalkingIterator = struct{
     pub fn init_from_to(
         allocator: std.mem.Allocator,
         map: *const TopologicalMap,
-        endpoints: ProjectionOperatorArgs,
+        endpoints: ProjectionOperatorEndPoints,
     ) !TreenodeWalkingIterator
     {
         var source_code = (
