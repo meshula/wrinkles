@@ -619,7 +619,7 @@ pub const ComposedValueRef = union(enum) {
 
     pub fn discrete_index_to_continuous_range(
         self: @This(),
-        ind_discrete: usize,
+        ind_discrete: sampling.sample_index_t,
         in_space: SpaceLabel,
     ) !opentime.ContinuousInterval
     {
@@ -643,7 +643,7 @@ pub const ComposedValueRef = union(enum) {
         self: @This(),
         ord_continuous: opentime.Ordinate,
         in_space: SpaceLabel,
-    ) !usize
+    ) !sampling.sample_index_t
     {
         const maybe_di = (
             try self.discrete_info_for_space(in_space)
@@ -1046,7 +1046,7 @@ pub const ProjectionOperator = struct {
     pub fn project_instantaneous_cd(
         self: @This(),
         ordinate_in_source_space: opentime.Ordinate,
-    ) !usize 
+    ) !sampling.sample_index_t 
     {
         const continuous_in_destination_space =  (
             try self.src_to_dst_topo.project_instantaneous_cc(
@@ -1088,7 +1088,7 @@ pub const ProjectionOperator = struct {
         self: @This(),
         allocator: std.mem.Allocator,
         in_to_src_topo: topology_m.Topology,
-    ) ![]usize
+    ) ![]sampling.sample_index_t
     {
         // project the source range into the destination space
         const in_to_dst_topo_c = (
@@ -1106,7 +1106,7 @@ pub const ProjectionOperator = struct {
         ).?;
 
         var index_buffer_destination_discrete = (
-            std.ArrayList(usize).init(allocator)
+            std.ArrayList(sampling.sample_index_t).init(allocator)
         );
         defer index_buffer_destination_discrete.deinit();
 
@@ -1179,7 +1179,7 @@ pub const ProjectionOperator = struct {
         self: @This(),
         allocator: std.mem.Allocator,
         range_in_source: opentime.ContinuousInterval,
-    ) ![]usize
+    ) ![]sampling.sample_index_t
     {
         // the range is bounding the source repo.  Therefore the topology is an
         // identity that is bounded 
@@ -1203,7 +1203,7 @@ pub const ProjectionOperator = struct {
     pub fn project_index_dc(
         self: @This(),
         allocator: std.mem.Allocator,
-        index_in_source: usize,
+        index_in_source: sampling.sample_index_t,
     ) !topology_m.Topology
     {
         const c_range_in_source = (
@@ -1224,8 +1224,8 @@ pub const ProjectionOperator = struct {
     pub fn project_index_dd(
         self: @This(),
         allocator: std.mem.Allocator,
-        index_in_source: usize,
-    ) ![]usize
+        index_in_source: sampling.sample_index_t,
+    ) ![]sampling.sample_index_t
     {
         const c_range_in_source = (
             try self.source.ref.discrete_index_to_continuous_range(
@@ -3451,7 +3451,7 @@ test "build_topological_map check root node"
     }
 
     try std.testing.expectEqual(
-        @as(usize, 11),
+        11,
         tr.children.items.len
     );
 
@@ -3522,7 +3522,7 @@ test "path_code: graph test"
         map.map_code_to_space.count(),
     );
     try std.testing.expectEqual(
-        @as(usize, 35),
+        35,
         map.map_space_to_code.count()
     );
 
@@ -3754,11 +3754,11 @@ test "Projection: Track with single clip with identity transform and bounds"
     defer map.deinit();
 
     try std.testing.expectEqual(
-        @as(usize, 5),
+        5,
         map.map_code_to_space.count()
     );
     try std.testing.expectEqual(
-        @as(usize, 5),
+        5,
         map.map_space_to_code.count()
     );
 
@@ -4566,7 +4566,9 @@ test "otio projection: track with single clip"
         // discrete
         {
             //                                   3.5s + 1s
-            const expected = [_]usize{ 18, 19, 20, 21 };
+            const expected = (
+                [_]sampling.sample_index_t{ 18, 19, 20, 21 }
+            );
 
             const r = track_to_media.src_to_dst_topo.input_bounds();
             const b = track_to_media.src_to_dst_topo.output_bounds();
@@ -4790,7 +4792,7 @@ test "otio projection: track with single clip with transform"
             defer allocator.free(result_media_indices);
 
             try std.testing.expectEqualSlices(
-                usize,
+                sampling.sample_index_t,
                 &expected,
                 result_media_indices,
             );
@@ -4863,7 +4865,7 @@ test "otio projection: track with single clip with transform"
             defer allocator.free(result_indices);
 
             try std.testing.expectEqualSlices(
-                usize,
+                sampling.sample_index_t,
                 &.{ 4 },
                 result_indices,
             );
