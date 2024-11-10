@@ -76,20 +76,20 @@ pub fn invlerp(
 }
 
 pub fn output_at_input_between(
-    t: f32,
+    t: opentime.Ordinate,
     fst: control_point.ControlPoint,
     snd: control_point.ControlPoint,
-) f32 
+) opentime.Ordinate 
 {
     const u = invlerp(t, fst.in, snd.in);
     return lerp(u, fst.out, snd.out);
 }
 
 pub fn input_at_output_between(
-    v: f32,
+    v: opentime.Ordinate,
     fst: control_point.ControlPoint,
     snd: control_point.ControlPoint,
-) f32 
+) opentime.Ordinate 
 {
     const u = invlerp(v, fst.out, snd.out);
     return lerp(u, fst.in, snd.in);
@@ -136,7 +136,7 @@ pub fn segment_reduce2_dual(
 }
 
 pub fn segment_reduce4(
-    u: f32,
+    u: opentime.Ordinate,
     segment: bezier_curve.Bezier.Segment,
 ) bezier_curve.Bezier.Segment 
 {
@@ -148,7 +148,7 @@ pub fn segment_reduce4(
 }
 
 pub fn segment_reduce3(
-    u: f32,
+    u: opentime.Ordinate,
     segment: bezier_curve.Bezier.Segment,
 ) bezier_curve.Bezier.Segment 
 {
@@ -159,7 +159,7 @@ pub fn segment_reduce3(
 }
 
 pub fn segment_reduce2(
-    u: f32,
+    u: opentime.Ordinate,
     segment: bezier_curve.Bezier.Segment,
 ) bezier_curve.Bezier.Segment 
 {
@@ -170,11 +170,11 @@ pub fn segment_reduce2(
 
 // evaluate a 1d bezier whose first point is 0.
 pub fn _bezier0(
-    unorm: f32,
-    p2: f32,
-    p3: f32,
-    p4: f32,
-) f32
+    unorm: opentime.Ordinate,
+    p2: opentime.Ordinate,
+    p3: opentime.Ordinate,
+    p4: opentime.Ordinate,
+) opentime.Ordinate
 {
     return try comath.eval(
         (
@@ -208,9 +208,9 @@ pub fn _bezier0(
 
 pub fn _bezier0_dual(
     unorm: opentime.Dual_Ord,
-    p2: f32,
-    p3: f32,
-    p4: f32
+    p2: opentime.Ordinate,
+    p3: opentime.Ordinate,
+    p4: opentime.Ordinate
 ) opentime.Dual_Ord
 {
     // original math (p1 = 0, so last term falls out)
@@ -241,13 +241,13 @@ pub fn _bezier0_dual(
 /// u so that B(u) == x.
 ///
 pub fn _findU(
-    x:f32,
-    p1:f32,
-    p2:f32,
-    p3:f32,
-) f32
+    x:opentime.Ordinate,
+    p1:opentime.Ordinate,
+    p2:opentime.Ordinate,
+    p3:opentime.Ordinate,
+) opentime.Ordinate
 {
-    const MAX_ABS_ERROR = std.math.floatEps(f32) * 2.0;
+    const MAX_ABS_ERROR = std.math.floatEps(opentime.Ordinate) * 2.0;
     const MAX_ITERATIONS: u8 = 45;
 
     if (x <= 0) {
@@ -258,8 +258,8 @@ pub fn _findU(
         return 1;
     }
 
-    var _u1:f32 = 0;
-    var _u2:f32 = 0;
+    var _u1:opentime.Ordinate = 0;
+    var _u2:opentime.Ordinate = 0;
     var x1 = -x; // same as: bezier0 (0, p1, p2, p3) - x;
     var x2 = p3 - x; // same as: bezier0 (1, p1, p2, p3) - x;
 
@@ -307,7 +307,7 @@ pub fn _findU(
     while (i > 0) 
         : (i -= 1)
     {
-        const _u3:f32 = _u2 - x2 * ((_u2 - _u1) / (x2 - x1));
+        const _u3:opentime.Ordinate = _u2 - x2 * ((_u2 - _u1) / (x2 - x1));
         const x3 = _bezier0 (_u3, p1, p2, p3) - x;
 
         if (x3 == 0) {
@@ -387,10 +387,10 @@ inline fn crt(
 /// calculate the actual order of the bezier.  IE if its linear, return 1,
 /// quadratic return 2, cubic return 3.
 pub fn actual_order(
-    p0: f32,
-    p1: f32,
-    p2: f32,
-    p3: f32,
+    p0: opentime.Ordinate,
+    p1: opentime.Ordinate,
+    p2: opentime.Ordinate,
+    p3: opentime.Ordinate,
 ) !u8 
 {
     const d = try comath.eval(
@@ -526,11 +526,11 @@ test "actual_order: cubic"
 }
 
 pub fn findU_dual3(
-    x_input: f32,
-    p0: f32,
-    p1: f32,
-    p2: f32,
-    p3: f32,
+    x_input: opentime.Ordinate,
+    p0: opentime.Ordinate,
+    p1: opentime.Ordinate,
+    p2: opentime.Ordinate,
+    p3: opentime.Ordinate,
 ) opentime.Dual_Ord
 {
     // assumes that p3 > p0
@@ -584,10 +584,9 @@ pub fn findU_dual3(
             if (@abs(b.r) < generic_curve.EPSILON)
             {
                 // no solutions
-                // todo optiona/error
                 return .{
-                    .r = std.math.nan(f32),
-                    .i = std.math.nan(f32),
+                    .r = std.math.nan(opentime.Ordinate),
+                    .i = std.math.nan(opentime.Ordinate),
                 };
             }
             return try comath.eval(
@@ -744,16 +743,16 @@ pub fn findU_dual3(
 }
 
 pub fn findU_dual2(
-    x_input: f32,
-    p1: f32,
-    p2: f32,
-    p3: f32,
+    x_input: opentime.Ordinate,
+    p1: opentime.Ordinate,
+    p2: opentime.Ordinate,
+    p3: opentime.Ordinate,
 ) opentime.Dual_Ord
 {
     // first guess
     var u_guess: opentime.Dual_Ord = .{ .r = 0.5, .i = 1.0 };
 
-    const MAX_ABS_ERROR = std.math.floatEps(f32) * 2.0;
+    const MAX_ABS_ERROR = std.math.floatEps(opentime.Ordinate) * 2.0;
     const MAX_ITERATIONS = 45;
 
     var u_max = opentime.Dual_Ord{.r = 1.0, .i = 0.0 };
@@ -847,13 +846,13 @@ pub fn findU_dual2(
 }
 
 pub fn _findU_dual(
-    x_input:f32,
-    p1:f32,
-    p2:f32,
-    p3:f32,
+    x_input:opentime.Ordinate,
+    p1:opentime.Ordinate,
+    p2:opentime.Ordinate,
+    p3:opentime.Ordinate,
 ) opentime.Dual_Ord
 {
-    const MAX_ABS_ERROR = std.math.floatEps(f32) * 2.0;
+    const MAX_ABS_ERROR = std.math.floatEps(opentime.Ordinate) * 2.0;
     const MAX_ITERATIONS: u8 = 45;
 
     const ONE_DUAL  = opentime.Dual_Ord{ .r = 1, .i = 0};
@@ -1015,12 +1014,12 @@ const ALWAYS_USE_DUALS_FINDU = false;
 /// 1-D Bezier bezier_curve, B(u), with control points (p0, p1, p2, p3), find
 /// u so that B(u) == x.
 pub fn findU(
-    x:f32,
-    p0:f32,
-    p1:f32,
-    p2:f32,
-    p3:f32,
-) f32
+    x:opentime.Ordinate,
+    p0:opentime.Ordinate,
+    p1:opentime.Ordinate,
+    p2:opentime.Ordinate,
+    p3:opentime.Ordinate,
+) opentime.Ordinate
 {
     if (ALWAYS_USE_DUALS_FINDU) {
         return findU_dual(x, p0, p1, p2, p3).r;
@@ -1031,11 +1030,11 @@ pub fn findU(
 }
 
 pub fn findU_dual(
-    x:f32,
-    p0:f32,
-    p1:f32, 
-    p2:f32,
-    p3:f32,
+    x:opentime.Ordinate,
+    p0:opentime.Ordinate,
+    p1:opentime.Ordinate, 
+    p2:opentime.Ordinate,
+    p3:opentime.Ordinate,
 ) opentime.Dual_Ord
 {
     return findU_dual3(x, p0, p1, p2, p3);
@@ -1046,35 +1045,35 @@ test "lerp"
     const fst: control_point.ControlPoint = .{ .in = 0, .out = 0 };
     const snd: control_point.ControlPoint = .{ .in = 1, .out = 1 };
 
-    try expectEqual(@as(f32, 0), lerp(0, fst, snd).out);
-    try expectEqual(@as(f32, 0.25), lerp(0.25, fst, snd).out);
-    try expectEqual(@as(f32, 0.5), lerp(0.5, fst, snd).out);
-    try expectEqual(@as(f32, 0.75), lerp(0.75, fst, snd).out);
+    try expectEqual(@as(opentime.Ordinate, 0), lerp(0, fst, snd).out);
+    try expectEqual(@as(opentime.Ordinate, 0.25), lerp(0.25, fst, snd).out);
+    try expectEqual(@as(opentime.Ordinate, 0.5), lerp(0.5, fst, snd).out);
+    try expectEqual(@as(opentime.Ordinate, 0.75), lerp(0.75, fst, snd).out);
 
-    try expectEqual(@as(f32, 0), lerp(0, fst, snd).in);
-    try expectEqual(@as(f32, 0.25), lerp(0.25, fst, snd).in);
-    try expectEqual(@as(f32, 0.5), lerp(0.5, fst, snd).in);
-    try expectEqual(@as(f32, 0.75), lerp(0.75, fst, snd).in);
+    try expectEqual(@as(opentime.Ordinate, 0), lerp(0, fst, snd).in);
+    try expectEqual(@as(opentime.Ordinate, 0.25), lerp(0.25, fst, snd).in);
+    try expectEqual(@as(opentime.Ordinate, 0.5), lerp(0.5, fst, snd).in);
+    try expectEqual(@as(opentime.Ordinate, 0.75), lerp(0.75, fst, snd).in);
 }
 
 test "findU" 
 {
-    try expectEqual(@as(f32, 0), findU(0, 0,1,2,3));
+    try expectEqual(@as(opentime.Ordinate, 0), findU(0, 0,1,2,3));
     // out of range values are clamped in u
-    try expectEqual(@as(f32, 0), findU(-1, 0,1,2,3));
-    try expectEqual(@as(f32, 1), findU(4, 0,1,2,3));
+    try expectEqual(@as(opentime.Ordinate, 0), findU(-1, 0,1,2,3));
+    try expectEqual(@as(opentime.Ordinate, 1), findU(4, 0,1,2,3));
 }
 
 test "_bezier0 matches _bezier0_dual" 
 {
-    const test_data = [_][4]f32{
-        [4]f32{ 0, 1, 2, 3 },
+    const test_data = [_][4]opentime.Ordinate{
+        [4]opentime.Ordinate{ 0, 1, 2, 3 },
     };
 
     for (test_data)
         |t|
     {
-        var x : f32 = t[0];
+        var x : opentime.Ordinate = t[0];
         while (x < t[3])
             : (x += 0.01)
         {
@@ -1090,28 +1089,28 @@ test "_bezier0 matches _bezier0_dual"
 test "findU_dual matches findU" 
 {
 
-    try expectEqual(@as(f32, 0), findU_dual(0, 0,1,2,3).r);
-    try expectEqual(@as(f32, 1.0/6.0), findU_dual(0.5, 0,1,2,3).r);
+    try expectEqual(@as(opentime.Ordinate, 0), findU_dual(0, 0,1,2,3).r);
+    try expectEqual(@as(opentime.Ordinate, 1.0/6.0), findU_dual(0.5, 0,1,2,3).r);
 
-    try expectApproxEql(@as(f32, 1.0/3.0), findU_dual(0, 0,1,2,3).i);
-    try expectApproxEql(@as(f32, 1.0/3.0), findU_dual(0.5, 0,1,2,3).i);
+    try expectApproxEql(@as(opentime.Ordinate, 1.0/3.0), findU_dual(0, 0,1,2,3).i);
+    try expectApproxEql(@as(opentime.Ordinate, 1.0/3.0), findU_dual(0.5, 0,1,2,3).i);
 
-    try expectEqual(@as(f32, 0), findU_dual(-1, -1,0,1,2).r);
-    try expectEqual(@as(f32, 1.0/6.0), findU_dual(-0.5, -1,0,1,2).r);
+    try expectEqual(@as(opentime.Ordinate, 0), findU_dual(-1, -1,0,1,2).r);
+    try expectEqual(@as(opentime.Ordinate, 1.0/6.0), findU_dual(-0.5, -1,0,1,2).r);
 
-    try expectApproxEql(@as(f32, 1.0/3.0), findU_dual(0, -1,0,1,2).i);
-    try expectApproxEql(@as(f32, 1.0/3.0), findU_dual(-0.5, -1,0,1,2).i);
+    try expectApproxEql(@as(opentime.Ordinate, 1.0/3.0), findU_dual(0, -1,0,1,2).i);
+    try expectApproxEql(@as(opentime.Ordinate, 1.0/3.0), findU_dual(-0.5, -1,0,1,2).i);
 
     {
-        const test_data = [_][4]f32{
-            [4]f32{ 0, 1, 2, 3 },
+        const test_data = [_][4]opentime.Ordinate{
+            [4]opentime.Ordinate{ 0, 1, 2, 3 },
         };
 
         // sweep values in range and make sure that findU and findU_dual match
         for (test_data)
             |t|
         {
-            var x : f32 = t[0];
+            var x : opentime.Ordinate = t[0];
             while (x < t[3])
                 : (x += 0.01)
             {
@@ -1125,8 +1124,8 @@ test "findU_dual matches findU"
     }
 
     // out of range values are clamped in u
-    try expectEqual(@as(f32, 0), findU_dual(-1, 0,1,2,3).r);
-    try expectEqual(@as(f32, 1), findU_dual(4, 0,1,2,3).r);
+    try expectEqual(@as(opentime.Ordinate, 0), findU_dual(-1, 0,1,2,3).r);
+    try expectEqual(@as(opentime.Ordinate, 1), findU_dual(4, 0,1,2,3).r);
 }
 
 test "dydx matches expected at endpoints" 
@@ -1139,8 +1138,8 @@ test "dydx matches expected at endpoints"
     };
 
     const test_data = struct {
-        r : f32,
-        e_dydu: f32,
+        r : opentime.Ordinate,
+        e_dydu: opentime.Ordinate,
     };
     const tests = [_]test_data{
         .{ .r = 0.0,  .e_dydu = 0.0, },
@@ -1163,7 +1162,7 @@ test "dydx matches expected at endpoints"
             .{ .r = t.r, .i = 1 }
         );
         try expectApproxEql(
-            @as(f32,t.e_dydu),
+            @as(opentime.Ordinate,t.e_dydu),
             u_zero_dual.i.in
         );
 
@@ -1188,17 +1187,17 @@ test "findU for upside down u"
     const seg_0 = crv.segments[0];
 
     const u_zero_dual =  seg_0.findU_input_dual(seg_0.p0.in);
-    try expectApproxEql(@as(f32, 0), u_zero_dual.r);
+    try expectApproxEql(@as(opentime.Ordinate, 0), u_zero_dual.r);
 
     const half_x = lerp(0.5, seg_0.p0.in, seg_0.p3.in);
     const u_half_dual = seg_0.findU_input_dual(half_x);
 
     // u_half_dual = (u, du/dx)
-    try expectApproxEql(@as(f32, 0.5), u_half_dual.r);
-    try expectApproxEql(@as(f32, 0.666666667), u_half_dual.i);
+    try expectApproxEql(@as(opentime.Ordinate, 0.5), u_half_dual.r);
+    try expectApproxEql(@as(opentime.Ordinate, 0.666666667), u_half_dual.i);
 
     const u_one_dual =   seg_0.findU_input_dual(seg_0.p3.in);
-    try expectApproxEql(@as(f32, 1), u_one_dual.r);
+    try expectApproxEql(@as(opentime.Ordinate, 1), u_one_dual.r);
 }
 
 test "derivative at 0 for linear bezier_curve" 
@@ -1229,13 +1228,13 @@ test "derivative at 0 for linear bezier_curve"
         const u_one_dual =   seg_0.findU_input_dual(seg_0.p3.in);
 
         // known 0 values
-        try expectApproxEql(@as(f32, 0), u_zero_dual.r);
-        try expectApproxEql(@as(f32, 1), u_one_dual.r);
+        try expectApproxEql(@as(opentime.Ordinate, 0), u_zero_dual.r);
+        try expectApproxEql(@as(opentime.Ordinate, 1), u_one_dual.r);
 
         // derivative should be the same everywhere, linear function
-        try expectApproxEql(@as(f32, 1), u_zero_dual.i);
-        try expectApproxEql(@as(f32, 1), u_third_dual.i);
-        try expectApproxEql(@as(f32, 1), u_one_dual.i);
+        try expectApproxEql(@as(opentime.Ordinate, 1), u_zero_dual.i);
+        try expectApproxEql(@as(opentime.Ordinate, 1), u_third_dual.i);
+        try expectApproxEql(@as(opentime.Ordinate, 1), u_one_dual.i);
     }
 
     {
@@ -1688,11 +1687,11 @@ test "BezierMath: rescaled parameter"
 
     const start_extents = crv.extents();
 
-    try expectApproxEql(@as(f32, -0.5), start_extents[0].in);
-    try expectApproxEql(@as(f32,  0.5), start_extents[1].in);
+    try expectApproxEql(@as(opentime.Ordinate, -0.5), start_extents[0].in);
+    try expectApproxEql(@as(opentime.Ordinate,  0.5), start_extents[1].in);
 
-    try expectApproxEql(@as(f32, -0.5), start_extents[0].out);
-    try expectApproxEql(@as(f32,  0.5), start_extents[1].out);
+    try expectApproxEql(@as(opentime.Ordinate, -0.5), start_extents[0].out);
+    try expectApproxEql(@as(opentime.Ordinate,  0.5), start_extents[1].out);
 
     const result = try rescaled_curve(
         std.testing.allocator,
@@ -1706,11 +1705,11 @@ test "BezierMath: rescaled parameter"
 
     const end_extents = result.extents();
 
-    try expectApproxEql(@as(f32, 100), end_extents[0].in);
-    try expectApproxEql(@as(f32, 200), end_extents[1].in);
+    try expectApproxEql(@as(opentime.Ordinate, 100), end_extents[0].in);
+    try expectApproxEql(@as(opentime.Ordinate, 200), end_extents[1].in);
 
-    try expectApproxEql(@as(f32, 0),  end_extents[0].out);
-    try expectApproxEql(@as(f32, 10), end_extents[1].out);
+    try expectApproxEql(@as(opentime.Ordinate, 0),  end_extents[0].out);
+    try expectApproxEql(@as(opentime.Ordinate, 10), end_extents[1].out);
 
 }
 
