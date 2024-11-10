@@ -582,8 +582,6 @@ pub fn resampled_dd(
     output_d_sampling_info: SampleIndexGenerator,
 ) !Sampling
 {
-    // @TODO: should this only work for interpolating Samplings?
-
     const resample_ratio : f64 = (
         @as(f64, @floatFromInt(output_d_sampling_info.sample_rate_hz))
         / @as(f64, @floatFromInt(input_d_samples.index_generator.sample_rate_hz))
@@ -1219,7 +1217,6 @@ test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1kh
     //  /
     //
 
-    // @TODO: write this to a json file so we can image in curvet
     var transform_curve_segments = [_]curve.Bezier.Segment{
         // identity
         curve.Bezier.Segment.init_identity(0,  1.0),
@@ -1628,7 +1625,6 @@ test "sampling: frame phase slide 2: (time*2 bounds*1 freq*1 phase+0) 0,1,2,3->0
 
     try std.testing.expectEqual(false, ramp_samples.interpolating);
 
-    // @TODO: return here after threading interpolating through
     const sample_to_output_crv = (
         topology.mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = curve.linear_curve.Linear.Monotonic{
@@ -1710,7 +1706,6 @@ test "sampling: frame phase slide 2.5: (time*2 bounds*2 freq*1 phase+0) 0,1,2,3-
 
     try std.testing.expectEqual(false, ramp_samples.interpolating);
 
-    // @TODO: return here after threading interpolating through
     const transformd_to_sample_crv = (
         topology.mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = curve.linear_curve.Linear.Monotonic {
@@ -1789,7 +1784,6 @@ test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(
 
     try std.testing.expectEqual(false, ramp_samples.interpolating);
 
-    // @TODO: return here after threading interpolating through
     const sample_to_output_crv = (
         topology.mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = (
@@ -1907,7 +1901,6 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
         ramp_samples.interpolating
     );
 
-    // @TODO: return here after threading interpolating through
     const transform_to_inter_crv = (
         topology.mapping.MappingCurveLinearMonotonic {
             .input_to_output_curve = curve.linear_curve.Linear.Monotonic {
