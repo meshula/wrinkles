@@ -7,21 +7,13 @@ const std = @import("std");
 
 const build_options = @import("build_options");
 
-const expectApproxEqAbs= std.testing.expectApproxEqAbs;
-const expectEqual = std.testing.expectEqual;
-const expectError= std.testing.expectError;
-
 const opentime = @import("opentime");
-
-const interval = opentime.interval;
-const libxform = opentime.transform;
 const curve = @import("curve");
 const topology_m = @import("topology");
 const string = @import("string_stuff");
 
 const treecode = @import("treecode");
 const sampling = @import("sampling");
-
 const otio_json = @import("opentimelineio_json.zig");
 const otio_highlevel_tests = @import("opentimelineio_highlevel_test.zig");
 
@@ -559,7 +551,7 @@ pub const ComposedValueRef = union(enum) {
                             )
                         );
                         const intrinsic_to_media_xform = (
-                            libxform.AffineTransform1D{
+                            opentime.AffineTransform1D{
                                 .offset = media_bounds.start,
                                 .scale = 1,
                             }
@@ -836,7 +828,7 @@ pub const Track = struct {
     ) !topology_m.Topology 
     {
         // build the maybe_bounds
-        var maybe_bounds: ?interval.ContinuousInterval = null;
+        var maybe_bounds: ?opentime.ContinuousInterval = null;
         for (self.children.items) 
             |it| 
         {
@@ -846,14 +838,14 @@ pub const Track = struct {
             if (maybe_bounds) 
                 |b| 
             {
-                maybe_bounds = interval.extend(b, it_bound);
+                maybe_bounds = opentime.extend(b, it_bound);
             } else {
                 maybe_bounds = it_bound;
             }
         }
 
         // unpack the optional
-        const result_bound:interval.ContinuousInterval = (
+        const result_bound:opentime.ContinuousInterval = (
             maybe_bounds orelse .{
                 .start = 0,
                 .end = 0,
@@ -2600,8 +2592,8 @@ test "ProjectionOperatorMap: clip"
     );
     defer cl_presentation_pmap.deinit();
 
-    try expectEqual(1, cl_presentation_pmap.operators.len);
-    try expectEqual(2, cl_presentation_pmap.end_points.len);
+    try std.testing.expectEqual(1, cl_presentation_pmap.operators.len);
+    try std.testing.expectEqual(2, cl_presentation_pmap.end_points.len);
 
     const known_presentation_to_media = (
         try map.build_projection_operator(
@@ -2626,36 +2618,36 @@ test "ProjectionOperatorMap: clip"
     );
 
     // topology input bounds match
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         known_input_bounds.start,
         guess_input_bounds.start,
         opentime.EPSILON_ORD
     );
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         known_input_bounds.end,
         guess_input_bounds.end,
         opentime.EPSILON_ORD
     );
 
     // end points match topology
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         cl_presentation_pmap.end_points[0],
         guess_input_bounds.start,
         opentime.EPSILON_ORD
     );
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         cl_presentation_pmap.end_points[1],
         guess_input_bounds.end,
         opentime.EPSILON_ORD
     );
 
     // known input bounds matches end point
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         known_input_bounds.start,
         cl_presentation_pmap.end_points[0],
         opentime.EPSILON_ORD
     );
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         known_input_bounds.end,
         cl_presentation_pmap.end_points[1],
         opentime.EPSILON_ORD
@@ -2704,8 +2696,8 @@ test "ProjectionOperatorMap: track with single clip"
     {
         defer projection_operator_map.deinit();
 
-        try expectEqual(1, projection_operator_map.operators.len);
-        try expectEqual(2, projection_operator_map.end_points.len);
+        try std.testing.expectEqual(1, projection_operator_map.operators.len);
+        try std.testing.expectEqual(2, projection_operator_map.end_points.len);
 
         const known_presentation_to_media = try map.build_projection_operator(
             std.testing.allocator,
@@ -2727,36 +2719,36 @@ test "ProjectionOperatorMap: track with single clip"
         );
 
         // topology input bounds match
-        try expectApproxEqAbs(
+        try std.testing.expectApproxEqAbs(
             known_input_bounds.start,
             guess_input_bounds.start,
             opentime.EPSILON_ORD
         );
-        try expectApproxEqAbs(
+        try std.testing.expectApproxEqAbs(
             known_input_bounds.end,
             guess_input_bounds.end,
             opentime.EPSILON_ORD
         );
 
         // end points match topology
-        try expectApproxEqAbs(
+        try std.testing.expectApproxEqAbs(
             projection_operator_map.end_points[0],
             guess_input_bounds.start,
             opentime.EPSILON_ORD
         );
-        try expectApproxEqAbs(
+        try std.testing.expectApproxEqAbs(
             projection_operator_map.end_points[1],
             guess_input_bounds.end,
             opentime.EPSILON_ORD
         );
 
         // known input bounds matches end point
-        try expectApproxEqAbs(
+        try std.testing.expectApproxEqAbs(
             known_input_bounds.start,
             projection_operator_map.end_points[0],
             opentime.EPSILON_ORD
         );
-        try expectApproxEqAbs(
+        try std.testing.expectApproxEqAbs(
             known_input_bounds.end,
             projection_operator_map.end_points[1],
             opentime.EPSILON_ORD
@@ -2926,7 +2918,7 @@ test "ProjectionOperatorMap: track with two clips"
         &.{0,8,16},
         p_o_map.end_points,
     );
-    try expectEqual(2, p_o_map.operators.len);
+    try std.testing.expectEqual(2, p_o_map.operators.len);
 
     const known_presentation_to_media = (
         try map.build_projection_operator(
@@ -2949,24 +2941,24 @@ test "ProjectionOperatorMap: track with two clips"
     );
 
     // topology input bounds match
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         known_input_bounds.start,
         guess_input_bounds.start,
         opentime.EPSILON_ORD
     );
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         known_input_bounds.end,
         guess_input_bounds.end,
         opentime.EPSILON_ORD
     );
 
     // end points match topology
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         8.0,
         guess_input_bounds.start,
         opentime.EPSILON_ORD
     );
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         16,
         guess_input_bounds.end,
         opentime.EPSILON_ORD
@@ -3019,7 +3011,7 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
         &.{0,8,13, 21},
         p_o_map.end_points,
     );
-    try expectEqual(3, p_o_map.operators.len);
+    try std.testing.expectEqual(3, p_o_map.operators.len);
 
     const known_presentation_to_media = (
         try map.build_projection_operator(
@@ -3042,24 +3034,24 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
     );
 
     // topology input bounds match
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         known_input_bounds.start,
         guess_input_bounds.start,
         opentime.EPSILON_ORD
     );
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         known_input_bounds.end,
         guess_input_bounds.end,
         opentime.EPSILON_ORD
     );
 
     // end points match topology
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         13,
         guess_input_bounds.start,
         opentime.EPSILON_ORD
     );
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         21,
         guess_input_bounds.end,
         opentime.EPSILON_ORD
@@ -3104,7 +3096,7 @@ test "depth_child_hash: math"
             .{ i, expected, result }
         );
 
-        try expectEqual(expected, result.treecode_array[0]);
+        try std.testing.expectEqual(expected, result.treecode_array[0]);
     }
 }
 
@@ -3352,13 +3344,13 @@ test "clip topology construction"
     const topo = try cl.topology(allocator);
     defer topo.deinit(allocator);
 
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         start,
         topo.input_bounds().start,
         opentime.EPSILON_ORD,
     );
 
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         end,
         topo.input_bounds().end,
         opentime.EPSILON_ORD,
@@ -3386,13 +3378,13 @@ test "track topology construction"
     const topo =  try tr.topology(allocator);
     defer topo.deinit(allocator);
 
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         start,
         topo.input_bounds().start,
         opentime.EPSILON_ORD,
     );
 
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         end,
         topo.input_bounds().end,
         opentime.EPSILON_ORD,
@@ -3466,7 +3458,7 @@ test "build_topological_map check root node"
     );
     defer map.deinit();
 
-    try expectEqual(
+    try std.testing.expectEqual(
         tr_ref.space(.presentation),
         map.root(),
     );
@@ -3511,7 +3503,7 @@ test "path_code: graph test"
     );
     defer map.deinit();
 
-    try expectEqual(
+    try std.testing.expectEqual(
         tr_ref.space(.presentation),
         map.root(),
     );
@@ -3580,7 +3572,7 @@ test "Track with clip with identity transform projection"
 
     const start:opentime.Ordinate = 1;
     const end:opentime.Ordinate = 10;
-    const range = interval.ContinuousInterval{
+    const range = opentime.ContinuousInterval{
         .start = start,
         .end = end,
     };
@@ -3592,7 +3584,7 @@ test "Track with clip with identity transform projection"
     // reserve capcacity so that the reference isn't invalidated
     try tr.children.ensureTotalCapacity(11);
     const cl_ref = try tr.append_fetch_ref(cl_template);
-    try expectEqual(cl_ref, tr.child_ptr_from_index(0));
+    try std.testing.expectEqual(cl_ref, tr.child_ptr_from_index(0));
 
     var i:i32 = 0;
     while (i < 10) 
@@ -3607,7 +3599,7 @@ test "Track with clip with identity transform projection"
     );
     defer map.deinit();
 
-    try expectEqual(11, tr_ref.track_ptr.children.items.len);
+    try std.testing.expectEqual(11, tr_ref.track_ptr.children.items.len);
 
     const track_to_clip = try map.build_projection_operator(
         std.testing.allocator,
@@ -3619,20 +3611,20 @@ test "Track with clip with identity transform projection"
     defer track_to_clip.deinit(std.testing.allocator);
 
     // check the bounds
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         0,
         track_to_clip.src_to_dst_topo.input_bounds().start,
         opentime.EPSILON_ORD,
     );
 
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         end - start,
         track_to_clip.src_to_dst_topo.input_bounds().end,
         opentime.EPSILON_ORD,
     );
 
     // check the projection
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         4,
         try track_to_clip.project_instantaneous_cc(3).ordinate(),
         opentime.EPSILON_ORD,
@@ -3664,10 +3656,10 @@ test "TopologicalMap: Track with clip with identity transform topological"
     );
     defer map.deinit();
 
-    try expectEqual(5, map.map_code_to_space.count());
-    try expectEqual(5, map.map_space_to_code.count());
+    try std.testing.expectEqual(5, map.map_code_to_space.count());
+    try std.testing.expectEqual(5, map.map_space_to_code.count());
 
-    try expectEqual(root, map.root().ref);
+    try std.testing.expectEqual(root, map.root().ref);
 
     const maybe_root_code = map.map_space_to_code.get(map.root());
     try std.testing.expect(maybe_root_code != null);
@@ -3681,7 +3673,7 @@ test "TopologicalMap: Track with clip with identity transform topological"
         );
         defer tc.deinit();
         try std.testing.expect(tc.eql(root_code));
-        try expectEqual(0, tc.code_length());
+        try std.testing.expectEqual(0, tc.code_length());
     }
 
     const maybe_clip_code = map.map_space_to_code.get(
@@ -3704,7 +3696,7 @@ test "TopologicalMap: Track with clip with identity transform topological"
                 clip_code,
             },
         );
-        try expectEqual(4, tc.code_length());
+        try std.testing.expectEqual(4, tc.code_length());
         try std.testing.expect(tc.eql(clip_code));
     }
 
@@ -3723,12 +3715,12 @@ test "TopologicalMap: Track with clip with identity transform topological"
     );
     defer root_presentation_to_clip_media.deinit(allocator);
 
-    try expectError(
+    try std.testing.expectError(
         topology_m.mapping.Mapping.ProjectionError.OutOfBounds,
         root_presentation_to_clip_media.project_instantaneous_cc(3).ordinate()
     );
 
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         1,
         try root_presentation_to_clip_media.project_instantaneous_cc(1).ordinate(),
         opentime.EPSILON_ORD,
@@ -3758,11 +3750,11 @@ test "Projection: Track with single clip with identity transform and bounds"
     );
     defer map.deinit();
 
-    try expectEqual(
+    try std.testing.expectEqual(
         @as(usize, 5),
         map.map_code_to_space.count()
     );
-    try expectEqual(
+    try std.testing.expectEqual(
         @as(usize, 5),
         map.map_space_to_code.count()
     );
@@ -3777,7 +3769,7 @@ test "Projection: Track with single clip with identity transform and bounds"
     defer root_presentation_to_clip_media.deinit(allocator);
 
     const expected_media_temporal_bounds = (
-        cl.bounds_s orelse interval.ContinuousInterval{}
+        cl.bounds_s orelse opentime.ContinuousInterval{}
     );
 
     const actual_media_temporal_bounds = (
@@ -3785,19 +3777,19 @@ test "Projection: Track with single clip with identity transform and bounds"
     );
 
     // cexpected_media_temporal_bounds
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         expected_media_temporal_bounds.start,
         actual_media_temporal_bounds.start,
         opentime.EPSILON_ORD,
     );
 
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         expected_media_temporal_bounds.end,
         actual_media_temporal_bounds.end,
         opentime.EPSILON_ORD,
     );
 
-    try expectError(
+    try std.testing.expectError(
         topology_m.mapping.Mapping.ProjectionError.OutOfBounds,
         root_presentation_to_clip_media.project_instantaneous_cc(3).ordinate()
     );
@@ -3875,7 +3867,7 @@ test "Projection: Track with multiple clips with identity transform and bounds"
     );
     defer po_map.deinit();
 
-    try expectEqual(
+    try std.testing.expectEqual(
         3,
         po_map.operators.len,
     );
@@ -3921,7 +3913,7 @@ test "Projection: Track with multiple clips with identity transform and bounds"
         );
         if (t.err)
         {
-            try expectError(
+            try std.testing.expectError(
                 opentime.ProjectionResult.Errors.OutOfBounds,
                 tr_presentation_to_clip_media.project_instantaneous_cc(t.track_ord).ordinate()
             );
@@ -3929,7 +3921,7 @@ test "Projection: Track with multiple clips with identity transform and bounds"
         else{
             const result = try tr_presentation_to_clip_media.project_instantaneous_cc(t.track_ord).ordinate();
 
-            try expectApproxEqAbs(result, t.expected_ord, opentime.EPSILON_ORD);
+            try std.testing.expectApproxEqAbs(result, t.expected_ord, opentime.EPSILON_ORD);
         }
     }
 
@@ -3945,26 +3937,26 @@ test "Projection: Track with multiple clips with identity transform and bounds"
     defer root_presentation_to_clip_media.deinit(allocator);
 
     const expected_range = (
-        cl.bounds_s orelse interval.ContinuousInterval{}
+        cl.bounds_s orelse opentime.ContinuousInterval{}
     );
     const actual_range = (
         root_presentation_to_clip_media.src_to_dst_topo.input_bounds()
     );
 
     // check the bounds
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         expected_range.start,
         actual_range.start,
         opentime.EPSILON_ORD,
     );
 
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         expected_range.end,
         actual_range.end,
         opentime.EPSILON_ORD,
     );
 
-    try expectError(
+    try std.testing.expectError(
         opentime.ProjectionResult.Errors.OutOfBounds,
         root_presentation_to_clip_media.project_instantaneous_cc(3).ordinate(),
     );
@@ -4016,11 +4008,11 @@ test "Single Clip bezier transform"
 
     // test the input space range
     const curve_bounds_input = curve_topo.input_bounds();
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         0,
         curve_bounds_input.start, opentime.EPSILON_ORD
     );
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         10,
         curve_bounds_input.end, opentime.EPSILON_ORD
     );
@@ -4029,18 +4021,18 @@ test "Single Clip bezier transform"
     const curve_bounds_output = (
         xform_curve.extents_output()
     );
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         0,
         curve_bounds_output.start, opentime.EPSILON_ORD
     );
-    try expectApproxEqAbs(
+    try std.testing.expectApproxEqAbs(
         10,
         curve_bounds_output.end, opentime.EPSILON_ORD
     );
 
     try std.testing.expect(curve_topo.mappings.len > 0);
 
-    const media_temporal_bounds:interval.ContinuousInterval = .{
+    const media_temporal_bounds:opentime.ContinuousInterval = .{
         .start = 100,
         .end = 110,
     };
@@ -4079,12 +4071,12 @@ test "Single Clip bezier transform"
         const input_bounds = (
             clip_presentation_to_media_proj.src_to_dst_topo.input_bounds()
         );
-        try expectApproxEqAbs(
+        try std.testing.expectApproxEqAbs(
             curve_bounds_output.start, 
             input_bounds.start,
             opentime.EPSILON_ORD
         );
-        try expectApproxEqAbs(
+        try std.testing.expectApproxEqAbs(
             curve_bounds_output.end, 
             input_bounds.end,
             opentime.EPSILON_ORD
@@ -4111,12 +4103,12 @@ test "Single Clip bezier transform"
             const clip_media_to_presentation_input_bounds = (
                 topo.input_bounds()
             );
-            try expectApproxEqAbs(
+            try std.testing.expectApproxEqAbs(
                 100,
                 clip_media_to_presentation_input_bounds.start,
                 opentime.EPSILON_ORD
             );
-            try expectApproxEqAbs(
+            try std.testing.expectApproxEqAbs(
                 110,
                 clip_media_to_presentation_input_bounds.end,
                 opentime.EPSILON_ORD
@@ -4171,7 +4163,7 @@ test "Single Clip bezier transform"
                     }
                 );
 
-                try expectApproxEqAbs(
+                try std.testing.expectApproxEqAbs(
                     computed_output_time,
                     output_time,
                     opentime.EPSILON_ORD
@@ -4193,7 +4185,7 @@ test "Single Clip bezier transform"
         );
         defer clip_media_to_presentation.deinit(allocator);
 
-        try expectApproxEqAbs(
+        try std.testing.expectApproxEqAbs(
             6.5745,
             try clip_media_to_presentation.project_instantaneous_cc(
                 107
@@ -4320,7 +4312,7 @@ pub const Stack = struct {
     ) !topology_m.Topology 
     {
         // build the bounds
-        var bounds: ?interval.ContinuousInterval = null;
+        var bounds: ?opentime.ContinuousInterval = null;
         for (self.children.items) 
             |it| 
         {
@@ -4330,7 +4322,7 @@ pub const Stack = struct {
             if (bounds) 
                 |b| 
             {
-                bounds = interval.extend(b, it_bound);
+                bounds = opentime.extend(b, it_bound);
             } else {
                 bounds = it_bound;
             }
@@ -4424,19 +4416,19 @@ test "test spaces list"
     const spaces = try it.spaces(std.testing.allocator);
     defer std.testing.allocator.free(spaces);
 
-    try expectEqual(
+    try std.testing.expectEqual(
        SpaceLabel.presentation,
        spaces[0].label, 
     );
-    try expectEqual(
+    try std.testing.expectEqual(
        SpaceLabel.media,
        spaces[1].label, 
     );
-    try expectEqual(
+    try std.testing.expectEqual(
        "presentation",
        @tagName(SpaceLabel.presentation),
     );
-    try expectEqual(
+    try std.testing.expectEqual(
        "media",
        @tagName(SpaceLabel.media),
     );
@@ -4500,7 +4492,7 @@ test "otio projection: track with single clip"
     {
         // continuous time projection to the continuous intrinsic space for
         // continuous or interpolated samples
-        try expectApproxEqAbs(
+        try std.testing.expectApproxEqAbs(
             4.5,
             try track_to_media.project_instantaneous_cc(3.5).ordinate(),
             opentime.EPSILON_ORD,
@@ -4508,7 +4500,7 @@ test "otio projection: track with single clip"
 
         // for discrete non-interpolated data sources, allow projection to a
         // discrete index space
-        try expectEqual(
+        try std.testing.expectEqual(
             // ??? - can't be prescriptive about how data sources are indexed, ie
             // paths to EXR frames or something
             (3 + 1) * 4,
@@ -4716,7 +4708,7 @@ test "otio projection: track with single clip with transform"
     {
         // continuous time projection to the continuous intrinsic space for
         // continuous or interpolated samples
-        try expectApproxEqAbs(
+        try std.testing.expectApproxEqAbs(
             // (3.5*2 + 1),
             8,
             try track_to_media.project_instantaneous_cc(3.5).ordinate(),
@@ -4725,7 +4717,7 @@ test "otio projection: track with single clip with transform"
 
         // for discrete non-interpolated data sources, allow projection to a
         // discrete index space
-        try expectEqual(
+        try std.testing.expectEqual(
             // ??? - can't be prescriptive about how data sources are indexed, ie
             // paths to EXR frames or something
             (3*2 + 1) * 4,
@@ -5136,7 +5128,7 @@ test "TestWalkingIterator: clip"
     }
 
     // 5: clip presentation, clip media
-    try expectEqual(2, count);
+    try std.testing.expectEqual(2, count);
 }
 
 test "TestWalkingIterator: track with clip"
@@ -5181,7 +5173,7 @@ test "TestWalkingIterator: track with clip"
         }
 
         // 5: track presentation, input, child, clip presentation, clip media
-        try expectEqual(5, count);
+        try std.testing.expectEqual(5, count);
     }
 
     // from the clip
@@ -5202,7 +5194,7 @@ test "TestWalkingIterator: track with clip"
         }
 
         // 2: clip presentation, clip media
-        try expectEqual(2, count);
+        try std.testing.expectEqual(2, count);
     }
 }
 
@@ -5263,7 +5255,7 @@ test "TestWalkingIterator: track with clip w/ destination"
         }
 
         // 2: clip presentation, clip media
-        try expectEqual(6, count);
+        try std.testing.expectEqual(6, count);
     }
 }
 
@@ -5437,7 +5429,7 @@ test "Single clip, Warp bulk"
 
     const allocator = std.testing.allocator;
 
-    const media_temporal_bounds:interval.ContinuousInterval = .{
+    const media_temporal_bounds:opentime.ContinuousInterval = .{
         .start = 100,
         .end = 110,
     };
@@ -5588,19 +5580,19 @@ test "Single clip, Warp bulk"
                 },
             );
 
-            try expectApproxEqAbs(
+            try std.testing.expectApproxEqAbs(
                 start.in,
                 input_bounds.start,
                 opentime.EPSILON_ORD,
             );
 
-            try expectApproxEqAbs(
+            try std.testing.expectApproxEqAbs(
                 end.in,
                 input_bounds.end,
                 opentime.EPSILON_ORD,
             );
 
-            try expectApproxEqAbs(
+            try std.testing.expectApproxEqAbs(
                 t.clip_media_test,
                 try warp_pres_to_media_topo.project_instantaneous_cc(
                     t.presentation_test,
@@ -5624,7 +5616,7 @@ test "Single clip, Warp bulk"
 
             // @TODO: XXX deal with this check
             if (t.project_to_finite) {
-                try expectApproxEqAbs(
+                try std.testing.expectApproxEqAbs(
                     t.presentation_test,
                     try clip_media_to_presentation.project_instantaneous_cc(
                         t.clip_media_test,
