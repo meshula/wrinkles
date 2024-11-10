@@ -12,7 +12,6 @@ const expectEqual = std.testing.expectEqual;
 const expectError= std.testing.expectError;
 
 const opentime = @import("opentime");
-const Duration = f32;
 
 const interval = opentime.interval;
 const libxform = opentime.transform;
@@ -647,7 +646,7 @@ pub const ComposedValueRef = union(enum) {
 
     pub fn continuous_ordinate_to_discrete_index(
         self: @This(),
-        ord_continuous: f32,
+        ord_continuous: opentime.Ordinate,
         in_space: SpaceLabel,
     ) !usize
     {
@@ -692,7 +691,7 @@ pub const ComposedValueRef = union(enum) {
             // start
             @floatFromInt(discrete_info.start_index),
             // held durations
-            1.0 / @as(f32, @floatFromInt(discrete_info.sample_rate_hz)),
+            1.0 / @as(opentime.Ordinate, @floatFromInt(discrete_info.sample_rate_hz)),
             // increment -- @TODO: support other increments ("on twos", etc)
             1.0,
         );
@@ -1040,7 +1039,7 @@ pub const ProjectionOperator = struct {
     ///project a continuous ordinate to the continuous destination space
     pub fn project_instantaneous_cc(
         self: @This(),
-        ordinate_in_source_space: f32,
+        ordinate_in_source_space: opentime.Ordinate,
     ) opentime.ProjectionResult
     {
         return self.src_to_dst_topo.project_instantaneous_cc(
@@ -1051,7 +1050,7 @@ pub const ProjectionOperator = struct {
     /// project a continuous ordinate to the destination discrete sample index
     pub fn project_instantaneous_cd(
         self: @This(),
-        ordinate_in_source_space: f32,
+        ordinate_in_source_space: opentime.Ordinate,
     ) !usize 
     {
         const continuous_in_destination_space =  (
@@ -1121,12 +1120,12 @@ pub const ProjectionOperator = struct {
         // const bounds_to_walk = dst_c_bounds;
         const bounds_to_walk = in_c_bounds;
 
-        const duration:f32 = (
-            1.0 / @as(f32, @floatFromInt(discrete_info.sample_rate_hz))
+        const duration:opentime.Ordinate = (
+            1.0 / @as(opentime.Ordinate, @floatFromInt(discrete_info.sample_rate_hz))
         );
 
         const increasing = bounds_to_walk.end > bounds_to_walk.start;
-        const sign:f32 = if (increasing) 1 else -1;
+        const sign:opentime.Ordinate = if (increasing) 1 else -1;
 
         // walk across the continuous space at the sampling rate
         var t = bounds_to_walk.start;
@@ -1987,7 +1986,7 @@ pub const ProjectionOperatorMap = struct {
     allocator: std.mem.Allocator,
 
     /// segment endpoints
-    end_points: []const f32 = &.{},
+    end_points: []const opentime.Ordinate = &.{},
     /// segment projection operators 
     operators : [][]const ProjectionOperator = &.{},
 
@@ -2003,7 +2002,7 @@ pub const ProjectionOperatorMap = struct {
     {
         const input_bounds = op.src_to_dst_topo.input_bounds();
         const end_points = try allocator.dupe(
-            f32,
+            opentime.Ordinate,
             &.{ input_bounds.start, input_bounds.end } 
         );
 
@@ -2099,7 +2098,7 @@ pub const ProjectionOperatorMap = struct {
             over_conformed.end_points
         );
 
-        var end_points = std.ArrayList(f32).init(
+        var end_points = std.ArrayList(opentime.Ordinate).init(
             parent_allocator,
         );
         var operators = std.ArrayList(
@@ -2163,7 +2162,7 @@ pub const ProjectionOperatorMap = struct {
             .allocator = self.allocator,
             .source = self.source,
             .end_points = try self.allocator.dupe(
-                f32,
+                opentime.Ordinate,
                 self.end_points
             ),
             .operators = ops: {
@@ -2197,7 +2196,7 @@ pub const ProjectionOperatorMap = struct {
         range: opentime.ContinuousInterval,
     ) !ProjectionOperatorMap
     {
-        var tmp_pts = std.ArrayList(f32).init(allocator);
+        var tmp_pts = std.ArrayList(opentime.Ordinate).init(allocator);
         defer tmp_pts.deinit();
         var tmp_ops = std.ArrayList([]const ProjectionOperator).init(allocator);
         defer tmp_ops.deinit();
@@ -2243,10 +2242,10 @@ pub const ProjectionOperatorMap = struct {
         self: @This(),
         allocator: std.mem.Allocator,
         /// pts should have the same start and end point as self
-        pts: []const f32,
+        pts: []const opentime.Ordinate,
     ) !ProjectionOperatorMap
     {
-        var tmp_pts = std.ArrayList(f32).init(allocator);
+        var tmp_pts = std.ArrayList(opentime.Ordinate).init(allocator);
         var tmp_ops = std.ArrayList([]const ProjectionOperator).init(allocator);
 
         var ind_self:usize = 0;
@@ -2276,7 +2275,7 @@ pub const ProjectionOperatorMap = struct {
 
             if (
                 std.math.approxEqAbs(
-                    f32,
+                    opentime.Ordinate,
                     t_next_self,
                     t_next_other,
                     opentime.EPSILON_ORD
@@ -2350,7 +2349,7 @@ test "ProjectionOperatorMap: extend_to"
         defer result.deinit();
 
         try std.testing.expectEqualSlices(
-            f32,
+            opentime.Ordinate,
             cl_presentation_pmap.end_points,
             result.end_points,
         );
@@ -2372,7 +2371,7 @@ test "ProjectionOperatorMap: extend_to"
         defer result.deinit();
 
         try std.testing.expectEqualSlices(
-            f32,
+            opentime.Ordinate,
             &.{-10, 0, 8},
             result.end_points,
         );
@@ -2395,7 +2394,7 @@ test "ProjectionOperatorMap: extend_to"
         defer result.deinit();
 
         try std.testing.expectEqualSlices(
-            f32,
+            opentime.Ordinate,
             &.{0, 8, 18},
             result.end_points,
         );
@@ -2441,7 +2440,7 @@ test "ProjectionOperatorMap: split_at_each"
         defer result.deinit();
 
         try std.testing.expectEqualSlices(
-            f32,
+            opentime.Ordinate,
             cl_presentation_pmap.end_points,
             result.end_points,
         );
@@ -2453,7 +2452,7 @@ test "ProjectionOperatorMap: split_at_each"
 
     // split_at_each -- end points are same, split in middle
     {
-        const pts = [_]f32{ 0, 4, 8 };
+        const pts = [_]opentime.Ordinate{ 0, 4, 8 };
 
         const result = try cl_presentation_pmap.split_at_each(
             std.testing.allocator,
@@ -2462,7 +2461,7 @@ test "ProjectionOperatorMap: split_at_each"
         defer result.deinit();
 
         try std.testing.expectEqualSlices(
-            f32,
+            opentime.Ordinate,
             &pts,
             result.end_points,
         );
@@ -2475,7 +2474,7 @@ test "ProjectionOperatorMap: split_at_each"
 
     // split_at_each -- end points are same, split in middle twice
     {
-        const pts = [_]f32{ 0, 1, 4, 8 };
+        const pts = [_]opentime.Ordinate{ 0, 1, 4, 8 };
 
         const result = try cl_presentation_pmap.split_at_each(
             std.testing.allocator,
@@ -2484,7 +2483,7 @@ test "ProjectionOperatorMap: split_at_each"
         defer result.deinit();
 
         try std.testing.expectEqualSlices(
-            f32,
+            opentime.Ordinate,
             &pts,
             result.end_points,
         );
@@ -2497,8 +2496,8 @@ test "ProjectionOperatorMap: split_at_each"
 
     // split_at_each -- end points are same, split offset
     {
-        const pts1 = [_]f32{ 0, 4, 8 };
-        const pts2 = [_]f32{ 0, 4, 8 };
+        const pts1 = [_]opentime.Ordinate{ 0, 4, 8 };
+        const pts2 = [_]opentime.Ordinate{ 0, 4, 8 };
 
         const inter = try cl_presentation_pmap.split_at_each(
             std.testing.allocator,
@@ -2513,7 +2512,7 @@ test "ProjectionOperatorMap: split_at_each"
         defer result.deinit();
 
         try std.testing.expectEqualSlices(
-            f32,
+            opentime.Ordinate,
             &.{0,4,8},
             result.end_points,
         );
@@ -2563,7 +2562,7 @@ test "ProjectionOperatorMap: merge_composite"
         defer result.deinit();
 
         try std.testing.expectEqualSlices(
-            f32,
+            opentime.Ordinate,
             cl_presentation_pmap.end_points,
             result.end_points,
         );
@@ -2814,7 +2813,7 @@ test "transform: track with two clips"
         const b = xform.input_bounds();
 
         try std.testing.expectEqualSlices(
-            f32,
+            opentime.Ordinate,
             &.{8},
             &.{b.start},
         );
@@ -2877,7 +2876,7 @@ test "transform: track with two clips"
         );
 
         try std.testing.expectEqualSlices(
-            f32,
+            opentime.Ordinate,
             &.{
                 cl1_range.duration(),
                 cl1_range.duration() + cl2_range.duration() 
@@ -2923,7 +2922,7 @@ test "ProjectionOperatorMap: track with two clips"
     defer p_o_map.deinit();
 
     try std.testing.expectEqualSlices(
-        f32,
+        opentime.Ordinate,
         &.{0,8,16},
         p_o_map.end_points,
     );
@@ -3016,7 +3015,7 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
     defer p_o_map.deinit();
 
     try std.testing.expectEqualSlices(
-        f32,
+        opentime.Ordinate,
         &.{0,8,13, 21},
         p_o_map.end_points,
     );
@@ -3341,8 +3340,8 @@ test "clip topology construction"
 {
     const allocator = std.testing.allocator;
 
-    const start:f32 = 1;
-    const end:f32 = 10;
+    const start:opentime.Ordinate = 1;
+    const end:opentime.Ordinate = 10;
     const cl = Clip {
         .bounds_s = .{
             .start = start,
@@ -3373,8 +3372,8 @@ test "track topology construction"
     var tr = Track.init(allocator);
     defer tr.deinit();
 
-    const start:f32 = 1;
-    const end:f32 = 10;
+    const start:opentime.Ordinate = 1;
+    const end:opentime.Ordinate = 10;
     try tr.append(
         Clip {
             .bounds_s = .{
@@ -3432,8 +3431,8 @@ test "build_topological_map check root node"
     defer tr.deinit();
     const tr_ref = ComposedValueRef.init(&tr);
 
-    const start:f32 = 1;
-    const end:f32 = 10;
+    const start:opentime.Ordinate = 1;
+    const end:opentime.Ordinate = 10;
     const cti = opentime.ContinuousInterval{
         .start = start,
         .end = end 
@@ -3479,8 +3478,8 @@ test "path_code: graph test"
     defer tr.deinit();
     const tr_ref = ComposedValueRef.init(&tr);
 
-    const start:f32 = 1;
-    const end:f32 = 10;
+    const start:opentime.Ordinate = 1;
+    const end:opentime.Ordinate = 10;
 
     const cl = Clip {
         .bounds_s = .{
@@ -3579,8 +3578,8 @@ test "Track with clip with identity transform projection"
     defer tr.deinit();
     const tr_ref = ComposedValueRef.init(&tr);
 
-    const start:f32 = 1;
-    const end:f32 = 10;
+    const start:opentime.Ordinate = 1;
+    const end:opentime.Ordinate = 10;
     const range = interval.ContinuousInterval{
         .start = start,
         .end = end,
@@ -3621,7 +3620,7 @@ test "Track with clip with identity transform projection"
 
     // check the bounds
     try expectApproxEqAbs(
-        @as(f32, 0),
+        0,
         track_to_clip.src_to_dst_topo.input_bounds().start,
         opentime.EPSILON_ORD,
     );
@@ -3634,7 +3633,7 @@ test "Track with clip with identity transform projection"
 
     // check the projection
     try expectApproxEqAbs(
-        @as(f32, 4),
+        4,
         try track_to_clip.project_instantaneous_cc(3).ordinate(),
         opentime.EPSILON_ORD,
     );
@@ -3828,8 +3827,8 @@ test "Projection: Track with multiple clips with identity transform and bounds"
 
     const TestData = struct {
         index: usize,
-        track_ord: f32,
-        expected_ord: f32,
+        track_ord: opentime.Ordinate,
+        expected_ord: opentime.Ordinate,
         err: bool
     };
 
@@ -3863,7 +3862,7 @@ test "Projection: Track with multiple clips with identity transform and bounds"
         const b = po.src_to_dst_topo.input_bounds();
 
         try std.testing.expectEqualSlices(
-            f32,
+            opentime.Ordinate,
             &.{ 4, 6 },
             &.{ b.start, b.end },
         );
@@ -3882,21 +3881,21 @@ test "Projection: Track with multiple clips with identity transform and bounds"
     );
 
     // 1
-    for (po_map.operators, &[_][2]f32{ .{ 0, 2}, .{ 2, 4 }, .{ 4, 6 } })
+    for (po_map.operators, &[_][2]opentime.Ordinate{ .{ 0, 2}, .{ 2, 4 }, .{ 4, 6 } })
         |ops, expected|
     {
         const b = (
             ops[0].src_to_dst_topo.input_bounds()
         );
         try std.testing.expectEqualSlices(
-            f32,
+            opentime.Ordinate,
             &expected,
             &.{ b.start, b.end },
         );
     }
 
     try std.testing.expectEqualSlices(
-        f32,
+        opentime.Ordinate,
         &.{ 0, 2, 4, 6},
         po_map.end_points,
     );
@@ -4018,11 +4017,11 @@ test "Single Clip bezier transform"
     // test the input space range
     const curve_bounds_input = curve_topo.input_bounds();
     try expectApproxEqAbs(
-        @as(f32, 0),
+        0,
         curve_bounds_input.start, opentime.EPSILON_ORD
     );
     try expectApproxEqAbs(
-        @as(f32, 10),
+        10,
         curve_bounds_input.end, opentime.EPSILON_ORD
     );
 
@@ -4031,11 +4030,11 @@ test "Single Clip bezier transform"
         xform_curve.extents_output()
     );
     try expectApproxEqAbs(
-        @as(f32, 0),
+        0,
         curve_bounds_output.start, opentime.EPSILON_ORD
     );
     try expectApproxEqAbs(
-        @as(f32, 10),
+        10,
         curve_bounds_output.end, opentime.EPSILON_ORD
     );
 
@@ -4113,12 +4112,14 @@ test "Single Clip bezier transform"
                 topo.input_bounds()
             );
             try expectApproxEqAbs(
-                @as(f32, 100),
-                clip_media_to_presentation_input_bounds.start, opentime.EPSILON_ORD
+                100,
+                clip_media_to_presentation_input_bounds.start,
+                opentime.EPSILON_ORD
             );
             try expectApproxEqAbs(
-                @as(f32, 110),
-                clip_media_to_presentation_input_bounds.end, opentime.EPSILON_ORD
+                110,
+                clip_media_to_presentation_input_bounds.end,
+                opentime.EPSILON_ORD
             );
 
             try std.testing.expect(
@@ -4193,7 +4194,7 @@ test "Single Clip bezier transform"
         defer clip_media_to_presentation.deinit(allocator);
 
         try expectApproxEqAbs(
-            @as(f32, 6.5745),
+            6.5745,
             try clip_media_to_presentation.project_instantaneous_cc(
                 107
             ).ordinate(),
@@ -4857,7 +4858,7 @@ test "otio projection: track with single clip with transform"
                 (
                // should  v this be a 1.0?
                  start + 2.0/@as(
-                     f32,
+                     opentime.Ordinate,
                      @floatFromInt(
                          tl.discrete_info.presentation.?.sample_rate_hz
                      )
