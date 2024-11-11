@@ -50,7 +50,12 @@ pub fn project_instantaneous_cd(
                     sample_ordinate_t,
                     @floatFromInt(self.sample_rate_hz)
                 )
-                + (1/@as(sample_ordinate_t, @floatFromInt(self.sample_rate_hz)))/2
+                + (
+                    1/@as(
+                        sample_ordinate_t,
+                        @floatFromInt(self.sample_rate_hz)
+                    )
+                )/2
             )
         )
     ) + self.start_index;
@@ -79,9 +84,11 @@ pub fn project_index_dc(
 {
     var start:sample_ordinate_t = @floatFromInt(ind_discrete);
     start -= @floatFromInt(self.start_index);
-    const s_per_cycle = 1 / @as(
-        sample_ordinate_t,
-        @floatFromInt(self.sample_rate_hz)
+    const s_per_cycle = (
+        1 / @as(
+            sample_ordinate_t,
+            @floatFromInt(self.sample_rate_hz)
+        )
     );
     start *= s_per_cycle;
 
