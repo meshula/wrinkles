@@ -285,15 +285,12 @@ pub const Track = struct {
 
         // unpack the optional
         const result_bound:opentime.ContinuousInterval = (
-            maybe_bounds orelse .{
-                .start = 0,
-                .end = 0,
-            }
+            maybe_bounds orelse .{ .start = 0, .end = 0, }
         );
 
         return try topology_m.Topology.init_identity(
             allocator,
-            result_bound
+            result_bound,
         );
     }
 
