@@ -726,7 +726,10 @@ pub const ProjectionOperator = struct {
         const bounds_to_walk = in_c_bounds;
 
         const duration:opentime.Ordinate = (
-            1.0 / @as(opentime.Ordinate, @floatFromInt(discrete_info.sample_rate_hz))
+            1.0 / @as(
+                opentime.Ordinate,
+                @floatFromInt(discrete_info.sample_rate_hz)
+            )
         );
 
         const increasing = bounds_to_walk.end > bounds_to_walk.start;
@@ -739,7 +742,9 @@ pub const ProjectionOperator = struct {
             or (increasing == false and t > bounds_to_walk.end)
         ) : (t += sign*duration)
         {
-            const out_ord = try in_to_dst_topo_c.project_instantaneous_cc(t).ordinate();
+            const out_ord = (
+                try in_to_dst_topo_c.project_instantaneous_cc(t).ordinate()
+            );
 
             // ...project the continuous coordinate into the discrete space
             try index_buffer_destination_discrete.append(
@@ -805,7 +810,7 @@ pub const ProjectionOperator = struct {
 
         return try self.project_topology_cd(
             allocator,
-            in_to_source_topo
+            in_to_source_topo,
         );
     }
 

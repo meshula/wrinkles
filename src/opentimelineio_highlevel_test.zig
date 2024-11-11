@@ -1,7 +1,9 @@
 //! Demonstration of new features in this lib via unit tests
 
 const std = @import("std");
+
 const otio = @import("opentimelineio.zig");
+
 const opentime = @import("opentime");
 const topology = @import("topology");
 const sampling = @import("sampling");
@@ -105,6 +107,17 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         timeline_to_clip2.src_to_dst_topo.input_bounds(),
     );
     defer allocator.free(clip_indices);
+
+    try std.testing.expectEqualSlices(
+        sampling.sample_index_t,
+        &.{ 
+            310, 311, 312, 313, 314, 315, 316, 317, 318, 319, 
+            320, 321, 322, 323, 324, 325, 326, 327, 328, 329, 
+            330, 331, 332, 333, 334, 335, 336, 337, 338, 339, 
+            340,
+        },
+        clip_indices,
+    );
 
     // ...or a general projection: build the projection operator map
     ///////////////////////////////////////////////////////////////////////////

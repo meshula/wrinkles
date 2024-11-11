@@ -40,17 +40,20 @@ const EPSILON_ORD: sample_ordinate_t = 1.0e-4;
 pub fn project_instantaneous_cd(
     self: anytype,
     ord_continuous: sample_ordinate_t,
-) usize
+) sample_index_t
 {
-    return @intFromFloat(
-        @floor(
-            ord_continuous*@as(
-                sample_ordinate_t,
-                @floatFromInt(self.sample_rate_hz)
+    return @as(
+        sample_index_t,
+        @intFromFloat(
+            @floor(
+                ord_continuous*@as(
+                    sample_ordinate_t,
+                    @floatFromInt(self.sample_rate_hz)
+                )
+                + (1/@as(sample_ordinate_t, @floatFromInt(self.sample_rate_hz)))/2
             )
-            + (1/@as(sample_ordinate_t, @floatFromInt(self.sample_rate_hz)))/2
         )
-    );
+    ) + self.start_index;
 }
 
 test "sampling: project_instantaneous_cd"
@@ -63,7 +66,8 @@ test "sampling: project_instantaneous_cd"
         12,
     );
 
-    try std.testing.expectEqual(result, 288);
+    //                          12*24 + 12
+    try std.testing.expectEqual(300, result);
 }
 
 // @TODO: this should be symmetrical with cd - I think it is missing the 0.5
