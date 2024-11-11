@@ -56,13 +56,13 @@ contains:
 * [x] add build variable for debug messages
 * [x] prune existing debug messages out
 * [x] clean up how graphviz is found
-* [ ] decompose opentimelineio.zig into a library w/ multiple modules
+* [x] decompose opentimelineio.zig into a library w/ multiple modules
 * [x] boil time out of opentime (hm might need to rename this library) —
     * [x] particularly ContinuousTimeInterval->ContinuousInterval
     * [x] opentime
-* [ ] and the rest of the library (notably sampling.zig)
-    * [ ] sampling
-    * [ ] ripple out into the c library too
+* [x] and the rest of the library (notably sampling.zig)
+    * [x] sampling
+    * [x] ripple out into the c library too
 * [ ] review the high level tests and make sure they’re covering all the stuff
   in the slides
 * [ ] write the slide examples in C

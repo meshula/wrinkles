@@ -397,9 +397,6 @@ pub const ComposedValueRef = union(enum) {
                 };
             },
             .warp_ptr => |wp_ptr| switch(from_space) {
-                // @TODO: maybe we should make the child spaces unreachable?
-                //        ie - if they're always identity, is there anything
-                //        interesting about exposing them in this function?
                 .presentation => wp_ptr.transform.clone(allocator),
                 else => try topology_m.Topology.init_identity_infinite(
                     allocator
@@ -489,7 +486,10 @@ pub const ComposedValueRef = union(enum) {
             // start
             @floatFromInt(discrete_info.start_index),
             // held durations
-            1.0 / @as(opentime.Ordinate, @floatFromInt(discrete_info.sample_rate_hz)),
+            1.0 / @as(
+                opentime.Ordinate,
+                @floatFromInt(discrete_info.sample_rate_hz)
+            ),
             // increment -- @TODO: support other increments ("on twos", etc)
             1.0,
         );
@@ -1074,7 +1074,7 @@ pub const ProjectionOperatorMap = struct {
     };
     pub fn merge_composite(
         parent_allocator: std.mem.Allocator,
-        args: OverlayArgs
+        args: OverlayArgs,
     ) !ProjectionOperatorMap
     {
         if (args.over.is_empty() and args.under.is_empty())
@@ -3706,8 +3706,8 @@ test "Single clip, schema.Warp bulk"
             );
             defer clip_media_to_presentation.deinit(allocator);
 
-            // @TODO: XXX deal with this check
-            if (t.project_to_finite) {
+            if (t.project_to_finite) 
+            {
                 try std.testing.expectApproxEqAbs(
                     t.presentation_test,
                     try clip_media_to_presentation.project_instantaneous_cc(
