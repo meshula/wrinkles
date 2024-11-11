@@ -335,9 +335,11 @@ pub const Track = struct {
             orelse return error.NoChildIndexOnChildSpaceReference
         );
 
-        // XXX should probably check the index before calling this and call this
-        //     with index - 1 rather than have it do the offset here.
-        const child = self.child_ptr_from_index(child_index - 1);
+        // XXX should probably check the index before calling this and call
+        //     this with index - 1 rather than have it do the offset here.
+        const child = self.child_ptr_from_index(
+            child_index - 1
+        );
         const child_range = try child.bounds_of(
             allocator,
             .media

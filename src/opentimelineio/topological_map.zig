@@ -18,7 +18,7 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
     build_options.debug_graph_construction_trace_messages
 );
 
-/// Topological Map of a schema.Timeline.  Can be used to build projection operators
+/// Topological Map of a Timeline.  Can be used to build projection operators
 /// to transform between various coordinate spaces within the map.
 pub const TopologicalMap = struct {
     map_space_to_code:std.AutoHashMap(
@@ -43,7 +43,7 @@ pub const TopologicalMap = struct {
     }
 
     pub fn deinit(
-        self: @This()
+        self: @This(),
     ) void 
     {
         // build a mutable alias of self
@@ -72,8 +72,6 @@ pub const TopologicalMap = struct {
         mutable_self.map_code_to_space.deinit();
     }
 
-    pub const ROOT_TREECODE:treecode.TreecodeWord = 0b1;
-
     /// return the root space of this topological map
     pub fn root(
         self: @This(),
@@ -82,7 +80,9 @@ pub const TopologicalMap = struct {
         const tree_word = treecode.Treecode{
             .sz = 1,
             .treecode_array = blk: {
-                var output = [_]treecode.TreecodeWord{ ROOT_TREECODE };
+                var output = [_]treecode.TreecodeWord{
+                    treecode.ROOT_TREECODE,
+                };
                 break :blk &output;
             },
             .allocator = undefined,
@@ -160,11 +160,13 @@ pub const TopologicalMap = struct {
             // in case build_transform errors
             errdefer root_to_current.deinit(allocator);
 
-            var current_to_next = try current.space.ref.build_transform(
-                allocator,
-                current.space.label,
-                next.space,
-                next_step
+            var current_to_next = (
+                try current.space.ref.build_transform(
+                    allocator,
+                    current.space.label,
+                    next.space,
+                    next_step
+                )
             );
             defer current_to_next.deinit(allocator);
 
@@ -252,48 +254,6 @@ pub const TopologicalMap = struct {
         };
     }
 
-    fn label_for_node_leaky(
-        allocator: std.mem.Allocator,
-        ref: core.SpaceReference,
-        code: treecode.Treecode,
-    ) !string.latin_s8 
-    {
-        const item_kind = switch(ref.ref) {
-            .track_ptr => "track",
-            .clip_ptr => "clip",
-            .gap_ptr => "gap",
-            .timeline_ptr => "timeline",
-            .stack_ptr => "stack",
-            .warp_ptr => "warp",
-        };
-
-        if (LABEL_HAS_BINARY_TREECODE) 
-        {
-            return std.fmt.allocPrint(
-                allocator,
-                "{s}_{s}_{s}",
-                .{
-                    item_kind,
-                    @tagName(ref.label),
-                    code,
-                }
-            );
-        } 
-        else 
-        {
-            const args = .{ 
-                item_kind,
-                @tagName(ref.label), code.hash(), 
-            };
-
-            return std.fmt.allocPrint(
-                allocator,
-                "{s}_{s}_{any}",
-                args
-            );
-        }
-    }
-
     /// write a graphviz (dot) format serialization of this TopologicalMap
     pub fn write_dot_graph(
         self:@This(),
@@ -339,7 +299,7 @@ pub const TopologicalMap = struct {
                 .space = root_space,
                 .code = try treecode.Treecode.init_word(
                     allocator,
-                    0b1
+                    treecode.ROOT_TREECODE,
                 )
             }
         );
@@ -412,7 +372,7 @@ pub const TopologicalMap = struct {
                         try std.fmt.allocPrint(
                             allocator,
                             "  {s} -> {s}\n",
-                            .{current_label, next_label}
+                            .{current_label, next_label},
                         )
                     );
                     try stack.append(
@@ -487,7 +447,12 @@ pub const TopologicalMap = struct {
             else return error.DestinationNotInMap
         );
 
-        if (treecode.path_exists(source_code, destination_code) == false) 
+        if (
+            treecode.path_exists(
+                source_code,
+                destination_code,
+            ) == false
+        )
         {
             errdefer opentime.dbg_print(@src(), 
                 "\nERROR\nsource: {s} dest: {s}\n",
@@ -498,7 +463,6 @@ pub const TopologicalMap = struct {
             );
             return error.NoPathBetweenSpaces;
         }
-
 
         // inverted
         if (source_code.code_length() > destination_code.code_length())
@@ -521,8 +485,6 @@ pub const TopologicalMap = struct {
                 },
             };
         }
-
-
     }
 
     /// build a projection operator that projects from the args.source to
@@ -536,10 +498,12 @@ pub const TopologicalMap = struct {
         const path_info_ = try self.path_info(endpoints_arg);
         const endpoints = path_info_.endpoints;
 
-        var iter = try TreenodeWalkingIterator.init_from_to(
-            allocator,
-            &self,
-            endpoints,
+        var iter = (
+            try TreenodeWalkingIterator.init_from_to(
+                allocator,
+                &self,
+                endpoints,
+            )
         );
         defer iter.deinit();
 
@@ -561,12 +525,14 @@ pub const TopologicalMap = struct {
             ) == false
         ) 
         {
-            const dest_to_current = try self.build_projection_operator(
-                allocator,
-                .{
-                    .source = iter.maybe_destination.?.space,
-                    .destination = iter.maybe_current.?.space,
-                },
+            const dest_to_current = (
+                try self.build_projection_operator(
+                    allocator,
+                    .{
+                        .source = iter.maybe_destination.?.space,
+                        .destination = iter.maybe_current.?.space,
+                    },
+                )
             );
 
             opentime.dbg_print(@src(), 
@@ -599,7 +565,7 @@ pub const TopologicalMap = struct {
 /// leaves.  See TopologicalMap for more details.
 pub fn build_topological_map(
     allocator: std.mem.Allocator,
-    root_item: core.ComposedValueRef
+    root_item: core.ComposedValueRef,
 ) !TopologicalMap 
 {
     var tmp_topo_map = try TopologicalMap.init(allocator);
@@ -623,7 +589,7 @@ pub fn build_topological_map(
     // 1a
     const start_code = try treecode.Treecode.init_word(
         allocator,
-        TopologicalMap.ROOT_TREECODE,
+        treecode.ROOT_TREECODE,
     );
 
     // root node
@@ -635,7 +601,11 @@ pub fn build_topological_map(
     );
 
     if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
-        opentime.dbg_print(@src(), "\nstarting graph...\n", .{});
+        opentime.dbg_print(
+            @src(),
+            "\nstarting graph...\n",
+            .{}
+        );
     }
 
     while (stack.items.len > 0) 
@@ -707,10 +677,6 @@ pub fn build_topological_map(
             inline .track_ptr, .stack_ptr => |st_or_tr| (
                 st_or_tr.children.items
             ),
-            // when a pointer is taken from this later, it doesn't persist
-            // (I think)
-            // @TODO: make the timeline hold a CV instead of a schema.Stack directly
-            //        ...then the lifetime of the CVR should be 
             .timeline_ptr => |tl| &[_]core.ComposableValue{
                     core.ComposableValue.init(tl.tracks),
             },
@@ -893,30 +859,6 @@ test "build_topological_map: leak sentinel test - single clip"
         core.ComposedValueRef.init(&cl)
     );
     defer map.deinit();
-}
-
-test "label_for_node_leaky" 
-{
-    var tr = schema.Track.init(std.testing.allocator);
-    const sr = core.SpaceReference{
-        .label = .presentation,
-        .ref = .{ .track_ptr = &tr } 
-    };
-
-    var tc = try treecode.Treecode.init_word(
-        std.testing.allocator,
-        0b1101001
-    );
-    defer tc.deinit();
-
-    const result = try TopologicalMap.label_for_node_leaky(
-        std.testing.allocator,
-        sr,
-        tc
-    );
-    defer std.testing.allocator.free(result);
-
-    try std.testing.expectEqualStrings("track_presentation_1101001", result);
 }
 
 /// iterator that walks over each node in the graph, returning the node at each
@@ -1304,12 +1246,14 @@ test "TestWalkingIterator: track with clip w/ destination"
 
 fn depth_child_code_leaky(
     parent_code:treecode.Treecode,
-    index: usize
+    index: usize,
 ) !treecode.Treecode 
 {
     var result = try parent_code.clone();
-    var i:usize = 0;
-    while (i < index):(i+=1) {
+
+    for (0..index)
+        |_|
+    {
         try result.append(0);
     }
     return result;
@@ -1323,36 +1267,44 @@ test "depth_child_hash: math"
     );
     defer root.deinit();
 
-    var i:usize = 0;
-
     const expected_root:treecode.TreecodeWord = 0b1000;
 
-    while (i<4) 
-        : (i+=1) 
+    for (0..4)
+        |i|
     {
-        var result = try depth_child_code_leaky(root, i);
+        var result = try depth_child_code_leaky(
+            root,
+            i,
+        );
         defer result.deinit();
 
-        const expected = std.math.shl(treecode.TreecodeWord, expected_root, i); 
+        const expected = std.math.shl(
+            treecode.TreecodeWord,
+            expected_root,
+            i,
+        ); 
 
         errdefer opentime.dbg_print(@src(), 
             "iteration: {d}, expected: {b} got: {s}\n",
             .{ i, expected, result }
         );
 
-        try std.testing.expectEqual(expected, result.treecode_array[0]);
+        try std.testing.expectEqual(
+            expected,
+            result.treecode_array[0],
+        );
     }
 }
 
 fn sequential_child_code_leaky(
     src: treecode.Treecode,
-    index: usize
+    index: usize,
 ) !treecode.Treecode 
 {
     var result = try src.clone();
-    var i:usize = 0;
-    while (i <= index)
-        :(i+=1) 
+
+    for (0..index+1)
+        |_|
     {
         try result.append(1);
     }
@@ -1388,3 +1340,69 @@ test "sequential_child_hash: math"
     }
 }
 
+/// generate a text
+fn label_for_node_leaky(
+    allocator: std.mem.Allocator,
+    ref: core.SpaceReference,
+    code: treecode.Treecode,
+) !string.latin_s8 
+{
+    const item_kind = switch(ref.ref) {
+        .track_ptr => "track",
+        .clip_ptr => "clip",
+        .gap_ptr => "gap",
+        .timeline_ptr => "timeline",
+        .stack_ptr => "stack",
+        .warp_ptr => "warp",
+    };
+
+    if (LABEL_HAS_BINARY_TREECODE) 
+    {
+        return std.fmt.allocPrint(
+            allocator,
+            "{s}_{s}_{s}",
+            .{
+                item_kind,
+                @tagName(ref.label),
+                code,
+            }
+        );
+    } 
+    else 
+    {
+        const args = .{ 
+            item_kind,
+            @tagName(ref.label), code.hash(), 
+        };
+
+        return std.fmt.allocPrint(
+            allocator,
+            "{s}_{s}_{any}",
+            args
+        );
+    }
+}
+
+test "label_for_node_leaky" 
+{
+    var tr = schema.Track.init(std.testing.allocator);
+    const sr = core.SpaceReference{
+        .label = .presentation,
+        .ref = .{ .track_ptr = &tr } 
+    };
+
+    var tc = try treecode.Treecode.init_word(
+        std.testing.allocator,
+        0b1101001
+    );
+    defer tc.deinit();
+
+    const result = try label_for_node_leaky(
+        std.testing.allocator,
+        sr,
+        tc
+    );
+    defer std.testing.allocator.free(result);
+
+    try std.testing.expectEqualStrings("track_presentation_1101001", result);
+}
