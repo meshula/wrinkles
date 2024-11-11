@@ -328,7 +328,7 @@ test "libsamplerate w/ high level test -- resample only"
     ///////////////////////////////////////////////////////////////////////////
     const topo_map = try otio.build_topological_map(
         allocator,
-        tl_ptr
+        tl_ptr,
     );
     defer topo_map.deinit();
 
@@ -351,7 +351,15 @@ test "libsamplerate w/ high level test -- resample only"
     );
 
     try std.testing.expect(
-        tr_pres_to_cl_media_po.src_to_dst_topo.input_bounds().end > 0,
+        tr_pres_to_cl_media_po.source_bounds().end > 0,
+    );
+    try std.testing.expectEqual(
+        0,
+        tr_pres_to_cl_media_po.source_bounds().start,
+    );
+    try std.testing.expectEqual(
+        5,
+        tr_pres_to_cl_media_po.source_bounds().end,
     );
 
     try std.testing.expect(
@@ -359,18 +367,18 @@ test "libsamplerate w/ high level test -- resample only"
     );
 
     // synthesize media
-    const media = (
+    const media_samples = (
         try cl_ptr.clip_ptr.media.ref.signal.signal_generator.rasterized(
             allocator,
             cl_ptr.clip_ptr.media.discrete_info.?,
             true,
         )
     );
-    defer media.deinit();
-    try std.testing.expect(media.buffer.len > 0);
+    defer media_samples.deinit();
+    try std.testing.expect(media_samples.buffer.len > 0);
 
     // write the input file
-    try media.write_file_prefix(
+    try media_samples.write_file_prefix(
         allocator,
         "/var/tmp",
         "highlevel_libsamplerate_test_clip_media.",
@@ -378,30 +386,29 @@ test "libsamplerate w/ high level test -- resample only"
     );
 
     // goal
-    const result = try sampling.transform_resample_dd(
+    const cl_media_samples_for_tr_pres = try sampling.transform_resample_dd(
         allocator,
-        media,
+        media_samples,
         tr_pres_to_cl_media_po.src_to_dst_topo,
         tl.discrete_info.presentation.?,
         false,
     );
-    defer result.deinit();
+    defer cl_media_samples_for_tr_pres.deinit();
 
     // result should match the timeline's discrete info
     try std.testing.expectEqual(
         tl.discrete_info.presentation.?.sample_rate_hz,
-        result.index_generator.sample_rate_hz
+        cl_media_samples_for_tr_pres.index_generator.sample_rate_hz
     );
 
-    try result.write_file_prefix(
+    try cl_media_samples_for_tr_pres.write_file_prefix(
         allocator, 
         "/var/tmp/",
         "highlevel_libsamplerate_test_track_presentation.resampled_only.",
         null,
- 
     );
 
-    try std.testing.expect(result.buffer.len > 0);
+    try std.testing.expect(cl_media_samples_for_tr_pres.buffer.len > 0);
 }
 
 test "libsamplerate w/ high level test.retime.interpolating"
@@ -660,23 +667,23 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     );
 
     // goal
-    const result = try sampling.transform_resample_dd(
+    const indices_tr_pres = try sampling.transform_resample_dd(
         allocator,
         media,
         tr_pres_to_cl_media_po.src_to_dst_topo,
         tl.discrete_info.presentation.?,
         false,
     );
-    defer result.deinit();
+    defer indices_tr_pres.deinit();
 
     // result should match the timeline's discrete info
     try std.testing.expectEqual(
         tl.discrete_info.presentation.?.sample_rate_hz,
-        result.index_generator.sample_rate_hz
+        indices_tr_pres.index_generator.sample_rate_hz
     );
 
     const input_p2p = try sampling.peak_to_peak_distance(media.buffer);
-    const result_p2p = try sampling.peak_to_peak_distance(result.buffer);
+    const result_p2p = try sampling.peak_to_peak_distance(indices_tr_pres.buffer);
 
     // because the warp is scaling the presentation space by 2, the
     // presentation space should have half the peak to peak of the media
@@ -684,7 +691,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
 
     try std.testing.expectEqual(input_p2p / 2, result_p2p);
 
-    try result.write_file_prefix(
+    try indices_tr_pres.write_file_prefix(
         allocator, 
         "/var/tmp/",
         "highlevel_libsamplerate_test_track_presentation.retimed.",
@@ -692,34 +699,33 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
  
     );
 
-    try std.testing.expect(result.buffer.len > 0);
+    try std.testing.expect(indices_tr_pres.buffer.len > 0);
 
     // check the actual indices
 
     {
-        const start = (
-            tr_pres_to_cl_media_po.src_to_dst_topo.input_bounds().start
-        );
+        const start_tr_pres = tr_pres_to_cl_media_po.source_bounds().start;
 
-        const result_buf = (
+        const cl_media_indices = (
             try tr_pres_to_cl_media_po.project_range_cd(
                 allocator,
                 .{
-                    .start = start,
-                    .end = start + 2.0/48000.0,
+                    .start = start_tr_pres,
+                    .end = start_tr_pres + 2.0/48000.0,
                 },
             )
         );
-        defer allocator.free(result_buf);
+        defer allocator.free(cl_media_indices);
 
         try std.testing.expectEqualSlices(
             usize, 
             &.{ 48000, 48002, },
-            result_buf,
+            cl_media_indices,
         );
     }
 }
 
+// track -> warp (Reverse) -> clip
 test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
 {
     const allocator = std.testing.allocator;
@@ -734,9 +740,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     };
 
     defer tl.recursively_deinit();
-    const tl_ptr = otio.ComposedValueRef{
-        .timeline_ptr = &tl 
-    };
+    const tl_ptr = otio.ComposedValueRef.init(&tl);
 
     // track
     var tr = otio.Track.init(allocator);
@@ -809,38 +813,36 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     defer tr_pres_to_cl_media_po.deinit(allocator);
 
     {
-        const start = (
-            tr_pres_to_cl_media_po.src_to_dst_topo.input_bounds().start
-        );
+        const start_tr_pres = tr_pres_to_cl_media_po.source_bounds().start;
 
-        const start_frame_in_destination_d = (
-            try tr_pres_to_cl_media_po.project_instantaneous_cd(start)
+        const start_ind_cl_media = (
+            try tr_pres_to_cl_media_po.project_instantaneous_cd(start_tr_pres)
         );
 
         // 6 second signal at 48000 that starts 1 second in = 
         // [48000, 288000) -> [288000, 48000)
         try std.testing.expectEqual(
             288000,
-            start_frame_in_destination_d
+            start_ind_cl_media,
         );
 
-        const result_buf = (
+        const indices_cl_media = (
             try tr_pres_to_cl_media_po.project_range_cd(
                 allocator,
                 .{
-                    .start = start,
-                    .end = start + 4.0/48000.0,
+                    .start = start_tr_pres,
+                    .end = start_tr_pres + 4.0/48000.0,
                 },
             )
         );
-        defer allocator.free(result_buf);
+        defer allocator.free(indices_cl_media);
 
-        try std.testing.expect(result_buf.len > 0);
+        try std.testing.expect(indices_cl_media.len > 0);
 
         try std.testing.expectEqualSlices(
             usize, 
             &.{ 288000, 287999, 287998, 287996,},
-            result_buf,
+            indices_cl_media,
         );
     }
 }
