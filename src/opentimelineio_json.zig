@@ -320,6 +320,7 @@ pub fn read_otio_object(
     return error.NotImplemented;
 }
 
+/// deserialize OTIO json to the in-memory structure
 pub fn read_from_file(
     in_allocator: std.mem.Allocator,
     file_path: string.latin_s8

@@ -6,11 +6,12 @@ pub const core = @import("opentimelineio/core.zig");
 pub const ComposedValueRef = core.ComposedValueRef;
 pub const ProjectionOperator = core.ProjectionOperator;
 pub const ProjectionOperatorMap = core.ProjectionOperatorMap;
-pub const TopologicalMap = core.TopologicalMap;
 pub const SpaceLabel = core.SpaceLabel;
-pub const build_topological_map = core.build_topological_map;
 pub const projection_map_to_media_from = core.projection_map_to_media_from;
 
+pub const topological_map = @import("opentimelineio/topological_map.zig");
+pub const build_topological_map = topological_map.build_topological_map;
+pub const TopologicalMap = topological_map.TopologicalMap;
 
 pub const schema = @import("opentimelineio/schema.zig");
 pub const Clip = schema.Clip;
