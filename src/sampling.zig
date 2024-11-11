@@ -74,7 +74,7 @@ test "sampling: project_instantaneous_cd"
 //        offset from the cd function
 pub fn project_index_dc(
     self: anytype,
-    ind_discrete: usize,
+    ind_discrete: sample_index_t,
 ) opentime.ContinuousInterval
 {
     var start:sample_ordinate_t = @floatFromInt(ind_discrete);
@@ -98,15 +98,11 @@ test "sampling: project_index_dc"
             .sample_rate_hz = 24,
             .start_index = 12,
         },
-        288,
+        300,
     );
 
-    try std.testing.expectEqual(result.start, 11.5);
-    try std.testing.expectApproxEqAbs(
-        result.end,
-        11.541667,
-        EPSILON_ORD,
-    );
+    try std.testing.expectEqual(12.0, result.start);
+    try std.testing.expectEqual(12.0 + 1.0/24.0, result.end);
 }
 
 /// a set of samples and the parameters of those samples
