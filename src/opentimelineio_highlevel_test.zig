@@ -143,7 +143,8 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             }
         );
         opentime.dbg_print(@src(),
-            "  Discrete Info:\n    sampling rate: {d}\n    start index: {d}\n",
+            "  Discrete Info:\n    sampling rate: {d}\n"
+            ++ "    start index: {d}\n",
             .{
                 src_discrete_info.?.sample_rate_hz,
                 src_discrete_info.?.start_index,
@@ -158,14 +159,38 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         );
     }
 
+    const known_frames = &[3][]const sampling.sample_index_t{
+        &[_]sampling.sample_index_t{ 
+                            34, 35, 36, 37, 38, 39,
+            40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
+            50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
+            60, 61, 62, 63, 64, 65, 66, 67, 68, 69,
+            70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
+            80, 81, 82,
+        },
+        &[_]sampling.sample_index_t{ 
+            310, 311, 312, 313, 314, 315, 316, 317, 318, 319,
+            320, 321, 322, 323, 324, 325, 326, 327, 328, 329,
+            330, 331, 332, 333, 334, 335, 336, 337, 338, 339,
+            340, 341, 342, 343, 344, 345, 346, 347, 348, 349,
+        },
+        &[_]sampling.sample_index_t{ 
+            310, 311, 312, 313, 314, 315, 316, 317, 318, 319,
+            320, 321, 322, 323, 324, 325, 326, 327, 328, 329,
+            330, 331, 332, 333, 334, 335, 336, 337, 338, 339,
+            340, 
+        },
+    };
+
     // walk across the general projection operator map
     ///////////////////////////////////////////////////////////////////////////
     for (
         proj_map.end_points[0..(proj_map.end_points.len-1)],
         proj_map.end_points[1..],
         proj_map.operators,
+        0..
     )
-        |p0, p1, ops|
+        |p0, p1, ops, op_ind|
     {
         if  (PRINT_DEMO_OUTPUT)
         {
@@ -207,10 +232,21 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
                 allocator,
                 .{
                     .start = p0,
-                    .end = p1 
+                    .end = p1,
                 }
             );
             defer allocator.free(dest_frames);
+
+            errdefer std.debug.print(
+                "error at op_ind: {d}\n",
+                .{ op_ind }
+            );
+
+            try std.testing.expectEqualSlices(
+                sampling.sample_index_t,
+                known_frames[op_ind],
+                dest_frames,
+            );
 
             if (PRINT_DEMO_OUTPUT)
             {

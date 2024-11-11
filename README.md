@@ -71,6 +71,7 @@ contains:
     * [x] add more functionality to the DiscreteDatasourceIndexGenerator so that
     * [x] build out into the otio layer too
 * [x] rename “time_topology” build unit to “topology”
+* [ ] 0.5 offset todo in sampling
 * [ ] handle/test cases where projection results in multiple solutions (maybe
   because inversion creates multiple concurrent topologies?)
 * [ ] add a catmull-rom basis function
