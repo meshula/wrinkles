@@ -92,15 +92,22 @@ temporal hierarchies of editorial documents.
 * [x] and the rest of the library (notably sampling.zig)
     * [x] sampling
     * [x] ripple out into the c library too
+* [ ] 0.5 offset todo in sampling
+* [ ] thread the "domain" idea out to the discrete spaces, so you can
+      define on the timeline a discrete info per domain (ie 24 for picture
+      48000 for sound)
+* [ ] handle non-integer rates (ie 1000/1001 rates) in the sample rate
 * [ ] review the high level tests and make sure they’re covering all the stuff
   in the slides
+    * [ ] factor out the code that builds the timelines into a couple
+          prototypical timelines, then the tests can operate on those structures
+          and make the tests a bit more readable/direct
 * [ ] write the slide examples in C
 * [x] fold DiscreteDatasourceIndexGenerator into Sampling
     * [x] -> SignalIndexGenerator
     * [x] add more functionality to the DiscreteDatasourceIndexGenerator so that
     * [x] build out into the otio layer too
 * [x] rename “time_topology” build unit to “topology”
-* [ ] 0.5 offset todo in sampling
 * [ ] handle/test cases where projection results in multiple solutions (maybe
   because inversion creates multiple concurrent topologies?)
 * [ ] add a catmull-rom basis function
