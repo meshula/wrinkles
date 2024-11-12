@@ -16,8 +16,9 @@ pub fn eval(
     return comath.eval(expr, CTX, inputs);
 }
 
+/// build a dual around type T
 pub fn DualOf(
-    comptime T: type
+    comptime T: type,
 ) type 
 {
     return switch(@typeInfo(T)) {
@@ -49,7 +50,7 @@ pub const dual_ctx = struct{
         return switch (target_type) {
             .Dual_Ord => .{ 
                 .r = std.fmt.parseFloat(
-                    f32,
+                    ordinate.Ordinate,
                     src
                 ) catch |err| @compileError(
                 @errorName(err)
@@ -78,7 +79,7 @@ test "dual: float + float"
         CTX,
         .{ .x = 1}
     ) catch |err| switch (err) {};
-    try std.testing.expectEqual(@as(f32, 4), result);
+    try std.testing.expectEqual(4, result);
 }
 
 test "dual: dual + float"
@@ -88,7 +89,8 @@ test "dual: dual + float"
         CTX,
         .{ .x = Dual_Ord{ .r = 3, .i = 1 }}
     ) catch |err| switch (err) {};
-    try std.testing.expectEqual(@as(f32, 6), result.r);
+
+    try std.testing.expectEqual(6, result.r);
 }
 
 test "dual * float"
@@ -98,7 +100,7 @@ test "dual * float"
         CTX,
         .{ .x = Dual_Ord{ .r = 3, .i = 1 }}
     ) catch |err| switch (err) {};
-    try std.testing.expectEqual(@as(f32, 9), result.r);
+    try std.testing.expectEqual(9, result.r);
 }
 
 /// default dual type for opentime
@@ -361,7 +363,7 @@ test "Dual_Ord sqrt (3-4-5 triangle)"
     const d = Dual_Ord{ .r = (3*3 + 4*4), .i = 1 };
 
     try std.testing.expectApproxEqAbs(
-        @as(f32, 5),
+        5,
         d.sqrt().r,
         0.00000001
     );

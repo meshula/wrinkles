@@ -152,7 +152,7 @@ test "MappingEmpty: Project"
 {
     const me = (EMPTY_INF).mapping();
 
-    var v : f32 = -10;
+    var v : opentime.Ordinate = -10;
     while (v < 10)
         : (v += 0.2)
     {
