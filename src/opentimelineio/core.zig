@@ -641,6 +641,20 @@ pub const ProjectionOperator = struct {
     //    project_indices_dc -> index array -> topology
     //    project_indices_dd -> index array -> index array
 
+    pub fn source_bounds(
+        self: @This(),
+    ) opentime.ContinuousInterval
+    {
+        return self.src_to_dst_topo.input_bounds();
+    }
+
+    pub fn destination_bounds(
+        self: @This(),
+    ) opentime.ContinuousInterval
+    {
+        return self.src_to_dst_topo.output_bounds();
+    }
+
     ///project a continuous ordinate to the continuous destination space
     pub fn project_instantaneous_cc(
         self: @This(),
