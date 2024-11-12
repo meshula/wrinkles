@@ -591,8 +591,13 @@ fn otio_fetch_discrete_info_erroring(
     if (maybe_di)
         |di|
     {
+        const rate : c.otio_Rational = switch (di.sample_rate_hz) {
+            .Int => |i| .{ .num = i, .den = 1 },
+            .Rat => |r| .{ .num = r.num, .den = r.den },
+        };
+
         result.* = .{
-            .sample_rate_hz = di.sample_rate_hz,
+            .sample_rate_hz = rate,
             .start_index = di.start_index,
         };
         return 0;

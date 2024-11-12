@@ -739,12 +739,7 @@ pub const ProjectionOperator = struct {
         // const bounds_to_walk = dst_c_bounds;
         const bounds_to_walk = in_c_bounds;
 
-        const duration:opentime.Ordinate = (
-            1.0 / @as(
-                opentime.Ordinate,
-                @floatFromInt(discrete_info.sample_rate_hz)
-            )
-        );
+        const duration = 1.0 / discrete_info.sample_rate_hz.as_float();
 
         const increasing = bounds_to_walk.end > bounds_to_walk.start;
         const sign:opentime.Ordinate = if (increasing) 1 else -1;
@@ -2950,7 +2945,7 @@ test "otio projection: track with single clip"
     );
     const media_discrete_info = (
         sampling.SampleIndexGenerator{
-            .sample_rate_hz = 4,
+            .sample_rate_hz = .{ .Int = 4 },
             .start_index = 0,
         }
     );
@@ -3117,7 +3112,7 @@ test "otio projection: track with single clip with transform"
 
     var tl = try schema.Timeline.init(allocator);
     tl.discrete_info.presentation = .{
-        .sample_rate_hz = 24,
+        .sample_rate_hz = .{ .Int = 24 },
         .start_index = 12
     };
 
@@ -3132,7 +3127,7 @@ test "otio projection: track with single clip with transform"
     };
     const media_discrete_info = (
         sampling.SampleIndexGenerator{
-            .sample_rate_hz = 4,
+            .sample_rate_hz = .{ .Int = 4 },
             .start_index = 0,
         }
     );
@@ -3342,13 +3337,9 @@ test "otio projection: track with single clip with transform"
 
             try std.testing.expectEqual(
                 (
-               // should  v this be a 1.0?
-                 start + 2.0/@as(
-                     opentime.Ordinate,
-                     @floatFromInt(
-                         tl.discrete_info.presentation.?.sample_rate_hz
-                     )
-                 )
+                 start 
+                 // @TODO: should the 2.0 be a 1.0?
+                 + 2.0/tl.discrete_info.presentation.?.sample_rate_hz.as_float()
                 ),
                 output_range.end,
             );
@@ -3384,7 +3375,7 @@ test "Clip: Animated Parameter example"
     };
     const media_discrete_info = (
         sampling.SampleIndexGenerator{
-            .sample_rate_hz = 4,
+            .sample_rate_hz = .{ .Int = 4 },
             .start_index = 0,
         }
     );
@@ -3448,7 +3439,7 @@ test "test debug_print_time_hierarchy"
 
     tl.discrete_info.presentation = .{
         // matches the media rate
-        .sample_rate_hz = 24,
+        .sample_rate_hz = .{ .Int = 24 },
         .start_index = 0,
     };
 
@@ -3473,7 +3464,7 @@ test "test debug_print_time_hierarchy"
                 .end = 6,
             },
             .discrete_info = .{
-                .sample_rate_hz = 24,
+                .sample_rate_hz = .{ .Int = 24 },
                 .start_index = 0,
             },
             .ref = .{ 

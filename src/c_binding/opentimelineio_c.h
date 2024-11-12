@@ -130,8 +130,12 @@ typedef enum otio_SpaceLabel {
     otio_sl_presentation,
     otio_sl_media,
 } otio_SpaceLabel;
+typedef struct otio_Rational {
+    uint32_t num;
+    uint32_t den;
+} otio_Rational;
 typedef struct otio_DiscreteDatasourceIndexGenerator {
-    uint32_t sample_rate_hz;
+    otio_Rational sample_rate_hz;
     size_t start_index;
 } otio_DiscreteDatasourceIndexGenerator;
 

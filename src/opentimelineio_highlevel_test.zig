@@ -22,7 +22,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     var tl = try otio.Timeline.init(allocator);
     tl.name = try allocator.dupe(u8, "Example Timeline");
     tl.discrete_info.presentation = .{
-        .sample_rate_hz = 24,
+        .sample_rate_hz = .{ .Int = 24 },
         .start_index = 86400,
     };
 
@@ -47,7 +47,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         },
         .media = .{
             .discrete_info = .{
-                .sample_rate_hz = 24,
+                .sample_rate_hz = .{ .Int = 24 },
                 .start_index = 10,
             },
         },
@@ -72,7 +72,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
                 .end = 11, 
             },
             .discrete_info = .{
-                .sample_rate_hz = 30,
+                .sample_rate_hz = .{ .Int = 30 },
                 .start_index = 10,
             },
         },
@@ -271,7 +271,7 @@ test "libsamplerate w/ high level test -- resample only"
     var tl = try otio.Timeline.init(allocator);
     tl.name = try allocator.dupe(u8, "Example Timeline");
     tl.discrete_info.presentation = .{
-        .sample_rate_hz = 44100,
+        .sample_rate_hz = .{ .Int = 44100 },
         .start_index = 86400,
     };
 
@@ -296,7 +296,7 @@ test "libsamplerate w/ high level test -- resample only"
                 .end = 6,
             },
             .discrete_info = .{
-                .sample_rate_hz = 48000,
+                .sample_rate_hz = .{ .Int = 48000 },
                 .start_index = 0,
             },
             .ref = .{ 
@@ -420,7 +420,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
     tl.name = try allocator.dupe(u8, "Example Timeline");
     tl.discrete_info.presentation = .{
         // matches the media rate
-        .sample_rate_hz = 48000,
+        .sample_rate_hz = .{ .Int = 48000 },
         .start_index = 86400,
     };
 
@@ -445,7 +445,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
                 .end = 6,
             },
             .discrete_info = .{
-                .sample_rate_hz = 48000,
+                .sample_rate_hz = .{ .Int = 48000 },
                 .start_index = 0,
             },
             .ref = .{ 
@@ -567,7 +567,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     tl.name = try allocator.dupe(u8, "Example Timeline");
     tl.discrete_info.presentation = .{
         // matches the media rate
-        .sample_rate_hz = 48000,
+        .sample_rate_hz = .{ .Int = 48000 },
         .start_index = 86400,
     };
 
@@ -592,7 +592,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
                 .end = 6,
             },
             .discrete_info = .{
-                .sample_rate_hz = 48000,
+                .sample_rate_hz = .{ .Int = 48000 },
                 .start_index = 0,
             },
             .ref = .{
@@ -735,7 +735,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     tl.name = try allocator.dupe(u8, "Example Timeline");
     tl.discrete_info.presentation = .{
         // matches the media rate
-        .sample_rate_hz = 48000,
+        .sample_rate_hz = .{ .Int = 48000 },
         .start_index = 86400,
     };
 
@@ -758,7 +758,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
                 .end = 6,
             },
             .discrete_info = .{
-                .sample_rate_hz = 48000,
+                .sample_rate_hz = .{ .Int = 48000 },
                 .start_index = 0,
             },
             .ref = .{
@@ -856,7 +856,7 @@ test "timeline w/ warp that holds the tenth frame"
     tl.name = try allocator.dupe(u8, "Example Timeline");
     tl.discrete_info.presentation = .{
         // matches the media rate
-        .sample_rate_hz = 24,
+        .sample_rate_hz = .{ .Int = 24 },
         .start_index = 0,
     };
 
@@ -881,7 +881,7 @@ test "timeline w/ warp that holds the tenth frame"
                 .end = 6,
             },
             .discrete_info = .{
-                .sample_rate_hz = 24,
+                .sample_rate_hz = .{ .Int = 24 },
                 .start_index = 0,
             },
             .ref = .{

@@ -295,7 +295,7 @@ pub fn read_otio_object(
                 |rate|
             {
                 cl.media.discrete_info = .{
-                    .sample_rate_hz = rate,
+                    .sample_rate_hz = .{ .Int = rate },
                 };
             }
 
