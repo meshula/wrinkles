@@ -1003,3 +1003,129 @@ test "timeline w/ warp that holds the tenth frame"
         );
     }
 }
+
+test "timeline running at 24*1000/1001 with media at 24 showing skew"
+{
+    const allocator = std.testing.allocator;
+
+    // top level timeline
+    var tl = try otio.Timeline.init(allocator);
+    tl.name = try allocator.dupe(u8, "Example Timeline");
+    tl.discrete_info.presentation = .{
+        // matches the media rate
+        .sample_rate_hz = .{ 
+            .Rat = .{
+                .num = 24 * 1000,
+                .den = 1001 
+            } 
+        },
+        .start_index = 0,
+    };
+
+    defer tl.recursively_deinit();
+    const tl_ptr = otio.ComposedValueRef{
+        .timeline_ptr = &tl 
+    };
+
+    // track
+    var tr = otio.Track.init(allocator);
+    tr.name = try allocator.dupe(u8, "Example Parent Track");
+
+    // clips
+    const cl1 = otio.Clip {
+        .name = try allocator.dupe(
+            u8,
+            "Spaghetti.mov",
+        ),
+        .media = .{
+            .bounds_s = .{
+                .start = 0,
+                .end = 60000,
+            },
+            .discrete_info = .{
+                .sample_rate_hz = .{ .Int = 24 },
+                .start_index = 0,
+            },
+        },
+    };
+
+    const cl_ptr = try tr.append_fetch_ref(cl1);
+    try tl.tracks.append(tr);
+
+    // build the topological map
+    ///////////////////////////////////////////////////////////////////////////
+    const topo_map = try otio.build_topological_map(
+        allocator,
+        tl_ptr
+    );
+    defer topo_map.deinit();
+
+    const tl_pres_to_cl_media_po = (
+        try topo_map.build_projection_operator(
+            allocator,
+            .{
+                .source = try tl_ptr.space(.presentation),
+                .destination = try cl_ptr.space(.media),
+            },
+        )
+    );
+    defer tl_pres_to_cl_media_po.deinit(allocator);
+
+    const tl_pres_bounds = tl_pres_to_cl_media_po.source_bounds();
+
+    // continuous projection is an identity across the entire domain, because
+    // the discretization happens before and after the continuous
+    // transformation
+    var i : opentime.Ordinate = tl_pres_bounds.start;
+    while (i < tl_pres_bounds.end)
+        : (i+= 0.01)
+    {
+        try std.testing.expectEqual(
+            i,
+            tl_pres_to_cl_media_po.project_instantaneous_cc(i).ordinate(),
+        );
+    }
+
+    const TestCase = struct {
+        name: []const u8,
+        tl_pres_index: sampling.sample_index_t,
+        cl_media_indices: []const sampling.sample_index_t,
+    };
+
+    const tests = [_]TestCase{
+        .{ 
+            .name = "zero",
+            .tl_pres_index = 0,
+            .cl_media_indices = &.{ 0, 1 },
+        },
+        .{ 
+            .name = "one thousand",
+            .tl_pres_index = 1000,
+            .cl_media_indices = &.{ 1001, 1002 },
+        },
+        // .{ 
+        //     .name = "24 thousand (err?)",
+        //     .tl_pres_index = 24000,
+        //     .cl_media_indices = &.{ 24024, 24025 },
+        // },
+    };
+
+    for (&tests)
+        |t|
+    {
+        const clip_media_indices = (
+            try tl_pres_to_cl_media_po.project_index_dd(
+                allocator,
+                t.tl_pres_index,
+            )
+        );
+        defer allocator.free(clip_media_indices);
+
+        // test a point before the skew
+        try std.testing.expectEqualSlices(
+            sampling.sample_index_t,
+            t.cl_media_indices,
+            clip_media_indices,
+        );
+    }
+}
