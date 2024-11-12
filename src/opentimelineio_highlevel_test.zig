@@ -1008,6 +1008,9 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
 {
     const allocator = std.testing.allocator;
 
+    // build the timeline
+    ///////////////////////////////////////////////////////////////////////////
+
     // top level timeline
     var tl = try otio.Timeline.init(allocator);
     tl.name = try allocator.dupe(u8, "Example Timeline");
@@ -1031,8 +1034,8 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     var tr = otio.Track.init(allocator);
     tr.name = try allocator.dupe(u8, "Example Parent Track");
 
-    // clips
-    const cl1 = otio.Clip {
+    // clip
+    const cl = otio.Clip {
         .name = try allocator.dupe(
             u8,
             "Spaghetti.mov",
@@ -1049,7 +1052,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
         },
     };
 
-    const cl_ptr = try tr.append_fetch_ref(cl1);
+    const cl_ptr = try tr.append_fetch_ref(cl);
     try tl.tracks.append(tr);
 
     // build the topological map
@@ -1060,6 +1063,8 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     );
     defer topo_map.deinit();
 
+    // Build the projection from Timeline Presentation -> Clip Media
+    ///////////////////////////////////////////////////////////////////////////
     const tl_pres_to_cl_media_po = (
         try topo_map.build_projection_operator(
             allocator,
@@ -1071,19 +1076,30 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     );
     defer tl_pres_to_cl_media_po.deinit(allocator);
 
-    const tl_pres_bounds = tl_pres_to_cl_media_po.source_bounds();
+    // Run the Tests
+    ///////////////////////////////////////////////////////////////////////////
 
-    // continuous projection is an identity across the entire domain, because
-    // the discretization happens before and after the continuous
-    // transformation
-    var i : opentime.Ordinate = tl_pres_bounds.start;
-    while (i < tl_pres_bounds.end)
-        : (i+= 0.01)
+    // walk across the domain and ensure that continuous projection is an
+    // identity
     {
-        try std.testing.expectEqual(
-            i,
-            tl_pres_to_cl_media_po.project_instantaneous_cc(i).ordinate(),
+        const tl_pres_bounds = (
+            tl_pres_to_cl_media_po.source_bounds()
         );
+
+        // continuous projection is an identity across the entire domain,
+        // because the discretization happens before and after the continuous
+        // transformation
+        var i : opentime.Ordinate = tl_pres_bounds.start;
+        while (i < tl_pres_bounds.end)
+            : (i+= 0.01)
+        {
+            try std.testing.expectEqual(
+                i,
+                tl_pres_to_cl_media_po.project_instantaneous_cc(
+                    i
+                ).ordinate(),
+            );
+        }
     }
 
     const TestCase = struct {
