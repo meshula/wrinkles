@@ -25,9 +25,9 @@ const std = @import("std");
 
 /// Phase based ordinate
 pub const PhaseOrdinate = struct {
-    sign: u1,
     // @TODO: can support ~4hrs at 192khz, if more space is needed, use 63 bits
-    count: u31,
+    //        (+ signed bit)
+    count: i32,
     phase: f32,
 
     /// implies a rate of 1
@@ -35,41 +35,22 @@ pub const PhaseOrdinate = struct {
         val: f32,
     ) PhaseOrdinate
     {
-        const abs_val = @abs(val);
-        return .{
-            .sign = @intFromBool(val < 0),
-            .count = @intFromFloat(abs_val),
-            .phase = @abs(abs_val) - @trunc(abs_val),
+        var result = PhaseOrdinate { 
+            .count = @intFromFloat(val),
+            .phase = @abs(val) - @trunc(@abs(val)),
         };
+        return result.normalized();
     }
 
-    /// implies a rate of "1".  Any
-    pub fn to_continuous(
+    pub inline fn normalized(
         self: @This(),
-    ) struct {
-        value: f32,
-        err: f32,
-    }
+    ) @This()
     {
-        var val:f32 = @as(f32, @floatFromInt(self.count)) + self.phase;
-
-        if (self.sign == 1) {
-            val *= -1;
+        var out = self;
+        while (out.phase > 0) {
+            out.phase -= 1.0;
+            out.count += 1;
         }
-
-        const pord = PhaseOrdinate.init(val);
-
-        const err_pord = self.sub(pord);
-
-        const err_pord_f:f32 = (
-            @as(f32, @floatFromInt(err_pord.count)) + err_pord.phase
-        );
-
-        return .{
-            .value = val,
-            .err = err_pord_f,
-        };
-    }
 
     // add
     
