@@ -37,8 +37,9 @@ pub const PhaseOrdinate = struct {
     {
         var result = PhaseOrdinate { 
             .count = @intFromFloat(val),
-            .phase = @abs(val) - @trunc(@abs(val)),
+            .phase = std.math.sign(val) * (@abs(val) - @trunc(@abs(val))),
         };
+
         return result.normalized();
     }
 
@@ -343,12 +344,12 @@ test "PhaseOrdinate: init and normalized"
         const t = PhaseOrdinate.init(-1.25);
 
         try std.testing.expectEqual(
-            -1,
+            -2,
             t.count,
         );
 
         try std.testing.expectEqual(
-            0.25,
+            0.75,
             t.phase,
         );
     }
@@ -372,6 +373,21 @@ test "PhaseOrdinate: init and normalized"
         );
     }
     
+    {
+        const t = (
+            PhaseOrdinate.init(-0.05)
+        ).normalized();
+
+        try std.testing.expectEqual(
+            -1,
+            t.count,
+        );
+
+        try std.testing.expectEqual(
+            0.95,
+            t.phase,
+        );
+    }
 }
 
 // test "PhaseOrdinate: to_continuous"
