@@ -75,7 +75,8 @@ pub fn deinit_slice(
     allocator.free(slice_to_deinit);
 }
 
-test "all opentime tests" {
+test {
+    _ = ordinate;
     _ = interval;
     _ = transform;
     _ = dual;
