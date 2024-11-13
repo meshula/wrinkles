@@ -723,12 +723,11 @@ pub const ProjectionOperator = struct {
         );
         defer in_to_dst_topo_c.deinit(allocator);
 
-        const discrete_info = (
+        const dst_discrete_info = (
             try self.destination.ref.discrete_info_for_space(
                 self.destination.label
             )
         ).?;
-
         var index_buffer_destination_discrete = (
             std.ArrayList(sampling.sample_index_t).init(allocator)
         );
@@ -739,7 +738,7 @@ pub const ProjectionOperator = struct {
         // const bounds_to_walk = dst_c_bounds;
         const bounds_to_walk = in_c_bounds;
 
-        const duration = 1.0 / discrete_info.sample_rate_hz.as_float();
+        const duration = 1.0 / dst_discrete_info.sample_rate_hz.as_float();
 
         const increasing = bounds_to_walk.end > bounds_to_walk.start;
         const sign:opentime.Ordinate = if (increasing) 1 else -1;
