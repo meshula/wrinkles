@@ -2,6 +2,8 @@
 
 const std = @import("std");
 
+const util = @import("util.zig");
+
 // 1 make sure we need this
 //      because sampling rates, especially for audio, are high (ie 192khz),
 //      even with reasonably long timelines can get into the error zone for
@@ -120,20 +122,12 @@ pub const PhaseOrdinate = struct {
         return switch(@typeInfo(@TypeOf(rhs))) {
             .Struct => switch(@TypeOf(rhs)) {
                 PhaseOrdinate => result: {
-                    var po_result = self;
-                    const rhs_sign = rhs.sign_as_int();
-                    po_result.count = po_result.count + rhs_sign * rhs.count;
-                    po_result.phase += rhs.phase;
-                    while (po_result.phase > 0) 
-                    {
-                        po_result.phase -= 1.0;
-                        po_result.count += 1;
-                    }
-                    while (po_result.phase < 0) {
-                        po_result.phase += 1;
-                        po_result.count -= 1;
-                    }
-                    break:result po_result;
+                    const out = PhaseOrdinate{
+                        .count = self.count + rhs.count,
+                        .phase = self.phase + rhs.phase,
+                    };
+
+                    break :result out.normalized();
                 },
                 else => @compileError(
                     "PhaseOrdinate only supports math with integers,"
@@ -141,23 +135,12 @@ pub const PhaseOrdinate = struct {
                 ),
             },
             .Float => self.add(PhaseOrdinate.init(rhs)),
-            .Int => |int_type| switch (int_type.signedness) {
-                .unsigned => self.add(
-                    .{
-                        // 0 = positive
-                        .sign = 0,
-                        .count = rhs,
-                        .phase = 0,
-                    }
-                ),
-                .signed => self.add(
-                    .{
-                        .sign = @intFromBool(rhs < 0),
-                        .count = @intCast(rhs),
-                        .phase = 0,
-                    },
-                ),
-            },
+            .Int => self.add(
+                PhaseOrdinate{
+                    .count = rhs,
+                    .phase = 0,
+                }
+            ),
             else => @compileError(
                 "PhaseOrdinate only supports math with integers,"
                 ++ " floating point numbers, and other PhaseOrdinates."
@@ -418,7 +401,7 @@ test "PhaseOrdinate: init and normalized"
 //     );
 // }
 //
-test "PhaseOrdinate: add"
+test "PhaseOrdinate: add (PhaseOrdinate)"
 {
     {
         const v = PhaseOrdinate.init(0.2).add(
@@ -433,6 +416,23 @@ test "PhaseOrdinate: add"
         try std.testing.expectEqual(
             0.25,
             v.phase,
+        );
+    }
+
+    {
+        const v = PhaseOrdinate.init(0.2).add(
+            PhaseOrdinate.init(-0.05)
+        );
+
+        try std.testing.expectEqual(
+            0,
+            v.count,
+        );
+
+        try std.testing.expectApproxEqAbs(
+            0.15,
+            v.phase,
+            util.EPSILON_ORD,
         );
     }
 
@@ -477,6 +477,39 @@ test "PhaseOrdinate: add"
     //         ).to_continuous().value,
     //     );
     // }
+}
+
+test "PhaseOrdinate: add (int/float)"
+{
+    var ord = PhaseOrdinate.init(1.0);
+
+    {
+        const r = ord.add(@as(i16, 1));
+
+        try std.testing.expectEqual(2, r.count);
+        try std.testing.expectEqual(0, r.phase);
+    }
+
+    {
+        const r = ord.add(@as(f32, 0.25));
+
+        try std.testing.expectEqual(1, r.count);
+        try std.testing.expectEqual(0.25, r.phase);
+    }
+
+    {
+        const r = ord.add(@as(i16, -1));
+
+        try std.testing.expectEqual(0, r.count);
+        try std.testing.expectEqual(0, r.phase);
+    }
+
+    {
+        const r = ord.add(@as(f32, -0.25));
+
+        try std.testing.expectEqual(0, r.count);
+        try std.testing.expectEqual(0.75, r.phase);
+    }
 }
 //
 // test "PhaseOrdinate: sub"
