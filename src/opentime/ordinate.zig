@@ -101,18 +101,16 @@ pub const PhaseOrdinate = struct {
     // // gt
     // // eq
     //
-    // pub inline fn negate(
-    //     self: @This(),
-    // ) @This() 
-    // {
-    //     return .{ 
-    //         .sign = 1 - self.sign,
-    //         .count = self.count,
-    //         .phase = self.phase,
-    //     };
-    // }
-    //
-    //
+
+    pub inline fn negate(
+        self: @This(),
+    ) @This() 
+    {
+        return .{ 
+            .count = -1 * self.count,
+            .phase = self.phase,
+        };
+    }
 
     pub inline fn add(
         self: @This(),
@@ -386,21 +384,17 @@ test "PhaseOrdinate: init and normalized"
 //     );
 // }
 
-// test "PhaseOrdinate: negate"
-// {
-//     const po = PhaseOrdinate.init(1);
-//
-//     try std.testing.expectEqual(
-//         -1.0,
-//         po.negate().to_continuous().value,
-//     );
-//
-//     try std.testing.expectEqual(
-//         1,
-//         po.negate().negate().to_continuous().value,
-//     );
-// }
-//
+test "PhaseOrdinate: negate"
+{
+    const ord_neg = PhaseOrdinate.init(1).negate();
+
+    try std.testing.expectEqual( -1, ord_neg.count);
+
+    const ord_neg_neg = ord_neg.negate();
+
+    try std.testing.expectEqual( 1, ord_neg_neg.count);
+}
+
 test "PhaseOrdinate: add (PhaseOrdinate)"
 {
     {
