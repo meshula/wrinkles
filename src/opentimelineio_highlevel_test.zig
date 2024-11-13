@@ -1013,15 +1013,15 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
 
     // top level timeline
     var tl = try otio.Timeline.init(allocator);
-    tl.name = try allocator.dupe(u8, "Example Timeline");
+    tl.name = try allocator.dupe(u8, "Timeline @ 24 * 1000/1001");
     tl.discrete_info.presentation = .{
-        // matches the media rate
         .sample_rate_hz = .{ 
             .Rat = .{
                 .num = 24 * 1000,
                 .den = 1001 
             } 
         },
+        // matches the media rate
         .start_index = 0,
     };
 
@@ -1032,13 +1032,13 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
 
     // track
     var tr = otio.Track.init(allocator);
-    tr.name = try allocator.dupe(u8, "Example Parent Track");
+    tr.name = try allocator.dupe(u8, "Track for clip");
 
     // clip
     const cl = otio.Clip {
         .name = try allocator.dupe(
             u8,
-            "Spaghetti.mov",
+            "Clip at 24",
         ),
         .media = .{
             .bounds_s = .{
@@ -1111,7 +1111,9 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     const tests = [_]TestCase{
         .{ 
             .name = "zero",
+            // 23.97
             .tl_pres_index = 0,
+            // 24
             .cl_media_indices = &.{ 0, 1 },
         },
         .{ 
