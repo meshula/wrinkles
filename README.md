@@ -55,7 +55,9 @@ contains:
 
 The layers in wrinkles are:
 
-* `opentime`: low level points, intervals and affine transforms
+* `opentime`: low level points, intervals and affine transforms, including the
+  `PhaseOrdinate` for doing math over very large time scales with low error and
+  `Dual` for doing dual arithmetic/implicit differentiation
 * `curve`: structures and functions for making and manipulating linear and
   bezier splines
 * `sampling`: tools for dealing with discrete spaces, particularly sets of either
