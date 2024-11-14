@@ -184,63 +184,59 @@ pub const PhaseOrdinate = struct {
      }
 
     //
-    //     pub inline fn mul(
-    //         self: @This(),
-    //         rhs: anytype,
-    //     ) @This() 
-    //     {
-    //         return switch(@typeInfo(@TypeOf(rhs))) {
-    //             .Struct => switch(@TypeOf(rhs)) {
-    //                 PhaseOrdinate => result: {
-    //                     var po_result = self;
-    //
-    //                     po_result.sign *= rhs.sign;
-    //                     po_result.count = po_result.count * rhs.count;
-    //                     po_result.phase *= rhs.phase;
-    //
-    //                     while (po_result.phase > 1) 
-    //                     {
-    //                         po_result.phase -= 1.0;
-    //                         po_result.count += 1;
-    //                     }
-    //
-    //                     break :result po_result;
-    //                 },
-    //                 else => @compileError(
-    //                     "PhaseOrdinate only supports math with integers,"
-    //                     ++ " floating point numbers, and other PhaseOrdinates."
-    //                 ),
-    //             },
-    //             .Float => self.mul(PhaseOrdinate.init(rhs)),
-    //             .Int => .{
-    //                 .sign = self.sign * rhs.sign,
-    //                 .count = self.count * rhs.count,
-    //                 .phase = 0,
-    //             },
-    //             else => @compileError(
-    //                 "PhaseOrdinate only supports math with integers,"
-    //                 ++ " floating point numbers, and other PhaseOrdinates."
-    //             ),
-    //         };
-    //     }
+    pub inline fn mul(
+        self: @This(),
+        rhs: anytype,
+    ) @This() 
+    {
+        return switch(@typeInfo(@TypeOf(rhs))) {
+            .Struct => switch(@TypeOf(rhs)) {
+                PhaseOrdinate => ret: {
+                    const self_count_f : @TypeOf(self.phase) = @floatFromInt(self.count);
+                    const rhs_count_f : @TypeOf(self.phase) = @floatFromInt(rhs.count);
+
+                    break :ret PhaseOrdinate.init(
+                        self_count_f * rhs_count_f
+                        + self_count_f * rhs.phase
+                        + rhs_count_f * self.phase
+                        + self.phase * rhs.phase
+                    );
+                },
+                else => @compileError(
+                    "PhaseOrdinate only supports math with integers,"
+                    ++ " floating point numbers, and other PhaseOrdinates."
+                ),
+            },
+            .ComptimeFloat, .Float => self.mul(PhaseOrdinate.init(rhs)),
+            .ComptimeInt, .Int => .{
+                .count = self.count * rhs,
+                .phase = self.phase,
+            },
+            else => @compileError(
+                "PhaseOrdinate only supports math with integers,"
+                ++ " floating point numbers, and other PhaseOrdinates."
+                ++ " Not: " ++ @typeName(@TypeOf(rhs))
+            ),
+        };
+    }
     //
     //     //
-    //     // pub inline fn mul(
-    //     //     self: @This(),
-    //     //     rhs: anytype
-    //     // ) @This() 
-    //     // {
-    //     //     return switch(@typeInfo(@TypeOf(rhs))) {
-    //     //         .Struct => .{ 
-    //     //             .r = self.r * rhs.r,
-    //     //             .i = self.r * rhs.i + self.i*rhs.r,
-    //     //         },
-    //     //         else => .{
-    //     //             .r = self.r * rhs,
-    //     //             .i = self.i * rhs,
-    //     //         },
-    //     //     };
-    //     // }
+    // pub inline fn mul(
+    //     self: @This(),
+    //     rhs: anytype
+    // ) @This() 
+    // {
+    //     return switch(@typeInfo(@TypeOf(rhs))) {
+    //         .Struct => .{ 
+    //             .r = self.r * rhs.r,
+    //             .i = self.r * rhs.i + self.i*rhs.r,
+    //         },
+    //         else => .{
+    //             .r = self.r * rhs,
+    //             .i = self.i * rhs,
+    //         },
+    //     };
+    // }
     //     //
     //     // pub inline fn lt(
     //     //     self: @This(),
@@ -562,28 +558,96 @@ test "PhaseOrdinate: sub (int/float)"
    
 }
 
-// test "PhaseOrdinate mul"
-// {
-//     {
-//         const po_five = PhaseOrdinate.init(5);
-//         const po_should_be_25 = po_five.mul(po_five);
-//
-//         try std.testing.expectEqual(
-//             25,
-//             po_should_be_25.to_continuous().value,
-//         );
-//     }
-//
-//     {
-//         const po_1pt5 = PhaseOrdinate.init(1.5);
-//         const po_should_be_225 = po_1pt5.add(po_1pt5);
-//
-//         try std.testing.expectEqual(
-//             2.25,
-//             po_should_be_225.to_continuous().value,
-//         );
-//     }
-// }
+test "PhaseOrdinate mul"
+{
+    const TestCase = struct {
+        name: []const u8,
+        expr: PhaseOrdinate,
+        result_c: phase_t,
+        result_o: PhaseOrdinate,
+    };
+    const tests = &[_]TestCase{
+        .{
+            .name = "5*5 (f)",
+            .expr = PhaseOrdinate.init(5).mul(5.0),
+            .result_c = 25,
+            .result_o = .{ .count = 25, .phase = 0 },
+        },
+        .{
+            .name = "5*5 (int)",
+            .expr = PhaseOrdinate.init(5).mul(5),
+            .result_c = 25,
+            .result_o = .{ .count = 25, .phase = 0 },
+        },
+        .{
+            .name = "5*5 (PhaseOrdinate)",
+            .expr = PhaseOrdinate.init(5).mul(PhaseOrdinate.init(5)),
+            .result_c = 25,
+            .result_o = .{ .count = 25, .phase = 0 },
+        },
+        .{
+            .name = "-5*5 (PhaseOrdinate)",
+            .expr = PhaseOrdinate.init(-5).mul(PhaseOrdinate.init(5)),
+            .result_c = -25,
+            .result_o = .{ .count = -25, .phase = 0 },
+        },
+        .{
+            .name = ".5 * .5 (f)",
+            .expr = PhaseOrdinate.init(0.5).mul(0.5),
+            .result_c = 0.25,
+            .result_o = .{ .count = 0, .phase = 0.25 },
+        },
+        .{
+            .name = ".5 * .5 (PhaseOrdinate)",
+            .expr = PhaseOrdinate.init(0.5).mul(PhaseOrdinate.init(0.5)),
+            .result_c = 0.25,
+            .result_o = .{ .count = 0, .phase = 0.25 },
+        },
+        .{
+            .name = "-0.5 * .5 (PhaseOrdinate)",
+            .expr = PhaseOrdinate.init(-0.5).mul(PhaseOrdinate.init(0.5)),
+            .result_c = -0.25,
+            .result_o = .{ .count = -1, .phase = 0.75 },
+        },
+        .{
+            .name = "1.5 * 1.5 (f)",
+            .expr = PhaseOrdinate.init(1.5).mul(1.5),
+            .result_c = 2.25,
+            .result_o = .{ .count = 2, .phase = 0.25 },
+        },
+        .{
+            .name = "1.5 * 1.5 (PhaseOrdinate)",
+            .expr = PhaseOrdinate.init(1.5).mul(PhaseOrdinate.init(1.5)),
+            .result_c = 2.25,
+            .result_o = .{ .count = 2, .phase = 0.25 },
+        },
+    };
+    for (tests)
+        |t|
+    {
+        errdefer std.debug.print(
+            " \nError with test: {s}\nexpr: {s}\nresult: {d} {s}\n",
+            .{ t.name, t.expr, t.result_c, t.result_o },
+        );
+
+        try std.testing.expectApproxEqAbs(
+            t.expr.to_continuous().value,
+            t.result_c,
+            util.EPSILON_ORD,
+        );
+
+        try std.testing.expectEqual(
+            t.expr.count,
+            t.result_o.count,
+        );
+
+        try std.testing.expectApproxEqAbs(
+            t.expr.phase,
+            t.result_o.phase,
+            util.EPSILON_ORD,
+        );
+    }
+}
 
 // @TODO: helpful
 // const PHASE_ORD_ZERO = ...
