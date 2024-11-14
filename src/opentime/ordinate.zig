@@ -417,47 +417,48 @@ test "PhaseOrdinate: add (PhaseOrdinate)"
         );
     }
 
-    // {
-    //     const po_five = PhaseOrdinate.init(5);
-    //     const po_should_be_ten = po_five.add(po_five);
-    //
-    //     try std.testing.expectEqual(
-    //         10,
-    //         po_should_be_ten.to_continuous().value,
-    //     );
-    // }
-    //
-    // {
-    //     const po_1pt5 = PhaseOrdinate.init(1.5);
-    //     const po_should_be_three = po_1pt5.add(po_1pt5);
-    //
-    //     try std.testing.expectEqual(
-    //         3,
-    //         po_should_be_three.to_continuous().value,
-    //     );
-    // }
-    //
-    // {
-    //     const po_should_be_pt6 = (
-    //         PhaseOrdinate.init(0.3).add(
-    //             PhaseOrdinate.init(0.2)
-    //         ).add(PhaseOrdinate.init(0.1))
-    //     );
-    //
-    //     try std.testing.expectEqual(
-    //         0.6,
-    //         po_should_be_pt6.to_continuous().value,
-    //     );
-    // }
-    //
-    // {
-    //     try std.testing.expectEqual(
-    //         0.1,
-    //         PhaseOrdinate.init(0.3).add(
-    //             PhaseOrdinate.init(-0.2)
-    //         ).to_continuous().value,
-    //     );
-    // }
+    {
+        const po_five = PhaseOrdinate.init(5);
+        const po_should_be_ten = po_five.add(po_five);
+
+        try std.testing.expectEqual(
+            10,
+            po_should_be_ten.to_continuous().value,
+        );
+    }
+
+     {
+         const po_1pt5 = PhaseOrdinate.init(1.5);
+         const po_should_be_three = po_1pt5.add(po_1pt5);
+
+         try std.testing.expectEqual(
+             3,
+             po_should_be_three.to_continuous().value,
+         );
+     }
+
+     {
+         const po_should_be_pt6 = (
+             PhaseOrdinate.init(0.3).add(
+                 PhaseOrdinate.init(0.2)
+             ).add(PhaseOrdinate.init(0.1))
+         );
+
+         try std.testing.expectEqual(
+             0.6,
+             po_should_be_pt6.to_continuous().value,
+         );
+     }
+
+     {
+         try std.testing.expectApproxEqAbs(
+             0.1,
+             PhaseOrdinate.init(0.3).add(
+                 PhaseOrdinate.init(-0.2)
+             ).to_continuous().value,
+             util.EPSILON_ORD,
+         );
+     }
 }
 
 test "PhaseOrdinate: add (int/float)"
