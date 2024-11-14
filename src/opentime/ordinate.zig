@@ -28,6 +28,17 @@ const util = @import("util.zig");
 const count_t = i32;
 const phase_t = f32;
 
+fn typeError(
+    thing: anytype,
+) PhaseOrdinate 
+{
+    @compileError(
+        "PhaseOrdinate only supports math with integers,"
+        ++ " floating point numbers, and other PhaseOrdinates."
+        ++ " Not: " ++ @typeName(@TypeOf(thing))
+    );
+}
+
 /// Phase based ordinate
 pub const PhaseOrdinate = struct {
     // @TODO: can support ~4hrs at 192khz, if more space is needed, use 64 bits
@@ -139,22 +150,16 @@ pub const PhaseOrdinate = struct {
 
                     break :result out.normalized();
                 },
-                else => @compileError(
-                    "PhaseOrdinate only supports math with integers,"
-                    ++ " floating point numbers, and other PhaseOrdinates."
-                ),
+                else => typeError(rhs),
             },
-            .Float => self.add(PhaseOrdinate.init(rhs)),
-            .Int => self.add(
+            .ComptimeFloat, .Float => self.add(PhaseOrdinate.init(rhs)),
+            .ComptimeInt, .Int => self.add(
                 PhaseOrdinate{
                     .count = rhs,
                     .phase = 0,
                 }
             ),
-            else => @compileError(
-                "PhaseOrdinate only supports math with integers,"
-                ++ " floating point numbers, and other PhaseOrdinates."
-            ),
+            else => typeError(rhs),
         };
     }
 
@@ -166,22 +171,16 @@ pub const PhaseOrdinate = struct {
          return switch(@typeInfo(@TypeOf(rhs))) {
              .Struct => switch(@TypeOf(rhs)) {
                  PhaseOrdinate => self.add(rhs.negate()),
-                 else => @compileError(
-                     "PhaseOrdinate only supports math with integers,"
-                     ++ " floating point numbers, and other PhaseOrdinates."
-                 ),
+                 else => typeError(rhs),
              },
-             .Float => self.add(PhaseOrdinate.init(-rhs)),
-             .Int => self.add(
+             .ComptimeFloat, .Float => self.add(PhaseOrdinate.init(-rhs)),
+             .ComptimeInt, .Int => self.add(
                  PhaseOrdinate{
                      .count = -rhs,
                      .phase = 0,
                  }
              ),
-             else => @compileError(
-                 "PhaseOrdinate only supports math with integers,"
-                 ++ " floating point numbers, and other PhaseOrdinates."
-             ),
+             else => typeError(rhs),
          };
      }
 
@@ -204,21 +203,14 @@ pub const PhaseOrdinate = struct {
                         + self.phase * rhs.phase
                     );
                 },
-                else => @compileError(
-                    "PhaseOrdinate only supports math with integers,"
-                    ++ " floating point numbers, and other PhaseOrdinates."
-                ),
+                else => typeError(rhs),
             },
             .ComptimeFloat, .Float => self.mul(PhaseOrdinate.init(rhs)),
             .ComptimeInt, .Int => .{
                 .count = self.count * rhs,
                 .phase = self.phase,
             },
-            else => @compileError(
-                "PhaseOrdinate only supports math with integers,"
-                ++ " floating point numbers, and other PhaseOrdinates."
-                ++ " Not: " ++ @typeName(@TypeOf(rhs))
-            ),
+            else => typeError(rhs),
         };
     }
     //
