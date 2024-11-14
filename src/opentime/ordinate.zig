@@ -47,15 +47,33 @@ pub const PhaseOrdinate = struct {
 
     /// implies a rate of 1
     pub fn init(
-        val: f32,
+        val: anytype,
     ) PhaseOrdinate
     {
-        var result = PhaseOrdinate { 
-            .count = @intFromFloat(val),
-            .phase = std.math.sign(val) * (@abs(val) - @trunc(@abs(val))),
-        };
+        return switch(@typeInfo(@TypeOf(val))) {
+            .Struct => switch(@TypeOf(val)) {
+                PhaseOrdinate => result: {
+                    const out = PhaseOrdinate{
+                        .count = val.count,
+                        .phase = val.phase,
+                    };
 
-        return result.normalized();
+                    break :result out.normalized();
+                },
+                else => typeError(val),
+            },
+            .ComptimeFloat, .Float => (
+                PhaseOrdinate { 
+                    .count = @intFromFloat(val),
+                    .phase = std.math.sign(val) * (@abs(val) - @trunc(@abs(val))),
+                }
+            ).normalized(),
+            .ComptimeInt, .Int => PhaseOrdinate{
+                    .count = val,
+                    .phase = 0,
+                },
+            else => typeError(val),
+        };
     }
 
     pub inline fn normalized(
@@ -142,14 +160,12 @@ pub const PhaseOrdinate = struct {
     {
         return switch(@typeInfo(@TypeOf(rhs))) {
             .Struct => switch(@TypeOf(rhs)) {
-                PhaseOrdinate => result: {
-                    const out = PhaseOrdinate{
+                PhaseOrdinate => (
+                    PhaseOrdinate{
                         .count = self.count + rhs.count,
                         .phase = self.phase + rhs.phase,
-                    };
-
-                    break :result out.normalized();
-                },
+                    }
+                ).normalized(),
                 else => typeError(rhs),
             },
             .ComptimeFloat, .Float => self.add(PhaseOrdinate.init(rhs)),
