@@ -109,12 +109,10 @@ pub const PhaseOrdinate = struct {
     ) @This() 
     {
         if (self.phase > 0) {
-            return (
-                PhaseOrdinate{ 
-                    .count = -1 - self.count,
-                    .phase = 1 - self.phase,
-                }
-            );
+            return .{ 
+                .count = -1 - self.count,
+                .phase = 1 - self.phase,
+            };
         }
         else {
             return .{
