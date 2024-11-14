@@ -25,12 +25,14 @@ const util = @import("util.zig");
 //     v: u32,
 // };
 
+const count_t = i32;
+const phase_t = f32;
+
 /// Phase based ordinate
 pub const PhaseOrdinate = struct {
-    // @TODO: can support ~4hrs at 192khz, if more space is needed, use 63 bits
-    //        (+ signed bit)
-    count: i32,
-    phase: f32,
+    // @TODO: can support ~4hrs at 192khz, if more space is needed, use 64 bits
+    count: count_t,
+    phase: phase_t,
 
     /// implies a rate of 1
     pub fn init(
@@ -65,12 +67,12 @@ pub const PhaseOrdinate = struct {
     pub fn to_continuous(
         self: @This(),
     ) struct {
-        value: @TypeOf(self.phase),
-        err: @TypeOf(self.phase),
+        value: phase_t,
+        err: phase_t,
     }
     {
         const v = (
-            @as(@TypeOf(self.phase), @floatFromInt(self.count)) 
+            @as(phase_t, @floatFromInt(self.count)) 
             + self.phase
         );
 
@@ -79,7 +81,7 @@ pub const PhaseOrdinate = struct {
         const err_pord = self.sub(pord);
 
         const err_pord_f = (
-            @as(@TypeOf(self.phase), @floatFromInt(err_pord.count)) 
+            @as(phase_t, @floatFromInt(err_pord.count)) 
             + err_pord.phase
         );
 
@@ -192,8 +194,8 @@ pub const PhaseOrdinate = struct {
         return switch(@typeInfo(@TypeOf(rhs))) {
             .Struct => switch(@TypeOf(rhs)) {
                 PhaseOrdinate => ret: {
-                    const self_count_f : @TypeOf(self.phase) = @floatFromInt(self.count);
-                    const rhs_count_f : @TypeOf(self.phase) = @floatFromInt(rhs.count);
+                    const self_count_f : phase_t = @floatFromInt(self.count);
+                    const rhs_count_f : phase_t = @floatFromInt(rhs.count);
 
                     break :ret PhaseOrdinate.init(
                         self_count_f * rhs_count_f
