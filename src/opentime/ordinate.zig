@@ -27,6 +27,7 @@ const util = @import("util.zig");
 
 const count_t = i32;
 const phase_t = f32;
+const div_t = f64;
 
 fn typeError(
     thing: anytype,
@@ -65,7 +66,7 @@ pub const PhaseOrdinate = struct {
             .ComptimeFloat, .Float => (
                 PhaseOrdinate { 
                     .count = @intFromFloat(val),
-                    .phase = std.math.sign(val) * (@abs(val) - @trunc(@abs(val))),
+                    .phase = @floatCast(std.math.sign(val) * (@abs(val) - @trunc(@abs(val)))),
                 }
             ).normalized(),
             .ComptimeInt, .Int => PhaseOrdinate{
@@ -100,19 +101,13 @@ pub const PhaseOrdinate = struct {
         err: phase_t,
     }
     {
-        const v = (
-            @as(phase_t, @floatFromInt(self.count)) 
-            + self.phase
-        );
+        const v = self.as(phase_t);
 
         const pord = PhaseOrdinate.init(v);
 
         const err_pord = self.sub(pord);
 
-        const err_pord_f = (
-            @as(phase_t, @floatFromInt(err_pord.count)) 
-            + err_pord.phase
-        );
+        const err_pord_f = err_pord.as(phase_t);
 
         return .{
             .value = v,
@@ -200,6 +195,24 @@ pub const PhaseOrdinate = struct {
          };
      }
 
+     inline fn as(
+         self: @This(),
+         comptime T: type,
+     ) T
+     {
+         return switch (@typeInfo(T)) {
+            .Float => (
+                @as(T, @floatFromInt(self.count)) 
+                + @as(T, @floatCast(self.phase))
+            ),
+            .Int => @intCast(self.count),
+            else => @compileError(
+                "PhaseOrdinate can be retrieved as a float or int type,"
+                ++ " not: " ++ @typeName(T)
+            ),
+         };
+     }
+
     //
     pub inline fn mul(
         self: @This(),
@@ -229,58 +242,29 @@ pub const PhaseOrdinate = struct {
             else => typeError(rhs),
         };
     }
-    //
-    //     //
-    // pub inline fn mul(
-    //     self: @This(),
-    //     rhs: anytype
-    // ) @This() 
-    // {
-    //     return switch(@typeInfo(@TypeOf(rhs))) {
-    //         .Struct => .{ 
-    //             .r = self.r * rhs.r,
-    //             .i = self.r * rhs.i + self.i*rhs.r,
-    //         },
-    //         else => .{
-    //             .r = self.r * rhs,
-    //             .i = self.i * rhs,
-    //         },
-    //     };
-    // }
-    //     //
-    //     // pub inline fn lt(
-    //     //     self: @This(),
-    //     //     rhs: @This()
-    //     // ) @This() 
-    //     // {
-    //     //     return self.r < rhs.r;
-    //     // }
-    //     //
-    //     // pub inline fn gt(
-    //     //     self: @This(),
-    //     //     rhs: @This()
-    //     // ) @This() 
-    //     // {
-    //     //     return self.r > rhs.r;
-    //     // }
-    //     //
-    //     // pub inline fn div(
-    //     //     self: @This(),
-    //     //     rhs: anytype
-    //     // ) @This() 
-    //     // {
-    //     //     return switch(@typeInfo(@TypeOf(rhs))) {
-    //     //         .Struct => .{
-    //     //             .r = self.r / rhs.r,
-    //     //             .i = (rhs.r * self.i - self.r * rhs.i) / (rhs.r * rhs.r),
-    //     //         },
-    //     //         else => .{
-    //     //             .r = self.r / rhs,
-    //     //             .i = (self.i) / (rhs),
-    //     //         },
-    //     //     };
-    //     // }
-    //
+
+    pub inline fn div(
+        self: @This(),
+        rhs: anytype,
+    ) @This() 
+    {
+        return switch(@typeInfo(@TypeOf(rhs))) {
+            .Struct => switch(@TypeOf(rhs)) {
+                PhaseOrdinate => (
+                    PhaseOrdinate.init(self.as(div_t) / rhs.as(div_t))
+                ),
+                else => typeError(rhs),
+            },
+            .ComptimeFloat, .Float => (
+                PhaseOrdinate.init(self.as(div_t) / @as(div_t, @floatCast(rhs)))
+            ),
+            .ComptimeInt, .Int => (
+                PhaseOrdinate.init(self.as(div_t) / @as(div_t, @floatFromInt(rhs)))
+            ),
+            else => typeError(rhs),
+        };
+    }
+
     pub fn format(
         self: @This(),
         // fmt
@@ -611,6 +595,109 @@ test "PhaseOrdinate mul"
             .expr = PhaseOrdinate.init(1.5).mul(PhaseOrdinate.init(1.5)),
             .result_c = 2.25,
             .result_o = .{ .count = 2, .phase = 0.25 },
+        },
+    };
+    for (tests)
+        |t|
+    {
+        errdefer std.debug.print(
+            " \nError with test: {s}\nexpr: {s}\nresult: {d} {s}\n",
+            .{ t.name, t.expr, t.result_c, t.result_o },
+        );
+
+        try std.testing.expectApproxEqAbs(
+            t.expr.to_continuous().value,
+            t.result_c,
+            util.EPSILON_ORD,
+        );
+
+        try std.testing.expectEqual(
+            t.expr.count,
+            t.result_o.count,
+        );
+
+        try std.testing.expectApproxEqAbs(
+            t.expr.phase,
+            t.result_o.phase,
+            util.EPSILON_ORD,
+        );
+    }
+}
+
+test "PhaseOrdinate div"
+{
+    const TestCase = struct {
+        name: []const u8,
+        expr: PhaseOrdinate,
+        result_c: phase_t,
+        result_o: PhaseOrdinate,
+    };
+    const tests = &[_]TestCase{
+        .{
+            .name = "5/5 (f)",
+            .expr = PhaseOrdinate.init(5).div(5.0),
+            .result_c = 1,
+            .result_o = .{ .count = 1, .phase = 0 },
+        },
+        .{
+            .name = "5/5 (int)",
+            .expr = PhaseOrdinate.init(5).div(5),
+            .result_c = 1,
+            .result_o = .{ .count = 1, .phase = 0 },
+        },
+        .{
+            .name = "5/5 (PhaseOrdinate)",
+            .expr = PhaseOrdinate.init(5).div(PhaseOrdinate.init(5)),
+            .result_c = 1,
+            .result_o = .{ .count = 1, .phase = 0 },
+        },
+        .{
+            .name = "-5/-5 (PhaseOrdinate)",
+            .expr = PhaseOrdinate.init(-5).div(PhaseOrdinate.init(-5)),
+            .result_c = 1,
+            .result_o = .{ .count = 1, .phase = 0 },
+        },
+        .{
+            .name = "-5/5 (PhaseOrdinate)",
+            .expr = PhaseOrdinate.init(-5).div(PhaseOrdinate.init(5)),
+            .result_c = -1,
+            .result_o = .{ .count = -1, .phase = 0 },
+        },
+        .{
+            .name = ".5 / 2 (f)",
+            .expr = PhaseOrdinate.init(0.5).div(2.0),
+            .result_c = 0.25,
+            .result_o = .{ .count = 0, .phase = 0.25 },
+        },
+        .{
+            .name = ".5 / 2 (PhaseOrdinate)",
+            .expr = PhaseOrdinate.init(0.5).div(PhaseOrdinate.init(2)),
+            .result_c = 0.25,
+            .result_o = .{ .count = 0, .phase = 0.25 },
+        },
+        .{
+            .name = "-0.5 / 2 (PhaseOrdinate)",
+            .expr = PhaseOrdinate.init(-0.5).div(PhaseOrdinate.init(2)),
+            .result_c = -0.25,
+            .result_o = .{ .count = -1, .phase = 0.75 },
+        },
+        .{
+            .name = "1.32/1.2 (f)",
+            .expr = PhaseOrdinate.init(1.32).div(1.2),
+            .result_c = 1.1,
+            .result_o = .{ .count = 1, .phase = 0.1 },
+        },
+        .{
+            .name = "1.32/1.2 (PhaseOrdinate)",
+            .expr = PhaseOrdinate.init(1.32).div(PhaseOrdinate.init(1.2)),
+            .result_c = 1.1,
+            .result_o = .{ .count = 1, .phase = 0.1 },
+        },
+        .{
+            .name = "-1.32/1.2 (PhaseOrdinate)",
+            .expr = PhaseOrdinate.init(-1.32).div(PhaseOrdinate.init(1.2)),
+            .result_c = -1.1,
+            .result_o = .{ .count = -2, .phase = 0.9 },
         },
     };
     for (tests)
