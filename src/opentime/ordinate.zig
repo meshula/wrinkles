@@ -61,55 +61,67 @@ pub const PhaseOrdinate = struct {
         return out;
     }
 
-     //
-     // /// implies a rate of "1".  Any
-     // pub fn to_continuous(
-     //     self: @This(),
-     // ) struct {
-     //     value: f32,
-     //     err: f32,
-     // }
-     // {
-     //     const v = (
-     //         @as(@TypeOf(self.phase), @floatFromInt(self.count)) 
-     //         + self.phase
-     //     );
-     //
-     //     const pord = PhaseOrdinate.init(v);
-     //
-     //     const err_pord = self.sub(pord);
-     //
-     //     const err_pord_f = (
-     //         @as(@TypeOf(self.phase), @floatFromInt(err_pord.count)) + err_pord.phase
-     //     );
-     //
-     //     return .{
-     //         .value = v,
-     //         .err = err_pord_f,
-     //     };
-     // }
+    /// implies a rate of "1".  Any
+    pub fn to_continuous(
+        self: @This(),
+    ) struct {
+        value: @TypeOf(self.phase),
+        err: @TypeOf(self.phase),
+    }
+    {
+        const v = (
+            @as(@TypeOf(self.phase), @floatFromInt(self.count)) 
+            + self.phase
+        );
 
-    //
-    // // add
-    //
-    //
-    // // sub
-    // // multiply
-    // // divide
-    // // neg
-    // // lt
-    // // gt
-    // // eq
-    //
+        const pord = PhaseOrdinate.init(v);
 
+        const err_pord = self.sub(pord);
+
+        const err_pord_f = (
+            @as(@TypeOf(self.phase), @floatFromInt(err_pord.count)) 
+            + err_pord.phase
+        );
+
+        return .{
+            .value = v,
+            .err = err_pord_f,
+        };
+    }
+
+
+    // phase is a float in the range [0, 1.0)
+    // subtracting phase has the same effect of negating the phase and adding it.
+    // So, a phase of -0.25 is equivalent to a phase of 0.75. But when we get a 
+    // PhaseOrdinate with a negative phase, we want to normalize it to a positive
+    // phase and decrement the count. This is done in the normalize function.
+    // as an example given
+    // PhaseOrdinate p0 = {false, 0, -0.25};
+    // if we draw it on a numberline it looks like this:
+    // -1.25 -1.0 -0.75 -0.5 -0.25 0.0 0.25 0.5 0.75 1.0 1.25
+    //  |----|----|----|----|----|----|----|----|----|----|----| p0 ------------------^
+    // Normalizing to a positive phase should point to the same place on the numberline
+    // which would be a negative -1 count, and a positive 0.75 phase.
+    // If we draw a number line with the normalized phase it would look like this:
+    // -1.0 +0.25, -1.0 +0.5, -1 +0.75, 0.0 +0.0, 0 +0.25, 0 +0.5, 0 +0.75, 1 +0.0, 1 +0.25, 1 +0.5, 1 +0.75
     pub inline fn negate(
         self: @This(),
     ) @This() 
     {
-        return .{ 
-            .count = -1 * self.count,
-            .phase = self.phase,
-        };
+        if (self.phase > 0) {
+            return (
+                PhaseOrdinate{ 
+                    .count = -1 - self.count,
+                    .phase = 1 - self.phase,
+                }
+            );
+        }
+        else {
+            return .{
+                .count = - self.count,
+                .phase = 0,
+            };
+        }
     }
 
     pub inline fn add(
@@ -145,44 +157,34 @@ pub const PhaseOrdinate = struct {
             ),
         };
     }
-    //
-    //     pub inline fn sub(
-    //         self: @This(),
-    //         rhs: anytype,
-    //     ) @This() 
-    //     {
-    //         return switch(@typeInfo(@TypeOf(rhs))) {
-    //             .Struct => switch(@TypeOf(rhs)) {
-    //                 PhaseOrdinate => self.add(rhs.negate()),
-    //                 else => @compileError(
-    //                     "PhaseOrdinate only supports math with integers,"
-    //                     ++ " floating point numbers, and other PhaseOrdinates."
-    //                 ),
-    //             },
-    //             .Float => self.add(PhaseOrdinate.init(-1 * rhs)),
-    //             .Int => |int_type| switch (int_type.signedness) {
-    //                 .unsigned => self.add(
-    //                     .{
-    //                         // 0 = positive
-    //                         .sign = 1,
-    //                         .count = rhs,
-    //                         .phase = 0,
-    //                     }
-    //                 ),
-    //                 .signed => self.add(
-    //                     .{
-    //                         .sign = ! @intFromBool(rhs < 0),
-    //                         .count = @intCast(rhs),
-    //                         .phase = 0,
-    //                     },
-    //                 ),
-    //             },
-    //             else => @compileError(
-    //                 "PhaseOrdinate only supports math with integers,"
-    //                 ++ " floating point numbers, and other PhaseOrdinates."
-    //             ),
-    //         };
-    //     }
+
+     pub inline fn sub(
+         self: @This(),
+         rhs: anytype,
+     ) @This() 
+     {
+         return switch(@typeInfo(@TypeOf(rhs))) {
+             .Struct => switch(@TypeOf(rhs)) {
+                 PhaseOrdinate => self.add(rhs.negate()),
+                 else => @compileError(
+                     "PhaseOrdinate only supports math with integers,"
+                     ++ " floating point numbers, and other PhaseOrdinates."
+                 ),
+             },
+             .Float => self.add(PhaseOrdinate.init(-rhs)),
+             .Int => self.add(
+                 PhaseOrdinate{
+                     .count = -rhs,
+                     .phase = 0,
+                 }
+             ),
+             else => @compileError(
+                 "PhaseOrdinate only supports math with integers,"
+                 ++ " floating point numbers, and other PhaseOrdinates."
+             ),
+         };
+     }
+
     //
     //     pub inline fn mul(
     //         self: @This(),
@@ -275,34 +277,20 @@ pub const PhaseOrdinate = struct {
     //     //     };
     //     // }
     //
-    // pub fn format(
-    //     self: @This(),
-    //     // fmt
-    //     comptime _: []const u8,
-    //     // options
-    //     _: std.fmt.FormatOptions,
-    //     writer: anytype,
-    // ) !void 
-    // {
-    //     try writer.print(
-    //         "PhaseOrd{{ {s}{d}.{d} }}",
-    //         .{ if (self.sign == 0) "+" else "-", self.count, self.phase }
-    //     );
-    //     // switch (self) {
-    //     //     .SuccessOrdinate => |ord| try writer.print(
-    //     //         "ProjResult{{ .ordinate = {d} }}",
-    //     //         .{ ord },
-    //     //     ),
-    //     //     .SuccessInterval => |inf| try writer.print(
-    //     //         "ProjResult{{ .interval = {s} }}",
-    //     //         .{ inf },
-    //     //     ),
-    //     //     .OutOfBounds => try writer.print(
-    //     //         "ProjResult{{ .OutOfBounds }}",
-    //     //         .{},
-    //     //     ),
-    //     // }
-    // }
+    pub fn format(
+        self: @This(),
+        // fmt
+        comptime _: []const u8,
+        // options
+        _: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void 
+    {
+        try writer.print(
+            "PhaseOrd{{ {d} + {d} }}",
+            .{ self.count, self.phase }
+        );
+    }
 };
 
 test "PhaseOrdinate: init and normalized"
@@ -371,24 +359,25 @@ test "PhaseOrdinate: init and normalized"
     }
 }
 
-// test "PhaseOrdinate: to_continuous"
-// {
-//     try std.testing.expectEqual(
-//         0.3,
-//         PhaseOrdinate.init(0.3).to_continuous().value,
-//     );
-//
-//     try std.testing.expectEqual(
-//         -0.3,
-//         PhaseOrdinate.init(-0.3).to_continuous().value,
-//     );
-// }
+test "PhaseOrdinate: to_continuous"
+{
+    try std.testing.expectEqual(
+        0.3,
+        PhaseOrdinate.init(0.3).to_continuous().value,
+    );
+
+    try std.testing.expectEqual(
+        -0.3,
+        PhaseOrdinate.init(-0.3).to_continuous().value,
+    );
+}
 
 test "PhaseOrdinate: negate"
 {
     const ord_neg = PhaseOrdinate.init(1).negate();
 
     try std.testing.expectEqual( -1, ord_neg.count);
+    try std.testing.expectEqual( -1, ord_neg.to_continuous().value);
 
     const ord_neg_neg = ord_neg.negate();
 
@@ -505,32 +494,75 @@ test "PhaseOrdinate: add (int/float)"
         try std.testing.expectEqual(0.75, r.phase);
     }
 }
-//
-// test "PhaseOrdinate: sub"
-// {
-//     {
-//         const po_five = PhaseOrdinate.init(5);
-//         const po_should_be_ten = po_five.sub(po_five);
-//
-//         try std.testing.expectEqual(
-//             0,
-//             po_should_be_ten.to_continuous().value,
-//         );
-//     }
-//
-//     {
-//         const po_1pt5 = PhaseOrdinate.init(1.5);
-//         const po_should_be_one = po_1pt5.sub(
-//             PhaseOrdinate.init(0.5)
-//         );
-//
-//         try std.testing.expectEqual(
-//             1,
-//             po_should_be_one.to_continuous().value,
-//         );
-//     }
-// }
-//
+
+test "PhaseOrdinate: sub"
+{
+    {
+        const ord = (
+            PhaseOrdinate.init(5).sub(PhaseOrdinate.init(3))
+        );
+
+        try std.testing.expectEqual(2, ord.count,);
+        try std.testing.expectEqual(0, ord.phase,);
+    }
+
+    {
+        const ord = (
+            PhaseOrdinate.init(5.3).sub(PhaseOrdinate.init(1.3))
+        );
+
+        try std.testing.expectEqual(4, ord.count,);
+        try std.testing.expectApproxEqAbs(
+            0,
+            ord.phase,
+            util.EPSILON_ORD
+        );
+    }
+
+    {
+        const ord = (
+            PhaseOrdinate.init(0.3).sub(PhaseOrdinate.init(0.6))
+        );
+
+        try std.testing.expectEqual(-1, ord.count,);
+        try std.testing.expectEqual(0.7, ord.phase,);
+    }
+}
+
+test "PhaseOrdinate: sub (int/float)"
+{
+     var ord = PhaseOrdinate.init(1.0);
+
+    {
+        const r = ord.sub(@as(i16, 1));
+
+        try std.testing.expectEqual(0, r.count);
+        try std.testing.expectEqual(0, r.phase);
+    }
+
+    {
+        const r = ord.sub(@as(f32, 0.25));
+
+        try std.testing.expectEqual(0, r.count);
+        try std.testing.expectEqual(0.75, r.phase);
+    }
+
+    {
+        const r = ord.sub(@as(i16, -1));
+
+        try std.testing.expectEqual(2, r.count);
+        try std.testing.expectEqual(0, r.phase);
+    }
+
+    {
+        const r = ord.sub(@as(f32, -0.25));
+
+        try std.testing.expectEqual(1, r.count);
+        try std.testing.expectEqual(0.25, r.phase);
+    }
+   
+}
+
 // test "PhaseOrdinate mul"
 // {
 //     {
