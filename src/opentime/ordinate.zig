@@ -321,7 +321,7 @@ test "PhaseOrdinate: init and normalized"
         |t|
     {
         errdefer std.debug.print(
-            "PhaseOrdinate.init({d})\nresult_o: {s}\n",
+           "PhaseOrdinate.init({d})\nresult_o: {s}\n",
             .{ t.in, t.result_o },
         );
 
