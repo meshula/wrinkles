@@ -299,66 +299,41 @@ pub const PhaseOrdinate = struct {
 
 test "PhaseOrdinate: init and normalized"
 {
+    const TestCase = struct {
+        in: phase_t,
+        result_o: PhaseOrdinate,
+    };
+    const tests = &[_]TestCase{
+        .{
+            .in = 1.25,
+            .result_o = .{ .count = 1, .phase = 0.25 },
+        },
+        .{
+            .in = -1.25,
+            .result_o = .{ .count = -2, .phase = 0.75 },
+        },
+        .{
+            .in = -0.05,
+            .result_o = .{ .count = -1, .phase = 0.95 },
+        },
+    };
+    for (tests)
+        |t|
     {
-        const t = PhaseOrdinate.init(1.25);
-
-        try std.testing.expectEqual(
-            1,
-            t.count,
+        errdefer std.debug.print(
+            "PhaseOrdinate.init({d})\nresult_o: {s}\n",
+            .{ t.in, t.result_o },
         );
 
+        const v = PhaseOrdinate.init(t.in);
+
         try std.testing.expectEqual(
-            0.25,
-            t.phase,
+            t.result_o.count,
+            v.count,
         );
-    }
-
-    {
-        const t = PhaseOrdinate.init(-1.25);
-
         try std.testing.expectEqual(
-            -2,
-            t.count,
-        );
-
-        try std.testing.expectEqual(
-            0.75,
-            t.phase,
-        );
-    }
-
-    {
-        const t = (
-            PhaseOrdinate{
-                .count = 0,
-                .phase = -1.25,
-            }
-        ).normalized();
-
-        try std.testing.expectEqual(
-            -2,
-            t.count,
-        );
-
-        try std.testing.expectEqual(
-            0.75,
-            t.phase,
-        );
-    }
-    
-    {
-        const t = (
-            PhaseOrdinate.init(-0.05)
-        ).normalized();
-
-        try std.testing.expectEqual(
-            -1,
-            t.count,
-        );
-
-        try std.testing.expectEqual(
-            0.95,
-            t.phase,
+            t.result_o.phase,
+            v.phase,
         );
     }
 }
@@ -592,6 +567,12 @@ test "PhaseOrdinate mul"
         .{
             .name = "5*5 (PhaseOrdinate)",
             .expr = PhaseOrdinate.init(5).mul(PhaseOrdinate.init(5)),
+            .result_c = 25,
+            .result_o = .{ .count = 25, .phase = 0 },
+        },
+        .{
+            .name = "-5*-5 (PhaseOrdinate)",
+            .expr = PhaseOrdinate.init(-5).mul(PhaseOrdinate.init(-5)),
             .result_c = 25,
             .result_o = .{ .count = 25, .phase = 0 },
         },
