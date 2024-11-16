@@ -238,13 +238,17 @@ pub const PhaseOrdinate = struct {
                 PhaseOrdinate => ret: {
                     const self_count_f : phase_t = @floatFromInt(self.count);
                     const rhs_count_f : phase_t = @floatFromInt(rhs.count);
-
-                    break :ret PhaseOrdinate.init(
-                        self_count_f * rhs_count_f
-                        + self_count_f * rhs.phase
-                        + rhs_count_f * self.phase
-                        + self.phase * rhs.phase
+                    // middle terms
+                    const middle = (
+                        self_count_f * rhs.phase + rhs_count_f * self.phase
                     );
+
+                    break :ret (
+                       PhaseOrdinate{
+                           .count = (self.count * rhs.count),
+                           .phase = (middle + self.phase*rhs.phase),
+                       }
+                   ).normalized();
                 },
                 else => typeError(rhs),
             },
@@ -622,24 +626,24 @@ test "PhaseOrdinate mul"
         |t|
     {
         errdefer std.debug.print(
-            " \nError with test: {s}\nexpr: {s}\nresult: {d} {s}\n",
+            " \nError with test: {s}\nexpr: {s}\nexpected result: {d} {s}\n",
             .{ t.name, t.expr, t.result_c, t.result_o },
         );
 
         try std.testing.expectApproxEqAbs(
-            t.expr.to_continuous().value,
             t.result_c,
+            t.expr.to_continuous().value,
             util.EPSILON_ORD,
         );
 
         try std.testing.expectEqual(
-            t.expr.count,
             t.result_o.count,
+            t.expr.count,
         );
 
         try std.testing.expectApproxEqAbs(
-            t.expr.phase,
             t.result_o.phase,
+            t.expr.phase,
             util.EPSILON_ORD,
         );
     }
