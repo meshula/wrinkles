@@ -94,6 +94,14 @@ temporal hierarchies of editorial documents.
 * [x] and the rest of the library (notably sampling.zig)
     * [x] sampling
     * [x] ripple out into the c library too
+* [x] fold DiscreteDatasourceIndexGenerator into Sampling
+    * [x] -> SignalIndexGenerator
+    * [x] add more functionality to the DiscreteDatasourceIndexGenerator so that
+    * [x] build out into the otio layer too
+* [x] rename “time_topology” build unit to “topology”
+* [ ] `PhaseOrdinate` (or some other means of accurately handling integers over
+  rates changing)
+    * [ ] confirm that this is really better than an `f64` or `f128`
 * [ ] 0.5 offset todo in sampling
 * [ ] thread the "domain" idea out to the discrete spaces, so you can
       define on the timeline a discrete info per domain (ie 24 for picture
@@ -105,11 +113,6 @@ temporal hierarchies of editorial documents.
           prototypical timelines, then the tests can operate on those structures
           and make the tests a bit more readable/direct
 * [ ] write the slide examples in C
-* [x] fold DiscreteDatasourceIndexGenerator into Sampling
-    * [x] -> SignalIndexGenerator
-    * [x] add more functionality to the DiscreteDatasourceIndexGenerator so that
-    * [x] build out into the otio layer too
-* [x] rename “time_topology” build unit to “topology”
 * [ ] handle/test cases where projection results in multiple solutions (maybe
   because inversion creates multiple concurrent topologies?)
 * [ ] add a catmull-rom basis function
