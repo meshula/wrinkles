@@ -26,7 +26,7 @@ const util = @import("util.zig");
 // };
 
 const count_t = i32;
-const phase_t = f32;
+pub const phase_t = f32;
 const div_t = f64;
 
 fn typeError(
@@ -64,11 +64,18 @@ pub const PhaseOrdinate = struct {
                 else => typeError(val),
             },
             .ComptimeFloat, .Float => (
-                PhaseOrdinate { 
-                    .count = @intFromFloat(val),
-                    .phase = @floatCast(std.math.sign(val) * (@abs(val) - @trunc(@abs(val)))),
-                }
-            ).normalized(),
+                // if (std.math.isFinite(val)) (
+                    PhaseOrdinate { 
+                        .count = @intFromFloat(val),
+                        .phase = @floatCast(std.math.sign(val) * (@abs(val) - @trunc(@abs(val)))),
+                    }
+                ).normalized()
+                ,
+                // else PhaseOrdinate { 
+                //     .count = @intFromFloat(std.math.sign(val)),
+                //     .phase = @floatCast(val),
+                // }
+            // ),
             .ComptimeInt, .Int => PhaseOrdinate{
                     .count = val,
                     .phase = 0,
@@ -81,6 +88,13 @@ pub const PhaseOrdinate = struct {
         self: @This(),
     ) @This()
     {
+        // if (std.math.isInf(self.phase)) {
+        //     return PhaseOrdinate {
+        //         .count = @intFromFloat(std.math.sign(self.phase)),
+        //         .phase = self.phase,
+        //     };
+        // }
+        //
         var out = self;
         while (out.phase > 0) {
             out.phase -= 1.0;
@@ -278,6 +292,13 @@ pub const PhaseOrdinate = struct {
             "PhaseOrd{{ {d} + {d} }}",
             .{ self.count, self.phase }
         );
+    }
+
+    pub fn is_inf(
+        self: @This(),
+    ) bool
+    {
+        return std.math.isInf(self.phase);
     }
 };
 
@@ -740,3 +761,6 @@ pub fn OrdinateOf(
 
 /// ordinate type
 pub const Ordinate = OrdinateOf(f32);
+// pub const Ordinate = OrdinateOf(f64);
+// pub const Ordinate = OrdinateOf(PhaseOrdinate);
+// pub const Ordinate = OrdinateOf(PhaseOrdinate);
