@@ -110,7 +110,7 @@ pub fn LinearOf(
 
             pub fn nearest_knot_indices_output(
                 self: @This(),
-                output_ord: f32, 
+                output_ord: ControlPointType.OrdinateType, 
             ) ?NearestIndices
             {
                 const ob = self.extents_output();
@@ -154,7 +154,7 @@ pub fn LinearOf(
 
             pub fn nearest_smaller_knot_index_input(
                 self: @This(),
-                input_ord: f32, 
+                input_ord: ControlPointType.OrdinateType, 
             ) ?usize 
             {
                 const last_index = self.knots.len-1;
@@ -734,12 +734,12 @@ test "Linear: extents"
 
     const bounds = crv.extents();
 
-    try expectEqual(@as(f32, 100), bounds[0].in);
-    try expectEqual(@as(f32, 200), bounds[1].in);
+    try expectEqual(100, bounds[0].in);
+    try expectEqual(200, bounds[1].in);
 
     const bounds_input = crv.extents_input();
-    try expectEqual(@as(f32, 100), bounds_input.start);
-    try expectEqual(@as(f32, 200), bounds_input.end);
+    try expectEqual(100, bounds_input.start);
+    try expectEqual(200, bounds_input.end);
 }
 
 test "Linear: proj_ident" 
@@ -772,11 +772,11 @@ test "Linear: proj_ident"
 
         try expectEqual(@as(usize, 2), result.knots.len);
 
-        try expectEqual(@as(f32, 10), result.knots[0].in);
-        try expectEqual(@as(f32, 0), result.knots[0].out);
+        try expectEqual(10, result.knots[0].in);
+        try expectEqual(0, result.knots[0].out);
 
-        try expectEqual(@as(f32, 30), result.knots[1].in);
-        try expectEqual(@as(f32, 10), result.knots[1].out);
+        try expectEqual(30, result.knots[1].in);
+        try expectEqual(10, result.knots[1].out);
     }
 
     {
@@ -798,11 +798,11 @@ test "Linear: proj_ident"
 
         try expectEqual(@as(usize, 2), result.knots.len);
 
-        try expectEqual(@as(f32, 90), result.knots[0].in);
-        try expectEqual(@as(f32, 90), result.knots[0].out);
+        try expectEqual(90, result.knots[0].in);
+        try expectEqual(90, result.knots[0].out);
 
-        try expectEqual(@as(f32, 95),  result.knots[1].in);
-        try expectEqual(@as(f32, 100), result.knots[1].out);
+        try expectEqual(95,  result.knots[1].in);
+        try expectEqual(100, result.knots[1].out);
     }
 
     // @TODO: add third test case, with right AND left overhang

@@ -732,7 +732,7 @@ pub const Bezier = struct {
         pub fn findU_value(
             self:@This(),
             tgt_value: opentime.Ordinate
-        ) f32 
+        ) control_point.ControlPoint.OrdinateType 
         {
             return bezier_math.findU(
                 tgt_value,

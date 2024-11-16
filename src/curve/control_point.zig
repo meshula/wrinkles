@@ -32,8 +32,9 @@ pub fn ControlPointOf(
         /// output ordinate
         out: t = default_out,
 
-        /// internal type alias
-        const ControlPointType = ControlPointOf(
+        /// internal type aliases
+        pub const OrdinateType = t;
+        pub const ControlPointType = ControlPointOf(
             t,
             default_in,
             default_out,
