@@ -3,6 +3,7 @@ const std = @import("std");
 const ordinate = @import("ordinate.zig");
 
 /// test precision
+// pub const EPSILON_ORD: ordinate.Ordinate = 1.0e-4;
 pub const EPSILON_ORD: ordinate.Ordinate = 1.0e-4;
 /// placeholder for infinity
 pub const INF_ORD = std.math.inf(ordinate.Ordinate);
