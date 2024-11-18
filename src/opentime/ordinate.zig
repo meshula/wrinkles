@@ -920,6 +920,20 @@ fn OrdinateOf(
                 },
             };
         }
+
+        pub inline fn eql(
+            self: @This(),
+            rhs: anytype,
+        ) bool
+        {
+            return switch (@TypeOf(rhs)) {
+                OrdinateType => self.v == rhs.v,
+                else => switch (@typeInfo(@TypeOf(rhs))) {
+                    .Float, .ComptimeFloat, .Int, .ComptimeInt => self.v == rhs,
+                    else => type_error(rhs),
+                },
+            };
+        }
     };
 }
 
@@ -955,6 +969,7 @@ const basic_math = struct {
     // binary macros
     pub fn min(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return @min(lhs, rhs); }
     pub fn max(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return @max(lhs, rhs); }
+    pub fn eql(lhs: anytype, rhs: anytype) bool { return lhs == rhs; }
 };
 
 test "Base Ordinate: Unary Operator Tests"
@@ -1060,6 +1075,17 @@ pub inline fn max(
     };
 }
 
+pub inline fn eql(
+    lhs: anytype,
+    rhs: @TypeOf(lhs),
+) bool
+{
+    return switch (@typeInfo(@TypeOf(lhs))) {
+        .Struct => lhs.eql(rhs),
+        else => lhs == rhs,
+    };
+}
+
 test "Base Ordinate: Binary Function Tests"
 {
     const TestCase = struct {
@@ -1075,7 +1101,7 @@ test "Base Ordinate: Binary Function Tests"
         .{ .lhs =  0, .rhs =  5.345 },
     };
 
-    inline for (&.{ "min", "max" })
+    inline for (&.{ "min", "max", "eql", })
         |op|
     {
         for (tests)
@@ -1084,19 +1110,38 @@ test "Base Ordinate: Binary Function Tests"
             const lhs = Ordinate.init(t.lhs);
             const rhs = Ordinate.init(t.rhs);
 
-            const expected = Ordinate.init(
-                (@field(basic_math, op)(t.lhs, t.rhs))
+            const expected_raw = (
+                @field(basic_math, op)(t.lhs, t.rhs) 
             );
 
             const measured = @field(@This(), op)(lhs, rhs);
 
-            errdefer std.debug.print(
-                "Error with test: " ++ @typeName(Ordinate) ++ "." ++ op ++ 
-                ": iteration: {any}\nexpected: {d}\nmeasured: {s}\n",
-                .{ t, expected, measured },
-            );
+            const is_ord = @TypeOf(measured) == Ordinate;
 
-            try expectOrdinateEqual(expected, measured);
+            const expected = if (is_ord) Ordinate.init(
+                expected_raw
+            ) else expected_raw;
+
+            if (is_ord) {
+                errdefer std.debug.print(
+                    "Error with test: " ++ @typeName(Ordinate) ++ "." ++ op ++ 
+                    ": iteration: {any}\nexpected: {d}\nmeasured: {s}\n",
+                    .{ t, expected, measured },
+                );
+            } else {
+                errdefer std.debug.print(
+                    "Error with test: " ++ @typeName(Ordinate) ++ "." ++ op ++ 
+                    ": iteration: {any}\nexpected: {any}\nmeasured: {any}\n",
+                    .{ t, expected, measured },
+                );
+            }
+
+            if (is_ord) {
+                try expectOrdinateEqual(expected, measured);
+            }
+            else {
+                try std.testing.expectEqual(expected, measured);
+            }
         }
     }
 }

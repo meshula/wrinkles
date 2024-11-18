@@ -14,6 +14,7 @@ pub const Ordinate = ordinate.Ordinate;
 pub const expectOrdinateEqual = ordinate.expectOrdinateEqual;
 pub const min = ordinate.min;
 pub const max = ordinate.max;
+pub const eql = ordinate.eql;
 // @}
 
 // interval @{
