@@ -11,6 +11,7 @@ const std = @import("std");
 // ordinate @{
 const ordinate = @import("ordinate.zig");
 pub const Ordinate = ordinate.Ordinate;
+pub const expectOrdinateEqual = ordinate.expectOrdinateEqual;
 // @}
 
 // interval @{

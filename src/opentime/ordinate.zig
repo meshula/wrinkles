@@ -792,6 +792,46 @@ fn OrdinateOf(
             try writer.print( "Ord{{ {d} }}", .{ self.v });
         }
 
+        pub inline fn add(
+            self: @This(),
+            rhs: anytype,
+        ) OrdinateType
+        {
+            return switch (@TypeOf(rhs)) {
+                OrdinateType => .{ .v = self.v + rhs.v },
+                else => switch (@typeInfo(@TypeOf(rhs))) {
+                    .Float, .ComptimeFloat, .Int, .ComptimeInt => .{ 
+                        .v = self.v + rhs 
+                    },
+                    else => @compileError(
+                        @typeName(self) ++ " can only do math over floats,"
+                        ++ " ints and other " ++ @typeName(self) ++ ", not: " 
+                        ++ @typeName(rhs)
+                    ),
+                },
+            };
+        }
+
+        pub inline fn sub(
+            self: @This(),
+            rhs: anytype,
+        ) OrdinateType
+        {
+            return switch (@TypeOf(rhs)) {
+                OrdinateType => .{ .v = self.v - rhs.v },
+                else => switch (@typeInfo(@TypeOf(rhs))) {
+                    .Float, .ComptimeFloat, .Int, .ComptimeInt => .{ 
+                        .v = self.v - rhs 
+                    },
+                    else => @compileError(
+                        @typeName(self) ++ " can only do math over floats,"
+                        ++ " ints and other " ++ @typeName(self) ++ ", not: " 
+                        ++ @typeName(rhs)
+                    ),
+                },
+            };
+        }
+
         pub inline fn mul(
             self: @This(),
             rhs: anytype,
@@ -812,16 +852,16 @@ fn OrdinateOf(
             };
         }
 
-        pub inline fn add(
+        pub inline fn div(
             self: @This(),
             rhs: anytype,
         ) OrdinateType
         {
             return switch (@TypeOf(rhs)) {
-                OrdinateType => .{ .v = self.v + rhs.v },
+                OrdinateType => .{ .v = self.v / rhs.v },
                 else => switch (@typeInfo(@TypeOf(rhs))) {
                     .Float, .ComptimeFloat, .Int, .ComptimeInt => .{ 
-                        .v = self.v + rhs 
+                        .v = self.v / rhs 
                     },
                     else => @compileError(
                         @typeName(self) ++ " can only do math over floats,"
@@ -874,7 +914,7 @@ test "Base Ordinate: Operation Tests"
         .{ .lhs =  0, .rhs =  5.345 },
     };
 
-    inline for (&.{ "add", "mul" })
+    inline for (&.{ "add", "sub", "mul", "div", })
         |op|
     {
         for (tests)
