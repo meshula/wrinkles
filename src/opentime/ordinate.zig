@@ -760,6 +760,7 @@ fn OrdinateOf(
     return struct {
         v : t,
 
+        pub const BaseType = t;
         pub const OrdinateType = @This();
         pub const ZERO : OrdinateType = OrdinateType.init(0);
         pub const ONE : OrdinateType = OrdinateType.init(1);
