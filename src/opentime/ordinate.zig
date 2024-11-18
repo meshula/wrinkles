@@ -951,6 +951,10 @@ const basic_math = struct {
     pub fn sub(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs - rhs; }
     pub fn mul(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs * rhs; }
     pub fn div(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs / rhs; }
+
+    // binary macros
+    pub fn min(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return @min(lhs, rhs); }
+    pub fn max(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return @max(lhs, rhs); }
 };
 
 test "Base Ordinate: Unary Operator Tests"
@@ -1021,6 +1025,70 @@ test "Base Ordinate: Binary Operator Tests"
             );
 
             const measured = @field(Ordinate, op)(lhs, rhs);
+
+            errdefer std.debug.print(
+                "Error with test: " ++ @typeName(Ordinate) ++ "." ++ op ++ 
+                ": iteration: {any}\nexpected: {d}\nmeasured: {s}\n",
+                .{ t, expected, measured },
+            );
+
+            try expectOrdinateEqual(expected, measured);
+        }
+    }
+}
+
+// binary macros
+pub inline fn min(
+    lhs: anytype,
+    rhs: @TypeOf(lhs),
+) @TypeOf(lhs)
+{
+    return switch (@typeInfo(@TypeOf(lhs))) {
+        .Struct => lhs.min(rhs),
+        else => std.math.min(lhs, rhs),
+    };
+}
+
+pub inline fn max(
+    lhs: anytype,
+    rhs: @TypeOf(lhs),
+) @TypeOf(lhs)
+{
+    return switch (@typeInfo(@TypeOf(lhs))) {
+        .Struct => lhs.max(rhs),
+        else => std.math.max(lhs, rhs),
+    };
+}
+
+test "Base Ordinate: Binary Function Tests"
+{
+    const TestCase = struct {
+        lhs: f32,
+        rhs: f32,
+    };
+    const tests = &[_]TestCase{
+        .{ .lhs =  1, .rhs =  1 },
+        .{ .lhs = -1, .rhs =  1 },
+        .{ .lhs =  1, .rhs = -1 },
+        .{ .lhs = -1, .rhs = -1 },
+        .{ .lhs = -1.2, .rhs = -1001.45 },
+        .{ .lhs =  0, .rhs =  5.345 },
+    };
+
+    inline for (&.{ "min", "max" })
+        |op|
+    {
+        for (tests)
+            |t|
+        {
+            const lhs = Ordinate.init(t.lhs);
+            const rhs = Ordinate.init(t.rhs);
+
+            const expected = Ordinate.init(
+                (@field(basic_math, op)(t.lhs, t.rhs))
+            );
+
+            const measured = @field(@This(), op)(lhs, rhs);
 
             errdefer std.debug.print(
                 "Error with test: " ++ @typeName(Ordinate) ++ "." ++ op ++ 
