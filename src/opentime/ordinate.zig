@@ -793,6 +793,17 @@ fn OrdinateOf(
             try writer.print( "Ord{{ {d} }}", .{ self.v });
         }
 
+        fn type_error(
+            thing: anytype,
+        ) void
+        {
+            @compileError(
+                @typeName(@This()) ++ " can only do math over floats,"
+                ++ " ints and other " ++ @typeName(@This()) ++ ", not: " 
+                ++ @typeName(thing)
+            );
+        }
+
         // unary operators
         pub inline fn neg(
             self: @This(),
@@ -824,11 +835,7 @@ fn OrdinateOf(
                     .Float, .ComptimeFloat, .Int, .ComptimeInt => .{ 
                         .v = self.v + rhs 
                     },
-                    else => @compileError(
-                        @typeName(self) ++ " can only do math over floats,"
-                        ++ " ints and other " ++ @typeName(self) ++ ", not: " 
-                        ++ @typeName(rhs)
-                    ),
+                    else => type_error(rhs),
                 },
             };
         }
@@ -844,11 +851,7 @@ fn OrdinateOf(
                     .Float, .ComptimeFloat, .Int, .ComptimeInt => .{ 
                         .v = self.v - rhs 
                     },
-                    else => @compileError(
-                        @typeName(self) ++ " can only do math over floats,"
-                        ++ " ints and other " ++ @typeName(self) ++ ", not: " 
-                        ++ @typeName(rhs)
-                    ),
+                    else => type_error(rhs),
                 },
             };
         }
@@ -864,11 +867,7 @@ fn OrdinateOf(
                     .Float, .ComptimeFloat, .Int, .ComptimeInt => .{ 
                         .v = self.v * rhs 
                     },
-                    else => @compileError(
-                        @typeName(self) ++ " can only do math over floats,"
-                        ++ " ints and other " ++ @typeName(self) ++ ", not: " 
-                        ++ @typeName(rhs)
-                    ),
+                    else => type_error(rhs),
                 },
             };
         }
@@ -884,11 +883,40 @@ fn OrdinateOf(
                     .Float, .ComptimeFloat, .Int, .ComptimeInt => .{ 
                         .v = self.v / rhs 
                     },
-                    else => @compileError(
-                        @typeName(self) ++ " can only do math over floats,"
-                        ++ " ints and other " ++ @typeName(self) ++ ", not: " 
-                        ++ @typeName(rhs)
-                    ),
+                    else => type_error(rhs),
+                },
+            };
+        }
+
+        // binary macros
+        pub inline fn min(
+            self: @This(),
+            rhs: anytype,
+        ) OrdinateType
+        {
+            return switch (@TypeOf(rhs)) {
+                OrdinateType => .{ .v = @min(self.v,rhs.v) },
+                else => switch (@typeInfo(@TypeOf(rhs))) {
+                    .Float, .ComptimeFloat, .Int, .ComptimeInt => .{ 
+                        .v = @min(self.v,rhs)
+                    },
+                    else => type_error(rhs),
+                },
+            };
+        }
+
+        pub inline fn max(
+            self: @This(),
+            rhs: anytype,
+        ) OrdinateType
+        {
+            return switch (@TypeOf(rhs)) {
+                OrdinateType => .{ .v = @max(self.v,rhs.v) },
+                else => switch (@typeInfo(@TypeOf(rhs))) {
+                    .Float, .ComptimeFloat, .Int, .ComptimeInt => .{ 
+                        .v = @max(self.v,rhs)
+                    },
+                    else => type_error(rhs),
                 },
             };
         }
