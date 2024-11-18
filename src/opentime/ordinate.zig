@@ -811,6 +811,26 @@ fn OrdinateOf(
                 },
             };
         }
+
+        pub inline fn add(
+            self: @This(),
+            rhs: anytype,
+        ) OrdinateType
+        {
+            return switch (@TypeOf(rhs)) {
+                OrdinateType => .{ .v = self.v + rhs.v },
+                else => switch (@typeInfo(@TypeOf(rhs))) {
+                    .Float, .ComptimeFloat, .Int, .ComptimeInt => .{ 
+                        .v = self.v + rhs 
+                    },
+                    else => @compileError(
+                        @typeName(self) ++ " can only do math over floats,"
+                        ++ " ints and other " ++ @typeName(self) ++ ", not: " 
+                        ++ @typeName(rhs)
+                    ),
+                },
+            };
+        }
     };
 }
 
@@ -850,9 +870,11 @@ test "Base Ordinate: Operation Tests"
         .{ .lhs = -1, .rhs =  1 },
         .{ .lhs =  1, .rhs = -1 },
         .{ .lhs = -1, .rhs = -1 },
+        .{ .lhs = -1.2, .rhs = -1001.45 },
+        .{ .lhs =  0, .rhs =  5.345 },
     };
 
-    inline for (&.{ "mul" })
+    inline for (&.{ "add", "mul" })
         |op|
     {
         for (tests)
