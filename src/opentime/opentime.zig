@@ -12,6 +12,8 @@ const std = @import("std");
 const ordinate = @import("ordinate.zig");
 pub const Ordinate = ordinate.Ordinate;
 pub const expectOrdinateEqual = ordinate.expectOrdinateEqual;
+pub const min = ordinate.min;
+pub const max = ordinate.max;
 // @}
 
 // interval @{
