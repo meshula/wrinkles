@@ -40,6 +40,19 @@ pub fn ControlPointOf(
             default_out,
         );
 
+        pub inline fn init(
+            from: struct {
+                in: f32,
+                out: f32,
+            },
+        ) ControlPointType
+        {
+            return .{ 
+                .in =  OrdinateType.init(from.in),
+                .out = OrdinateType.init(from.out),
+            };
+       }
+
         /// polymorphic dispatch for multiply
         pub fn mul(
             self: @This(),
@@ -55,12 +68,12 @@ pub fn ControlPointOf(
         /// multiply w/ number
         pub fn mul_num(
             self: @This(),
-            val: t,
+            val: anytype,
         ) ControlPointType
         {
             return .{
-                .in = val*self.in,
-                .out = val*self.out,
+                .in = self.in.mul(val),
+                .out = self.out.mul(val),
             };
         }
 
@@ -231,8 +244,8 @@ pub fn ControlPointOf(
 /// Define base ControlPoint type over the ordinate from opentime
 pub const ControlPoint = ControlPointOf(
     opentime.Ordinate,
-    0,
-    0,
+    opentime.Ordinate.ZERO,
+    opentime.Ordinate.ZERO,
 );
 pub const Dual_CP = opentime.dual.DualOf(ControlPoint);
 
@@ -280,10 +293,10 @@ test "ControlPoint: sub"
 
 test "ControlPoint: mul" 
 { 
-    const cp1:ControlPoint = .{ .in = 0.0, .out = 10.0 };
+    const cp1=ControlPoint.init(.{ .in = 0.0, .out = 10.0 });
     const scale = -10.0;
 
-    const expected:ControlPoint = .{ .in = 0.0, .out = -100 };
+    const expected=ControlPoint.init(.{ .in = 0.0, .out = -100 });
     const mul_direct = cp1.mul_num(scale);
     const mul_implct = cp1.mul(scale);
 
@@ -295,11 +308,11 @@ test "ControlPoint: mul"
 
 test "distance: 345 triangle" 
 {
-    const a:ControlPoint = .{ .in = 3, .out = -3 };
-    const b:ControlPoint = .{ .in = 6, .out = 1 };
+    const a=ControlPoint.init(.{ .in = 3, .out = -3 });
+    const b=ControlPoint.init(.{ .in = 6, .out = 1 });
 
     try std.testing.expectEqual(
-        @as(opentime.Ordinate, 5),
+        opentime.Ordinate.init(5),
         a.distance(b)
     );
 }
