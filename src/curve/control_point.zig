@@ -156,8 +156,8 @@ pub fn ControlPointOf(
         ) ControlPointType 
         {
             return .{
-                .in = self.in + rhs.in,
-                .out = self.out + rhs.out,
+                .in = self.in.add(rhs.in),
+                .out = self.out.add(rhs.out),
             };
         }
 
@@ -179,6 +179,7 @@ pub fn ControlPointOf(
             rhs: anytype,
         ) ControlPointType 
         {
+            // @TODO: doesn't look like this gets called
             return .{
                 .in = self.in - rhs,
                 .out = self.out - rhs,
@@ -192,8 +193,8 @@ pub fn ControlPointOf(
         ) ControlPointType 
         {
             return .{
-                .in = self.in - rhs.in,
-                .out = self.out - rhs.out,
+                .in = self.in.sub(rhs.in),
+                .out = self.out.sub(rhs.out),
             };
         }
 
@@ -201,10 +202,10 @@ pub fn ControlPointOf(
         pub fn distance(
             self: @This(),
             rhs: ControlPointType,
-        ) t
+        ) OrdinateType
         {
             const diff = rhs.sub(self);
-            return std.math.sqrt(diff.in * diff.in + diff.out * diff.out);
+            return (diff.in.mul(diff.in).add(diff.out.mul(diff.out))).sqrt();
         }
 
         /// compute the normalized vector for the point
@@ -262,10 +263,10 @@ pub fn expectControlPointEqual(
             "Error: expected {any} got {any}\n",
             .{ lhs, rhs }
         );
-        try std.testing.expectApproxEqAbs(
+
+        try opentime.expectOrdinateEqual(
             @field(lhs, k),
-            @field(rhs, k),
-            generic_curve.EPSILON
+            @field(rhs, k)
         );
     }
 }
@@ -273,20 +274,32 @@ pub fn expectControlPointEqual(
 // @{ TESTS
 test "ControlPoint: add" 
 { 
-    const cp1 = ControlPoint{ .in = 0, .out = 10 };
-    const cp2 = ControlPoint{ .in = 20, .out = -10 };
+    const cp1 = ControlPoint.init(
+        .{ .in = 0, .out = 10 }
+    );
+    const cp2 = ControlPoint.init(
+        .{ .in = 20, .out = -10 }
+    );
 
-    const result = ControlPoint{ .in = 20, .out = 0 };
+    const result = ControlPoint.init(
+        .{ .in = 20, .out = 0 }
+    );
 
     try expectControlPointEqual(cp1.add(cp2), result);
 }
 
 test "ControlPoint: sub" 
 { 
-    const cp1 = ControlPoint{ .in = 0, .out = 10 };
-    const cp2 = ControlPoint{ .in = 20, .out = -10 };
+    const cp1 = ControlPoint.init(
+        .{ .in = 0, .out = 10 }
+    );
+    const cp2 = ControlPoint.init(
+        .{ .in = 20, .out = -10 }
+    );
 
-    const result = ControlPoint{ .in = -20, .out = 20 };
+    const result = ControlPoint.init(
+        .{ .in = -20, .out = 20 }
+    );
 
     try expectControlPointEqual(cp1.sub(cp2), result);
 }
