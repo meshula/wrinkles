@@ -760,7 +760,9 @@ pub fn OrdinateOf(
     comptime t: type
 ) type
 {
-    return t;
+    return struct {
+        v : t,
+    };
 }
 
 /// ordinate type
