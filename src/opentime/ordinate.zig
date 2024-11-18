@@ -752,10 +752,7 @@ test "PhaseOrdinate div"
     }
 }
 
-// @TODO: helpful
-// const PHASE_ORD_ZERO = ...
-// const PHASE_ORD_ONE = ...
-
+/// Construct Struct wrapper around a POD value as Ordinate
 fn OrdinateOf(
     comptime t: type,
 ) type
@@ -781,6 +778,18 @@ fn OrdinateOf(
                     ++ " a " ++ @typeName(value)
                 ),
             };
+        }
+
+        pub fn format(
+            self: @This(),
+            // fmt
+            comptime _: []const u8,
+            // options
+            _: std.fmt.FormatOptions,
+            writer: anytype,
+        ) !void 
+        {
+            try writer.print( "Ord{{ {d} }}", .{ self.v });
         }
 
         pub inline fn mul(
@@ -810,3 +819,61 @@ pub const Ordinate = OrdinateOf(f32);
 // pub const Ordinate = OrdinateOf(f64);
 // pub const Ordinate = OrdinateOf(PhaseOrdinate);
 // pub const Ordinate = OrdinateOf(PhaseOrdinate);
+
+pub fn expectOrdinateEqual(
+    expected: Ordinate,
+    measured: Ordinate,
+) !void
+{
+    try std.testing.expectApproxEqAbs(
+        expected.v,
+        measured.v, 
+        util.EPSILON_F,
+    );
+}
+
+const basic_math = struct {
+    pub fn add(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs + rhs; }
+    pub fn sub(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs - rhs; }
+    pub fn mul(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs * rhs; }
+    pub fn div(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs / rhs; }
+};
+
+test "Base Ordinate: Operation Tests"
+{
+    const TestCase = struct {
+        lhs: f32,
+        rhs: f32,
+    };
+    const tests = &[_]TestCase{
+        .{ .lhs =  1, .rhs =  1 },
+        .{ .lhs = -1, .rhs =  1 },
+        .{ .lhs =  1, .rhs = -1 },
+        .{ .lhs = -1, .rhs = -1 },
+    };
+
+    inline for (&.{ "mul" })
+        |op|
+    {
+        for (tests)
+            |t|
+        {
+            const lhs = Ordinate.init(t.lhs);
+            const rhs = Ordinate.init(t.rhs);
+
+            const expected = Ordinate.init(
+                (@field(basic_math, op)(t.lhs, t.rhs))
+            );
+
+            const measured = @field(Ordinate, op)(lhs, rhs);
+
+            errdefer std.debug.print(
+                "Error with test: " ++ @typeName(Ordinate) ++ "." ++ op ++ 
+                ": iteration: {any}\nexpected: {d}\nmeasured: {s}\n",
+                .{ t, expected, measured },
+            );
+
+            try expectOrdinateEqual(expected, measured);
+        }
+    }
+}
