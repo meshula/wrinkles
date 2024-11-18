@@ -792,6 +792,26 @@ fn OrdinateOf(
             try writer.print( "Ord{{ {d} }}", .{ self.v });
         }
 
+        // unary operators
+        pub inline fn neg(
+            self: @This(),
+        ) OrdinateType
+        {
+            return .{
+                .v = - self.v,
+            };
+        }
+
+        pub inline fn sqrt(
+            self: @This(),
+        ) OrdinateType
+        {
+            return .{
+                .v = std.math.sqrt(self.v),
+            };
+        }
+
+        // binary operators
         pub inline fn add(
             self: @This(),
             rhs: anytype,
@@ -893,13 +913,57 @@ pub fn expectOrdinateEqual(
 }
 
 const basic_math = struct {
+    // unary
+    pub fn neg(in: anytype) @TypeOf(in) { return - in; }
+    pub fn sqrt(in: anytype) @TypeOf(in) { return std.math.sqrt(in); }
+
+    // binary
     pub fn add(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs + rhs; }
     pub fn sub(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs - rhs; }
     pub fn mul(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs * rhs; }
     pub fn div(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs / rhs; }
 };
 
-test "Base Ordinate: Operation Tests"
+test "Base Ordinate: Unary Operator Tests"
+{
+    const TestCase = struct {
+        in: f32,
+    };
+    const tests = &[_]TestCase{
+        .{ .in =  1 },
+        .{ .in = 25 },
+        .{ .in = 64.34 },
+        .{ .in =  5.345 },
+    };
+
+    // @TODO: sqrt(negative => nan)
+
+    inline for (&.{ "neg", "sqrt" })
+        |op|
+    {
+        for (tests)
+            |t|
+        {
+            const in = Ordinate.init(t.in);
+
+            const expected = Ordinate.init(
+                (@field(basic_math, op)(t.in))
+            );
+
+            const measured = @field(Ordinate, op)(in);
+
+            errdefer std.debug.print(
+                "Error with test: " ++ @typeName(Ordinate) ++ "." ++ op ++ 
+                ": iteration: {any}\nexpected: {d}\nmeasured: {s}\n",
+                .{ t, expected, measured },
+            );
+
+            try expectOrdinateEqual(expected, measured);
+        }
+    }
+}
+
+test "Base Ordinate: Binary Operator Tests"
 {
     const TestCase = struct {
         lhs: f32,
