@@ -756,12 +756,52 @@ test "PhaseOrdinate div"
 // const PHASE_ORD_ZERO = ...
 // const PHASE_ORD_ONE = ...
 
-pub fn OrdinateOf(
-    comptime t: type
+fn OrdinateOf(
+    comptime t: type,
 ) type
 {
     return struct {
         v : t,
+
+        pub const OrdinateType = @This();
+        pub const ZERO : OrdinateType = OrdinateType.init(0);
+        pub const ONE : OrdinateType = OrdinateType.init(1);
+        pub const INF : OrdinateType = OrdinateType.init(std.math.inf(f32));
+        pub const NAN : OrdinateType = OrdinateType.init(std.math.nan(f32));
+
+        pub inline fn init(
+            value: anytype,
+        ) OrdinateType
+        {
+            return switch (@typeInfo(@TypeOf(value))) {
+                .Float, .ComptimeFloat => .{ .v = value },
+                .Int, .ComptimeInt => .{ .v = @floatFromInt(value) },
+                else => @compileError(
+                    "Can only be constructed from a float or an int, not"
+                    ++ " a " ++ @typeName(value)
+                ),
+            };
+        }
+
+        pub inline fn mul(
+            self: @This(),
+            rhs: anytype,
+        ) OrdinateType
+        {
+            return switch (@TypeOf(rhs)) {
+                OrdinateType => .{ .v = self.v * rhs.v },
+                else => switch (@typeInfo(@TypeOf(rhs))) {
+                    .Float, .ComptimeFloat, .Int, .ComptimeInt => .{ 
+                        .v = self.v * rhs 
+                    },
+                    else => @compileError(
+                        @typeName(self) ++ " can only do math over floats,"
+                        ++ " ints and other " ++ @typeName(self) ++ ", not: " 
+                        ++ @typeName(rhs)
+                    ),
+                },
+            };
+        }
     };
 }
 
