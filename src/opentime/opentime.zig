@@ -19,6 +19,7 @@ pub const lt = ordinate.lt;
 pub const lteq = ordinate.lteq;
 pub const gt = ordinate.gt;
 pub const gteq = ordinate.gteq;
+pub const eval = ordinate.eval;
 // @}
 
 // interval @{
