@@ -20,6 +20,11 @@ pub const ContinuousInterval = struct {
         .end = ordinate.Ordinate.INF,
     };
 
+    pub const ZERO : ContinuousInterval = .{
+        .start = ordinate.Ordinate.ZERO,
+        .end = ordinate.Ordinate.ZERO,
+    };
+
     pub fn init(
         args: struct {
             start: ordinate.Ordinate.BaseType,
