@@ -5,10 +5,6 @@ const ordinate = @import("ordinate.zig");
 /// test precision
 // pub const EPSILON_ORD: ordinate.Ordinate = 1.0e-4;
 pub const EPSILON_F=  1.0e-4;
-pub const EPSILON_ORD = ordinate.Ordinate.init(1.0e-4);
-
-/// placeholder for infinity
-pub const INF_ORD = std.math.inf(ordinate.Ordinate);
 
 /// wrapper so that tests are skipped but not bumped for being unreachable.  to
 /// use this, run: try skip_test()
@@ -27,6 +23,6 @@ pub inline fn expectApproxEql(
     return std.testing.expectApproxEqAbs(
         expected,
         actual,
-        EPSILON_ORD,
+        EPSILON_F,
     );
 }
