@@ -921,6 +921,7 @@ fn OrdinateOf(
             };
         }
 
+        // binary tests
         pub inline fn eql(
             self: @This(),
             rhs: anytype,
@@ -930,6 +931,62 @@ fn OrdinateOf(
                 OrdinateType => self.v == rhs.v,
                 else => switch (@typeInfo(@TypeOf(rhs))) {
                     .Float, .ComptimeFloat, .Int, .ComptimeInt => self.v == rhs,
+                    else => type_error(rhs),
+                },
+            };
+        }
+
+        pub inline fn lt(
+            self: @This(),
+            rhs: anytype,
+        ) bool
+        {
+            return switch (@TypeOf(rhs)) {
+                OrdinateType => self.v < rhs.v,
+                else => switch (@typeInfo(@TypeOf(rhs))) {
+                    .Float, .ComptimeFloat, .Int, .ComptimeInt => self.v < rhs,
+                    else => type_error(rhs),
+                },
+            };
+        }
+
+        pub inline fn lteq(
+            self: @This(),
+            rhs: anytype,
+        ) bool
+        {
+            return switch (@TypeOf(rhs)) {
+                OrdinateType => self.v <= rhs.v,
+                else => switch (@typeInfo(@TypeOf(rhs))) {
+                    .Float, .ComptimeFloat, .Int, .ComptimeInt => self.v <= rhs,
+                    else => type_error(rhs),
+                },
+            };
+        }
+
+        pub inline fn gt(
+            self: @This(),
+            rhs: anytype,
+        ) bool
+        {
+            return switch (@TypeOf(rhs)) {
+                OrdinateType => self.v > rhs.v,
+                else => switch (@typeInfo(@TypeOf(rhs))) {
+                    .Float, .ComptimeFloat, .Int, .ComptimeInt => self.v > rhs,
+                    else => type_error(rhs),
+                },
+            };
+        }
+
+        pub inline fn gteq(
+            self: @This(),
+            rhs: anytype,
+        ) bool
+        {
+            return switch (@TypeOf(rhs)) {
+                OrdinateType => self.v >= rhs.v,
+                else => switch (@typeInfo(@TypeOf(rhs))) {
+                    .Float, .ComptimeFloat, .Int, .ComptimeInt => self.v >= rhs,
                     else => type_error(rhs),
                 },
             };
@@ -969,7 +1026,13 @@ const basic_math = struct {
     // binary macros
     pub fn min(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return @min(lhs, rhs); }
     pub fn max(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return @max(lhs, rhs); }
+
+    // binary tests
     pub fn eql(lhs: anytype, rhs: anytype) bool { return lhs == rhs; }
+    pub fn gt(lhs: anytype, rhs: anytype) bool { return lhs > rhs; }
+    pub fn gteq(lhs: anytype, rhs: anytype) bool { return lhs >= rhs; }
+    pub fn lt(lhs: anytype, rhs: anytype) bool { return lhs < rhs; }
+    pub fn lteq(lhs: anytype, rhs: anytype) bool { return lhs <= rhs; }
 };
 
 test "Base Ordinate: Unary Operator Tests"
@@ -1086,6 +1149,50 @@ pub inline fn eql(
     };
 }
 
+pub inline fn lt(
+    lhs: anytype,
+    rhs: @TypeOf(lhs),
+) bool
+{
+    return switch (@typeInfo(@TypeOf(lhs))) {
+        .Struct => lhs.lt(rhs),
+        else => lhs < rhs,
+    };
+}
+
+pub inline fn lteq(
+    lhs: anytype,
+    rhs: @TypeOf(lhs),
+) bool
+{
+    return switch (@typeInfo(@TypeOf(lhs))) {
+        .Struct => lhs.lteq(rhs),
+        else => lhs <= rhs,
+    };
+}
+
+pub inline fn gt(
+    lhs: anytype,
+    rhs: @TypeOf(lhs),
+) bool
+{
+    return switch (@typeInfo(@TypeOf(lhs))) {
+        .Struct => lhs.gt(rhs),
+        else => lhs > rhs,
+    };
+}
+
+pub inline fn gteq(
+    lhs: anytype,
+    rhs: @TypeOf(lhs),
+) bool
+{
+    return switch (@typeInfo(@TypeOf(lhs))) {
+        .Struct => lhs.gteq(rhs),
+        else => lhs >= rhs,
+    };
+}
+
 test "Base Ordinate: Binary Function Tests"
 {
     const TestCase = struct {
@@ -1101,7 +1208,7 @@ test "Base Ordinate: Binary Function Tests"
         .{ .lhs =  0, .rhs =  5.345 },
     };
 
-    inline for (&.{ "min", "max", "eql", })
+    inline for (&.{ "min", "max", "eql", "lt", "lteq", "gt", "gteq", })
         |op|
     {
         for (tests)
