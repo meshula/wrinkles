@@ -145,24 +145,23 @@ fn _is_approximately_linear(
     const u = (
         (segment.p1.mul(3.0)).sub(segment.p0.mul(2.0)).sub(segment.p3)
     );
-    var ux = u.in * u.in;
-    var uy = u.out * u.out;
+    var ux = u.in.mul(u.in);
+    var uy = u.out.mul(u.out);
 
     const v = (
         (segment.p2.mul(3.0)).sub(segment.p3.mul(2.0)).sub(segment.p0)
     );
-    const vx = v.in * v.in;
-    const vy = v.out * v.out;
+    const vx = v.in.mul(v.in);
+    const vy = v.out.mul(v.out);
 
-    if (ux < vx) {
+    if (ux.lt(vx)) {
         ux = vx;
     }
-    if (uy < vy) {
+    if (uy.lt(vy)) {
         uy = vy;
     }
 
-    return (ux+uy <= tolerance);
-
+    return (ux.add(uy).lteq(tolerance));
 }
 
 /// Based on this paper:
@@ -423,22 +422,10 @@ pub const Bezier = struct {
 
     /// Bezier Curve Segment
     pub const Segment = struct {
-        p0: control_point.ControlPoint = .{
-            .in = 0,
-            .out = 0,
-        },
-        p1: control_point.ControlPoint = .{
-            .in = 0,
-            .out = 0,
-        },
-        p2: control_point.ControlPoint = .{
-            .in = 1,
-            .out = 1,
-        },
-        p3: control_point.ControlPoint = .{
-            .in = 1,
-            .out = 1,
-        },
+        p0: control_point.ControlPoint = control_point.ControlPoint.ZERO,
+        p1: control_point.ControlPoint = control_point.ControlPoint.ZERO,
+        p2: control_point.ControlPoint = control_point.ControlPoint.ONE,
+        p3: control_point.ControlPoint = control_point.ControlPoint.ONE,
 
         pub fn init_identity(
             input_start: opentime.Ordinate,
@@ -556,7 +543,7 @@ pub const Bezier = struct {
         /// output value of the segment at parameter unorm, [0, 1)
         pub fn eval_at(
             self: @This(),
-            unorm:f32
+            unorm: opentime.Ordinate,
         ) control_point.ControlPoint
         {
             const use_reducer = true;
@@ -760,7 +747,7 @@ pub const Bezier = struct {
         pub fn findU_input(
             self:@This(),
             input_ordinate: opentime.Ordinate
-        ) f32 
+        ) opentime.Ordinate 
         {
             return bezier_math.findU(
                 input_ordinate,
@@ -1984,8 +1971,8 @@ pub const Bezier = struct {
             for (seg.points(), &cSeg.p) 
                 |pt, *p| 
             {
-                p.x = pt.in;
-                p.y = pt.out;
+                p.x = pt.in.as(@TypeOf(p.x));
+                p.y = pt.out.as(@TypeOf(p.y));
             }
 
             var hodo = hodographs.compute_hodograph(&cSeg);
@@ -1995,11 +1982,11 @@ pub const Bezier = struct {
             //-----------------------------------------------------------------
             // compute splits
             //-----------------------------------------------------------------
-            var splits:[3]opentime.Ordinate = .{ 1, 1, 1};
+            var splits:[3]opentime.Ordinate.BaseType = .{ 1,1,1 };
 
             var split_count:usize = 0;
 
-            const possible_splits:[3]opentime.Ordinate = .{
+            const possible_splits:[3]opentime.Ordinate.BaseType = .{
                 roots.x,
                 roots.y,
                 inflections.x,
@@ -2032,16 +2019,26 @@ pub const Bezier = struct {
                 }
             }
 
-            std.mem.sort(opentime.Ordinate, &splits, {}, std.sort.asc(opentime.Ordinate));
+            std.mem.sort(
+                opentime.Ordinate.BaseType,
+                &splits,
+                {},
+                std.sort.asc(opentime.Ordinate.BaseType),
+            );
 
             var current_seg = seg;
 
             for (0..split_count) 
                 |i| 
             {
-                const pt = seg.eval_at(splits[i]);
+                const pt = seg.eval_at(opentime.Ordinate.init(splits[i]));
                 const u = current_seg.findU_input(pt.in);
-                const maybe_xsplits = current_seg.split_at(u);
+
+                // @TODO: question - should the "U" in the bezier be a phase
+                //        ordinate?
+                const maybe_xsplits = current_seg.split_at(
+                    u.as(opentime.Ordinate.BaseType)
+                );
 
                 if (maybe_xsplits) 
                     |xsplits| 

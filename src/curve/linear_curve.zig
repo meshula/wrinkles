@@ -60,12 +60,12 @@ pub fn LinearOf(
                     |knot| 
                 {
                     min = .{
-                        .in = @min(min.in, knot.in),
-                        .out = @min(min.out, knot.out),
+                        .in = opentime.min(min.in, knot.in),
+                        .out = opentime.min(min.out, knot.out),
                     };
                     max = .{
-                        .in = @max(max.in, knot.in),
-                        .out = @max(max.out, knot.out),
+                        .in = opentime.max(max.in, knot.in),
+                        .out = opentime.max(max.out, knot.out),
                     };
                 }
                 return .{ min, max };
@@ -74,32 +74,32 @@ pub fn LinearOf(
             /// compute both the input extents for the curve exhaustively
             pub fn extents_input(
                 self:@This(),
-            ) opentime.interval.ContinuousInterval
+            ) opentime.ContinuousInterval
             {
                 if (self.knots.len < 1) {
-                    return .{ .start = 0, .end = 0 };
+                    return opentime.ContinuousInterval.ZERO;
                 }
                 const fst = self.knots[0].in;
                 const lst = self.knots[self.knots.len-1].in;
                 return .{
-                    .start = @min(fst, lst),
-                    .end = @max(fst, lst),
+                    .start = opentime.min(fst, lst),
+                    .end = opentime.max(fst, lst),
                 };
             }
 
             /// compute both the output extents for the curve exhaustively
             pub fn extents_output(
                 self:@This(),
-            ) opentime.interval.ContinuousInterval
+            ) opentime.ContinuousInterval
             {
                 if (self.knots.len == 0) {
-                    return .{ .start = 0, .end = 0 };
+                    return opentime.ContinuousInterval.ZERO;
                 }
                 const fst = self.knots[0].out;
                 const lst = self.knots[self.knots.len-1].out;
                 return .{
-                    .start = @min(fst, lst),
-                    .end = @max(fst, lst),
+                    .start = opentime.min(fst, lst),
+                    .end = opentime.max(fst, lst),
                 };
             }
 
@@ -118,8 +118,8 @@ pub fn LinearOf(
                 // out of bounds
                 if (
                     self.knots.len == 0 
-                    or (output_ord > ob.end)
-                    or (output_ord < ob.start)
+                    or opentime.gt(output_ord, ob.end)
+                    or opentime.lt(output_ord, ob.start)
                 )
                 {
                     return null;
@@ -139,7 +139,10 @@ pub fn LinearOf(
                 for (befre_pts, after_pts, 0..) 
                     |before, after, index| 
                 {
-                    if (before.out <= output_ord and output_ord <= after.out) 
+                    if (
+                        opentime.lteq(before.out, output_ord) 
+                        and opentime.lteq(output_ord, after.out) 
+                    )
                     {
                         if (slope == .rising) {
                             return .{ .lt_output = index, .gt_output = index + 1 };
@@ -162,8 +165,8 @@ pub fn LinearOf(
                 // out of bounds
                 if (
                     self.knots.len == 0 
-                    or (input_ord < self.knots[0].in)
-                    or input_ord >= self.knots[last_index].in
+                    or (opentime.lt(input_ord, self.knots[0].in))
+                    or opentime.gteq(input_ord, self.knots[last_index].in)
                 )
                 {
                     return null;
@@ -173,7 +176,10 @@ pub fn LinearOf(
                 for (self.knots[0..last_index], self.knots[1..], 0..) 
                     |knot, next_knot, index| 
                 {
-                    if ( knot.in <= input_ord and input_ord < next_knot.in) 
+                    if (
+                        opentime.lteq(knot.in, input_ord) 
+                        and opentime.lt(input_ord, next_knot.in)
+                    )
                     {
                         return index;
                     }
@@ -231,12 +237,15 @@ pub fn LinearOf(
 
                 // specially handle the endpoint
                 const last_knot = self.knots[self.knots.len - 1];
-                if (input_ord == last_knot.in) {
+                if (opentime.eql(input_ord, last_knot.in)) 
+                {
                     return .{
                         .SuccessOrdinate = last_knot.out,
                     };
                 }
-                if (input_ord == self.knots[0].in) {
+
+                if (opentime.eql(input_ord, self.knots[0].in))
+                {
                     return .{
                         .SuccessOrdinate = last_knot.out,
                     };
@@ -269,12 +278,12 @@ pub fn LinearOf(
                 
                 // specially handle the endpoint
                 const last_knot = self.knots[self.knots.len - 1];
-                if ( output_ord == last_knot.out) {
+                if (opentime.eql(output_ord, last_knot.out)) {
                     return .{ .SuccessOrdinate = last_knot.in };
                 }
 
                 const first_knot = self.knots[0];
-                if ( output_ord == first_knot.out) {
+                if (opentime.eql(output_ord, first_knot.out)) {
                     return .{ .SuccessOrdinate = first_knot.in };
                 }
 
@@ -290,8 +299,8 @@ pub fn LinearOf(
             {
                 const current_bounds = self.extents_input();
                 if (
-                    current_bounds.start >= input_bounds.start
-                    and current_bounds.end <= input_bounds.end
+                    opentime.gteq(current_bounds.start, input_bounds.start)
+                    and opentime.lteq(current_bounds.end, input_bounds.end)
                 ) {
                     return try self.clone(allocator);
                 }
@@ -304,7 +313,7 @@ pub fn LinearOf(
                 const ext = self.extents_input();
 
                 const first_point = if (
-                    input_bounds.start >= ext.start
+                    opentime.gteq(input_bounds.start, ext.start)
                 ) ControlPointType{
                     .in = input_bounds.start,
                     .out = try self.output_at_input(input_bounds.start).ordinate(),
@@ -312,7 +321,7 @@ pub fn LinearOf(
                 try result.append(first_point);
 
                 const last_point = if (
-                    input_bounds.end < ext.end
+                    opentime.lt(input_bounds.end, ext.end)
                 ) ControlPointType{ 
                     .in = input_bounds.end,
                     .out = try self.output_at_input(
@@ -324,8 +333,8 @@ pub fn LinearOf(
                     |knot|
                 {
                     if (
-                        knot.in > first_point.in
-                        and knot.in < last_point.in
+                        opentime.gt(knot.in, first_point.in)
+                        and opentime.lt(knot.in, last_point.in)
                     ) {
                         try result.append(knot);
                     }
@@ -353,8 +362,8 @@ pub fn LinearOf(
 
                 const ext = self.extents_output();
                 if (
-                    ext.end < output_bounds.end
-                    and ext.start > output_bounds.start
+                    opentime.lt(ext.end,output_bounds.end)
+                    and opentime.gt(ext.start, output_bounds.start)
                 ) {
                     return try self.clone(allocator);
                 }
@@ -390,7 +399,7 @@ pub fn LinearOf(
                 defer result.deinit();
 
                 const first_point = if (
-                    output_bounds.start >= ext.start
+                    opentime.gteq(output_bounds.start, ext.start)
                 ) ControlPointType{
                     .in = try self.input_at_output(output_bounds.start).ordinate(),
                     .out = output_bounds.start,
@@ -398,7 +407,7 @@ pub fn LinearOf(
                 try result.append(first_point);
 
                 const last_point = if (
-                    output_bounds.end < ext.end
+                    opentime.lt(output_bounds.end, ext.end)
                 ) ControlPointType{ 
                     .in = try self.input_at_output(output_bounds.end).ordinate(),
                     .out = output_bounds.end,
@@ -408,8 +417,8 @@ pub fn LinearOf(
                     |knot|
                 {
                     if (
-                        knot.out > first_point.out
-                        and knot.out < last_point.out
+                        opentime.gt(knot.out, first_point.out)
+                        and opentime.lt(knot.out, last_point.out)
                     ) {
                         try result.append(knot);
                     }
@@ -463,8 +472,8 @@ pub fn LinearOf(
                     // empty
                     input_points.len == 0
                     // out of range
-                    or input_points[0] > ib.end 
-                    or input_points[input_points.len - 1] < ib.start
+                    or opentime.gt(input_points[0], ib.end)
+                    or opentime.lt(input_points[input_points.len - 1], ib.start)
                 )
                 {
                     return &.{ try self.clone(allocator) };
@@ -495,8 +504,8 @@ pub fn LinearOf(
                 {
                     // point is before range, skip
                     if (
-                        in_pt < ib.start 
-                        or in_pt <= left_knot.in + generic_curve.EPSILON
+                        opentime.lt(in_pt, ib.start)
+                        or opentime.lteq(in_pt, left_knot.in.add(opentime.Ordinate.EPSILON))
                     ) 
                     {
                         continue;
@@ -504,15 +513,15 @@ pub fn LinearOf(
 
                     // points are sorted, so once a point is out of range,
                     // split is done
-                    if (in_pt > ib.end) {
+                    if (opentime.gt(in_pt, ib.end)) {
                         break;
                     }
 
                     // move current pt until it is the point on the curve AFTER
                     // the input pt
                     while (
-                        right_knot.in < in_pt 
-                        and right_knot_ind < self.knots.len
+                        opentime.lt(right_knot.in, in_pt)
+                        and opentime.lt(right_knot_ind, self.knots.len)
                     ) : ({ right_knot_ind += 1; left_knot_ind += 1; })
                     {
                         left_knot = self.knots[left_knot_ind];
@@ -574,7 +583,7 @@ pub fn LinearOf(
         /// dupe the provided points into the result
         pub fn init(
             allocator: std.mem.Allocator,
-            knots: []const ControlPointType
+            knots: []const ControlPointType,
         ) !LinearType 
         {
             return LinearType{
@@ -589,7 +598,7 @@ pub fn LinearOf(
         /// ordinates
         pub fn init_identity(
             allocator: std.mem.Allocator,
-            knot_input_ords:[]const opentime.Ordinate
+            knot_input_ords:[]const opentime.Ordinate.BaseType,
         ) !LinearType.Monotonic 
         {
             var result = std.ArrayList(ControlPointType).init(
@@ -598,7 +607,12 @@ pub fn LinearOf(
             for (knot_input_ords) 
                 |t| 
             {
-                try result.append(.{.in = t, .out = t});
+                try result.append(
+                    .{
+                        .in = opentime.Ordinate.init(t),
+                        .out = opentime.Ordinate.init(t),
+                    }
+                );
             }
 
             return LinearType.Monotonic{
@@ -734,12 +748,15 @@ test "Linear: extents"
 
     const bounds = crv.extents();
 
-    try expectEqual(100, bounds[0].in);
-    try expectEqual(200, bounds[1].in);
+    try opentime.expectOrdinateEqual(
+        100,
+        bounds[0].in
+    );
+    try opentime.expectOrdinateEqual(200, bounds[1].in);
 
     const bounds_input = crv.extents_input();
-    try expectEqual(100, bounds_input.start);
-    try expectEqual(200, bounds_input.end);
+    try opentime.expectOrdinateEqual(100, bounds_input.start);
+    try opentime.expectOrdinateEqual(200, bounds_input.end);
 }
 
 test "Linear: proj_ident" 
@@ -748,16 +765,16 @@ test "Linear: proj_ident"
 
     const ident = Linear.Monotonic{
         .knots = &.{ 
-            .{ .in = 0, .out = 0, },
-            .{ .in = 100, .out = 100, },
+            ControlPoint.init(.{ .in = 0, .out = 0, }),
+            ControlPoint.init(.{ .in = 100, .out = 100, }),
         },
     };
 
     {
         const right_overhang_lin = Linear.Monotonic{
             .knots = &.{
-                .{ .in = -10, .out = -10},
-                .{ .in = 30, .out = 10},
+                ControlPoint.init(.{ .in = -10, .out = -10}),
+                ControlPoint.init(.{ .in = 30, .out = 10}),
             },
         };
 
@@ -772,18 +789,30 @@ test "Linear: proj_ident"
 
         try expectEqual(@as(usize, 2), result.knots.len);
 
-        try expectEqual(10, result.knots[0].in);
-        try expectEqual(0, result.knots[0].out);
+        try opentime.expectOrdinateEqual(
+            opentime.Ordinate.init(10),
+            result.knots[0].in
+        );
+        try opentime.expectOrdinateEqual(
+            opentime.Ordinate.init(0),
+            result.knots[0].out
+        );
 
-        try expectEqual(30, result.knots[1].in);
-        try expectEqual(10, result.knots[1].out);
+        try opentime.expectOrdinateEqual(
+            opentime.Ordinate.init(30),
+            result.knots[1].in
+        );
+        try opentime.expectOrdinateEqual(
+            opentime.Ordinate.init(10),
+            result.knots[1].out
+        );
     }
 
     {
         const left_overhang_lin = Linear.Monotonic{
             .knots = &.{ 
-                .{ .in = 90, .out = 90},
-                .{ .in = 110, .out = 130},
+                ControlPoint.init(.{ .in = 90, .out = 90}),
+                ControlPoint.init(.{ .in = 110, .out = 130}),
             },
         };
 
@@ -798,11 +827,23 @@ test "Linear: proj_ident"
 
         try expectEqual(@as(usize, 2), result.knots.len);
 
-        try expectEqual(90, result.knots[0].in);
-        try expectEqual(90, result.knots[0].out);
+        try opentime.expectOrdinateEqual(
+            opentime.Ordinate.init(90),
+            result.knots[0].in
+        );
+        try opentime.expectOrdinateEqual(
+            opentime.Ordinate.init(90),
+            result.knots[0].out
+        );
 
-        try expectEqual(95,  result.knots[1].in);
-        try expectEqual(100, result.knots[1].out);
+        try opentime.expectOrdinateEqual(
+            opentime.Ordinate.init(95),
+            result.knots[1].in
+        );
+        try opentime.expectOrdinateEqual(
+            opentime.Ordinate.init(100),
+            result.knots[1].out
+        );
     }
 
     // @TODO: add third test case, with right AND left overhang
@@ -814,15 +855,15 @@ test "Linear: projection_test - compose to identity"
 
     const fst= Linear.Monotonic{
         .knots = &.{
-            .{ .in = 0, .out = 0, },
-            .{ .in = 4, .out = 8, },
+            ControlPoint.init(.{ .in = 0, .out = 0, }),
+            ControlPoint.init(.{ .in = 4, .out = 8, }),
         }
     };
 
     const snd= Linear.Monotonic{
         .knots = &.{
-            .{ .in = 0, .out = 0, },
-            .{ .in = 8, .out = 4, },
+            ControlPoint.init(.{ .in = 0, .out = 0, }),
+            ControlPoint.init(.{ .in = 8, .out = 4, }),
         },
     };
 
@@ -835,30 +876,37 @@ test "Linear: projection_test - compose to identity"
     );
     defer result.deinit(allocator); 
 
-    try expectEqual(@as(f32, 8), result.knots[1].in);
-    try expectEqual(@as(f32, 8), result.knots[1].out);
+    try opentime.expectOrdinateEqual(
+        opentime.Ordinate.init(8),
+        result.knots[1].in
+    );
+    try opentime.expectOrdinateEqual(
+        opentime.Ordinate.init(8),
+        result.knots[1].out
+    );
 
     var x:f32 = 0;
     while (x < 1) 
         : (x += 0.1)
     {
-        try expectApproxEqAbs(
-            x,
-            try result.output_at_input(x).ordinate(),
-            generic_curve.EPSILON
+        try opentime.expectOrdinateEqual(
+            opentime.Ordinate.init(x),
+            try result.output_at_input(
+                opentime.Ordinate.init(x)
+            ).ordinate(),
         );
     }
 }
 
-test "Linear to Monotonic leak test"
+test "Linear: to Monotonic leak test"
 {
     const allocator = std.testing.allocator;
 
     const src =  try Linear.init(
         allocator,
         &.{
-            .{ .in = 0, .out = 5 },
-            .{ .in = 10, .out = 5 },
+            ControlPoint.init(.{ .in = 0, .out = 5 }),
+            ControlPoint.init(.{ .in = 10, .out = 5 }),
         },
     );
     const monotonics = (
@@ -874,7 +922,7 @@ test "Linear to Monotonic leak test"
     src.deinit(allocator);
 }
 
-test "Linear to Monotonic Test"
+test "Linear: to Monotonic Test"
 {
     const allocator = std.testing.allocator;
 
@@ -889,8 +937,8 @@ test "Linear to Monotonic Test"
             .curve = try Linear.init(
                 allocator,
                 &.{
-                    .{ .in = 0, .out = 5 },
-                    .{ .in = 10, .out = 5 },
+                    ControlPoint.init(.{ .in = 0, .out = 5 }),
+                    ControlPoint.init(.{ .in = 10, .out = 5 }),
                 },
             ),
             .monotonic_splits = 1,
@@ -900,8 +948,8 @@ test "Linear to Monotonic Test"
             .curve = try Linear.init(
                 allocator,
                 &.{
-                    .{ .in = 0, .out = 0 },
-                    .{ .in = 10, .out = 10 },
+                    ControlPoint.init(.{ .in = 0, .out = 0 }),
+                    ControlPoint.init(.{ .in = 10, .out = 10 }),
                 },
             ),
             .monotonic_splits = 1,
@@ -911,9 +959,9 @@ test "Linear to Monotonic Test"
             .curve = try Linear.init(
                 allocator,
                 &.{
-                    .{ .in = 0, .out = 0 },
-                    .{ .in = 10, .out = 10 },
-                    .{ .in = 20, .out = 0 },
+                    ControlPoint.init(.{ .in = 0, .out = 0 }),
+                    ControlPoint.init(.{ .in = 10, .out = 10 }),
+                    ControlPoint.init(.{ .in = 20, .out = 0 }),
                 },
             ),
             .monotonic_splits = 2,
@@ -923,10 +971,10 @@ test "Linear to Monotonic Test"
             .curve = try Linear.init(
                 allocator,
                 &.{
-                    .{ .in = 0, .out = 0 },
-                    .{ .in = 10, .out = 10 },
-                    .{ .in = 20, .out = 10 },
-                    .{ .in = 30, .out = 0 },
+                    ControlPoint.init(.{ .in = 0, .out = 0 }),
+                    ControlPoint.init(.{ .in = 10, .out = 10 }),
+                    ControlPoint.init(.{ .in = 20, .out = 10 }),
+                    ControlPoint.init(.{ .in = 30, .out = 0 }),
                 },
             ),
             .monotonic_splits = 3,
@@ -936,9 +984,9 @@ test "Linear to Monotonic Test"
             .curve = try Linear.init(
                 allocator,
                 &.{
-                    .{ .in = 0, .out = 10 },
-                    .{ .in = 10, .out = 10 },
-                    .{ .in = 20, .out = 0 },
+                    ControlPoint.init(.{ .in = 0, .out = 10 }),
+                    ControlPoint.init(.{ .in = 10, .out = 10 }),
+                    ControlPoint.init(.{ .in = 20, .out = 0 }),
                 },
             ),
             .monotonic_splits = 2,
@@ -1035,7 +1083,7 @@ pub fn join(
         const a2b_b = a2b_k.out;
         const b2c_b = b2c_k.in;
 
-        if (a2b_b == b2c_b) 
+        if (opentime.eql(a2b_b, b2c_b))
         {
             cursor_a2b += 1;
             cursor_b2c += 1;
@@ -1047,7 +1095,7 @@ pub fn join(
                 }
             );
         }
-        else if (a2b_b < b2c_b) 
+        else if (opentime.lt(a2b_b, b2c_b))
         {
             cursor_a2b += 1;
 
@@ -1077,15 +1125,15 @@ pub fn join(
     };
 }
 
-test "Linear Join ident -> held"
+test "Linear: Join ident -> held"
 {
     const allocator = std.testing.allocator;
 
     const ident = try Linear.init(
         allocator,
         &.{
-            .{ .in = 0, .out = 0 },
-            .{ .in = 10, .out = 10 },
+            ControlPoint.init(.{ .in = 0, .out = 0 }),
+            ControlPoint.init(.{ .in = 10, .out = 10 }),
         },
     );
     defer ident.deinit(allocator);
@@ -1093,8 +1141,8 @@ test "Linear Join ident -> held"
     const held = try Linear.init(
         allocator,
         &.{
-            .{ .in = 0, .out = 5 },
-            .{ .in = 10, .out = 5 },
+            ControlPoint.init(.{ .in = 0, .out = 5 }),
+            ControlPoint.init(.{ .in = 10, .out = 5 }),
         },
     );
     defer held.deinit(allocator);
@@ -1125,11 +1173,11 @@ test "Linear Join ident -> held"
         const result_extents = result.extents();
 
         try std.testing.expectEqual(
-            5,
+            opentime.Ordinate.init(5),
             result_extents[0].out,
         );
         try std.testing.expectEqual(
-            5,
+            opentime.Ordinate.init(5),
             result_extents[1].out,
         );
     }
@@ -1146,27 +1194,27 @@ test "Linear Join ident -> held"
 
         const result_extents = result.extents();
 
-        try std.testing.expectEqual(
+        try opentime.expectOrdinateEqual(
             5,
             result_extents[0].out,
         );
-        try std.testing.expectEqual(
+        try opentime.expectOrdinateEqual(
             5,
             result_extents[1].out,
         );
     }
 }
 
-test "Linear Join held -> non-ident"
+test "Linear: Join held -> non-ident"
 {
     const allocator = std.testing.allocator;
 
     const doubler = try Linear.init(
         allocator,
         &.{
-            .{ .in = 0, .out = 0 },
-            .{ .in = 10, .out = 20 },
-            .{ .in = 20, .out = 40 },
+            ControlPoint.init(.{ .in = 0, .out = 0 }),
+            ControlPoint.init(.{ .in = 10, .out = 20 }),
+            ControlPoint.init(.{ .in = 20, .out = 40 }),
         },
     );
     defer doubler.deinit(allocator);
@@ -1174,8 +1222,8 @@ test "Linear Join held -> non-ident"
     const held = try Linear.init(
         allocator,
         &.{
-            .{ .in = 0, .out = 5 },
-            .{ .in = 20, .out = 5 },
+            ControlPoint.init(.{ .in = 0, .out = 5 }),
+            ControlPoint.init(.{ .in = 20, .out = 5 }),
         },
     );
     defer held.deinit(allocator);
@@ -1206,11 +1254,11 @@ test "Linear Join held -> non-ident"
         const result_extents = result.extents();
 
         try std.testing.expectEqual(
-            5,
+            opentime.Ordinate.init(5),
             result_extents[0].out,
         );
         try std.testing.expectEqual(
-            5,
+            opentime.Ordinate.init(5),
             result_extents[1].out,
         );
     }
@@ -1227,26 +1275,26 @@ test "Linear Join held -> non-ident"
 
         const result_extents = result.extents();
 
-        try std.testing.expectEqual(
+        try opentime.expectOrdinateEqual(
             10,
             result_extents[0].out,
         );
-        try std.testing.expectEqual(
+        try opentime.expectOrdinateEqual(
             10,
             result_extents[1].out,
         );
     }
 }
 
-test "Monotonic Trimmed Input"
+test "Linear: Monotonic Trimmed Input"
 {
     const allocator = std.testing.allocator;
 
     const ident = try Linear.init(
         allocator,
         &.{
-            .{ .in = 0, .out = 0 },
-            .{ .in = 10, .out = 10 },
+            ControlPoint.init(.{ .in = 0, .out = 0 }),
+            ControlPoint.init(.{ .in = 10, .out = 10 }),
         },
     );
     defer ident.deinit(allocator);
@@ -1273,36 +1321,49 @@ test "Monotonic Trimmed Input"
     const tests = [_]TestCase{
         .{
             .name = "no trim",
-            .target_range = .{
-                .start = -1,
-                .end = 11,
-            },
-            .expected_range = .{
-                .start = 0,
-                .end = 10,
-            },
+            .target_range = 
+                opentime.ContinuousInterval.init(
+                    .{
+                        .start = -1,
+                        .end = 11,
+                    }
+                ),
+            .expected_range = opentime.ContinuousInterval.init(
+                .{
+                    .start = 0,
+                    .end = 10,
+                }
+            ),
         },
         .{
             .name = "left trim",
-            .target_range = .{
+            .target_range = opentime.ContinuousInterval.init(
+                .{
                 .start = 3,
                 .end = 11,
-            },
-            .expected_range = .{
-                .start = 3,
-                .end = 10,
-            },
+            }
+            ),
+            .expected_range = opentime.ContinuousInterval.init(
+                .{
+                    .start = 3,
+                    .end = 10,
+                }
+            ),
         },
         .{
             .name = "right trim",
-            .target_range = .{
-                .start = -1,
-                .end = 8,
-            },
-            .expected_range = .{
-                .start = 0,
-                .end = 8,
-            },
+            .target_range = opentime.ContinuousInterval.init(
+                .{
+                    .start = -1,
+                    .end = 8,
+                }
+            ),
+            .expected_range = opentime.ContinuousInterval.init(
+                .{
+                    .start = 0,
+                    .end = 8,
+                }
+            ),
         },
     };
 
@@ -1334,15 +1395,15 @@ test "Monotonic Trimmed Input"
     }
 }
 
-test "Monotonic Trimmed Output"
+test "Linear: Monotonic Trimmed Output"
 {
     const allocator = std.testing.allocator;
 
     const ident = try Linear.init(
         allocator,
         &.{
-            .{ .in = 0, .out = 0 },
-            .{ .in = 10, .out = 10 },
+            ControlPoint.init(.{ .in = 0, .out = 0 }),
+            ControlPoint.init(.{ .in = 10, .out = 10 }),
         },
     );
     defer ident.deinit(allocator);
@@ -1369,36 +1430,48 @@ test "Monotonic Trimmed Output"
     const tests = [_]TestCase{
         .{
             .name = "no trim",
-            .target_range = .{
-                .start = -1,
-                .end = 11,
-            },
-            .expected_range = .{
-                .start = 0,
-                .end = 10,
-            },
+            .target_range = opentime.ContinuousInterval.init(
+                .{
+                    .start = -1,
+                    .end = 11,
+                }
+            ),
+            .expected_range = opentime.ContinuousInterval.init(
+                .{
+                    .start = 0,
+                    .end = 10,
+                }
+            ),
         },
         .{
             .name = "left trim",
-            .target_range = .{
-                .start = 3,
-                .end = 11,
-            },
-            .expected_range = .{
-                .start = 3,
-                .end = 10,
-            },
+            .target_range = opentime.ContinuousInterval.init(
+                .{
+                    .start = 3,
+                    .end = 11,
+                }
+            ),
+            .expected_range = opentime.ContinuousInterval.init(
+                .{
+                    .start = 3,
+                    .end = 10,
+                }
+            ),
         },
         .{
             .name = "right trim",
-            .target_range = .{
-                .start = -1,
-                .end = 8,
-            },
-            .expected_range = .{
-                .start = 0,
-                .end = 8,
-            },
+            .target_range = opentime.ContinuousInterval.init(
+                .{
+                    .start = -1,
+                    .end = 8,
+                }
+            ),
+            .expected_range = opentime.ContinuousInterval.init(
+                .{
+                    .start = 0,
+                    .end = 8,
+                }
+            ),
         },
     };
 
@@ -1438,10 +1511,10 @@ test "Linear.Monotonic.SplitAtCriticalPoints"
         allocator,
         &.{
             .{
-                .p0 = .{ .in = 1, .out = 0 },
-                .p1 = .{ .in = 1, .out = 5 },
-                .p2 = .{ .in = 5, .out = 5 },
-                .p3 = .{ .in = 5, .out = 1 },
+                .p0 = ControlPoint.init(.{ .in = 1, .out = 0 }),
+                .p1 = ControlPoint.init(.{ .in = 1, .out = 5 }),
+                .p2 = ControlPoint.init(.{ .in = 5, .out = 5 }),
+                .p3 = ControlPoint.init(.{ .in = 5, .out = 1 }),
             }
         },
     );
@@ -1473,14 +1546,23 @@ test "Linear.Monotonic.split_at_input_ordinates"
 
     const crv = Linear.Monotonic{
         .knots = &.{
-            .{ .in = 0, .out = 0, },
-            .{ .in = 2, .out = 4, },
+            ControlPoint.init(.{ .in = 0, .out = 0, }),
+            ControlPoint.init(.{ .in = 2, .out = 4, }),
         },
     };
 
+    const split_pts = &[_]opentime.Ordinate.BaseType{ -1, 0, 1.0, 1.5, 2.0, 2.1, 4.5 };
+    var split_ords = std.ArrayList(opentime.Ordinate).init(allocator);
+    for (split_pts)
+        |pt|
+    {
+        try split_ords.append(opentime.Ordinate.init(pt));
+    }
+    defer split_ords.deinit();
+
     const new_curves = try crv.split_at_input_ordinates(
         allocator,
-        &.{ -1, 0, 1.0, 1.5, 2.0, 2.1, 4.5 },
+        split_ords.items
     );
     defer {
         for (new_curves)
@@ -1501,15 +1583,15 @@ test "Linear.Monotonic: nearest_knot_indices_output"
 {
     const crv = Linear.Monotonic{
         .knots = &.{
-            .{ .in = 0, .out = 0, },
-            .{ .in = 4, .out = 4, },
-            .{ .in = 6, .out = 8, },
+            ControlPoint.init(.{ .in = 0, .out = 0, }),
+            ControlPoint.init(.{ .in = 4, .out = 4, }),
+            ControlPoint.init(.{ .in = 6, .out = 8, }),
         },
     };
 
     const TestCase = struct {
         name: []const u8,
-        pt: opentime.Ordinate,
+        pt: opentime.Ordinate.BaseType,
         expected: ?Linear.Monotonic.NearestIndices,
     };
 
@@ -1545,7 +1627,9 @@ test "Linear.Monotonic: nearest_knot_indices_output"
     for (tests)
         |t|
     {
-        const measured = crv.nearest_knot_indices_output(t.pt);
+        const measured = crv.nearest_knot_indices_output(
+            opentime.Ordinate.init(t.pt),
+        );
 
         try std.testing.expectEqual(
             t.expected,
@@ -1559,8 +1643,8 @@ test "Linear.Monotonic: slope_kind"
     {
         const crv_rising = Linear.Monotonic{
             .knots = &.{
-                .{ .in = 0, .out = 0, },
-                .{ .in = 2, .out = 4, },
+                ControlPoint.init(.{ .in = 0, .out = 0, }),
+                ControlPoint.init(.{ .in = 2, .out = 4, }),
             },
         };
 
@@ -1573,8 +1657,8 @@ test "Linear.Monotonic: slope_kind"
     {
         const crv_flat = Linear.Monotonic{
             .knots = &.{
-                .{ .in = 0, .out = 2, },
-                .{ .in = 2, .out = 2, },
+                ControlPoint.init(.{ .in = 0, .out = 2, }),
+                ControlPoint.init(.{ .in = 2, .out = 2, }),
             },
         };
 
@@ -1587,8 +1671,8 @@ test "Linear.Monotonic: slope_kind"
     {
         const crv_falling = Linear.Monotonic{
             .knots = &.{
-                .{ .in = 0, .out = 4, },
-                .{ .in = 2, .out = 0, },
+                ControlPoint.init(.{ .in = 0, .out = 4, }),
+                ControlPoint.init(.{ .in = 2, .out = 0, }),
             },
         };
 

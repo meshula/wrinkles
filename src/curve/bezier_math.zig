@@ -30,7 +30,7 @@ pub const CTX = comath.ctx.fnMethod(
     comath.ctx.simple(opentime.dual_ctx),
     .{
         .@"+" = "add",
-        .@"-" = &.{"sub", "negate"},
+        .@"-" = &.{"sub", "negate", "neg",},
         .@"*" = "mul",
         .@"/" = "div",
         .@"cos" = "cos",
@@ -45,9 +45,13 @@ pub fn lerp(
 ) @TypeOf(a) 
 {
     return comath.eval(
-        "a * (-u + 1.0) + b * u",
+        "(a * ((-u) + ONE)) + (b * u)",
         CTX,
         .{
+            .ONE = switch (@TypeOf(u)) {
+                opentime.Ordinate => opentime.Ordinate.ONE,
+                else => 1.0,
+            },
             .a = a,
             .b = b,
             .u = u,
@@ -61,7 +65,7 @@ pub fn invlerp(
     b: @TypeOf(a),
 ) @TypeOf(a)
 {
-    if (b == a) {
+    if (opentime.eql(b, a)) {
         return a;
     }
     return comath.eval(
@@ -185,7 +189,7 @@ pub fn _bezier0(
         CTX,
         .{
             .u = unorm,
-            .zmo = unorm - 1,
+            .zmo = unorm.sub(1),
             .p2 = p2,
             .p3 = p3,
             .p4 = p4,
@@ -227,10 +231,10 @@ pub fn _bezier0_dual(
         CTX,
         .{
             .u = unorm,
-            .zmo = unorm.sub(.{.r = 1.0, .i = 0.0}),
-            .p2 = opentime.Dual_Ord{ .r = p2, .i = 0.0 },
-            .p3 = opentime.Dual_Ord{ .r = p3, .i = 0.0 },
-            .p4 = opentime.Dual_Ord{ .r = p4, .i = 0.0 },
+            .zmo = unorm.add(opentime.Dual_Ord.from(-1.0)),
+            .p2 = opentime.Dual_Ord.from(p2),
+            .p3 = opentime.Dual_Ord.from(p3),
+            .p4 = opentime.Dual_Ord.from(p4),
         }
     );
 }
@@ -247,52 +251,69 @@ pub fn _findU(
     p3:opentime.Ordinate,
 ) opentime.Ordinate
 {
-    const MAX_ABS_ERROR = std.math.floatEps(opentime.Ordinate) * 2.0;
+    const MAX_ABS_ERROR = opentime.Ordinate.init(
+        std.math.floatEps(opentime.Ordinate.BaseType) * 2.0
+    );
     const MAX_ITERATIONS: u8 = 45;
 
-    if (x <= 0) {
-        return 0;
+    if (opentime.lteq(x, opentime.Ordinate.ZERO)) {
+        return opentime.Ordinate.ZERO;
     }
 
-    if (x >= p3) {
-        return 1;
+    if (opentime.gteq(x, p3)) {
+        return opentime.Ordinate.ONE;
     }
 
-    var _u1:opentime.Ordinate = 0;
-    var _u2:opentime.Ordinate = 0;
-    var x1 = -x; // same as: bezier0 (0, p1, p2, p3) - x;
-    var x2 = p3 - x; // same as: bezier0 (1, p1, p2, p3) - x;
+    var _u1=opentime.Ordinate.ZERO;
+    var _u2=opentime.Ordinate.ZERO;
+
+    var x1 = x.neg(); // same as: bezier0 (0, p1, p2, p3) - x;
+    var x2 = opentime.eval(
+        "p3 - x",
+        .{ .p3 = p3, .x = x }
+    ); // same as: bezier0 (1, p1, p2, p3) - x;
 
     {
-        const _u3 = 1.0 - x2 / (x2 - x1);
-        const x3 = _bezier0(_u3, p1, p2, p3) - x;
+        const _u3 = opentime.eval(
+            "ONE - (x2 / (x2 - x1))",
+            .{ .ONE = opentime.Ordinate.ONE, .x2 = x2, .x1 = x1 }
+        );
+        const x3 = _bezier0(
+            _u3,
+            p1,
+            p2,
+            p3,
+        ).sub(x);
 
-        if (x3 == 0) {
+        if (x3.eql(0)) {
             return _u3;
         }
 
-        if (x3 < 0)
+        if (x3.lt(0))
         {
-            if (1.0 - _u3 <= MAX_ABS_ERROR) {
-                if (x2 < -x3) {
-                    return 1.0;
+            if (opentime.Ordinate.ONE.sub(_u3).lteq(MAX_ABS_ERROR)) {
+                if (x2.lt(x3.neg())) {
+                    return opentime.Ordinate.ONE;
                 }
 
                 return _u3;
             }
 
-            _u1 = 1.0;
+            _u1 = opentime.Ordinate.ONE;
             x1 = x2;
         }
         else
         {
-            _u1 = 0.0;
-            x1 = x1 * x2 / (x2 + x3);
+            _u1 = opentime.Ordinate.ZERO;
+            x1 = opentime.eval(
+                "x1 * x2 / (x2 + x3)",
+                .{ .x1 = x1, .x2 = x2, .x3 = x3 }
+            );
 
-            if (_u3 <= MAX_ABS_ERROR) 
+            if (_u3.lteq(MAX_ABS_ERROR)) 
             {
-                if (-x1 < x3) {
-                    return 0.0;
+                if (x1.neg().lt(x3)) {
+                    return opentime.Ordinate.ZERO;
                 }
 
                 return _u3;
@@ -307,48 +328,54 @@ pub fn _findU(
     while (i > 0) 
         : (i -= 1)
     {
-        const _u3:opentime.Ordinate = _u2 - x2 * ((_u2 - _u1) / (x2 - x1));
-        const x3 = _bezier0 (_u3, p1, p2, p3) - x;
+        const _u3:opentime.Ordinate = opentime.eval(
+            "_u2 - x2 * ((_u2 - _u1) / (x2 - x1))",
+            .{ ._u2 = _u2, .x2 = x2, ._u1 = _u1, .x1 = x1 },
+        );
+        const x3 = _bezier0 (_u3, p1, p2, p3).sub(x);
 
-        if (x3 == 0) {
+        if (x3.eql(0)) {
             return _u3;
         }
 
-        if (x2 * x3 <= 0)
+        if (x2.mul(x3).lteq(0))
         {
             _u1 = _u2;
             x1 = x2;
         }
         else
         {
-            x1 = x1 * x2 / (x2 + x3);
+            x1 = opentime.eval(
+                "x1 * x2 / (x2 + x3)",
+                .{ .x1 = x1, .x2 = x2, .x3 = x3 }
+            );
         }
 
         _u2 = _u3;
         x2 = x3;
 
-        if (_u2 > _u1)
+        if (_u2.gt(_u1))
         {
-            if (_u2 - _u1 <= MAX_ABS_ERROR) {
+            if (_u2.sub(_u1).lteq(MAX_ABS_ERROR)) {
                 break;
             }
         }
         else
         {
-            if (_u1 - _u2 <= MAX_ABS_ERROR) {
+            if (_u1.sub(_u2).lteq(MAX_ABS_ERROR)) {
                 break;
             }
         }
     }
 
-    if (x1 < 0) {
-        x1 = -x1;
+    if (x1.lt(0)) {
+        x1 = x1.neg();
     }
-    if (x2 < 0) {
-        x2 = -x2;
+    if (x2.lt(0)) {
+        x2 = x2.neg();
     }
 
-    if (x1 < x2) {
+    if (x1.lt(x2)) {
         return _u1;
     }
 
@@ -424,13 +451,13 @@ pub fn actual_order(
         },
     );
 
-    if (@abs(d) < generic_curve.EPSILON) 
+    if (opentime.lt(d.abs(), opentime.Ordinate.EPSILON))
     {
         // not cubic
-        if (@abs(a) < generic_curve.EPSILON) 
+        if (opentime.lt(a.abs(), opentime.Ordinate.EPSILON))
         {
             // linear
-            if (@abs(b) < generic_curve.EPSILON)
+            if (opentime.lt(b.abs(), opentime.Ordinate.EPSILON))
             {
                 return error.NoSolution;
             }
@@ -534,12 +561,12 @@ pub fn findU_dual3(
 ) opentime.Dual_Ord
 {
     // assumes that p3 > p0
-    const x = @min(@max(x_input, p0), p3);
+    const x = opentime.min(opentime.max(x_input, p0), p3);
 
-    const p0_d = opentime.Dual_Ord{.r = p0 - x, .i = -1 };
-    const p1_d = opentime.Dual_Ord{.r = p1 - x, .i = -1 };
-    const p2_d = opentime.Dual_Ord{.r = p2 - x, .i = -1 };
-    const p3_d = opentime.Dual_Ord{.r = p3 - x, .i = -1 };
+    const p0_d = opentime.Dual_Ord{.r = p0.sub(x), .i = opentime.Ordinate.init(-1)};
+    const p1_d = opentime.Dual_Ord{.r = p1.sub(x), .i = opentime.Ordinate.init(-1)};
+    const p2_d = opentime.Dual_Ord{.r = p2.sub(x), .i = opentime.Ordinate.init(-1)};
+    const p3_d = opentime.Dual_Ord{.r = p3.sub(x), .i = opentime.Ordinate.init(-1)};
 
     const d = comath.eval(
         // "(-pa) + (pb * 3.0) - (pc * 3.0) + pd",
@@ -755,10 +782,10 @@ pub fn findU_dual2(
     const MAX_ABS_ERROR = std.math.floatEps(opentime.Ordinate) * 2.0;
     const MAX_ITERATIONS = 45;
 
-    var u_max = opentime.Dual_Ord{.r = 1.0, .i = 0.0 };
-    var u_min = opentime.Dual_Ord{.r = 0.0, .i = 0.0 };
+    var u_max = opentime.Dual_Ord.from(1.0);
+    var u_min = opentime.Dual_Ord.from(0);
 
-    const TWO = opentime.Dual_Ord{ .r = 2.0, .i = 0.0 };
+    const TWO = opentime.Dual_Ord.from(2.0);
 
     var iter:usize = 0;
     while (iter < MAX_ITERATIONS) 
@@ -1025,7 +1052,12 @@ pub fn findU(
         return findU_dual(x, p0, p1, p2, p3).r;
     }
     else {
-        return _findU(x - p0, p1 - p0, p2 - p0, p3 - p0);
+        return _findU(
+            x.sub(p0),
+            p1.sub(p0),
+            p2.sub(p0),
+            p3.sub(p0)
+        );
     }
 }
 
@@ -1042,45 +1074,80 @@ pub fn findU_dual(
 
 test "lerp" 
 {
-    const fst: control_point.ControlPoint = .{ .in = 0, .out = 0 };
-    const snd: control_point.ControlPoint = .{ .in = 1, .out = 1 };
+    const fst = control_point.ControlPoint.init(.{ .in = 0, .out = 0 });
+    const snd = control_point.ControlPoint.init(.{ .in = 1, .out = 1 });
 
-    try expectEqual(@as(opentime.Ordinate, 0), lerp(0, fst, snd).out);
-    try expectEqual(@as(opentime.Ordinate, 0.25), lerp(0.25, fst, snd).out);
-    try expectEqual(@as(opentime.Ordinate, 0.5), lerp(0.5, fst, snd).out);
-    try expectEqual(@as(opentime.Ordinate, 0.75), lerp(0.75, fst, snd).out);
+    try expectEqual(0, lerp(0, fst, snd).out);
+    try expectEqual(0.25, lerp(0.25, fst, snd).out);
+    try expectEqual(0.5, lerp(0.5, fst, snd).out);
+    try expectEqual(0.75, lerp(0.75, fst, snd).out);
 
-    try expectEqual(@as(opentime.Ordinate, 0), lerp(0, fst, snd).in);
-    try expectEqual(@as(opentime.Ordinate, 0.25), lerp(0.25, fst, snd).in);
-    try expectEqual(@as(opentime.Ordinate, 0.5), lerp(0.5, fst, snd).in);
-    try expectEqual(@as(opentime.Ordinate, 0.75), lerp(0.75, fst, snd).in);
+    try expectEqual(0, lerp(0, fst, snd).in);
+    try expectEqual(0.25, lerp(0.25, fst, snd).in);
+    try expectEqual(0.5, lerp(0.5, fst, snd).in);
+    try expectEqual(0.75, lerp(0.75, fst, snd).in);
 }
 
 test "findU" 
 {
-    try expectEqual(@as(opentime.Ordinate, 0), findU(0, 0,1,2,3));
-    // out of range values are clamped in u
-    try expectEqual(@as(opentime.Ordinate, 0), findU(-1, 0,1,2,3));
-    try expectEqual(@as(opentime.Ordinate, 1), findU(4, 0,1,2,3));
+    try opentime.expectOrdinateEqual(
+        opentime.Ordinate.init(0),
+        findU(
+            opentime.Ordinate.init(0),
+            opentime.Ordinate.init(0),
+            opentime.Ordinate.init(1),
+            opentime.Ordinate.init(2),
+            opentime.Ordinate.init(3),
+        )
+    );
+    // oopentime.expectOrdinateEqual mped in u
+    try opentime.expectOrdinateEqual(
+        opentime.Ordinate.init(0),
+        findU(
+            opentime.Ordinate.init(-1),
+            opentime.Ordinate.init(0),
+            opentime.Ordinate.init(1),
+            opentime.Ordinate.init(2),
+            opentime.Ordinate.init(3),
+        )
+    );
+    try opentime.expectOrdinateEqual(
+        opentime.Ordinate.init(1),
+        findU(
+            opentime.Ordinate.init(4),
+            opentime.Ordinate.init(0),
+            opentime.Ordinate.init(1),
+            opentime.Ordinate.init(2),
+            opentime.Ordinate.init(3),
+        )
+    );
 }
 
 test "_bezier0 matches _bezier0_dual" 
 {
-    const test_data = [_][4]opentime.Ordinate{
-        [4]opentime.Ordinate{ 0, 1, 2, 3 },
+    const test_data = [_][4]opentime.Ordinate.BaseType{
+        [4]opentime.Ordinate.BaseType{ 0, 1, 2, 3 },
     };
 
     for (test_data)
         |t|
     {
-        var x : opentime.Ordinate = t[0];
-        while (x < t[3])
+        var x = opentime.Ordinate.init(t[0]);
+        const t1 = opentime.Ordinate.init(t[1]);
+        const t2 = opentime.Ordinate.init(t[2]);
+        const t3 = opentime.Ordinate.init(t[3]);
+        while (opentime.lt(x, t3))
             : (x += 0.01)
         {
             errdefer std.log.err("Error on loop: {}\n",.{x});
             try expectApproxEql(
-                _bezier0(x, t[1], t[2], t[3]),
-                _bezier0_dual(.{ .r = x, .i = 1}, t[1], t[2], t[3]).r,
+                _bezier0(x, t1, t2, t3),
+                _bezier0_dual(
+                    .{ .r = x, .i = opentime.Ordinate.ONE},
+                    t1,
+                    t2,
+                    t3
+                ).r,
             );
         }
     }
@@ -1088,18 +1155,50 @@ test "_bezier0 matches _bezier0_dual"
 
 test "findU_dual matches findU" 
 {
+    const t0 = opentime.Ordinate.init(0);
+    const t1 = opentime.Ordinate.init(1);
+    const t1_n = opentime.Ordinate.init(-1);
+    const t2 = opentime.Ordinate.init(2);
+    const t3 = opentime.Ordinate.init(3);
 
-    try expectEqual(@as(opentime.Ordinate, 0), findU_dual(0, 0,1,2,3).r);
-    try expectEqual(@as(opentime.Ordinate, 1.0/6.0), findU_dual(0.5, 0,1,2,3).r);
+    const t05 = opentime.Ordinate.init(0.5);
+    const t05_n = opentime.Ordinate.init(-0.5);
 
-    try expectApproxEql(@as(opentime.Ordinate, 1.0/3.0), findU_dual(0, 0,1,2,3).i);
-    try expectApproxEql(@as(opentime.Ordinate, 1.0/3.0), findU_dual(0.5, 0,1,2,3).i);
+    try expectEqual(
+        opentime.Ordinate.init(0),
+        findU_dual( t0, t0,t1,t2,t3).r
+    );
+    try expectEqual(
+        opentime.Ordinate.init(1.0/6.0),
+        findU_dual(t05, t0,t1,t2,t3).r
+    );
 
-    try expectEqual(@as(opentime.Ordinate, 0), findU_dual(-1, -1,0,1,2).r);
-    try expectEqual(@as(opentime.Ordinate, 1.0/6.0), findU_dual(-0.5, -1,0,1,2).r);
+    try expectApproxEql(
+        opentime.Ordinate.init(1.0/3.0),
+        findU_dual( t0, t0,t1,t2,t3).i
+    );
+    try expectApproxEql(
+        opentime.Ordinate.init(1.0/3.0),
+        findU_dual(t05, t0,t1,t2,t3).i
+    );
 
-    try expectApproxEql(@as(opentime.Ordinate, 1.0/3.0), findU_dual(0, -1,0,1,2).i);
-    try expectApproxEql(@as(opentime.Ordinate, 1.0/3.0), findU_dual(-0.5, -1,0,1,2).i);
+    try expectEqual(
+        opentime.Ordinate.init(0),
+        findU_dual(  t1_n, t1_n,t0,t1,t2).r
+    );
+    try expectEqual(
+        opentime.Ordinate.init(1.0/6.0),
+        findU_dual( t05_n, t1_n,t0,t1,t2).r
+    );
+
+    try expectApproxEql(
+        opentime.Ordinate.init(1.0/3.0),
+        findU_dual(  t0, t1_n,t0,t1,t2).i
+    );
+    try expectApproxEql(
+        opentime.Ordinate.init(1.0/3.0),
+        findU_dual(  t05_n, t1_n,t0,t1,t2).i
+    );
 
     {
         const test_data = [_][4]opentime.Ordinate{
@@ -1131,15 +1230,15 @@ test "findU_dual matches findU"
 test "dydx matches expected at endpoints" 
 {
     var seg0 : bezier_curve.Bezier.Segment = .{
-        .p0 = .{.in = 0, .out=0},
-        .p1 = .{.in = 0, .out=1},
-        .p2 = .{.in = 1, .out=1},
-        .p3 = .{.in = 1, .out=0},
+        .p0 = control_point.ControlPoint.init(.{.in = 0, .out=0}),
+        .p1 = control_point.ControlPoint.init(.{.in = 0, .out=1}),
+        .p2 = control_point.ControlPoint.init(.{.in = 1, .out=1}),
+        .p3 = control_point.ControlPoint.init(.{.in = 1, .out=0}),
     };
 
     const test_data = struct {
-        r : opentime.Ordinate,
-        e_dydu: opentime.Ordinate,
+        r : opentime.Ordinate.BaseType,
+        e_dydu: opentime.Ordinate.BaseType,
     };
     const tests = [_]test_data{
         .{ .r = 0.0,  .e_dydu = 0.0, },
@@ -1159,10 +1258,10 @@ test "dydx matches expected at endpoints"
             );
         }
         const u_zero_dual = seg0.eval_at_dual(
-            .{ .r = t.r, .i = 1 }
+            .{ .r = opentime.Ordinate.init(t.r), .i = 1 }
         );
-        try expectApproxEql(
-            @as(opentime.Ordinate,t.e_dydu),
+        try opentime.expectOrdinateEqual(
+            opentime.Ordinate.init(t.e_dydu),
             u_zero_dual.i.in
         );
 
@@ -1363,8 +1462,8 @@ pub fn slope(
 
 test "slope"
 {
-    const start = control_point.ControlPoint{ .in = 0, .out = 0, };
-    const end = control_point.ControlPoint{ .in = 2, .out = 4, };
+    const start = control_point.ControlPoint.init(.{ .in = 0, .out = 0, });
+    const end = control_point.ControlPoint.init(.{ .in = 2, .out = 4, });
 
     try std.testing.expectEqual(
         2,
@@ -1687,18 +1786,18 @@ test "BezierMath: rescaled parameter"
 
     const start_extents = crv.extents();
 
-    try expectApproxEql(@as(opentime.Ordinate, -0.5), start_extents[0].in);
-    try expectApproxEql(@as(opentime.Ordinate,  0.5), start_extents[1].in);
+    try opentime.expectOrdinateEqual(opentime.Ordinate.init( -0.5), start_extents[0].in);
+    try opentime.expectOrdinateEqual(opentime.Ordinate.init(  0.5), start_extents[1].in);
 
-    try expectApproxEql(@as(opentime.Ordinate, -0.5), start_extents[0].out);
-    try expectApproxEql(@as(opentime.Ordinate,  0.5), start_extents[1].out);
+    try opentime.expectOrdinateEqual(opentime.Ordinate.init( -0.5), start_extents[0].out);
+    try opentime.expectOrdinateEqual(opentime.Ordinate.init(  0.5), start_extents[1].out);
 
     const result = try rescaled_curve(
         std.testing.allocator,
         crv,
         .{
-            .{ .in = 100, .out = 0 },
-            .{ .in = 200, .out = 10 },
+            control_point.ControlPoint.init(.{ .in = 100, .out = 0 }),
+            control_point.ControlPoint.init(.{ .in = 200, .out = 10 }),
         }
     );
     defer result.deinit(std.testing.allocator);
@@ -1782,14 +1881,17 @@ pub const SlopeKind = enum {
         end: control_point.ControlPoint,
     ) SlopeKind
     {
-        if (start.in == end.in or start.out == end.out) 
+        if (
+            opentime.eql(start.in, end.in) 
+            or opentime.eql(start.out, end.out)
+        )
         {
             return .flat;
         }
 
         const s = slope(start, end);
 
-        if (s > 0) 
+        if (opentime.gt(s, opentime.Ordinate.ZERO))
         {
             return .rising;
         }
@@ -1811,32 +1913,32 @@ test "SlopeKind"
         .{
             .name = "flat",  
             .points = .{
-                .{ .in = 0, .out = 5 },
-                .{ .in = 10, .out = 5 },
+                control_point.ControlPoint.init(.{ .in = 0, .out = 5 }),
+                control_point.ControlPoint.init(.{ .in = 10, .out = 5 }),
             },
             .expected = .flat,
         },
         .{
             .name = "rising",  
             .points = .{
-                .{ .in = 0, .out = 0 },
-                .{ .in = 10, .out = 15 },
+                control_point.ControlPoint.init(.{ .in = 0, .out = 0 }),
+                control_point.ControlPoint.init(.{ .in = 10, .out = 15 }),
             },
             .expected = .rising,
         },
         .{
             .name = "falling",  
             .points = .{
-                .{ .in = 0, .out = 10 },
-                .{ .in = 10, .out = 0 },
+                control_point.ControlPoint.init(.{ .in = 0, .out = 10 }),
+                control_point.ControlPoint.init(.{ .in = 10, .out = 0 }),
             },
             .expected = .falling,
         },
         .{
             .name = "column",  
             .points = .{
-                .{ .in = 0, .out = 10 },
-                .{ .in = 0, .out = 0 },
+                control_point.ControlPoint.init(.{ .in = 0, .out = 10 }),
+                control_point.ControlPoint.init(.{ .in = 0, .out = 0 }),
             },
             .expected = .flat,
         },
