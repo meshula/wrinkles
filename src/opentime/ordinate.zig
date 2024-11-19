@@ -403,7 +403,7 @@ test "PhaseOrdinate: add (PhaseOrdinate)"
         try std.testing.expectApproxEqAbs(
             0.15,
             v.phase,
-            util.EPSILON_ORD,
+            util.EPSILON_F,
         );
     }
 
@@ -446,7 +446,7 @@ test "PhaseOrdinate: add (PhaseOrdinate)"
              PhaseOrdinate.init(0.3).add(
                  PhaseOrdinate.init(-0.2)
              ).to_continuous().value,
-             util.EPSILON_ORD,
+             util.EPSILON_F,
          );
      }
 }
@@ -504,7 +504,7 @@ test "PhaseOrdinate: sub"
         try std.testing.expectApproxEqAbs(
             0,
             ord.phase,
-            util.EPSILON_ORD
+            util.EPSILON_F
         );
     }
 
@@ -633,7 +633,7 @@ test "PhaseOrdinate mul"
         try std.testing.expectApproxEqAbs(
             t.result_c,
             t.expr.to_continuous().value,
-            util.EPSILON_ORD,
+            util.EPSILON_F,
         );
 
         try std.testing.expectEqual(
@@ -644,7 +644,7 @@ test "PhaseOrdinate mul"
         try std.testing.expectApproxEqAbs(
             t.result_o.phase,
             t.expr.phase,
-            util.EPSILON_ORD,
+            util.EPSILON_F,
         );
     }
 }
@@ -736,7 +736,7 @@ test "PhaseOrdinate div"
         try std.testing.expectApproxEqAbs(
             t.expr.to_continuous().value,
             t.result_c,
-            util.EPSILON_ORD,
+            util.EPSILON_F,
         );
 
         try std.testing.expectEqual(
@@ -747,7 +747,7 @@ test "PhaseOrdinate div"
         try std.testing.expectApproxEqAbs(
             t.expr.phase,
             t.result_o.phase,
-            util.EPSILON_ORD,
+            util.EPSILON_F,
         );
     }
 }
@@ -765,6 +765,7 @@ fn OrdinateOf(
         pub const ZERO : OrdinateType = OrdinateType.init(0);
         pub const ONE : OrdinateType = OrdinateType.init(1);
         pub const INF : OrdinateType = OrdinateType.init(std.math.inf(f32));
+        pub const INF_NEG : OrdinateType = OrdinateType.init(-std.math.inf(f32));
         pub const NAN : OrdinateType = OrdinateType.init(std.math.nan(f32));
 
         pub inline fn init(
@@ -990,6 +991,13 @@ fn OrdinateOf(
                     else => type_error(rhs),
                 },
             };
+        }
+
+        pub inline fn is_inf(
+            self: @This(),
+        ) bool
+        {
+            return std.math.isInf(self.v);
         }
     };
 }
