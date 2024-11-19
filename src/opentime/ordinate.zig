@@ -768,6 +768,7 @@ fn OrdinateOf(
         pub const INF : OrdinateType = OrdinateType.init(std.math.inf(f32));
         pub const INF_NEG : OrdinateType = OrdinateType.init(-std.math.inf(f32));
         pub const NAN : OrdinateType = OrdinateType.init(std.math.nan(f32));
+        pub const EPSILON = OrdinateType.init(util.EPSILON_F);
 
         pub inline fn init(
             value: anytype,
