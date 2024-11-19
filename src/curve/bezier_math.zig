@@ -1077,15 +1077,15 @@ test "lerp"
     const fst = control_point.ControlPoint.init(.{ .in = 0, .out = 0 });
     const snd = control_point.ControlPoint.init(.{ .in = 1, .out = 1 });
 
-    try expectEqual(0, lerp(0, fst, snd).out);
-    try expectEqual(0.25, lerp(0.25, fst, snd).out);
-    try expectEqual(0.5, lerp(0.5, fst, snd).out);
-    try expectEqual(0.75, lerp(0.75, fst, snd).out);
+    try opentime.expectOrdinateEqual(0, lerp(0, fst, snd).out);
+    try opentime.expectOrdinateEqual(0.25, lerp(0.25, fst, snd).out);
+    try opentime.expectOrdinateEqual(0.5, lerp(0.5, fst, snd).out);
+    try opentime.expectOrdinateEqual(0.75, lerp(0.75, fst, snd).out);
 
-    try expectEqual(0, lerp(0, fst, snd).in);
-    try expectEqual(0.25, lerp(0.25, fst, snd).in);
-    try expectEqual(0.5, lerp(0.5, fst, snd).in);
-    try expectEqual(0.75, lerp(0.75, fst, snd).in);
+    try opentime.expectOrdinateEqual(0, lerp(0, fst, snd).in);
+    try opentime.expectOrdinateEqual(0.25, lerp(0.25, fst, snd).in);
+    try opentime.expectOrdinateEqual(0.5, lerp(0.5, fst, snd).in);
+    try opentime.expectOrdinateEqual(0.75, lerp(0.75, fst, snd).in);
 }
 
 test "findU" 
