@@ -443,7 +443,7 @@ pub const Bezier = struct {
             end: control_point.ControlPoint
         ) Segment 
         {
-            if (end.in >= start.in) 
+            if (end.in.gteq(start.in))
             {
                 return .{
                     .p0 = start,
@@ -2084,17 +2084,51 @@ pub fn read_curve_json(
     return read_bezier_curve_data(allocator, source);
 }
 
+const BezierF = struct {
+    const ControlPointType = control_point.ControlPoint_BaseType;
+    const Segment = struct {
+        p0 : ControlPointType,
+        p1 : ControlPointType,
+        p2 : ControlPointType,
+        p3 : ControlPointType,
+    };
+    segments: []Segment,
+};
+
 pub fn read_bezier_curve_data(
     allocator: std.mem.Allocator,
     source: []const u8,
 ) !Bezier
 {
-    return try std.json.parseFromSliceLeaky(
-        Bezier,
+    const b_f = try std.json.parseFromSliceLeaky(
+        BezierF,
         allocator,
         source,
         .{}
     );
+    defer {
+        allocator.free(b_f.segments);
+    }
+
+    var out_segments = std.ArrayList(Bezier.Segment).init(allocator);
+    defer out_segments.deinit();
+
+    for (b_f.segments)
+        |s|
+    {
+        try out_segments.append(
+            .{
+                .p0 = control_point.ControlPoint.init(s.p0),
+                .p1 = control_point.ControlPoint.init(s.p1),
+                .p2 = control_point.ControlPoint.init(s.p2),
+                .p3 = control_point.ControlPoint.init(s.p3),
+            },
+        );
+    }
+
+    return .{
+        .segments = try out_segments.toOwnedSlice(),
+    };
 }
 
 pub fn read_linear_curve_data(
