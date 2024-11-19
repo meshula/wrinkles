@@ -1,6 +1,7 @@
 //! Ordinate type and support math for opentime
 
 const std = @import("std");
+const comath = @import("comath");
 
 const util = @import("util.zig");
 
@@ -1259,4 +1260,23 @@ test "Base Ordinate: Binary Function Tests"
             }
         }
     }
+}
+
+pub const CTX = comath.ctx.fnMethod(
+    comath.ctx.simple({}),
+    .{
+        .@"+" = "add",
+        .@"-" = &.{"sub", "neg"},
+        .@"*" = "mul",
+        .@"/" = "div",
+    },
+);
+pub fn eval(
+    comptime expr: []const u8, 
+    inputs: anytype,
+) comath.Eval(expr, @TypeOf(CTX), @TypeOf(inputs))
+{
+    return comath.eval(expr, CTX, inputs) catch @compileError(
+        "couldn't comath: " ++ expr ++ "."
+    );
 }
