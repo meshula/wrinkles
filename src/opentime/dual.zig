@@ -167,11 +167,11 @@ pub fn DualOfNumberType(
 
         pub inline fn sub(
             self: @This(),
-            rhs: anytype
+            rhs: anytype,
         ) @This() 
         {
-            return switch(@typeInfo(@TypeOf(rhs))) {
-                .Struct => .{ 
+            return switch(@TypeOf(rhs)) {
+                @This() => .{ 
                     .r = self.r - rhs.r,
                     .i = self.i - rhs.i,
                 },
