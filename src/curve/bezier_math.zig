@@ -470,7 +470,7 @@ pub fn actual_order(
     return 3;
 }
 
-test "actual_order: linear" 
+test "bezier_math: actual_order: linear" 
 {
     const crv = try bezier_curve.read_curve_json(
         "curves/linear.curve.json",
@@ -500,7 +500,7 @@ test "actual_order: linear"
     );
 }
 
-test "actual_order: quadratic" 
+test "bezier_math: actual_order: quadratic" 
 {
     const crv = try bezier_curve.read_curve_json(
         "curves/upside_down_u.curve.json",
@@ -532,7 +532,7 @@ test "actual_order: quadratic"
     );
 }
 
-test "actual_order: cubic" 
+test "bezier_math: actual_order: cubic" 
 {
     const crv = try bezier_curve.read_curve_json(
         "curves/scurve_extreme.curve.json",
@@ -1072,7 +1072,7 @@ pub fn findU_dual(
     return findU_dual3(x, p0, p1, p2, p3);
 }
 
-test "lerp" 
+test "bezier_math: lerp" 
 {
     const fst = control_point.ControlPoint.init(.{ .in = 0, .out = 0 });
     const snd = control_point.ControlPoint.init(.{ .in = 1, .out = 1 });
@@ -1088,7 +1088,7 @@ test "lerp"
     try opentime.expectOrdinateEqual(0.75, lerp(0.75, fst, snd).in);
 }
 
-test "findU" 
+test "bezier_math: findU" 
 {
     try opentime.expectOrdinateEqual(
         opentime.Ordinate.init(0),
@@ -1123,7 +1123,7 @@ test "findU"
     );
 }
 
-test "_bezier0 matches _bezier0_dual" 
+test "bezier_math: _bezier0 matches _bezier0_dual" 
 {
     const test_data = [_][4]opentime.Ordinate.BaseType{
         [4]opentime.Ordinate.BaseType{ 0, 1, 2, 3 },
@@ -1153,7 +1153,7 @@ test "_bezier0 matches _bezier0_dual"
     }
 }
 
-test "findU_dual matches findU" 
+test "bezier_math: findU_dual matches findU" 
 {
     const t0 = opentime.Ordinate.init(0);
     const t1 = opentime.Ordinate.init(1);
@@ -1227,7 +1227,7 @@ test "findU_dual matches findU"
     try expectEqual(@as(opentime.Ordinate, 1), findU_dual(4, 0,1,2,3).r);
 }
 
-test "dydx matches expected at endpoints" 
+test "bezier_math: dydx matches expected at endpoints" 
 {
     var seg0 : bezier_curve.Bezier.Segment = .{
         .p0 = control_point.ControlPoint.init(.{.in = 0, .out=0}),
@@ -1275,7 +1275,7 @@ test "dydx matches expected at endpoints"
 
 }
 
-test "findU for upside down u" 
+test "bezier_math: findU for upside down u" 
 {
     const crv = try bezier_curve.read_curve_json(
         "curves/upside_down_u.curve.json",
@@ -1299,7 +1299,7 @@ test "findU for upside down u"
     try expectApproxEql(@as(opentime.Ordinate, 1), u_one_dual.r);
 }
 
-test "derivative at 0 for linear bezier_curve" 
+test "bezier_math: derivative at 0 for linear bezier_curve" 
 {
     const crv = try bezier_curve.read_curve_json(
         "curves/linear.curve.json",
@@ -1378,7 +1378,7 @@ pub fn normalized_to(
     return result;
 }
 
-test "normalized_to" 
+test "bezier_math: normalized_to" 
 {
     var slope2 = [_]bezier_curve.Bezier.Segment{
         .{
@@ -1409,7 +1409,7 @@ test "normalized_to"
     try expectEqual(max_point.out, result_extents[1].out);
 }
 
-test "normalize_to_screen_coords" 
+test "bezier_math: normalize_to_screen_coords" 
 {
     var segments = [_]bezier_curve.Bezier.Segment{
         .{
@@ -1460,7 +1460,7 @@ pub fn slope(
     ) catch {};
 }
 
-test "slope"
+test "bezier_math: slope"
 {
     const start = control_point.ControlPoint.init(.{ .in = 0, .out = 0, });
     const end = control_point.ControlPoint.init(.{ .in = 2, .out = 4, });
@@ -1776,7 +1776,7 @@ pub fn rescaled_curve(
     return result;
 }
 
-test "BezierMath: rescaled parameter" 
+test "bezier_math: BezierMath: rescaled parameter" 
 {
     const crv = try bezier_curve.read_curve_json(
         "curves/scurve.curve.json",
@@ -1902,7 +1902,7 @@ pub const SlopeKind = enum {
     }
 };
 
-test "SlopeKind"
+test "bezier_math: SlopeKind"
 {
     const TestCase = struct {
         name: []const u8,
