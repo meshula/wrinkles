@@ -48,10 +48,7 @@ pub fn ControlPointOf(
         );
 
         pub inline fn init(
-            from: struct {
-                in: f32,
-                out: f32,
-            },
+            from: ControlPoint_BaseType,
         ) ControlPointType
         {
             return .{ 
@@ -254,6 +251,11 @@ pub const ControlPoint = ControlPointOf(
     opentime.Ordinate,
     opentime.Ordinate.ZERO,
     opentime.Ordinate.ZERO,
+);
+pub const ControlPoint_BaseType = ControlPointOf(
+    opentime.Ordinate.BaseType, 
+    0,
+    0,
 );
 pub const Dual_CP = opentime.dual.DualOf(ControlPoint);
 
