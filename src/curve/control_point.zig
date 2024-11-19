@@ -40,6 +40,13 @@ pub fn ControlPointOf(
             default_out,
         );
 
+        pub const ZERO = ControlPointType.init(
+            .{ .in = 0, .out = 0 }
+        );
+        pub const ONE = ControlPointType.init(
+            .{ .in = 1, .out = 1 }
+        );
+
         pub inline fn init(
             from: struct {
                 in: f32,
