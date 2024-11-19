@@ -72,7 +72,7 @@ pub const CTX = comath.ctx.fnMethod(
     },
 );
 
-test "dual: float + float" 
+test "Dual: float + float" 
 {
     const result = comath.eval(
         "x + 3",
@@ -82,25 +82,42 @@ test "dual: float + float"
     try std.testing.expectEqual(4, result);
 }
 
-test "dual: dual + float"
+test "Dual: dual + float"
 {
     const result = comath.eval(
-        "x + 3",
+        "x + three",
         CTX,
-        .{ .x = Dual_Ord{ .r = 3, .i = 1 }}
+        .{
+            .x = Dual_Ord{
+                .r = ordinate.Ordinate.init(3),
+                .i = ordinate.Ordinate.ONE, 
+            },
+            .three = Dual_Ord.from(3),
+        }
     ) catch |err| switch (err) {};
 
-    try std.testing.expectEqual(6, result.r);
+    try ordinate.expectOrdinateEqual(
+        ordinate.Ordinate.init(6),
+        result.r
+    );
 }
 
-test "dual * float"
+test "Dual: * float"
 {
     const result = comath.eval(
         "x * 3",
         CTX,
-        .{ .x = Dual_Ord{ .r = 3, .i = 1 }}
+        .{
+            .x = Dual_Ord{
+                .r = ordinate.Ordinate.init(3),
+                .i = ordinate.Ordinate.init(1), 
+            },
+        }
     ) catch |err| switch (err) {};
-    try std.testing.expectEqual(9, result.r);
+    try std.testing.expectEqual(
+        ordinate.Ordinate.init(9),
+        result.r
+    );
 }
 
 /// default dual type for opentime
@@ -269,15 +286,18 @@ pub fn DualOfStruct(
 {
     return struct {
         /// real component
-        r: T = .{},
+        r: T = T.ZERO,
         /// infinitesimal component
-        i: T = .{},
+        i: T = T.ZERO,
 
         pub fn from(
-            r: T
-        ) @TypeOf(@This()) 
+            r: anytype,
+        ) @This()
         {
-            return .{ .r = r };
+            return switch (@TypeOf(r)) {
+                T => .{ .r = r },
+                else => .{ .r = T.init(r)},
+            };
         }
 
         pub inline fn add(
@@ -315,10 +335,28 @@ pub fn DualOfStruct(
                 },
             };
         }
+
+        pub inline fn sqrt(
+            self: @This()
+        ) @This() 
+        {
+            return .{ 
+                .r = self.r.sqrt(),
+                .i = ordinate.eval(
+                    "i / (two * sqrt_r)",
+                    .{
+                        .i = self.i,
+                        .sqrt_r = self.r.sqrt(),
+                        .two = ordinate.Ordinate.init(2) 
+                    }
+                ),
+            };
+        }
     };
+
 }
 
-test "comath dual test polymorphic" 
+test "Dual: comath dual test polymorphic" 
 {
     const test_data = &.{
         // as float
@@ -330,10 +368,16 @@ test "comath dual test polymorphic"
         },
         // as float dual
         .{
-            .x = Dual_Ord{.r = 3, .i = 1},
-            .off1 = Dual_Ord{ .r = 2 },
-            .off2 = Dual_Ord{ .r = 1 }, 
-            .expect = Dual_Ord{ .r = 20, .i = 9},
+            .x = Dual_Ord{
+                .r = ordinate.Ordinate.init(3),
+                .i = ordinate.Ordinate.init(1),
+            },
+            .off1 = Dual_Ord.from(2),
+            .off2 = Dual_Ord.from(1),
+            .expect = Dual_Ord{
+                .r = ordinate.Ordinate.init(20),
+                .i = ordinate.Ordinate.init(9),
+            },
         },
     };
 
@@ -358,13 +402,15 @@ test "comath dual test polymorphic"
     }
 }
 
-test "Dual_Ord sqrt (3-4-5 triangle)" 
+test "Dual: Dual_Ord sqrt (3-4-5 triangle)" 
 {
-    const d = Dual_Ord{ .r = (3*3 + 4*4), .i = 1 };
+    const d = Dual_Ord{
+        .r = ordinate.Ordinate.init(3*3 + 4*4),
+        .i = ordinate.Ordinate.ONE, 
+    };
 
-    try std.testing.expectApproxEqAbs(
-        5,
+    try ordinate.expectOrdinateEqual(
+        ordinate.Ordinate.init(5),
         d.sqrt().r,
-        0.00000001
     );
 }
