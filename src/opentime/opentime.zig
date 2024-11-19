@@ -15,12 +15,15 @@ pub const expectOrdinateEqual = ordinate.expectOrdinateEqual;
 pub const min = ordinate.min;
 pub const max = ordinate.max;
 pub const eql = ordinate.eql;
+pub const lt = ordinate.lt;
+pub const lteq = ordinate.lteq;
+pub const gt = ordinate.gt;
+pub const gteq = ordinate.gteq;
 // @}
 
 // interval @{
 pub const interval = @import("interval.zig");
 pub const ContinuousInterval = interval.ContinuousInterval;
-pub const INF_INTERVAL = interval.INFINITE_INTERVAL;
 // @}
 
 // transform @{
