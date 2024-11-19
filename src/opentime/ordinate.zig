@@ -807,6 +807,23 @@ fn OrdinateOf(
             );
         }
 
+         pub inline fn as(
+             self: @This(),
+             comptime T: type,
+         ) T
+         {
+             return switch (@typeInfo(T)) {
+                .Float => (
+                    @floatCast(self.v) 
+                ),
+                .Int => @intFromFloat(self.v),
+                else => @compileError(
+                    "Ordinate can be retrieved as a float or int type,"
+                    ++ " not: " ++ @typeName(T)
+                ),
+             };
+         }
+
         // unary operators
         pub inline fn neg(
             self: @This(),
@@ -1017,13 +1034,27 @@ fn OrdinateOf(
 pub const Ordinate = OrdinateOf(f32);
 // pub const Ordinate = OrdinateOf(f64);
 // pub const Ordinate = OrdinateOf(PhaseOrdinate);
-// pub const Ordinate = OrdinateOf(PhaseOrdinate);
 
+/// compare two ordinates.  Create an ordinate from expected if it is not
+/// already one.
 pub fn expectOrdinateEqual(
-    expected: Ordinate,
+    expected_in: anytype,
     measured: Ordinate,
 ) !void
 {
+    const expected = switch(@TypeOf(expected_in)) {
+        Ordinate => expected_in,
+        else => switch(@typeInfo(@TypeOf(expected_in))) {
+            .ComptimeInt, .Int, .ComptimeFloat, .Float => (
+                Ordinate.init(expected_in)
+            ),
+            else => @compileError(
+                "Error: can only compare an Ordinate to a float, int, or "
+                ++ "other Ordinate.  Got a: " ++ @typeName(expected_in)
+            ),
+        },
+    };
+
     try std.testing.expectApproxEqAbs(
         expected.v,
         measured.v, 
@@ -1297,4 +1328,38 @@ pub fn eval(
     return comath.eval(expr, CTX, inputs) catch @compileError(
         "couldn't comath: " ++ expr ++ "."
     );
+}
+
+test "Base Ordinate: as"
+{
+    const tests = &[_]Ordinate.BaseType{
+        1.0, -1.0, 3.45, -3.45, 1.0/3.0,
+    };
+
+    inline for (&.{ f32, f64, i32, u32, i64, })
+        |target_type|
+    {
+        for (tests)
+            |t|
+        {
+            const ord = Ordinate.init(t);
+
+            if (t < 0 and target_type == u32) {
+                continue;
+            }
+
+            try switch (@typeInfo(target_type)) {
+                .Float, .ComptimeFloat => std.testing.expectApproxEqAbs(
+                    @as(target_type, @floatCast(t)),
+                    ord.as(target_type),
+                    util.EPSILON_F,
+                ),
+                .Int, .ComptimeInt => std.testing.expectEqual(
+                    @as(target_type, @intFromFloat(t)),
+                    ord.as(target_type),
+                ),
+                else => return error.BARF,
+            };
+        }
+    }
 }
