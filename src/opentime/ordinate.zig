@@ -826,6 +826,15 @@ fn OrdinateOf(
             };
         }
 
+        pub inline fn abs(
+            self: @This(),
+        ) OrdinateType
+        {
+            return .{
+                .v = @abs(self.v),
+            };
+        }
+
         // binary operators
         pub inline fn add(
             self: @This(),
@@ -1026,6 +1035,7 @@ const basic_math = struct {
     // unary
     pub fn neg(in: anytype) @TypeOf(in) { return - in; }
     pub fn sqrt(in: anytype) @TypeOf(in) { return std.math.sqrt(in); }
+    pub fn abs(in: anytype) @TypeOf(in) { return @abs(in); }
 
     // binary
     pub fn add(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs + rhs; }
@@ -1052,19 +1062,26 @@ test "Base Ordinate: Unary Operator Tests"
     };
     const tests = &[_]TestCase{
         .{ .in =  1 },
+        .{ .in =  -1 },
         .{ .in = 25 },
         .{ .in = 64.34 },
         .{ .in =  5.345 },
+        .{ .in =  -5.345 },
+        .{ .in =  0 },
     };
 
     // @TODO: sqrt(negative => nan)
 
-    inline for (&.{ "neg", "sqrt" })
+    inline for (&.{ "neg", "sqrt", "abs", })
         |op|
     {
         for (tests)
             |t|
         {
+            if (t.in < 0 and std.mem.eql(u8, "sqrt", op)) {
+                continue;
+            }
+
             const in = Ordinate.init(t.in);
 
             const expected = Ordinate.init(
