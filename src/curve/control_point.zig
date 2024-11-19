@@ -66,8 +66,8 @@ pub fn ControlPointOf(
             rhs: anytype,
         ) ControlPointType 
         {
-            return switch (@typeInfo(@TypeOf(rhs))) {
-                .Struct => self.mul_cp(rhs),
+            return switch (@TypeOf(rhs)) {
+                ControlPointType => self.mul_cp(rhs),
                 else => self.mul_num(rhs),
             };
         }
@@ -91,8 +91,8 @@ pub fn ControlPointOf(
         ) ControlPointType
         {
             return .{
-                .in = rhs.in*self.in,
-                .out = rhs.out*self.out,
+                .in = rhs.in.mul(self.in),
+                .out = rhs.out.mul(self.out),
             };
         }
 
@@ -102,8 +102,8 @@ pub fn ControlPointOf(
             rhs: anytype,
         ) ControlPointType
         {
-            return switch (@typeInfo(@TypeOf(rhs))) {
-                .Struct => self.div_cp(rhs),
+            return switch (@TypeOf(rhs)) {
+                ControlPointType => self.div_cp(rhs),
                 else => self.div_num(rhs),
             };
         }
@@ -127,8 +127,8 @@ pub fn ControlPointOf(
         ) ControlPointType 
         {
             return .{
-                .in  = self.in/val.in,
-                .out = self.out/val.out,
+                .in  = self.in.div(val.in),
+                .out = self.out.div(val.out),
             };
         }
 
