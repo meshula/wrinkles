@@ -1363,3 +1363,54 @@ test "Base Ordinate: as"
         }
     }
 }
+
+// sort
+pub const sort = struct {
+    pub fn asc(comptime T: type) fn (void, T, T) bool {
+        return struct {
+            pub fn inner(_: void, a: T, b: T) bool {
+                return switch (@typeInfo(T)) {
+                    .Struct => a.lt(b),
+                    else => a < b,
+                };
+            }
+        }.inner;
+    }
+};
+
+test "Base Ordinate: sort"
+{
+    const allocator = std.testing.allocator;
+
+    const known = [_]Ordinate{
+        .{ .v = -1.01 },
+        .{ .v = -1 },
+        .{ .v = 0 },
+        .{ .v = 1 },
+        .{ .v = 1.001 },
+        .{ .v = 100 },
+    };
+
+    var test_arr = std.ArrayList(Ordinate).init(allocator);
+    try test_arr.appendSlice(&known);
+    defer test_arr.deinit();
+
+    var engine = std.rand.DefaultPrng.init(0x42);
+    const rnd =  engine.random();
+
+    std.Random.shuffle(rnd, Ordinate, test_arr.items);
+
+    std.mem.sort(
+        Ordinate, 
+        test_arr.items,
+        {},
+        sort.asc(Ordinate),
+    );
+
+    try std.testing.expectEqualSlices(
+        Ordinate,
+        &known,
+        test_arr.items,
+    );
+}
+
