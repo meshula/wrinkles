@@ -283,7 +283,7 @@ pub const Topology = struct {
             }
         }
 
-        return bounds orelse opentime.INF_INTERVAL;
+        return bounds orelse opentime.ContinuousInterval.INF;
     }
 
     pub fn end_points_input(
@@ -324,18 +324,18 @@ pub const Topology = struct {
         ) orelse return EMPTY;
 
         if (
-            new_bounds.start <= ib.start
-            and new_bounds.end >= ib.end
+            new_bounds.start.lteq(ib.start)
+            and new_bounds.end.gteq(ib.end)
         ) 
         {
             return self.clone(allocator);
         }
 
-        new_bounds.start = @max(
+        new_bounds.start = opentime.max(
             new_bounds.start,
             ib.start,
         );
-        new_bounds.end = @min(
+        new_bounds.end = opentime.min(
             new_bounds.end,
             ib.end,
         );
@@ -357,16 +357,16 @@ pub const Topology = struct {
             |left_pt, right_pt, left_ind |
         {
             if (
-                left_pt < new_bounds.start 
-                and right_pt > new_bounds.start
+                left_pt.lt(new_bounds.start)
+                and right_pt.gt(new_bounds.start)
             )
             {
                 maybe_left_map_ind = left_ind;
             }
 
             if (
-                left_pt < new_bounds.end 
-                and right_pt > new_bounds.end
+                left_pt.lt(new_bounds.end)
+                and right_pt.gt(new_bounds.end)
             )
             {
                 maybe_right_map_ind = left_ind;
@@ -482,8 +482,8 @@ pub const Topology = struct {
 
         const ob = self.output_bounds();
         if (
-            target_output_range.start <= ob.start
-            and target_output_range.end >= ob.end
+            target_output_range.start.lteq(ob.start)
+            and target_output_range.end.gteq(ob.end)
         ) {
             return try self.clone(allocator);
         }
@@ -505,8 +505,8 @@ pub const Topology = struct {
             {
                 // nothing to trim
                 if (
-                    m_out_range.start >= target_output_range.start
-                    and m_out_range.end <= target_output_range.end
+                    m_out_range.start.gteq(target_output_range.start)
+                    and m_out_range.end.lteq(target_output_range.end)
                 )
                 {
                     // nothing to trim
@@ -525,7 +525,7 @@ pub const Topology = struct {
                 );
 
                 if (
-                    shrunk_input_bounds.start > m_in_range.start
+                    shrunk_input_bounds.start.gt(m_in_range.start)
                     and m_ind > 0
 
                 ) 
@@ -544,8 +544,7 @@ pub const Topology = struct {
                 }
 
                 if (
-                    shrunk_input_bounds.start 
-                    < shrunk_input_bounds.end
+                    shrunk_input_bounds.start.lt(shrunk_input_bounds.end)
                 )
                 {
                     // trimmed mapping
@@ -553,7 +552,7 @@ pub const Topology = struct {
                 }
 
                 if (
-                    shrunk_input_bounds.end < m_in_range.end
+                    shrunk_input_bounds.end.lt(m_in_range.end)
                     and m_ind < self.mappings.len-1
                 )
                 {
@@ -601,8 +600,8 @@ pub const Topology = struct {
 
         if (
             input_points.len == 0
-            or (input_points[0] >= ib.end)
-            or (input_points[input_points.len-1] <= ib.start)
+            or (input_points[0].gteq(ib.end))
+            or (input_points[input_points.len-1].lteq(ib.start))
         ) 
         {
             return self.clone(allocator);
@@ -651,7 +650,7 @@ pub const Topology = struct {
                         key: opentime.Ordinate,
                     ) u64
                     {
-                        return @bitCast(@as(f64, @floatCast(key)));
+                        return @bitCast(key.as(f64));
                     }
 
                     pub fn eql(
@@ -660,7 +659,7 @@ pub const Topology = struct {
                         snd: opentime.Ordinate,
                     ) bool
                     {
-                        return fst == snd;
+                        return fst.eql(snd);
                     }
                 },
                 std.hash_map.default_max_load_percentage,
@@ -686,7 +685,7 @@ pub const Topology = struct {
             opentime.Ordinate,
             result.items,
             {},
-            std.sort.asc(opentime.Ordinate)
+            opentime.sort.asc(opentime.Ordinate)
         );
 
         return try result.toOwnedSlice();
@@ -738,17 +737,19 @@ pub const Topology = struct {
                     {
                         if (
                             m_bounds_out.overlaps(out_pt)
-                            and out_pt > m_bounds_out.start
-                            and out_pt < m_bounds_out.end
+                            and out_pt.gt(m_bounds_out.start)
+                            and out_pt.lt(m_bounds_out.end)
                         )
                         {
                             const in_pt = (
-                                try m.project_instantaneous_cc_inv(out_pt).ordinate()
+                                try m.project_instantaneous_cc_inv(
+                                    out_pt
+                                ).ordinate()
                             );
 
                             if (
-                                in_pt > m_bounds_in.start 
-                                and in_pt < m_bounds_in.end
+                                in_pt.gt(m_bounds_in.start) 
+                                and in_pt.lt(m_bounds_in.end)
                             )
                             {
                                 try input_points_in_bounds.append(in_pt);
@@ -768,7 +769,7 @@ pub const Topology = struct {
                         opentime.Ordinate,
                         input_points_in_bounds.items,
                         {},
-                        std.sort.asc(opentime.Ordinate),
+                        opentime.sort.asc(opentime.Ordinate),
                     );
 
                     var m_clone = try m.clone(allocator);
@@ -808,13 +809,13 @@ pub const Topology = struct {
 
     pub fn project_instantaneous_cc(
         self: @This(),
-        input_ord: opentime.Ordinate
+        input_ord: opentime.Ordinate,
     ) opentime.ProjectionResult
     {
         const ib = self.input_bounds();
         if (ib.is_instant()) 
         {
-            if (ib.start == input_ord) {
+            if (ib.start.eql(input_ord)) {
                 return .{ 
                     .SuccessInterval = self.output_bounds(),
                 };
@@ -857,7 +858,7 @@ pub const Topology = struct {
         {
             if (
                 m.output_bounds().overlaps(output_ord)
-                or output_ord == m.output_bounds().end
+                or output_ord.eql(m.output_bounds().end)
             )
             {
                 try input_ordinates.append(
@@ -957,7 +958,12 @@ test "Topology.split_at_input_points"
 {
     const m_split = try MIDDLE.AFF_TOPO.split_at_input_points(
         std.testing.allocator,
-        &.{ 0, 2, 3, 15 },
+        &.{ 
+            opentime.Ordinate.init(0), 
+            opentime.Ordinate.init(2), 
+            opentime.Ordinate.init(3), 
+            opentime.Ordinate.init(15),
+        },
     );
     defer m_split.deinit(std.testing.allocator);
 
@@ -985,8 +991,8 @@ test "Topology trim_in_input_space"
 
     const TestCase = struct {
         name: []const u8,
-        range: opentime.ContinuousInterval,
-        expected: opentime.ContinuousInterval,
+        range: opentime.ContinuousInterval_BaseType,
+        expected: opentime.ContinuousInterval_BaseType,
         mapping_count: usize,
     };
 
@@ -1055,7 +1061,7 @@ test "Topology trim_in_input_space"
             // trim left but not right
             const tm = try tp.topo.trim_in_input_space(
                 allocator,
-                t.range,
+                opentime.ContinuousInterval.init(t.range),
             );
             defer tm.deinit(allocator);
 
@@ -1064,16 +1070,16 @@ test "Topology trim_in_input_space"
                 .{ t.name },
             );
 
-            try std.testing.expectEqual(
+            try opentime.expectOrdinateEqual(
                 t.expected.start,
                 tm.input_bounds().start,
             );
-            try std.testing.expectEqual(
+            try opentime.expectOrdinateEqual(
                 t.expected.end,
                 tm.input_bounds().end,
             );
 
-            try std.testing.expectEqual(
+            try opentime.expectOrdinateEqual(
                 tm.mappings[0].input_bounds().duration(), 
                 tm.input_bounds().duration(),
             );
@@ -1087,10 +1093,9 @@ test "Topology trim_in_input_space"
         // separate "no overlap" test
         const tm = try tp.topo.trim_in_input_space(
             allocator,
-            .{ 
-                .start = 11,
-                .end = 13,
-            },
+            opentime.ContinuousInterval.init(
+                .{ .start = 11, .end = 13, },
+            ),
         );
         defer tm.deinit(allocator);
 
@@ -1182,11 +1187,9 @@ pub fn join(
         opentime.Ordinate,
         a2b_split_endpoints_b,
         {},
-        std.sort.asc(opentime.Ordinate),
+        opentime.sort.asc(opentime.Ordinate),
     );
     defer allocator.free(a2b_split_endpoints_b);
-
-
 
     const b2c_split = (
         try b2c_trimmed_in_b.split_at_input_points(
@@ -1218,8 +1221,8 @@ pub fn join(
                 ) != null
                 or (
                     a2b_m_ob.is_instant()
-                    and b2c_m_ib.start <= a2b_m_ob.start
-                    and b2c_m_ib.end >= a2b_m_ob.end
+                    and b2c_m_ib.start.lteq(a2b_m_ob.start)
+                    and b2c_m_ib.end.gteq(a2b_m_ob.end)
                 )
             ) 
             {
@@ -1267,10 +1270,10 @@ fn build_test_topo_from_slides(
             allocator, 
             &.{
                 .{
-                    .p0 = .{ .in = 1, .out = 0 },
-                    .p1 = .{ .in = 1, .out = 5 },
-                    .p2 = .{ .in = 5, .out = 5 },
-                    .p3 = .{ .in = 5, .out = 1 },
+                    .p0 = curve.ControlPoint.init(.{ .in = 1, .out = 0 }),
+                    .p1 = curve.ControlPoint.init(.{ .in = 1, .out = 5 }),
+                    .p2 = curve.ControlPoint.init(.{ .in = 5, .out = 5 }),
+                    .p3 = curve.ControlPoint.init(.{ .in = 5, .out = 1 }),
                 },
             },
         )
@@ -1281,8 +1284,8 @@ fn build_test_topo_from_slides(
         mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = .{
                 .knots = &.{
-                    .{ .in = 0, .out = 0, },
-                    .{ .in = 2, .out = 4, },
+                    curve.ControlPoint.init(.{ .in = 0, .out = 0, }),
+                    curve.ControlPoint.init(.{ .in = 2, .out = 4, }),
                 },
             }
         }
@@ -1292,8 +1295,8 @@ fn build_test_topo_from_slides(
         mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = .{
                 .knots = &.{
-                    .{ .in = 2, .out = 2, },
-                    .{ .in = 4, .out = 2, },
+                    curve.ControlPoint.init(.{ .in = 2, .out = 2, }),
+                    curve.ControlPoint.init(.{ .in = 4, .out = 2, }),
                 },
             }
         }
@@ -1303,8 +1306,8 @@ fn build_test_topo_from_slides(
         mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = .{
                 .knots = &.{
-                    .{ .in = 4, .out = 2, },
-                    .{ .in = 6, .out = 0, },
+                    curve.ControlPoint.init(.{ .in = 4, .out = 2, }),
+                    curve.ControlPoint.init(.{ .in = 6, .out = 0, }),
                 },
             }
         }
@@ -1348,26 +1351,22 @@ test "Topology: join (slides)"
 
     try std.testing.expect(ep.len > 0);
     
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         1,
         a2c.input_bounds().start,
-        opentime.EPSILON_ORD,
     );
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         5,
         a2c.input_bounds().end,
-        opentime.EPSILON_ORD,
     );
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         // 0.123208,
         0,
         a2c.output_bounds().start,
-        opentime.EPSILON_ORD,
     );
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         3.999999995,
         a2c.output_bounds().end,
-        opentime.EPSILON_ORD,
     );
 }
 
@@ -1404,11 +1403,11 @@ test "Topology: LEFT/RIGHT -> EMPTY"
 
 /// stitch topology test structures onto mapping ones
 fn test_structs(
-    comptime int: opentime.ContinuousInterval,
+    comptime int_in: opentime.ContinuousInterval_BaseType,
 ) type
 {
     return struct {
-        const MAPPINGS = mapping.test_structs(int);
+        const MAPPINGS = mapping.test_structs(int_in);
 
         pub const AFF_TOPO = Topology {
             .mappings = &.{ MAPPINGS.AFF.mapping() },
@@ -1485,8 +1484,8 @@ test "Topology: trim_in_output_space"
 
     const TestCase = struct {
         name: []const u8,
-        target: opentime.ContinuousInterval,
-        expected: opentime.ContinuousInterval,
+        target: opentime.ContinuousInterval_BaseType,
+        expected: opentime.ContinuousInterval_BaseType,
     };
     const tests = [_]TestCase{
         .{
@@ -1538,10 +1537,10 @@ test "Topology: trim_in_output_space"
 
     const INPUT_TOPO = MIDDLE.LIN_TOPO;
     try std.testing.expect(
-        std.math.isFinite(INPUT_TOPO.output_bounds().start)
+        INPUT_TOPO.output_bounds().start.is_finite()
     );
     try std.testing.expect(
-        std.math.isFinite(INPUT_TOPO.output_bounds().end)
+        INPUT_TOPO.output_bounds().end.is_finite()
     );
 
     for (tests)
@@ -1550,7 +1549,7 @@ test "Topology: trim_in_output_space"
         const trimmed = (
             try INPUT_TOPO.trim_in_output_space(
                 allocator,
-                t.target,
+                opentime.ContinuousInterval.init(t.target),
             )
         );
         defer trimmed.deinit(allocator);
@@ -1568,10 +1567,10 @@ test "Topology: trim_in_output_space"
                    t.name,
                    INPUT_TOPO,
                    INPUT_TOPO.output_bounds(),
-                   t.target,
+                   opentime.ContinuousInterval.init(t.target),
                    trimmed,
                    trimmed.output_bounds(),
-                   t.expected,
+                   opentime.ContinuousInterval.init(t.expected),
                }
             );
         }
@@ -1581,11 +1580,11 @@ test "Topology: trim_in_output_space"
             trimmed.mappings.len,
         );
 
-        try std.testing.expectEqual(
+        try opentime.expectOrdinateEqual(
             t.expected.start,
             trimmed.output_bounds().start,
         );
-        try std.testing.expectEqual(
+        try opentime.expectOrdinateEqual(
             t.expected.end,
             trimmed.output_bounds().end,
         );
@@ -1595,8 +1594,8 @@ test "Topology: trim_in_output_space"
         mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = curve.Linear.Monotonic {
                 .knots = &.{
-                    .{ .in = 0, .out = 0, },
-                    .{ .in =10, .out = 10, },
+                    curve.ControlPoint.init(.{ .in = 0, .out = 0, }),
+                    curve.ControlPoint.init(.{ .in =10, .out = 10, }),
                 },
             },
         }
@@ -1605,8 +1604,8 @@ test "Topology: trim_in_output_space"
         mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = curve.Linear.Monotonic {
                 .knots = &.{
-                    .{ .in =10, .out = 10, },
-                    .{ .in = 20, .out = 0, },
+                    curve.ControlPoint.init(.{ .in =10, .out = 10, }),
+                    curve.ControlPoint.init(.{ .in = 20, .out = 0, }),
                 },
             },
         }
@@ -1618,21 +1617,20 @@ test "Topology: trim_in_output_space"
 
     const rf_topo_trimmed = try rf_topo.trim_in_output_space(
         allocator,
-        .{ 
-            .start = 1,
-            .end = 8,
-        }
+        opentime.ContinuousInterval.init(
+            .{ .start = 1, .end = 8, }
+        ),
     );
     defer rf_topo_trimmed.deinit(allocator);
 
     {
         const result = rf_topo_trimmed.output_bounds();
 
-        try std.testing.expectEqual(
+        try opentime.expectOrdinateEqual(
             1,
             result.start,
         );
-        try std.testing.expectEqual(
+        try opentime.expectOrdinateEqual(
             8,
             result.end,
         );
@@ -1682,8 +1680,8 @@ test "Topology: trim_in_output_space (trim to multiple split bug)"
         allocator,
         .{
             .knots = &.{
-                .{ .in = 0, .out = 0},
-                .{ .in = 2, .out = 2},
+                curve.ControlPoint.init(.{ .in = 0, .out = 0}),
+                curve.ControlPoint.init(.{ .in = 2, .out = 2}),
             }
         }
     );
@@ -1691,7 +1689,7 @@ test "Topology: trim_in_output_space (trim to multiple split bug)"
 
     const a2b_trimmed = try a2b.trim_in_output_space(
         allocator, 
-        .{ .start = 0.5, .end = 1 },
+        opentime.ContinuousInterval.init(.{ .start = 0.5, .end = 1 }),
     );
     defer a2b_trimmed.deinit(allocator);
 
@@ -1703,11 +1701,11 @@ test "Topology: trim_in_output_space (trim to multiple split bug)"
         .linear,
         std.meta.activeTag(a2b_trimmed.mappings[0])
     );
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
         0.5,
         a2b_trimmed.mappings[0].input_bounds().start,
     );
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
         1,
         a2b_trimmed.mappings[0].input_bounds().end,
     );
@@ -1722,10 +1720,10 @@ test "Topology: Bezier construction/leak"
             allocator, 
             &.{
                 .{
-                    .p0 = .{ .in = 1, .out = 0 },
-                    .p1 = .{ .in = 1, .out = 5 },
-                    .p2 = .{ .in = 5, .out = 5 },
-                    .p3 = .{ .in = 5, .out = 1 },
+                    .p0 = curve.ControlPoint.init(.{ .in = 1, .out = 0 }),
+                    .p1 = curve.ControlPoint.init(.{ .in = 1, .out = 5 }),
+                    .p2 = curve.ControlPoint.init(.{ .in = 5, .out = 5 }),
+                    .p3 = curve.ControlPoint.init(.{ .in = 5, .out = 1 }),
                 },
             },
         )
@@ -1741,8 +1739,8 @@ test "Topology: split_at_output_points"
         mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = curve.Linear.Monotonic {
                 .knots = &.{
-                    .{ .in = 0, .out = 0, },
-                    .{ .in =10, .out = 10, },
+                    curve.ControlPoint.init(.{ .in = 0, .out = 0, }),
+                    curve.ControlPoint.init(.{ .in =10, .out = 10, }),
                 },
             },
         }
@@ -1751,8 +1749,8 @@ test "Topology: split_at_output_points"
         mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = curve.Linear.Monotonic {
                 .knots = &.{
-                    .{ .in = 10, .out = 10, },
-                    .{ .in = 20, .out = 0, },
+                    curve.ControlPoint.init(.{ .in = 10, .out = 10, }),
+                    curve.ControlPoint.init(.{ .in = 20, .out = 0, }),
                 },
             },
         }
@@ -1769,7 +1767,12 @@ test "Topology: split_at_output_points"
 
     const split_topo = try rf_topo.split_at_output_points(
         allocator,
-        &.{ 0, 3, 7, 11 }
+        &.{ 
+            opentime.Ordinate.init(0), 
+            opentime.Ordinate.init(3), 
+            opentime.Ordinate.init(7), 
+            opentime.Ordinate.init(11),
+        }
     );
     defer split_topo.deinit(allocator);
 
@@ -1782,10 +1785,11 @@ test "Topology: output_bounds w/ empty"
         .mappings = &.{
             (
              mapping.MappingEmpty{
-                 .defined_range = .{
-                     .start = -2,
-                     .end = 0,
-                 },
+                 .defined_range = (
+                     opentime.ContinuousInterval.init(
+                         .{ .start = -2, .end = 0, }
+                     )
+                 ),
              }
             ).mapping(),
             .{ .linear = MIDDLE.MAPPINGS.LIN},
@@ -1821,19 +1825,28 @@ test "Topology: project_instantaneous_cc and project_instantaneous_cc_inv"
             .name = "v",
             .input_to_output_topo = MIDDLE.LIN_V_TOPO,
             .test_pts_fwd = &.{
-                .{ .in = 0, .out = 0 },
-                .{ .in = 2, .out = 16 },
-                .{ .in = 4, .out = 32 },
-                .{ .in = 5, .out = 40 },
-                .{ .in = 6, .out = 32 },
-                .{ .in = 8, .out = 16 },
+                curve.ControlPoint.init(.{ .in = 0, .out = 0 }),
+                curve.ControlPoint.init(.{ .in = 2, .out = 16 }),
+                curve.ControlPoint.init(.{ .in = 4, .out = 32 }),
+                curve.ControlPoint.init(.{ .in = 5, .out = 40 }),
+                curve.ControlPoint.init(.{ .in = 6, .out = 32 }),
+                curve.ControlPoint.init(.{ .in = 8, .out = 16 }),
             },
             .test_pts_inv = &.{
-                .{ 32, 4, 6, },
-                .{ 16, 2, 8, },
+                .{ 
+                    opentime.Ordinate.init(32), 
+                    opentime.Ordinate.init(4),
+                    opentime.Ordinate.init(6), 
+                },
+                .{ 
+                    opentime.Ordinate.init(16), 
+                    opentime.Ordinate.init(2), 
+                    opentime.Ordinate.init(8), 
+                },
             },
             .out_of_bounds_pts = &.{
-                -1, 11,
+                opentime.Ordinate.init(-1),
+                opentime.Ordinate.init(11),
             },
         },
     };
@@ -1863,10 +1876,9 @@ test "Topology: project_instantaneous_cc and project_instantaneous_cc_inv"
                 t.input_to_output_topo.project_instantaneous_cc(pt.in)
             );
 
-            try std.testing.expectApproxEqAbs(
+            try opentime.expectOrdinateEqual(
                 pt.out,
                 measured_out.SuccessOrdinate,
-                opentime.EPSILON_ORD,
             );
         }
 
@@ -1898,21 +1910,24 @@ test "Topology: init_affine"
     const t_aff = try Topology.init_affine(
         allocator,
         .{
-            .input_bounds_val = .{
-                .start = 0, 
-                .end = 10,
-            },
+            .input_bounds_val = (
+                opentime.ContinuousInterval.init(
+                    .{ .start = 0, .end = 10, }
+                )
+            ),
             .input_to_output_xform = .{
-                .offset = 12,
-                .scale = 2,
+                .offset = opentime.Ordinate.init(12),
+                .scale = opentime.Ordinate.init(2),
             },
         },
     );
     defer t_aff.deinit(allocator);
 
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
         20,
-        t_aff.project_instantaneous_cc(4).ordinate(),
+        t_aff.project_instantaneous_cc(
+            opentime.Ordinate.init(4)
+        ).ordinate(),
     );
 }
 
@@ -1928,12 +1943,13 @@ test "Topology: join affine with affine"
     const aff1 = try Topology.init_affine(
         allocator,
         .{
-            .input_bounds_val = .{
-                .start = 0,
-                .end = 8,
-            },
+            .input_bounds_val = (
+                opentime.ContinuousInterval.init(
+                    .{ .start = 0, .end = 8, }
+                )
+            ),
             .input_to_output_xform = .{
-                .offset = 1,
+                .offset = opentime.Ordinate.ONE,
             },
         },
     );
@@ -1953,8 +1969,8 @@ test "Topology: join affine with affine"
         .affine,
         std.meta.activeTag(result.mappings[0]),
     );
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
         4,
-        try result.project_instantaneous_cc(3).ordinate(),
+        try result.project_instantaneous_cc(opentime.Ordinate.init(3)).ordinate(),
     );
 }
