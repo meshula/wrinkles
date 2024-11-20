@@ -786,7 +786,7 @@ fn OrdinateOf(
                 .Int, .ComptimeInt => .{ .v = @floatFromInt(value) },
                 else => @compileError(
                     "Can only be constructed from a float or an int, not"
-                    ++ " a " ++ @typeName(value)
+                    ++ " a " ++ @typeName(@TypeOf(value))
                 ),
             };
         }
@@ -810,7 +810,7 @@ fn OrdinateOf(
             @compileError(
                 @typeName(@This()) ++ " can only do math over floats,"
                 ++ " ints and other " ++ @typeName(@This()) ++ ", not: " 
-                ++ @typeName(thing)
+                ++ @typeName(@TypeOf(thing))
             );
         }
 
@@ -1053,9 +1053,10 @@ pub const Ordinate = OrdinateOf(f32);
 /// already one.
 pub fn expectOrdinateEqual(
     expected_in: anytype,
-    measured: Ordinate,
+    measured: anyerror!Ordinate,
 ) !void
 {
+
     const expected = switch(@TypeOf(expected_in)) {
         Ordinate => expected_in,
         else => switch(@typeInfo(@TypeOf(expected_in))) {
@@ -1064,14 +1065,14 @@ pub fn expectOrdinateEqual(
             ),
             else => @compileError(
                 "Error: can only compare an Ordinate to a float, int, or "
-                ++ "other Ordinate.  Got a: " ++ @typeName(expected_in)
+                ++ "other Ordinate.  Got a: " ++ @typeName(@TypeOf(expected_in))
             ),
         },
     };
 
     try std.testing.expectApproxEqAbs(
         expected.v,
-        measured.v, 
+        (measured catch |err| return err).v, 
         util.EPSILON_F,
     );
 }
@@ -1329,7 +1330,7 @@ pub const CTX = comath.ctx.fnMethod(
     comath.ctx.simple({}),
     .{
         .@"+" = "add",
-        .@"-" = &.{"sub", "neg"},
+        .@"-" = &.{"sub", "neg", "negate"},
         .@"*" = "mul",
         .@"/" = "div",
     },
