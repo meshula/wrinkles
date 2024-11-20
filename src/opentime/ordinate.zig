@@ -305,6 +305,13 @@ pub const PhaseOrdinate = struct {
     {
         return std.math.isInf(self.phase);
     }
+
+    pub fn is_finite(
+        self: @This(),
+    ) bool
+    {
+        return std.math.is_finite(self.phase);
+    }
 };
 
 test "PhaseOrdinate: init and normalized"
@@ -1026,6 +1033,13 @@ fn OrdinateOf(
         ) bool
         {
             return std.math.isInf(self.v);
+        }
+
+        pub inline fn is_finite(
+            self: @This(),
+        ) bool
+        {
+            return std.math.isFinite(self.v);
         }
     };
 }
