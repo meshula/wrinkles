@@ -26,6 +26,7 @@ pub const sort = ordinate.sort;
 // interval @{
 pub const interval = @import("interval.zig");
 pub const ContinuousInterval = interval.ContinuousInterval;
+pub const ContinuousInterval_BaseType = interval.ContinuousInterval_BaseType;
 // @}
 
 // transform @{

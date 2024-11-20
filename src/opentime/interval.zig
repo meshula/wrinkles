@@ -26,10 +26,7 @@ pub const ContinuousInterval = struct {
     };
 
     pub fn init(
-        args: struct {
-            start: ordinate.Ordinate.BaseType,
-            end: ordinate.Ordinate.BaseType,
-        },
+        args: ContinuousInterval_BaseType,
     ) ContinuousInterval
     {
         return .{
@@ -119,6 +116,11 @@ pub const ContinuousInterval = struct {
             }
         );
     }
+};
+
+pub const ContinuousInterval_BaseType = struct {
+    start : ordinate.Ordinate.BaseType,
+    end : ordinate.Ordinate.BaseType,
 };
 
 test "ContinuousInterval: is_infinite"
