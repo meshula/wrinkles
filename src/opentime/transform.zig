@@ -18,6 +18,8 @@ pub const AffineTransform1D = struct {
     offset: ordinate.Ordinate = ordinate.Ordinate.ZERO,
     scale: ordinate.Ordinate = ordinate.Ordinate.ONE,
 
+    pub const IDENTITY = AffineTransform1D{};
+
     /// transform the ordinate.  Order is scale and then offset.
     pub fn applied_to_ordinate(
         self: @This(),
