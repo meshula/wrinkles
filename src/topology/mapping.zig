@@ -314,30 +314,30 @@ pub const EMPTY_INF = mapping_empty.EMPTY_INF.mapping();
 
 /// Produce test structures at comptime
 pub fn test_structs(
-    int: opentime.ContinuousInterval,
+    int: opentime.ContinuousInterval_BaseType,
 ) type
 {
     return struct {
-        pub const START_PT = curve.ControlPoint{
-            .in = int.start,
-            .out = int.start,
-        };
-        pub const END_PT = curve.ControlPoint{
-            .in = int.end,
-            .out = int.end * 4,
-        };
+        pub const START_PT = curve.ControlPoint.init(
+            .{ .in = int.start, .out = int.start, }
+        );
+        pub const END_PT = curve.ControlPoint.init(
+            .{ .in = int.end, .out = int.end * 4, }
+        );
         pub const CENTER_PT = (
             curve.bezier_math.lerp(0.5, START_PT, END_PT)
         );
 
-        pub const INT = int;
+        pub const INT = (
+            opentime.ContinuousInterval.init(int)
+        );
 
         // mappings and (simple) topologies
         pub const AFF = mapping_affine.MappingAffine {
-            .input_bounds_val = int,
+            .input_bounds_val = INT,
             .input_to_output_xform = .{
-                .offset = 4,
-                .scale = 2,
+                .offset = opentime.Ordinate.init(4),
+                .scale = opentime.Ordinate.init(2),
             },
         };
 
@@ -654,12 +654,13 @@ test "Mapping: join aff/aff"
 
     const aff = (
         MappingAffine{
-            .input_bounds_val = .{
-                .start = 0,
-                .end = 8,
-            },
+            .input_bounds_val = (
+                opentime.ContinuousInterval.init(
+                    .{ .start = 0, .end = 8, },
+                )
+            ),
             .input_to_output_xform = .{
-                .offset = 1,
+                .offset = opentime.Ordinate.init(1),
             },
         }
     );
@@ -672,27 +673,27 @@ test "Mapping: join aff/aff"
         },
     );
 
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
         4,
-        aff.project_instantaneous_cc(3).ordinate(),
+        aff.project_instantaneous_cc(opentime.Ordinate.init(3)).ordinate(),
     );
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
         4,
-        result.project_instantaneous_cc(3).ordinate(),
+        result.project_instantaneous_cc(opentime.Ordinate.init(3)).ordinate(),
     );
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
         aff.input_bounds().start,
         result.input_bounds().start,
     );
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
         aff.input_bounds().end,
         result.input_bounds().end,
     );
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
         aff.output_bounds().start,
         result.output_bounds().start,
     );
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
         aff.output_bounds().end,
         result.output_bounds().end,
     );

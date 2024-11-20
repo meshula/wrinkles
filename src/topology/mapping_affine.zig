@@ -8,8 +8,8 @@ const mapping_mod = @import("mapping.zig");
 /// An affine mapping from intput to output
 pub const MappingAffine = struct {
     /// defaults to an infinite identity
-    input_bounds_val: opentime.ContinuousInterval = opentime.INF_INTERVAL,
-    input_to_output_xform: opentime.AffineTransform1D = opentime.IDENTITY_TRANSFORM, 
+    input_bounds_val: opentime.ContinuousInterval = opentime.ContinuousInterval.INF,
+    input_to_output_xform: opentime.AffineTransform1D = opentime.AffineTransform1D.IDENTITY, 
 
     pub fn mapping(
         self: @This(),
@@ -40,7 +40,7 @@ pub const MappingAffine = struct {
         if (
             !self.input_bounds_val.overlaps(ordinate) 
             // allow projecting the end point
-            and ordinate != self.input_bounds_val.end
+            and !ordinate.eql(self.input_bounds_val.end)
         )
         {
             return opentime.OUTOFBOUNDS;
@@ -60,7 +60,7 @@ pub const MappingAffine = struct {
         if (
             !self.output_bounds().overlaps(output_ordinate) 
             // allow projecting the end point
-            and output_ordinate != self.output_bounds().end
+            and !(output_ordinate.eql(self.output_bounds().end))
         )
         {
             return opentime.OUTOFBOUNDS;
@@ -167,8 +167,8 @@ pub const MappingAffine = struct {
             |pt, pt_ind|
         {
             if (
-                pt > self.input_bounds_val.start
-                and pt < self.input_bounds_val.end
+                pt.gt(self.input_bounds_val.start)
+                and pt.lt(self.input_bounds_val.end)
             )
             {
                 maybe_first_pt = pt_ind;
@@ -190,7 +190,7 @@ pub const MappingAffine = struct {
         {
             var current_end = input_points[current_end_ind];
 
-            if (current_end > self.input_bounds_val.end)
+            if (current_end.gt(self.input_bounds_val.end))
             {
                 current_end = self.input_bounds_val.end;
                 current_end_ind = input_points.len;
@@ -219,8 +219,8 @@ pub const MappingAffine = struct {
 };
 pub const INFINITE_IDENTITY = (
     MappingAffine{
-        .input_bounds_val = opentime.INF_INTERVAL,
-        .input_to_output_xform = opentime.IDENTITY_TRANSFORM,
+        .input_bounds_val = opentime.ContinuousInterval.INF,
+        .input_to_output_xform = opentime.AffineTransform1D.IDENTITY,
     }
 ).mapping();
 
@@ -228,9 +228,9 @@ test "MappingAffine: instantiate (identity)"
 {
     const ma = (MappingAffine{}).mapping();
 
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
         12, 
-        ma.project_instantaneous_cc(12).ordinate(),
+        ma.project_instantaneous_cc(opentime.Ordinate.init(12)).ordinate(),
     );
 }
 
@@ -238,20 +238,19 @@ test "MappingAffine: non-identity"
 {
     const ma = (
         MappingAffine{
-            .input_bounds_val = .{
-                .start = 3,
-                .end = 6,
-            },
+            .input_bounds_val = opentime.ContinuousInterval.init(
+                .{ .start = 3, .end = 6, }
+            ),
             .input_to_output_xform = .{
-                .offset = 2,
-                .scale = 4,
+                .offset = opentime.Ordinate.init(2),
+                .scale = opentime.Ordinate.init(4),
             },
         }
     ).mapping();
 
-   try std.testing.expectEqual(
+   try opentime.expectOrdinateEqual(
        14,
-       ma.project_instantaneous_cc(3).ordinate(),
+       ma.project_instantaneous_cc(opentime.Ordinate.init(3)).ordinate(),
     );
 }
 

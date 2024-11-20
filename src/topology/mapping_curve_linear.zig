@@ -178,13 +178,13 @@ pub const MappingCurveLinearMonotonic = struct {
         for (start_knots[1..], 1..)
             |k, k_ind|
         {
-            if (k.in == pt_input)
+            if (k.in.eql(pt_input))
             {
                 try left_knots.appendSlice(start_knots[0..k_ind]);
                 try right_knots.appendSlice(start_knots[k_ind..]);
                 break;
             }
-            if (k.in > pt_input)
+            if (k.in.gt(pt_input))
             {
                 const new_knot = curve.ControlPoint{
                     .in = pt_input,
