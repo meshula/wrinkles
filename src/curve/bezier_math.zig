@@ -34,7 +34,7 @@ pub const CTX = comath.ctx.fnMethod(
         .@"*" = "mul",
         .@"/" = "div",
         .@"cos" = "cos",
-    }
+    },
 );
 
 /// lerp from a to b by amount u, [0, 1], using comath
@@ -1137,10 +1137,10 @@ test "bezier_math: _bezier0 matches _bezier0_dual"
         const t2 = opentime.Ordinate.init(t[2]);
         const t3 = opentime.Ordinate.init(t[3]);
         while (opentime.lt(x, t3))
-            : (x += 0.01)
+            : (x = x.add(0.01))
         {
             errdefer std.log.err("Error on loop: {}\n",.{x});
-            try expectApproxEql(
+            try opentime.expectOrdinateEqual(
                 _bezier0(x, t1, t2, t3),
                 _bezier0_dual(
                     .{ .r = x, .i = opentime.Ordinate.ONE},
@@ -1173,58 +1173,88 @@ test "bezier_math: findU_dual matches findU"
         findU_dual(t05, t0,t1,t2,t3).r
     );
 
-    try expectApproxEql(
+    try opentime.expectOrdinateEqual(
         opentime.Ordinate.init(1.0/3.0),
         findU_dual( t0, t0,t1,t2,t3).i
     );
-    try expectApproxEql(
+    try opentime.expectOrdinateEqual(
         opentime.Ordinate.init(1.0/3.0),
         findU_dual(t05, t0,t1,t2,t3).i
     );
 
-    try expectEqual(
+    try opentime.expectOrdinateEqual(
         opentime.Ordinate.init(0),
         findU_dual(  t1_n, t1_n,t0,t1,t2).r
     );
-    try expectEqual(
+    try opentime.expectOrdinateEqual(
         opentime.Ordinate.init(1.0/6.0),
         findU_dual( t05_n, t1_n,t0,t1,t2).r
     );
 
-    try expectApproxEql(
+    try opentime.expectOrdinateEqual(
         opentime.Ordinate.init(1.0/3.0),
         findU_dual(  t0, t1_n,t0,t1,t2).i
     );
-    try expectApproxEql(
+    try opentime.expectOrdinateEqual(
         opentime.Ordinate.init(1.0/3.0),
         findU_dual(  t05_n, t1_n,t0,t1,t2).i
     );
 
     {
-        const test_data = [_][4]opentime.Ordinate{
-            [4]opentime.Ordinate{ 0, 1, 2, 3 },
-        };
+        const test_data = [_][4]opentime.Ordinate.BaseType{
+           .{ 0.0, 1.0, 2.0, 3.0 }
+       };
 
         // sweep values in range and make sure that findU and findU_dual match
         for (test_data)
             |t|
         {
-            var x : opentime.Ordinate = t[0];
+            var x = t[0];
             while (x < t[3])
                 : (x += 0.01)
             {
                 errdefer std.log.err("Error on loop: {}\n",.{x});
-                try expectApproxEql(
-                    findU(x, t[0], t[1], t[2], t[3]),
-                    findU_dual(x, t[0], t[1], t[2], t[3]).r,
+                try opentime.expectOrdinateEqual(
+                    findU(
+                         opentime.Ordinate.init(x),
+                        opentime.Ordinate.init(t[0]),
+                        opentime.Ordinate.init(t[1]),
+                        opentime.Ordinate.init(t[2]),
+                        opentime.Ordinate.init(t[3]),
+                    ),
+                    findU_dual(
+                        opentime.Ordinate.init(x),
+                        opentime.Ordinate.init(t[0]),
+                        opentime.Ordinate.init(t[1]),
+                        opentime.Ordinate.init(t[2]),
+                        opentime.Ordinate.init(t[3])
+                    ).r,
                 );
             }
         }
     }
 
     // out of range values are clamped in u
-    try expectEqual(@as(opentime.Ordinate, 0), findU_dual(-1, 0,1,2,3).r);
-    try expectEqual(@as(opentime.Ordinate, 1), findU_dual(4, 0,1,2,3).r);
+    try opentime.expectOrdinateEqual(
+        0,
+        findU_dual(
+            opentime.Ordinate.init(-1),
+            opentime.Ordinate.init(0),
+            opentime.Ordinate.init(1),
+            opentime.Ordinate.init(2),
+            opentime.Ordinate.init(3),
+        ).r,
+    );
+    try opentime.expectOrdinateEqual(
+        1,
+        findU_dual(
+             opentime.Ordinate.init(4),
+            opentime.Ordinate.init(0),
+            opentime.Ordinate.init(1),
+            opentime.Ordinate.init(2),
+            opentime.Ordinate.init(3),
+        ).r,
+    );
 }
 
 test "bezier_math: dydx matches expected at endpoints" 
@@ -1258,7 +1288,7 @@ test "bezier_math: dydx matches expected at endpoints"
             );
         }
         const u_zero_dual = seg0.eval_at_dual(
-            .{ .r = opentime.Ordinate.init(t.r), .i = 1 }
+            .{ .r = opentime.Ordinate.init(t.r), .i = opentime.Ordinate.ONE }
         );
         try opentime.expectOrdinateEqual(
             opentime.Ordinate.init(t.e_dydu),
@@ -1268,11 +1298,10 @@ test "bezier_math: dydx matches expected at endpoints"
     }
 
     const x_zero_dual = seg0.output_at_input_dual(seg0.p0.in);
-    try expectApproxEql(
-        seg0.p1.in - seg0.p0.in,
+    try opentime.expectOrdinateEqual(
+        seg0.p1.in.sub(seg0.p0.in),
         x_zero_dual.i.in
     );
-
 }
 
 test "bezier_math: findU for upside down u" 
@@ -1286,17 +1315,17 @@ test "bezier_math: findU for upside down u"
     const seg_0 = crv.segments[0];
 
     const u_zero_dual =  seg_0.findU_input_dual(seg_0.p0.in);
-    try expectApproxEql(@as(opentime.Ordinate, 0), u_zero_dual.r);
+    try opentime.expectOrdinateEqual(0, u_zero_dual.r);
 
     const half_x = lerp(0.5, seg_0.p0.in, seg_0.p3.in);
     const u_half_dual = seg_0.findU_input_dual(half_x);
 
     // u_half_dual = (u, du/dx)
-    try expectApproxEql(@as(opentime.Ordinate, 0.5), u_half_dual.r);
-    try expectApproxEql(@as(opentime.Ordinate, 0.666666667), u_half_dual.i);
+    try opentime.expectOrdinateEqual(0.5, u_half_dual.r);
+    try opentime.expectOrdinateEqual(0.666666667, u_half_dual.i);
 
     const u_one_dual =   seg_0.findU_input_dual(seg_0.p3.in);
-    try expectApproxEql(@as(opentime.Ordinate, 1), u_one_dual.r);
+    try opentime.expectOrdinateEqual(1, u_one_dual.r);
 }
 
 test "bezier_math: derivative at 0 for linear bezier_curve" 
@@ -1313,11 +1342,11 @@ test "bezier_math: derivative at 0 for linear bezier_curve"
 
     // test that eval_at_dual gets the same result
     {
-        const u_zero_dual = seg_0.eval_at_dual(.{ .r = 0, .i = 1 });
-        const u_half_dual = seg_0.eval_at_dual(.{ .r = 0.5, .i = 1 });
+        const u_zero_dual = seg_0.eval_at_dual(opentime.Dual_Ord.from(.{ .r = 0, .i = 1 }));
+        const u_half_dual = seg_0.eval_at_dual(opentime.Dual_Ord.from(.{ .r = 0.5, .i = 1 }));
 
-        try expectApproxEql(u_zero_dual.i.in, u_half_dual.i.in);
-        try expectApproxEql(u_zero_dual.i.out, u_half_dual.i.out);
+        try opentime.expectOrdinateEqual(u_zero_dual.i.in, u_half_dual.i.in);
+        try opentime.expectOrdinateEqual(u_zero_dual.i.out, u_half_dual.i.out);
     }
 
     // findU dual comparison
@@ -1327,21 +1356,21 @@ test "bezier_math: derivative at 0 for linear bezier_curve"
         const u_one_dual =   seg_0.findU_input_dual(seg_0.p3.in);
 
         // known 0 values
-        try expectApproxEql(@as(opentime.Ordinate, 0), u_zero_dual.r);
-        try expectApproxEql(@as(opentime.Ordinate, 1), u_one_dual.r);
+        try opentime.expectOrdinateEqual(0, u_zero_dual.r);
+        try opentime.expectOrdinateEqual(1, u_one_dual.r);
 
-        // derivative should be the same everywhere, linear function
-        try expectApproxEql(@as(opentime.Ordinate, 1), u_zero_dual.i);
-        try expectApproxEql(@as(opentime.Ordinate, 1), u_third_dual.i);
-        try expectApproxEql(@as(opentime.Ordinate, 1), u_one_dual.i);
+        // derivative should be the same 
+        try opentime.expectOrdinateEqual(1, u_zero_dual.i);
+        try opentime.expectOrdinateEqual(1, u_third_dual.i);
+        try opentime.expectOrdinateEqual(1, u_one_dual.i);
     }
 
     {
         const x_zero_dual =  seg_0.output_at_input_dual(crv.segments[0].p0.in);
         const x_third_dual = seg_0.output_at_input_dual(crv.segments[0].p1.in);
 
-        try expectApproxEql(x_zero_dual.i.in, x_third_dual.i.in);
-        try expectApproxEql(x_zero_dual.i.out, x_third_dual.i.out);
+        try opentime.expectOrdinateEqual(x_zero_dual.i.in, x_third_dual.i.in);
+        try opentime.expectOrdinateEqual(x_zero_dual.i.out, x_third_dual.i.out);
     }
 }
 
@@ -1382,16 +1411,16 @@ test "bezier_math: normalized_to"
 {
     var slope2 = [_]bezier_curve.Bezier.Segment{
         .{
-            .p0 = .{.in = -500, .out=600},
-            .p1 = .{.in = -300, .out=-100},
-            .p2 = .{.in = 200, .out=300},
-            .p3 = .{.in = 500, .out=700},
+            .p0 = control_point.ControlPoint.init(.{.in = -500, .out=600}),
+            .p1 = control_point.ControlPoint.init(.{.in = -300, .out=-100}),
+            .p2 = control_point.ControlPoint.init(.{.in = 200, .out=300}),
+            .p3 = control_point.ControlPoint.init(.{.in = 500, .out=700}),
         }
     };
     const input_crv:bezier_curve.Bezier = .{ .segments = &slope2 };
 
-    const min_point: control_point.ControlPoint = .{.in=-100, .out=-300};
-    const max_point: control_point.ControlPoint = .{.in=100, .out=-200};
+    const min_point= control_point.ControlPoint.init(.{.in=-100, .out=-300});
+    const max_point= control_point.ControlPoint.init(.{.in=100, .out=-200});
 
     const result_crv = try normalized_to(
         std.testing.allocator,
@@ -1413,18 +1442,18 @@ test "bezier_math: normalize_to_screen_coords"
 {
     var segments = [_]bezier_curve.Bezier.Segment{
         .{
-            .p0 = .{.in = -500, .out=600},
-            .p1 = .{.in = -300, .out=-100},
-            .p2 = .{.in = 200, .out=300},
-            .p3 = .{.in = 500, .out=700},
+            .p0 = control_point.ControlPoint.init(.{.in = -500, .out=600}),
+            .p1 = control_point.ControlPoint.init(.{.in = -300, .out=-100}),
+            .p2 = control_point.ControlPoint.init(.{.in = 200, .out=300}),
+            .p3 = control_point.ControlPoint.init(.{.in = 500, .out=700}),
         },
     };
     const input_crv:bezier_curve.Bezier = .{
         .segments = &segments
     };
 
-    const min_point = control_point.ControlPoint{.in=700, .out=100};
-    const max_point = control_point.ControlPoint{.in=2500, .out=1900};
+    const min_point = control_point.ControlPoint.init(.{.in=700, .out=100});
+    const max_point = control_point.ControlPoint.init(.{.in=2500, .out=1900});
 
     const result_crv = try normalized_to(
         std.testing.allocator,
@@ -1462,10 +1491,14 @@ pub fn slope(
 
 test "bezier_math: slope"
 {
-    const start = control_point.ControlPoint.init(.{ .in = 0, .out = 0, });
-    const end = control_point.ControlPoint.init(.{ .in = 2, .out = 4, });
+    const start = control_point.ControlPoint.init(
+        .{ .in = 0, .out = 0, }
+    );
+    const end = control_point.ControlPoint.init(
+        .{ .in = 2, .out = 4, }
+    );
 
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
         2,
         slope(start, end)
     );
@@ -1804,12 +1837,11 @@ test "bezier_math: BezierMath: rescaled parameter"
 
     const end_extents = result.extents();
 
-    try expectApproxEql(@as(opentime.Ordinate, 100), end_extents[0].in);
-    try expectApproxEql(@as(opentime.Ordinate, 200), end_extents[1].in);
+    try opentime.expectOrdinateEqual(100, end_extents[0].in);
+    try opentime.expectOrdinateEqual(200, end_extents[1].in);
 
-    try expectApproxEql(@as(opentime.Ordinate, 0),  end_extents[0].out);
-    try expectApproxEql(@as(opentime.Ordinate, 10), end_extents[1].out);
-
+    try opentime.expectOrdinateEqual(0,  end_extents[0].out);
+    try opentime.expectOrdinateEqual(10, end_extents[1].out);
 }
 
 // test "inverted: invert bezier" 
