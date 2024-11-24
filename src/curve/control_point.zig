@@ -58,7 +58,7 @@ pub fn ControlPointOf(
        }
 
         /// polymorphic dispatch for multiply
-        pub fn mul(
+        pub inline fn mul(
             self: @This(),
             rhs: anytype,
         ) ControlPointType 
@@ -70,7 +70,7 @@ pub fn ControlPointOf(
         }
 
         /// multiply w/ number
-        pub fn mul_num(
+        pub inline fn mul_num(
             self: @This(),
             val: anytype,
         ) ControlPointType
@@ -82,7 +82,7 @@ pub fn ControlPointOf(
         }
 
         /// multiply w/ struct
-        pub fn mul_cp(
+        pub inline fn mul_cp(
             self: @This(),
             rhs: ControlPointType,
         ) ControlPointType

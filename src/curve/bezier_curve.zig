@@ -528,10 +528,9 @@ pub const Bezier = struct {
 
             inline for (self_p, &self_dual) 
                 |p, *dual_p| 
-                {
-                    dual_p.r = p;
-                    dual_p.i = .{};
-                }
+            {
+                dual_p.* = control_point.Dual_CP.from(p);
+            }
 
             const seg3 = bezier_math.segment_reduce4_dual(unorm_dual, self_dual);
             const seg2 = bezier_math.segment_reduce3_dual(unorm_dual, seg3);
@@ -664,12 +663,12 @@ pub const Bezier = struct {
                 {
                     const pt = @field(self, field);
                     min = .{
-                        .in = @min(min.in, pt.in),
-                        .out = @min(min.out, pt.out),
+                        .in = opentime.min(min.in, pt.in),
+                        .out = opentime.min(min.out, pt.out),
                     };
                     max = .{
-                        .in = @max(max.in, pt.in),
-                        .out = @max(max.out, pt.out),
+                        .in = opentime.max(max.in, pt.in),
+                        .out = opentime.max(max.out, pt.out),
                     };
                 }
 
@@ -1603,12 +1602,12 @@ pub const Bezier = struct {
         {
             const seg_extents = seg.extents();
             min = .{
-                .in = @min(min.in, seg_extents[0].in),
-                .out = @min(min.out, seg_extents[0].out),
+                .in = opentime.min(min.in, seg_extents[0].in),
+                .out = opentime.min(min.out, seg_extents[0].out),
             };
             max = .{
-                .in = @max(min.in, seg_extents[1].in),
-                .out = @max(min.out, seg_extents[1].out),
+                .in = opentime.max(min.in, seg_extents[1].in),
+                .out = opentime.max(min.out, seg_extents[1].out),
             };
         }
         return .{ min, max };

@@ -45,18 +45,14 @@ pub fn lerp(
 ) @TypeOf(a) 
 {
     return comath.eval(
-        "(a * ((-u) + ONE)) + (b * u)",
+        "(a * ((-u) + 1.0)) + (b * u)",
         CTX,
         .{
-            .ONE = switch (@TypeOf(u)) {
-                opentime.Ordinate => opentime.Ordinate.ONE,
-                else => 1.0,
-            },
             .a = a,
             .b = b,
             .u = u,
         }
-    ) catch |err| switch (err) {};
+    ) catch @panic("lerp error");
 }
 
 pub fn invlerp(
@@ -214,7 +210,7 @@ pub fn _bezier0_dual(
     unorm: opentime.Dual_Ord,
     p2: opentime.Ordinate,
     p3: opentime.Ordinate,
-    p4: opentime.Ordinate
+    p4: opentime.Ordinate,
 ) opentime.Dual_Ord
 {
     // original math (p1 = 0, so last term falls out)
@@ -389,7 +385,10 @@ fn first_valid_root(
     for (possible_roots)
         |root|
     {
-        if (0 <= root.r and root.r <= 1)
+        if (
+            opentime.Ordinate.ZERO.lteq(root.r) 
+            and root.r.lteq(opentime.Ordinate.ONE)
+        )
         {
             return root;
         }
@@ -403,7 +402,7 @@ inline fn crt(
     v:opentime.Dual_Ord
 ) opentime.Dual_Ord
 {
-    if (v.r < 0) {
+    if (v.r.lt(0)) {
         return ((v.negate()).pow(1.0/3.0)).negate();
     } 
     else {
@@ -578,7 +577,7 @@ pub fn findU_dual3(
             .pc = p2_d,
             .pd = p3_d,
         },
-    ) catch .{ .r = -12, .i=3.14};
+    ) catch @panic("comath error 1");
 
     var a = comath.eval(
         // "(pa * 3.0) - (pb * 6.0) + (pc * 3.0)",
@@ -589,7 +588,7 @@ pub fn findU_dual3(
             .pb = p1_d,
             .pc = p2_d,
         },
-    ) catch .{ .r = -12, .i=3.14};
+    ) catch @panic("comath error 2");
 
     var b = comath.eval(
         "(-pa * 3.0) + (pb * 3.0)",
@@ -598,24 +597,25 @@ pub fn findU_dual3(
             .pa = p0_d,
             .pb = p1_d,
         },
-    ) catch .{ .r = -12, .i=3.14};
+    ) catch @panic("comath dual error 3");
 
     var c = p0_d;
 
-    if (@abs(d.r) < generic_curve.EPSILON) 
+    if (opentime.lt(opentime.abs(d.r), opentime.Ordinate.EPSILON))
     {
         // not cubic
-        if (@abs(a.r) < generic_curve.EPSILON) 
+        if (opentime.lt(opentime.abs(a.r), opentime.Ordinate.EPSILON))
         {
             // linear
-            if (@abs(b.r) < generic_curve.EPSILON)
+            if (opentime.lt(opentime.abs(b.r), opentime.Ordinate.EPSILON))
             {
                 // no solutions
                 return .{
-                    .r = std.math.nan(opentime.Ordinate),
-                    .i = std.math.nan(opentime.Ordinate),
+                    .r = opentime.Ordinate.NAN,
+                    .i = opentime.Ordinate.NAN,
                 };
             }
+
             return try comath.eval(
                 "(-c) / b", 
                 CTX,
@@ -639,7 +639,10 @@ pub fn findU_dual3(
             .{ .q = q, .b = b, .a2 = a2 }
         );
 
-        if (0 <= pos_sol.r and pos_sol.r <= 1)
+        if (
+            opentime.Ordinate.ZERO.lteq(pos_sol.r) 
+            and pos_sol.r.lteq(opentime.Ordinate.ONE)
+        )
         {
             return pos_sol;
         }
@@ -690,7 +693,8 @@ pub fn findU_dual3(
         },
     );
 
-    if (discriminant.r < 0) {
+    if (discriminant.r.lt(opentime.Ordinate.ZERO)) 
+    {
         const mp3 = (p.negate()).div(3.0);
         const mp33 = mp3.mul(mp3).mul(mp3);
         const r = mp33.sqrt();
@@ -699,12 +703,16 @@ pub fn findU_dual3(
             CTX,
             .{ .q = q, .r = r, },
         );
-        const ONE_DUAL = opentime.Dual_Ord{ .r = 1.0, .i = t.i };
-        const cosphi = if (t.r < -1) 
-            ONE_DUAL.negate() 
+        const ONE_DUAL = opentime.Dual_Ord.init_ri(
+            1.0,
+            t.i 
+        );
+        const cosphi = (
+            if (t.r.lt(-1) ) ONE_DUAL.negate() 
             else (
-                if (t.r > 1) ONE_DUAL else t
-            );
+                if (t.r.gt(1)) ONE_DUAL else t
+            )
+        );
         const phi = cosphi.acos();
         const crtr = crt(r);
         const t1 = crtr.mul(2.0);
@@ -742,8 +750,8 @@ pub fn findU_dual3(
         );
 
         return first_valid_root(&.{x1, x2, x3});
-    } else if (discriminant.r == 0) {
-        const u_1 = if (q2.r < 0) crt(q2.negate()) else crt(q2).negate();
+    } else if (discriminant.r.eql(0)) {
+        const u_1 = if (q2.r.lt(0)) crt(q2.negate()) else crt(q2).negate();
         const x1 = try comath.eval(
             "(u_1 * 2.0) - (a / 3.0)",
             CTX,
@@ -795,7 +803,7 @@ pub fn findU_dual2(
 
         const delta = x_at_u_guess.r - x_input;
 
-        if (@abs(delta) < MAX_ABS_ERROR) 
+        if (opentime.abs(delta) < MAX_ABS_ERROR) 
         {
             return u_guess;
         }
@@ -1086,6 +1094,45 @@ test "bezier_math: lerp"
     try opentime.expectOrdinateEqual(0.25, lerp(0.25, fst, snd).in);
     try opentime.expectOrdinateEqual(0.5, lerp(0.5, fst, snd).in);
     try opentime.expectOrdinateEqual(0.75, lerp(0.75, fst, snd).in);
+
+    // dual lerp test
+    {
+        const d_u = opentime.Dual_Ord.init_ri(0.25, 1);
+        const p1 = opentime.Dual_Ord.from(10);
+        const p2 = opentime.Dual_Ord.from(20);
+
+        const measured = lerp(d_u, p1, p2);
+
+        try opentime.expectOrdinateEqual(
+            12.5,           
+            measured.r
+        );
+
+        try opentime.expectOrdinateEqual(
+            10.0, 
+            measured.i,
+        );
+
+        // a * ((-u) + 1) + (b * u)
+        const algebraic = (
+            ((d_u.negate().add(1)).mul(p1)).add(d_u.mul(p2))
+        );
+
+        try opentime.expectOrdinateEqual(
+            algebraic.r,           
+            measured.r
+        );
+
+        try opentime.expectOrdinateEqual(
+            algebraic.i, 
+            measured.i,
+        );
+
+        try opentime.expectOrdinateEqual(
+            10.0,
+            algebraic.i, 
+        );
+    }
 }
 
 test "bezier_math: findU" 
@@ -1330,23 +1377,40 @@ test "bezier_math: findU for upside down u"
 
 test "bezier_math: derivative at 0 for linear bezier_curve" 
 {
-    const crv = try bezier_curve.read_curve_json(
-        "curves/linear.curve.json",
-        std.testing.allocator
-    );
-    defer std.testing.allocator.free(crv.segments);
+    const allocator = std.testing.allocator;
 
-    try expectEqual(@as(usize, 1), crv.segments.len);
+    const crv = try bezier_curve.Bezier.init_from_start_end(
+        allocator,
+        control_point.ControlPoint.init(
+            .{ .in = -0.5, .out = -0.5, }
+        ),
+        control_point.ControlPoint.init(
+            .{ .in = 0.5, .out = 0.5, }
+        ),
+    );
+    defer allocator.free(crv.segments);
+
+    try expectEqual(1, crv.segments.len);
 
     const seg_0 = crv.segments[0];
 
     // test that eval_at_dual gets the same result
     {
-        const u_zero_dual = seg_0.eval_at_dual(opentime.Dual_Ord.from(.{ .r = 0, .i = 1 }));
-        const u_half_dual = seg_0.eval_at_dual(opentime.Dual_Ord.from(.{ .r = 0.5, .i = 1 }));
+        const u_zero_dual = seg_0.eval_at_dual(
+            opentime.Dual_Ord.init_ri( 0, 1)
+        );
+        const u_half_dual = seg_0.eval_at_dual(
+            opentime.Dual_Ord.init_ri(0.5,  1)
+        );
 
-        try opentime.expectOrdinateEqual(u_zero_dual.i.in, u_half_dual.i.in);
-        try opentime.expectOrdinateEqual(u_zero_dual.i.out, u_half_dual.i.out);
+        try opentime.expectOrdinateEqual(
+            u_zero_dual.i.in,
+            u_half_dual.i.in
+        );
+        try opentime.expectOrdinateEqual(
+            u_zero_dual.i.out,
+            u_half_dual.i.out
+        );
     }
 
     // findU dual comparison
