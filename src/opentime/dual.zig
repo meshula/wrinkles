@@ -69,6 +69,8 @@ pub const CTX = comath.ctx.fnMethod(
     .{
         .@"+" = "add",
         .@"*" = "mul",
+        .@"-" = &.{"sub", "neg", "negate"},
+        .@"/" = "div",
     },
 );
 
@@ -133,28 +135,31 @@ pub fn DualOfNumberType(
         /// infinitesimal component
         i: T = 0,
 
+        pub const BaseType = T;
+        pub const __IS_DUAL = true;
+
         /// initialize with i = 0
         pub fn init(
-            r: T
+            r: T,
         ) @This() 
         {
             return .{ .r = r };
         }
 
         pub inline fn negate(
-            self: @This()
+            self: @This(),
         ) @This() 
         {
-            return .{ .r = -self.r, .i = -self.i };
+            return .{ .r = -self.r, .i = -self.i, };
         }
 
         pub inline fn add(
             self: @This(),
-            rhs: anytype
+            rhs: anytype,
         ) @This() 
         {
-            return switch(@typeInfo(@TypeOf(rhs))) {
-                .Struct => .{ 
+            return switch(is_dual_type((@TypeOf(rhs)))) {
+                true => .{ 
                     .r = self.r + rhs.r,
                     .i = self.i + rhs.i,
                 },
@@ -170,8 +175,8 @@ pub fn DualOfNumberType(
             rhs: anytype,
         ) @This() 
         {
-            return switch(@TypeOf(rhs)) {
-                @This() => .{ 
+            return switch(is_dual_type(@TypeOf(rhs))) {
+                true => .{ 
                     .r = self.r - rhs.r,
                     .i = self.i - rhs.i,
                 },
@@ -187,8 +192,8 @@ pub fn DualOfNumberType(
             rhs: anytype
         ) @This() 
         {
-            return switch(@typeInfo(@TypeOf(rhs))) {
-                .Struct => .{ 
+            return switch(is_dual_type(@TypeOf(rhs))) {
+                true => .{ 
                     .r = self.r * rhs.r,
                     .i = self.r * rhs.i + self.i*rhs.r,
                 },
@@ -217,11 +222,11 @@ pub fn DualOfNumberType(
 
         pub inline fn div(
             self: @This(),
-            rhs: anytype
+            rhs: anytype,
         ) @This() 
         {
-            return switch(@typeInfo(@TypeOf(rhs))) {
-                .Struct => .{
+            return switch(is_dual_type(@TypeOf(rhs))) {
+                true => .{
                     .r = self.r / rhs.r,
                     .i = (rhs.r * self.i - self.r * rhs.i) / (rhs.r * rhs.r),
                 },
@@ -277,6 +282,21 @@ pub fn DualOfNumberType(
                 ),
             };
         }
+
+        pub fn format(
+            self: @This(),
+            // fmt
+            comptime _: []const u8,
+            // options
+            _: std.fmt.FormatOptions,
+            writer: anytype,
+        ) !void 
+        {
+            try writer.print(
+                "Dual ({s}){{ {s} + {s} }}",
+                .{ @typeName(BaseType), self.r, self.i, },
+            );
+        }
     };
 }
 
@@ -290,42 +310,110 @@ pub fn DualOfStruct(
         /// infinitesimal component
         i: T = T.ZERO,
 
-        pub fn from(
+        pub const BaseType = T;
+        pub const DualType = @This();
+        pub const __IS_DUAL = true;
+
+        pub const ZERO_ZERO = DualType{
+            .r = T.ZERO,
+            .i = T.ZERO,
+        };
+        pub const ONE_ZERO = DualType{
+            .r = T.ONE,
+            .i = T.ZERO,
+        };
+
+        pub inline fn from(
             r: anytype,
         ) @This()
         {
             return switch (@TypeOf(r)) {
+                @This() => r,
                 T => .{ .r = r },
                 else => .{ .r = T.init(r)},
             };
         }
 
+        pub inline fn init_ri(
+            r: anytype,
+            i: anytype,
+        ) @This()
+        {
+            return .{
+                .r = switch (@TypeOf(r)) {
+                    BaseType => r,
+                    else => BaseType.init(r),
+                },
+                .i = switch (@TypeOf(i)) {
+                    BaseType => i,
+                    else => BaseType.init(i),
+                },
+            };
+        }
+
         pub inline fn add(
             self: @This(),
-            rhs: @This()
+            rhs: anytype,
         ) @This() 
         {
+            const rhs_r = switch (is_dual_type(@TypeOf(rhs))) {
+                true => rhs.r,
+                else => rhs,
+            };
+            const rhs_i = switch (is_dual_type(@TypeOf(rhs))) {
+                true => rhs.i,
+                else => BaseType.init(0.0),
+            };
+
             return .{
                 .r = comath.eval(
                     "self_r + rhs_r",
                     CTX,
-                    .{ .self_r = self.r, .rhs_r = rhs.r }
+                    .{ .self_r = self.r, .rhs_r = rhs_r }
                 ) catch |err| switch (err) {},
                 .i = comath.eval(
                     "self_i + rhs_i",
                     CTX,
-                    .{ .self_i = self.i, .rhs_i = rhs.i }
+                    .{ .self_i = self.i, .rhs_i = rhs_i }
+                ) catch |err| switch (err) {}
+            };
+        }
+
+        pub inline fn sub(
+            self: @This(),
+            rhs: anytype,
+        ) @This() 
+        {
+            const rhs_r = switch (is_dual_type(@TypeOf(rhs))) {
+                true => rhs.r,
+                else => rhs,
+            };
+            const rhs_i = switch (is_dual_type(@TypeOf(rhs))) {
+                true => rhs.i,
+                else => BaseType.init(0.0),
+            };
+
+            return .{
+                .r = comath.eval(
+                    "self_r - rhs_r",
+                    CTX,
+                    .{ .self_r = self.r, .rhs_r = rhs_r }
+                ) catch |err| switch (err) {},
+                .i = comath.eval(
+                    "self_i - rhs_i",
+                    CTX,
+                    .{ .self_i = self.i, .rhs_i = rhs_i }
                 ) catch |err| switch (err) {}
             };
         }
 
         pub inline fn mul(
             self: @This(),
-            rhs: anytype
-        ) @This() 
+            rhs: anytype,
+        ) DualType
         {
-            return switch(@typeInfo(@TypeOf(rhs))) {
-                .Struct => .{ 
+            return switch(is_dual_type(@TypeOf(rhs))) {
+                true => .{ 
                     .r = self.r.mul(rhs.r),
                     .i = (self.r.mul(rhs.i)).add(self.i.mul(rhs.r)),
                 },
@@ -336,24 +424,121 @@ pub fn DualOfStruct(
             };
         }
 
+        pub inline fn div(
+            self: @This(),
+            rhs: anytype,
+        ) @This() 
+        {
+            return switch(is_dual_type(@TypeOf(rhs))) {
+                true => .{ 
+                    .r = self.r.div(rhs.r),
+                    .i = (
+                        (rhs.r.mul(self.i)).sub(self.r.mul(rhs.i))).div(
+                        rhs.r.mul(rhs.r)
+                    ),
+                },
+                else => .{
+                    .r = self.r.div(rhs),
+                    .i = self.i.div(rhs),
+                },
+            };
+        }
+
         pub inline fn sqrt(
-            self: @This()
+            self: @This(),
         ) @This() 
         {
             return .{ 
                 .r = self.r.sqrt(),
                 .i = ordinate.eval(
-                    "i / (two * sqrt_r)",
+                    "i / (sqrt_r * 2)",
                     .{
                         .i = self.i,
                         .sqrt_r = self.r.sqrt(),
-                        .two = ordinate.Ordinate.init(2) 
                     }
                 ),
             };
         }
-    };
 
+        pub inline fn negate(
+            self: @This(),
+        ) @This() 
+        {
+            return .{ 
+                .r = self.r.neg(),
+                .i = self.i.neg(),
+            };
+        }
+
+        pub inline fn cos(
+            self: @This()
+        ) @This() 
+        {
+            return .{
+                .r = BaseType.init(std.math.cos(self.r.as(f32))),
+                .i = (self.i.neg()).mul(BaseType.init(std.math.sin(self.r.as(f32)))),
+            };
+        }
+
+        pub inline fn acos(
+            self: @This(),
+        ) @This() 
+        {
+            return .{
+                // XXX: Easier right now to route through f64 than build an
+                //      acos out on opentime.Ordinate
+                .r = BaseType.init(std.math.acos(self.r.as(f32))),
+                .i = (self.i.neg()).div(
+                    comath.eval(
+                        "- (r * r) + 1",
+                        CTX,
+                        .{ .r = self.r }
+                    ) catch @panic("invalid acos")
+                ).sqrt(),
+            };
+        }
+
+        pub inline fn pow(
+            self: @This(),
+            /// exponent
+            exp: anytype,
+        ) @This() 
+        {
+            return .{
+                // .r = std.math.pow(@TypeOf(self.r), self.r, exp),
+                .r = self.r.pow(exp),
+                // .i = (
+                //     self.i 
+                //     * (exp - 1) 
+                //     * std.math.pow(@TypeOf(self.r), self.r, exp - 1)
+                // ),
+                .i = comath.eval(
+                    "i * (exp) * pow_minus_one",
+                    CTX,
+                    .{
+                        .i = self.i,
+                        .exp = exp, 
+                        .pow_minus_one = self.r.pow(exp-1),
+                    }
+                ) catch @panic("invalid pow"),
+            };
+        }
+
+        pub fn format(
+            self: @This(),
+            // fmt
+            comptime _: []const u8,
+            // options
+            _: std.fmt.FormatOptions,
+            writer: anytype,
+        ) !void 
+        {
+            try writer.print(
+                "Dual ({s}){{ {s} + {s} }}",
+                .{ @typeName(BaseType), self.r, self.i, },
+            );
+        }
+    };
 }
 
 test "Dual: comath dual test polymorphic" 
@@ -413,4 +598,152 @@ test "Dual: Dual_Ord sqrt (3-4-5 triangle)"
         ordinate.Ordinate.init(5),
         d.sqrt().r,
     );
+}
+
+pub inline fn is_dual_type(
+    comptime T: type,
+) bool
+{
+    return switch (@typeInfo(T)) {
+        .Struct => @hasDecl(T, "__IS_DUAL"),
+        else => false,
+    };
+}
+
+test "Dual: binary operator test"
+{
+    const r1 = 8;
+    const r2 = 2;
+
+    // operations over 8 and 2
+    const TestCase = struct {
+        op: []const u8,
+        exp_r: f32,
+        exp_i: f32,
+    };
+    const tests = [_]TestCase{
+        .{ .op = "add", .exp_r = 10, .exp_i = 1 },
+        .{ .op = "sub", .exp_r = 6,  .exp_i = 1 },
+        .{ .op = "mul", .exp_r = 16, .exp_i = 2 },
+        .{ .op = "div", .exp_r = 4,  .exp_i = 0.5 },
+    };
+    inline for (tests)
+        |t|
+    { 
+        const x = Dual_Ord.init_ri(r1, 1);
+        const x2 = @field(Dual_Ord, t.op)(x, Dual_Ord.from(r2));
+        const x3 = @field(Dual_Ord, t.op)(x, r2);
+
+        errdefer std.debug.print(
+            "error with {s}({d}, {d}): expected [{d}, {d}], got: {s}\n",
+            .{ t.op, r1, r2, t.exp_r, t.exp_i, x2 },
+        );
+
+        try ordinate.expectOrdinateEqual(
+            t.exp_r,
+            x2.r,
+        );
+        try ordinate.expectOrdinateEqual(
+            t.exp_i,
+            x2.i,
+        );
+        try ordinate.expectOrdinateEqual(
+            t.exp_r,
+            x3.r,
+        );
+        try ordinate.expectOrdinateEqual(
+            t.exp_i,
+            x3.i,
+        );
+    }
+}
+
+test "Dual: unary operator test"
+{
+    const r1 = 16;
+
+    // operations over 8 and 2
+    const TestCase = struct {
+        op: []const u8,
+        exp_r: f32,
+        exp_i: f32,
+    };
+    const tests = [_]TestCase{
+        .{ .op = "negate", .exp_r = -16, .exp_i = -1 },
+        .{
+            .op = "sqrt",
+            .exp_r = 4, .exp_i = 1.0/(std.math.sqrt(16.0) * 2.0) 
+        },
+    };
+    inline for (tests)
+        |t|
+    { 
+        const x = Dual_Ord.init_ri(r1, 1);
+        const x2 = @field(Dual_Ord, t.op)(x);
+
+        errdefer std.debug.print(
+            "error with {s}({d}): expected [{d}, {d}], got: {s}\n",
+            .{ t.op, r1, t.exp_r, t.exp_i, x2 },
+        );
+
+        try ordinate.expectOrdinateEqual(
+            t.exp_r,
+            x2.r,
+        );
+        try ordinate.expectOrdinateEqual(
+            t.exp_i,
+            x2.i,
+        );
+    }
+}
+
+test "Dual: pow"
+{ 
+    const TestCase = struct{
+        x: f32,
+        exp: f32,
+        exp_r: f32,
+        exp_i: f32,
+    };
+    const tests = [_]TestCase{
+        .{
+            .x = 4,
+            .exp = 1.0 / 2.0,
+            // expected
+            .exp_r = 2,
+            .exp_i = 1.0/4.0,
+        },
+        .{
+            .x = 4,
+            .exp = 3,
+            // expected
+            .exp_r = 64,
+            .exp_i = 48,
+        },
+    };
+
+    for (tests)
+        |t|
+    {
+
+        const r1 = t.x;
+        const r2 = t.exp;
+
+        const x = Dual_Ord.init_ri(r1, 1);
+        const x2 = x.pow(r2);
+
+        errdefer std.debug.print(
+            "error with pow({d}, {d}): expected [{d}, {d}], got: {s}\n",
+            .{ r1, r2, t.exp_r, t.exp_i, x2 },
+        );
+
+        try ordinate.expectOrdinateEqual(
+            t.exp_r,
+            x2.r,
+        );
+        try ordinate.expectOrdinateEqual(
+            t.exp_i,
+            x2.i,
+        );
+    }
 }
