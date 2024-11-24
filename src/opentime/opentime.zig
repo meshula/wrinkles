@@ -12,6 +12,10 @@ const std = @import("std");
 const ordinate = @import("ordinate.zig");
 pub const Ordinate = ordinate.Ordinate;
 pub const expectOrdinateEqual = ordinate.expectOrdinateEqual;
+// unary
+pub const abs = ordinate.abs;
+
+// binary
 pub const min = ordinate.min;
 pub const max = ordinate.max;
 pub const eql = ordinate.eql;
@@ -19,8 +23,12 @@ pub const lt = ordinate.lt;
 pub const lteq = ordinate.lteq;
 pub const gt = ordinate.gt;
 pub const gteq = ordinate.gteq;
-pub const eval = ordinate.eval;
+
+// sorting
 pub const sort = ordinate.sort;
+
+// comath interface
+pub const eval = ordinate.eval;
 // @}
 
 // interval @{

@@ -68,7 +68,10 @@ pub const PhaseOrdinate = struct {
                 // if (std.math.isFinite(val)) (
                     PhaseOrdinate { 
                         .count = @intFromFloat(val),
-                        .phase = @floatCast(std.math.sign(val) * (@abs(val) - @trunc(@abs(val)))),
+                        .phase = @floatCast(
+                            std.math.sign(val) 
+                            * (@abs(val) - @trunc(@abs(val)))
+                        ),
                     }
                 ).normalized()
                 ,
@@ -803,7 +806,7 @@ fn OrdinateOf(
             try writer.print( "Ord{{ {d} }}", .{ self.v });
         }
 
-        fn type_error(
+        inline fn type_error(
             thing: anytype,
         ) void
         {
@@ -901,11 +904,19 @@ fn OrdinateOf(
                 OrdinateType => .{ .v = self.v * rhs.v },
                 else => switch (@typeInfo(@TypeOf(rhs))) {
                     .Float, .ComptimeFloat, .Int, .ComptimeInt => .{ 
-                        .v = self.v * rhs 
+                        .v = self.v * rhs,
                     },
                     else => type_error(rhs),
                 },
             };
+        }
+
+        pub inline fn pow(
+            self: @This(),
+            exp: BaseType,
+        ) OrdinateType
+        {
+            return .{ .v = std.math.pow(BaseType, self.v, exp) };
         }
 
         pub inline fn div(
@@ -1186,6 +1197,17 @@ test "Base Ordinate: Binary Operator Tests"
             try expectOrdinateEqual(expected, measured);
         }
     }
+}
+
+// unary macros
+pub inline fn abs(
+    lhs: anytype,
+) @TypeOf(lhs)
+{
+    return switch (@typeInfo(@TypeOf(lhs))) {
+        .Struct => lhs.abs(),
+        else => @abs(lhs),
+    };
 }
 
 // binary macros
