@@ -860,6 +860,28 @@ pub const Bezier = struct {
                 },
             };
         }
+
+        pub fn format(
+            self: @This(),
+            comptime _: []const u8,
+            _: std.fmt.FormatOptions,
+            writer: anytype,
+        ) !void 
+        {
+            try writer.print("Bezier.Segment{{\n", .{});
+
+            inline for (self.points(), 0..)
+                |p, ind|
+            {
+                if (ind > 0)
+                {
+                    try writer.print(",\n", .{});
+                }
+                try writer.print("      {s}", .{p});
+            }
+
+            try writer.print("\n    }}", .{});
+        }
     };
 
 
@@ -2050,6 +2072,28 @@ pub const Bezier = struct {
         }
 
         return .{ .segments = try split_segments.toOwnedSlice() };
+    }
+
+    pub fn format(
+        self: @This(),
+        comptime _: []const u8,
+        _: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void 
+    {
+        try writer.print("Bezier{{\n  .segments: [\n", .{});
+
+        for (self.segments, 0..)
+            |s, ind|
+        {
+            if (ind > 0)
+            {
+                try writer.print(",\n", .{});
+            }
+            try writer.print("    {s}", .{ s});
+        }
+
+        try writer.print("\n  ]\n}}", .{});
     }
 };
 
