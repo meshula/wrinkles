@@ -36,7 +36,7 @@ pub const sample_rate_base_t = u32;
 
 // epsilon values for comparison against zero
 const EPSILON_VALUE: sample_value_t = 1.0e-4;
-const EPSILON_ORD: sample_ordinate_t = 1.0e-4;
+const EPSILON_ORD: sample_ordinate_t = opentime.Ordinate.EPSILON;
 
 /// project a continuous ordinate into a discrete index sequence
 pub fn project_instantaneous_cd(
@@ -44,12 +44,19 @@ pub fn project_instantaneous_cd(
     ord_continuous: sample_ordinate_t,
 ) sample_index_t
 {
+    const rate_hz_ord = self.sample_rate_hz.as_ordinate();
     return @as(
         sample_index_t,
         @intFromFloat(
             @floor(
-                ord_continuous*self.sample_rate_hz.as_float()
-                + (1/self.sample_rate_hz.as_float())/2
+                opentime.eval(
+                    "ord * rate + (ONE / rate) / 2",
+                    .{ 
+                        .ord = ord_continuous,
+                        .rate = rate_hz_ord, 
+                        .ONE = sample_ordinate_t.ONE,
+                    },
+                ).as(f32)
             )
         )
     ) + self.start_index;
@@ -62,7 +69,7 @@ test "sampling: project_instantaneous_cd"
             .sample_rate_hz = .{ .Int = 24 },
             .start_index = 12,
         },
-        12,
+        opentime.Ordinate.init(12),
     );
 
     //                          12*24 + 12
@@ -76,14 +83,16 @@ pub fn project_index_dc(
     ind_discrete: sample_index_t,
 ) opentime.ContinuousInterval
 {
-    var start:sample_ordinate_t = @floatFromInt(ind_discrete);
-    start -= @floatFromInt(self.start_index);
-    const s_per_cycle = (1 / self.sample_rate_hz.as_float());
-    start *= s_per_cycle;
+    var start = sample_ordinate_t.init(ind_discrete);
+    start = start.sub(
+        @as(sample_ordinate_t.BaseType, @floatFromInt(self.start_index))
+    );
+    const s_per_cycle = self.sample_rate_hz.inv_as_ordinate();
+    start = start.mul(s_per_cycle);
 
     return .{
         .start = start,
-        .end = start + s_per_cycle,
+        .end = start.add(s_per_cycle),
     };
 }
 
@@ -97,8 +106,13 @@ test "sampling: project_index_dc"
         300,
     );
 
-    try std.testing.expectEqual(12.0, result.start);
-    try std.testing.expectEqual(12.0 + 1.0/24.0, result.end);
+    try opentime.expectOrdinateEqual(
+        12.0, result.start
+    );
+    try opentime.expectOrdinateEqual(
+        12.0 + 1.0/24.0,
+        result.end
+    );
 }
 
 /// a set of samples and the parameters of those samples
@@ -149,7 +163,7 @@ pub const Sampling = struct {
             file.writer(),
             file.seekableStream(),
             @intFromFloat(
-                self.index_generator.sample_rate_hz.as_float()
+                self.index_generator.sample_rate_hz.as_ordinate()
             ),
             1,
         );
@@ -248,8 +262,10 @@ pub const Sampling = struct {
     ) opentime.ContinuousInterval
     {
         return .{
-            .start = 0,
-            .end = self.index_generator.ordinate_at_index(self.buffer.len),
+            .start = opentime.Ordinate.init(0),
+            .end = self.index_generator.ordinate_at_index(
+                self.buffer.len
+            ),
         };
     }
 };
@@ -259,7 +275,7 @@ test "sampling: samples_overlapping_interval"
     const sine_signal_100hz = SignalGenerator{
         .frequency_hz = 100,
         .amplitude = 1,
-        .duration_s = 1,
+        .duration_s = opentime.Ordinate.init(1),
         .signal = .sine,
     };
     const index_generator = SampleIndexGenerator{
@@ -273,11 +289,11 @@ test "sampling: samples_overlapping_interval"
     defer sine_100hz_samples_48khz.deinit();
 
     const first_half_samples = sine_100hz_samples_48khz.samples_overlapping_interval(
-        .{ .start = 0, .end = 0.5 },
+        opentime.ContinuousInterval.init(.{ .start = 0, .end = 0.5 }),
     );
 
     try std.testing.expectEqual(
-        @as(usize, @intFromFloat(index_generator.sample_rate_hz.as_float() / 2.0)),
+        index_generator.sample_rate_hz.as_ordinate().div(2.0).as(usize),
         first_half_samples.len,
     );
 }
@@ -292,12 +308,12 @@ pub const URational = struct {
     /// convert the rational to a floating point number
     pub fn as_float(
         self: @This(),
-    ) sample_ordinate_t
+    ) sample_ordinate_t.BaseType
     {
-        return (
-            @as(sample_ordinate_t, @floatFromInt(self.num)) 
-            / @as(sample_ordinate_t, @floatFromInt(self.den)) 
-        );
+        const num : f32 = @floatFromInt(self.num);
+        const den : f32 = @floatFromInt(self.den);
+
+        return num/den;
     }
 };
 
@@ -305,14 +321,36 @@ pub const RateSpecifier = union (enum) {
     Int: sample_rate_base_t,
     Rat: URational,
 
-    pub fn as_float(
+    pub fn as_ordinate(
         self: @This(),
     ) sample_ordinate_t
     {
-        return switch (self) {
-            inline .Int => |b| @floatFromInt(b),
-            inline .Rat => |r| r.as_float(),
-        };
+        return opentime.Ordinate.init(
+            @as(
+                sample_ordinate_t.BaseType,
+                switch (self) {
+                    inline .Int => |b| @floatFromInt(b),
+                    inline .Rat => |r| r.as_float(),
+                }
+            )
+        );
+    }
+
+    // 1 / self as an ordaninte
+    pub fn inv_as_ordinate(
+        self: @This(),
+    ) sample_ordinate_t
+    {
+        return opentime.Ordinate.init(
+            1.0 / 
+            @as(
+                sample_ordinate_t.BaseType,
+                switch (self) {
+                    inline .Int => |b| @floatFromInt(b),
+                    inline .Rat => |r| r.as_float(),
+                }
+            )
+        );
     }
 
     pub fn format(
@@ -363,9 +401,21 @@ pub const SampleIndexGenerator = struct {
         continuous_ord: sample_ordinate_t,
     ) sample_index_t
     {
-        const hz_f:sample_ordinate_t = self.sample_rate_hz.as_float();
+        const hz_f = self.sample_rate_hz.as_ordinate();
+        const inv_hz_f = self.sample_rate_hz.inv_as_ordinate();
 
-        return @intFromFloat(@floor(continuous_ord*hz_f + (0.5 / hz_f)));
+        return @intFromFloat(
+            @floor(
+                opentime.eval(
+                    "ord * hz_f + ( inv_hz_f * 0.5)",
+                    .{
+                        .ord = continuous_ord,
+                        .hz_f = hz_f,  
+                        .inv_hz_f = inv_hz_f,  
+                    }
+                ).as(f32)
+            )
+        );
     }
 
     pub fn ordinate_at_index(
@@ -374,8 +424,7 @@ pub const SampleIndexGenerator = struct {
     ) sample_ordinate_t
     {
         return (
-            @as(sample_ordinate_t, @floatFromInt(index)) 
-            / self.sample_rate_hz.as_float()
+            opentime.Ordinate.init(index).div(self.sample_rate_hz.as_ordinate())
         );
     }
 
@@ -384,8 +433,10 @@ pub const SampleIndexGenerator = struct {
         length: sample_ordinate_t,
     ) sample_index_t
     {
-        // ceil?  Floor?
-        return @intFromFloat(length * self.sample_rate_hz.as_float());
+        // @TODO: ceil?  Floor?
+        return @intFromFloat(
+            length.mul(self.sample_rate_hz.as_ordinate()).as(f32)
+        );
     }
 
     pub fn ord_interval_for_index(
@@ -393,13 +444,13 @@ pub const SampleIndexGenerator = struct {
         index: sample_index_t,
     ) opentime.interval.ContinuousInterval
     {
-        const s_per_cycle = 1.0 / self.sample_rate_hz.as_float();
+        const s_per_cycle = self.sample_rate_hz.inv_as_ordinate();
 
-        const index_ord:sample_ordinate_t = @floatFromInt(index);
+        const index_ord = sample_ordinate_t.init(index);
 
         return .{
-            .start = index_ord * s_per_cycle,
-            .end = (index_ord+1) * s_per_cycle,
+            .start = index_ord.mul(s_per_cycle),
+            .end = (index_ord.add(1)).mul(s_per_cycle),
         };
     }
 
@@ -437,18 +488,17 @@ pub const SignalGenerator = struct {
         interpolating_samples: bool,
     ) !Sampling
     {
-        const sample_hz  = index_generator.sample_rate_hz.as_float();
+        const sample_hz  = index_generator.sample_rate_hz.as_ordinate();
 
-        const samples_per_cycle = (
-            sample_hz
-            / @as(sample_ordinate_t, @floatFromInt(self.frequency_hz))
+        const samples_per_cycle = sample_hz.div(
+            @as(f32, @floatFromInt(self.frequency_hz))
         );
 
         const result = try Sampling.init(
             allocator, 
             // signal_duration_s is promoted to an f64 for precision in the
             // loop boundary
-            @intFromFloat(@ceil(@as(f64, self.duration_s)*sample_hz)),
+            @intFromFloat(@ceil(self.duration_s.mul(sample_hz).as(f32))),
             index_generator,
             interpolating_samples,
         );
@@ -460,11 +510,10 @@ pub const SignalGenerator = struct {
             |current_index, *sample|
         {
             const phase_angle:sample_ordinate_t = (
-                @as(sample_ordinate_t, @floatFromInt(current_index)) 
-                / samples_per_cycle
+                sample_ordinate_t.init(current_index).div(samples_per_cycle)
             );
 
-            const mod_phase_angle = @mod(phase_angle, 1.0,);
+            const mod_phase_angle = @mod(phase_angle.as(f32), 1.0,);
 
             switch (self.signal) {
                 .sine => {
@@ -496,7 +545,7 @@ test "sampling: rasterizing the sine"
     const sine_signal_100hz = SignalGenerator{
         .frequency_hz = 100,
         .amplitude = 1,
-        .duration_s = 1,
+        .duration_s = opentime.Ordinate.init(1),
         .signal = .sine,
     };
 
@@ -564,7 +613,7 @@ test "sampling: peak_to_peak_distance: sine/48khz sample/100hz signal"
         const sine_signal_100hz = SignalGenerator{
             .frequency_hz = 100,
             .amplitude = 1,
-            .duration_s = 1,
+            .duration_s = opentime.Ordinate.init(1),
             .signal = .sine,
         };
         const sine_100_samples_48khz = try sine_signal_100hz.rasterized(
@@ -586,7 +635,7 @@ test "sampling: peak_to_peak_distance: sine/48khz sample/50hz signal"
     const sine_signal_48khz_50 = SignalGenerator{
         .frequency_hz = 50,
         .amplitude = 1,
-        .duration_s = 1,
+        .duration_s = opentime.Ordinate.init(1),
         .signal = .sine,
     };
     const sine_samples_48_50 = try sine_signal_48khz_50.rasterized(
@@ -608,7 +657,7 @@ test "sampling: peak_to_peak_distance: sine/96khz sample/100hz signal"
     const sine_signal_100 = SignalGenerator{
         .frequency_hz = 100,
         .amplitude = 1,
-        .duration_s = 1,
+        .duration_s = opentime.Ordinate.init(1),
         .signal = .sine,
     };
     const sine_samples_96_100 = try sine_signal_100.rasterized(
@@ -643,9 +692,9 @@ pub fn resampled_dd(
     output_d_sampling_info: SampleIndexGenerator,
 ) !Sampling
 {
-    const resample_ratio : f64 = (
-        output_d_sampling_info.sample_rate_hz.as_float()
-        / input_d_samples.index_generator.sample_rate_hz.as_float()
+    const resample_ratio = (
+        output_d_sampling_info.sample_rate_hz.as_ordinate().as(f64)
+        / input_d_samples.index_generator.sample_rate_hz.as_ordinate().as(f64)
     );
 
     const num_output_samples: usize = @as(
@@ -953,8 +1002,7 @@ pub fn transform_resample_linear_non_interpolating_dd(
         );
 
         const output_sample_ord = (
-            output_sample_interval.start 
-            + output_d_extents.start
+            output_sample_interval.start.add(output_d_extents.start)
         );
 
         // output -> input time (continuous -> continuous)
@@ -1033,16 +1081,23 @@ pub fn transform_resample_linear_interpolating_dd(
         );
 
         const sample_rate_f = (
-            output_sampling_info.sample_rate_hz.as_float()
+            output_sampling_info.sample_rate_hz.as_ordinate()
+        );
+        const inv_rate_f = (
+            output_sampling_info.sample_rate_hz.inv_as_ordinate()
         );
 
         const output_samples:usize = @intFromFloat(
             @floor(
-                (
-                 (r_knot.out - l_knot.out) 
-                 * sample_rate_f
-                )
-                + 0.5 / sample_rate_f
+                opentime.eval(
+                    "(r - l) * rate + inv_rate * 0.5",
+                    .{ 
+                        .r = r_knot.out, 
+                        .l = l_knot.out,
+                        .rate = sample_rate_f,
+                        .inv_rate = inv_rate_f,
+                    }
+                ).as(f32)
             )
         );
 
@@ -1186,7 +1241,7 @@ test "sampling: resample from 48khz to 44"
     const sine_signal_48kz_100 = SignalGenerator{
         .frequency_hz = 100,
         .amplitude = 1,
-        .duration_s = 1,
+        .duration_s = opentime.Ordinate.init(1),
         .signal = .sine,
     };
     const sine_samples_48khz_100 = (
@@ -1242,7 +1297,7 @@ test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1kh
     const samples_48 = SignalGenerator{
         .frequency_hz = 100,
         .amplitude = 1,
-        .duration_s = 4,
+        .duration_s = opentime.Ordinate.init(4),
         .signal = .sine,
     };
 
@@ -1280,16 +1335,19 @@ test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1kh
 
     var transform_curve_segments = [_]curve.Bezier.Segment{
         // identity
-        curve.Bezier.Segment.init_identity(0,  1.0),
+        curve.Bezier.Segment.init_identity(
+            opentime.Ordinate.init(0),
+            opentime.Ordinate.init(1.0)
+        ),
         // go up
         curve.Bezier.Segment.init_from_start_end(
-            .{ .in = 1.0, .out = 1.0 },
-            .{ .in = 2.0, .out = 3.0 },
+            curve.ControlPoint.init(.{ .in = 1.0, .out = 1.0 }),
+            curve.ControlPoint.init(.{ .in = 2.0, .out = 3.0 }),
         ),
         // identity
         curve.Bezier.Segment.init_from_start_end(
-            .{ .in = 2.0, .out = 3.0 },
-            .{ .in = 3.0, .out = 4.0 },
+            curve.ControlPoint.init(.{ .in = 2.0, .out = 3.0 }),
+            curve.ControlPoint.init(.{ .in = 3.0, .out = 4.0 }),
         ),
     };
     const transform_curve : curve.Bezier = .{
@@ -1378,7 +1436,7 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
     const samples_48 = SignalGenerator{
         .frequency_hz = 100,
         .amplitude = 1,
-        .duration_s = 4,
+        .duration_s = opentime.Ordinate.init(4),
         .signal = .sine,
     };
     const s48 = try samples_48.rasterized(
@@ -1390,14 +1448,19 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
 
     var cubic_transform_curve_segments = [_]curve.Bezier.Segment{
         // identity
-        curve.Bezier.Segment.init_identity(0, 1),
+        curve.Bezier.Segment.init_identity(
+            opentime.Ordinate.init(0),
+            opentime.Ordinate.init(1),
+        ),
         // go up
-        curve.Bezier.Segment{
-            .p0 = .{ .in = 1, .out = 1.0 },
-            .p1 = .{ .in = 1.5, .out = 1.25 },
-            .p2 = .{ .in = 2, .out = 1.35 },
-            .p3 = .{ .in = 2.5, .out = 1.5 },
-        },
+        curve.Bezier.Segment.init_f32(
+            .{
+                .p0 = .{ .in = 1, .out = 1.0 },
+                .p1 = .{ .in = 1.5, .out = 1.25 },
+                .p2 = .{ .in = 2, .out = 1.35 },
+                .p3 = .{ .in = 2.5, .out = 1.5 },
+            }
+        ),
     };
     const cubic_transform_curve : curve.Bezier = .{
         .segments = &cubic_transform_curve_segments
@@ -1457,9 +1520,9 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
         }
     );
 
-    var t = transform_curve_extents.start + inc;
-    while (t < transform_curve_extents.end)
-        : (t += inc)
+    var t = transform_curve_extents.start.add(inc);
+    while (t.lt(transform_curve_extents.end))
+        : (t = t.add(inc))
     {
         try knots.append(
             .{
@@ -1555,7 +1618,7 @@ test "sampling: frame phase slide 1: (identity) 0,1,2,3->0,1,2,3"
 {
     const ramp_signal = SignalGenerator{
         .frequency_hz = 1,
-        .duration_s = 2,
+        .duration_s = opentime.Ordinate.init(2),
         .signal = .ramp,
     };
 
@@ -1587,7 +1650,7 @@ test "sampling: serialize a 24hz ramp to disk, to visualize ramp output"
 {
     const ramp_signal = SignalGenerator{
         .frequency_hz = 24,
-        .duration_s = 1,
+        .duration_s = opentime.Ordinate.init(1),
         .signal = .ramp,
         // .signal_amplitude = 4,
     };
@@ -1614,7 +1677,7 @@ test "sampling: frame phase slide 1: (time*1 freq*1 phase+0) 0,1,2,3->0,1,2,3"
 {    
     const ramp_signal = SignalGenerator{
         .frequency_hz = 1,
-        .duration_s = 1,
+        .duration_s = opentime.Ordinate.init(1),
         .signal = .ramp,
         .amplitude = 4,
     };
@@ -1672,7 +1735,7 @@ test "sampling: frame phase slide 2: (time*2 bounds*1 freq*1 phase+0) 0,1,2,3->0
 {
     const ramp_signal = SignalGenerator{
         .frequency_hz = 1,
-        .duration_s = 1,
+        .duration_s = opentime.Ordinate.init(1),
         .signal = .ramp,
         .amplitude = 4,
     };
@@ -1700,8 +1763,8 @@ test "sampling: frame phase slide 2: (time*2 bounds*1 freq*1 phase+0) 0,1,2,3->0
         topology.mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = curve.linear_curve.Linear.Monotonic{
                 .knots = &.{
-                    .{ .in = 0, .out = 0 },
-                    .{ .in = 1, .out = 0.5 },
+                    curve.ControlPoint.init(.{ .in = 0, .out = 0 }),
+                    curve.ControlPoint.init(.{ .in = 1, .out = 0.5 }),
                 },
             }
         }
@@ -1713,15 +1776,13 @@ test "sampling: frame phase slide 2: (time*2 bounds*1 freq*1 phase+0) 0,1,2,3->0
     );
 
     // trivial check that curve behaves as expected
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         0.5,
-        try sample_to_output_crv.project_instantaneous_cc(1.0).ordinate(),
-        EPSILON_ORD
+        try sample_to_output_crv.project_instantaneous_cc(opentime.Ordinate.init(1.0)).ordinate(),
     );
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         0.0,
-        try sample_to_output_crv.project_instantaneous_cc(0.0).ordinate(),
-        EPSILON_ORD
+        try sample_to_output_crv.project_instantaneous_cc(opentime.Ordinate.init(0.0)).ordinate(),
     );
 
     const output_sampling_info : SampleIndexGenerator = .{
@@ -1755,7 +1816,7 @@ test "sampling: frame phase slide 2.5: (time*2 bounds*2 freq*1 phase+0) 0,1,2,3-
 {
     const ramp_signal = SignalGenerator{
         .frequency_hz = 1,
-        .duration_s = 1,
+        .duration_s = opentime.Ordinate.init(1),
         .signal = .ramp,
         .amplitude = 4,
     };
@@ -1783,23 +1844,21 @@ test "sampling: frame phase slide 2.5: (time*2 bounds*2 freq*1 phase+0) 0,1,2,3-
         topology.mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = curve.linear_curve.Linear.Monotonic {
                 .knots = &.{
-                    .{ .in = 0, .out = 0, },
-                    .{ .in = 2, .out = 1, },
+                    curve.ControlPoint.init(.{ .in = 0.0, .out = 0.0, }),
+                    curve.ControlPoint.init(.{ .in = 2.0, .out = 1.0, }),
                 },
             }
         }
     );
 
     // trivial check that curve behaves as expected
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         0.5,
-        try transformd_to_sample_crv.project_instantaneous_cc(1.0).ordinate(),
-        EPSILON_ORD
+        try transformd_to_sample_crv.project_instantaneous_cc(opentime.Ordinate.init(1.0)).ordinate(),
     );
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         0.0,
-        try transformd_to_sample_crv.project_instantaneous_cc(0.0).ordinate(),
-        EPSILON_ORD
+        try transformd_to_sample_crv.project_instantaneous_cc(opentime.Ordinate.init(0.0)).ordinate(),
     );
 
     const output_sampling_info : SampleIndexGenerator = .{
@@ -1835,7 +1894,7 @@ test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(
 {
     const ramp_signal = SignalGenerator{
         .frequency_hz = 1,
-        .duration_s = 1,
+        .duration_s = opentime.Ordinate.init(1),
         .signal = .ramp,
         .amplitude = 4,
     };
@@ -1877,15 +1936,13 @@ test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(
     );
 
     // trivial check that curve behaves as expected
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         0.5,
-        try sample_to_output_crv.project_instantaneous_cc(0.5).ordinate(),
-        EPSILON_ORD
+        try sample_to_output_crv.project_instantaneous_cc(opentime.Ordinate.init(0.5)).ordinate(),
     );
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         0.0,
-        try sample_to_output_crv.project_instantaneous_cc(0.0).ordinate(),
-        EPSILON_ORD
+        try sample_to_output_crv.project_instantaneous_cc(opentime.Ordinate.init(0.0)).ordinate(),
     );
 
     const output_sampling_info : SampleIndexGenerator = .{
@@ -1909,10 +1966,9 @@ test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(
         output_ramp_samples.buffer,
     );
     
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         1.0,
         output_ramp_samples.extents().end,
-        EPSILON_ORD
     );
 
     try std.testing.expectEqual(
@@ -1929,7 +1985,7 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
 
     const ramp_signal = SignalGenerator{
         .frequency_hz = 1,
-        .duration_s = 1,
+        .duration_s = opentime.Ordinate.init(1),
         .signal = .ramp,
         .amplitude = 4,
     };
@@ -1982,8 +2038,8 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
         topology.mapping.MappingCurveLinearMonotonic {
             .input_to_output_curve = curve.linear_curve.Linear.Monotonic {
                 .knots = &.{ 
-                    .{ .in = 0.25, .out = 0.25 },
-                    .{ .in = 1.25, .out = 1.25 },
+                    curve.ControlPoint.init(.{ .in = 0.25, .out = 0.25 }),
+                    curve.ControlPoint.init(.{ .in = 1.25, .out = 1.25 }),
                 },
             }
         }
@@ -1993,8 +2049,8 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
         topology.mapping.MappingCurveLinearMonotonic {
             .input_to_output_curve = curve.linear_curve.Linear.Monotonic{
                 .knots = &.{ 
-                    .{ .in = 0, .out = 0 },
-                    .{ .in = 2, .out = 1 },
+                    curve.ControlPoint.init(.{ .in = 0, .out = 0 }),
+                    curve.ControlPoint.init(.{ .in = 2, .out = 1 }),
                 },
             },
         }
@@ -2010,15 +2066,13 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
     defer transformd_to_sample_crv.deinit(std.testing.allocator);
 
     // trivial check that curve behaves as expected
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         0.375,
-        try transformd_to_sample_crv.project_instantaneous_cc(0.75).ordinate(),
-        EPSILON_ORD
+        try transformd_to_sample_crv.project_instantaneous_cc(opentime.Ordinate.init(0.75)).ordinate(),
     );
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         0.125,
-        try transformd_to_sample_crv.project_instantaneous_cc(0.25).ordinate(),
-        EPSILON_ORD
+        try transformd_to_sample_crv.project_instantaneous_cc(opentime.Ordinate.init(0.25)).ordinate(),
     );
 
     const output_sampling_info : SampleIndexGenerator = .{
@@ -2042,10 +2096,9 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
         output_ramp_samples.buffer,
     );
     
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         1.0,
         output_ramp_samples.extents().end,
-        EPSILON_ORD
     );
 }
 
@@ -2055,7 +2108,7 @@ test "sampling: frame phase slide 5: arbitrary held frames 0,1,2->0,0,0,0,1,1,2,
 
     const ramp_signal = SignalGenerator{
         .frequency_hz = 1,
-        .duration_s = 1,
+        .duration_s = opentime.Ordinate.init(1),
         .signal = .ramp,
         .amplitude = 4,
     };
@@ -2092,8 +2145,8 @@ test "sampling: frame phase slide 5: arbitrary held frames 0,1,2->0,0,0,0,1,1,2,
                  topology.mapping.MappingCurveLinearMonotonic{
                      .input_to_output_curve = .{
                          .knots = &.{
-                             .{ .in = 0,    .out = 0 },
-                             .{ .in = 1.25, .out = 0 },
+                             curve.ControlPoint.init(.{ .in = 0.0,    .out = 0.0 }),
+                             curve.ControlPoint.init(.{ .in = 1.25, .out = 0.0 }),
                          },
                      },
                  }
@@ -2102,8 +2155,8 @@ test "sampling: frame phase slide 5: arbitrary held frames 0,1,2->0,0,0,0,1,1,2,
                  topology.mapping.MappingCurveLinearMonotonic{
                      .input_to_output_curve = .{
                          .knots = &.{
-                             .{ .in = 1.25, .out = 0.25 },
-                             .{ .in = 1.75, .out = 0.25 },
+                             curve.ControlPoint.init(.{ .in = 1.25, .out = 0.25 }),
+                             curve.ControlPoint.init(.{ .in = 1.75, .out = 0.25 }),
                          }
                      },
                  }
@@ -2112,8 +2165,8 @@ test "sampling: frame phase slide 5: arbitrary held frames 0,1,2->0,0,0,0,1,1,2,
                  topology.mapping.MappingCurveLinearMonotonic{
                      .input_to_output_curve = .{
                          .knots = &.{
-                             .{ .in = 1.75, .out = 0.5 },
-                             .{ .in = 2.5,  .out = 0.5 },
+                             curve.ControlPoint.init(.{ .in = 1.75, .out = 0.5 }),
+                             curve.ControlPoint.init(.{ .in = 2.5,  .out = 0.5 }),
                          }
                      },
                  }
@@ -2186,7 +2239,7 @@ test "sampling: wav.zig generator test"
     const samples_48 = SignalGenerator{
         .frequency_hz = 100,
         .amplitude = 1,
-        .duration_s = 1,
+        .duration_s = opentime.Ordinate.init(1),
         .signal = .sine,
     };
     const s48 = try samples_48.rasterized(
@@ -2217,8 +2270,8 @@ test "sampling: transformed leak test"
     };
 
     var knots = [_]curve.ControlPoint{
-        .{ .in = 0, .out = 0 },
-        .{ .in = 1, .out = 1 },
+        curve.ControlPoint.init(.{ .in = 0, .out = 0 }),
+        curve.ControlPoint.init(.{ .in = 1, .out = 1 }),
     };
     const transformed_to_sample_crv = (
         topology.mapping.MappingCurveLinearMonotonic{

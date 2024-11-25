@@ -1383,7 +1383,7 @@ pub const CTX = comath.ctx.fnMethod(
         .@"/" = "div",
     },
 );
-pub fn eval(
+pub inline fn eval(
     comptime expr: []const u8, 
     inputs: anytype,
 ) comath.Eval(expr, @TypeOf(CTX), @TypeOf(inputs))
