@@ -1071,6 +1071,13 @@ fn OrdinateOf(
         {
             return std.math.isFinite(self.v);
         }
+
+        pub inline fn is_nan(
+            self: @This(),
+        ) bool
+        {
+            return std.math.isNan(self.v);
+        }
     };
 }
 
