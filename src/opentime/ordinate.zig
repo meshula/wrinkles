@@ -983,6 +983,25 @@ fn OrdinateOf(
             };
         }
 
+        pub inline fn eql_approx(
+            self: @This(),
+            rhs: anytype,
+        ) bool
+        {
+            return switch (@TypeOf(rhs)) {
+                OrdinateType => (
+                    self.v < rhs.v + EPSILON.v 
+                    and self.v > rhs.v - EPSILON.v
+                ),
+                else => switch (@typeInfo(@TypeOf(rhs))) {
+                    .Float, .ComptimeFloat, .Int, .ComptimeInt => (
+                        self.v < rhs.v + EPSILON.v and self.v > rhs.v - EPSILON.v
+                    ),
+                    else => type_error(rhs),
+                },
+            };
+        }
+
         pub inline fn lt(
             self: @This(),
             rhs: anytype,
