@@ -17,7 +17,7 @@ pub fn skip_test() error{SkipZigTest}!void {
 /// wrapper around expectApproxEqAbs with baked in epsilon
 pub inline fn expectApproxEql(
     expected: anytype,
-    actual: @TypeOf(expected)
+    actual: anytype,
 ) !void 
 {
     return std.testing.expectApproxEqAbs(
