@@ -49,11 +49,13 @@ const linear_curve = @import("linear_curve.zig");
 const control_point = @import("control_point.zig");
 const string_stuff = @import("string_stuff");
 
+pub const U_TYPE = f32;
+
 // hodographs c-library
 pub const hodographs = @import("spline_gym");
 
-pub var u_val_of_midpoint:f32 = 0.5;
-pub var fudge:f32 = 1;
+pub var u_val_of_midpoint:U_TYPE = 0.5;
+pub var fudge:U_TYPE = 1;
 
 /// options for projecting bezier through bezier
 pub const ProjectionAlgorithms = enum (i32) {
@@ -70,30 +72,23 @@ pub const ProjectionAlgorithms = enum (i32) {
 /// the projection algorithm to use when projecting a Bezier through a Bezier
 pub var project_algo = ProjectionAlgorithms.linearized;
 
-/// wrapper that bakes in the epsilon to expectApproxEql
-fn expectApproxEql(
-    expected: anytype,
-    actual: @TypeOf(expected)
-) !void 
-{
-    return std.testing.expectApproxEqAbs(
-        expected,
-        actual,
-        generic_curve.EPSILON
-    );
-}
-
 /// returns true if val is between fst and snd regardless of whether fst or snd
 /// is greater
-fn _is_between(
+inline fn _is_between(
     val: anytype,
     fst: anytype,
-    snd: anytype
+    snd: anytype,
 ) bool 
 {
     return (
-           (fst < val - generic_curve.EPSILON and val < snd - generic_curve.EPSILON) 
-        or (fst > val + generic_curve.EPSILON and val > snd + generic_curve.EPSILON)
+        (
+         fst.lt(val.sub(opentime.Ordinate.EPSILON)) 
+         and val.lt(snd.sub(opentime.Ordinate.EPSILON))
+        )
+        or (
+            fst.gt(val.add(opentime.Ordinate.EPSILON)) 
+            and val.gt(snd.add(opentime.Ordinate.EPSILON))
+        )
     );
 }
 
@@ -101,12 +96,12 @@ fn _is_between(
 test "Bezier.Segment: can_project test" 
 {
     const half = Bezier.Segment.init_from_start_end(
-        .{ .in = -0.5, .out = -0.25, },
-        .{ .in = 0.5, .out = 0.25, },
+        control_point.ControlPoint.init(.{ .in = -0.5, .out = -0.25, }),
+        control_point.ControlPoint.init(.{ .in = 0.5, .out = 0.25, }),
     );
     const double = Bezier.Segment.init_from_start_end(
-        .{ .in = -0.5, .out = -1, },
-        .{ .in = 0.5, .out = 1, },
+        control_point.ControlPoint.init(.{ .in = -0.5, .out = -1, }),
+        control_point.ControlPoint.init(.{ .in = 0.5, .out = 1, }),
     );
 
     try expectEqual(true, double.can_project(half));
@@ -116,8 +111,8 @@ test "Bezier.Segment: can_project test"
 test "Bezier.Segment: debug_str test" 
 {
     const seg = Bezier.Segment.init_from_start_end(
-        .{.in = -0.5, .out = -0.5},
-        .{.in =  0.5, .out = 0.5},
+        control_point.ControlPoint.init(.{.in = -0.5, .out = -0.5}),
+        control_point.ControlPoint.init(.{.in =  0.5, .out = 0.5}),
     );
 
     const result: []const u8=
@@ -256,14 +251,17 @@ test "segment: linearize basic test"
 test "segment from point array" 
 {
     const original_knots_ident: [4]control_point.ControlPoint = .{
-        .{ .in = -0.5,     .out = -0.5},
-        .{ .in = -0.16666, .out = -0.16666},
-        .{ .in = 0.166666, .out = 0.16666},
-        .{ .in = 0.5,      .out = 0.5}
+        control_point.ControlPoint.init(.{ .in = -0.5,     .out = -0.5}),
+        control_point.ControlPoint.init(.{ .in = -0.16666, .out = -0.16666}),
+        control_point.ControlPoint.init(.{ .in = 0.166666, .out = 0.16666}),
+        control_point.ControlPoint.init(.{ .in = 0.5,      .out = 0.5})
     };
     const ident = Bezier.Segment.from_pt_array(original_knots_ident);
 
-    try expectApproxEql(@as(opentime.Ordinate, 0), ident.eval_at(0.5).out);
+    try opentime.expectOrdinateEqual(
+        0,
+        ident.eval_at(0.5).out
+    );
 
     const linearized_ident_knots = try linearize_segment(
         std.testing.allocator,
@@ -273,20 +271,20 @@ test "segment from point array"
     defer std.testing.allocator.free(linearized_ident_knots);
     try expectEqual(@as(usize, 2), linearized_ident_knots.len);
 
-    try expectApproxEql(
+    try opentime.expectOrdinateEqual(
         original_knots_ident[0].in,
         linearized_ident_knots[0].in
     );
-    try expectApproxEql(
+    try opentime.expectOrdinateEqual(
         original_knots_ident[0].out,
         linearized_ident_knots[0].out
     );
 
-    try expectApproxEql(
+    try opentime.expectOrdinateEqual(
         original_knots_ident[3].in,
         linearized_ident_knots[1].in
     );
-    try expectApproxEql(
+    try opentime.expectOrdinateEqual(
         original_knots_ident[3].out,
         linearized_ident_knots[1].out
     );
@@ -325,27 +323,35 @@ pub fn read_segment_json(
     defer allocator.free(source);
 
     const result = try std.json.parseFromSlice(
-        Bezier.Segment,
+        BezierF.Segment,
         allocator,
         source,
         .{}
     );
     defer result.deinit();
 
-    return result.value;
+    return .{
+        .p0 = control_point.ControlPoint.init(result.value.p0),
+        .p1 = control_point.ControlPoint.init(result.value.p1),
+        .p2 = control_point.ControlPoint.init(result.value.p2),
+        .p3 = control_point.ControlPoint.init(result.value.p3),
+    };
 }
 
 test "segment: output_at_input and findU test over linear curve" 
 {
     const seg = Bezier.Segment.init_from_start_end(
-        .{.in = 2, .out = 2},
-        .{.in = 3, .out = 3},
+        control_point.ControlPoint.init(.{.in = 2, .out = 2}),
+        control_point.ControlPoint.init(.{.in = 3, .out = 3}),
     );
 
-    inline for ([_]opentime.Ordinate{2.1, 2.2, 2.3, 2.5, 2.7}) 
+    inline for ([_]opentime.Ordinate.BaseType{2.1, 2.2, 2.3, 2.5, 2.7}) 
                |coord| 
     {
-        try expectApproxEql(coord, seg.output_at_input(coord));
+        try opentime.expectOrdinateEqual(
+            coord,
+            seg.output_at_input(coord)
+        );
     }
 }
 
@@ -353,42 +359,55 @@ test "segment: dual_eval_at over linear curve"
 {
     // identity curve
     {
-        const seg = Bezier.Segment.init_identity(0, 1);
+        const seg = Bezier.Segment.init_identity(
+            opentime.Ordinate.init(0),
+            opentime.Ordinate.init(1),
+        );
 
-        inline for ([_]opentime.Ordinate{0.2, 0.4, 0.5, 0.98}) 
+        inline for ([_]opentime.Ordinate.BaseType{0.2, 0.4, 0.5, 0.98}) 
             |coord| 
         {
-            const result = seg.eval_at_dual(.{ .r = coord, .i = 1});
+            const result = seg.eval_at_dual(
+                opentime.Dual_Ord.init_ri( coord, 1),
+            );
             errdefer std.log.err(
                 "coord: {any}, result: {any}\n",
                 .{ coord, result }
             );
-            try expectApproxEql(coord, result.r.in);
-            try expectApproxEql(coord, result.r.out);
-            try expectApproxEql(@as(f32, 1), result.i.in);
-            try expectApproxEql(@as(f32, 1), result.i.out);
+            try opentime.expectOrdinateEqual(coord, result.r.in);
+            try opentime.expectOrdinateEqual(coord, result.r.out);
+            try opentime.expectOrdinateEqual(@as(f32, 1), result.i.in);
+            try opentime.expectOrdinateEqual(@as(f32, 1), result.i.out);
         }
     }
 
     // curve with slope 2
     {
         const seg = Bezier.Segment.init_from_start_end(
-            .{ .in = 0, .out = 0 },
-            .{ .in = 1, .out = 2 },
+            control_point.ControlPoint.init(.{ .in = 0, .out = 0 }),
+            control_point.ControlPoint.init(.{ .in = 1, .out = 2 }),
         );
 
-        inline for ([_]opentime.Ordinate{0.2, 0.4, 0.5, 0.98}) 
-            |coord| 
+        inline for (
+            [_]opentime.Ordinate{
+                opentime.Ordinate.init(0.2),
+                opentime.Ordinate.init(0.4),
+                opentime.Ordinate.init(0.5),
+                opentime.Ordinate.init(0.98),
+            }
+        ) |coord| 
         {
-            const result = seg.eval_at_dual(.{ .r = coord, .i = 1 });
+            const result = seg.eval_at_dual(
+                opentime.Dual_Ord.init_ri(coord, 1)
+            );
             errdefer std.log.err(
                 "coord: {any}, result: {any}\n",
                 .{ coord, result }
             );
-            try expectApproxEql(coord, result.r.in);
-            try expectApproxEql(coord * 2, result.r.out);
-            try expectApproxEql(@as(f32, 1), result.i.in);
-            try expectApproxEql(@as(opentime.Ordinate, 2), result.i.out);
+            try opentime.expectOrdinateEqual(coord, result.r.in);
+            try opentime.expectOrdinateEqual(coord.mul(2), result.r.out);
+            try opentime.expectOrdinateEqual(1, result.i.in);
+            try opentime.expectOrdinateEqual(2, result.i.out);
         }
     }
 }
@@ -396,16 +415,19 @@ test "segment: dual_eval_at over linear curve"
 test "Bezier.Segment.init_identity check cubic spline" 
 {
     // ensure that points are along line even for linear case
-    const seg = Bezier.Segment.init_identity(0, 1);
+    const seg = Bezier.Segment.init_identity(
+        opentime.Ordinate.init(0),
+        opentime.Ordinate.init(1),
+    );
 
-    try expectEqual(@as(opentime.Ordinate, 0), seg.p0.in);
-    try expectEqual(@as(opentime.Ordinate, 0), seg.p0.out);
-    try expectEqual(@as(opentime.Ordinate, 1.0/3.0), seg.p1.in);
-    try expectEqual(@as(opentime.Ordinate, 1.0/3.0), seg.p1.out);
-    try expectEqual(@as(opentime.Ordinate, 2.0/3.0), seg.p2.in);
-    try expectEqual(@as(opentime.Ordinate, 2.0/3.0), seg.p2.out);
-    try expectEqual(@as(opentime.Ordinate, 1), seg.p3.in);
-    try expectEqual(@as(opentime.Ordinate, 1), seg.p3.out);
+    try opentime.expectOrdinateEqual(0, seg.p0.in);
+    try opentime.expectOrdinateEqual(0, seg.p0.out);
+    try opentime.expectOrdinateEqual(1.0/3.0, seg.p1.in);
+    try opentime.expectOrdinateEqual(1.0/3.0, seg.p1.out);
+    try opentime.expectOrdinateEqual(2.0/3.0, seg.p2.in);
+    try opentime.expectOrdinateEqual(2.0/3.0, seg.p2.out);
+    try opentime.expectOrdinateEqual(1, seg.p3.in);
+    try opentime.expectOrdinateEqual(1, seg.p3.out);
 }
 
 /// A bezier interpolation mapping input times to output times
@@ -426,6 +448,28 @@ pub const Bezier = struct {
         p1: control_point.ControlPoint = control_point.ControlPoint.ZERO,
         p2: control_point.ControlPoint = control_point.ControlPoint.ONE,
         p3: control_point.ControlPoint = control_point.ControlPoint.ONE,
+
+        pub const IDENT_ZERO_ONE = Segment.init_identity(
+            opentime.Ordinate.init(0),
+            opentime.Ordinate.init(1),
+        );
+
+        pub fn init_f32(
+            in_seg : struct{
+                p0: control_point.ControlPoint_BaseType,
+                p1: control_point.ControlPoint_BaseType,
+                p2: control_point.ControlPoint_BaseType,
+                p3: control_point.ControlPoint_BaseType,
+            },
+        ) Segment
+        {
+            return .{
+                .p0 = control_point.ControlPoint.init(in_seg.p0),
+                .p1 = control_point.ControlPoint.init(in_seg.p1),
+                .p2 = control_point.ControlPoint.init(in_seg.p2),
+                .p3 = control_point.ControlPoint.init(in_seg.p3),
+            };
+        }
 
         pub fn init_identity(
             input_start: opentime.Ordinate,
@@ -462,7 +506,7 @@ pub const Bezier = struct {
         pub fn init_approximate_from_three_points(
             start_knot: control_point.ControlPoint,
             mid_point: control_point.ControlPoint,
-            t_mid_point: f32,
+            t_mid_point: U_TYPE,
             d_mid_point_dt: control_point.ControlPoint,
             end_knot: control_point.ControlPoint,
         ) ?Segment
@@ -539,8 +583,19 @@ pub const Bezier = struct {
             return result[0];
         }
 
+        pub inline fn eval_at(
+            self: @This(),
+            unorm: anytype,
+        ) control_point.ControlPoint
+        {
+            return switch (@TypeOf(unorm)) {
+                opentime.Ordinate => self.eval_at_ord(unorm),
+                else => self.eval_at_ord(opentime.Ordinate.init(unorm)),
+            };
+        }
+
         /// output value of the segment at parameter unorm, [0, 1)
-        pub fn eval_at(
+        pub fn eval_at_ord(
             self: @This(),
             unorm: opentime.Ordinate,
         ) control_point.ControlPoint
@@ -588,7 +643,7 @@ pub const Bezier = struct {
         /// note: u of < 0 or >= 1 will result in a null result, no split
         pub fn split_at(
             self: @This(),
-            unorm:f32
+            unorm:U_TYPE,
         ) ?[2]Segment 
         {
             if (unorm < generic_curve.EPSILON or unorm >= 1)
@@ -685,8 +740,8 @@ pub const Bezier = struct {
             const other_extents = segment_to_project.extents();
 
             return (
-                other_extents[0].out >= my_extents[0].in - generic_curve.EPSILON
-                and other_extents[1].out < my_extents[1].in + generic_curve.EPSILON
+                other_extents[0].out.gteq(my_extents[0].in.sub(opentime.Ordinate.EPSILON))
+                and other_extents[1].out.lt(my_extents[1].in.add(opentime.Ordinate.EPSILON))
             );
         }
 
@@ -718,7 +773,7 @@ pub const Bezier = struct {
         pub fn findU_value(
             self:@This(),
             tgt_value: opentime.Ordinate
-        ) control_point.ControlPoint.OrdinateType 
+        ) U_TYPE
         {
             return bezier_math.findU(
                 tgt_value,
@@ -746,7 +801,7 @@ pub const Bezier = struct {
         pub fn findU_input(
             self:@This(),
             input_ordinate: opentime.Ordinate
-        ) opentime.Ordinate 
+        ) U_TYPE
         {
             return bezier_math.findU(
                 input_ordinate,
@@ -771,13 +826,26 @@ pub const Bezier = struct {
             );
         }
 
+        pub inline fn output_at_input(
+            self: @This(),
+            input:anytype,
+        ) opentime.Ordinate 
+        {
+            return self.output_at_input_ord(
+                switch (@TypeOf(input)) {
+                    opentime.Ordinate => input,
+                    else => opentime.Ordinate.init(input),
+                }
+            );
+        }
+
         /// returns the output value for the given input ordinate
-        pub fn output_at_input(
+        pub fn output_at_input_ord(
             self: @This(),
             input_ord:opentime.Ordinate,
         ) opentime.Ordinate 
         {
-            const u:f32 = bezier_math.findU(
+            const u:U_TYPE = bezier_math.findU(
                 input_ord,
                 self.p0.in,
                 self.p1.in,
@@ -819,10 +887,10 @@ pub const Bezier = struct {
             \\
             ,
             .{
-                self.p0.in, self.p0.out,
-                self.p1.in, self.p1.out,
-                self.p2.in, self.p2.out,
-                self.p3.in, self.p3.out,
+                self.p0.in.as(f32), self.p0.out.as(f32),
+                self.p1.in.as(f32), self.p1.out.as(f32),
+                self.p2.in.as(f32), self.p2.out.as(f32),
+                self.p3.in.as(f32), self.p3.out.as(f32),
             }
             );
         }
@@ -853,7 +921,10 @@ pub const Bezier = struct {
                     inline for (&.{ self.p0, self.p1, self.p2, self.p3 }, 0..) 
                         |pt, pt_ind| 
                         {
-                            tmp[pt_ind] = .{ .x = pt.in, .y = pt.out };
+                            tmp[pt_ind] = .{
+                                .x = pt.in.as(f32),
+                                .y = pt.out.as(f32),
+                            };
                         }
 
                     break :translate tmp;
@@ -952,8 +1023,21 @@ pub const Bezier = struct {
         return Bezier{ .segments = try result.toOwnedSlice() };
     }
 
+    pub inline fn output_at_input(
+        self: @This(),
+        input_space_ord: anytype,
+    ) error{OutOfBounds}!opentime.Ordinate 
+    {
+        return self.output_at_input_ord(
+            switch (@TypeOf(input_space_ord)) {
+                opentime.Ordinate => input_space_ord,
+                else => opentime.Ordinate.init(input_space_ord),
+            }
+        );
+    }
+
     /// output_at_input the curve at ordinate t in the input space
-    pub fn output_at_input(
+    pub fn output_at_input_ord(
         self: @This(),
         input_space_ord: opentime.Ordinate,
     ) error{OutOfBounds}!opentime.Ordinate 
@@ -975,22 +1059,24 @@ pub const Bezier = struct {
         ord_input: opentime.Ordinate,
     ) ?usize 
     {
-        const input_start = self.segments[0].p0.in - generic_curve.EPSILON;
+        const input_start = (
+            self.segments[0].p0.in.sub(opentime.Ordinate.EPSILON)
+        );
         const last_seg = self.segments[self.segments.len - 1];
-        const input_end = last_seg.p3.in - generic_curve.EPSILON;
+        const input_end = last_seg.p3.in.sub(opentime.Ordinate.EPSILON);
 
         // @TODO: should this be inclusive of the endpoint?
         if (
             self.segments.len == 0 
-            or ord_input < input_start
-            or ord_input >= input_end
+            or ord_input.lt(input_start)
+            or ord_input.gteq(input_end)
         )
         {
             return null;
         }
 
         // quick check if it is exactly the start ordinate of the first segment
-        if (ord_input < input_start) {
+        if (ord_input.lt(input_start)) {
             return 0;
         }
 
@@ -998,8 +1084,8 @@ pub const Bezier = struct {
             |seg, index| 
         {
             if (
-                seg.p0.in <= ord_input + generic_curve.EPSILON 
-                and ord_input < seg.p3.in - generic_curve.EPSILON
+                seg.p0.in.lteq(ord_input.add(opentime.Ordinate.EPSILON))
+                and ord_input.lteq(seg.p3.in.sub(opentime.Ordinate.EPSILON))
             ) 
             {
                 // exactly in a segment
@@ -1272,8 +1358,8 @@ pub const Bezier = struct {
             const other_seg_ext = other_segment.extents();
 
             if (
-                (other_seg_ext[0].out < self_bounds[1].in - generic_curve.EPSILON)
-                and (other_seg_ext[1].out > self_bounds[0].in + generic_curve.EPSILON)
+                (other_seg_ext[0].out.lt(self_bounds[1].in.sub(opentime.Ordinate.EPSILON)))
+                and (other_seg_ext[1].out.gt(self_bounds[0].in.add(opentime.Ordinate.EPSILON)))
             )
             {
                 if (index != last_index+1) 
@@ -1394,10 +1480,12 @@ pub const Bezier = struct {
                                 u_in_self,
                             );
                             try cache_f_prime_of_g_of_t.append(
-                                .{
-                                    .in = f_prime_of_g_of_t.x, 
-                                    .out= f_prime_of_g_of_t.y
-                                }
+                                control_point.ControlPoint.init(
+                                    .{
+                                        .in = f_prime_of_g_of_t.x, 
+                                        .out= f_prime_of_g_of_t.y
+                                    }
+                                )
                             );
 
                             // project derivative by the chain rule
@@ -1408,22 +1496,28 @@ pub const Bezier = struct {
                                 t_midpoint_other,
                             );
                             try cache_g_prime_of_t.append(
-                                .{
-                                    .in = g_prime_of_t.x, 
-                                    .out= g_prime_of_t.y
-                                }
+                                control_point.ControlPoint.init(
+                                    .{
+                                        .in = g_prime_of_t.x, 
+                                        .out= g_prime_of_t.y
+                                    }
+                                )
                             );
 
                             if (true) {
-                                break :chain_rule control_point.ControlPoint{
-                                    .in  = f_prime_of_g_of_t.x * g_prime_of_t.x,
-                                    .out = f_prime_of_g_of_t.y * g_prime_of_t.y,
-                                };
+                                break :chain_rule control_point.ControlPoint.init(
+                                   .{
+                                       .in  = f_prime_of_g_of_t.x * g_prime_of_t.x,
+                                       .out = f_prime_of_g_of_t.y * g_prime_of_t.y,
+                                   }
+                               );
                             } else {
-                                break :chain_rule control_point.ControlPoint{
-                                    .in  = g_prime_of_t.x,
-                                    .out = f_prime_of_g_of_t.y * g_prime_of_t.y,
-                                };
+                                break :chain_rule control_point.ControlPoint.init(
+                                   .{
+                                       .in  = g_prime_of_t.x,
+                                       .out = f_prime_of_g_of_t.y * g_prime_of_t.y,
+                                   }
+                               );
                             }
                         };
 
@@ -1662,8 +1756,8 @@ pub const Bezier = struct {
         const unorm = seg_to_split.findU_input(ordinate);
 
         if (
-            unorm < generic_curve.EPSILON 
-            or generic_curve.EPSILON > @abs(1 - unorm) 
+            unorm < opentime.EPSILON_F
+            or opentime.EPSILON_F > opentime.abs(1 - unorm) 
         ) {
             return .{ 
                 .segments = try allocator.dupe(
@@ -1845,12 +1939,12 @@ pub const Bezier = struct {
     {
         if (
             (
-             self.extents_input().start >= ordinate
+             self.extents_input().start.gteq(ordinate)
              and direction == .trim_before
             )
             or
             (
-             self.extents_input().end <= ordinate
+             self.extents_input().end.lteq(ordinate)
              and direction == .trim_after
             )
 
@@ -1868,18 +1962,8 @@ pub const Bezier = struct {
 
         {
             const is_bounding_point = (
-                std.math.approxEqAbs(
-                    @TypeOf(ordinate),
-                    seg_to_split.p0.in, 
-                    ordinate,
-                    0.00001,
-                )
-                or std.math.approxEqAbs(
-                    @TypeOf(ordinate),
-                    seg_to_split.p3.in, 
-                    ordinate,
-                    0.00001,
-                )
+                seg_to_split.p0.in.eql_approx(ordinate)
+                or seg_to_split.p3.in.eql_approx(ordinate)
             );
 
             if (is_bounding_point) {
@@ -2025,7 +2109,7 @@ pub const Bezier = struct {
                         |s_i| 
                     {
                         if (
-                            @abs(splits[s_i] - possible_split) 
+                            opentime.abs(splits[s_i] - possible_split) 
                             < generic_curve.EPSILON
                         ) {
                             duplicate = true;
@@ -2057,9 +2141,7 @@ pub const Bezier = struct {
 
                 // @TODO: question - should the "U" in the bezier be a phase
                 //        ordinate?
-                const maybe_xsplits = current_seg.split_at(
-                    u.as(opentime.Ordinate.BaseType)
-                );
+                const maybe_xsplits = current_seg.split_at(u);
 
                 if (maybe_xsplits) 
                     |xsplits| 
@@ -2180,13 +2262,21 @@ pub fn read_linear_curve_data(
 ) !Bezier
 {
     const lin_curve = try std.json.parseFromSliceLeaky(
-        linear_curve.Linear,
+        linear_curve.LinearF,
         allocator,
         source, .{}
     );
+
+    var out_knots = std.ArrayList(control_point.ControlPoint).init(allocator);
+    for (lin_curve.knots)
+        |k|
+    {
+        try out_knots.append(control_point.ControlPoint.init(k));
+    }
+
     return Bezier.init_from_linear_curve(
         allocator,
-        lin_curve
+        .{ .knots = try out_knots.toOwnedSlice() },
     );
 }
 
@@ -2215,8 +2305,8 @@ test "Curve: read_curve_json"
     try std.testing.expectEqualSlices(
         control_point.ControlPoint,
         &[_]control_point.ControlPoint{
-            .{ .in = -0.5, .out = -0.5 },
-            .{ .in =  0.5, .out =  0.5 },
+            control_point.ControlPoint.init(.{ .in = -0.5, .out = -0.5 }),
+            control_point.ControlPoint.init(.{ .in =  0.5, .out =  0.5 }),
         },
         linearized_knots,
     );
@@ -2226,21 +2316,21 @@ test "Bezier.Segment: projected_segment to 1/2"
 {
     {
         const half = Bezier.Segment.init_from_start_end(
-            .{ .in = -0.5, .out = -0.25, },
-            .{ .in = 0.5, .out = 0.25, },
+            control_point.ControlPoint.init(.{ .in = -0.5, .out = -0.25, }),
+            control_point.ControlPoint.init(.{ .in = 0.5, .out = 0.25, }),
         );
         const double = Bezier.Segment.init_from_start_end(
-            .{ .in = -0.5, .out = -1, },
-            .{ .in = 0.5, .out = 1, },
+            control_point.ControlPoint.init(.{ .in = -0.5, .out = -1, }),
+            control_point.ControlPoint.init(.{ .in = 0.5, .out = 1, }),
         );
 
         const half_through_double = double.project_segment(half);
 
-        var u:f32 = 0;
+        var u:U_TYPE = 0;
         while (u<1) 
             : (u += 0.01)
         {
-            try expectApproxEql(
+            try opentime.expectOrdinateEqual(
                 // t at u = 0 is -0.5
                 u-0.5,
                 half_through_double.eval_at(u).out
@@ -2250,21 +2340,21 @@ test "Bezier.Segment: projected_segment to 1/2"
 
     {
         const half = Bezier.Segment.init_from_start_end(
-            .{ .in = -0.5, .out = -0.5, },
-            .{ .in = 0.5, .out = 0.0, },
+            control_point.ControlPoint.init(.{ .in = -0.5, .out = -0.5, }),
+            control_point.ControlPoint.init(.{ .in = 0.5, .out = 0.0, }),
         );
         const double = Bezier.Segment.init_from_start_end(
-            .{ .in = -0.5, .out = -0.5, },
-            .{ .in = 0.5, .out = 1.5, },
+            control_point.ControlPoint.init(.{ .in = -0.5, .out = -0.5, }),
+            control_point.ControlPoint.init(.{ .in = 0.5, .out = 1.5, }),
         );
 
         const half_through_double = double.project_segment(half);
 
-        var u:f32 = 0;
+        var u:U_TYPE = 0;
         while (u<1) 
             : (u += 0.01)
         {
-            try expectApproxEql(
+            try opentime.expectOrdinateEqual(
                 // t at u = 0 is -0.5
                 u-0.5,
                 half_through_double.eval_at(u).out
@@ -2277,8 +2367,8 @@ test "Bezier: positive length 1 linear segment test"
 {
     var crv_seg = [_]Bezier.Segment{
         Bezier.Segment.init_from_start_end(
-            .{ .in = 1, .out = 0, },
-            .{ .in = 2, .out = 1, },
+            control_point.ControlPoint.init(.{ .in = 1, .out = 0, }),
+            control_point.ControlPoint.init(.{ .in = 2, .out = 1, }),
         )
     };
     const xform_curve: Bezier = .{ .segments = &crv_seg, };
@@ -2289,15 +2379,30 @@ test "Bezier: positive length 1 linear segment test"
     try expectError(error.OutOfBounds, xform_curve.output_at_input(0));
 
     // find segment
-    try expect(xform_curve.find_segment(1) != null);
-    try expect(xform_curve.find_segment(1.5) != null);
-    try expectEqual(@as(?*Bezier.Segment, null), xform_curve.find_segment(2));
+    try expect(xform_curve.find_segment(opentime.Ordinate.init(1)) != null);
+    try expect(xform_curve.find_segment(opentime.Ordinate.init(1.5)) != null);
+    try expectEqual(
+        null,
+        xform_curve.find_segment(opentime.Ordinate.init(2))
+    );
 
     // within the range of the curve
-    try expectEqual(@as(opentime.Ordinate, 0),    try xform_curve.output_at_input(1));
-    try std.testing.expectApproxEqAbs(@as(opentime.Ordinate, 0.25), try xform_curve.output_at_input(1.25), generic_curve.EPSILON);
-    try std.testing.expectApproxEqAbs(@as(opentime.Ordinate, 0.5),  try xform_curve.output_at_input(1.5), generic_curve.EPSILON);
-    try expectApproxEql(@as(opentime.Ordinate, 0.75), try xform_curve.output_at_input(1.75));
+    try opentime.expectOrdinateEqual(
+        0,
+        try xform_curve.output_at_input(1)
+    );
+    try opentime.expectOrdinateEqual(
+        0.25,
+        try xform_curve.output_at_input(1.25)
+    );
+    try opentime.expectOrdinateEqual(
+        0.5,
+        try xform_curve.output_at_input(1.5)
+    );
+    try opentime.expectOrdinateEqual(
+        0.75,
+        try xform_curve.output_at_input(1.75)
+    );
 }
 
 // removing the projection functions?
@@ -2351,7 +2456,7 @@ test "Bezier: positive length 1 linear segment test"
 //         while (x < 1) 
 //         {
 //             // @TODO: fails because evaluating a linear curve
-//             try expectApproxEql(x, try result.output_at_input(x));
+//             try opentime.expectOrdinateEqual(x, try result.output_at_input(x));
 //             x += 0.1;
 //         }
 //     }
@@ -2359,13 +2464,15 @@ test "Bezier: positive length 1 linear segment test"
 
 test "Bezier: projection_test non-overlapping" 
 {
-    var seg_0_1 = [_]Bezier.Segment{ Bezier.Segment.init_identity(0, 1) };
+    var seg_0_1 = [_]Bezier.Segment{
+        Bezier.Segment.IDENT_ZERO_ONE 
+    };
     const fst: Bezier = .{ .segments = &seg_0_1 };
 
     var seg_1_9 = [_]Bezier.Segment{ 
         Bezier.Segment.init_from_start_end(
-            .{ .in = 1, .out = 1, },
-            .{ .in = 9, .out = 5, },
+            control_point.ControlPoint.init(.{ .in = 1, .out = 1, }),
+            control_point.ControlPoint.init(.{ .in = 9, .out = 5, }),
         )
     };
     const snd: Bezier = .{ .segments = &seg_1_9 };
@@ -2383,8 +2490,8 @@ test "positive slope 2 linear segment test"
 {
     var test_segment_arr = [_]Bezier.Segment{
         Bezier.Segment.init_from_start_end(
-            .{ .in = 1, .out = 0, },
-            .{ .in = 2, .out = 2, },
+            control_point.ControlPoint.init(.{ .in = 1, .out = 0, }),
+            control_point.ControlPoint.init(.{ .in = 2, .out = 2, }),
         )
     };
     const xform_curve = Bezier{ .segments = &test_segment_arr };
@@ -2400,10 +2507,9 @@ test "positive slope 2 linear segment test"
     inline for (tests) 
         |t| 
     {
-        try std.testing.expectApproxEqAbs(
-            @as(f32, t[0]),
+        try opentime.expectOrdinateEqual(
+            t[0],
             try xform_curve.output_at_input(t[1]),
-            generic_curve.EPSILON
         );
     }
 }
@@ -2414,8 +2520,8 @@ test "negative length 1 linear segment test"
     // by stack unwinding
     var segments_xform = [_]Bezier.Segment{
         Bezier.Segment.init_from_start_end(
-            .{ .in = -2, .out = 0, },
-            .{ .in = -1, .out = 1, },
+            control_point.ControlPoint.init(.{ .in = -2, .out = 0, }),
+            control_point.ControlPoint.init(.{ .in = -1, .out = 1, }),
         )
     };
     const xform_curve = Bezier{ .segments = &segments_xform };
@@ -2427,36 +2533,62 @@ test "negative length 1 linear segment test"
     try expectError(error.OutOfBounds, xform_curve.output_at_input(-1));
 
     // within the range
-    try expectEqual(try xform_curve.output_at_input(-2), 0);
-    try expectApproxEql(try xform_curve.output_at_input(-1.5), 0.5);
+    try opentime.expectOrdinateEqual(
+        0,
+        try xform_curve.output_at_input(-2),
+    );
+    try opentime.expectOrdinateEqual(
+        0.5,
+        try xform_curve.output_at_input(-1.5),
+    );
 }
+
+pub const sign = enum {
+    lt_zero,
+    zero,
+    gt_zero,
+
+    pub fn gteq_zero(self: @This()) bool {
+        return self == .zero or self == .gt_zero;
+    }
+
+    pub fn lteq_zero(self: @This()) bool {
+        return self == .zero or self == .lt_zero;
+    }
+};
 
 fn line_orientation(
     test_point: control_point.ControlPoint,
     segment: Bezier.Segment
-) f32 
+) sign 
 {
     const v1 = control_point.ControlPoint {
-        .in  = test_point.in  - segment.p0.in,
-        .out = test_point.out - segment.p0.out,
+        .in  = test_point.in.sub(segment.p0.in),
+        .out = test_point.out.sub(segment.p0.out),
     };
 
     const v2 = control_point.ControlPoint {
-        .in  = segment.p3.in  - segment.p0.in,
-        .out = segment.p3.out - segment.p0.out,
+        .in  = segment.p3.in.sub(segment.p0.in),
+        .out = segment.p3.out.sub(segment.p0.out),
     };
 
-    return (v1.in * v2.out - v1.out * v2.in);
+    const result = ((v1.in.mul(v2.out)).sub((v1.out.mul(v2.in))));
+
+    return if (result.lt(0)) .lt_zero
+        else if (result.eql(0)) .zero
+        else .gt_zero;
 }
 
 test "convex hull test" 
 {
-    const segment:Bezier.Segment = .{
-        .p0 = .{ .in = 1, .out = 0, },
-        .p1 = .{ .in = 1.25, .out = 1, },
-        .p2 = .{ .in = 1.75, .out = 0.65, },
-        .p3 = .{ .in = 2, .out = 0.24, },
-    };
+    const segment=Bezier.Segment.init_f32(
+        .{
+            .p0 = .{ .in = 1, .out = 0, },
+            .p1 = .{ .in = 1.25, .out = 1, },
+            .p2 = .{ .in = 1.75, .out = 0.65, },
+            .p3 = .{ .in = 2, .out = 0.24, },
+        }
+    );
 
     const p0 = segment.p0;
     const p1 = segment.p1;
@@ -2467,7 +2599,7 @@ test "convex hull test"
     var right_bound_segment = Bezier.Segment.init_from_start_end(p2, p3);
 
     // swizzle the right if necessary
-    if (line_orientation(p0, right_bound_segment) < 0) 
+    if (line_orientation(p0, right_bound_segment) == .lt_zero) 
     {
         const tmp = p3;
         p3 = p2;
@@ -2495,15 +2627,35 @@ test "convex hull test"
     {
         const test_point = segment.eval_at(i);
 
-        try expect(line_orientation(test_point, left_bound_segment) >= 0);
-        try expect(line_orientation(test_point, top_bound_segment) >= 0);
-        try expect(line_orientation(test_point, right_bound_segment) >= 0);
+        try expect(
+            line_orientation(
+                test_point,
+                left_bound_segment
+            ).gteq_zero(),
+        );
+        try expect(
+            line_orientation(
+                test_point,
+                top_bound_segment
+            ).gteq_zero(),
+        );
+        try expect(
+            line_orientation(
+                test_point,
+                right_bound_segment
+            ).gteq_zero(),
+        );
 
         // because the winding order is reversed, this sign is reversed
         // the winding order is reversed on bottom_bound_segment because
         // we require that the points in the bezier be ordered, which
         // violates the winding order of the algorithm
-        try expect(line_orientation(test_point, bottom_bound_segment) <= 0);
+        try expect(
+            line_orientation(
+                test_point,
+                bottom_bound_segment
+            ).lteq_zero()
+        );
 
         i += 0.1;
     }
@@ -2511,7 +2663,12 @@ test "convex hull test"
 
 test "Bezier.Segment: eval_at for out of range u" 
 {
-    var seg = [1]Bezier.Segment{Bezier.Segment.init_identity(3, 4)};
+    var seg = [1]Bezier.Segment{
+        Bezier.Segment.init_identity(
+            opentime.Ordinate.init(3),
+            opentime.Ordinate.init(4),
+        ),
+    };
     const tc = Bezier{ .segments = &seg};
 
     try expectError(error.OutOfBounds, tc.output_at_input(0));
@@ -2554,7 +2711,12 @@ test "json writer: curve"
 {
     const ident = try Bezier.init(
         std.testing.allocator,
-        &.{ Bezier.Segment.init_identity(-20, 30) },
+        &.{
+            Bezier.Segment.init_identity(
+                opentime.Ordinate.init(-20), 
+                opentime.Ordinate.init(30),
+            )
+        },
     );
     defer ident.deinit(std.testing.allocator);
 
@@ -2584,21 +2746,24 @@ test "json writer: curve"
 
 test "segment: findU_value" 
 {
-    const test_segment = Bezier.Segment.init_identity(1,2);
-    try std.testing.expectApproxEqAbs(
-        @as(f32, 0.5),
-        test_segment.findU_value(1.5),
-        generic_curve.EPSILON
+    const test_segment = Bezier.Segment.init_identity(
+        opentime.Ordinate.init(1),
+        opentime.Ordinate.init(2),
     );
     try std.testing.expectApproxEqAbs(
-        @as(f32, 0),
-        test_segment.findU_value(0.5),
-        generic_curve.EPSILON
+        0.5,
+        test_segment.findU_value(opentime.Ordinate.init(1.5)),
+        opentime.EPSILON_F,
     );
     try std.testing.expectApproxEqAbs(
-        @as(f32, 1),
-        test_segment.findU_value(2.5),
-        generic_curve.EPSILON
+        0,
+        test_segment.findU_value(opentime.Ordinate.init(0.5)),
+        opentime.EPSILON_F,
+    );
+    try std.testing.expectApproxEqAbs(
+        1,
+        test_segment.findU_value(opentime.Ordinate.init(2.5)),
+        opentime.EPSILON_F,
     );
 }
 
@@ -2611,16 +2776,16 @@ test "Bezier: project u loop bug"
 
     const simple_s_segments = [_]Bezier.Segment{
         Bezier.Segment.init_from_start_end(
-            .{ .in = 0, .out = 0},
-            .{ .in = 30, .out = 10},
+            control_point.ControlPoint.init(.{ .in = 0, .out = 0}),
+            control_point.ControlPoint.init(.{ .in = 30, .out = 10}),
         ),
         Bezier.Segment.init_from_start_end(
-            .{ .in = 30, .out = 10},
-            .{ .in = 60, .out = 90},
+            control_point.ControlPoint.init(.{ .in = 30, .out = 10}),
+            control_point.ControlPoint.init(.{ .in = 60, .out = 90}),
         ),
         Bezier.Segment.init_from_start_end(
-            .{ .in = 60, .out = 90},
-            .{ .in = 100, .out = 100},
+            control_point.ControlPoint.init(.{ .in = 60, .out = 90}),
+            control_point.ControlPoint.init(.{ .in = 100, .out = 100}),
         ),
     };
     const simple_s = try Bezier.init(
@@ -2630,12 +2795,14 @@ test "Bezier: project u loop bug"
     defer simple_s.deinit(std.testing.allocator);
 
     const u_seg = [_]Bezier.Segment{
-        Bezier.Segment{
-            .p0 = .{ .in = 0, .out = 0 },
-            .p1 = .{ .in = 0, .out = 100 },
-            .p2 = .{ .in = 100, .out = 100 },
-            .p3 = .{ .in = 100, .out = 0 },
-        },
+        Bezier.Segment.init_f32(
+            .{
+                .p0 = .{ .in = 0, .out = 0 },
+                .p1 = .{ .in = 0, .out = 100 },
+                .p2 = .{ .in = 100, .out = 100 },
+                .p3 = .{ .in = 100, .out = 0 },
+            },
+        )
     }; 
     const upside_down_u = try Bezier.init(
         std.testing.allocator,
@@ -2655,24 +2822,24 @@ test "Bezier: project u loop bug"
         for (seg.points())
             |p|
         {
-            try std.testing.expect(!std.math.isNan(p.in));
-            try std.testing.expect(!std.math.isNan(p.out));
+            try std.testing.expect(!p.in.is_nan());
+            try std.testing.expect(!p.out.is_nan());
         }
     }
 
-    errdefer std.log.err("simple_s: {!s}\n", .{ simple_s.debug_json_str(std.testing.allocator) } );
-    errdefer std.log.err("u: {!s}\n", .{ upside_down_u.debug_json_str(std.testing.allocator) } );
-    errdefer std.log.err("result: {!s}\n", .{ result.debug_json_str(std.testing.allocator) } );
+    errdefer std.log.err("simple_s: {s}\n", .{ simple_s } );
+    errdefer std.log.err("upside_down_u: {s}\n", .{ upside_down_u } );
+    errdefer std.log.err("result: {s}\n", .{ result } );
 
-    try expectEqual(@as(usize, 5), result.segments.len);
+    try expectEqual(5, result.segments.len);
 }
 
 test "Bezier: project linear identity with linear 1/2 slope" 
 {
     const linear_segment = [_]Bezier.Segment{
         Bezier.Segment.init_from_start_end(
-            .{ .in = 60, .out = 60},
-            .{ .in = 230, .out = 230},
+            control_point.ControlPoint.init(.{ .in = 60, .out = 60}),
+            control_point.ControlPoint.init(.{ .in = 230, .out = 230}),
         ),
     };
     const linear_crv = try Bezier.init(
@@ -2683,8 +2850,8 @@ test "Bezier: project linear identity with linear 1/2 slope"
 
     const linear_half_segment = [_]Bezier.Segment{
         Bezier.Segment.init_from_start_end(
-            .{ .in = 0, .out = 100},
-            .{ .in = 200, .out = 200},
+            control_point.ControlPoint.init(.{ .in = 0, .out = 100}),
+            control_point.ControlPoint.init(.{ .in = 200, .out = 200}),
         ),
     };
     const linear_half_crv = try Bezier.init(
@@ -2810,12 +2977,14 @@ test "Bezier: project linear identity with linear 1/2 slope"
 test "Bezier: split_at_each_value u curve" 
 {
     const u_seg = [_]Bezier.Segment{
-        Bezier.Segment{
-            .p0 = .{ .in = 0, .out = 0 },
-            .p1 = .{ .in = 0, .out = 100 },
-            .p2 = .{ .in = 100, .out = 100 },
-            .p3 = .{ .in = 100, .out = 0 },
-        },
+        Bezier.Segment.init_f32(
+            .{
+                .p0 = .{ .in = 0, .out = 0 },
+                .p1 = .{ .in = 0, .out = 100 },
+                .p2 = .{ .in = 100, .out = 100 },
+                .p3 = .{ .in = 100, .out = 0 },
+            }
+        ),
     }; 
     const upside_down_u = try Bezier.init(
         std.testing.allocator,
@@ -2865,9 +3034,9 @@ test "Bezier: split_at_each_value u curve"
         {
             if (
                 std.math.approxEqAbs(
-                    opentime.Ordinate,
-                    sp_p,
-                    pt.out,
+                    opentime.Ordinate.BaseType,
+                    sp_p.as(opentime.Ordinate.BaseType),
+                    pt.out.as(opentime.Ordinate.BaseType),
                     0.00001
                 )
             ) 
@@ -2884,14 +3053,22 @@ test "Bezier: split_at_each_value u curve"
 
 test "Bezier: split_at_each_value linear" 
 {
-    const identSeg = Bezier.Segment.init_identity(-0.2, 1) ;
+    const identSeg = Bezier.Segment.init_identity(
+        opentime.Ordinate.init(-0.2),
+        opentime.Ordinate.init(1),
+    );
     const lin = try Bezier.init(
         std.testing.allocator,
         &.{identSeg},
     );
     defer lin.deinit(std.testing.allocator);
 
-    const split_points = [_]opentime.Ordinate{ -0.2, 0, 0.5, 1 };
+    const split_points = [_]opentime.Ordinate{ 
+        opentime.Ordinate.init(-0.2),
+        opentime.Ordinate.init(0),
+        opentime.Ordinate.init(0.5),
+        opentime.Ordinate.init(1),
+    };
 
     const result = try lin.split_at_each_output_ordinate(
         std.testing.allocator,
@@ -2927,7 +3104,14 @@ test "Bezier: split_at_each_value linear"
         for (endpoints)
             |pt|
         {
-            if (std.math.approxEqAbs(opentime.Ordinate, sp_p, pt, 0.00001)) 
+            if (
+                std.math.approxEqAbs(
+                    opentime.Ordinate.BaseType,
+                    sp_p.as(opentime.Ordinate.BaseType),
+                    pt.as(opentime.Ordinate.BaseType),
+                    0.00001,
+                )
+            )
             {
                 found = true;
             }
@@ -2936,19 +3120,27 @@ test "Bezier: split_at_each_value linear"
         try std.testing.expect(found);
     }
 
-    try expectEqual(@as(usize, 3), result.segments.len);
+    try expectEqual(3, result.segments.len);
 }
 
 test "Bezier: split_at_each_input_ordinate linear" 
 {
-    const identSeg = Bezier.Segment.init_identity(-0.2, 1) ;
+    const identSeg = Bezier.Segment.init_identity(
+        opentime.Ordinate.init(-0.2),
+        opentime.Ordinate.init(1),
+    );
     const lin = try Bezier.init(
         std.testing.allocator,
         &.{identSeg},
     );
     defer lin.deinit(std.testing.allocator);
 
-    const split_points = [_]opentime.Ordinate{ -0.2, 0, 0.5, 1 };
+    const split_points = [_]opentime.Ordinate{ 
+        opentime.Ordinate.init(-0.2),
+        opentime.Ordinate.init(0),
+        opentime.Ordinate.init(0.5),
+        opentime.Ordinate.init(1),
+    };
 
     const result = try lin.split_at_each_input_ordinate(
         std.testing.allocator,
@@ -2985,7 +3177,14 @@ test "Bezier: split_at_each_input_ordinate linear"
         for (endpoints)
             |pt|
         {
-            if (std.math.approxEqAbs(opentime.Ordinate, sp_p, pt, 0.00001)) 
+            if (
+                std.math.approxEqAbs(
+                    opentime.Ordinate.BaseType,
+                    sp_p.as(opentime.Ordinate.BaseType),
+                    pt.as(opentime.Ordinate.BaseType),
+                    0.00001,
+                )
+            ) 
             {
                 found = true;
             }
@@ -2999,11 +3198,15 @@ test "Bezier: split_at_each_input_ordinate linear"
 
 test "Bezier: split_at_input_ordinate" 
 {
-
     const test_curves = [_]Bezier{
         try Bezier.init(
             std.testing.allocator,
-            &.{ Bezier.Segment.init_identity(-20, 30) },
+            &.{
+                Bezier.Segment.init_identity(
+                    opentime.Ordinate.init(-20),
+                    opentime.Ordinate.init(30),
+                ) 
+            },
         ),
         try read_curve_json("curves/upside_down_u.curve.json", std.testing.allocator), 
         try read_curve_json("curves/scurve.curve.json", std.testing.allocator), 
@@ -3016,9 +3219,11 @@ test "Bezier: split_at_input_ordinate"
         |ident, loop| 
     {
         const extents = ident.extents();
-        var split_loc:opentime.Ordinate = extents[0].in + 1;
+        var split_loc:opentime.Ordinate.BaseType = (
+            extents[0].in.as(opentime.Ordinate.BaseType) + 1
+        );
 
-        while (split_loc < extents[1].in) 
+        while (split_loc < extents[1].in.as(opentime.Ordinate.BaseType)) 
             : (split_loc += 1) 
         {
             errdefer std.log.err(
@@ -3029,7 +3234,7 @@ test "Bezier: split_at_input_ordinate"
             );
             const split_ident = try ident.split_at_input_ordinate(
                 std.testing.allocator,
-                split_loc,
+                opentime.Ordinate.init(split_loc),
             );
             defer split_ident.deinit(std.testing.allocator);
 
@@ -3049,8 +3254,8 @@ test "Bezier: split_at_input_ordinate"
             );
 
             var i:opentime.Ordinate = extents[0].in;
-            while (i < extents[1].in) 
-                : (i += 1) 
+            while (i.lt(extents[1].in))
+                : (i = i.add(1))
             {
                 const fst = try ident.output_at_input(i);
                 const snd = try split_ident.output_at_input(i);
@@ -3058,10 +3263,9 @@ test "Bezier: split_at_input_ordinate"
                     "Loop: {} orig: {} new: {}",
                     .{i, fst, snd}
                 );
-                try std.testing.expectApproxEqAbs(
+                try opentime.expectOrdinateEqual(
                     fst,
                     snd,
-                    0.0001
                 );
             }
         }
@@ -3088,9 +3292,18 @@ test "Bezier: trimmed_from_input_ordinate"
         try Bezier.init(
             std.testing.allocator,
             &.{
-                Bezier.Segment.init_identity(-25, -5), 
-                Bezier.Segment.init_identity(-5, 5), 
-                Bezier.Segment.init_identity(5, 25), 
+                Bezier.Segment.init_identity(
+                    opentime.Ordinate.init(-25),
+                    opentime.Ordinate.init(-5),
+                ), 
+                Bezier.Segment.init_identity(
+                    opentime.Ordinate.init(-5),
+                    opentime.Ordinate.init(5),
+                ), 
+                Bezier.Segment.init_identity(
+                    opentime.Ordinate.init(5),
+                    opentime.Ordinate.init(25),
+                ), 
             }
         ),
     };
@@ -3107,39 +3320,39 @@ test "Bezier: trimmed_from_input_ordinate"
         const test_data = [_]TestData{
             // trim the first segment
             .{
-                .ordinate = extents[0].in * 0.25,
+                .ordinate = extents[0].in.mul(0.25),
                 .direction = .trim_before,
                 .result_extents = .{
-                    .start = extents[0].in * 0.25,
+                    .start = extents[0].in.mul(0.25),
                     .end = extents[1].in,
                 },
                 .result_segment_count = ident.segments.len,
             },
             .{
-                .ordinate = extents[0].in * 0.25,
+                .ordinate = extents[0].in.mul(0.25),
                 .direction = .trim_after,
                 .result_extents = .{
                     .start = extents[0].in,
-                    .end = extents[0].in * 0.25,
+                    .end = extents[0].in.mul(0.25),
                 },
                 .result_segment_count = 1,
             },
             // trim the last segment
             .{
-                .ordinate = extents[1].in * 0.75,
+                .ordinate = extents[1].in.mul(0.75),
                 .direction = .trim_before,
                 .result_extents = .{
-                    .start = extents[1].in * 0.75,
+                    .start = extents[1].in.mul(0.75),
                     .end = extents[1].in,
                 },
                 .result_segment_count = 1,
             },
             .{
-                .ordinate = extents[1].in * 0.75,
+                .ordinate = extents[1].in.mul(0.75),
                 .direction = .trim_after,
                 .result_extents = .{
                     .start = extents[0].in,
-                    .end = extents[1].in * 0.75,
+                    .end = extents[1].in.mul(0.75),
                 },
                 .result_segment_count = ident.segments.len,
             },
@@ -3176,15 +3389,13 @@ test "Bezier: trimmed_from_input_ordinate"
                 .{ td , trimmed_extents}
             );
 
-            try std.testing.expectApproxEqAbs(
+            try opentime.expectOrdinateEqual(
                 td.result_extents.start,
                 trimmed_extents[0].in,
-                0.001
             );
-            try std.testing.expectApproxEqAbs(
+            try opentime.expectOrdinateEqual(
                 td.result_extents.end,
                 trimmed_extents[1].in,
-                0.001
             );
         }
     }
@@ -3200,7 +3411,12 @@ test "Bezier: trimmed_in_input_space"
     const test_curves = [_]Bezier{
         try Bezier.init(
             std.testing.allocator,
-            &.{ Bezier.Segment.init_identity(-20, 30) }
+            &.{
+                Bezier.Segment.init_identity(
+                    opentime.Ordinate.init(-20),
+                    opentime.Ordinate.init(30),
+                ) 
+            }
         ),
         try read_curve_json("curves/upside_down_u.curve.json", std.testing.allocator), 
         try read_curve_json("curves/scurve.curve.json", std.testing.allocator), 
@@ -3219,41 +3435,41 @@ test "Bezier: trimmed_in_input_space"
             // trim both
             .{
                 .trim_range = .{
-                    .start = extents[0].in * 0.25,
-                    .end = extents[1].in * 0.75,
+                    .start = extents[0].in.mul(0.25),
+                    .end = extents[1].in.mul(0.75),
                 },
                 .result_extents = .{
-                    .start = extents[0].in * 0.25,
-                    .end = extents[1].in * 0.75,
+                    .start = extents[0].in.mul(0.25),
+                    .end = extents[1].in.mul(0.75),
                 },
                 },
             // trim start
             .{
                 .trim_range = .{
-                    .start = extents[0].in * 0.25,
-                    .end = extents[1].in * 1.75,
+                    .start = extents[0].in.mul(0.25),
+                    .end = extents[1].in.mul(1.75),
                 },
                 .result_extents = .{
-                    .start = extents[0].in * 0.25,
+                    .start = extents[0].in.mul(0.25),
                     .end = extents[1].in,
                 },
                 },
             // trim end
             .{
                 .trim_range = .{
-                    .start = extents[0].in * 1.25,
-                    .end = extents[1].in * 0.75,
+                    .start = extents[0].in.mul(1.25),
+                    .end = extents[1].in.mul(0.75),
                 },
                 .result_extents = .{
                     .start = extents[0].in,
-                    .end = extents[1].in * 0.75,
+                    .end = extents[1].in.mul(0.75),
                 },
                 },
             // trim neither
             .{
                 .trim_range = .{
-                    .start = extents[0].in * 1.25,
-                    .end = extents[1].in * 1.75,
+                    .start = extents[0].in.mul(1.25),
+                    .end = extents[1].in.mul(1.75),
                 },
                 .result_extents = .{
                     .start = extents[0].in,
@@ -3321,15 +3537,13 @@ test "Bezier: trimmed_in_input_space"
                 );
             }
 
-            try std.testing.expectApproxEqAbs(
+            try opentime.expectOrdinateEqual(
                 td.result_extents.start,
                 trimmed_extents[0].in,
-                0.001
             );
-            try std.testing.expectApproxEqAbs(
+            try opentime.expectOrdinateEqual(
                 td.result_extents.end,
                 trimmed_extents[1].in,
-                0.001
             );
         }
     }
@@ -3347,20 +3561,20 @@ test "Bezier: project_affine"
 
     const test_affine = [_]opentime.transform.AffineTransform1D{
         .{
-            .offset = -10,
-            .scale = 0.5,
+            .offset = opentime.Ordinate.init(-10),
+            .scale = opentime.Ordinate.init(0.5),
         },
         .{
-            .offset = 0,
-            .scale = 1,
+            .offset = opentime.Ordinate.init(0),
+            .scale = opentime.Ordinate.init(1),
         },
         .{
-            .offset = 0,
-            .scale = 2,
+            .offset = opentime.Ordinate.init(0),
+            .scale = opentime.Ordinate.init(2),
         },
         .{
-            .offset = 10,
-            .scale = 1,
+            .offset = opentime.Ordinate.init(10),
+            .scale = opentime.Ordinate.init(1),
         },
     };
 
@@ -3384,7 +3598,7 @@ test "Bezier: project_affine"
                 |pt, pt_index| 
             {
                 const result_pt = result.segments[t_seg_index].points()[pt_index];
-                errdefer  std.debug.print(
+                errdefer  std.log.err(
                     "\nseg: {} pt: {} ({d:.2}, {d:.2})\n"
                     ++ "computed: ({d:.2}, {d:.2})\n\n", 
                     .{
@@ -3396,12 +3610,9 @@ test "Bezier: project_affine"
                         result_pt.out, 
                     }
                 );
-                try expectApproxEql(
-                    @as(
-                        opentime.Ordinate,
-                        testdata.scale * pt.in + testdata.offset
-                    ), 
-                    result_pt.in
+                try opentime.expectOrdinateEqual(
+                    (testdata.scale.mul(pt.in)).add(testdata.offset),
+                    result_pt.in,
                 );
             }
         }
@@ -3443,20 +3654,20 @@ test "join_bez_aff_unbounded"
 
     const test_affine = [_]opentime.transform.AffineTransform1D{
         .{
-            .offset = -10,
-            .scale = 0.5,
+            .offset = opentime.Ordinate.init(-10),
+            .scale = opentime.Ordinate.init(0.5),
         },
         .{
-            .offset = 0,
-            .scale = 1,
+            .offset = opentime.Ordinate.init(0),
+            .scale = opentime.Ordinate.init(1),
         },
         .{
-            .offset = 0,
-            .scale = 2,
+            .offset = opentime.Ordinate.init(0),
+            .scale = opentime.Ordinate.init(2),
         },
         .{
-            .offset = 10,
-            .scale = 1,
+            .offset = opentime.Ordinate.init(10),
+            .scale = opentime.Ordinate.init(1),
         },
     };
 
@@ -3498,11 +3709,8 @@ test "join_bez_aff_unbounded"
                         result_pt.out, 
                     }
                 );
-                try expectApproxEql(
-                    @as(
-                        opentime.Ordinate,
-                        testdata.scale * pt.out + testdata.offset
-                    ), 
+                try opentime.expectOrdinateEqual(
+                        testdata.scale.mul(pt.out).add(testdata.offset),
                     result_pt.out
                 );
             }
@@ -3513,12 +3721,14 @@ test "join_bez_aff_unbounded"
 test "Bezier: split_on_critical_points s curve" 
 {
     const s_seg = [_]Bezier.Segment{
-        Bezier.Segment{
-            .p0 = .{ .in = 0, .out = 0 },
-            .p1 = .{ .in = 0, .out = 200 },
-            .p2 = .{ .in = 100, .out = -100 },
-            .p3 = .{ .in = 100, .out = 100 },
-        },
+        Bezier.Segment.init_f32(
+            .{
+                .p0 = .{ .in = 0, .out = 0 },
+                .p1 = .{ .in = 0, .out = 200 },
+                .p2 = .{ .in = 100, .out = -100 },
+                .p3 = .{ .in = 100, .out = 100 },
+            }
+        ),
     }; 
     const s_curve_seg = try Bezier.init(
         std.testing.allocator,
@@ -3546,26 +3756,36 @@ test "Bezier: split_on_critical_points symmetric about the origin"
 
     const tests = [_]TestData{
         .{
-            .segment = Bezier.Segment{
-                .p0 = .{ .in = -0.5, .out = -0.5 },
-                .p1 = .{ .in =    0, .out = -0.5 },
-                .p2 = .{ .in =    0, .out =  0.5 },
-                .p3 = .{ .in =  0.5, .out =  0.5 },
+            .segment = Bezier.Segment.init_f32(
+                .{
+                    .p0 = .{ .in = -0.5, .out = -0.5 },
+                    .p1 = .{ .in =    0, .out = -0.5 },
+                    .p2 = .{ .in =    0, .out =  0.5 },
+                    .p3 = .{ .in =  0.5, .out =  0.5 },
+                }
+            ),
+            .inflection_point = opentime.Ordinate.init(0.5),
+            .roots = .{
+                opentime.Ordinate.init(-1),
+                opentime.Ordinate.init(-1), 
             },
-            .inflection_point = 0.5,
-            .roots = .{ -1, -1 },
             .split_segments = 2,
         },
         .{
-            .segment = Bezier.Segment{
-                .p0 = .{ .in = -0.5, .out =    0 },
-                .p1 = .{ .in =    0, .out =   -1 },
-                .p2 = .{ .in =    0, .out =    1 },
-                .p3 = .{ .in =  0.5, .out =    0 },
-            },
-            .inflection_point = 0.5,
+            .segment = Bezier.Segment.init_f32(
+                .{
+                    .p0 = .{ .in = -0.5, .out =    0 },
+                    .p1 = .{ .in =    0, .out =   -1 },
+                    .p2 = .{ .in =    0, .out =    1 },
+                    .p3 = .{ .in =  0.5, .out =    0 },
+                }
+            ),
+            .inflection_point = opentime.Ordinate.init(0.5),
             // assuming this is correct
-            .roots = .{ 0.21132487, 0.788675129 },
+            .roots = .{
+                opentime.Ordinate.init(0.21132487),
+                opentime.Ordinate.init(0.788675129),
+            },
             .split_segments = 4,
         },
     };
@@ -3584,20 +3804,20 @@ test "Bezier: split_on_critical_points symmetric about the origin"
         const cSeg : hodographs.BezierSegment = .{
             .order = 3,
             .p = .{
-                .{ .x = s_seg[0].p0.in, .y = s_seg[0].p0.out },
-                .{ .x = s_seg[0].p1.in, .y = s_seg[0].p1.out },
-                .{ .x = s_seg[0].p2.in, .y = s_seg[0].p2.out },
-                .{ .x = s_seg[0].p3.in, .y = s_seg[0].p3.out },
+                .{ .x = s_seg[0].p0.in.as(f32), .y = s_seg[0].p0.out.as(f32) },
+                .{ .x = s_seg[0].p1.in.as(f32), .y = s_seg[0].p1.out.as(f32) },
+                .{ .x = s_seg[0].p2.in.as(f32), .y = s_seg[0].p2.out.as(f32) },
+                .{ .x = s_seg[0].p3.in.as(f32), .y = s_seg[0].p3.out.as(f32) },
             },
         };
         const inflections = hodographs.inflection_points(&cSeg);
         try std.testing.expectApproxEqAbs(
-            @as(opentime.Ordinate, td.inflection_point),
+            td.inflection_point.as(f32),
             inflections.x,
-            generic_curve.EPSILON
+            opentime.EPSILON_F,
         );
 
-        var t:opentime.Ordinate = 0.0;
+        var t:f32 = 0.0;
         while (t < 1) 
             : (t += 0.01) 
         {
@@ -3657,23 +3877,23 @@ test "Bezier: split_on_critical_points symmetric about the origin"
                 errdefer std.debug.print("\n\npt: {d} t: {d}\n", .{ i, t });
                 try std.testing.expectApproxEqAbs(
                     c_split_l.p[i].x,
-                    zig_splits[0].points()[i].in,
-                    generic_curve.EPSILON
+                    zig_splits[0].points()[i].in.as(f32),
+                    opentime.EPSILON_F,
                 );
                 try std.testing.expectApproxEqAbs(
                     c_split_l.p[i].y,
-                    zig_splits[0].points()[i].out,
-                    generic_curve.EPSILON
+                    zig_splits[0].points()[i].out.as(f32),
+                    opentime.EPSILON_F,
                 );
                 try std.testing.expectApproxEqAbs(
                     c_split_r.p[i].x,
-                    zig_splits[1].points()[i].in,
-                    generic_curve.EPSILON
+                    zig_splits[1].points()[i].in.as(f32),
+                    opentime.EPSILON_F,
                 );
                 try std.testing.expectApproxEqAbs(
                     c_split_r.p[i].y,
-                    zig_splits[1].points()[i].out,
-                    generic_curve.EPSILON
+                    zig_splits[1].points()[i].out.as(f32),
+                    opentime.EPSILON_F,
                 );
             }
         }
@@ -3696,16 +3916,14 @@ test "Bezier: split_on_critical_points symmetric about the origin"
             errdefer std.debug.print("roots: {any:0.2}\n", .{roots});
 
             try std.testing.expectApproxEqAbs(
-                // @as(opentime.Ordinate, -0.25),
-                @as(opentime.Ordinate, td.roots[0]),
+                td.roots[0].as(f32),
                 roots.x,
-                generic_curve.EPSILON
+                opentime.EPSILON_F
             );
             try std.testing.expectApproxEqAbs(
-                @as(opentime.Ordinate, td.roots[1]),
-                // @as(f32, 0.25),
+                td.roots[1].as(f32),
                 roots.y,
-                generic_curve.EPSILON
+                opentime.EPSILON_F
             );
         }
     }
@@ -3726,13 +3944,13 @@ pub const tpa_result = struct {
     v2: ?control_point.ControlPoint = null,
     C1: ?control_point.ControlPoint = null,
     C2: ?control_point.ControlPoint = null,
-    t: ?opentime.Ordinate = null,
+    t: ?f32 = null,
 };
 
 pub fn three_point_guts_plot(
     start_knot: control_point.ControlPoint,
     mid_point: control_point.ControlPoint,
-    t_mid_point: f32,
+    t_mid_point: U_TYPE,
     d_mid_point_dt: control_point.ControlPoint,
     end_knot: control_point.ControlPoint,
 ) tpa_result
@@ -3763,7 +3981,7 @@ pub fn three_point_guts_plot(
 
     // abs( (t^3 + (1-t)^3 - 1) / ( t^3 + (1-t)^3 ) )
     const ratio_t = cmp_t: {
-        const result = @abs(
+        const result = opentime.abs(
             (t_cubed + one_minus_t_cubed - 1)
             /
             (t_cubed + one_minus_t_cubed)
@@ -3781,12 +3999,12 @@ pub fn three_point_guts_plot(
 
     // then set up an e1 and e2 parallel to the baseline
     const e1 = control_point.ControlPoint{
-        .in= mid_point.in - d_mid_point_dt.in * (t_mid_point),
-        .out= mid_point.out - d_mid_point_dt.out * (t_mid_point),
+        .in= mid_point.in.sub(d_mid_point_dt.in.mul((t_mid_point))),
+        .out= mid_point.out.sub(d_mid_point_dt.out.mul((t_mid_point))),
     };
     const e2 = control_point.ControlPoint{
-        .in= mid_point.in + d_mid_point_dt.in * (1-t_mid_point),
-        .out = mid_point.out + d_mid_point_dt.out * (1-t_mid_point),
+        .in= mid_point.in.add(d_mid_point_dt.in.mul((1-t_mid_point))),
+        .out = mid_point.out.add(d_mid_point_dt.out.mul((1-t_mid_point))),
     };
     final_result.e1 = e1;
     final_result.e2 = e2;

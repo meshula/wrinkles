@@ -22,20 +22,20 @@ fn expectNotEqual(
     };
 }
 
-test "curve projection tests: identity projection" 
+test "segment projection: identity projection" 
 {
     // note that intervals are identical
     var identity_tc = try curve.Bezier.init_from_start_end(
         std.testing.allocator,
-        .{ .in = 0, .out = 0 },
-        .{ .in = 10, .out = 10 },
+        curve.ControlPoint.init(.{ .in = 0, .out = 0 }),
+        curve.ControlPoint.init(.{ .in = 10, .out = 10 }),
     );
     defer identity_tc.deinit(std.testing.allocator);
 
     const double_tc = try curve.Bezier.init_from_start_end(
         std.testing.allocator,
-        .{ .in = 0, .out = 0 },
-        .{ .in = 1, .out = 2 },
+        curve.ControlPoint.init(.{ .in = 0, .out = 0 }),
+        curve.ControlPoint.init(.{ .in = 1, .out = 2 }),
     );
     defer double_tc.deinit(std.testing.allocator);
 
@@ -62,109 +62,127 @@ test "curve projection tests: identity projection"
     for (result.points())
         |pt|
     {
-        try opentime.util.expectApproxEql(
+        try opentime.expectOrdinateEqual(
             pt.out,
             result.output_at_input(pt.in),
         );
     }
 }
 
-test "Segment:  identity projection" 
+test "segment projection:  identity projection" 
 {
     // note that intervals are identical
     var identity_s = curve.Bezier.Segment.init_from_start_end(
-        .{ .in = 0, .out = 0 },
-        .{ .in = 10, .out = 10 },
+        curve.ControlPoint.init(.{ .in = 0, .out = 0 }),
+        curve.ControlPoint.init(.{ .in = 10, .out = 10 }),
     );
     const double_s = curve.Bezier.Segment.init_from_start_end(
-        .{ .in = 0, .out = 0 },
-        .{ .in = 1, .out = 2 },
+        curve.ControlPoint.init(.{ .in = 0, .out = 0 }),
+        curve.ControlPoint.init(.{ .in = 1, .out = 2 }),
     );
 
     // both are already linear, should result in a single segment
     const result = identity_s.project_segment(double_s);
 
     try expectEqual(double_s.p0, result.p0);
-    try opentime.util.expectApproxEql(double_s.p1.out, result.p1.out);
-    try opentime.util.expectApproxEql(double_s.p2.out, result.p2.out);
-    try opentime.util.expectApproxEql(double_s.p3.out, result.p3.out);
+    try opentime.expectOrdinateEqual(double_s.p1.out, result.p1.out);
+    try opentime.expectOrdinateEqual(double_s.p2.out, result.p2.out);
+    try opentime.expectOrdinateEqual(double_s.p3.out, result.p3.out);
 }
 
-test "projection tests: linear projection" 
+test "segment projection: linear projection" 
 {
     const m: f32 = 4;
 
     // note that intervals are identical
     var quad_s = curve.Bezier.Segment.init_from_start_end(
-        .{ .in = 0, .out = 0 },
-        .{ .in = 1, .out = m },
+        curve.ControlPoint.init(.{ .in = 0, .out = 0 }),
+        curve.ControlPoint.init(.{ .in = 1, .out = m }),
     );
     var double_s = curve.Bezier.Segment.init_from_start_end(
-        .{ .in = 0, .out = 0 },
-        .{ .in = 0.5, .out = 1 },
+        curve.ControlPoint.init(.{ .in = 0, .out = 0 }),
+        curve.ControlPoint.init(.{ .in = 0.5, .out = 1 }),
     );
 
     var result = quad_s.project_segment(double_s);
 
-    try expectEqual(m*double_s.p0.out, result.p0.out);
-    try opentime.util.expectApproxEql(
-        m*double_s.p1.out,
-        result.p1.out
+    try opentime.expectOrdinateEqual(
+        double_s.p0.out.mul(m),
+        result.p0.out,
     );
-    try opentime.util.expectApproxEql(
-        m*double_s.p2.out,
-        result.p2.out
+    try opentime.expectOrdinateEqual(
+        double_s.p1.out.mul(m),
+        result.p1.out,
     );
-    try opentime.util.expectApproxEql(
-        m*double_s.p3.out,
-        result.p3.out
+    try opentime.expectOrdinateEqual(
+        double_s.p2.out.mul(m),
+        result.p2.out,
+    );
+    try opentime.expectOrdinateEqual(
+        double_s.p3.out.mul(m),
+        result.p3.out,
     );
 
-    try expectEqual(
-        m*(double_s.eval_at(0).out),
-        (result.eval_at(0).out)
+    try opentime.expectOrdinateEqual(
+        double_s.eval_at(0).out.mul(m),
+        result.eval_at(0).out,
     );
-    try opentime.util.expectApproxEql(
-        m*(double_s.eval_at(0.25).out),
-        (result.eval_at(0.25).out)
+    try opentime.expectOrdinateEqual(
+        double_s.eval_at(0.25).out.mul(m),
+        result.eval_at(0.25).out,
     );
-    try opentime.util.expectApproxEql(
-        m*(double_s.eval_at(0.5).out),
-        (result.eval_at(0.5).out)
+    try opentime.expectOrdinateEqual(
+        double_s.eval_at(0.5).out.mul(m),
+        result.eval_at(0.5).out,
     );
-    try opentime.util.expectApproxEql(
-        m*(double_s.eval_at(0.75).out),
-        (result.eval_at(0.75).out)
+    try opentime.expectOrdinateEqual(
+        double_s.eval_at(0.75).out.mul(m),
+       result.eval_at(0.75).out,
     );
 }
 
-test "projection tests: bezier projected through linear" 
+
+test "segment projection: bezier projected through linear" 
 {
     const m: f32 = 2;
 
     var double_s = curve.Bezier.Segment.init_from_start_end(
-        .{ .in = 0, .out = 0 },
-        .{ .in = 1, .out = m },
+        curve.ControlPoint.init(.{ .in = 0, .out = 0 }),
+        curve.ControlPoint.init(.{ .in = 1, .out = m }),
     );
 
     // upside down u shaped curve
-    var bezier_s = curve.Bezier.Segment{
-        .p0 = .{ .in = 0, .out = 0 },
-        .p1 = .{ .in = 0, .out = 1 },
-        .p2 = .{ .in = 1, .out = 1 },
-        .p3 = .{ .in = 1, .out = 0 },
-    };
+    var bezier_s = curve.Bezier.Segment.init_f32(
+        .{
+            .p0 = .{ .in = 0, .out = 0 },
+            .p1 = .{ .in = 0, .out = 1 },
+            .p2 = .{ .in = 1, .out = 1 },
+            .p3 = .{ .in = 1, .out = 0 },
+        },
+    );
 
     var result = double_s.project_segment(bezier_s);
 
-    try expectEqual(m*bezier_s.eval_at(0   ).out, result.eval_at(0   ).out);
+    try opentime.expectOrdinateEqual(
+        bezier_s.eval_at(0   ).out.mul(m),
+        result.eval_at(0   ).out
+    );
 
-    try expectEqual(m*bezier_s.eval_at(0.25).out, result.eval_at(0.25).out);
-    try expectEqual(m*bezier_s.eval_at(0.5 ).out, result.eval_at(0.5 ).out);
-    try expectEqual(m*bezier_s.eval_at(0.75).out, result.eval_at(0.75).out);
+    try opentime.expectOrdinateEqual(
+        bezier_s.eval_at(0.25).out.mul(m),
+        result.eval_at(0.25).out,
+    );
+    try opentime.expectOrdinateEqual(
+        bezier_s.eval_at(0.5 ).out.mul(m),
+        result.eval_at(0.5 ).out,
+    );
+    try opentime.expectOrdinateEqual(
+        bezier_s.eval_at(0.75).out.mul(m),
+        result.eval_at(0.75).out,
+    );
 }
 
-test "projection tests: bezier projected through linear 2" 
+test "segment projection: bezier projected through linear 2" 
 {
     // This test demonstrates that _just_ projecting the bezier control points
     // isn't enough to projet the curve itself through another curve.
@@ -177,20 +195,24 @@ test "projection tests: bezier projected through linear 2"
     const off: f32 = 0.2;
 
     // pushing the middle control points up and down to make a slight S curve
-    var scurve_s = curve.Bezier.Segment{
-        .p0 = .{ .in = 0, .out = 0},
-        .p1 = .{ .in = 1.0/3.0, .out = 1.0/3.0 - off },
-        .p2 = .{ .in = 2.0/3.0, .out = 2.0/3.0 + off },
-        .p3 = .{ .in = 1, .out = 1},
-    };
+    var scurve_s = curve.Bezier.Segment.init_f32(
+        .{
+            .p0 = .{ .in = 0, .out = 0},
+            .p1 = .{ .in = 1.0/3.0, .out = 1.0/3.0 - off },
+            .p2 = .{ .in = 2.0/3.0, .out = 2.0/3.0 + off },
+            .p3 = .{ .in = 1, .out = 1},
+        }
+    );
 
     // upside down u shaped curve
-    var ushape_s = curve.Bezier.Segment{
-        .p0 = .{ .in = 0, .out = 0 },
-        .p1 = .{ .in = 0, .out = 1 },
-        .p2 = .{ .in = 1, .out = 1 },
-        .p3 = .{ .in = 1, .out = 0 },
-    };
+    var ushape_s = curve.Bezier.Segment.init_f32(
+        .{
+            .p0 = .{ .in = 0, .out = 0 },
+            .p1 = .{ .in = 0, .out = 1 },
+            .p2 = .{ .in = 1, .out = 1 },
+            .p3 = .{ .in = 1, .out = 0 },
+        }
+    );
 
     var result = scurve_s.project_segment(ushape_s);
 
