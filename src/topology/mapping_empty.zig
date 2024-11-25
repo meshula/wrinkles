@@ -135,7 +135,7 @@ pub const MappingEmpty = struct {
 };
 
 pub const EMPTY_INF = MappingEmpty{
-    .defined_range = opentime.INF_INTERVAL,
+    .defined_range = opentime.ContinuousInterval.ZERO,
 };
 
 test "MappingEmpty: instantiate and convert"
@@ -152,9 +152,9 @@ test "MappingEmpty: Project"
 {
     const me = (EMPTY_INF).mapping();
 
-    var v : opentime.Ordinate = -10;
-    while (v < 10)
-        : (v += 0.2)
+    var v = opentime.Ordinate.init(-10);
+    while (v.lt(10))
+        : (v = v.add(0.2))
     {
         try std.testing.expectError(
             error.OutOfBounds,
@@ -168,29 +168,29 @@ test "MappingEmpty: Bounds"
     const me = (
         MappingEmpty{
             .defined_range = .{
-                .start = -2,
-                .end = 2,
+                .start = opentime.Ordinate.init(-2),
+                .end = opentime.Ordinate.init(2),
             },
         }
     ).mapping();
 
     const i_b = me.input_bounds();
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
         -2,
         i_b.start
     );
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
         2,
         i_b.end
     );
 
     // returns an infinite output bounds
     const o_b = me.output_bounds();
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
         -2,
         o_b.start
     );
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
         2,
         o_b.end
     );

@@ -225,14 +225,14 @@ test "MappingCurveLinearMonotonic: init_knots"
         try MappingCurveLinearMonotonic.init_knots(
             std.testing.allocator,
             &.{
-                .{ .in = 0,  .out = 0  },
-                .{ .in = 10, .out = 10 },
+                curve.ControlPoint.init(.{ .in = 0,  .out = 0  }),
+                curve.ControlPoint.init(.{ .in = 10, .out = 10 }),
             },
         )
     ).mapping();
     defer mcl.deinit(std.testing.allocator);
 
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
         2,
         mcl.project_instantaneous_cc(2).ordinate(),
     );
@@ -244,20 +244,20 @@ test "Mapping"
         try MappingCurveLinearMonotonic.init_knots(
             std.testing.allocator,
             &.{
-                .{ .in = 0,  .out = 0  },
-                .{ .in = 10, .out = 10 },
-                .{ .in = 20, .out = 30 },
-                .{ .in = 30, .out = 30 },
-                .{ .in = 40, .out = 0 },
-                .{ .in = 50, .out = -10 },
+                curve.ControlPoint.init(.{ .in = 0,  .out = 0  }),
+                curve.ControlPoint.init(.{ .in = 10, .out = 10 }),
+                curve.ControlPoint.init(.{ .in = 20, .out = 30 }),
+                curve.ControlPoint.init(.{ .in = 30, .out = 30 }),
+                curve.ControlPoint.init(.{ .in = 40, .out = 0 }),
+                curve.ControlPoint.init(.{ .in = 50, .out = -10 }),
             },
         )
     ).mapping();
     defer mcl.deinit(std.testing.allocator);
 
     const TestThing = struct {
-        tp : opentime.Ordinate,
-        exp : opentime.Ordinate,
+        tp : i32,
+        exp : i32,
         err : bool,
     };
     const test_points = [_]TestThing{
@@ -276,7 +276,7 @@ test "Mapping"
         if (t.err == false)
         {
             const measured = mcl.project_instantaneous_cc(t.tp);
-            try std.testing.expectEqual(
+            try opentime.expectOrdinateEqual(
                 t.exp,
                 try measured.ordinate(),
             );
@@ -300,9 +300,9 @@ test "Linear.Monotonic: shrink_to_output_interval"
             allocator,
             .{
                 .knots = &.{
-                    .{ .in = 0,  .out = 0  },
-                    .{ .in = 10, .out = 10 },
-                    .{ .in = 20, .out = 30 },
+                    curve.ControlPoint.init(.{ .in = 0,  .out = 0  }),
+                    curve.ControlPoint.init(.{ .in = 10, .out = 10 }),
+                    curve.ControlPoint.init(.{ .in = 20, .out = 30 }),
                 },
             },
         )
@@ -311,10 +311,12 @@ test "Linear.Monotonic: shrink_to_output_interval"
 
     const result = try mcl.shrink_to_output_interval(
         allocator,
-        .{ 
-            .start = 5,
-            .end = 25,
-        },
+        opentime.ContinuousInterval.init(
+            .{ 
+                .start = 5,
+                .end = 25,
+            }
+        ),
     );
 
     defer result.deinit(allocator);
@@ -326,11 +328,11 @@ test "Linear.Monotonic: shrink_to_output_interval"
     defer c.deinit(allocator);
 
     const result_extents = result.output_bounds();
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
         5,
         result_extents.start,
     );
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
         25,
         result_extents.end,
     );

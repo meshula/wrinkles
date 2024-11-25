@@ -54,11 +54,16 @@ pub const Mapping = union (enum) {
     /// space
     pub fn project_instantaneous_cc(
         self: @This(),
-        input_ord: opentime.Ordinate,
+        input_ord: anytype,
     ) opentime.ProjectionResult 
     {
         return switch (self) {
-            inline else => |m| m.project_instantaneous_cc(input_ord),
+            inline else => |m| m.project_instantaneous_cc(
+                switch (@TypeOf(input_ord)) {
+                    opentime.Ordinate => input_ord,
+                    else => opentime.Ordinate.init(input_ord),
+                }
+            ),
         };
     }
 

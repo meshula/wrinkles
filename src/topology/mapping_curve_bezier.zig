@@ -329,8 +329,8 @@ test "MappingCurveBezier: init and project"
         allocator,
         &.{ 
             curve.Bezier.Segment.init_from_start_end(
-                .{ .in = 0, .out = 0 },
-                .{ .in = 10, .out = 20 },
+                curve.ControlPoint.init(.{ .in = 0, .out = 0 }),
+                curve.ControlPoint.init(.{ .in = 10, .out = 20 }),
             ),
         }
     );
@@ -344,8 +344,10 @@ test "MappingCurveBezier: init and project"
     );
     defer t_bez.deinit(std.testing.allocator);
 
-    try std.testing.expectEqual(
-        10,  
-        t_bez.project_instantaneous_cc(5).ordinate(),
+    try opentime.expectOrdinateEqual(
+        10,
+        t_bez.project_instantaneous_cc(
+            opentime.Ordinate.init(5),
+        ).ordinate(),
     );
 }
