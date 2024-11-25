@@ -108,12 +108,12 @@ pub fn ControlPointOf(
         /// divide w/ number
         pub fn div_num(
             self: @This(),
-            val: opentime.Ordinate,
+            val: anytype,
         ) ControlPointType 
         {
             return .{
-                .in  = self.in/val,
-                .out = self.out/val,
+                .in  = self.in.div(val),
+                .out = self.out.div(val),
             };
         }
 
