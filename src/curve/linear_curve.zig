@@ -506,8 +506,8 @@ pub fn LinearOf(
                     // point is before range, skip
                     if (
                         opentime.lt(in_pt, ib.start)
-                        or opentime.lteq(in_pt, left_knot.in.add(opentime.Ordinate.EPSILON))
-                    ) 
+                        or opentime.lteq(in_pt, left_knot.in)
+                    )
                     {
                         continue;
                     }
