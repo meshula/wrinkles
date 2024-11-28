@@ -25,15 +25,25 @@ pub const SerializableObject = union(SerializableObjectTypes) {
     Gap:otio.Gap,
 };
 
-
 pub fn read_float(
     obj:std.json.Value
-) opentime.Ordinate 
+) opentime.Ordinate.BaseType 
 {
     return switch (obj) {
         .integer => |i| @floatFromInt(i),
         .float => |f| @floatCast(f),
         else => 0,
+    };
+}
+
+pub fn read_ordinate(
+    obj:std.json.Value
+) opentime.Ordinate 
+{
+    return switch (obj) {
+        .integer => |i| opentime.Ordinate.init(i),
+        .float => |f| opentime.Ordinate.init(f),
+        else => opentime.Ordinate.ZERO,
     };
 }
 
@@ -47,7 +57,7 @@ pub fn read_ordinate_from_rt(
             const value = read_float(o.get("value").?);
             const rate = read_float(o.get("rate").?);
 
-            return @floatCast(value/rate);
+            return opentime.Ordinate.init(value / rate);
         } 
     else 
     {
@@ -79,7 +89,7 @@ pub fn read_time_range(
             const duration = read_ordinate_from_rt(o.get("duration").?.object).?;
             return .{ 
                 .start = start_time, 
-                .end = start_time + duration 
+                .end = start_time.add(duration)
             };
         } else {
             return null;
@@ -409,9 +419,10 @@ test "read_from_file test"
         "/var/tmp/" ++ dot_fpath,
     );
 
-    try expectApproxEqAbs(
-        @as(opentime.Ordinate, 0.175),
-        try tl_output_to_clip_media.project_instantaneous_cc(0.05).ordinate(),
-        opentime.EPSILON_ORD
+    try opentime.expectOrdinateEqual(
+        0.175,
+        try tl_output_to_clip_media.project_instantaneous_cc(
+            opentime.Ordinate.init(0.05),
+        ).ordinate(),
     );
 }
