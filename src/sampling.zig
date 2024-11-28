@@ -157,13 +157,13 @@ pub const Sampling = struct {
             .{},
         );
         defer file.close();
-
+        
         var encoder = try wav.encoder(
             i16,
             file.writer(),
             file.seekableStream(),
-            @intFromFloat(
-                self.index_generator.sample_rate_hz.as_ordinate()
+            self.index_generator.sample_rate_hz.as_ordinate().as(
+                sample_index_t
             ),
             1,
         );
@@ -230,7 +230,7 @@ pub const Sampling = struct {
     pub fn indices_within_interval(
         self: @This(),
         input_interval: opentime.ContinuousInterval,
-    ) [2]usize
+    ) [2]sample_index_t
     {
         const start_index = self.index_generator.index_at_ordinate(
             input_interval.start
@@ -293,7 +293,7 @@ test "sampling: samples_overlapping_interval"
     );
 
     try std.testing.expectEqual(
-        index_generator.sample_rate_hz.as_ordinate().div(2.0).as(usize),
+        index_generator.sample_rate_hz.as_ordinate().div(2.0).as(sample_index_t),
         first_half_samples.len,
     );
 }
@@ -570,10 +570,10 @@ test "sampling: rasterizing the sine"
 /// returns the peak to peak distance in indices of the samples in the buffer
 pub fn peak_to_peak_distance(
     samples: []const sample_value_t,
-) !usize 
+) !sample_index_t 
 {
-    var maybe_last_peak_index:?usize = null;
-    var maybe_distance_in_indices:?usize = null;
+    var maybe_last_peak_index:?sample_index_t = null;
+    var maybe_distance_in_indices:?sample_index_t = null;
 
     const width = 3;
 
@@ -697,15 +697,13 @@ pub fn resampled_dd(
         / input_d_samples.index_generator.sample_rate_hz.as_ordinate().as(f64)
     );
 
-    const num_output_samples: usize = @as(
-        usize, 
+    const num_output_samples: sample_index_t =
         @intFromFloat(
             @floor(
                 @as(f64, @floatFromInt(input_d_samples.buffer.len)) 
                 * resample_ratio
             )
-        )
-    );
+        );
 
     const result = try Sampling.init(
         allocator,
@@ -1087,7 +1085,7 @@ pub fn transform_resample_linear_interpolating_dd(
             output_sampling_info.sample_rate_hz.inv_as_ordinate()
         );
 
-        const output_samples:usize = @intFromFloat(
+        const output_samples:sample_index_t = @intFromFloat(
             @floor(
                 opentime.eval(
                     "(r - l) * rate + inv_rate * 0.5",
@@ -1157,7 +1155,7 @@ pub fn transform_resample_linear_interpolating_dd(
     var input_transform_samples = input_d_samples.buffer[0..];
 
     // walk across each transform spec to compute the output samples
-    var transform_index:usize = 0;
+    var transform_index:sample_index_t = 0;
     while (transform_index < transform_specs.items.len)
     {
         // setup this chunk
