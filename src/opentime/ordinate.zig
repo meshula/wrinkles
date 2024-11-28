@@ -1317,8 +1317,8 @@ pub inline fn gteq(
 test "Base Ordinate: Binary Function Tests"
 {
     const TestCase = struct {
-        lhs: f32,
-        rhs: f32,
+        lhs: Ordinate.BaseType,
+        rhs: Ordinate.BaseType,
     };
     const tests = &[_]TestCase{
         .{ .lhs =  1, .rhs =  1 },
