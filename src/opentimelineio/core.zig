@@ -24,6 +24,36 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
     build_options.debug_graph_construction_trace_messages
 );
 
+// TEST STRUCTS
+const T_INT_1_TO_9 = opentime.ContinuousInterval{
+    .start = opentime.Ordinate.ONE,
+    .end = opentime.Ordinate.init(9),
+};
+const T_INT_1_TO_4 = opentime.ContinuousInterval{
+    .start = opentime.Ordinate.ONE,
+    .end = opentime.Ordinate.init(4),
+};
+const T_INT_0_TO_2 = opentime.ContinuousInterval{
+    .start = opentime.Ordinate.ZERO,
+    .end = opentime.Ordinate.init(2),
+};
+const T_O_0 = opentime.Ordinate.ZERO;
+const T_O_2 = opentime.Ordinate.init(2);
+const T_O_4 = opentime.Ordinate.init(4);
+const T_O_6 = opentime.Ordinate.init(6);
+const T_ORD_ARR_0_8_16_21 = [_]opentime.Ordinate{
+            opentime.Ordinate.ZERO,
+            opentime.Ordinate.init(8),
+            opentime.Ordinate.init(16),
+            opentime.Ordinate.init(21),
+};
+const T_ORD_ARR_0_8_13_21 = [_]opentime.Ordinate{
+            opentime.Ordinate.ZERO,
+            opentime.Ordinate.init(8),
+            opentime.Ordinate.init(13),
+            opentime.Ordinate.init(21),
+};
+
 /// anything that can be composed in a track or stack
 pub const ComposableValue = union(enum) {
     clip: schema.Clip,
@@ -359,11 +389,11 @@ pub const ComposedValueRef = union(enum) {
                         const intrinsic_to_media_xform = (
                             opentime.AffineTransform1D{
                                 .offset = media_bounds.start,
-                                .scale = 1,
+                                .scale = opentime.Ordinate.ONE,
                             }
                         );
                         const intrinsic_bounds = .{
-                            .start = 0,
+                            .start = opentime.Ordinate.ZERO,
                             .end = media_bounds.duration()
                         };
                         const intrinsic_to_media = (
@@ -702,7 +732,7 @@ pub const ProjectionOperator = struct {
                 },
             )
         );
-        
+
         return in_to_dst_topo;
     }
 
@@ -718,14 +748,14 @@ pub const ProjectionOperator = struct {
         const in_to_dst_topo_c = (
             try self.project_topology_cc(
                 allocator,
-                in_to_src_topo
+                in_to_src_topo,
             )
         );
         defer in_to_dst_topo_c.deinit(allocator);
 
         const dst_discrete_info = (
             try self.destination.ref.discrete_info_for_space(
-                self.destination.label
+                self.destination.label,
             )
         ).?;
         var index_buffer_destination_discrete = (
@@ -738,17 +768,20 @@ pub const ProjectionOperator = struct {
         // const bounds_to_walk = dst_c_bounds;
         const bounds_to_walk = in_c_bounds;
 
-        const duration = 1.0 / dst_discrete_info.sample_rate_hz.as_float();
+        const duration = dst_discrete_info.sample_rate_hz.inv_as_ordinate();
 
-        const increasing = bounds_to_walk.end > bounds_to_walk.start;
-        const sign:opentime.Ordinate = if (increasing) 1 else -1;
+        const increasing = bounds_to_walk.end.gt(bounds_to_walk.start);
+
+        const increment = (
+            if (increasing) duration else duration.neg()
+        );
 
         // walk across the continuous space at the sampling rate
         var t = bounds_to_walk.start;
         while (
-            (increasing and t < bounds_to_walk.end)
-            or (increasing == false and t > bounds_to_walk.end)
-        ) : (t += sign*duration)
+            (increasing and t.lt(bounds_to_walk.end))
+            or (increasing == false and t.gt(bounds_to_walk.end))
+        ) : (t = t.add(increment))
         {
             const out_ord = (
                 try in_to_dst_topo_c.project_instantaneous_cc(t).ordinate()
@@ -780,10 +813,10 @@ pub const ProjectionOperator = struct {
                 .{ 
                     .input_to_output_xform = .{ 
                         .offset = range_in_source.start,
-                        .scale = 1.0,
+                        .scale = opentime.Ordinate.init(1.0),
                     },
                     .input_bounds_val = .{
-                        .start = 0,
+                        .start = opentime.Ordinate.init(0),
                         .end = range_in_source.duration(),
                     },
                 }
@@ -992,10 +1025,7 @@ test "ProjectionOperatorMap: projection_map_to_media_from leak test"
     const allocator = std.testing.allocator;
 
     const cl = schema.Clip {
-        .bounds_s = .{
-            .start = 1,
-            .end = 9 
-        }
+        .bounds_s = T_INT_1_TO_9,
     };
     const cl_ptr = ComposedValueRef.init(&cl);
 
@@ -1013,14 +1043,14 @@ test "ProjectionOperatorMap: projection_map_to_media_from leak test"
     defer m.deinit();
 
     const mapp = m.operators[0][0].src_to_dst_topo.mappings[0];
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
         4,
-        mapp.project_instantaneous_cc(3).ordinate()
+        mapp.project_instantaneous_cc(opentime.Ordinate.init(3)).ordinate()
     );
 
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
        4,
-       try m.operators[0][0].project_instantaneous_cc(3).ordinate(),
+       try m.operators[0][0].project_instantaneous_cc(opentime.Ordinate.init(3)).ordinate(),
     );
 }
 
@@ -1115,8 +1145,8 @@ pub const ProjectionOperatorMap = struct {
         const undr = args.under;
 
         const full_range = opentime.ContinuousInterval{
-            .start = @min(over.end_points[0], undr.end_points[0]),
-            .end = @max(
+            .start = opentime.min(over.end_points[0], undr.end_points[0]),
+            .end = opentime.max(
                 over.end_points[over.end_points.len - 1],
                 undr.end_points[undr.end_points.len - 1],
             ),
@@ -1244,7 +1274,7 @@ pub const ProjectionOperatorMap = struct {
         var tmp_ops = std.ArrayList([]const ProjectionOperator).init(allocator);
         defer tmp_ops.deinit();
 
-        if (self.end_points[0] > range.start) {
+        if (self.end_points[0].gt(range.start)) {
             try tmp_pts.append(range.start);
             try tmp_ops.append(
                 &.{}
@@ -1265,7 +1295,7 @@ pub const ProjectionOperatorMap = struct {
             );
         }
 
-        if (range.end > self.end_points[self.end_points.len - 1]) 
+        if (range.end.gt(self.end_points[self.end_points.len - 1])) 
         {
             try tmp_pts.append(range.end);
             try tmp_ops.append(
@@ -1316,14 +1346,7 @@ pub const ProjectionOperatorMap = struct {
             t_next_self = self.end_points[ind_self+1];
             t_next_other = pts[ind_other+1];
 
-            if (
-                std.math.approxEqAbs(
-                    opentime.Ordinate,
-                    t_next_self,
-                    t_next_other,
-                    opentime.EPSILON_ORD
-                )
-            )
+            if (t_next_self.eql_approx(t_next_other))
             {
                 try tmp_pts.append(t_next_self);
                 if (ind_self < self.end_points.len - 1) {
@@ -1333,7 +1356,7 @@ pub const ProjectionOperatorMap = struct {
                     ind_other += 1;
                 }
             }
-            else if (t_next_self < t_next_other)
+            else if (t_next_self.lt(t_next_other))
             {
                 try tmp_pts.append(t_next_self);
                 ind_self += 1;
@@ -1358,10 +1381,7 @@ pub const ProjectionOperatorMap = struct {
 test "ProjectionOperatorMap: extend_to"
 {
     const cl = schema.Clip {
-        .bounds_s = .{
-            .start = 1,
-            .end = 9 
-        }
+        .bounds_s = T_INT_1_TO_9,
     };
     const cl_ptr = ComposedValueRef{ .clip_ptr = &cl };
 
@@ -1407,15 +1427,19 @@ test "ProjectionOperatorMap: extend_to"
         const result = try cl_presentation_pmap.extend_to(
             std.testing.allocator,
             .{
-                .start = -10,
-                .end = 8,
+                .start = opentime.Ordinate.init(-10),
+                .end = opentime.Ordinate.init(8),
             },
         );
         defer result.deinit();
 
         try std.testing.expectEqualSlices(
             opentime.Ordinate,
-            &.{-10, 0, 8},
+            &.{
+                opentime.Ordinate.init(-10),
+                opentime.Ordinate.init(0),
+                opentime.Ordinate.init(8)
+            },
             result.end_points,
         );
 
@@ -1430,15 +1454,19 @@ test "ProjectionOperatorMap: extend_to"
         const result = try cl_presentation_pmap.extend_to(
             std.testing.allocator,
             .{
-                .start = 0,
-                .end = 18,
+                .start = opentime.Ordinate.init(0),
+                .end = opentime.Ordinate.init(18),
             },
         );
         defer result.deinit();
 
         try std.testing.expectEqualSlices(
             opentime.Ordinate,
-            &.{0, 8, 18},
+            &.{
+                opentime.Ordinate.init(0),
+                opentime.Ordinate.init(8),
+                opentime.Ordinate.init(18)
+            },
             result.end_points,
         );
 
@@ -1452,10 +1480,7 @@ test "ProjectionOperatorMap: extend_to"
 test "ProjectionOperatorMap: split_at_each"
 {
     const cl = schema.Clip {
-        .bounds_s = .{
-            .start = 1,
-            .end = 9 
-        }
+        .bounds_s = T_INT_1_TO_9,
     };
     const cl_ptr = ComposedValueRef{ .clip_ptr = &cl };
 
@@ -1495,7 +1520,7 @@ test "ProjectionOperatorMap: split_at_each"
 
     // split_at_each -- end points are same, split in middle
     {
-        const pts = [_]opentime.Ordinate{ 0, 4, 8 };
+        const pts = [_]opentime.Ordinate{ opentime.Ordinate.init(0), opentime.Ordinate.init(4), opentime.Ordinate.init(8) };
 
         const result = try cl_presentation_pmap.split_at_each(
             std.testing.allocator,
@@ -1517,7 +1542,12 @@ test "ProjectionOperatorMap: split_at_each"
 
     // split_at_each -- end points are same, split in middle twice
     {
-        const pts = [_]opentime.Ordinate{ 0, 1, 4, 8 };
+        const pts = [_]opentime.Ordinate{
+            opentime.Ordinate.init(0),
+            opentime.Ordinate.init(1),
+            opentime.Ordinate.init(4),
+            opentime.Ordinate.init(8),
+        };
 
         const result = try cl_presentation_pmap.split_at_each(
             std.testing.allocator,
@@ -1539,8 +1569,12 @@ test "ProjectionOperatorMap: split_at_each"
 
     // split_at_each -- end points are same, split offset
     {
-        const pts1 = [_]opentime.Ordinate{ 0, 4, 8 };
-        const pts2 = [_]opentime.Ordinate{ 0, 4, 8 };
+        const pts1 = [_]opentime.Ordinate{
+            opentime.Ordinate.init(0),
+            opentime.Ordinate.init(4),
+            opentime.Ordinate.init(8),
+        };
+        const pts2 = pts1;
 
         const inter = try cl_presentation_pmap.split_at_each(
             std.testing.allocator,
@@ -1556,7 +1590,7 @@ test "ProjectionOperatorMap: split_at_each"
 
         try std.testing.expectEqualSlices(
             opentime.Ordinate,
-            &.{0,4,8},
+            &pts1,
             result.end_points,
         );
 
@@ -1570,10 +1604,7 @@ test "ProjectionOperatorMap: split_at_each"
 test "ProjectionOperatorMap: merge_composite"
 {
     const cl = schema.Clip {
-        .bounds_s = .{
-            .start = 1,
-            .end = 9 
-        }
+        .bounds_s = T_INT_1_TO_9,
     };
     const cl_ptr = ComposedValueRef{ .clip_ptr = &cl };
 
@@ -1621,10 +1652,7 @@ test "ProjectionOperatorMap: clip"
     const allocator = std.testing.allocator;
 
     const cl = schema.Clip {
-        .bounds_s = .{
-            .start = 1,
-            .end = 9 
-        }
+        .bounds_s = T_INT_1_TO_9,
     };
     const cl_ptr = ComposedValueRef{ .clip_ptr = &cl };
 
@@ -1669,39 +1697,33 @@ test "ProjectionOperatorMap: clip"
     );
 
     // topology input bounds match
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         known_input_bounds.start,
         guess_input_bounds.start,
-        opentime.EPSILON_ORD
     );
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         known_input_bounds.end,
         guess_input_bounds.end,
-        opentime.EPSILON_ORD
     );
 
     // end points match topology
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         cl_presentation_pmap.end_points[0],
         guess_input_bounds.start,
-        opentime.EPSILON_ORD
     );
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         cl_presentation_pmap.end_points[1],
         guess_input_bounds.end,
-        opentime.EPSILON_ORD
     );
 
     // known input bounds matches end point
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         known_input_bounds.start,
         cl_presentation_pmap.end_points[0],
-        opentime.EPSILON_ORD
     );
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         known_input_bounds.end,
         cl_presentation_pmap.end_points[1],
-        opentime.EPSILON_ORD
     );
 }
 
@@ -1714,10 +1736,7 @@ test "ProjectionOperatorMap: track with single clip"
     const tr_ptr = ComposedValueRef.init(&tr);
 
     const cl = schema.Clip {
-        .bounds_s = .{
-            .start = 1,
-            .end = 9 
-        }
+        .bounds_s = T_INT_1_TO_9,
     };
     const cl_ptr = try tr.append_fetch_ref(cl);
 
@@ -1770,39 +1789,33 @@ test "ProjectionOperatorMap: track with single clip"
         );
 
         // topology input bounds match
-        try std.testing.expectApproxEqAbs(
+        try opentime.expectOrdinateEqual(
             known_input_bounds.start,
             guess_input_bounds.start,
-            opentime.EPSILON_ORD
         );
-        try std.testing.expectApproxEqAbs(
+        try opentime.expectOrdinateEqual(
             known_input_bounds.end,
             guess_input_bounds.end,
-            opentime.EPSILON_ORD
         );
 
         // end points match topology
-        try std.testing.expectApproxEqAbs(
+        try opentime.expectOrdinateEqual(
             projection_operator_map.end_points[0],
             guess_input_bounds.start,
-            opentime.EPSILON_ORD
         );
-        try std.testing.expectApproxEqAbs(
+        try opentime.expectOrdinateEqual(
             projection_operator_map.end_points[1],
             guess_input_bounds.end,
-            opentime.EPSILON_ORD
         );
 
         // known input bounds matches end point
-        try std.testing.expectApproxEqAbs(
+        try opentime.expectOrdinateEqual(
             known_input_bounds.start,
             projection_operator_map.end_points[0],
-            opentime.EPSILON_ORD
         );
-        try std.testing.expectApproxEqAbs(
+        try opentime.expectOrdinateEqual(
             known_input_bounds.end,
             projection_operator_map.end_points[1],
-            opentime.EPSILON_ORD
         );
     }
 }
@@ -1815,16 +1828,10 @@ test "transform: track with two clips"
     defer tr.deinit();
 
     const cl1 = schema.Clip {
-        .bounds_s = .{
-            .start = 1,
-            .end = 9 
-        }
+        .bounds_s = T_INT_1_TO_9,
     };
     const cl2 = schema.Clip {
-        .bounds_s = .{
-            .start = 1,
-            .end = 4 
-        }
+        .bounds_s = T_INT_1_TO_4,
     };
     try tr.append(cl1);
 
@@ -1855,10 +1862,9 @@ test "transform: track with two clips"
 
         const b = xform.input_bounds();
 
-        try std.testing.expectEqualSlices(
-            opentime.Ordinate,
-            &.{8},
-            &.{b.start},
+        try opentime.expectOrdinateEqual(
+            8,
+            b.start,
         );
     }
 
@@ -1867,10 +1873,10 @@ test "transform: track with two clips"
             allocator,
             .{
                 .input_bounds_val = .{
-                    .start = 8,
+                    .start = opentime.Ordinate.init(8),
                 },
                 .input_to_output_xform = .{
-                    .offset = -8,
+                    .offset = opentime.Ordinate.init(-8),
                 },
             }
         );
@@ -1922,7 +1928,7 @@ test "transform: track with two clips"
             opentime.Ordinate,
             &.{
                 cl1_range.duration(),
-                cl1_range.duration() + cl2_range.duration() 
+                cl1_range.duration().add(cl2_range.duration())
             },
             &.{b.start, b.end},
         );
@@ -1937,10 +1943,7 @@ test "ProjectionOperatorMap: track with two clips"
     defer tr.deinit();
 
     const cl = schema.Clip {
-        .bounds_s = .{
-            .start = 1,
-            .end = 9 
-        }
+        .bounds_s = T_INT_1_TO_9,
     };
     try tr.append(cl);
     const cl_ptr = try tr.append_fetch_ref(cl);
@@ -1966,7 +1969,7 @@ test "ProjectionOperatorMap: track with two clips"
 
     try std.testing.expectEqualSlices(
         opentime.Ordinate,
-        &.{0,8,16},
+        (&T_ORD_ARR_0_8_16_21)[0..3],
         p_o_map.end_points,
     );
     try std.testing.expectEqual(2, p_o_map.operators.len);
@@ -1992,27 +1995,23 @@ test "ProjectionOperatorMap: track with two clips"
     );
 
     // topology input bounds match
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         known_input_bounds.start,
         guess_input_bounds.start,
-        opentime.EPSILON_ORD
     );
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         known_input_bounds.end,
         guess_input_bounds.end,
-        opentime.EPSILON_ORD
     );
 
     // end points match topology
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         8.0,
         guess_input_bounds.start,
-        opentime.EPSILON_ORD
     );
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         16,
         guess_input_bounds.end,
-        opentime.EPSILON_ORD
     );
 }
 
@@ -2025,15 +2024,12 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
     const tr_ptr = ComposedValueRef.init(&tr);
 
     const cl = schema.Clip {
-        .bounds_s = .{
-            .start = 1,
-            .end = 9 
-        }
+        .bounds_s = T_INT_1_TO_9,
     };
     try tr.append(cl);
     try tr.append(
         schema.Gap{
-            .duration_seconds = 5,
+            .duration_seconds = opentime.Ordinate.init(5),
         }
     );
     const cl_ptr = try tr.append_fetch_ref(cl);
@@ -2059,7 +2055,7 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
 
     try std.testing.expectEqualSlices(
         opentime.Ordinate,
-        &.{0,8,13, 21},
+        &T_ORD_ARR_0_8_13_21,
         p_o_map.end_points,
     );
     try std.testing.expectEqual(3, p_o_map.operators.len);
@@ -2085,27 +2081,23 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
     );
 
     // topology input bounds match
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         known_input_bounds.start,
         guess_input_bounds.start,
-        opentime.EPSILON_ORD
     );
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         known_input_bounds.end,
         guess_input_bounds.end,
-        opentime.EPSILON_ORD
     );
 
     // end points match topology
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         13,
         guess_input_bounds.start,
-        opentime.EPSILON_ORD
     );
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         21,
         guess_input_bounds.end,
-        opentime.EPSILON_ORD
     );
 }
 
@@ -2113,28 +2105,21 @@ test "clip topology construction"
 {
     const allocator = std.testing.allocator;
 
-    const start:opentime.Ordinate = 1;
-    const end:opentime.Ordinate = 10;
     const cl = schema.Clip {
-        .bounds_s = .{
-            .start = start,
-            .end = end 
-        }
+        .bounds_s = T_INT_1_TO_9,
     };
 
     const topo = try cl.topology(allocator);
     defer topo.deinit(allocator);
 
-    try std.testing.expectApproxEqAbs(
-        start,
+    try opentime.expectOrdinateEqual(
+        T_INT_1_TO_9.start,
         topo.input_bounds().start,
-        opentime.EPSILON_ORD,
     );
 
-    try std.testing.expectApproxEqAbs(
-        end,
+    try opentime.expectOrdinateEqual(
+        T_INT_1_TO_9.end,
         topo.input_bounds().end,
-        opentime.EPSILON_ORD,
     );
 }
 
@@ -2145,30 +2130,23 @@ test "track topology construction"
     var tr = schema.Track.init(allocator);
     defer tr.deinit();
 
-    const start:opentime.Ordinate = 1;
-    const end:opentime.Ordinate = 10;
     try tr.append(
         schema.Clip {
-            .bounds_s = .{
-                .start = start,
-                .end = end 
-            }
-        }
+            .bounds_s = T_INT_1_TO_9, 
+        },
     );
 
     const topo =  try tr.topology(allocator);
     defer topo.deinit(allocator);
 
-    try std.testing.expectApproxEqAbs(
-        start,
+    try opentime.expectOrdinateEqual(
+        T_INT_1_TO_9.start,
         topo.input_bounds().start,
-        opentime.EPSILON_ORD,
     );
 
-    try std.testing.expectApproxEqAbs(
-        end,
+    try opentime.expectOrdinateEqual(
+        T_INT_1_TO_9.end,
         topo.input_bounds().end,
-        opentime.EPSILON_ORD,
     );
 }
 
@@ -2178,14 +2156,8 @@ test "path_code: graph test"
     defer tr.deinit();
     const tr_ref = ComposedValueRef.init(&tr);
 
-    const start:opentime.Ordinate = 1;
-    const end:opentime.Ordinate = 10;
-
     const cl = schema.Clip {
-        .bounds_s = .{
-            .start = start,
-            .end = end 
-        }
+        .bounds_s = T_INT_1_TO_9,
     };
     try tr.append(cl);
 
@@ -2195,10 +2167,7 @@ test "path_code: graph test"
     {
         try tr.append(
             schema.Clip {
-                .bounds_s = .{
-                    .start = start,
-                    .end = end 
-                }
+                .bounds_s = T_INT_1_TO_9,
             }
         );
     }
@@ -2278,13 +2247,8 @@ test "schema.Track with clip with identity transform projection"
     defer tr.deinit();
     const tr_ref = ComposedValueRef.init(&tr);
 
-    const start:opentime.Ordinate = 1;
-    const end:opentime.Ordinate = 10;
-    const range = opentime.ContinuousInterval{
-        .start = start,
-        .end = end,
-    };
-    
+    const range = T_INT_1_TO_9;
+
     const cl_template = schema.Clip{
         .bounds_s = range
     };
@@ -2319,23 +2283,22 @@ test "schema.Track with clip with identity transform projection"
     defer track_to_clip.deinit(std.testing.allocator);
 
     // check the bounds
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         0,
         track_to_clip.src_to_dst_topo.input_bounds().start,
-        opentime.EPSILON_ORD,
     );
 
-    try std.testing.expectApproxEqAbs(
-        end - start,
+    try opentime.expectOrdinateEqual(
+        range.end.sub(range.start),
         track_to_clip.src_to_dst_topo.input_bounds().end,
-        opentime.EPSILON_ORD,
     );
 
     // check the projection
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         4,
-        try track_to_clip.project_instantaneous_cc(3).ordinate(),
-        opentime.EPSILON_ORD,
+        try track_to_clip.project_instantaneous_cc(
+            opentime.Ordinate.init(3)
+        ).ordinate(),
     );
 }
 
@@ -2348,12 +2311,7 @@ test "TopologicalMap: schema.Track with clip with identity transform topological
     defer tr.deinit();
 
     const cl_ref = try tr.append_fetch_ref(
-        schema.Clip {
-            .bounds_s = .{
-                .start = 0,
-                .end = 2 
-            } 
-        }
+        schema.Clip { .bounds_s = T_INT_0_TO_2, }
     );
 
     const root = ComposedValueRef.init(&tr);
@@ -2403,7 +2361,7 @@ test "TopologicalMap: schema.Track with clip with identity transform topological
                 tc,
                 clip_code,
             },
-        );
+            );
         try std.testing.expectEqual(4, tc.code_length());
         try std.testing.expect(tc.eql(clip_code));
     }
@@ -2425,13 +2383,16 @@ test "TopologicalMap: schema.Track with clip with identity transform topological
 
     try std.testing.expectError(
         topology_m.mapping.Mapping.ProjectionError.OutOfBounds,
-        root_presentation_to_clip_media.project_instantaneous_cc(3).ordinate()
+        root_presentation_to_clip_media.project_instantaneous_cc(
+            opentime.Ordinate.init(3)
+        ).ordinate()
     );
 
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         1,
-        try root_presentation_to_clip_media.project_instantaneous_cc(1).ordinate(),
-        opentime.EPSILON_ORD,
+        try root_presentation_to_clip_media.project_instantaneous_cc(
+            opentime.Ordinate.init(1)
+        ).ordinate(),
     );
 }
 
@@ -2445,10 +2406,7 @@ test "Projection: schema.Track with single clip with identity transform and boun
     const root = ComposedValueRef{ .track_ptr = &tr };
 
     const cl = schema.Clip {
-        .bounds_s = .{
-            .start = 0,
-            .end = 2 
-        }
+        .bounds_s = T_INT_0_TO_2,
     };
     const clip = try tr.append_fetch_ref(cl);
 
@@ -2485,21 +2443,21 @@ test "Projection: schema.Track with single clip with identity transform and boun
     );
 
     // cexpected_media_temporal_bounds
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         expected_media_temporal_bounds.start,
         actual_media_temporal_bounds.start,
-        opentime.EPSILON_ORD,
     );
 
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         expected_media_temporal_bounds.end,
         actual_media_temporal_bounds.end,
-        opentime.EPSILON_ORD,
     );
 
     try std.testing.expectError(
         topology_m.mapping.Mapping.ProjectionError.OutOfBounds,
-        root_presentation_to_clip_media.project_instantaneous_cc(3).ordinate()
+        root_presentation_to_clip_media.project_instantaneous_cc(
+            opentime.Ordinate.init(3)
+        ).ordinate()
     );
 }
 
@@ -2518,7 +2476,9 @@ test "Projection: schema.Track with multiple clips with identity transform and b
     defer tr.deinit();
     const track_ptr = ComposedValueRef{ .track_ptr = &tr };
 
-    const cl = schema.Clip { .bounds_s = .{ .start = 0, .end = 2 } };
+    const cl = schema.Clip {
+        .bounds_s = T_INT_0_TO_2 
+    };
 
     // add three copies
     try tr.append(cl);
@@ -2527,8 +2487,8 @@ test "Projection: schema.Track with multiple clips with identity transform and b
 
     const TestData = struct {
         index: usize,
-        track_ord: opentime.Ordinate,
-        expected_ord: opentime.Ordinate,
+        track_ord: opentime.Ordinate.BaseType,
+        expected_ord: opentime.Ordinate.BaseType,
         err: bool
     };
 
@@ -2561,10 +2521,13 @@ test "Projection: schema.Track with multiple clips with identity transform and b
 
         const b = po.src_to_dst_topo.input_bounds();
 
-        try std.testing.expectEqualSlices(
-            opentime.Ordinate,
-            &.{ 4, 6 },
-            &.{ b.start, b.end },
+        try opentime.expectOrdinateEqual(
+            4,
+            b.start,
+        );
+        try opentime.expectOrdinateEqual(
+            6,
+            b.end,
         );
     }
 
@@ -2581,7 +2544,13 @@ test "Projection: schema.Track with multiple clips with identity transform and b
     );
 
     // 1
-    for (po_map.operators, &[_][2]opentime.Ordinate{ .{ 0, 2}, .{ 2, 4 }, .{ 4, 6 } })
+    for (po_map.operators,
+        &[_][2]opentime.Ordinate{ 
+            .{ T_O_0, T_O_2 },
+            .{ T_O_2, T_O_4 },
+            .{ T_O_4, T_O_6 } 
+        }
+    )
         |ops, expected|
     {
         const b = (
@@ -2596,7 +2565,7 @@ test "Projection: schema.Track with multiple clips with identity transform and b
 
     try std.testing.expectEqualSlices(
         opentime.Ordinate,
-        &.{ 0, 2, 4, 6},
+        &.{T_O_0, T_O_2, T_O_4, T_O_6},
         po_map.end_points,
     );
 
@@ -2623,13 +2592,22 @@ test "Projection: schema.Track with multiple clips with identity transform and b
         {
             try std.testing.expectError(
                 opentime.ProjectionResult.Errors.OutOfBounds,
-                tr_presentation_to_clip_media.project_instantaneous_cc(t.track_ord).ordinate()
+                tr_presentation_to_clip_media.project_instantaneous_cc(
+                    opentime.Ordinate.init(t.track_ord)
+                ).ordinate()
             );
         }
         else{
-            const result = try tr_presentation_to_clip_media.project_instantaneous_cc(t.track_ord).ordinate();
+            const result = (
+                try tr_presentation_to_clip_media.project_instantaneous_cc(
+                    opentime.Ordinate.init(t.track_ord)
+                ).ordinate()
+            );
 
-            try std.testing.expectApproxEqAbs(result, t.expected_ord, opentime.EPSILON_ORD);
+            try opentime.expectOrdinateEqual(
+                t.expected_ord,
+                result,
+            );
         }
     }
 
@@ -2652,21 +2630,21 @@ test "Projection: schema.Track with multiple clips with identity transform and b
     );
 
     // check the bounds
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         expected_range.start,
         actual_range.start,
-        opentime.EPSILON_ORD,
     );
 
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         expected_range.end,
         actual_range.end,
-        opentime.EPSILON_ORD,
     );
 
     try std.testing.expectError(
         opentime.ProjectionResult.Errors.OutOfBounds,
-        root_presentation_to_clip_media.project_instantaneous_cc(3).ordinate(),
+        root_presentation_to_clip_media.project_instantaneous_cc(
+            opentime.Ordinate.init(3)
+        ).ordinate(),
     );
 }
 
@@ -2703,8 +2681,8 @@ test "Single schema.Clip bezier transform"
         base_curve,
         //  the range of the clip for testing - rescale factors
         .{
-            .{ .in = 0, .out = 0, },
-            .{ .in = 10, .out = 10, },
+            curve.ControlPoint.init(.{ .in = 0, .out = 0, }),
+            curve.ControlPoint.init(.{ .in = 10, .out = 10, }),
         }
     );
     defer xform_curve.deinit(allocator);
@@ -2716,33 +2694,33 @@ test "Single schema.Clip bezier transform"
 
     // test the input space range
     const curve_bounds_input = curve_topo.input_bounds();
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         0,
-        curve_bounds_input.start, opentime.EPSILON_ORD
+        curve_bounds_input.start,
     );
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         10,
-        curve_bounds_input.end, opentime.EPSILON_ORD
+        curve_bounds_input.end,
     );
 
     // test the output space range (the media space of the clip)
     const curve_bounds_output = (
         xform_curve.extents_output()
     );
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         0,
-        curve_bounds_output.start, opentime.EPSILON_ORD
+        curve_bounds_output.start,
     );
-    try std.testing.expectApproxEqAbs(
+    try opentime.expectOrdinateEqual(
         10,
-        curve_bounds_output.end, opentime.EPSILON_ORD
+        curve_bounds_output.end,
     );
 
     try std.testing.expect(curve_topo.mappings.len > 0);
 
     const media_temporal_bounds:opentime.ContinuousInterval = .{
-        .start = 100,
-        .end = 110,
+        .start = opentime.Ordinate.init(100),
+        .end = opentime.Ordinate.init(110),
     };
     const cl = schema.Clip {
         .bounds_s = media_temporal_bounds,
@@ -2779,15 +2757,13 @@ test "Single schema.Clip bezier transform"
         const input_bounds = (
             clip_presentation_to_media_proj.src_to_dst_topo.input_bounds()
         );
-        try std.testing.expectApproxEqAbs(
+        try opentime.expectOrdinateEqual(
             curve_bounds_output.start, 
             input_bounds.start,
-            opentime.EPSILON_ORD
         );
-        try std.testing.expectApproxEqAbs(
+        try opentime.expectOrdinateEqual(
             curve_bounds_output.end, 
             input_bounds.end,
-            opentime.EPSILON_ORD
         );
 
         // invert it back and check it against the inpout curve bounds
@@ -2811,15 +2787,13 @@ test "Single schema.Clip bezier transform"
             const clip_media_to_presentation_input_bounds = (
                 topo.input_bounds()
             );
-            try std.testing.expectApproxEqAbs(
+            try opentime.expectOrdinateEqual(
                 100,
                 clip_media_to_presentation_input_bounds.start,
-                opentime.EPSILON_ORD
             );
-            try std.testing.expectApproxEqAbs(
+            try opentime.expectOrdinateEqual(
                 110,
                 clip_media_to_presentation_input_bounds.end,
-                opentime.EPSILON_ORD
             );
 
             try std.testing.expect(
@@ -2830,8 +2804,8 @@ test "Single schema.Clip bezier transform"
             const o_s_time = input_bounds.start;
             const o_e_time = input_bounds.end;
             var output_time = o_s_time;
-            while (output_time < o_e_time) 
-                : (output_time += 0.01) 
+            while (output_time.lt(o_e_time) )
+                : (output_time = output_time.add(0.01))
             {
                 // output time -> media time
                 const media_time = (
@@ -2871,10 +2845,9 @@ test "Single schema.Clip bezier transform"
                     }
                 );
 
-                try std.testing.expectApproxEqAbs(
+                try opentime.expectOrdinateEqual(
                     computed_output_time,
                     output_time,
-                    opentime.EPSILON_ORD
                 );
             }
         }
@@ -2893,12 +2866,11 @@ test "Single schema.Clip bezier transform"
         );
         defer clip_media_to_presentation.deinit(allocator);
 
-        try std.testing.expectApproxEqAbs(
+        try opentime.expectOrdinateEqual(
             6.5745,
             try clip_media_to_presentation.project_instantaneous_cc(
-                107
+                opentime.Ordinate.init(107),
             ).ordinate(),
-            opentime.EPSILON_ORD,
         );
     }
 }
@@ -2936,12 +2908,7 @@ test "otio projection: track with single clip"
     defer tr.deinit();
 
     // media is 9 seconds long and runs at 4 hz.
-    const media_source_range = (
-        opentime.ContinuousInterval{
-            .start = 1,
-            .end = 10,
-        }
-    );
+    const media_source_range = T_INT_1_TO_9;
     const media_discrete_info = (
         sampling.SampleIndexGenerator{
             .sample_rate_hz = .{ .Int = 4 },
@@ -2986,10 +2953,11 @@ test "otio projection: track with single clip"
     {
         // continuous time projection to the continuous intrinsic space for
         // continuous or interpolated samples
-        try std.testing.expectApproxEqAbs(
+        try opentime.expectOrdinateEqual(
             4.5,
-            try track_to_media.project_instantaneous_cc(3.5).ordinate(),
-            opentime.EPSILON_ORD,
+            try track_to_media.project_instantaneous_cc(
+                opentime.Ordinate.init(3.5)
+            ).ordinate(),
         );
 
         // for discrete non-interpolated data sources, allow projection to a
@@ -2998,15 +2966,17 @@ test "otio projection: track with single clip"
             // ??? - can't be prescriptive about how data sources are indexed, ie
             // paths to EXR frames or something
             (3 + 1) * 4,
-            try track_to_media.project_instantaneous_cd(3),
+            try track_to_media.project_instantaneous_cd(
+                opentime.Ordinate.init(3),
+            ),
         );
     }
 
     // range projection tests
     {
         const test_range_in_track:opentime.ContinuousInterval = .{
-            .start = 3.5,
-            .end = 4.5,
+            .start = opentime.Ordinate.init(3.5),
+            .end = opentime.Ordinate.init(4.5),
         };
 
         // continuous
@@ -3041,16 +3011,14 @@ test "otio projection: track with single clip"
                 );
             }
 
-            try std.testing.expectApproxEqAbs(
+            try opentime.expectOrdinateEqual(
                 4.5,
                 b.start,
-                opentime.EPSILON_ORD,
             );
 
-            try std.testing.expectApproxEqAbs(
+            try opentime.expectOrdinateEqual(
                 5.5,
                 b.end,
-                opentime.EPSILON_ORD,
             );
         }
 
@@ -3120,10 +3088,7 @@ test "otio projection: track with single clip with transform"
     defer tr.deinit();
 
     // media is 9 seconds long and runs at 4 hz.
-    const media_source_range = opentime.ContinuousInterval{
-        .start = 1,
-        .end = 10,
-    };
+    const media_source_range = T_INT_1_TO_9;
     const media_discrete_info = (
         sampling.SampleIndexGenerator{
             .sample_rate_hz = .{ .Int = 4 },
@@ -3146,7 +3111,7 @@ test "otio projection: track with single clip with transform"
             allocator,
             .{
                 .input_to_output_xform = .{
-                    .scale = 2,
+                    .scale = opentime.Ordinate.init(2),
                 },
             },
         ),
@@ -3196,11 +3161,12 @@ test "otio projection: track with single clip with transform"
     {
         // continuous time projection to the continuous intrinsic space for
         // continuous or interpolated samples
-        try std.testing.expectApproxEqAbs(
+        try opentime.expectOrdinateEqual(
             // (3.5*2 + 1),
             8,
-            try track_to_media.project_instantaneous_cc(3.5).ordinate(),
-            opentime.EPSILON_ORD,
+            try track_to_media.project_instantaneous_cc(
+                opentime.Ordinate.init(3.5)
+            ).ordinate(),
         );
 
         // for discrete non-interpolated data sources, allow projection to a
@@ -3209,15 +3175,17 @@ test "otio projection: track with single clip with transform"
             // ??? - can't be prescriptive about how data sources are indexed, ie
             // paths to EXR frames or something
             (3*2 + 1) * 4,
-            try track_to_media.project_instantaneous_cd(3),
+            try track_to_media.project_instantaneous_cd(
+                opentime.Ordinate.init(3)
+            ),
         );
     }
 
     // range projection tests
     {
         const test_range_in_track:opentime.ContinuousInterval = .{
-            .start = 3.5,
-            .end = 4.5,
+            .start = opentime.Ordinate.init(3.0),
+            .end = opentime.Ordinate.init(4.0),
         };
 
         // continuous
@@ -3252,25 +3220,23 @@ test "otio projection: track with single clip with transform"
                 );
             }
 
-            try std.testing.expectApproxEqAbs(
-                8,
+            try opentime.expectOrdinateEqual(
+                7,
                 b.start,
-                opentime.EPSILON_ORD,
             );
 
-            try std.testing.expectApproxEqAbs(
+            try opentime.expectOrdinateEqual(
                 // (4.5 * 2 + 1)
-                10,
+                9,
                 b.end,
-                opentime.EPSILON_ORD,
             );
         }
 
         // continuous -> discrete
         {
-            //                                   (3.5s*2 + 1s)*4
+            //                                   (3.0s*2 + 1s)*4
             const expected = [_]sampling.sample_index_t{ 
-                32, 34, 36, 38, 
+                28,30,32,34
             };
 
             const result_media_indices = (
@@ -3334,11 +3300,12 @@ test "otio projection: track with single clip with transform"
                 track_to_media.src_to_dst_topo.output_bounds().start
             );
 
-            try std.testing.expectEqual(
+            try opentime.expectOrdinateEqual(
                 (
-                 start 
+                 start.add(
                  // @TODO: should the 2.0 be a 1.0?
-                 + 2.0/tl.discrete_info.presentation.?.sample_rate_hz.as_float()
+                 tl.discrete_info.presentation.?.sample_rate_hz.inv_as_ordinate().mul(2)
+                 )
                 ),
                 output_range.end,
             );
@@ -3368,10 +3335,7 @@ test "Clip: Animated Parameter example"
     const allocator = arena.allocator();
     defer arena.deinit();
 
-    const media_source_range = opentime.ContinuousInterval{
-        .start = 1,
-        .end = 10,
-    };
+    const media_source_range = T_INT_1_TO_9;
     const media_discrete_info = (
         sampling.SampleIndexGenerator{
             .sample_rate_hz = .{ .Int = 4 },
@@ -3398,10 +3362,10 @@ test "Clip: Animated Parameter example"
                 try curve.Linear.init(
                     allocator,
                     &.{ 
-                        .{ .in = 0, .out = 1 },
-                        .{ .in = 1, .out = 1.25 },
-                        .{ .in = 5, .out = 8},
-                        .{ .in = 8, .out = 10},
+                        curve.ControlPoint.init(.{ .in = 0, .out = 1 }),
+                        curve.ControlPoint.init(.{ .in = 1, .out = 1.25 }),
+                        curve.ControlPoint.init(.{ .in = 5, .out = 8}),
+                        curve.ControlPoint.init(.{ .in = 8, .out = 10}),
                     },
                 )
             ),
@@ -3458,10 +3422,7 @@ test "test debug_print_time_hierarchy"
             "Spaghetti.wav",
         ),
         .media = .{
-            .bounds_s = .{
-                .start = 1,
-                .end = 6,
-            },
+            .bounds_s = .{},
             .discrete_info = .{
                 .sample_rate_hz = .{ .Int = 24 },
                 .start_index = 0,
@@ -3470,7 +3431,7 @@ test "test debug_print_time_hierarchy"
                 .signal = .{
                     .signal_generator = .{
                         .signal = .sine,
-                        .duration_s = 6.0,
+                        .duration_s = opentime.Ordinate.init(6.0),
                         .frequency_hz = 24,
                     },
                 },
@@ -3484,19 +3445,7 @@ test "test debug_print_time_hierarchy"
     const wp = schema.Warp {
         .child = cl_ptr,
         .interpolating = true,
-        .transform = try topology_m.Topology.init_affine(
-            allocator,
-            .{
-                .input_bounds_val = .{
-                    .start = 0,
-                    .end = 5,
-                },
-                .input_to_output_xform = .{
-                    .offset = 10.0/24.0,
-                    .scale = 2,
-                },
-            },
-        )
+        .transform = try topology_m.Topology.init_identity(allocator, T_INT_1_TO_9),
     };
     defer wp.transform.deinit(allocator);
     try tr.append(wp);
@@ -3531,8 +3480,8 @@ test "Single clip, schema.Warp bulk"
     const allocator = std.testing.allocator;
 
     const media_temporal_bounds:opentime.ContinuousInterval = .{
-        .start = 100,
-        .end = 110,
+        .start = opentime.Ordinate.init(100),
+        .end = opentime.Ordinate.init(110),
     };
 
     const cl = schema.Clip {
@@ -3545,10 +3494,10 @@ test "Single clip, schema.Warp bulk"
 
     const TestCase = struct {
         label: []const u8,
-        presentation_range : [2]opentime.Ordinate, 
-        warp_child_range : [2]opentime.Ordinate,
-        presentation_test : opentime.Ordinate,
-        clip_media_test : opentime.Ordinate,
+        presentation_range : [2]opentime.Ordinate.BaseType, 
+        warp_child_range : [2]opentime.Ordinate.BaseType,
+        presentation_test : opentime.Ordinate.BaseType,
+        clip_media_test : opentime.Ordinate.BaseType,
         project_to_finite: bool = true,
     };
 
@@ -3601,12 +3550,12 @@ test "Single clip, schema.Warp bulk"
 
         // mapping is presentation -> input so in: presentation, out = child
         const start:curve.ControlPoint = .{
-            .in = t.presentation_range[0],
-            .out = t.warp_child_range[0],
+            .in = opentime.Ordinate.init(t.presentation_range[0]),
+            .out = opentime.Ordinate.init(t.warp_child_range[0]),
         };
         const end:curve.ControlPoint = .{
-            .in = t.presentation_range[1],
-            .out = t.warp_child_range[1],
+            .in = opentime.Ordinate.init(t.presentation_range[1]),
+            .out = opentime.Ordinate.init(t.warp_child_range[1]),
         };
 
         const xform = (
@@ -3681,24 +3630,21 @@ test "Single clip, schema.Warp bulk"
                 },
             );
 
-            try std.testing.expectApproxEqAbs(
+            try opentime.expectOrdinateEqual(
                 start.in,
                 input_bounds.start,
-                opentime.EPSILON_ORD,
             );
 
-            try std.testing.expectApproxEqAbs(
+            try opentime.expectOrdinateEqual(
                 end.in,
                 input_bounds.end,
-                opentime.EPSILON_ORD,
             );
 
-            try std.testing.expectApproxEqAbs(
+            try opentime.expectOrdinateEqual(
                 t.clip_media_test,
                 try warp_pres_to_media_topo.project_instantaneous_cc(
-                    t.presentation_test,
+                    opentime.Ordinate.init(t.presentation_test),
                 ).ordinate(),
-                opentime.EPSILON_ORD,
             );
         }
 
@@ -3717,24 +3663,23 @@ test "Single clip, schema.Warp bulk"
 
             if (t.project_to_finite) 
             {
-                try std.testing.expectApproxEqAbs(
+                try opentime.expectOrdinateEqual(
                     t.presentation_test,
                     try clip_media_to_presentation.project_instantaneous_cc(
-                        t.clip_media_test,
+                        opentime.Ordinate.init(t.clip_media_test),
                     ).ordinate(),
-                    opentime.EPSILON_ORD,
                 );
             }
             else 
             {
                 const r = clip_media_to_presentation.project_instantaneous_cc(
-                    t.clip_media_test,
+                    opentime.Ordinate.init(t.clip_media_test),
                 );
-                try std.testing.expectEqual(
+                try opentime.expectOrdinateEqual(
                     0,
                     r.SuccessInterval.start
                 );
-                try std.testing.expectEqual(
+                try opentime.expectOrdinateEqual(
                     5,
                     r.SuccessInterval.end
                 );
@@ -3751,11 +3696,11 @@ test "ProjectionOperator: clone"
         allocator,
         .{
             .input_bounds_val = .{
-                .start = 0,
-                .end = 8,
+                .start = opentime.Ordinate.init(0),
+                .end = opentime.Ordinate.init(8),
             },
             .input_to_output_xform = .{
-                .offset = 1,
+                .offset = opentime.Ordinate.init(1),
             },
         },
     );
@@ -3775,9 +3720,11 @@ test "ProjectionOperator: clone"
     defer po_cloned_again.deinit(allocator);
     po_cloned.deinit(allocator);
 
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
         4,
-        try po_cloned_again.project_instantaneous_cc(3).ordinate(),
+        try po_cloned_again.project_instantaneous_cc(
+            opentime.Ordinate.init(3),
+        ).ordinate(),
     );
 }
 
@@ -3792,11 +3739,11 @@ test "ProjectionOperatorMap: clone"
         allocator,
         .{
             .input_bounds_val = .{
-                .start = 0,
-                .end = 8,
+                .start = opentime.Ordinate.init(0),
+                .end = opentime.Ordinate.init(8),
             },
             .input_to_output_xform = .{
-                .offset = 1,
+                .offset = opentime.Ordinate.init(1),
             },
         },
     );
@@ -3818,9 +3765,9 @@ test "ProjectionOperatorMap: clone"
 
     const topo = clone.operators[0][0].src_to_dst_topo;
 
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
         4,
-        try topo.project_instantaneous_cc(3).ordinate()
+        try topo.project_instantaneous_cc(opentime.Ordinate.init(3)).ordinate()
     );
 }
 

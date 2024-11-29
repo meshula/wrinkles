@@ -11,6 +11,16 @@ const sampling = @import("sampling");
 // for verbose print of test
 const PRINT_DEMO_OUTPUT = false;
 
+const T_ORD_6 = opentime.Ordinate.init(6);
+const T_INT_1_TO_6 = opentime.ContinuousInterval{
+    .start = opentime.Ordinate.ONE,
+    .end = T_ORD_6,
+};
+const T_AFF_N1_2 = opentime.AffineTransform1D {
+    .offset = opentime.Ordinate.init(-1),
+    .scale = opentime.Ordinate.init(2),
+};
+
 test "otio: high level procedural test [clip][   gap    ][clip]"
 {
     const allocator = std.testing.allocator;
@@ -42,8 +52,8 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             "Spaghetti.mov",
         ),
         .bounds_s = .{
-            .start = 1,
-            .end = 3 
+            .start = opentime.Ordinate.ONE,
+            .end = opentime.Ordinate.init(3),
         },
         .media = .{
             .discrete_info = .{
@@ -56,7 +66,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
 
     // gap
     const gp = otio.Gap{
-        .duration_seconds = 1,
+        .duration_seconds = opentime.Ordinate.ONE,
     };
     try tr.append(gp);
 
@@ -68,8 +78,8 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         ),
         .media = .{
             .bounds_s = .{
-                .start = 10,
-                .end = 11, 
+                .start = opentime.Ordinate.init(10),
+                .end = opentime.Ordinate.init(11), 
             },
             .discrete_info = .{
                 .sample_rate_hz = .{ .Int = 30 },
@@ -291,10 +301,7 @@ test "libsamplerate w/ high level test -- resample only"
             "Spaghetti.mov",
         ),
         .media = .{
-            .bounds_s = .{
-                .start = 1,
-                .end = 6,
-            },
+            .bounds_s = T_INT_1_TO_6,
             .discrete_info = .{
                 .sample_rate_hz = .{ .Int = 48000 },
                 .start_index = 0,
@@ -303,23 +310,22 @@ test "libsamplerate w/ high level test -- resample only"
                 .signal = .{
                     .signal_generator = .{
                         .signal = .sine,
-                        .duration_s = 6.0,
+                        .duration_s = T_ORD_6,
                         .frequency_hz = 200,
                     }
                 }
             },
         }
     };
-    try std.testing.expect(
-        cl1.media.bounds_s.?.start < cl1.media.bounds_s.?.end
+    const bounds = try cl1.bounds_of(
+        allocator,
+        .media
     );
     try std.testing.expect(
-        (try cl1.bounds_of(allocator, .media)).end != 0,
+        cl1.media.bounds_s.?.start.lt(cl1.media.bounds_s.?.end)
     );
-    try std.testing.expect(
-        (try cl1.bounds_of(allocator, .media)).start < 
-        (try cl1.bounds_of(allocator, .media)).end
-    );
+    try std.testing.expect(bounds.end.eql(0) == false);
+    try std.testing.expect(bounds.start.lt(bounds.end));
 
     const cl_ptr = try tr.append_fetch_ref(cl1);
     const tr_ptr = try tl.tracks.append_fetch_ref(tr);
@@ -351,19 +357,21 @@ test "libsamplerate w/ high level test -- resample only"
     );
 
     try std.testing.expect(
-        tr_pres_to_cl_media_po.source_bounds().end > 0,
+        tr_pres_to_cl_media_po.source_bounds().end.gt(0),
     );
-    try std.testing.expectEqual(
+
+    const pres_bounds = tr_pres_to_cl_media_po.source_bounds();
+    try opentime.expectOrdinateEqual(
         0,
-        tr_pres_to_cl_media_po.source_bounds().start,
+        pres_bounds.start,
     );
-    try std.testing.expectEqual(
+    try opentime.expectOrdinateEqual(
         5,
-        tr_pres_to_cl_media_po.source_bounds().end,
+        pres_bounds.end,
     );
 
     try std.testing.expect(
-        cl1.media.ref.signal.signal_generator.duration_s > 0
+        cl1.media.ref.signal.signal_generator.duration_s.gt(0)
     );
 
     // synthesize media
@@ -440,10 +448,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
             "Spaghetti.mov",
         ),
         .media = .{
-            .bounds_s = .{
-                .start = 1,
-                .end = 6,
-            },
+            .bounds_s = T_INT_1_TO_6,
             .discrete_info = .{
                 .sample_rate_hz = .{ .Int = 48000 },
                 .start_index = 0,
@@ -452,7 +457,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
                 .signal = .{
                     .signal_generator = .{
                         .signal = .sine,
-                        .duration_s = 6.0,
+                        .duration_s = T_ORD_6,
                         .frequency_hz = 200,
                     },
                 },
@@ -468,10 +473,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
         .transform = try topology.Topology.init_affine(
             allocator,
             .{
-                .input_to_output_xform = .{
-                    .offset = -1,
-                    .scale = 2,
-                },
+                .input_to_output_xform = T_AFF_N1_2,
             },
         )
     };
@@ -587,10 +589,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
             "Spaghetti.mov",
         ),
         .media = .{
-            .bounds_s = .{
-                .start = 1,
-                .end = 6,
-            },
+            .bounds_s = T_INT_1_TO_6,
             .discrete_info = .{
                 .sample_rate_hz = .{ .Int = 48000 },
                 .start_index = 0,
@@ -599,7 +598,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
                 .signal = .{
                     .signal_generator = .{
                         .signal = .sine,
-                        .duration_s = 6.0,
+                        .duration_s = T_ORD_6,
                         .frequency_hz = 200,
                     },
                 },
@@ -614,10 +613,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
         .transform = try topology.Topology.init_affine(
             allocator,
             .{
-                .input_to_output_xform = .{
-                    .offset = -1,
-                    .scale = 2,
-                },
+                .input_to_output_xform = T_AFF_N1_2,
             }
         )
     };
@@ -711,14 +707,14 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
                 allocator,
                 .{
                     .start = start_tr_pres,
-                    .end = start_tr_pres + 2.0/48000.0,
+                    .end = start_tr_pres.add(2.0/48000.0),
                 },
             )
         );
         defer allocator.free(cl_media_indices);
 
         try std.testing.expectEqualSlices(
-            usize, 
+            sampling.sample_index_t, 
             &.{ 48000, 48002, },
             cl_media_indices,
         );
@@ -732,7 +728,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
 
     // top level timeline
     var tl = try otio.Timeline.init(allocator);
-    tl.name = try allocator.dupe(u8, "Example Timeline");
+    tl.name = try allocator.dupe(u8, "Timeline w/ 48000khz+86400 start");
     tl.discrete_info.presentation = .{
         // matches the media rate
         .sample_rate_hz = .{ .Int = 48000 },
@@ -744,7 +740,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
 
     // track
     var tr = otio.Track.init(allocator);
-    tr.name = try allocator.dupe(u8, "Example Parent Track");
+    tr.name = try allocator.dupe(u8, "Parent Track");
 
     // clips
     const cl1 = otio.Clip {
@@ -753,10 +749,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
             "Spaghetti.mov",
         ),
         .media = .{
-            .bounds_s = .{
-                .start = 1,
-                .end = 6,
-            },
+            .bounds_s = T_INT_1_TO_6,
             .discrete_info = .{
                 .sample_rate_hz = .{ .Int = 48000 },
                 .start_index = 0,
@@ -765,7 +758,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
                 .signal = .{
                     .signal_generator = .{
                         .signal = .sine,
-                        .duration_s = 6.0,
+                        .duration_s = T_ORD_6,
                         .frequency_hz = 200,
                     },
                 },
@@ -775,32 +768,35 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     defer cl1.destroy(allocator);
     const cl_ptr = otio.ComposedValueRef.init(&cl1);
 
-    // new for this test - add in an warp on the clip
-    const wp: otio.Warp = .{
+    // reverse the first 6 seconds of the target
+    const wp_reverse: otio.Warp = .{
         .child = cl_ptr,
         .transform = try topology.Topology.init_from_linear_monotonic(
             allocator,
             .{
                 .knots = &.{
-                    .{ .in = 0, .out = 6 },
-                    .{ .in = 6, .out = 0 },   
+                    .{ .in = opentime.Ordinate.ZERO, .out = T_ORD_6, },
+                    .{ .in = T_ORD_6, .out = opentime.Ordinate.ZERO },   
                 },
             },
         )
     };
-    defer wp.transform.deinit(allocator);
-    try tr.append(wp);
+    defer wp_reverse.transform.deinit(allocator);
+    try tr.append(wp_reverse);
 
     const tr_ptr = try tl.tracks.append_fetch_ref(tr);
 
-    // build the topological map
+
+    // build the topological map (Timeline.presentation -> ...)
     ///////////////////////////////////////////////////////////////////////////
     const topo_map = try otio.build_topological_map(
         allocator,
-        tl_ptr
+        tl_ptr,
     );
     defer topo_map.deinit();
 
+    // build the projection operator (Track.presentation -> clip.media)
+    ///////////////////////////////////////////////////////////////////////////
     const tr_pres_to_cl_media_po = (
         try topo_map.build_projection_operator(
             allocator,
@@ -813,8 +809,12 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     defer tr_pres_to_cl_media_po.deinit(allocator);
 
     {
-        const start_tr_pres = tr_pres_to_cl_media_po.source_bounds().start;
+        // start ordinate of the Track.presentation space
+        const start_tr_pres = (
+            tr_pres_to_cl_media_po.source_bounds().start
+        );
 
+        // project into the media index
         const start_ind_cl_media = (
             try tr_pres_to_cl_media_po.project_instantaneous_cd(start_tr_pres)
         );
@@ -831,7 +831,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
                 allocator,
                 .{
                     .start = start_tr_pres,
-                    .end = start_tr_pres + 4.0/48000.0,
+                    .end = start_tr_pres.add(4.0/48000.0),
                 },
             )
         );
@@ -840,7 +840,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
         try std.testing.expect(indices_cl_media.len > 0);
 
         try std.testing.expectEqualSlices(
-            usize, 
+            sampling.sample_index_t, 
             &.{ 288000, 287999, 287998, 287996,},
             indices_cl_media,
         );
@@ -876,10 +876,7 @@ test "timeline w/ warp that holds the tenth frame"
             "Spaghetti.mov",
         ),
         .media = .{
-            .bounds_s = .{
-                .start = 1,
-                .end = 6,
-            },
+            .bounds_s = T_INT_1_TO_6,
             .discrete_info = .{
                 .sample_rate_hz = .{ .Int = 24 },
                 .start_index = 0,
@@ -888,7 +885,7 @@ test "timeline w/ warp that holds the tenth frame"
                 .signal = .{
                     .signal_generator = .{ 
                         .signal = .sine,
-                        .duration_s = 6.0,
+                        .duration_s = T_ORD_6,
                         .frequency_hz = 24,
                     },
                 },
@@ -898,6 +895,9 @@ test "timeline w/ warp that holds the tenth frame"
     defer cl1.destroy(allocator);
     const cl_ptr = otio.ComposedValueRef.init(&cl1);
 
+    const ord_10f24hz = opentime.Ordinate.init(10.0/24.0);
+
+
     // new for this test - add in an warp on the clip, which holds the frame
     const wp = otio.Warp {
         .child = cl_ptr,
@@ -905,8 +905,8 @@ test "timeline w/ warp that holds the tenth frame"
             allocator,
             .{
                 .knots = &.{
-                    .{ .in = 0, .out = 10.0/24.0,},
-                    .{ .in = 5, .out = 10.0/24.0,},
+                    .{ .in = opentime.Ordinate.ZERO, .out = ord_10f24hz,},
+                    .{ .in = opentime.Ordinate.init(5), .out = ord_10f24hz,},
                 },
             },
         )
@@ -931,11 +931,11 @@ test "timeline w/ warp that holds the tenth frame"
         .{ w_ib, w_ob },
     );
 
-    try std.testing.expect(std.math.isNan(w_ib.start) == false);
-    try std.testing.expect(std.math.isNan(w_ib.end) == false);
+    try std.testing.expect(w_ib.start.is_nan() == false);
+    try std.testing.expect(w_ib.end.is_nan() == false);
 
-    try std.testing.expect(std.math.isNan(w_ob.start) == false);
-    try std.testing.expect(std.math.isNan(w_ob.end) == false);
+    try std.testing.expect(w_ob.start.is_nan() == false);
+    try std.testing.expect(w_ob.end.is_nan() == false);
 
     // build the topological map
     ///////////////////////////////////////////////////////////////////////////
@@ -988,15 +988,15 @@ test "timeline w/ warp that holds the tenth frame"
             try tr_pres_to_cl_media_po.project_range_cd(
                 allocator,
                 .{
-                    .start = 0,
-                    .end =  4.0/24.0,
+                    .start = opentime.Ordinate.ZERO,
+                    .end =  opentime.Ordinate.init(4.0/24.0),
                 },
             )
         );
         defer allocator.free(result_buf);
 
         try std.testing.expectEqualSlices(
-            usize, 
+            sampling.sample_index_t, 
             // 34 because of the 1 second start time in the destination
             &.{ 34, 34, 34, 34, },
             result_buf,
@@ -1016,19 +1016,17 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     tl.name = try allocator.dupe(u8, "Timeline @ 24 * 1000/1001");
     tl.discrete_info.presentation = .{
         .sample_rate_hz = .{ 
+        // matches the media rate
             .Rat = .{
                 .num = 24 * 1000,
                 .den = 1001 
             } 
         },
-        // matches the media rate
         .start_index = 0,
     };
-
     defer tl.recursively_deinit();
-    const tl_ptr = otio.ComposedValueRef{
-        .timeline_ptr = &tl 
-    };
+
+    const tl_ptr = otio.ComposedValueRef.init(&tl);
 
     // track
     var tr = otio.Track.init(allocator);
@@ -1042,8 +1040,8 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
         ),
         .media = .{
             .bounds_s = .{
-                .start = 0,
-                .end = 60000,
+                .start = opentime.Ordinate.ZERO,
+                .end = opentime.Ordinate.init(60000),
             },
             .discrete_info = .{
                 .sample_rate_hz = .{ .Int = 24 },
@@ -1059,7 +1057,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     ///////////////////////////////////////////////////////////////////////////
     const topo_map = try otio.build_topological_map(
         allocator,
-        tl_ptr
+        tl_ptr,
     );
     defer topo_map.deinit();
 
@@ -1089,11 +1087,11 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
         // continuous projection is an identity across the entire domain,
         // because the discretization happens before and after the continuous
         // transformation
-        var i : opentime.Ordinate = tl_pres_bounds.start;
-        while (i < tl_pres_bounds.end)
-            : (i+= 0.01)
+        var i = tl_pres_bounds.start;
+        while (i.lt(tl_pres_bounds.end))
+            : (i = i.add(0.01))
         {
-            try std.testing.expectEqual(
+            try opentime.expectOrdinateEqual(
                 i,
                 tl_pres_to_cl_media_po.project_instantaneous_cc(
                     i

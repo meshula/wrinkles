@@ -18,6 +18,12 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
     build_options.debug_graph_construction_trace_messages
 );
 
+const T_ORD_10 =  opentime.Ordinate.init(10);
+const T_CTI_1_10 = opentime.ContinuousInterval {
+    .start = opentime.Ordinate.ONE,
+    .end = T_ORD_10,
+};
+
 /// Topological Map of a Timeline.  Can be used to build projection operators
 /// to transform between various coordinate spaces within the map.
 pub const TopologicalMap = struct {
@@ -809,8 +815,8 @@ test "build_topological_map check root node"
     defer tr.deinit();
     const tr_ref = core.ComposedValueRef.init(&tr);
 
-    const start:opentime.Ordinate = 1;
-    const end:opentime.Ordinate = 10;
+    const start = opentime.Ordinate.ONE;
+    const end = T_ORD_10;
     const cti = opentime.ContinuousInterval{
         .start = start,
         .end = end 
@@ -1082,10 +1088,7 @@ pub const TreenodeWalkingIterator = struct{
 test "TestWalkingIterator: clip"
 {
     // media is 9 seconds long and runs at 4 hz.
-    const media_source_range = opentime.ContinuousInterval{
-        .start = 1,
-        .end = 10,
-    };
+    const media_source_range = T_CTI_1_10;
 
     const cl = schema.Clip {
         .bounds_s = media_source_range,
@@ -1122,10 +1125,7 @@ test "TestWalkingIterator: track with clip"
     defer tr.deinit();
 
     // media is 9 seconds long and runs at 4 hz.
-    const media_source_range = opentime.ContinuousInterval{
-        .start = 1,
-        .end = 10,
-    };
+    const media_source_range = T_CTI_1_10;
 
     // construct the clip and add it to the track
     const cl = schema.Clip {
@@ -1189,10 +1189,7 @@ test "TestWalkingIterator: track with clip w/ destination"
     defer tr.deinit();
 
     // media is 9 seconds long and runs at 4 hz.
-    const media_source_range = opentime.ContinuousInterval{
-        .start = 1,
-        .end = 10,
-    };
+    const media_source_range = T_CTI_1_10;
 
     // construct the clip and add it to the track
     const cl = schema.Clip {

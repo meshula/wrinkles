@@ -184,7 +184,7 @@ pub const Gap = struct {
         return try topology_m.Topology.init_identity(
             allocator,
             .{
-                .start = 0,
+                .start = opentime.Ordinate.ZERO,
                 .end = self.duration_seconds 
             },
         );
@@ -285,7 +285,7 @@ pub const Track = struct {
 
         // unpack the optional
         const result_bound:opentime.ContinuousInterval = (
-            maybe_bounds orelse .{ .start = 0, .end = 0, }
+            maybe_bounds orelse opentime.ContinuousInterval.ZERO
         );
 
         return try topology_m.Topology.init_identity(
@@ -349,11 +349,11 @@ pub const Track = struct {
             .{
                 .input_bounds_val = .{
                     .start = child_duration,
-                    .end = opentime.INF_ORD,
+                    .end = opentime.Ordinate.INF,
                 },
                 .input_to_output_xform = .{
-                    .offset = -child_duration,
-                    .scale = 1,
+                    .offset = child_duration.neg(),
+                    .scale = opentime.Ordinate.ONE,
                 }
             }
         );
