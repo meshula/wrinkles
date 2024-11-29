@@ -47,6 +47,8 @@ pub const PhaseOrdinate = struct {
     count: count_t,
     phase: phase_t,
 
+    pub const BaseType = f32;
+
     /// implies a rate of 1
     pub fn init(
         val: anytype,
@@ -81,8 +83,8 @@ pub const PhaseOrdinate = struct {
                 // }
             // ),
             .ComptimeInt, .Int => PhaseOrdinate{
-                    .count = val,
-                    .phase = 0,
+                    .count = @intCast(val),
+                    .phase = @floatCast(0),
                 },
             else => typeError(val),
         };
@@ -133,7 +135,6 @@ pub const PhaseOrdinate = struct {
         };
     }
 
-
     // phase is a float in the range [0, 1.0)
     // subtracting phase has the same effect of negating the phase and adding it.
     // So, a phase of -0.25 is equivalent to a phase of 0.75. But when we get a 
@@ -148,7 +149,7 @@ pub const PhaseOrdinate = struct {
     // which would be a negative -1 count, and a positive 0.75 phase.
     // If we draw a number line with the normalized phase it would look like this:
     // -1.0 +0.25, -1.0 +0.5, -1 +0.75, 0.0 +0.0, 0 +0.25, 0 +0.5, 0 +0.75, 1 +0.0, 1 +0.25, 1 +0.5, 1 +0.75
-    pub inline fn negate(
+    pub inline fn neg(
         self: @This(),
     ) @This() 
     {
@@ -199,7 +200,7 @@ pub const PhaseOrdinate = struct {
      {
          return switch(@typeInfo(@TypeOf(rhs))) {
              .Struct => switch(@TypeOf(rhs)) {
-                 PhaseOrdinate => self.add(rhs.negate()),
+                 PhaseOrdinate => self.add(rhs.neg()),
                  else => typeError(rhs),
              },
              .ComptimeFloat, .Float => self.add(PhaseOrdinate.init(-rhs)),
@@ -371,14 +372,14 @@ test "PhaseOrdinate: to_continuous"
     );
 }
 
-test "PhaseOrdinate: negate"
+test "PhaseOrdinate: neg"
 {
-    const ord_neg = PhaseOrdinate.init(1).negate();
+    const ord_neg = PhaseOrdinate.init(1).neg();
 
     try std.testing.expectEqual( -1, ord_neg.count);
     try std.testing.expectEqual( -1, ord_neg.to_continuous().value);
 
-    const ord_neg_neg = ord_neg.negate();
+    const ord_neg_neg = ord_neg.neg();
 
     try std.testing.expectEqual( 1, ord_neg_neg.count);
 }
@@ -1082,18 +1083,17 @@ fn OrdinateOf(
 }
 
 /// ordinate type
-pub const Ordinate = OrdinateOf(f32);
+// pub const Ordinate = OrdinateOf(f32);
 // pub const Ordinate = OrdinateOf(f64);
-// pub const Ordinate = OrdinateOf(PhaseOrdinate);
+pub const Ordinate = PhaseOrdinate;
 
 /// compare two ordinates.  Create an ordinate from expected if it is not
 /// already one.
 pub fn expectOrdinateEqual(
     expected_in: anytype,
-    measured: anyerror!Ordinate,
+    measured_in: anyerror!Ordinate,
 ) !void
 {
-
     const expected = switch(@TypeOf(expected_in)) {
         Ordinate => expected_in,
         else => switch(@typeInfo(@TypeOf(expected_in))) {
@@ -1107,11 +1107,28 @@ pub fn expectOrdinateEqual(
         },
     };
 
-    try std.testing.expectApproxEqAbs(
-        expected.v,
-        (measured catch |err| return err).v, 
-        util.EPSILON_F,
+    const measured = (
+        measured_in catch |err| return err
     );
+
+    inline for (std.meta.fields(Ordinate))
+        |f|
+    {
+        try switch (@typeInfo(f.type)) {
+            .Int, .ComptimeInt => std.testing.expectEqual(
+                @field(expected, f.name),
+                @field(measured, f.name),
+            ),
+            .Float, .ComptimeFloat => std.testing.expectApproxEqAbs(
+                @field(expected, f.name),
+                @field(measured, f.name),
+                util.EPSILON_F,
+            ),
+            inline else => @compileError(
+                "Do not know how to handle fields of type: " ++ f.type
+            ),
+        };
+    }
 }
 
 const basic_math = struct {
@@ -1378,7 +1395,7 @@ pub const CTX = comath.ctx.fnMethod(
     comath.ctx.simple({}),
     .{
         .@"+" = "add",
-        .@"-" = &.{"sub", "neg", "negate"},
+        .@"-" = &.{"sub", "negate", "neg"},
         .@"*" = "mul",
         .@"/" = "div",
     },
@@ -1446,12 +1463,12 @@ test "Base Ordinate: sort"
     const allocator = std.testing.allocator;
 
     const known = [_]Ordinate{
-        .{ .v = -1.01 },
-        .{ .v = -1 },
-        .{ .v = 0 },
-        .{ .v = 1 },
-        .{ .v = 1.001 },
-        .{ .v = 100 },
+        Ordinate.init(-1.01),
+        Ordinate.init(-1),
+        Ordinate.init(0),
+        Ordinate.init(1),
+        Ordinate.init(1.001),
+        Ordinate.init(100),
     };
 
     var test_arr = std.ArrayList(Ordinate).init(allocator);
