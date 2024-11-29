@@ -30,24 +30,30 @@ const count_t = i32;
 pub const phase_t = f32;
 const div_t = f64;
 
-fn typeError(
-    thing: anytype,
-) PhaseOrdinate 
-{
-    @compileError(
-        "PhaseOrdinate only supports math with integers,"
-        ++ " floating point numbers, and other PhaseOrdinates."
-        ++ " Not: " ++ @typeName(@TypeOf(thing))
-    );
-}
-
 /// Phase based ordinate
 pub const PhaseOrdinate = struct {
     // @TODO: can support ~4hrs at 192khz, if more space is needed, use 64 bits
     count: count_t,
     phase: phase_t,
 
-    pub const BaseType = f32;
+    pub const BaseType = phase_t;
+    pub const OrdinateType = @This();
+
+    pub const ZERO = OrdinateType.init(0.0);
+    pub const ONE = OrdinateType.init(1.0);
+    pub const EPSILON = OrdinateType.init(util.EPSILON_F);
+    pub const NAN = OrdinateType {
+        .count = 0,
+        .phase = std.math.nan(phase_t) 
+    };
+    pub const INF = OrdinateType {
+        .count = 0,
+        .phase = std.math.inf(phase_t) 
+    };
+    pub const INF_NEG = OrdinateType {
+        .count = -1,
+        .phase = -std.math.inf(phase_t) 
+    };
 
     /// implies a rate of 1
     pub fn init(
@@ -64,7 +70,7 @@ pub const PhaseOrdinate = struct {
 
                     break :result out.normalized();
                 },
-                else => typeError(val),
+                else => type_error(val),
             },
             .ComptimeFloat, .Float => (
                 // if (std.math.isFinite(val)) (
@@ -86,10 +92,66 @@ pub const PhaseOrdinate = struct {
                     .count = @intCast(val),
                     .phase = @floatCast(0),
                 },
-            else => typeError(val),
+            else => type_error(val),
         };
     }
 
+    pub inline fn as(
+        self: @This(),
+        comptime T: type,
+    ) T
+    {
+        return switch (@typeInfo(T)) {
+            .Float => (
+                @as(T, @floatFromInt(self.count)) 
+                + @as(T, @floatCast(self.phase))
+            ),
+            .Int => @intCast(self.count),
+            else => @compileError(
+                "PhaseOrdinate can be retrieved as a float or int type,"
+                ++ " not: " ++ @typeName(T)
+            ),
+        };
+    }
+
+    pub fn format(
+        self: @This(),
+        // fmt
+        comptime _: []const u8,
+        // options
+        _: std.fmt.FormatOptions,
+        writer: anytype,
+    ) !void 
+    {
+        try writer.print(
+            "PhaseOrd{{ {d} + {d} }}",
+            .{ self.count, self.phase }
+        );
+    }
+ 
+    /// implies a rate of "1".  returns the float as 
+    pub fn to_continuous(
+        self: @This(),
+    ) struct {
+        value: phase_t,
+        err: phase_t,
+    }
+    {
+        const v = self.as(phase_t);
+
+        const pord = PhaseOrdinate.init(v);
+
+        const err_pord = self.sub(pord);
+
+        const err_pord_f = err_pord.as(phase_t);
+
+        return .{
+            .value = v,
+            .err = err_pord_f,
+        };
+    }
+
+    // unary operators
     pub inline fn normalized(
         self: @This(),
     ) @This()
@@ -113,26 +175,11 @@ pub const PhaseOrdinate = struct {
         return out;
     }
 
-    /// implies a rate of "1".  Any
-    pub fn to_continuous(
+    pub inline fn sqrt(
         self: @This(),
-    ) struct {
-        value: phase_t,
-        err: phase_t,
-    }
+    ) OrdinateType
     {
-        const v = self.as(phase_t);
-
-        const pord = PhaseOrdinate.init(v);
-
-        const err_pord = self.sub(pord);
-
-        const err_pord_f = err_pord.as(phase_t);
-
-        return .{
-            .value = v,
-            .err = err_pord_f,
-        };
+        return OrdinateType.init(std.math.sqrt(self.as(div_t)));
     }
 
     // phase is a float in the range [0, 1.0)
@@ -167,6 +214,27 @@ pub const PhaseOrdinate = struct {
         }
     }
 
+    pub inline fn abs(
+        self: @This(),
+    ) OrdinateType
+    {
+        return if (self.count < 0) self.neg() else self;
+    }
+
+    /// utility function for handling unknown types
+    inline fn type_error(
+        thing: anytype,
+    ) void
+    {
+        @compileError(
+            @typeName(@This()) ++ " can only do math over floats,"
+            ++ " ints and other " ++ @typeName(@This()) ++ ", not: " 
+            ++ @typeName(@TypeOf(thing))
+        );
+    }
+
+    // binary operators
+
     pub inline fn add(
         self: @This(),
         rhs: anytype,
@@ -180,7 +248,7 @@ pub const PhaseOrdinate = struct {
                         .phase = self.phase + rhs.phase,
                     }
                 ).normalized(),
-                else => typeError(rhs),
+                else => type_error(rhs),
             },
             .ComptimeFloat, .Float => self.add(PhaseOrdinate.init(rhs)),
             .ComptimeInt, .Int => self.add(
@@ -189,7 +257,7 @@ pub const PhaseOrdinate = struct {
                     .phase = 0,
                 }
             ),
-            else => typeError(rhs),
+            else => type_error(rhs),
         };
     }
 
@@ -201,7 +269,7 @@ pub const PhaseOrdinate = struct {
          return switch(@typeInfo(@TypeOf(rhs))) {
              .Struct => switch(@TypeOf(rhs)) {
                  PhaseOrdinate => self.add(rhs.neg()),
-                 else => typeError(rhs),
+                 else => type_error(rhs),
              },
              .ComptimeFloat, .Float => self.add(PhaseOrdinate.init(-rhs)),
              .ComptimeInt, .Int => self.add(
@@ -210,30 +278,12 @@ pub const PhaseOrdinate = struct {
                      .phase = 0,
                  }
              ),
-             else => typeError(rhs),
-         };
-     }
-
-     inline fn as(
-         self: @This(),
-         comptime T: type,
-     ) T
-     {
-         return switch (@typeInfo(T)) {
-            .Float => (
-                @as(T, @floatFromInt(self.count)) 
-                + @as(T, @floatCast(self.phase))
-            ),
-            .Int => @intCast(self.count),
-            else => @compileError(
-                "PhaseOrdinate can be retrieved as a float or int type,"
-                ++ " not: " ++ @typeName(T)
-            ),
+             else => type_error(rhs),
          };
      }
 
     //
-    pub inline fn mul(
+    pub fn mul(
         self: @This(),
         rhs: anytype,
     ) @This() 
@@ -255,14 +305,14 @@ pub const PhaseOrdinate = struct {
                        }
                    ).normalized();
                 },
-                else => typeError(rhs),
+                else => type_error(rhs),
             },
             .ComptimeFloat, .Float => self.mul(PhaseOrdinate.init(rhs)),
             .ComptimeInt, .Int => .{
                 .count = self.count * rhs,
                 .phase = self.phase,
             },
-            else => typeError(rhs),
+            else => type_error(rhs),
         };
     }
 
@@ -276,7 +326,7 @@ pub const PhaseOrdinate = struct {
                 PhaseOrdinate => (
                     PhaseOrdinate.init(self.as(div_t) / rhs.as(div_t))
                 ),
-                else => typeError(rhs),
+                else => type_error(rhs),
             },
             .ComptimeFloat, .Float => (
                 PhaseOrdinate.init(self.as(div_t) / @as(div_t, @floatCast(rhs)))
@@ -284,37 +334,191 @@ pub const PhaseOrdinate = struct {
             .ComptimeInt, .Int => (
                 PhaseOrdinate.init(self.as(div_t) / @as(div_t, @floatFromInt(rhs)))
             ),
-            else => typeError(rhs),
+            else => type_error(rhs),
         };
     }
 
-    pub fn format(
-        self: @This(),
-        // fmt
-        comptime _: []const u8,
-        // options
-        _: std.fmt.FormatOptions,
-        writer: anytype,
-    ) !void 
-    {
-        try writer.print(
-            "PhaseOrd{{ {d} + {d} }}",
-            .{ self.count, self.phase }
-        );
-    }
-
-    pub fn is_inf(
+    // unary tests
+    pub inline fn is_inf(
         self: @This(),
     ) bool
     {
         return std.math.isInf(self.phase);
     }
 
-    pub fn is_finite(
+    pub inline fn is_finite(
         self: @This(),
     ) bool
     {
-        return std.math.is_finite(self.phase);
+        return std.math.isFinite(self.phase);
+    }
+
+    pub inline fn is_nan(
+        self: @This(),
+    ) bool
+    {
+        return std.math.isNan(self.phase);
+    }
+
+    // binary tests
+
+    pub fn lt(
+        self: @This(),
+        rhs: anytype,
+    ) bool
+    {
+        return switch (@TypeOf(rhs)) {
+            OrdinateType => (
+                self.count < rhs.count
+                or (self.count == rhs.count and self.phase < rhs.phase)
+            ),
+            else => switch (@typeInfo(@TypeOf(rhs))) {
+                // @TODO: is it better to do this comparison in float?  Or 
+                //        making both phase ordinates?
+                .Float, .ComptimeFloat, .Int, .ComptimeInt => (
+                    self.lt(OrdinateType.init(rhs))
+                ),
+                else => type_error(rhs),
+            },
+        };
+    }
+
+    pub fn lteq(
+        self: @This(),
+        rhs: anytype,
+    ) bool
+    {
+        return switch (@TypeOf(rhs)) {
+            OrdinateType => (
+                self.count < rhs.count
+                or (self.count == rhs.count and self.phase <= rhs.phase)
+            ),
+            else => switch (@typeInfo(@TypeOf(rhs))) {
+                // @TODO: is it better to do this comparison in float?  Or 
+                //        making both phase ordinates?
+                .Float, .ComptimeFloat, .Int, .ComptimeInt => (
+                    self.lteq(OrdinateType.init(rhs))
+                ),
+                else => type_error(rhs),
+            },
+        };
+    }
+
+    pub fn gt(
+        self: @This(),
+        rhs: anytype,
+    ) bool
+    {
+        return switch (@TypeOf(rhs)) {
+            OrdinateType => (
+                self.count > rhs.count
+                or (self.count == rhs.count and self.phase > rhs.phase)
+            ),
+            else => switch (@typeInfo(@TypeOf(rhs))) {
+                // @TODO: is it better to do this comparison in float?  Or 
+                //        making both phase ordinates?
+                .Float, .ComptimeFloat, .Int, .ComptimeInt => (
+                    self.gt(OrdinateType.init(rhs))
+                ),
+                else => type_error(rhs),
+            },
+        };
+    }
+
+    pub fn gteq(
+        self: @This(),
+        rhs: anytype,
+    ) bool
+    {
+        return switch (@TypeOf(rhs)) {
+            OrdinateType => (
+                self.count > rhs.count
+                or (self.count == rhs.count and self.phase >= rhs.phase)
+            ),
+            else => switch (@typeInfo(@TypeOf(rhs))) {
+                // @TODO: is it better to do this comparison in float?  Or 
+                //        making both phase ordinates?
+                .Float, .ComptimeFloat, .Int, .ComptimeInt => (
+                    self.gteq(OrdinateType.init(rhs))
+                ),
+                else => type_error(rhs),
+            },
+        };
+    }
+
+    pub fn eql(
+        self: @This(),
+        rhs: anytype,
+    ) bool
+    {
+        return switch (@TypeOf(rhs)) {
+            OrdinateType => (
+                self.count == rhs.count
+                and self.phase == rhs.phase
+            ),
+            else => switch (@typeInfo(@TypeOf(rhs))) {
+                // @TODO: is it better to do this comparison in float?  Or 
+                //        making both phase ordinates?
+                .Float, .ComptimeFloat, .Int, .ComptimeInt => (
+                    self.eql(OrdinateType.init(rhs))
+                ),
+                else => type_error(rhs),
+            },
+        };
+    }
+
+    pub fn eql_approx(
+        self: @This(),
+        rhs: anytype,
+    ) bool
+    {
+        return switch (@TypeOf(rhs)) {
+            OrdinateType => std.math.approxEqAbs(
+                BaseType,
+                self.phase,
+                rhs.phase,
+                util.EPSILON_F
+            ),
+            else => switch (@typeInfo(@TypeOf(rhs))) {
+                // @TODO: is it better to do this comparison in float?  Or 
+                //        making both phase ordinates?
+                .Float, .ComptimeFloat, .Int, .ComptimeInt => (
+                    self.eql_approx(OrdinateType.init(rhs))
+                ),
+                else => type_error(rhs),
+            },
+        };
+    }
+
+    // binary macros
+    pub inline fn min(
+        self: @This(),
+        rhs: anytype,
+    ) OrdinateType
+    {
+        return switch (@TypeOf(rhs)) {
+            OrdinateType => if (self.lt(rhs)) return self else rhs,
+            else => switch (@typeInfo(@TypeOf(rhs))) {
+                .Float, .ComptimeFloat, .Int, .ComptimeInt => 
+                    if (self.lt(rhs)) return self else rhs,
+                else => type_error(rhs),
+            },
+        };
+    }
+
+    pub inline fn max(
+        self: @This(),
+        rhs: anytype,
+    ) OrdinateType
+    {
+        return switch (@TypeOf(rhs)) {
+            OrdinateType => if (self.gt(rhs)) return self else rhs,
+            else => switch (@typeInfo(@TypeOf(rhs))) {
+                .Float, .ComptimeFloat, .Int, .ComptimeInt => 
+                    if (self.gt(rhs)) return self else rhs,
+                else => type_error(rhs),
+            },
+        };
     }
 };
 
@@ -1427,6 +1631,11 @@ test "Base Ordinate: as"
             if (t < 0 and target_type == u32) {
                 continue;
             }
+
+            errdefer std.log.err(
+                "Error with type: " ++ @typeName(target_type) ++ " t: {d} ord: {s} ({d})",
+                .{ t, ord, ord.as(target_type) },
+            );
 
             try switch (@typeInfo(target_type)) {
                 .Float, .ComptimeFloat => std.testing.expectApproxEqAbs(
