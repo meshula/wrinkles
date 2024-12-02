@@ -26,13 +26,19 @@ const util = @import("util.zig");
 //     v: u32,
 // };
 
+// @TODO: can support ~4hrs at 192khz, if more space is needed, use 64 bits
 const count_t = i32;
 pub const phase_t = f32;
+/// the math type for the Ordinate.  Will cast to this for division/pow/etc.
 const div_t = f64;
 
-/// Phase based ordinate
+/// PhaseOrdinate - An Ordinate that maintains precision over the number line.
+///
+/// This pairs an integer count with a floating point decimal component, the
+/// phase. The phase is always [0, 1) and also encodes special float values NaN,
+/// +Inf, -Inf and -0.  This acts like a float but has the same precision over
+/// the entire range supported by the integer component.
 pub const PhaseOrdinate = struct {
-    // @TODO: can support ~4hrs at 192khz, if more space is needed, use 64 bits
     count: count_t,
     phase: phase_t,
 
@@ -72,28 +78,76 @@ pub const PhaseOrdinate = struct {
                 },
                 else => type_error(val),
             },
-            .ComptimeFloat, .Float => (
-                // if (std.math.isFinite(val)) (
-                    PhaseOrdinate { 
-                        .count = @intFromFloat(val),
-                        .phase = @floatCast(
-                            std.math.sign(val) 
-                            * (@abs(val) - @trunc(@abs(val)))
-                        ),
-                    }
-                ).normalized()
-                ,
-                // else PhaseOrdinate { 
-                //     .count = @intFromFloat(std.math.sign(val)),
-                //     .phase = @floatCast(val),
-                // }
-            // ),
+            .Float => (
+                if (std.math.isInf(val) and val > 0) OrdinateType.INF else 
+                    if (std.math.isInf(val) and val < 0) OrdinateType.INF_NEG else 
+                        if (std.math.isNan(val)) OrdinateType.NAN else 
+                            OrdinateType.init_float(val)
+            ),
+            .ComptimeFloat => OrdinateType.init_float(val),
             .ComptimeInt, .Int => PhaseOrdinate{
                     .count = @intCast(val),
                     .phase = @floatCast(0),
                 },
             else => type_error(val),
         };
+    }
+
+    pub inline fn init_float(
+        val: anytype,
+    ) PhaseOrdinate
+    {
+        const ti = @typeInfo(@TypeOf(val));
+        comptime {
+            switch (ti) {
+                .ComptimeFloat, .Float, => {},
+                else => type_error(val),
+            }
+        }
+
+        // There are some subtle differences between -0.0 and 0.0 that aren't
+        // captured by std.math.sign -- which always returns 0 for both -0.0
+        // and 0.0.  For example, -1.0 / -0.0 -> +inf while -1.0 / 0.0 -> =inf.
+        //
+        // using signbit is an attempt to preserve the signbit from the
+        // incoming floating point number into the floating point phase
+        // component.  The hope is that this preserves the math behavior of the 
+        // PhaseOrdinate with regards to special floating point numbers like
+        // inf and nan.
+        const signbit = switch (ti) {
+            .ComptimeFloat => val < 0,
+            .Float => std.math.signbit(val),
+            // already handled by previous comptime block
+            else => {},
+        };
+        
+        const sign : BaseType = if (signbit) -1 else 1;
+
+        return (
+            PhaseOrdinate { 
+                .count = @intFromFloat(val),
+                .phase = @floatCast(
+                    sign * (@abs(val) - @trunc(@abs(val)))
+                ),
+            }
+        ).normalized();
+    }
+
+    inline fn special_float(
+        self:@This(),
+    ) ?OrdinateType
+    {
+        if (std.math.isInf(self.phase)) {
+            if (self.count < 0) {
+                return OrdinateType.INF_NEG;
+            } else {
+                return OrdinateType.INF;
+            }
+        } else if (std.math.isNan(self.phase)) {
+            return OrdinateType.NAN;
+        }
+
+        return null;
     }
 
     pub inline fn as(
@@ -103,10 +157,18 @@ pub const PhaseOrdinate = struct {
     {
         return switch (@typeInfo(T)) {
             .Float => (
-                @as(T, @floatFromInt(self.count)) 
-                + @as(T, @floatCast(self.phase))
+                if (self.count != 0) (
+                    @as(T, @floatFromInt(self.count)) 
+                    + @as(T, @floatCast(self.phase))
+                ) else @as(T, @floatCast(self.phase))
             ),
-            .Int => @intCast(self.count),
+            // @TODO: this probably also needs either an error or special
+            //        handling for the special number types of INF/NaN
+            .Int => @intCast(
+                if (self.count >= 0) self.count 
+                else if (self.phase > 0) 1 + self.count 
+                else self.count
+            ),
             else => @compileError(
                 "PhaseOrdinate can be retrieved as a float or int type,"
                 ++ " not: " ++ @typeName(T)
@@ -156,13 +218,18 @@ pub const PhaseOrdinate = struct {
         self: @This(),
     ) @This()
     {
-        // if (std.math.isInf(self.phase)) {
-        //     return PhaseOrdinate {
-        //         .count = @intFromFloat(std.math.sign(self.phase)),
-        //         .phase = self.phase,
-        //     };
-        // }
-        //
+        if (self.is_inf()) {
+            if (self.count < 0) {
+                return OrdinateType.INF_NEG;
+            }
+            else {
+                return OrdinateType.INF;
+            }
+        }
+        if (self.is_nan()) {
+            return OrdinateType.NAN;
+        }
+
         var out = self;
         while (out.phase > 0) {
             out.phase -= 1.0;
@@ -200,25 +267,38 @@ pub const PhaseOrdinate = struct {
         self: @This(),
     ) @This() 
     {
-        if (self.phase > 0) {
-            return .{ 
-                .count = -1 - self.count,
-                .phase = 1 - self.phase,
-            };
+        if (self.is_inf()) {
+            if (std.math.signbit(self.phase)) {
+                return OrdinateType.INF;
+            }
+            return OrdinateType.INF_NEG;
         }
-        else {
-            return .{
-                .count = - self.count,
-                .phase = 0,
-            };
+        if (self.is_nan()) {
+            return OrdinateType.NAN;
         }
+
+        return if (self.phase > 0) .{ 
+            .count = -1 - self.count,
+            .phase = 1 - self.phase,
+        }
+        else .{
+            .count = - self.count,
+            .phase = if (self.count > 0) -0.0 else 0,
+        };
     }
 
     pub inline fn abs(
         self: @This(),
     ) OrdinateType
     {
-        return if (self.count < 0) self.neg() else self;
+        return (
+            if ((self.phase > 0 and self.count < 0) or self.phase < 0)
+                self.neg() 
+            else .{
+                .count = @intCast(@abs(self.count)),
+                .phase = @abs(self.phase),
+            }
+        );
     }
 
     /// utility function for handling unknown types
@@ -250,13 +330,16 @@ pub const PhaseOrdinate = struct {
                 ).normalized(),
                 else => type_error(rhs),
             },
-            .ComptimeFloat, .Float => self.add(PhaseOrdinate.init(rhs)),
-            .ComptimeInt, .Int => self.add(
-                PhaseOrdinate{
-                    .count = rhs,
-                    .phase = 0,
-                }
+            .ComptimeFloat => self.add(PhaseOrdinate.init(rhs)),
+            .Float => (
+                if (std.math.isInf(rhs)) OrdinateType.INF else
+                    if (std.math.isNan(rhs)) OrdinateType.NAN else
+                        self.add(PhaseOrdinate.init(rhs))
             ),
+            .ComptimeInt, .Int => PhaseOrdinate{
+                .count = self.count + rhs,
+                .phase = self.phase,
+            },
             else => type_error(rhs),
         };
     }
@@ -267,16 +350,22 @@ pub const PhaseOrdinate = struct {
      ) @This() 
      {
          return switch(@typeInfo(@TypeOf(rhs))) {
-             .Struct => switch(@TypeOf(rhs)) {
-                 PhaseOrdinate => self.add(rhs.neg()),
-                 else => type_error(rhs),
-             },
-             .ComptimeFloat, .Float => self.add(PhaseOrdinate.init(-rhs)),
-             .ComptimeInt, .Int => self.add(
-                 PhaseOrdinate{
-                     .count = -rhs,
-                     .phase = 0,
+             .Struct => (
+                 switch(@TypeOf(rhs)) {
+                     PhaseOrdinate => self.add(rhs.neg()),
+                     else => type_error(rhs),
                  }
+             ),
+             .ComptimeFloat, .Float => (
+                 self.add(PhaseOrdinate.init(-rhs))
+             ),
+             .ComptimeInt, .Int => (
+                 self.add(
+                     PhaseOrdinate{
+                         .count = -rhs,
+                         .phase = 0,
+                     }
+                 )
              ),
              else => type_error(rhs),
          };
@@ -328,7 +417,7 @@ pub const PhaseOrdinate = struct {
                 ),
                 else => type_error(rhs),
             },
-            .ComptimeFloat, .Float => (
+            .ComptimeFloat, .Float =>  (
                 PhaseOrdinate.init(self.as(div_t) / @as(div_t, @floatCast(rhs)))
             ),
             .ComptimeInt, .Int => (
@@ -336,6 +425,16 @@ pub const PhaseOrdinate = struct {
             ),
             else => type_error(rhs),
         };
+    }
+
+    pub inline fn pow(
+        self: @This(),
+        exp: div_t,
+    ) OrdinateType
+    {
+        return OrdinateType.init(
+            std.math.pow(div_t, self.as(div_t), exp)
+        );
     }
 
     // unary tests
@@ -482,8 +581,8 @@ pub const PhaseOrdinate = struct {
             else => switch (@typeInfo(@TypeOf(rhs))) {
                 // @TODO: is it better to do this comparison in float?  Or 
                 //        making both phase ordinates?
-                .Float, .ComptimeFloat, .Int, .ComptimeInt => (
-                    self.eql_approx(OrdinateType.init(rhs))
+                .Float, .ComptimeFloat, .Int, .ComptimeInt => self.eql_approx(
+                    OrdinateType.init(rhs)
                 ),
                 else => type_error(rhs),
             },
@@ -1292,7 +1391,7 @@ fn OrdinateOf(
 pub const Ordinate = PhaseOrdinate;
 
 /// compare two ordinates.  Create an ordinate from expected if it is not
-/// already one.
+/// already one.  NaN == NaN is true.
 pub fn expectOrdinateEqual(
     expected_in: anytype,
     measured_in: anyerror!Ordinate,
@@ -1315,15 +1414,22 @@ pub fn expectOrdinateEqual(
         measured_in catch |err| return err
     );
 
+    if (expected.is_nan() and measured.is_nan()) {
+        return;
+    }
+
     inline for (std.meta.fields(Ordinate))
         |f|
     {
-        try switch (@typeInfo(f.type)) {
-            .Int, .ComptimeInt => std.testing.expectEqual(
+        errdefer std.log.err(
+            "field: " ++ f.name ++ " did not match.", .{}
+        );
+        switch (@typeInfo(f.type)) {
+            .Int, .ComptimeInt => try std.testing.expectEqual(
                 @field(expected, f.name),
                 @field(measured, f.name),
             ),
-            .Float, .ComptimeFloat => std.testing.expectApproxEqAbs(
+            .Float, .ComptimeFloat => try std.testing.expectApproxEqAbs(
                 @field(expected, f.name),
                 @field(measured, f.name),
                 util.EPSILON_F,
@@ -1331,13 +1437,13 @@ pub fn expectOrdinateEqual(
             inline else => @compileError(
                 "Do not know how to handle fields of type: " ++ f.type
             ),
-        };
+        }
     }
 }
 
 const basic_math = struct {
     // unary
-    pub fn neg(in: anytype) @TypeOf(in) { return - in; }
+    pub fn neg(in: anytype) @TypeOf(in) { return 0-in; }
     pub fn sqrt(in: anytype) @TypeOf(in) { return std.math.sqrt(in); }
     pub fn abs(in: anytype) @TypeOf(in) { return @abs(in); }
 
@@ -1372,9 +1478,11 @@ test "Base Ordinate: Unary Operator Tests"
         .{ .in =  5.345 },
         .{ .in =  -5.345 },
         .{ .in =  0 },
+        .{ .in =  -0.0 },
+        .{ .in =  std.math.inf(f32) },
+        .{ .in =  -std.math.inf(f32) },
+        .{ .in =  std.math.nan(f32) },
     };
-
-    // @TODO: sqrt(negative => nan)
 
     inline for (&.{ "neg", "sqrt", "abs", })
         |op|
@@ -1382,22 +1490,24 @@ test "Base Ordinate: Unary Operator Tests"
         for (tests)
             |t|
         {
-            if (t.in < 0 and std.mem.eql(u8, "sqrt", op)) {
-                continue;
-            }
+            // std.debug.print("{s}: {d}\n", .{ op, t.in });
+            //
+            const expected_in = (@field(basic_math, op)(t.in));
+            const expected = Ordinate.init(expected_in);
 
             const in = Ordinate.init(t.in);
-
-            const expected = Ordinate.init(
-                (@field(basic_math, op)(t.in))
-            );
-
             const measured = @field(Ordinate, op)(in);
 
             errdefer std.debug.print(
-                "Error with test: " ++ @typeName(Ordinate) ++ "." ++ op ++ 
-                ": iteration: {any}\nexpected: {d}\nmeasured: {s}\n",
-                .{ t, expected, measured },
+                "Error with test: \n" ++ @typeName(Ordinate) ++ "." ++ op 
+                ++ ":\n iteration: {any}\nin: {d}\nexpected_in: {d}\n"
+                ++ "expected: {d}\nmeasured_in: {s}\nmeasured: {s}\n",
+                .{ t, t.in, expected_in, expected, in, measured },
+            );
+
+            try std.testing.expectEqual(
+                std.math.signbit(expected.phase),
+                std.math.signbit(measured.phase),
             );
 
             try expectOrdinateEqual(expected, measured);
@@ -1407,46 +1517,114 @@ test "Base Ordinate: Unary Operator Tests"
 
 test "Base Ordinate: Binary Operator Tests"
 {
-    const TestCase = struct {
-        lhs: f32,
-        rhs: f32,
-    };
-    const tests = &[_]TestCase{
-        .{ .lhs =  1, .rhs =  1 },
-        .{ .lhs = -1, .rhs =  1 },
-        .{ .lhs =  1, .rhs = -1 },
-        .{ .lhs = -1, .rhs = -1 },
-        .{ .lhs = -1.2, .rhs = -1001.45 },
-        .{ .lhs =  0, .rhs =  5.345 },
+    const values = [_]f32{
+        0,
+        1,
+        1.2,
+        5.345,
+        3.14159,
+        1001.45,
+        std.math.inf(f32),
+        std.math.nan(f32),
     };
 
-    inline for (&.{ "add", "sub", "mul", "div", })
-        |op|
+    const signs = [_]f32{ -1, 1 };
+
+    for (values)
+        |lhs_v|
     {
-        for (tests)
-            |t|
+        for (signs)
+            |s_lhs|
         {
-            const lhs = Ordinate.init(t.lhs);
-            const rhs = Ordinate.init(t.rhs);
+            for (values)
+                |rhs_v|
+            {
+                for (signs) 
+                    |s_rhs|
+                {
+                    inline for (&.{ "add", "sub", "mul", "div", })
+                        |op|
+                    {
+                        const lhs_sv = s_lhs * lhs_v;
+                        const rhs_sv = s_rhs * rhs_v;
 
-            const expected = Ordinate.init(
-                (@field(basic_math, op)(t.lhs, t.rhs))
-            );
+                        const lhs_o = Ordinate.init(lhs_sv);
+                        const rhs_o = Ordinate.init(rhs_sv);
 
-            const measured = @field(Ordinate, op)(lhs, rhs);
+                        const expected = Ordinate.init(
+                           @field(basic_math, op)(
+                               lhs_sv,
+                               rhs_sv
+                            ) 
+                        );
 
-            errdefer std.debug.print(
-                "Error with test: " ++ @typeName(Ordinate) ++ "." ++ op ++ 
-                ": iteration: {any}\nexpected: {d}\nmeasured: {s}\n",
-                .{ t, expected, measured },
-            );
+                        const measured = (
+                            @field(Ordinate, op)(lhs_o, rhs_o)
+                        );
 
-            try expectOrdinateEqual(expected, measured);
+                        errdefer std.debug.print(
+                            "Error with test: " ++ @typeName(Ordinate) 
+                            ++ "." ++ op ++ ": \nlhs: {d} * {d} rhs: {d} * {d}\n"
+                            ++ "lhs_sv: {d} rhs_sv: {d}\n"
+                            ++ "{s} " ++ op ++ " {s}\n"
+                            ++ "expected: {d}\nmeasured: {s}\n",
+                            .{
+                                s_lhs, lhs_v,
+                                s_rhs, rhs_v,
+                                lhs_sv, rhs_sv,
+                                lhs_o, rhs_o,
+                                expected, measured,
+                            },
+                        );
+
+                        if ((std.math.isNan(lhs_sv) and lhs_o.is_nan()) == false)
+                        {
+                            try std.testing.expectEqual(
+                                lhs_sv,
+                                lhs_o.as(f32)
+                            );
+                        }
+
+                        if ((std.math.isNan(rhs_sv) and rhs_o.is_nan()) == false)
+                        {
+                            try std.testing.expectEqual(
+                                rhs_sv,
+                                rhs_o.as(f32)
+                            );
+                        }
+
+                        try expectOrdinateEqual(
+                            expected,
+                            measured
+                        );
+                    }
+                }
+            }
         }
     }
 }
 
 // unary macros
+inline fn _is_inf(
+    thing: anytype,
+) bool
+{
+    return switch (@typeInfo(@TypeOf(thing))) {
+        .Float => std.math.isInf(thing),
+        else => false,
+   };
+}
+
+inline fn _is_nan(
+    thing: anytype,
+) bool
+{
+    return switch (@typeInfo(@TypeOf(thing))) {
+        .Float => std.math.isNan(thing),
+        else => false,
+   };
+}
+
 pub inline fn abs(
     lhs: anytype,
 ) @TypeOf(lhs)
@@ -1633,7 +1811,8 @@ test "Base Ordinate: as"
             }
 
             errdefer std.log.err(
-                "Error with type: " ++ @typeName(target_type) ++ " t: {d} ord: {s} ({d})",
+                "Error with type: " ++ @typeName(target_type) 
+                ++ " t: {d} ord: {s} ({d})",
                 .{ t, ord, ord.as(target_type) },
             );
 
@@ -1667,6 +1846,53 @@ pub const sort = struct {
     }
 };
 
+test "PhaseOrdinate: as float roundtrip test"
+{
+    const values = [_]Ordinate.BaseType {
+        0,
+        -0.0,
+        1,
+        -1,
+        std.math.inf(f32),
+        -std.math.inf(f32),
+        std.math.nan(f32),
+    };
+
+    for (values)
+        |v|
+    {
+        const ord = Ordinate.init(v);
+
+        errdefer std.debug.print(
+            "error with test: \n{d}: {s} sign: {d} {d} signbit: {any} {any}\n",
+            .{
+                v, ord,
+                std.math.sign(v), std.math.sign(ord.as(Ordinate.BaseType)),
+                std.math.signbit(v), std.math.signbit(ord.as(Ordinate.BaseType)),
+            }
+        );
+
+        if (std.math.isNan(v)) {
+            try std.testing.expect(ord.is_nan());
+        } else {
+            try std.testing.expectEqual(
+                std.math.sign(v),
+                std.math.sign(ord.as(Ordinate.BaseType)),
+            );
+
+            try std.testing.expectEqual(
+                std.math.signbit(v),
+                std.math.signbit(ord.as(Ordinate.BaseType)),
+            );
+
+            try std.testing.expectEqual(
+                v,
+                ord.as(Ordinate.BaseType)
+            );
+        }
+    }
+}
+
 test "Base Ordinate: sort"
 {
     const allocator = std.testing.allocator;
@@ -1680,7 +1906,10 @@ test "Base Ordinate: sort"
         Ordinate.init(100),
     };
 
-    var test_arr = std.ArrayList(Ordinate).init(allocator);
+    var test_arr = (
+        std.ArrayList(Ordinate).init(allocator)
+    );
+
     try test_arr.appendSlice(&known);
     defer test_arr.deinit();
 
