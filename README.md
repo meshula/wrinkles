@@ -305,3 +305,36 @@ const Ordinate = union(enum) {
 * state of a gyroscope during capture
 * mocap data
     * floats over time
+
+## Why Is This So Complicated
+
+* Editorial Time is Complicated
+    * Sometimes Continuous, sometimes discrete
+    * Even when its discrete its Complicated
+        * different rates/metrics (at the very least, audio vs video)
+        * audio rates can be huge, meaning even with not that much wall clock
+          time numbers get enormous (ie 192khz - 1 minute of audio is already
+          at index 11,520,000, 3.1 hours = max in32)
+        * NTSC rates (with a 1001 denominator) mean that mixing rates can be
+          difficult to represent with integer rationals
+    * Even when its continuous its Complicated
+        * Because typically pictures are not resampled, precision is important
+        * Audio rates mean that increments can be tiny but still go for large
+          ranges
+        * when dealing with the media a frame index integer is generally what
+          is desired
+    * Deformations can be non-linear
+        * Bezier curve-based transformations for speed ramps
+        * F,M,L type presentations in dailies
+        * pulldowns/pullups for going between NTSC and non-NTSC rates
+    * Animated parameters are often driven off of time, meaning that time warps
+      need to also warp 
+* What does OTIO do
+    * Uses "RationalTime" - a double value over a double rate.
+        * some smarts but used in a handwavvy "both continuous and discrete"
+          sort of way
+    * Doesn't deal with non-linear transformations
+    * Cannot project ranges or points under warp
+* What do we propose
+    * Join discrete and continuous math via sampling theory
+

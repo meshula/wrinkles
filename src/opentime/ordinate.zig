@@ -5,6 +5,17 @@ const comath = @import("comath");
 
 const util = @import("util.zig");
 
+///////////////////////////////////////////////////////////////////////////////
+// Nick Goals:
+//
+// 1 Write a test that demonstrates or refutes the need for Phase Oridnate vs 
+//   f64 f128
+//   1.5 show the characteristics of the options
+// 2 Make sure that Phase Ordinate is achieving the goals (IE is the accuracy
+//   that it does right now enough, and it be better, etc)
+//
+///////////////////////////////////////////////////////////////////////////////
+
 // 1 make sure we need this
 //      because sampling rates, especially for audio, are high (ie 192khz),
 //      even with reasonably long timelines can get into the error zone for
@@ -16,19 +27,10 @@ const util = @import("util.zig");
 //
 // 2 how does the math behave?
 
-// @TODO: remove the pub from the struct and force construction through
-//        functions
-// @TODO: model the fractional component as a fractional component instead of
-//        f32
-//        ^ integer math
-//
-// pub const Fractional = struct { 
-//     v: u32,
-// };
-
 // @TODO: can support ~4hrs at 192khz, if more space is needed, use 64 bits
 const count_t = i32;
-pub const phase_t = f32;
+// pub const phase_t = f32;
+pub const phase_t = f64;
 /// the math type for the Ordinate.  Will cast to this for division/pow/etc.
 const div_t = f64;
 
@@ -133,23 +135,6 @@ pub const PhaseOrdinate = struct {
         ).normalized();
     }
 
-    inline fn special_float(
-        self:@This(),
-    ) ?OrdinateType
-    {
-        if (std.math.isInf(self.phase)) {
-            if (self.count < 0) {
-                return OrdinateType.INF_NEG;
-            } else {
-                return OrdinateType.INF;
-            }
-        } else if (std.math.isNan(self.phase)) {
-            return OrdinateType.NAN;
-        }
-
-        return null;
-    }
-
     pub inline fn as(
         self: @This(),
         comptime T: type,
@@ -219,7 +204,7 @@ pub const PhaseOrdinate = struct {
     ) @This()
     {
         if (self.is_inf()) {
-            if (self.count < 0) {
+            if (self.phase < 0) {
                 return OrdinateType.INF_NEG;
             }
             else {
@@ -379,21 +364,41 @@ pub const PhaseOrdinate = struct {
     {
         return switch(@typeInfo(@TypeOf(rhs))) {
             .Struct => switch(@TypeOf(rhs)) {
-                PhaseOrdinate => ret: {
-                    const self_count_f : phase_t = @floatFromInt(self.count);
-                    const rhs_count_f : phase_t = @floatFromInt(rhs.count);
-                    // middle terms
-                    const middle = (
-                        self_count_f * rhs.phase + rhs_count_f * self.phase
-                    );
+                PhaseOrdinate => (
+                    if (
+                        self.is_nan() 
+                        or rhs.is_nan()
+                        or (self.is_inf() and rhs.eql(ZERO))
+                        or (self.eql(ZERO) and rhs.is_inf())
+                    )
+                        NAN
+                    else if (self.is_inf() or rhs.is_inf()) (
+                        PhaseOrdinate{
+                            .count = 0,
+                            .phase = (
+                                (
+                                 (@as(BaseType, @floatFromInt(self.count)) + self.phase) 
+                                 * (@as(BaseType, @floatFromInt(rhs.count)) + rhs.phase)
+                                )
+                            ),
+                        }
+                    ).normalized()
+                    else ret: {
+                        const self_count_f : phase_t = @floatFromInt(self.count);
+                        const rhs_count_f : phase_t = @floatFromInt(rhs.count);
+                        // middle terms
+                        const middle = (
+                            self_count_f * rhs.phase + rhs_count_f * self.phase
+                        );
 
-                    break :ret (
-                       PhaseOrdinate{
-                           .count = (self.count * rhs.count),
-                           .phase = (middle + self.phase*rhs.phase),
-                       }
-                   ).normalized();
-                },
+                        break :ret (
+                                   PhaseOrdinate{
+                                       .count = (self.count * rhs.count),
+                                       .phase = (middle + self.phase*rhs.phase),
+                                   }
+                               ).normalized();
+                    }
+                ),
                 else => type_error(rhs),
             },
             .ComptimeFloat, .Float => self.mul(PhaseOrdinate.init(rhs)),
@@ -571,18 +576,26 @@ pub const PhaseOrdinate = struct {
         rhs: anytype,
     ) bool
     {
+        return self.eql_approx_ep(rhs, util.EPSILON_F);
+    }
+
+    /// returns self ~= rhs with tolerances eps
+    pub fn eql_approx_ep(
+        self: @This(),
+        rhs: anytype,
+        eps_in: div_t,
+    ) bool
+    {
+        const eps = PhaseOrdinate.init(eps_in);
+
         return switch (@TypeOf(rhs)) {
-            OrdinateType => std.math.approxEqAbs(
-                BaseType,
-                self.phase,
-                rhs.phase,
-                util.EPSILON_F
-            ),
+            OrdinateType => self.lt(rhs.add(eps)) and self.gt(rhs.sub(eps)),
             else => switch (@typeInfo(@TypeOf(rhs))) {
                 // @TODO: is it better to do this comparison in float?  Or 
                 //        making both phase ordinates?
-                .Float, .ComptimeFloat, .Int, .ComptimeInt => self.eql_approx(
-                    OrdinateType.init(rhs)
+                .Float, .ComptimeFloat, .Int, .ComptimeInt => self.eql_approx_ep(
+                    OrdinateType.init(rhs),
+                    eps_in,
                 ),
                 else => type_error(rhs),
             },
@@ -1432,7 +1445,8 @@ pub fn expectOrdinateEqual(
             .Float, .ComptimeFloat => try std.testing.expectApproxEqAbs(
                 @field(expected, f.name),
                 @field(measured, f.name),
-                util.EPSILON_F,
+                // util.EPSILON_F,
+                1e-3,
             ),
             inline else => @compileError(
                 "Do not know how to handle fields of type: " ++ f.type
@@ -1443,26 +1457,28 @@ pub fn expectOrdinateEqual(
 
 const basic_math = struct {
     // unary
-    pub fn neg(in: anytype) @TypeOf(in) { return 0-in; }
-    pub fn sqrt(in: anytype) @TypeOf(in) { return std.math.sqrt(in); }
-    pub fn abs(in: anytype) @TypeOf(in) { return @abs(in); }
+    pub inline fn neg(in: anytype) @TypeOf(in) { return 0-in; }
+    pub inline fn sqrt(in: anytype) @TypeOf(in) { return std.math.sqrt(in); }
+    pub inline fn abs(in: anytype) @TypeOf(in) { return @abs(in); }
+    pub inline fn normalized(in: anytype) @TypeOf(in) { return in; }
 
     // binary
-    pub fn add(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs + rhs; }
-    pub fn sub(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs - rhs; }
-    pub fn mul(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs * rhs; }
-    pub fn div(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs / rhs; }
+    pub inline fn add(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs + rhs; }
+    pub inline fn sub(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs - rhs; }
+    pub inline fn mul(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs * rhs; }
+    pub inline fn div(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return lhs / rhs; }
 
     // binary macros
-    pub fn min(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return @min(lhs, rhs); }
-    pub fn max(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return @max(lhs, rhs); }
+    pub inline fn min(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return @min(lhs, rhs); }
+    pub inline fn max(lhs: anytype, rhs: anytype) @TypeOf(lhs) { return @max(lhs, rhs); }
 
-    // binary tests
-    pub fn eql(lhs: anytype, rhs: anytype) bool { return lhs == rhs; }
-    pub fn gt(lhs: anytype, rhs: anytype) bool { return lhs > rhs; }
-    pub fn gteq(lhs: anytype, rhs: anytype) bool { return lhs >= rhs; }
-    pub fn lt(lhs: anytype, rhs: anytype) bool { return lhs < rhs; }
-    pub fn lteq(lhs: anytype, rhs: anytype) bool { return lhs <= rhs; }
+    // binline fnary tests
+    pub inline fn eql(lhs: anytype, rhs: anytype) bool { return lhs == rhs; }
+    pub inline fn eql_approx(lhs: anytype, rhs: anytype) bool { return std.math.approxEqAbs(Ordinate.BaseType, lhs, rhs, util.EPSILON_F); }
+    pub inline fn gt(lhs: anytype, rhs: anytype) bool { return lhs > rhs; }
+    pub inline fn gteq(lhs: anytype, rhs: anytype) bool { return lhs >= rhs; }
+    pub inline fn lt(lhs: anytype, rhs: anytype) bool { return lhs < rhs; }
+    pub inline fn lteq(lhs: anytype, rhs: anytype) bool { return lhs <= rhs; }
 };
 
 test "Base Ordinate: Unary Operator Tests"
@@ -1484,14 +1500,12 @@ test "Base Ordinate: Unary Operator Tests"
         .{ .in =  std.math.nan(f32) },
     };
 
-    inline for (&.{ "neg", "sqrt", "abs", })
+    inline for (&.{ "neg", "sqrt", "abs", "normalized", })
         |op|
     {
         for (tests)
             |t|
         {
-            // std.debug.print("{s}: {d}\n", .{ op, t.in });
-            //
             const expected_in = (@field(basic_math, op)(t.in));
             const expected = Ordinate.init(expected_in);
 
@@ -1530,26 +1544,23 @@ test "Base Ordinate: Binary Operator Tests"
 
     const signs = [_]f32{ -1, 1 };
 
-    for (values)
-        |lhs_v|
+    inline for (&.{ "add", "sub", "mul", "div", })
+        |op|
     {
-        for (signs)
-            |s_lhs|
+        for (values)
+            |lhs_v|
         {
-            for (values)
-                |rhs_v|
+            for (signs)
+                |s_lhs|
             {
-                for (signs) 
-                    |s_rhs|
+                for (values)
+                    |rhs_v|
                 {
-                    inline for (&.{ "add", "sub", "mul", "div", })
-                        |op|
+                    for (signs) 
+                        |s_rhs|
                     {
                         const lhs_sv = s_lhs * lhs_v;
                         const rhs_sv = s_rhs * rhs_v;
-
-                        const lhs_o = Ordinate.init(lhs_sv);
-                        const rhs_o = Ordinate.init(rhs_sv);
 
                         const expected = Ordinate.init(
                            @field(basic_math, op)(
@@ -1557,6 +1568,9 @@ test "Base Ordinate: Binary Operator Tests"
                                rhs_sv
                             ) 
                         );
+
+                        const lhs_o = Ordinate.init(lhs_sv);
+                        const rhs_o = Ordinate.init(rhs_sv);
 
                         const measured = (
                             @field(Ordinate, op)(lhs_o, rhs_o)
@@ -1669,6 +1683,17 @@ pub inline fn eql(
     };
 }
 
+pub inline fn eql_approx(
+    lhs: anytype,
+    rhs: @TypeOf(lhs),
+) bool
+{
+    return switch (@typeInfo(@TypeOf(lhs))) {
+        .Struct => lhs.eql_approx(rhs),
+        else => std.math.approxEqAbs(@TypeOf(lhs), lhs, rhs, util.EPSILON_F),
+    };
+}
+
 pub inline fn lt(
     lhs: anytype,
     rhs: @TypeOf(lhs),
@@ -1728,7 +1753,7 @@ test "Base Ordinate: Binary Function Tests"
         .{ .lhs =  0, .rhs =  5.345 },
     };
 
-    inline for (&.{ "min", "max", "eql", "lt", "lteq", "gt", "gteq", })
+    inline for (&.{ "min", "max", "eql", "lt", "lteq", "gt", "gteq", "eql_approx" })
         |op|
     {
         for (tests)
@@ -1932,3 +1957,223 @@ test "Base Ordinate: sort"
     );
 }
 
+///////////////////////////////////////////////////////////////////////////////
+
+fn time_string(
+    buf: []u8,
+    val: div_t
+) ![]u8
+{
+    return (
+        if (val < 60)
+            try std.fmt.bufPrint(buf, "{d:0.3}s", .{ val })
+        else if (val < 60 * 60)
+            try std.fmt.bufPrint(buf, "{d:0.3}m", .{ val / 60 })
+        else if (val < 60 * 60 * 24)
+            try std.fmt.bufPrint(buf, "{d:0.3}h", .{ val / (60 * 60) })
+        else 
+            try std.fmt.bufPrint(buf, "{d:0.3}d", .{ val / (60 * 60 * 24) })
+    );
+}
+
+test "PhaseOrdinate: sum/product test"
+{
+    var buf: [1024]u8 = undefined;
+
+    for (
+        [_]f64{
+            24,
+            24.0 * 1000.0/1001.0,
+            30.0 * 1000.0/1001.0,
+            44100,
+            192000,
+        },
+    ) |rate|
+    {
+        const increment = PhaseOrdinate.init(1/rate);
+
+        var current = PhaseOrdinate.init(0.0);
+
+        // const EPS = (1/rate) / 2;
+
+        var iters : f64 = 0;
+
+        var mul = current;
+
+        const END_ORD = PhaseOrdinate.init(60 * 60 * 1);
+
+        for (
+            [_]div_t{
+                0.5e-4,
+                (1/rate)/2,
+            }
+        ) |tolerance|
+        {
+            while (
+                current.eql_approx_ep(
+                    mul,
+                    tolerance,
+                )
+                and current.lt(END_ORD)
+            )
+            {
+                current = current.add(increment);
+                iters += 1;
+
+                mul = increment.mul(iters);
+            }
+
+            if (current.lt(END_ORD)) {
+                std.debug.print(
+                    "Rate; {d} Failed after {d} iterations ({s}). "
+                    ++ "tolerance: {d} current: {d} mul: {d} inc: {d}\n",
+                    .{
+                        rate,
+                        iters, 
+                        try time_string(&buf, current.as(div_t)),
+                        tolerance,
+                        current,
+                        mul,
+                        increment,
+                    },
+                );
+            }
+        }
+    }
+}
+
+test "Ordinate: float accuracy"
+{
+    std.debug.print(
+        "\n\nFloat Type Exploration\nReports how many iterations before "
+        ++ "the sum is not equal to the product\n",
+        .{}
+    );
+
+    // if (true) {
+    //     return error.SkipZigTest;
+    // }
+
+    // inline for (
+    //     &.{
+    //         f32, 
+    //         f64,
+    //         f128,
+    //     }
+    // )
+    //     |T|
+    {
+        // const T = PhaseOrdinate.BaseType;
+        const T = div_t;
+
+        std.debug.print(
+            "\nType: {s}\n",
+            .{
+                @typeName(PhaseOrdinate),
+            },
+        );
+
+        var buf : [1024]u8 = undefined;
+
+        for (
+            &[_]T{ 
+                24.0,
+                24.0 * 1001.0 / 1000.0,
+                192000.0,
+            }
+        )
+            |rate|
+        {
+            // ms accuracy
+            const MIN_TOLERANCE : T = 1.0 / (rate*2);
+
+            // const MIN_TOLERANCE : T = 4.9e-5;
+
+            const start = PhaseOrdinate.ZERO;
+            const increment = PhaseOrdinate.init(1.0 / rate);
+
+            var current = PhaseOrdinate.init(start);
+            var iter = PhaseOrdinate.ZERO;
+            var tolerance: T = MIN_TOLERANCE;
+
+            std.debug.print(
+                "  Rate: {d} tolerance: {d} increment: {d}\n",
+                .{ rate, tolerance, increment.as(div_t) }
+            );
+
+            while (iter.count < 100000) 
+                : ({iter = iter.add(1.0) ; current = current.add(increment);})
+            {
+                if (
+                    current.eql_approx_ep(
+                        start.add(iter.mul(increment)),
+                        tolerance
+                    ) == false
+                    // std.math.approxEqAbs(
+                    //     T,
+                    //     start + @as(T, @floatFromInt(iter)) * increment,
+                    //     current,
+                    //     tolerance
+                    // ) == false
+                ) 
+                {
+                    const c_f = current.as(f64);
+                    const time_str = try time_string(&buf, c_f);
+
+                    std.debug.print(
+                        "     Sum: {d} Product: {s}\n",
+                        .{current, start.add(iter.mul(increment))}
+                    );
+
+                    std.debug.print(
+                        "     {d} iterations to hit tolerance: {d} ({s} @ {d}fps)\n",
+                        .{ iter.count, tolerance, time_str, rate }
+                    );
+                    tolerance *= 10;
+                    break;
+                }
+
+                if (current.count >= 60 * 60 * 24 * 2) {
+                    std.debug.print("      ...more than 2 days of time.\n", .{});
+                    break;
+                }
+            }
+
+            std.debug.print(
+                "     tested: {s}\n",
+                .{ try time_string(&buf, current.as(div_t))},
+            );
+        }
+    }
+}
+
+test "PhaseOrdinate: approx_eql"
+{
+    const TestCase = struct {
+        v1: f64,
+        v2: f64,
+        expected: bool,
+    };
+
+    for ( 
+        [_]TestCase{
+            .{ .v1 = 0.5, .v2 = 0.5000001, .expected = true},
+            .{ .v1 = 0.2, .v2 = 0.5000001, .expected = false},
+            .{ .v1 = 1.9999999, .v2 = 2.0, .expected = true},
+            .{ .v1 = 2.0000001, .v2 = 2.0, .expected = true},
+        }
+    ) |t|
+    {
+        errdefer std.log.err(
+            "v1: {d}, v2: {d}, expected: {any}\n",
+            .{ t.v1, t.v2, t.expected }
+        );
+
+        const ord = Ordinate.init(t.v1);
+
+        try std.testing.expectEqual(
+            t.expected,
+            ord.eql_approx(t.v2),
+        );
+    }
+}
