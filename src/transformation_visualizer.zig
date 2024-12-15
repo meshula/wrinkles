@@ -30,8 +30,8 @@ pub fn plot_mapping(
 {
     const input_bounds_ord = map.input_bounds();
     var input_bounds : [2]f64 = .{
-        @floatCast(input_bounds_ord.start),
-        @floatCast(input_bounds_ord.end),
+        input_bounds_ord.start.as(f64),
+        input_bounds_ord.end.as(f64),
     };
 
     const plot_limits = zgui.plot.getPlotLimits(
@@ -39,10 +39,10 @@ pub fn plot_mapping(
         .y1
     );
 
-    if (input_bounds_ord.start == std.math.inf(opentime.Ordinate)) {
+    if (input_bounds_ord.start.is_inf()) {
         input_bounds[0] = plot_limits.x[0];
     }
-    if (input_bounds_ord.end == std.math.inf(opentime.Ordinate)) {
+    if (input_bounds_ord.end.is_inf()) {
         input_bounds[1] = plot_limits.x[1];
     }
 
@@ -60,10 +60,18 @@ pub fn plot_mapping(
             try inputs.append(input_bounds[1]);
 
             try outputs.append(
-                try map_aff.project_instantaneous_cc(@floatCast(input_bounds[0])).ordinate()
+                (
+                 try map_aff.project_instantaneous_cc(
+                     opentime.Ordinate.init(input_bounds[0])
+                 ).ordinate()
+                ).as(f64)
             );
             try outputs.append(
-                try map_aff.project_instantaneous_cc(@floatCast(input_bounds[1])).ordinate()
+                (
+                 try map_aff.project_instantaneous_cc(
+                     opentime.Ordinate.init(input_bounds[1])
+                 ).ordinate()
+                ).as(f64)
             );
 
             len = 2;
@@ -72,8 +80,8 @@ pub fn plot_mapping(
             for (map_lin.input_to_output_curve.knots)
                 |k|
             {
-                try inputs.append(k.in);
-                try outputs.append(k.out);
+                try inputs.append(k.in.as(f64));
+                try outputs.append(k.out.as(f64));
             }
 
             len = map_lin.input_to_output_curve.knots.len;
@@ -188,8 +196,8 @@ const SpaceUI = struct {
                 zgui.plot.setupAxisLimits(
                     .x1, 
                     .{
-                        .min = input_limits.start,
-                        .max = input_limits.end,
+                        .min = input_limits.start.as(f64),
+                        .max = input_limits.end.as(f64),
                     },
                 );
 
@@ -197,8 +205,8 @@ const SpaceUI = struct {
                 zgui.plot.setupAxisLimits(
                     .y1, 
                     .{
-                        .min = output_limits.start,
-                        .max = output_limits.end,
+                        .min = output_limits.start.as(f64),
+                        .max = output_limits.end.as(f64),
                     },
                 );
 
@@ -247,13 +255,15 @@ const PRESETS = struct{
                 .output = "media",
                 .mapping = (
                     topology.mapping.MappingAffine{
-                        .input_bounds_val = .{
-                            .start = -10,
-                            .end = 10,
-                        },
+                        .input_bounds_val = opentime.ContinuousInterval.init(
+                            .{ 
+                                .start = -10,
+                                .end = 10, 
+                            },
+                        ),
                         .input_to_output_xform = .{
-                            .offset = 10,
-                            .scale = 2,
+                                .offset = opentime.Ordinate.init(10),
+                                .scale = opentime.Ordinate.init(2), 
                         },
                     }
                 ).mapping(),
@@ -269,13 +279,15 @@ const PRESETS = struct{
                 .output = "media",
                 .mapping = (
                     topology.mapping.MappingAffine{
-                        .input_bounds_val = .{
-                            .start = -10,
-                            .end = 10,
-                        },
+                        .input_bounds_val = opentime.ContinuousInterval.init(
+                            .{ 
+                                .start = -10,
+                                .end = 10, 
+                            }
+                        ),
                         .input_to_output_xform = .{
-                            .offset = 10,
-                            .scale = 2,
+                            .offset = opentime.Ordinate.init(10),
+                            .scale = opentime.Ordinate.init(2),
                         },
                     }
                 ).mapping(),
@@ -289,9 +301,18 @@ const PRESETS = struct{
                         .input_to_output_curve = .{
                                 .knots = @constCast(
                                     &[_]curve.ControlPoint{
-                                        .{ .in = -10, .out = -10 },
-                                        .{ .in = 0, .out = 0 },
-                                        .{ .in = 5, .out = 10 },
+                                        .{
+                                            .in = opentime.Ordinate.init(-10),
+                                            .out = opentime.Ordinate.init(-10),
+                                        },
+                                        .{ 
+                                            .in = opentime.Ordinate.init(0),
+                                            .out = opentime.Ordinate.init(0),
+                                        },
+                                        .{ 
+                                            .in = opentime.Ordinate.init(5),
+                                            .out = opentime.Ordinate.init(10),
+                                        },
                                     },
                                 )
                             },

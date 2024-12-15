@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const opentime = @import("opentime");
 const otio = @import("opentimelineio");
 const topology = @import("topology");
 
@@ -372,7 +373,9 @@ pub export fn otio_po_map_fetch_endpoints(
         in_po_map_c.ref.?
     );
 
-    return po_map.end_points.ptr;
+    // because Ordinate is a boxed float, the ptr can be cast to a ptr to an
+    // array of f32
+    return @ptrCast(po_map.end_points.ptr);
 }
 
 pub export fn otio_po_map_fetch_num_operators_for_segment(
@@ -532,8 +535,8 @@ pub export fn otio_topo_fetch_input_bounds(
 
     const b = topo.input_bounds();
 
-    result.*.start = b.start;
-    result.*.end = b.end;
+    result.*.start = b.start.as(@TypeOf(result.start));
+    result.*.end = b.end.as(@TypeOf(result.end));
 
     return 0;
 }
@@ -558,8 +561,8 @@ pub export fn otio_topo_fetch_output_bounds(
 
     const b = topo.output_bounds();
 
-    result.*.start = b.start;
-    result.*.end = b.end;
+    result.*.start = b.start.as(@TypeOf(result.start));
+    result.*.end = b.end.as(@TypeOf(result.end));
 
     return 0;
 }
@@ -632,7 +635,7 @@ fn otio_fetch_continuous_ordinate_to_discrete_index_erroring(
     const ref = try init_ComposedValueRef(ref_c);
     const space = try init_SpaceLabel(space_c);
     return try ref.continuous_ordinate_to_discrete_index(
-        val,
+        opentime.Ordinate.init(val),
         space
     );
 }

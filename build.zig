@@ -783,6 +783,10 @@ pub fn build(
     {
         opentimelineio_c.addIncludePath(b.path("src/c_binding/"));
         opentimelineio_c.root_module.addImport(
+            "opentime",
+            opentime,
+        );
+        opentimelineio_c.root_module.addImport(
             "opentimelineio",
             opentimelineio
         );
