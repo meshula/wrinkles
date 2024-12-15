@@ -237,6 +237,8 @@ fn OrdinateOf(
         }
 
         // binary tests
+
+        /// strict equality
         pub inline fn eql(
             self: @This(),
             rhs: anytype,
@@ -251,6 +253,7 @@ fn OrdinateOf(
             };
         }
 
+        /// approximate equality with the EPSILON as the width
         pub inline fn eql_approx(
             self: @This(),
             rhs: anytype,
@@ -270,6 +273,7 @@ fn OrdinateOf(
             };
         }
 
+        /// less than rhs
         pub inline fn lt(
             self: @This(),
             rhs: anytype,
@@ -284,6 +288,7 @@ fn OrdinateOf(
             };
         }
 
+        /// less than or equal rhs
         pub inline fn lteq(
             self: @This(),
             rhs: anytype,
@@ -298,6 +303,7 @@ fn OrdinateOf(
             };
         }
 
+        /// greater than rhs
         pub inline fn gt(
             self: @This(),
             rhs: anytype,
@@ -312,6 +318,7 @@ fn OrdinateOf(
             };
         }
 
+        /// greater than or equal to rhs
         pub inline fn gteq(
             self: @This(),
             rhs: anytype,
@@ -326,6 +333,7 @@ fn OrdinateOf(
             };
         }
 
+        /// if the ordinate is infinite
         pub inline fn is_inf(
             self: @This(),
         ) bool
@@ -333,6 +341,7 @@ fn OrdinateOf(
             return std.math.isInf(self.v);
         }
 
+        /// if the ordinate is finite
         pub inline fn is_finite(
             self: @This(),
         ) bool
@@ -340,6 +349,7 @@ fn OrdinateOf(
             return std.math.isFinite(self.v);
         }
 
+        /// if the ordinate is a NaN
         pub inline fn is_nan(
             self: @This(),
         ) bool
@@ -406,6 +416,7 @@ pub fn expectOrdinateEqual(
     }
 }
 
+/// wrapper structure for tests
 const basic_math = struct {
     // unary
     pub inline fn neg(in: anytype) @TypeOf(in) { return 0-in; }
