@@ -22,6 +22,7 @@ fn OrdinateOf(
         pub const NAN : OrdinateType = OrdinateType.init(std.math.nan(t));
         pub const EPSILON = OrdinateType.init(util.EPSILON_F);
 
+        /// build an ordinate out of the incoming value, casting as necessary
         pub inline fn init(
             value: anytype,
         ) OrdinateType
@@ -79,6 +80,8 @@ fn OrdinateOf(
          }
 
         // unary operators
+
+        /// negate the ordinate (ie *= -1)
         pub inline fn neg(
             self: @This(),
         ) OrdinateType
@@ -88,6 +91,7 @@ fn OrdinateOf(
             };
         }
 
+        /// return the square root of the ordinate
         pub inline fn sqrt(
             self: @This(),
         ) OrdinateType
@@ -97,6 +101,7 @@ fn OrdinateOf(
             };
         }
 
+        /// return the absolute value of the ordinate
         pub inline fn abs(
             self: @This(),
         ) OrdinateType
@@ -107,6 +112,8 @@ fn OrdinateOf(
         }
 
         // binary operators
+
+        /// add to rhs, constructing an Ordinate as necessary
         pub inline fn add(
             self: @This(),
             rhs: anytype,
@@ -126,6 +133,7 @@ fn OrdinateOf(
             };
         }
 
+        /// subtract rhs from self
         pub inline fn sub(
             self: @This(),
             rhs: anytype,
@@ -145,6 +153,7 @@ fn OrdinateOf(
             };
         }
 
+        /// multiply rhs with self
         pub inline fn mul(
             self: @This(),
             rhs: anytype,
@@ -164,14 +173,7 @@ fn OrdinateOf(
             };
         }
 
-        pub inline fn pow(
-            self: @This(),
-            exp: BaseType,
-        ) OrdinateType
-        {
-            return .{ .v = std.math.pow(BaseType, self.v, exp) };
-        }
-
+        /// divide self by rhs
         pub inline fn div(
             self: @This(),
             rhs: anytype,
@@ -192,6 +194,16 @@ fn OrdinateOf(
         }
 
         // binary macros
+
+        /// wrapper around std.math.pow for Ordinate
+        pub inline fn pow(
+            self: @This(),
+            exp: BaseType,
+        ) OrdinateType
+        {
+            return .{ .v = std.math.pow(BaseType, self.v, exp) };
+        }
+
         pub inline fn min(
             self: @This(),
             rhs: anytype,
