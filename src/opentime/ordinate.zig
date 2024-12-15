@@ -115,8 +115,11 @@ fn OrdinateOf(
             return switch (@TypeOf(rhs)) {
                 OrdinateType => .{ .v = self.v + rhs.v },
                 else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .Float, .ComptimeFloat, .Int, .ComptimeInt => .{ 
-                        .v = self.v + rhs 
+                    .Float, .ComptimeFloat, => .{
+                        .v = self.v + @as(BaseType, @floatCast(rhs)),
+                    },
+                    .Int, .ComptimeInt => .{ 
+                        .v = self.v + @as(BaseType, @floatFromInt(rhs)),
                     },
                     else => type_error(rhs),
                 },
@@ -131,8 +134,11 @@ fn OrdinateOf(
             return switch (@TypeOf(rhs)) {
                 OrdinateType => .{ .v = self.v - rhs.v },
                 else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .Float, .ComptimeFloat, .Int, .ComptimeInt => .{ 
-                        .v = self.v - rhs 
+                    .Float, .ComptimeFloat, => .{
+                        .v = self.v - @as(BaseType, @floatCast(rhs)),
+                    },
+                    .Int, .ComptimeInt => .{ 
+                        .v = self.v - @as(BaseType, @floatFromInt(rhs)),
                     },
                     else => type_error(rhs),
                 },
@@ -147,8 +153,11 @@ fn OrdinateOf(
             return switch (@TypeOf(rhs)) {
                 OrdinateType => .{ .v = self.v * rhs.v },
                 else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .Float, .ComptimeFloat, .Int, .ComptimeInt => .{ 
-                        .v = self.v * rhs,
+                    .Float, .ComptimeFloat, => .{
+                        .v = self.v * @as(BaseType, @floatCast(rhs)),
+                    },
+                    .Int, .ComptimeInt => .{ 
+                        .v = self.v * @as(BaseType, @floatFromInt(rhs)),
                     },
                     else => type_error(rhs),
                 },
@@ -171,8 +180,11 @@ fn OrdinateOf(
             return switch (@TypeOf(rhs)) {
                 OrdinateType => .{ .v = self.v / rhs.v },
                 else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .Float, .ComptimeFloat, .Int, .ComptimeInt => .{ 
-                        .v = self.v / rhs 
+                    .Float, .ComptimeFloat, => .{
+                        .v = self.v / @as(BaseType, @floatCast(rhs)),
+                    },
+                    .Int, .ComptimeInt => .{ 
+                        .v = self.v / @as(BaseType, @floatFromInt(rhs)),
                     },
                     else => type_error(rhs),
                 },
@@ -326,8 +338,9 @@ fn OrdinateOf(
 }
 
 /// ordinate type
-pub const Ordinate = OrdinateOf(f32);
-// pub const Ordinate = OrdinateOf(f64);
+// pub const Ordinate = OrdinateOf(f32);
+pub const Ordinate = OrdinateOf(f64);
+
 
 /// compare two ordinates.  Create an ordinate from expected if it is not
 /// already one.  NaN == NaN is true.
@@ -410,7 +423,7 @@ const basic_math = struct {
 test "Base Ordinate: Unary Operator Tests"
 {
     const TestCase = struct {
-        in: f32,
+        in: Ordinate.BaseType,
     };
     const tests = &[_]TestCase{
         .{ .in =  1 },
@@ -421,9 +434,9 @@ test "Base Ordinate: Unary Operator Tests"
         .{ .in =  -5.345 },
         .{ .in =  0 },
         .{ .in =  -0.0 },
-        .{ .in =  std.math.inf(f32) },
-        .{ .in =  -std.math.inf(f32) },
-        .{ .in =  std.math.nan(f32) },
+        .{ .in =  std.math.inf(Ordinate.BaseType) },
+        .{ .in =  -std.math.inf(Ordinate.BaseType) },
+        .{ .in =  std.math.nan(Ordinate.BaseType) },
     };
 
     inline for (&.{ "neg", "sqrt", "abs",})
@@ -452,18 +465,20 @@ test "Base Ordinate: Unary Operator Tests"
 
 test "Base Ordinate: Binary Operator Tests"
 {
-    const values = [_]f32{
+    const values = [_]Ordinate.BaseType{
         0,
         1,
         1.2,
         5.345,
         3.14159,
+        std.math.pi,
+        // 0.45 not exactly representable in binary floating point numbers
         1001.45,
-        std.math.inf(f32),
-        std.math.nan(f32),
+        std.math.inf(Ordinate.BaseType),
+        std.math.nan(Ordinate.BaseType),
     };
 
-    const signs = [_]f32{ -1, 1 };
+    const signs = [_]Ordinate.BaseType{ -1, 1 };
 
     inline for (&.{ "add", "sub", "mul", "div", })
         |op|
@@ -516,7 +531,7 @@ test "Base Ordinate: Binary Operator Tests"
                         {
                             try std.testing.expectEqual(
                                 lhs_sv,
-                                lhs_o.as(f32)
+                                lhs_o.as(Ordinate.BaseType)
                             );
                         }
 
@@ -524,7 +539,7 @@ test "Base Ordinate: Binary Operator Tests"
                         {
                             try std.testing.expectEqual(
                                 rhs_sv,
-                                rhs_o.as(f32)
+                                rhs_o.as(Ordinate.BaseType)
                             );
                         }
 
@@ -807,9 +822,9 @@ test "Ordinate: as float roundtrip test"
         -0.0,
         1,
         -1,
-        std.math.inf(f32),
-        -std.math.inf(f32),
-        std.math.nan(f32),
+        std.math.inf(Ordinate.BaseType),
+        -std.math.inf(Ordinate.BaseType),
+        std.math.nan(Ordinate.BaseType),
     };
 
     for (values)
