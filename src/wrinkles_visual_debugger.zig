@@ -331,50 +331,47 @@ const State = struct {
 };
 var STATE = State{};
 
-/// top level draw fn
-fn draw(
-) !void 
-{
-    draw_err() catch |err| std.log.err(
-        "Error running gui. Error: {any}",
-        .{ err }
-    );
-}
+/// container union for debug apps
+const DebuggerApp = union (enum) {
+    bezier_curve_visualizer : BezierCurveVisualizer,
+    transformation_visualizer : TransformVisualizer,
 
-fn draw_err(
-) !void
-{
-    const vp = zgui.getMainViewport();
-    const size = vp.getSize();
+    pub inline fn name(self: @This()) [:0]const u8 {
+        return switch (self) { inline else => |thing| thing.name() }; 
+    }
+    pub inline fn draw(self: @This(), allocator: std.mem.Allocator) !void {
+        return switch (self) { inline else => |thing| thing.draw(allocator) }; 
+    }
+};
 
-    zgui.setNextWindowPos(.{ .x = 0, .y = 0 });
-    zgui.setNextWindowSize(
-        .{ 
-            .w = size[0],
-            .h = size[1],
-        }
-    );
+const APPS = [_]DebuggerApp{
+    .{ .bezier_curve_visualizer = .{} },
+    .{ .transformation_visualizer = .{} },
+};
 
-    const allocator = std.heap.c_allocator;
+const BezierCurveVisualizer = struct {
+    const name_data =  "Bezier Curve Visualizer";
 
-    if (
-        zgui.begin(
-            "###FULLSCREEN",
-            .{ 
-                .flags = .{
-                    .no_resize = true, 
-                    .no_scroll_with_mouse  = true, 
-                    .always_auto_resize = true, 
-                    .no_move = true,
-                    .no_collapse = true,
-                    .no_title_bar = true,
-                },
-            }
-        )
-    )
+    pub fn name(_: @This()) [:0]const u8 {
+        return name_data;
+    }
+    pub fn draw(self: @This(), _:std.mem.Allocator) !void {
+        _ = self;
+        return;
+    }
+};
+
+const TransformVisualizer = struct {
+    const name_data =  "Curve Transformation Visualizer";
+
+    pub fn name(_: @This()) [:0]const u8 {
+        return name_data;
+    }
+    pub fn draw(
+        _: @This(),
+        allocator: std.mem.Allocator,
+    ) !void 
     {
-        defer zgui.end();
-
         if (
             zgui.beginChild(
                 "Options", 
@@ -508,15 +505,15 @@ fn draw_err(
 
                 for (STATE.data.spaces[1..])
                     |s|
-                {
-                    total_map = try topology.mapping.join(
-                        allocator,
-                        .{
-                            .a2b = total_map,
-                            .b2c = s.mapping,
-                        },
-                    );
-                }
+                    {
+                        total_map = try topology.mapping.join(
+                            allocator,
+                            .{
+                                .a2b = total_map,
+                                .b2c = s.mapping,
+                            },
+                            );
+                    }
 
                 const line_label = try std.fmt.bufPrintZ(
                     buf,
@@ -532,6 +529,75 @@ fn draw_err(
                 );
             }
         }
+
+        return;
+    }
+};
+
+/// top level draw fn
+fn draw(
+) !void 
+{
+    draw_err() catch |err| std.log.err(
+        "Error running gui. Error: {any}",
+        .{ err }
+    );
+}
+
+fn draw_err(
+) !void
+{
+    const vp = zgui.getMainViewport();
+    const size = vp.getSize();
+
+    zgui.setNextWindowPos(.{ .x = 0, .y = 0 });
+    zgui.setNextWindowSize(
+        .{ 
+            .w = size[0],
+            .h = size[1],
+        }
+    );
+
+    const allocator = std.heap.c_allocator;
+
+    if (
+        zgui.begin(
+            "###FULLSCREEN",
+            .{ 
+                .flags = .{
+                    .no_resize = true, 
+                    .no_scroll_with_mouse  = true, 
+                    .always_auto_resize = true, 
+                    .no_move = true,
+                    .no_collapse = true,
+                    .no_title_bar = true,
+                },
+            }
+        )
+    )
+    {
+        defer zgui.end();
+
+        if (zgui.beginTabBar("Applications", .{}))
+        {
+            defer zgui.endTabBar();
+
+            // each "app" gets its own tab
+            for (APPS)
+                |app|
+            {
+                // _ = app;
+
+                if (zgui.beginTabItem(app.name(), .{}))
+                {
+                    defer zgui.endTabItem();
+
+                    try app.draw(allocator);
+                }
+            }
+        }
+
+
     }
 }
 
