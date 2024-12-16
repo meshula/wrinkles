@@ -914,4 +914,13 @@ pub fn build(
         options,
         common_deps,
     );
+
+    executable(
+        b,
+        "wrinkles_visual_debugger",
+        "src/wrinkles_visual_debugger.zig",
+        "/wrinkles_content/",
+        options,
+        common_deps,
+    );
 }
