@@ -21,6 +21,61 @@ const content_dir = exe_build_options.content_dir;
 
 const PLOT_STEPS = 1000;
 
+/// plot a bezier curve
+pub fn plot_curve_bezier_segment(
+    name: [:0]const u8,
+    crv : curve.Bezier.Segment,
+) !void
+{
+    const input_bounds_ord = crv.extents_input();
+    var input_bounds : [2]f64 = .{
+        input_bounds_ord.start.as(f64),
+        input_bounds_ord.end.as(f64),
+    };
+
+    const plot_limits = zgui.plot.getPlotLimits(
+        .x1,
+        .y1
+    );
+
+    if (input_bounds_ord.start.is_inf()) {
+        input_bounds[0] = plot_limits.x[0];
+    }
+    if (input_bounds_ord.end.is_inf()) {
+        input_bounds[1] = plot_limits.x[1];
+    }
+
+    var inputs : [PLOT_STEPS + 1]f64 = undefined;
+    var outputs : [PLOT_STEPS + 1]f64 = undefined;
+
+    // var inputs = std.ArrayList(f64).init(allocator);
+    // try inputs.ensureTotalCapacity(PLOT_STEPS);
+    // defer inputs.deinit();
+    // var outputs = std.ArrayList(f64).init(allocator);
+    // try outputs.ensureTotalCapacity(PLOT_STEPS);
+    // defer outputs.deinit();
+
+    var len : usize = 0;
+    const step = (input_bounds[1] - input_bounds[0]) / PLOT_STEPS;
+    var i = input_bounds[0];
+    while (i < input_bounds[1])
+        : ({i += step; len += 1;})
+    {
+        inputs[len] = i;
+        outputs[len] = crv.output_at_input(i).as(f64);
+    }
+
+    zplot.plotLine(
+        name,
+        f64, 
+        .{
+            .xv = &inputs,
+            .yv = &outputs, 
+        },
+    );
+}
+
+
 /// plot a given mapping with dear imgui
 pub fn plot_mapping(
     allocator: std.mem.Allocator,
@@ -355,8 +410,86 @@ const BezierCurveVisualizer = struct {
     pub fn name(_: @This()) [:0]const u8 {
         return name_data;
     }
-    pub fn draw(self: @This(), _:std.mem.Allocator) !void {
+    pub fn draw(
+        self: @This(),
+        _:std.mem.Allocator,
+    ) !void 
+    {
         _ = self;
+
+        const segment=curve.Bezier.Segment.init_f32(
+            .{
+                .p0 = .{ .in = 1, .out = 0, },
+                .p1 = .{ .in = 1.25, .out = 1, },
+                .p2 = .{ .in = 1.75, .out = 0.65, },
+                .p3 = .{ .in = 2, .out = 0.24, },
+            }
+        );
+
+        var buf_raw: [1024:0]u8 = undefined;
+        var buf:[]u8 = buf_raw[0..];
+
+        // const start = segment.p0.in;
+        // const end = segment.p3.in;
+
+        const plot_label = try std.fmt.bufPrintZ(
+            buf,
+            "Convex Hull Test Plot", 
+            .{}
+        );
+        buf = buf[plot_label.len..];
+
+        if (
+            zgui.plot.beginPlot(
+                plot_label,
+                .{ 
+                    .w = -1.0,
+                    .h = -1.0,
+                    .flags = .{ .equal = true },
+                }
+            )
+        ) 
+        {
+            defer zgui.plot.endPlot();
+
+            const input_label = try std.fmt.bufPrintZ(buf, "input", .{},);
+            buf = buf[input_label.len..];
+
+            zgui.plot.setupAxis(
+                .x1,
+                .{ .label = input_label }
+            );
+
+            const output_label = try std.fmt.bufPrintZ( buf, "output", .{},);
+            buf = buf[output_label.len..];
+
+            zgui.plot.setupAxis(
+                .y1,
+                .{ .label = output_label }
+            );
+            zgui.plot.setupLegend(
+                .{ 
+                    .south = true,
+                    .west = true 
+                },
+                .{}
+            );
+            zgui.plot.setupFinish();
+
+            const line_label = try std.fmt.bufPrintZ(
+                buf,
+                "convex hull segment",
+                .{},
+            );
+            buf = buf[line_label.len..];
+
+            try plot_curve_bezier_segment(
+                line_label,
+                segment,
+            );
+        }
+
+
         return;
     }
 };
@@ -592,7 +725,12 @@ fn draw_err(
                 {
                     defer zgui.endTabItem();
 
-                    try app.draw(allocator);
+                    if (zgui.beginChild("child", .{}))
+                    {
+                        defer zgui.endChild();
+
+                        try app.draw(allocator);
+                    }
                 }
             }
         }
