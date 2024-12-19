@@ -602,34 +602,10 @@ pub const Bezier = struct {
             unorm: opentime.Ordinate,
         ) control_point.ControlPoint
         {
-            // const use_reducer = true;
-            // if (use_reducer) {
-                const seg3 = bezier_math.segment_reduce4(unorm, self);
-                const seg2 = bezier_math.segment_reduce3(unorm, seg3);
-                const result = bezier_math.segment_reduce2(unorm, seg2);
-                return result.p0;
-            // }
-            // else {
-            //     const z = unorm;
-            //     const z2 = z*z;
-            //     const z3 = z2*z;
-            //
-            //     const zmo = z-1.0;
-            //     const zmo2 = zmo*zmo;
-            //     const zmo3 = zmo2*zmo;
-            //
-            //     const p1: control_point.ControlPoint = self.p0;
-            //     const p2: control_point.ControlPoint = self.p1;
-            //     const p3: control_point.ControlPoint = self.p2;
-            //     const p4: control_point.ControlPoint = self.p3;
-            //
-            //     // "p4 * z3 - p3 * z2 * zmo + p2 * 3 * z * zmo2 - (p1 * zmo3)"
-            //     const l_p4: control_point.ControlPoint = (
-            //         (p4.mul(z3)).sub(p3.mul(3.0*z2*zmo)).add(p2.mul(3.0*z*zmo2)).sub(p1.mul(zmo3))
-            //     );
-            //
-            //     return l_p4;
-            // }
+            const seg3 = bezier_math.segment_reduce4(unorm, self);
+            const seg2 = bezier_math.segment_reduce3(unorm, seg3);
+            const result = bezier_math.segment_reduce2(unorm, seg2);
+            return result.p0;
         }
 
         /// return the segment split at u [0, 1.0)
@@ -1062,7 +1038,7 @@ pub const Bezier = struct {
         if (
             self.segments.len == 0 
             or ord_input.lt(input_start)
-            or ord_input.gteq(input_end)
+            or ord_input.gt(input_end)
         )
         {
             return null;
@@ -2398,63 +2374,6 @@ test "Bezier: positive length 1 linear segment test"
     );
 }
 
-// removing the projection functions?
-// test "Bezier: project_linear_curve to identity" 
-// {
-//
-//     var seg_0_4 = [_]Bezier.Segment{
-//         Bezier.Segment.init_from_start_end(
-//             .{ .in = 0, .out = 0, },
-//             .{ .in = 4, .out = 8, },
-//         ) 
-//     };
-//     const fst: Bezier = .{ .segments = &seg_0_4 };
-//
-//     var seg_0_8 = [_]Bezier.Segment{
-//         Bezier.Segment.init_from_start_end(
-//             .{ .in = 0, .out = 0, },
-//             .{ .in = 8, .out = 4, },
-//         )
-//     };
-//     const snd: Bezier = .{ .segments = &seg_0_8 };
-//
-//     const fst_lin = try fst.linearized(std.testing.allocator);
-//     defer fst_lin.deinit(std.testing.allocator);
-//     try expectEqual(@as(usize, 2), fst_lin.knots.len);
-//
-//     const snd_lin = try snd.linearized(std.testing.allocator);
-//     defer snd_lin.deinit(std.testing.allocator);
-//     try expectEqual(@as(usize, 2), snd_lin.knots.len);
-//
-//     const results = try fst.project_linear_curve(
-//         std.testing.allocator,
-//         snd_lin,
-//     );
-//     defer {
-//         for (results)
-//             |crv|
-//             {
-//                 crv.deinit(std.testing.allocator);
-//             }
-//         std.testing.allocator.free(results);
-//     }
-//     try expectEqual(@as(usize, 1), results.len);
-//
-//     if (results.len > 0) 
-//     {
-//         const result = results[0];
-//         try expectEqual(@as(usize, 2), result.knots.len);
-//
-//         var x:opentime.Ordinate = 0;
-//         while (x < 1) 
-//         {
-//             // @TODO: fails because evaluating a linear curve
-//             try opentime.expectOrdinateEqual(x, try result.output_at_input(x));
-//             x += 0.1;
-//         }
-//     }
-// }
-
 test "Bezier: projection_test non-overlapping" 
 {
     var seg_0_1 = [_]Bezier.Segment{
@@ -2741,7 +2660,21 @@ test "Bezier: project linear identity with linear 1/2 slope"
     );
     defer result.deinit(std.testing.allocator);
 
-    try expectEqual(@as(usize, 1), result.segments.len);
+    try expectEqual(@as(usize, 2), result.segments.len);
+
+    var i = result.extents_input().start.v;
+    while (i < result.extents_input().end.sub(opentime.Ordinate.EPSILON).v)
+        : (i += 0.1)
+    {
+        errdefer std.debug.print("i: {d}\n", .{ i });
+        const i_ord = opentime.Ordinate.init(i);
+        const measured = try result.output_at_input(i_ord);
+
+        try opentime.expectOrdinateEqual(
+            i,
+            measured,
+        );
+    }
 }
 
 // // this test is disabled because at it is testing projecting a bezier curve
