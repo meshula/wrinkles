@@ -49,7 +49,7 @@ const linear_curve = @import("linear_curve.zig");
 const control_point = @import("control_point.zig");
 const string_stuff = @import("string_stuff");
 
-pub const U_TYPE = f32;
+pub const U_TYPE = opentime.Ordinate.BaseType;
 
 // hodographs c-library
 pub const hodographs = @import("spline_gym");
@@ -134,7 +134,7 @@ test "Bezier.Segment: debug_str test"
 
 fn _is_approximately_linear(
     segment: Bezier.Segment,
-    tolerance: f32
+    tolerance: f32,
 ) bool 
 {
     const u = (
@@ -376,8 +376,8 @@ test "segment: dual_eval_at over linear curve"
             );
             try opentime.expectOrdinateEqual(coord, result.r.in);
             try opentime.expectOrdinateEqual(coord, result.r.out);
-            try opentime.expectOrdinateEqual(@as(f32, 1), result.i.in);
-            try opentime.expectOrdinateEqual(@as(f32, 1), result.i.out);
+            try opentime.expectOrdinateEqual(1, result.i.in);
+            try opentime.expectOrdinateEqual(1, result.i.out);
         }
     }
 
@@ -583,6 +583,8 @@ pub const Bezier = struct {
             return result[0];
         }
 
+        /// Compute the point on the curve for parameter unorm along the curve
+        /// [0, 1)
         pub inline fn eval_at(
             self: @This(),
             unorm: anytype,
@@ -814,7 +816,7 @@ pub const Bezier = struct {
 
         pub fn findU_input_dual(
             self:@This(),
-            input_ordinate: opentime.Ordinate
+            input_ordinate: opentime.Ordinate,
         ) opentime.Dual_Ord 
         {
             return bezier_math.findU_dual(
@@ -842,7 +844,7 @@ pub const Bezier = struct {
         /// returns the output value for the given input ordinate
         pub fn output_at_input_ord(
             self: @This(),
-            input_ord:opentime.Ordinate,
+            input_ord: opentime.Ordinate,
         ) opentime.Ordinate 
         {
             const u:U_TYPE = bezier_math.findU(
@@ -857,7 +859,7 @@ pub const Bezier = struct {
 
         pub fn output_at_input_dual(
             self: @This(),
-            x:opentime.Ordinate
+            x: opentime.Ordinate,
         ) control_point.Dual_CP 
         {
             const u = bezier_math.findU_dual(
@@ -865,7 +867,7 @@ pub const Bezier = struct {
                 self.p0.in,
                 self.p1.in,
                 self.p2.in,
-                self.p3.in
+                self.p3.in,
             );
             return self.eval_at_dual(u);
         }
@@ -1477,7 +1479,7 @@ pub const Bezier = struct {
                             var self_hodo = hodographs.compute_hodograph(&self_cSeg);
                             const f_prime_of_g_of_t = hodographs.evaluate_bezier(
                                 &self_hodo,
-                                u_in_self,
+                                @floatCast(u_in_self),
                             );
                             try cache_f_prime_of_g_of_t.append(
                                 control_point.ControlPoint.init(
@@ -1493,7 +1495,7 @@ pub const Bezier = struct {
                             var other_hodo = hodographs.compute_hodograph(&other_cSeg);
                             const g_prime_of_t = hodographs.evaluate_bezier(
                                 &other_hodo,
-                                t_midpoint_other,
+                                @floatCast(t_midpoint_other),
                             );
                             try cache_g_prime_of_t.append(
                                 control_point.ControlPoint.init(
@@ -3944,7 +3946,7 @@ pub const tpa_result = struct {
     v2: ?control_point.ControlPoint = null,
     C1: ?control_point.ControlPoint = null,
     C2: ?control_point.ControlPoint = null,
-    t: ?f32 = null,
+    t: ?opentime.Ordinate.BaseType = null,
 };
 
 pub fn three_point_guts_plot(

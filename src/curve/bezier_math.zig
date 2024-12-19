@@ -1464,7 +1464,7 @@ test "bezier_math: findU_dual matches findU"
 
 test "bezier_math: dydx matches expected at endpoints" 
 {
-    var seg0 : bezier_curve.Bezier.Segment = .{
+    var seg : bezier_curve.Bezier.Segment = .{
         .p0 = control_point.ControlPoint.init(.{.in = 0, .out=0}),
         .p1 = control_point.ControlPoint.init(.{.in = 0, .out=1}),
         .p2 = control_point.ControlPoint.init(.{.in = 1, .out=1}),
@@ -1472,7 +1472,7 @@ test "bezier_math: dydx matches expected at endpoints"
     };
 
     const test_data = struct {
-        r : opentime.Ordinate.BaseType,
+        r: opentime.Ordinate.BaseType,
         e_dydu: opentime.Ordinate.BaseType,
     };
     const tests = [_]test_data{
