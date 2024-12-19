@@ -404,7 +404,7 @@ inline fn crt(
 ) opentime.Dual_Ord
 {
     if (v.r.lt(0)) {
-        return ((v.negate()).pow(1.0/3.0)).negate();
+        return ((v.neg()).pow(1.0/3.0)).neg();
     } 
     else {
         return (v.pow(1.0/3.0));
@@ -907,7 +907,7 @@ pub fn _findU_dual(
 
     var _u1=ZERO_DUAL;
     var _u2=ZERO_DUAL;
-    var x1 = x.negate(); // same as: bezier0 (0, p1, p2, p3) - x;
+    var x1 = x.neg(); // same as: bezier0 (0, p1, p2, p3) - x;
     var x2 = try comath.eval(
         "x1 + p3",
         CTX, .{ .x1 = x1, .p3 = opentime.Dual_Ord{ .r = p3, .i = 0 } },
@@ -1030,7 +1030,7 @@ pub fn _findU_dual(
     }
 
     if (x1.r < 0) {
-        x1 = x1.negate();
+        x1 = x1.neg();
     }
     if (x2.r < 0) {
         x2 = x2.negate();
@@ -1116,7 +1116,7 @@ test "bezier_math: lerp"
 
         // a * ((-u) + 1) + (b * u)
         const algebraic = (
-            ((d_u.negate().add(1)).mul(p1)).add(d_u.mul(p2))
+            ((d_u.neg().add(1)).mul(p1)).add(d_u.mul(p2))
         );
 
         try opentime.expectOrdinateEqual(

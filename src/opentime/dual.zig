@@ -69,7 +69,7 @@ pub const CTX = comath.ctx.fnMethod(
     .{
         .@"+" = "add",
         .@"*" = "mul",
-        .@"-" = &.{"sub", "neg", "negate"},
+        .@"-" = &.{"sub", "neg"},
         .@"/" = "div",
     },
 );
@@ -146,13 +146,13 @@ pub fn DualOfNumberType(
             return .{ .r = r };
         }
 
-        pub inline fn negate(
+        pub inline fn neg(
             self: @This(),
         ) @This() 
         {
             return .{ .r = -self.r, .i = -self.i, };
         }
-
+        
         pub inline fn add(
             self: @This(),
             rhs: anytype,
@@ -460,7 +460,7 @@ pub fn DualOfStruct(
             };
         }
 
-        pub inline fn negate(
+        pub inline fn neg(
             self: @This(),
         ) @This() 
         {
@@ -475,8 +475,22 @@ pub fn DualOfStruct(
         ) @This() 
         {
             return .{
-                .r = BaseType.init(std.math.cos(self.r.as(f32))),
-                .i = (self.i.neg()).mul(BaseType.init(std.math.sin(self.r.as(f32)))),
+                .r = (
+                    BaseType.init(
+                        std.math.cos(
+                            self.r.as(ordinate.Ordinate.BaseType)
+                        )
+                    )
+                ),
+                .i = (
+                    (self.i.neg()).mul(
+                        BaseType.init(
+                            std.math.sin(
+                                self.r.as(ordinate.Ordinate.BaseType)
+                            )
+                        )
+                    )
+                ),
             };
         }
 
@@ -665,11 +679,11 @@ test "Dual: unary operator test"
     // operations over 8 and 2
     const TestCase = struct {
         op: []const u8,
-        exp_r: f32,
-        exp_i: f32,
+        exp_r: ordinate.Ordinate.BaseType,
+        exp_i: ordinate.Ordinate.BaseType,
     };
     const tests = [_]TestCase{
-        .{ .op = "negate", .exp_r = -16, .exp_i = -1 },
+        .{ .op = "neg", .exp_r = -16, .exp_i = -1 },
         .{
             .op = "sqrt",
             .exp_r = 4, .exp_i = 1.0/(std.math.sqrt(16.0) * 2.0) 
