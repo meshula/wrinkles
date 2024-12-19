@@ -553,230 +553,382 @@ test "bezier_math: actual_order: cubic"
 }
 
 pub fn findU_dual3(
-    x_input: opentime.Ordinate,
-    p0: opentime.Ordinate,
-    p1: opentime.Ordinate,
-    p2: opentime.Ordinate,
-    p3: opentime.Ordinate,
+    x_ord_in:opentime.Ordinate,
+    p1_ord:opentime.Ordinate,
+    p2_ord:opentime.Ordinate,
+    p3_ord:opentime.Ordinate,
 ) opentime.Dual_Ord
 {
-    // assumes that p3 > p0
-    const x = opentime.min(opentime.max(x_input, p0), p3);
+    const x_ord = opentime.max(
+        opentime.min(p3_ord, x_ord_in),
+        opentime.Ordinate.init(0),
+    );
 
-    const p0_d = opentime.Dual_Ord{.r = p0.sub(x), .i = opentime.Ordinate.init(-1)};
-    const p1_d = opentime.Dual_Ord{.r = p1.sub(x), .i = opentime.Ordinate.init(-1)};
-    const p2_d = opentime.Dual_Ord{.r = p2.sub(x), .i = opentime.Ordinate.init(-1)};
-    const p3_d = opentime.Dual_Ord{.r = p3.sub(x), .i = opentime.Ordinate.init(-1)};
+    const x = opentime.Dual_Ord.init_ri(x_ord, opentime.Ordinate.ONE);
+    const p1 = opentime.Dual_Ord.init(p1_ord);
+    const p2 = opentime.Dual_Ord.init(p2_ord);
+    const p3 = opentime.Dual_Ord.init(p3_ord);
 
-    const d = comath.eval(
-        // "(-pa) + (pb * 3.0) - (pc * 3.0) + pd",
-        "(-pa) + (pb * 3.0) - (pc * 3.0) + pd",
-        CTX,
-        .{ 
-            .pa = p0_d,
-            .pb = p1_d,
-            .pc = p2_d,
-            .pd = p3_d,
-        },
-    ) catch @panic("comath error 1");
+    const MAX_ABS_ERROR = opentime.Ordinate.init(
+        std.math.floatEps(opentime.Ordinate.BaseType) * 2.0
+    );
+    const MAX_ITERATIONS: u8 = 45;
 
-    var a = comath.eval(
-        // "(pa * 3.0) - (pb * 6.0) + (pc * 3.0)",
-        "pa * 3.0 - pb * 6.0 + pc * 3.0",
-        CTX,
-        .{ 
-            .pa = p0_d,
-            .pb = p1_d,
-            .pc = p2_d,
-        },
-    ) catch @panic("comath error 2");
+    // if (x.lteq(opentime.Ordinate.ZERO)) {
+    //     return opentime.Dual_Ord.ZERO_ZERO;
+    // }
+    //
+    // if (x.gteq(p3)) {
+    //     return opentime.Dual_Ord.ONE_ZERO;
+    // }
 
-    var b = comath.eval(
-        "(-pa * 3.0) + (pb * 3.0)",
-        CTX,
-        .{ 
-            .pa = p0_d,
-            .pb = p1_d,
-        },
-    ) catch @panic("comath dual error 3");
+    var _u1=opentime.Dual_Ord.ZERO_ZERO;
+    var _u2=opentime.Dual_Ord.ZERO_ZERO;
 
-    var c = p0_d;
+    var x1 = x.neg(); // same as: bezier0 (0, p1, p2, p3) - x;
+    var x2 = opentime.eval(
+        "p3 - x",
+        .{ .p3 = p3, .x = x }
+    ); // same as: bezier0 (1, p1, p2, p3) - x;
 
-    if (opentime.lt(opentime.abs(d.r), opentime.Ordinate.EPSILON))
     {
-        // not cubic
-        if (opentime.lt(opentime.abs(a.r), opentime.Ordinate.EPSILON))
+        const _u3 = opentime.eval(
+            "ONE - (x2 / (x2 - x1))",
+            .{ .ONE = opentime.Dual_Ord.ONE_ZERO, .x2 = x2, .x1 = x1 }
+        );
+        const x3 = _bezier0_dual(
+            _u3,
+            p1.r,
+            p2.r,
+            p3.r,
+        ).sub(x);
+
+        if (x3.eql(0)) {
+            return _u3;
+        }
+
+        if (x3.lt(0))
         {
-            // linear
-            if (opentime.lt(opentime.abs(b.r), opentime.Ordinate.EPSILON))
-            {
-                // no solutions
-                return .{
-                    .r = opentime.Ordinate.NAN,
-                    .i = opentime.Ordinate.NAN,
-                };
+            if (opentime.Dual_Ord.ONE_ZERO.sub(_u3).lteq(MAX_ABS_ERROR)) {
+                // if (x2.lt(x3.neg())) {
+                //     return opentime.Dual_Ord.ONE_ZERO;
+                // }
+
+                return _u3;
             }
 
-            return try comath.eval(
-                "(-c) / b", 
-                CTX,
-                .{ .c = c, .b = b }
+            _u1 = opentime.Dual_Ord.ONE_ZERO;
+            x1 = x2;
+        }
+        else
+        {
+            _u1 = opentime.Dual_Ord.ZERO_ZERO;
+            x1 = opentime.eval(
+                "x1 * x2 / (x2 + x3)",
+                .{ .x1 = x1, .x2 = x2, .x3 = x3 }
             );
+
+            if (_u3.lteq(MAX_ABS_ERROR)) 
+            {
+                // if (x1.neg().lt(x3)) {
+                //     return opentime.Dual_Ord.ZERO_ZERO;
+                // }
+                //
+                return _u3;
+            }
         }
-
-        // quadratic
-        const q2 = try comath.eval(
-            "(b * b) - (a * c * 4.0)",
-            CTX,
-            .{ .b = b, .a = a, .c = c},
-        );
-        const q = q2.sqrt();
-
-        const a2 = a.mul(2.0);
-
-        const pos_sol = try comath.eval(
-            "(q - b) / a2",
-            CTX,
-            .{ .q = q, .b = b, .a2 = a2 }
-        );
-
-        if (
-            opentime.Ordinate.ZERO.lteq(pos_sol.r) 
-            and pos_sol.r.lteq(opentime.Ordinate.ONE)
-        )
-        {
-            return pos_sol;
-        }
-
-        // negative solution
-        return try comath.eval(
-            "(-b - q) / a2",
-            CTX,
-            .{ .q = q, .b = b, .a2 = a2 }
-        );
-
+        _u2 = _u3;
+        x2 = x3;
     }
 
-    // cubic solution
-    a = a.div(d);
-    b = b.div(d);
-    c = c.div(d);
+    var i: u8 = MAX_ITERATIONS - 1;
 
-    @setEvalBranchQuota(100000);
-    const p = try comath.eval(
-        "((b * 3.0) - (a * a)) / 3.0",
-        CTX,
-        .{
-            .a = a,
-            .b = b,
-        },
-    );
-
-    const q = try comath.eval(
-        "((a * a * a) * 2.0 -  ((a * b) * 9.0) + (c * 27.0)) / 27.0",
-        CTX,
-        .{ 
-            .a = a,
-            .b = b,
-            .c = c
-        } 
-    );
-
-    const q2 = q.div(2.0);
-
-    const p_div_3 = p.div(3.0);
-    const discriminant = try comath.eval(
-        "(q2 * q2) + (p_div_3 * p_div_3 * p_div_3)",
-        CTX,
-        .{ 
-            .q2 = q2,
-            .p_div_3 = p_div_3,
-        },
-    );
-
-    if (discriminant.r.lt(opentime.Ordinate.ZERO)) 
+    while (i > 0) 
+        : (i -= 1)
     {
-        const mp3 = (p.negate()).div(3.0);
-        const mp33 = mp3.mul(mp3).mul(mp3);
-        const r = mp33.sqrt();
-        const t = try comath.eval(
-            "-q / (r*2.0)",
-            CTX,
-            .{ .q = q, .r = r, },
+        const _u3:opentime.Dual_Ord = opentime.eval(
+            "_u2 - x2 * ((_u2 - _u1) / (x2 - x1))",
+            .{ ._u2 = _u2, .x2 = x2, ._u1 = _u1, .x1 = x1 },
         );
-        const ONE_DUAL = opentime.Dual_Ord.init_ri(
-            1.0,
-            t.i 
-        );
-        const cosphi = (
-            if (t.r.lt(-1) ) ONE_DUAL.negate() 
-            else (
-                if (t.r.gt(1)) ONE_DUAL else t
-            )
-        );
-        const phi = cosphi.acos();
-        const crtr = crt(r);
-        const t1 = crtr.mul(2.0);
+        const x3 = _bezier0_dual (
+            _u3, p1.r, p2.r, p3.r).sub(x);
 
-        const x1 = try comath.eval(
-            "(t1 * cos_phi_over_three) - (a / 3.0)",
-            CTX,
-            .{
-                .t1 = t1,
-                .cos_phi_over_three = (phi.div(3.0)).cos(),
-                .a = a 
-            }
-        );
-        const x2 = try comath.eval(
-            "(t1 * cos_phi_plus_tau) - (a / 3)",
-            CTX,
-            .{
-                .t1 = t1,
-                // cos((phi + std.math.tau) / 3) 
-                .cos_phi_plus_tau = ((phi.add(std.math.tau)).div(3.0)).cos(),
-                .a = a 
-            }
-        );
-        const x3 = try comath.eval(
-            "(t1 * cos_phi_plus_2tau) - (a / 3)",
-            CTX,
-                // cos((phi + 2 * std.math.tau) / 3) 
-            .{
-                .t1 = t1,
-                .cos_phi_plus_2tau = (
-                    ((phi.add(2.0 * std.math.tau)).div(3.0)).cos()
-                ),
-                .a = a 
-            },
-        );
+        if (x3.eql(0)) {
+            return _u3;
+        }
 
-        return first_valid_root(&.{x1, x2, x3});
-    } else if (discriminant.r.eql(0)) {
-        const u_1 = if (q2.r.lt(0)) crt(q2.negate()) else crt(q2).negate();
-        const x1 = try comath.eval(
-            "(u_1 * 2.0) - (a / 3.0)",
-            CTX,
-            .{ .u_1 = u_1, .a = a },
-        );
-        const x2 = try comath.eval(
-            "(-u_1) - (a / 3)",
-            CTX,
-            .{ .u_1 = u_1, .a = a },
-        );
-        return first_valid_root(&.{x1, x2});
-    } else {
-        const sd = discriminant.sqrt();
-        const u_1 = crt(q2.negate().add(sd));
-        const v1 = crt(q2.add(sd));
-        return try comath.eval(
-            "u_1 - v1 - (a / 3)",
-            CTX,
-            .{ .u_1 = u_1, .v1 = v1, .a = a }
-        );
+        if (x2.mul(x3).lteq(0))
+        {
+            _u1 = _u2;
+            x1 = x2;
+        }
+        else
+        {
+            @setEvalBranchQuota(10000);
+            x1 = opentime.eval(
+                "x1 * x2 / (x2 + x3)",
+                .{ .x1 = x1, .x2 = x2, .x3 = x3 }
+            );
+            @setEvalBranchQuota(1000);
+        }
+
+        _u2 = _u3;
+        x2 = x3;
+
+        if (_u2.gt(_u1))
+        {
+            if (_u2.sub(_u1).lteq(MAX_ABS_ERROR)) {
+                break;
+            }
+        }
+        else
+        {
+            if (_u1.sub(_u2).lteq(MAX_ABS_ERROR)) {
+                break;
+            }
+        }
     }
 
-    return d;
+    if (x1.lt(0)) {
+        x1 = x1.neg();
+    }
+    if (x2.lt(0)) {
+        x2 = x2.neg();
+    }
+
+    if (x1.lt(x2)) {
+        return _u1;
+    }
+
+    return _u2;
 }
+
+// pub fn findU_dual3(
+//     x_input: opentime.Ordinate,
+//     p0: opentime.Ordinate,
+//     p1: opentime.Ordinate,
+//     p2: opentime.Ordinate,
+//     p3: opentime.Ordinate,
+// ) opentime.Dual_Ord
+// {
+//     // clamp x into [p0, p3) -- assumes that p3 > p0
+//     const x = opentime.min(opentime.max(x_input, p0), p3);
+//
+//     // 
+//     const p0_d = opentime.Dual_Ord{.r = x.sub(p0), .i = opentime.Ordinate.init(-1)};
+//     const p1_d = opentime.Dual_Ord{.r = p1.sub(p0), .i = opentime.Ordinate.init(-1)};
+//     const p2_d = opentime.Dual_Ord{.r = p2.sub(p0), .i = opentime.Ordinate.init(-1)};
+//     const p3_d = opentime.Dual_Ord{.r = p3.sub(p0), .i = opentime.Ordinate.init(-1)};
+//
+//     const d = comath.eval(
+//         // "(-pa) + (pb * 3.0) - (pc * 3.0) + pd",
+//         "(-pa) + (pb * 3.0) - (pc * 3.0) + pd",
+//         CTX,
+//         .{ 
+//             .pa = p0_d,
+//             .pb = p1_d,
+//             .pc = p2_d,
+//             .pd = p3_d,
+//         },
+//     ) catch @panic("comath error 1");
+//
+//     var a = comath.eval(
+//         // "(pa * 3.0) - (pb * 6.0) + (pc * 3.0)",
+//         "(pa * 3.0) - (pb * 6.0) + (pc * 3.0)",
+//         CTX,
+//         .{ 
+//             .pa = p0_d,
+//             .pb = p1_d,
+//             .pc = p2_d,
+//         },
+//     ) catch @panic("comath error 2");
+//
+//     var b = comath.eval(
+//         "((-pa) * 3.0) + (pb * 3.0)",
+//         CTX,
+//         .{ 
+//             .pa = p0_d,
+//             .pb = p1_d,
+//         },
+//     ) catch @panic("comath dual error 3");
+//
+//     var c = p0_d;
+//
+//     if (opentime.lt(opentime.abs(d.r), opentime.Ordinate.EPSILON))
+//     {
+//         // not cubic
+//         if (opentime.lt(opentime.abs(a.r), opentime.Ordinate.EPSILON))
+//         {
+//             // linear
+//             if (opentime.lt(opentime.abs(b.r), opentime.Ordinate.EPSILON))
+//             {
+//                 // no solutions
+//                 return .{
+//                     .r = opentime.Ordinate.NAN,
+//                     .i = opentime.Ordinate.NAN,
+//                 };
+//             }
+//
+//             return try comath.eval(
+//                 "(-c) / b", 
+//                 CTX,
+//                 .{ .c = c, .b = b }
+//             );
+//         }
+//
+//         // quadratic
+//         const q2 = try comath.eval(
+//             "(b * b) - (a * c * 4.0)",
+//             CTX,
+//             .{ .b = b, .a = a, .c = c},
+//         );
+//         const q = q2.sqrt();
+//
+//         const a2 = a.mul(2.0);
+//
+//         const pos_sol = try comath.eval(
+//             "(q - b) / a2",
+//             CTX,
+//             .{ .q = q, .b = b, .a2 = a2 }
+//         );
+//
+//         if (
+//             opentime.Ordinate.ZERO.lteq(pos_sol.r) 
+//             and pos_sol.r.lteq(opentime.Ordinate.ONE)
+//         )
+//         {
+//             return pos_sol;
+//         }
+//
+//         // negative solution
+//         return try comath.eval(
+//             "(-b - q) / a2",
+//             CTX,
+//             .{ .q = q, .b = b, .a2 = a2 }
+//         );
+//
+//     }
+//
+//     // cubic solution
+//     a = a.div(d);
+//     b = b.div(d);
+//     c = c.div(d);
+//
+//     @setEvalBranchQuota(100000);
+//     const p = try comath.eval(
+//         "((b * 3.0) - (a * a)) / 3.0",
+//         CTX,
+//         .{
+//             .a = a,
+//             .b = b,
+//         },
+//     );
+//
+//     const q = try comath.eval(
+//         "(((a * a * a) * 2.0) -  ((a * b) * 9.0) + ((c * 27.0)) / 27.0)",
+//         CTX,
+//         .{ 
+//             .a = a,
+//             .b = b,
+//             .c = c
+//         } 
+//     );
+//
+//     const q2 = q.div(2.0);
+//
+//     const p_div_3 = p.div(3.0);
+//     const discriminant = try comath.eval(
+//         "(q2 * q2) + (p_div_3 * p_div_3 * p_div_3)",
+//         CTX,
+//         .{ 
+//             .q2 = q2,
+//             .p_div_3 = p_div_3,
+//         },
+//     );
+//
+//     if (discriminant.r.lt(opentime.Ordinate.ZERO)) 
+//     {
+//         const mp3 = (p.negate()).div(3.0);
+//         const mp33 = mp3.mul(mp3).mul(mp3);
+//         const r = mp33.sqrt();
+//         const t = try comath.eval(
+//             "-q / (r*2.0)",
+//             CTX,
+//             .{ .q = q, .r = r, },
+//         );
+//         const ONE_DUAL = opentime.Dual_Ord.init_ri(
+//             1.0,
+//             t.i 
+//         );
+//         const cosphi = (
+//             if (t.r.lt(-1) ) ONE_DUAL.negate() 
+//             else (
+//                 if (t.r.gt(1)) ONE_DUAL else t
+//             )
+//         );
+//         const phi = cosphi.acos();
+//         const crtr = crt(r);
+//         const t1 = crtr.mul(2.0);
+//
+//         const x1 = try comath.eval(
+//             "(t1 * cos_phi_over_three) - (a / 3.0)",
+//             CTX,
+//             .{
+//                 .t1 = t1,
+//                 .cos_phi_over_three = (phi.div(3.0)).cos(),
+//                 .a = a 
+//             }
+//         );
+//         const x2 = try comath.eval(
+//             "(t1 * cos_phi_plus_tau) - (a / 3)",
+//             CTX,
+//             .{
+//                 .t1 = t1,
+//                 // cos((phi + std.math.tau) / 3) 
+//                 .cos_phi_plus_tau = ((phi.add(std.math.tau)).div(3.0)).cos(),
+//                 .a = a 
+//             }
+//         );
+//         const x3 = try comath.eval(
+//             "(t1 * cos_phi_plus_2tau) - (a / 3)",
+//             CTX,
+//                 // cos((phi + 2 * std.math.tau) / 3) 
+//             .{
+//                 .t1 = t1,
+//                 .cos_phi_plus_2tau = (
+//                     ((phi.add(2.0 * std.math.tau)).div(3.0)).cos()
+//                 ),
+//                 .a = a 
+//             },
+//         );
+//
+//         return first_valid_root(&.{x1, x2, x3});
+//     } else if (discriminant.r.eql(0)) {
+//         const u_1 = if (q2.r.lt(0)) crt(q2.negate()) else crt(q2).negate();
+//         const x1 = try comath.eval(
+//             "(u_1 * 2.0) - (a / 3.0)",
+//             CTX,
+//             .{ .u_1 = u_1, .a = a },
+//         );
+//         const x2 = try comath.eval(
+//             "(-u_1) - (a / 3)",
+//             CTX,
+//             .{ .u_1 = u_1, .a = a },
+//         );
+//         return first_valid_root(&.{x1, x2});
+//     } else {
+//         const sd = discriminant.sqrt();
+//         const u_1 = crt(q2.negate().add(sd));
+//         const v1 = crt(q2.add(sd));
+//         return try comath.eval(
+//             "u_1 - v1 - (a / 3)",
+//             CTX,
+//             .{ .u_1 = u_1, .v1 = v1, .a = a }
+//         );
+//     }
+//
+//     return d;
+// }
 
 pub fn findU_dual2(
     x_input: opentime.Ordinate,
@@ -1078,7 +1230,12 @@ pub fn findU_dual(
     p3:opentime.Ordinate,
 ) opentime.Dual_Ord
 {
-    return findU_dual3(x, p0, p1, p2, p3);
+    return findU_dual3(
+        x.sub(p0),
+        p1.sub(p0),
+        p2.sub(p0),
+        p3.sub(p0)
+    );
 }
 
 test "bezier_math: lerp" 
@@ -1323,62 +1480,57 @@ test "bezier_math: dydx matches expected at endpoints"
         .{ .r = 0.25, .e_dydu = 1.125 ,},
         .{ .r = 0.5,  .e_dydu = 1.5 ,},
         .{ .r = 0.75, .e_dydu = 1.125 ,},
-        .{ .r = 1.0,  .e_dydu = 0, }
+        .{ .r = 1.0,  .e_dydu = 0, },
     };
    
     for (tests, 0..)
         |t, test_ind|
     {
-        errdefer {
-            std.debug.print(
-                "Error on iteration: {d}\n  r: {d} e_dydu: {d}\n",
-               .{ test_ind, t.r, t.e_dydu },
-            );
-        }
-        const u_zero_dual = seg0.eval_at_dual(
+        errdefer std.debug.print(
+            "Error on iteration: {d}\n  r: {d} e_dydu: {d}\n",
+            .{ test_ind, t.r, t.e_dydu },
+        );
+        
+        const u_zero_dual = seg.eval_at_dual(
             .{ .r = opentime.Ordinate.init(t.r), .i = opentime.Ordinate.ONE }
         );
         try opentime.expectOrdinateEqual(
             opentime.Ordinate.init(t.e_dydu),
             u_zero_dual.i.in
         );
-
     }
 
-    const x_zero_dual = seg0.output_at_input_dual(seg0.p0.in);
+    const x_zero_dual = seg.output_at_input_dual(seg.p0.in);
+
     try opentime.expectOrdinateEqual(
-        seg0.p1.in.sub(seg0.p0.in),
-        x_zero_dual.i.in
+        seg.p0.out,
+        x_zero_dual.r.out,
+    );
+
+    try opentime.expectOrdinateEqual(
+        seg.p1.in.sub(seg.p0.in),
+        x_zero_dual.i.in,
     );
 }
 
 test "bezier_math: findU for upside down u" 
 {
-    const allocator = std.testing.allocator;
-    var segments = [_]bezier_curve.Bezier.Segment{
-        bezier_curve.Bezier.Segment.init_f32(
-            .{ 
-                .p0 = .{ .in = -0.5, .out = -0.5 },
-                .p1 = .{ .in = -0.5, .out =  0.5 },
-                .p2 = .{ .in =  0.5, .out =  0.5 },
-                .p3 = .{ .in =  0.5, .out = -0.5 },
-            }
-        ),
-    };
-    const crv = bezier_curve.Bezier {
-        .segments = &segments,
-    };
+    const seg = bezier_curve.Bezier.Segment.init_f32(
+        .{ 
+            .p0 = .{ .in = -0.5, .out = -0.5 },
+            .p1 = .{ .in = -0.5, .out =  0.5 },
+            .p2 = .{ .in =  0.5, .out =  0.5 },
+            .p3 = .{ .in =  0.5, .out = -0.5 },
+        }
+    );
+    const order = try actual_order(seg.p0.in, seg.p1.in, seg.p2.in ,seg.p3.in);
+    std.debug.print("actual order (input): {d}\n", .{ order });
 
-    const crv_lin = try crv.linearized(allocator);
-    defer crv_lin.deinit(allocator);
-
-    const seg_0 = crv.segments[0];
-
-    const u_zero_dual =  seg_0.findU_input_dual(seg_0.p0.in);
+    const u_zero_dual =  seg.findU_input_dual(seg.p0.in);
     try opentime.expectOrdinateEqual(0, u_zero_dual.r);
 
-    const half_x = lerp(0.5, seg_0.p0.in, seg_0.p3.in);
-    const u_half_dual = seg_0.findU_input_dual(half_x);
+    const half_x = lerp(0.5, seg.p0.in, seg.p3.in);
+    const u_half_dual = seg.findU_input_dual(half_x);
 
     // u_half_dual = (u, du/dx)
     try opentime.expectOrdinateEqual(
@@ -1386,16 +1538,11 @@ test "bezier_math: findU for upside down u"
         u_half_dual.r,
     );
     try opentime.expectOrdinateEqual(
-        // @TODO: this value is weird to me, and its from the computed result,
-        //        not from some kind of principled calculation.  If this test 
-        //        fails it means that the value changed not that its wrong.
-        //        At some point if this code is kept, this should be made
-        //        principled.
-        0.47140452,
+        1.0,
         u_half_dual.i,
     );
 
-    const u_one_dual =   seg_0.findU_input_dual(seg_0.p3.in);
+    const u_one_dual =   seg.findU_input_dual(seg.p3.in);
     try opentime.expectOrdinateEqual(1, u_one_dual.r);
 }
 
