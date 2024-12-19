@@ -92,7 +92,7 @@ test "segment projection:  identity projection"
 
 test "segment projection: linear projection" 
 {
-    const m: f32 = 4;
+    const m: opentime.Ordinate.BaseType = 4;
 
     // note that intervals are identical
     var quad_s = curve.Bezier.Segment.init_from_start_end(
@@ -144,7 +144,7 @@ test "segment projection: linear projection"
 
 test "segment projection: bezier projected through linear" 
 {
-    const m: f32 = 2;
+    const m: opentime.Ordinate.BaseType = 2;
 
     var double_s = curve.Bezier.Segment.init_from_start_end(
         curve.ControlPoint.init(.{ .in = 0, .out = 0 }),
@@ -192,7 +192,7 @@ test "segment projection: bezier projected through linear 2"
     // the alterations to the shape are't visible if _just_ the control points
     // are projected.
 
-    const off: f32 = 0.2;
+    const off: opentime.Ordinate.BaseType = 0.2;
 
     // pushing the middle control points up and down to make a slight S curve
     var scurve_s = curve.Bezier.Segment.init_f32(

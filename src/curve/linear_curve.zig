@@ -887,7 +887,7 @@ test "Linear: projection_test - compose to identity"
         result.knots[1].out
     );
 
-    var x:f32 = 0;
+    var x:opentime.Ordinate.BaseType = 0;
     while (x < 1) 
         : (x += 0.1)
     {
