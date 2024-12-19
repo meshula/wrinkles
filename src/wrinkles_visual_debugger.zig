@@ -23,6 +23,7 @@ const PLOT_STEPS = 1000;
 
 /// plot a bezier curve
 pub fn plot_curve_bezier_segment(
+    _: std.mem.Allocator,
     name: [:0]const u8,
     crv : curve.Bezier.Segment,
 ) !void
@@ -45,15 +46,10 @@ pub fn plot_curve_bezier_segment(
         input_bounds[1] = plot_limits.x[1];
     }
 
+    var buf: [1024:0]u8 = undefined;
+
     var inputs : [PLOT_STEPS + 1]f64 = undefined;
     var outputs : [PLOT_STEPS + 1]f64 = undefined;
-
-    // var inputs = std.ArrayList(f64).init(allocator);
-    // try inputs.ensureTotalCapacity(PLOT_STEPS);
-    // defer inputs.deinit();
-    // var outputs = std.ArrayList(f64).init(allocator);
-    // try outputs.ensureTotalCapacity(PLOT_STEPS);
-    // defer outputs.deinit();
 
     var len : usize = 0;
     const step = (input_bounds[1] - input_bounds[0]) / PLOT_STEPS;
@@ -73,6 +69,57 @@ pub fn plot_curve_bezier_segment(
             .yv = &outputs, 
         },
     );
+
+    zgui.pushStrId("line_direction_test_point");
+    {
+        defer zgui.popId();
+        _ = zplot.dragPoint(
+            12,
+            .{
+                .col = .{ 0.0, 0.0, 1.0, 1.0, },
+                .x = &STATE.line_direction_test_point.x,
+                .y = &STATE.line_direction_test_point.y,
+            },
+        );
+
+        const label_lo = try std.fmt.bufPrintZ(
+            &buf,
+            "Line Orientation: {d}",
+            .{ 
+                crv.findU_input(
+                    opentime.Ordinate.init(
+                        STATE.line_direction_test_point.x
+                    ),
+                ),
+            },
+        );
+        zplot.plotText(
+            label_lo,
+            .{ 
+                .x = STATE.line_direction_test_point.x + 0.1,
+                .y = STATE.line_direction_test_point.y + 0.1,
+            },
+        );
+
+        zplot.plotLine(
+            "Test point -> find input",
+            f64,
+            .{
+                .xv = &.{ 
+                    STATE.line_direction_test_point.x,
+                    STATE.line_direction_test_point.x,
+                },
+                .yv = &.{
+                    STATE.line_direction_test_point.y,
+                    crv.output_at_input(
+                        opentime.Ordinate.init(
+                            STATE.line_direction_test_point.x
+                        )
+                    ).as(f64),
+                },
+            },
+        );
+    }
 }
 
 
@@ -141,24 +188,6 @@ pub fn plot_mapping(
 
             len = map_lin.input_to_output_curve.knots.len;
         },
-        // .bezier => |map_bez| {
-        //     const step = (
-        //         @as(f32, @floatCast(input_bounds[1] - input_bounds[0])) 
-        //         / @as(f32, @floatFromInt(PLOT_STEPS))
-        //     );
-        //
-        //     var x = input_bounds[0];
-        //     while (x <= input_bounds[1])
-        //         : (x += step)
-        //     {
-        //         try inputs.append(x);
-        //         try outputs.append(
-        //             try map_bez.project_instantaneous_cc(@floatCast(x))
-        //         );
-        //     }
-        //
-        //     len = PLOT_STEPS;
-        // },
 
         inline else => {},
     }
@@ -383,6 +412,7 @@ const PresetNames = std.meta.DeclEnum(PRESETS);
 const State = struct {
     current_preset : PresetNames = .single_affine,
     data : UI = .{}, 
+    line_direction_test_point : struct { x: f64 = 0, y: f64 = 0, } = .{},
 };
 var STATE = State{};
 
@@ -412,7 +442,7 @@ const BezierCurveVisualizer = struct {
     }
     pub fn draw(
         self: @This(),
-        _:std.mem.Allocator,
+        allocator:std.mem.Allocator,
     ) !void 
     {
         _ = self;
@@ -484,6 +514,7 @@ const BezierCurveVisualizer = struct {
             buf = buf[line_label.len..];
 
             try plot_curve_bezier_segment(
+                allocator,
                 line_label,
                 segment,
             );
