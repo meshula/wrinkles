@@ -573,7 +573,7 @@ pub const Bezier = struct {
             inline for (self_p, &self_dual) 
                 |p, *dual_p| 
             {
-                dual_p.* = control_point.Dual_CP.from(p);
+                dual_p.* = control_point.Dual_CP.init(p);
             }
 
             const seg3 = bezier_math.segment_reduce4_dual(unorm_dual, self_dual);

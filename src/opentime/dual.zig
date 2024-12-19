@@ -94,7 +94,7 @@ test "Dual: dual + float"
                 .r = ordinate.Ordinate.init(3),
                 .i = ordinate.Ordinate.ONE, 
             },
-            .three = Dual_Ord.from(3),
+            .three = Dual_Ord.init(3),
         }
     ) catch |err| switch (err) {};
 
@@ -322,8 +322,12 @@ pub fn DualOfStruct(
             .r = T.ONE,
             .i = T.ZERO,
         };
+        pub const EPSILON = DualType {
+            .r = T.EPSILON,
+            .i = T.ZERO,
+        };
 
-        pub inline fn from(
+        pub inline fn init(
             r: anytype,
         ) @This()
         {
@@ -571,8 +575,8 @@ test "Dual: comath dual test polymorphic"
                 .r = ordinate.Ordinate.init(3),
                 .i = ordinate.Ordinate.init(1),
             },
-            .off1 = Dual_Ord.from(2),
-            .off2 = Dual_Ord.from(1),
+            .off1 = Dual_Ord.init(2),
+            .off2 = Dual_Ord.init(1),
             .expect = Dual_Ord{
                 .r = ordinate.Ordinate.init(20),
                 .i = ordinate.Ordinate.init(9),
@@ -645,7 +649,7 @@ test "Dual: binary operator test"
         |t|
     { 
         const x = Dual_Ord.init_ri(r1, 1);
-        const x2 = @field(Dual_Ord, t.op)(x, Dual_Ord.from(r2));
+        const x2 = @field(Dual_Ord, t.op)(x, Dual_Ord.init(r2));
         const x3 = @field(Dual_Ord, t.op)(x, r2);
 
         errdefer std.debug.print(

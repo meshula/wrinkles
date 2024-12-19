@@ -228,10 +228,10 @@ pub fn _bezier0_dual(
         CTX,
         .{
             .u = unorm,
-            .zmo = unorm.add(opentime.Dual_Ord.from(-1.0)),
-            .p2 = opentime.Dual_Ord.from(p2),
-            .p3 = opentime.Dual_Ord.from(p3),
-            .p4 = opentime.Dual_Ord.from(p4),
+            .zmo = unorm.add(opentime.Dual_Ord.init(-1.0)),
+            .p2 = opentime.Dual_Ord.init(p2),
+            .p3 = opentime.Dual_Ord.init(p3),
+            .p4 = opentime.Dual_Ord.init(p4),
         }
     );
 }
@@ -791,10 +791,10 @@ pub fn findU_dual2(
     const MAX_ABS_ERROR = std.math.floatEps(opentime.Ordinate) * 2.0;
     const MAX_ITERATIONS = 45;
 
-    var u_max = opentime.Dual_Ord.from(1.0);
-    var u_min = opentime.Dual_Ord.from(0);
+    var u_max = opentime.Dual_Ord.init(1.0);
+    var u_min = opentime.Dual_Ord.init(0);
 
-    const TWO = opentime.Dual_Ord.from(2.0);
+    const TWO = opentime.Dual_Ord.init(2.0);
 
     var iter:usize = 0;
     while (iter < MAX_ITERATIONS) 
@@ -1099,8 +1099,8 @@ test "bezier_math: lerp"
     // dual lerp test
     {
         const d_u = opentime.Dual_Ord.init_ri(0.25, 1);
-        const p1 = opentime.Dual_Ord.from(10);
-        const p2 = opentime.Dual_Ord.from(20);
+        const p1 = opentime.Dual_Ord.init(10);
+        const p2 = opentime.Dual_Ord.init(20);
 
         const measured = lerp(d_u, p1, p2);
 
