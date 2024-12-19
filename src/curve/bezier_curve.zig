@@ -602,43 +602,34 @@ pub const Bezier = struct {
             unorm: opentime.Ordinate,
         ) control_point.ControlPoint
         {
-            const use_reducer = true;
-            if (use_reducer) {
+            // const use_reducer = true;
+            // if (use_reducer) {
                 const seg3 = bezier_math.segment_reduce4(unorm, self);
                 const seg2 = bezier_math.segment_reduce3(unorm, seg3);
                 const result = bezier_math.segment_reduce2(unorm, seg2);
                 return result.p0;
-            }
-            else {
-                const z = unorm;
-                const z2 = z*z;
-                const z3 = z2*z;
-
-                const zmo = z-1.0;
-                const zmo2 = zmo*zmo;
-                const zmo3 = zmo2*zmo;
-
-                const p1: control_point.ControlPoint = self.p0;
-                const p2: control_point.ControlPoint = self.p1;
-                const p3: control_point.ControlPoint = self.p2;
-                const p4: control_point.ControlPoint = self.p3;
-
-                // "p4 * z3 - p3 * z2 * zmo + p2 * 3 * z * zmo2 - (p1 * zmo3)"
-                const l_p4: control_point.ControlPoint = (
-                    (p4.mul(z3)).sub(p3.mul(3.0*z2*zmo)).add(p2.mul(3.0*z*zmo2)).sub(p1.mul(zmo3))
-                );
-
-                return l_p4;
-            }
-        }
-
-        /// returns whether t overlaps the domain of this segment or not
-        pub fn overlaps_input_ordinate(
-            self:@This(),
-            t:opentime.Ordinate
-        ) bool 
-        {
-            return (self.p0.in <= t and self.p3.in > t);
+            // }
+            // else {
+            //     const z = unorm;
+            //     const z2 = z*z;
+            //     const z3 = z2*z;
+            //
+            //     const zmo = z-1.0;
+            //     const zmo2 = zmo*zmo;
+            //     const zmo3 = zmo2*zmo;
+            //
+            //     const p1: control_point.ControlPoint = self.p0;
+            //     const p2: control_point.ControlPoint = self.p1;
+            //     const p3: control_point.ControlPoint = self.p2;
+            //     const p4: control_point.ControlPoint = self.p3;
+            //
+            //     // "p4 * z3 - p3 * z2 * zmo + p2 * 3 * z * zmo2 - (p1 * zmo3)"
+            //     const l_p4: control_point.ControlPoint = (
+            //         (p4.mul(z3)).sub(p3.mul(3.0*z2*zmo)).add(p2.mul(3.0*z*zmo2)).sub(p1.mul(zmo3))
+            //     );
+            //
+            //     return l_p4;
+            // }
         }
 
         /// return the segment split at u [0, 1.0)
@@ -2543,124 +2534,6 @@ test "negative length 1 linear segment test"
         0.5,
         try xform_curve.output_at_input(-1.5),
     );
-}
-
-pub const sign = enum {
-    lt_zero,
-    zero,
-    gt_zero,
-
-    pub fn gteq_zero(self: @This()) bool {
-        return self == .zero or self == .gt_zero;
-    }
-
-    pub fn lteq_zero(self: @This()) bool {
-        return self == .zero or self == .lt_zero;
-    }
-};
-
-fn line_orientation(
-    test_point: control_point.ControlPoint,
-    segment: Bezier.Segment
-) sign 
-{
-    const v1 = control_point.ControlPoint {
-        .in  = test_point.in.sub(segment.p0.in),
-        .out = test_point.out.sub(segment.p0.out),
-    };
-
-    const v2 = control_point.ControlPoint {
-        .in  = segment.p3.in.sub(segment.p0.in),
-        .out = segment.p3.out.sub(segment.p0.out),
-    };
-
-    const result = ((v1.in.mul(v2.out)).sub((v1.out.mul(v2.in))));
-
-    return if (result.lt(0)) .lt_zero
-        else if (result.eql(0)) .zero
-        else .gt_zero;
-}
-
-test "convex hull test" 
-{
-    const segment=Bezier.Segment.init_f32(
-        .{
-            .p0 = .{ .in = 1, .out = 0, },
-            .p1 = .{ .in = 1.25, .out = 1, },
-            .p2 = .{ .in = 1.75, .out = 0.65, },
-            .p3 = .{ .in = 2, .out = 0.24, },
-        }
-    );
-
-    const p0 = segment.p0;
-    const p1 = segment.p1;
-    var p2 = segment.p2;
-    var p3 = segment.p3;
-
-    const left_bound_segment = Bezier.Segment.init_from_start_end(p0, p1);
-    var right_bound_segment = Bezier.Segment.init_from_start_end(p2, p3);
-
-    // swizzle the right if necessary
-    if (line_orientation(p0, right_bound_segment) == .lt_zero) 
-    {
-        const tmp = p3;
-        p3 = p2;
-        p2 = tmp;
-        right_bound_segment = Bezier.Segment.init_from_start_end(
-            p2,
-            p3,
-        );
-    }
-
-    const top_bound_segment = Bezier.Segment.init_from_start_end(
-        p1,
-        p2,
-    );
-
-    // NOTE: reverse the winding order because linear segment requires the 
-    //       second point be _after_ the first in input space
-    const bottom_bound_segment = Bezier.Segment.init_from_start_end(
-        p0,
-        p3,
-    );
-
-    var i: f32 = 0;
-    while (i <= 1) 
-    {
-        const test_point = segment.eval_at(i);
-
-        try expect(
-            line_orientation(
-                test_point,
-                left_bound_segment
-            ).gteq_zero(),
-        );
-        try expect(
-            line_orientation(
-                test_point,
-                top_bound_segment
-            ).gteq_zero(),
-        );
-        try expect(
-            line_orientation(
-                test_point,
-                right_bound_segment
-            ).gteq_zero(),
-        );
-
-        // because the winding order is reversed, this sign is reversed
-        // the winding order is reversed on bottom_bound_segment because
-        // we require that the points in the bezier be ordered, which
-        // violates the winding order of the algorithm
-        try expect(
-            line_orientation(
-                test_point,
-                bottom_bound_segment
-            ).lteq_zero()
-        );
-
-        i += 0.1;
-    }
 }
 
 test "Bezier.Segment: eval_at for out of range u" 
