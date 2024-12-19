@@ -505,7 +505,7 @@ pub fn DualOfStruct(
             return .{
                 // XXX: Easier right now to route through f64 than build an
                 //      acos out on opentime.Ordinate
-                .r = BaseType.init(std.math.acos(self.r.as(f32))),
+                .r = BaseType.init(std.math.acos(self.r.as(BaseType))),
                 .i = (self.i.neg()).div(
                     comath.eval(
                         "- (r * r) + 1",
@@ -554,6 +554,94 @@ pub fn DualOfStruct(
             try writer.print(
                 "Dual ({s}){{ {s} + {s} }}",
                 .{ @typeName(BaseType), self.r, self.i, },
+            );
+        }
+
+        // binary tests
+
+        /// strict equality
+        pub inline fn eql(
+            self: @This(),
+            rhs: anytype,
+        ) bool
+        {
+            return switch (@TypeOf(rhs)) {
+                DualType => self.r.eql(rhs.r),
+                else => self.r.eql(rhs),
+            };
+        }
+
+        /// approximate equality with the EPSILON as the width
+        pub inline fn eql_approx(
+            self: @This(),
+            rhs: anytype,
+        ) bool
+        {
+            return switch (@TypeOf(rhs)) {
+                DualType => (
+                    self.r.lt(EPSILON.add(rhs.r))
+                    and self.r.gt((EPSILON.neg().add(rhs.r)))
+                ),
+                else => self.r.eql(rhs),
+            };
+        }
+
+        /// less than rhs
+        pub inline fn lt(
+            self: @This(),
+            rhs: anytype,
+        ) bool
+        {
+            return switch (@TypeOf(rhs)) {
+                DualType => self.r.lt(rhs.r),
+                else => self.r.lt(rhs),
+            };
+        }
+
+        /// less than or equal rhs
+        pub inline fn lteq(
+            self: @This(),
+            rhs: anytype,
+        ) bool
+        {
+            return switch (@TypeOf(rhs)) {
+                DualType => self.r.lteq(rhs.r),
+                else => self.r.lteq(rhs),
+            };
+        }
+
+        /// greater than rhs
+        pub inline fn gt(
+            self: @This(),
+            rhs: anytype,
+        ) bool
+        {
+            return switch (@TypeOf(rhs)) {
+                DualType => self.r.gt(rhs.r),
+                else => self.r.gt(rhs),
+            };
+        }
+
+        /// greater than or equal to rhs
+        pub inline fn gteq(
+            self: @This(),
+            rhs: anytype,
+        ) bool
+        {
+            return switch (@TypeOf(rhs)) {
+                DualType => self.r.gteq(rhs.r),
+                else => self.r.gteq(rhs),
+            };
+        }
+
+        inline fn type_error(
+            thing: anytype,
+        ) void
+        {
+            @compileError(
+                @typeName(@This()) ++ " can only do math over floats,"
+                ++ " ints, " ++ @typeName(BaseType) ++ ", and other " ++ @typeName(@This()) ++ ", not: " 
+                ++ @typeName(@TypeOf(thing))
             );
         }
     };
@@ -636,8 +724,8 @@ test "Dual: binary operator test"
     // operations over 8 and 2
     const TestCase = struct {
         op: []const u8,
-        exp_r: f32,
-        exp_i: f32,
+        exp_r: ordinate.Ordinate.BaseType,
+        exp_i: ordinate.Ordinate.BaseType,
     };
     const tests = [_]TestCase{
         .{ .op = "add", .exp_r = 10, .exp_i = 1 },
@@ -718,10 +806,10 @@ test "Dual: unary operator test"
 test "Dual: pow"
 { 
     const TestCase = struct{
-        x: f32,
-        exp: f32,
-        exp_r: f32,
-        exp_i: f32,
+        x: ordinate.Ordinate.BaseType,
+        exp: ordinate.Ordinate.BaseType,
+        exp_r: ordinate.Ordinate.BaseType,
+        exp_i: ordinate.Ordinate.BaseType,
     };
     const tests = [_]TestCase{
         .{
