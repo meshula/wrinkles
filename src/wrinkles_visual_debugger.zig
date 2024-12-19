@@ -82,16 +82,22 @@ pub fn plot_curve_bezier_segment(
             },
         );
 
+        const dual_u_ri = crv.findU_input_dual(
+            opentime.Ordinate.init(
+                STATE.line_direction_test_point.x
+            )
+        );
+        const dual_u = dual_u_ri.r.as(f64);
+        const direct_u = crv.findU_input(
+            opentime.Ordinate.init(
+                STATE.line_direction_test_point.x
+            )
+        );
+
         const label_lo = try std.fmt.bufPrintZ(
             &buf,
-            "Line Orientation: {d}",
-            .{ 
-                crv.findU_input(
-                    opentime.Ordinate.init(
-                        STATE.line_direction_test_point.x
-                    ),
-                ),
-            },
+            "u: {d:0.2}, {d:0.2} (dual) {d:9.2} (direct)",
+            .{ dual_u_ri.r.as(f64), dual_u_ri.i.as(f64), direct_u },
         );
         zplot.plotText(
             label_lo,
@@ -101,21 +107,77 @@ pub fn plot_curve_bezier_segment(
             },
         );
 
+        const dual_pt = crv.eval_at(dual_u);
+        const direct_pt = crv.eval_at(direct_u);
+
         zplot.plotLine(
-            "Test point -> find input",
+            "[DUAL] Test point -> find input",
             f64,
             .{
                 .xv = &.{ 
                     STATE.line_direction_test_point.x,
-                    STATE.line_direction_test_point.x,
+                    dual_pt.in.as(f64),
                 },
                 .yv = &.{
                     STATE.line_direction_test_point.y,
-                    crv.output_at_input(
-                        opentime.Ordinate.init(
-                            STATE.line_direction_test_point.x
-                        )
-                    ).as(f64),
+                    dual_pt.out.as(f64),
+                },
+            },
+        );
+
+        zplot.plotLine(
+            "[DIRECT] Test point -> find input",
+            f64,
+            .{
+                .xv = &.{ 
+                    STATE.line_direction_test_point.x,
+                    direct_pt.in.as(f64),
+                },
+                .yv = &.{
+                    STATE.line_direction_test_point.y,
+                    direct_pt.out.as(f64),
+                },
+            },
+        );
+
+        // const lerp_pt = curve.bezier_math.lerp(
+        //     u,
+        //     crv.p0,
+        //     crv.p3,
+        // );
+
+        // zplot.plotLine(
+        //     "p0->lerp(u)->p3",
+        //     f64,
+        //     .{
+        //         .xv = &.{ 
+        //             crv.p0.in.as(f64),
+        //             lerp_pt.in.as(f64),
+        //             crv.p3.in.as(f64),
+        //         },
+        //         .yv = &.{
+        //             crv.p0.out.as(f64),
+        //             lerp_pt.out.as(f64),
+        //             crv.p3.out.as(f64),
+        //         },
+        //     },
+        // );
+
+        zplot.plotScatter(
+            "Vertices",
+            f64,
+            .{
+                .xv = &.{
+                    crv.p0.in.as(f64),
+                    crv.p1.in.as(f64),
+                    crv.p2.in.as(f64),
+                    crv.p3.in.as(f64),
+                },
+                .yv = &.{
+                    crv.p0.out.as(f64),
+                    crv.p1.out.as(f64),
+                    crv.p2.out.as(f64),
+                    crv.p3.out.as(f64),
                 },
             },
         );
