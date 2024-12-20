@@ -319,7 +319,10 @@ pub fn main(
     );
     defer fst_crv.deinit(allocator);
 
-    const identSeg = curve.Bezier.Segment.init_identity(-3, 3) ;
+    const identSeg = curve.Bezier.Segment.init_identity(
+        opentime.Ordinate.init(-3),
+        opentime.Ordinate.init(3),
+    ) ;
     const snd_crv = try curve.Bezier.init(
         allocator,
         &.{identSeg}
@@ -364,26 +367,26 @@ pub fn evaluated_curve(
     }
 
     const ext = crv.extents();
-    const stepsize:f32 = (ext[1].in - ext[0].in) / @as(f32, steps);
+    const stepsize:f32 = (ext[1].in.sub(ext[0].in)).div(steps).as(f32);
 
     var xv:[steps]f32 = undefined;
     var yv:[steps]f32 = undefined;
 
     var i:usize = 0;
-    var uv:f32 = ext[0].in;
+    var uv:f32 = ext[0].in.as(f32);
     for (crv.segments) 
         |seg| 
     {
-        uv = seg.p0.in;
+        uv = seg.p0.in.as(f32);
 
         while (i < steps - 1) 
             : (i += 1) 
         {
             // guarantee that it hits the end point
-            if (uv > seg.p3.in) 
+            if (uv > seg.p3.in.as(f32)) 
             {
-                xv[i] = seg.p3.in;
-                yv[i] = seg.p3.out;
+                xv[i] = seg.p3.in.as(f32);
+                yv[i] = seg.p3.out.as(f32);
                 i += 1;
 
                 break;
@@ -400,7 +403,7 @@ pub fn evaluated_curve(
             };
 
             xv[i] = uv;
-            yv[i] = p;
+            yv[i] = p.as(f32);
 
             uv += stepsize;
         }
@@ -409,8 +412,8 @@ pub fn evaluated_curve(
     if (crv.segments.len > 0) {
         const end_point = crv.segments[crv.segments.len - 1].p3;
 
-        xv[steps - 1] = end_point.in;
-        yv[steps - 1] = end_point.out;
+        xv[steps - 1] = end_point.in.as(f32);
+        yv[steps - 1] = end_point.out.as(f32);
     }
 
     return .{ .xv = xv, .yv = yv };
@@ -430,8 +433,8 @@ fn plot_cp_line(
     for (points, xv, yv) 
         |p, *x, *y| 
     {
-        x.* = p.in;
-        y.* = p.out;
+        x.* = p.in.as(f32);
+        y.* = p.out.as(f32);
     }
 
     zgui.plot.plotLine(
@@ -453,15 +456,15 @@ fn plot_point(
         full_label,
         f32,
         .{
-            .xv = &.{pt.in},
-            .yv = &.{pt.out},
+            .xv = &.{pt.in.as(f32)},
+            .yv = &.{pt.out.as(f32)},
         }
     );
     zgui.plot.plotText(
         short_label,
         .{
-            .x = pt.in,
-            .y = pt.out,
+            .x = pt.in.as(f32),
+            .y = pt.out.as(f32),
             .pix_offset = .{ 0, size * 1.75 },
         }
     );
@@ -495,8 +498,8 @@ fn plot_knots(
         for (endpoints, 0..) 
             |knot, knot_ind| 
         {
-            knots_xv[knot_ind] = knot.in;
-            knots_yv[knot_ind] = knot.out;
+            knots_xv[knot_ind] = knot.in.as(f32);
+            knots_yv[knot_ind] = knot.out.as(f32);
         }
 
         zgui.plot.pushStyleVar1f(.{ .idx = .marker_size, .v = 30 });
@@ -515,7 +518,7 @@ fn plot_knots(
             const label = try std.fmt.bufPrintZ(&buf, "{d}", .{ pt_ind });
             zgui.plot.plotText(
                 label,
-                .{ .x = pt.in, .y = pt.out, .pix_offset = .{ 0, 45 } }
+                .{ .x = pt.in.as(f32), .y = pt.out.as(f32), .pix_offset = .{ 0, 45 } }
             );
         }
 
@@ -551,8 +554,8 @@ fn plot_control_points(
             for (seg.points(), 0..) 
                 |pt, pt_ind| 
             {
-                knots_xv[seg_ind * 4 + pt_ind] = pt.in;
-                knots_yv[seg_ind * 4 + pt_ind] = pt.out;
+                knots_xv[seg_ind * 4 + pt_ind] = pt.in.as(f32);
+                knots_yv[seg_ind * 4 + pt_ind] = pt.out.as(f32);
                 const pt_text = try std.fmt.bufPrintZ(
                     buf[512..],
                     "{d}.{d}: ({d:0.2}, {d:0.2})",
@@ -560,7 +563,7 @@ fn plot_control_points(
                 );
                 zgui.plot.plotText(
                     pt_text,
-                    .{.x = pt.in, .y = pt.out, .pix_offset = .{0, 36}} 
+                    .{.x = pt.in.as(f32), .y = pt.out.as(f32), .pix_offset = .{0, 36}} 
                 );
             }
         }
@@ -602,8 +605,8 @@ fn plot_linear_curve(
     for (lin.knots, 0..) 
         |knot, knot_index| 
     {
-        xv[knot_index] = knot.in;
-        yv[knot_index] = knot.out;
+        xv[knot_index] = knot.in.as(f32);
+        yv[knot_index] = knot.out.as(f32);
     }
 
     var tmp_buf:[1024:0]u8 = undefined;
@@ -644,16 +647,16 @@ fn plot_editable_bezier_curve(
 
         var in_pts = seg.points();
         var times: [4]f64 = .{ 
-            @floatCast(in_pts[0].in),
-            @floatCast(in_pts[1].in),
-            @floatCast(in_pts[2].in),
-            @floatCast(in_pts[3].in),
+            in_pts[0].in.as(f64),
+            in_pts[1].in.as(f64),
+            in_pts[2].in.as(f64),
+            in_pts[3].in.as(f64),
         };
         var values: [4]f64 = .{ 
-            @floatCast(in_pts[0].out),
-            @floatCast(in_pts[1].out),
-            @floatCast(in_pts[2].out),
-            @floatCast(in_pts[3].out),
+            in_pts[0].out.as(f64),
+            in_pts[1].out.as(f64),
+            in_pts[2].out.as(f64),
+            in_pts[3].out.as(f64),
         };
 
         inline for (0..4) 
@@ -671,8 +674,8 @@ fn plot_editable_bezier_curve(
                 }
             );
             in_pts[idx] = .{
-                .in = @floatCast(times[idx]),
-                .out = @floatCast(values[idx]),
+                .in = opentime.Ordinate.init(times[idx]),
+                .out = opentime.Ordinate.init(values[idx]),
             };
         }
 
@@ -748,19 +751,19 @@ fn plot_bezier_curve(
         {
             var x = seg.p0.in;
             const xmax = seg.p3.in;
-            const step = (xmax - x) / 10.0;
+            const step = (xmax.sub(x)).as(f32) / 10.0;
 
-            while (x < xmax)
-                : (x += step)
+            while (x.lt(xmax))
+                : (x = x.add(step))
             {
                 const u_at_x = seg.findU_input_dual(x);
                 const pt = seg.eval_at_dual(u_at_x);
 
-                xv[0] = x;
-                xv[1] = pt.r.in;
+                xv[0] = x.as(f32);
+                xv[1] = pt.r.in.as(f32);
 
-                yv[0] = crv_extents[0].out;
-                yv[1] = pt.r.out;
+                yv[0] = crv_extents[0].out.as(f32);
+                yv[1] = pt.r.out.as(f32);
 
                 zgui.plot.plotLine(
                     findu_label,
@@ -800,17 +803,19 @@ fn plot_bezier_curve(
                 |seg|
             {
                 // dual of control points
-                const d_du = seg.eval_at_dual(.{.r = unorm, .i = 1 });
+                const d_du = seg.eval_at_dual(
+                    opentime.Dual_Ord.init_ri(unorm, 1.0)
+                );
 
                 if (flags.derivatives_ddu) 
                 {
                     const xv : [2]f32 = .{
-                        d_du.r.in,
-                        d_du.r.in + d_du.i.in,
+                        d_du.r.in.as(f32),
+                        d_du.r.in.as(f32) + d_du.i.in.as(f32),
                     };
                     const yv : [2]f32 = .{
-                        d_du.r.out,
-                        d_du.r.out + d_du.i.out,
+                        d_du.r.out.as(f32),
+                        d_du.r.out.as(f32) + d_du.i.out.as(f32),
                     };
 
                     zgui.plot.plotLine(
@@ -825,12 +830,12 @@ fn plot_bezier_curve(
                     const d_dx = seg.output_at_input_dual(d_du.r.in);
 
                     const xv : [2]f32 = .{
-                        d_dx.r.in,
-                        d_dx.r.in + d_dx.i.in,
+                        d_dx.r.in.as(f32),
+                        d_dx.r.in.as(f32) + d_dx.i.in.as(f32),
                     };
                     const yv : [2]f32 = .{
-                        d_dx.r.out,
-                        d_dx.r.out + d_dx.i.out,
+                        d_dx.r.out.as(f32),
+                        d_dx.r.out.as(f32) + d_dx.i.out.as(f32),
                     };
 
                     zgui.plot.plotLine(
@@ -854,12 +859,12 @@ fn plot_bezier_curve(
                     );
 
                     const xv : [2]f32 = .{
-                        d_du.r.in,
-                        d_du.r.in + hodo_d_du.x,
+                        d_du.r.in.as(f32),
+                        d_du.r.in.as(f32) + hodo_d_du.x,
                     };
                     const yv : [2]f32 = .{
-                        d_du.r.out,
-                        d_du.r.out + hodo_d_du.y,
+                        d_du.r.out.as(f32),
+                        d_du.r.out.as(f32) + hodo_d_du.y,
                     };
 
                     zgui.plot.plotLine(
@@ -888,21 +893,23 @@ fn plot_bezier_curve(
                 |seg|
             {
                 // dual of control points
-                const d_du = seg.eval_at_dual(.{.r = unorm, .i = 1 });
+                const d_du = seg.eval_at_dual(
+                    opentime.Dual_Ord.init_ri(unorm, 1.0)
+                );
 
                 if (flags.derivatives_dydx_isect) 
                 {
                     const d_dx = seg.output_at_input_dual(d_du.r.in);
 
                     const xv : [3]f32 = .{
-                        d_dx.r.in - d_dx.i.in,
-                        d_dx.r.in,
-                        d_dx.r.in + d_dx.i.in,
+                        d_dx.r.in.as(f32) - d_dx.i.in.as(f32),
+                        d_dx.r.in.as(f32),
+                        d_dx.r.in.as(f32) + d_dx.i.in.as(f32),
                     };
                     const yv : [3]f32 = .{
-                        d_dx.r.out - d_dx.i.out,
-                        d_dx.r.out,
-                        d_dx.r.out + d_dx.i.out,
+                        d_dx.r.out.as(f32) - d_dx.i.out.as(f32),
+                        d_dx.r.out.as(f32),
+                        d_dx.r.out.as(f32) + d_dx.i.out.as(f32),
                     };
 
                     zgui.plot.plotLine(
@@ -929,21 +936,23 @@ fn plot_bezier_curve(
             |seg|
         {
             // dual of control points
-            const d_du = seg.eval_at_dual(.{.r = unorm, .i = 1 });
+            const d_du = seg.eval_at_dual(
+                opentime.Dual_Ord.init_ri(unorm, 1.0)
+            );
 
             if (flags.show_dydx_point) 
             {
                 const d_dx = seg.output_at_input_dual(d_du.r.in);
 
                 const xv : [3]f32 = .{
-                    d_dx.r.in - d_dx.i.in,
-                    d_dx.r.in,
-                    d_dx.r.in + d_dx.i.in,
+                    d_dx.r.in.as(f32) - d_dx.i.in.as(f32),
+                    d_dx.r.in.as(f32),
+                    d_dx.r.in.as(f32) + d_dx.i.in.as(f32),
                 };
                 const yv : [3]f32 = .{
-                    d_dx.r.out - d_dx.i.out,
-                    d_dx.r.out,
-                    d_dx.r.out + d_dx.i.out,
+                    d_dx.r.out.as(f32) - d_dx.i.out.as(f32),
+                    d_dx.r.out.as(f32),
+                    d_dx.r.out.as(f32) + d_dx.i.out.as(f32),
                 };
 
                 zgui.plot.plotLine(
@@ -963,14 +972,14 @@ fn plot_bezier_curve(
 
                 {
                     const xv = [_]f32{
-                        I1.in,
-                        I2.in,
-                        I3.in,
+                        I1.in.as(f32),
+                        I2.in.as(f32),
+                        I3.in.as(f32),
                     };
                     const yv = [_]f32{
-                        I1.out,
-                        I2.out,
-                        I3.out,
+                        I1.out.as(f32),
+                        I2.out.as(f32),
+                        I3.out.as(f32),
                     };
                     zgui.plot.plotLine(
                         decastlejau_label,
@@ -984,12 +993,12 @@ fn plot_bezier_curve(
 
                 {
                     const xv = [_]f32{
-                        e1.in,
-                        e2.in,
+                        e1.in.as(f32),
+                        e2.in.as(f32),
                     };
                     const yv = [_]f32{
-                        e1.out,
-                        e2.out,
+                        e1.out.as(f32),
+                        e2.out.as(f32),
                     };
                     zgui.plot.plotLine(
                         decastlejau_label,
@@ -1056,8 +1065,8 @@ fn plot_tpa_guts(
         zgui.plot.plotText(
             label,
             .{ 
-                .x = guts.A.?.in, 
-                .y = guts.A.?.out,
+                .x = guts.A.?.in.as(f32), 
+                .y = guts.A.?.out.as(f32),
                 .pix_offset = .{ 0, 60 }
             }
         );
@@ -1070,8 +1079,8 @@ fn plot_tpa_guts(
         zgui.plot.plotText(
             label,
             .{ 
-                .x = guts.start.?.in, 
-                .y = guts.start.?.out,
+                .x = guts.start.?.in.as(f32), 
+                .y = guts.start.?.out.as(f32),
                 .pix_offset = .{ 0, 60 }
             }
         );
@@ -1081,8 +1090,14 @@ fn plot_tpa_guts(
         const ddt = guts.start_ddt.?;
         const off = guts.start.?.add(ddt);
 
-        const xv = &.{ guts.start.?.in, off.in };
-        const yv = &.{ guts.start.?.out, off.out };
+        const xv = &.{
+            guts.start.?.in.as(f32),
+            off.in.as(f32) 
+        };
+        const yv = &.{
+            guts.start.?.out.as(f32),
+            off.out.as(f32) 
+        };
 
         const label =  try std.fmt.bufPrintZ(
             &buf,
@@ -1103,8 +1118,14 @@ fn plot_tpa_guts(
         const ddt = guts.end_ddt.?;
         const off = guts.end.?.sub(ddt);
 
-        const xv = &.{ guts.end.?.in, off.in };
-        const yv = &.{ guts.end.?.out, off.out };
+        const xv = &.{
+            guts.end.?.in.as(f32),
+            off.in.as(f32) 
+        };
+        const yv = &.{
+            guts.end.?.out.as(f32),
+            off.out.as(f32) 
+        };
 
         const label =  try std.fmt.bufPrintZ(
             &buf,
@@ -1126,8 +1147,16 @@ fn plot_tpa_guts(
         const e1 = guts.e1.?;
         const e2 = guts.e2.?;
 
-        const xv = &.{ e1.in, guts.midpoint.?.in, e2.in };
-        const yv = &.{ e1.out, guts.midpoint.?.out, e2.out };
+        const xv = &.{
+            e1.in.as(f32),
+            guts.midpoint.?.in.as(f32),
+            e2.in.as(f32) 
+        };
+        const yv = &.{
+            e1.out.as(f32),
+            guts.midpoint.?.out.as(f32),
+            e2.out.as(f32) 
+        };
 
         const label =  try std.fmt.bufPrintZ(
             &buf,
@@ -1154,8 +1183,8 @@ fn plot_tpa_guts(
             zgui.plot.plotText(
                 d_label,
                 .{ 
-                    .x = e1.in, 
-                    .y = e1.out, 
+                    .x = e1.in.as(f32), 
+                    .y = e1.out.as(f32), 
                     .pix_offset = .{ 0, 48 } 
                 },
                 );
@@ -1167,8 +1196,16 @@ fn plot_tpa_guts(
         const v1 = guts.v1.?;
         const v2 = guts.v2.?;
 
-        const xv = &.{ v1.in,  guts.A.?.in,  v2.in };
-        const yv = &.{ v1.out, guts.A.?.out, v2.out };
+        const xv = &.{
+            v1.in.as(f32),
+            guts.A.?.in.as(f32),
+            v2.in.as(f32) 
+        };
+        const yv = &.{
+            v1.out.as(f32),
+            guts.A.?.out.as(f32),
+            v2.out.as(f32) 
+        };
 
         const label =  try std.fmt.bufPrintZ(
             &buf,
@@ -1338,10 +1375,12 @@ fn plot_three_point_approx(
                     u
                 )
             );
-            const d_mid_point_dt = curve.ControlPoint{
-                .in = d_midpoint_dt.x,
-                .out = d_midpoint_dt.y,
-            };
+            const d_mid_point_dt = curve.ControlPoint.init(
+                .{
+                    .in = d_midpoint_dt.x,
+                    .out = d_midpoint_dt.y,
+                }
+            );
 
             const tpa_guts = curve.bezier_curve.three_point_guts_plot(
                 seg.p0,
@@ -1469,39 +1508,41 @@ fn update_with_error(
         
     }
 
-    var _proj = topology.Topology.init_identity_infinite(allocator);
-    const inf = topology.Topology.init_identity_infinite(allocator);
-
-    for (STATE.operations.items) 
-        |visop| 
-    {
-        var _topology: topology.Topology = .{ .empty = .{} };
-
-        switch (visop) 
-        {
-            .transform => |xform| {
-                if (!xform.active) {
-                    continue;
-                } else {
-                    _topology = .{ .affine = xform.topology };
-                }
-            },
-            .curve => |crv| {
-                if (!crv.active) {
-                    continue;
-                } else {
-                    _topology = .{ .bezier_curve = .{ .curve = crv.curve } };
-                }
-            },
-        }
-
-        const tmp = _proj;
-        _proj = _topology.project_topology(
-            ALLOCATOR,
-            _proj
-        ) catch inf;
-        tmp.deinit(ALLOCATOR);
-    }
+    // const allocator = std.heap.c_allocator;
+    
+    // var _proj = topology.Topology.init_identity_infinite(allocator);
+    // const inf = topology.Topology.init_identity_infinite(allocator);
+    //
+    // for (STATE.operations.items) 
+    //     |visop| 
+    // {
+    //     var _topology: topology.Topology = .{ .empty = .{} };
+    //
+    //     switch (visop) 
+    //     {
+    //         .transform => |xform| {
+    //             if (!xform.active) {
+    //                 continue;
+    //             } else {
+    //                 _topology = .{ .affine = xform.topology };
+    //             }
+    //         },
+    //         .curve => |crv| {
+    //             if (!crv.active) {
+    //                 continue;
+    //             } else {
+    //                 _topology = .{ .bezier_curve = .{ .curve = crv.curve } };
+    //             }
+    //         },
+    //     }
+    //
+    //     const tmp = _proj;
+    //     _proj = _topology.project_topology(
+    //         ALLOCATOR,
+    //         _proj
+    //     ) catch inf;
+    //     tmp.deinit(ALLOCATOR);
+    // }
 
     zgui.setNextWindowPos(.{ .x = 0.0, .y = 0.0, });
 
@@ -1580,52 +1621,52 @@ fn update_with_error(
                     }
                 }
 
-                if (STATE.show_projection_result) 
-                {
-                    switch (_proj) 
-                    {
-                        .linear_curve => |lint| { 
-                            const lin = lint.curve;
-                            try plot_linear_curve(
-                                lin,
-                                "result / linear",
-                                ALLOCATOR
-                            );
-                        },
-                        .bezier_curve => |bez| {
-                            const pts = try evaluated_curve(
-                                bez.curve,
-                                CURVE_SAMPLE_COUNT
-                            );
-
-                            zgui.plot.plotLine(
-                                "result [bezier]",
-                                f32,
-                                .{ .xv = &pts.xv, .yv = &pts.yv }
-                            );
-                        },
-                        .affine =>  {
-                            zgui.plot.plotLine(
-                                "NO RESULT: AFFINE",
-                                f32,
-                                .{ 
-                                    .xv = &[_] f32{},
-                                    .yv = &[_] f32{},
-                                }
-                            );
-                        },
-                        .empty => {
-                            zgui.plot.plotLine(
-                                "EMPTY RESULT",
-                                f32,
-                                .{ 
-                                    .xv = &[_] f32{},
-                                    .yv = &[_] f32{},
-                                }
-                            );
-                        },
-                    }
-                }
+                // if (STATE.show_projection_result) 
+                // {
+                //     switch (_proj) 
+                //     {
+                //         .linear_curve => |lint| { 
+                //             const lin = lint.curve;
+                //             try plot_linear_curve(
+                //                 lin,
+                //                 "result / linear",
+                //                 ALLOCATOR
+                //             );
+                //         },
+                //         .bezier_curve => |bez| {
+                //             const pts = try evaluated_curve(
+                //                 bez.curve,
+                //                 CURVE_SAMPLE_COUNT
+                //             );
+                //
+                //             zgui.plot.plotLine(
+                //                 "result [bezier]",
+                //                 f32,
+                //                 .{ .xv = &pts.xv, .yv = &pts.yv }
+                //             );
+                //         },
+                //         .affine =>  {
+                //             zgui.plot.plotLine(
+                //                 "NO RESULT: AFFINE",
+                //                 f32,
+                //                 .{ 
+                //                     .xv = &[_] f32{},
+                //                     .yv = &[_] f32{},
+                //                 }
+                //             );
+                //         },
+                //         .empty => {
+                //             zgui.plot.plotLine(
+                //                 "EMPTY RESULT",
+                //                 f32,
+                //                 .{ 
+                //                     .xv = &[_] f32{},
+                //                     .yv = &[_] f32{},
+                //                 }
+                //             );
+                //         },
+                //     }
+                // }
 
                 if (STATE.show_test_curves) 
                 {
@@ -1660,7 +1701,7 @@ fn update_with_error(
                     );
 
                     {
-                        var split_points = std.ArrayList(f32).init(ALLOCATOR);
+                        var split_points = std.ArrayList(opentime.Ordinate).init(ALLOCATOR);
                         defer split_points.deinit();
 
                         // find all knots in self that are within the other bounds
@@ -1674,9 +1715,9 @@ fn update_with_error(
                         {
                             if (
                                 _is_between(
-                                    self_knot.in,
-                                    other_bounds[0].out,
-                                    other_bounds[1].out
+                                    self_knot.in.as(f32),
+                                    other_bounds[0].out.as(f32),
+                                    other_bounds[1].out.as(f32)
                                 )
                             ) {
                                 try split_points.append(self_knot.in);
@@ -1793,8 +1834,16 @@ fn update_with_error(
                                  const p1 = midpoint.add(d);
                                  const p2 = midpoint.sub(d);
 
-                                 const xv = &.{ p1.in,  midpoint.in,  p2.in };
-                                 const yv = &.{ p1.out, midpoint.out, p2.out };
+                                 const xv = &.{
+                                     p1.in.as(f32),
+                                     midpoint.in.as(f32),
+                                     p2.in.as(f32) 
+                                 };
+                                 const yv = &.{
+                                     p1.out.as(f32),
+                                     midpoint.out.as(f32),
+                                     p2.out.as(f32) 
+                                 };
 
                                  zgui.plot.plotLine(
                                      d_name,
@@ -1810,8 +1859,8 @@ fn update_with_error(
                                      zgui.plot.plotText(
                                          label,
                                          .{ 
-                                             .x = p1.in, 
-                                             .y = p1.out, 
+                                             .x = p1.in.as(f32), 
+                                             .y = p1.out.as(f32), 
                                              .pix_offset = .{ 0, 16 } 
                                          },
                                      );
@@ -1858,24 +1907,28 @@ fn update_with_error(
                 defer zgui.treePop();
 
                 const bcrv = curve.bezier_curve;
+                var f : f32 = @floatCast(bcrv.u_val_of_midpoint);
                 zgui.text("U value: {d}", .{ bcrv.u_val_of_midpoint });
                 _ = zgui.sliderFloat(
                     "U Value",
                     .{
                         .min = 0,
                         .max = 1,
-                        .v = &bcrv.u_val_of_midpoint 
+                        .v = &f
                     }
                 );
+                bcrv.u_val_of_midpoint = @floatCast(f);
                 zgui.text("fudge: {d}", .{ bcrv.fudge });
+                f = @floatCast(bcrv.fudge);
                 _ = zgui.sliderFloat(
                     "scale e1/e2 fudge factor",
                     .{ 
                         .min = 0.1,
                         .max = 10,
-                        .v = &bcrv.fudge 
+                        .v = &f
                     }
                 );
+                bcrv.fudge = @floatCast(f);
 
                 _ = zgui.comboFromEnum(
                     "Projection Algorithm",
@@ -2021,7 +2074,7 @@ fn update_with_error(
                                             "[Seg: {}] p1-p0: {}",
                                             .{
                                                 ind,
-                                                seg.p1.in - seg.p0.in,
+                                                seg.p1.in.sub(seg.p0.in),
                                             },
                                         );
                                         zgui.bulletText(
@@ -2029,10 +2082,8 @@ fn update_with_error(
                                             .{
                                                 ind,
                                                 (
-                                                 d_p0.i.in 
-                                                 / (
-                                                     seg.p1.in 
-                                                     - seg.p0.in
+                                                 d_p0.i.in.div(
+                                                     seg.p1.in.sub(seg.p0.in)
                                                  )
                                                 ),
                                             },
@@ -2052,14 +2103,14 @@ fn update_with_error(
                                             "[Seg: {}] p3-p2: {}",
                                             .{
                                                 ind,
-                                                seg.p3.in - seg.p2.in,
+                                                seg.p3.in.sub(seg.p2.in),
                                             },
                                         );
                                         zgui.bulletText(
                                             "[Seg: {}] (dy/dx) / (p3-p2): {}",
                                             .{
                                                 ind,
-                                                d_p3.i.in / (seg.p3.in - seg.p2.in),
+                                                d_p3.i.in.div(seg.p3.in.sub(seg.p2.in)),
                                             },
                                         );
                                     }
@@ -2067,7 +2118,7 @@ fn update_with_error(
                                     // dy/du
                                     {
                                         const d_p0 = seg.eval_at_dual(
-                                            .{ .r = 0, .i = 1.0}
+                                            opentime.Dual_Ord.init_ri(0, 1.0)
                                         );
                                         zgui.bulletText(
                                             "[Seg: {}] dy/du at p0: {}",
@@ -2080,21 +2131,21 @@ fn update_with_error(
                                             "[Seg: {}] p1-p0: {}",
                                             .{
                                                 ind,
-                                                seg.p1.in - seg.p0.in,
+                                                seg.p1.in.sub(seg.p0.in),
                                             },
                                         );
                                         zgui.bulletText(
                                             "[Seg: {}] (dy/du) / (p1-p0): {}",
                                             .{
                                                 ind,
-                                                d_p0.i.in / (
-                                                    seg.p1.in - seg.p0.in
+                                                d_p0.i.in.div(
+                                                    seg.p1.in.sub(seg.p0.in)
                                                 ),
                                             },
                                         );
 
                                         const d_p3 = seg.eval_at_dual(
-                                            .{ .r = 1.0, .i = 1.0 }
+                                            opentime.Dual_Ord.init_ri(1.0,1.0)
                                         );
                                         zgui.bulletText(
                                             "[Seg: {}] dy/du at p3: {}",
@@ -2107,14 +2158,14 @@ fn update_with_error(
                                             "[Seg: {}] p3-p2: {}",
                                             .{
                                                 ind,
-                                                seg.p3.in - seg.p2.in,
+                                                seg.p3.in.sub(seg.p2.in),
                                             },
                                         );
                                         zgui.bulletText(
                                             "[Seg: {}] (dy/du) / (p3-p2): {}",
                                             .{
                                                 ind,
-                                                d_p3.i.in / (seg.p3.in - seg.p2.in),
+                                                d_p3.i.in.div(seg.p3.in.sub(seg.p2.in)),
                                             },
                                         );
                                     }
@@ -2199,45 +2250,46 @@ fn update_with_error(
                             }
                         }
                     },
-                    .transform => |*xform| {
-                        if (
-                            zgui.treeNode( "Affine Transform Settings",)
-                        ) 
-                        {
-                            defer zgui.treePop();
-                            _ = zgui.checkbox("Active", .{.v = &xform.active});
-                            zgui.sameLine(.{});
-                            if (zgui.smallButton("Remove")) {
-                                try remove.append(op_index);
-                            }
-                            var bounds: [2]f32 = .{
-                                xform.topology.bounds.start_seconds,
-                                xform.topology.bounds.end_seconds,
-                            };
-                            _ = zgui.sliderFloat(
-                                "offset",
-                                .{
-                                    .min = -10,
-                                    .max = 10,
-                                    .v = &xform.topology.transform.offset
-                                }
-                            );
-                            _ = zgui.sliderFloat(
-                                "scale",
-                                .{
-                                    .min = -10,
-                                    .max = 10,
-                                    .v = &xform.topology.transform.scale
-                                }
-                            );
-                            _ = zgui.inputFloat2(
-                                "input space bounds",
-                                .{ .v = &bounds }
-                            );
-                            xform.topology.bounds.start_seconds = bounds[0];
-                            xform.topology.bounds.end_seconds = bounds[1];
-                        }
-                    },
+                    .transform =>  {},
+                    // .transform => |*xform| {
+                    //     // if (
+                    //     //     zgui.treeNode( "Affine Transform Settings",)
+                    //     // ) 
+                    //     // {
+                    //     //     defer zgui.treePop();
+                    //     //     _ = zgui.checkbox("Active", .{.v = &xform.active});
+                    //     //     zgui.sameLine(.{});
+                    //     //     if (zgui.smallButton("Remove")) {
+                    //     //         try remove.append(op_index);
+                    //     //     }
+                    //     //     var bounds: [2]f32 = .{
+                    //     //         xform.topology.bounds.start_seconds,
+                    //     //         xform.topology.bounds.end_seconds,
+                    //     //     };
+                    //     //     _ = zgui.sliderFloat(
+                    //     //         "offset",
+                    //     //         .{
+                    //     //             .min = -10,
+                    //     //             .max = 10,
+                    //     //             .v = &xform.topology.transform.offset
+                    //     //         }
+                    //     //     );
+                    //     //     _ = zgui.sliderFloat(
+                    //     //         "scale",
+                    //     //         .{
+                    //     //             .min = -10,
+                    //     //             .max = 10,
+                    //     //             .v = &xform.topology.transform.scale
+                    //     //         }
+                    //     //     );
+                    //     //     _ = zgui.inputFloat2(
+                    //     //         "input space bounds",
+                    //     //         .{ .v = &bounds }
+                    //     //     );
+                    //     //     xform.topology.bounds.start_seconds = bounds[0];
+                    //     //     xform.topology.bounds.end_seconds = bounds[1];
+                    //     // }
+                    // },
                 }
             }
             if (zgui.smallButton("Add")) {
@@ -2268,7 +2320,7 @@ fn update_with_error(
         _ = zgui.plot.showDemoWindow(null);
     }
 
-    _proj.deinit(ALLOCATOR);
+    // _proj.deinit(allocator);
 }
 
 /// parse the commandline arguments and setup the state
