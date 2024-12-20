@@ -50,6 +50,7 @@ pub fn plot_curve_bezier_segment(
 
     var inputs : [PLOT_STEPS + 1]f64 = undefined;
     var outputs : [PLOT_STEPS + 1]f64 = undefined;
+    // var outputs_dual: [PLOT_STEPS + 1]curve.control_point.Dual_CP = undefined;
 
     var len : usize = 0;
     const step = (input_bounds[1] - input_bounds[0]) / PLOT_STEPS;
@@ -59,6 +60,51 @@ pub fn plot_curve_bezier_segment(
     {
         inputs[len] = i;
         outputs[len] = crv.output_at_input(i).as(f64);
+
+        if (@mod(len, PLOT_STEPS/10) == 0) {
+            const d = crv.output_at_input_dual(
+                opentime.Ordinate.init(i)
+            );
+            zplot.plotLine(
+                "dx/dy",
+                f64,
+                .{
+                    .xv = &.{ 
+                        d.r.in.as(f64),
+                        d.r.in.as(f64) + d.i.in.as(f64),
+                    },
+                    .yv = &.{ 
+                        d.r.out.as(f64),
+                        d.r.out.as(f64) + d.i.out.as(f64),
+                    },
+                },
+            );
+        }
+    }
+    len = 0;
+    i = 0;
+    while (i < 1)
+        : ({i += step; len += 1;})
+    {
+        if (@mod(len, PLOT_STEPS/10) == 0) {
+            const d = crv.eval_at_dual(
+                opentime.Dual_Ord.init_ri(i,1.0)
+            );
+            zplot.plotLine(
+                "d/du",
+                f64,
+                .{
+                    .xv = &.{ 
+                        d.r.in.as(f64),
+                        d.r.in.as(f64) + d.i.in.as(f64),
+                    },
+                    .yv = &.{ 
+                        d.r.out.as(f64),
+                        d.r.out.as(f64) + d.i.out.as(f64),
+                    },
+                    },
+                );
+        }
     }
 
     zplot.plotLine(
