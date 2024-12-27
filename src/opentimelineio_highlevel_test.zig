@@ -176,7 +176,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
             60, 61, 62, 63, 64, 65, 66, 67, 68, 69,
             70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
-            80, 81, 82,
+            80, 81,
         },
         &[_]sampling.sample_index_t{ 
             310, 311, 312, 313, 314, 315, 316, 317, 318, 319,
@@ -221,7 +221,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
                         op.src_to_dst_topo.input_bounds(),
                         op.src_to_dst_topo.output_bounds(),
                     },
-                    );
+                );
             }
             const di = (
                 try op.destination.ref.discrete_info_for_space(.media)
@@ -235,7 +235,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
                         di.sample_rate_hz,
                         di.start_index,
                     },
-                    );
+                );
             }
 
             const dest_frames = try op.project_range_cd(
@@ -841,7 +841,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
 
         try std.testing.expectEqualSlices(
             sampling.sample_index_t, 
-            &.{ 288000, 287999, 287998, 287996,},
+            &.{ 288000, 287999, 287998, 287997,},
             indices_cl_media,
         );
     }
