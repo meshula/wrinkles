@@ -1,19 +1,33 @@
-# Wrinkles app - V3 Prototype Project
+# Wrinkles app - Robust Temporal Math V3 Prototype Project
 
-contains:
+## Contents
 
-* `OpenTime` math library
-  * Topologies
-  * Curve library
-    * Bezier Curves
-    * Linear curves
-  * Sampling tools, projecting samplings, signal generators, etc.
-* Visualizer apps
-  * Wrinkles app for visualizing frequency domain "plaid" charts
-  * curvet, otvis, pyguitest for looking at curves/curve projections
-* OpenTimelineIO prototype library
-  * parse .otio files and project through them
-  * treecode library (path through a binary tree)
+* `opentime`: low level points, intervals and affine transforms, including the
+  `PhaseOrdinate` for doing math over very large time scales with low error and
+  `Dual` for doing dual arithmetic/implicit differentiation
+* `curve`: structures and functions for making and manipulating linear and
+  bezier splines
+* `sampling`: tools for dealing with discrete spaces, particularly sets of either
+  samples or sample indices.  Includes tools for transforming and resampling
+  such arrays.
+* `Mapping`: linear, monontonic, composable transformation functions for
+  continuous transformation
+* `Topology`: monotonic over their input spaces, use sets of Mappings to
+  continuously project from an input space to an output space.
+* `OpenTimelineIO`: structures to represent an editorial timeline document
+* `ProjectionOperator`: pairs a topology with source and destination references
+  which can define discrete spaces so that you can project from a discrete
+  space to another discrete space with a continuous transformation in the
+  middle.
+* `TopologicalMap`: tools to transform an editorial document described by
+  OpenTimelineIO structures into a temporal hierarchy.  ProjectionOperators can
+  be built from endpoints in this hierarchy.
+* `ProjectionOperatorMap`: decomposes/flattens a TopologicalMap from a source
+  space such that each segment maps a set of ProjectionOperators to region of
+  the source space, mapping media under each section of the output timeline
+
+Additionally there are tools for visualizing curves, transformations, and the
+temporal hierarchies of editorial documents.
 
 ## Lessons/Differences to OTIO V1
 
@@ -51,37 +65,6 @@ contains:
   graph of the temporal structural, decorated with the Transformation curves
   * select two nodes to see the projection operator from one to the other
 
-## Layers
-
-The layers in wrinkles are:
-
-* `opentime`: low level points, intervals and affine transforms, including the
-  `PhaseOrdinate` for doing math over very large time scales with low error and
-  `Dual` for doing dual arithmetic/implicit differentiation
-* `curve`: structures and functions for making and manipulating linear and
-  bezier splines
-* `sampling`: tools for dealing with discrete spaces, particularly sets of either
-  samples or sample indices.  Includes tools for transforming and resampling
-  such arrays.
-* `Mapping`: linear, monontonic, composable transformation functions for
-  continuous transformation
-* `Topology`: monotonic over their input spaces, use sets of Mappings to
-  continuously project from an input space to an output space.
-* `OpenTimelineIO`: structures to represent an editorial timeline document
-* `ProjectionOperator`: pairs a topology with source and destination references
-  which can define discrete spaces so that you can project from a discrete
-  space to another discrete space with a continuous transformation in the
-  middle.
-* `TopologicalMap`: tools to transform an editorial document described by
-  OpenTimelineIO structures into a temporal hierarchy.  ProjectionOperators can
-  be built from endpoints in this hierarchy.
-* `ProjectionOperatorMap`: decomposes/flattens a TopologicalMap from a source
-  space such that each segment maps a set of ProjectionOperators to region of
-  the source space, mapping media under each section of the output timeline
-
-Additionally there are tools for visualizing curves, transformations, and the
-temporal hierarchies of editorial documents.
-
 ## Current Todo List (11/6/24)
 
 * [x] add build variable for debug messages
@@ -99,9 +82,10 @@ temporal hierarchies of editorial documents.
     * [x] add more functionality to the DiscreteDatasourceIndexGenerator so that
     * [x] build out into the otio layer too
 * [x] rename “time_topology” build unit to “topology”
-* [ ] `PhaseOrdinate` (or some other means of accurately handling integers over
+* [x] `PhaseOrdinate` (or some other means of accurately handling integers over
   rates changing)
-    * [ ] confirm that this is really better than an `f64` or `f128`
+    * [x] confirm that this is really better than an `f64` or `f128`
+    * ... it isn't, see: [https://github.com/ssteinbach/ordinate_precision_research](https://github.com/ssteinbach/ordinate_precision_research)
 * [ ] 0.5 offset todo in sampling
 * [ ] thread the "domain" idea out to the discrete spaces, so you can
       define on the timeline a discrete info per domain (ie 24 for picture
@@ -125,7 +109,7 @@ temporal hierarchies of editorial documents.
      * ie index_at_time -> output_index_at_input_ordinate
      * [ ] handle acyclical sampling as well (variable bitrate data, held
            frames, etc).?
-* [ ] do a scan to make sure that opentime.Ordinate is used in place of f32
+* [ ] do a scan to make sure that `opentime.Ordinate` is used in place of f32
   directly
 * [ ] integrate inside of raven
 
