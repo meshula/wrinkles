@@ -2,9 +2,9 @@
 
 ## Contents
 
-* `opentime`: low level points, intervals and affine transforms, including the
-  `PhaseOrdinate` for doing math over very large time scales with low error and
-  `Dual` for doing dual arithmetic/implicit differentiation
+* `opentime`: low level points, intervals and affine transforms, and
+  `Dual` for doing dual arithmetic/implicit differentiation.  Also includes the
+  likely-to-be-deleted `PhaseOrdinate` [^1].
 * `curve`: structures and functions for making and manipulating linear and
   bezier splines
 * `sampling`: tools for dealing with discrete spaces, particularly sets of either
@@ -321,4 +321,8 @@ const Ordinate = union(enum) {
     * Cannot project ranges or points under warp
 * What do we propose
     * Join discrete and continuous math via sampling theory
+
+## References
+
+[^1]: [Ordinate Precision Research](https://github.com/ssteinbach/ordinate_precision_research)
 
