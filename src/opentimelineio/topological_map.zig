@@ -310,9 +310,11 @@ pub const TopologicalMap = struct {
             }
         );
 
-        while (stack.items.len > 0) 
+        var maybe_current = stack.pop();
+        while (maybe_current != null) 
+            : (maybe_current = stack.pop())
         {
-            const current = stack.pop();
+            const current = maybe_current.?;
             const current_label = try label_for_node_leaky(
                 allocator,
                 current.space,
@@ -349,7 +351,6 @@ pub const TopologicalMap = struct {
                 else 
                 {
                     buf.clearAndFree();
-                    try left.to_str(&buf);
 
                     try file.writeAll(
                         try std.fmt.allocPrint(
@@ -391,7 +392,6 @@ pub const TopologicalMap = struct {
                 else 
                 {
                     buf.clearAndFree();
-                    try right.to_str(&buf);
                     try file.writeAll(
                         try std.fmt.allocPrint(
                             allocator,
@@ -614,9 +614,11 @@ pub fn build_topological_map(
         );
     }
 
-    while (stack.items.len > 0) 
+    var maybe_current = stack.pop();
+    while (maybe_current != null) 
+        : (maybe_current = stack.pop())
     {
-        const current = stack.pop();
+        const current = maybe_current.?;
 
         const code_from_stack = current.path_code;
         defer code_from_stack.deinit();

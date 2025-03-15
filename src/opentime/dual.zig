@@ -22,7 +22,7 @@ pub fn DualOf(
 ) type 
 {
     return switch(@typeInfo(T)) {
-        .Struct =>  DualOfStruct(T),
+        .@"struct" =>  DualOfStruct(T),
         else => DualOfNumberType(T),
     };
 }
@@ -711,7 +711,7 @@ pub inline fn is_dual_type(
 ) bool
 {
     return switch (@typeInfo(T)) {
-        .Struct => @hasDecl(T, "__IS_DUAL"),
+        .@"struct" => @hasDecl(T, "__IS_DUAL"),
         else => false,
     };
 }

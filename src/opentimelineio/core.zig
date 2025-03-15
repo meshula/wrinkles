@@ -149,7 +149,7 @@ pub const ComposedValueRef = union(enum) {
     {
         comptime {
             const t= @typeInfo(@TypeOf(input));
-            if (std.meta.activeTag(t) != .Pointer) 
+            if (std.meta.activeTag(t) != .pointer) 
             {
                 @compileError(
                     "ComposedValueRef can only be constructed from pointers "
@@ -392,7 +392,7 @@ pub const ComposedValueRef = union(enum) {
                                 .scale = opentime.Ordinate.ONE,
                             }
                         );
-                        const intrinsic_bounds = .{
+                        const intrinsic_bounds = opentime.ContinuousInterval{
                             .start = opentime.Ordinate.ZERO,
                             .end = media_bounds.duration()
                         };
@@ -1080,7 +1080,7 @@ pub const ProjectionOperatorMap = struct {
         );
 
         var operators = try allocator.alloc(
-            []ProjectionOperator,
+            []const ProjectionOperator,
             1
         );
         operators[0] = try allocator.dupe(ProjectionOperator, &.{ op });
@@ -1175,7 +1175,7 @@ pub const ProjectionOperatorMap = struct {
             parent_allocator,
         );
         var operators = std.ArrayList(
-            []ProjectionOperator
+            []const ProjectionOperator
         ).init(parent_allocator);
 
         var current_segment = (
@@ -1241,7 +1241,7 @@ pub const ProjectionOperatorMap = struct {
             .operators = ops: {
                 const outer = (
                     try self.allocator.alloc(
-                        []ProjectionOperator,
+                        []const ProjectionOperator,
                         self.operators.len,
                     )
                 );

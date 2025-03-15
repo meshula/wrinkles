@@ -19,7 +19,7 @@ fn schema_of(
 {
     const ti = @typeInfo(source);
 
-    if (std.meta.activeTag(ti) != .Struct) {
+    if (std.meta.activeTag(ti) != .@"struct") {
         return error.NoSchemaForThing;
     }
 
