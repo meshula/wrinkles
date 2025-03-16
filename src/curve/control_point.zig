@@ -2,7 +2,7 @@
 //!
 //! Note that this module uses a pattern:
 //!   return switch (@typeInfo(@TypeOf(rhs))) {
-//!       .@"struct" => self.mul_cp(rhs),
+//!       .struct => self.mul_cp(rhs),
 //!       else => self.mul_num(rhs),
 //!   };
 //!
@@ -136,7 +136,7 @@ pub fn ControlPointOf(
         ) ControlPointType 
         {
             return switch (@typeInfo(@TypeOf(rhs))) {
-                .@"struct" => self.add_cp(rhs),
+                .struct => self.add_cp(rhs),
                 else => self.add_num(rhs),
             };
         }
@@ -172,7 +172,7 @@ pub fn ControlPointOf(
         ) ControlPointType 
         {
             return switch (@typeInfo(@TypeOf(rhs))) {
-                .@"struct" => self.sub_cp(rhs),
+                .struct => self.sub_cp(rhs),
                 else => self.sub_num(rhs),
             };
         }

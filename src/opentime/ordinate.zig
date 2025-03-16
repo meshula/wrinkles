@@ -28,8 +28,8 @@ fn OrdinateOf(
         ) OrdinateType
         {
             return switch (@typeInfo(@TypeOf(value))) {
-                .@"float", .comptime_float => .{ .v = @floatCast(value) },
-                .@"int", .comptime_int => .{ .v = @floatFromInt(value) },
+                .float, .comptime_float => .{ .v = @floatCast(value) },
+                .int, .comptime_int => .{ .v = @floatFromInt(value) },
                 else => @compileError(
                     "Can only be constructed from a float or an int, not"
                     ++ " a " ++ @typeName(@TypeOf(value))
@@ -68,10 +68,10 @@ fn OrdinateOf(
          ) T
          {
              return switch (@typeInfo(T)) {
-                .@"float" => (
+                .float => (
                     @floatCast(self.v) 
                 ),
-                .@"int" => @intFromFloat(self.v),
+                .int => @intFromFloat(self.v),
                 else => @compileError(
                     "Ordinate can be retrieved as a float or int type,"
                     ++ " not: " ++ @typeName(T)
@@ -122,10 +122,10 @@ fn OrdinateOf(
             return switch (@TypeOf(rhs)) {
                 OrdinateType => .{ .v = self.v + rhs.v },
                 else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .@"float", .comptime_float, => .{
+                    .float, .comptime_float, => .{
                         .v = self.v + @as(BaseType, @floatCast(rhs)),
                     },
-                    .@"int", .comptime_int => .{ 
+                    .int, .comptime_int => .{ 
                         .v = self.v + @as(BaseType, @floatFromInt(rhs)),
                     },
                     else => type_error(rhs),
@@ -142,10 +142,10 @@ fn OrdinateOf(
             return switch (@TypeOf(rhs)) {
                 OrdinateType => .{ .v = self.v - rhs.v },
                 else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .@"float", .comptime_float, => .{
+                    .float, .comptime_float, => .{
                         .v = self.v - @as(BaseType, @floatCast(rhs)),
                     },
-                    .@"int", .comptime_int => .{ 
+                    .int, .comptime_int => .{ 
                         .v = self.v - @as(BaseType, @floatFromInt(rhs)),
                     },
                     else => type_error(rhs),
@@ -162,10 +162,10 @@ fn OrdinateOf(
             return switch (@TypeOf(rhs)) {
                 OrdinateType => .{ .v = self.v * rhs.v },
                 else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .@"float", .comptime_float, => .{
+                    .float, .comptime_float, => .{
                         .v = self.v * @as(BaseType, @floatCast(rhs)),
                     },
-                    .@"int", .comptime_int => .{ 
+                    .int, .comptime_int => .{ 
                         .v = self.v * @as(BaseType, @floatFromInt(rhs)),
                     },
                     else => type_error(rhs),
@@ -182,10 +182,10 @@ fn OrdinateOf(
             return switch (@TypeOf(rhs)) {
                 OrdinateType => .{ .v = self.v / rhs.v },
                 else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .@"float", .comptime_float, => .{
+                    .float, .comptime_float, => .{
                         .v = self.v / @as(BaseType, @floatCast(rhs)),
                     },
-                    .@"int", .comptime_int => .{ 
+                    .int, .comptime_int => .{ 
                         .v = self.v / @as(BaseType, @floatFromInt(rhs)),
                     },
                     else => type_error(rhs),
@@ -212,7 +212,7 @@ fn OrdinateOf(
             return switch (@TypeOf(rhs)) {
                 OrdinateType => .{ .v = @min(self.v,rhs.v) },
                 else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .@"float", .comptime_float, .@"int", .comptime_int => .{ 
+                    .float, .comptime_float, .int, .comptime_int => .{ 
                         .v = @min(self.v,rhs)
                     },
                     else => type_error(rhs),
@@ -228,7 +228,7 @@ fn OrdinateOf(
             return switch (@TypeOf(rhs)) {
                 OrdinateType => .{ .v = @max(self.v,rhs.v) },
                 else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .@"float", .comptime_float, .@"int", .comptime_int => .{ 
+                    .float, .comptime_float, .int, .comptime_int => .{ 
                         .v = @max(self.v,rhs)
                     },
                     else => type_error(rhs),
@@ -247,7 +247,7 @@ fn OrdinateOf(
             return switch (@TypeOf(rhs)) {
                 OrdinateType => self.v == rhs.v,
                 else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .@"float", .comptime_float, .@"int", .comptime_int => self.v == rhs,
+                    .float, .comptime_float, .int, .comptime_int => self.v == rhs,
                     else => type_error(rhs),
                 },
             };
@@ -265,7 +265,7 @@ fn OrdinateOf(
                     and self.v > rhs.v - EPSILON.v
                 ),
                 else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .@"float", .comptime_float, .@"int", .comptime_int => (
+                    .float, .comptime_float, .int, .comptime_int => (
                         self.v < rhs.v + EPSILON.v and self.v > rhs.v - EPSILON.v
                     ),
                     else => type_error(rhs),
@@ -282,7 +282,7 @@ fn OrdinateOf(
             return switch (@TypeOf(rhs)) {
                 OrdinateType => self.v < rhs.v,
                 else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .@"float", .comptime_float, .@"int", .comptime_int => self.v < rhs,
+                    .float, .comptime_float, .int, .comptime_int => self.v < rhs,
                     else => type_error(rhs),
                 },
             };
@@ -297,7 +297,7 @@ fn OrdinateOf(
             return switch (@TypeOf(rhs)) {
                 OrdinateType => self.v <= rhs.v,
                 else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .@"float", .comptime_float, .@"int", .comptime_int => self.v <= rhs,
+                    .float, .comptime_float, .int, .comptime_int => self.v <= rhs,
                     else => type_error(rhs),
                 },
             };
@@ -312,7 +312,7 @@ fn OrdinateOf(
             return switch (@TypeOf(rhs)) {
                 OrdinateType => self.v > rhs.v,
                 else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .@"float", .comptime_float, .@"int", .comptime_int => self.v > rhs,
+                    .float, .comptime_float, .int, .comptime_int => self.v > rhs,
                     else => type_error(rhs),
                 },
             };
@@ -327,7 +327,7 @@ fn OrdinateOf(
             return switch (@TypeOf(rhs)) {
                 OrdinateType => self.v >= rhs.v,
                 else => switch (@typeInfo(@TypeOf(rhs))) {
-                    .@"float", .comptime_float, .@"int", .comptime_int => self.v >= rhs,
+                    .float, .comptime_float, .int, .comptime_int => self.v >= rhs,
                     else => type_error(rhs),
                 },
             };
@@ -374,7 +374,7 @@ pub fn expectOrdinateEqual(
     const expected = switch(@TypeOf(expected_in)) {
         Ordinate => expected_in,
         else => switch(@typeInfo(@TypeOf(expected_in))) {
-            .comptime_int, .@"int", .comptime_float, .@"float" => (
+            .comptime_int, .int, .comptime_float, .float => (
                 Ordinate.init(expected_in)
             ),
             else => @compileError(
@@ -399,11 +399,11 @@ pub fn expectOrdinateEqual(
             "field: " ++ f.name ++ " did not match.", .{}
         );
         switch (@typeInfo(f.type)) {
-            .@"int", .comptime_int => try std.testing.expectEqual(
+            .int, .comptime_int => try std.testing.expectEqual(
                 @field(expected, f.name),
                 @field(measured, f.name),
             ),
-            .@"float", .comptime_float => try std.testing.expectApproxEqAbs(
+            .float, .comptime_float => try std.testing.expectApproxEqAbs(
                 @field(expected, f.name),
                 @field(measured, f.name),
                 // util.EPSILON_F,
@@ -583,7 +583,7 @@ inline fn _is_inf(
 ) bool
 {
     return switch (@typeInfo(@TypeOf(thing))) {
-        .@"float" => std.math.isInf(thing),
+        .float => std.math.isInf(thing),
         else => false,
    };
 }
@@ -593,7 +593,7 @@ inline fn _is_nan(
 ) bool
 {
     return switch (@typeInfo(@TypeOf(thing))) {
-        .@"float" => std.math.isNan(thing),
+        .float => std.math.isNan(thing),
         else => false,
    };
 }
@@ -603,7 +603,7 @@ pub inline fn abs(
 ) @TypeOf(lhs)
 {
     return switch (@typeInfo(@TypeOf(lhs))) {
-        .@"struct" => lhs.abs(),
+        .struct => lhs.abs(),
         else => @abs(lhs),
     };
 }
@@ -615,7 +615,7 @@ pub inline fn min(
 ) @TypeOf(lhs)
 {
     return switch (@typeInfo(@TypeOf(lhs))) {
-        .@"struct" => lhs.min(rhs),
+        .struct => lhs.min(rhs),
         else => std.math.min(lhs, rhs),
     };
 }
@@ -626,7 +626,7 @@ pub inline fn max(
 ) @TypeOf(lhs)
 {
     return switch (@typeInfo(@TypeOf(lhs))) {
-        .@"struct" => lhs.max(rhs),
+        .struct => lhs.max(rhs),
         else => std.math.max(lhs, rhs),
     };
 }
@@ -637,7 +637,7 @@ pub inline fn eql(
 ) bool
 {
     return switch (@typeInfo(@TypeOf(lhs))) {
-        .@"struct" => lhs.eql(rhs),
+        .struct => lhs.eql(rhs),
         else => lhs == rhs,
     };
 }
@@ -648,7 +648,7 @@ pub inline fn eql_approx(
 ) bool
 {
     return switch (@typeInfo(@TypeOf(lhs))) {
-        .@"struct" => lhs.eql_approx(rhs),
+        .struct => lhs.eql_approx(rhs),
         else => std.math.approxEqAbs(@TypeOf(lhs), lhs, rhs, util.EPSILON_F),
     };
 }
@@ -659,7 +659,7 @@ pub inline fn lt(
 ) bool
 {
     return switch (@typeInfo(@TypeOf(lhs))) {
-        .@"struct" => lhs.lt(rhs),
+        .struct => lhs.lt(rhs),
         else => lhs < rhs,
     };
 }
@@ -670,7 +670,7 @@ pub inline fn lteq(
 ) bool
 {
     return switch (@typeInfo(@TypeOf(lhs))) {
-        .@"struct" => lhs.lteq(rhs),
+        .struct => lhs.lteq(rhs),
         else => lhs <= rhs,
     };
 }
@@ -681,7 +681,7 @@ pub inline fn gt(
 ) bool
 {
     return switch (@typeInfo(@TypeOf(lhs))) {
-        .@"struct" => lhs.gt(rhs),
+        .struct => lhs.gt(rhs),
         else => lhs > rhs,
     };
 }
@@ -692,7 +692,7 @@ pub inline fn gteq(
 ) bool
 {
     return switch (@typeInfo(@TypeOf(lhs))) {
-        .@"struct" => lhs.gteq(rhs),
+        .struct => lhs.gteq(rhs),
         else => lhs >= rhs,
     };
 }
@@ -801,12 +801,12 @@ test "Base Ordinate: as"
             );
 
             try switch (@typeInfo(target_type)) {
-                .@"float", .comptime_float => std.testing.expectApproxEqAbs(
+                .float, .comptime_float => std.testing.expectApproxEqAbs(
                     @as(target_type, @floatCast(t)),
                     ord.as(target_type),
                     util.EPSILON_F,
                 ),
-                .@"int", .comptime_int => std.testing.expectEqual(
+                .int, .comptime_int => std.testing.expectEqual(
                     @as(target_type, @intFromFloat(t)),
                     ord.as(target_type),
                 ),
@@ -830,7 +830,7 @@ pub const sort = struct {
             ) bool 
             {
                 return switch (@typeInfo(T)) {
-                    .@"struct" => a.lt(b),
+                    .struct => a.lt(b),
                     else => a < b,
                 };
             }
