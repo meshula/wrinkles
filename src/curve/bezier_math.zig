@@ -31,7 +31,7 @@ pub fn lerp(
     b: @TypeOf(a),
 ) @TypeOf(a) 
 {
-    const result = opentime.eval(
+    return opentime.eval(
         "(a * ((-u) + 1.0)) + (b * u)",
         .{
             .a = a,
@@ -39,8 +39,6 @@ pub fn lerp(
             .u = u,
         }
     );
-
-    return result;
 }
 
 pub fn invlerp(
