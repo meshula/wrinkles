@@ -6,6 +6,7 @@
 const std = @import("std");
 
 const ordinate = @import("ordinate.zig");
+const comath_wrapper = @import("comath_wrapper.zig");
 
 /// build a dual around type T
 pub fn DualOf(
@@ -20,7 +21,7 @@ pub fn DualOf(
 
 test "Dual: float + float" 
 {
-    const result = ordinate.eval(
+    const result = comath_wrapper.eval(
         "x + 3",
         .{ .x = 1}
     );
@@ -29,7 +30,7 @@ test "Dual: float + float"
 
 test "Dual: dual + float"
 {
-    const result = ordinate.eval(
+    const result = comath_wrapper.eval(
         "x + three",
         .{
             .x = Dual_Ord{
@@ -48,7 +49,7 @@ test "Dual: dual + float"
 
 test "Dual: * float"
 {
-    const result = ordinate.eval(
+    const result = comath_wrapper.eval(
         "x * 3",
         .{
             .x = Dual_Ord{
@@ -311,11 +312,11 @@ pub fn DualOfStruct(
             };
 
             return .{
-                .r = ordinate.eval(
+                .r = comath_wrapper.eval(
                     "self_r + rhs_r",
                     .{ .self_r = self.r, .rhs_r = rhs_r }
                 ),
-                .i = ordinate.eval(
+                .i = comath_wrapper.eval(
                     "self_i + rhs_i",
                     .{ .self_i = self.i, .rhs_i = rhs_i }
                 )
@@ -337,11 +338,11 @@ pub fn DualOfStruct(
             };
 
             return .{
-                .r = ordinate.eval(
+                .r = comath_wrapper.eval(
                     "self_r - rhs_r",
                     .{ .self_r = self.r, .rhs_r = rhs_r }
                 ),
-                .i = ordinate.eval(
+                .i = comath_wrapper.eval(
                     "self_i - rhs_i",
                     .{ .self_i = self.i, .rhs_i = rhs_i }
                 )
@@ -391,7 +392,7 @@ pub fn DualOfStruct(
         {
             return .{ 
                 .r = self.r.sqrt(),
-                .i = ordinate.eval(
+                .i = comath_wrapper.eval(
                     "i / (sqrt_r * 2)",
                     .{
                         .i = self.i,
@@ -444,7 +445,7 @@ pub fn DualOfStruct(
                 //      acos out on opentime.Ordinate
                 .r = BaseType.init(std.math.acos(self.r.as(BaseType))),
                 .i = (self.i.neg()).div(
-                    ordinate.eval(
+                    comath_wrapper.eval(
                         "- (r * r) + 1",
                         .{ .r = self.r }
                     )
@@ -466,7 +467,7 @@ pub fn DualOfStruct(
                 //     * (exp - 1) 
                 //     * std.math.pow(@TypeOf(self.r), self.r, exp - 1)
                 // ),
-                .i = ordinate.eval(
+                .i = comath_wrapper.eval(
                     "i * (exp) * pow_minus_one",
                     .{
                         .i = self.i,
@@ -613,7 +614,7 @@ test "Dual: dual test polymorphic"
     inline for (test_data, 0..) 
         |td, i| 
     {
-        const value = ordinate.eval(
+        const value = comath_wrapper.eval(
             fn_str,
             .{.x = td.x, .off1 = td.off1, .off2 = td.off2}
         );

@@ -1,7 +1,7 @@
 //! Ordinate type and support math for opentime
 
 const std = @import("std");
-const comath = @import("comath");
+const comath_wrapper = @import("comath_wrapper.zig");
 
 const util = @import("util.zig");
 
@@ -757,39 +757,6 @@ test "Base Ordinate: Binary Function Tests"
     }
 }
 
-pub const CTX = comath.ctx.fnMethod(
-    comath.ctx.simple({}),
-    .{
-        .@"+" = "add",
-        .@"-" = &.{"sub", "negate", "neg"},
-        .@"*" = "mul",
-        .@"/" = "div",
-        .@"cos" = "cos",
-    },
-);
-pub inline fn eval(
-    comptime expr: []const u8, 
-    inputs: anytype,
-) comath.Eval(expr, @TypeOf(CTX), @TypeOf(inputs))
-{
-    @setEvalBranchQuota(16000);
-    return raw_eval(expr, CTX, inputs);
-}
-
-pub fn raw_eval(
-    comptime expr: []const u8, 
-    ctx: anytype,
-    inputs: anytype
-) comath.Eval(expr, @TypeOf(ctx), @TypeOf(inputs))
-{
-    @setEvalBranchQuota(16000);
-    return comath.eval(
-        expr, CTX, inputs
-    ) catch @compileError(
-        "couldn't comath: " ++ expr ++ "."
-    );
-}
-
 test "Base Ordinate: as"
 {
     const tests = &[_]Ordinate.BaseType{
@@ -937,3 +904,18 @@ test "Base Ordinate: sort"
         test_arr.items,
     );
 }
+
+test "ordinate / eval test"
+{
+    const o3 = Ordinate.init(3);
+    const o4 = Ordinate.init(4);
+
+    try std.testing.expectEqual(
+        Ordinate.init(15),
+        comath_wrapper.eval(
+            "(o3 * o4) + o4 - o3 + (o3 / o3) + 1",
+            .{ .o3 = o3, .o4 = o4 },
+        )
+    );
+}
+
