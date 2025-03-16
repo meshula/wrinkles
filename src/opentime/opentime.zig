@@ -29,6 +29,7 @@ pub const sort = ordinate.sort;
 
 // comath interface
 pub const eval = ordinate.eval;
+pub const raw_eval = ordinate.raw_eval;
 // @}
 
 // interval @{

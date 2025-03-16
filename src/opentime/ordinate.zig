@@ -764,6 +764,7 @@ pub const CTX = comath.ctx.fnMethod(
         .@"-" = &.{"sub", "negate", "neg"},
         .@"*" = "mul",
         .@"/" = "div",
+        .@"cos" = "cos",
     },
 );
 pub inline fn eval(
@@ -771,7 +772,20 @@ pub inline fn eval(
     inputs: anytype,
 ) comath.Eval(expr, @TypeOf(CTX), @TypeOf(inputs))
 {
-    return comath.eval(expr, CTX, inputs) catch @compileError(
+    @setEvalBranchQuota(16000);
+    return raw_eval(expr, CTX, inputs);
+}
+
+pub fn raw_eval(
+    comptime expr: []const u8, 
+    ctx: anytype,
+    inputs: anytype
+) comath.Eval(expr, @TypeOf(ctx), @TypeOf(inputs))
+{
+    @setEvalBranchQuota(16000);
+    return comath.eval(
+        expr, CTX, inputs
+    ) catch @compileError(
         "couldn't comath: " ++ expr ++ "."
     );
 }

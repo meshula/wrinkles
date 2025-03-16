@@ -4,17 +4,8 @@
 //! Math on duals automatically computes derivatives.
 
 const std = @import("std");
-const comath = @import("comath");
 
 const ordinate = @import("ordinate.zig");
-
-pub fn eval(
-    comptime expr: []const u8, 
-    inputs: anytype,
-) !comath.Eval(expr, @TypeOf(CTX), @TypeOf(inputs))
-{
-    return comath.eval(expr, CTX, inputs);
-}
 
 /// build a dual around type T
 pub fn DualOf(
@@ -27,68 +18,19 @@ pub fn DualOf(
     };
 }
 
-/// comath context for dual math
-pub const dual_ctx = struct{
-    pub fn EvalNumberLiteral(
-        comptime src: []const u8,
-    ) type 
-    {
-        const result = comath.ctx.DefaultEvalNumberLiteral(src);
-        if (result == comptime_float or result == comptime_int) {
-            return Dual_Ord; 
-        } else {
-            return result;
-        }
-    }
-
-    pub fn evalNumberLiteral(
-        comptime src: []const u8,
-    ) EvalNumberLiteral(src) 
-    {
-        const target_type = EvalNumberLiteral(src);
-
-        return switch (target_type) {
-            .Dual_Ord => .{ 
-                .r = std.fmt.parseFloat(
-                    ordinate.Ordinate,
-                    src
-                ) catch |err| @compileError(
-                @errorName(err)
-                ),
-                .i = 0.0,
-            },
-            else => comath.ctx.defaultEvalNumberLiteral(src),
-        };
-    }
-};
-
-/// static instantiation of the comath context
-pub const CTX = comath.ctx.fnMethod(
-    comath.ctx.simple({}),
-    // dual_ctx,
-    .{
-        .@"+" = "add",
-        .@"*" = "mul",
-        .@"-" = &.{"sub", "neg"},
-        .@"/" = "div",
-    },
-);
-
 test "Dual: float + float" 
 {
-    const result = comath.eval(
+    const result = ordinate.eval(
         "x + 3",
-        CTX,
         .{ .x = 1}
-    ) catch |err| switch (err) {};
+    );
     try std.testing.expectEqual(4, result);
 }
 
 test "Dual: dual + float"
 {
-    const result = comath.eval(
+    const result = ordinate.eval(
         "x + three",
-        CTX,
         .{
             .x = Dual_Ord{
                 .r = ordinate.Ordinate.init(3),
@@ -96,7 +38,7 @@ test "Dual: dual + float"
             },
             .three = Dual_Ord.init(3),
         }
-    ) catch |err| switch (err) {};
+    );
 
     try ordinate.expectOrdinateEqual(
         ordinate.Ordinate.init(6),
@@ -106,16 +48,15 @@ test "Dual: dual + float"
 
 test "Dual: * float"
 {
-    const result = comath.eval(
+    const result = ordinate.eval(
         "x * 3",
-        CTX,
         .{
             .x = Dual_Ord{
                 .r = ordinate.Ordinate.init(3),
                 .i = ordinate.Ordinate.init(1), 
             },
         }
-    ) catch |err| switch (err) {};
+    );
     try std.testing.expectEqual(
         ordinate.Ordinate.init(9),
         result.r
@@ -370,16 +311,14 @@ pub fn DualOfStruct(
             };
 
             return .{
-                .r = comath.eval(
+                .r = ordinate.eval(
                     "self_r + rhs_r",
-                    CTX,
                     .{ .self_r = self.r, .rhs_r = rhs_r }
-                ) catch |err| switch (err) {},
-                .i = comath.eval(
+                ),
+                .i = ordinate.eval(
                     "self_i + rhs_i",
-                    CTX,
                     .{ .self_i = self.i, .rhs_i = rhs_i }
-                ) catch |err| switch (err) {}
+                )
             };
         }
 
@@ -398,16 +337,14 @@ pub fn DualOfStruct(
             };
 
             return .{
-                .r = comath.eval(
+                .r = ordinate.eval(
                     "self_r - rhs_r",
-                    CTX,
                     .{ .self_r = self.r, .rhs_r = rhs_r }
-                ) catch |err| switch (err) {},
-                .i = comath.eval(
+                ),
+                .i = ordinate.eval(
                     "self_i - rhs_i",
-                    CTX,
                     .{ .self_i = self.i, .rhs_i = rhs_i }
-                ) catch |err| switch (err) {}
+                )
             };
         }
 
@@ -507,11 +444,10 @@ pub fn DualOfStruct(
                 //      acos out on opentime.Ordinate
                 .r = BaseType.init(std.math.acos(self.r.as(BaseType))),
                 .i = (self.i.neg()).div(
-                    comath.eval(
+                    ordinate.eval(
                         "- (r * r) + 1",
-                        CTX,
                         .{ .r = self.r }
-                    ) catch @panic("invalid acos")
+                    )
                 ).sqrt(),
             };
         }
@@ -530,15 +466,14 @@ pub fn DualOfStruct(
                 //     * (exp - 1) 
                 //     * std.math.pow(@TypeOf(self.r), self.r, exp - 1)
                 // ),
-                .i = comath.eval(
+                .i = ordinate.eval(
                     "i * (exp) * pow_minus_one",
-                    CTX,
                     .{
                         .i = self.i,
                         .exp = exp, 
                         .pow_minus_one = self.r.pow(exp-1),
                     }
-                ) catch @panic("invalid pow"),
+                ),
             };
         }
 
@@ -647,7 +582,7 @@ pub fn DualOfStruct(
     };
 }
 
-test "Dual: comath dual test polymorphic" 
+test "Dual: dual test polymorphic" 
 {
     const test_data = &.{
         // as float
@@ -678,11 +613,10 @@ test "Dual: comath dual test polymorphic"
     inline for (test_data, 0..) 
         |td, i| 
     {
-        const value = comath.eval(
+        const value = ordinate.eval(
             fn_str,
-            CTX,
             .{.x = td.x, .off1 = td.off1, .off2 = td.off2}
-        ) catch |err| switch (err) {};
+        );
 
         errdefer std.debug.print(
             "{d}: Failed for type: {s}, \nrecieved: {any}\nexpected: {any}\n\n",
