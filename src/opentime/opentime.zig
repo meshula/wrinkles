@@ -101,5 +101,6 @@ test {
     _ = interval;
     _ = transform;
     _ = dual;
+    _ = comath_wrapper;
 }
 
