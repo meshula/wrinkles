@@ -603,7 +603,7 @@ pub inline fn abs(
 ) @TypeOf(lhs)
 {
     return switch (@typeInfo(@TypeOf(lhs))) {
-        .struct => lhs.abs(),
+        .@"struct" => lhs.abs(),
         else => @abs(lhs),
     };
 }
@@ -615,7 +615,7 @@ pub inline fn min(
 ) @TypeOf(lhs)
 {
     return switch (@typeInfo(@TypeOf(lhs))) {
-        .struct => lhs.min(rhs),
+        .@"struct" => lhs.min(rhs),
         else => std.math.min(lhs, rhs),
     };
 }
@@ -626,7 +626,7 @@ pub inline fn max(
 ) @TypeOf(lhs)
 {
     return switch (@typeInfo(@TypeOf(lhs))) {
-        .struct => lhs.max(rhs),
+        .@"struct" => lhs.max(rhs),
         else => std.math.max(lhs, rhs),
     };
 }
@@ -637,7 +637,7 @@ pub inline fn eql(
 ) bool
 {
     return switch (@typeInfo(@TypeOf(lhs))) {
-        .struct => lhs.eql(rhs),
+        .@"struct" => lhs.eql(rhs),
         else => lhs == rhs,
     };
 }
@@ -648,7 +648,7 @@ pub inline fn eql_approx(
 ) bool
 {
     return switch (@typeInfo(@TypeOf(lhs))) {
-        .struct => lhs.eql_approx(rhs),
+        .@"struct" => lhs.eql_approx(rhs),
         else => std.math.approxEqAbs(@TypeOf(lhs), lhs, rhs, util.EPSILON_F),
     };
 }
@@ -659,7 +659,7 @@ pub inline fn lt(
 ) bool
 {
     return switch (@typeInfo(@TypeOf(lhs))) {
-        .struct => lhs.lt(rhs),
+        .@"struct" => lhs.lt(rhs),
         else => lhs < rhs,
     };
 }
@@ -670,7 +670,7 @@ pub inline fn lteq(
 ) bool
 {
     return switch (@typeInfo(@TypeOf(lhs))) {
-        .struct => lhs.lteq(rhs),
+        .@"struct" => lhs.lteq(rhs),
         else => lhs <= rhs,
     };
 }
@@ -681,7 +681,7 @@ pub inline fn gt(
 ) bool
 {
     return switch (@typeInfo(@TypeOf(lhs))) {
-        .struct => lhs.gt(rhs),
+        .@"struct" => lhs.gt(rhs),
         else => lhs > rhs,
     };
 }
@@ -692,7 +692,7 @@ pub inline fn gteq(
 ) bool
 {
     return switch (@typeInfo(@TypeOf(lhs))) {
-        .struct => lhs.gteq(rhs),
+        .@"struct" => lhs.gteq(rhs),
         else => lhs >= rhs,
     };
 }
@@ -830,7 +830,7 @@ pub const sort = struct {
             ) bool 
             {
                 return switch (@typeInfo(T)) {
-                    .struct => a.lt(b),
+                    .@"struct" => a.lt(b),
                     else => a < b,
                 };
             }
