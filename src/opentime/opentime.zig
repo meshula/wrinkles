@@ -30,7 +30,6 @@ pub const sort = ordinate.sort;
 // comath interface
 const comath_wrapper = @import("comath_wrapper.zig");
 pub const eval = comath_wrapper.eval;
-pub const raw_eval = comath_wrapper.raw_eval;
 // @}
 
 // interval @{
