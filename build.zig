@@ -623,7 +623,7 @@ pub fn build(
         .{
             .b = b,
             .options = options,
-            .fpath = "src/opentime/opentime.zig",
+            .fpath = "src/opentime/root.zig",
             .deps = &.{
                 .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "comath", .module = comath_dep.module("comath") },
