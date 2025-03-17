@@ -152,7 +152,7 @@ pub fn executable(
 ) void
 {
     const exe = (
-        if (options.target.result.isWasm())
+        if (options.target.result.cpu.arch.isWasm())
             b.addStaticLibrary(
                 .{
                     .name = name,
@@ -188,7 +188,7 @@ pub fn executable(
         var content_dir_lp = b.path("src/" ++ source_dir_path);
         var content_dir_path = content_dir_lp.getPath(b);
 
-        if (!options.target.result.isWasm())
+        if (!options.target.result.cpu.arch.isWasm())
         {
             const subdir = "bin/" ++ name ++ "_content";
             const install_content_step = b.addInstallDirectory(
@@ -215,7 +215,7 @@ pub fn executable(
     exe.want_lto = false;
 
     // run and install the executable
-    if (!options.target.result.isWasm())
+    if (!options.target.result.cpu.arch.isWasm())
     {
         const install_exe_step = &b.addInstallArtifact(
             exe,
@@ -596,7 +596,7 @@ pub fn build(
                 .flags = &C_ARGS,
             }
         );
-        if (options.target.result.isWasm())
+        if (options.target.result.cpu.arch.isWasm())
         {
             kissfft.addSystemIncludePath(
                 ziis.fetchEmSdkIncludePath(
@@ -623,7 +623,7 @@ pub fn build(
         .{
             .b = b,
             .options = options,
-            .fpath = "src/opentime/opentime.zig",
+            .fpath = "src/opentime/root.zig",
             .deps = &.{
                 .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "comath", .module = comath_dep.module("comath") },
@@ -650,7 +650,7 @@ pub fn build(
                 .flags = &C_ARGS,
             }
         );
-        if (options.target.result.isWasm())
+        if (options.target.result.cpu.arch.isWasm())
         {
             spline_gym.addSystemIncludePath(
                 ziis.fetchEmSdkIncludePath(
@@ -668,9 +668,9 @@ pub fn build(
         .{
             .b = b,
             .options = options,
-            .fpath = "src/curve/curve.zig",
+            .fpath = "src/curve/root.zig",
             .deps = &.{
-                .{ .name = "spline_gym", .module = &spline_gym.root_module },
+                .{ .name = "spline_gym", .module = spline_gym.root_module },
                 .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "opentime", .module = opentime },
                 .{ .name = "comath", .module = comath_dep.module("comath") },
@@ -703,7 +703,7 @@ pub fn build(
                 .flags = &C_ARGS
             },
         );
-        if (options.target.result.isWasm())
+        if (options.target.result.cpu.arch.isWasm())
         {
             libsamplerate.addSystemIncludePath(
                 ziis.fetchEmSdkIncludePath(
@@ -720,7 +720,7 @@ pub fn build(
         .{
             .b = b,
             .options = options,
-            .fpath = "src/topology/topology.zig",
+            .fpath = "src/topology/root.zig",
             .deps = &.{
                 .{ .name = "opentime", .module = opentime },
                 .{ .name = "curve", .module = curve },
@@ -737,11 +737,11 @@ pub fn build(
             .deps = &.{
                 .{
                     .name = "libsamplerate",
-                    .module = &libsamplerate.root_module,
+                    .module = libsamplerate.root_module,
                 },
                 .{
                     .name = "kissfft",
-                    .module = &kissfft.root_module,
+                    .module = kissfft.root_module,
                 },
                 .{ .name = "curve", .module = curve },
                 .{ .name = "wav", .module = wav_dep },
@@ -757,7 +757,7 @@ pub fn build(
         .{
             .b = b,
             .options = options,
-            .fpath = "src/opentimelineio.zig",
+            .fpath = "src/opentimelineio/root.zig",
             .deps = &.{
                 .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "opentime", .module = opentime },
@@ -795,7 +795,7 @@ pub fn build(
             topology
         );
         opentimelineio_c.linkLibCpp();
-        if (options.target.result.isWasm())
+        if (options.target.result.cpu.arch.isWasm())
         {
             opentimelineio_c.addSystemIncludePath(
                 ziis.fetchEmSdkIncludePath(
@@ -824,7 +824,7 @@ pub fn build(
         );
         exe.addIncludePath(b.path("src/c_binding/"));
         exe.linkLibC();
-        if (options.target.result.isWasm())
+        if (options.target.result.cpu.arch.isWasm())
         {
             exe.addSystemIncludePath(
                 ziis.fetchEmSdkIncludePath(
@@ -882,7 +882,7 @@ pub fn build(
         .{ .name = "topology", .module = topology },
 
         // libraries with c components
-        .{ .name = "spline_gym", .module = &spline_gym.root_module },
+        .{ .name = "spline_gym", .module = spline_gym.root_module },
         .{ .name = "sampling", .module = sampling },
         .{ .name = "sokol_app_wrapper", .module = sokol_app_wrapper },
     };

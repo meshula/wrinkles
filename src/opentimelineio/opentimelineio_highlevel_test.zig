@@ -2,7 +2,7 @@
 
 const std = @import("std");
 
-const otio = @import("opentimelineio.zig");
+const otio = @import("root.zig");
 
 const opentime = @import("opentime");
 const topology = @import("topology");

@@ -4,8 +4,6 @@ const std = @import("std");
 const expectEqual = std.testing.expectEqual;
 const expect = std.testing.expect;
 
-const comath = @import("comath");
-
 const control_point = @import("control_point.zig");
 const bezier_curve = @import("bezier_curve.zig");
 const linear_curve = @import("linear_curve.zig");
@@ -26,34 +24,21 @@ inline fn expectApproxEql(
     );
 }
 
-/// comath context for operations on duals
-pub const CTX = comath.ctx.fnMethod(
-    comath.ctx.simple(opentime.dual_ctx),
-    .{
-        .@"+" = "add",
-        .@"-" = &.{"sub", "negate", "neg",},
-        .@"*" = "mul",
-        .@"/" = "div",
-        .@"cos" = "cos",
-    },
-);
-
-/// lerp from a to b by amount u, [0, 1], using comath
+/// lerp from a to b by amount u, [0, 1]
 pub fn lerp(
     u: anytype,
     a: anytype,
     b: @TypeOf(a),
 ) @TypeOf(a) 
 {
-    return comath.eval(
+    return opentime.eval(
         "(a * ((-u) + 1.0)) + (b * u)",
-        CTX,
         .{
             .a = a,
             .b = b,
             .u = u,
         }
-    ) catch @panic("lerp error");
+    );
 }
 
 pub fn invlerp(
@@ -65,15 +50,14 @@ pub fn invlerp(
     if (opentime.eql(b, a)) {
         return a;
     }
-    return comath.eval(
+    return opentime.eval(
         "(v - a)/(b - a)",
-        CTX,
         .{
             .v = v,
             .a = a,
             .b = b,
         }
-    ) catch |err| switch (err) {};
+    );
 }
 
 pub fn output_at_input_between(
@@ -177,13 +161,12 @@ pub fn _bezier0(
     p4: opentime.Ordinate,
 ) opentime.Ordinate
 {
-    return try comath.eval(
+    return opentime.eval(
         (
          "u*u*u * p4" 
          ++ " - (p3 * u*u*zmo*3.0)"
          ++ " + (p2 * 3.0 * u * zmo * zmo)"
         ),
-        CTX,
         .{
             .u = unorm,
             .zmo = unorm.sub(1),
@@ -219,13 +202,12 @@ pub fn _bezier0_dual(
     //     - (p3 * (3.0*z2*zmo))
     //     + (p2 * (3.0*z*zmo2))
     //     - (p1 * zmo3);
-    return try comath.eval(
+    return opentime.eval(
         (
          "u*u*u * p4" 
          ++ " - (p3 * u*u*zmo*3.0)"
          ++ " + (p2 * 3.0 * u * zmo * zmo)"
         ),
-        CTX,
         .{
             .u = unorm,
             .zmo = unorm.add(opentime.Dual_Ord.init(-1.0)),
@@ -302,6 +284,7 @@ pub fn _findU(
         else
         {
             _u1 = opentime.Ordinate.ZERO;
+
             x1 = opentime.eval(
                 "x1 * x2 / (x2 + x3)",
                 .{ .x1 = x1, .x2 = x2, .x3 = x3 }
@@ -420,9 +403,8 @@ pub fn actual_order(
     p3: opentime.Ordinate,
 ) !u8 
 {
-    const d = try comath.eval(
+    const d = opentime.eval(
         "(-pa) + (pb * 3.0) - (pc * 3.0) + pd",
-        CTX,
         .{ 
             .pa = p0,
             .pb = p1,
@@ -431,10 +413,9 @@ pub fn actual_order(
         },
     );
 
-    const a = try comath.eval(
+    const a = opentime.eval(
         // "(pa * 3.0) - (pb * 6.0) + (pc * 3.0)",
         "pa * 3.0 - pb * 6.0 + pc * 3.0",
-        CTX,
         .{ 
             .pa = p0,
             .pb = p1,
@@ -442,9 +423,8 @@ pub fn actual_order(
         },
     );
 
-    const b = try comath.eval(
+    const b = opentime.eval(
         "(-pa * 3.0) + (pb * 3.0)",
-        CTX,
         .{ 
             .pa = p0,
             .pb = p1,
@@ -592,6 +572,7 @@ pub fn findU_dual3(
     ); // same as: bezier0 (1, p1, p2, p3) - x;
 
     {
+
         const _u3 = opentime.eval(
             "ONE - (x2 / (x2 - x1))",
             .{ .ONE = opentime.Dual_Ord.ONE_ZERO, .x2 = x2, .x1 = x1 }
@@ -664,12 +645,10 @@ pub fn findU_dual3(
         }
         else
         {
-            @setEvalBranchQuota(10000);
             x1 = opentime.eval(
                 "x1 * x2 / (x2 + x3)",
                 .{ .x1 = x1, .x2 = x2, .x3 = x3 }
             );
-            @setEvalBranchQuota(1000);
         }
 
         _u2 = _u3;
@@ -1218,16 +1197,15 @@ pub fn slope(
     end: control_point.ControlPoint,
 ) opentime.Ordinate 
 {
-    return comath.eval(
+    return opentime.eval(
         "((end_out - start_out) / (end_in - start_in))",
-        CTX,
         .{
             .end_in = end.in,
             .end_out = end.out,
             .start_in = start.in,
             .start_out = start.out,
         },
-    ) catch {};
+    );
 }
 
 test "bezier_math: slope"
@@ -1492,12 +1470,11 @@ fn _remap(
     target_min: @TypeOf(t), target_max: @TypeOf(t),
 ) @TypeOf(t)
 {
-    return comath.eval(
+    return opentime.eval(
         "(((t-measure_min)/(measure_max-measure_min))"
         ++ " * (target_max - target_min)"
         ++ ") + target_min"
         ,
-        CTX,
         .{
             .t = t,
             .measure_min = measure_min,
@@ -1505,7 +1482,7 @@ fn _remap(
             .target_min = target_min,
             .target_max = target_max,
         }
-    ) catch |err| switch(err) {};
+    );
 }
 
 fn _rescaled_pt(

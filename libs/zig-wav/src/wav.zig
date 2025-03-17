@@ -205,8 +205,8 @@ pub fn Decoder(comptime InnerReaderType: type) type {
                     T,
                     // Propagate EndOfStream error on truncation.
                     switch (@typeInfo(S)) {
-                        .Float => try readFloat(S, reader),
-                        .Int => try reader.readInt(S, std.builtin.Endian.little),
+                        .float => try readFloat(S, reader),
+                        .int => try reader.readInt(S, std.builtin.Endian.little),
                         else => @compileError(bad_type),
                     },
                 );

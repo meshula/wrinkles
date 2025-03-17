@@ -3,6 +3,7 @@
 const std = @import("std"); 
 
 const ordinate = @import("ordinate.zig");
+const comath_wrapper = @import("comath_wrapper.zig");
 const interval = @import("interval.zig");
 const ContinuousInterval = interval.ContinuousInterval; 
 
@@ -26,7 +27,7 @@ pub const AffineTransform1D = struct {
         ord: ordinate.Ordinate,
     ) ordinate.Ordinate
     {
-        return ordinate.eval(
+        return comath_wrapper.eval(
             "ord * scale + offset",
             .{ .ord = ord, .scale = self.scale, .offset = self.offset }
         );
@@ -69,7 +70,7 @@ pub const AffineTransform1D = struct {
     {
         return .{
             .offset = self.applied_to_ordinate(rhs.offset),
-            .scale = ordinate.eval(
+            .scale = comath_wrapper.eval(
                 "rhs_scale * self_scale",
                 .{ .rhs_scale = rhs.scale , .self_scale = self.scale,},
             ),
@@ -104,11 +105,11 @@ pub const AffineTransform1D = struct {
         // }
 
         return .{
-            .offset = ordinate.eval(
+            .offset = comath_wrapper.eval(
                 "(-offset)/scale",
                 .{ .offset = self.offset, .scale = self.scale },
             ),
-            .scale = ordinate.eval("one/scale",
+            .scale = comath_wrapper.eval("one/scale",
                 .{ .one = ordinate.Ordinate.ONE, .scale = self.scale },
             ),
         };

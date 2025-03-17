@@ -2,7 +2,7 @@ const std = @import("std");
 const expectApproxEqAbs= std.testing.expectApproxEqAbs;
 const expectEqual = std.testing.expectEqual;
 
-const otio  = @import("opentimelineio.zig");
+const otio  = @import("root.zig");
 const opentime = @import("opentime");
 const interval = opentime.interval;
 const transform = opentime.transform;
@@ -252,37 +252,56 @@ pub fn read_otio_object(
             var st = otio.Stack.init(allocator);
             st.name = try allocator.dupe(u8, name);
 
-            for (obj.get("children").?.array.items) 
-                |track| 
+            if (obj.get("children"))
+                |children|
             {
-                try st.children.append(
-                    .{
-                        .track = (
-                            try read_otio_object(
-                                allocator,
-                                track.object
-                            )
-                        ).Track 
+                if (children.array.items.len > 0) 
+                {
+                    try st.children.ensureTotalCapacity(children.array.items.len);
+
+                    for (children.array.items) 
+                        |track| 
+                    {
+                        st.children.appendAssumeCapacity(
+                            .{
+                                .track = (
+                                    try read_otio_object(
+                                        allocator,
+                                        track.object
+                                    )
+                                ).Track 
+                            }
+                        );
                     }
-                );
+                }
             }
 
             return .{ .Stack = st };
         },
         .Track => {
             var tr = otio.Track.init(allocator);
+
             tr.name = try allocator.dupe(u8, name);
 
-            for (obj.get("children").?.array.items) 
-                |child| 
+            if (obj.get("children"))
+                |children|
             {
-                switch (
-                    try read_otio_object(allocator, child.object)
-                ) 
+                if (children.array.items.len > 0)
                 {
-                    .Clip => |cl| { try tr.children.append( .{ .clip = cl }); },
-                    .Gap => |gp| { try tr.children.append( .{ .gap = gp }); },
-                    else => return error.NotImplementedTrackChildJson,
+                    try tr.children.ensureTotalCapacity(children.array.items.len);
+
+                    for (obj.get("children").?.array.items) 
+                        |child| 
+                    {
+                        switch (
+                            try read_otio_object(allocator, child.object)
+                        ) 
+                        {
+                            .Clip => |cl| { tr.children.appendAssumeCapacity( .{ .clip = cl }); },
+                            .Gap => |gp| { tr.children.appendAssumeCapacity( .{ .gap = gp }); },
+                            else => return error.NotImplementedTrackChildJson,
+                        }
+                    }
                 }
             }
 

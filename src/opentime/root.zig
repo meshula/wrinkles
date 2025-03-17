@@ -28,7 +28,8 @@ pub const gteq = ordinate.gteq;
 pub const sort = ordinate.sort;
 
 // comath interface
-pub const eval = ordinate.eval;
+const comath_wrapper = @import("comath_wrapper.zig");
+pub const eval = comath_wrapper.eval;
 // @}
 
 // interval @{
@@ -99,5 +100,6 @@ test {
     _ = interval;
     _ = transform;
     _ = dual;
+    _ = comath_wrapper;
 }
 

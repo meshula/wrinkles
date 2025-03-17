@@ -52,8 +52,8 @@ fn convertIntToFloat(comptime T: type, value: anytype) T {
 fn convertSignedInt(comptime T: type, value: anytype) T {
     const S = @TypeOf(value);
 
-    const src_bits = @typeInfo(S).Int.bits;
-    const dst_bits = @typeInfo(T).Int.bits;
+    const src_bits = @typeInfo(S).int.bits;
+    const dst_bits = @typeInfo(T).int.bits;
 
     if (src_bits < dst_bits) {
         const shift = dst_bits - src_bits;

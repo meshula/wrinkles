@@ -51,7 +51,7 @@ export fn init(
 
     // set up style and load the font
     {
-        const scale_factor = sokol.app.sapp_dpi_scale();
+        const scale_factor = sokol.app.dpiScale();
          
         const font_size = 16.0 * scale_factor;
 
