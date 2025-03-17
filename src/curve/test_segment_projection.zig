@@ -6,7 +6,7 @@ const expectEqual = std.testing.expectEqual;
 
 const opentime = @import("opentime");
 
-const curve = @import("curve.zig");
+const curve = @import("root.zig");
 
 fn expectNotEqual(
     expected: anytype,

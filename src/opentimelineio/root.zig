@@ -2,18 +2,18 @@
 //! Uses the rest of the wrinkles library to implement high level functions
 //! that might eventually get ported to 'real' OTIO.
 
-pub const core = @import("opentimelineio/core.zig");
+pub const core = @import("core.zig");
 pub const ComposedValueRef = core.ComposedValueRef;
 pub const ProjectionOperator = core.ProjectionOperator;
 pub const ProjectionOperatorMap = core.ProjectionOperatorMap;
 pub const SpaceLabel = core.SpaceLabel;
 pub const projection_map_to_media_from = core.projection_map_to_media_from;
 
-pub const topological_map = @import("opentimelineio/topological_map.zig");
+pub const topological_map = @import("topological_map.zig");
 pub const build_topological_map = topological_map.build_topological_map;
 pub const TopologicalMap = topological_map.TopologicalMap;
 
-pub const schema = @import("opentimelineio/schema.zig");
+pub const schema = @import("schema.zig");
 pub const Clip = schema.Clip;
 pub const Gap = schema.Gap;
 pub const Warp = schema.Warp;

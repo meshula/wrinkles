@@ -668,7 +668,7 @@ pub fn build(
         .{
             .b = b,
             .options = options,
-            .fpath = "src/curve/curve.zig",
+            .fpath = "src/curve/root.zig",
             .deps = &.{
                 .{ .name = "spline_gym", .module = spline_gym.root_module },
                 .{ .name = "string_stuff", .module = string_stuff },
@@ -720,7 +720,7 @@ pub fn build(
         .{
             .b = b,
             .options = options,
-            .fpath = "src/topology/topology.zig",
+            .fpath = "src/topology/root.zig",
             .deps = &.{
                 .{ .name = "opentime", .module = opentime },
                 .{ .name = "curve", .module = curve },
@@ -757,7 +757,7 @@ pub fn build(
         .{
             .b = b,
             .options = options,
-            .fpath = "src/opentimelineio.zig",
+            .fpath = "src/opentimelineio/root.zig",
             .deps = &.{
                 .{ .name = "string_stuff", .module = string_stuff },
                 .{ .name = "opentime", .module = opentime },
