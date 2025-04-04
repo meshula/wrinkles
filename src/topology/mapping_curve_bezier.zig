@@ -8,7 +8,7 @@ const curve = @import("curve");
 const opentime = @import("opentime");
 const mapping_mod = @import("mapping.zig");
 
-const topology = @import("topology.zig");
+const topology = @import("root.zig");
 
 /// a Cubic Bezier Mapping from input to output
 pub const MappingCurveBezier = struct {
