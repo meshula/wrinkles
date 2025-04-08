@@ -385,11 +385,19 @@ const SpaceUI = struct {
                     .{}
                 );
                 const input_limits = self.mapping.input_bounds();
+                const range_start = @max(
+                    input_limits.start.as(f64),
+                    @as(f64, @floatFromInt(- std.math.maxInt(i64))),
+                );
+                const range_end = @min(
+                    input_limits.end.as(f64),
+                    @as(f64, @floatFromInt(std.math.maxInt(i64))),
+                );
                 zgui.plot.setupAxisLimits(
                     .x1, 
                     .{
-                        .min = input_limits.start.as(f64),
-                        .max = input_limits.end.as(f64),
+                        .min = range_start,
+                        .max = range_end,
                     },
                 );
 
