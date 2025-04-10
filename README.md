@@ -29,6 +29,8 @@
 Additionally there are tools for visualizing curves, transformations, and the
 temporal hierarchies of editorial documents.
 
+![Screenshot of visualizer app](app.png)
+
 ## Lessons/Differences to OTIO V1
 
 * clarify that OTIO is modelling a temporally-oriented hierarchy, not a data
