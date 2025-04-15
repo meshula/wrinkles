@@ -1,5 +1,13 @@
 # Wrinkles app - Robust Temporal Math V3 Prototype Project
 
+@TODO: next step is to use the work on Ordinates to define how ranges, and
+        times are used to define where a clip sits in the timeline.  IE does a
+        media reference describe its media range in integer sample indices?
+        Does the clip cut in continuous time?  How does a track describe its
+        metric or is that per clip?
+        Is the "does the clip cut in continuous time" question analogous to the
+        LoD over continuous time in the sampling framework that AAA mentioned?
+
 ## Contents
 
 * `opentime`: low level points, intervals and affine transforms, and
