@@ -34,7 +34,11 @@ pub const EMPTY_REF = MediaDataReference{
 pub const MediaReference = struct {
     ref: MediaDataReference = EMPTY_REF,
 
+    /// bounds of the media space continuous time
     bounds_s: ?opentime.ContinuousInterval = null,
+    // @TODO: should there also be a bounds in sample index space?  Or one or
+    //        the other?
+
     discrete_info: ?sampling.SampleIndexGenerator = null,
     // should be part of the transform?
     interpolating: bool = false,
