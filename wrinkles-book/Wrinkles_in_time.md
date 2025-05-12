@@ -974,3 +974,179 @@ In essence, both our temporal topology and Feynman's interpretation demonstrate 
 This connection suggests that our framework might have applications beyond media composition - potentially offering insights into how to mathematically represent complex temporal phenomena in physics and other fields.
 
 In the next chapter, we will explore how these continuous projections interact with the discrete nature of media samples through sampling theory, addressing the critical challenge of converting between continuous time domains and the discrete samples required for digital media.
+
+# Chapter 6: Sampling Theory
+
+## In Which, The Rubber Hits The Road
+
+The preceding chapters have established a mathematical framework for time as a continuous dimension in media composition systems. We have developed coordinate systems, transformations, and topological representations that allow us to reason rigorously about temporal relationships. However, a critical gap remains: bridging the continuous nature of time with the fundamentally discrete nature of digital media.
+
+This chapter explores sampling theory as the essential connective tissue between our abstract temporal algebra and the practical reality of digital media. We will examine how discrete media samples relate to continuous time domains, and how we can leverage frequency domain techniques to manipulate these relationships with mathematical precision.
+
+## The Continuous-Discrete Duality
+
+### The Fundamental Challenge
+
+Media composition operates within a striking duality: time itself is continuous, but media exists as discrete samples. This duality creates a fundamental tension at the heart of media systems.
+
+Consider the video clip in Figure 43; it has a frame rate of 24 frames per second. In the continuous time domain, we have a smooth flow of time. However, the media itself consists of 24 discrete samples per second, each representing a snapshot of a continuous reality. The relationship between these two representations—continuous and discrete—is the province of sampling theory.
+
+![Figure 43](assets/17470308117865.jpg)***Figure 43**: The parent temporal space is continous, but the media clip contains snapshots of continuous reality.*
+
+
+### Definition of a Sampling
+
+We define a "Sampling" as a mapping from discrete samples to continuous intervals:
+
+A sampling function S maps a set of discrete sample indices I = {i₀, i₁, ...} to a set of continuous intervals T = {t₀, t₁, ...} in a given temporal domain.
+
+Since intervals are topologies (as established in Chapter 4), and we can build a topology of adjacent topologies, we can apply our projection mathematics to manipulate samplings as well.
+
+## Sampling Functions in Time Algebra
+
+### Mathematical Representation
+
+A sampling function S can be represented as:
+
+S: I → T
+
+Where:
+- I is the set of discrete sample indices (e.g., frame numbers)
+- T is the set of continuous time intervals
+
+For regular sampling, such as constant frame rate video, the mapping is straightforward:
+
+S(i) = [i/r, (i+1)/r)
+
+Where r is the frame rate, and the interval is right-open (inclusive on the left, exclusive on the right) as established in our interval conventions from Chapter 3.
+
+### Frequency Domain Perspective
+
+From a frequency domain perspective, we can view the sampling process as a phase modulus that implies a topology of regular intervals. Every time the phase wraps, the sample index (e.g., "frame") increments (Figure 44). This frequency domain representation provides powerful tools for manipulating samplings without explicitly constructing a complete topology.
+
+![Figure 44](assets/17470308962642.jpg)***Figure 44**: The phase modulus corresponds to shutter intervals.*
+
+
+The sampling rate establishes a base frequency, while phase offsets determine the precise alignment of samples within the continuous domain. This approach allows us to leverage the established mathematics of signal processing to work with our temporal algebra.
+
+## Manipulating Samplings Through Projection
+
+### Transforming the Mapping, Not the Content
+
+Manipulating a sampling through projection doesn't change the samples themselves, but rather transforms the mapping to the parent temporal scope.
+
+For example, if a scope for a sampling is sped up by a factor of 2, as in Figure 45, then the interval in the presentation space for each sample is half as long as it was before. The samples themselves remain unchanged, but their relationship to the parent temporal domain is transformed.
+
+![Figure 45](assets/17470311139438.jpg)***Figure 45**: Generating in betweens by doubling frequency.*
+This distinction allows us to separate two fundamentally different operations:
+
+1. **Remapping samples**: Transforming the relationship between existing samples and continuous time
+2. **Generating new samples**: Creating new sample content through fetching or resampling
+
+### Remapping Example: Time Stretching
+
+Consider a request to "slow this clip down by 50%." There are two fundamentally different approaches to this operation:
+
+#### Approach 1: Hold Every Frame Twice (Sample Remapping)
+
+![Figure 46](assets/17470309924980.jpg)***Figure 46**: Holding every frame twice by warping time by a factor of two.*
+
+In this approach, show in Figure 46, we operate on the ordering of existing samples, effectively holding each frame for twice as long:
+
+```
+Original mapping: 0→0, 1→1, 2→2, 3→3, 4→4, ...
+New mapping:      0→0, 1→0, 2→1, 3→1, 4→2, ...
+```
+
+We can model this as:
+- Frequency × 0.5 (half the original frequency)
+- Time × 2 (double duration)
+- Phase offset = 0 (align with original sample boundaries)
+
+This approach reuses existing samples without creating new content.
+
+#### Approach 2: Generate New Frames (Sample Generation)
+
+![Figure 47](assets/17470312119030.jpg)***Figure 47**: Generating in betweens on held twos by doubling the frequency and time.*
+
+Alternatively, we could modify continuous time in the animation and render twice as many frames, as show in Figure 47:
+
+```
+Original mapping: 0→0, 1→1, 2→2, 3→3, 4→4, ...
+New mapping:      0→0, 1→0.5, 2→1, 3→1.5, 4→2, ...
+```
+
+We can model this as:
+- Frequency × 1 (same frequency)
+- Time × 2 (double duration)
+- Phase offset = 0 (align with original sample boundaries)
+
+This approach requires generating new sample content through interpolation or recomputation.
+
+### The Role of Phase in Sampling
+
+Phase offsets provide precise control over which samples align with the parent temporal scope. For example:
+
+- In the "hold every frame twice" example, a phase offset of 0 means we align with even frames
+- A phase offset of 1 would align with odd frames
+- We can model arbitrary holds by using a frequency of 1/n to hold for n frames, with phase offset governing which frames are picked
+
+Figure 48 illustrates a hold on evens, and a hold on odds, using a phase offset to accomplish it.
+
+![Figure 48](assets/17470314196745.jpg)***Figure 48**: Using phase offset to accomplish a hold on evens, and a hold on odds.*
+
+This phase-based approach allows for complex and precise control over temporal relationships. Figure 49 shows a serious of aribtrary holds.
+
+![Figure 49](assets/17470315018465.jpg)***Figure 49**: A series of arbitrary held frames.*
+
+
+## Frame Kernels and Reconstruction
+
+### The Frame Kernel Concept
+
+When a non-linear editor displays a timeline, it might show time as a hairline (a point), but in reality, that point corresponds to the duration of a frame. This relationship can be understood through the concept of a frame kernel (Figure 50).
+
+![Figure 50](assets/17470316928929.jpg)***Figure 50**: When a tool shows a hairline to indicate time, it really indicates an interval.*
+
+A frame kernel, when convolved with the interval of contribution, produces the frame interval. Everything up to the end of the current frame contributes in some way to the sample representing that frame (Figure 51).
+
+![Figure 51](assets/17470317560200.jpg)***Figure 51**: The frame kernel is convolved with the frame interval, and any preceding support.*
+
+
+The position and shape of the frame kernel describes what we might call "house style"—whether the sampling biases to the beginning, middle, or end of the frame, or even outside the frame (Figure 52).
+
+![Figure 52](assets/17470318212048.jpg)***Figure 52**: The position of the frame kernel may be adjusted to reflect house style, or technical considerations.*
+
+Different output domains may have different house styles for the same composition. For example, when does a sound effect happen in relation to a visual cue? Does it align with the start of the image frame, the middle, or the end?
+
+### Reconstruction of Continuous Signals
+
+To generate output frames, we must use sampling theory to reconstruct continuous signals from discrete samples. This process involves:
+
+1. Defining appropriate sampling kernels for the domain
+2. Applying reconstruction functions to generate a continuous representation
+3. Resampling this continuous representation at the output rate
+
+The quality of this reconstruction depends on the mathematical properties of the kernels and reconstruction functions used.
+
+## Resampling Techniques
+
+When new samples must be generated, two primary approaches are available:
+
+### 1. Fetching New Samples
+
+New samples can be obtained by:
+- Generating via physics simulation (recomputing the underlying model)
+- Drawing new pictures (re-rendering at the new sampling rate)
+- Accessing source media at different sample positions
+
+This approach provides the highest quality but may be computationally expensive or impossible in some contexts.
+
+### 2. Resampling with Convolution
+
+Alternatively, new samples can be derived from existing ones through:
+- Hat filter for audio samples (simple interpolation)
+- Lanczos filter for image frames (high-quality interpolation)
+- Other convolution kernels optimized for specific media types
+
+The selection of an appropriate convolution kernel depends on the media type, computational constraints, and quality requirements.
