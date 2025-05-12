@@ -1150,3 +1150,209 @@ Alternatively, new samples can be derived from existing ones through:
 - Other convolution kernels optimized for specific media types
 
 The selection of an appropriate convolution kernel depends on the media type, computational constraints, and quality requirements.
+
+## Continuous Parametric Sampling
+
+When we consider sampling as a bridge between continuous and discrete domains, we typically think in terms of regular temporal sampling. However, to fully appreciate the power of sampling in media systems, we must consider alternative parametric spaces that can provide unique advantages for certain operations. This section explores the relationship between continuous parametric spaces and our temporal algebra.
+
+### Parametric Spaces and Worldlines
+
+Let us consider a simple physical scenario: a ball falling toward a ground plane under gravity in an otherwise empty universe (Figure 53). This seemingly simple scenario reveals profound insights about the relationship between sampling and continuity.
+
+![Figure 53](assets/17470321777428.jpg)***Figure 53**: A ball falling towards the ground under the influence of gravity in an otherwise empty universe.*
+
+The ball's path through space-time—its worldline—is continuous, but there's a critical event that divides this continuity: the collision with the ground. From the perspective of energy, pre-collision and post-collision represent two entirely different manifolds. Before collision, energy has not been exchanged with the ground; after, it has (Figure 54). These are fundamentally separate domains despite the apparent continuity of physical space.
+
+![Figure 54](assets/17470322408128.jpg)***Figure 54**: Pre-collision and post-collision manifolds.*
+
+This division illustrates a key insight: we can represent continuous phenomena through multiple parametric spaces connected by transformation functions.
+
+### Uniform Parametrization and Sampling Strategies
+
+Consider the ball's worldline before the collision. We can imagine a warped parametric space with uniform parametrization for this portion of the path (Figure 55). 
+
+![Figure 55](assets/17470323143968.jpg)***Figure 55**: A uniform parameterization of the ball's wordline.*
+
+Within this continuum, we have several sampling options:
+
+1. **Uniform temporal sampling**: We can sample the ball's position at regular intervals of time.
+2. **Uniform parametric sampling**: Alternatively, we can sample uniformly in the parametric space, which might correspond to equal arc lengths along the curve of motion.
+3. **Event-based sampling**: We could sample based on significant events or changes in the system.
+
+Each approach produces different discrete representations of the same continuous phenomenon, with different advantages for particular applications.
+
+### Bridging Parametric and Temporal Spaces
+
+The temporal component acts as a bridge between parametric space and our temporal topologies. By projecting our sampling functions through this bridge, we gain the ability to work with non-uniform sampling patterns that nevertheless maintain critical mathematical properties.
+
+Consider the ground plane in our example (Figure 56):
+- In position space, it's a fixed horizontal line
+- In parametric space, it may appear as a curved surface
+- The collision time becomes a function of the parametric space
+
+![Figure 56](assets/17470323956587.jpg)***Figure 56**: The ground play in positional space, and parametric space.*
+
+This relationship enables us to parameterize the frame kernel—the fundamental unit of sampling in our system—based on meaningful events rather than arbitrary temporal divisions (Figure 57).
+
+![Figure 57](assets/17470324738485.jpg)***Figure 57**: The frame kernel in parametric space.*
+
+
+### Implications for Media Systems
+
+This perspective offers several powerful capabilities for media composition:
+
+1. **Adaptive sampling**: We can adjust sampling density based on the complexity or importance of different segments of media.
+
+2. **Event-centered sampling**: Critical events in media (cuts, transitions, key frames) can anchor our sampling strategy rather than being awkwardly aligned to fixed sampling intervals.
+
+3. **Continuous interpolation**: By maintaining a continuous parametric representation, we can generate samples at arbitrary positions with mathematically sound interpolation.
+
+4. **Physical simulation mapping**: For applications involving simulated physics (animation, virtual reality), we can map sampling strategies to the underlying physical parametric spaces.
+
+5. **Scale-invariant operations**: Operations defined in parametric space remain valid regardless of the temporal sampling rate of the media.
+
+In the context of our temporal algebra, parametric sampling introduces a layer of indirection between our topological representations and the final discrete samples. This indirection provides flexibility while maintaining mathematical rigor.
+
+### Connecting to Topological Projection
+
+Parametric sampling naturally connects to the concept of topological projection discussed in Chapter 5. A parametric space with its sampling function can be viewed as a specialized kind of topology. When we project one topology through another, we are effectively creating a new sampling space.
+
+The collision example illustrates this principle clearly: the collision event creates a boundary constraint in our projection, dividing the parametric space into pre-collision and post-collision domains. By projecting through this boundary, we maintain mathematical continuity while respecting the physical discontinuity in the system.
+
+## Practical Example: Retiming a Mixed Media Composition
+
+Consider a composition with synchronized picture and audio tracks that must be retimed. The process involves:
+
+1. The parent metric space relates the picture continuum to the audio continuum
+2. To render the corresponding data from the retimed track, we create frame sampling kernels for all frames whose start point falls within the interval of interest
+3. For each sampling kernel, we compute the contribution of source samples through convolution
+4. The resulting output frames maintain temporal relationships established by our algebra
+
+Since samples are intervals, they can be represented by topologies, allowing our projection mathematics to apply seamlessly.
+
+## The Sampling Topology
+
+### Continuous Representation of Discrete Samples
+
+Every sampling defines a topology—a set of intervals that partition the continuous timeline. This topology has specific properties:
+
+1. It is a right-met sequence of intervals
+2. For regular sampling, the intervals have equal duration
+3. For variable rate sampling, the intervals have varying durations
+
+This topological view allows us to apply the full power of our temporal algebra to discrete sampling problems.
+
+### Transformations on Sampling Topologies
+
+Applying a projection to a sampling topology transforms the intervals in a well-defined way. For example:
+
+- A linear speed change (e.g., 2×) uniformly scales all intervals
+- A non-linear speed change (e.g., ramp from 1× to 2×) applies a non-uniform scaling to intervals
+- A reverse operation inverts the order of intervals
+
+These transformations maintain the topological properties established in Chapter 4, ensuring mathematical consistency throughout our framework.
+
+## Interpolation as Continuous Mapping
+
+### Continuous Representation Through Interpolation
+
+When we interpolate between samples, we are effectively constructing a continuous representation from discrete data. In the context of our temporal algebra, interpolation can be viewed as a mapping:
+
+I: [0, 1) → V
+
+Where V is the value space of the media (e.g., pixel colors, audio amplitudes).
+
+This mapping creates a continuous function that can be sampled at arbitrary points, allowing for precise temporal manipulations.
+
+### Interpolation Methods in Temporal Context
+
+Different interpolation methods provide different continuous representations:
+
+1. **Nearest Neighbor**: The simplest approach, creating a step function
+   - Mathematically: I(t) = V(floor(t))
+   - Appropriate for hold frames or when transitions must be discrete
+
+2. **Linear Interpolation**: A first-order approximation creating straight lines between samples
+   - Mathematically: I(t) = V(floor(t)) * (1-f) + V(ceil(t)) * f, where f = t - floor(t)
+   - Suitable for simple transitions but introduces trajectory errors
+
+3. **Cubic Interpolation**: A third-order polynomial providing smooth transitions
+   - Mathematically: I(t) = a * V(floor(t)-1) + b * V(floor(t)) + c * V(ceil(t)) + d * V(ceil(t)+1)
+   - Where a, b, c, and d are cubic coefficients based on t
+   - Provides smoother motion with better preservation of trajectory
+
+4. **Sinc Interpolation**: The theoretically optimal interpolation for bandlimited signals
+   - Mathematically: I(t) = sum(V(i) * sinc(t - i)) for all samples i
+   - Provides the best quality but is computationally expensive
+
+The choice of interpolation method affects not only the visual or auditory quality but also the temporal characteristics of the resulting media.
+
+## Temporal Aliasing and Nyquist Limits
+
+### The Nyquist-Shannon Sampling Theorem
+
+A fundamental result in sampling theory is the Nyquist-Shannon sampling theorem, which states that to perfectly reconstruct a continuous signal, the sampling rate must be at least twice the highest frequency present in the signal.
+
+In the context of temporal media, this has important implications:
+
+1. Temporal details that occur faster than half the frame rate cannot be accurately represented
+2. Attempting to represent such details leads to temporal aliasing—artifacts that misrepresent the original signal
+
+### Dealing with Temporal Aliasing
+
+To address temporal aliasing in our framework:
+
+1. **Pre-filtering**: Before sampling, the continuous signal can be filtered to remove frequencies above the Nyquist limit
+2. **Motion blur**: In visual media, motion blur effectively integrates over time, serving as a natural anti-aliasing filter
+3. **Adaptive sampling**: Variable rate sampling can be used to increase the sampling rate during rapid changes
+
+These techniques help maintain temporal fidelity while working within the constraints of discrete sampling.
+
+## The Sampling Function Taxonomy
+
+### Types of Sampling Functions
+
+Our framework categorizes sampling functions into several types:
+
+1. **Regular Sampling**: Constant intervals between samples
+   - Example: Standard frame rates like 24fps, 30fps, 60fps
+
+2. **Variable Rate Sampling**: Intervals that vary according to a function
+   - Example: High-frame-rate capture of fast motion, standard rate for slower motion
+
+3. **Adaptive Sampling**: Sampling rate adjusted based on content complexity
+   - Example: More samples during complex motion, fewer during static scenes
+
+4. **Stochastic Sampling**: Samples distributed according to a probability distribution
+   - Example: Monte Carlo rendering techniques for complex lighting
+
+Each type of sampling function has different mathematical properties and different implications for temporal operations.
+
+### Sampling Function Composition
+
+Sampling functions can be composed, creating complex relationships between different temporal domains. For example:
+
+- A camera captures at 120fps (regular sampling)
+- The footage is converted to 24fps (regular resampling)
+- A speed ramp is applied (variable rate resampling)
+- The result is displayed at 60fps (regular resampling)
+
+Our algebraic framework allows each of these transformations to be precisely defined and composed to determine the final temporal relationships.
+
+### Coordinate Systems and Sampling
+
+Chapter 3 established the concept of time as a normed vector space with affine transformations between coordinate systems. Sampling functions extend this framework by defining how discrete indices map to this continuous space.
+
+The affine transformations can be applied to both the continuous domain and the sampling functions themselves, providing a unified mathematical treatment.
+
+### Topology and Sampling
+
+Chapter 4 introduced the topological representation of temporal structures. Sampling creates a specific type of topology—a partitioning of the timeline into intervals associated with discrete samples.
+
+The operations defined on topologies can be applied to sampling topologies, allowing for complex temporal manipulations within a unified mathematical framework.
+
+### Projection and Sampling
+
+Chapter 5 explored projection through temporal topologies. Sampling functions can be viewed as a special case of projection, mapping from a discrete domain to a continuous one.
+
+The composition of projections described in Chapter 5 applies equally to sampling functions, allowing for complex chains of temporal transformations that maintain mathematical rigor throughout.
