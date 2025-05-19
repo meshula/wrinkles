@@ -10,9 +10,9 @@ What we thought might take weeks became a years-long exploration. We discovered 
 
 We began by following Euclid's approach in Elements, starting with a point in time conceptualized as an infinite half-space dividing past from future, and derived a geometry of time. The rest of the framework followed, treating time as a normed vector space subject to mathematical operations, coordinate systems, and affine transformations to temporal topology and sampling theory, ultimately creating a unified model that represents the complete cycle of temporal transformations in media from capture to presentation. This book reflects that journey, providing both the theoretical foundations and practical applications of our time algebra in real-world systems like OpenTimelineIO.
 
-The title of this work draws inspiration from concepts that span both literature and physics. 
+The title of this work draws inspiration from concepts that span both literature and physics.
 
-In Madeline L'Engle's classic novel "A Wrinkle in Time", the tesseract allows characters to "fold" space-time, creating a shortcut between distant points by projecting through a higher dimension. This is conceptualized as creating a wrinkle or fold that brings two distant temporal-spatial points together. 
+In Madeline L'Engle's classic novel "A Wrinkle in Time", the tesseract allows characters to "fold" space-time, creating a shortcut between distant points by projecting through a higher dimension. This is conceptualized as creating a wrinkle or fold that brings two distant temporal-spatial points together.
 
 In this work, projection operations transform time across different domains, enabling different temporal experiences and manipulations by mapping from one coordinate system to another to satisfy a "certain point of view," just as the tesseract in L'Engle's universe allows connection between otherwise discontinuous points in space-time. The title "Wrinkles in Time" thus takes on a dual meaning—referring both to the technical transformations we apply to temporal domains and to the broader narrative framework of manipulating time's fabric that is central to art itself. Story telling breaks the continuity of time and space to create a narrative world.
 
@@ -294,7 +294,7 @@ Contemporary media composition involves working with disparate elements that eac
 
 ## Historical Context
 
-In the very beginning of the creation of timed media, time was an aspect of authorial agency; the time base itself dictated by the speed an operator cranked the shutter and the film through the aperture (Figure 1). Films were distributed with time scores that instructed the projectionist how fast to advance the film during scenes, and what part of the score a pianist should play when. The display of the movie was orchestrated on the fly by the projectionist and musician. 
+In the very beginning of the creation of timed media, time was an aspect of authorial agency; the time base itself dictated by the speed an operator cranked the shutter and the film through the aperture (Figure 1). Films were distributed with time scores that instructed the projectionist how fast to advance the film during scenes, and what part of the score a pianist should play when. The display of the movie was orchestrated on the fly by the projectionist and musician.
 
 ![Figure 1](assets/17470253273752.jpg)***Figure 1:** Time in the silent era.*
 
@@ -406,7 +406,7 @@ The conform-based workflow presents several critical issues:
 
 ## Tomorrow's Natural-Rate Based Workflow
 
-The alternative proposed is a natural-rate based workflow. As shown in Figure 9, this approach inverts the traditional conform-based paradigm.
+As shown in Figure 9, a natural-rate based workflow approach inverts the traditional conform-based paradigm.
 
 ![Figure 9](assets/17469130420932.jpg)***Figure 9**: Tomorrow's natural-rate based workflow where media maintains its native temporal rate until final presentation.*
 
@@ -415,11 +415,11 @@ The alternative proposed is a natural-rate based workflow. As shown in Figure 9,
 3. Import processes place media in this continuous timeline
 4. Rendering/presentation samples this continuous representation as needed
 
-This approach inverts the traditional workflow—instead of forcing all media to conform to a single rate early in the process, the system maintains the original temporal information until the final presentation stage.
+Instead of forcing all media to conform to a single rate early in the process, the original temporal information until the final presentation stage.
 
 ## Benefits of the Natural-Rate Approach
 
-The natural-rate workflow offers several key advantages:
+A natural-rate workflow offers several key advantages:
 
 1. **Preservation of Information**: Media retains its original temporal characteristics throughout the editorial process.
 
@@ -452,21 +452,21 @@ Let's examine each domain in detail:
 
 ### Narrative Time
 
-Narrative time is the abstract temporal domain where story events are ordered. This is the time experienced by characters within a story—the diegetic time in which footsteps synchronize with walking characters or where the internal logic of a simulation unfolds.
+Narrative time is an *endogenous* abstract temporal domain where story events are ordered. This is the time experienced by characters within a story—the *diegetic* time in which footsteps synchronize with walking characters or where the internal logic of a simulation unfolds.
 
 Narrative time may be hierarchical. For example, a piece of music played by an orchestra filmed for a movie has its own narrative time embedded within the film clip's action time.
 
 ### Capture Time
 
-Capture time is an exogenous, continuous domain occurring in the real world. This is the physical time in which cameras record scenes, microphones capture sound, or sensors detect motion.
+Capture time is an *exogenous* continuous domain occurring in the real world. This is the physical time in which cameras record scenes, microphones capture sound, or sensors record motion.
 
 A scene is transformed from exogenous capture time to narrative time through the capture process, producing the raw media that will later be composed.
 
 ### Media Time
 
-Media time is an endogenous domain that enumerates frames or discrete samples of media. This domain is typically periodic, with regular intervals between samples, though it doesn't have to be.
+Media time is an *endogenous* domain that enumerates frames or discrete samples of media. This domain is typically periodic, with regular intervals between samples, though it doesn't have to be.
 
-Media itself is indexed, for example by frame numbers. A sampling function exists to convert between narrative time and media time, retrieving particular frames or samples.
+Media itself is indexed, often by frame numbers. Sampling functions, explored later, convert between narrative time and media time, retrieving particular frames or samples.
 
 ### Composition Time
 
@@ -520,29 +520,44 @@ The composition domain becomes discrete and aperiodic, bridging the rendering an
 
 ## Relationships Between Domains
 
-Understanding how these temporal domains relate to each other is key to developing a comprehensive time algebra. Each domain transformation introduces specific challenges and opportunities for mathematics to formalize the operations.
+Understanding how these temporal domains relate to each other is key to developing a comprehensive time algebra. Each domain transformation introduces specific challenges and mathematics to formalize the operations.
 
-The domains form a directed graph of transformations, where each edge represents a mathematical function that converts time from one domain to another. Some of these transformations are straightforward and lossless, while others involve sampling, resampling, or other operations that may introduce complexity.
+The domains form a directed graph of transformations, where each edge represents a mathematical function that converts time from one domain to another. Some of these transformations are straightforward and lossless, while others involve sampling, resampling, or other operations.
 
 In the following chapters, we will develop the mathematical foundations needed to formalize these domain transformations and build a robust algebraic framework for working with time across the entire production loop.
 
 
 # Chapter 3: Mathematical Foundations of Time
 
+## Kripke Semantics and the Logic of Time
+
+Modern temporal logic has its roots in Saul Kripke's semantics, a model-theoretic framework originally devised to formalize modal concepts like necessity and possibility (Kripke 1961). A Kripke model describes a network of “possible worlds,” connected by an accessibility relation—a structure that determines which worlds are reachable from which others. When applied to time, these worlds become moments, and the accessibility relation encodes temporal ordering.
+
+In this view, a temporal statement such as "*eventually A*" becomes a logical assertion about the reachability of a world in which *A* holds, given the structure of time. Thus, Kripke-style temporal logic treats time as a structured set of points, each representing a discrete moment, often embedded within a graph-like frame. Temporal logics of this kind—sometimes linear, sometimes branching—define their modal behavior over these time points using operators like *next*, *until*, and *always*.
+
+A foundational work in this tradition is Johan van Benthem’s *The Logic of Time: A Model-Theoretic Investigation into the Varieties of Temporal Ontology and Temporal Discourse* (1983, revised 1991). Van Benthem’s work provides one the most comprehensive and influential formalisms for temporal reasoning—a model that subsequent developments in temporal logic, computation, and formal semantics have drawn upon extensively. His analysis explores the expressive power of modal languages over different temporal structures and axiomatizes the behavior of time from a semantic standpoint, within the point-based paradigm inherited from Kripke.
+
+However, the point-based perspective—though elegant and powerful for many domains—presents limitations when applied to media systems and interactive processes. These systems require reasoning not only about when events occur, but for how long they persist, how they overlap, and how they compose over intervals. In such contexts, time cannot be treated merely as a sequence of indivisible instants. Rather, it must be understood as a duality between the discrete and the continuous, as formalized in sampling theory and expressed through interval-based models of time.
+
+Later chapters will return to Kripke’s many-worlds semantics to explore branching time, modal narratives, and interactive futures. But for now, we begin by setting the stage with a more geometrical and algebraic foundation for time.
+
 ## From First Principles
 
-To construct a rigorous framework for temporal operations in media systems, we must first define time from mathematical first principles. This chapter establishes the foundational mathematical concepts that will support our time algebra.
+*Tempus est fluxus; et rationem ejus in punctis colligere fallacia est.*
+
+To construct a rigorous framework for temporal operations in media systems, we must first define time from mathematical first principles. This chapter establishes the foundational mathematical concepts that the development of a temporal algebra.
+
 
 ## Define a Metric Space
 
-A time line is a monotonically increasing metric space. This means:
+A time line is a monotonically increasing metric space, implying several important characteristics:
 
-1. Time has a direction (monotonically increasing)
-2. We can measure the distance between two points in time (metric)
+1. Time has a direction, it monotonically increases
+2. It has a metric: distance can be measured between two points in time
 3. Time has a unit measure with non-zero length, named e₀
 4. e₀ = e₀ * e₀ (the unit is self-consistent)
 
-This fundamental property is visualized in Figure 12.
+To treat time as a metric space in the Euclidean sense, we must first define a unit of measure. We introduce a unit time interval e₀, not as a physical quantum of time, but as a geometric norm that imparts dimensional structure to the otherwise pure topology of the timeline. This construction mirrors Euclid’s use of a unit line segment to establish measurement within a continuum. Once such a unit is defined, any scalar multiple of e₀ yields meaningful, measurable durations—including frame intervals, tick rates, or sample steps—without imposing a fixed discretization. Importantly, the identity e₀ = e₀ × e₀ expresses not a dimensional paradox, but a consistency of scale: a duration remains invariant under self-scaling in the temporal algebra, much like the multiplicative identity in a normed space. This fundamental property is visualized in Figure 12.
 
 ![Figure 12](assets/17469119889101.jpg)***Figure 12**: Time as a metric space with unit measure e₀, showing the relationship between adjacent time points.*
 
@@ -552,18 +567,18 @@ Time is conventionally considered an ordinate - a location on a coordinate axis 
 
 ![Figure 13](assets/17469121386125.jpg)***Figure 13**: Conventional representation of time as a location on a one-dimensional coordinate axis.*
 
-We consider it an infinite half-plane separating the past from the future. This conceptualization allows us to apply a richer set of mathematical operations. Figure 14 shows this conceptualization.
+Rather than treating time merely as an abstract axis, we model it geometrically as an infinite half-plane separating the past and the future (Figure 14). It is bounded on one side by the present and extends indefinitely into both past and future. This structure admits rigorous interpretations in the domains of signal analysis and causal reasoning. In time-frequency representations, for instance, signals are often restricted to causal half-planes where energy is nonzero only after a given time origin. Likewise, in relativistic systems and wavefront propagation, causal cones partition spacetime in a way that resembles a half-plane separating the known from the indeterminate. In the context of this derivation, the half-plane formulation provides both a visual and analytic tool to reason about the orientability, coverage, and continuity of time as it underlies sampled, layered, or interactive media systems.
 
 ![Figure 14](assets/17469120885940.jpg)***Figure 14**: Time represented as an infinite half-plane that separates the past from the future.*
 
-A timeline can be covered by any number of intervals, and always covers [-∞, +∞). This coverage property is important for ensuring that our algebraic operations are complete. Figure 15 shows multiple right-met intervals spanning the entire timeline.
+A timeline can be covered by any number of intervals, and always covers [-∞, +∞). This coverage property is important for ensuring that the temporal algebraic operations are complete. Figure 15 shows multiple right-met intervals spanning the entire timeline.
 
 ![Figure 15](assets/17469121911540.jpg)***Figure 15**: A timeline covered by multiple intervals spanning from negative infinity to positive infinity.*
 
 
 ## Intervals
 
-In our framework, intervals are right-open (inclusive on the left, exclusive on the right), though they may have infinitesimal length. If the endpoints are equal, the interval is empty, because an interval can't both include and not include the same point.
+In this framework, intervals are right-open (inclusive on the left, exclusive on the right), though they may have an infinitesimal length ever so slightly greater than zero. If length is zero, the endpoints are equal, and therefore the interval is empty because an interval can't both include and not include the same point.
 
 This definition of intervals provides a clean foundation for operations on time segments without edge cases or ambiguities at the boundaries.
 
@@ -571,7 +586,7 @@ This definition of intervals provides a clean foundation for operations on time 
 
 ### Interval Algebra
 
-James F. Allen introduced a calculus for temporal reasoning in 1983, which gives us a complete set of predicates to describe how intervals relate to each other. Allen's interval algebra defines the following fundamental relations between two intervals:
+James F. Allen introduced a calculus for temporal reasoning in 1983, which provides a complete set of predicates to describe how intervals relate to each other. Allen's interval algebra defines the following fundamental relations between two intervals:
 
 1. **Before/After**: One interval completely precedes the other
 2. **Meets/Is Met By**: One interval ends exactly where the other begins
@@ -581,11 +596,11 @@ James F. Allen introduced a calculus for temporal reasoning in 1983, which gives
 6. **Finishes/Is Finished By**: The intervals share an ending point, but one starts after the other
 7. **Equals**: The intervals are identical
 
-Allen's interval algebra typically states thirteen rules, however here we have reduced them to seven by pairing relations that differ only by order. Figure 16 illustrates these fundamental relations.
+Figure 16 illustrates these fundamental relations. They are pairwise disjoint and exhaustive, in that any two time intervals must be related by one of these relations.
 
 ![Figure 16](assets/17469123800935.jpg)***Figure 16**: Allen's interval algebra depicting the fundamental relations between two time intervals.*
 
-We extend Allen's interval algebra to consider the clusivity of points (whether endpoints are inclusive or exclusive). As an example, if both endpoints are considered inclusive, if the end of one interval and the beginning of the other have the same value, the intervals actually overlap rather than meet. This work stipulates right-open intervals -- the beginning of the interval is inclusive, and the end is exclusive, so if then end of the first interval and the beginning of the second interval have the same value, the intervals meet. This allows us to create bijective mapping of timelines, which will be important later.
+We extend Allen's interval algebra to consider the clusivity of points (whether endpoints are inclusive or exclusive). As an example, if both endpoints are considered inclusive, if the end of one interval and the beginning of the other have the same value, the intervals actually overlap rather than meet. The temporal algebra stipulates right-open intervals -- the beginning of the interval is inclusive, and the end is exclusive -- if the end of the first interval and the beginning of the second interval have the same value, the intervals meet. This allows us to create bijective mapping of timelines where every point in one temporal manifold maps to a unique point in another.
 
 ### Affine Transformations
 
@@ -643,7 +658,7 @@ The affine transformation approach also provides better numerical precision, art
 
 ## Time Algebra Elements and Operations
 
-To construct our complete time algebra, we define the following fundamental elements:
+To construct the complete time algebra, we define the following fundamental elements:
 
 1. **Time Points**: Unique temporal coordinates with no extent
 2. **Time Intervals**: A pair of time points bounding a segment of time
@@ -658,8 +673,24 @@ With these elements, we can define several classes of operations:
 4. **Operations on Samplings**: Functions that take samplings and return new samplings
 5. **Media Functions**: Functions that take samplings and media as arguments and return media
 
-This algebraic framework provides a formal foundation for all the temporal transformations required in media composition systems, from simple edits to complex interactive experiences.
+## Summary
 
+This algebraic framework provides a formal foundation for all the temporal transformations required in media composition systems, from simple edits to complex interactive experiences. It draws on well-established mathematical structures—but the derivation from time as a half-space towards an interval-based algebra reflects a distinct and purposeful synthesis that is not entirely conventional.
+
+### The Conventional
+
+1. Time as a metric space: This is a standard mathematical abstraction—time as a totally ordered, continuous or discrete, real-valued space with a metric is widely used in physics, computer science, and formal semantics.
+2. Affine transformations and coordinate systems: The use of affine transformations to move between coordinate systems is standard in animation, signal processing, and media systems.
+3. Allen’s interval algebra: This is a canonical reference point in AI and temporal reasoning literature. Extending it to explicitly deal with clusivity and right-open intervals is common in temporal databases and digital systems.
+
+### The Novel
+
+1. Time as a half-plane separating past and future: This is not standard phrasing. Most treatments speak of time as a line, sometimes oriented, but the use of the half-plane metaphor introduces a topological and epistemic metaphor—a conceptual boundary between knowable past and potential future. This connects evocatively to modal logic and temporal epistemology.
+2. The synthesis from Kripke-style point-based logic to an algebra over intervals: We intentionally start from a point-based perspective (via Kripke/van Benthem) and showing that this is insufficient for media and interactive systems, hence moving to an interval-based, compositional, algebraic framework. This perspective serves as something of a critique of the limitations of point-based temporal logics in modeling sampled, continuous media systems.
+3. Right-open intervals with unit measure and self-consistency (e₀ = e₀ * e₀): This axiom is unconventional in its form, and recalls the spirit of defining temporal quanta in a computational or physical system. Most interval algebras don’t explicitly introduce this kind of unit identity element, as they don't invoke a metric.
+4. Sampling theory as a fundamental reason for needing interval-based logic: Traditional logic does not deeply engage with sampling theory or the duality between continuous and discrete representations. The treatment here is closer in spirit to signal processing, media systems design, and temporal epistemology (e.g., the ontological distinction between "event" and "duration").
+
+While this chapter has treated time primarily as a one-dimensional metric space enriched with algebraic structure, the needs of interactive and compositional media demand a more general foundation. Time in such systems often flows through nested, looping, and concurrent paths—structures that defy simple linear or even branching models. To address these complexities, we turn next to topological and manifold-based treatments of time. Chapter 4 extends the current algebraic frame into a broader geometric context, introducing temporal manifolds, continuity classes, and topological invariants that enable rigorous modeling of complex, multi-resolution, and non-Euclidean timelines.
 
 # Chapter 4: Temporal Topology
 
@@ -704,10 +735,10 @@ For example, a composition might be represented as:
 ```
 (define composition
    (sync domain picture
-     (seq gap (sync sw005 
+     (seq gap (sync sw005
                     sw005-pip) sw006 sw007 sw008))
      (seq sw003 sw004)
-     (seq domain audio 
+     (seq domain audio
           gap sw001 sw002 sw0009))
 ```
 This structure is visualized in Figure 22, where each branch represents a temporal relationship.
@@ -727,7 +758,7 @@ A succinct bit encoding of a binary tree is a pre-order traversal typically stor
 
 We append zeroes to indicate nodes that synchronously start from the current node, and we append ones to indicate nodes that start sequentially. Unlike a conventional succinct encoding, this scheme embues additional information. Given the code of a node, it's entire history is explicitly visible, as is its status of being a synchronous start or not.
 
-Figure 23 demonstrates this efficient encoding scheme applied to our composition tree.
+Figure 23 demonstrates this efficient encoding scheme applied to an example composition tree.
 
 ![Figure 23](assets/17469129264672.jpg)***Figure 23**: Succinct bitstream encoding of the composition tree where 1 represents the root, 0 represents sync starts, and 1 represents sequential starts.*
 
@@ -757,12 +788,12 @@ This topological approach to representing time in media compositions offers seve
 3. **Computation**: Operations on the temporal structure become algebraic operations on the bitstream
 4. **Flexibility**: The representation accommodates both linear and non-linear temporal structures
 
-## Topology vs. Coordinate Systems
+## Topologies vs. Coordinate Systems
 
-It's important to note how this topological representation complements the coordinate system approach discussed in the previous chapter:
+This topological representation complements the coordinate system approach discussed in the previous chapter:
 
 - **Coordinate Systems** provide precise positioning within a temporal context
-- **Topology** provides the structural relationships between temporal elements
+- **Topology** provides the structural relationships between temporal elements, and a place where metrics may be joined
 
 Together, these two approaches form a complete framework for representing and manipulating time in media composition systems.
 
@@ -797,11 +828,11 @@ Temporal projection has numerous applications in media composition systems:
 
 4. **Temporal Synchronization**: Aligning multiple media elements with different internal timelines through projection into a common presentation timeline.
 
-In each of these applications, the mathematical properties of our temporal projections ensure that the operations are well-defined and can be precisely controlled.
+In each of these applications, the mathematical properties of temporal projections ensure that the operations are well-defined and can be precisely controlled.
 
 ## Foundations of Temporal Projections
 
-Temporal projections involve mapping time from one domain or representation to another, often through multiple transformations. In the context of our temporal algebra, a projection is a mathematical operation that transforms temporal coordinates from one space to another. Figure 24 visualizes how time can be mapped from one domain to another through a projection operation.
+Temporal projections involve mapping time from one domain or representation to another, often through multiple transformations. In the context of the temporal algebra, a projection is a mathematical operation that transforms temporal coordinates from one space to another. Figure 24 visualizes how time can be mapped from one domain to another through a projection operation.
 
 ![Figure 24](assets/17469131894461.jpg)***Figure 24**: A temporal projection mapping time from presentation space to media space.*
 
@@ -809,7 +840,7 @@ A critical property of these projections is that they are both invertible and di
 
 Formally, a function f: X → Y is invertible if for every y in Y that is in the range of f, there exists exactly one x in X such that f(x) = y. The differentiability property ensures that the derivative f'(x) exists at every point in the domain, allowing us to determine the instantaneous rate of change of the temporal mapping.
 
-While our ideal mappings should be bijective (one input value maps to exactly one output value), in practice we often encounter injective mappings (one input value may map to multiple output values), such as when time "doubles back" in a rewind effect. When this occurs, we maintain effective bijectivity by subdividing the mapping into multiple bijective segments. Figure 25 demonstrates this point.
+While ideal mappings would be bijective (one input value maps to exactly one output value), in practice we often encounter injective mappings (one input value may map to multiple output values), such as when time "doubles back" in a rewind effect. When this occurs, we maintain effective bijectivity by subdividing the mapping into multiple bijective segments. Figure 25 demonstrates this point.
 
 ![Figure 25](assets/17469132284417.jpg)***Figure 25**: Invertible and differentiable properties of temporal projection, require two bijective mappings for the two solutions.*
 
@@ -823,19 +854,19 @@ To reason about these mapping functions collectively, we embed them within the t
 
 ### Properties of the Temporal Mapping Domain
 
-Recall that a topology in our framework represents a mapped domain of right-met, piecewise continuous functions that transform input time to per-interval output times. These continuous functions have key mathematical properties:
+Recall that a topology in this framework represents a mapped domain of right-met, piecewise continuous functions that transform input time to per-interval output times. These continuous functions have key mathematical properties:
 
 1. Each function is individually invertible
 2. Each function is differentiable
 3. Consequently, the entire domain is invertible, while differentiability is guaranteed within each segment, with potential discontinuities at the segment boundaries
 
-These discontinuities at segment boundaries are precisely identified during our subdivision process, allowing us to manage them explicitly. Figure 27 illustrates these properties.
+These discontinuities at segment boundaries are precisely identified during the subdivision process, allowing us to manage them explicitly. Figure 27 illustrates these properties.
 
 ![Figure 27](assets/17469134433070.jpg)***Figure 27**: Piecewise continuous functions forming a complete temporal mapping domain with invertible and differentiable properties within each segment.*
 
 ## Measuring Time Across Discontinuous Intervals
 
-One of the primary motivations for embedding temporal intervals in a topology is to enable measurement between discontinuous time points. Within a single interval, we can directly measure the distance between two points using our metric space properties. However, between points on discontinuous intervals, direct measurement is not possible.
+One of the primary motivations for embedding temporal intervals in a topology is to enable measurement between discontinuous time points. Within a single interval, the distance between two points can be directly measured using metric space properties. However, between points on discontinuous intervals, direct measurement is not possible.
 
 A topology provides the framework to measure between points on different discontinuous intervals through a non-metric space approach. This capability is essential for complex editorial operations that need to relate temporally disconnected elements (Figure 28).
 
@@ -853,13 +884,13 @@ The simplest possible topology is a continuous unit identity time interval. This
 
 ![Figure 29](assets/17469135585660.jpg)***Figure 29**: The unit identity interval as the simplest possible topology, consisting of a single segment with a linear curve of slope 1.*
 
-## The Nature of Topology Projection
+## The Nature of Topological Projection
 
-Projection is the operation of transforming something from one space to another. In the context of our temporal algebra, the specific type of projection we're concerned with is the projection of one topology through another.
+Projection is the operation of transforming something from one space to another. In the context of the temporal algebra, the specific type of projection we're concerned with is the projection of one topology through another.
 
-Given our definition of a point as a half-space interval, and the unit interval, we can precisely define projection in our system: one topology projected through another topology yields a new topology.
+Given the definition of a point as a half-space interval, and the existence of the unit interval, we can narrowly define projection: one topology projected through another topology yields a new topology.
 
-This operation is fundamental to understanding how time transforms across the various domains in our media composition model. When we project a temporal structure from one domain (e.g., composition time) to another (e.g., presentation time), we are performing a topology projection. This builds directly upon the coordinate system transformations discussed in Chapter 3, extending them to handle complex, piecewise temporal structures.
+This operation is fundamental to understanding how time transforms across the various domains in the media composition model. When we project a temporal structure from one domain (e.g., composition time) to another (e.g., presentation time), we are performing a topology projection. This builds directly upon the coordinate system transformations discussed in Chapter 3, extending them to handle complex, piecewise temporal structures.
 
 ### An Example
 
@@ -906,7 +937,7 @@ As illustrated in Figure 37, when we join intervals a and b via their shared axi
 
 ## Advanced Projections and Complex Topologies
 
-Now that all the fundamental operations are demonstrated, let's explore the projection of more complex topologies. Figure 38 illustrates two topologies with more sophisticated temporal characteristics than our previous examples.
+Now that all the fundamental operations are demonstrated, let's explore the projection of more complex topologies. Figure 38 illustrates two topologies with more sophisticated temporal characteristics than the previous examples.
 
 ![Figure 38](assets/17469893683296.jpg)***Figure 38:** Topology a involves three segments (slow, hold, and rewind), while topology b shows an ease curve (deceleration followed by acceleration).*
 
@@ -932,13 +963,13 @@ The location of these Jacobians guides the mutual subdivision process as before,
 
 ## Practical Application: Composing Complex Functions
 
-To demonstrate the practical power of our approach, Figure 42 shows an example where a sigmoid function is projected through a parabola to generate a bell-shaped curve. This illustrates how complex, non-linear temporal effects can be created through the composition of simpler functions.
+To demonstrate the practical power of the approach, Figure 42 shows an example where a sigmoid function is projected through a parabola to generate a bell-shaped curve. This illustrates how complex, non-linear temporal effects can be created through the composition of simpler functions.
 
 ![Figure 42](assets/17469905525263.jpg)***Figure 42**: Projecting a sigmoid function through a parabola to generate a bell-shaped curve, demonstrating the creation of complex temporal effects through composition.*
 
 Non-linear editing tools offer many forms of analytic mapping functions that do not practically compose through direct algebraic methods. For example, a Bézier time curve is cubic, and the projection of one such curve through another yields a function of ninth order (3²=9); a subsequent projection of the result would reach order 27 (3³). This exponential growth in complexity makes direct algebraic composition computationally impractical.
 
-Fortunately, Pythagorean Hodographs—special polynomial curves whose derivatives have the Pythagorean property—provide the critical information we need to guide our subdivision process. By identifying optimal subdivision points based on the geometric properties of these curves, even these challenging projections can be handled efficiently using our approach.
+Fortunately, Pythagorean Hodographs—special polynomial curves whose derivatives have the Pythagorean property—provide the critical information we need to guide the subdivision process. By identifying optimal subdivision points based on the geometric properties of these curves, even these challenging projections can be handled efficiently using this approach.
 
 This type of projection has practical applications in media composition, such as creating sophisticated ease-in/ease-out effects or timing variations for animation. By composing mathematically well-defined functions, artists can achieve precise control over temporal transformations without requiring deep mathematical expertise in the underlying complexity.
 
@@ -947,18 +978,18 @@ This type of projection has practical applications in media composition, such as
 Projection through a topology provides a powerful mathematical framework for understanding and manipulating time across various domains in media composition systems. The full algorithm for projecting topology B through topology A can be summarized as:
 
 1. **Align Coordinate Systems**: Perform a change of basis transformation to align the shared axis between topologies A and B
-   
+
 2. **Identify Critical Points**: Determine all critical points from both topologies, including:
    - Endpoints of intervals
    - Points of non-differentiability
    - Extrema and inflection points of non-linear mappings
-   
+
 3. **Create Bijective Subdivisions**: Mutually subdivide both topologies at these critical points to create a set of bijective mapping segments
-   
+
 4. **Compose Transformations**: For each corresponding segment pair, compose their mapping functions (either analytically when possible or through approximation methods like Jacobians)
-   
+
 5. **Apply Boundary Constraints**: Ensure the projection is only valid within the intersection of the bounds of both topologies
-   
+
 6. **Transform Result**: Map the resulting composite topology back to the target coordinate system
 
 This approach ensures that complex temporal transformations maintain the critical properties we require:
@@ -977,7 +1008,7 @@ The projection framework developed in this chapter builds directly upon the coor
 
 The preceding chapters have established a mathematical framework for time as a continuous dimension in media composition systems. We have developed coordinate systems, transformations, and topological representations that allow us to reason rigorously about temporal relationships. However, a critical gap remains: bridging the continuous nature of time with the fundamentally discrete nature of digital media.
 
-This chapter explores sampling theory as the essential connective tissue between our abstract temporal algebra and the practical reality of digital media. We will examine how discrete media samples relate to continuous time domains, and how we can leverage frequency domain techniques to manipulate these relationships with mathematical precision.
+This chapter explores sampling theory as the essential connective tissue between the abstract temporal algebra and the practical reality of digital media. We will examine how discrete media samples relate to continuous time domains, and how we can leverage frequency domain techniques to manipulate these relationships with mathematical precision.
 
 ## The Continuous-Discrete Duality
 
@@ -989,32 +1020,21 @@ Consider the video clip in Figure 43; it has a frame rate of 24 frames per secon
 
 ![Figure 43](assets/17470308117865.jpg)***Figure 43**: The parent temporal space is continous, but the media clip contains snapshots of continuous reality.*
 
+## Sampling Functions in Time Algebra
 
 ### Definition of a Sampling
 
-We define a "Sampling" as a mapping from discrete samples to continuous intervals:
+We define a "Sampling" as a mapping from discrete samples to continuous intervals. Since intervals are topologies (as established in Chapter 4), and we can build a topology of adjacent topologies, we can apply the projection mathematics to manipulate samplings as well.
 
-A sampling function S maps a set of discrete sample indices I = {i₀, i₁, ...} to a set of continuous intervals T = {t₀, t₁, ...} in a given temporal domain.
+A sampling function S maps a set of discrete sample indices `I = {i₀, i₁, ...}` to a set of continuous intervals `T = {t₀, t₁, ...}` in a given temporal domain; we can represent a sampling function S as:
 
-Since intervals are topologies (as established in Chapter 4), and we can build a topology of adjacent topologies, we can apply our projection mathematics to manipulate samplings as well.
+`S: I → T`
 
-## Sampling Functions in Time Algebra
+`I` may be a set of frame indices, and `T` may be the interval they are visible on a timeline. For regular sampling, such as constant frame rate video, the mapping is straightforward:
 
-### Mathematical Representation
+`S(i) = [i/r, (i+1)/r)`
 
-A sampling function S can be represented as:
-
-S: I → T
-
-Where:
-- I is the set of discrete sample indices (e.g., frame numbers)
-- T is the set of continuous time intervals
-
-For regular sampling, such as constant frame rate video, the mapping is straightforward:
-
-S(i) = [i/r, (i+1)/r)
-
-Where r is the frame rate, and the interval is right-open (inclusive on the left, exclusive on the right) as established in our interval conventions from Chapter 3.
+Where `r` is the frame rate, and the interval is right-open (inclusive on the left, exclusive on the right) as established in the interval conventions from Chapter 3.
 
 ### Frequency Domain Perspective
 
@@ -1022,8 +1042,7 @@ From a frequency domain perspective, we can view the sampling process as a phase
 
 ![Figure 44](assets/17470308962642.jpg)***Figure 44**: The phase modulus corresponds to shutter intervals.*
 
-
-The sampling rate establishes a base frequency, while phase offsets determine the precise alignment of samples within the continuous domain. This approach allows us to leverage the established mathematics of signal processing to work with our temporal algebra.
+The sampling rate establishes a base frequency, while phase offsets determine the precise alignment of samples within the continuous domain. This approach allows us to leverage the established mathematics of signal processing to work with the temporal algebra.
 
 ## Manipulating Samplings Through Projection
 
@@ -1102,7 +1121,7 @@ This phase-based approach allows for complex and precise control over temporal r
 
 When a non-linear editor displays a timeline, it might show time as a hairline (a point), but in reality, that point corresponds to the duration of a frame. This relationship can be understood through the concept of a frame kernel (Figure 50).
 
-![Figure 50](assets/17470316928929.jpg)***Figure 50**: When a tool shows a hairline to indicate time, it really indicates an interval.*
+![Figure 50](assets/17470316928929.jpg)***Figure 50**: When a tool shows a hairline to indicate time, it implicitly indicates an interval.*
 
 A frame kernel, when convolved with the interval of contribution, produces the frame interval. Everything up to the end of the current frame contributes in some way to the sample representing that frame (Figure 51).
 
@@ -1149,7 +1168,7 @@ The selection of an appropriate convolution kernel depends on the media type, co
 
 ## Continuous Parametric Sampling
 
-When we consider sampling as a bridge between continuous and discrete domains, we typically think in terms of regular temporal sampling. However, to fully appreciate the power of sampling in media systems, we must consider alternative parametric spaces that can provide unique advantages for certain operations. This section explores the relationship between continuous parametric spaces and our temporal algebra.
+When we consider sampling as a bridge between continuous and discrete domains, we typically think in terms of regular temporal sampling. However, to fully appreciate the power of sampling in media systems, we must consider alternative parametric spaces that can provide unique advantages for certain operations. This section explores the relationship between continuous parametric spaces and the temporal algebra.
 
 ### Parametric Spaces and Worldlines
 
@@ -1165,7 +1184,7 @@ This division illustrates a key insight: we can represent continuous phenomena t
 
 ### Uniform Parametrization and Sampling Strategies
 
-Consider the ball's worldline before the collision. We can imagine a warped parametric space with uniform parametrization for this portion of the path (Figure 55). 
+Consider the ball's worldline before the collision. We can imagine a warped parametric space with uniform parametrization for this portion of the path (Figure 55).
 
 ![Figure 55](assets/17470323143968.jpg)***Figure 55**: A uniform parameterization of the ball's wordline.*
 
@@ -1179,19 +1198,20 @@ Each approach produces different discrete representations of the same continuous
 
 ### Bridging Parametric and Temporal Spaces
 
-The temporal component acts as a bridge between parametric space and our temporal topologies. By projecting our sampling functions through this bridge, we gain the ability to work with non-uniform sampling patterns that nevertheless maintain critical mathematical properties.
+The temporal component acts as a bridge between parametric space and temporal topologies. By projecting sampling functions through this bridge, we gain the ability to work with non-uniform sampling patterns that nevertheless maintain critical mathematical properties.
 
-Consider the ground plane in our example (Figure 56):
+Consider the ground plane in this example (Figure 56):
 - In position space, it's a fixed horizontal line
 - In parametric space, it may appear as a curved surface
 - The collision time becomes a function of the parametric space
 
 ![Figure 56](assets/17470323956587.jpg)***Figure 56**: The ground play in positional space, and parametric space.*
 
-This relationship enables us to parameterize the frame kernel—the fundamental unit of sampling in our system—based on meaningful events rather than arbitrary temporal divisions (Figure 57).
+This relationship enables us to parameterize the frame kernel—the fundamental unit of sampling in this system—based on meaningful events rather than arbitrary temporal divisions (Figure 57).
 
 ![Figure 57](assets/17470324738485.jpg)***Figure 57**: The frame kernel in parametric space.*
 
+Typically, the point of collision is calculated in positional space through Newtonian search through time subdivision. In an appropriately chosen parametric space, time could be computed directly from the location of the ground plane in that space.
 
 ### Implications for Media Systems
 
@@ -1199,7 +1219,7 @@ This perspective offers several powerful capabilities for media composition:
 
 1. **Adaptive sampling**: We can adjust sampling density based on the complexity or importance of different segments of media.
 
-2. **Event-centered sampling**: Critical events in media (cuts, transitions, key frames) can anchor our sampling strategy rather than being awkwardly aligned to fixed sampling intervals.
+2. **Event-centered sampling**: Critical events in media (cuts, transitions, key frames) can anchor the sampling strategy rather than being awkwardly aligned to fixed sampling intervals.
 
 3. **Continuous interpolation**: By maintaining a continuous parametric representation, we can generate samples at arbitrary positions with mathematically sound interpolation.
 
@@ -1207,13 +1227,13 @@ This perspective offers several powerful capabilities for media composition:
 
 5. **Scale-invariant operations**: Operations defined in parametric space remain valid regardless of the temporal sampling rate of the media.
 
-In the context of our temporal algebra, parametric sampling introduces a layer of indirection between our topological representations and the final discrete samples. This indirection provides flexibility while maintaining mathematical rigor.
+In the context of the temporal algebra, parametric sampling introduces a layer of indirection between the topological representations and the final discrete samples. This indirection provides flexibility while maintaining mathematical rigor.
 
 ### Connecting to Topological Projection
 
 Parametric sampling naturally connects to the concept of topological projection discussed in Chapter 5. A parametric space with its sampling function can be viewed as a specialized kind of topology. When we project one topology through another, we are effectively creating a new sampling space.
 
-The collision example illustrates this principle clearly: the collision event creates a boundary constraint in our projection, dividing the parametric space into pre-collision and post-collision domains. By projecting through this boundary, we maintain mathematical continuity while respecting the physical discontinuity in the system.
+The collision example illustrates this principle clearly: the collision event creates a boundary constraint in the projection, dividing the parametric space into pre-collision and post-collision domains. By projecting through this boundary, we maintain mathematical continuity while respecting the physical discontinuity in the system.
 
 ## Practical Example: Retiming a Mixed Media Composition
 
@@ -1222,9 +1242,9 @@ Consider a composition with synchronized picture and audio tracks that must be r
 1. The parent metric space relates the picture continuum to the audio continuum
 2. To render the corresponding data from the retimed track, we create frame sampling kernels for all frames whose start point falls within the interval of interest
 3. For each sampling kernel, we compute the contribution of source samples through convolution
-4. The resulting output frames maintain temporal relationships established by our algebra
+4. The resulting output frames maintain temporal relationships established by the temporal algebra
 
-Since samples are intervals, they can be represented by topologies, allowing our projection mathematics to apply seamlessly.
+Since samples are intervals, they can be represented by topologies, allowing the projection mathematics to apply seamlessly.
 
 ## The Sampling Topology
 
@@ -1236,7 +1256,7 @@ Every sampling defines a topology—a set of intervals that partition the contin
 2. For regular sampling, the intervals have equal duration
 3. For variable rate sampling, the intervals have varying durations
 
-This topological view allows us to apply the full power of our temporal algebra to discrete sampling problems.
+This topological view allows us to apply the full power of the temporal algebra to discrete sampling problems.
 
 ### Transformations on Sampling Topologies
 
@@ -1246,13 +1266,13 @@ Applying a projection to a sampling topology transforms the intervals in a well-
 - A non-linear speed change (e.g., ramp from 1× to 2×) applies a non-uniform scaling to intervals
 - A reverse operation inverts the order of intervals
 
-These transformations maintain the topological properties established in Chapter 4, ensuring mathematical consistency throughout our framework.
+These transformations maintain the topological properties established in Chapter 4, ensuring mathematical consistency throughout this framework.
 
 ## Interpolation as Continuous Mapping
 
 ### Continuous Representation Through Interpolation
 
-When we interpolate between samples, we are effectively constructing a continuous representation from discrete data. In the context of our temporal algebra, interpolation can be viewed as a mapping:
+When we interpolate between samples, we are effectively constructing a continuous representation from discrete data. In the context of the temporal algebra, interpolation can be viewed as a mapping:
 
 `I: [0, 1) → V`
 
@@ -1296,7 +1316,7 @@ In the context of temporal media, this has important implications:
 
 ### Dealing with Temporal Aliasing
 
-To address temporal aliasing in our framework:
+To address temporal aliasing in this framework:
 
 1. **Pre-filtering**: Before sampling, the continuous signal can be filtered to remove frequencies above the Nyquist limit
 2. **Motion blur**: In visual media, motion blur effectively integrates over time, serving as a natural anti-aliasing filter
@@ -1308,7 +1328,7 @@ These techniques help maintain temporal fidelity while working within the constr
 
 ### Types of Sampling Functions
 
-Our framework categorizes sampling functions into several types:
+This framework categorizes sampling functions into several types:
 
 1. **Regular Sampling**: Constant intervals between samples
    - Example: Standard frame rates like 24fps, 30fps, 60fps
@@ -1333,7 +1353,7 @@ Sampling functions can be composed, creating complex relationships between diffe
 - A speed ramp is applied (variable rate resampling)
 - The result is displayed at 60fps (regular resampling)
 
-Our algebraic framework allows each of these transformations to be precisely defined and composed to determine the final temporal relationships.
+The algebraic framework allows each of these transformations to be precisely defined and composed to determine the final temporal relationships.
 
 ### Coordinate Systems and Sampling
 
@@ -1343,9 +1363,7 @@ The affine transformations can be applied to both the continuous domain and the 
 
 ### Topology and Sampling
 
-Chapter 4 introduced the topological representation of temporal structures. Sampling creates a specific type of topology—a partitioning of the timeline into intervals associated with discrete samples.
-
-The operations defined on topologies can be applied to sampling topologies, allowing for complex temporal manipulations within a unified mathematical framework.
+Chapter 4 introduced the topological representation of temporal structures. Sampling creates a specific type of topology—a partitioning of the timeline into intervals associated with discrete samples. The operations defined on topologies can be applied to sampling topologies, allowing for complex temporal manipulations.
 
 ### Projection and Sampling
 
@@ -1355,7 +1373,7 @@ The composition of projections described in Chapter 5 applies equally to samplin
 
 ## Practical Example: SMPTE Timecode Drop Codes
 
-SMPTE timecode (Society of Motion Picture and Television Engineers) represents one of the most widely used standards in media production, yet it embodies a fundamental contradiction in how time is represented. While formatted to display hours:minutes:seconds:frames (HH:MM:SS:FF), suggesting a measurement of elapsed time, SMPTE timecode is fundamentally a sequential labeling system for frames rather than a true temporal metric. Consider a timecode reading of 01:00:00:00 (1 hour, 0 minutes, 0 seconds, 0 frames):
+SMPTE timecode (Society of Motion Picture and Television Engineers) represents one of the most widely used standards in media production, yet it embodies a fundamental contradiction in how time is represented. While formatted to display `hours:minutes:seconds:frames (HH:MM:SS:FF)`, suggesting a measurement of elapsed time, SMPTE timecode is fundamentally a sequential labeling system for frames rather than a true temporal metric. Consider a timecode reading of `01:00:00:00` (1 hour, 0 minutes, 0 seconds, 0 frames):
 
 - In a 24fps project, this represents the 86,400th frame (24 × 60 × 60)
 - In a 30fps project, this represents the 108,000th frame (30 × 60 × 60)
@@ -1373,7 +1391,7 @@ This compensatory mechanism illustrates the awkward retrofitting required when f
 
 ### SMPTE Timecode and Sampling Theory
 
-SMPTE timecode can be understood as a specialized form of temporal sampling function. Recalling our definition, a sampling function `S` maps a set of discrete sample indices `I` to a set of continuous intervals `T` in a given temporal domain:
+SMPTE timecode can be understood as a specialized form of temporal sampling function. Recalling the definition, a sampling function `S` maps a set of discrete sample indices `I` to a set of continuous intervals `T` in a given temporal domain:
 
 `S: I → T`
 
@@ -1385,23 +1403,19 @@ For non-drop frame timecode at frame rate `r`, the sampling function, mapping ea
 S(HH:MM:SS:FF) = [HH*3600 + MM*60 + SS + FF/r, HH*3600 + MM*60 + SS + (FF+1)/r)
 ```
 
-For drop-frame timecode, the sampling function becomes more complex due to the skipped frame numbers. Nonetheless, a sampling function injectively mapping from non-uniformly incrementing SMPTE drop code labels to continous time intervals may be defined, creating a topology where the intervals at minute boundaries (except for every tenth minute) are effectively "compressed" by the skipped frame numbers.
-
-By treating the timecode as a sampling of a continuous function, we can interpolate between frames to derive continuous time values.
+For drop-frame timecode, the sampling function becomes more complex due to the skipped frame numbers. Nonetheless, a sampling function injectively mapping from non-uniformly incrementing SMPTE drop code labels to continous time intervals may be defined, creating a topology where the intervals at minute boundaries (except for every tenth minute) are effectively "compressed" by the skipped frame numbers. By treating the timecode as a sampling of a continuous function, we can interpolate between frames to derive continuous time values.
 
 ### Resolving Multi-Rate Compositions
 
-When media elements with different frame rates must be composed together, the traditional approach is to resort to conforming everything to a common rate. Using our projection framework, we can instead maintain each element in its native rate and define explicit projections between their different temporal domains.
-
-This approach preserves the full temporal fidelity of each element while ensuring accurate synchronization.
+When media elements with different frame rates must be composed together, the traditional approach is to resort to conforming everything to a common rate. Using the projection framework, we can instead maintain each element in its native rate and define explicit projections between their different temporal domains, preserving the full temporal fidelity of each element while ensuring accurate synchronization.
 
 ## Summary
 
-Sampling theory bridges the gap between the continuous nature of time and the discrete reality of digital media. By integrating sampling into our temporal algebra, we create a comprehensive framework that maintains mathematical rigor while addressing the practical challenges of media composition.
+Sampling theory bridges the gap between the continuous nature of time and the discrete reality of digital media. By integrating sampling into the temporal algebra, we create a comprehensive framework that maintains mathematical rigor while addressing the practical challenges of media composition.
 
 The key insights from this chapter include:
 
-1. Samplings map discrete indices to continuous intervals, creating a topology that can be manipulated using our existing mathematical tools
+1. Samplings map discrete indices to continuous intervals, creating a topology that can be manipulated using the framework's existing mathematical tools
 
 2. Manipulating a sampling through projection transforms the mapping to the parent temporal scope without changing the samples themselves
 
@@ -1427,16 +1441,16 @@ This chapter extends these concepts to address one of the most challenging aspec
 
 ### The Messy Middle
 
-The real world, as opposed to our idealized mathematical models, is fundamentally "squishy." Let's return to the ball and ground plane example, Figure 57.
+The real world, as opposed to idealized mathematical models, is fundamentally "squishy." Let's return to the ball and ground plane example, Figure 57.
 
 ![Figure 57](assets/17474451170455.jpg)***Figure 57**: Revisiting the ball bouncing on the plane.*
 
 
-In our initial model, we represented the ball's collision with the ground as an instantaneous event that cleanly divided two temporal manifolds: pre-collision and post-collision. However, reality is more complex (Figure 58). The exchange of energy between the ball and ground is not instantaneous but occurs over a small yet finite interval. During this interval, complex physics governs the deformation of materials, conversion of kinetic energy to heat, and subtle atomic interactions.
+In the initial model, we represented the ball's collision with the ground as an instantaneous event that cleanly divided two temporal manifolds: pre-collision and post-collision. However, reality is more complex (Figure 58). The exchange of energy between the ball and ground is not instantaneous but occurs over a small yet finite interval. During this interval, complex physics governs the deformation of materials, conversion of kinetic energy to heat, and subtle atomic interactions.
 
 ![Figure 58](assets/17474452199621.jpg)***Figure 58**: The messy middle between the pre- and post-collision manifolds.*
 
-This "messy middle" represents indeterminancy in our system—a period where we cannot precisely predict the outcome using our simplified mathematical models.
+This "messy middle" represents indeterminancy in this system—a period where we cannot precisely predict the outcome using simplified mathematical models.
 
 Formally, we can define an indeterminate interval using precise boundary points (Figure 59):
 
@@ -1477,7 +1491,7 @@ The power of this approach is that we can write equations involving the post col
 
 The concept of observability addresses how indeterminate intervals resolve into determinate ones. Before observation, an indeterminate interval exists in a state of possibility; after observation, it exists as a specific instantiation with fixed temporal properties.
 
-This phenomenon is analogous to quantum physics' wave function collapse, where multiple potential states exist simultaneously until measurement forces the system into a single state. In our temporal algebra, the observation of an indeterminate interval "collapses" its possible durations into a single, measurable duration.
+This phenomenon is analogous to quantum physics' wave function collapse, where multiple potential states exist simultaneously until measurement forces the system into a single state. In the temporal algebra, the observation of an indeterminate interval "collapses" its possible durations into a single, measurable duration.
 
 Once [Bc, Bb) is observed and time(Bb) becomes known, the worldline can be fully mapped, and all subsequent intervals can be determined. This temporal resolution propagates through the system, allowing previously indeterminate projections to become determinate.
 
@@ -1496,7 +1510,7 @@ In practice, games and visual effects overcome this indeterminancy using a varie
 
 ### The Layered Nature of Time in Interactive Media
 
-Interactive media systems must reconcile multiple notions of time that operate simultaneously but according to different rules. Referring back to our "wheel of creation" we can identify at least three fundamental temporal domains that coexist in interactive media:
+Interactive media systems must reconcile multiple notions of time that operate simultaneously but according to different rules. Referring back to the first chapter's "wheel of creation" we can identify at least three fundamental temporal domains that coexist in interactive media:
 
 1. **Absolute Time (exogenous System Time)**: Absolute time refers to the actual clock time in which a system operates. It ensures that samples play at the correct rate, visual frames render smoothly, and that all processes maintain consistent timing. In digital systems, absolute time may be available from a system clock or may be accrue via a long count of regular hardware interrupts.
 
@@ -1575,9 +1589,9 @@ Each of these approaches has implications for the design of temporal media syste
 
 In Chapter 5, we introduced Feynman's interpretation of quantum electrodynamics, where positrons can be mathematically described as electrons moving backward in time. This conceptualization has profound implications for our understanding of temporal indeterminancy in interactive media systems.
 
-Feynman's approach to QED offers several compelling parallels to our treatment of indeterminate intervals:
+Feynman's approach to QED offers several compelling parallels to this framework's treatment of indeterminate intervals:
 
-1. **Superposition of Possibilities**: In quantum physics, particles exist in a superposition of possible states until measured. Similarly, our indeterminate interval `[Bc, Bb)` exists in a superposition of possible durations until observed.
+1. **Superposition of Possibilities**: In quantum physics, particles exist in a superposition of possible states until measured. Similarly, the indeterminate interval `[Bc, Bb)` exists in a superposition of possible durations until observed.
 
 2. **Path Integrals**: Feynman's path integral formulation suggests that a particle traveling from point `A` to point `B` takes all possible paths simultaneously, with each path having an associated probability amplitude. In the temporal framework, an indeterminate interval can be viewed as encompassing all possible temporal evolutions, each with its own probability.
 
@@ -1585,7 +1599,7 @@ Feynman's approach to QED offers several compelling parallels to our treatment o
 
 ### Sum Over Histories
 
-Feynman's "sum over histories" approach provides a powerful mathematical model for handling indeterminancy. Applied to our bouncing ball example:
+Feynman's "sum over histories" approach provides a powerful mathematical model for handling indeterminancy. Applied to the bouncing ball example:
 
 1. **Before Observation**: The interval `[Bc, Bb)` encompasses all possible interaction durations `ti`, each with an associated probability.
 
@@ -1598,12 +1612,12 @@ Feynman's "sum over histories" approach provides a powerful mathematical model f
    - `S(ti)` is the action associated with that duration (essentially the energy multiplied by time)
    - `ħ` is Planck's constant (a fundamental constant of quantum mechanics, representing the quantum of action)
    - `i` is the imaginary unit, making this a complex exponential function
-   
+
    This equation, known as the path integral formulation, essentially sums the contributions from all possible temporal evolutions of the system, weighted by their probability amplitudes.
 
 3. **Collapse Upon Observation**: When we observe the actual bounce, this integral collapses to a single value—the observed duration.
 
-This quantum perspective suggest that indeterminant intervals in interactive media can be treated mathematically as probability distributions over possible temporal evolutions, rather than as gaps in our temporal model.
+This quantum perspective suggest that indeterminant intervals in interactive media can be treated mathematically as probability distributions over possible temporal evolutions, rather than as gaps in the temporal model.
 
 ### Temporal Entanglement
 
@@ -1635,9 +1649,9 @@ This quantum-inspired view provides a rigorous mathematical foundation for handl
 
 ### Bridging Simulation and Rendering Time Domains
 
-The bouncing ball example explored earlier illustrates a fundamental challenge in physics simulation: the indeterminate interval during collision represents a discontinuity in our temporal projection. In production rendering systems, these indeterminate intervals must be resolved into determinate ones for final image creation.
+The bouncing ball example explored earlier illustrates a fundamental challenge in physics simulation: the indeterminate interval during collision represents a discontinuity in temporal projection. In production rendering systems, these indeterminate intervals must be resolved into determinate ones for final image creation.
 
-A simulation system operating within our temporal algebra framework would:
+A simulation system operating within the temporal algebra framework would:
 
 1. **Maintain Separate Temporal Topologies**: One for the continuous physics world and another for the discretized rendering world
 
@@ -1645,10 +1659,10 @@ A simulation system operating within our temporal algebra framework would:
 
 3. **Handle Temporal Discontinuities**: Apply appropriate sampling strategies around events like collisions
 
-For adaptive timestep simulations, each simulation step creates a segment in our temporal topology with its own mapping function:
+For adaptive timestep simulations, each simulation step creates a segment in the temporal topology with its own mapping function:
 `simulation_step_i: [t_i, t_{i+1}) → [simulation_time(t_i), simulation_time(t_{i+1}))`
 
-When projecting this non-uniform simulation timeline to rendering time, we apply our projection techniques from Chapter 5, ensuring accurate temporal relationships even when simulation steps and render samples don't align.
+When projecting this non-uniform simulation timeline to rendering time, we apply the projection techniques from Chapter 5, ensuring accurate temporal relationships even when simulation steps and render samples don't align.
 
 This approach allows rendering systems to accurately capture simulation events regardless of when they occur relative to frame boundaries, preserving temporal fidelity throughout the pipeline.
 
@@ -1667,9 +1681,11 @@ stateDiagram-v2
     ConversationWithBelle --> EnterSaloon: Reminisce about Galway
     SheriffAppears --> InJail: Hide the ring
     SheriffAppears --> EnterSaloon: Reminisce about Galway
-    InJail --> [*]
-    EnterSaloon --> [*]
+    InJail --> End
+    EnterSaloon --> End
+    End --> [*]
 ```
+
 ***Figure 61**: An adventure's structure represented as a graph.*
 
 All of these potential worlds exist simultaneously in the composition's possibility space. However, only one path is ultimately observed during any specific traversal of the content. This mirrors the concept of the "many-worlds" interpretation of quantum mechanics, where every possible outcome of a quantum event occurs in its own "world" or universe.
@@ -1677,3 +1693,504 @@ All of these potential worlds exist simultaneously in the composition's possibil
 ### Extending the Temporal Algebra to Graphs
 
 To incorporate branching structures into the temporal algebra, we need a transformation that maps graph structures to interval-based topologies. Such a transformation allows application of all the temporal framework's tools.
+
+The process involves:
+
+1. Creating H-graphs to remove diamonds (converging and diverging paths)
+2. Identifying chains that link start and end nodes
+3. Removing chains to start a topology
+4. Mapping the remaining graph to a topological representation
+
+Let's illustrate this with a specific algorithm, first labeling nodes in the graph (Figure 62):
+
+```mermaid
+stateDiagram-v2
+    [*] --> a_EnterTown: Ranger enters scene
+    a_EnterTown --> b_ConversationWithBelle: Approach lady
+    a_EnterTown --> e_EnterSaloon: Go through saloon doors
+    b_ConversationWithBelle --> c_SheriffAppears: Take diamond ring
+    b_ConversationWithBelle --> e_EnterSaloon: Reminisce about Galway
+    c_SheriffAppears --> d_InJail: Hide the ring
+    c_SheriffAppears --> e_EnterSaloon: Reminisce about Galway
+    d_InJail --> f_End
+    e_EnterSaloon --> f_End
+    f_End --> [*]
+```
+
+### H-Graph Partitioning
+
+To decompose this graph into a family of trees or "cactuses," we use a greedy heuristic that traverses the graph depth-first while growing trees from root-to-leaf chains.
+
+#### Greedy Tree Extraction Algorithm
+
+```text
+Let G = (V, E) be the input directed acyclic graph.
+Let S = set of all arcs (edges) in G.
+Initialize T = [] (list of trees)
+
+While S is not empty:
+  1. Pick the arc e in S whose source node is earliest in a topological sort.
+  2. Initialize a tree T' with arc e.
+  3. Initialize a frontier with the target node of e.
+  4. While frontier is not empty:
+     a. Pop a node n.
+     b. For each outgoing arc a from n in S:
+        i. If a.target is not already in T',
+           add a to T' and add a.target to the frontier.
+        ii. Remove a from S.
+  5. Add T' to T.
+```
+
+This produces a collection of subtrees covering all arcs in G, with no arc appearing in more than one tree. Each subtree corresponds to a coherent sequential path within the temporal graph.
+
+#### Refinement Pass
+
+To minimize the number of resulting H components and improve interpretability:
+
+* Attempt to merge each tree T\_i into another tree T\_j if doing so results in an acyclic structure.
+* Prefer merges that preserve existing path coherence or semantic unity (e.g., same narrative theme).
+
+This pass builds toward a more minimal, readable H-graph decomposition.
+
+### Annotated H-Graph Partition of Figure 62
+
+To help ground this abstract procedure, we walk through an example using our previously labeled graph:
+
+**Tree 1 (T1)**: Starts at `a_EnterTown` and follows `b_ConversationWithBelle` → `c_SheriffAppears` → `d_InJail` → `f_End`
+
+**Tree 2 (T2)**: A shorter branch starting again at `a_EnterTown` → `e_EnterSaloon` → `f_End`
+
+**Tree 3 (T3)**: An auxiliary merge path from `b_ConversationWithBelle` → `e_EnterSaloon` (linked to T2)
+
+**Tree 4 (T4)**: From `c_SheriffAppears` → `e_EnterSaloon` (reusing an endpoint from T2)
+
+The overlap at `e_EnterSaloon` and `f_End` is resolved by referencing the same endpoint across multiple trees, creating a set of overlapping but non-redundant linearizations.
+
+```mermaid
+flowchart TD
+  subgraph T1
+    a --> b --> c --> d --> f
+  end
+
+  subgraph T2
+    a2[a] --> e --> f2[f]
+  end
+
+  subgraph T3
+    b2[b] --> e2[e]
+  end
+
+  subgraph T4
+    c2[c] --> e3[e]
+  end
+```
+
+***Figure 63**: Partitioned H-Graph of the narrative structure.*
+
+These H-components preserve the original graph's branching while allowing us to reason about them using temporal intervals. The disjoint trees can now be analyzed or recombined via algebraic operations.
+
+![Figure 64](assets/17476279950010.jpg)***Figure 64**: The partitioned graphs organized into an indeterminate topology.*
+
+In the next section, we formalize how this decomposition allows us to map the structure into topological spaces and reason about them algebraically.
+
+### Projections Across Possible Worlds
+
+As observations propagate through the branching structure, projections can be made across different possible worlds. Each traversal describes one view on the many-worlds universe represented by the composition.
+
+While all potential paths are valid within the composition, only one is observed during each interaction. This observed path becomes the "actual" timeline for that specific experience of the content.
+
+For media composition systems, this framework provides a powerful way to represent and manipulate interactive content while maintaining mathematical rigor. It allows creators to design branching experiences that exhibit coherent temporal behavior across all possible paths.
+
+## Applications to Interactive Media
+
+### Real-time Interactive Systems
+
+Real-time interactive systems must handle indeterminancy as a core feature rather than an edge case. Video games, virtual reality experiences, and interactive installations all involve user actions that cannot be predetermined. The temporal algebra developed in this book provides a framework for managing this indeterminancy while maintaining precise control over temporal relationships.
+
+For example, in a video game:
+
+1. Deterministic intervals represent scripted sequences and animations
+2. Indeterminate intervals represent user interactions and physics simulations
+3. Observation occurs through user input and system state changes
+4. Projections map between game world time, simulation time, and presentation time
+
+By formalizing these relationships, game engines can maintain consistent frame rates while accommodating unpredictable user actions.
+
+### Adaptive Media
+
+Adaptive media adjusts its content based on user behavior, environmental factors, or other dynamic inputs. Examples include personalized advertisements, responsive educational content, and context-aware applications.
+
+Using the temporal algebra, adaptive media can be modeled as a network of potential temporal paths with transformation functions that select specific paths based on observed conditions. The indeterminate intervals correspond to decision points where the system evaluates which path to follow.
+
+This approach allows adaptive media to maintain temporal coherence even as it dynamically reconfigures itself in response to changing conditions.
+
+### Continuous Simulation Systems
+
+Simulation systems, such as scientific models or digital twins, often deal with continuous processes that must be discretized for computation and presentation. The indeterminancy in these systems typically arises from complex interactions between simulated elements.
+
+This framework allows these systems to:
+
+1. Identify deterministic and indeterminate intervals within the simulation
+2. Apply appropriate sampling strategies to each interval type
+3. Propagate observations throughout the temporal structure
+4. Maintain mathematical consistency across scale changes and variable time steps
+
+By treating simulation time as a specialized form of media time, we can apply the full temporal algebra to create more robust and flexible simulation systems.
+
+While the applications described above illustrate the theoretical potential of the framework, examining a historical system that anticipated many of these concepts can provide valuable insight. By analyzing such a system through the lens of the temporal algebra, we can both validate the mathematical approach and extract practical implementation strategies that have proven successful in real-world contexts.
+
+## Practical Example: Interactive Music as Temporal Projections
+
+### The iMUSE System as an Implementation of Temporal Algebra
+
+One of the most successful early implementations of interactive temporal structures in media was LucasArts' iMUSE (Interactive Music Streaming Engine) system. Developed in the early 1990s, iMUSE solved many of the theoretical challenges we've discussed in this chapter through elegant practical mechanisms. Examining this system through the lens of the temporal algebra reveals how the abstract mathematical framework manifests in real-world applications.
+
+#### Markers and Hooks: Formalizing Indeterminancy
+
+The core innovation of iMUSE was its system of "markers" and "hooks" that connected game events to musical transitions. In the temporal algebra, we can model this as follows:
+
+1. **Markers as Decision Points**: Markers embedded in MIDI sequences represented specific temporal coordinates (measure, beat, tick) where evaluation of indeterminate intervals could occur. Using the notation from earlier in the chapter, markers functioned as the boundary points `(Bc)` where indeterminancy begins.
+
+2. **Hooks as Observational Collapse**: Hooks were logical variables set by the game that determined which path through the musical possibility space would be taken. When a marker was reached during playback, the system evaluated hook values to "observe" which of the potential futures would manifest. This corresponds directly to the concept of observation collapsing indeterminant intervals into determinate ones.
+
+For example, in a game like *Monkey Island 2*, the music might contain a marker at measure 16, beat 1:
+
+```c
+// In the MIDI data (conceptual representation)
+MARKER_ID = 42;  // At measure 16, beat 1
+```
+
+The game engine would set a hook value when the player enters a new location:
+
+```c
+// In game code
+ImSetHook(currentMusic, HOOK_LOCATION, NEW_LOCATION_ID);
+```
+
+When the marker is reached, the hook value is observed, collapsing the indeterminate interval and selecting a specific musical branch.
+
+#### Temporal Projections Through Musical Space
+
+The iMUSE command set included operations like `MdJump` and `MdScan` that effectively implemented projections through temporal topologies:
+
+```c
+// Jump to a new position in musical time
+MdJump(soundId, chunk, measure, beat, tick, sustainNotes);
+
+// Scan through intervening events to reach a position
+MdScan(soundId, chunk, measure, beat, tick);
+```
+
+These commands projected from one position in the musical timeline to another, with `MdJump` performing an immediate transformation and `MdScan` traversing the intervening space. In the temporal algebra, these operations correspond to projections between different sections of the temporal manifold.
+
+What makes this particularly relevant to the discussion of indeterminancy is that these jumps could be conditional, based on the observation of game state:
+
+```
+[music plays] -> [marker reached] -> [hook value observed] -> [projection to new musical section]
+```
+```mermaid
+stateDiagram-v2
+    [*] --> Music_Plays
+    Music_Plays --> Marker_Reached
+    Marker_Reached --> Projection_To_New_Musical_Section: Hook Value Observed
+    Projection_To_New_Musical_Section --> [*]
+```
+
+This chain of operations implements exactly the indeterminant interval resolution we described earlier in the chapter.
+
+#### Compositional Implications: Authoring Potential Worlds
+
+Composers working with iMUSE didn't create linear compositions but rather networks of potential musical paths—precisely the "many worlds" approach we've described. A typical iMUSE score included:
+
+1. **Main Sequences**: Primary musical themes that could continue indefinitely
+2. **Transition Sequences**: Short passages designed to bridge between different main sequences
+3. **Variation Layers**: Instrumental parts that could be selectively enabled or disabled
+4. **Decision Points**: Markers placed at musically appropriate positions for potential branching
+
+This approach required composers to think topologically about music, considering how different segments could connect coherently regardless of the path taken through the musical space. In algebraic terms, they were authoring a complex temporal manifold with multiple potential projections, constrained by musical requirements.
+
+#### Practical Resolution of the "Messy Middle"
+
+The iMUSE system demonstrated pragmatic approaches to handling what we earlier called the "messy middle" of indeterminate intervals. Rather than attempting to model the full complexity of interaction physics (as in the bouncing ball example), iMUSE used several simplified but effective strategies:
+
+1. **Musical Quantization**: Transitions were quantized to musical beats, ensuring that changes occurred only at musically appropriate moments.
+
+2. **Pre-composed Transitions**: Rather than attempting to procedurally generate transitions, composers pre-authored transition segments for likely paths.
+
+3. **Layered Approach**: By treating instruments as independent but synchronized layers, the system could change parts of the musical texture while maintaining continuity in others.
+
+These strategies represent practical approximations of the theoretical framework we've developed, balancing mathematical rigor with artistic and computational constraints.
+
+#### Multiple Time Domains
+
+iMUSE managed multiple time domains simultaneously, as outlined earlier in this chapter:
+
+1. **Absolute Time**: System-level timing for audio fidelity (333Hz interrupts)
+2. **Media Time**: Musical measures, beats, and ticks for musically coherent navigation
+3. **Interaction Time**: The temporal flow of player experience and game events
+
+The system continuously performed projections between these domains, converting from game events to musical positions to sample-accurate playback timing. This multi-domain approach demonstrates how the abstract concept of projecting through temporal topologies manifests in practical media systems.
+
+#### Mapping Interactive Narratives to Temporal Topologies: A Monkey Island Example
+
+Let's examine a hypothetical scenario from Monkey Island 2 to demonstrating how the temporal framework applies to narrative structure. We'll examine how the mathematical formalism of H-graphs and temporal projection can represent a classic dramatic arc in the form of Freytag's Pyramid, with its well-defined narrative components: exposition, rising action, climax, falling action, and denouement. The scenario unfolds as follows:
+
+1. Guybrush enters a beach scene (exposition)
+2. As he approaches a palm tree, a monkey appears (inciting incident)
+3. The monkey begins throwing coconuts at Guybrush (rising action/complication)
+4. Guybrush proffers a banana to the monkey (climax)
+5. The monkey accepts the banana and stops throwing coconuts (falling action)
+6. The monkey leaves, allowing Guybrush to continue his journey (denouement)
+
+This interactive scenario can be represented as a state chart with an indeterminate outcome at the climactic moment:
+
+```mermaid
+stateDiagram-v2
+    [*] --> BeachEntry: Guybrush enters scene
+    BeachEntry --> TreeApproach: Guybrush walks to tree
+    TreeApproach --> MonkeyAppears: Proximity triggered
+    MonkeyAppears --> CoconutThrowing: Monkey spots Guybrush
+    CoconutThrowing --> OfferBanana: Guybrush uses banana
+    OfferBanana --> MonkeyAccepts: Monkey takes banana
+    OfferBanana --> MonkeyRefuses: Monkey throws harder
+    MonkeyRefuses --> CoconutHits: Coconut hits Guybrush
+    CoconutHits --> CoconutThrowing: Continue trying
+    MonkeyAccepts --> MonkeyLeaves: Monkey satisfied
+    MonkeyLeaves --> ExitBeach: Path cleared
+    ExitBeach --> [*]
+```
+
+Each state in this diagram corresponds to both a narrative beat in Freytag's Pyramid and a node in our temporal topology. The music system would associate different musical elements with each state:
+
+- **BeachEntry**: Main beach theme (gentle, ambient) - *Exposition*
+- **TreeApproach**: Subtle tension added to beach theme - *Exposition*
+- **MonkeyAppears**: Short "discovery" musical stinger - *Inciting Incident*
+- **CoconutThrowing**: Comedic "danger" theme - *Rising Action*
+- **OfferBanana**: Tension peak, musical pause - *Climax*
+- **MonkeyAccepts/Refuses**: Resolve chord or tension chord - *Climactic Result*
+- **CoconutHits**: Brief percussive stinger - *Setback*
+- **MonkeyLeaves**: Short "success" fanfare - *Falling Action*
+- **ExitBeach**: Return to ambient beach theme with "progress" motif - *Denouement*
+
+### Applying H-Graph Decomposition to Narrative Structure
+
+To apply the temporal framework to this structure, we need to transform it using the H-graph methodology. First, we identify the nodes:
+
+- a: BeachEntry
+- b: TreeApproach
+- c: MonkeyAppears
+- d: CoconutThrowing
+- e: OfferBanana (climactic moment)
+- f: MonkeyAccepts
+- g: MonkeyRefuses
+- h: CoconutHits
+- i: MonkeyLeaves
+- j: ExitBeach
+
+The H-graph decomposition yields two primary paths and a recursive loop:
+
+1. **Success Path**: [a,b) → [b,c) → [c,d) → [d,e) → [e,f) → [f,i) → [i,j)
+2. **Failure Path**: [a,b) → [b,c) → [c,d) → [d,e) → [e,g) → [g,h)
+3. **Retry Loop**: [h,d)
+
+Mathematically, we can express the narrative progression through these intervals using a projection function P that maps from narrative intervals to their musical and temporal expressions:
+
+For each interval `[n₁,n₂)`, we define:
+
+`P([n₁,n₂)) = { musical_theme(n₁), temporal_duration([n₁,n₂)) }`
+
+For example:
+`P([a,b)) = { "beachTheme", t_beach_exploration }`
+`P([d,e)) = { "dangerTheme", t_coconut_throwing }`
+
+### Narrative Structure as Temporal Topology
+
+The dramatic arc of Freytag's Pyramid can be formally represented in our temporal framework as a sequence of intervals with associated narrative functions:
+
+1. **Exposition**: [a,c) = [a,b) ∪ [b,c)
+   - Narrative function: Establish setting and character
+
+2. **Rising Action**: [c,e) = [c,d) ∪ [d,e)
+   - Narrative function: Introduce and escalate conflict
+
+3. **Climax**: [e,e+ε)
+   - Narrative function: Present moment of decision/highest tension
+   - Note: This is a small but crucial interval representing the climactic moment
+
+4. **Falling Action**:
+   - Success path: [f,i)
+   - Failure path: [g,h)
+   - Narrative function: Present consequences of climactic action
+
+5. **Denouement**: [i,j)
+   - Narrative function: Resolve story and establish new equilibrium
+
+The critical indeterminate interval in this narrative occurs at point e (OfferBanana), where the story branches based on an observation:
+
+`[e,?) where ? ∈ {f,g}`
+
+This interval remains indeterminate until the system observes whether the offer succeeds or fails. Using our formalism from earlier in the chapter:
+
+- Bc (Beginning of contact): The moment Guybrush offers the banana
+- Bb (Beginning of bounce): The moment the narrative resolves the offer (acceptance or rejection)
+- [Bc,Bb): The indeterminate interval representing the offer's outcome
+
+### Temporal Projections Across Narrative Domains
+
+The music system in our example must perform projections between three temporal domains:
+
+1. **Narrative Time**: The sequence of story events
+2. **Musical Time**: Measures, beats, and phrases
+3. **Presentation Time**: Real-time audio playback
+
+For the climactic moment (OfferBanana), these projections are particularly important. The musical composition might include multiple potential paths from this point:
+
+- A triumphant resolution theme for the MonkeyAccepts branch
+- A tension-increasing motif for the MonkeyRefuses branch
+
+At the moment of observation (when the game determines the outcome), the system performs a projection from narrative time to musical time:
+
+`T(narrative→music): [e,?) → [measure_x, ?)`
+
+Where measure_x is the precise musical position where the branching occurs. This is implemented in the iMUSE system through markers placed at these critical musical positions.
+
+### Mathematical Representation of the Retry Loop
+
+The retry loop [h,d) represents a common pattern in interactive narratives. When mapped to temporal domains, this creates a projection back to an earlier narrative state:
+
+`P([h,d)) = Project(narrative_state_h → narrative_state_d)`
+
+This projection preserves certain state elements (Guybrush's knowledge, inventory minus one banana) while resetting others (position, monkey's coconut-throwing state).
+
+Formally, we can express this as:
+
+`narrative_state_d' = narrative_state_d ⊕ Δ(narrative_state_h)`
+
+Where:
+- narrative_state_d' is the new state after looping back
+- ⊕ is a state composition operator
+- Δ(narrative_state_h) represents the differential knowledge gained in state h
+
+### Narrative State Vector and Temporal Consistency
+
+Each node in our H-graph carries a narrative state vector that includes:
+
+- Character positions and states
+- Environment conditions
+- Player knowledge
+- Inventory items
+- Narrative flags and variables
+
+As a player traverses the narrative graph, the temporal algebra ensures consistency of this state vector despite the indeterminate path. For instance, the inventory cannot contain the banana after it has been successfully used, and this constraint must be maintained across all possible projections.
+
+Using Allen's interval algebra relations from Chapter 4, we can formally express narrative causal constraints:
+
+- Before(a,c): Guybrush must enter the beach before the monkey appears
+- Meets(e,f): The banana offer immediately precedes the monkey's acceptance
+- Before(e,i): The climactic offer must occur before the monkey leaves
+
+These relationships enforce that narrative progression follows causally valid sequences, regardless of the specific path taken through the possibility space.
+
+### Observation and Indeterminacy in Interactive Narrative
+
+The central insight of our framework is that interactive narratives contain fundamental indeterminate intervals that collapse into determinate ones upon observation. In the Monkey Island example, the outcome of offering the banana is indeterminate until observed:
+
+- If the player has properly acquired the banana earlier and uses it correctly, the observation collapses to MonkeyAccepts
+- If the player lacks the banana or uses it incorrectly, the observation collapses to MonkeyRefuses
+
+This observation process can be mathematically represented as:
+
+O([e,?)) → [e,specific_outcome)
+
+Where O is an observation function that evaluates game state and player actions to determine which determinate interval replaces the indeterminate one.
+
+### Connecting Musical and Narrative Projection
+
+The iMUSE system implements this observation and projection model through its markers and hooks mechanism. When the narrative system observes the outcome of the banana offering, it sets appropriate hook values:
+
+narrative_observation → hook_values → musical_projection
+
+For example, when Guybrush successfully offers the banana:
+
+1. The system observes success in the narrative domain
+2. It sets HOOK_MONKEY_STATE = ACCEPTS
+3. At the next marker (corresponding to our Bc point), it evaluates this observation
+4. It projects from the current position in the tension theme to the appropriate position in the success theme
+
+Similarly, if the offer fails:
+
+1. The system observes failure in the narrative domain
+2. It sets HOOK_MONKEY_STATE = REFUSES
+3. At the next marker, it evaluates this observation
+4. It projects from the tension theme to the danger theme with increased intensity
+
+### Dramatic Pacing as Temporal Transformation
+
+The narrative experience involves transformations of perceived time. As tension rises during the climactic banana offering, the perceived pacing of events might change. We can model this as a transformation from objective time to dramatically-perceived time:
+
+H_dramatic = [ s  0 ]
+             [ 0  1 ]
+
+Where s is a scaling factor that represents dramatic time compression or expansion. During the climactic moment, time might subjectively "slow down" (s < 1) to heighten tension, while during the denouement, time might "speed up" (s > 1) to quickly resolve the scene.
+
+### Conclusion: Narrative Structure as Temporal Algebra
+
+The Monkey Island example demonstrates how our temporal algebra framework provides a formal mathematical foundation for interactive storytelling. By mapping Freytag's dramatic structure to intervals in our H-graph, and by representing narrative branches as observations of indeterminate intervals, we create a rigorous model for understanding interactive narrative.
+
+This approach allows us to:
+
+1. Maintain narrative coherence across multiple possible paths
+2. Ensure causal consistency in an interactive environment
+3. Synchronize musical elements with narrative progression
+4. Formally reason about dramatic structure and pacing
+
+The iMUSE system intuitively implemented many of these concepts for musical accompaniment, but our temporal algebra extends these principles to the broader narrative structure. By treating interactive storytelling as a problem of temporal projection across multiple domains, we provide a mathematical framework that unifies narrative theory with the technical implementation of interactive systems.
+
+### Lessons for Modern Systems
+
+The iMUSE system, despite being developed decades ago with limited computing resources, embodied many of the mathematical principles we've formalized in this chapter. Modern interactive media systems can build upon these foundations with additional capabilities:
+
+1. **Probabilistic Branching**: Rather than binary decision points, systems can implement weighted probabilities for different paths.
+
+2. **Continuous Parameter Spaces**: Instead of discrete branches, parameters can be continuously varied based on input.
+
+3. **Machine Learning Integration**: Neural networks can learn optimal projections between temporal spaces based on user experience data.
+
+4. **Higher-Dimensional Control**: Modern systems can extend beyond musical time to manipulate spatial, timbral, and narrative dimensions simultaneously.
+
+By understanding historical implementations like iMUSE through the lens of temporal algebra, we can appreciate both the practical wisdom embedded in these systems and the opportunities for extending their capabilities with this more comprehensive mathematical framework.
+
+## Conclusion
+
+The challenge of indeterminancy in temporal media systems reflects a fundamental truth about reality: time does not always unfold in predictable, linear ways. By incorporating concepts from quantum mechanics, graph theory, and probability into the temporal algebra, we can create media systems that embrace this complexity rather than avoiding it.
+
+The indeterminant interval—the "wrinkle in time" where multiple possible futures exist simultaneously—is not a bug in the mathematical framework but a feature that enables more expressive and powerful temporal representations. This is powerfully illustrated by the iMUSE system we examined, which despite the technological constraints of its era, managed to implement many of the principles this algebra formalizes.
+
+The historical success of systems like iMUSE validates the approach. What composers and engineers accomplished through intuition and practical problem-solving, we have now formalized into a rigorous mathematical framework. This formalization provides several advantages:
+
+1. It allows us to reason about temporal structures with mathematical precision
+2. It enables systematic evaluation of different approaches to handling indeterminancy
+3. It offers a shared language for discussing interactive temporal media across disciplines
+4. It provides a foundation for extending these concepts to new domains and applications
+
+As media becomes increasingly interactive, adaptive, and personalized, the ability to formally represent and manipulate indeterminant temporal structures will become essential for next-generation composition systems. The framework presented in this chapter provides a foundation for these capabilities, extending the mathematical rigor of previous chapters to embrace the messy, complex, and fundamentally indeterminate nature of interactive experiences across multiple temporal domains.
+
+In the next chapter, we will explore additional practical applications of this complete temporal algebra, showing how it can be implemented in contemporary systems to solve concrete problems in media composition beyond interactive music.
+
+______________________________________________________
+
+## References and Further Reading
+
+### Mathematical Foundations
+
+- Allen, J. F. (1983). "**Maintaining Knowledge about Temporal Intervals.**" *Communications of the ACM*, 26(11), 832–843.
+- Roberts, L. (1963). "Machine Perception of Three-Dimensional Solids."
+- Kripke, Saul A. **Semantical Considerations on Modal Logic.** *Acta Philosophica Fennica* 16 (1963): 83–94.
+- Porter, T. and Duff, T. (1984). "**Compositing Digital Images.**" *SIGGRAPH Computer Graphics*, 18(3), 253–259.
+- Grüninger, Michael and Li, Zhuojun (2017). "**The Time Ontology of Allen’s Interval Algebra**", *24th International Symposium on Temporal Representation and Reasoning* (TIME 2017). Editors: Sven Schewe, Thomas Schneider, and Jef Wijsen; Article No.16; pp.16:1–16:16, *Leibniz International Proceedings in Informatics*. https://drops.dagstuhl.de/storage/00lipics/lipics-vol090-time2017/LIPIcs.TIME.2017.16/LIPIcs.TIME.2017.16.pdf
+- J. van Benthem. **The Logic of Time: A Model-Theoretic Investigation into the Varieties of Temporal Ontology and Temporal Discourse.** *Springer Verlag*, 1983, revised 1991.
+
+### Media Systems
+
+- *OpenTimelineIO*: http://opentimeline.io, *Academy Software Foundation*
+- Ohanian, Thomas A., "**Digital Nonlinear Editing: New Approaches to Editing Film and Video**", *Focal Press*, 1993
