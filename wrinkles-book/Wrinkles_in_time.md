@@ -406,7 +406,7 @@ The conform-based workflow presents several critical issues:
 
 ## Tomorrow's Natural-Rate Based Workflow
 
-The alternative proposed is a natural-rate based workflow. As shown in Figure 9, this approach inverts the traditional conform-based paradigm.
+As shown in Figure 9, a natural-rate based workflow approach inverts the traditional conform-based paradigm.
 
 ![Figure 9](assets/17469130420932.jpg)***Figure 9**: Tomorrow's natural-rate based workflow where media maintains its native temporal rate until final presentation.*
 
@@ -415,11 +415,11 @@ The alternative proposed is a natural-rate based workflow. As shown in Figure 9,
 3. Import processes place media in this continuous timeline
 4. Rendering/presentation samples this continuous representation as needed
 
-This approach inverts the traditional workflow—instead of forcing all media to conform to a single rate early in the process, the system maintains the original temporal information until the final presentation stage.
+Instead of forcing all media to conform to a single rate early in the process, the original temporal information until the final presentation stage.
 
 ## Benefits of the Natural-Rate Approach
 
-The natural-rate workflow offers several key advantages:
+A natural-rate workflow offers several key advantages:
 
 1. **Preservation of Information**: Media retains its original temporal characteristics throughout the editorial process.
 
@@ -452,21 +452,21 @@ Let's examine each domain in detail:
 
 ### Narrative Time
 
-Narrative time is the abstract temporal domain where story events are ordered. This is the time experienced by characters within a story—the diegetic time in which footsteps synchronize with walking characters or where the internal logic of a simulation unfolds.
+Narrative time is an *endogenous* abstract temporal domain where story events are ordered. This is the time experienced by characters within a story—the *diegetic* time in which footsteps synchronize with walking characters or where the internal logic of a simulation unfolds.
 
 Narrative time may be hierarchical. For example, a piece of music played by an orchestra filmed for a movie has its own narrative time embedded within the film clip's action time.
 
 ### Capture Time
 
-Capture time is an exogenous, continuous domain occurring in the real world. This is the physical time in which cameras record scenes, microphones capture sound, or sensors detect motion.
+Capture time is an *exogenous* continuous domain occurring in the real world. This is the physical time in which cameras record scenes, microphones capture sound, or sensors record motion.
 
 A scene is transformed from exogenous capture time to narrative time through the capture process, producing the raw media that will later be composed.
 
 ### Media Time
 
-Media time is an endogenous domain that enumerates frames or discrete samples of media. This domain is typically periodic, with regular intervals between samples, though it doesn't have to be.
+Media time is an *endogenous* domain that enumerates frames or discrete samples of media. This domain is typically periodic, with regular intervals between samples, though it doesn't have to be.
 
-Media itself is indexed, for example by frame numbers. A sampling function exists to convert between narrative time and media time, retrieving particular frames or samples.
+Media itself is indexed, often by frame numbers. Sampling functions, explored later, convert between narrative time and media time, retrieving particular frames or samples.
 
 ### Composition Time
 
@@ -520,9 +520,9 @@ The composition domain becomes discrete and aperiodic, bridging the rendering an
 
 ## Relationships Between Domains
 
-Understanding how these temporal domains relate to each other is key to developing a comprehensive time algebra. Each domain transformation introduces specific challenges and opportunities for mathematics to formalize the operations.
+Understanding how these temporal domains relate to each other is key to developing a comprehensive time algebra. Each domain transformation introduces specific challenges and mathematics to formalize the operations.
 
-The domains form a directed graph of transformations, where each edge represents a mathematical function that converts time from one domain to another. Some of these transformations are straightforward and lossless, while others involve sampling, resampling, or other operations that may introduce complexity.
+The domains form a directed graph of transformations, where each edge represents a mathematical function that converts time from one domain to another. Some of these transformations are straightforward and lossless, while others involve sampling, resampling, or other operations.
 
 In the following chapters, we will develop the mathematical foundations needed to formalize these domain transformations and build a robust algebraic framework for working with time across the entire production loop.
 
@@ -788,12 +788,12 @@ This topological approach to representing time in media compositions offers seve
 3. **Computation**: Operations on the temporal structure become algebraic operations on the bitstream
 4. **Flexibility**: The representation accommodates both linear and non-linear temporal structures
 
-## Topology vs. Coordinate Systems
+## Topologies vs. Coordinate Systems
 
-It's important to note how this topological representation complements the coordinate system approach discussed in the previous chapter:
+This topological representation complements the coordinate system approach discussed in the previous chapter:
 
 - **Coordinate Systems** provide precise positioning within a temporal context
-- **Topology** provides the structural relationships between temporal elements
+- **Topology** provides the structural relationships between temporal elements, and a place where metrics may be joined
 
 Together, these two approaches form a complete framework for representing and manipulating time in media composition systems.
 
@@ -1020,39 +1020,27 @@ Consider the video clip in Figure 43; it has a frame rate of 24 frames per secon
 
 ![Figure 43](assets/17470308117865.jpg)***Figure 43**: The parent temporal space is continous, but the media clip contains snapshots of continuous reality.*
 
+## Sampling Functions in Time Algebra
 
 ### Definition of a Sampling
 
-We define a "Sampling" as a mapping from discrete samples to continuous intervals:
+We define a "Sampling" as a mapping from discrete samples to continuous intervals. Since intervals are topologies (as established in Chapter 4), and we can build a topology of adjacent topologies, we can apply the projection mathematics to manipulate samplings as well.
 
-A sampling function S maps a set of discrete sample indices I = {i₀, i₁, ...} to a set of continuous intervals T = {t₀, t₁, ...} in a given temporal domain.
+A sampling function S maps a set of discrete sample indices `I = {i₀, i₁, ...}` to a set of continuous intervals `T = {t₀, t₁, ...}` in a given temporal domain; we can represent a sampling function S as:
 
-Since intervals are topologies (as established in Chapter 4), and we can build a topology of adjacent topologies, we can apply the projection mathematics to manipulate samplings as well.
+`S: I → T`
 
-## Sampling Functions in Time Algebra
+`I` may be a set of frame indices, and `T` may be the interval they are visible on a timeline. For regular sampling, such as constant frame rate video, the mapping is straightforward:
 
-### Mathematical Representation
+`S(i) = [i/r, (i+1)/r)`
 
-A sampling function S can be represented as:
-
-S: I → T
-
-Where:
-- I is the set of discrete sample indices (e.g., frame numbers)
-- T is the set of continuous time intervals
-
-For regular sampling, such as constant frame rate video, the mapping is straightforward:
-
-S(i) = [i/r, (i+1)/r)
-
-Where r is the frame rate, and the interval is right-open (inclusive on the left, exclusive on the right) as established in the interval conventions from Chapter 3.
+Where `r` is the frame rate, and the interval is right-open (inclusive on the left, exclusive on the right) as established in the interval conventions from Chapter 3.
 
 ### Frequency Domain Perspective
 
 From a frequency domain perspective, we can view the sampling process as a phase modulus that implies a topology of regular intervals. Every time the phase wraps, the sample index (e.g., "frame") increments (Figure 44). This frequency domain representation provides powerful tools for manipulating samplings without explicitly constructing a complete topology.
 
 ![Figure 44](assets/17470308962642.jpg)***Figure 44**: The phase modulus corresponds to shutter intervals.*
-
 
 The sampling rate establishes a base frequency, while phase offsets determine the precise alignment of samples within the continuous domain. This approach allows us to leverage the established mathematics of signal processing to work with the temporal algebra.
 
