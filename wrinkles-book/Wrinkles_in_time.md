@@ -1121,7 +1121,7 @@ This phase-based approach allows for complex and precise control over temporal r
 
 When a non-linear editor displays a timeline, it might show time as a hairline (a point), but in reality, that point corresponds to the duration of a frame. This relationship can be understood through the concept of a frame kernel (Figure 50).
 
-![Figure 50](assets/17470316928929.jpg)***Figure 50**: When a tool shows a hairline to indicate time, it really indicates an interval.*
+![Figure 50](assets/17470316928929.jpg)***Figure 50**: When a tool shows a hairline to indicate time, it implicitly indicates an interval.*
 
 A frame kernel, when convolved with the interval of contribution, produces the frame interval. Everything up to the end of the current frame contributes in some way to the sample representing that frame (Figure 51).
 
@@ -1211,6 +1211,7 @@ This relationship enables us to parameterize the frame kernel—the fundamental 
 
 ![Figure 57](assets/17470324738485.jpg)***Figure 57**: The frame kernel in parametric space.*
 
+Typically, the point of collision is calculated in positional space through Newtonian search through time subdivision. In an appropriately chosen parametric space, time could be computed directly from the location of the ground plane in that space.
 
 ### Implications for Media Systems
 
@@ -1362,9 +1363,7 @@ The affine transformations can be applied to both the continuous domain and the 
 
 ### Topology and Sampling
 
-Chapter 4 introduced the topological representation of temporal structures. Sampling creates a specific type of topology—a partitioning of the timeline into intervals associated with discrete samples.
-
-The operations defined on topologies can be applied to sampling topologies, allowing for complex temporal manipulations within a unified mathematical framework.
+Chapter 4 introduced the topological representation of temporal structures. Sampling creates a specific type of topology—a partitioning of the timeline into intervals associated with discrete samples. The operations defined on topologies can be applied to sampling topologies, allowing for complex temporal manipulations.
 
 ### Projection and Sampling
 
@@ -1404,15 +1403,11 @@ For non-drop frame timecode at frame rate `r`, the sampling function, mapping ea
 S(HH:MM:SS:FF) = [HH*3600 + MM*60 + SS + FF/r, HH*3600 + MM*60 + SS + (FF+1)/r)
 ```
 
-For drop-frame timecode, the sampling function becomes more complex due to the skipped frame numbers. Nonetheless, a sampling function injectively mapping from non-uniformly incrementing SMPTE drop code labels to continous time intervals may be defined, creating a topology where the intervals at minute boundaries (except for every tenth minute) are effectively "compressed" by the skipped frame numbers.
-
-By treating the timecode as a sampling of a continuous function, we can interpolate between frames to derive continuous time values.
+For drop-frame timecode, the sampling function becomes more complex due to the skipped frame numbers. Nonetheless, a sampling function injectively mapping from non-uniformly incrementing SMPTE drop code labels to continous time intervals may be defined, creating a topology where the intervals at minute boundaries (except for every tenth minute) are effectively "compressed" by the skipped frame numbers. By treating the timecode as a sampling of a continuous function, we can interpolate between frames to derive continuous time values.
 
 ### Resolving Multi-Rate Compositions
 
-When media elements with different frame rates must be composed together, the traditional approach is to resort to conforming everything to a common rate. Using the projection framework, we can instead maintain each element in its native rate and define explicit projections between their different temporal domains.
-
-This approach preserves the full temporal fidelity of each element while ensuring accurate synchronization.
+When media elements with different frame rates must be composed together, the traditional approach is to resort to conforming everything to a common rate. Using the projection framework, we can instead maintain each element in its native rate and define explicit projections between their different temporal domains, preserving the full temporal fidelity of each element while ensuring accurate synchronization.
 
 ## Summary
 
@@ -1794,8 +1789,9 @@ flowchart TD
 
 These H-components preserve the original graph's branching while allowing us to reason about them using temporal intervals. The disjoint trees can now be analyzed or recombined via algebraic operations.
 
-In the next section, we formalize how this decomposition allows us to map the structure into topological spaces and reason about them algebraically.
+![Figure 64](assets/17476279950010.jpg)***Figure 64**: The partitioned graphs organized into an indeterminate topology.*
 
+In the next section, we formalize how this decomposition allows us to map the structure into topological spaces and reason about them algebraically.
 
 ### Projections Across Possible Worlds
 
@@ -1934,3 +1930,267 @@ iMUSE managed multiple time domains simultaneously, as outlined earlier in this 
 3. **Interaction Time**: The temporal flow of player experience and game events
 
 The system continuously performed projections between these domains, converting from game events to musical positions to sample-accurate playback timing. This multi-domain approach demonstrates how the abstract concept of projecting through temporal topologies manifests in practical media systems.
+
+#### Mapping Interactive Narratives to Temporal Topologies: A Monkey Island Example
+
+Let's examine a hypothetical scenario from Monkey Island 2 to demonstrating how the temporal framework applies to narrative structure. We'll examine how the mathematical formalism of H-graphs and temporal projection can represent a classic dramatic arc in the form of Freytag's Pyramid, with its well-defined narrative components: exposition, rising action, climax, falling action, and denouement. The scenario unfolds as follows:
+
+1. Guybrush enters a beach scene (exposition)
+2. As he approaches a palm tree, a monkey appears (inciting incident)
+3. The monkey begins throwing coconuts at Guybrush (rising action/complication)
+4. Guybrush proffers a banana to the monkey (climax)
+5. The monkey accepts the banana and stops throwing coconuts (falling action)
+6. The monkey leaves, allowing Guybrush to continue his journey (denouement)
+
+This interactive scenario can be represented as a state chart with an indeterminate outcome at the climactic moment:
+
+```mermaid
+stateDiagram-v2
+    [*] --> BeachEntry: Guybrush enters scene
+    BeachEntry --> TreeApproach: Guybrush walks to tree
+    TreeApproach --> MonkeyAppears: Proximity triggered
+    MonkeyAppears --> CoconutThrowing: Monkey spots Guybrush
+    CoconutThrowing --> OfferBanana: Guybrush uses banana
+    OfferBanana --> MonkeyAccepts: Monkey takes banana
+    OfferBanana --> MonkeyRefuses: Monkey throws harder
+    MonkeyRefuses --> CoconutHits: Coconut hits Guybrush
+    CoconutHits --> CoconutThrowing: Continue trying
+    MonkeyAccepts --> MonkeyLeaves: Monkey satisfied
+    MonkeyLeaves --> ExitBeach: Path cleared
+    ExitBeach --> [*]
+```
+
+Each state in this diagram corresponds to both a narrative beat in Freytag's Pyramid and a node in our temporal topology. The music system would associate different musical elements with each state:
+
+- **BeachEntry**: Main beach theme (gentle, ambient) - *Exposition*
+- **TreeApproach**: Subtle tension added to beach theme - *Exposition*
+- **MonkeyAppears**: Short "discovery" musical stinger - *Inciting Incident*
+- **CoconutThrowing**: Comedic "danger" theme - *Rising Action*
+- **OfferBanana**: Tension peak, musical pause - *Climax*
+- **MonkeyAccepts/Refuses**: Resolve chord or tension chord - *Climactic Result*
+- **CoconutHits**: Brief percussive stinger - *Setback*
+- **MonkeyLeaves**: Short "success" fanfare - *Falling Action*
+- **ExitBeach**: Return to ambient beach theme with "progress" motif - *Denouement*
+
+### Applying H-Graph Decomposition to Narrative Structure
+
+To apply the temporal framework to this structure, we need to transform it using the H-graph methodology. First, we identify the nodes:
+
+- a: BeachEntry
+- b: TreeApproach
+- c: MonkeyAppears
+- d: CoconutThrowing
+- e: OfferBanana (climactic moment)
+- f: MonkeyAccepts
+- g: MonkeyRefuses
+- h: CoconutHits
+- i: MonkeyLeaves
+- j: ExitBeach
+
+The H-graph decomposition yields two primary paths and a recursive loop:
+
+1. **Success Path**: [a,b) → [b,c) → [c,d) → [d,e) → [e,f) → [f,i) → [i,j)
+2. **Failure Path**: [a,b) → [b,c) → [c,d) → [d,e) → [e,g) → [g,h)
+3. **Retry Loop**: [h,d)
+
+Mathematically, we can express the narrative progression through these intervals using a projection function P that maps from narrative intervals to their musical and temporal expressions:
+
+For each interval `[n₁,n₂)`, we define:
+
+`P([n₁,n₂)) = { musical_theme(n₁), temporal_duration([n₁,n₂)) }`
+
+For example:
+`P([a,b)) = { "beachTheme", t_beach_exploration }`
+`P([d,e)) = { "dangerTheme", t_coconut_throwing }`
+
+### Narrative Structure as Temporal Topology
+
+The dramatic arc of Freytag's Pyramid can be formally represented in our temporal framework as a sequence of intervals with associated narrative functions:
+
+1. **Exposition**: [a,c) = [a,b) ∪ [b,c)
+   - Narrative function: Establish setting and character
+
+2. **Rising Action**: [c,e) = [c,d) ∪ [d,e)
+   - Narrative function: Introduce and escalate conflict
+
+3. **Climax**: [e,e+ε)
+   - Narrative function: Present moment of decision/highest tension
+   - Note: This is a small but crucial interval representing the climactic moment
+
+4. **Falling Action**:
+   - Success path: [f,i)
+   - Failure path: [g,h)
+   - Narrative function: Present consequences of climactic action
+
+5. **Denouement**: [i,j)
+   - Narrative function: Resolve story and establish new equilibrium
+
+The critical indeterminate interval in this narrative occurs at point e (OfferBanana), where the story branches based on an observation:
+
+`[e,?) where ? ∈ {f,g}`
+
+This interval remains indeterminate until the system observes whether the offer succeeds or fails. Using our formalism from earlier in the chapter:
+
+- Bc (Beginning of contact): The moment Guybrush offers the banana
+- Bb (Beginning of bounce): The moment the narrative resolves the offer (acceptance or rejection)
+- [Bc,Bb): The indeterminate interval representing the offer's outcome
+
+### Temporal Projections Across Narrative Domains
+
+The music system in our example must perform projections between three temporal domains:
+
+1. **Narrative Time**: The sequence of story events
+2. **Musical Time**: Measures, beats, and phrases
+3. **Presentation Time**: Real-time audio playback
+
+For the climactic moment (OfferBanana), these projections are particularly important. The musical composition might include multiple potential paths from this point:
+
+- A triumphant resolution theme for the MonkeyAccepts branch
+- A tension-increasing motif for the MonkeyRefuses branch
+
+At the moment of observation (when the game determines the outcome), the system performs a projection from narrative time to musical time:
+
+`T(narrative→music): [e,?) → [measure_x, ?)`
+
+Where measure_x is the precise musical position where the branching occurs. This is implemented in the iMUSE system through markers placed at these critical musical positions.
+
+### Mathematical Representation of the Retry Loop
+
+The retry loop [h,d) represents a common pattern in interactive narratives. When mapped to temporal domains, this creates a projection back to an earlier narrative state:
+
+`P([h,d)) = Project(narrative_state_h → narrative_state_d)`
+
+This projection preserves certain state elements (Guybrush's knowledge, inventory minus one banana) while resetting others (position, monkey's coconut-throwing state).
+
+Formally, we can express this as:
+
+`narrative_state_d' = narrative_state_d ⊕ Δ(narrative_state_h)`
+
+Where:
+- narrative_state_d' is the new state after looping back
+- ⊕ is a state composition operator
+- Δ(narrative_state_h) represents the differential knowledge gained in state h
+
+### Narrative State Vector and Temporal Consistency
+
+Each node in our H-graph carries a narrative state vector that includes:
+
+- Character positions and states
+- Environment conditions
+- Player knowledge
+- Inventory items
+- Narrative flags and variables
+
+As a player traverses the narrative graph, the temporal algebra ensures consistency of this state vector despite the indeterminate path. For instance, the inventory cannot contain the banana after it has been successfully used, and this constraint must be maintained across all possible projections.
+
+Using Allen's interval algebra relations from Chapter 4, we can formally express narrative causal constraints:
+
+- Before(a,c): Guybrush must enter the beach before the monkey appears
+- Meets(e,f): The banana offer immediately precedes the monkey's acceptance
+- Before(e,i): The climactic offer must occur before the monkey leaves
+
+These relationships enforce that narrative progression follows causally valid sequences, regardless of the specific path taken through the possibility space.
+
+### Observation and Indeterminacy in Interactive Narrative
+
+The central insight of our framework is that interactive narratives contain fundamental indeterminate intervals that collapse into determinate ones upon observation. In the Monkey Island example, the outcome of offering the banana is indeterminate until observed:
+
+- If the player has properly acquired the banana earlier and uses it correctly, the observation collapses to MonkeyAccepts
+- If the player lacks the banana or uses it incorrectly, the observation collapses to MonkeyRefuses
+
+This observation process can be mathematically represented as:
+
+O([e,?)) → [e,specific_outcome)
+
+Where O is an observation function that evaluates game state and player actions to determine which determinate interval replaces the indeterminate one.
+
+### Connecting Musical and Narrative Projection
+
+The iMUSE system implements this observation and projection model through its markers and hooks mechanism. When the narrative system observes the outcome of the banana offering, it sets appropriate hook values:
+
+narrative_observation → hook_values → musical_projection
+
+For example, when Guybrush successfully offers the banana:
+
+1. The system observes success in the narrative domain
+2. It sets HOOK_MONKEY_STATE = ACCEPTS
+3. At the next marker (corresponding to our Bc point), it evaluates this observation
+4. It projects from the current position in the tension theme to the appropriate position in the success theme
+
+Similarly, if the offer fails:
+
+1. The system observes failure in the narrative domain
+2. It sets HOOK_MONKEY_STATE = REFUSES
+3. At the next marker, it evaluates this observation
+4. It projects from the tension theme to the danger theme with increased intensity
+
+### Dramatic Pacing as Temporal Transformation
+
+The narrative experience involves transformations of perceived time. As tension rises during the climactic banana offering, the perceived pacing of events might change. We can model this as a transformation from objective time to dramatically-perceived time:
+
+H_dramatic = [ s  0 ]
+             [ 0  1 ]
+
+Where s is a scaling factor that represents dramatic time compression or expansion. During the climactic moment, time might subjectively "slow down" (s < 1) to heighten tension, while during the denouement, time might "speed up" (s > 1) to quickly resolve the scene.
+
+### Conclusion: Narrative Structure as Temporal Algebra
+
+The Monkey Island example demonstrates how our temporal algebra framework provides a formal mathematical foundation for interactive storytelling. By mapping Freytag's dramatic structure to intervals in our H-graph, and by representing narrative branches as observations of indeterminate intervals, we create a rigorous model for understanding interactive narrative.
+
+This approach allows us to:
+
+1. Maintain narrative coherence across multiple possible paths
+2. Ensure causal consistency in an interactive environment
+3. Synchronize musical elements with narrative progression
+4. Formally reason about dramatic structure and pacing
+
+The iMUSE system intuitively implemented many of these concepts for musical accompaniment, but our temporal algebra extends these principles to the broader narrative structure. By treating interactive storytelling as a problem of temporal projection across multiple domains, we provide a mathematical framework that unifies narrative theory with the technical implementation of interactive systems.
+
+### Lessons for Modern Systems
+
+The iMUSE system, despite being developed decades ago with limited computing resources, embodied many of the mathematical principles we've formalized in this chapter. Modern interactive media systems can build upon these foundations with additional capabilities:
+
+1. **Probabilistic Branching**: Rather than binary decision points, systems can implement weighted probabilities for different paths.
+
+2. **Continuous Parameter Spaces**: Instead of discrete branches, parameters can be continuously varied based on input.
+
+3. **Machine Learning Integration**: Neural networks can learn optimal projections between temporal spaces based on user experience data.
+
+4. **Higher-Dimensional Control**: Modern systems can extend beyond musical time to manipulate spatial, timbral, and narrative dimensions simultaneously.
+
+By understanding historical implementations like iMUSE through the lens of temporal algebra, we can appreciate both the practical wisdom embedded in these systems and the opportunities for extending their capabilities with this more comprehensive mathematical framework.
+
+## Conclusion
+
+The challenge of indeterminancy in temporal media systems reflects a fundamental truth about reality: time does not always unfold in predictable, linear ways. By incorporating concepts from quantum mechanics, graph theory, and probability into the temporal algebra, we can create media systems that embrace this complexity rather than avoiding it.
+
+The indeterminant interval—the "wrinkle in time" where multiple possible futures exist simultaneously—is not a bug in the mathematical framework but a feature that enables more expressive and powerful temporal representations. This is powerfully illustrated by the iMUSE system we examined, which despite the technological constraints of its era, managed to implement many of the principles this algebra formalizes.
+
+The historical success of systems like iMUSE validates the approach. What composers and engineers accomplished through intuition and practical problem-solving, we have now formalized into a rigorous mathematical framework. This formalization provides several advantages:
+
+1. It allows us to reason about temporal structures with mathematical precision
+2. It enables systematic evaluation of different approaches to handling indeterminancy
+3. It offers a shared language for discussing interactive temporal media across disciplines
+4. It provides a foundation for extending these concepts to new domains and applications
+
+As media becomes increasingly interactive, adaptive, and personalized, the ability to formally represent and manipulate indeterminant temporal structures will become essential for next-generation composition systems. The framework presented in this chapter provides a foundation for these capabilities, extending the mathematical rigor of previous chapters to embrace the messy, complex, and fundamentally indeterminate nature of interactive experiences across multiple temporal domains.
+
+In the next chapter, we will explore additional practical applications of this complete temporal algebra, showing how it can be implemented in contemporary systems to solve concrete problems in media composition beyond interactive music.
+
+______________________________________________________
+
+## References and Further Reading
+
+### Mathematical Foundations
+
+- Allen, J. F. (1983). "**Maintaining Knowledge about Temporal Intervals.**" *Communications of the ACM*, 26(11), 832–843.
+- Roberts, L. (1963). "Machine Perception of Three-Dimensional Solids."
+- Kripke, Saul A. **Semantical Considerations on Modal Logic.** *Acta Philosophica Fennica* 16 (1963): 83–94.
+- Porter, T. and Duff, T. (1984). "**Compositing Digital Images.**" *SIGGRAPH Computer Graphics*, 18(3), 253–259.
+- Grüninger, Michael and Li, Zhuojun (2017). "**The Time Ontology of Allen’s Interval Algebra**", *24th International Symposium on Temporal Representation and Reasoning* (TIME 2017). Editors: Sven Schewe, Thomas Schneider, and Jef Wijsen; Article No.16; pp.16:1–16:16, *Leibniz International Proceedings in Informatics*. https://drops.dagstuhl.de/storage/00lipics/lipics-vol090-time2017/LIPIcs.TIME.2017.16/LIPIcs.TIME.2017.16.pdf
+- J. van Benthem. **The Logic of Time: A Model-Theoretic Investigation into the Varieties of Temporal Ontology and Temporal Discourse.** *Springer Verlag*, 1983, revised 1991.
+
+### Media Systems
+
+- *OpenTimelineIO*: http://opentimeline.io, *Academy Software Foundation*
+- Ohanian, Thomas A., "**Digital Nonlinear Editing: New Approaches to Editing Film and Video**", *Focal Press*, 1993
