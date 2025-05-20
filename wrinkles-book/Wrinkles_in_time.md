@@ -296,15 +296,18 @@ Contemporary media composition involves working with disparate elements that eac
 
 In the very beginning of the creation of timed media, time was an aspect of authorial agency; the time base itself dictated by the speed an operator cranked the shutter and the film through the aperture (Figure 1). Films were distributed with time scores that instructed the projectionist how fast to advance the film during scenes, and what part of the score a pianist should play when. The display of the movie was orchestrated on the fly by the projectionist and musician.
 
-![Figure 1](assets/17470253273752.jpg)***Figure 1:** Time in the silent era.*
+![Figure 1](assets/17470253273752.jpg)
+***Figure 1:** Time in the silent era.*
 
 This all changed with the introduction of sound. The audio track was optically printed alongside the film cells and so the film had to advance at a constant rate to ensure synchronization. Many innovations were centered on how to plan synchronization for animated films, as seen in Figure 2, a diagram from US 1,941,341- April 2, 1933 by Disney.
 
-![Figure 2](assets/17470259330957.png)***Figure 2**: Synchronizing sound with images.*
+![Figure 2](assets/17470259330957.png)
+***Figure 2**: Synchronizing sound with images.*
 
 In another invention, the perforations where used to trigger a click in headphones so that musicians could keep precise base with the planned beats, as show in Figure 3.
 
-![Figure 3](assets/17470264682794.png)***Figure 3**: A method to synchronize human performers to the film score.*
+![Figure 3](assets/17470264682794.png)
+***Figure 3**: A method to synchronize human performers to the film score.*
 
 Fundamentally though, the formal approach to time in media systems has its roots in the edit bay. Rolls of film for images and reels of magnetic tape for sound were gathered at the end of a day of shooting, the film was developed and processed. Once the film was developed, the audio was registered with the image frames by transfer to a "mag track." For 35mm film with four perforations per frame, the mag track was recorded at a speed where each four perforations corresponded to 1/24 of a second of sound.
 
@@ -318,16 +321,19 @@ The synchronization process used several key elements:
 
 Figure 4 illustrates some of these elements.
 
-![Figure 4](assets/17469118335146.jpg)***Figure 4**: A film clip showing image and sound.*
+![Figure 4](assets/17469118335146.jpg)
+***Figure 4**: A film clip showing image and sound.*
 
 This synchronization process was accurate to within 1/96 of a second for standard 24fps film. The edge codes allowed editors to verify sync throughout the editing process, and every subsequent print would photographically transfer these codes, ensuring the correspondence was never lost. Figure 5 shows an analog computer that embossed edge codes on film.
 
-![Figure 5](assets/17470273425020.jpg)***Figure 5:** This machine embosses edge codes on film.*
+![Figure 5](assets/17470273425020.jpg)
+***Figure 5:** This machine embosses edge codes on film.*
 
 
 These mechanisms found application beyond film, they could control elements in rides, and animatronics, as illustrated in Figure 6, depicting a rocket ship ride.
 
-![Figure 6](assets/17470261360092.png)***Figure 6**: A rocket ship ride with synchronized elements.*
+![Figure 6](assets/17470261360092.png)
+***Figure 6**: A rocket ship ride with synchronized elements.*
 
 Mechanical film editing systems, such as the Moviola, allowed editors to physically cut printed takes and join them together with adhesive to create a "cut." For overlapping effects like dissolves, a diagonal cut was made in the film segments, which were then joined along this line. Throughout this process, take names and edge codes ensured that source materials could be identified and utilized by the optical laboratory responsible for creating the "answer print" - the final form of the film.
 
@@ -341,7 +347,8 @@ This organic evolution gave rise to modern non-linear editing systems, which at 
 
 Despite technological advances in playback and encoding, modern non-linear editing systems still fundamentally represent their document models according to traditional, analog workflows. Media composition still deals with "film strips" layered in rows that represent the order of composition, indexed by fixed sample rate frame codes. Figure 6 shows a film editing table with film strips arrayed in aluminum tracks. Anyone familiar with a modern NLE will immediately grasp the metaphors still in use today.
 
-![Figure 7](assets/17470274807356.jpg)***Figure 7:** A historic film editing table.*
+![Figure 7](assets/17470274807356.jpg)
+***Figure 7:** A historic film editing table.*
 
 However, this paradigm is increasingly insufficient for contemporary media needs. Modern production may involve:
 
@@ -381,7 +388,8 @@ In such scenarios, mapping clip frames and audio signals to presentation frames 
 
 The current paradigm in most non-linear editing systems relies on a conform-based workflow. Figure 8 illustrates this rigid pipeline that prioritizes conformity over fidelity.
 
-![Figure 8](assets/17469130234241.jpg)***Figure 8**: Today's conform-based workflow where all media is resampled to match a fixed project frame rate.*
+![Figure 8](assets/17469130234241.jpg)
+***Figure 8**: Today's conform-based workflow where all media is resampled to match a fixed project frame rate.*
 
 1. All media must conform to a fixed project frame rate (typically 24fps)
 2. Incoming media is resampled/converted to match this fixed rate
@@ -408,7 +416,8 @@ The conform-based workflow presents several critical issues:
 
 As shown in Figure 9, a natural-rate based workflow approach inverts the traditional conform-based paradigm.
 
-![Figure 9](assets/17469130420932.jpg)***Figure 9**: Tomorrow's natural-rate based workflow where media maintains its native temporal rate until final presentation.*
+![Figure 9](assets/17469130420932.jpg)
+***Figure 9**: Tomorrow's natural-rate based workflow where media maintains its native temporal rate until final presentation.*
 
 1. Media exists in its native temporal rate (creating a "natural rate bin")
 2. The composition operates in continuous time rather than at a fixed frame rate
@@ -442,7 +451,8 @@ Media production can be visualized as a cyclical process involving distinct temp
 
 At its core, we are breaking the continuity of space and time to create a narrative world. This process involves transformations across multiple temporal domains, each with its own characteristics and purpose. The cyclical nature of these transformations can be visualized as a 'Wheel of Creation' (Figure 10).
 
-![Figure 10](assets/17469117329836.jpg)***Figure 10**: The Wheel of Creation - A cyclical representation of media production domains showing the transformation of time through the creative loop.*
+![Figure 10](assets/17469117329836.jpg)
+***Figure 10**: The Wheel of Creation - A cyclical representation of media production domains showing the transformation of time through the creative loop.*
 
 ## The Production Loop
 
@@ -512,7 +522,8 @@ This domain represents the process of transforming composed elements into presen
 
 ## The Real-Time Loop
 
-![Figure 11](assets/17469119177127.jpg)***Figure 11**: The real-time interactive production loop, highlighting the immediate coupling between composition and creation.*
+![Figure 11](assets/17469119177127.jpg)
+***Figure 11**: The real-time interactive production loop, highlighting the immediate coupling between composition and creation.*
 
 In real-time interactive systems, the production loop operates without the media capture step (Figure 11). The composition domain in this case is not an editorial timeline but a render composite layer.
 
@@ -559,21 +570,25 @@ A time line is a monotonically increasing metric space, implying several importa
 
 To treat time as a metric space in the Euclidean sense, we must first define a unit of measure. We introduce a unit time interval e₀, not as a physical quantum of time, but as a geometric norm that imparts dimensional structure to the otherwise pure topology of the timeline. This construction mirrors Euclid’s use of a unit line segment to establish measurement within a continuum. Once such a unit is defined, any scalar multiple of e₀ yields meaningful, measurable durations—including frame intervals, tick rates, or sample steps—without imposing a fixed discretization. Importantly, the identity e₀ = e₀ × e₀ expresses not a dimensional paradox, but a consistency of scale: a duration remains invariant under self-scaling in the temporal algebra, much like the multiplicative identity in a normed space. This fundamental property is visualized in Figure 12.
 
-![Figure 12](assets/17469119889101.jpg)***Figure 12**: Time as a metric space with unit measure e₀, showing the relationship between adjacent time points.*
+![Figure 12](assets/17469119889101.jpg)
+***Figure 12**: Time as a metric space with unit measure e₀, showing the relationship between adjacent time points.*
 
 ## Time as an Ordinate and Separating Plane
 
 Time is conventionally considered an ordinate - a location on a coordinate axis (see Figure 13).
 
-![Figure 13](assets/17469121386125.jpg)***Figure 13**: Conventional representation of time as a location on a one-dimensional coordinate axis.*
+![Figure 13](assets/17469121386125.jpg)
+***Figure 13**: Conventional representation of time as a location on a one-dimensional coordinate axis.*
 
 Rather than treating time merely as an abstract axis, we model it geometrically as an infinite half-plane separating the past and the future (Figure 14). It is bounded on one side by the present and extends indefinitely into both past and future. This structure admits rigorous interpretations in the domains of signal analysis and causal reasoning. In time-frequency representations, for instance, signals are often restricted to causal half-planes where energy is nonzero only after a given time origin. Likewise, in relativistic systems and wavefront propagation, causal cones partition spacetime in a way that resembles a half-plane separating the known from the indeterminate. In the context of this derivation, the half-plane formulation provides both a visual and analytic tool to reason about the orientability, coverage, and continuity of time as it underlies sampled, layered, or interactive media systems.
 
-![Figure 14](assets/17469120885940.jpg)***Figure 14**: Time represented as an infinite half-plane that separates the past from the future.*
+![Figure 14](assets/17469120885940.jpg)
+***Figure 14**: Time represented as an infinite half-plane that separates the past from the future.*
 
 A timeline can be covered by any number of intervals, and always covers [-∞, +∞). This coverage property is important for ensuring that the temporal algebraic operations are complete. Figure 15 shows multiple right-met intervals spanning the entire timeline.
 
-![Figure 15](assets/17469121911540.jpg)***Figure 15**: A timeline covered by multiple intervals spanning from negative infinity to positive infinity.*
+![Figure 15](assets/17469121911540.jpg)
+***Figure 15**: A timeline covered by multiple intervals spanning from negative infinity to positive infinity.*
 
 
 ## Intervals
@@ -598,7 +613,8 @@ James F. Allen introduced a calculus for temporal reasoning in 1983, which provi
 
 Figure 16 illustrates these fundamental relations. They are pairwise disjoint and exhaustive, in that any two time intervals must be related by one of these relations.
 
-![Figure 16](assets/17469123800935.jpg)***Figure 16**: Allen's interval algebra depicting the fundamental relations between two time intervals.*
+![Figure 16](assets/17469123800935.jpg)
+***Figure 16**: Allen's interval algebra depicting the fundamental relations between two time intervals.*
 
 We extend Allen's interval algebra to consider the clusivity of points (whether endpoints are inclusive or exclusive). As an example, if both endpoints are considered inclusive, if the end of one interval and the beginning of the other have the same value, the intervals actually overlap rather than meet. The temporal algebra stipulates right-open intervals -- the beginning of the interval is inclusive, and the end is exclusive -- if the end of the first interval and the beginning of the second interval have the same value, the intervals meet. This allows us to create bijective mapping of timelines where every point in one temporal manifold maps to a unique point in another.
 
@@ -628,7 +644,8 @@ This transformation matrix allows us to convert coordinates from one temporal sp
 
 In media composition, we frequently need to transform between different temporal coordinate systems. Figure 17 illustrates some of the many coordinate systems we frequently need to transform between.
 
-![Figure 17](assets/17469125340295.jpg)***Figure 17**: Multiple temporal coordinate systems illustrated, showing many possible coordinate systems between the presentation timeline and capture time.*
+![Figure 17](assets/17469125340295.jpg)
+***Figure 17**: Multiple temporal coordinate systems illustrated, showing many possible coordinate systems between the presentation timeline and capture time.*
 
 
 1. **Local time**: The timeline within a clip (e.g., 0-380 frames)
@@ -640,7 +657,8 @@ In media composition, we frequently need to transform between different temporal
 
 The affine transformation matrices allow us to convert between any of these coordinate systems, maintaining precise temporal relationships throughout. Figure 18 demonstrates how these transformations affect the time domain.
 
-![Figure 18](assets/17469124835118.jpg)***Figure 18**: Affine transformation applied to time coordinates, demonstrating how scale and position parameters modify the time domain.*
+![Figure 18](assets/17469124835118.jpg)
+***Figure 18**: Affine transformation applied to time coordinates, demonstrating how scale and position parameters modify the time domain.*
 
 
 ## Normed Vector Spaces & Intervals
@@ -707,7 +725,8 @@ Topologically, a composition consists fundamentally of two kinds of temporal rel
 
 Figure 19 shows a typical timeline structure with both synchronous and sequential relationships.
 
-![Figure 19](assets/17469125705363.jpg)***Figure 19**: A composition timeline showing tracks with synchronous and sequential media elements.*
+![Figure 19](assets/17469125705363.jpg)
+***Figure 19**: A composition timeline showing tracks with synchronous and sequential media elements.*
 
 
 For example, in a typical timeline, we might have:
@@ -725,9 +744,11 @@ We can represent these relationships using a tree structure, where:
 
 Figure 20 illustrates the synchronous starts in the sample timeline, and Figure 21 shows the sequential starts.
 
-![Figure 20](assets/17469126172566.jpg)***Figure 20**. The synchronous starts in the sample timeline.*
+![Figure 20](assets/17469126172566.jpg)
+***Figure 20**. The synchronous starts in the sample timeline.*
 
-![Figure 21](assets/17469127531920.jpg)***Figure 21**. The sequential starts in the sample timeline.*
+![Figure 21](assets/17469127531920.jpg)
+***Figure 21**. The sequential starts in the sample timeline.*
 
 
 For example, a composition might be represented as:
@@ -743,7 +764,8 @@ For example, a composition might be represented as:
 ```
 This structure is visualized in Figure 22, where each branch represents a temporal relationship.
 
-![Figure 22](assets/17469128774337.jpg)***Figure 22**: Composition tree with explicit sync and seq nodes highlighting the temporal organizational structure.*
+![Figure 22](assets/17469128774337.jpg)
+***Figure 22**: Composition tree with explicit sync and seq nodes highlighting the temporal organizational structure.*
 
 
 This tree structure creates a hierarchical representation of the temporal relationships in the composition.
@@ -760,7 +782,8 @@ We append zeroes to indicate nodes that synchronously start from the current nod
 
 Figure 23 demonstrates this efficient encoding scheme applied to an example composition tree.
 
-![Figure 23](assets/17469129264672.jpg)***Figure 23**: Succinct bitstream encoding of the composition tree where 1 represents the root, 0 represents sync starts, and 1 represents sequential starts.*
+![Figure 23](assets/17469129264672.jpg)
+***Figure 23**: Succinct bitstream encoding of the composition tree where 1 represents the root, 0 represents sync starts, and 1 represents sequential starts.*
 
 
 This encoding provides a highly efficient representation of the temporal topology.
@@ -834,7 +857,8 @@ In each of these applications, the mathematical properties of temporal projectio
 
 Temporal projections involve mapping time from one domain or representation to another, often through multiple transformations. In the context of the temporal algebra, a projection is a mathematical operation that transforms temporal coordinates from one space to another. Figure 24 visualizes how time can be mapped from one domain to another through a projection operation.
 
-![Figure 24](assets/17469131894461.jpg)***Figure 24**: A temporal projection mapping time from presentation space to media space.*
+![Figure 24](assets/17469131894461.jpg)
+***Figure 24**: A temporal projection mapping time from presentation space to media space.*
 
 A critical property of these projections is that they are both invertible and differentiable. This means we can not only map forward from one temporal domain to another but also precisely reverse the mapping. The differentiability ensures that the rate of change is well-defined at every point, which is essential for operations like speed ramping or variable time warping.
 
@@ -842,7 +866,8 @@ Formally, a function f: X → Y is invertible if for every y in Y that is in the
 
 While ideal mappings would be bijective (one input value maps to exactly one output value), in practice we often encounter injective mappings (one input value may map to multiple output values), such as when time "doubles back" in a rewind effect. When this occurs, we maintain effective bijectivity by subdividing the mapping into multiple bijective segments. Figure 25 demonstrates this point.
 
-![Figure 25](assets/17469132284417.jpg)***Figure 25**: Invertible and differentiable properties of temporal projection, require two bijective mappings for the two solutions.*
+![Figure 25](assets/17469132284417.jpg)
+***Figure 25**: Invertible and differentiable properties of temporal projection, require two bijective mappings for the two solutions.*
 
 ## Embedding Time Mappings in a Topology
 
@@ -850,7 +875,8 @@ Given a temporal topology consisting of media intervals (as discussed in Chapter
 
 To reason about these mapping functions collectively, we embed them within the topology itself. The topology orders these mapping curves in the same way that clips are ordered in the composition. Each clip corresponds to a mapping curve, where the curve represents a function that maps input time to output time. Figure 26 shows how these functions are embedded within the overall topology.
 
-![Figure 26](assets/17469133168518.jpg)***Figure 26**: Mapping curves embedded within a temporal topology, where each curve transforms time from one domain to another.*
+![Figure 26](assets/17469133168518.jpg)
+***Figure 26**: Mapping curves embedded within a temporal topology, where each curve transforms time from one domain to another.*
 
 ### Properties of the Temporal Mapping Domain
 
@@ -862,7 +888,8 @@ Recall that a topology in this framework represents a mapped domain of right-met
 
 These discontinuities at segment boundaries are precisely identified during the subdivision process, allowing us to manage them explicitly. Figure 27 illustrates these properties.
 
-![Figure 27](assets/17469134433070.jpg)***Figure 27**: Piecewise continuous functions forming a complete temporal mapping domain with invertible and differentiable properties within each segment.*
+![Figure 27](assets/17469134433070.jpg)
+***Figure 27**: Piecewise continuous functions forming a complete temporal mapping domain with invertible and differentiable properties within each segment.*
 
 ## Measuring Time Across Discontinuous Intervals
 
@@ -870,7 +897,8 @@ One of the primary motivations for embedding temporal intervals in a topology is
 
 A topology provides the framework to measure between points on different discontinuous intervals through a non-metric space approach. This capability is essential for complex editorial operations that need to relate temporally disconnected elements (Figure 28).
 
-![Figure 28](assets/17469135394791.jpg)***Figure 28**: Measurement between points on discontinuous temporal intervals is possible via topological relationships.*
+![Figure 28](assets/17469135394791.jpg)
+***Figure 28**: Measurement between points on discontinuous temporal intervals is possible via topological relationships.*
 
 ### Boundary Constraints in Projection
 
@@ -882,7 +910,8 @@ Formally, when projecting topology A through topology B, the domain of the resul
 
 The simplest possible topology is a continuous unit identity time interval. This topology consists of a single segment with a linear curve of slope 1. This fundamental topology serves as a reference point for understanding more complex temporal projections (Figure 29).
 
-![Figure 29](assets/17469135585660.jpg)***Figure 29**: The unit identity interval as the simplest possible topology, consisting of a single segment with a linear curve of slope 1.*
+![Figure 29](assets/17469135585660.jpg)
+***Figure 29**: The unit identity interval as the simplest possible topology, consisting of a single segment with a linear curve of slope 1.*
 
 ## The Nature of Topological Projection
 
@@ -894,13 +923,15 @@ This operation is fundamental to understanding how time transforms across the va
 
 ### An Example
 
-![Figure 30](assets/17469181822698.jpg)***Figure 30**: Example timeline with nested speed modifications - an 80% slowdown containing a clip with a further 60% slowdown.*
+![Figure 30](assets/17469181822698.jpg)
+***Figure 30**: Example timeline with nested speed modifications - an 80% slowdown containing a clip with a further 60% slowdown.*
 
 The timeline interval in Figure 30 embeds some clips and slows them to 80% of their natural rate. The highlighted clip within it has a further slowdown of 60%.
 
 First, we construct a topology to represent the scenario (Figure 31).
 
-![Figure 31](assets/17469182915281.jpg)***Figure 31**: Construction of topologies A and B representing the timeline and clip transformations respectively.*
+![Figure 31](assets/17469182915281.jpg)
+***Figure 31**: Construction of topologies A and B representing the timeline and clip transformations respectively.*
 
 We will project topology B through topology A:
 
@@ -909,43 +940,51 @@ b represents mapping the clip on a timeline (track->clip)
 
 We join the clip axes with a change of basis if necessary. Figure 32 illustrates this multi-step projection.
 
-![Figure 32](assets/17469184814083.jpg)***Figure 32**: The projection process showing how a point on the track's timeline (left) maps to clip space, and then to media space (right).*
+![Figure 32](assets/17469184814083.jpg)
+***Figure 32**: The projection process showing how a point on the track's timeline (left) maps to clip space, and then to media space (right).*
 
 By tracing from a point on the track's timeline, through the "b" projection operator to the clip space, and from the clip space through the "a" projection operator, we determine the index into the media clip that corresponds.
 
 We can join the axes, and show that we can reduce the operation to a single operation in a higher dimensional space, which means these operations may be analytically reducible to a single step. As Figure 33 demonstrates, this allows us to analytically reduce complex transformations.
 
-![Figure 33](assets/17469187749517.jpg)***Figure 33**: Joined axes visualization showing how multiple transformations can be reduced to a single operation in a higher dimensional space.*
+![Figure 33](assets/17469187749517.jpg)
+***Figure 33**: Joined axes visualization showing how multiple transformations can be reduced to a single operation in a higher dimensional space.*
 
 Projections with non-linearities work the same way. Figure 34 shows how the same approach works with non-linear transformations.
 
-![Figure 34](assets/17469188888090.jpg)***Figure 34**: Non-linear projection example showing how non-linear transformations follow the same projection principles.*
+![Figure 34](assets/17469188888090.jpg)
+***Figure 34**: Non-linear projection example showing how non-linear transformations follow the same projection principles.*
 
 In this case, the functional reduction results in a simple scaling operation that can be computed in one step. Figure 35 illustrates how this complex series of operations reduces to a straightforward calculation.
 
-![Figure 35](assets/17469189548959.jpg)***Figure 35** Reduction of complex projections to a simple scaling operation, demonstrating the power of the compositional approach.*
+![Figure 35](assets/17469189548959.jpg)
+***Figure 35** Reduction of complex projections to a simple scaling operation, demonstrating the power of the compositional approach.*
 
 ## Boundary Constraints
 
 Topological projections are valid within the intersection of the bounds of the intervals. Figure 36 shows how these constraints define the valid projection space.
 
-![Figure 36](assets/17469190406862.jpg)***Figure 36**: The boundary constraints of example topologies a and b.*
+![Figure 36](assets/17469190406862.jpg)
+***Figure 36**: The boundary constraints of example topologies a and b.*
 
 As illustrated in Figure 37, when we join intervals a and b via their shared axis, the projection is continuous and available only within the shaded regions defined by their bounds.
 
-![Figure 37](assets/17469190931735.jpg)***Figure 37**: Joined intervals a and b showing the continuous projection region (shaded) defined by their intersection.*
+![Figure 37](assets/17469190931735.jpg)
+***Figure 37**: Joined intervals a and b showing the continuous projection region (shaded) defined by their intersection.*
 
 ## Advanced Projections and Complex Topologies
 
 Now that all the fundamental operations are demonstrated, let's explore the projection of more complex topologies. Figure 38 illustrates two topologies with more sophisticated temporal characteristics than the previous examples.
 
-![Figure 38](assets/17469893683296.jpg)***Figure 38:** Topology a involves three segments (slow, hold, and rewind), while topology b shows an ease curve (deceleration followed by acceleration).*
+![Figure 38](assets/17469893683296.jpg)
+***Figure 38:** Topology a involves three segments (slow, hold, and rewind), while topology b shows an ease curve (deceleration followed by acceleration).*
 
 Topology a is composed of three segments where time proceeds slowly, holds on a frame, and then rewinds. Topology b shows an ease that decelerates to a target frame, and then accelerates nearly back to the beginning. Both topologies are injective, in that particular points on the projective axes map to more than one point on the timeline.
 
 To handle these more complex mappings, we align the change of basis axes, and then mutually project end points and critical points to create a new set of subdivided topologies, as illustrated in Figure 39. This step converts the injective mappings to a set of bijective mappings.
 
-![Figure 39](assets/17469897699960.jpg)***Figure 39:** After joining the mutual axis, the end points of topology a are used to subdivide topology b. The end points and critical points of topology b then subdivide topology a.*
+![Figure 39](assets/17469897699960.jpg)
+***Figure 39:** After joining the mutual axis, the end points of topology a are used to subdivide topology b. The end points and critical points of topology b then subdivide topology a.*
 
 Each of the new mappings is differentiable, invertible, and affinely composable, as we've previously explored. This subdivision process is key to handling complex temporal transformations while maintaining the mathematical properties we require.
 
@@ -955,17 +994,20 @@ The method described can be extended to functions that cannot be analytically co
 
 Figure 40 shows two analytic functions with Jacobians placed according to an approximation error analysis. The Jacobian matrix, which contains all first-order partial derivatives of a vector-valued function, allows us to linearly approximate how small changes in the input affect the output near specific points.
 
-![Figure 40](assets/17469902643031.jpg)***Figure 40**: Topologies a and b with Jacobians placed according to an error minimization process.*
+![Figure 40](assets/17469902643031.jpg)
+***Figure 40**: Topologies a and b with Jacobians placed according to an error minimization process.*
 
 The location of these Jacobians guides the mutual subdivision process as before, as shown in Figure 41. By placing subdivision points where the error of linear approximation would exceed a threshold, we can maintain accuracy while keeping the number of segments manageable.
 
-![Figure 41](assets/17469904234700.jpg)***Figure 41**: The Jacobians guide the subdivision process, ensuring accurate approximation of the composed function.*
+![Figure 41](assets/17469904234700.jpg)
+***Figure 41**: The Jacobians guide the subdivision process, ensuring accurate approximation of the composed function.*
 
 ## Practical Application: Composing Complex Functions
 
 To demonstrate the practical power of the approach, Figure 42 shows an example where a sigmoid function is projected through a parabola to generate a bell-shaped curve. This illustrates how complex, non-linear temporal effects can be created through the composition of simpler functions.
 
-![Figure 42](assets/17469905525263.jpg)***Figure 42**: Projecting a sigmoid function through a parabola to generate a bell-shaped curve, demonstrating the creation of complex temporal effects through composition.*
+![Figure 42](assets/17469905525263.jpg)
+***Figure 42**: Projecting a sigmoid function through a parabola to generate a bell-shaped curve, demonstrating the creation of complex temporal effects through composition.*
 
 Non-linear editing tools offer many forms of analytic mapping functions that do not practically compose through direct algebraic methods. For example, a Bézier time curve is cubic, and the projection of one such curve through another yields a function of ninth order (3²=9); a subsequent projection of the result would reach order 27 (3³). This exponential growth in complexity makes direct algebraic composition computationally impractical.
 
@@ -1018,7 +1060,8 @@ Media composition operates within a striking duality: time itself is continuous,
 
 Consider the video clip in Figure 43; it has a frame rate of 24 frames per second. In the continuous time domain, we have a smooth flow of time. However, the media itself consists of 24 discrete samples per second, each representing a snapshot of a continuous reality. The relationship between these two representations—continuous and discrete—is the province of sampling theory.
 
-![Figure 43](assets/17470308117865.jpg)***Figure 43**: The parent temporal space is continous, but the media clip contains snapshots of continuous reality.*
+![Figure 43](assets/17470308117865.jpg)
+***Figure 43**: The parent temporal space is continous, but the media clip contains snapshots of continuous reality.*
 
 ## Sampling Functions in Time Algebra
 
@@ -1040,7 +1083,8 @@ Where `r` is the frame rate, and the interval is right-open (inclusive on the le
 
 From a frequency domain perspective, we can view the sampling process as a phase modulus that implies a topology of regular intervals. Every time the phase wraps, the sample index (e.g., "frame") increments (Figure 44). This frequency domain representation provides powerful tools for manipulating samplings without explicitly constructing a complete topology.
 
-![Figure 44](assets/17470308962642.jpg)***Figure 44**: The phase modulus corresponds to shutter intervals.*
+![Figure 44](assets/17470308962642.jpg)
+***Figure 44**: The phase modulus corresponds to shutter intervals.*
 
 The sampling rate establishes a base frequency, while phase offsets determine the precise alignment of samples within the continuous domain. This approach allows us to leverage the established mathematics of signal processing to work with the temporal algebra.
 
@@ -1052,7 +1096,8 @@ Manipulating a sampling through projection doesn't change the samples themselves
 
 For example, if a scope for a sampling is sped up by a factor of 2, as in Figure 45, then the interval in the presentation space for each sample is half as long as it was before. The samples themselves remain unchanged, but their relationship to the parent temporal domain is transformed.
 
-![Figure 45](assets/17470311139438.jpg)***Figure 45**: Generating in betweens by doubling frequency.*
+![Figure 45](assets/17470311139438.jpg)
+***Figure 45**: Generating in betweens by doubling frequency.*
 This distinction allows us to separate two fundamentally different operations:
 
 1. **Remapping samples**: Transforming the relationship between existing samples and continuous time
@@ -1064,7 +1109,8 @@ Consider a request to "slow this clip down by 50%." There are two fundamentally 
 
 #### Approach 1: Hold Every Frame Twice (Sample Remapping)
 
-![Figure 46](assets/17470309924980.jpg)***Figure 46**: Holding every frame twice by warping time by a factor of two.*
+![Figure 46](assets/17470309924980.jpg)
+***Figure 46**: Holding every frame twice by warping time by a factor of two.*
 
 In this approach, show in Figure 46, we operate on the ordering of existing samples, effectively holding each frame for twice as long:
 
@@ -1082,7 +1128,8 @@ This approach reuses existing samples without creating new content.
 
 #### Approach 2: Generate New Frames (Sample Generation)
 
-![Figure 47](assets/17470312119030.jpg)***Figure 47**: Generating in betweens on held twos by doubling the frequency and time.*
+![Figure 47](assets/17470312119030.jpg)
+***Figure 47**: Generating in betweens on held twos by doubling the frequency and time.*
 
 Alternatively, we could modify continuous time in the animation and render twice as many frames, as show in Figure 47:
 
@@ -1108,11 +1155,13 @@ Phase offsets provide precise control over which samples align with the parent t
 
 Figure 48 illustrates a hold on evens, and a hold on odds, using a phase offset to accomplish it.
 
-![Figure 48](assets/17470314196745.jpg)***Figure 48**: Using phase offset to accomplish a hold on evens, and a hold on odds.*
+![Figure 48](assets/17470314196745.jpg)
+***Figure 48**: Using phase offset to accomplish a hold on evens, and a hold on odds.*
 
 This phase-based approach allows for complex and precise control over temporal relationships. Figure 49 shows a serious of aribtrary holds.
 
-![Figure 49](assets/17470315018465.jpg)***Figure 49**: A series of arbitrary held frames.*
+![Figure 49](assets/17470315018465.jpg)
+***Figure 49**: A series of arbitrary held frames.*
 
 
 ## Frame Kernels and Reconstruction
@@ -1121,16 +1170,19 @@ This phase-based approach allows for complex and precise control over temporal r
 
 When a non-linear editor displays a timeline, it might show time as a hairline (a point), but in reality, that point corresponds to the duration of a frame. This relationship can be understood through the concept of a frame kernel (Figure 50).
 
-![Figure 50](assets/17470316928929.jpg)***Figure 50**: When a tool shows a hairline to indicate time, it implicitly indicates an interval.*
+![Figure 50](assets/17470316928929.jpg)
+***Figure 50**: When a tool shows a hairline to indicate time, it implicitly indicates an interval.*
 
 A frame kernel, when convolved with the interval of contribution, produces the frame interval. Everything up to the end of the current frame contributes in some way to the sample representing that frame (Figure 51).
 
-![Figure 51](assets/17470317560200.jpg)***Figure 51**: The frame kernel is convolved with the frame interval, and any preceding support.*
+![Figure 51](assets/17470317560200.jpg)
+***Figure 51**: The frame kernel is convolved with the frame interval, and any preceding support.*
 
 
 The position and shape of the frame kernel describes what we might call "house style"—whether the sampling biases to the beginning, middle, or end of the frame, or even outside the frame (Figure 52).
 
-![Figure 52](assets/17470318212048.jpg)***Figure 52**: The position of the frame kernel may be adjusted to reflect house style, or technical considerations.*
+![Figure 52](assets/17470318212048.jpg)
+***Figure 52**: The position of the frame kernel may be adjusted to reflect house style, or technical considerations.*
 
 Different output domains may have different house styles for the same composition. For example, when does a sound effect happen in relation to a visual cue? Does it align with the start of the image frame, the middle, or the end?
 
@@ -1174,11 +1226,13 @@ When we consider sampling as a bridge between continuous and discrete domains, w
 
 Let us consider a simple physical scenario: a ball falling toward a ground plane under gravity in an otherwise empty universe (Figure 53). This seemingly simple scenario reveals profound insights about the relationship between sampling and continuity.
 
-![Figure 53](assets/17470321777428.jpg)***Figure 53**: A ball falling towards the ground under the influence of gravity in an otherwise empty universe.*
+![Figure 53](assets/17470321777428.jpg)
+***Figure 53**: A ball falling towards the ground under the influence of gravity in an otherwise empty universe.*
 
 The ball's path through space-time—its worldline—is continuous, but there's a critical event that divides this continuity: the collision with the ground. From the perspective of energy, pre-collision and post-collision represent two entirely different manifolds. Before collision, energy has not been exchanged with the ground; after, it has (Figure 54). These are fundamentally separate domains despite the apparent continuity of physical space.
 
-![Figure 54](assets/17470322408128.jpg)***Figure 54**: Pre-collision and post-collision manifolds.*
+![Figure 54](assets/17470322408128.jpg)
+***Figure 54**: Pre-collision and post-collision manifolds.*
 
 This division illustrates a key insight: we can represent continuous phenomena through multiple parametric spaces connected by transformation functions.
 
@@ -1186,7 +1240,8 @@ This division illustrates a key insight: we can represent continuous phenomena t
 
 Consider the ball's worldline before the collision. We can imagine a warped parametric space with uniform parametrization for this portion of the path (Figure 55).
 
-![Figure 55](assets/17470323143968.jpg)***Figure 55**: A uniform parameterization of the ball's wordline.*
+![Figure 55](assets/17470323143968.jpg)
+***Figure 55**: A uniform parameterization of the ball's wordline.*
 
 Within this continuum, we have several sampling options:
 
@@ -1205,13 +1260,91 @@ Consider the ground plane in this example (Figure 56):
 - In parametric space, it may appear as a curved surface
 - The collision time becomes a function of the parametric space
 
-![Figure 56](assets/17470323956587.jpg)***Figure 56**: The ground play in positional space, and parametric space.*
+![Figure 56](assets/17470323956587.jpg)
+***Figure 56**: The ground play in positional space, and parametric space.*
 
 This relationship enables us to parameterize the frame kernel—the fundamental unit of sampling in this system—based on meaningful events rather than arbitrary temporal divisions (Figure 57).
 
-![Figure 57](assets/17470324738485.jpg)***Figure 57**: The frame kernel in parametric space.*
+![Figure 57](assets/17470324738485.jpg)
+***Figure 57**: The frame kernel in parametric space.*
 
 Typically, the point of collision is calculated in positional space through Newtonian search through time subdivision. In an appropriately chosen parametric space, time could be computed directly from the location of the ground plane in that space.
+
+### Example: Continuous Collision Detection
+
+The traditional approach to physics simulation involves discrete time stepping, which can lead to problems when objects move quickly relative to the time step size; if the ball is moving rapidly, it might be above the ground in one time step and beneath it in the next, "tunneling" through the collision surface as shown in Figure 57a.
+
+![Figure 57a](assets/17477629523393.jpg)
+
+***Figure 57a**: Tunneling occurs when discrete time steps miss the exact moment of collision.*
+
+Rather than relying solely on discrete sampling, continuous collision detection (CCD) addresses this problem by solving for the precise time of collision within the bracketing interval. Mathematically, we first identify that a collision may have occurred when we detect one of two conditions:
+
+- The ball has penetrated the ground plane between time steps
+- The ball has passed through the ground plane entirely between time steps
+
+This gives us a bracketing interval `[t₀, t₁)` where:
+
+At time `t₀`, the ball is above the ground (no collision)
+At time `t₁`, the ball has penetrated or passed through the ground (post-collision)
+
+The exact collision time `t_c` (`Bc` in the earlier discussion) must lie within this indeterminate interval.
+
+#### Parametric Equation of Motion
+
+For simple motions like constant acceleration, this inverse can be calculated analytically. For more complex motions, numerical methods such as Newton-Raphson iteration can be employed. The ball's motion is simple, so to find the exact collision time, we express the ball's position as a parametric function of time. For a ball falling under constant gravitational acceleration, this is given by:
+
+`y(t) = y₀ + v₀t + ½at²`
+
+Where:
+
+`y(t)` is the height of the ball at time `t`
+`y₀` is the initial height at time `t₀`
+`v₀` is the initial velocity at time `t₀`
+`a` is the acceleration due to gravity (e.g. -9.8 m/s²)
+
+If we define the ground plane to be at y = 0, then the collision occurs when `y(t_c) = 0`. Rearranging gives:
+
+`y₀ + v₀t_c + ½at_c² = 0`
+
+This is a quadratic equation in `t_c`, which we can solve using the quadratic formula:
+
+`t_c = (-v₀ ± √(v₀² - 2ay₀))/a`
+
+Since we're looking for the time when the ball first contacts the ground, we take the smaller positive root that lies within our bracketing interval `[t₀, t₁)`.
+
+#### Parametric Continuity Across the Collision
+
+Now that the exact collision time `t_c` has been identified, we  split the original interval `[t₀, t₁)` into two sub-intervals:
+
+- The pre-collision interval `[t₀, t_c)`
+- The post-collision interval `[t_c, t₁)`
+
+Each of these intervals has its own parametric equation of motion, with continuity of position at `t_c` but a discontinuity in velocity (due to the collision impulse).
+
+The position continuity constraint ensures:
+
+`y_pre(t_c) = y_post(t_c) = 0` (at the ground plane)
+
+While the velocity undergoes a discontinuous change:
+
+`v_post(t_c) = Transform(v_pre(t_c))`
+
+This approach maintains the physical validity of the simulation and leverages the topological aspects of the temporal framework.
+
+#### Topological Representation
+
+Physical reality naturally conforms to the topological structures we've defined mathematically in this framework, representing temporal structures as piecewise continuous functions with well-defined boundaries.
+
+The collision event creates a natural boundary in the temporal topology. As discussed in Chapter 4, the collision point `t_c` serves as a critical node in the topology, dividing our timeline into distinct pre-collision and post-collision segments. Each segment maintains its own coherent physical laws while the collision itself represents a discontinuity in the topology.
+
+#### Connection to Sampling Theory
+
+With the precise collision time determined, a sampling strategy can now properly account for the discontinuity in the system's behavior. For a frame sampler evaluating at time `t_sample`, we first determine which segment of our topology contains `t_sample`, then apply the appropriate parametric equation for the segment. This ensures that rendered images accurately depict the collision, even if the rendering sample rate is completely independent from the simulation time steps.
+
+### Implications for Interactive Systems
+
+While this example focused on deterministic physics, by framing continuous collision detection within our temporal algebra, we build a bridge between the deterministic world of classical physics simulation and the indeterminate nature of interactive systems. This will be explored more deeply in subsequent chapters.
 
 ### Implications for Media Systems
 
@@ -1227,7 +1360,7 @@ This perspective offers several powerful capabilities for media composition:
 
 5. **Scale-invariant operations**: Operations defined in parametric space remain valid regardless of the temporal sampling rate of the media.
 
-In the context of the temporal algebra, parametric sampling introduces a layer of indirection between the topological representations and the final discrete samples. This indirection provides flexibility while maintaining mathematical rigor.
+In the context of the temporal algebra, parametric sampling introduces a layer of indirection between the topological representations and the final discrete samples. This indirection provides flexibility while maintaining mathematical rigor. The ability to project from simulation time to rendering time with this level of precision demonstrates how the framework bridges the gap between theoretical mathematics and practical implementation challenges in media systems. It also validates the framework's utility across diverse domains, from traditional media composition to interactive physics simulation.
 
 ### Connecting to Topological Projection
 
@@ -1443,18 +1576,21 @@ This chapter extends these concepts to address one of the most challenging aspec
 
 The real world, as opposed to idealized mathematical models, is fundamentally "squishy." Let's return to the ball and ground plane example, Figure 57.
 
-![Figure 57](assets/17474451170455.jpg)***Figure 57**: Revisiting the ball bouncing on the plane.*
+![Figure 57](assets/17474451170455.jpg)
+***Figure 57**: Revisiting the ball bouncing on the plane.*
 
 
 In the initial model, we represented the ball's collision with the ground as an instantaneous event that cleanly divided two temporal manifolds: pre-collision and post-collision. However, reality is more complex (Figure 58). The exchange of energy between the ball and ground is not instantaneous but occurs over a small yet finite interval. During this interval, complex physics governs the deformation of materials, conversion of kinetic energy to heat, and subtle atomic interactions.
 
-![Figure 58](assets/17474452199621.jpg)***Figure 58**: The messy middle between the pre- and post-collision manifolds.*
+![Figure 58](assets/17474452199621.jpg)
+***Figure 58**: The messy middle between the pre- and post-collision manifolds.*
 
 This "messy middle" represents indeterminancy in this system—a period where we cannot precisely predict the outcome using simplified mathematical models.
 
 Formally, we can define an indeterminate interval using precise boundary points (Figure 59):
 
-![Figure 59](assets/17474453366250.jpg)***Figure 59*: The topology of a collision.*
+![Figure 59](assets/17474453366250.jpg)
+***Figure 59*: The topology of a collision.*
 
 
 1. **Br** (Beginning of release): The beginning of the ball's trajectory
@@ -1487,7 +1623,8 @@ Let's define `tb = time(Bc) + ti`, then the mapping for `[Bb, Bc1)` becomes:
 
 The power of this approach is that we can write equations involving the post collision interval `[Bc, Bb)`, but we cannot evaluate them until the system is observed. Before observation, an indeterminate interval exists in a state of possibility; after observation, it exists as a specific instantiation with fixed temporal properties. After observation (Figure 60) the subsequent wordline may be mapped, up to the point of the next indeterminate interval.
 
-![Figure 60](assets/17474456909294.jpg)***Figure 60**: Once the indeterminate interval is observed, the worldline becomes known.*
+![Figure 60](assets/17474456909294.jpg)
+***Figure 60**: Once the indeterminate interval is observed, the worldline becomes known.*
 
 The concept of observability addresses how indeterminate intervals resolve into determinate ones. Before observation, an indeterminate interval exists in a state of possibility; after observation, it exists as a specific instantiation with fixed temporal properties.
 
@@ -1685,7 +1822,6 @@ stateDiagram-v2
     EnterSaloon --> End
     End --> [*]
 ```
-
 ***Figure 61**: An adventure's structure represented as a graph.*
 
 All of these potential worlds exist simultaneously in the composition's possibility space. However, only one path is ultimately observed during any specific traversal of the content. This mirrors the concept of the "many-worlds" interpretation of quantum mechanics, where every possible outcome of a quantum event occurs in its own "world" or universe.
@@ -1784,12 +1920,12 @@ flowchart TD
     c2[c] --> e3[e]
   end
 ```
-
 ***Figure 63**: Partitioned H-Graph of the narrative structure.*
 
 These H-components preserve the original graph's branching while allowing us to reason about them using temporal intervals. The disjoint trees can now be analyzed or recombined via algebraic operations.
 
-![Figure 64](assets/17476279950010.jpg)***Figure 64**: The partitioned graphs organized into an indeterminate topology.*
+![Figure 64](assets/17476279950010.jpg)
+***Figure 64**: The partitioned graphs organized into an indeterminate topology.*
 
 In the next section, we formalize how this decomposition allows us to map the structure into topological spaces and reason about them algebraically.
 
