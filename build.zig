@@ -4,45 +4,6 @@ const std = @import("std");
 const builtin = @import("builtin");
 const ziis = @import("zgui_cimgui_implot_sokol");
 
-/// the minimum required zig version to build this project, manually updated
-pub const MIN_ZIG_VERSION = std.SemanticVersion{
-    .major = 0,
-    .minor = 13,
-    .patch = 0,
-    .pre = "",
-    // .pre = "dev.46"  <- for setting the dev version string
-};
-
-/// guarantee that the zig compiler version is more than the minimum
-fn ensureZigVersion() !void
-{
-    var installed_ver = builtin.zig_version;
-    installed_ver.build = null;
-
-    if (installed_ver.order(MIN_ZIG_VERSION) == .lt)
-    {
-        std.log.err(
-            "\n" ++
-            \\---------------------------------------------------------------------------
-            \\
-            \\Installed Zig compiler version is too old.
-            \\
-            \\Min. required version: {any}
-            \\Installed version: {any}
-            \\
-            \\Please install newer version and try again.
-            \\Latest version can be found here: https://ziglang.org/download/
-            \\
-            \\---------------------------------------------------------------------------
-            \\
-            ,
-            .{ MIN_ZIG_VERSION, installed_ver }
-        );
-
-        return error.ZigIsTooOld;
-    }
-}
-
 /// check for the `dot` program on $PATH
 fn graphviz_dot_on_path() ?[]const u8
 {
@@ -414,8 +375,6 @@ pub fn build(
     b: *std.Build,
 ) void
 {
-    ensureZigVersion() catch return;
-
     var arena = std.heap.ArenaAllocator.init(
         std.heap.page_allocator
     );
@@ -646,15 +605,15 @@ pub fn build(
             .target = options.target,
             .optimize = options.optimize,
             .root_source_file = b.path(
-                "./spline-gym/src/hodographs.zig",
+                "spline-gym/src/hodographs.zig",
             ),
         }
     );
     {
-        spline_gym.addIncludePath(b.path("./spline-gym/src"));
+        spline_gym.addIncludePath(b.path("spline-gym/src"));
         spline_gym.addCSourceFile(
             .{
-                .file = b.path("./spline-gym/src/hodographs.c"),
+                .file = b.path("spline-gym/src/hodographs.c"),
                 .flags = &C_ARGS,
             }
         );
@@ -709,12 +668,12 @@ pub fn build(
         libsamplerate.addIncludePath(dep_libsamplerate.path("include"));
         libsamplerate.addIncludePath(dep_libsamplerate.path("src"));
         libsamplerate.addIncludePath(
-            b.path("./libs/wrapped_libsamplerate")
+            b.path("libs/wrapped_libsamplerate")
         );
         libsamplerate.addCSourceFile(
             .{
                 .file = b.path(
-                    "./libs/wrapped_libsamplerate/wrapped_libsamplerate.c",
+                    "libs/wrapped_libsamplerate/wrapped_libsamplerate.c",
                 ),
                 .flags = &C_ARGS
             },
