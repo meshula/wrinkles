@@ -1,6 +1,3 @@
 [submodule "spline-gym/external/raylib"]
 	path = spline-gym/external/raylib
 	url = git@github.com:raysan5/raylib.git
-[submodule "libs/wrapped_libsamplerate/libsamplerate"]
-	path = libs/wrapped_libsamplerate/libsamplerate
-	url = git@github.com:libsndfile/libsamplerate.git

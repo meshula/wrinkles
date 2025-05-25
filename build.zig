@@ -699,9 +699,16 @@ pub fn build(
         }
     );
     {
-        libsamplerate.addIncludePath(
-            b.path("./libs/wrapped_libsamplerate/libsamplerate/include")
+        const dep_libsamplerate = b.dependency(
+            "libsamplerate",
+            .{ 
+                .target = options.target,
+                .optimize = options.optimize,
+            }
         );
+        
+        libsamplerate.addIncludePath(dep_libsamplerate.path("include"));
+        libsamplerate.addIncludePath(dep_libsamplerate.path("src"));
         libsamplerate.addIncludePath(
             b.path("./libs/wrapped_libsamplerate")
         );

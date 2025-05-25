@@ -4,7 +4,7 @@
 #define ENABLE_SINC_BEST_CONVERTER
 #define ENABLE_SINC_MEDIUM_CONVERTER
 #define ENABLE_SINC_FAST_CONVERTER
-#include "libsamplerate/src/samplerate.c"
-#include "libsamplerate/src/src_linear.c"
-#include "libsamplerate/src/src_sinc.c"
-#include "libsamplerate/src/src_zoh.c"
+#include "samplerate.c"
+#include "src_linear.c"
+#include "src_sinc.c"
+#include "src_zoh.c"

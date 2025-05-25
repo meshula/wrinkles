@@ -16,6 +16,10 @@
             .url = "git+https://github.com/mborgerding/kissfft.git#febd4caeed32e33ad8b2e0bb5ea77542c40f18ec",
             .hash = "N-V-__8AAIXHAgBWq5C_xTeBUl0MLk9dOJJlUUQopZp2mpdH",
         },
+        .libsamplerate = .{
+            .url = "git+https://github.com/libsndfile/libsamplerate.git#15c392d47e71b9395a759544b3818a1235fe1a1d",
+            .hash = "N-V-__8AAJENngBClgu4SHZlBpEv0r8H-PSGJS6G_ma05tdj",
+        },
     },
     .paths = .{
         "build.zig",
