@@ -821,23 +821,6 @@ pub fn build(
         }
     }
 
-    const sokol_app_wrapper = module_with_tests_and_artifact(
-        "sokol_app_wrapper",
-        .{
-            .b = b,
-            .options = options,
-            .fpath = "src/sokol_app_wrapper.zig",
-            .deps = &.{
-                .{
-                    .name = "zgui_cimgui_implot_sokol",
-                    .module = options.dep_ziis.?.module(
-                        "zgui_cimgui_implot_sokol",
-                    ),
-                },
-            },
-        }
-    );
-
     // executables
     const common_deps:[]const std.Build.Module.Import = &.{
         .{ .name = "build_options", .module = build_options_mod},
@@ -859,7 +842,6 @@ pub fn build(
         // libraries with c components
         .{ .name = "spline_gym", .module = spline_gym.root_module },
         .{ .name = "sampling", .module = sampling },
-        .{ .name = "sokol_app_wrapper", .module = sokol_app_wrapper },
     };
 
     // probably gone for good, but haven't removed yet

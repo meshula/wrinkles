@@ -3,7 +3,7 @@ const ziis = @import("zgui_cimgui_implot_sokol");
 const zgui = ziis.zgui;
 const zplot = zgui.plot;
 
-const sokol_app_wrapper = @import("sokol_app_wrapper");
+const sokol_app_wrapper = ziis.app_wrapper;
 
 const topology = @import("topology");
 const curve = @import("curve");
