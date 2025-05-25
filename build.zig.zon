@@ -20,6 +20,10 @@
             .url = "git+https://github.com/libsndfile/libsamplerate.git#15c392d47e71b9395a759544b3818a1235fe1a1d",
             .hash = "N-V-__8AAJENngBClgu4SHZlBpEv0r8H-PSGJS6G_ma05tdj",
         },
+        .zig_soundio = .{
+            .url = "git+https://github.com/TemariVirus/zig-wav.git#c425cab285c69fc584cb49b6fd518449a4019a1b",
+            .hash = "zig_soundio-0.1.0-RRkY3lpjAADCYnVm0Kzhvl3QKnhtvUOohZh7RIfBpz47",
+        },
     },
     .paths = .{
         "build.zig",

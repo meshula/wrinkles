@@ -561,14 +561,13 @@ pub fn build(
         }
     );
 
-    const wav_dep = module_with_tests_and_artifact(
-        "wav",
+    const wav_dep = b.dependency(
+        "zig_soundio",
         .{
-            .b = b,
-            .options = options,
-            .fpath = "libs/zig-wav/src/wav.zig",
-        }
-    );
+            .target = options.target,
+            .optimize = options.optimize,
+        },
+    ).module("wav");
 
     const string_stuff = module_with_tests_and_artifact(
         "string_stuff",
