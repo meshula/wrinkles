@@ -12,6 +12,10 @@
             .url = "git+https://github.com/ssteinbach/zgui_cimgui_implot_sokol.git#7066de457fbc9ca87e08f95da811664eed09f60b",
             .hash = "zgui_cimgui_implot_sokol-1.91.8-17SdXiKmBgBsHqr_hzgqRKV6KfsC4XNM9hSbVJ_WblhG",
         },
+        .kissfft = .{
+            .url = "git+https://github.com/mborgerding/kissfft.git#febd4caeed32e33ad8b2e0bb5ea77542c40f18ec",
+            .hash = "N-V-__8AAIXHAgBWq5C_xTeBUl0MLk9dOJJlUUQopZp2mpdH",
+        },
     },
     .paths = .{
         "build.zig",
@@ -22,7 +26,5 @@
         "segments",
         "spline-gym",
         "sample_otio_files",
-        // For example...
-        //"LICENSE",
     },
 }

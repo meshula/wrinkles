@@ -590,10 +590,18 @@ pub fn build(
         }
     );
     {
-        kissfft.addIncludePath(b.path("./libs/kissfft"));
+        const dep_kissfft = b.dependency(
+            "kissfft",
+            .{ 
+                .target = options.target,
+                .optimize = options.optimize,
+            }
+        );
+
+        kissfft.addIncludePath(dep_kissfft.path("."));
         kissfft.addCSourceFile(
             .{
-                .file = b.path("./libs/kissfft/kiss_fft.c"),
+                .file = dep_kissfft.path("kiss_fft.c"),
                 .flags = &C_ARGS,
             }
         );
