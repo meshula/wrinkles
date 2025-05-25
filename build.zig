@@ -286,6 +286,7 @@ pub fn executable(
                      "-sSAFE_HEAP=0",
                      "-g",
                      "-gsource-map",
+                     "-fsanitize=undefined",
                 },
             },
         );
@@ -659,6 +660,7 @@ pub fn build(
                     options.target,
                 )
             );
+            spline_gym.linkLibC();
         }
         b.installArtifact(spline_gym);
     }
