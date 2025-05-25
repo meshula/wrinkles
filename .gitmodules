@@ -1,3 +1,0 @@
-[submodule "spline-gym/external/raylib"]
-	path = spline-gym/external/raylib
-	url = git@github.com:raysan5/raylib.git
