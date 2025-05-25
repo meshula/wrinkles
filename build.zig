@@ -503,7 +503,9 @@ pub fn build(
     // error.
     const build_options_mod = build_options.createModule();
 
+    //
     // submodules and dependencies
+    //
     options.dep_ziis = b.dependency(
         "zgui_cimgui_implot_sokol",
         .{
@@ -821,7 +823,9 @@ pub fn build(
         }
     }
 
+    //
     // executables
+    //
     const common_deps:[]const std.Build.Module.Import = &.{
         .{ .name = "build_options", .module = build_options_mod},
 
