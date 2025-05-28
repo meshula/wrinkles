@@ -309,7 +309,7 @@ In another invention, the perforations where used to trigger a click in headphon
 ![Figure 3](assets/17470264682794.png)
 ***Figure 3**: A method to synchronize human performers to the film score.*
 
-Fundamentally though, the contemporary to time in media systems has its roots in the edit bay. Rolls of film for images and reels of magnetic tape for sound were gathered at the end of a day of shooting, the film was developed and processed. Once the film was developed, the audio was registered with the image frames by transfer to a "mag track." For 35mm film with four perforations per frame, the mag track was recorded at a speed where each four perforations corresponded to 1/24 of a second of sound.
+Fundamentally though, the contemporary approach to time in media systems has its roots in the edit bay. Rolls of film for images and reels of magnetic tape for sound were gathered at the end of a day of shooting, the film was developed and processed. Once the film was developed, the audio was registered with the image frames by transfer to a "mag track." For 35mm film with four perforations per frame, the mag track was recorded at a speed where each four perforations corresponded to 1/24 of a second of sound.
 
 The synchronization process used several key elements:
 
