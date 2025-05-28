@@ -560,7 +560,7 @@ Later chapters will return to Kripke’s many-worlds semantics to explore branch
 
 *Tempus est fluxus; et rationem ejus in punctis colligere fallacia est.*
 
-<!-- citation / translation for the latin? ^ -->
+- Time is a stream; to reckon it in points is a delusion.
 
 To construct a rigorous framework for temporal operations in media systems, we must first define time from mathematical first principles. This chapter establishes the foundational mathematical concepts that are needed for the development of a temporal algebra.
 
