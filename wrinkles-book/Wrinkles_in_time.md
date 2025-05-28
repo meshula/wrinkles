@@ -309,7 +309,7 @@ In another invention, the perforations where used to trigger a click in headphon
 ![Figure 3](assets/17470264682794.png)
 ***Figure 3**: A method to synchronize human performers to the film score.*
 
-Fundamentally though, the formal approach to time in media systems has its roots in the edit bay. Rolls of film for images and reels of magnetic tape for sound were gathered at the end of a day of shooting, the film was developed and processed. Once the film was developed, the audio was registered with the image frames by transfer to a "mag track." For 35mm film with four perforations per frame, the mag track was recorded at a speed where each four perforations corresponded to 1/24 of a second of sound.
+Fundamentally though, the contemporary approach to time in media systems has its roots in the edit bay. Rolls of film for images and reels of magnetic tape for sound were gathered at the end of a day of shooting, the film was developed and processed. Once the film was developed, the audio was registered with the image frames by transfer to a "mag track." For 35mm film with four perforations per frame, the mag track was recorded at a speed where each four perforations corresponded to 1/24 of a second of sound.
 
 The synchronization process used several key elements:
 
@@ -330,7 +330,7 @@ This synchronization process was accurate to within 1/96 of a second for standar
 ***Figure 5:** This machine embosses edge codes on film.*
 
 
-These mechanisms found application beyond film, they could control elements in rides, and animatronics, as illustrated in Figure 6, depicting a rocket ship ride.
+These mechanisms found application beyond film.  They could control elements in rides and animatronics, as illustrated in Figure 6, depicting a rocket ship ride.
 
 ![Figure 6](assets/17470261360092.png)
 ***Figure 6**: A rocket ship ride with synchronized elements.*
@@ -362,7 +362,7 @@ Contemporary editing systems attempt to resolve these disparate rates by imposin
 
 ## A New Approach
 
-This book proposes a fundamental rethinking of how time is represented in media composition systems. By applying principles from mathematics and computer graphics to the temporal domain, we can develop a more robust framework for working with time.
+This book proposes a fundamental rethinking of how time is represented in media composition systems. By applying principles from mathematics, computer graphics, and sampling theory to the temporal domain, we can develop a more robust framework for working with time.
 
 The approach treats time as a one-dimensional normed vector space subject to mathematical operations familiar from other domains. Just as 3D computer graphics leverage hierarchical coordinate systems for better precision and control, we can apply similar principles to the temporal dimension.
 
@@ -386,7 +386,7 @@ In such scenarios, mapping clip frames and audio signals to presentation frames 
 
 ## Today's Conform-Based Workflow
 
-The current paradigm in most non-linear editing systems relies on a conform-based workflow. Figure 8 illustrates this rigid pipeline that prioritizes conformity over fidelity.
+The current paradigm in most non-linear editing systems relies on a "conform"-based workflow in which all media is conformed to a fixed project rate (usually based on the primary intended output rate). Figure 8 illustrates this rigid pipeline that prioritizes conformity over fidelity.
 
 ![Figure 8](assets/17469130234241.jpg)
 ***Figure 8**: Today's conform-based workflow where all media is resampled to match a fixed project frame rate.*
@@ -443,7 +443,7 @@ A natural-rate workflow offers several key advantages:
 The following chapters will explore the mathematical foundations and practical implementation of this natural-rate approach, providing a comprehensive framework for next-generation media composition systems.
 
 
-# Chpater Two: Domains of Time
+# Chapter Two: Domains of Time
 
 ## The Wheel of Creation
 
@@ -451,8 +451,12 @@ Media production can be visualized as a cyclical process involving distinct temp
 
 At its core, we are breaking the continuity of space and time to create a narrative world. This process involves transformations across multiple temporal domains, each with its own characteristics and purpose. The cyclical nature of these transformations can be visualized as a 'Wheel of Creation' (Figure 10).
 
+<!-- may also want to include a note that the temporal properties of each step along the wheel is either endogenous (inherent in what is being recorded or performed) or exogenous (being imposed externally) - there is a lot of discussion of that quality but it doesn't get called out up front -->
+
 ![Figure 10](assets/17469117329836.jpg)
 ***Figure 10**: The Wheel of Creation - A cyclical representation of media production domains showing the transformation of time through the creative loop.*
+
+<!-- todo: needs an image?  The leap from "wheel of creation" to "the production loop" feels abrupt.  Maybe a sentence to connect this to the "wheel of creation" image?  The next section has an image with the cut of the wheel that helps connect it back. -->
 
 ## The Production Loop
 
@@ -556,8 +560,13 @@ Later chapters will return to Kripke’s many-worlds semantics to explore branch
 
 *Tempus est fluxus; et rationem ejus in punctis colligere fallacia est.*
 
-To construct a rigorous framework for temporal operations in media systems, we must first define time from mathematical first principles. This chapter establishes the foundational mathematical concepts that the development of a temporal algebra.
+- Time is a stream; to reckon it in points is a delusion.
 
+To construct a rigorous framework for temporal operations in media systems, we must first define time from mathematical first principles. This chapter establishes the foundational mathematical concepts that are needed for the development of a temporal algebra.
+
+<!-- I think its worth noting, whether here or earlier in the book, that we're basing this on the human EXPERIENCE of time, and not necessarily on an experimental external-to-human experience nature of time. In other words, we're not seeking here to build a version of time that is axiomatic or experimentally supported or in some way representing a physical truth about how time functions; rather this is about how humans experience time and in particular how time functions in art and in how humans experience time based media/art. I'm not sure what the exact right way to frame that is, but basically we didn't go and smash atoms or something to do this, we thougth about and looked at how people use time in entertainment and how the systems that support those kinds of projects represent time.  That isn't to say that our system is somehow in opposition to how time may or may not "really" function in the physical world or in a scientific sence, its only to say that wasn't the destination we were heading for.  
+
+In particular the comment about time having a direction and being monotonic - if quantum nonsense makes this no longer true, it won't violate the way we percieve time to work at the scale of our experience and in the domain of our art. -->
 
 ## Define a Metric Space
 
@@ -575,6 +584,8 @@ To treat time as a metric space in the Euclidean sense, we must first define a u
 
 ## Time as an Ordinate and Separating Plane
 
+<!-- This section is written with "Time" as the primary noun, which previously described the medium/continuum.  I think the point here is important about using a point vs a half plane as the base construct, but maybe this should be "Present Time" or "A moment in time", "point in time", "instant in time"? Or is the point here that time is not the continuum itself but rather half plane which separates that which has happened from what hasn't happened yet?  -->
+
 Time is conventionally considered an ordinate - a location on a coordinate axis (see Figure 13).
 
 ![Figure 13](assets/17469121386125.jpg)
@@ -587,6 +598,8 @@ Rather than treating time merely as an abstract axis, we model it geometrically 
 
 A timeline can be covered by any number of intervals, and always covers [-∞, +∞). This coverage property is important for ensuring that the temporal algebraic operations are complete. Figure 15 shows multiple right-met intervals spanning the entire timeline.
 
+<!-- I feel like "right-met" ^ is a distracting fact in this sentence.  the point isn't what kind of intervals they are, merely that they cover the entire timeline.  But I defer to you here. the next section also opens with "right-open" rather than "right-met". -->
+
 ![Figure 15](assets/17469121911540.jpg)
 ***Figure 15**: A timeline covered by multiple intervals spanning from negative infinity to positive infinity.*
 
@@ -596,6 +609,8 @@ A timeline can be covered by any number of intervals, and always covers [-∞, +
 In this framework, intervals are right-open (inclusive on the left, exclusive on the right), though they may have an infinitesimal length ever so slightly greater than zero. If length is zero, the endpoints are equal, and therefore the interval is empty because an interval can't both include and not include the same point.
 
 This definition of intervals provides a clean foundation for operations on time segments without edge cases or ambiguities at the boundaries.
+
+<!-- does this require any further elaboration, proof or citation? ^ it feels a bit thrown out there but maybe its elementary enough to not require further elaboration.  It isn't obvious though - we had to think about it (each time). -->
 
 ## Coordinate Systems & Topology
 
@@ -616,11 +631,25 @@ Figure 16 illustrates these fundamental relations. They are pairwise disjoint an
 ![Figure 16](assets/17469123800935.jpg)
 ***Figure 16**: Allen's interval algebra depicting the fundamental relations between two time intervals.*
 
-We extend Allen's interval algebra to consider the clusivity of points (whether endpoints are inclusive or exclusive). As an example, if both endpoints are considered inclusive, if the end of one interval and the beginning of the other have the same value, the intervals actually overlap rather than meet. The temporal algebra stipulates right-open intervals -- the beginning of the interval is inclusive, and the end is exclusive -- if the end of the first interval and the beginning of the second interval have the same value, the intervals meet. This allows us to create bijective mapping of timelines where every point in one temporal manifold maps to a unique point in another.
+<!-- ^ this figure should get number labels for each of the relations, or the annotation should note the order in which the relations are present in the image.  Also, this image depicts right-met intervals, but IIRC Allen doesn't deal with clusivity (which is an important point made in the next paragraph).  In that way this image does NOT illustrate allen's algebra.  -->
+
+We extend Allen's interval algebra to consider the clusivity of points (whether endpoints are inclusive or exclusive). As an example, if both endpoints are considered inclusive, if the end of one interval and the beginning of the other have the same value, the intervals actually overlap rather than meet. The temporal algebra stipulates right-open intervals (see: [Intervals](#Intervals)) -- the beginning of the interval is inclusive, and the end is exclusive -- if the end of the first interval and the beginning of the second interval have the same value, the intervals meet, but the point of meeting is only within the bounds of the second interval. This allows us to create bijective mapping of timelines where every point in one temporal manifold maps to a unique point in another.
+
+<!-- Does that last sentence require elaboration?  Its not immediately obvious to me why right-met is the only constraint that needs to be met in order to create a bijective mapping, and I dont't think the word "manifold" has appeared in the document so far. -->
+.
+```
+Given:
+I1 [t0, t1)
+I2 [t1, t2)
+
+and t0 < t1 < t2
+
+Then t1 is a bound for both I1 and I2, but only within the bounds of I2.
+```
 
 ### Affine Transformations
 
-The same mathematics that works for 3D and 2D coordinate systems can be applied to 1D timelines. Affine transformations can be represented with homogeneous coordinates:
+The same mathematics from linear algebra that works for 3D and 2D coordinate systems can be applied to 1D timelines. Affine transformations can be represented with homogeneous coordinates:
 
 ```
 [ S P ]
@@ -631,14 +660,16 @@ Where:
 - S = Scale
 - P = Position
 
-For example, to transform from origin O₁ to origin O₂:
+For example, to transform from origin O₁ to origin O₂, where O₂ is O₁ + 10:
 
 ```
 [ 1 10 ]
 [ 0  1 ]
 ```
 
-This transformation matrix allows us to convert coordinates from one temporal space to another, and these transformations can be composed through matrix multiplication.
+This transformation matrix allows us to convert coordinates from one temporal space to another, and these transformations can be composed through matrix multiplication.  The other properties of affine transformation that apply to one dimensional spaces also apply here.
+
+<!-- citation or elaboration? ^  -->
 
 ### Change of Basis Transformation
 
@@ -674,6 +705,8 @@ This approach allows us to:
 
 The affine transformation approach also provides better numerical precision, artistic control, and flexibility—similar to how hierarchical coordinate systems function in 3D computer graphics.
 
+<!-- I feel like something should go here about  sampling theory,which establishes the basis of the observation that up until this point we've been talking about continuous time, however most if not all of the media that is handled by computer systems is discreetly sampled.  Pointing out that these tools satisfy the requirements to have sampling theory function in this domain.  Its mentioned in the next section and feels a bit discontinuous to me. -->
+
 ## Time Algebra Elements and Operations
 
 To construct the complete time algebra, we define the following fundamental elements:
@@ -694,6 +727,8 @@ With these elements, we can define several classes of operations:
 ## Summary
 
 This algebraic framework provides a formal foundation for all the temporal transformations required in media composition systems, from simple edits to complex interactive experiences. It draws on well-established mathematical structures—but the derivation from time as a half-space towards an interval-based algebra reflects a distinct and purposeful synthesis that is not entirely conventional.
+
+<!-- I get what you're going for here with this summary but I feel like the document might be better served by a more holistic summary that restates the big bullet points of all the foundational things (IE, half plane, right met) rather than focusing on what is or is not novel in this approach. -->
 
 ### The Conventional
 
