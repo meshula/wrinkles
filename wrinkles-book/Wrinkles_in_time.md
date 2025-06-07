@@ -749,11 +749,13 @@ While this chapter has treated time primarily as a one-dimensional metric space 
 
 ## A Tree, In Not So Many Bits
 
-The structure of a media composition can be represented topologically as a hierarchy of nested temporal elements. This chapter explores how we can represent the temporal topology of a composition efficiently and expressively.
+This chapter expores how the structure of a media composition can be represented topologically as a hierarchy of nested temporal elements.
 
 ## Synchronous and Sequential Elements
 
-Topologically, a composition consists fundamentally of two kinds of temporal relationships:
+Topologically, a media composition consists of two kinds of temporal relationships:
+
+<!-- does this need some kind of proof or further reinforcement?  are there any other possible relationships?  Given that its a one dimensional space and we're talking about intervals, no, right?  But the fact that everything on the timeline is fundamentally an interval is the reason WHY this is true, I think. Anyway I think there is a way to be more rigorous in this statement. -->
 
 1. **Synchronous Starts**: Elements that begin at the same time
 2. **Sequential Starts**: Elements that begin one after another
@@ -773,7 +775,7 @@ These elements form a complex temporal structure, but at their core, they're org
 
 ## Sync/Seq Make a Tree
 
-We can represent these relationships using a tree structure, where:
+These relationships can be represented using a tree structure, where:
 - A "sync" node groups elements that start synchronously
 - A "seq" node groups elements that start sequentially
 
@@ -786,7 +788,7 @@ Figure 20 illustrates the synchronous starts in the sample timeline, and Figure 
 ***Figure 21**. The sequential starts in the sample timeline.*
 
 
-For example, a composition might be represented as:
+For example, using a lisp-like syntax, a composition might be represented as:
 
 ```
 (define composition
@@ -797,45 +799,49 @@ For example, a composition might be represented as:
      (seq domain audio
           gap sw001 sw002 sw0009))
 ```
+
 This structure is visualized in Figure 22, where each branch represents a temporal relationship.
 
 ![Figure 22](assets/17469128774337.jpg)
 ***Figure 22**: Composition tree with explicit sync and seq nodes highlighting the temporal organizational structure.*
 
-
 This tree structure creates a hierarchical representation of the temporal relationships in the composition.
 
 ## Encode as a Succinct Bitstream
 
-A succinct bit encoding of a binary tree is a pre-order traversal typically storing a 1 when a node exists and 0 otherwise. This yields an O(n) time and space encoding of a tree. Taking inspiration from that we encode the tree structure of a timeline as a succinct bitstream, where:
+A succinct bit encoding of a binary tree is a pre-order traversal typically storing a 1 when a node exists and 0 otherwise. This yields an O(n) time and space encoding of a tree. Taking inspiration from that, a timeline tree structure can be encoded as a succint bitstream where:
 
 - The root is 1
 - Sync starts are 0
 - Sequential starts are 1
 
-We append zeroes to indicate nodes that synchronously start from the current node, and we append ones to indicate nodes that start sequentially. Unlike a conventional succinct encoding, this scheme embues additional information. Given the code of a node, it's entire history is explicitly visible, as is its status of being a synchronous start or not.
+A zero is appended to indicate a child node that has a synchronous start from the current node and a one is appended to indicate a node with a sequential start.  Unlike a conventional succinct encoding, this scheme embues additional information. Given the code of a node, it's entire history is explicitly visible, as is its status of being a synchronous start or not.
 
-Figure 23 demonstrates this efficient encoding scheme applied to an example composition tree.
+<!-- do you want to provide references into the code base? IE: Reference implementation [Treecode](../src/treecode.zig) -->
+
+Figure 23 demonstrates this efficient encoding scheme applied to an example composition tree.  A left branch is used to represent a synchronous start and a right branch is used to represent a sequential start.
 
 ![Figure 23](assets/17469129264672.jpg)
 ***Figure 23**: Succinct bitstream encoding of the composition tree where 1 represents the root, 0 represents sync starts, and 1 represents sequential starts.*
 
-
 This encoding provides a highly efficient representation of the temporal topology.
+
+<!-- Does this ^ statement require any further analysis or support? -->
 
 ## Every Node Has a Unique Identifier
 
 Using this bitstream encoding, every node in the tree has a unique identifier that encodes its path from the root. This provides several advantages:
 
-1. Parents and common ancestors are easily determined
-2. The immediate parent of SW009 (10001111) is 1000111 (SW002)
-3. Relationships between elements can be quickly computed
+1. Immediate parents and children are trivially identified (by removing trailing bits or appending them)
+2. Any parent between the root and a given node can be trivially identified
+3. Given two nodes in the same hierarchy, it is easy to identify a common ancestor (and therefore compute a path from one node to another).
+4. Topology Changes Change the Bits. If the topology of the composition changes (e.g., elements are rearranged), the bitstream encoding changes accordingly. However, the paths remain unique, even though some have changed. For example, if SW002 and SW009 move to different positions in the tree, their bitstream identifiers become 10011 and 100111 respectively.
 
-## Topology Changes Change the Bits
+## The topological relationship to a coordinate system
 
-If the topology of the composition changes (e.g., elements are rearranged), the bitstream encoding changes accordingly. However, the paths remain unique, even though some have changed.
+Each relationship between a node encodes a transformation from one node's space to another.  By walking a path and computing each transformation along the path, a value may be transformed from the root space to a child space.  Furthermore, if the spaces are themselves combinable by the rules of function composition, then a composite function that can transform from the root space to a child space can be computed and stored.
 
-For example, if SW002 and SW009 move to different positions in the tree, their bitstream identifiers become 10011 and 100111 respectively.
+<!-- ^ what do you think about spelling something like this out here? -->
 
 ## Benefits of Topological Representation
 
@@ -866,6 +872,8 @@ The topological representation enables several powerful capabilities in editoria
 
 This topological approach provides a strong foundation for representing the temporal structure of complex media compositions, complementing the coordinate-based transformations discussed in previous chapters.
 
+<!-- these last three subsections all feel like they should be sub-sub-sections of a conclusion subsection -->
+
 # Chapter 5: Projection through a Topology
 
 ## Time, From a Certain Point of View
@@ -873,6 +881,8 @@ This topological approach provides a strong foundation for representing the temp
 In previous chapters, we established the mathematical foundations of time as a normed vector space and explored the topological representation of temporal structures in media compositions. This chapter extends these concepts to examine how time can be projected from one domain to another—viewing time from different perspectives within a media composition system.
 
 In this chapter, we will first explore the foundational concepts of temporal projections and their mathematical properties. We will then examine how these projections can be embedded within topologies, enabling complex temporal transformations. Finally, we will demonstrate these concepts through practical examples of increasing complexity, showing how multiple projections can be composed to create sophisticated temporal effects.
+
+<!-- ah, I see now.  This stuff was delayed back a chapter. -->
 
 ## Applications of Temporal Projection
 
@@ -901,6 +911,8 @@ Formally, a function f: X → Y is invertible if for every y in Y that is in the
 
 While ideal mappings would be bijective (one input value maps to exactly one output value), in practice we often encounter injective mappings (one input value may map to multiple output values), such as when time "doubles back" in a rewind effect. When this occurs, we maintain effective bijectivity by subdividing the mapping into multiple bijective segments. Figure 25 demonstrates this point.
 
+<!-- this section feels like a series of assertions when I think they're actually requirements of the domain.  Also, before we had stated that the transformations must be made up of sequences of bijective transformations - in other words, that a group of bijective transformations may not be bijective but that you need to be able to break them down into bijective transformations.  I think this is because fundamentally, media is going to be selected for operation, if it isn't forward, you don't know which frame its going to pick and if it isn't invertable then you don't know at what time that sample is going to be integrated.  I'm not explaining that well but I think there is something more fundamental here -->
+
 ![Figure 25](assets/17469132284417.jpg)
 ***Figure 25**: Invertible and differentiable properties of temporal projection, require two bijective mappings for the two solutions.*
 
@@ -910,12 +922,16 @@ Given a temporal topology consisting of media intervals (as discussed in Chapter
 
 To reason about these mapping functions collectively, we embed them within the topology itself. The topology orders these mapping curves in the same way that clips are ordered in the composition. Each clip corresponds to a mapping curve, where the curve represents a function that maps input time to output time. Figure 26 shows how these functions are embedded within the overall topology.
 
+<!-- what do you think about combining this chapter with the previous one?  I feel like pointing out that there are only two kinds of relationships in a hierarchy, both of which are clearly represented by transformations and then talking about the transformations (ending with the treecodes instead of starting with them) might flow better?) -->
+
 ![Figure 26](assets/17469133168518.jpg)
 ***Figure 26**: Mapping curves embedded within a temporal topology, where each curve transforms time from one domain to another.*
 
 ### Properties of the Temporal Mapping Domain
 
-Recall that a topology in this framework represents a mapped domain of right-met, piecewise continuous functions that transform input time to per-interval output times. These continuous functions have key mathematical properties:
+Recall that a topology in this framework represents a mapped domain of right-met, piecewise continuous bijective functions that transform input time to per-interval output times. These continuous functions have key mathematical properties:
+
+<!-- I'm not sure if this is the right spot to point out the bijectivity, but pointing out that a NODE in the hierarchy can have a non-bijective transformation as long as its made up of right met bijective transformations and a function over the presentation space is the real underlying condition. -->
 
 1. Each function is individually invertible
 2. Each function is differentiable
