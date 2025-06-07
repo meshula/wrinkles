@@ -832,7 +832,7 @@ This encoding provides a highly efficient representation of the temporal topolog
 
 Using this bitstream encoding, every node in the tree has a unique identifier that encodes its path from the root. This provides several advantages:
 
-1. Immediate parents and children are trivially identified (by removing the last bit or appending them)
+1. Immediate parents and children are trivially identified (by removing trailing bits or appending them)
 2. Any parent between the root and a given node can be trivially identified
 3. Given two nodes in the same hierarchy, it is easy to identify a common ancestor (and therefore compute a path from one node to another).
 4. Topology Changes Change the Bits. If the topology of the composition changes (e.g., elements are rearranged), the bitstream encoding changes accordingly. However, the paths remain unique, even though some have changed. For example, if SW002 and SW009 move to different positions in the tree, their bitstream identifiers become 10011 and 100111 respectively.
