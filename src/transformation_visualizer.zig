@@ -542,7 +542,6 @@ pub fn main(
         .{
             .title = WINDOW_TITLE,
             .draw = draw, 
-            .content_dir = content_dir,
             .dimensions = .{ 1600, 600 },
         },
     );

@@ -111,7 +111,6 @@ pub fn main(
     sokol_app_wrapper.sokol_main(
         .{
             .draw = draw, 
-            .content_dir = content_dir,
         },
     );
 }

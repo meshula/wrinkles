@@ -17,7 +17,6 @@ const WINDOW_TITLE = (
 );
 
 const exe_build_options = @import("exe_build_options");
-const content_dir = exe_build_options.content_dir;
 
 const PLOT_STEPS = 1000;
 
@@ -893,7 +892,6 @@ pub fn main(
         .{
             .title = WINDOW_TITLE,
             .draw = draw, 
-            .content_dir = content_dir,
             .dimensions = .{ 1600, 600 },
         },
     );
