@@ -1,7 +1,6 @@
 //! Build script for wrinkles project
 
 const std = @import("std");
-const builtin = @import("builtin");
 const ziis = @import("zgui_cimgui_implot_sokol");
 
 /// check for the `dot` program on $PATH
