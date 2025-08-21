@@ -7,19 +7,16 @@ const zgui = ziis.zgui;
 
 const build_options = @import("build_options");
 const exe_build_options = @import("exe_build_options");
-const content_dir = exe_build_options.content_dir;
 
 const opentime = @import("opentime");
-const interval = opentime.interval;
 const curve = @import("curve");
 const string = @import("string_stuff");
 const topology = @import("topology");
-const util = opentime.util;
 
 const DERIVATIVE_STEPS = 10;
 const CURVE_SAMPLE_COUNT = 1000;
 
-const sokol_app_wrapper = @import("sokol_app_wrapper");
+const sokol_app_wrapper = ziis.app_wrapper;
 
 const DebugBezierFlags = struct {
     bezier: bool = true,
@@ -351,7 +348,6 @@ pub fn main(
         .{
             .title = title,
             .draw = update,
-            .content_dir = content_dir,
             .dimensions = .{ 1600, 1000},
         }
     );

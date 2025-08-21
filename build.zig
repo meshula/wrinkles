@@ -816,14 +816,13 @@ pub fn build(
     };
 
     // probably gone for good, but haven't removed yet
-    // executable(
-    //     b,
-    //     "curvet",
-    //     "src/curvet.zig",
-    //     "/wrinkles_content/",
-    //     options,
-    //     common_deps,
-    // );
+    try executable(
+        b,
+        "curvet",
+        "src/curvet.zig",
+        options,
+        common_deps,
+    );
 
     try executable(
         b,
