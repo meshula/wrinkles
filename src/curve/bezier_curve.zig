@@ -869,12 +869,12 @@ pub const Bezier = struct {
             allocator: std.mem.Allocator,
         ) !void 
         {
-            std.debug.print("\ndebug_print_json] p0: {}\n", .{ self.p0});
+            std.log.debug("\ndebug_print_json] p0: {}\n", .{ self.p0});
 
             const blob = try self.debug_json_str(allocator);
             defer allocator.free(blob);
 
-            std.debug.print("{s}", .{ blob });
+            std.log.debug("{s}", .{ blob });
         }
 
         /// convert into the c library hodographs struct
