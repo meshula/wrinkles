@@ -1459,25 +1459,25 @@ fn test_structs(
     };
 }
 
-const LEFT = test_structs(
-    .{
-        .start = -2,
-        .end = 2,
-    }
-);
+// const LEFT = test_structs(
+//     .{
+//         .start = -2,
+//         .end = 2,
+//     }
+// );
 const MIDDLE = test_structs(
     .{
         .start = 0,
         .end = 10,
     }
 );
-const RIGHT = test_structs(
-    .{
-        .start = 8,
-        .end = 12,
-    }
-);
-
+// const RIGHT = test_structs(
+//     .{
+//         .start = 8,
+//         .end = 12,
+//     }
+// );
+//
 test "Topology: trim_in_output_space"
 {
     const allocator = std.testing.allocator;

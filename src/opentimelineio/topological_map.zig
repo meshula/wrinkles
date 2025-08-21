@@ -91,6 +91,10 @@ pub const TopologicalMap = struct {
                 };
                 break :blk &output;
             },
+
+            // SAFETY: temporary tree word generated to query from the map,
+            //         only used in this function.  Doesn't need to be
+            //         allocated.
             .allocator = undefined,
         };
 

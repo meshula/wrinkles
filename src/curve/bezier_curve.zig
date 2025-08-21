@@ -721,17 +721,17 @@ pub const Bezier = struct {
             segment_to_project: Segment,
         ) Segment
         {
-            var result: Segment = undefined;
+            var result: Segment = .{};
 
             inline for ([4][]const u8{"p0", "p1", "p2", "p3"}) 
                 |field| 
-                {
-                    const pt = @field(segment_to_project, field);
-                    @field(result, field) = .{
-                        .in = pt.in,
-                        .out = self.output_at_input(pt.out),
-                    };
-                }
+            {
+                const pt = @field(segment_to_project, field);
+                @field(result, field) = .{
+                    .in = pt.in,
+                    .out = self.output_at_input(pt.out),
+                };
+            }
 
             return result;
         }
@@ -1953,15 +1953,13 @@ pub const Bezier = struct {
         }
         const split_segments = maybe_split_segments.?;
 
-        var new_segments:[]Segment = undefined;
-
-        switch (direction) {
+        const result = result: switch (direction) {
             // keep later stuff
             .trim_before => {
                 const new_split = split_segments[1];
                 const segments_to_copy = self.segments[seg_to_split_index+1..];
 
-                new_segments = try allocator.alloc(
+                var new_segments = try allocator.alloc(
                     Segment,
                     segments_to_copy.len + 1
                 );
@@ -1972,13 +1970,15 @@ pub const Bezier = struct {
                     new_segments[1..],
                     segments_to_copy
                 );
+
+                break :result new_segments;
             },
             // keep earlier stuff
             .trim_after => {
                 const new_split = split_segments[0];
                 const segments_to_copy = self.segments[0..seg_to_split_index];
 
-                new_segments = try allocator.alloc(
+                var new_segments = try allocator.alloc(
                     Segment,
                     segments_to_copy.len + 1
                 );
@@ -1989,10 +1989,12 @@ pub const Bezier = struct {
                     segments_to_copy
                 );
                 new_segments[new_segments.len - 1] = new_split;
-            },
-        }
 
-        return .{ .segments = new_segments };
+                break :result new_segments;
+            },
+        };
+
+        return .{ .segments = result };
     }
 
     /// returns a copy of self, trimmed by bounds.  If bounds are greater than 

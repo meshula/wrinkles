@@ -36,7 +36,7 @@ pub const sample_rate_base_t = u32;
 
 // epsilon values for comparison against zero
 const EPSILON_VALUE: sample_value_t = 1.0e-4;
-const EPSILON_ORD: sample_ordinate_t = opentime.Ordinate.EPSILON;
+// const EPSILON_ORD: sample_ordinate_t = opentime.Ordinate.EPSILON;
 
 /// project a continuous ordinate into a discrete index sequence
 pub fn project_instantaneous_cd(
@@ -167,7 +167,7 @@ pub const Sampling = struct {
             ),
             1,
         );
-        defer encoder.finalize() catch unreachable; 
+        defer encoder.finalize() catch @panic("could not finalize encode"); 
 
         try encoder.write(sample_value_t, self.buffer);
     }
@@ -1149,7 +1149,7 @@ pub fn transform_resample_linear_interpolating_dd(
     };
 
     if (RESAMPLE_DEBUG_LOGGING) {
-        std.debug.print(" \n\n----- resample info dump -----\n", .{});
+        std.log.debug(" \n\n----- resample info dump -----\n", .{});
     }
 
     var input_transform_samples = input_d_samples.buffer[0..];
@@ -1183,7 +1183,7 @@ pub fn transform_resample_linear_interpolating_dd(
 
         if (RESAMPLE_DEBUG_LOGGING) 
         {
-            std.debug.print(
+            std.log.debug(
                 "in provided: {d} in used: {d} out requested: {d} out "
                 ++ "generated: {d} ",
                 .{
@@ -1193,7 +1193,7 @@ pub fn transform_resample_linear_interpolating_dd(
                     src_data.output_frames_gen,
                 }
             );
-            std.debug.print(
+            std.log.debug(
                 "ratio: {d}\n",
                 .{
                     src_data.src_ratio,
@@ -1768,7 +1768,7 @@ test "sampling: frame phase slide 2: (time*2 bounds*1 freq*1 phase+0) 0,1,2,3->0
         }
     );
 
-    errdefer std.debug.print(
+    errdefer std.log.err(
         "Sample to output curve: {s}\n",
         .{ sample_to_output_crv.mapping() }
     );
@@ -1928,7 +1928,7 @@ test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(
     );
     defer sample_to_output_crv.deinit(std.testing.allocator);
 
-    errdefer std.debug.print(
+    errdefer std.log.err(
         "Sample to output curve: {s}\n",
         .{ sample_to_output_crv.mapping() }
     );

@@ -2,7 +2,6 @@
 
 const std = @import("std");
 const expectEqual = std.testing.expectEqual;
-const expect = std.testing.expect;
 
 const control_point = @import("control_point.zig");
 const bezier_curve = @import("bezier_curve.zig");

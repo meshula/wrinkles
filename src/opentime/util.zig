@@ -1,7 +1,5 @@
 const std = @import("std");
 
-const ordinate = @import("ordinate.zig");
-
 /// test precision
 // pub const EPSILON_ORD: ordinate.Ordinate = 1.0e-4;
 pub const EPSILON_F=  1.0e-4;

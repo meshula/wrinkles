@@ -259,7 +259,10 @@ pub export fn otio_build_projection_op_map_to_media_tp_cvr(
     result.* = otio.projection_map_to_media_from(
         allocator,
         map.*,
-        try src.space(.presentation),
+        src.space(.presentation) catch |err| {
+            std.log.err("Couldn't fetch presentation space: {any}\n", .{err});
+            return ERR_PO_MAP;
+        },
     ) catch |err| {
         std.log.err("Couldn't build map: {any}\n", .{ err});
         return ERR_PO_MAP;

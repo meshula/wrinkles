@@ -10,7 +10,6 @@ const build_options = @import("build_options");
 const opentime = @import("opentime");
 const curve = @import("curve");
 const topology_m = @import("topology");
-const string = @import("string_stuff");
 
 const treecode = @import("treecode");
 const sampling = @import("sampling");

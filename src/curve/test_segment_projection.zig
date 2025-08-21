@@ -14,7 +14,7 @@ fn expectNotEqual(
 ) !void 
 {
     std.testing.expect(expected != actual) catch {
-        std.debug.print(
+        std.log.err(
             "expected not equal values, both are: {}\n",
             .{expected},
         );

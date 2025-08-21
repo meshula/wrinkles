@@ -2,7 +2,6 @@
 
 const std = @import("std"); 
 
-const util = @import("util.zig"); 
 const ordinate = @import("ordinate.zig"); 
 
 /// Right open interval in a continuous metric space.  Default interval starts

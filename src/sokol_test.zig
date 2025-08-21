@@ -1,13 +1,8 @@
-const std = @import("std");
 const ziis = @import("zgui_cimgui_implot_sokol");
 const zgui = ziis.zgui;
 const zplot = zgui.plot;
 
 const sokol_app_wrapper = ziis.app_wrapper;
-
-const build_options = @import("build_options");
-const exe_build_options = @import("exe_build_options");
-const content_dir = exe_build_options.content_dir;
 
 var f: f32 = 0;
 

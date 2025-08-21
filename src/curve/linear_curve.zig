@@ -2,13 +2,11 @@
 
 const std = @import("std");
 const expectEqual = std.testing.expectEqual;
-const expectApproxEqAbs = std.testing.expectApproxEqAbs;
 
 const opentime = @import("opentime");
 
 const bezier_curve = @import("bezier_curve.zig");
 const bezier_math = @import("bezier_math.zig");
-const generic_curve = @import("generic_curve.zig");
 const ControlPoint = @import("control_point.zig").ControlPoint;
 const ControlPoint_BaseType = @import("control_point.zig").ControlPoint_BaseType;
 

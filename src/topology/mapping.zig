@@ -5,7 +5,6 @@
 const std = @import("std");
 
 const opentime = @import("opentime");
-const serialization = @import("serialization.zig");
 
 const mapping_empty = @import("mapping_empty.zig");
 pub const MappingEmpty = mapping_empty.MappingEmpty;

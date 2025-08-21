@@ -1,10 +1,5 @@
 const std = @import("std");
-const math = std.math;
 const zgui = @import("zgui");
-// const zstbi = @import("zstbi");
-// const ot = @cImport({
-//     @cInclude("opentime.h");
-// });
 
 const assert = std.debug.assert;
 

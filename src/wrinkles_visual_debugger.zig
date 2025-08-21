@@ -16,8 +16,6 @@ const WINDOW_TITLE = (
     ++ "]"
 );
 
-const exe_build_options = @import("exe_build_options");
-
 const PLOT_STEPS = 1000;
 
 /// plot a bezier curve

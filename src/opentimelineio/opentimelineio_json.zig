@@ -1,12 +1,9 @@
 const std = @import("std");
-const expectApproxEqAbs= std.testing.expectApproxEqAbs;
 const expectEqual = std.testing.expectEqual;
 
 const otio  = @import("root.zig");
 const opentime = @import("opentime");
 const interval = opentime.interval;
-const transform = opentime.transform;
-const curve = @import("curve");
 const string = @import("string_stuff");
 
 pub const SerializableObjectTypes = enum {

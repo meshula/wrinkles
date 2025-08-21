@@ -16,8 +16,6 @@ const std = @import("std");
 
 const opentime = @import("opentime");
 
-const generic_curve = @import("generic_curve.zig");
-
 /// A control point maps a single instantaneous input ordinate to a single
 /// instantaneous output ordinate.
 pub fn ControlPointOf(

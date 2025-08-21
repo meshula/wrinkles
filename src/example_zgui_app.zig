@@ -334,7 +334,7 @@ fn _parse_args(
 
 /// print the usage message out and quit
 pub fn usage() void {
-    std.debug.print(
+    std.log.info(
         \\
         \\usage:
         \\  curvet path/to/seg1.json [path/to/seg2.json] [...] [args]
