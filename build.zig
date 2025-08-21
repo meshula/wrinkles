@@ -112,7 +112,7 @@ pub fn executable(
     comptime source_dir_path: []const u8,
     options: Options,
     module_deps: []const std.Build.Module.Import,
-) void
+) !void
 {
     const exe = (
         if (options.target.result.cpu.arch.isWasm())
@@ -375,7 +375,7 @@ pub fn module_with_tests_and_artifact(
 /// main entry point for building wrinkles
 pub fn build(
     b: *std.Build,
-) void
+) !void
 {
     //
     // Options and system checks
@@ -854,7 +854,7 @@ pub fn build(
     //     common_deps,
     // );
 
-    executable(
+    try executable(
         b,
         "sokol_test",
         "src/sokol_test.zig",
@@ -863,7 +863,7 @@ pub fn build(
         common_deps,
     );
 
-    executable(
+    try executable(
         b,
         "transformation_visualizer",
         "src/transformation_visualizer.zig",
@@ -872,7 +872,7 @@ pub fn build(
         common_deps,
     );
 
-    executable(
+    try executable(
         b,
         "wrinkles_visual_debugger",
         "src/wrinkles_visual_debugger.zig",
