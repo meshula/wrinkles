@@ -109,7 +109,6 @@ pub fn executable(
     b: *std.Build,
     comptime name: []const u8,
     comptime main_file_name: []const u8,
-    comptime source_dir_path: []const u8,
     options: Options,
     module_deps: []const std.Build.Module.Import,
 ) !void
@@ -146,32 +145,6 @@ pub fn executable(
         exe.root_module.addOptions(
             "exe_build_options",
             exe_options,
-        );
-
-        var content_dir_lp = b.path("src/" ++ source_dir_path);
-        var content_dir_path = content_dir_lp.getPath(b);
-
-        if (!options.target.result.cpu.arch.isWasm())
-        {
-            const subdir = "bin/" ++ name ++ "_content";
-            const install_content_step = b.addInstallDirectory(
-                .{
-                    .source_dir = content_dir_lp,
-                    .install_dir = .{ .custom = "" },
-                    .install_subdir = subdir,
-                }
-            );
-            exe.step.dependOn(&install_content_step.step);
-            content_dir_path = b.getInstallPath(
-                .bin,
-                subdir,
-            );
-        }
-
-        exe_options.addOption(
-            []const u8,
-            "content_dir",
-            content_dir_path,
         );
     }
 
@@ -858,7 +831,6 @@ pub fn build(
         b,
         "sokol_test",
         "src/sokol_test.zig",
-        "/wrinkles_content/",
         options,
         common_deps,
     );
@@ -867,7 +839,6 @@ pub fn build(
         b,
         "transformation_visualizer",
         "src/transformation_visualizer.zig",
-        "/wrinkles_content/",
         options,
         common_deps,
     );
@@ -876,7 +847,6 @@ pub fn build(
         b,
         "wrinkles_visual_debugger",
         "src/wrinkles_visual_debugger.zig",
-        "/wrinkles_content/",
         options,
         common_deps,
     );
