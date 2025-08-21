@@ -5,11 +5,13 @@ const builtin = @import("builtin");
 const ziis = @import("zgui_cimgui_implot_sokol");
 
 /// check for the `dot` program on $PATH
-fn graphviz_dot_on_path() ?[]const u8
+fn graphviz_dot_on_path(
+    allocator: std.mem.Allocator,
+) ?[]const u8
 {
     const result = std.process.Child.run(
         .{
-            .allocator = std.heap.page_allocator,
+            .allocator = allocator,
             .argv = &[_][]const u8{
                 "which",
                 "dot"
@@ -375,12 +377,6 @@ pub fn build(
     b: *std.Build,
 ) void
 {
-    var arena = std.heap.ArenaAllocator.init(
-        std.heap.page_allocator
-    );
-    const allocator = arena.allocator();
-    defer arena.deinit();
-
     //
     // Options and system checks
     //
@@ -414,7 +410,7 @@ pub fn build(
         build_options.addOption(
             []const u8,
             "hash",
-            rev_HEAD(allocator) catch "COULDNT READ HASH",
+            rev_HEAD(b.allocator) catch "COULDNT READ HASH",
         );
 
         const graphviz_path = b.option(
@@ -424,7 +420,7 @@ pub fn build(
              "path to the `dot` executable from graphviz. Used to generate "
              ++ "diagrams of temporal hierarchies."
             ),
-        ) orelse graphviz_dot_on_path();
+        ) orelse graphviz_dot_on_path(b.allocator);
 
         if (graphviz_path == null) {
             std.log.warn(
