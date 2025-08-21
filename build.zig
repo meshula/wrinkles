@@ -153,28 +153,27 @@ pub fn executable(
     // run and install the executable
     if (!options.target.result.cpu.arch.isWasm())
     {
-        const install_exe_step = &b.addInstallArtifact(
-            exe,
-            .{},
-        ).step;
+        b.installArtifact(exe);
 
-        const install = b.step(
-            name,
-            "Build/install '" ++ name ++ "' executable",
-        );
+        // TODO: codesigning might require a different structure
         // install.dependOn(codesign_exe_step);
-        install.dependOn(install_exe_step);
 
-        var run_cmd = b.addRunArtifact(exe).step;
-        run_cmd.dependOn(install);
+        const run_cmd = b.addRunArtifact(exe);
+        run_cmd.step.dependOn(b.getInstallStep());
+
+        // pass commandline arguments to the executable
+        // zig build blah-run -- arg1 arg2 etc
+        if (b.args) 
+            |args| 
+        {
+            run_cmd.addArgs(args);
+        }
 
         const run_step = b.step(
             name ++ "-run",
             "Run '" ++ name ++ "' executable",
         );
-        run_step.dependOn(&run_cmd);
-
-        b.getInstallStep().dependOn(install);
+        run_step.dependOn(&run_cmd.step);
     }
     else
     {
