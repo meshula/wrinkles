@@ -9,8 +9,8 @@
             .hash = "comath-0.0.1-wKZ2nzGvAQA_wvKSAXN3DRY5dK3CmZ2MiSMKsKJKPdg1",
         },
         .zgui_cimgui_implot_sokol = .{
-            .url = "git+https://github.com/ssteinbach/zgui_cimgui_implot_sokol.git#a753387c52db4151b2b58a043fd1580c8e2b774a",
-            .hash = "zgui_cimgui_implot_sokol-1.91.8-17SdXrflBgA5EQlrhgJ81dSJz7gdejkzZjJr0NIBnWgL",
+            .url = "git+https://github.com/ssteinbach/zgui_cimgui_implot_sokol.git#6865118b5c610d475824dfeacdd3e54da3dd7048",
+            .hash = "zgui_cimgui_implot_sokol-1.91.8-17SdXovmBgBH_k1AvYK9LSJ0WXDWO_c3Apu0GbcMwILm",
         },
         .kissfft = .{
             .url = "git+https://github.com/mborgerding/kissfft.git#febd4caeed32e33ad8b2e0bb5ea77542c40f18ec",
