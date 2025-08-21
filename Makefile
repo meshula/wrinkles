@@ -28,5 +28,8 @@ run_c:
 	zig-out/bin/test_opentimelineio_c sample_otio_files/multiple_track.otio -v -m
 
 docs:
-	zig build docs
-	python -m http.server --directory zig-out/docs/opentimelineio_lib
+	@zig build docs
+	@echo "open: http://localhost:8000"
+	@python -m http.server --directory zig-out/docs
+
+.PHONY: all run-em docs run_c
