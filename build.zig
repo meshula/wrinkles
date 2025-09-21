@@ -32,7 +32,7 @@ fn graphviz_dot_on_path(
 
 /// build options for the wrinkles project
 pub const Options = struct {
-    optimize: std.builtin.Mode,
+    optimize: std.builtin.OptimizeMode,
     target: std.Build.ResolvedTarget,
 
     /// select which tests to run
@@ -114,20 +114,29 @@ pub fn executable(
 {
     const exe = (
         if (options.target.result.cpu.arch.isWasm())
-            b.addStaticLibrary(
+            b.addLibrary(
                 .{
                     .name = name,
-                    .root_source_file = b.path(main_file_name),
-                    .target = options.target,
-                    .optimize = options.optimize,
+                    .root_module = b.createModule(
+                        .{
+                            .root_source_file = b.path(main_file_name),
+                            .target = options.target,
+                            .optimize = options.optimize,
+                        }
+                    ),
+                    .linkage = .static,
                 },
             )
         else b.addExecutable(
             .{
                 .name = name,
-                .root_source_file = b.path(main_file_name),
-                .target = options.target,
-                .optimize = options.optimize,
+                .root_module = b.createModule(
+                    .{
+                        .root_source_file = b.path(main_file_name),
+                        .target = options.target,
+                        .optimize = options.optimize,
+                    },
+                ),
             },
         )
     );
@@ -287,10 +296,14 @@ pub fn module_with_tests_and_artifact(
     const mod_unit_tests = opts.b.addTest(
         .{
             .name = "test_" ++ name,
-            .root_source_file = opts.b.path(opts.fpath),
-            .optimize = opts.options.optimize,
-            .target =opts.options.target,
-            .filter = opts.options.test_filter orelse &.{},
+            .root_module = opts.b.createModule(
+                .{
+                    .root_source_file = opts.b.path(opts.fpath),
+                    .optimize = opts.options.optimize,
+                    .target =opts.options.target,
+                },
+            ),
+            .filters = &.{ opts.options.test_filter orelse &.{} },
         }
     );
 
@@ -490,12 +503,12 @@ pub fn build(
     );
 
     const wav_dep = b.dependency(
-        "zig_soundio",
+        "zig_wav_io",
         .{
             .target = options.target,
             .optimize = options.optimize,
         },
-    ).module("wav");
+    ).module("wav_io");
 
     const string_stuff = module_with_tests_and_artifact(
         "string_stuff",
@@ -506,14 +519,19 @@ pub fn build(
         }
     );
 
-    const kissfft = b.addStaticLibrary(
+    const kissfft = b.addLibrary(
         .{
             .name = "kissfft",
-            .target = options.target,
-            .optimize = options.optimize,
-            .root_source_file = b.path(
-                "libs/wrapped_kissfft.zig",
+            .root_module = b.createModule(
+                .{
+                    .root_source_file = b.path(
+                        "libs/wrapped_kissfft.zig"
+                    ),
+                    .target = options.target,
+                    .optimize = options.optimize,
+                },
             ),
+            .linkage = .static,
         }
     );
     {
@@ -568,14 +586,19 @@ pub fn build(
         }
     );
 
-    const spline_gym = b.addStaticLibrary(
+    const spline_gym = b.addLibrary(
         .{
             .name = "spline_gym",
-            .target = options.target,
-            .optimize = options.optimize,
-            .root_source_file = b.path(
-                "spline-gym/src/hodographs.zig",
+            .root_module = b.createModule(
+                .{
+                    .root_source_file = b.path(
+                        "spline-gym/src/hodographs.zig",
+                    ),
+                    .target = options.target,
+                    .optimize = options.optimize,
+                },
             ),
+            .linkage = .static,
         }
     );
     {
@@ -615,14 +638,18 @@ pub fn build(
         }
     );
 
-    const libsamplerate = b.addStaticLibrary(
+    const libsamplerate = b.addLibrary(
         .{
             .name = "libsamplerate",
-            .target = options.target,
-            .optimize = options.optimize,
-            .root_source_file = b.path(
-                    "libs/wrapped_libsamplerate/wrapped_libsamplerate.zig",
-            ),
+            .root_module = b.createModule(
+                .{
+                    .target = options.target,
+                    .optimize = options.optimize,
+                    .root_source_file = b.path(
+                        "libs/wrapped_libsamplerate/wrapped_libsamplerate.zig",
+                    ),
+                },
+            )
         }
     );
     {
@@ -714,14 +741,18 @@ pub fn build(
         }
     );
 
-    const opentimelineio_c = b.addStaticLibrary(
+    const opentimelineio_c = b.addLibrary(
         .{
             .name = "opentimelineio_c",
-            .target = options.target,
-            .optimize = options.optimize,
-            .root_source_file = b.path(
-                "src/c_binding/opentimelineio_c.zig",
-            ),
+            .root_module = b.createModule(
+                .{
+                    .target = options.target,
+                    .optimize = options.optimize,
+                    .root_source_file = b.path(
+                        "src/c_binding/opentimelineio_c.zig",
+                    ),
+                },
+            )
         }
     );
     {
@@ -754,8 +785,12 @@ pub fn build(
         const exe = b.addExecutable(
             .{
                 .name = "test_opentimelineio_c",
-                .optimize = options.optimize,
-                .target = options.target,
+                .root_module = b.createModule(
+                    .{
+                        .optimize = options.optimize,
+                        .target = options.target,
+                    },
+                ),
             }
         );
         exe.addCSourceFile(
