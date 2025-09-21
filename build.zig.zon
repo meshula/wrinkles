@@ -2,15 +2,15 @@
     .name = .wrinkles,
     .version = "0.0.1",
     .fingerprint = 0xcdd5ec7e0ff0ce3e, // Changing this has security and trust implications.
-    .minimum_zig_version = "0.14.0",
+    .minimum_zig_version = "0.15.1",
     .dependencies = .{
         .comath = .{
-            .url = "git+https://github.com/ssteinbach/comath.git#8160db9e8a4c17b5df1fb935c7773eedde377d0e",
-            .hash = "comath-0.0.1-wKZ2nzGvAQA_wvKSAXN3DRY5dK3CmZ2MiSMKsKJKPdg1",
+            .url = "git+https://github.com/inkryption/comath.git#502c5e65c3708e14f19e19fb78c18123e4cb752c",
+            .hash = "comath-0.1.0-wKZ2n-ffAQD0U6AGU-dnus5nW1yRJP5SXtycwQDQoKNb",
         },
         .zgui_cimgui_implot_sokol = .{
-            .url = "git+https://github.com/ssteinbach/zgui_cimgui_implot_sokol.git#6865118b5c610d475824dfeacdd3e54da3dd7048",
-            .hash = "zgui_cimgui_implot_sokol-1.91.8-17SdXovmBgBH_k1AvYK9LSJ0WXDWO_c3Apu0GbcMwILm",
+            .url = "git+https://github.com/ssteinbach/zgui_cimgui_implot_sokol.git#f8588ccfdd920d71ded52411d9dd58e437ce550f",
+            .hash = "zgui_cimgui_implot_sokol-1.91.8-17SdXo1JBwDM8C46ziSixwJJdhn25TVKH-AbMfcnMFN9",
         },
         .kissfft = .{
             .url = "git+https://github.com/mborgerding/kissfft.git#febd4caeed32e33ad8b2e0bb5ea77542c40f18ec",
@@ -20,9 +20,9 @@
             .url = "git+https://github.com/libsndfile/libsamplerate.git#15c392d47e71b9395a759544b3818a1235fe1a1d",
             .hash = "N-V-__8AAJENngBClgu4SHZlBpEv0r8H-PSGJS6G_ma05tdj",
         },
-        .zig_soundio = .{
-            .url = "git+https://github.com/TemariVirus/zig-wav.git#c425cab285c69fc584cb49b6fd518449a4019a1b",
-            .hash = "zig_soundio-0.1.0-RRkY3lpjAADCYnVm0Kzhvl3QKnhtvUOohZh7RIfBpz47",
+        .zig_wav_io = .{
+            .url = "git+https://github.com/ssteinbach/zig-wav-io.git#a43ff48091165734d9ed38948a6b4dd3eae659c9",
+            .hash = "zig_wav_io-0.1.0-PYygzNEMAQDo94KcwXYc99epSh1go4VSYgIdCmPB02Kr",
         },
     },
     .paths = .{
