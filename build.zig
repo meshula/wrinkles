@@ -185,66 +185,67 @@ pub fn executable(
     }
     else
     {
-        const emsdk = ziis.fetchEmSdk(
-            options.dep_ziis.?,
-            options.optimize,
-            options.target,
-        );
-
-        for (module_deps)
-            |mod|
-        {
-            mod.module.addSystemIncludePath(
-                ziis.fetchEmSdkIncludePath(
-                    options.dep_ziis.?,
-                    options.optimize,
-                    options.target,
-                )
-            );
-        }
-
-        const shell_path_abs = ziis.fetchShellPath(
-            options.dep_ziis.?,
-            options.optimize,
-            options.target,
-        );
-
-        const link_step = try ziis.emLinkStep(
-            b,
-            .{
-                .lib_main = exe,
-                .target = options.target,
-                .optimize = options.optimize,
-                .emsdk = emsdk,
-                // .use_webgpu = backend == .wgpu,
-                .use_webgl2 = true,
-                .use_emmalloc = true,
-                .use_filesystem = true,
-                .shell_file_path = shell_path_abs,
-                .extra_args = &.{
-                    "-sUSE_OFFSET_CONVERTER=1",
-                    // "-sTOTAL_STACK=1024MB",
-                     "-sALLOW_MEMORY_GROWTH=1",
-                     "-sASSERTIONS=1",
-                     "-sSAFE_HEAP=0",
-                     "-g",
-                     "-gsource-map",
-                     "-fsanitize=undefined",
-                },
-            },
-        );
-        const run = ziis.emRunStep(
-            b,
-            .{
-                .name = name,
-                .emsdk = emsdk,
-            },
-        );
-        run.step.dependOn(&link_step.step);
-        b.step(
-            name ++ "-run",
-            "Run " ++ name
-        ).dependOn(&run.step);
+        // @TODO: restore WASM build
+        // const emsdk = ziis.fetchEmSdk(
+        //     options.dep_ziis.?,
+        //     options.optimize,
+        //     options.target,
+        // );
+        //
+        // for (module_deps)
+        //     |mod|
+        // {
+        //     mod.module.addSystemIncludePath(
+        //         ziis.fetchEmSdkIncludePath(
+        //             options.dep_ziis.?,
+        //             options.optimize,
+        //             options.target,
+        //         )
+        //     );
+        // }
+        //
+        // const shell_path_abs = ziis.fetchShellPath(
+        //     options.dep_ziis.?,
+        //     options.optimize,
+        //     options.target,
+        // );
+        //
+        // const link_step = try ziis.emLinkStep(
+        //     b,
+        //     .{
+        //         .lib_main = exe,
+        //         .target = options.target,
+        //         .optimize = options.optimize,
+        //         .emsdk = emsdk,
+        //         // .use_webgpu = backend == .wgpu,
+        //         .use_webgl2 = true,
+        //         .use_emmalloc = true,
+        //         .use_filesystem = true,
+        //         .shell_file_path = shell_path_abs,
+        //         .extra_args = &.{
+        //             "-sUSE_OFFSET_CONVERTER=1",
+        //             // "-sTOTAL_STACK=1024MB",
+        //              "-sALLOW_MEMORY_GROWTH=1",
+        //              "-sASSERTIONS=1",
+        //              "-sSAFE_HEAP=0",
+        //              "-g",
+        //              "-gsource-map",
+        //              "-fsanitize=undefined",
+        //         },
+        //     },
+        // );
+        // const run = ziis.emRunStep(
+        //     b,
+        //     .{
+        //         .name = name,
+        //         .emsdk = emsdk,
+        //     },
+        // );
+        // run.step.dependOn(&link_step.step);
+        // b.step(
+        //     name ++ "-run",
+        //     "Run " ++ name
+        // ).dependOn(&run.step);
     }
 
     // docs
@@ -550,16 +551,17 @@ pub fn build(
                 .flags = &C_ARGS,
             }
         );
-        if (options.target.result.cpu.arch.isWasm())
-        {
-            kissfft.addSystemIncludePath(
-                ziis.fetchEmSdkIncludePath(
-                    options.dep_ziis.?,
-                    options.optimize,
-                    options.target,
-                )
-            );
-        }
+        // @TODO: fix the WASM build
+        // if (options.target.result.cpu.arch.isWasm())
+        // {
+        //     kissfft.addSystemIncludePath(
+        //         ziis.fetchEmSdkIncludePath(
+        //             options.dep_ziis.?,
+        //             options.optimize,
+        //             options.target,
+        //         )
+        //     );
+        // }
     }
 
     const treecode = module_with_tests_and_artifact(
@@ -609,17 +611,18 @@ pub fn build(
                 .flags = &C_ARGS,
             }
         );
-        if (options.target.result.cpu.arch.isWasm())
-        {
-            spline_gym.addSystemIncludePath(
-                ziis.fetchEmSdkIncludePath(
-                    options.dep_ziis.?,
-                    options.optimize,
-                    options.target,
-                )
-            );
-            spline_gym.linkLibC();
-        }
+        // @TODO: fix the wasm build
+        // if (options.target.result.cpu.arch.isWasm())
+        // {
+        //     spline_gym.addSystemIncludePath(
+        //         ziis.fetchEmSdkIncludePath(
+        //             options.dep_ziis.?,
+        //             options.optimize,
+        //             options.target,
+        //         )
+        //     );
+        //     spline_gym.linkLibC();
+        // }
         b.installArtifact(spline_gym);
     }
 
@@ -674,16 +677,16 @@ pub fn build(
                 .flags = &C_ARGS
             },
         );
-        if (options.target.result.cpu.arch.isWasm())
-        {
-            libsamplerate.addSystemIncludePath(
-                ziis.fetchEmSdkIncludePath(
-                    options.dep_ziis.?,
-                    options.optimize,
-                    options.target,
-                )
-            );
-        }
+        // if (options.target.result.cpu.arch.isWasm())
+        // {
+        //     libsamplerate.addSystemIncludePath(
+        //         ziis.fetchEmSdkIncludePath(
+        //             options.dep_ziis.?,
+        //             options.optimize,
+        //             options.target,
+        //         )
+        //     );
+        // }
     }
 
     const topology = module_with_tests_and_artifact(
@@ -770,16 +773,17 @@ pub fn build(
             topology
         );
         opentimelineio_c.linkLibCpp();
-        if (options.target.result.cpu.arch.isWasm())
-        {
-            opentimelineio_c.addSystemIncludePath(
-                ziis.fetchEmSdkIncludePath(
-                    options.dep_ziis.?,
-                    options.optimize,
-                    options.target,
-                )
-            );
-        }
+        // @TODO: restore WASM build
+        // if (options.target.result.cpu.arch.isWasm())
+        // {
+        //     opentimelineio_c.addSystemIncludePath(
+        //         ziis.fetchEmSdkIncludePath(
+        //             options.dep_ziis.?,
+        //             options.optimize,
+        //             options.target,
+        //         )
+        //     );
+        // }
         b.installArtifact(opentimelineio_c);
 
         const exe = b.addExecutable(
@@ -803,16 +807,17 @@ pub fn build(
         );
         exe.addIncludePath(b.path("src/c_binding/"));
         exe.linkLibC();
-        if (options.target.result.cpu.arch.isWasm())
-        {
-            exe.addSystemIncludePath(
-                ziis.fetchEmSdkIncludePath(
-                    options.dep_ziis.?,
-                    options.optimize,
-                    options.target,
-                )
-            );
-        }
+        // @TODO: fix WASM build
+        // if (options.target.result.cpu.arch.isWasm())
+        // {
+        //     exe.addSystemIncludePath(
+        //         ziis.fetchEmSdkIncludePath(
+        //             options.dep_ziis.?,
+        //             options.optimize,
+        //             options.target,
+        //         )
+        //     );
+        // }
 
         exe.linkLibrary(opentimelineio_c);
         b.installArtifact(exe);
