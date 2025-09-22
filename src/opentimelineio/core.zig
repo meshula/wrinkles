@@ -106,22 +106,22 @@ pub const ComposableValue = union(enum) {
     }
 
     pub fn recursively_deinit(
-        self: @This(),
+        self: *@This(),
         allocator: std.mem.Allocator,
     ) void
     {
-        switch (self) 
+        switch (self.*) 
         {
-            .track => |tr| {
-                tr.recursively_deinit();
+            .track => |*tr| {
+                tr.recursively_deinit(allocator);
             },
-            .stack => |st| {
-                st.recursively_deinit();
+            .stack => |*st| {
+                st.recursively_deinit(allocator);
             },
-            .clip => |cl| {
+            .clip => |*cl| {
                 cl.destroy(allocator);
             },
-            inline else => |o| {
+            inline else => |*o| {
                 if (o.name)
                     |n|
                 {
@@ -251,24 +251,48 @@ pub const ComposedValueRef = union(enum) {
         allocator: std.mem.Allocator,
     ) ![]const SpaceReference 
     {
-        var result = std.ArrayList(SpaceReference).init(allocator);
+        var result: std.ArrayList(SpaceReference) = .{};
 
         switch (self) {
             .clip_ptr, => {
-                try result.append( .{ .ref = self, .label = SpaceLabel.presentation});
-                try result.append( .{ .ref = self, .label = SpaceLabel.media});
+                try result.append(
+                    allocator,
+                    .{
+                        .ref = self,
+                        .label = SpaceLabel.presentation,
+                    },
+                );
+                try result.append(allocator, .{ .ref = self, .label = SpaceLabel.media});
             },
             .track_ptr, .timeline_ptr, .stack_ptr => {
-                try result.append( .{ .ref = self, .label = SpaceLabel.presentation});
-                try result.append( .{ .ref = self, .label = SpaceLabel.intrinsic});
+                try result.append(
+                    allocator,
+                    .{
+                        .ref = self,
+                        .label = SpaceLabel.presentation,
+                    },
+                );
+                try result.append(
+                    allocator,
+                    .{
+                        .ref = self,
+                        .label = SpaceLabel.intrinsic,
+                    },
+                );
             },
             .gap_ptr, .warp_ptr => {
-                try result.append( .{ .ref = self, .label = SpaceLabel.presentation});
+                try result.append(
+                    allocator,
+                    .{
+                        .ref = self,
+                        .label = SpaceLabel.presentation,
+                    },
+                );
             },
             // else => { return error.NotImplemented; }
         }
 
-        return result.toOwnedSlice();
+        return result.toOwnedSlice(allocator);
 
     }
 
@@ -544,10 +568,6 @@ pub const ComposedValueRef = union(enum) {
 
     pub fn format(
         self: @This(),
-        // fmt
-        comptime _: []const u8,
-        // options
-        _: std.fmt.FormatOptions,
         writer: anytype,
     ) !void 
     {
@@ -597,8 +617,6 @@ pub const SpaceLabel = enum(i8) {
 
     pub fn format(
         self: @This(),
-        comptime _: []const u8,
-        _: std.fmt.FormatOptions,
         writer: anytype,
     ) !void 
     {
@@ -614,8 +632,6 @@ pub const SpaceReference = struct {
 
     pub fn format(
         self: @This(),
-        comptime _: []const u8,
-        _: std.fmt.FormatOptions,
         writer: anytype,
     ) !void 
     {
@@ -757,10 +773,10 @@ pub const ProjectionOperator = struct {
                 self.destination.label,
             )
         ).?;
-        var index_buffer_destination_discrete = (
-            std.ArrayList(sampling.sample_index_t).init(allocator)
-        );
-        defer index_buffer_destination_discrete.deinit();
+        var index_buffer_destination_discrete: std.ArrayList(
+            sampling.sample_index_t
+        ) = .{};
+        defer index_buffer_destination_discrete.deinit(allocator);
 
         const in_c_bounds = in_to_dst_topo_c.input_bounds();
 
@@ -788,6 +804,7 @@ pub const ProjectionOperator = struct {
 
             // ...project the continuous coordinate into the discrete space
             try index_buffer_destination_discrete.append(
+                allocator,
                 try self.destination.ref.continuous_ordinate_to_discrete_index(
                     out_ord,
                     self.destination.label,
@@ -795,7 +812,7 @@ pub const ProjectionOperator = struct {
             );
         }
 
-        return index_buffer_destination_discrete.toOwnedSlice();
+        return index_buffer_destination_discrete.toOwnedSlice(allocator);
     }
 
     /// project a continuous range into the continuous destination space
@@ -945,7 +962,7 @@ pub fn projection_map_to_media_from(
             source,
         )
     );
-    defer iter.deinit();
+    defer iter.deinit(allocator);
 
     var result = ProjectionOperatorMap{
         .allocator = allocator,
@@ -956,7 +973,7 @@ pub fn projection_map_to_media_from(
         .source = source,
         .destination = source,
     };
-    while (try iter.next())
+    while (try iter.next(allocator))
     {
         const current = iter.maybe_current.?;
 
@@ -1170,47 +1187,50 @@ pub const ProjectionOperatorMap = struct {
             over_conformed.end_points
         );
 
-        var end_points = std.ArrayList(opentime.Ordinate).init(
-            parent_allocator,
-        );
-        var operators = std.ArrayList(
-            []const ProjectionOperator
-        ).init(parent_allocator);
-
-        var current_segment = (
-            std.ArrayList(ProjectionOperator).init(parent_allocator)
-        );
+        var end_points: std.ArrayList(opentime.Ordinate) = .{};
+        var operators: std.ArrayList([]const ProjectionOperator) = .{};
+        var current_segment: std.ArrayList(ProjectionOperator) = .{};
 
         // both end point arrays are the same
         for (over_conformed.end_points[0..over_conformed.end_points.len - 1], 0..)
             |p, ind|
         {
-            try end_points.append(p);
+            try end_points.append(parent_allocator,p);
             for (over_conformed.operators[ind])
                 |op|
             {
-                try current_segment.append(try op.clone(parent_allocator));
+                try current_segment.append(
+                    parent_allocator,
+                    try op.clone(parent_allocator),
+                );
             }
             for (undr_conformed.operators[ind])
                 |op|
             {
-                try current_segment.append(try op.clone(parent_allocator));
+                try current_segment.append(
+                    parent_allocator,
+                    try op.clone(parent_allocator),
+                );
             }
             try operators.append(
-                try current_segment.toOwnedSlice(),
+                parent_allocator,
+                try current_segment.toOwnedSlice(parent_allocator),
             );
 
-            current_segment.clearAndFree();
+            current_segment.clearAndFree(parent_allocator);
         }
 
         try end_points.append(
-            over_conformed.end_points[over_conformed.end_points.len - 1]
+            parent_allocator,
+            over_conformed.end_points[over_conformed.end_points.len - 1],
         );
 
         return .{
             .allocator = parent_allocator,
-            .end_points  = try end_points.toOwnedSlice(),
-            .operators  = try operators.toOwnedSlice(),
+            .end_points  = 
+                try end_points.toOwnedSlice(parent_allocator),
+            .operators  = 
+                try operators.toOwnedSlice(parent_allocator),
             .source = args.over.source,
         };
     }
@@ -1226,9 +1246,7 @@ pub const ProjectionOperatorMap = struct {
         self: @This(),
     ) !ProjectionOperatorMap
     {
-        var cloned_projection_operators = (
-            std.ArrayList(ProjectionOperator).init(self.allocator)
-        );
+        var cloned_projection_operators: std.ArrayList(ProjectionOperator) = .{};
 
         return .{
             .allocator = self.allocator,
@@ -1251,11 +1269,14 @@ pub const ProjectionOperatorMap = struct {
                         |s_mapping|
                     {
                         try cloned_projection_operators.append(
+                            self.allocator,
                             try s_mapping.clone(self.allocator)
                         );
                     }
 
-                    inner.* = try cloned_projection_operators.toOwnedSlice();
+                    inner.* = try cloned_projection_operators.toOwnedSlice(
+                        self.allocator,
+                    );
                 }
                 break :ops outer;
             }
@@ -1268,24 +1289,24 @@ pub const ProjectionOperatorMap = struct {
         range: opentime.ContinuousInterval,
     ) !ProjectionOperatorMap
     {
-        var tmp_pts = std.ArrayList(opentime.Ordinate).init(allocator);
-        defer tmp_pts.deinit();
-        var tmp_ops = std.ArrayList([]const ProjectionOperator).init(allocator);
-        defer tmp_ops.deinit();
+        var tmp_pts: std.ArrayList(opentime.Ordinate) = .{};
+        defer tmp_pts.deinit(allocator);
+        var tmp_ops: std.ArrayList([]const ProjectionOperator) = .{};
+        defer tmp_ops.deinit(allocator);
 
-        if (self.end_points[0].gt(range.start)) {
-            try tmp_pts.append(range.start);
-            try tmp_ops.append(
-                &.{}
-            );
+        if (self.end_points[0].gt(range.start)) 
+        {
+            try tmp_pts.append(allocator,range.start);
+            try tmp_ops.append(allocator, &.{});
         }
 
-        try tmp_pts.appendSlice(self.end_points);
+        try tmp_pts.appendSlice(allocator,self.end_points);
 
         for (self.operators) 
             |self_ops|
         {
             try tmp_ops.append(
+                allocator,
                 try opentime.slice_with_cloned_contents_allocator(
                     allocator,
                     ProjectionOperator,
@@ -1296,16 +1317,14 @@ pub const ProjectionOperatorMap = struct {
 
         if (range.end.gt(self.end_points[self.end_points.len - 1])) 
         {
-            try tmp_pts.append(range.end);
-            try tmp_ops.append(
-                &.{}
-            );
+            try tmp_pts.append(allocator,range.end);
+            try tmp_ops.append(allocator, &.{});
         }
 
         return .{
             .allocator = allocator,
-            .end_points = try tmp_pts.toOwnedSlice(),
-            .operators = try tmp_ops.toOwnedSlice(),
+            .end_points = try tmp_pts.toOwnedSlice(allocator),
+            .operators = try tmp_ops.toOwnedSlice(allocator),
             .source = self.source,
         };
     }
@@ -1317,8 +1336,8 @@ pub const ProjectionOperatorMap = struct {
         pts: []const opentime.Ordinate,
     ) !ProjectionOperatorMap
     {
-        var tmp_pts = std.ArrayList(opentime.Ordinate).init(allocator);
-        var tmp_ops = std.ArrayList([]const ProjectionOperator).init(allocator);
+        var tmp_pts: std.ArrayList(opentime.Ordinate) = .{};
+        var tmp_ops: std.ArrayList([]const ProjectionOperator) = .{};
 
         var ind_self:usize = 0;
         var ind_other:usize = 0;
@@ -1327,7 +1346,7 @@ pub const ProjectionOperatorMap = struct {
         var t_next_other = pts[1];
 
         // append origin
-        try tmp_pts.append(self.end_points[0]);
+        try tmp_pts.append(allocator,self.end_points[0]);
 
         while (
             ind_self < self.end_points.len - 1
@@ -1335,6 +1354,7 @@ pub const ProjectionOperatorMap = struct {
         )
         {
             try tmp_ops.append(
+                allocator,
                 try opentime.slice_with_cloned_contents_allocator(
                     allocator,
                     ProjectionOperator,
@@ -1347,7 +1367,7 @@ pub const ProjectionOperatorMap = struct {
 
             if (t_next_self.eql_approx(t_next_other))
             {
-                try tmp_pts.append(t_next_self);
+                try tmp_pts.append(allocator,t_next_self);
                 if (ind_self < self.end_points.len - 1) {
                     ind_self += 1;
                 }
@@ -1357,20 +1377,20 @@ pub const ProjectionOperatorMap = struct {
             }
             else if (t_next_self.lt(t_next_other))
             {
-                try tmp_pts.append(t_next_self);
+                try tmp_pts.append(allocator,t_next_self);
                 ind_self += 1;
             }
             else 
             {
-                try tmp_pts.append(t_next_other);
+                try tmp_pts.append(allocator,t_next_other);
                 ind_other += 1;
             }
         }
 
         return .{
             .allocator = allocator,
-            .end_points = try tmp_pts.toOwnedSlice(),
-            .operators = try tmp_ops.toOwnedSlice(),
+            .end_points = try tmp_pts.toOwnedSlice(allocator),
+            .operators = try tmp_ops.toOwnedSlice(allocator),
             .source = self.source,
         };
     }
@@ -1730,14 +1750,17 @@ test "ProjectionOperatorMap: track with single clip"
 {
     const allocator = std.testing.allocator;
 
-    var tr = schema.Track.init(std.testing.allocator);
-    defer tr.deinit();
+    var tr: schema.Track = .{};
+    defer tr.deinit(allocator);
     const tr_ptr = ComposedValueRef.init(&tr);
 
     const cl = schema.Clip {
         .bounds_s = T_INT_1_TO_9,
     };
-    const cl_ptr = try tr.append_fetch_ref(cl);
+    const cl_ptr = try tr.append_fetch_ref(
+        allocator,
+        cl,
+    );
 
     const map = try topological_map_m.build_topological_map(
         std.testing.allocator,
@@ -1823,18 +1846,20 @@ test "transform: track with two clips"
 {
     const allocator = std.testing.allocator;
 
-    var tr = schema.Track.init(allocator);
-    defer tr.deinit();
-
+    var tr: schema.Track = .{};
+    defer tr.recursively_deinit(allocator);
     const cl1 = schema.Clip {
         .bounds_s = T_INT_1_TO_9,
     };
     const cl2 = schema.Clip {
         .bounds_s = T_INT_1_TO_4,
     };
-    try tr.append(cl1);
+    try tr.append(allocator,cl1);
 
-    const cl2_ref = try tr.append_fetch_ref(cl2);
+    const cl2_ref = try tr.append_fetch_ref(
+        allocator,
+        cl2,
+    );
     const tr_ptr = ComposedValueRef.init(&tr);
 
     const map = try topological_map_m.build_topological_map(
@@ -1938,14 +1963,17 @@ test "ProjectionOperatorMap: track with two clips"
 {
     const allocator = std.testing.allocator;
 
-    var tr = schema.Track.init(std.testing.allocator);
-    defer tr.deinit();
+    var tr: schema.Track = .{};
+    defer tr.recursively_deinit(allocator);
 
     const cl = schema.Clip {
         .bounds_s = T_INT_1_TO_9,
     };
-    try tr.append(cl);
-    const cl_ptr = try tr.append_fetch_ref(cl);
+    try tr.append(allocator,cl);
+    const cl_ptr = try tr.append_fetch_ref(
+        allocator,
+        cl,
+    );
     const tr_ptr = ComposedValueRef.init(&tr);
 
     const map = try topological_map_m.build_topological_map(
@@ -2018,20 +2046,25 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
 {
     const allocator = std.testing.allocator;
 
-    var tr = schema.Track.init(std.testing.allocator);
-    defer tr.deinit();
+    var tr: schema.Track = .{};
+    defer tr.recursively_deinit(allocator);
+
     const tr_ptr = ComposedValueRef.init(&tr);
 
     const cl = schema.Clip {
         .bounds_s = T_INT_1_TO_9,
     };
-    try tr.append(cl);
+    try tr.append(allocator,cl);
     try tr.append(
+        allocator,
         schema.Gap{
             .duration_seconds = opentime.Ordinate.init(5),
         }
     );
-    const cl_ptr = try tr.append_fetch_ref(cl);
+    const cl_ptr = try tr.append_fetch_ref(
+        allocator,
+        cl,
+    );
 
 
     const map = try topological_map_m.build_topological_map(
@@ -2126,10 +2159,11 @@ test "track topology construction"
 {
     const allocator = std.testing.allocator;
 
-    var tr = schema.Track.init(allocator);
-    defer tr.deinit();
+    var tr: schema.Track = .{};
+    defer tr.recursively_deinit(allocator);
 
     try tr.append(
+        allocator,
         schema.Clip {
             .bounds_s = T_INT_1_TO_9, 
         },
@@ -2151,20 +2185,24 @@ test "track topology construction"
 
 test "path_code: graph test" 
 {
-    var tr = schema.Track.init(std.testing.allocator);
-    defer tr.deinit();
+    const allocator = std.testing.allocator;
+
+    var tr = schema.Track{};
+    defer tr.deinit(allocator);
+
     const tr_ref = ComposedValueRef.init(&tr);
 
     const cl = schema.Clip {
         .bounds_s = T_INT_1_TO_9,
     };
-    try tr.append(cl);
+    try tr.append(allocator,cl);
 
     var i:i32 = 0;
     while (i < 10) 
         : (i+=1)
     {
         try tr.append(
+            allocator,
             schema.Clip {
                 .bounds_s = T_INT_1_TO_9,
             }
@@ -2226,7 +2264,7 @@ test "path_code: graph test"
         );
 
         errdefer std.log.err(
-            "\n[iteration: {d}] index: {d} expected: {b} result: {s} \n",
+            "\n[iteration: {d}] index: {d} expected: {b} result: {f} \n",
             .{t_i, t.ind, t.expect, result}
         );
 
@@ -2242,8 +2280,11 @@ test "path_code: graph test"
 
 test "schema.Track with clip with identity transform projection" 
 {
-    var tr = schema.Track.init(std.testing.allocator);
-    defer tr.deinit();
+    const allocator = std.testing.allocator;
+
+    var tr: schema.Track = .{};
+    defer tr.deinit(allocator);
+
     const tr_ref = ComposedValueRef.init(&tr);
 
     const range = T_INT_1_TO_9;
@@ -2253,15 +2294,18 @@ test "schema.Track with clip with identity transform projection"
     };
 
     // reserve capcacity so that the reference isn't invalidated
-    try tr.children.ensureTotalCapacity(11);
-    const cl_ref = try tr.append_fetch_ref(cl_template);
+    try tr.children.ensureTotalCapacity(allocator,11);
+    const cl_ref = try tr.append_fetch_ref(
+        allocator,
+        cl_template,
+    );
     try std.testing.expectEqual(cl_ref, tr.child_ptr_from_index(0));
 
     var i:i32 = 0;
     while (i < 10) 
         : (i+=1)
     {
-        try tr.append(cl_template);
+        try tr.append(allocator,cl_template);
     }
 
     const map = try topological_map_m.build_topological_map(
@@ -2306,10 +2350,11 @@ test "TopologicalMap: schema.Track with clip with identity transform topological
 {
     const allocator = std.testing.allocator;
 
-    var tr = schema.Track.init(std.testing.allocator);
-    defer tr.deinit();
+    var tr: schema.Track = .{};
+    defer tr.recursively_deinit(allocator);
 
     const cl_ref = try tr.append_fetch_ref(
+        allocator,
         schema.Clip { .bounds_s = T_INT_0_TO_2, }
     );
 
@@ -2399,15 +2444,18 @@ test "Projection: schema.Track with single clip with identity transform and boun
 {
     const allocator = std.testing.allocator;
 
-    var tr = schema.Track.init(std.testing.allocator);
-    defer tr.deinit();
+    var tr: schema.Track = .{};
+    defer tr.recursively_deinit(allocator);
 
     const root = ComposedValueRef{ .track_ptr = &tr };
 
     const cl = schema.Clip {
         .bounds_s = T_INT_0_TO_2,
     };
-    const clip = try tr.append_fetch_ref(cl);
+    const clip = try tr.append_fetch_ref(
+        allocator,
+        cl,
+    );
 
     const map = try topological_map_m.build_topological_map(
         std.testing.allocator,
@@ -2471,18 +2519,24 @@ test "Projection: schema.Track with multiple clips with identity transform and b
     // child.clip presentation space  [--------)[-----*---)[-*------)
     //                          0        2 0    1   2 0       2 
     //
-    var tr = schema.Track.init(std.testing.allocator);
-    defer tr.deinit();
-    const track_ptr = ComposedValueRef{ .track_ptr = &tr };
+    var tr: schema.Track = .{};
+    defer tr.recursively_deinit(allocator);
+
+    const track_ptr = ComposedValueRef{
+        .track_ptr = &tr,
+    };
 
     const cl = schema.Clip {
         .bounds_s = T_INT_0_TO_2 
     };
 
     // add three copies
-    try tr.append(cl);
-    try tr.append(cl);
-    const cl2_ref = try tr.append_fetch_ref(cl);
+    try tr.append(allocator,cl);
+    try tr.append(allocator,cl);
+    const cl2_ref = try tr.append_fetch_ref(
+        allocator,
+        cl,
+    );
 
     const TestData = struct {
         index: usize,
@@ -2903,8 +2957,8 @@ test "otio projection: track with single clip"
 {
     const allocator = std.testing.allocator;
 
-    var tr = schema.Track.init(allocator);
-    defer tr.deinit();
+    var tr: schema.Track = .{};
+    defer tr.deinit(allocator);
 
     // media is 9 seconds long and runs at 4 hz.
     const media_source_range = T_INT_1_TO_9;
@@ -2922,7 +2976,10 @@ test "otio projection: track with single clip"
             .discrete_info = media_discrete_info,
         },
     };
-    const cl_ptr = try tr.append_fetch_ref(cl);
+    const cl_ptr = try tr.append_fetch_ref(
+        allocator,
+        cl,
+    );
     const tr_ptr = ComposedValueRef.init(&tr);
 
     const map = try topological_map_m.build_topological_map(
@@ -3076,15 +3133,14 @@ test "otio projection: track with single clip with transform"
 {
     const allocator = std.testing.allocator;
 
-    var tl = try schema.Timeline.init(allocator);
+    var tl: schema.Timeline = .{};
     tl.discrete_info.presentation = .{
         .sample_rate_hz = .{ .Int = 24 },
         .start_index = 12
     };
 
 
-    var tr = schema.Track.init(allocator);
-    defer tr.deinit();
+    var tr: schema.Track = .{};
 
     // media is 9 seconds long and runs at 4 hz.
     const media_source_range = T_INT_1_TO_9;
@@ -3117,12 +3173,12 @@ test "otio projection: track with single clip with transform"
     };
     defer wp.transform.deinit(allocator);
 
-    try tr.append(wp);
-    try tl.tracks.append(tr);
+    try tr.append(allocator,wp);
+    try tl.tracks.append(allocator,tr);
     const tl_ptr = ComposedValueRef{
         .timeline_ptr = &tl 
     };
-    defer tl.tracks.deinit();
+    defer tl.recursively_deinit(allocator);
 
     const tr_ptr : ComposedValueRef = tl.tracks.child_ptr_from_index(0);
     const cl_ptr = wp.child;
@@ -3395,8 +3451,7 @@ test "test debug_print_time_hierarchy"
     const allocator = std.testing.allocator;
 
     // top level timeline
-    var tl = try schema.Timeline.init(allocator);
-    // tl.name = try allocator.dupe(u8, "Example schema.Timeline");
+    var tl: schema.Timeline = .{};
     tl.name = try allocator.dupe(u8, "Example schema.Timeline");
 
     tl.discrete_info.presentation = .{
@@ -3405,13 +3460,13 @@ test "test debug_print_time_hierarchy"
         .start_index = 0,
     };
 
-    defer tl.recursively_deinit();
+    defer tl.recursively_deinit(allocator);
     const tl_ptr = ComposedValueRef{
         .timeline_ptr = &tl 
     };
 
     // track
-    var tr = schema.Track.init(allocator);
+    var tr: schema.Track = .{};
     tr.name = try allocator.dupe(u8, "Example Parent schema.Track");
 
     // clips
@@ -3444,12 +3499,15 @@ test "test debug_print_time_hierarchy"
     const wp = schema.Warp {
         .child = cl_ptr,
         .interpolating = true,
-        .transform = try topology_m.Topology.init_identity(allocator, T_INT_1_TO_9),
+        .transform = try topology_m.Topology.init_identity(
+            allocator,
+            T_INT_1_TO_9,
+        ),
     };
     defer wp.transform.deinit(allocator);
-    try tr.append(wp);
+    try tr.append(allocator,wp);
 
-    _ = try tl.tracks.append_fetch_ref(tr);
+    try tl.tracks.append(allocator, tr);
 
     const tp = try topological_map_m.build_topological_map(
         allocator,

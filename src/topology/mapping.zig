@@ -250,13 +250,11 @@ pub const Mapping = union (enum) {
 
     pub fn format(
         self: @This(),
-        comptime _: []const u8,
-        _: std.fmt.FormatOptions,
         writer: anytype,
     ) !void 
     {
         try writer.print(
-            "Mapping {s} mapping space {s} to {s}",
+            "Mapping {s} mapping space {f} to {f}",
             .{
                 @tagName(self),
                 self.input_bounds(),

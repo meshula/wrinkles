@@ -157,9 +157,7 @@ pub const MappingAffine = struct {
         input_points: []const opentime.Ordinate,
     ) ![]const mapping_mod.Mapping
     {
-        var result_mappings = (
-            std.ArrayList(mapping_mod.Mapping).init(allocator)
-        );
+        var result_mappings: std.ArrayList(mapping_mod.Mapping) = .{};
 
         var maybe_first_pt: ?usize = null;
         
@@ -179,8 +177,8 @@ pub const MappingAffine = struct {
         // none of the points map
         if (maybe_first_pt == null)
         {
-            try result_mappings.append(self.mapping());
-            return try result_mappings.toOwnedSlice();
+            try result_mappings.append(allocator,self.mapping());
+            return try result_mappings.toOwnedSlice(allocator);
         }
 
         var current_start = self.input_bounds_val.start;
@@ -197,6 +195,7 @@ pub const MappingAffine = struct {
             }
 
             try result_mappings.append(
+                allocator,
                 .{
                     .affine = .{
                         .input_bounds_val = .{
@@ -214,7 +213,7 @@ pub const MappingAffine = struct {
             current_end_ind += 1;
         }
 
-        return try result_mappings.toOwnedSlice();
+        return try result_mappings.toOwnedSlice(allocator);
     }
 };
 pub const INFINITE_IDENTITY = (

@@ -102,8 +102,6 @@ pub const ContinuousInterval = struct {
     /// custom formatter for std.fmt
     pub fn format(
         self: @This(),
-        comptime _: []const u8,
-        _: std.fmt.FormatOptions,
         writer: anytype,
     ) !void 
     {

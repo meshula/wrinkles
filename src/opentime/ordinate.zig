@@ -39,14 +39,20 @@ fn OrdinateOf(
 
         pub fn format(
             self: @This(),
-            // fmt
-            comptime _: []const u8,
-            // options
-            _: std.fmt.FormatOptions,
             writer: anytype,
         ) !void 
         {
             try writer.print( "Ord{{ {d} }}", .{ self.v });
+        }
+
+        pub fn formatNumber(
+            self: @This(),
+            writer: anytype,
+            // options
+            _: std.fmt.Number,
+        ) !void
+        {
+            try writer.print("{d}", .{ self.v });
         }
 
         inline fn type_error(
@@ -475,7 +481,7 @@ test "Base Ordinate: Unary Operator Tests"
             errdefer std.debug.print(
                 "Error with test: \n" ++ @typeName(Ordinate) ++ "." ++ op 
                 ++ ":\n iteration: {any}\nin: {d}\nexpected_in: {d}\n"
-                ++ "expected: {d}\nmeasured_in: {s}\nmeasured: {s}\n",
+                ++ "expected: {d}\nmeasured_in: {f}\nmeasured: {f}\n",
                 .{ t, t.in, expected_in, expected, in, measured },
             );
 
@@ -537,8 +543,8 @@ test "Base Ordinate: Binary Operator Tests"
                             "Error with test: " ++ @typeName(Ordinate) 
                             ++ "." ++ op ++ ": \nlhs: {d} * {d} rhs: {d} * {d}\n"
                             ++ "lhs_sv: {d} rhs_sv: {d}\n"
-                            ++ "{s} " ++ op ++ " {s}\n"
-                            ++ "expected: {d}\nmeasured: {s}\n",
+                            ++ "{f} " ++ op ++ " {f}\n"
+                            ++ "expected: {d}\nmeasured: {f}\n",
                             .{
                                 s_lhs, lhs_v,
                                 s_rhs, rhs_v,
@@ -734,7 +740,7 @@ test "Base Ordinate: Binary Function Tests"
             if (is_ord) {
                 errdefer std.debug.print(
                     "Error with test: " ++ @typeName(Ordinate) ++ "." ++ op ++ 
-                    ": iteration: {any}\nexpected: {d}\nmeasured: {s}\n",
+                    ": iteration: {any}\nexpected: {d}\nmeasured: {f}\n",
                     .{ t, expected, measured },
                 );
             } else {
@@ -775,7 +781,7 @@ test "Base Ordinate: as"
 
             errdefer std.log.err(
                 "Error with type: " ++ @typeName(target_type) 
-                ++ " t: {d} ord: {s} ({d})",
+                ++ " t: {d} ord: {f} ({d})",
                 .{ t, ord, ord.as(target_type) },
             );
 
@@ -835,7 +841,7 @@ test "Ordinate: as float roundtrip test"
         const ord = Ordinate.init(v);
 
         errdefer std.debug.print(
-            "error with test: \n{d}: {s} sign: {d} {d} signbit: {any} {any}\n",
+            "error with test: \n{d}: {f} sign: {d} {d} signbit: {any} {any}\n",
             .{
                 v, ord,
                 std.math.sign(v), std.math.sign(ord.as(Ordinate.BaseType)),
@@ -877,12 +883,10 @@ test "Base Ordinate: sort"
         Ordinate.init(100),
     };
 
-    var test_arr = (
-        std.ArrayList(Ordinate).init(allocator)
-    );
+    var test_arr: std.ArrayList(Ordinate) = .{};
+    defer test_arr.deinit(allocator);
 
-    try test_arr.appendSlice(&known);
-    defer test_arr.deinit();
+    try test_arr.appendSlice(allocator, &known);
 
     var engine = std.Random.DefaultPrng.init(0x42);
     const rnd =  engine.random();

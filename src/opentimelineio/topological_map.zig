@@ -131,9 +131,9 @@ pub const TopologicalMap = struct {
                 endpoints,
             )
         );
-        defer iter.deinit();
+        defer iter.deinit(allocator);
 
-        _ = try iter.next();
+        _ = try iter.next(allocator);
 
         var current = iter.maybe_current.?;
 
@@ -151,7 +151,7 @@ pub const TopologicalMap = struct {
         }
 
         // walk from current_code towards destination_code
-        while (try iter.next()) 
+        while (try iter.next(allocator)) 
         {
             const next = (
                 iter.maybe_current orelse return error.TreeCodeNotInMap
@@ -586,14 +586,14 @@ pub fn build_topological_map(
         object: core.ComposedValueRef,
     };
 
-    var stack = std.ArrayList(Node).init(allocator);
+    var stack: std.ArrayList(Node) = .{};
     defer {
         for (stack.items)
             |n|
         {
             n.path_code.deinit();
         }
-        stack.deinit();
+        stack.deinit(allocator);
     }
 
     // 1a
@@ -604,6 +604,7 @@ pub fn build_topological_map(
 
     // root node
     try stack.append(
+        allocator,
         .{
             .object = root_item,
             .path_code = start_code
@@ -695,21 +696,19 @@ pub fn build_topological_map(
             else => &[_]core.ComposableValue{},
         };
 
-        var children_ptrs = (
-            std.ArrayList(core.ComposedValueRef).init(allocator)
-        );
-        defer children_ptrs.deinit();
+        var children_ptrs: std.ArrayList(core.ComposedValueRef) = .{};
+        defer children_ptrs.deinit(allocator);
         for (children) 
             |*child| 
         {
             const item_ptr = core.ComposedValueRef.init(child);
-            try children_ptrs.append(item_ptr);
+            try children_ptrs.append(allocator,item_ptr);
         }
 
         // for things that already are core.ComposedValueRef containers
         switch (current.object) {
             .warp_ptr => |wp| {
-                try children_ptrs.append(wp.child);
+                try children_ptrs.append(allocator,wp.child);
             },
             inline else => {},
         }
@@ -784,6 +783,7 @@ pub fn build_topological_map(
             defer child_code.deinit();
 
             try stack.insert(
+                allocator,
                 0,
                 .{ 
                     .object= item_ptr,
@@ -802,11 +802,14 @@ pub fn build_topological_map(
 
 test "build_topological_map: leak sentinel test track w/ clip"
 {
-    var tr = schema.Track.init(std.testing.allocator);
-    defer tr.deinit();
+    const allocator = std.testing.allocator;
+
+    var tr: schema.Track = .{};
+    defer tr.deinit(allocator);
+
     const tr_ref = core.ComposedValueRef.init(&tr);
 
-    try tr.append(schema.Clip{});
+    try tr.append(allocator,schema.Clip{});
 
     const map = try build_topological_map(
         std.testing.allocator,
@@ -817,8 +820,10 @@ test "build_topological_map: leak sentinel test track w/ clip"
 
 test "build_topological_map check root node" 
 {
-    var tr = schema.Track.init(std.testing.allocator);
-    defer tr.deinit();
+    const allocator = std.testing.allocator;
+
+    var tr: schema.Track = .{};
+    defer tr.deinit(allocator);
     const tr_ref = core.ComposedValueRef.init(&tr);
 
     const start = opentime.Ordinate.ONE;
@@ -829,6 +834,7 @@ test "build_topological_map check root node"
     };
 
     try tr.append(
+        allocator,
         schema.Clip { 
             .bounds_s = cti, 
         }
@@ -839,9 +845,10 @@ test "build_topological_map check root node"
         : (i += 1)
     {
         try tr.append(
+            allocator,
             schema.Clip {
                 .bounds_s = cti,
-            }
+            },
         );
     }
 
@@ -882,10 +889,6 @@ pub const TreenodeWalkingIterator = struct{
  
         pub fn format(
             self: @This(),
-            // fmt
-            comptime _: []const u8,
-            // options
-            _: std.fmt.FormatOptions,
             writer: anytype,
         ) !void 
         {
@@ -932,7 +935,7 @@ pub const TreenodeWalkingIterator = struct{
         );
 
         var result = TreenodeWalkingIterator{
-            .stack = std.ArrayList(Node).init(allocator),
+            .stack = .{},
             .maybe_current = null,
             .maybe_previous = null,
             .map = map,
@@ -944,6 +947,7 @@ pub const TreenodeWalkingIterator = struct{
         };
 
         try result.stack.append(
+            allocator,
             .{
                 .space = source,
                 .code = try start_code.clone(),
@@ -1016,7 +1020,8 @@ pub const TreenodeWalkingIterator = struct{
     }
 
     pub fn deinit(
-        self: *@This()
+        self: *@This(),
+        allocator: std.mem.Allocator,
     ) void
     {
         if (self.maybe_previous)
@@ -1034,11 +1039,12 @@ pub const TreenodeWalkingIterator = struct{
         {
             n.code.deinit();
         }
-        self.stack.deinit();
+        self.stack.deinit(allocator);
     }
 
     pub fn next(
-        self: *@This()
+        self: *@This(),
+        allocator: std.mem.Allocator,
     ) !bool
     {
         if (self.stack.items.len == 0) {
@@ -1076,6 +1082,7 @@ pub const TreenodeWalkingIterator = struct{
                 |next_node|
             {
                 try self.stack.append(
+                    allocator,
                     .{
                         .space = next_node,
                         .code = next_code,
@@ -1093,6 +1100,8 @@ pub const TreenodeWalkingIterator = struct{
 
 test "TestWalkingIterator: clip"
 {
+    const allocator = std.testing.allocator;
+
     // media is 9 seconds long and runs at 4 hz.
     const media_source_range = T_CTI_1_10;
 
@@ -1102,7 +1111,7 @@ test "TestWalkingIterator: clip"
     const cl_ptr = core.ComposedValueRef.init(&cl);
 
     const map = try build_topological_map(
-        std.testing.allocator,
+        allocator,
         cl_ptr,
     );
     defer map.deinit();
@@ -1110,13 +1119,13 @@ test "TestWalkingIterator: clip"
     try map.write_dot_graph(std.testing.allocator, "/var/tmp/walk.dot");
 
     var node_iter = try TreenodeWalkingIterator.init(
-        std.testing.allocator,
+        allocator,
         &map,
     );
-    defer node_iter.deinit();
+    defer node_iter.deinit(allocator);
 
     var count:usize = 0;
-    while (try node_iter.next())
+    while (try node_iter.next(allocator))
     {
         count += 1;
     }
@@ -1127,8 +1136,10 @@ test "TestWalkingIterator: clip"
 
 test "TestWalkingIterator: track with clip"
 {
-    var tr = schema.Track.init(std.testing.allocator);
-    defer tr.deinit();
+    const allocator = std.testing.allocator;
+
+    var tr: schema.Track = .{};
+    defer tr.deinit(allocator);
 
     // media is 9 seconds long and runs at 4 hz.
     const media_source_range = T_CTI_1_10;
@@ -1137,7 +1148,10 @@ test "TestWalkingIterator: track with clip"
     const cl = schema.Clip {
         .bounds_s = media_source_range,
     };
-    const cl_ptr = try tr.append_fetch_ref(cl);
+    const cl_ptr = try tr.append_fetch_ref(
+        allocator,
+        cl,
+    );
     const tr_ptr = core.ComposedValueRef.init(&tr);
 
     const map = try build_topological_map(
@@ -1156,9 +1170,9 @@ test "TestWalkingIterator: track with clip"
             std.testing.allocator,
             &map,
         );
-        defer node_iter.deinit();
+        defer node_iter.deinit(allocator);
 
-        while (try node_iter.next())
+        while (try node_iter.next(allocator))
         {
             count += 1;
         }
@@ -1176,10 +1190,10 @@ test "TestWalkingIterator: track with clip"
                 try cl_ptr.space(.presentation),
             )
         );
-        defer node_iter.deinit();
+        defer node_iter.deinit(allocator);
 
         count = 0;
-        while (try node_iter.next())
+        while (try node_iter.next(allocator))
         {
             count += 1;
         }
@@ -1191,8 +1205,10 @@ test "TestWalkingIterator: track with clip"
 
 test "TestWalkingIterator: track with clip w/ destination"
 {
-    var tr = schema.Track.init(std.testing.allocator);
-    defer tr.deinit();
+    const allocator = std.testing.allocator;
+
+    var tr: schema.Track = .{};
+    defer tr.deinit(allocator);
 
     // media is 9 seconds long and runs at 4 hz.
     const media_source_range = T_CTI_1_10;
@@ -1201,12 +1217,15 @@ test "TestWalkingIterator: track with clip w/ destination"
     const cl = schema.Clip {
         .bounds_s = media_source_range,
     };
-    try tr.append(cl);
+    try tr.append(allocator,cl);
 
     const cl2 = schema.Clip {
         .bounds_s = media_source_range,
     };
-    const cl_ptr = try tr.append_fetch_ref(cl2);
+    const cl_ptr = try tr.append_fetch_ref(
+        allocator,
+        cl2,
+    );
     const tr_ptr = core.ComposedValueRef.init(&tr);
 
     const map = try build_topological_map(
@@ -1234,10 +1253,10 @@ test "TestWalkingIterator: track with clip w/ destination"
                 },
             )
         );
-        defer node_iter.deinit();
+        defer node_iter.deinit(allocator);
 
         count = 0;
-        while (try node_iter.next())
+        while (try node_iter.next(allocator))
             : (count += 1)
         {
         }
@@ -1363,7 +1382,7 @@ fn label_for_node_leaky(
     {
         return std.fmt.allocPrint(
             allocator,
-            "{s}_{s}_{s}",
+            "{s}_{s}_{f}",
             .{
                 item_kind,
                 @tagName(ref.label),
@@ -1388,24 +1407,29 @@ fn label_for_node_leaky(
 
 test "label_for_node_leaky" 
 {
-    var tr = schema.Track.init(std.testing.allocator);
+    const allocator = std.testing.allocator;
+
+    var tr: schema.Track = .{};
     const sr = core.SpaceReference{
         .label = .presentation,
         .ref = .{ .track_ptr = &tr } 
     };
 
     var tc = try treecode.Treecode.init_word(
-        std.testing.allocator,
+        allocator,
         0b1101001
     );
     defer tc.deinit();
 
     const result = try label_for_node_leaky(
-        std.testing.allocator,
+        allocator,
         sr,
         tc
     );
-    defer std.testing.allocator.free(result);
+    defer allocator.free(result);
 
-    try std.testing.expectEqualStrings("track_presentation_1101001", result);
+    try std.testing.expectEqualStrings(
+        "track_presentation_1101001",
+        result,
+    );
 }

@@ -227,15 +227,11 @@ pub fn DualOfNumberType(
 
         pub fn format(
             self: @This(),
-            // fmt
-            comptime _: []const u8,
-            // options
-            _: std.fmt.FormatOptions,
             writer: anytype,
         ) !void 
         {
             try writer.print(
-                "Dual ({s}){{ {s} + {s} }}",
+                "Dual ({s}){{ {f} + {f} }}",
                 .{ @typeName(BaseType), self.r, self.i, },
             );
         }
@@ -480,15 +476,11 @@ pub fn DualOfStruct(
 
         pub fn format(
             self: @This(),
-            // fmt
-            comptime _: []const u8,
-            // options
-            _: std.fmt.FormatOptions,
             writer: anytype,
         ) !void 
         {
             try writer.print(
-                "Dual ({s}){{ {s} + {s} }}",
+                "Dual ({s}){{ {f} + {f} }}",
                 .{ @typeName(BaseType), self.r, self.i, },
             );
         }
@@ -676,7 +668,7 @@ test "Dual: binary operator test"
         const x3 = @field(Dual_Ord, t.op)(x, r2);
 
         errdefer std.debug.print(
-            "error with {s}({d}, {d}): expected [{d}, {d}], got: {s}\n",
+            "error with {s}({d}, {d}): expected [{d}, {d}], got: {f}\n",
             .{ t.op, r1, r2, t.exp_r, t.exp_i, x2 },
         );
 
@@ -723,7 +715,7 @@ test "Dual: unary operator test"
         const x2 = @field(Dual_Ord, t.op)(x);
 
         errdefer std.debug.print(
-            "error with {s}({d}): expected [{d}, {d}], got: {s}\n",
+            "error with {s}({d}): expected [{d}, {d}], got: {f}\n",
             .{ t.op, r1, t.exp_r, t.exp_i, x2 },
         );
 
@@ -774,7 +766,7 @@ test "Dual: pow"
         const x2 = x.pow(r2);
 
         errdefer std.debug.print(
-            "error with pow({d}, {d}): expected [{d}, {d}], got: {s}\n",
+            "error with pow({d}, {d}): expected [{d}, {d}], got: {f}\n",
             .{ r1, r2, t.exp_r, t.exp_i, x2 },
         );
 

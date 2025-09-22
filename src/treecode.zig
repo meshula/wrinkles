@@ -364,10 +364,6 @@ pub const Treecode = struct {
 
     pub fn format(
         self: @This(),
-        // fmt
-        comptime _: []const u8,
-        // options
-        _: std.fmt.FormatOptions,
         writer: anytype,
     ) !void 
     {
@@ -509,7 +505,7 @@ test "fmt all ones"
 
     const result = try std.fmt.allocPrint(
         allocator,
-        "{s}",
+        "{f}",
         .{ ltc },
     );
     defer allocator.free(result);
@@ -531,13 +527,13 @@ test "Treecode: format"
     );
     defer tc.deinit();
 
-    var known = std.ArrayList(u8).init(allocator);
-    defer known.deinit();
-    try known.append(one);
+    var known = std.ArrayList(u8){};
+    defer known.deinit(allocator);
+    try known.append(allocator, one);
 
     var buf = try std.fmt.allocPrint(
         allocator,
-        "{s}",
+        "{f}",
         .{ tc },
     );
 
@@ -549,12 +545,12 @@ test "Treecode: format"
     );
 
     try tc.append(1);
-    try known.append(one);
+    try known.append(allocator, one);
 
     allocator.free(buf);
     buf = try std.fmt.allocPrint(
         allocator,
-        "{s}",
+        "{f}",
         .{ tc },
     );
 
@@ -572,12 +568,12 @@ test "Treecode: format"
         // const next:u1 = if (i & 5 != 0) 0 else 1;
         const next:u1 = 1;
 
-        try known.insert(1, one);
+        try known.insert(allocator,1, one);
         try tc.append(next);
 
         buf = try std.fmt.allocPrint(
             allocator,
-            "{s}",
+            "{f}",
             .{ tc },
         );
         defer allocator.free(buf);
@@ -851,12 +847,12 @@ test "treecode: append alternating 0 and 1"
     var tc = try Treecode.init_word(allocator, 0b1);
     defer tc.deinit();
 
-    var buf_known = std.ArrayList(u8).init(allocator);
-    defer buf_known.deinit();
-    try buf_known.ensureTotalCapacity(1024);
-    try buf_known.append("1"[0]);
+    var buf_known = std.ArrayList(u8){};
+    defer buf_known.deinit(allocator);
+    try buf_known.ensureTotalCapacity(allocator, 1024);
+    try buf_known.append(allocator, "1"[0]);
 
-    var buf_tc = try std.fmt.allocPrint(allocator,"{s}", .{ tc });
+    var buf_tc = try std.fmt.allocPrint(allocator,"{f}", .{ tc });
     try std.testing.expectEqualStrings(buf_known.items, buf_tc);
 
     allocator.free(buf_tc);
@@ -871,10 +867,10 @@ test "treecode: append alternating 0 and 1"
         const next_str = (if (@rem(i, 5) == 0) "0" else "1")[0];
 
         try tc.append(next);
-        try buf_known.insert(1, next_str);
+        try buf_known.insert(allocator, 1, next_str);
     }
 
-    buf_tc = try std.fmt.allocPrint(allocator,"{s}", .{ tc });
+    buf_tc = try std.fmt.allocPrint(allocator,"{f}", .{ tc });
     defer allocator.free(buf_tc);
 
     errdefer std.log.err(
@@ -897,14 +893,14 @@ test "treecode: append variable size"
     var tc = try Treecode.init_word(allocator, 0b1);
     defer tc.deinit();
 
-    var buf_known = std.ArrayList(u8).init(allocator);
-    defer buf_known.deinit();
-    try buf_known.ensureTotalCapacity(1024);
+    var buf_known = std.ArrayList(u8){};
+    defer buf_known.deinit(allocator);
+    try buf_known.ensureTotalCapacity(allocator, 1024);
     buf_known.appendAssumeCapacity(one);
 
     var buf = try std.fmt.allocPrint(
         allocator,
-        "{s}",
+        "{f}",
         .{ tc }
     );
     try std.testing.expectEqualStrings(buf_known.items, buf);
@@ -917,7 +913,7 @@ test "treecode: append variable size"
         const next:u1 = if (@rem(i, 5) == 0) 0 else 1;
         try tc.append(next);
 
-        buf = try std.fmt.allocPrint(allocator,"{s}", .{ tc });
+        buf = try std.fmt.allocPrint(allocator,"{f}", .{ tc });
         defer allocator.free(buf);
 
         const next_str = if (@rem(i, 5) == 0) zero else one;

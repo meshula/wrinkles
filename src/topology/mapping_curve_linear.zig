@@ -140,14 +140,13 @@ pub const MappingCurveLinearMonotonic = struct {
             )
         );
 
-        var result_mappings = (
-            std.ArrayList(mapping_mod.Mapping).init(allocator)
-        );
+        var result_mappings: std.ArrayList(mapping_mod.Mapping) = .{};
 
         for (new_curves)
             |crv|
         {
             try result_mappings.append(
+                allocator,
                 (
                  try MappingCurveLinearMonotonic.init_curve(
                      allocator,
@@ -157,7 +156,7 @@ pub const MappingCurveLinearMonotonic = struct {
             );
         }
 
-        return result_mappings.toOwnedSlice();
+        return result_mappings.toOwnedSlice(allocator);
     }
 
     pub fn split_at_input_point(
@@ -166,12 +165,8 @@ pub const MappingCurveLinearMonotonic = struct {
         pt_input: opentime.Ordinate,
     ) ![2]mapping_mod.Mapping
     {
-        var left_knots = (
-            std.ArrayList(curve.ControlPoint).init(allocator)
-        );
-        var right_knots = (
-            std.ArrayList(curve.ControlPoint).init(allocator)
-        );
+        var left_knots: std.ArrayList(curve.ControlPoint) = .{};
+        var right_knots: std.ArrayList(curve.ControlPoint) = .{};
 
         const start_knots = self.input_to_output_curve.knots;
 
@@ -180,8 +175,14 @@ pub const MappingCurveLinearMonotonic = struct {
         {
             if (k.in.eql(pt_input))
             {
-                try left_knots.appendSlice(start_knots[0..k_ind]);
-                try right_knots.appendSlice(start_knots[k_ind..]);
+                try left_knots.appendSlice(
+                    allocator,
+                    start_knots[0..k_ind],
+                );
+                try right_knots.appendSlice(
+                    allocator,
+                    start_knots[k_ind..],
+                );
                 break;
             }
             if (k.in.gt(pt_input))
@@ -191,11 +192,16 @@ pub const MappingCurveLinearMonotonic = struct {
                     .out = try self.input_to_output_curve.output_at_input(pt_input).ordinate(),
                 };
 
-                try left_knots.appendSlice(start_knots[0..k_ind]);
-                try left_knots.append(new_knot);
+                try left_knots.appendSlice(
+                    allocator,
+                    start_knots[0..k_ind],
+                );
+                try left_knots.append(allocator,new_knot);
 
-                try right_knots.append(new_knot);
-                try right_knots.appendSlice(start_knots[k_ind..]);
+                try right_knots.append(allocator,new_knot);
+                try right_knots.appendSlice(
+                    allocator,start_knots[k_ind..],
+                );
                 break;
             }
         }
@@ -204,14 +210,14 @@ pub const MappingCurveLinearMonotonic = struct {
             .{
                 .linear = .{
                     .input_to_output_curve = .{
-                        .knots = try left_knots.toOwnedSlice(),
+                        .knots = try left_knots.toOwnedSlice(allocator),
                     },
                 },
             },
             .{
                 .linear = .{
                     .input_to_output_curve = .{
-                        .knots = try right_knots.toOwnedSlice(),
+                        .knots = try right_knots.toOwnedSlice(allocator),
                     },
                 },
             },

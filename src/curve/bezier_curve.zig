@@ -172,14 +172,12 @@ pub fn linearize_segment(
 {
     // @TODO: this function should compute and preserve the derivatives on the
     //        bezier segments
-    var result: std.ArrayList(control_point.ControlPoint) = (
-        std.ArrayList(control_point.ControlPoint).init(allocator)
-    );
+    var result: std.ArrayList(control_point.ControlPoint) = .{};
 
     if (_is_approximately_linear(segment, tolerance)) {
         // terminal condition
-        try result.append(segment.p0);
-        try result.append(segment.p3);
+        try result.append(allocator, segment.p0);
+        try result.append(allocator, segment.p3);
     } else {
         // recursion
         const subsegments = (
@@ -193,7 +191,7 @@ pub fn linearize_segment(
                 tolerance
             );
             defer allocator.free(l_result);
-            try result.appendSlice(l_result);
+            try result.appendSlice(allocator, l_result);
         }
 
         {
@@ -203,11 +201,11 @@ pub fn linearize_segment(
                 tolerance
             );
             defer allocator.free(r_result);
-            try result.appendSlice(r_result[1..]);
+            try result.appendSlice(allocator, r_result[1..]);
         }
     }
 
-    return result.toOwnedSlice();
+    return result.toOwnedSlice(allocator);
 }
 
 test "segment: linearize basic test" 
@@ -903,8 +901,6 @@ pub const Bezier = struct {
 
         pub fn format(
             self: @This(),
-            comptime _: []const u8,
-            _: std.fmt.FormatOptions,
             writer: anytype,
         ) !void 
         {
@@ -917,7 +913,7 @@ pub const Bezier = struct {
                 {
                     try writer.print(",\n", .{});
                 }
-                try writer.print("      {s}", .{p});
+                try writer.print("      {f}", .{p});
             }
 
             try writer.print("\n    }}", .{});
@@ -978,18 +974,23 @@ pub const Bezier = struct {
         crv: linear_curve.Linear,
     ) !Bezier 
     {
-        var result = std.ArrayList(Segment).init(allocator);
-        result.deinit();
+        var result: std.ArrayList(Segment) = .{};
+        result.deinit(allocator);
 
         const knots = crv.knots.len;
 
         for (crv.knots[0..knots-1], crv.knots[1..]) 
             |knot, next_knot| 
         {
-            try result.append(Segment.init_from_start_end(knot, next_knot));
+            try result.append(
+                allocator,
+                Segment.init_from_start_end(knot, next_knot),
+            );
         }
 
-        return Bezier{ .segments = try result.toOwnedSlice() };
+        return Bezier{
+            .segments = try result.toOwnedSlice(allocator),
+        };
     }
 
     pub inline fn output_at_input(
@@ -1087,9 +1088,7 @@ pub const Bezier = struct {
         allocator:std.mem.Allocator,
     ) !linear_curve.Linear 
     {
-        var linearized_knots = std.ArrayList(
-            control_point.ControlPoint
-        ).init(allocator);
+        var linearized_knots: std.ArrayList(control_point.ControlPoint) = .{};
 
         const self_split_on_critical_points = (
             try self.split_on_critical_points(
@@ -1116,6 +1115,7 @@ pub const Bezier = struct {
             defer allocator.free(subseg);
 
             try linearized_knots.appendSlice(
+                allocator,
                 // first knot of all interior segments should match the 
                 // last knot of the previous segment, so can be skipped
                 subseg[start_knot..]
@@ -1123,7 +1123,9 @@ pub const Bezier = struct {
         }
 
         return .{
-            .knots = try linearized_knots.toOwnedSlice()
+            .knots = (
+                try linearized_knots.toOwnedSlice(allocator)
+            ),
         };
     }
 
@@ -1234,8 +1236,8 @@ pub const Bezier = struct {
         //        in self that are AFTER other
 
         {
-            var split_points = std.ArrayList(opentime.Ordinate).init(allocator);
-            defer split_points.deinit();
+            var split_points: std.ArrayList(opentime.Ordinate) = .{};
+            defer split_points.deinit(allocator);
 
             // self split
             {
@@ -1257,7 +1259,7 @@ pub const Bezier = struct {
                         // @TODO: omit cases where either endpoint is within an
                         //        epsilon of an endpoint
                     ) {
-                        try split_points.append(other_knot.out);
+                        try split_points.append(allocator, other_knot.out);
                     }
                 }
                 const old_ptr = self_split.segments;
@@ -1277,7 +1279,7 @@ pub const Bezier = struct {
             {
                 const other_bounds = other.extents();
 
-                split_points.clearAndFree();
+                split_points.clearAndFree(allocator);
 
                 // find all knots in self that are within the other bounds
                 const endpoints = try self_split.segment_endpoints(
@@ -1295,7 +1297,7 @@ pub const Bezier = struct {
                             other_bounds[1].out
                         )
                     ) {
-                        try split_points.append(self_knot.in);
+                        try split_points.append(allocator, self_knot.in);
                     }
                 }
                 const old_ptr = other_split.segments;
@@ -1312,12 +1314,12 @@ pub const Bezier = struct {
 
         result.other_split = try other_split.clone(allocator);
 
-        var curves_to_project = std.ArrayList(Bezier).init(allocator);
-        defer curves_to_project.deinit();
+        var curves_to_project: std.ArrayList(Bezier) = .{};
+        defer curves_to_project.deinit(allocator);
 
         var last_index: i32 = -10;
-        var current_curve = std.ArrayList(Segment).init(allocator);
-        defer current_curve.deinit();
+        var current_curve: std.ArrayList(Segment) = .{};
+        // defer current_curve.deinit(allocator);
 
         // having split both curves by both endpoints, throw out the segments
         // in other that will not be projected
@@ -1339,27 +1341,33 @@ pub const Bezier = struct {
                     if (current_curve.items.len > 1) 
                     {
                         try curves_to_project.append(
+                            allocator,
                             Bezier{
-                                .segments = try current_curve.toOwnedSlice()
+                                .segments = (
+                                    try current_curve.toOwnedSlice(allocator)
+                                ),
                             }
                         );
                     }
-                    current_curve.clearAndFree();
+                    current_curve.clearAndFree(allocator);
                 }
 
-                try current_curve.append(other_segment);
+                try current_curve.append(allocator,other_segment);
                 last_index = @intCast(index);
             }
         }
         if (current_curve.items.len > 0) 
         {
             try curves_to_project.append(
+                allocator,
                 Bezier{
-                    .segments = try current_curve.toOwnedSlice()
+                    .segments = (
+                        try current_curve.toOwnedSlice(allocator)
+                    ),
                 }
             );
         }
-        current_curve.deinit();
+        current_curve.deinit(allocator);
 
         if (curves_to_project.items.len == 0) 
         {
@@ -1378,17 +1386,11 @@ pub const Bezier = struct {
             curves_to_project.items[0].segments
         );
 
-        var guts = std.ArrayList(tpa_result).init(allocator);
-        var segments_to_project_through = std.ArrayList(usize).init(allocator);
-        var midpoint_derivatives = std.ArrayList(
-            control_point.ControlPoint
-        ).init(allocator);
-        var cache_f_prime_of_g_of_t = std.ArrayList(
-            control_point.ControlPoint
-        ).init(allocator);
-        var cache_g_prime_of_t = std.ArrayList(
-            control_point.ControlPoint
-        ).init(allocator);
+        var guts: std.ArrayList(tpa_result) = .{};
+        var segments_to_project_through: std.ArrayList(usize) = .{};
+        var midpoint_derivatives: std.ArrayList(control_point.ControlPoint) = .{};
+        var cache_f_prime_of_g_of_t: std.ArrayList(control_point.ControlPoint) = .{};
+        var cache_g_prime_of_t: std.ArrayList(control_point.ControlPoint) = .{};
 
         // do the projection
         for (curves_to_project.items) 
@@ -1401,6 +1403,7 @@ pub const Bezier = struct {
                     continue;
                 };
                 try segments_to_project_through.append(
+                    allocator,
                     self_split.find_segment_index(segment.p0.in) orelse continue
                 );
 
@@ -1449,6 +1452,7 @@ pub const Bezier = struct {
                                 @floatCast(u_in_self),
                             );
                             try cache_f_prime_of_g_of_t.append(
+                                allocator,
                                 control_point.ControlPoint.init(
                                     .{
                                         .in = f_prime_of_g_of_t.x, 
@@ -1465,6 +1469,7 @@ pub const Bezier = struct {
                                 @floatCast(t_midpoint_other),
                             );
                             try cache_g_prime_of_t.append(
+                                allocator,
                                 control_point.ControlPoint.init(
                                     .{
                                         .in = g_prime_of_t.x, 
@@ -1490,7 +1495,7 @@ pub const Bezier = struct {
                             }
                         };
 
-                        try midpoint_derivatives.append(d_mid_point_dt);
+                        try midpoint_derivatives.append(allocator,d_mid_point_dt);
 
                         const m_ratio = (u_in_self * t_midpoint_other) / ((1-u_in_self)*(1-t_midpoint_other));
                         const projected_t = m_ratio / (m_ratio + 1);
@@ -1503,7 +1508,7 @@ pub const Bezier = struct {
                             projected_pts[2],
                         );
 
-                        try guts.append(final);
+                        try guts.append(allocator,final);
 
                         segment.p0 = projected_pts[0];
                         segment.p1 = final.C1.?;
@@ -1547,6 +1552,7 @@ pub const Bezier = struct {
                         segment.p3 = projected_pts[1];
 
                         try guts.append(
+                            allocator,
                             .{ 
                                 .start = projected_pts[0],
                                 .start_ddt = projected_derivatives[0].mul(fudge),
@@ -1560,11 +1566,11 @@ pub const Bezier = struct {
             }
         }
 
-        result.tpa = try guts.toOwnedSlice();
-        result.segments_to_project_through = try segments_to_project_through.toOwnedSlice();
-        result.midpoint_derivatives = try midpoint_derivatives.toOwnedSlice();
-        result.f_prime_of_g_of_t = try cache_f_prime_of_g_of_t.toOwnedSlice();
-        result.g_prime_of_t = try cache_g_prime_of_t.toOwnedSlice();
+        result.tpa = try guts.toOwnedSlice(allocator);
+        result.segments_to_project_through = try segments_to_project_through.toOwnedSlice(allocator);
+        result.midpoint_derivatives = try midpoint_derivatives.toOwnedSlice(allocator);
+        result.f_prime_of_g_of_t = try cache_f_prime_of_g_of_t.toOwnedSlice(allocator);
+        result.g_prime_of_t = try cache_g_prime_of_t.toOwnedSlice(allocator);
 
         result.result = curves_to_project.items[0];
 
@@ -1577,22 +1583,20 @@ pub const Bezier = struct {
         allocator: std.mem.Allocator,
     ) ![]control_point.ControlPoint 
     {
-        var result = std.ArrayList(
-            control_point.ControlPoint
-        ).init(allocator);
+        var result: std.ArrayList(control_point.ControlPoint) = .{};
 
         if (self.segments.len == 0) {
             return &[0]control_point.ControlPoint{};
         }
 
-        try result.append(self.segments[0].p0);
+        try result.append(allocator, self.segments[0].p0);
         for (self.segments) 
             |seg| 
         {
-            try result.append(seg.p3);
+            try result.append(allocator, seg.p3);
         }
 
-        return try result.toOwnedSlice();
+        return try result.toOwnedSlice(allocator);
     }
 
     /// project a linear curve through this curve (by linearizing self)
@@ -1642,13 +1646,17 @@ pub const Bezier = struct {
     /// build a string serialization of the curve
     pub fn debug_json_str(
         self:@This(),
-        allocator: std.mem.Allocator
+        allocator: std.mem.Allocator,
     ) ![]const u8
     {
-        var str = std.ArrayList(u8).init(allocator);
+        var writer = std.Io.Writer.Allocating.init(allocator);
 
-        try std.json.stringify(self, .{}, str.writer()); 
-        return str.toOwnedSlice();
+        try std.json.Stringify.value(
+            self,
+            .{},
+            &writer.writer,
+        ); 
+        return writer.toOwnedSlice();
     }
 
     /// return the extents of the curve's input spact /v
@@ -1741,7 +1749,7 @@ pub const Bezier = struct {
         if (maybe_split_segments == null) 
         {
             std.log.err(
-                "ordinate: {} unorm: {} seg_to_split: {s}\n",
+                "ordinate: {f} unorm: {} seg_to_split: {s}\n",
                 .{ ordinate, unorm, try seg_to_split.debug_json_str(allocator) }
             );
             return error.OutOfBounds;
@@ -1780,11 +1788,9 @@ pub const Bezier = struct {
         ordinates:[]const opentime.Ordinate,
     ) !Bezier 
     {
-        var result_segments = std.ArrayList(
-            Segment
-        ).init(allocator);
-        defer result_segments.deinit();
-        try result_segments.appendSlice(self.segments);
+        var result_segments: std.ArrayList(Segment) = .{};
+        defer result_segments.deinit(allocator);
+        try result_segments.appendSlice(allocator, self.segments);
 
         var current_segment_index:usize = 0;
 
@@ -1815,6 +1821,7 @@ pub const Bezier = struct {
                             |split_segments| 
                         {
                             try result_segments.insertSlice(
+                                allocator,
                                 current_segment_index,
                                 &split_segments
                             );
@@ -1829,7 +1836,7 @@ pub const Bezier = struct {
         }
 
         return .{ 
-            .segments = try result_segments.toOwnedSlice() 
+            .segments = try result_segments.toOwnedSlice(allocator),
         };
     }
 
@@ -1839,12 +1846,10 @@ pub const Bezier = struct {
         ordinates:[]const opentime.Ordinate,
     ) !Bezier 
     {
-        var result_segments = std.ArrayList(
-            Segment
-        ).init(allocator);
-        defer result_segments.deinit();
+        var result_segments: std.ArrayList(Segment) = .{};
+        defer result_segments.deinit(allocator);
 
-        try result_segments.appendSlice(self.segments);
+        try result_segments.appendSlice(allocator, self.segments);
 
         var current_segment_index:usize = 0;
 
@@ -1874,6 +1879,7 @@ pub const Bezier = struct {
                         };
 
                         try result_segments.insertSlice(
+                            allocator,
                             current_segment_index,
                             &split_segments
                         );
@@ -1886,7 +1892,9 @@ pub const Bezier = struct {
             }
         }
 
-        return .{ .segments = try result_segments.toOwnedSlice() };
+        return .{
+            .segments = try result_segments.toOwnedSlice(allocator),
+        };
     }
 
     /// the direction to execute the trimming operation in
@@ -2037,8 +2045,8 @@ pub const Bezier = struct {
             .order = 3
         };
 
-        var split_segments = std.ArrayList(Segment).init(allocator);
-        defer split_segments.deinit();
+        var split_segments: std.ArrayList(Segment) = .{};
+        defer split_segments.deinit(allocator);
 
         for (self.segments) 
             |seg| 
@@ -2117,20 +2125,20 @@ pub const Bezier = struct {
                 if (maybe_xsplits) 
                     |xsplits| 
                 {
-                    try split_segments.append(xsplits[0]);
+                    try split_segments.append(allocator,xsplits[0]);
                     current_seg = xsplits[1];
                 }
             }
-            try split_segments.append(current_seg);
+            try split_segments.append(allocator,current_seg);
         }
 
-        return .{ .segments = try split_segments.toOwnedSlice() };
+        return .{
+            .segments = try split_segments.toOwnedSlice(allocator),
+        };
     }
 
     pub fn format(
         self: @This(),
-        comptime _: []const u8,
-        _: std.fmt.FormatOptions,
         writer: anytype,
     ) !void 
     {
@@ -2143,7 +2151,7 @@ pub const Bezier = struct {
             {
                 try writer.print(",\n", .{});
             }
-            try writer.print("    {s}", .{ s});
+            try writer.print("    {f}", .{ s});
         }
 
         try writer.print("\n  ]\n}}", .{});
@@ -2206,13 +2214,14 @@ pub fn read_bezier_curve_data(
         allocator.free(b_f.segments);
     }
 
-    var out_segments = std.ArrayList(Bezier.Segment).init(allocator);
-    defer out_segments.deinit();
+    var out_segments: std.ArrayList(Bezier.Segment) = .{};
+    defer out_segments.deinit(allocator);
 
     for (b_f.segments)
         |s|
     {
         try out_segments.append(
+            allocator,
             .{
                 .p0 = control_point.ControlPoint.init(s.p0),
                 .p1 = control_point.ControlPoint.init(s.p1),
@@ -2223,7 +2232,7 @@ pub fn read_bezier_curve_data(
     }
 
     return .{
-        .segments = try out_segments.toOwnedSlice(),
+        .segments = try out_segments.toOwnedSlice(allocator),
     };
 }
 
@@ -2238,16 +2247,22 @@ pub fn read_linear_curve_data(
         source, .{}
     );
 
-    var out_knots = std.ArrayList(control_point.ControlPoint).init(allocator);
+    var out_knots: std.ArrayList(control_point.ControlPoint) = .{};
     for (lin_curve.knots)
         |k|
     {
-        try out_knots.append(control_point.ControlPoint.init(k));
+        try out_knots.append(
+            allocator,
+            control_point.ControlPoint.init(k),
+        );
     }
 
     return Bezier.init_from_linear_curve(
         allocator,
-        .{ .knots = try out_knots.toOwnedSlice() },
+        .{
+            .knots = 
+                try out_knots.toOwnedSlice(allocator),
+        },
     );
 }
 
@@ -2378,6 +2393,8 @@ test "Bezier: positive length 1 linear segment test"
 
 test "Bezier: projection_test non-overlapping" 
 {
+    const allocator = std.testing.allocator; 
+
     var seg_0_1 = [_]Bezier.Segment{
         Bezier.Segment.IDENT_ZERO_ONE 
     };
@@ -2385,17 +2402,21 @@ test "Bezier: projection_test non-overlapping"
 
     var seg_1_9 = [_]Bezier.Segment{ 
         Bezier.Segment.init_from_start_end(
-            control_point.ControlPoint.init(.{ .in = 1, .out = 1, }),
-            control_point.ControlPoint.init(.{ .in = 9, .out = 5, }),
+            control_point.ControlPoint.init(
+                .{ .in = 1, .out = 1, }
+            ),
+            control_point.ControlPoint.init(
+                .{ .in = 9, .out = 5, }
+            ),
         )
     };
     const snd: Bezier = .{ .segments = &seg_1_9 };
 
     const result = try fst.project_curve(
-        std.testing.allocator,
+        allocator,
         snd,
     );
-    defer result.deinit(std.testing.allocator);
+    defer result.deinit(allocator);
 
     try expectEqual(@as(usize, 0), result.segments.len);
 }
@@ -2623,9 +2644,9 @@ test "Bezier: project u loop bug"
         }
     }
 
-    errdefer std.log.err("simple_s: {s}\n", .{ simple_s } );
-    errdefer std.log.err("upside_down_u: {s}\n", .{ upside_down_u } );
-    errdefer std.log.err("result: {s}\n", .{ result } );
+    errdefer std.log.err("simple_s: {f}\n", .{ simple_s } );
+    errdefer std.log.err("upside_down_u: {f}\n", .{ upside_down_u } );
+    errdefer std.log.err("result: {f}\n", .{ result } );
 
     try expectEqual(5, result.segments.len);
 }
@@ -3070,7 +3091,7 @@ test "Bezier: split_at_input_ordinate"
                 const fst = try ident.output_at_input(i);
                 const snd = try split_ident.output_at_input(i);
                 errdefer std.log.err(
-                    "Loop: {} orig: {} new: {}",
+                    "Loop: {d} orig: {f} new: {f}",
                     .{i, fst, snd}
                 );
                 try opentime.expectOrdinateEqual(

@@ -60,15 +60,15 @@ pub fn to_string(
     thing: anytype,
 ) ![]const u8
 {
-    var str = std.ArrayList(u8).init(allocator);
+    var writer = std.Io.Writer.Allocating.init(allocator);
 
-    try std.json.stringify(
+    try std.json.Stringify.value(
         thing,
         .{ .whitespace = .indent_2 },
-        str.writer()
+        &writer.writer,
     ); 
 
-    return str.toOwnedSlice();
+    return writer.toOwnedSlice();
 }
 
 

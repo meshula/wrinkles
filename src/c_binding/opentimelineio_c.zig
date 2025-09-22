@@ -472,6 +472,7 @@ pub export fn otio_po_fetch_destination(
 
 /// attempt to clean up the timeline/object
 pub export fn otio_timeline_deinit(
+    allocator_c: c.otio_Allocator,
     root_c : c.otio_ComposedValueRef,
 ) void
 {
@@ -486,7 +487,18 @@ pub export fn otio_timeline_deinit(
     );
 
     switch (root) {
-        inline .timeline_ptr, .stack_ptr, .track_ptr => |t| t.recursively_deinit(),
+        inline .timeline_ptr, .stack_ptr, .track_ptr => 
+            |t| (
+                // @TODO: remove the need for constCast
+                //        constCast becuase ComposedValueRef is a const*
+                //        wrapper
+                @constCast(t).recursively_deinit(
+                    fetch_allocator(allocator_c) catch @panic(
+                        "Couldn't find allocator",
+                    ),
+                )
+
+            ),
         inline else => {},
     }
 }

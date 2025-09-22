@@ -207,60 +207,60 @@ pub const Warp = struct {
 /// a container in which each contained item is right-met over time
 pub const Track = struct {
     name: ?string.latin_s8 = null,
-    children: std.ArrayList(core.ComposableValue),
-
-    pub fn init(
-        allocator: std.mem.Allocator
-    ) Track 
-    {
-        return .{
-            .children = std.ArrayList(
-                core.ComposableValue
-            ).init(allocator),
-        };
-    }
+    children: std.ArrayList(core.ComposableValue) = .{},
 
     pub fn recursively_deinit(
-        self: @This(),
+        self: *@This(),
+        allocator: std.mem.Allocator,
     ) void 
     {
         for (self.children.items)
-            |c|
+            |*c|
         {
-            c.recursively_deinit(self.children.allocator);
+            c.recursively_deinit(allocator);
         }
 
-        self.deinit();
+        self.deinit(allocator);
     }
 
     pub fn deinit(
-        self: @This()
+        self: *@This(),
+        allocator: std.mem.Allocator,
     ) void 
     {
         if (self.name)
             |n|
         {
-            self.children.allocator.free(n);
+            allocator.free(n);
         }
-        self.children.deinit();
+        self.children.deinit(allocator);
     }
 
+    /// append a `core.ComposableValue` wrapped `value` into self.children
     pub fn append(
         self: *@This(),
+        allocator: std.mem.Allocator,
         value: anytype
     ) !void 
     {
-        try self.children.append(core.ComposableValue.init(value));
+        try self.children.append(
+            allocator,
+            core.ComposableValue.init(value),
+        );
     }
 
-    /// append the core.ComposableValue-compatible val and return a core.ComposedValueRef
-    /// to the new value
+    /// append the `core.ComposableValue` compatible val and return a
+    /// `core.ComposedValueRef` to the new value
     pub fn append_fetch_ref(
         self: *Track,
+        allocator: std.mem.Allocator,
         value: anytype,
     ) !core.ComposedValueRef 
     {
-        try self.children.append(core.ComposableValue.init(value));
+        try self.children.append(
+            allocator,
+            core.ComposableValue.init(value),
+        );
         return self.child_ptr_from_index(self.children.items.len-1);
     }
 
@@ -368,10 +368,13 @@ test "test append_fetch_ref"
 {
     const allocator = std.testing.allocator;
 
-    var tr = Track.init(allocator);
-    defer tr.deinit();
+    var tr: Track = .{};
+    defer tr.recursively_deinit(allocator);
 
-    const tr_ref = try tr.append_fetch_ref(tr);
+    const tr_ref = try tr.append_fetch_ref(
+        allocator,
+        tr,
+    );
 
     try std.testing.expectEqual(
         tr.child_ptr_from_index(0),
@@ -382,29 +385,20 @@ test "test append_fetch_ref"
 /// children of a stack are simultaneous in time
 pub const Stack = struct {
     name: ?string.latin_s8 = null,
-    children: std.ArrayList(core.ComposableValue),
-
-    pub fn init(
-        allocator: std.mem.Allocator,
-    ) Stack 
-    { 
-        return .{
-            .children = std.ArrayList(
-                core.ComposableValue
-            ).init(allocator)
-        };
-    }
+    children: std.ArrayList(core.ComposableValue) = .{},
 
     pub fn deinit(
-        self: @This(),
+        self: *@This(),
+        allocator: std.mem.Allocator,
     ) void 
     {
         if (self.name)
             |n|
         {
-            self.children.allocator.free(n);
+            allocator.free(n);
+            self.name = null;
         }
-        self.children.deinit();
+        self.children.deinit(allocator);
     }
 
     pub fn child_ptr_from_index(
@@ -417,34 +411,43 @@ pub const Stack = struct {
 
     pub fn append(
         self: *@This(),
+        allocator: std.mem.Allocator,
         value: anytype,
     ) !void 
     {
-        try self.children.append(core.ComposableValue.init(value));
+        try self.children.append(
+            allocator,
+            core.ComposableValue.init(value),
+        );
     }
 
     /// append the ComposableValue-compatible val and return a ComposedValueRef
     /// to the new value
     pub fn append_fetch_ref(
         self: *@This(),
+        allocator: std.mem.Allocator,
         value: anytype,
     ) !core.ComposedValueRef 
     {
-        try self.children.append(core.ComposableValue.init(value));
+        try self.children.append(
+            allocator,
+            core.ComposableValue.init(value),
+        );
         return self.child_ptr_from_index(self.children.items.len-1);
     }
 
     pub fn recursively_deinit(
-        self: @This(),
+        self: *@This(),
+        allocator: std.mem.Allocator,
     ) void 
     {
         for (self.children.items)
-            |c|
+            |*c|
         {
-            c.recursively_deinit(self.children.allocator);
+            c.recursively_deinit(allocator);
         }
 
-        self.deinit();
+        self.deinit(allocator);
     }
 
     pub fn topology(
@@ -485,35 +488,45 @@ pub const Stack = struct {
 /// top level object
 pub const Timeline = struct {
     name: ?string.latin_s8 = null,
-    tracks:Stack,
+    tracks:Stack = .{},
 
+    /// currently there is a single discrete_info struct for the "presentation
+    /// space" - this should probably be broken down by domain, and then by
+    /// target space
+    ///
+    ///currently organized by target space / domain
+    time_spaces: struct{
+        presentation: struct{
+            picture: ?sampling.SampleIndexGenerator
+            // picture: ?sampling.TimeSampleIndexGenerator(
+                         // sampling.DiscreteTimeSampleSpec(24),
+                         // sampling.ImageSampleSpec(.{1024, 768}, .rec709)
+            = null,
+            // audio: ?sampling.TimeSampleIndexGenerator(
+            audio: ?sampling.SampleIndexGenerator
+                // sampling.DiscreteTimeSampleSpec(192000),
+                // sampling.AudioSampleSpec(f32, .normalized, .aifc),
+            = null,
+        } = .{},
+    } = .{},
+
+    ///
     discrete_info: struct{
         presentation:  ?sampling.SampleIndexGenerator = null,
     } = .{},
 
-    pub fn init(
-        allocator: std.mem.Allocator,
-    ) !Timeline
-    {
-        var result = Timeline{
-            .tracks = Stack.init(allocator),
-        };
-
-        result.tracks.name = null;
-
-        return result;
-    }
-
     pub fn recursively_deinit(
-        self: @This(),
+        self: *@This(),
+        allocator: std.mem.Allocator,
     ) void 
     {
         if (self.name)
             |n|
         {
-            self.tracks.children.allocator.free(n);
+            allocator.free(n);
+            self.name = null;
         }
-        self.tracks.recursively_deinit();
+        self.tracks.recursively_deinit(allocator);
     }
 
     pub fn topology(

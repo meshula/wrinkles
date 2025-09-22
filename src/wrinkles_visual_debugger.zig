@@ -31,7 +31,7 @@ pub fn plot_curve_bezier_segment(
         input_bounds_ord.end.as(f64),
     };
 
-    const plot_limits = zgui.plot.getPlotLimits(
+    const plot_limits = zplot.getPlotLimits(
         .x1,
         .y1
     );
@@ -253,20 +253,21 @@ pub fn plot_mapping(
         input_bounds[1] = plot_limits.x[1];
     }
 
-    var inputs = std.ArrayList(f64).init(allocator);
-    try inputs.ensureTotalCapacity(PLOT_STEPS);
-    defer inputs.deinit();
-    var outputs = std.ArrayList(f64).init(allocator);
-    try outputs.ensureTotalCapacity(PLOT_STEPS);
-    defer outputs.deinit();
+    var inputs: std.ArrayList(f64) = .{};
+    try inputs.ensureTotalCapacity(allocator, PLOT_STEPS);
+    defer inputs.deinit(allocator);
+    var outputs: std.ArrayList(f64) = .{};
+    try outputs.ensureTotalCapacity(allocator, PLOT_STEPS);
+    defer outputs.deinit(allocator);
     var len : usize = 0;
 
     switch (map) {
         .affine => |map_aff| {
-            try inputs.append(input_bounds[0]);
-            try inputs.append(input_bounds[1]);
+            try inputs.append(allocator, input_bounds[0]);
+            try inputs.append(allocator, input_bounds[1]);
 
             try outputs.append(
+                allocator,
                 (
                  try map_aff.project_instantaneous_cc(
                      opentime.Ordinate.init(input_bounds[0])
@@ -274,6 +275,7 @@ pub fn plot_mapping(
                 ).as(f64)
             );
             try outputs.append(
+                allocator,
                 (
                  try map_aff.project_instantaneous_cc(
                      opentime.Ordinate.init(input_bounds[1])
@@ -287,8 +289,8 @@ pub fn plot_mapping(
             for (map_lin.input_to_output_curve.knots)
                 |k|
             {
-                try inputs.append(k.in.as(f64));
-                try outputs.append(k.out.as(f64));
+                try inputs.append(allocator, k.in.as(f64));
+                try outputs.append(allocator, k.out.as(f64));
             }
 
             len = map_lin.input_to_output_curve.knots.len;
@@ -297,10 +299,10 @@ pub fn plot_mapping(
         inline else => {},
     }
 
-    try inputs.resize(len);
-    const in_im = try inputs.toOwnedSlice();
-    try outputs.resize(len);
-    const out_im = try outputs.toOwnedSlice();
+    try inputs.resize(allocator, len);
+    const in_im = try inputs.toOwnedSlice(allocator);
+    try outputs.resize(allocator, len);
+    const out_im = try outputs.toOwnedSlice(allocator);
 
     zplot.plotLine(
         name,

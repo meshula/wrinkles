@@ -246,7 +246,7 @@ pub fn read_otio_object(
             return .{ .Timeline = tl };
         },
         .Stack => {
-            var st = otio.Stack.init(allocator);
+            var st: otio.Stack = .{};
             st.name = try allocator.dupe(u8, name);
 
             if (obj.get("children"))
@@ -254,7 +254,10 @@ pub fn read_otio_object(
             {
                 if (children.array.items.len > 0) 
                 {
-                    try st.children.ensureTotalCapacity(children.array.items.len);
+                    try st.children.ensureTotalCapacity(
+                        allocator,
+                        children.array.items.len,
+                    );
 
                     for (children.array.items) 
                         |track| 
@@ -276,7 +279,7 @@ pub fn read_otio_object(
             return .{ .Stack = st };
         },
         .Track => {
-            var tr = otio.Track.init(allocator);
+            var tr: otio.Track = .{};
 
             tr.name = try allocator.dupe(u8, name);
 
@@ -285,7 +288,10 @@ pub fn read_otio_object(
             {
                 if (children.array.items.len > 0)
                 {
-                    try tr.children.ensureTotalCapacity(children.array.items.len);
+                    try tr.children.ensureTotalCapacity(
+                        allocator,
+                        children.array.items.len,
+                    );
 
                     for (obj.get("children").?.array.items) 
                         |child| 
@@ -391,11 +397,11 @@ test "read_from_file test"
     const otio_fpath = root ++ ".otio";
     const dot_fpath = root ++ ".dot";
 
-    const tl = try read_from_file(
+    var tl = try read_from_file(
         std.testing.allocator,
         "sample_otio_files/"++otio_fpath
     );
-    defer tl.recursively_deinit();
+    defer tl.recursively_deinit(allocator);
 
     const track0 = tl.tracks.children.items[0].track;
 

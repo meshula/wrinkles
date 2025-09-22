@@ -19,10 +19,8 @@ pub const MappingCurveBezier = struct {
         crv: curve.Bezier,
     ) !topology.Topology
     {
-        var result_mappings = (
-            std.ArrayList(mapping_mod.Mapping).init(allocator)
-        );
-        defer result_mappings.deinit();
+        var result_mappings: std.ArrayList(mapping_mod.Mapping) = .{};
+        defer result_mappings.deinit(allocator);
 
         const lin = try crv.linearized(allocator);
         defer lin.deinit(allocator);
@@ -48,11 +46,12 @@ pub const MappingCurveBezier = struct {
                 }
             );
 
-            try result_mappings.append(map_mono.mapping());
+            try result_mappings.append(allocator,map_mono.mapping());
         }
 
         return topology.Topology{
-            .mappings = try result_mappings.toOwnedSlice(),
+            .mappings = 
+                try result_mappings.toOwnedSlice(allocator),
         };
     }
 

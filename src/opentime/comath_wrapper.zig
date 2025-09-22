@@ -8,60 +8,64 @@ const comath = @import("comath");
 
 /// Comath Context for the wrinkles project.  Comath allows for compile time
 /// operator overloading for math expressions like "a + b / c".
-const CTX = comath.ctx.fnMethod(
-    comath.ctx.simple(
-        .{},
-        // XXX: in case the tests (< > <= >= etc) are desired
-        //
-        // struct {
-        //     pub const UnOp = enum { @"-", };
-        //     pub const BinOp = enum {
-        //         @"+", @"-", @"*", @"/", @"<", @"<=", @">", @">=" 
-        //     };
-        //
-        //     pub inline fn matchBinOp(comptime str: []const u8) bool {
-        //         return @hasField(BinOp, str);
-        //     }
-        //
-        //     pub const relations = .{
-        //         .@"+" = comath.relation(.left, 0),
-        //         .@"-" = comath.relation(.left, 0),
-        //         .@"*" = comath.relation(.left, 1),
-        //         .@"/" = comath.relation(.left, 1),
-        //         // .@"cos" = comath.relation(.left, 2),
-        //         .@"<" = comath.relation(.left, 3),
-        //         // .@"<=" = comath.relation(.left, 3),
-        //         // .@">" = comath.relation(.left, 3),
-        //         // .@">=" = comath.relation(.left, 3),
-        //         // .@"==" = comath.relation(.left, 3),
-        //     };
-        //
-        //     pub inline fn orderBinOp(
-        //         comptime lhs: []const u8,
-        //         comptime rhs: []const u8,
-        //     ) ?comath.Order 
-        //     {
-        //         return @field(
-        //             relations,
-        //             lhs
-        //         ).order(
-        //             @field(relations, rhs)
-        //         );
-        //     }
-        // }{}
-    ),
-    .{
-        .@"+" = "add",
-        .@"-" = &.{"sub", "negate", "neg"},
-        .@"*" = "mul",
-        .@"/" = "div",
-        .@"<" = "lt",
-        .@"<=" = "lteq",
-        .@">" = "gt",
-        .@">=" = "gteq",
-        .@"==" = "eq",
-        .@"cos" = "cos",
-    },
+const CTX = (
+    comath.ctx.fn_method.context(
+        comath.ctx.simple.context(
+            comath.ctx.namespace.context(
+                .{},
+                // XXX: in case the tests (< > <= >= etc) are desired
+                //
+                // struct {
+                //     pub const UnOp = enum { @"-", };
+                //     pub const BinOp = enum {
+                //         @"+", @"-", @"*", @"/", @"<", @"<=", @">", @">=" 
+                //     };
+                //
+                //     pub inline fn matchBinOp(comptime str: []const u8) bool {
+                //         return @hasField(BinOp, str);
+                //     }
+                //
+                //     pub const relations = .{
+                //         .@"+" = comath.relation(.left, 0),
+                //         .@"-" = comath.relation(.left, 0),
+                //         .@"*" = comath.relation(.left, 1),
+                //         .@"/" = comath.relation(.left, 1),
+                //         // .@"cos" = comath.relation(.left, 2),
+                //         .@"<" = comath.relation(.left, 3),
+                //         // .@"<=" = comath.relation(.left, 3),
+                //         // .@">" = comath.relation(.left, 3),
+                //         // .@">=" = comath.relation(.left, 3),
+                //         // .@"==" = comath.relation(.left, 3),
+                //     };
+                //
+                //     pub inline fn orderBinOp(
+                //         comptime lhs: []const u8,
+                //         comptime rhs: []const u8,
+                //     ) ?comath.Order 
+                //     {
+                //         return @field(
+                //             relations,
+                //             lhs
+                //         ).order(
+                //             @field(relations, rhs)
+                //         );
+                //     }
+                // }{}
+            )
+        ),
+        .{
+            .@"+" = "add",
+            .@"-" = &.{"sub", "negate", "neg"},
+            .@"*" = "mul",
+            .@"/" = "div",
+            .@"<" = "lt",
+            .@"<=" = "lteq",
+            .@">" = "gt",
+            .@">=" = "gteq",
+            .@"==" = "eq",
+            .@"cos" = "cos",
+        },
+    )
 );
 
 /// convert the string expr into a series of function calls at compile time

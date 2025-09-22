@@ -69,15 +69,15 @@ pub fn slice_with_cloned_contents_allocator(
     slice_to_clone: []const T,
 ) ![]const T
 {
-    var result = std.ArrayList(T).init(allocator);
+    var result: std.ArrayList(T) = .{};
 
     for (slice_to_clone)
         |thing|
     {
-        try result.append(try thing.clone(allocator));
+        try result.append(allocator,try thing.clone(allocator));
     }
 
-    return try result.toOwnedSlice();
+    return try result.toOwnedSlice(allocator);
 }
 
 /// call .deinit(allocator) on all the items in the slice, then free the slice

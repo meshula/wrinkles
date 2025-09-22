@@ -29,20 +29,21 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     ///////////////////////////////////////////////////////////////////////////
  
     // top level timeline
-    var tl = try otio.Timeline.init(allocator);
+    var tl: otio.Timeline = .{};
+    defer tl.recursively_deinit(allocator);
+
     tl.name = try allocator.dupe(u8, "Example Timeline");
     tl.discrete_info.presentation = .{
         .sample_rate_hz = .{ .Int = 24 },
         .start_index = 86400,
     };
 
-    defer tl.recursively_deinit();
     const tl_ptr = otio.ComposedValueRef{
         .timeline_ptr = &tl 
     };
 
     // track
-    var tr = otio.Track.init(allocator);
+    var tr: otio.Track = .{};
     tr.name = try allocator.dupe(u8, "Example Parent Track");
 
     // clips
@@ -62,13 +63,13 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             },
         },
     };
-    try tr.append(cl1);
+    try tr.append(allocator,cl1);
 
     // gap
     const gp = otio.Gap{
         .duration_seconds = opentime.Ordinate.ONE,
     };
-    try tr.append(gp);
+    try tr.append(allocator,gp);
 
     // clip
     const cl2 = otio.Clip {
@@ -89,8 +90,11 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     };
 
     // build some pointers into the structure
-    const cl2_ptr = try tr.append_fetch_ref(cl2);
-    try tl.tracks.append(tr);
+    const cl2_ptr = try tr.append_fetch_ref(
+        allocator,
+        cl2,
+    );
+    try tl.tracks.append(allocator,tr);
 
     // build the topological map
     ///////////////////////////////////////////////////////////////////////////
@@ -278,20 +282,21 @@ test "libsamplerate w/ high level test -- resample only"
     const allocator = std.testing.allocator;
 
     // top level timeline
-    var tl = try otio.Timeline.init(allocator);
+    var tl: otio.Timeline = .{};
+    defer tl.recursively_deinit(allocator);
+
     tl.name = try allocator.dupe(u8, "Example Timeline");
     tl.discrete_info.presentation = .{
         .sample_rate_hz = .{ .Int = 44100 },
         .start_index = 86400,
     };
 
-    defer tl.recursively_deinit();
     const tl_ptr = otio.ComposedValueRef{
         .timeline_ptr = &tl 
     };
 
     // track
-    var tr = otio.Track.init(allocator);
+    var tr: otio.Track = .{};
     tr.name = try allocator.dupe(u8, "Example Parent Track");
 
     // clips
@@ -327,8 +332,14 @@ test "libsamplerate w/ high level test -- resample only"
     try std.testing.expect(bounds.end.eql(0) == false);
     try std.testing.expect(bounds.start.lt(bounds.end));
 
-    const cl_ptr = try tr.append_fetch_ref(cl1);
-    const tr_ptr = try tl.tracks.append_fetch_ref(tr);
+    const cl_ptr = try tr.append_fetch_ref(
+        allocator,
+        cl1,
+    );
+    const tr_ptr = try tl.tracks.append_fetch_ref(
+        allocator,
+        tr,
+    );
 
     // build the topological map
     ///////////////////////////////////////////////////////////////////////////
@@ -424,7 +435,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
     const allocator = std.testing.allocator;
 
     // top level timeline
-    var tl = try otio.Timeline.init(allocator);
+    var tl: otio.Timeline = .{};
     tl.name = try allocator.dupe(u8, "Example Timeline");
     tl.discrete_info.presentation = .{
         // matches the media rate
@@ -432,13 +443,13 @@ test "libsamplerate w/ high level test.retime.interpolating"
         .start_index = 86400,
     };
 
-    defer tl.recursively_deinit();
+    defer tl.recursively_deinit(allocator);
     const tl_ptr = otio.ComposedValueRef{
         .timeline_ptr = &tl 
     };
 
     // track
-    var tr = otio.Track.init(allocator);
+    var tr: otio.Track = .{};
     tr.name = try allocator.dupe(u8, "Example Parent Track");
 
     // clips
@@ -478,8 +489,11 @@ test "libsamplerate w/ high level test.retime.interpolating"
         )
     };
     defer wp.transform.deinit(allocator);
-    try tr.append(wp);
-    const tr_ptr = try tl.tracks.append_fetch_ref(tr);
+    try tr.append(allocator,wp);
+    const tr_ptr = try tl.tracks.append_fetch_ref(
+        allocator,
+        tr,
+    );
 
     // build the topological map
     ///////////////////////////////////////////////////////////////////////////
@@ -565,7 +579,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     const allocator = std.testing.allocator;
 
     // top level timeline
-    var tl = try otio.Timeline.init(allocator);
+    var tl: otio.Timeline = .{};
     tl.name = try allocator.dupe(u8, "Example Timeline");
     tl.discrete_info.presentation = .{
         // matches the media rate
@@ -573,13 +587,13 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
         .start_index = 86400,
     };
 
-    defer tl.recursively_deinit();
+    defer tl.recursively_deinit(allocator);
     const tl_ptr = otio.ComposedValueRef{
         .timeline_ptr = &tl 
     };
 
     // track
-    var tr = otio.Track.init(allocator);
+    var tr: otio.Track = .{};
     tr.name = try allocator.dupe(u8, "Example Parent Track");
 
     // clips
@@ -620,9 +634,12 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     defer warp.transform.deinit(allocator);
 
     // new for this test - add in an warp on the clip
-    try tr.append(warp);
+    try tr.append(allocator,warp);
 
-    const tr_ptr = try tl.tracks.append_fetch_ref(tr);
+    const tr_ptr = try tl.tracks.append_fetch_ref(
+        allocator,
+        tr,
+    );
 
     // build the topological map
     ///////////////////////////////////////////////////////////////////////////
@@ -727,7 +744,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     const allocator = std.testing.allocator;
 
     // top level timeline
-    var tl = try otio.Timeline.init(allocator);
+    var tl: otio.Timeline = .{};
     tl.name = try allocator.dupe(u8, "Timeline w/ 48000khz+86400 start");
     tl.discrete_info.presentation = .{
         // matches the media rate
@@ -735,11 +752,11 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
         .start_index = 86400,
     };
 
-    defer tl.recursively_deinit();
+    defer tl.recursively_deinit(allocator);
     const tl_ptr = otio.ComposedValueRef.init(&tl);
 
     // track
-    var tr = otio.Track.init(allocator);
+    var tr: otio.Track = .{};
     tr.name = try allocator.dupe(u8, "Parent Track");
 
     // clips
@@ -782,9 +799,12 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
         )
     };
     defer wp_reverse.transform.deinit(allocator);
-    try tr.append(wp_reverse);
+    try tr.append(allocator,wp_reverse);
 
-    const tr_ptr = try tl.tracks.append_fetch_ref(tr);
+    const tr_ptr = try tl.tracks.append_fetch_ref(
+        allocator,
+        tr,
+    );
 
 
     // build the topological map (Timeline.presentation -> ...)
@@ -852,7 +872,8 @@ test "timeline w/ warp that holds the tenth frame"
     const allocator = std.testing.allocator;
 
     // top level timeline
-    var tl = try otio.Timeline.init(allocator);
+    var tl: otio.Timeline = .{};
+    defer tl.recursively_deinit(allocator);
     tl.name = try allocator.dupe(u8, "Example Timeline");
     tl.discrete_info.presentation = .{
         // matches the media rate
@@ -860,13 +881,12 @@ test "timeline w/ warp that holds the tenth frame"
         .start_index = 0,
     };
 
-    defer tl.recursively_deinit();
     const tl_ptr = otio.ComposedValueRef{
         .timeline_ptr = &tl 
     };
 
     // track
-    var tr = otio.Track.init(allocator);
+    var tr: otio.Track = .{};
     tr.name = try allocator.dupe(u8, "Example Parent Track");
 
     // clips
@@ -912,9 +932,12 @@ test "timeline w/ warp that holds the tenth frame"
         )
     };
     defer wp.transform.deinit(allocator);
-    try tr.append(wp);
+    try tr.append(allocator,wp);
 
-    const tr_ptr = try tl.tracks.append_fetch_ref(tr);
+    const tr_ptr = try tl.tracks.append_fetch_ref(
+        allocator,
+        tr,
+    );
 
     const warp_ptr = (
         tr_ptr.track_ptr.child_ptr_from_index(0)
@@ -1012,7 +1035,9 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     ///////////////////////////////////////////////////////////////////////////
 
     // top level timeline
-    var tl = try otio.Timeline.init(allocator);
+    var tl: otio.Timeline = .{};
+    defer tl.recursively_deinit(allocator);
+
     tl.name = try allocator.dupe(u8, "Timeline @ 24 * 1000/1001");
     tl.discrete_info.presentation = .{
         .sample_rate_hz = .{ 
@@ -1024,12 +1049,12 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
         },
         .start_index = 0,
     };
-    defer tl.recursively_deinit();
 
     const tl_ptr = otio.ComposedValueRef.init(&tl);
 
     // track
-    var tr = otio.Track.init(allocator);
+    var tr: otio.Track = .{};
+
     tr.name = try allocator.dupe(u8, "Track for clip");
 
     // clip
@@ -1050,8 +1075,11 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
         },
     };
 
-    const cl_ptr = try tr.append_fetch_ref(cl);
-    try tl.tracks.append(tr);
+    const cl_ptr = try tr.append_fetch_ref(
+        allocator,
+        cl,
+    );
+    try tl.tracks.append(allocator,tr);
 
     // build the topological map
     ///////////////////////////////////////////////////////////////////////////

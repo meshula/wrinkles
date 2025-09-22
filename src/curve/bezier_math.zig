@@ -830,7 +830,7 @@ test "bezier_math: _bezier0 matches _bezier0_dual"
         while (opentime.lt(x, t3))
             : (x = x.add(0.01))
         {
-            errdefer std.log.err("Error on loop: {}\n",.{x});
+            errdefer std.log.err("Error on loop: {f}\n",.{x});
             try opentime.expectOrdinateEqual(
                 _bezier0(x, t1, t2, t3),
                 _bezier0_dual(
@@ -1232,10 +1232,8 @@ pub fn inverted_linear(
         return crv;
     }
 
-    var result = (
-        std.ArrayList(control_point.ControlPoint).init(allocator)
-    );
-    try result.appendSlice(crv.knots);
+    var result: std.ArrayList(control_point.ControlPoint) = .{};
+    try result.appendSlice(allocator, crv.knots);
 
     for (crv.knots, result.items) 
         |src_knot, *dst_knot| 
@@ -1257,7 +1255,11 @@ pub fn inverted_linear(
         );
     }
 
-    return .{ .knots = try result.toOwnedSlice() };
+    return .{
+        .knots = try result.toOwnedSlice(
+            allocator,
+        ) 
+    };
 }
 
 // pub fn inverted_bezier(

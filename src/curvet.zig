@@ -247,7 +247,7 @@ const ProjectionResultDebugFlags = struct {
 };
 
 const VisState = struct {
-    operations: std.ArrayList(VisOperation),
+    operations: *std.ArrayList(VisOperation),
     show_demo: bool = false,
     show_test_curves: bool = false,
     show_projection_result: bool = false,
@@ -274,7 +274,7 @@ const VisState = struct {
                 else => {},
             }
         }
-        self.operations.deinit();
+        self.operations.deinit(allocator);
     }
 };
 
@@ -1327,8 +1327,8 @@ fn plot_three_point_approx(
         "{s} / approximation using three point method",
         .{ name }
     );
-    var approx_segments = std.ArrayList(curve.Bezier.Segment).init(allocator);
-    defer approx_segments.deinit();
+    var approx_segments: std.ArrayList(curve.Bezier.Segment) = .{};
+    defer approx_segments.deinit(allocator);
 
     const u_vals:[]const f32 = &.{0, 0.25, 0.5, 0.75, 1};
     const u_names = &.{"u_0", "u_1_4", "u_1_2", "u_3_4", "u_1"};
@@ -1356,7 +1356,7 @@ fn plot_three_point_approx(
         zgui.pushStrId(label);
         defer zgui.popId();
 
-        approx_segments.clearAndFree();
+        approx_segments.clearAndFree(allocator);
 
         for (crv.segments) 
             |seg| 
@@ -1387,7 +1387,7 @@ fn plot_three_point_approx(
             );
 
             // derivative at the midpoint
-            try approx_segments.append(tpa_guts.result.?);
+            try approx_segments.append(allocator,tpa_guts.result.?);
 
             try plot_tpa_guts(
                 tpa_guts,
@@ -1697,8 +1697,8 @@ fn update_with_error(
                     );
 
                     {
-                        var split_points = std.ArrayList(opentime.Ordinate).init(ALLOCATOR);
-                        defer split_points.deinit();
+                        var split_points: std.ArrayList(opentime.Ordinate) = .{};
+                        defer split_points.deinit(ALLOCATOR);
 
                         // find all knots in self that are within the other bounds
                         const endpoints = try self_hodograph.segment_endpoints(
@@ -1716,7 +1716,10 @@ fn update_with_error(
                                     other_bounds[1].out.as(f32)
                                 )
                             ) {
-                                try split_points.append(self_knot.in);
+                                try split_points.append(
+                                    ALLOCATOR,
+                                    self_knot.in,
+                                );
                             }
 
                         }
@@ -1971,8 +1974,8 @@ fn update_with_error(
                 );
             }
 
-            var remove = std.ArrayList(usize).init(ALLOCATOR);
-            defer remove.deinit();
+            var remove: std.ArrayList(usize) = .{};
+            defer remove.deinit(ALLOCATOR);
             const op_index:usize = 0;
             for (STATE.operations.items) 
                 |*visop| 
@@ -2060,21 +2063,21 @@ fn update_with_error(
                                             seg.p0.in
                                         );
                                         zgui.bulletText(
-                                            "[Seg: {}] dy/dx at p0: {}",
+                                            "[Seg: {}] dy/dx at p0: {f}",
                                             .{
                                                 ind,
                                                 d_p0.i.in,
                                             },
                                         );
                                         zgui.bulletText(
-                                            "[Seg: {}] p1-p0: {}",
+                                            "[Seg: {}] p1-p0: {f}",
                                             .{
                                                 ind,
                                                 seg.p1.in.sub(seg.p0.in),
                                             },
                                         );
                                         zgui.bulletText(
-                                            "[Seg: {}] (dy/dx) / (p1-p0): {}",
+                                            "[Seg: {}] (dy/dx) / (p1-p0): {f}",
                                             .{
                                                 ind,
                                                 (
@@ -2089,21 +2092,21 @@ fn update_with_error(
                                             seg.p3.in
                                         );
                                         zgui.bulletText(
-                                            "[Seg: {}] dy/dx at p3: {}",
+                                            "[Seg: {}] dy/dx at p3: {f}",
                                             .{
                                                 ind,
                                                 d_p3.i.in,
                                             },
                                         );
                                         zgui.bulletText(
-                                            "[Seg: {}] p3-p2: {}",
+                                            "[Seg: {}] p3-p2: {f}",
                                             .{
                                                 ind,
                                                 seg.p3.in.sub(seg.p2.in),
                                             },
                                         );
                                         zgui.bulletText(
-                                            "[Seg: {}] (dy/dx) / (p3-p2): {}",
+                                            "[Seg: {}] (dy/dx) / (p3-p2): {f}",
                                             .{
                                                 ind,
                                                 d_p3.i.in.div(seg.p3.in.sub(seg.p2.in)),
@@ -2117,21 +2120,21 @@ fn update_with_error(
                                             opentime.Dual_Ord.init_ri(0, 1.0)
                                         );
                                         zgui.bulletText(
-                                            "[Seg: {}] dy/du at p0: {}",
+                                            "[Seg: {}] dy/du at p0: {f}",
                                             .{
                                                 ind,
                                                 d_p0.i.in,
                                             },
                                         );
                                         zgui.bulletText(
-                                            "[Seg: {}] p1-p0: {}",
+                                            "[Seg: {}] p1-p0: {f}",
                                             .{
                                                 ind,
                                                 seg.p1.in.sub(seg.p0.in),
                                             },
                                         );
                                         zgui.bulletText(
-                                            "[Seg: {}] (dy/du) / (p1-p0): {}",
+                                            "[Seg: {}] (dy/du) / (p1-p0): {f}",
                                             .{
                                                 ind,
                                                 d_p0.i.in.div(
@@ -2144,21 +2147,21 @@ fn update_with_error(
                                             opentime.Dual_Ord.init_ri(1.0,1.0)
                                         );
                                         zgui.bulletText(
-                                            "[Seg: {}] dy/du at p3: {}",
+                                            "[Seg: {}] dy/du at p3: {f}",
                                             .{
                                                 ind,
                                                 d_p3.i.in,
                                             },
                                         );
                                         zgui.bulletText(
-                                            "[Seg: {}] p3-p2: {}",
+                                            "[Seg: {}] p3-p2: {f}",
                                             .{
                                                 ind,
                                                 seg.p3.in.sub(seg.p2.in),
                                             },
                                         );
                                         zgui.bulletText(
-                                            "[Seg: {}] (dy/du) / (p3-p2): {}",
+                                            "[Seg: {}] (dy/du) / (p3-p2): {f}",
                                             .{
                                                 ind,
                                                 d_p3.i.in.div(seg.p3.in.sub(seg.p2.in)),
@@ -2169,7 +2172,10 @@ fn update_with_error(
                             }
 
                             if (zgui.smallButton("Remove")) {
-                                try remove.append(op_index);
+                                try remove.append(
+                                    ALLOCATOR,
+                                    op_index,
+                                );
                             }
                             zgui.sameLine(.{});
                             zgui.text(
@@ -2330,7 +2336,7 @@ fn _parse_args(
     // ignore the app name, always first in args
     _ = args.skip();
 
-    var operations = std.ArrayList(VisOperation).init(allocator);
+    var operations: std.ArrayList(VisOperation) = .{};
 
     // read all the filepaths from the commandline
     while (args.next()) 
@@ -2362,12 +2368,18 @@ fn _parse_args(
 
         std.debug.assert(crv.segments.len > 0);
 
-        try operations.append(.{ .curve = viscurve });
+        try operations.append(
+            allocator,
+            .{ .curve = viscurve },
+        );
     }
 
-    try operations.append(.{ .transform = .{} });
+    try operations.append(
+        allocator,
+        .{ .transform = .{} }
+    );
 
-    return .{ .operations = operations };
+    return .{ .operations = &operations };
 }
 
 /// print the usage message out and quit

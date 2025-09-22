@@ -158,18 +158,19 @@ pub const Sampling = struct {
         );
         defer file.close();
         
-        var encoder = try wav.encoder(
-            i16,
-            file.writer(),
-            file.seekableStream(),
+        var buf:[4096]u8 = undefined;
+        var writer = file.writer(&buf);
+
+        try wav.write_wav(
+            &writer.interface,
+            .i16,
             self.index_generator.sample_rate_hz.as_ordinate().as(
                 sample_index_t
             ),
             1,
+            sample_value_t,
+            self.buffer,
         );
-        defer encoder.finalize() catch @panic("could not finalize encode"); 
-
-        try encoder.write(sample_value_t, self.buffer);
     }
 
     /// write a file but procedurally generate the filename with data from the 
@@ -187,7 +188,7 @@ pub const Sampling = struct {
             |parent_signal|
              try std.fmt.allocPrint(
                 allocator,
-                "{s}/{s}{s}.amp_{d}_{d}s_{d}hz_signal_{d}hz_samples.wav",
+                "{s}/{s}{s}.amp_{d}_{d}s_{d}hz_signal_{f}hz_samples.wav",
                 .{
                     dirname,
                     prefix,
@@ -205,7 +206,7 @@ pub const Sampling = struct {
                 .{
                     dirname,
                     prefix,
-                    self.index_generator.sample_rate_hz,
+                    self.index_generator.sample_rate_hz.Int,
                 }
             )
         );
@@ -355,8 +356,6 @@ pub const RateSpecifier = union (enum) {
 
     pub fn format(
         self: @This(),
-        comptime _: []const u8,
-        _: std.fmt.FormatOptions,
         writer: anytype,
     ) !void 
     {
@@ -456,8 +455,6 @@ pub const SampleIndexGenerator = struct {
 
     pub fn format(
         self: @This(),
-        comptime _: []const u8,
-        _: std.fmt.FormatOptions,
         writer: anytype,
     ) !void 
     {
@@ -765,9 +762,7 @@ pub fn transform_resample_dd(
     );
     defer output_c_to_input_c_trimmed.deinit(allocator);
 
-    var output_buffer = (
-        std.ArrayList(sample_value_t).init(allocator)
-    );
+    var output_buffer: std.ArrayList(sample_value_t) = .{};
 
     // walk across each mapping in the trimmed topology and transform (or omit)
     // the samples into the output space
@@ -792,7 +787,10 @@ pub fn transform_resample_dd(
                 );
                 defer empty_sampling.deinit();
 
-                try output_buffer.appendSlice(empty_sampling.buffer);
+                try output_buffer.appendSlice(
+                    allocator,
+                    empty_sampling.buffer,
+                );
             },
             .linear => |lin| {
                 const new_sampling = (
@@ -805,7 +803,10 @@ pub fn transform_resample_dd(
                     )
                 );
                 defer new_sampling.deinit();
-                try output_buffer.appendSlice(new_sampling.buffer);
+                try output_buffer.appendSlice(
+                    allocator,
+                    new_sampling.buffer,
+                );
             },
             .affine => |aff| {
                 const ib = aff.input_bounds();
@@ -830,14 +831,17 @@ pub fn transform_resample_dd(
                     )
                 );
                 defer new_sampling.deinit();
-                try output_buffer.appendSlice(new_sampling.buffer);
+                try output_buffer.appendSlice(
+                    allocator,
+                    new_sampling.buffer,
+                );
             },
         }
     }
 
     return .{
         .allocator = allocator,
-        .buffer = try output_buffer.toOwnedSlice(),
+        .buffer = try output_buffer.toOwnedSlice(allocator),
         .index_generator = output_d_sampling_info,
         .interpolating = input_d_sampling.interpolating,
     };
@@ -1052,10 +1056,8 @@ pub fn transform_resample_linear_interpolating_dd(
         input_data: []sample_value_t,
     };
 
-    var transform_specs = std.ArrayList(
-        TransformSpec
-    ).init(allocator);
-    defer transform_specs.deinit();
+    var transform_specs: std.ArrayList(TransformSpec) = .{};
+    defer transform_specs.deinit(allocator);
 
     for (
         output_c_to_input_c_crv.knots[0..output_c_to_input_c_crv.knots.len-1],
@@ -1113,6 +1115,7 @@ pub fn transform_resample_linear_interpolating_dd(
         output_buffer_size += output_samples;
 
         try transform_specs.append(
+            allocator,
             .{
                 .transform_ratio = transform_ratio,
                 .output_samples = output_samples,
@@ -1504,12 +1507,11 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
     );
     const inc:sample_value_t = 4.0/24.0;
 
-    var knots = std.ArrayList(curve.ControlPoint).init(
-        std.testing.allocator
-    );
-    defer knots.deinit();
+    var knots: std.ArrayList(curve.ControlPoint) = .{};
+    defer knots.deinit(allocator);
 
     try knots.append(
+        allocator,
         .{
             .in = transform_curve_extents.start,
             .out = try cubic_transform_curve.output_at_input(
@@ -1523,6 +1525,7 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
         : (t = t.add(inc))
     {
         try knots.append(
+            allocator,
             .{
                 .in = t,
                 .out = try cubic_transform_curve.output_at_input(t),
@@ -1531,9 +1534,9 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
     }
 
     const transform_24hz_lin = curve.Linear{
-        .knots = try knots.toOwnedSlice(),
+        .knots = try knots.toOwnedSlice(allocator),
     };
-    defer transform_24hz_lin.deinit(std.testing.allocator);
+    defer transform_24hz_lin.deinit(allocator);
 
     const input_to_output_lin_cc = 
         (
@@ -1769,7 +1772,7 @@ test "sampling: frame phase slide 2: (time*2 bounds*1 freq*1 phase+0) 0,1,2,3->0
     );
 
     errdefer std.log.err(
-        "Sample to output curve: {s}\n",
+        "Sample to output curve: {f}\n",
         .{ sample_to_output_crv.mapping() }
     );
 
@@ -1929,7 +1932,7 @@ test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(
     defer sample_to_output_crv.deinit(std.testing.allocator);
 
     errdefer std.log.err(
-        "Sample to output curve: {s}\n",
+        "Sample to output curve: {f}\n",
         .{ sample_to_output_crv.mapping() }
     );
 

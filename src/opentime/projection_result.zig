@@ -44,10 +44,6 @@ pub const ProjectionResult = union (enum) {
 
     pub fn format(
         self: @This(),
-        // fmt
-        comptime _: []const u8,
-        // options
-        _: std.fmt.FormatOptions,
         writer: anytype,
     ) !void 
     {
