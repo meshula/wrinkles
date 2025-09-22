@@ -44,7 +44,7 @@ pub const ProjectionResult = union (enum) {
 
     pub fn format(
         self: @This(),
-        writer: anytype,
+        writer: *std.Io.Writer,
     ) !void 
     {
         switch (self) {

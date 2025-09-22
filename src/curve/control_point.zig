@@ -234,7 +234,7 @@ pub fn ControlPointOf(
 
         pub fn format(
             self: @This(),
-            writer: anytype,
+            writer: *std.Io.Writer,
         ) !void 
         {
             try writer.print("({d}, {d})", .{ self.in, self.out });

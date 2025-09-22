@@ -568,7 +568,7 @@ pub const ComposedValueRef = union(enum) {
 
     pub fn format(
         self: @This(),
-        writer: anytype,
+        writer: *std.Io.Writer,
     ) !void 
     {
         const str = switch (self) {
@@ -617,7 +617,7 @@ pub const SpaceLabel = enum(i8) {
 
     pub fn format(
         self: @This(),
-        writer: anytype,
+        writer: *std.Io.Writer,
     ) !void 
     {
         try writer.print( "{s}", .{ @tagName(self) });
@@ -632,7 +632,7 @@ pub const SpaceReference = struct {
 
     pub fn format(
         self: @This(),
-        writer: anytype,
+        writer: *std.Io.Writer,
     ) !void 
     {
         try writer.print(

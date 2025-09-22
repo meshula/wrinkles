@@ -889,7 +889,7 @@ pub const TreenodeWalkingIterator = struct{
  
         pub fn format(
             self: @This(),
-            writer: anytype,
+            writer: *std.Io.Writer,
         ) !void 
         {
             try writer.print(

@@ -102,7 +102,7 @@ pub const ContinuousInterval = struct {
     /// custom formatter for std.fmt
     pub fn format(
         self: @This(),
-        writer: anytype,
+        writer: *std.Io.Writer,
     ) !void 
     {
         try writer.print(

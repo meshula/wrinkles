@@ -901,7 +901,7 @@ pub const Bezier = struct {
 
         pub fn format(
             self: @This(),
-            writer: anytype,
+            writer: *std.Io.Writer,
         ) !void 
         {
             try writer.print("Bezier.Segment{{\n", .{});
@@ -2139,7 +2139,7 @@ pub const Bezier = struct {
 
     pub fn format(
         self: @This(),
-        writer: anytype,
+        writer: *std.Io.Writer,
     ) !void 
     {
         try writer.print("Bezier{{\n  .segments: [\n", .{});

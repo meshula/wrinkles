@@ -39,7 +39,7 @@ fn OrdinateOf(
 
         pub fn format(
             self: @This(),
-            writer: anytype,
+            writer: *std.Io.Writer,
         ) !void 
         {
             try writer.print( "Ord{{ {d} }}", .{ self.v });
@@ -47,7 +47,7 @@ fn OrdinateOf(
 
         pub fn formatNumber(
             self: @This(),
-            writer: anytype,
+            writer: *std.Io.Writer,
             // options
             _: std.fmt.Number,
         ) !void

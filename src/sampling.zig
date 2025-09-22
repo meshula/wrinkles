@@ -356,7 +356,7 @@ pub const RateSpecifier = union (enum) {
 
     pub fn format(
         self: @This(),
-        writer: anytype,
+        writer: *std.Io.Writer,
     ) !void 
     {
         try writer.print(
@@ -455,7 +455,7 @@ pub const SampleIndexGenerator = struct {
 
     pub fn format(
         self: @This(),
-        writer: anytype,
+        writer: *std.Io.Writer,
     ) !void 
     {
         try writer.print(

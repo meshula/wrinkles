@@ -434,7 +434,7 @@ pub fn LinearOf(
 
             pub fn format(
                 self: @This(),
-                writer: anytype,
+                writer: *std.Io.Writer,
             ) !void 
             {
                 try writer.print("Linear.Monotonic{{\n  .knots: [\n", .{});

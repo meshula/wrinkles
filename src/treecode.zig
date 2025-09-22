@@ -362,9 +362,10 @@ pub const Treecode = struct {
         );
     }
 
+
     pub fn format(
         self: @This(),
-        writer: anytype,
+        writer: *std.Io.Writer,
     ) !void 
     {
         const marker_pos_abs = self.code_length();
@@ -1480,4 +1481,3 @@ pub fn path_exists(
         )
     );
 }
-

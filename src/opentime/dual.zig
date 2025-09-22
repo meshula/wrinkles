@@ -227,7 +227,7 @@ pub fn DualOfNumberType(
 
         pub fn format(
             self: @This(),
-            writer: anytype,
+            writer: *std.Io.Writer,
         ) !void 
         {
             try writer.print(
@@ -476,7 +476,7 @@ pub fn DualOfStruct(
 
         pub fn format(
             self: @This(),
-            writer: anytype,
+            writer: *std.Io.Writer,
         ) !void 
         {
             try writer.print(
