@@ -22,7 +22,6 @@
   continuous transformation
 * `Topology`: monotonic over their input spaces, use sets of Mappings to
   continuously project from an input space to an output space.
-* `OpenTimelineIO`: structures to represent an editorial timeline document
 * `ProjectionOperator`: pairs a topology with source and destination references
   which can define discrete spaces so that you can project from a discrete
   space to another discrete space with a continuous transformation in the
@@ -33,6 +32,7 @@
 * `ProjectionOperatorMap`: decomposes/flattens a TopologicalMap from a source
   space such that each segment maps a set of ProjectionOperators to region of
   the source space, mapping media under each section of the output timeline
+* `OpenTimelineIO`: structures to represent an editorial timeline document
 
 Additionally there are tools for visualizing curves, transformations, and the
 temporal hierarchies of editorial documents.
