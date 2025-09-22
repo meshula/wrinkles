@@ -275,14 +275,15 @@ pub fn executable(
 pub const CreateModuleOptions = struct {
     b: *std.Build,
     options: Options,
+    /// file path to root source file
     fpath: []const u8,
     deps: []const std.Build.Module.Import = &.{},
 };
 
-/// build a submodule w/ unit tests
+/// build a submodule w/ unit tests, docs, and the check step (for zls)
 pub fn module_with_tests_and_artifact(
     comptime name: []const u8,
-    opts:CreateModuleOptions,
+    opts: CreateModuleOptions,
 ) *std.Build.Module
 {
     const mod = opts.b.createModule(
@@ -294,22 +295,26 @@ pub fn module_with_tests_and_artifact(
         }
     );
 
-    const mod_unit_tests = opts.b.addTest(
-        .{
-            .name = "test_" ++ name,
-            .root_module = opts.b.createModule(
-                .{
-                    .root_source_file = opts.b.path(opts.fpath),
-                    .optimize = opts.options.optimize,
-                    .target =opts.options.target,
-                },
-            ),
-            .filters = &.{ opts.options.test_filter orelse &.{} },
-        }
-    );
-
     // unit tests for the module
+    const mod_unit_tests = unit_tests: 
     {
+        const mod_unit_tests = opts.b.addTest(
+            .{
+                .name = "test_" ++ name,
+                .root_module = opts.b.createModule(
+                    .{
+                        .root_source_file = opts.b.path(opts.fpath),
+                        .optimize = opts.options.optimize,
+                        .target =opts.options.target,
+                    },
+                ),
+                .filters = &.{
+                    opts.options.test_filter orelse &.{},
+                },
+            }
+        );
+
+        // add dependencies to test
         for (opts.deps)
             |dep_mod|
         {
@@ -319,8 +324,15 @@ pub fn module_with_tests_and_artifact(
             );
         }
 
+        // test runner step
         const run_unit_tests = opts.b.addRunArtifact(mod_unit_tests);
-        opts.options.test_step.dependOn(&run_unit_tests.step);
+
+        const mod_test_step = opts.b.step(
+            "test_" ++ name,
+            "Run unit tests for " ++ name,
+        );
+        mod_test_step.dependOn(&run_unit_tests.step);
+        opts.options.test_step.dependOn(mod_test_step);
 
         // also install the test binary for lldb needs
         const install_test_bin = opts.b.addInstallArtifact(
@@ -328,8 +340,11 @@ pub fn module_with_tests_and_artifact(
             .{},
         );
 
+        // always install the tests
         opts.options.test_step.dependOn(&install_test_bin.step);
-    }
+
+        break :unit_tests mod_unit_tests;
+    };
 
     // docs
     {
@@ -497,10 +512,7 @@ pub fn build(
 
     const comath_dep = b.dependency(
         "comath",
-        .{
-            .target = options.target,
-            .optimize = options.optimize,
-        }
+        .{}
     );
 
     const wav_dep = b.dependency(
