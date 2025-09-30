@@ -311,7 +311,7 @@ pub const ComposedValueRef = union(enum) {
         allocator: std.mem.Allocator,
         from_space: SpaceLabel,
         to_space: SpaceReference,
-        step: u1,
+        step: treecode.l_or_r,
     ) !topology_m.Topology 
     {
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
@@ -356,7 +356,7 @@ pub const ComposedValueRef = union(enum) {
                         }
 
                         // no further transformation INTO the child
-                        if (step == 0) {
+                        if (step == .left) {
                             return (
                                 try topology_m.Topology.init_identity_infinite(
                                     allocator
