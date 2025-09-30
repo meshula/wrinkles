@@ -1,24 +1,32 @@
-//! This module implements the Treecode struct for encoding paths through
-//! binary trees. Also provides a TreecodeHashMap for mapping paths to things.
+//! `Treecode` is a binary encoding of a path through a binary tree.
+//!
+//! Also includes a `TreecodeHashMap` (`std.HashMap` wrapper for mapping
+//! treecodes to values).
 
 const std = @import("std");
 
+/// The type of a single word in a `Treecode`
 pub const TreecodeWord = u128;
+/// bit width of a single word in a `Treecode`
 pub const WORD_BIT_COUNT = @bitSizeOf(TreecodeWord);
+/// Hash type for a `Treecode`
 pub const Hash = u64;
 
-/// all treecodes start with this code and append on to it
+/// All treecodes start with this code
 pub const ROOT_TREECODE:TreecodeWord = 0b1;
 
 /// A binary encoding of a path through a binary tree.  The root bit is the
-/// right side of a number, and the directions are read right to left.  The
-/// last (right most) bit is always a 1 and is not part of the path.
+/// left most / LSB, and the directions are read right to left.  Each bit until
+/// the root bit indicates which direction down the binary tree to take.
+///
+/// The root (left most/MSB) bit is always a 1 and is not part of the path.
 ///
 /// The directions:
 /// - 0: left child
 /// - 1: right child
 ///
 /// Examples:
+/// - 0b1 => root bit only (no direction)
 /// - 0b1001 => 0b1 001 -> right, left, left
 /// - 0b111001 => 0b1 11001 -> right, left, left, right, right
 /// - 0b1010 => 0b1 010 -> left, right, left
