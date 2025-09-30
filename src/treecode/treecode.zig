@@ -39,8 +39,6 @@ pub const ROOT_TREECODE:TreecodeWord = 0b1;
 pub const Treecode = struct {
     /// the array of words that make up the treecode
     treecode_array: []TreecodeWord,
-    /// index in treecode_array of the leftmost bit in the treecode
-    sz: usize,
 
     /// preallocate a Treecode of size count and stamp input into the LSB
     /// (leftmost)
@@ -68,7 +66,6 @@ pub const Treecode = struct {
         treecode_array[count - 1] = input;
 
         return .{
-            .sz = count,
             .treecode_array = treecode_array,
         };
     }
@@ -85,8 +82,7 @@ pub const Treecode = struct {
         );
 
         return .{
-            .sz = 1,
-            .treecode_array = treecode_array 
+            .treecode_array = treecode_array,
         };
     }
 
@@ -97,27 +93,26 @@ pub const Treecode = struct {
         new_size: usize,
     ) !void 
     {
+        const old_size = self.treecode_array.len;
+
         self.treecode_array = try allocator.realloc(
             self.treecode_array,
-            new_size
+            new_size,
         );
 
-        @memset(self.treecode_array[self.sz..], 0);
-
-        self.sz = new_size;
+        @memset(self.treecode_array[old_size..], 0);
     }
 
-    /// return a clone of self
+    /// return a clone of self in freshly allocated memory
     pub fn clone(
         self: @This(),
         allocator: std.mem.Allocator,
     ) !Treecode 
     {
         return .{
-            .sz = self.sz,
             .treecode_array = try allocator.dupe(
                 TreecodeWord,
-                self.treecode_array
+                self.treecode_array,
             ),
         };
     }
@@ -135,12 +130,12 @@ pub const Treecode = struct {
         self: @This(),
     ) usize 
     {
-        if (self.sz == 0) {
+        if (self.treecode_array.len == 0) {
             return 0;
         }
         var occupied_words : usize = 0;
 
-        for (0..self.sz)
+        for (0..self.treecode_array.len)
             |i|
         {
             if (self.treecode_array[i] != 0) {
@@ -156,28 +151,31 @@ pub const Treecode = struct {
             return count;
         }
 
-        return count + (occupied_words) * WORD_BIT_COUNT;
+        return count + (occupied_words * WORD_BIT_COUNT);
     }
 
-    /// check equality of the treecode (not the allocator or array structure)
+    /// By-value equality of the treecode.  IE does not consider the size of
+    /// the treecode array 
     pub fn eql(
         self: @This(),
-        other: Treecode,
+        rhs: Treecode,
     ) bool 
     {
-        const len_self = self.code_length();
-        const len_other = other.code_length();
+        const self_code_len = self.code_length();
 
-        if (len_self != len_other) {
+        if (self_code_len != rhs.code_length()) {
             return false;
         }
 
-        const greatest_nozero_index: usize = len_self / WORD_BIT_COUNT;
+        const end_word = (self_code_len / WORD_BIT_COUNT) + 1;
 
-        for (0..greatest_nozero_index+1)
-            |i|
+        for (
+            self.treecode_array[0..end_word],
+            rhs.treecode_array[0..end_word],
+        )
+            |self_word, rhs_word|
         {
-            if (self.treecode_array[i] != other.treecode_array[i]) {
+            if (self_word != rhs_word) {
                 return false;
             }
         }
@@ -189,16 +187,22 @@ pub const Treecode = struct {
     pub fn append(
         self: *@This(),
         allocator: std.mem.Allocator,
+        /// new bit to append to self
         new_branch: l_or_r,
     ) !void 
     {
-        if (self.sz == 0) {
+        if (self.treecode_array.len == 0) {
             return error.InvalidTreecode;
         }
 
-        const len = self.code_length();
+        const current_code_length = self.code_length();
 
-        if (len < (WORD_BIT_COUNT - 1)) 
+        // index for the new branch
+        const next_index = current_code_length + 1;
+
+        // special case where there is only one word in the treecode and there
+        // is still room in that one word for an append
+        if (next_index < WORD_BIT_COUNT) 
         {
             self.treecode_array[0] = treecode_word_append(
                 self.treecode_array[0],
@@ -207,52 +211,50 @@ pub const Treecode = struct {
             return;
         }
 
-        var space_available = self.sz * WORD_BIT_COUNT - 1;
-        const next_index = len + 1;
+        // the last index that can be written to without triggering a realloc
+        const last_allocated_index = (
+            (self.treecode_array.len * WORD_BIT_COUNT) 
+            - 1
+        );
 
-        if (next_index >= space_available) 
+        if (next_index > last_allocated_index) 
         {
             // double the size
-            try self.realloc(allocator, self.sz*2);
-            space_available = self.sz * WORD_BIT_COUNT - 1;
+            try self.realloc(
+                allocator,
+                self.treecode_array.len*2,
+            );
         }
 
-        const new_marker_location_abs = len + 1;
-        const new_marker_slot = (
-            new_marker_location_abs / WORD_BIT_COUNT
-        );
-        const new_marker_location_in_slot = (
-            @rem(new_marker_location_abs, WORD_BIT_COUNT)
-        );
+        // move the marker one index over
+        const new_marker_word = next_index / WORD_BIT_COUNT;
+        const new_marker_index_in_word = @rem(next_index, WORD_BIT_COUNT);
 
-        self.treecode_array[new_marker_slot] |= std.math.shl(
+        self.treecode_array[new_marker_word] |= std.math.shl(
             TreecodeWord,
             1,
-            new_marker_location_in_slot
+            new_marker_index_in_word,
         );
 
-        const new_data_location_abs = len; 
-        const new_data_slot = new_data_location_abs / WORD_BIT_COUNT;
-        const new_data_location_in_slot = (
-            @rem(new_data_location_abs, WORD_BIT_COUNT)
-        );
+        // add the new_branch to the target index in the target word
+        const new_data_word = current_code_length / WORD_BIT_COUNT;
+        const new_data_index_in_word = @rem(current_code_length, WORD_BIT_COUNT);
 
         const old_marker_bit = std.math.shl(
             TreecodeWord,
             1,
-            new_data_location_in_slot,
+            new_data_index_in_word,
         );
 
         // subtract old marker position
-        self.treecode_array[new_data_slot] = (
-            self.treecode_array[new_data_slot] 
-            - old_marker_bit
+        self.treecode_array[new_data_word] = (
+            self.treecode_array[new_data_word] - old_marker_bit
         );
 
-        self.treecode_array[new_data_slot] |= std.math.shl(
+        self.treecode_array[new_data_word] |= std.math.shl(
             TreecodeWord,
-            new_data_location_in_slot,
             @intFromEnum(new_branch),
+            new_data_index_in_word,
         );
 
         return;
@@ -340,13 +342,22 @@ pub const Treecode = struct {
         return hasher.final();
     }
 
-    /// return a 0 or 1 for appending to self to approach dest.  Assumes that
-    /// dest is longer than self.
+    /// Given a `dest` code which is a child of `self`, find the next bit after
+    /// the bits in `self` that is present in `dest` (IE the next step down the
+    /// tree towards the location of `dest`).
+    ///
+    /// @TODO: this doesn't confirm the assumptions that 
+    ///        (1) dest is a child of self
+    ///        (2) dest is long enough to have a value at the correct position
+    ///        Should it?  Should there be a fallible flavor of this that adds
+    ///        the extra checks and can return an error?
     pub fn next_step_towards(
         self: @This(),
         dest: Treecode,
-    ) !u1 
+    ) l_or_r 
     {
+        std.debug.assert(self.is_superset_of(dest));
+
         const self_len = self.code_length();
 
         const self_len_pos_local = @rem(self_len, WORD_BIT_COUNT);
@@ -369,7 +380,7 @@ pub const Treecode = struct {
         );
     }
 
-
+    /// formatter for {f}
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
@@ -525,6 +536,15 @@ test "fmt all ones"
     try std.testing.expectEqual(
         ltc.code_length() + 1,
         result.len,
+    );
+
+    try std.testing.expectEqualStrings(
+        (
+           "1101000000000000000000000000000000000000000000000000000000"
+           ++ "0000000000000000000000000000000000000000000000000000000" 
+           ++ "00000000000000001"
+        ), 
+        result,
     );
 }
 
@@ -1074,20 +1094,22 @@ test "treecode: Treecode.eql preallocated"
     }
 }
 
+/// append a bit to the next free bit in `target_word`.  Assumes that
+/// `target_word` has capacity for `new_branch`.
 fn treecode_word_append(
-    a: TreecodeWord,
+    target_word: TreecodeWord,
     /// bit to append to `target_word`
     new_branch: l_or_r,
 ) TreecodeWord 
 {
-    const signficant_bits:u8 = WORD_BIT_COUNT - 1 - @clz(a);
+    const signficant_bits:u8 = WORD_BIT_COUNT - 1 - @clz(target_word);
 
     // strip leading bit
     const leading_bit = (
         @as(TreecodeWord, 1) << @as(u7, @intCast(@as(u8, signficant_bits)))
     );
 
-    const a_without_leading_bit = (a - leading_bit) ;
+    const a_without_leading_bit = (target_word - leading_bit) ;
     const leading_bit_shifted = (leading_bit << 1);
 
     const l_or_r_branch_shifted = (
@@ -1234,7 +1256,6 @@ test "treecode: allocator doesn't participate in hash"
 
     var tmp = [_]TreecodeWord{ 0b101 };
     const t1 = Treecode{
-        .sz = 1,
         .treecode_array = &tmp,
     };
     const t2 = try Treecode.init_word(
@@ -1319,7 +1340,7 @@ test "treecode: next_step_towards - single word size"
 
         try std.testing.expectEqual(
             t.expect,
-            try tc_src.next_step_towards(tc_dst),
+            tc_src.next_step_towards(tc_dst),
         );
     }
 }

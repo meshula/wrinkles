@@ -50,6 +50,7 @@ pub const TopologicalMap = struct {
 
     pub fn deinit(
         self: @This(),
+        allocator: std.mem.Allocator,
     ) void 
     {
         // build a mutable alias of self
@@ -61,7 +62,7 @@ pub const TopologicalMap = struct {
         while (keyIter.next())
             |code|
         {
-            code.deinit();
+            code.deinit(allocator);
         }
 
         var valueIter = (
@@ -70,7 +71,7 @@ pub const TopologicalMap = struct {
         while (valueIter.next())
             |code|
         {
-            code.deinit();
+            code.deinit(allocator);
         }
 
         // free the guts
@@ -84,18 +85,12 @@ pub const TopologicalMap = struct {
     ) core.SpaceReference 
     {
         const tree_word = treecode.Treecode{
-            .sz = 1,
             .treecode_array = blk: {
                 var output = [_]treecode.TreecodeWord{
                     treecode.ROOT_TREECODE,
                 };
                 break :blk &output;
             },
-
-            // SAFETY: temporary tree word generated to query from the map,
-            //         only used in this function.  Doesn't need to be
-            //         allocated.
-            .allocator = undefined,
         };
 
         // should always have a root object
@@ -157,7 +152,9 @@ pub const TopologicalMap = struct {
                 iter.maybe_current orelse return error.TreeCodeNotInMap
             );
 
-            const next_step = try current.code.next_step_towards(next.code);
+            const next_step = current.code.next_step_towards(
+                next.code,
+            );
 
             if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) { 
                 opentime.dbg_print(@src(), 
@@ -579,7 +576,7 @@ pub fn build_topological_map(
 ) !TopologicalMap 
 {
     var tmp_topo_map = try TopologicalMap.init(allocator);
-    errdefer tmp_topo_map.deinit();
+    errdefer tmp_topo_map.deinit(allocator);
 
     const Node = struct {
         path_code: treecode.Treecode,
@@ -591,7 +588,7 @@ pub fn build_topological_map(
         for (stack.items)
             |n|
         {
-            n.path_code.deinit();
+            n.path_code.deinit(allocator);
         }
         stack.deinit(allocator);
     }
@@ -626,10 +623,10 @@ pub fn build_topological_map(
         const current = maybe_current.?;
 
         const code_from_stack = current.path_code;
-        defer code_from_stack.deinit();
+        defer code_from_stack.deinit(allocator);
 
-        var current_code = try current.path_code.clone();
-        errdefer current_code.deinit();
+        var current_code = try current.path_code.clone(allocator);
+        errdefer current_code.deinit(allocator);
 
         // push the spaces for the current object into the map/stack
         {
@@ -642,10 +639,11 @@ pub fn build_topological_map(
                 |index, space_ref| 
             {
                 const child_code = try depth_child_code_leaky(
+                    allocator,
                     current_code,
                     index
                 );
-                defer child_code.deinit();
+                defer child_code.deinit(allocator);
 
                 if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
                     std.debug.assert(
@@ -670,16 +668,16 @@ pub fn build_topological_map(
                 }
                 try tmp_topo_map.map_space_to_code.put(
                     space_ref,
-                    try child_code.clone(),
+                    try child_code.clone(allocator),
                 );
                 try tmp_topo_map.map_code_to_space.put(
-                    try child_code.clone(),
+                    try child_code.clone(allocator),
                     space_ref
                 );
 
                 if (index == (spaces.len - 1)) {
-                    current_code.deinit();
-                    current_code = try child_code.clone();
+                    current_code.deinit(allocator);
+                    current_code = try child_code.clone(allocator);
                 }
             }
         }
@@ -717,10 +715,11 @@ pub fn build_topological_map(
             |item_ptr, index| 
         {
             const child_space_code = try sequential_child_code_leaky(
+                allocator,
                 current_code,
                 index
             );
-            defer child_space_code.deinit();
+            defer child_space_code.deinit(allocator);
 
             // insert the child scope
             const space_ref = core.SpaceReference{
@@ -768,31 +767,32 @@ pub fn build_topological_map(
             }
             try tmp_topo_map.map_space_to_code.put(
                 space_ref,
-                try child_space_code.clone()
+                try child_space_code.clone(allocator)
             );
             try tmp_topo_map.map_code_to_space.put(
-                try child_space_code.clone(),
+                try child_space_code.clone(allocator),
                 space_ref
             );
 
             // creates a cone of the child_space_code
             const child_code = try depth_child_code_leaky(
+                allocator,
                 child_space_code,
                 1
             );
-            defer child_code.deinit();
+            defer child_code.deinit(allocator);
 
             try stack.insert(
                 allocator,
                 0,
                 .{ 
                     .object= item_ptr,
-                    .path_code = try child_code.clone()
+                    .path_code = try child_code.clone(allocator)
                 }
             );
         }
 
-        current_code.deinit();
+        current_code.deinit(allocator);
     }
 
     // return result;
@@ -812,10 +812,10 @@ test "build_topological_map: leak sentinel test track w/ clip"
     try tr.append(allocator,schema.Clip{});
 
     const map = try build_topological_map(
-        std.testing.allocator,
+        allocator,
         tr_ref,
     );
-    defer map.deinit();
+    defer map.deinit(allocator);
 }
 
 test "build_topological_map check root node" 
@@ -858,10 +858,10 @@ test "build_topological_map check root node"
     );
 
     const map = try build_topological_map(
-        std.testing.allocator,
+        allocator,
         tr_ref,
     );
-    defer map.deinit();
+    defer map.deinit(allocator);
 
     try std.testing.expectEqual(
         tr_ref.space(.presentation),
@@ -871,13 +871,15 @@ test "build_topological_map check root node"
 
 test "build_topological_map: leak sentinel test - single clip"
 {
+    const allocator = std.testing.allocator;
+
     const cl = schema.Clip {};
 
     const map = try build_topological_map(
-        std.testing.allocator,
+        allocator,
         core.ComposedValueRef.init(&cl)
     );
-    defer map.deinit();
+    defer map.deinit(allocator);
 }
 
 /// iterator that walks over each node in the graph, returning the node at each
@@ -950,7 +952,7 @@ pub const TreenodeWalkingIterator = struct{
             allocator,
             .{
                 .space = source,
-                .code = try start_code.clone(),
+                .code = try start_code.clone(allocator),
             }
         );
 
@@ -980,7 +982,8 @@ pub const TreenodeWalkingIterator = struct{
 
         if (treecode.path_exists(source_code, destination_code) == false) 
         {
-            errdefer opentime.dbg_print(@src(), 
+            errdefer opentime.dbg_print(
+                @src(), 
                 "\nERROR\nsource: {s} dest: {s}\n",
                 .{
                     source_code,
@@ -1027,17 +1030,17 @@ pub const TreenodeWalkingIterator = struct{
         if (self.maybe_previous)
             |n|
         {
-            n.code.deinit();
+            n.code.deinit(allocator);
         }
         if (self.maybe_current)
             |n|
         {
-            n.code.deinit();
+            n.code.deinit(allocator);
         }
         for (self.stack.items)
             |n|
         {
-            n.code.deinit();
+            n.code.deinit(allocator);
         }
         self.stack.deinit(allocator);
     }
@@ -1054,7 +1057,7 @@ pub const TreenodeWalkingIterator = struct{
         if (self.maybe_previous)
             |prev|
         {
-            prev.code.deinit();
+            prev.code.deinit(allocator);
         }
         self.maybe_previous = self.maybe_current;
 
@@ -1063,20 +1066,18 @@ pub const TreenodeWalkingIterator = struct{
 
         // if there is a destination, walk in that direction. Otherwise, walk
         // exhaustively
-        const next_steps : []const u1 = (
-            if (self.maybe_destination) |dest| &[_]u1{ 
-                try current.code.next_step_towards(dest.code)
+        const next_steps : []const treecode.l_or_r = (
+            if (self.maybe_destination) |dest| &[_]treecode.l_or_r{ 
+                current.code.next_step_towards(dest.code)
             }
-            else &.{
-                0, 1
-            }
+            else &.{ .left,.right }
         );
 
         for (next_steps)
             |next_step|
         {
-            var next_code = try current.code.clone();
-            try next_code.append(@intCast(next_step));
+            var next_code = try current.code.clone(allocator);
+            try next_code.append(allocator, next_step);
 
             if (self.map.map_code_to_space.get(next_code))
                 |next_node|
@@ -1090,7 +1091,7 @@ pub const TreenodeWalkingIterator = struct{
                 );
             }
             else {
-                next_code.deinit();
+                next_code.deinit(allocator);
             }
         }
 
@@ -1114,9 +1115,12 @@ test "TestWalkingIterator: clip"
         allocator,
         cl_ptr,
     );
-    defer map.deinit();
+    defer map.deinit(allocator);
 
-    try map.write_dot_graph(std.testing.allocator, "/var/tmp/walk.dot");
+    try map.write_dot_graph(
+        allocator,
+        "/var/tmp/walk.dot",
+    );
 
     var node_iter = try TreenodeWalkingIterator.init(
         allocator,
@@ -1158,16 +1162,19 @@ test "TestWalkingIterator: track with clip"
         std.testing.allocator,
         tr_ptr
     );
-    defer map.deinit();
+    defer map.deinit(allocator);
 
-    try map.write_dot_graph(std.testing.allocator, "/var/tmp/walk.dot");
+    try map.write_dot_graph(
+        allocator,
+        "/var/tmp/walk.dot",
+    );
 
     var count:usize = 0;
 
     // from the top
     {
         var node_iter = try TreenodeWalkingIterator.init(
-            std.testing.allocator,
+            allocator,
             &map,
         );
         defer node_iter.deinit(allocator);
@@ -1232,10 +1239,10 @@ test "TestWalkingIterator: track with clip w/ destination"
         std.testing.allocator,
         tr_ptr
     );
-    defer map.deinit();
+    defer map.deinit(allocator);
 
     try map.write_dot_graph(
-        std.testing.allocator,
+        allocator,
         "/var/tmp/walk.dot"
     );
 
@@ -1245,7 +1252,7 @@ test "TestWalkingIterator: track with clip w/ destination"
     {
         var node_iter = (
             try TreenodeWalkingIterator.init_from_to(
-                std.testing.allocator,
+                allocator,
                 &map,
                 .{
                     .source = try tr_ptr.space(.presentation),
@@ -1267,27 +1274,30 @@ test "TestWalkingIterator: track with clip w/ destination"
 }
 
 fn depth_child_code_leaky(
+    allocator: std.mem.Allocator,
     parent_code:treecode.Treecode,
     index: usize,
 ) !treecode.Treecode 
 {
-    var result = try parent_code.clone();
+    var result = try parent_code.clone(allocator);
 
     for (0..index)
         |_|
     {
-        try result.append(0);
+        try result.append(allocator, .left);
     }
     return result;
 }
 
 test "depth_child_hash: math" 
 {
+    const allocator = std.testing.allocator;
+
     var root = try treecode.Treecode.init_word(
-        std.testing.allocator,
+        allocator,
         0b1000
     );
-    defer root.deinit();
+    defer root.deinit(allocator);
 
     const expected_root:treecode.TreecodeWord = 0b1000;
 
@@ -1295,10 +1305,11 @@ test "depth_child_hash: math"
         |i|
     {
         var result = try depth_child_code_leaky(
+            allocator,
             root,
             i,
         );
-        defer result.deinit();
+        defer result.deinit(allocator);
 
         const expected = std.math.shl(
             treecode.TreecodeWord,
@@ -1319,39 +1330,46 @@ test "depth_child_hash: math"
 }
 
 fn sequential_child_code_leaky(
+    allocator: std.mem.Allocator,
     src: treecode.Treecode,
     index: usize,
 ) !treecode.Treecode 
 {
-    var result = try src.clone();
+    var result = try src.clone(allocator);
 
     for (0..index+1)
         |_|
     {
-        try result.append(1);
+        try result.append(allocator, .right);
     }
     return result;
 }
 
 test "sequential_child_hash: math" 
 {
+    const allocator = std.testing.allocator;
+
     var root = try treecode.Treecode.init_word(
-        std.testing.allocator,
+        allocator,
         0b1000
     );
-    defer root.deinit();
+    defer root.deinit(allocator);
 
-    var test_code = try root.clone();
-    defer test_code.deinit();
+    var test_code = try root.clone(allocator);
+    defer test_code.deinit(allocator);
 
     var i:usize = 0;
     while (i<4) 
         : (i+=1) 
     {
-        var result = try sequential_child_code_leaky(root, i);
-        defer result.deinit();
+        var result = try sequential_child_code_leaky(
+            allocator,
+            root,
+            i,
+        );
+        defer result.deinit(allocator);
 
-        try test_code.append(1);
+        try test_code.append(allocator, .right);
 
         errdefer opentime.dbg_print(@src(), 
             "iteration: {d}, expected: {s} got: {s}\n",
@@ -1419,7 +1437,7 @@ test "label_for_node_leaky"
         allocator,
         0b1101001
     );
-    defer tc.deinit();
+    defer tc.deinit(allocator);
 
     const result = try label_for_node_leaky(
         allocator,

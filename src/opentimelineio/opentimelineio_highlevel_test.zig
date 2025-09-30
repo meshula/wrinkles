@@ -102,7 +102,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         allocator,
         tl_ptr
     );
-    defer topo_map.deinit();
+    defer topo_map.deinit(allocator);
 
     // could do individual specific end-to-end projections here
     ///////////////////////////////////////////////////////////////////////////
@@ -142,7 +142,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             try tl_ptr.space(.presentation)
         )
     );
-    defer proj_map.deinit();
+    defer proj_map.deinit(allocator);
 
     const src_discrete_info = (
         try proj_map.source.ref.discrete_info_for_space(.presentation)
@@ -347,7 +347,7 @@ test "libsamplerate w/ high level test -- resample only"
         allocator,
         tl_ptr,
     );
-    defer topo_map.deinit();
+    defer topo_map.deinit(allocator);
 
     const tr_pres_to_cl_media_po = (
         try topo_map.build_projection_operator(
@@ -393,7 +393,7 @@ test "libsamplerate w/ high level test -- resample only"
             true,
         )
     );
-    defer media_samples.deinit();
+    defer media_samples.deinit(allocator);
     try std.testing.expect(media_samples.buffer.len > 0);
 
     // write the input file
@@ -412,7 +412,7 @@ test "libsamplerate w/ high level test -- resample only"
         tl.discrete_info.presentation.?,
         false,
     );
-    defer cl_media_samples_for_tr_pres.deinit();
+    defer cl_media_samples_for_tr_pres.deinit(allocator);
 
     // result should match the timeline's discrete info
     try std.testing.expectEqual(
@@ -501,7 +501,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
         allocator,
         tl_ptr
     );
-    defer topo_map.deinit();
+    defer topo_map.deinit(allocator);
 
     try topo_map.write_dot_graph(
         allocator,
@@ -527,7 +527,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
             true,
         )
     );
-    defer media.deinit();
+    defer media.deinit(allocator);
     try std.testing.expect(media.buffer.len > 0);
 
     // write the input file
@@ -546,7 +546,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
         tl.discrete_info.presentation.?,
         false,
     );
-    defer result.deinit();
+    defer result.deinit(allocator);
 
     // result should match the timeline's discrete info
     try std.testing.expectEqual(
@@ -647,7 +647,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
         allocator,
         tl_ptr
     );
-    defer topo_map.deinit();
+    defer topo_map.deinit(allocator);
 
     const tr_pres_to_cl_media_po = (
         try topo_map.build_projection_operator(
@@ -668,7 +668,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
             false,
         )
     );
-    defer media.deinit();
+    defer media.deinit(allocator);
     try std.testing.expect(media.buffer.len > 0);
 
     // write the input file
@@ -687,7 +687,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
         tl.discrete_info.presentation.?,
         false,
     );
-    defer indices_tr_pres.deinit();
+    defer indices_tr_pres.deinit(allocator);
 
     // result should match the timeline's discrete info
     try std.testing.expectEqual(
@@ -813,7 +813,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
         allocator,
         tl_ptr,
     );
-    defer topo_map.deinit();
+    defer topo_map.deinit(allocator);
 
     // build the projection operator (Track.presentation -> clip.media)
     ///////////////////////////////////////////////////////////////////////////
@@ -966,7 +966,7 @@ test "timeline w/ warp that holds the tenth frame"
         allocator,
         tl_ptr
     );
-    defer topo_map.deinit();
+    defer topo_map.deinit(allocator);
 
     const tr_pres_to_cl_media_po = (
         try topo_map.build_projection_operator(
@@ -1087,7 +1087,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
         allocator,
         tl_ptr,
     );
-    defer topo_map.deinit();
+    defer topo_map.deinit(allocator);
 
     // Build the projection from Timeline Presentation -> Clip Media
     ///////////////////////////////////////////////////////////////////////////

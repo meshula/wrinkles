@@ -359,7 +359,7 @@ pub const ComposedValueRef = union(enum) {
                         if (step == .left) {
                             return (
                                 try topology_m.Topology.init_identity_infinite(
-                                    allocator
+                                    allocator,
                                 )
                             );
                         } 
@@ -965,7 +965,6 @@ pub fn projection_map_to_media_from(
     defer iter.deinit(allocator);
 
     var result = ProjectionOperatorMap{
-        .allocator = allocator,
         .source = source,
     };
 
@@ -997,10 +996,10 @@ pub fn projection_map_to_media_from(
                 child_op,
             )
         );
-        defer child_op_map.deinit();
+        defer child_op_map.deinit(allocator);
 
         const last = result;
-        defer last.deinit();
+        defer last.deinit(allocator);
 
         result = try ProjectionOperatorMap.merge_composite(
             allocator,
@@ -1016,13 +1015,15 @@ pub fn projection_map_to_media_from(
 
 test "ProjectionOperatorMap: init_operator leak test"
 {
+    const allocator = std.testing.allocator;
+
     const cl = schema.Clip{};
     const cl_ptr = ComposedValueRef{ 
         .clip_ptr = &cl 
     };
     const child_op_map = (
         try ProjectionOperatorMap.init_operator(
-            std.testing.allocator,
+            allocator,
             .{
                 .source = try cl_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
@@ -1030,10 +1031,10 @@ test "ProjectionOperatorMap: init_operator leak test"
             },
         )
     );
-    defer child_op_map.deinit();
+    defer child_op_map.deinit(allocator);
 
-    const clone = try child_op_map.clone();
-    defer clone.deinit();
+    const clone = try child_op_map.clone(allocator);
+    defer clone.deinit(allocator);
 }
 
 test "ProjectionOperatorMap: projection_map_to_media_from leak test"
@@ -1049,14 +1050,14 @@ test "ProjectionOperatorMap: projection_map_to_media_from leak test"
         allocator,
         cl_ptr,
     );
-    defer map.deinit();
+    defer map.deinit(allocator);
 
     const m = try projection_map_to_media_from(
         allocator,
         map,
         try cl_ptr.space(.presentation),
     );
-    defer m.deinit();
+    defer m.deinit(allocator);
 
     const mapp = m.operators[0][0].src_to_dst_topo.mappings[0];
     try opentime.expectOrdinateEqual(
@@ -1072,8 +1073,6 @@ test "ProjectionOperatorMap: projection_map_to_media_from leak test"
 
 /// maps a timeline to sets of projection operators, one set per temporal slice
 pub const ProjectionOperatorMap = struct {
-    allocator: std.mem.Allocator,
-
     /// segment endpoints
     end_points: []const opentime.Ordinate = &.{},
     /// segment projection operators 
@@ -1102,7 +1101,6 @@ pub const ProjectionOperatorMap = struct {
         operators[0] = try allocator.dupe(ProjectionOperator, &.{ op });
         
         return .{
-            .allocator = allocator,
             .end_points = end_points,
             .operators = operators,
             .source = op.source,
@@ -1110,21 +1108,22 @@ pub const ProjectionOperatorMap = struct {
     }
 
     pub fn deinit(
-        self: @This()
+        self: @This(),
+        allocator: std.mem.Allocator,
     ) void
     {
-        self.allocator.free(self.end_points);
+        allocator.free(self.end_points);
         for (self.operators)
             |segment_ops|
         {
             for (segment_ops)
                 |op|
             {
-                op.deinit(self.allocator);
+                op.deinit(allocator);
             }
-            self.allocator.free(segment_ops);
+            allocator.free(segment_ops);
         }
-        self.allocator.free(self.operators);
+        allocator.free(self.operators);
     }
 
     const OverlayArgs = struct{
@@ -1139,16 +1138,16 @@ pub const ProjectionOperatorMap = struct {
         if (args.over.is_empty() and args.under.is_empty())
         {
             return .{
-                .allocator = parent_allocator,
-                .source = args.over.source };
+                .source = args.over.source,
+            };
         }
         if (args.over.is_empty())
         {
-            return try args.under.clone();
+            return try args.under.clone(parent_allocator);
         }
         if (args.under.is_empty())
         {
-            return try args.over.clone();
+            return try args.over.clone(parent_allocator);
         }
 
         var arena = std.heap.ArenaAllocator.init(
@@ -1226,7 +1225,6 @@ pub const ProjectionOperatorMap = struct {
         );
 
         return .{
-            .allocator = parent_allocator,
             .end_points  = 
                 try end_points.toOwnedSlice(parent_allocator),
             .operators  = 
@@ -1244,20 +1242,20 @@ pub const ProjectionOperatorMap = struct {
 
     pub fn clone(
         self: @This(),
+        allocator: std.mem.Allocator,
     ) !ProjectionOperatorMap
     {
         var cloned_projection_operators: std.ArrayList(ProjectionOperator) = .{};
 
         return .{
-            .allocator = self.allocator,
             .source = self.source,
-            .end_points = try self.allocator.dupe(
+            .end_points = try allocator.dupe(
                 opentime.Ordinate,
                 self.end_points
             ),
             .operators = ops: {
                 const outer = (
-                    try self.allocator.alloc(
+                    try allocator.alloc(
                         []const ProjectionOperator,
                         self.operators.len,
                     )
@@ -1269,13 +1267,13 @@ pub const ProjectionOperatorMap = struct {
                         |s_mapping|
                     {
                         try cloned_projection_operators.append(
-                            self.allocator,
-                            try s_mapping.clone(self.allocator)
+                            allocator,
+                            try s_mapping.clone(allocator)
                         );
                     }
 
                     inner.* = try cloned_projection_operators.toOwnedSlice(
-                        self.allocator,
+                        allocator,
                     );
                 }
                 break :ops outer;
@@ -1322,7 +1320,6 @@ pub const ProjectionOperatorMap = struct {
         }
 
         return .{
-            .allocator = allocator,
             .end_points = try tmp_pts.toOwnedSlice(allocator),
             .operators = try tmp_ops.toOwnedSlice(allocator),
             .source = self.source,
@@ -1388,47 +1385,47 @@ pub const ProjectionOperatorMap = struct {
         }
 
         return .{
-            .allocator = allocator,
             .end_points = try tmp_pts.toOwnedSlice(allocator),
             .operators = try tmp_ops.toOwnedSlice(allocator),
             .source = self.source,
         };
     }
-
 };
 
 test "ProjectionOperatorMap: extend_to"
 {
+    const allocator = std.testing.allocator;
+
     const cl = schema.Clip {
         .bounds_s = T_INT_1_TO_9,
     };
     const cl_ptr = ComposedValueRef{ .clip_ptr = &cl };
 
     const map = try topological_map_m.build_topological_map(
-        std.testing.allocator,
+        allocator,
         cl_ptr,
     );
-    defer map.deinit();
+    defer map.deinit(allocator);
 
     const cl_presentation_pmap = (
         try projection_map_to_media_from(
-            std.testing.allocator,
+            allocator,
             map,
             try cl_ptr.space(.presentation),
         )
     );
-    defer cl_presentation_pmap.deinit();
+    defer cl_presentation_pmap.deinit(allocator);
 
     // extend_to no change
     {
         const result = try cl_presentation_pmap.extend_to(
-            std.testing.allocator,
+            allocator,
             .{
                 .start = cl_presentation_pmap.end_points[0],
                 .end = cl_presentation_pmap.end_points[1],
             },
         );
-        defer result.deinit();
+        defer result.deinit(allocator);
 
         try std.testing.expectEqualSlices(
             opentime.Ordinate,
@@ -1444,13 +1441,13 @@ test "ProjectionOperatorMap: extend_to"
     // add before
     {
         const result = try cl_presentation_pmap.extend_to(
-            std.testing.allocator,
+            allocator,
             .{
                 .start = opentime.Ordinate.init(-10),
                 .end = opentime.Ordinate.init(8),
             },
         );
-        defer result.deinit();
+        defer result.deinit(allocator);
 
         try std.testing.expectEqualSlices(
             opentime.Ordinate,
@@ -1471,13 +1468,13 @@ test "ProjectionOperatorMap: extend_to"
     // add after
     {
         const result = try cl_presentation_pmap.extend_to(
-            std.testing.allocator,
+            allocator,
             .{
                 .start = opentime.Ordinate.init(0),
                 .end = opentime.Ordinate.init(18),
             },
         );
-        defer result.deinit();
+        defer result.deinit(allocator);
 
         try std.testing.expectEqualSlices(
             opentime.Ordinate,
@@ -1498,33 +1495,35 @@ test "ProjectionOperatorMap: extend_to"
 
 test "ProjectionOperatorMap: split_at_each"
 {
+    const allocator = std.testing.allocator;
+
     const cl = schema.Clip {
         .bounds_s = T_INT_1_TO_9,
     };
     const cl_ptr = ComposedValueRef{ .clip_ptr = &cl };
 
     const map = try topological_map_m.build_topological_map(
-        std.testing.allocator,
+        allocator,
         cl_ptr,
     );
-    defer map.deinit();
+    defer map.deinit(allocator);
 
     const cl_presentation_pmap = (
         try projection_map_to_media_from(
-            std.testing.allocator,
+            allocator,
             map,
             try cl_ptr.space(.presentation),
         )
     );
-    defer cl_presentation_pmap.deinit();
+    defer cl_presentation_pmap.deinit(allocator);
 
     // split_at_each -- no change
     {
         const result = try cl_presentation_pmap.split_at_each(
-            std.testing.allocator,
+            allocator,
             cl_presentation_pmap.end_points,
         );
-        defer result.deinit();
+        defer result.deinit(allocator);
 
         try std.testing.expectEqualSlices(
             opentime.Ordinate,
@@ -1542,10 +1541,10 @@ test "ProjectionOperatorMap: split_at_each"
         const pts = [_]opentime.Ordinate{ opentime.Ordinate.init(0), opentime.Ordinate.init(4), opentime.Ordinate.init(8) };
 
         const result = try cl_presentation_pmap.split_at_each(
-            std.testing.allocator,
+            allocator,
             &pts,
         );
-        defer result.deinit();
+        defer result.deinit(allocator);
 
         try std.testing.expectEqualSlices(
             opentime.Ordinate,
@@ -1569,10 +1568,10 @@ test "ProjectionOperatorMap: split_at_each"
         };
 
         const result = try cl_presentation_pmap.split_at_each(
-            std.testing.allocator,
+            allocator,
             &pts,
         );
-        defer result.deinit();
+        defer result.deinit(allocator);
 
         try std.testing.expectEqualSlices(
             opentime.Ordinate,
@@ -1596,16 +1595,16 @@ test "ProjectionOperatorMap: split_at_each"
         const pts2 = pts1;
 
         const inter = try cl_presentation_pmap.split_at_each(
-            std.testing.allocator,
+            allocator,
             &pts1,
         );
-        defer inter.deinit();
+        defer inter.deinit(allocator);
 
         const result = try inter.split_at_each(
-            std.testing.allocator,
+            allocator,
             &pts2,
         );
-        defer result.deinit();
+        defer result.deinit(allocator);
 
         try std.testing.expectEqualSlices(
             opentime.Ordinate,
@@ -1622,37 +1621,39 @@ test "ProjectionOperatorMap: split_at_each"
 
 test "ProjectionOperatorMap: merge_composite"
 {
+    const allocator = std.testing.allocator;
+
     const cl = schema.Clip {
         .bounds_s = T_INT_1_TO_9,
     };
     const cl_ptr = ComposedValueRef{ .clip_ptr = &cl };
 
     const map = try topological_map_m.build_topological_map(
-        std.testing.allocator,
+        allocator,
         cl_ptr,
     );
-    defer map.deinit();
+    defer map.deinit(allocator);
 
     const cl_presentation_pmap = (
         try projection_map_to_media_from(
-            std.testing.allocator,
+            allocator,
             map,
             try cl_ptr.space(.presentation),
         )
     );
-    defer cl_presentation_pmap.deinit();
+    defer cl_presentation_pmap.deinit(allocator);
 
     {
         const result = (
             try ProjectionOperatorMap.merge_composite(
-                std.testing.allocator,
+                allocator,
                 .{
                     .over = cl_presentation_pmap,
                     .under = cl_presentation_pmap,
                 }
             )
         );
-        defer result.deinit();
+        defer result.deinit(allocator);
 
         try std.testing.expectEqualSlices(
             opentime.Ordinate,
@@ -1676,26 +1677,26 @@ test "ProjectionOperatorMap: clip"
     const cl_ptr = ComposedValueRef{ .clip_ptr = &cl };
 
     const map = try topological_map_m.build_topological_map(
-        std.testing.allocator,
+        allocator,
         cl_ptr,
     );
-    defer map.deinit();
+    defer map.deinit(allocator);
 
     const cl_presentation_pmap = (
         try projection_map_to_media_from(
-            std.testing.allocator,
+            allocator,
             map,
             try cl_ptr.space(.presentation),
         )
     );
-    defer cl_presentation_pmap.deinit();
+    defer cl_presentation_pmap.deinit(allocator);
 
     try std.testing.expectEqual(1, cl_presentation_pmap.operators.len);
     try std.testing.expectEqual(2, cl_presentation_pmap.end_points.len);
 
     const known_presentation_to_media = (
         try map.build_projection_operator(
-            std.testing.allocator,
+            allocator,
             .{
                 .source = try cl_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
@@ -1763,21 +1764,21 @@ test "ProjectionOperatorMap: track with single clip"
     );
 
     const map = try topological_map_m.build_topological_map(
-        std.testing.allocator,
+        allocator,
         tr_ptr,
     );
-    defer map.deinit();
+    defer map.deinit(allocator);
 
     const source_space = try tr_ptr.space(.presentation);
 
     const test_maps = &[_]ProjectionOperatorMap{
         // try build_projection_operator_map(
-        //     std.testing.allocator,
+        //     allocator,
         //     map,
         //     try cl_ptr.space(.presentation),
         // ),
         try projection_map_to_media_from(
-            std.testing.allocator,
+            allocator,
             map,
             source_space,
         ),
@@ -1786,13 +1787,13 @@ test "ProjectionOperatorMap: track with single clip"
     for (test_maps)
         |projection_operator_map|
     {
-        defer projection_operator_map.deinit();
+        defer projection_operator_map.deinit(allocator);
 
         try std.testing.expectEqual(1, projection_operator_map.operators.len);
         try std.testing.expectEqual(2, projection_operator_map.end_points.len);
 
         const known_presentation_to_media = try map.build_projection_operator(
-            std.testing.allocator,
+            allocator,
             .{
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
@@ -1866,7 +1867,7 @@ test "transform: track with two clips"
         allocator,
         tr_ptr,
     );
-    defer map.deinit();
+    defer map.deinit(allocator);
 
     const track_presentation_space = try tr_ptr.space(.presentation);
 
@@ -1874,7 +1875,7 @@ test "transform: track with two clips"
         const child_code = (
             try treecode.Treecode.init_word(allocator, 0b1110)
         );
-        defer child_code.deinit();
+        defer child_code.deinit(allocator);
 
         const child_space = map.map_code_to_space.get(child_code).?;
 
@@ -1977,22 +1978,22 @@ test "ProjectionOperatorMap: track with two clips"
     const tr_ptr = ComposedValueRef.init(&tr);
 
     const map = try topological_map_m.build_topological_map(
-        std.testing.allocator,
+        allocator,
         tr_ptr,
     );
-    defer map.deinit();
+    defer map.deinit(allocator);
 
     const source_space = try tr_ptr.space(.presentation);
 
     const p_o_map = (
         try projection_map_to_media_from(
-            std.testing.allocator,
+            allocator,
             map,
             source_space,
         )
     );
 
-    defer p_o_map.deinit();
+    defer p_o_map.deinit(allocator);
 
     try std.testing.expectEqualSlices(
         opentime.Ordinate,
@@ -2003,7 +2004,7 @@ test "ProjectionOperatorMap: track with two clips"
 
     const known_presentation_to_media = (
         try map.build_projection_operator(
-            std.testing.allocator,
+            allocator,
             .{
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
@@ -2068,22 +2069,22 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
 
 
     const map = try topological_map_m.build_topological_map(
-        std.testing.allocator,
+        allocator,
         tr_ptr,
     );
-    defer map.deinit();
+    defer map.deinit(allocator);
 
     const source_space = try tr_ptr.space(.presentation);
 
     const p_o_map = (
         try projection_map_to_media_from(
-            std.testing.allocator,
+            allocator,
             map,
             source_space,
         )
     );
 
-    defer p_o_map.deinit();
+    defer p_o_map.deinit(allocator);
 
     try std.testing.expectEqualSlices(
         opentime.Ordinate,
@@ -2094,7 +2095,7 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
 
     const known_presentation_to_media = (
         try map.build_projection_operator(
-            std.testing.allocator,
+            allocator,
             .{
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
@@ -2212,10 +2213,10 @@ test "path_code: graph test"
     try std.testing.expectEqual(11, tr.children.items.len);
 
     const map = try topological_map_m.build_topological_map(
-        std.testing.allocator,
+        allocator,
         tr_ref,
     );
-    defer map.deinit();
+    defer map.deinit(allocator);
 
     try std.testing.expectEqual(
         tr_ref.space(.presentation),
@@ -2223,7 +2224,7 @@ test "path_code: graph test"
     );
 
     try map.write_dot_graph(
-        std.testing.allocator,
+        allocator,
         "/var/tmp/graph_test_output.dot"
     );
 
@@ -2238,7 +2239,7 @@ test "path_code: graph test"
     );
 
     try map.write_dot_graph(
-        std.testing.allocator,
+        allocator,
         "/var/tmp/current.dot",
     );
 
@@ -2269,10 +2270,10 @@ test "path_code: graph test"
         );
 
         const expect = try treecode.Treecode.init_word(
-            std.testing.allocator,
+            allocator,
             t.expect
         );
-        defer expect.deinit();
+        defer expect.deinit(allocator);
 
         try std.testing.expect(expect.eql(result));
     }
@@ -2309,15 +2310,15 @@ test "schema.Track with clip with identity transform projection"
     }
 
     const map = try topological_map_m.build_topological_map(
-        std.testing.allocator,
+        allocator,
         tr_ref,
     );
-    defer map.deinit();
+    defer map.deinit(allocator);
 
     try std.testing.expectEqual(11, tr_ref.track_ptr.children.items.len);
 
     const track_to_clip = try map.build_projection_operator(
-        std.testing.allocator,
+        allocator,
         .{
             .source = try tr_ref.space(SpaceLabel.presentation),
             .destination =  try cl_ref.space(SpaceLabel.media)
@@ -2361,10 +2362,10 @@ test "TopologicalMap: schema.Track with clip with identity transform topological
     const root = ComposedValueRef.init(&tr);
 
     const map = try topological_map_m.build_topological_map(
-        std.testing.allocator,
+        allocator,
         root,
     );
-    defer map.deinit();
+    defer map.deinit(allocator);
 
     try std.testing.expectEqual(5, map.map_code_to_space.count());
     try std.testing.expectEqual(5, map.map_space_to_code.count());
@@ -2378,10 +2379,10 @@ test "TopologicalMap: schema.Track with clip with identity transform topological
     // root object code
     {
         var tc = try treecode.Treecode.init_word(
-            std.testing.allocator,
+            allocator,
             0b1
         );
-        defer tc.deinit();
+        defer tc.deinit(allocator);
         try std.testing.expect(tc.eql(root_code));
         try std.testing.expectEqual(0, tc.code_length());
     }
@@ -2395,10 +2396,10 @@ test "TopologicalMap: schema.Track with clip with identity transform topological
     // clip object code
     {
         var tc = try treecode.Treecode.init_word(
-            std.testing.allocator,
+            allocator,
             0b10010
         );
-        defer tc.deinit();
+        defer tc.deinit(allocator);
         errdefer opentime.dbg_print(@src(), 
             "\ntc: {s}, clip_code: {s}\n",
             .{
@@ -2416,7 +2417,7 @@ test "TopologicalMap: schema.Track with clip with identity transform topological
 
     const root_presentation_to_clip_media = (
         try map.build_projection_operator(
-            std.testing.allocator,
+            allocator,
             .{
                 .source = try root.space(SpaceLabel.presentation),
                 .destination = try cl_ref.space(SpaceLabel.media)
@@ -2458,10 +2459,10 @@ test "Projection: schema.Track with single clip with identity transform and boun
     );
 
     const map = try topological_map_m.build_topological_map(
-        std.testing.allocator,
+        allocator,
         root,
     );
-    defer map.deinit();
+    defer map.deinit(allocator);
 
     try std.testing.expectEqual(
         5,
@@ -2473,7 +2474,7 @@ test "Projection: schema.Track with single clip with identity transform and boun
     );
 
     const root_presentation_to_clip_media = try map.build_projection_operator(
-        std.testing.allocator,
+        allocator,
         .{ 
             .source = try root.space(SpaceLabel.presentation),
             .destination = try clip.space(SpaceLabel.media),
@@ -2546,10 +2547,10 @@ test "Projection: schema.Track with multiple clips with identity transform and b
     };
 
     const map = try topological_map_m.build_topological_map(
-        std.testing.allocator,
+        allocator,
         track_ptr,
     );
-    defer map.deinit();
+    defer map.deinit(allocator);
 
     const tests = [_]TestData{
         .{ .index = 1, .track_ord = 3, .expected_ord = 1, .err = false},
@@ -2562,7 +2563,7 @@ test "Projection: schema.Track with multiple clips with identity transform and b
     // check that the child transform is correctly built
     {
         const po = try map.build_projection_operator(
-            std.testing.allocator,
+            allocator,
             .{
                 .source = try track_ptr.space(.presentation),
                 .destination = (
@@ -2585,11 +2586,11 @@ test "Projection: schema.Track with multiple clips with identity transform and b
     }
 
     const po_map = try projection_map_to_media_from(
-        std.testing.allocator,
+        allocator,
         map,
         try track_ptr.space(.presentation),
     );
-    defer po_map.deinit();
+    defer po_map.deinit(allocator);
 
     try std.testing.expectEqual(
         3,
@@ -2629,7 +2630,7 @@ test "Projection: schema.Track with multiple clips with identity transform and b
         const child = tr.child_ptr_from_index(t.index);
 
         const tr_presentation_to_clip_media = try map.build_projection_operator(
-        std.testing.allocator,
+        allocator,
             .{
                 .source = try track_ptr.space(SpaceLabel.presentation),
                 .destination = try child.space(SpaceLabel.media),
@@ -2667,7 +2668,7 @@ test "Projection: schema.Track with multiple clips with identity transform and b
     const clip = tr.child_ptr_from_index(0);
 
     const root_presentation_to_clip_media = try map.build_projection_operator(
-        std.testing.allocator,
+        allocator,
         .{ 
             .source = try track_ptr.space(SpaceLabel.presentation),
             .destination = try clip.space(SpaceLabel.media),
@@ -2791,7 +2792,7 @@ test "Single schema.Clip bezier transform"
         allocator,
         wp_ptr,
     );
-    defer map.deinit();
+    defer map.deinit(allocator);
 
     // presentation->media (forward projection)
     {
@@ -2986,7 +2987,7 @@ test "otio projection: track with single clip"
         allocator,
         tr_ptr
     );
-    defer map.deinit();
+    defer map.deinit(allocator);
 
     try map.write_dot_graph(
         allocator,
@@ -3187,13 +3188,13 @@ test "otio projection: track with single clip with transform"
         allocator,
         tr_ptr
     );
-    defer map_tr.deinit();
+    defer map_tr.deinit(allocator);
 
     const map_tl = try topological_map_m.build_topological_map(
         allocator,
         tl_ptr
     );
-    defer map_tl.deinit();
+    defer map_tl.deinit(allocator);
 
     try map_tr.write_dot_graph(
         allocator,
@@ -3513,7 +3514,7 @@ test "test debug_print_time_hierarchy"
         allocator,
         tl_ptr
     );
-    defer tp.deinit();
+    defer tp.deinit(allocator);
 
     // count the scopes
     var i: usize = 0;
@@ -3647,7 +3648,7 @@ test "Single clip, schema.Warp bulk"
             allocator,
             wp_ptr,
         );
-        defer map.deinit();
+        defer map.deinit(allocator);
 
         // presentation->media (forward projection)
         {
@@ -3806,7 +3807,7 @@ test "ProjectionOperatorMap: clone"
     );
     const child_op_map = (
         try ProjectionOperatorMap.init_operator(
-            std.testing.allocator,
+            allocator,
             .{
                 .source = try cl_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
@@ -3815,10 +3816,10 @@ test "ProjectionOperatorMap: clone"
         )
     );
 
-    const clone = try child_op_map.clone();
-    defer clone.deinit();
+    const clone = try child_op_map.clone(allocator);
+    defer clone.deinit(allocator);
 
-    child_op_map.deinit();
+    child_op_map.deinit(allocator);
 
     const topo = clone.operators[0][0].src_to_dst_topo;
 
