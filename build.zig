@@ -286,14 +286,25 @@ pub fn module_with_tests_and_artifact(
     opts: CreateModuleOptions,
 ) *std.Build.Module
 {
-    const mod = opts.b.createModule(
+    const mod = opts.b.addModule(
+        name,
         .{
             .root_source_file = opts.b.path(opts.fpath),
             .imports = opts.deps,
             .optimize = opts.options.optimize,
             .target = opts.options.target,
-        }
+        },
     );
+
+    // add dependencies to test
+    for (opts.deps)
+        |dep_mod|
+    {
+        mod.addImport(
+            dep_mod.name,
+            dep_mod.module,
+        );
+    }
 
     // unit tests for the module
     const mod_unit_tests = unit_tests: 
@@ -301,28 +312,12 @@ pub fn module_with_tests_and_artifact(
         const mod_unit_tests = opts.b.addTest(
             .{
                 .name = "test_" ++ name,
-                .root_module = opts.b.createModule(
-                    .{
-                        .root_source_file = opts.b.path(opts.fpath),
-                        .optimize = opts.options.optimize,
-                        .target =opts.options.target,
-                    },
-                ),
+                .root_module = mod,
                 .filters = &.{
                     opts.options.test_filter orelse &.{},
                 },
-            }
+            },
         );
-
-        // add dependencies to test
-        for (opts.deps)
-            |dep_mod|
-        {
-            mod_unit_tests.root_module.addImport(
-                dep_mod.name,
-                dep_mod.module
-            );
-        }
 
         // test runner step
         const run_unit_tests = opts.b.addRunArtifact(mod_unit_tests);
@@ -353,9 +348,10 @@ pub fn module_with_tests_and_artifact(
                 .source_dir = mod_unit_tests.getEmittedDocs(),
                 .install_dir = .prefix,
                 .install_subdir = "docs/" ++ name,
-            }
+            },
         );
 
+        // each module gets an individual docs step
         const docs_step = opts.b.step(
             "docs_" ++ name,
             "Copy documentation artifacts to prefix path",
@@ -455,8 +451,7 @@ pub fn build(
         const debug_print_messages = b.option(
             bool,
             "debug_print_messages",
-            "enable print messages from opentime.dbg_print"
-
+            "enable print messages from opentime.dbg_print",
         ) orelse false;
 
         build_options.addOption(
@@ -507,12 +502,12 @@ pub fn build(
         .{
             .optimize = options.optimize,
             .target = options.target,
-        }
+        },
     );
 
     const comath_dep = b.dependency(
         "comath",
-        .{}
+        .{},
     );
 
     const wav_dep = b.dependency(
@@ -529,7 +524,8 @@ pub fn build(
             .b = b,
             .options = options,
             .fpath = "src/string_stuff.zig",
-        }
+            .deps = &.{},
+        },
     );
 
     const kissfft = b.addLibrary(
@@ -545,7 +541,7 @@ pub fn build(
                 },
             ),
             .linkage = .static,
-        }
+        },
     );
     {
         const dep_kissfft = b.dependency(
@@ -553,7 +549,7 @@ pub fn build(
             .{ 
                 .target = options.target,
                 .optimize = options.optimize,
-            }
+            },
         );
 
         kissfft.addIncludePath(dep_kissfft.path("."));
@@ -561,7 +557,7 @@ pub fn build(
             .{
                 .file = dep_kissfft.path("kiss_fft.c"),
                 .flags = &C_ARGS,
-            }
+            },
         );
         // @TODO: fix the WASM build
         // if (options.target.result.cpu.arch.isWasm())
@@ -577,17 +573,17 @@ pub fn build(
     }
 
     const treecode = module_with_tests_and_artifact(
-        "treecode_lib",
+        "treecode",
         .{
             .b = b,
             .options = options,
-            .fpath = "src/treecode.zig",
+            .fpath = "src/treecode/treecode.zig",
             .deps = &.{},
-        }
+        },
     );
 
     const opentime = module_with_tests_and_artifact(
-        "opentime_lib",
+        "opentime",
         .{
             .b = b,
             .options = options,
@@ -597,7 +593,7 @@ pub fn build(
                 .{ .name = "comath", .module = comath_dep.module("comath") },
                 .{ .name = "build_options", .module = build_options_mod},
             },
-        }
+        },
     );
 
     const spline_gym = b.addLibrary(
@@ -613,7 +609,7 @@ pub fn build(
                 },
             ),
             .linkage = .static,
-        }
+        },
     );
     {
         spline_gym.addIncludePath(b.path("spline-gym/src"));
@@ -621,7 +617,7 @@ pub fn build(
             .{
                 .file = b.path("spline-gym/src/hodographs.c"),
                 .flags = &C_ARGS,
-            }
+            },
         );
         // @TODO: fix the wasm build
         // if (options.target.result.cpu.arch.isWasm())
@@ -650,7 +646,7 @@ pub fn build(
                 .{ .name = "opentime", .module = opentime },
                 .{ .name = "comath", .module = comath_dep.module("comath") },
             },
-        }
+        },
     );
 
     const libsamplerate = b.addLibrary(
@@ -665,7 +661,7 @@ pub fn build(
                     ),
                 },
             )
-        }
+        },
     );
     {
         const dep_libsamplerate = b.dependency(
@@ -673,20 +669,19 @@ pub fn build(
             .{ 
                 .target = options.target,
                 .optimize = options.optimize,
-            }
+            },
         );
         
         libsamplerate.addIncludePath(dep_libsamplerate.path("include"));
         libsamplerate.addIncludePath(dep_libsamplerate.path("src"));
-        libsamplerate.addIncludePath(
-            b.path("libs/wrapped_libsamplerate")
-        );
+        libsamplerate.addIncludePath(b.path("libs/wrapped_libsamplerate"));
+
         libsamplerate.addCSourceFile(
             .{
                 .file = b.path(
                     "libs/wrapped_libsamplerate/wrapped_libsamplerate.c",
                 ),
-                .flags = &C_ARGS
+                .flags = &C_ARGS,
             },
         );
         // if (options.target.result.cpu.arch.isWasm())
@@ -711,7 +706,7 @@ pub fn build(
                 .{ .name = "opentime", .module = opentime },
                 .{ .name = "curve", .module = curve },
             },
-        }
+        },
     );
 
     const sampling = module_with_tests_and_artifact(
@@ -735,11 +730,11 @@ pub fn build(
                 .{ .name = "topology", .module = topology, },
                 .{ .name = "build_options", .module = build_options_mod, },
             },
-        }
+        },
     );
 
     const opentimelineio = module_with_tests_and_artifact(
-        "opentimelineio_lib",
+        "opentimelineio",
         .{
             .b = b,
             .options = options,
@@ -753,7 +748,7 @@ pub fn build(
                 .{ .name = "sampling", .module = sampling },
                 .{ .name = "build_options", .module = build_options_mod},
             },
-        }
+        },
     );
 
     const opentimelineio_c = b.addLibrary(
@@ -767,8 +762,8 @@ pub fn build(
                         "src/c_binding/opentimelineio_c.zig",
                     ),
                 },
-            )
-        }
+            ),
+        },
     );
     {
         opentimelineio_c.addIncludePath(b.path("src/c_binding/"));
@@ -807,7 +802,7 @@ pub fn build(
                         .target = options.target,
                     },
                 ),
-            }
+            },
         );
         exe.addCSourceFile(
             .{
