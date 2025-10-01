@@ -304,11 +304,8 @@ pub const TopologicalMap = struct {
         try stack.append(
             .{
                 .space = root_space,
-                .code = try treecode.Treecode.init_word(
-                    allocator,
-                    treecode.MARKER,
-                )
-            }
+                .code = try treecode.Treecode.init(allocator),
+            },
         );
 
         var maybe_current = stack.pop();
@@ -594,25 +591,22 @@ pub fn build_topological_map(
     }
 
     // 1a
-    const start_code = try treecode.Treecode.init_word(
-        allocator,
-        treecode.MARKER,
-    );
+    const start_code = try treecode.Treecode.init(allocator);
 
     // root node
     try stack.append(
         allocator,
         .{
             .object = root_item,
-            .path_code = start_code
-        }
+            .path_code = start_code,
+        },
     );
 
     if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
         opentime.dbg_print(
             @src(),
             "\nstarting graph...\n",
-            .{}
+            .{},
         );
     }
 

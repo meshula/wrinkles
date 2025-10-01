@@ -63,6 +63,14 @@ pub const Treecode = struct {
     /// the backing array of words for the bit path encoding
     treecode_array: []TreecodeWord,
 
+    /// Allocates a treecode with just the MARKER bit, otherwise empty.
+    pub fn init(
+        allocator: std.mem.Allocator,
+    ) !Treecode
+    {
+        return Treecode.init_word(allocator, MARKER);
+    }
+
     /// Initialize from a single TreecodeWord.
     pub fn init_word(
         allocator: std.mem.Allocator,
@@ -423,7 +431,7 @@ test "treecode: code_length - init_word"
     }
 
     // make a long path
-    var tc = try Treecode.init_word(allocator, 0b1);
+    var tc = try Treecode.init(allocator);
     defer tc.deinit(allocator);
 
     // ensure that the path is large enough to trigger several reallocs
@@ -496,10 +504,7 @@ test "fmt all ones"
 {
     const allocator = std.testing.allocator;
 
-    var ltc = try Treecode.init_word(
-        allocator,
-        0b1,
-    );
+    var ltc = try Treecode.init(allocator);
     defer ltc.deinit(allocator);
 
     try ltc.append(allocator, .right);
@@ -539,10 +544,7 @@ test "Treecode: format"
     const allocator = std.testing.allocator;
     const one = "1"[0];
 
-    var tc = try Treecode.init_word(
-        allocator,
-        0b1,
-    );
+    var tc = try Treecode.init(allocator);
     defer tc.deinit(allocator);
 
     var known = std.ArrayList(u8){};
@@ -734,10 +736,7 @@ test "treecode: apped lots of 0"
 {
     const allocator = std.testing.allocator;
 
-    var tc = try Treecode.init_word(
-        allocator,
-        MARKER,
-    );
+    var tc = try Treecode.init(allocator);
     defer tc.deinit(allocator);
 
     for (0..130)
@@ -776,10 +775,7 @@ test "treecode: append lots of 1"
 {
     const allocator = std.testing.allocator;
 
-    var tc = try Treecode.init_word(
-        std.testing.allocator,
-        0b1
-    );
+    var tc = try Treecode.init(allocator);
     defer tc.deinit(allocator);
 
     for (0..130)
@@ -812,10 +808,7 @@ test "treecode: append beyond one word w/ 1"
 {
     const allocator = std.testing.allocator;
 
-    var tc = try Treecode.init_word(
-        allocator,
-        MARKER,
-    );
+    var tc = try Treecode.init(allocator);
     defer tc.deinit(allocator);
 
     for (0..258)
@@ -848,10 +841,7 @@ test "treecode: append beyond one word w/ 0"
 {
     const allocator = std.testing.allocator;
 
-    var tc = try Treecode.init_word(
-        allocator,
-        0b1,
-    );
+    var tc = try Treecode.init(allocator);
     defer tc.deinit(allocator);
 
     for (0..258)
@@ -884,7 +874,7 @@ test "treecode: append alternating 0 and 1"
 {   
     const allocator = std.testing.allocator;
 
-    var tc = try Treecode.init_word(allocator, 0b1);
+    var tc = try Treecode.init(allocator);
     defer tc.deinit(allocator);
 
     var buf_known = std.ArrayList(u8){};
@@ -932,7 +922,7 @@ test "treecode: append variable size"
     const zero = "0"[0];
 
     // Variable size flavor, adding a mix of 0s and 1s
-    var tc = try Treecode.init_word(allocator, 0b1);
+    var tc = try Treecode.init(allocator);
     defer tc.deinit(allocator);
 
     var buf_known = std.ArrayList(u8){};
@@ -1004,10 +994,10 @@ test "treecode: Treecode.eql positive"
 {
     const allocator = std.testing.allocator;
 
-    var a  = try Treecode.init_word(allocator, 1);
+    var a  = try Treecode.init(allocator);
     defer a.deinit(allocator);
 
-    var b  = try Treecode.init_word(allocator, 1);
+    var b  = try Treecode.init(allocator);
     defer b.deinit(allocator);
 
     for (0..1000)
@@ -1067,7 +1057,7 @@ test "treecode: Treecode.eql preallocated"
 {
     const allocator = std.testing.allocator;
 
-    var a  = try Treecode.init_word(allocator, 1);
+    var a  = try Treecode.init(allocator);
     defer a.deinit(allocator);
 
     var b  = try Treecode.init_word(allocator, 10);
@@ -1164,10 +1154,7 @@ test "treecode: hash - test long treecode hashes"
 {
     const allocator = std.testing.allocator;
 
-    var tc1 = try Treecode.init_word(
-        allocator,
-        0b1,
-    );
+    var tc1 = try Treecode.init(allocator);
     defer tc1.deinit(allocator);
 
     var tc2 = try tc1.clone(allocator);
@@ -1295,57 +1282,51 @@ test "treecode: next_step_towards - larger than a single word"
 {
     const allocator = std.testing.allocator;
 
-    var tc_src = try Treecode.init_word(
-        allocator,
-        0b1,
-    );
-    defer tc_src.deinit(allocator);
+    var src = try Treecode.init(allocator);
+    defer src.deinit(allocator);
 
-    var tc_dst = try Treecode.init_word(
-        allocator,
-        0b1,
-    );
-    defer tc_dst.deinit(allocator);
+    var dst = try Treecode.init(allocator);
+    defer dst.deinit(allocator);
 
     // straddle the word boundary
     for (0..WORD_BIT_COUNT-1)
         |_|
     {
-        try tc_src.append(allocator, .left);
-        try tc_dst.append(allocator, .left);
+        try src.append(allocator, .left);
+        try dst.append(allocator, .left);
     }
 
     try std.testing.expectEqual(
         @as(usize, WORD_BIT_COUNT) - 1,
-        tc_src.code_length(),
+        src.code_length(),
     );
 
-    try tc_dst.append(allocator, .right);
+    try dst.append(allocator, .right);
 
     try std.testing.expectEqual(
-        0b1,
-        @intFromEnum(tc_src.next_step_towards(tc_dst))
+        .right,
+        src.next_step_towards(dst)
     );
     try std.testing.expectEqual(
         .right,
-        tc_src.next_step_towards(tc_dst)
+        src.next_step_towards(dst)
     );
 
-    try tc_src.append(allocator, .right);
+    try src.append(allocator, .right);
 
     // add a bunch of values
     for (0..1000)
         |_|
     {
-        try tc_src.append(allocator, .left);
-        try tc_dst.append(allocator, .left);
+        try src.append(allocator, .left);
+        try dst.append(allocator, .left);
     }
 
-    try tc_dst.append(allocator, .right);
+    try dst.append(allocator, .right);
 
     try std.testing.expectEqual(
-        0b1,
-        @intFromEnum(tc_src.next_step_towards(tc_dst)),
+        .right,
+        src.next_step_towards(dst),
     );
 }
 
@@ -1353,10 +1334,7 @@ test "treecode: clone - 0b1"
 {
     const allocator = std.testing.allocator;
 
-    const tc_src = try Treecode.init_word(
-        allocator,
-        0b1,
-    );
+    const tc_src = try Treecode.init(allocator);
     defer tc_src.deinit(allocator, );
 
     const tc_cln = try tc_src.clone(allocator);
@@ -1378,10 +1356,7 @@ test "treecode: clone - add items"
 {
     const allocator = std.testing.allocator;
 
-    var tc_src = try Treecode.init_word(
-        allocator,
-        0b1,
-    );
+    var tc_src = try Treecode.init(allocator);
     defer tc_src.deinit(allocator);
     var tc_cln = try tc_src.clone(allocator);
     defer tc_cln.deinit(allocator);
@@ -1405,10 +1380,7 @@ test "treecode: clone - with deinit"
 {
     const allocator = std.testing.allocator;
 
-    var tc_src = try Treecode.init_word(
-        allocator,
-        0b1,
-    );
+    var tc_src = try Treecode.init(allocator);
 
     var tc_cln = try tc_src.clone(allocator);
 

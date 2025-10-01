@@ -2378,10 +2378,7 @@ test "TopologicalMap: schema.Track with clip with identity transform topological
 
     // root object code
     {
-        var tc = try treecode.Treecode.init_word(
-            allocator,
-            0b1
-        );
+        var tc = try treecode.Treecode.init(allocator);
         defer tc.deinit(allocator);
         try std.testing.expect(tc.eql(root_code));
         try std.testing.expectEqual(0, tc.code_length());
