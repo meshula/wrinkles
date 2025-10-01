@@ -60,7 +60,7 @@ pub const MARKER:TreecodeWord = 0b1;
 /// a path is appended path the capacity of the current word, realloc is
 /// triggered to increase capacity.
 pub const Treecode = struct {
-    /// the backing array of words for the bit path encoding
+    /// The backing array of words for the bit path encoding.
     treecode_array: []TreecodeWord,
 
     /// Allocates a treecode with just the MARKER bit, otherwise empty.
@@ -85,7 +85,7 @@ pub const Treecode = struct {
         };
     }
 
-    /// reallocate in place to a larger size container
+    /// Reallocate in place to a larger size container.
     fn realloc(
         self: *@This(),
         allocator: std.mem.Allocator,
@@ -102,7 +102,7 @@ pub const Treecode = struct {
         @memset(self.treecode_array[old_size..], 0);
     }
 
-    /// return a clone of self in freshly allocated memory
+    /// Return a clone of self in freshly allocated memory.
     pub fn clone(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -144,10 +144,10 @@ pub const Treecode = struct {
         }
         var occupied_words : usize = 0;
 
-        for (0..self.treecode_array.len)
-            |i|
+        for (self.treecode_array, 0..)
+            |word, i|
         {
-            if (self.treecode_array[i] != 0) {
+            if (word != 0) {
                 occupied_words = i;
             }
         }
@@ -164,7 +164,10 @@ pub const Treecode = struct {
     }
 
     /// By-value equality of the treecode.  IE does not consider the size of
-    /// the treecode array 
+    /// the treecode array.
+    ///
+    /// * `0b1` == `0b00001`
+    /// * `0b10` == `0b000010`
     pub fn eql(
         self: @This(),
         rhs: Treecode,
@@ -176,15 +179,12 @@ pub const Treecode = struct {
             return false;
         }
 
-        const end_word = (self_code_len / WORD_BIT_COUNT) + 1;
+        const end_word = self_code_len / WORD_BIT_COUNT;
 
-        for (
-            self.treecode_array[0..end_word],
-            rhs.treecode_array[0..end_word],
-        )
-            |self_word, rhs_word|
+        for (0..(end_word+1))
+            |ind|
         {
-            if (self_word != rhs_word) {
+            if (self.treecode_array[ind] != rhs.treecode_array[ind]) {
                 return false;
             }
         }
@@ -192,7 +192,7 @@ pub const Treecode = struct {
         return true;
     }
 
-    /// in place append a bit to this treecode. will realloc if needed.
+    /// In place append a bit to this treecode. will realloc if needed.
     pub fn append(
         self: *@This(),
         allocator: std.mem.Allocator,
@@ -320,7 +320,7 @@ pub const Treecode = struct {
         );
     }
 
-    /// compute a hash for this treecode
+    /// Compute and return the `Hash` for this `Treecode`.
     pub fn hash(
         self: @This(),
     ) Hash 
@@ -328,9 +328,9 @@ pub const Treecode = struct {
         var hasher = std.hash.Wyhash.init(0);
 
         for (self.treecode_array, 0..) 
-            |tc, index| 
+            |word, index| 
         {
-            if (tc > 0) 
+            if (word > 0) 
             {
                 // hash the index of the word in so that 0b1 has a different
                 // hash than 0b1 + an empty word, etc.  Do not include
@@ -340,7 +340,7 @@ pub const Treecode = struct {
                 // ensure no overflow
                 std.hash.autoHash(
                     &hasher,
-                    @as(u256, @intCast(tc)) + 1
+                    @as(u256, @intCast(word)) + 1
                 );
             }
         }
@@ -351,6 +351,10 @@ pub const Treecode = struct {
     /// Given a `dest` code which is a child (longer/with the same prefix) of
     /// `self`, find the next bit after the bits in `self` that is present in
     /// `dest` (IE the next step down the tree towards the location of `dest`).
+    ///
+    /// * `0b1` next step toward `0b11` -> 1 (right)
+    /// * `0b101` next step toward `0b10101` -> 0 (left)
+    /// * `0b101` next step toward `0b111011101` -> 1 (right)
     pub fn next_step_towards(
         self: @This(),
         dest: Treecode,
@@ -380,7 +384,7 @@ pub const Treecode = struct {
         );
     }
 
-    /// formatter for {f}
+    /// Formatter for {f} std.Io.Writer.
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
@@ -409,7 +413,7 @@ test "treecode: code_length - init_word"
         expected: usize,
     };
     const tests = [_]TestData{
-        .{ .input = 1,            .expected = 0 },
+        .{ .input = 0b1,            .expected = 0 },
         .{ .input = 0b11,         .expected = 1 },
         .{ .input = 0b1101,       .expected = 3 },
         .{ .input = 0b1111111,    .expected = 6 },
@@ -482,7 +486,7 @@ fn treecode_word_is_prefix_of(
     rhs: TreecodeWord,
 ) bool 
 {
-    if (lhs == rhs or lhs == 0b1) {
+    if (lhs == rhs or lhs == MARKER) {
         return true;
     }
 
@@ -641,7 +645,7 @@ test "Treecode: is a prefix"
     inline for(
         .{
             // lhs         rhs      lhs is_prefix_of rhs
-            .{ 0b1,        0b1,        true },
+            .{ MARKER,     MARKER,     true },
             .{ 0b1,        0b1101,     true },
             .{ 0b1,        0b101010100100010101110001,  true },
             .{ 0b10,       0b1,        false },
@@ -1261,13 +1265,13 @@ test "treecode: next_step_towards - single word size"
 
         const tc_src = try Treecode.init_word(
             allocator,
-            t.source
+            t.source,
         );
         defer tc_src.deinit(allocator);
 
         const tc_dst = try Treecode.init_word(
             allocator,
-            t.dest
+            t.dest,
         );
         defer tc_dst.deinit(allocator);
 
@@ -1392,7 +1396,7 @@ test "treecode: clone - with deinit"
     try std.testing.expect(tc_src.eql(tc_cln) == false);
 }
 
-/// wrapper around std.HashMap for treecodes
+/// Wrapper around `std.HashMap` such that the key is a `Treecode`.
 pub fn TreecodeHashMap(
     comptime V: type
 ) type 
@@ -1452,7 +1456,7 @@ test "treecode: BidirectionalTreecodeHashMap"
     try std.testing.expectEqual(tc, thing_to_code.get(value));
 }
 
-/// determine if there is a path between the two codes.  Either can be parent.
+/// Determine if there is a path between the two codes.  Either can be parent.
 pub fn path_exists(
     fst: Treecode,
     snd: Treecode,

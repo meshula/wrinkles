@@ -2271,7 +2271,7 @@ test "path_code: graph test"
 
         const expect = try treecode.Treecode.init_word(
             allocator,
-            t.expect
+            t.expect,
         );
         defer expect.deinit(allocator);
 
