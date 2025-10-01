@@ -150,8 +150,11 @@ pub const Treecode = struct {
         if (self.treecode_array.len == 0) {
             return 0;
         }
-        var occupied_words : usize = 0;
+        var occupied_words: usize = 0;
 
+        // XXX: this loop could be removed.  The last used word could be
+        //      directly tracked, or a const variant could be built so that
+        //      the slice contains no extra empty unused words.
         for (self.treecode_array, 0..)
             |word, i|
         {
