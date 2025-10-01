@@ -425,7 +425,7 @@ test "read_from_file test"
         std.testing.allocator,
         tl_ptr
     );
-    defer map.deinit();
+    defer map.deinit(allocator);
 
     const tl_output_to_clip_media = try map.build_projection_operator(
         std.testing.allocator,
