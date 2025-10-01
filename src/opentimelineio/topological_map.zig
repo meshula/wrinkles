@@ -27,26 +27,11 @@ const T_CTI_1_10 = opentime.ContinuousInterval {
 /// Topological Map of a Timeline.  Can be used to build projection operators
 /// to transform between various coordinate spaces within the map.
 pub const TopologicalMap = struct {
-    map_space_to_code:std.AutoHashMap(
+    map_space_to_code:std.AutoHashMapUnmanaged(
           core.SpaceReference,
           treecode.Treecode,
-    ),
-    map_code_to_space:treecode.TreecodeHashMap(core.SpaceReference),
-
-    pub fn init(
-        allocator: std.mem.Allocator,
-    ) !TopologicalMap 
-    {
-        return .{ 
-            .map_space_to_code = std.AutoHashMap(
-                core.SpaceReference,
-                treecode.Treecode,
-            ).init(allocator),
-            .map_code_to_space = treecode.TreecodeHashMap(
-                core.SpaceReference,
-            ).init(allocator),
-        };
-    }
+    ) = .{},
+    map_code_to_space:treecode.TreecodeHashMap(core.SpaceReference) = .{},
 
     pub fn deinit(
         self: @This(),
@@ -75,8 +60,8 @@ pub const TopologicalMap = struct {
         }
 
         // free the guts
-        mutable_self.map_space_to_code.deinit();
-        mutable_self.map_code_to_space.deinit();
+        mutable_self.map_space_to_code.deinit(allocator);
+        mutable_self.map_code_to_space.deinit(allocator);
     }
 
     /// return the root space of this topological map
@@ -491,8 +476,8 @@ pub const TopologicalMap = struct {
         }
     }
 
-    /// build a projection operator that projects from the args.source to
-    /// args.destination spaces
+    /// Build a projection operator that projects from the args.source to
+    /// args.destination spaces and print to the debug printer the structure.
     pub fn debug_print_time_hierarchy(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -563,7 +548,7 @@ pub const TopologicalMap = struct {
     }
 };
 
-/// builds a TopologicalMap, which can then construct projection operators
+/// Builds a TopologicalMap, which can then construct projection operators
 /// across the spaces in the map.  A root item is provided, and the map is
 /// built from the presentation space of the root object down towards the
 /// leaves.  See TopologicalMap for more details.
@@ -572,7 +557,7 @@ pub fn build_topological_map(
     root_item: core.ComposedValueRef,
 ) !TopologicalMap 
 {
-    var tmp_topo_map = try TopologicalMap.init(allocator);
+    var tmp_topo_map = TopologicalMap{};
     errdefer tmp_topo_map.deinit(allocator);
 
     const Node = struct {
@@ -661,10 +646,12 @@ pub fn build_topological_map(
                     );
                 }
                 try tmp_topo_map.map_space_to_code.put(
+                    allocator,
                     space_ref,
                     try child_code.clone(allocator),
                 );
                 try tmp_topo_map.map_code_to_space.put(
+                    allocator,
                     try child_code.clone(allocator),
                     space_ref
                 );
@@ -731,7 +718,8 @@ pub fn build_topological_map(
                 if (tmp_topo_map.map_space_to_code.get(space_ref)) 
                     |other_code| 
                 {
-                    opentime.dbg_print(@src(), 
+                    opentime.dbg_print(
+                        @src(), 
                         "\n ERROR SPACE ALREADY PRESENT[{d}] code: {s} "
                         ++ "other_code: {s} "
                         ++ "adding child space: '{s}.{s}.{d}'\n",
@@ -747,8 +735,12 @@ pub fn build_topological_map(
 
                     std.debug.assert(false);
                 }
-                opentime.dbg_print(@src(), 
-                    "[{d}] code: {s} hash: {d} adding child space: '{s}.{s}.{d}'\n",
+                opentime.dbg_print(
+                    @src(), 
+                    (
+                          "[{d}] code: {s} hash: {d} adding child space:"
+                          ++ " '{s}.{s}.{d}'\n"
+                    ),
                     .{
                         index,
                         child_space_code,
@@ -760,10 +752,12 @@ pub fn build_topological_map(
                 );
             }
             try tmp_topo_map.map_space_to_code.put(
+                allocator,
                 space_ref,
                 try child_space_code.clone(allocator)
             );
             try tmp_topo_map.map_code_to_space.put(
+                allocator,
                 try child_space_code.clone(allocator),
                 space_ref
             );

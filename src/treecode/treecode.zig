@@ -1220,9 +1220,9 @@ test "treecode: allocator doesn't participate in hash"
     try std.testing.expectEqual(t1.hash(), t2.hash());
     try std.testing.expect(t1.eql(t2));
 
-    var thm = TreecodeHashMap(u8).init(allocator);
-    defer thm.deinit();
-    try thm.put(t1, 4);
+    var thm = TreecodeHashMap(u8){};
+    defer thm.deinit(allocator);
+    try thm.put(allocator, t1, 4);
 
     try std.testing.expectEqual(thm.get(t1), thm.get(t2));
 }
@@ -1395,8 +1395,7 @@ pub fn TreecodeHashMap(
     comptime V: type
 ) type 
 {
-    // @TODO: use the unmanaged flavor
-    return std.HashMap(
+    return std.HashMapUnmanaged(
         Treecode,
         V,
         struct{
@@ -1426,14 +1425,14 @@ test "treecode: BidirectionalTreecodeHashMap"
     const allocator = std.testing.allocator;
     const this_type = u64;
 
-    var code_to_thing = TreecodeHashMap(this_type).init(allocator);
-    defer code_to_thing.deinit();
+    var code_to_thing = TreecodeHashMap(this_type){};
+    defer code_to_thing.deinit(allocator);
 
-    var thing_to_code = std.AutoHashMap(
+    var thing_to_code = std.AutoHashMapUnmanaged(
         this_type,
         Treecode
-    ).init(allocator);
-    defer thing_to_code.deinit();
+    ){};
+    defer thing_to_code.deinit(allocator);
 
     var tc = try Treecode.init_word(
         allocator,
@@ -1443,8 +1442,8 @@ test "treecode: BidirectionalTreecodeHashMap"
 
     const value: this_type = 3651;
 
-    try code_to_thing.put(tc, value);
-    try thing_to_code.put(value, tc);
+    try code_to_thing.put(allocator, tc, value);
+    try thing_to_code.put(allocator, value, tc);
 
     try std.testing.expectEqual(value, code_to_thing.get(tc));
     try std.testing.expectEqual(tc, thing_to_code.get(value));
