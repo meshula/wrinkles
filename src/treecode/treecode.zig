@@ -69,13 +69,11 @@ pub const Treecode = struct {
         input: TreecodeWord,
     ) !Treecode 
     {
-        const treecode_array = try allocator.dupe(
-            TreecodeWord,
-            &.{ input },
-        );
-
         return .{
-            .treecode_array = treecode_array,
+            .treecode_array = try allocator.dupe(
+                TreecodeWord,
+                &.{ input },
+            ),
         };
     }
 
