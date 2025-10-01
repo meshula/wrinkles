@@ -63,38 +63,6 @@ pub const Treecode = struct {
     /// the backing array of words for the bit path encoding
     treecode_array: []TreecodeWord,
 
-    /// preallocate a Treecode of size count and stamp input into the LSB
-    /// (right most)
-    ///
-    /// @TODO: remove this?
-    pub fn init_fill_count(
-        allocator: std.mem.Allocator,
-        /// number of inputs to stamp into result
-        count: usize,
-        /// word to stamp into each block of the result
-        input: TreecodeWord,
-    ) !Treecode 
-    {
-        if (count == 0) {
-            return error.InvalidCount;
-        }
-
-        var treecode_array:[]TreecodeWord = try allocator.alloc(
-            TreecodeWord,
-            count,
-        );
-
-        // zero everything out
-        @memset(treecode_array, 0);
-
-        // set the argument in the LSB
-        treecode_array[count - 1] = input;
-
-        return .{
-            .treecode_array = treecode_array,
-        };
-    }
-
     /// Initialize from a single TreecodeWord.
     pub fn init_word(
         allocator: std.mem.Allocator,
@@ -472,34 +440,6 @@ test "treecode: code_length - init_word"
         target_code_length,
         tc.code_length(),
     );
-}
-
-test "treecode: code_length - init_fill_count"
-{
-    const allocator = std.testing.allocator;
-
-    inline for (
-        .{
-            .{ 0b1,  2, WORD_BIT_COUNT },
-            .{ 0b1,  8, 7*WORD_BIT_COUNT },
-            .{ 0b11, 8, 7*WORD_BIT_COUNT + 1 },
-        }
-    ) |t|
-    {
-        // top word is 1, lower word is 0, therefore codelength is 
-        // WORD_BIT_COUNT
-        var tc  = try Treecode.init_fill_count(
-            allocator,
-            t[1],
-            t[0],
-        );
-        defer tc.deinit(allocator);
-
-        try std.testing.expectEqual(
-            t[2],
-            tc.code_length(),
-        );
-    }
 }
 
 test "treecode: @clz" 
@@ -1222,32 +1162,6 @@ test "treecode: hash - built from init_word"
     try std.testing.expectEqual(tc1.hash(), tc2.hash());
 }
 
-test "treecode: hash - built from init_fill_count"
-{
-    const allocator = std.testing.allocator;
-
-    var tc1 = try Treecode.init_fill_count(
-        allocator,
-        2,
-        0b1,
-    );
-    defer tc1.deinit(allocator);
-
-    var tc2 = try Treecode.init_fill_count(
-        allocator,
-        2,
-        0b1,
-    );
-    defer tc2.deinit(allocator);
-
-    errdefer std.log.err(
-        "\ntc1: {b}\ntc2: {b}\n\n",
-        .{ tc1.treecode_array[1], tc2.treecode_array[1] }
-    );
-
-    try std.testing.expectEqual(tc1.hash(), tc2.hash());
-}
-
 test "treecode: hash - test long treecode hashes"
 {
     const allocator = std.testing.allocator;
@@ -1328,27 +1242,6 @@ test "treecode: allocator doesn't participate in hash"
     try thm.put(t1, 4);
 
     try std.testing.expectEqual(thm.get(t1), thm.get(t2));
-}
-
-test "treecode: init_fill_count" 
-{
-    const allocator = std.testing.allocator;
-
-    const tc = try Treecode.init_fill_count(
-        allocator,
-        2,
-        0b1,
-    );
-    defer tc.deinit(allocator);
-
-    try std.testing.expectEqual(
-        @as(TreecodeWord, 0b0),
-        tc.treecode_array[0],
-    );
-    try std.testing.expectEqual(
-        @as(TreecodeWord, 0b1),
-        tc.treecode_array[1],
-    );
 }
 
 test "treecode: next_step_towards - single word size" 
