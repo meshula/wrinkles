@@ -14,34 +14,59 @@ pub const Hash = u64;
 /// The left or the right branch
 pub const l_or_r = enum(u1) { left = 0, right = 1 };
 
-/// All treecodes start with this code
-pub const ROOT_TREECODE:TreecodeWord = 0b1;
+/// All treecodes start with this code.  Separates the empty 0 bits from the
+/// path bits.  See `Treecode` for more information.
+pub const MARKER:TreecodeWord = 0b1;
 
-/// A binary encoding of a path through a binary tree.  The root bit is the
-/// left most / LSB, and the directions are read right to left.  Each bit until
-/// the root bit indicates which direction down the binary tree to take.
+/// A binary encoding of a path through a binary tree, packed into a slice of
+/// `TreecodeWord` (integer) words which contain the bits.
 ///
-/// The root (left most/MSB) bit is always a 1 and is not part of the path.
+/// The path is read from LSB (right most bit) to MSB (left most bit).  Between
+/// the final step in the path (MSB path bit) and the zeroes of the unused
+/// space in the integer is a single marker bit (`0b1`).
 ///
-/// The directions:
-/// - 0: left child
-/// - 1: right child
+/// `0b1011` => read as: 
+///   * `0b1` marker bit (MSB/Left most non-zero bit), always a 1
+///   * `011` path (read from right to left, LSB -> MSB, omitting the marker),
+///           so in order from start to finish: 1, 1, 0 from the root node.
+///
+/// The marker bit (left most/MSB non-zero bit) is always a 1 and is not part
+/// of the path.
+///
+/// The path step directions:
+/// * `0`: left child
+/// * `1`: right child
+///
+/// Going back to the previous example of `0b1011`: 
+/// * the path is `011`
+/// * or: right (`1`) right (`1`) left (`0`)
+///
+/// when packed into a 8-bit word, including the leading 0s, in memory this
+/// will look like:
+///
+/// `0b00001011`
+///
+/// When written as a constant the leading 0s are typically omitted, but when
+/// initialized in memory, `Treecode` does a memset to ensure that leading bits
+/// are initialized to 0.
 ///
 /// Examples:
-/// - 0b1 => root bit only (no direction)
-/// - 0b1001 => 0b1 001 -> right, left, left
-/// - 0b111001 => 0b1 11001 -> right, left, left, right, right
-/// - 0b1010 => 0b1 010 -> left, right, left
+/// * `0b1` => marker bit only (no direction)
+/// * `0b1001` => `0b1` `001` -> right, left, left
+/// * `0b111001` => `0b1` `11001` -> right, left, left, right, right
+/// * `0b1010` => `0b1` `010` -> left, right, left
 ///
 /// In memory, the treecode is implemented as an array of TreecodeWords.  When
 /// a path is appended path the capacity of the current word, realloc is
 /// triggered to increase capacity.
 pub const Treecode = struct {
-    /// the array of words that make up the treecode
+    /// the backing array of words for the bit path encoding
     treecode_array: []TreecodeWord,
 
     /// preallocate a Treecode of size count and stamp input into the LSB
-    /// (leftmost)
+    /// (right most)
+    ///
+    /// @TODO: remove this?
     pub fn init_fill_count(
         allocator: std.mem.Allocator,
         /// number of inputs to stamp into result
@@ -70,7 +95,7 @@ pub const Treecode = struct {
         };
     }
 
-    /// initialize from a single TreecodeWord
+    /// Initialize from a single TreecodeWord.
     pub fn init_word(
         allocator: std.mem.Allocator,
         input: TreecodeWord,
@@ -125,7 +150,17 @@ pub const Treecode = struct {
         allocator.free(self.treecode_array);
     }
 
-    /// sentinel bit is not included in the code_length (hence the 127 - )
+    /// Returns the number of bits used to encode the path. 
+    ///
+    /// In memory, this is the number of non-zero bits before the trailing
+    /// zeros, omitting the marker bit.
+    ///
+    /// Examples:
+    ///
+    /// * `0b1` -> 0
+    /// * `0b11` -> 1
+    /// * `0b1101` -> 3
+    /// * `0b1110110101` -> 9
     pub fn code_length(
         self: @This(),
     ) usize 
@@ -260,7 +295,15 @@ pub const Treecode = struct {
         return;
     }
 
-    /// determine whether self is a strict superset of rhs
+    /// Self is a prefix of rhs if self is the same length or shorter than rhs
+    /// and all of the bits in self's path are the same as the first bits of
+    /// rhs.
+    /// 
+    /// IE:
+    ///  * `0b1101` is a parent of `0b00101`
+    ///  * `0b1101` is not a parent of `0b1010`
+    ///  * `0b1` is a parent of anything, including `0b1`
+    ///  * `0b10` is not a parent of `0b1`
     pub fn is_prefix_of(
         self: @This(),
         rhs: Treecode,
@@ -315,6 +358,9 @@ pub const Treecode = struct {
         {
             if (tc > 0) 
             {
+                // hash the index of the word in so that 0b1 has a different
+                // hash than 0b1 + an empty word, etc.  Do not include
+                // unused 0s (0s past the marker) though.
                 std.hash.autoHash(&hasher, index + 1);
 
                 // ensure no overflow
@@ -328,15 +374,9 @@ pub const Treecode = struct {
         return hasher.final();
     }
 
-    /// Given a `dest` code which is a child of `self`, find the next bit after
-    /// the bits in `self` that is present in `dest` (IE the next step down the
-    /// tree towards the location of `dest`).
-    ///
-    /// @TODO: this doesn't confirm the assumptions that 
-    ///        (1) dest is a child of self
-    ///        (2) dest is long enough to have a value at the correct position
-    ///        Should it?  Should there be a fallible flavor of this that adds
-    ///        the extra checks and can return an error?
+    /// Given a `dest` code which is a child (longer/with the same prefix) of
+    /// `self`, find the next bit after the bits in `self` that is present in
+    /// `dest` (IE the next step down the tree towards the location of `dest`).
     pub fn next_step_towards(
         self: @This(),
         dest: Treecode,
@@ -395,9 +435,11 @@ test "treecode: code_length - init_word"
         expected: usize,
     };
     const tests = [_]TestData{
-        .{ .input = 1,         .expected = 0 },
-        .{ .input = 0b11,      .expected = 1 },
-        .{ .input = 0b1111111, .expected = 6 },
+        .{ .input = 1,            .expected = 0 },
+        .{ .input = 0b11,         .expected = 1 },
+        .{ .input = 0b1101,       .expected = 3 },
+        .{ .input = 0b1111111,    .expected = 6 },
+        .{ .input = 0b1110110110, .expected = 9 },
     };
     for (tests)
         |t|
@@ -413,6 +455,23 @@ test "treecode: code_length - init_word"
             tc.code_length(),
         );
     }
+
+    // make a long path
+    var tc = try Treecode.init_word(allocator, 0b1);
+    defer tc.deinit(allocator);
+
+    // ensure that the path is large enough to trigger several reallocs
+    const target_code_length = WORD_BIT_COUNT*16;
+    for (0..target_code_length)
+        |_|
+    {
+        try tc.append(allocator, .left);
+    }
+
+    try std.testing.expectEqual(
+        target_code_length,
+        tc.code_length(),
+    );
 }
 
 test "treecode: code_length - init_fill_count"
@@ -470,6 +529,8 @@ fn treecode_word_mask(
     ) - 1;
 }
 
+/// return true if lhs is a prefix of rhs.  For more details, see:
+/// `Treecode.is_prefix_of`
 fn treecode_word_is_prefix_of(
     lhs: TreecodeWord,
     rhs: TreecodeWord,
@@ -737,7 +798,7 @@ test "treecode: apped lots of 0"
 
     var tc = try Treecode.init_word(
         allocator,
-        ROOT_TREECODE,
+        MARKER,
     );
     defer tc.deinit(allocator);
 
@@ -815,7 +876,7 @@ test "treecode: append beyond one word w/ 1"
 
     var tc = try Treecode.init_word(
         allocator,
-        ROOT_TREECODE,
+        MARKER,
     );
     defer tc.deinit(allocator);
 

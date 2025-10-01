@@ -87,7 +87,7 @@ pub const TopologicalMap = struct {
         const tree_word = treecode.Treecode{
             .treecode_array = blk: {
                 var output = [_]treecode.TreecodeWord{
-                    treecode.ROOT_TREECODE,
+                    treecode.MARKER,
                 };
                 break :blk &output;
             },
@@ -306,7 +306,7 @@ pub const TopologicalMap = struct {
                 .space = root_space,
                 .code = try treecode.Treecode.init_word(
                     allocator,
-                    treecode.ROOT_TREECODE,
+                    treecode.MARKER,
                 )
             }
         );
@@ -596,7 +596,7 @@ pub fn build_topological_map(
     // 1a
     const start_code = try treecode.Treecode.init_word(
         allocator,
-        treecode.ROOT_TREECODE,
+        treecode.MARKER,
     );
 
     // root node
