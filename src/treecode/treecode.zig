@@ -261,33 +261,33 @@ pub const Treecode = struct {
     }
 
     /// determine whether self is a strict superset of rhs
-    pub fn is_superset_of(
+    pub fn is_prefix_of(
         self: @This(),
         rhs: Treecode,
     ) bool 
     {
         const len_self: usize = self.code_length();
-        const len_rhs: usize = rhs.code_length();
 
-        // empty lhs path is always a superset
+        // empty lhs path is always a prefix of rhs, regardless of what rhs is
         if (len_self == 0) {
             return true;
         }
 
-        if (len_rhs == 0 or len_rhs > len_self) {
+        const len_rhs: usize = rhs.code_length();
+
+        // if rhs is 0 length or shorter than self, self is not a prefix of rhs
+        if (len_rhs == 0 or len_rhs < len_self) {
             return false;
         }
 
-        if (len_self <= WORD_BIT_COUNT) {
-            return treecode_word_b_is_a_subset(
+        if (len_self < WORD_BIT_COUNT) {
+            return treecode_word_is_prefix_of(
                 self.treecode_array[0],
                 rhs.treecode_array[0],
             );
         }
 
-        const greatest_nonzero_rhs_index: usize = (
-            len_rhs / WORD_BIT_COUNT
-        );
+        const greatest_nonzero_rhs_index = len_self / WORD_BIT_COUNT;
 
         for (0..greatest_nonzero_rhs_index)
             |i|
@@ -297,24 +297,10 @@ pub const Treecode = struct {
             }
         }
 
-        const mask_location_local = @rem(len_rhs, WORD_BIT_COUNT);
-        const mask_bits = WORD_BIT_COUNT - mask_location_local;
-
-        // already checked all the other locations
-        if (mask_location_local == 0) {
-            return true;
-        }
-
-        const mask: TreecodeWord = treecode_word_mask(mask_bits);
-
-        const self_masked = (
-            self.treecode_array[greatest_nonzero_rhs_index] & mask
+        return treecode_word_is_prefix_of(
+            self.treecode_array[greatest_nonzero_rhs_index], 
+            rhs.treecode_array[greatest_nonzero_rhs_index]
         );
-        const rhs_masked = (
-            rhs.treecode_array[greatest_nonzero_rhs_index] & mask
-        );
-
-        return (self_masked == rhs_masked);
     }
 
     /// compute a hash for this treecode
@@ -356,7 +342,7 @@ pub const Treecode = struct {
         dest: Treecode,
     ) l_or_r 
     {
-        std.debug.assert(self.is_superset_of(dest));
+        std.debug.assert(self.is_prefix_of(dest));
 
         const self_len = self.code_length();
 
@@ -484,26 +470,27 @@ fn treecode_word_mask(
     ) - 1;
 }
 
-fn treecode_word_b_is_a_subset(
-    a: TreecodeWord,
-    b: TreecodeWord,
+fn treecode_word_is_prefix_of(
+    lhs: TreecodeWord,
+    rhs: TreecodeWord,
 ) bool 
 {
-    if (a == b) {
+    if (lhs == rhs or lhs == 0b1) {
         return true;
     }
 
-    if (a == 0 or b == 0) {
+    if (lhs == 0 or rhs == 0) {
         return false;
     }
 
-    const leading_zeros: usize = @clz(b) + 1;
-    const mask: TreecodeWord = treecode_word_mask(leading_zeros);
+    // mask the leading zeros + the marker bit
+    const lhs_leading_zeros: usize = @clz(lhs) + 1;
+    const mask: TreecodeWord = treecode_word_mask(lhs_leading_zeros);
 
-    const a_masked = (a & mask);
-    const b_masked = (b & mask);
+    const lhs_masked = (lhs & mask);
+    const rhs_masked = (rhs & mask);
 
-    return a_masked == b_masked;
+    return lhs_masked == rhs_masked;
 }
 
 test "fmt all ones"
@@ -620,102 +607,109 @@ test "Treecode: format"
 }
 
 
-test "TreecodeWord: is a subset" 
+test "TreecodeWord: is a prefix" 
 {
     inline for (
         .{ 
-            .{ 0b11001101, 0b1101, true}, 
-            .{ 0b110011010, 0b11010, true}, 
-            .{ 0b11001101, 0b11001, false}, 
-        }
-    ) |t|
+            .{ 0b11,    0b0,         false}, 
+            .{ 0b0,     0b01,        false}, 
+            .{ 0b11,    0b1101,      true}, 
+            .{ 0b1101,  0b11001101,  true}, 
+            .{ 0b11010, 0b110011010, true}, 
+            .{ 0b11001, 0b11001101,  false}, 
+        },
+        0..
+    ) |t, ind|
     {
+        errdefer std.debug.print(
+            "ACK! Problem with loop: [{d}]\n lhs: {b}\n rhs: {b}\n {any}",
+            .{ ind, t[0], t[1], t[2] },
+        );
         try std.testing.expectEqual(
-            treecode_word_b_is_a_subset(t[0], t[1]),
+            treecode_word_is_prefix_of(t[0], t[1]),
             t[2]
         );
     }
 }
 
-test "treecode: is a superset" 
+test "Treecode: is a prefix" 
 {
     const allocator = std.testing.allocator;
 
     // positive case, ending in 1
     inline for(
         .{
-            .{ 0b1101101, 0b1101, true },
-            .{ 0b11011010, 0b11010, true },
-            .{ 0b1101101, 0b11001, false },
-        }
-    ) |t|
+            // lhs         rhs      lhs is_prefix_of rhs
+            .{ 0b1,        0b1,        true },
+            .{ 0b1,        0b1101,     true },
+            .{ 0b1,        0b101010100100010101110001,  true },
+            .{ 0b10,       0b1,        false },
+            .{ 0b10,       0b11,       false },
+            .{ 0b11,       0b11,       true },
+            .{ 0b11,       0b101,      true },
+            .{ 0b1101101,  0b1101,     false },
+            .{ 0b11011010, 0b11010,    false },
+            .{ 0b1101101,  0b11001,    false },
+            .{ 0b1101,     0b1101101,  true },
+            .{ 0b11010,    0b11011010, true },
+            .{ 0b11001,    0b1101101,  false },
+        },
+        0..
+    ) |t, i|
     {
-        const tc_superset = try Treecode.init_word(
-            allocator, t[0]
+        const lhs = try Treecode.init_word(
+            allocator,
+            t[0],
         );
-        defer tc_superset.deinit(allocator);
-        const tc_subset = try Treecode.init_word(
-            std.testing.allocator, t[1]
+        defer lhs.deinit(allocator);
+
+        const rhs = try Treecode.init_word(
+            allocator,
+            t[1],
         );
-        defer tc_subset.deinit(allocator);
+        defer rhs.deinit(allocator);
+
+        errdefer std.debug.print(
+            "Problem with loop: [{d}]\n  lhs: {f}\n rhs: {f}\n expected: {any}\n",
+            .{ i, lhs, rhs, t[2] },
+        );
 
         try std.testing.expectEqual(
-            tc_superset.is_superset_of(tc_subset),
+            lhs.is_prefix_of(rhs),
             t[2],
         );
     }
 }
 
-test "treecode: is superset very long"
+test "Treecode: is prefix of very long"
 {
     const allocator = std.testing.allocator;
 
-    var tc_superset  = try Treecode.init_word(
+    var lhs  = try Treecode.init_word(
+        allocator,
+        0b11101,
+    );
+    defer lhs.deinit(allocator);
+
+    var rhs  = try Treecode.init_word(
         allocator,
         0b111111101,
         //   0x1101
     );
-    defer tc_superset.deinit(allocator);
+    defer rhs.deinit(allocator);
 
-    var tc_subset  = try Treecode.init_word(
-        allocator,
-        0b11101,
-    );
-    defer tc_subset.deinit(allocator);
-
-    for (0..124)
+    for (9..1000)
         |i|
     {
         errdefer std.log.err(
-            "\n\niteration: {}\n superset: {b} \n subset:   {b}\n\n",
-            .{
-                i,
-                tc_superset.treecode_array[1],
-                tc_subset.treecode_array[1],
-            }
+            "\n\niteration: {}\n lhs: {f} \n rhs: {f}\n",
+            .{ i, lhs, rhs, },
         );
 
-        try tc_superset.append(allocator, .right);
-        try tc_subset.append(allocator, .right);
-    }
+        try lhs.append(allocator, .right);
+        try rhs.append(allocator, .right);
 
-    try std.testing.expect(tc_superset.is_superset_of(tc_subset));
-
-    for (4..1000)
-        |i|
-    {
-        errdefer std.log.err(
-            "\n\niteration: {}\n superset: {b} \n subset:   {b}\n\n",
-            .{
-                i,
-                tc_superset.treecode_array[1],
-                tc_subset.treecode_array[1],
-            },
-        );
-        try std.testing.expect(tc_superset.is_superset_of(tc_subset));
-
-        try tc_superset.append(allocator, .right);
-        try tc_subset.append(allocator, .right);
+        try std.testing.expect(lhs.is_prefix_of(rhs));
     }
 }
 
@@ -1543,8 +1537,8 @@ pub fn path_exists(
     return (
         fst.eql(snd) 
         or (
-            fst.is_superset_of(snd) 
-            or snd.is_superset_of(fst)
+            fst.is_prefix_of(snd) 
+            or snd.is_prefix_of(fst)
         )
     );
 }
