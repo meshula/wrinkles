@@ -405,18 +405,19 @@ pub const Treecode = struct {
         const marker_pos_abs = self.code_length();
         const last_index = (marker_pos_abs / WORD_BIT_COUNT);
 
+        const fmt = (
+            "{b:0>"
+            // ensure that the right number of 0s are printed
+            ++ std.fmt.comptimePrint("{d}", .{WORD_BIT_COUNT}) 
+            ++ "}" 
+        );
+
         try writer.print("{b}", .{self.treecode_array[last_index]});
 
         for (1..last_index+1)
            |i|
         {
             const tcw = self.treecode_array[last_index - i];
-            const fmt = (
-                "{b:0>"
-                // ensure that the right number of 0s are printed
-                ++ std.fmt.comptimePrint("{d}", .{WORD_BIT_COUNT}) 
-                ++ "}" 
-            );
             try writer.print(fmt, .{tcw});
         }
     }
