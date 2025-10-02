@@ -251,36 +251,33 @@ pub const Treecode = struct {
 
         // move the marker one index over
         const new_marker_word = next_index / WORD_BIT_COUNT;
-        const new_marker_index_in_word = @rem(next_index, WORD_BIT_COUNT);
-
-        self.treecode_array[new_marker_word] |= std.math.shl(
-            TreecodeWord,
-            MARKER,
-            new_marker_index_in_word,
-        );
-
-        // add the new_branch to the target index in the target word
         const new_data_word = current_code_length / WORD_BIT_COUNT;
-        const new_data_index_in_word = @rem(current_code_length, WORD_BIT_COUNT);
 
-        const old_marker_bit = std.math.shl(
-            TreecodeWord,
-            1,
-            new_data_index_in_word,
-        );
+        if (new_marker_word == new_data_word) {
+            self.treecode_array[new_marker_word] = treecode_word_append(
+                self.treecode_array[new_marker_word],
+                new_branch,
+            );
+            return;
+        }
 
-        // subtract old marker position
-        self.treecode_array[new_data_word] = (
-            self.treecode_array[new_data_word] - old_marker_bit
-        );
+        // if the marker word doesn't match the data word, then the marker is
+        // getting pushed into the new word
+        self.treecode_array[new_marker_word] = MARKER;
 
-        self.treecode_array[new_data_word] |= std.math.shl(
-            TreecodeWord,
-            @intFromEnum(new_branch),
-            new_data_index_in_word,
-        );
+        // the only bit that needs to be set is the last one, where the new
+        // data replaces the marker bit
+        const Mask = packed struct {
+            _padding: u63 = 0,
+            new_value: l_or_r = .right,
+        };
 
-        return;
+        var m:Mask = @bitCast(self.treecode_array[new_data_word]);
+
+        // set the new value
+        m.new_value = new_branch;
+
+        self.treecode_array[new_data_word] = @bitCast(m);
     }
 
     /// Self is a prefix of rhs if self is the same length or shorter than rhs
