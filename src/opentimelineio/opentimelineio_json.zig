@@ -439,6 +439,7 @@ test "read_from_file test"
     try map.write_dot_graph(
         std.testing.allocator,
         "/var/tmp/" ++ dot_fpath,
+        .{},
     );
 
     try opentime.expectOrdinateEqual(

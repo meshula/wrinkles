@@ -636,7 +636,7 @@ pub const SpaceReference = struct {
     ) !void 
     {
         try writer.print(
-            "{s}.{s}",
+            "{f}.{f}",
             .{
                 self.ref,
                 self.label,
@@ -2225,7 +2225,8 @@ test "path_code: graph test"
 
     try map.write_dot_graph(
         allocator,
-        "/var/tmp/graph_test_output.dot"
+        "/var/tmp/graph_test_output.dot",
+        .{},
     );
 
     // should be the same length
@@ -2241,6 +2242,7 @@ test "path_code: graph test"
     try map.write_dot_graph(
         allocator,
         "/var/tmp/current.dot",
+        .{},
     );
 
     const TestData = struct {
@@ -2988,7 +2990,8 @@ test "otio projection: track with single clip"
 
     try map.write_dot_graph(
         allocator,
-        "/var/tmp/sampling_test.dot"
+        "/var/tmp/sampling_test.dot",
+        .{},
     );
 
     const track_to_media = (
@@ -3195,7 +3198,8 @@ test "otio projection: track with single clip with transform"
 
     try map_tr.write_dot_graph(
         allocator,
-        "/var/tmp/sampling_test.dot"
+        "/var/tmp/sampling_test.dot",
+        .{},
     );
 
     const track_to_media = (
@@ -3312,7 +3316,8 @@ test "otio projection: track with single clip with transform"
         {
             try map_tl.write_dot_graph(
                 allocator,
-                "/var/tmp/discrete_to_continuous_test.dot"
+                "/var/tmp/discrete_to_continuous_test.dot",
+                .{},
             );
 
             const timeline_to_media = (

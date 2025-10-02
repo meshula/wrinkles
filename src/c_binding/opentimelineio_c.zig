@@ -346,9 +346,13 @@ pub export fn otio_write_map_to_png(
 
     t_map.write_dot_graph(
         allocator,
-        std.mem.span(filepath_c)
+        std.mem.span(filepath_c),
+        .{},
     ) catch {
-        std.log.err("couldn't write map to: '{s}'\n", .{ filepath_c });
+        std.log.err(
+            "couldn't write map to: '{s}'\n",
+            .{ filepath_c }
+        );
         return;
     };
 

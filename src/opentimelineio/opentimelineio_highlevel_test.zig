@@ -505,7 +505,8 @@ test "libsamplerate w/ high level test.retime.interpolating"
 
     try topo_map.write_dot_graph(
         allocator,
-        "/var/tmp/track_clip_warp.dot"
+        "/var/tmp/track_clip_warp.dot",
+        .{},
     );
 
     const tr_pres_to_cl_media_po = (

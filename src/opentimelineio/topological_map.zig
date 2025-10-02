@@ -10,7 +10,8 @@ const core = @import("core.zig");
 const topology_m = @import("topology");
 
 /// for VERY LARGE files, turn this off so that dot can process the graphs
-const LABEL_HAS_BINARY_TREECODE = true;
+const LABEL_HAS_BINARY_TREECODE = false;
+const LabelStyle = enum(u1) { treecode, hash };
 
 /// annotate the graph algorithms
 // const GRAPH_CONSTRUCTION_TRACE_MESSAGES = true;
@@ -246,11 +247,20 @@ pub const TopologicalMap = struct {
         };
     }
 
-    /// write a graphviz (dot) format serialization of this TopologicalMap
+    /// Serialize this graph to dot and then use graphviz to convert that dot
+    /// to a png.  Will create /var/tmp/`png_filepath`.dot.
+    ///
+    /// If graphviz is disabled in the build, will return without doing
+    /// anything.
     pub fn write_dot_graph(
         self:@This(),
-        parent_allocator: std.mem.Allocator,
-        filepath: string.latin_s8,
+        allocator: std.mem.Allocator,
+        /// path to the desired resulting png file
+        png_filepath: string.latin_s8,
+        comptime options: struct {
+            label_style: LabelStyle = .hash,
+            render_png: bool = true,
+        },
     ) !void 
     {
         if (build_options.graphviz_dot_path == null) {
@@ -262,69 +272,71 @@ pub const TopologicalMap = struct {
         // note that this function is pretty sloppy with allocations.  it
         // doesn't do any cleanup until the function ends, when the entire var
         // arena is cleared in one shot.
-        var arena = std.heap.ArenaAllocator.init(
-            parent_allocator
-        );
+        var arena = std.heap.ArenaAllocator.init(allocator);
         defer arena.deinit();
-        const allocator = arena.allocator();
-
-        var buf = std.ArrayList(u8).init(allocator);
+        const arena_allocator = arena.allocator();
 
         // open the file
-        const file = try std.fs.createFileAbsolute(
-            filepath,
-            .{}
+        var file = try std.fs.createFileAbsolute(
+            png_filepath,
+            .{},
         );
         defer file.close();
 
-        try file.writeAll("digraph OTIO_TopologicalMap {\n");
+        var buf: [1024]u8 = undefined;
+        var file_writer = file.writer(&buf);
+        var writer = &file_writer.interface;
 
-        const Node = struct {
-            space: core.SpaceReference,
-            code: treecode.Treecode,
-        };
+        _ = try writer.write("digraph OTIO_TopologicalMap {\n");
 
-        var stack = std.ArrayList(Node).init(allocator);
+        var stack = std.ArrayList(
+            TreenodeWalkingIterator.Node
+        ){};
 
         try stack.append(
+            arena_allocator,
             .{
                 .space = root_space,
-                .code = try treecode.Treecode.init(allocator),
+                .code = try treecode.Treecode.init(arena_allocator),
             },
         );
+
+        var label_buf: [1024]u8 = undefined;
+        var next_label_buf: [1024]u8 = undefined;
 
         var maybe_current = stack.pop();
         while (maybe_current != null) 
             : (maybe_current = stack.pop())
         {
             const current = maybe_current.?;
-            const current_label = try label_for_node_leaky(
-                allocator,
+
+            const current_label = try node_label(
+                &label_buf,
                 current.space,
-                current.code
+                current.code,
+                options.label_style,
             );
 
             // left
             {
-                var left = try current.code.clone();
-                try left.append(0);
+                var left = try current.code.clone(arena_allocator);
+                try left.append(arena_allocator, .left);
 
                 if (self.map_code_to_space.get(left)) 
                     |next| 
                 {
-                    const next_label = try label_for_node_leaky(
-                        allocator,
+                    const next_label = try node_label(
+                        &next_label_buf,
                         next,
-                        left
+                        left,
+                        options.label_style,
                     );
-                    try file.writeAll(
-                        try std.fmt.allocPrint(
-                            allocator,
-                            "  {s} -> {s}\n",
-                            .{current_label, next_label}
-                        )
+                    _ = try writer.print(
+                        "  \"{s}\" -> \"{s}\"\n",
+                        .{current_label, next_label}
                     );
                     try stack.append(
+                        arena_allocator,
                         .{
                             .space = next,
                             .code = left
@@ -333,81 +345,76 @@ pub const TopologicalMap = struct {
                 } 
                 else 
                 {
-                    buf.clearAndFree();
-
-                    try file.writeAll(
-                        try std.fmt.allocPrint(
-                            allocator,
-                            "  {s} \n  [shape=point]{s} -> {s}\n",
-                            .{buf.items, current_label, buf.items }
-                        )
+                    _ = try writer.print(
+                        " {f} \n  [shape=point]\"{s}\" -> {f}\n",
+                        .{current.code, current_label, current.code}
                     );
                 }
             }
 
             // right
             {
-                var right = try current.code.clone();
-                try right.append(1);
+                var right = try current.code.clone(arena_allocator);
+                try right.append(arena_allocator, .right);
 
                 if (self.map_code_to_space.get(right)) 
                     |next| 
                 {
-                    const next_label = try label_for_node_leaky(
-                        allocator,
+                    const next_label = try node_label(
+                        &next_label_buf,
                         next,
-                        right
+                        right,
+                        options.label_style,
                     );
-                    try file.writeAll(
-                        try std.fmt.allocPrint(
-                            allocator,
-                            "  {s} -> {s}\n",
-                            .{current_label, next_label},
-                        )
+                    _ = try writer.print(
+                        "  \"{s}\" -> \"{s}\"\n",
+                        .{current_label, next_label},
                     );
                     try stack.append(
+                        arena_allocator,
                         .{
                             .space = next,
                             .code = right
                         }
                     );
                 } 
-                else 
+                else
                 {
-                    buf.clearAndFree();
-                    try file.writeAll(
-                        try std.fmt.allocPrint(
-                            allocator,
-                            "  {s} [shape=point]\n  {s} -> {s}\n",
-                            .{buf.items, current_label, buf.items}
-                        )
+                    _ = try writer.print(
+                        " {f} \n  [shape=point]\"{s}\" -> {f}\n",
+                        .{current.code, current_label, current.code}
                     );
                 }
             }
         }
 
-        try file.writeAll("}\n");
+        _ = try writer.write("}\n");
 
-        const pngfilepath = try std.fmt.allocPrint(
-            allocator,
+        try writer.flush();
+
+        const pngfilepath = try std.fmt.bufPrint(
+            &label_buf,
             "{s}.png",
-            .{ filepath }
+            .{ png_filepath }
         );
-        defer allocator.free(pngfilepath);
 
         const arg = &[_][]const u8{
             // fetched from build configuration
             build_options.graphviz_dot_path.?,
             "-Tpng",
-            filepath,
+            png_filepath,
             "-o",
             pngfilepath,
         };
 
+        if (options.render_png == false) {
+            return;
+        }
+
         // render to png
         const result = try std.process.Child.run(
             .{
-                .allocator = allocator,
+                .allocator = arena_allocator,
                 .argv = arg,
             }
         );
@@ -1108,6 +1115,7 @@ test "TestWalkingIterator: clip"
     try map.write_dot_graph(
         allocator,
         "/var/tmp/walk.dot",
+        .{},
     );
 
     var node_iter = try TreenodeWalkingIterator.init(
@@ -1155,6 +1163,7 @@ test "TestWalkingIterator: track with clip"
     try map.write_dot_graph(
         allocator,
         "/var/tmp/walk.dot",
+        .{},
     );
 
     var count:usize = 0;
@@ -1231,8 +1240,9 @@ test "TestWalkingIterator: track with clip w/ destination"
 
     try map.write_dot_graph(
         allocator,
-        "/var/tmp/walk.dot"
-    );
+        "/var/tmp/walk.dot",
+        .{},
+   );
 
     var count:usize = 0;
 
@@ -1368,52 +1378,33 @@ test "sequential_child_hash: math"
     }
 }
 
-/// generate a text
-fn label_for_node_leaky(
-    allocator: std.mem.Allocator,
+/// generate a text label based on a space reference and treecode
+fn node_label(
+    buf: []u8,
     ref: core.SpaceReference,
     code: treecode.Treecode,
-) !string.latin_s8 
+    comptime label_style: LabelStyle,
+) ![]const u8
 {
-    const item_kind = switch(ref.ref) {
-        .track_ptr => "track",
-        .clip_ptr => "clip",
-        .gap_ptr => "gap",
-        .timeline_ptr => "timeline",
-        .stack_ptr => "stack",
-        .warp_ptr => "warp",
+    return switch (label_style) {
+        .treecode => std.fmt.bufPrint(
+            buf,
+            "{f}.{f}",
+            .{ ref, code, },
+        ),
+        .hash => std.fmt.bufPrint(
+            buf,
+            "{f}.{x}",
+            .{ ref, code.hash(), },
+        ),
     };
-
-    if (LABEL_HAS_BINARY_TREECODE) 
-    {
-        return std.fmt.allocPrint(
-            allocator,
-            "{s}_{s}_{f}",
-            .{
-                item_kind,
-                @tagName(ref.label),
-                code,
-            }
-        );
-    } 
-    else 
-    {
-        const args = .{ 
-            item_kind,
-            @tagName(ref.label), code.hash(), 
-        };
-
-        return std.fmt.allocPrint(
-            allocator,
-            "{s}_{s}_{any}",
-            args
-        );
-    }
 }
 
 test "label_for_node_leaky" 
 {
     const allocator = std.testing.allocator;
+
+    var buf: [1024]u8 = undefined;
 
     var tr: schema.Track = .{};
     const sr = core.SpaceReference{
@@ -1427,15 +1418,15 @@ test "label_for_node_leaky"
     );
     defer tc.deinit(allocator);
 
-    const result = try label_for_node_leaky(
-        allocator,
+    const result = try node_label(
+        &buf,
         sr,
-        tc
+        tc,
+        .treecode,
     );
-    defer allocator.free(result);
 
     try std.testing.expectEqualStrings(
-        "track_presentation_1101001",
+        "null.track.presentation.1101001",
         result,
     );
 }
