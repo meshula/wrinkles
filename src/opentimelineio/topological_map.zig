@@ -283,7 +283,7 @@ pub const TopologicalMap = struct {
         );
         defer file.close();
 
-        var buf: [1024]u8 = undefined;
+        var buf: [16*1024]u8 = undefined;
         var file_writer = file.writer(&buf);
         var writer = &file_writer.interface;
 
