@@ -150,18 +150,21 @@ pub const Treecode = struct {
         if (self.treecode_array.len == 0) {
             return 0;
         }
-        var occupied_words: usize = 0;
 
         // XXX: this loop could be removed.  The last used word could be
         //      directly tracked, or a const variant could be built so that
         //      the slice contains no extra empty unused words.
-        for (self.treecode_array, 0..)
-            |word, i|
-        {
-            if (word != 0) {
-                occupied_words = i;
+        const occupied_words = word: {
+            var i = self.treecode_array.len - 1;
+            while (i >= 0)
+                : (i -= 1)
+            {
+                if (self.treecode_array[i] != 0) {
+                    break :word i;
+                }
             }
-        }
+            break :word i;
+        };
 
         const count = (
             (WORD_BIT_COUNT - 1) - @clz(self.treecode_array[occupied_words])
@@ -252,7 +255,7 @@ pub const Treecode = struct {
 
         self.treecode_array[new_marker_word] |= std.math.shl(
             TreecodeWord,
-            1,
+            MARKER,
             new_marker_index_in_word,
         );
 
