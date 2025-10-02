@@ -3,6 +3,9 @@ const std = @import("std");
 const string = @import("string_stuff");
 const otio = @import("opentimelineio");
 
+const builtin = @import("builtin");
+
+
 const State = struct {
     input_otio: []const u8,
     output_png: []const u8,
@@ -94,8 +97,13 @@ pub fn usage(
 pub fn main(
 ) !void
 {
-    var da = std.heap.DebugAllocator(.{}){};
-    const allocator = da.allocator();
+    // use the debug allocator in debug builds, otherwise use smp
+    const allocator = (
+        if (builtin.mode == .Debug) alloc: {
+            var da = std.heap.DebugAllocator(.{}){};
+            break :alloc da.allocator();
+        } else std.heap.smp_allocator
+    );
 
     const state = try _parse_args(allocator);
     defer state.deinit(allocator);
