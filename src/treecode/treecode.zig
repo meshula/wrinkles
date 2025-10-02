@@ -7,14 +7,6 @@ const std = @import("std");
 
 /// The type of a single word in a `Treecode`
 pub const TreecodeWord = u64;
-const SHIFT_TYPE = switch (TreecodeWord) {
-    u128 => u7,
-    u64 => u6,
-    u32 => u5,
-    else => @compileError(
-        "No shift type for TreecodeWord type: {s}" ++ @typeName(TreecodeWord)
-    ),
-};
 /// bit width of a single word in a `Treecode`
 pub const WORD_BIT_COUNT = @bitSizeOf(TreecodeWord);
 /// Hash type for a `Treecode`
@@ -266,19 +258,13 @@ pub const Treecode = struct {
         // getting pushed into the new word
         self.treecode_array[new_marker_word] = MARKER;
 
-        // the only bit that needs to be set is the last one, where the new
-        // data replaces the marker bit
-        const Mask = packed struct {
-            _padding: u63 = 0,
-            new_value: l_or_r = .right,
-        };
-
-        var m:Mask = @bitCast(self.treecode_array[new_data_word]);
-
-        // set the new value
-        m.new_value = new_branch;
-
-        self.treecode_array[new_data_word] = @bitCast(m);
+        // set the last bit in the last word
+        self.treecode_array[new_data_word] = set_bit_in_word(
+            TreecodeWord,
+            self.treecode_array[new_data_word], 
+            WORD_BIT_COUNT - 1, 
+            new_branch,
+        );
     }
 
     /// Self is a prefix of rhs if self is the same length or shorter than rhs
@@ -493,7 +479,10 @@ fn treecode_word_mask(
 {
     return (
         @as(TreecodeWord, @intCast(1)) << (
-            @as(SHIFT_TYPE, @intCast((WORD_BIT_COUNT - leading_zeros)))
+            @as(
+                std.math.Log2Int(TreecodeWord),
+                @intCast((WORD_BIT_COUNT - leading_zeros)),
+            )
         )
     ) - 1;
 }
@@ -751,6 +740,39 @@ test "treecode: append"
             @as(TreecodeWord, t[0]),
             treecode_word_append(t[1], t[2])
         );
+    }
+}
+
+test "treecode: append up to one word loop"
+{
+    const TEST_TYPE = TreecodeWord;
+
+    var val: TEST_TYPE = 1;
+
+    // const fmt = (
+    //     "{b:0>"
+    //     // ensure that the right number of 0s are printed
+    //     ++ std.fmt.comptimePrint("{d}", .{@bitSizeOf(TEST_TYPE)}) 
+    //     ++ "}" 
+    // );
+    // std.debug.print("val: " ++ fmt ++ "\n", .{ val });
+
+    for (0..@bitSizeOf(TEST_TYPE) - 1)
+        |ind|
+    {
+        val = treecode_word_append(
+            val,
+            .right,
+        );
+
+        // std.debug.print("val: " ++ fmt ++ "\n", .{ val });
+
+        try std.testing.expectEqual(
+            @as(TEST_TYPE, 0b11) << @intCast(ind),
+            val,
+        );
+
+        val = @as(TEST_TYPE, 0b1) << @intCast(ind + 1);
     }
 }
 
@@ -1085,28 +1107,29 @@ fn treecode_word_append(
     new_branch: l_or_r,
 ) TreecodeWord 
 {
-    const signficant_bits:u8 = WORD_BIT_COUNT - 1 - @clz(target_word);
-
-    // strip leading bit
-    const leading_bit = (
-        @as(TreecodeWord, 1) << @as(SHIFT_TYPE, @intCast(@as(u8, signficant_bits)))
+    const signficant_bits = (
+        WORD_BIT_COUNT - 1 - @clz(target_word)
     );
 
-    const a_without_leading_bit = (target_word - leading_bit) ;
-    const leading_bit_shifted = (leading_bit << 1);
-
-    const l_or_r_branch_shifted = (
-        @as(TreecodeWord, @intCast(@intFromEnum(new_branch)) )
-        << @as(SHIFT_TYPE, @intCast((@as(u8, signficant_bits))))
+    // set the new data bit
+    const new_val = set_bit_in_word(
+        TreecodeWord,
+        target_word,
+        @intCast(signficant_bits),
+        new_branch,
     );
 
-    const result = (
-        a_without_leading_bit 
-        | leading_bit_shifted
-        | l_or_r_branch_shifted
-    );
+    if (signficant_bits == WORD_BIT_COUNT - 1) {
+        return new_val;
+    }
 
-    return result;
+    // set the marker bit
+    return set_bit_in_word(
+        TreecodeWord,
+        new_val,
+        @intCast(signficant_bits + 1),
+        .right,
+    );
 }
 
 test "treecode: hash - built from init_word" 
@@ -1464,4 +1487,51 @@ pub fn path_exists(
             or snd.is_prefix_of(fst)
         )
     );
+}
+
+inline fn set_bit_in_word(
+    comptime Type: type,
+    word: Type,
+    bit_index: std.math.Log2Int(Type),
+    val: l_or_r,
+) Type 
+{
+    var result: std.bit_set.IntegerBitSet(@bitSizeOf(Type)) = @bitCast(word);
+
+    result.setValue(bit_index, val == .right);
+
+    return @bitCast(result);
+}
+
+test "set_bit_in_word"
+{
+    const TEST_TYPE = u8;
+
+    var val: TEST_TYPE = 0;
+
+    for (0..@bitSizeOf(TEST_TYPE))
+        |ind|
+    {
+        val = set_bit_in_word(
+            TEST_TYPE,
+            val,
+            @intCast(ind),
+            .right,
+        );
+
+        // const fmt = (
+        //     "{b:0>"
+        //     // ensure that the right number of 0s are printed
+        //     ++ std.fmt.comptimePrint("{d}", .{@bitSizeOf(TEST_TYPE)}) 
+        //     ++ "}" 
+        // );
+        // std.debug.print("val: " ++ fmt ++ "\n", .{ val });
+
+        try std.testing.expectEqual(
+            @as(TEST_TYPE, 1) << @intCast(ind),
+            val,
+        );
+
+        val = 0;
+    }
 }
