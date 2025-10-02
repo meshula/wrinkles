@@ -254,6 +254,7 @@ pub const Treecode = struct {
         const new_data_word = current_code_length / WORD_BIT_COUNT;
 
         if (new_marker_word == new_data_word) {
+            @branchHint(.likely);
             self.treecode_array[new_marker_word] = treecode_word_append(
                 self.treecode_array[new_marker_word],
                 new_branch,
