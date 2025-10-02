@@ -9,8 +9,6 @@ const schema = @import("schema.zig");
 const core = @import("core.zig");
 const topology_m = @import("topology");
 
-/// for VERY LARGE files, turn this off so that dot can process the graphs
-const LABEL_HAS_BINARY_TREECODE = false;
 const LabelStyle = enum(u1) { treecode, hash };
 
 /// annotate the graph algorithms
@@ -258,7 +256,9 @@ pub const TopologicalMap = struct {
         /// path to the desired resulting png file
         png_filepath: string.latin_s8,
         comptime options: struct {
+            /// by default show the hashes in the node labels
             label_style: LabelStyle = .hash,
+            /// if this is off, will generate the .dot file and return
             render_png: bool = true,
         },
     ) !void 
@@ -267,8 +267,6 @@ pub const TopologicalMap = struct {
             return;
         }
 
-        const root_space = self.root(); 
-        
         // note that this function is pretty sloppy with allocations.  it
         // doesn't do any cleanup until the function ends, when the entire var
         // arena is cleared in one shot.
@@ -296,7 +294,7 @@ pub const TopologicalMap = struct {
         try stack.append(
             arena_allocator,
             .{
-                .space = root_space,
+                .space = self.root(),
                 .code = try treecode.Treecode.init(arena_allocator),
             },
         );
