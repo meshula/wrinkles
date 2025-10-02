@@ -894,4 +894,15 @@ pub fn build(
         options,
         common_deps,
     );
+
+    try executable(
+        b,
+        "otio_dump_graph",
+        "src/otio_dump_graph.zig",
+        options,
+        &.{
+            .{ .name = "string_stuff", .module = string_stuff },
+            .{ .name = "opentimelineio", .module = opentimelineio },
+        },
+    );
 }
