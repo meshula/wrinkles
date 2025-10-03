@@ -2400,7 +2400,7 @@ test "TopologicalMap: schema.Track with clip with identity transform topological
         );
         defer tc.deinit(allocator);
         errdefer opentime.dbg_print(@src(), 
-            "\ntc: {s}, clip_code: {s}\n",
+            "\ntc: {f}, clip_code: {f}\n",
             .{
                 tc,
                 clip_code,
@@ -3633,7 +3633,7 @@ test "Single clip, schema.Warp bulk"
 
         errdefer {
             opentime.dbg_print(@src(), 
-                "produced transform: {s}\n",
+                "produced transform: {f}\n",
                 .{ xform }
             );
         }
@@ -3672,7 +3672,7 @@ test "Single clip, schema.Warp bulk"
             );
 
             errdefer opentime.dbg_print(@src(), 
-                "test data:\nprovided: {s}\n"
+                "test data:\nprovided: {f}\n"
                 ++ "input:  [{d}, {d})\n"
                 ++ "output: [{d}, {d})\n"
                 ++ "test presentaiton pt: {d}\n"

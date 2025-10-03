@@ -446,7 +446,7 @@ pub fn LinearOf(
                     {
                         try writer.print(",\n", .{});
                     }
-                    try writer.print("    {s}", .{ k});
+                    try writer.print("    {f}", .{ k});
                 }
 
                 try writer.print("\n  ]\n}}", .{});
@@ -1369,7 +1369,7 @@ test "Linear: Monotonic Trimmed Input"
         defer result.deinit(allocator);
 
         errdefer opentime.dbg_print(@src(), 
-            "test: {s}\n result: {s}",
+            "test: {s}\n result: {f}",
             .{
                 t.name,
                 result.extents_input(),
@@ -1477,7 +1477,7 @@ test "Linear: Monotonic Trimmed Output"
         defer result.deinit(allocator);
 
         errdefer opentime.dbg_print(@src(), 
-            "test: {s}\n result: {s}",
+            "test: {s}\n result: {f}",
             .{
                 t.name,
                 result.extents_output(),

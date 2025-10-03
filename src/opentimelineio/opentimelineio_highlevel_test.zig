@@ -951,7 +951,7 @@ test "timeline w/ warp that holds the tenth frame"
     );
 
     errdefer opentime.dbg_print(@src(),
-        "WARP\n input bounds: {s}\n output bounds: {s}\n",
+        "WARP\n input bounds: {f}\n output bounds: {f}\n",
         .{ w_ib, w_ob },
     );
 

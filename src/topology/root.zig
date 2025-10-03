@@ -178,7 +178,7 @@ pub const Topology = struct {
                 try writer.print(", ", .{});
             }
             try writer.print(
-                "({s}, {s})",
+                "({s}, {f})",
                 .{
                     @tagName(m),
                     m.input_bounds(),
@@ -188,7 +188,7 @@ pub const Topology = struct {
 
         if (self.mappings.len > 0) {
             try writer.print(
-                "] -> output space: {s} }}",
+                "] -> output space: {f} }}",
                 .{ self.output_bounds() }
             );
         }
@@ -1579,10 +1579,10 @@ test "Topology: trim_in_output_space"
             opentime.dbg_print(@src(), 
                 (
                       "error with test: {s}\n"
-                      ++ " input: {s} / output range: {s}\n"
-                      ++ " target range: {s}\n"
-                      ++ " trimmed: {s} / output range: {s}\n"
-                      ++ " expected: {s}"
+                      ++ " input: {f} / output range: {f}\n"
+                      ++ " target range: {f}\n"
+                      ++ " trimmed: {f} / output range: {f}\n"
+                      ++ " expected: {f}"
                 ),
                .{
                    t.name,
@@ -1876,7 +1876,7 @@ test "Topology: project_instantaneous_cc and project_instantaneous_cc_inv"
         |t|
     {
         errdefer opentime.dbg_print(@src(), 
-            "topo: {s}",
+            "topo: {f}",
             .{ t.input_to_output_topo }
         );
         for (t.test_pts_fwd)
@@ -1884,7 +1884,7 @@ test "Topology: project_instantaneous_cc and project_instantaneous_cc_inv"
         {
             errdefer {
                 opentime.dbg_print(@src(), 
-                    "error with test: {s} pt: {d}",
+                    "error with test: {s} pt: {f}",
                     .{
                         t.name,
                         pt,

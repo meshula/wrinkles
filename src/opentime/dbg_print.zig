@@ -16,7 +16,7 @@ pub fn dbg_print(
 {
     if (DEBUG_MESSAGES) 
     {
-        std.log.debug(
+        std.debug.print(
             "[{s}:{s}:{d}] " ++ fmt ++ "\n",
             .{
                 src.file,
