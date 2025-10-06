@@ -273,9 +273,7 @@ pub const TopologicalMap = struct {
 
         _ = try writer.write("digraph OTIO_TopologicalMap {\n");
 
-        var stack = std.ArrayList(
-            TreenodeWalkingIterator.Node,
-        ){};
+        var stack: std.ArrayList(TreenodeWalkingIterator.Node) = .empty;
 
         try stack.append(
             arena_allocator,
