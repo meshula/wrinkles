@@ -238,10 +238,13 @@ pub const Treecode = struct {
 
         if (next_index > last_allocated_index) 
         {
-            // double the size
             try self.realloc(
                 allocator,
-                self.treecode_array.len*2,
+                // XXX: originally using * 2 instead of +3 but found that +3
+                //      provided better perf for large files.  I suspect that
+                //      most treecodes are 1-4 words long given that most
+                //      graphs are wider than they are deep (for large files)
+                self.treecode_array.len + 3,
             );
         }
 
