@@ -504,20 +504,11 @@ pub const ComposedValueRef = union(enum) {
         writer: *std.Io.Writer,
     ) !void 
     {
-        const str = switch (self) {
-            .clip_ptr => "clip",
-            .gap_ptr => "gap",
-            .track_ptr => "track",
-            .stack_ptr => "stack",
-            .warp_ptr => "warp",
-            .timeline_ptr => "timeline",
-        };
-        const n = self.name() orelse "null";
         try writer.print(
             "{s}.{s}",
             .{
-                n,
-                str,
+                self.name() orelse "null",
+                @tagName(self),
             }
         );
     }
