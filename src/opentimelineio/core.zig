@@ -121,12 +121,12 @@ pub const ComposedValueRef = union(enum) {
                 cl.destroy(allocator);
                 allocator.destroy(cl);
             },
-            inline else => |*o| {
-                if (o.*.name)
+            inline else => |o| {
+                if (o.name)
                     |n|
                 {
                     allocator.free(n);
-                    o.*.name = null;
+                    o.name = null;
                 }
                 allocator.destroy(o);
             },
