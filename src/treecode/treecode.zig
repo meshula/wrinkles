@@ -332,24 +332,16 @@ pub const Treecode = struct {
     {
         var hasher = std.hash.Wyhash.init(0);
 
-        // std.debug.print("arr: {*}\n", .{self.treecode_array});
-
         for (self.treecode_array, 1..) 
             |word, index| 
         {
             // skip empty words
             if (word > 0) 
             {
-                // hash the index of the word in so that 0b1 has a different
-                // hash than 0b1 + an empty word, etc.  Do not include
-                // unused 0s (0s past the marker) though.
+                // hash index so that 1000 0000 hashes differently than 
+                // 0000 1000
                 std.hash.autoHash(&hasher, index);
-
-                // ensure no overflow
-                std.hash.autoHash(
-                    &hasher,
-                    @as(u256, @intCast(word))
-                );
+                std.hash.autoHash(&hasher, word);
             }
         }
 
