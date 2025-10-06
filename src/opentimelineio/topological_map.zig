@@ -256,13 +256,6 @@ pub const TopologicalMap = struct {
         },
     ) !void 
     {
-        if (build_options.graphviz_dot_path == null) {
-            return;
-        }
-
-        // note that this function is pretty sloppy with allocations.  it
-        // doesn't do any cleanup until the function ends, when the entire var
-        // arena is cleared in one shot.
         var arena = std.heap.ArenaAllocator.init(allocator);
         defer arena.deinit();
         const arena_allocator = arena.allocator();
@@ -397,7 +390,10 @@ pub const TopologicalMap = struct {
             pngfilepath,
         };
 
-        if (options.render_png == false) {
+        if (
+            build_options.graphviz_dot_path == null 
+            or options.render_png == false
+        ) {
             return;
         }
 
