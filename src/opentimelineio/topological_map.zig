@@ -91,7 +91,7 @@ pub const TopologicalMap = struct {
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
             opentime.dbg_print(@src(), 
-                "[START] root_to_current: {s}\n",
+                "[START] root_to_current: {f}\n",
                 .{ root_to_current }
             );
         }
@@ -111,8 +111,8 @@ pub const TopologicalMap = struct {
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
             opentime.dbg_print(@src(), 
-                "starting walk from: {s} to: {s}\n"
-                ++ "starting projection: {s}\n"
+                "starting walk from: {f} to: {f}\n"
+                ++ "starting projection: {f}\n"
                 ,
                 .{
                     current,
@@ -135,7 +135,7 @@ pub const TopologicalMap = struct {
 
             if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) { 
                 opentime.dbg_print(@src(), 
-                    "  next step {b} towards next node: {s}\n"
+                    "  next step {b} towards next node: {f}\n"
                     ,
                     .{ next_step, next }
                 );
@@ -158,8 +158,8 @@ pub const TopologicalMap = struct {
             {
                 opentime.dbg_print(@src(), 
                     "    joining!\n"
-                    ++ "    a2b/root_to_current: {s}\n"
-                    ++ "    b2c/current_to_next: {s}\n"
+                    ++ "    a2b/root_to_current: {f}\n"
+                    ++ "    b2c/current_to_next: {f}\n"
                     ,
                     .{
                         root_to_current,
@@ -179,16 +179,16 @@ pub const TopologicalMap = struct {
             if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
             {
                 opentime.dbg_print(@src(), 
-                    "    root_to_next: {s}\n",
+                    "    root_to_next: {f}\n",
                     .{root_to_next}
                 );
                 const i_b = root_to_next.input_bounds();
                 const o_b = root_to_next.output_bounds();
 
                 opentime.dbg_print(@src(), 
-                    "    root_to_next (next root to current!): {s}\n"
-                    ++ "    composed transform ranges {s}: {s},"
-                    ++ " {s}: {s}\n"
+                    "    root_to_next (next root to current!): {f}\n"
+                    ++ "    composed transform ranges {f}: {f},"
+                    ++ " {f}: {f}\n"
                     ,
                     .{
                         root_to_next,
@@ -441,7 +441,7 @@ pub const TopologicalMap = struct {
         )
         {
             errdefer opentime.dbg_print(@src(), 
-                "\nERROR\nsource: {s} dest: {s}\n",
+                "\nERROR\nsource: {f} dest: {f}\n",
                 .{
                     source_code,
                     destination_code,
@@ -495,7 +495,7 @@ pub const TopologicalMap = struct {
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
             opentime.dbg_print(@src(), 
-                "starting walk from: {s} to: {s}\n",
+                "starting walk from: {f} to: {f}\n",
                 .{
                     iter.maybe_source.?.space,
                     iter.maybe_destination.?.space,
@@ -521,9 +521,10 @@ pub const TopologicalMap = struct {
                 )
             );
 
-            opentime.dbg_print(@src(), 
-                "space: {s}\n"
-                ++ "      local:  {s}\n",
+            opentime.dbg_print(
+                @src(), 
+                "space: {f}\n"
+                ++ "      local:  {f}\n",
                 .{ 
                     iter.maybe_current.?.space,
                     dest_to_current.src_to_dst_topo.output_bounds(),
@@ -531,9 +532,10 @@ pub const TopologicalMap = struct {
             );
         }
 
-        opentime.dbg_print(@src(), 
-            "space: {s}\n"
-            ++ "      destination:  {s}\n",
+        opentime.dbg_print(
+            @src(), 
+            "space: {f}\n"
+            ++ "      destination:  {f}\n",
             .{ 
                 iter.maybe_current.?.space,
                 try iter.maybe_destination.?.space.ref.bounds_of(
@@ -990,7 +992,7 @@ pub const TreenodeWalkingIterator = struct{
         {
             errdefer opentime.dbg_print(
                 @src(), 
-                "\nERROR\nsource: {s} dest: {s}\n",
+                "\nERROR\nsource: {f} dest: {f}\n",
                 .{
                     source_code,
                     destination_code,
@@ -1328,7 +1330,7 @@ test "depth_child_hash: math"
         ); 
 
         errdefer opentime.dbg_print(@src(), 
-            "iteration: {d}, expected: {b} got: {s}\n",
+            "iteration: {d}, expected: {b} got: {f}\n",
             .{ i, expected, result }
         );
 
@@ -1428,7 +1430,7 @@ test "sequential_child_hash: math"
         try test_code.append(allocator, .right);
 
         errdefer opentime.dbg_print(@src(), 
-            "iteration: {d}, expected: {s} got: {s}\n",
+            "iteration: {d}, expected: {f} got: {f}\n",
             .{ i, test_code, result }
         );
 
