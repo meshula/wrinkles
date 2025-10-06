@@ -127,7 +127,7 @@ pub const Topology = struct {
     pub fn init_identity(
         allocator: std.mem.Allocator,
         range: opentime.ContinuousInterval,
-    ) !Topology
+    ) error{OutOfMemory}!Topology
     {
         return .{
             .mappings = try allocator.dupe(
