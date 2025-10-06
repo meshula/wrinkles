@@ -172,22 +172,6 @@ pub const ComposedValueRef = union(enum) {
         };
     }
 
-    /// pointer equivalence
-    pub fn equivalent_to(
-        self: @This(),
-        other: ComposedValueRef
-    ) bool 
-    {
-        return switch(self) {
-            .clip_ptr => |cl| cl == other.clip_ptr,
-            .gap_ptr => |gp| gp == other.gap_ptr,
-            .track_ptr => |tr| tr == other.track_ptr,
-            .stack_ptr => |st| st == other.stack_ptr,
-            .timeline_ptr => |tl| tl == other.timeline_ptr,
-            .warp_ptr => |wp| wp == other.warp_ptr,
-        };
-    }
-
     /// return list of SpaceReference for this object
     pub fn spaces(
         self: @This(),
