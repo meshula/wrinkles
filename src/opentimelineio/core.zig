@@ -528,8 +528,7 @@ pub const ComposedValueRef = union(enum) {
             .warp_ptr => "warp",
             .timeline_ptr => "timeline",
         };
-        // const n = self.name() orelse "null";
-        const n = "null";
+        const n = self.name() orelse "null";
         try writer.print(
             "{s}.{s}",
             .{
