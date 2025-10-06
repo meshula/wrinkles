@@ -138,7 +138,7 @@ pub fn main(
     // build the graph
     const map = try otio.build_topological_map(
         allocator,
-        otio.ComposedValueRef.init(&tl),
+        otio.ComposedValueRef.init(tl),
     );
     defer map.deinit(allocator);
 

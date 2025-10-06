@@ -53,55 +53,52 @@ const T_ORD_ARR_0_8_13_21 = [_]opentime.Ordinate{
             opentime.Ordinate.init(21),
 };
 
-/// anything that can be composed in a track or stack
-pub const ComposableValue = union(enum) {
-    clip: schema.Clip,
-    gap: schema.Gap,
-    track: schema.Track,
-    stack: schema.Stack,
-    warp: schema.Warp,
+/// a pointer to something in the composition hierarchy
+pub const ComposedValueRef = union(enum) {
+    clip_ptr: *schema.Clip,
+    gap_ptr: *schema.Gap,
+    track_ptr: *schema.Track,
+    timeline_ptr: *schema.Timeline,
+    stack_ptr: *schema.Stack,
+    warp_ptr: *schema.Warp,
 
-    pub fn init(
-        val: anytype,
-    ) ComposableValue
+    pub fn init_type(
+        comptime Type: type,
+        input: *Type,
+    ) ComposedValueRef
     {
-        if (@TypeOf(val) == ComposableValue) {
-            return val;
-        }
-
-        return switch (@TypeOf(val)) {
-            schema.Clip => return .{ .clip = val },
-            schema.Gap => return .{ .gap = val },
-            schema.Track => return .{ .track = val },
-            schema.Stack => return .{ .stack = val },
-            schema.Warp => return .{ .warp = val },
-            inline else => {
-                @compileError(
-                    "Cannot compose value of type: "
-                    ++ @typeName(@TypeOf(val))
-                );
-            }
-        };
+        return ComposedValueRef.init(input);
     }
 
-    /// build a topology for the ComposableValue
-    pub fn topology(
-        self: @This(),
-        allocator: std.mem.Allocator,
-    ) error{
-        NotImplementedFetchTopology,
-        OutOfMemory,
-        OutOfBounds,
-        MoreThanOneCurveIsNotImplemented,
-        NoSplitForLinearization,
-        NotInRangeError,
-        NoProjectionResult,
-        NoProjectionResultError,
-    }!topology_m.Topology 
+    /// construct a ComposedValueRef from a ComposableValue or value type
+    pub fn init(
+        input: anytype,
+    ) ComposedValueRef
     {
-        return switch (self) {
-            .warp => |wp| wp.transform,
-            inline else => |it| try it.topology(allocator),
+        comptime {
+            const ti= @typeInfo(@TypeOf(input));
+            if (std.meta.activeTag(ti) != .pointer) 
+            {
+                @compileError(
+                    "ComposedValueRef can only be constructed from "
+                    ++ "pointers to previously allocated OTIO objects, not "
+                    ++ @typeName(@TypeOf(input))
+                );
+            }
+        }
+
+        return switch (@TypeOf(input.*)) 
+        {
+            schema.Clip => .{ .clip_ptr = input },
+            schema.Gap   => .{ .gap_ptr = input },
+            schema.Track => .{ .track_ptr = input },
+            schema.Stack => .{ .stack_ptr = input },
+            schema.Warp => .{ .warp_ptr = input },
+            schema.Timeline => .{ .timeline_ptr = input },
+            inline else => @compileError(
+                "ComposedValueRef cannot reference to type: "
+                ++ @typeName(@TypeOf(input))
+            ),
         };
     }
 
@@ -112,81 +109,27 @@ pub const ComposableValue = union(enum) {
     {
         switch (self.*) 
         {
-            .track => |*tr| {
+            .track_ptr => |tr| {
                 tr.recursively_deinit(allocator);
+                allocator.destroy(tr);
             },
-            .stack => |*st| {
+            .stack_ptr => |st| {
                 st.recursively_deinit(allocator);
+                allocator.destroy(st);
             },
-            .clip => |*cl| {
+            .clip_ptr => |cl| {
                 cl.destroy(allocator);
+                allocator.destroy(cl);
             },
             inline else => |*o| {
-                if (o.name)
+                if (o.*.name)
                     |n|
                 {
                     allocator.free(n);
+                    o.*.name = null;
                 }
+                allocator.destroy(o);
             },
-        }
-    }
-};
-
-/// a pointer to something in the composition hierarchy
-pub const ComposedValueRef = union(enum) {
-    clip_ptr: *const schema.Clip,
-    gap_ptr: *const schema.Gap,
-    track_ptr: *const schema.Track,
-    timeline_ptr: *const schema.Timeline,
-    stack_ptr: *const schema.Stack,
-    warp_ptr: *const schema.Warp,
-
-    /// construct a ComposedValueRef from a ComposableValue or value type
-    pub fn init(
-        input: anytype,
-    ) ComposedValueRef
-    {
-        comptime {
-            const t= @typeInfo(@TypeOf(input));
-            if (std.meta.activeTag(t) != .pointer) 
-            {
-                @compileError(
-                    "ComposedValueRef can only be constructed from pointers "
-                    ++ "or ComposableValues, not: "
-                    ++ @typeName(@TypeOf(input))
-                );
-            }
-        }
-
-        if (
-            @TypeOf(input) == (*const ComposableValue)
-            or @TypeOf(input) == (*ComposableValue)
-        ) 
-        {
-            return switch (input.*) 
-            {
-                .clip  => |*cp| .{ .clip_ptr = cp  },
-                .gap   => |*gp| .{ .gap_ptr= gp    },
-                .track => |*tr| .{ .track_ptr = tr },
-                .stack => |*st| .{ .stack_ptr = st },
-                .warp  => |*wp| .{ .warp_ptr = wp },
-            };
-        }
-        else 
-        {
-            return switch (@TypeOf(input.*)) 
-            {
-                schema.Clip => .{ .clip_ptr = input },
-                schema.Gap   => .{ .gap_ptr = input },
-                schema.Track => .{ .track_ptr = input },
-                schema.Stack => .{ .stack_ptr = input },
-                schema.Warp => .{ .warp_ptr = input },
-                schema.Timeline => .{ .timeline_ptr = input },
-                inline else => @compileError(
-                    "ComposedValueRef cannot reference to type: "
-                    ++ @typeName(@TypeOf(input))
-                ),
-            };
         }
     }
 
@@ -203,7 +146,7 @@ pub const ComposedValueRef = union(enum) {
     pub fn topology(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) !topology_m.Topology 
+    ) error{OutOfMemory,NotImplementedFetchTopology}!topology_m.Topology 
     {
         return switch (self) {
             .warp_ptr => |wp_ptr| wp_ptr.transform,
@@ -589,22 +532,48 @@ pub const ComposedValueRef = union(enum) {
             }
         );
     }
+
+    /// return a caller-owned slice of the children of this composed value ref
+    pub fn children_refs(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) ![]ComposedValueRef
+    {
+        var children_ptrs: std.ArrayList(ComposedValueRef) = .{};
+        defer children_ptrs.deinit(allocator);
+
+        switch (self) {
+            inline .track_ptr, .stack_ptr => |st_or_tr| (
+                try children_ptrs.appendSlice(
+                    allocator,
+                    st_or_tr.children,
+                )
+            ),
+            .timeline_ptr => |tl| try children_ptrs.append(
+                allocator,
+                ComposedValueRef.init(&tl.tracks)
+            ),
+            .warp_ptr => |wp| {
+                try children_ptrs.append(allocator,wp.child);
+            },
+            inline else => {},
+        }
+
+        return try children_ptrs.toOwnedSlice(allocator);
+    }
 };
 
 test "ComposedValueRef init test"
 {
-    const cl = schema.Clip{};
+    var clip = schema.Clip{.name = "hi"};
 
-    const cl_cv = ComposableValue.init(cl);
-    const cl_ref_init_cv = ComposedValueRef.init(&cl_cv);
+    const cvr_clip = ComposedValueRef.init(&clip);
 
-    const cl_ref_init_ptr = ComposedValueRef.init(&cl);
-
-    try std.testing.expectEqual(
-        &(cl_cv.clip),
-        cl_ref_init_cv.clip_ptr
+    try std.testing.expectEqualStrings(
+        clip.name.?,
+        cvr_clip.clip_ptr.name.?,
     );
-    try std.testing.expectEqual(&cl, cl_ref_init_ptr.clip_ptr);
+    try std.testing.expectEqual(&clip, cvr_clip.clip_ptr);
 }
 
 
@@ -1017,7 +986,7 @@ test "ProjectionOperatorMap: init_operator leak test"
 {
     const allocator = std.testing.allocator;
 
-    const cl = schema.Clip{};
+    var cl = schema.Clip{};
     const cl_ptr = ComposedValueRef{ 
         .clip_ptr = &cl 
     };
@@ -1041,7 +1010,7 @@ test "ProjectionOperatorMap: projection_map_to_media_from leak test"
 {
     const allocator = std.testing.allocator;
 
-    const cl = schema.Clip {
+    var cl = schema.Clip {
         .bounds_s = T_INT_1_TO_9,
     };
     const cl_ptr = ComposedValueRef.init(&cl);
@@ -1396,7 +1365,7 @@ test "ProjectionOperatorMap: extend_to"
 {
     const allocator = std.testing.allocator;
 
-    const cl = schema.Clip {
+    var cl = schema.Clip {
         .bounds_s = T_INT_1_TO_9,
     };
     const cl_ptr = ComposedValueRef{ .clip_ptr = &cl };
@@ -1497,7 +1466,7 @@ test "ProjectionOperatorMap: split_at_each"
 {
     const allocator = std.testing.allocator;
 
-    const cl = schema.Clip {
+    var cl = schema.Clip {
         .bounds_s = T_INT_1_TO_9,
     };
     const cl_ptr = ComposedValueRef{ .clip_ptr = &cl };
@@ -1623,7 +1592,7 @@ test "ProjectionOperatorMap: merge_composite"
 {
     const allocator = std.testing.allocator;
 
-    const cl = schema.Clip {
+    var cl = schema.Clip {
         .bounds_s = T_INT_1_TO_9,
     };
     const cl_ptr = ComposedValueRef{ .clip_ptr = &cl };
@@ -1671,7 +1640,7 @@ test "ProjectionOperatorMap: clip"
 {
     const allocator = std.testing.allocator;
 
-    const cl = schema.Clip {
+    var cl = schema.Clip {
         .bounds_s = T_INT_1_TO_9,
     };
     const cl_ptr = ComposedValueRef{ .clip_ptr = &cl };
@@ -1751,17 +1720,14 @@ test "ProjectionOperatorMap: track with single clip"
 {
     const allocator = std.testing.allocator;
 
-    var tr: schema.Track = .{};
-    defer tr.deinit(allocator);
-    const tr_ptr = ComposedValueRef.init(&tr);
-
-    const cl = schema.Clip {
+    var cl = schema.Clip {
         .bounds_s = T_INT_1_TO_9,
     };
-    const cl_ptr = try tr.append_fetch_ref(
-        allocator,
-        cl,
-    );
+    const cl_ptr = ComposedValueRef.init(&cl);
+
+    var tr_children = [_]ComposedValueRef{ cl_ptr, };
+    var tr: schema.Track = .{ .children = &tr_children };
+    const tr_ptr = ComposedValueRef.init(&tr);
 
     const map = try topological_map_m.build_topological_map(
         allocator,
@@ -1847,20 +1813,21 @@ test "transform: track with two clips"
 {
     const allocator = std.testing.allocator;
 
-    var tr: schema.Track = .{};
-    defer tr.recursively_deinit(allocator);
-    const cl1 = schema.Clip {
+    var cl1 = schema.Clip {
         .bounds_s = T_INT_1_TO_9,
     };
-    const cl2 = schema.Clip {
+    var cl2 = schema.Clip {
         .bounds_s = T_INT_1_TO_4,
     };
-    try tr.append(allocator,cl1);
+    const cl2_ref = ComposedValueRef.init(&cl2);
 
-    const cl2_ref = try tr.append_fetch_ref(
-        allocator,
-        cl2,
-    );
+    var tr_children = [_]ComposedValueRef{
+        ComposedValueRef.init(&cl1),
+        cl2_ref 
+    };
+    var tr: schema.Track = .{
+        .children = &tr_children,
+    };
     const tr_ptr = ComposedValueRef.init(&tr);
 
     const map = try topological_map_m.build_topological_map(
@@ -1877,7 +1844,7 @@ test "transform: track with two clips"
         );
         defer child_code.deinit(allocator);
 
-        const child_space = map.map_code_to_space.get(child_code).?;
+        const child_space = map.map_code_to_space.get(child_code.hash()).?;
 
         const xform = try tr.transform_to_child(
             allocator,
@@ -1964,24 +1931,32 @@ test "ProjectionOperatorMap: track with two clips"
 {
     const allocator = std.testing.allocator;
 
-    var tr: schema.Track = .{};
-    defer tr.recursively_deinit(allocator);
-
-    const cl = schema.Clip {
-        .bounds_s = T_INT_1_TO_9,
+    var clips = [_]schema.Clip{
+        .{
+            .bounds_s = T_INT_1_TO_9,
+        },
+        .{
+            .bounds_s = T_INT_1_TO_9,
+        },
     };
-    try tr.append(allocator,cl);
-    const cl_ptr = try tr.append_fetch_ref(
-        allocator,
-        cl,
-    );
+    const cl_ptr = ComposedValueRef.init(&clips[1]);
+
+    var tr_children = [_]ComposedValueRef{
+        ComposedValueRef.init(&clips[0]),
+        cl_ptr,  
+    };
+    var tr: schema.Track = .{ .children = &tr_children };
     const tr_ptr = ComposedValueRef.init(&tr);
+
+    /////
 
     const map = try topological_map_m.build_topological_map(
         allocator,
         tr_ptr,
     );
     defer map.deinit(allocator);
+
+    /////
 
     const source_space = try tr_ptr.space(.presentation);
 
@@ -1992,8 +1967,9 @@ test "ProjectionOperatorMap: track with two clips"
             source_space,
         )
     );
-
     defer p_o_map.deinit(allocator);
+
+    /////
 
     try std.testing.expectEqualSlices(
         opentime.Ordinate,
@@ -2047,26 +2023,22 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
 {
     const allocator = std.testing.allocator;
 
-    var tr: schema.Track = .{};
-    defer tr.recursively_deinit(allocator);
-
-    const tr_ptr = ComposedValueRef.init(&tr);
-
-    const cl = schema.Clip {
+    var cl = schema.Clip {
         .bounds_s = T_INT_1_TO_9,
     };
-    try tr.append(allocator,cl);
-    try tr.append(
-        allocator,
-        schema.Gap{
-            .duration_seconds = opentime.Ordinate.init(5),
-        }
-    );
-    const cl_ptr = try tr.append_fetch_ref(
-        allocator,
-        cl,
-    );
+    var gp = schema.Gap{
+        .duration_seconds = opentime.Ordinate.init(5),
+    };
+    var cl2 = cl;
+    const cl_ptr = ComposedValueRef.init(&cl2);
 
+    var tr_children = [_]ComposedValueRef{ 
+        ComposedValueRef.init(&cl),
+        ComposedValueRef.init(&gp),
+        cl_ptr,
+    };
+    var tr: schema.Track = .{ .children = &tr_children, };
+    const tr_ptr = ComposedValueRef.init(&tr);
 
     const map = try topological_map_m.build_topological_map(
         allocator,
@@ -2138,7 +2110,7 @@ test "clip topology construction"
 {
     const allocator = std.testing.allocator;
 
-    const cl = schema.Clip {
+    var cl = schema.Clip {
         .bounds_s = T_INT_1_TO_9,
     };
 
@@ -2160,17 +2132,18 @@ test "track topology construction"
 {
     const allocator = std.testing.allocator;
 
-    var tr: schema.Track = .{};
-    defer tr.recursively_deinit(allocator);
+    var cl = schema.Clip {
+        .bounds_s = T_INT_1_TO_9, 
+    };
 
-    try tr.append(
-        allocator,
-        schema.Clip {
-            .bounds_s = T_INT_1_TO_9, 
-        },
-    );
+    var tr_children = [_]ComposedValueRef{
+        ComposedValueRef.init(&cl)
+    };
+    var tr: schema.Track = .{
+        .children = &tr_children,
+    };
 
-    const topo =  try tr.topology(allocator);
+    const topo = try tr.topology(allocator);
     defer topo.deinit(allocator);
 
     try opentime.expectOrdinateEqual(
@@ -2188,29 +2161,24 @@ test "path_code: graph test"
 {
     const allocator = std.testing.allocator;
 
-    var tr = schema.Track{};
-    defer tr.deinit(allocator);
+    var clips: [11]schema.Clip = undefined;
+    var clip_ptrs: [11]ComposedValueRef = undefined;
 
+    for (&clips, &clip_ptrs)
+        |*cl, *cl_p|
+    {
+        cl.* = schema.Clip {
+            .bounds_s = T_INT_1_TO_9,
+        };
+
+        cl_p.* = ComposedValueRef.init(cl);
+    }
+    var tr: schema.Track = .{
+        .children = &clip_ptrs,
+    };
     const tr_ref = ComposedValueRef.init(&tr);
 
-    const cl = schema.Clip {
-        .bounds_s = T_INT_1_TO_9,
-    };
-    try tr.append(allocator,cl);
-
-    var i:i32 = 0;
-    while (i < 10) 
-        : (i+=1)
-    {
-        try tr.append(
-            allocator,
-            schema.Clip {
-                .bounds_s = T_INT_1_TO_9,
-            }
-        );
-    }
-
-    try std.testing.expectEqual(11, tr.children.items.len);
+    try std.testing.expectEqual(11, tr.children.len);
 
     const map = try topological_map_m.build_topological_map(
         allocator,
@@ -2259,7 +2227,7 @@ test "path_code: graph test"
         |t_i, t| 
     {
         const space = (
-            try tr.child_ptr_from_index(t.ind).space(SpaceLabel.presentation)
+            try tr.children[t.ind].space(SpaceLabel.presentation)
         );
         const result = (
             map.map_space_to_code.get(space) 
@@ -2285,31 +2253,25 @@ test "schema.Track with clip with identity transform projection"
 {
     const allocator = std.testing.allocator;
 
-    var tr: schema.Track = .{};
-    defer tr.deinit(allocator);
-
-    const tr_ref = ComposedValueRef.init(&tr);
-
     const range = T_INT_1_TO_9;
 
     const cl_template = schema.Clip{
         .bounds_s = range
     };
 
-    // reserve capcacity so that the reference isn't invalidated
-    try tr.children.ensureTotalCapacity(allocator,11);
-    const cl_ref = try tr.append_fetch_ref(
-        allocator,
-        cl_template,
-    );
-    try std.testing.expectEqual(cl_ref, tr.child_ptr_from_index(0));
+    var clips: [11]schema.Clip = undefined;
+    var refs: [11]ComposedValueRef = undefined;
 
-    var i:i32 = 0;
-    while (i < 10) 
-        : (i+=1)
+    for (&clips, &refs)
+        |*cl_p, *ref|
     {
-        try tr.append(allocator,cl_template);
+        cl_p.* = cl_template;
+        ref.* = ComposedValueRef.init(cl_p);
     }
+    const cl_ref = refs[0];
+
+    var tr: schema.Track = .{ .children = &refs };
+    const tr_ref = ComposedValueRef.init(&tr);
 
     const map = try topological_map_m.build_topological_map(
         allocator,
@@ -2317,7 +2279,10 @@ test "schema.Track with clip with identity transform projection"
     );
     defer map.deinit(allocator);
 
-    try std.testing.expectEqual(11, tr_ref.track_ptr.children.items.len);
+    try std.testing.expectEqual(
+        11,
+        tr_ref.track_ptr.children.len
+    );
 
     const track_to_clip = try map.build_projection_operator(
         allocator,
@@ -2353,13 +2318,13 @@ test "TopologicalMap: schema.Track with clip with identity transform topological
 {
     const allocator = std.testing.allocator;
 
-    var tr: schema.Track = .{};
-    defer tr.recursively_deinit(allocator);
+    var cl = schema.Clip{
+        .bounds_s = T_INT_0_TO_2,
+    };
+    const cl_ref = ComposedValueRef.init(&cl);
 
-    const cl_ref = try tr.append_fetch_ref(
-        allocator,
-        schema.Clip { .bounds_s = T_INT_0_TO_2, }
-    );
+    var tr_children = [_]ComposedValueRef{ cl_ref, };
+    var tr: schema.Track = .{ .children = &tr_children };
 
     const root = ComposedValueRef.init(&tr);
 
@@ -2444,18 +2409,14 @@ test "Projection: schema.Track with single clip with identity transform and boun
 {
     const allocator = std.testing.allocator;
 
-    var tr: schema.Track = .{};
-    defer tr.recursively_deinit(allocator);
-
-    const root = ComposedValueRef{ .track_ptr = &tr };
-
-    const cl = schema.Clip {
+    var cl = schema.Clip{
         .bounds_s = T_INT_0_TO_2,
     };
-    const clip = try tr.append_fetch_ref(
-        allocator,
-        cl,
-    );
+    const clip = ComposedValueRef.init(&cl);
+
+    var tr_children = [_]ComposedValueRef{ clip, };
+    var tr: schema.Track = .{ .children = &tr_children };
+    const root = ComposedValueRef{ .track_ptr = &tr };
 
     const map = try topological_map_m.build_topological_map(
         allocator,
@@ -2508,42 +2469,38 @@ test "Projection: schema.Track with single clip with identity transform and boun
     );
 }
 
-test "Projection: schema.Track with multiple clips with identity transform and bounds" 
+test "Projection: schema.Track 3 bounded clips identity xform" 
 {
     const allocator = std.testing.allocator;
 
     //
-    //                          0               3             6
+    //                                 0               3             6
     // track.presentation space       [---------------*-------------)
-    // track.intrinsic space    [---------------*-------------)
+    // track.intrinsic space          [---------------*-------------)
     // child.clip presentation space  [--------)[-----*---)[-*------)
-    //                          0        2 0    1   2 0       2 
+    //                                0        2 0    1   2 0       2 
     //
-    var tr: schema.Track = .{};
-    defer tr.recursively_deinit(allocator);
 
-    const track_ptr = ComposedValueRef{
-        .track_ptr = &tr,
+    // build timeline
+    var clips: [3]schema.Clip = undefined;
+    var refs: [3]ComposedValueRef = undefined;
+
+    for (&clips, &refs)
+        |*cl, *ref|
+    {
+        cl.* = schema.Clip {
+            .bounds_s = T_INT_0_TO_2 
+        };
+        ref.* = ComposedValueRef.init(cl);
+    }
+    const cl2_ref = refs[2];
+
+    var tr: schema.Track = .{
+        .children = &refs,
     };
+    const track_ptr = ComposedValueRef.init(&tr);
 
-    const cl = schema.Clip {
-        .bounds_s = T_INT_0_TO_2 
-    };
-
-    // add three copies
-    try tr.append(allocator,cl);
-    try tr.append(allocator,cl);
-    const cl2_ref = try tr.append_fetch_ref(
-        allocator,
-        cl,
-    );
-
-    const TestData = struct {
-        index: usize,
-        track_ord: opentime.Ordinate.BaseType,
-        expected_ord: opentime.Ordinate.BaseType,
-        err: bool
-    };
+    // ----
 
     const map = try topological_map_m.build_topological_map(
         allocator,
@@ -2551,13 +2508,7 @@ test "Projection: schema.Track with multiple clips with identity transform and b
     );
     defer map.deinit(allocator);
 
-    const tests = [_]TestData{
-        .{ .index = 1, .track_ord = 3, .expected_ord = 1, .err = false},
-        .{ .index = 0, .track_ord = 1, .expected_ord = 1, .err = false },
-        .{ .index = 2, .track_ord = 5, .expected_ord = 1, .err = false },
-        .{ .index = 0, .track_ord = 7, .expected_ord = 1, .err = true },
-    };
-
+    // ---
 
     // check that the child transform is correctly built
     {
@@ -2622,11 +2573,24 @@ test "Projection: schema.Track with multiple clips with identity transform and b
         po_map.end_points,
     );
 
+    const TestData = struct {
+        index: usize,
+        track_ord: opentime.Ordinate.BaseType,
+        expected_ord: opentime.Ordinate.BaseType,
+        err: bool
+    };
+
+    const tests = [_]TestData{
+        .{ .index = 1, .track_ord = 3, .expected_ord = 1, .err = false},
+        .{ .index = 0, .track_ord = 1, .expected_ord = 1, .err = false },
+        .{ .index = 2, .track_ord = 5, .expected_ord = 1, .err = false },
+        .{ .index = 0, .track_ord = 7, .expected_ord = 1, .err = true },
+    };
 
     for (tests, 0..) 
         |t, t_i| 
     {
-        const child = tr.child_ptr_from_index(t.index);
+        const child = tr.children[t.index];
 
         const tr_presentation_to_clip_media = try map.build_projection_operator(
         allocator,
@@ -2664,7 +2628,7 @@ test "Projection: schema.Track with multiple clips with identity transform and b
         }
     }
 
-    const clip = tr.child_ptr_from_index(0);
+    const clip = tr.children[0];
 
     const root_presentation_to_clip_media = try map.build_projection_operator(
         allocator,
@@ -2676,7 +2640,7 @@ test "Projection: schema.Track with multiple clips with identity transform and b
     defer root_presentation_to_clip_media.deinit(allocator);
 
     const expected_range = (
-        cl.bounds_s orelse opentime.ContinuousInterval{}
+        tr.children[0].clip_ptr.bounds_s orelse opentime.ContinuousInterval{}
     );
     const actual_range = (
         root_presentation_to_clip_media.src_to_dst_topo.input_bounds()
@@ -2775,12 +2739,12 @@ test "Single schema.Clip bezier transform"
         .start = opentime.Ordinate.init(100),
         .end = opentime.Ordinate.init(110),
     };
-    const cl = schema.Clip {
+    var cl = schema.Clip {
         .bounds_s = media_temporal_bounds,
     };
     const cl_ptr:ComposedValueRef = .{ .clip_ptr = &cl };
 
-    const wp: schema.Warp = .{
+    var wp: schema.Warp = .{
         .child = cl_ptr,
         .transform = curve_topo,
     };
@@ -2930,7 +2894,7 @@ test "Single schema.Clip bezier transform"
 
 test "test spaces list" 
 {
-    const cl = schema.Clip{};
+    var cl = schema.Clip{};
     const it = ComposedValueRef{ .clip_ptr = &cl };
     const spaces = try it.spaces(std.testing.allocator);
     defer std.testing.allocator.free(spaces);
@@ -2957,9 +2921,6 @@ test "otio projection: track with single clip"
 {
     const allocator = std.testing.allocator;
 
-    var tr: schema.Track = .{};
-    defer tr.deinit(allocator);
-
     // media is 9 seconds long and runs at 4 hz.
     const media_source_range = T_INT_1_TO_9;
     const media_discrete_info = (
@@ -2970,16 +2931,16 @@ test "otio projection: track with single clip"
     );
 
     // construct the clip and add it to the track
-    const cl = schema.Clip {
+    var cl = schema.Clip {
         .media = .{
             .bounds_s = media_source_range,
             .discrete_info = media_discrete_info,
         },
     };
-    const cl_ptr = try tr.append_fetch_ref(
-        allocator,
-        cl,
-    );
+    const cl_ptr = ComposedValueRef.init(&cl);
+
+    var tr_children = [_]ComposedValueRef{ cl_ptr, };
+    var tr: schema.Track = .{ .children = &tr_children };
     const tr_ptr = ComposedValueRef.init(&tr);
 
     const map = try topological_map_m.build_topological_map(
@@ -3134,15 +3095,6 @@ test "otio projection: track with single clip with transform"
 {
     const allocator = std.testing.allocator;
 
-    var tl: schema.Timeline = .{};
-    tl.discrete_info.presentation = .{
-        .sample_rate_hz = .{ .Int = 24 },
-        .start_index = 12
-    };
-
-
-    var tr: schema.Track = .{};
-
     // media is 9 seconds long and runs at 4 hz.
     const media_source_range = T_INT_1_TO_9;
     const media_discrete_info = (
@@ -3152,17 +3104,16 @@ test "otio projection: track with single clip with transform"
         }
     );
 
-    // construct the clip and add it to the track
-    const cl = schema.Clip {
+    var cl = schema.Clip {
         .media = .{
             .bounds_s = media_source_range,
             .discrete_info = media_discrete_info,
         },
     };
-    defer cl.destroy(allocator);
+    const cl_ptr = ComposedValueRef.init(&cl);
 
-    const wp : schema.Warp = .{
-        .child = .{ .clip_ptr = &cl },
+    var wp : schema.Warp = .{
+        .child = cl_ptr,
         .transform = try topology_m.Topology.init_affine(
             allocator,
             .{
@@ -3174,15 +3125,30 @@ test "otio projection: track with single clip with transform"
     };
     defer wp.transform.deinit(allocator);
 
-    try tr.append(allocator,wp);
-    try tl.tracks.append(allocator,tr);
-    const tl_ptr = ComposedValueRef{
-        .timeline_ptr = &tl 
+    var tr_children = [_]ComposedValueRef{
+        ComposedValueRef.init(&wp),
     };
-    defer tl.recursively_deinit(allocator);
+    var tr: schema.Track = .{
+        .children = &tr_children,
+    };
 
-    const tr_ptr : ComposedValueRef = tl.tracks.child_ptr_from_index(0);
-    const cl_ptr = wp.child;
+    var tl_children = [_]ComposedValueRef{
+        ComposedValueRef.init(&tr),
+    };
+    var tl: schema.Timeline = .{
+        .discrete_info = .{ 
+            .presentation = .{
+                .sample_rate_hz = .{ .Int = 24 },
+                .start_index = 12,
+            },
+        },
+        .tracks = .{ .children = &tl_children },
+    };
+    const tl_ptr = ComposedValueRef.init(&tl);
+
+    const tr_ptr = tl.tracks.children[0];
+
+    // build map and tests
 
     const map_tr = try topological_map_m.build_topological_map(
         allocator,
@@ -3454,30 +3420,12 @@ test "test debug_print_time_hierarchy"
     const allocator = std.testing.allocator;
 
     // top level timeline
-    var tl: schema.Timeline = .{};
-    tl.name = try allocator.dupe(u8, "Example schema.Timeline");
-
-    tl.discrete_info.presentation = .{
-        // matches the media rate
-        .sample_rate_hz = .{ .Int = 24 },
-        .start_index = 0,
-    };
-
-    defer tl.recursively_deinit(allocator);
-    const tl_ptr = ComposedValueRef{
-        .timeline_ptr = &tl 
-    };
 
     // track
-    var tr: schema.Track = .{};
-    tr.name = try allocator.dupe(u8, "Example Parent schema.Track");
 
     // clips
-    const cl1 = schema.Clip {
-        .name = try allocator.dupe(
-            u8,
-            "Spaghetti.wav",
-        ),
+    var cl1 = schema.Clip {
+        .name = "Spaghetti.wav",
         .media = .{
             .bounds_s = .{},
             .discrete_info = .{
@@ -3495,11 +3443,10 @@ test "test debug_print_time_hierarchy"
             },
         }
     };
-    defer cl1.destroy(allocator);
     const cl_ptr = ComposedValueRef.init(&cl1);
 
     // new for this test - add in an warp on the clip, which holds the frame
-    const wp = schema.Warp {
+    var wp = schema.Warp {
         .child = cl_ptr,
         .interpolating = true,
         .transform = try topology_m.Topology.init_identity(
@@ -3508,15 +3455,42 @@ test "test debug_print_time_hierarchy"
         ),
     };
     defer wp.transform.deinit(allocator);
-    try tr.append(allocator,wp);
 
-    try tl.tracks.append(allocator, tr);
+    var tr_children = [_]ComposedValueRef{
+        ComposedValueRef.init(&wp),
+    };
+    var tr: schema.Track = .{
+        .name = "Example Parent schema.Track",
+        .children = &tr_children,
+    };
+
+    var tl_children = [_]ComposedValueRef{
+        ComposedValueRef.init(&tr),
+    };
+    var tl: schema.Timeline = .{
+        .name = "test debug_print_time_hierarchy",
+        .discrete_info = .{ 
+            .presentation = .{
+                // matches the media rate
+                .sample_rate_hz = .{ .Int = 24 },
+                .start_index = 0,
+            },
+        },
+        .tracks = .{ .children = &tl_children },
+    };
+    const tl_ptr = ComposedValueRef{
+        .timeline_ptr = &tl 
+    };
+
+    //////
 
     const tp = try topological_map_m.build_topological_map(
         allocator,
         tl_ptr
     );
     defer tp.deinit(allocator);
+
+    //////
 
     // count the scopes
     var i: usize = 0;
@@ -3544,7 +3518,7 @@ test "Single clip, schema.Warp bulk"
         .end = opentime.Ordinate.init(110),
     };
 
-    const cl = schema.Clip {
+    var cl = schema.Clip {
         .bounds_s = media_temporal_bounds,
     };
     defer cl.destroy(allocator);
@@ -3638,7 +3612,7 @@ test "Single clip, schema.Warp bulk"
             );
         }
 
-        const warp : schema.Warp = .{
+        var warp : schema.Warp = .{
             .child = cl_ptr,
             .transform = xform,
         };
@@ -3766,7 +3740,7 @@ test "ProjectionOperator: clone"
     );
     defer aff1.deinit(allocator);
 
-    const cl = schema.Clip{};
+    var cl = schema.Clip{};
     const cl_ptr = ComposedValueRef.init(&cl);
 
     const po = ProjectionOperator{
@@ -3791,7 +3765,7 @@ test "ProjectionOperator: clone"
 test "ProjectionOperatorMap: clone"
 {
     const allocator = std.testing.allocator;
-    const cl = schema.Clip{};
+    var cl = schema.Clip{};
     const cl_ptr = ComposedValueRef{ 
         .clip_ptr = &cl 
     };

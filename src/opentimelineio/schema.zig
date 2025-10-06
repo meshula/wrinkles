@@ -163,7 +163,7 @@ pub const Clip = struct {
     }
 
     pub fn destroy(
-        self: @This(),
+        self: *@This(),
         allocator: std.mem.Allocator,
     ) void
     {
@@ -207,14 +207,14 @@ pub const Warp = struct {
 /// a container in which each contained item is right-met over time
 pub const Track = struct {
     name: ?string.latin_s8 = null,
-    children: std.ArrayList(core.ComposableValue) = .{},
+    children: []core.ComposedValueRef = &.{},
 
     pub fn recursively_deinit(
         self: *@This(),
         allocator: std.mem.Allocator,
     ) void 
     {
-        for (self.children.items)
+        for (self.children)
             |*c|
         {
             c.recursively_deinit(allocator);
@@ -232,36 +232,9 @@ pub const Track = struct {
             |n|
         {
             allocator.free(n);
+            self.name = null;
         }
-        self.children.deinit(allocator);
-    }
-
-    /// append a `core.ComposableValue` wrapped `value` into self.children
-    pub fn append(
-        self: *@This(),
-        allocator: std.mem.Allocator,
-        value: anytype
-    ) !void 
-    {
-        try self.children.append(
-            allocator,
-            core.ComposableValue.init(value),
-        );
-    }
-
-    /// append the `core.ComposableValue` compatible val and return a
-    /// `core.ComposedValueRef` to the new value
-    pub fn append_fetch_ref(
-        self: *Track,
-        allocator: std.mem.Allocator,
-        value: anytype,
-    ) !core.ComposedValueRef 
-    {
-        try self.children.append(
-            allocator,
-            core.ComposableValue.init(value),
-        );
-        return self.child_ptr_from_index(self.children.items.len-1);
+        allocator.free(self.children);
     }
 
     /// construct the topology mapping the output to the intrinsic space
@@ -272,7 +245,7 @@ pub const Track = struct {
     {
         // build the maybe_bounds
         var maybe_bounds: ?opentime.ContinuousInterval = null;
-        for (self.children.items) 
+        for (self.children) 
             |it| 
         {
             const topo = try it.topology(allocator);
@@ -296,14 +269,6 @@ pub const Track = struct {
             allocator,
             result_bound,
         );
-    }
-
-    pub fn child_ptr_from_index(
-        self: @This(),
-        index: usize,
-    ) core.ComposedValueRef 
-    {
-        return core.ComposedValueRef.init(&self.children.items[index]);
     }
 
     /// builds a transform from the previous child spce to the one passed in the
@@ -338,9 +303,7 @@ pub const Track = struct {
 
         // XXX should probably check the index before calling this and call
         //     this with index - 1 rather than have it do the offset here.
-        const child = self.child_ptr_from_index(
-            child_index - 1
-        );
+        const child = self.children[child_index - 1];
         const child_range = try child.bounds_of(
             allocator,
             .media
@@ -364,28 +327,10 @@ pub const Track = struct {
     }
 };
 
-test "test append_fetch_ref"
-{
-    const allocator = std.testing.allocator;
-
-    var tr: Track = .{};
-    defer tr.recursively_deinit(allocator);
-
-    const tr_ref = try tr.append_fetch_ref(
-        allocator,
-        tr,
-    );
-
-    try std.testing.expectEqual(
-        tr.child_ptr_from_index(0),
-        tr_ref
-    );
-}
-
 /// children of a stack are simultaneous in time
 pub const Stack = struct {
     name: ?string.latin_s8 = null,
-    children: std.ArrayList(core.ComposableValue) = .{},
+    children: []core.ComposedValueRef = &.{},
 
     pub fn deinit(
         self: *@This(),
@@ -398,42 +343,7 @@ pub const Stack = struct {
             allocator.free(n);
             self.name = null;
         }
-        self.children.deinit(allocator);
-    }
-
-    pub fn child_ptr_from_index(
-        self: @This(),
-        index: usize,
-    ) core.ComposedValueRef 
-    {
-        return core.ComposedValueRef.init(&self.children.items[index]);
-    }
-
-    pub fn append(
-        self: *@This(),
-        allocator: std.mem.Allocator,
-        value: anytype,
-    ) !void 
-    {
-        try self.children.append(
-            allocator,
-            core.ComposableValue.init(value),
-        );
-    }
-
-    /// append the ComposableValue-compatible val and return a ComposedValueRef
-    /// to the new value
-    pub fn append_fetch_ref(
-        self: *@This(),
-        allocator: std.mem.Allocator,
-        value: anytype,
-    ) !core.ComposedValueRef 
-    {
-        try self.children.append(
-            allocator,
-            core.ComposableValue.init(value),
-        );
-        return self.child_ptr_from_index(self.children.items.len-1);
+        allocator.free(self.children);
     }
 
     pub fn recursively_deinit(
@@ -441,7 +351,7 @@ pub const Stack = struct {
         allocator: std.mem.Allocator,
     ) void 
     {
-        for (self.children.items)
+        for (self.children)
             |*c|
         {
             c.recursively_deinit(allocator);
@@ -457,7 +367,7 @@ pub const Stack = struct {
     {
         // build the bounds
         var bounds: ?opentime.ContinuousInterval = null;
-        for (self.children.items) 
+        for (self.children) 
             |it| 
         {
             const it_bound = (
