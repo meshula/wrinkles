@@ -140,6 +140,8 @@ pub const Treecode = struct {
     ) usize 
     {
         if (self.treecode_array.len == 0) {
+            // very unlikely to happen, would be an invalid treecode
+            @branchHint(.cold);
             return 0;
         }
 
@@ -148,14 +150,14 @@ pub const Treecode = struct {
         //      the slice contains no extra empty unused words.
         const occupied_words = word: {
             var i = self.treecode_array.len - 1;
-            while (i >= 0)
+            while (i > 0)
                 : (i -= 1)
             {
                 if (self.treecode_array[i] != 0) {
                     break :word i;
                 }
             }
-            break :word i;
+            break :word 0;
         };
 
         const count = (
@@ -207,6 +209,7 @@ pub const Treecode = struct {
     ) !void 
     {
         if (self.treecode_array.len == 0) {
+            @branchHint(.cold);
             return error.InvalidTreecode;
         }
 
@@ -219,6 +222,7 @@ pub const Treecode = struct {
         // is still room in that one word for an append
         if (next_index < WORD_BIT_COUNT) 
         {
+            @branchHint(.likely);
             self.treecode_array[0] = treecode_word_append(
                 self.treecode_array[0],
                 new_branch,
