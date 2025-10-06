@@ -14,14 +14,6 @@ pub const SerializableObjectTypes = enum {
     Gap,
 };
 
-pub const SerializableObject = union(SerializableObjectTypes) {
-    Timeline:*otio.Timeline,
-    Stack:*otio.Stack,
-    Track:*otio.Track,
-    Clip:*otio.Clip,
-    Gap:*otio.Gap,
-};
-
 pub fn read_float(
     obj:std.json.Value
 ) opentime.Ordinate.BaseType 
@@ -181,10 +173,51 @@ pub fn _read_rate(
     return null;
 }
 
+inline fn read_children(
+    allocator: std.mem.Allocator,
+    children: std.json.Value,
+) error{
+    OutOfMemory,
+    NotAnOtioSchemaObject,
+    NoSuchSchema,
+    MalformedSchemaString,
+    NotImplemented,
+}![]otio.ComposedValueRef
+{
+    const child_count = children.array.items.len;
+
+    if (child_count == 0)
+    {
+        return &.{};
+    }
+
+    const new_children = try allocator.alloc(
+        otio.ComposedValueRef,
+        child_count,
+    );
+
+    for (children.array.items, new_children) 
+        |track, *cvr| 
+    {
+        cvr.* = try read_otio_object(
+            allocator,
+            track.object,
+        );
+    }
+
+    return new_children;
+}
+
 pub fn read_otio_object(
     allocator: std.mem.Allocator,
     obj:std.json.ObjectMap
-) !SerializableObject 
+) error{
+    OutOfMemory,
+    NoSuchSchema,
+    NotAnOtioSchemaObject,
+    MalformedSchemaString,
+    NotImplemented,
+} !otio.ComposedValueRef 
 {
     const maybe_schema_and_version_str = obj.get("OTIO_SCHEMA");
 
@@ -217,13 +250,12 @@ pub fn read_otio_object(
 
     const schema_enum = maybe_schema_enum.?;
 
-    const name = if (obj.get("name")) 
-        |n| 
+    const maybe_name = if (obj.get("name")) |n| 
         switch (n) 
     {
-        .string => |s| s,
-        else => ""
-    } else "";
+        .string => |s| try allocator.dupe(u8, s),
+        else => null
+    } else null;
 
     switch (schema_enum) {
         .Timeline => { 
@@ -234,106 +266,54 @@ pub fn read_otio_object(
                 )
             );
             const st = otio.Stack{
-                .name = so_stack.Stack.name,
-                .children = so_stack.Stack.children,
+                .name = so_stack.stack.name,
+                .children = so_stack.stack.children,
             };
             const tl = try allocator.create(otio.Timeline);
             tl.* = .{
+                .name = maybe_name,
                 .tracks = st,
                 .discrete_info = .{
                     .presentation = null,
                 },
             };
-            allocator.destroy(so_stack.Stack);
-            return .{ .Timeline = tl };
+            allocator.destroy(so_stack.stack);
+            return .{ .timeline = tl };
         },
         .Stack => {
             // @TODO: add stack init that takes a name string and copies it in 
             var st = try allocator.create(otio.Stack);
-            st.name = try allocator.dupe(u8, name);
+            st.name = maybe_name;
 
             if (obj.get("children"))
                 |children|
             {
-                if (children.array.items.len > 0) 
-                {
-                    var child_builder = (
-                        std.ArrayList(otio.ComposedValueRef){}
-                    );
-
-                    try child_builder.ensureTotalCapacity(
-                        allocator,
-                        children.array.items.len,
-                    );
-
-                    for (children.array.items) 
-                        |track| 
-                    {
-                        const cvr = otio.ComposedValueRef{
-                            .track_ptr = (
-                                try read_otio_object(
-                                    allocator,
-                                    track.object,
-                                )
-                            ).Track,
-                        };
-                        child_builder.appendAssumeCapacity(cvr);
-                    }
-
-                    st.children = try child_builder.toOwnedSlice(allocator);
-                }
+                st.children = try read_children(
+                    allocator,
+                    children,
+                );
             }
 
-            return .{ .Stack = st };
+            return .{ .stack = st };
         },
         .Track => {
             var tr = try allocator.create(otio.Track);
-
-            tr.name = try allocator.dupe(u8, name);
+            tr.name = maybe_name;
 
             if (obj.get("children"))
                 |children|
             {
-                if (children.array.items.len > 0)
+                const child_len = children.array.items.len;
+                if (child_len > 0)
                 {
-                    var child_builder: std.ArrayList(otio.ComposedValueRef) = (
-                        .empty
-                    );
-
-                    try child_builder.ensureTotalCapacity(
+                    tr.children = try read_children(
                         allocator,
-                        children.array.items.len,
+                        children,
                     );
-
-                    for (obj.get("children").?.array.items) 
-                        |child| 
-                    {
-                        switch (
-                            try read_otio_object(
-                                allocator,
-                                child.object,
-                            )
-                        ) 
-                        {
-                            .Clip => |cl| {
-                                child_builder.appendAssumeCapacity(
-                                    .{ .clip_ptr = cl }
-                                );
-                            },
-                            .Gap => |gp| {
-                                child_builder.appendAssumeCapacity(
-                                    .{ .gap_ptr = gp }
-                                ); 
-                            },
-                            else => return error.NotImplementedTrackChildJson,
-                        }
-                    }
-
-                    tr.children = try child_builder.toOwnedSlice(allocator);
                 }
             }
 
-            return .{ .Track = tr };
+            return .{ .track = tr };
         },
         .Clip => {
             const range = _read_range(obj);
@@ -342,7 +322,7 @@ pub fn read_otio_object(
 
             var cl = try allocator.create(otio.Clip);
             cl.* = .{
-                .name=try allocator.dupe(u8, name),
+                .name = maybe_name,
                 .bounds_s  = range,
             };
 
@@ -357,18 +337,17 @@ pub fn read_otio_object(
                 };
             }
 
-            return .{ .Clip = cl };
+            return .{ .clip = cl };
         },
         .Gap => {
             const source_range = _read_range(obj);
-
             const gp = try allocator.create(otio.Gap);
             gp.* = .{
-                .name=try allocator.dupe(u8, name),
+                .name= maybe_name,
                 .duration_seconds = source_range.?.duration(),
             };
 
-            return .{ .Gap = gp };
+            return .{ .gap = gp };
         },
         // else => { 
         //     errdefer std.log.err("Not implemented yet: {s}\n", .{ schema_str });
@@ -409,14 +388,14 @@ pub fn read_from_file(
         result.object
     );
 
-    if (hopefully_timeline == SerializableObject.Timeline) {
-        return hopefully_timeline.Timeline;
+    if (hopefully_timeline == otio.ComposedValueRef.timeline) {
+        return hopefully_timeline.timeline;
     }
 
     return error.NotImplemented;
 }
 
-test "read_from_file test" 
+test "read_from_file test (simple)" 
 {
     const allocator = std.testing.allocator;
 
@@ -433,7 +412,7 @@ test "read_from_file test"
         allocator.destroy(tl);
     }
 
-    const track0 = tl.tracks.children[0].track_ptr;
+    const track0 = tl.tracks.children[0].track;
 
     if (std.mem.eql(u8, root, "simple_cut"))
     {
@@ -442,12 +421,12 @@ test "read_from_file test"
         try expectEqual(@as(usize, 4), track0.children.len);
         try std.testing.expectEqualStrings(
             "Clip-001",
-            track0.children[0].clip_ptr.name.?
+            track0.children[0].clip.name.?
         );
     }
 
     const tl_ptr = otio.ComposedValueRef{
-        .timeline_ptr = tl,
+        .timeline = tl,
     };
 
     const target_clip_ptr = track0.children[0];
@@ -479,4 +458,21 @@ test "read_from_file test"
             opentime.Ordinate.init(0.05),
         ).ordinate(),
     );
+}
+
+test "read_from_file test (multiple, smoke)" 
+{
+    const allocator = std.testing.allocator;
+
+    const root = "multiple_track";
+    const otio_fpath = root ++ ".otio";
+
+    var tl = try read_from_file(
+        std.testing.allocator,
+        "sample_otio_files/"++otio_fpath,
+    );
+    defer {
+        tl.recursively_deinit(allocator);
+        allocator.destroy(tl);
+    }
 }
