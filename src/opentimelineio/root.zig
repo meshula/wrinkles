@@ -32,4 +32,6 @@ test {
 
     _ = otio_json;
     _ = otio_highlevel_tests;
+    _ = topological_map;
+    _ = schema;
 }
