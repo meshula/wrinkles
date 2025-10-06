@@ -87,12 +87,7 @@ pub export fn otio_read_from_file(
         allocator_c
     ) catch return ERR_REF;
 
-    const result = allocator.create(otio.Timeline) catch {
-        std.log.err("Problem making thing.\n", .{});
-        return ERR_REF;
-    };
-
-    result.* = otio.read_from_file(
+    const result = otio.read_from_file(
         allocator,
         filepath,
     ) catch |err| {
@@ -203,7 +198,9 @@ pub export fn otio_fetch_child_cvr_ind(
     return result;
 }
 
-const ERR_TOPO_MAP = c.otio_TopologicalMap{ .ref = null };
+const ERR_TOPO_MAP = c.otio_TopologicalMap{
+    .ref = null,
+};
 
 pub export fn otio_build_topo_map_cvr(
     allocator_c: c.otio_Allocator,
