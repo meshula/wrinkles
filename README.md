@@ -77,21 +77,20 @@ temporal hierarchies of editorial documents.
 
 ## Todo List (10/5/2025) - Refactor
 
-* [ ] Checkpoint current optimization work
+* [x] Checkpoint current optimization work
     * [x] remove skipzigtest
-    * [ ] check in to git
-    * [ ] make topological map treecode->SpacEReference again (not `Treecode*`)
-    * [ ] Treecode Map remove hash stuff
-    * [ ] Topological Map bidirectional Code/Space, one copy of memory in one
+    * [x] check in to git
+    * [x] make topological map treecode->SpaceReference again (not `Treecode*`)
+    * [x] Treecode Map remove hash stuff
+    * [x] Topological Map bidirectional Code/Space, one copy of memory in one
 * [ ] Make Treecode a library with a root
-* [ ] Treecode -> split into Treecode and TreecodeBuilder (mutable)
-* [ ] add if treecode_array == test to `eql`
 * [ ] move the TopologicalMap into Treecode, call it `BidirectionalMap`
     * [ ] Abstract it away from SpaceReference so you can seed it with whatever
     * [ ] example node graph
     * [ ] document the map only needs to free() codes once (in one of the maps)
     * [ ] otio.TopologicalMap is the SpaceReference specialization of 
           `treecode.BidirectionalMap`
+* [ ] Treecode -> split into Treecode and TreecodeBuilder (mutable)
 
 ## Todo List (11/6/24)
 
