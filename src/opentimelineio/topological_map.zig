@@ -17,6 +17,12 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
     build_options.debug_graph_construction_trace_messages
 );
 
+// static code for the root of the graph
+var ROOT_WORDS = [_]treecode.TreecodeWord{treecode.MARKER}; 
+const ROOT_CODE = treecode.Treecode {
+    .treecode_array = &ROOT_WORDS,
+};
+
 const T_ORD_10 =  opentime.Ordinate.init(10);
 const T_CTI_1_10 = opentime.ContinuousInterval {
     .start = opentime.Ordinate.ONE,
@@ -29,8 +35,8 @@ pub const TopologicalMap = struct {
     map_space_to_code:std.AutoHashMapUnmanaged(
           core.SpaceReference,
           treecode.Treecode,
-    ) = .{},
-    map_code_to_space:treecode.TreecodeHashMap(core.SpaceReference) = .{},
+    ) = .empty,
+    map_code_to_space:treecode.TreecodeHashMap(core.SpaceReference) = .empty,
 
     pub fn deinit(
         self: @This(),
@@ -40,27 +46,23 @@ pub const TopologicalMap = struct {
         // build a mutable alias of self
         var mutable_self = self;
 
-        var keyIter = (
-            mutable_self.map_code_to_space.keyIterator()
-        );
-        while (keyIter.next())
-            |code|
-        {
-            code.deinit(allocator);
-        }
-
-        var valueIter = (
+        var code_iter = (
             mutable_self.map_space_to_code.valueIterator()
         );
-        while (valueIter.next())
+
+        while (code_iter.next())
             |code|
-        {
+        { 
             code.deinit(allocator);
         }
 
         // free the guts
+        mutable_self.map_space_to_code.unlockPointers();
         mutable_self.map_space_to_code.deinit(allocator);
+        mutable_self.map_code_to_space.unlockPointers();
         mutable_self.map_code_to_space.deinit(allocator);
+        // self.map_space_to_code.deinit(allocator);
+        // self.map_code_to_space.deinit(allocator);
     }
 
     /// return the root space of this topological map
@@ -68,17 +70,8 @@ pub const TopologicalMap = struct {
         self: @This(),
     ) core.SpaceReference 
     {
-        const tree_word = treecode.Treecode{
-            .treecode_array = blk: {
-                var output = [_]treecode.TreecodeWord{
-                    treecode.MARKER,
-                };
-                break :blk &output;
-            },
-        };
-
         // should always have a root object
-        return self.map_code_to_space.get(tree_word) orelse unreachable;
+        return self.map_code_to_space.get(ROOT_CODE) orelse unreachable;
     }
 
     /// build a projection operator that projects from the endpoints.source to
@@ -288,26 +281,23 @@ pub const TopologicalMap = struct {
         _ = try writer.write("digraph OTIO_TopologicalMap {\n");
 
         var stack = std.ArrayList(
-            TreenodeWalkingIterator.Node
+            TreenodeWalkingIterator.Node,
         ){};
 
         try stack.append(
             arena_allocator,
             .{
                 .space = self.root(),
-                .code = try treecode.Treecode.init(arena_allocator),
+                .code = ROOT_CODE,
             },
         );
 
         var label_buf: [1024]u8 = undefined;
         var next_label_buf: [1024]u8 = undefined;
 
-        var maybe_current = stack.pop();
-        while (maybe_current != null) 
-            : (maybe_current = stack.pop())
+        while (stack.pop()) 
+            |current|
         {
-            const current = maybe_current.?;
-
             const current_label = try node_label(
                 &label_buf,
                 current.space,
@@ -323,6 +313,8 @@ pub const TopologicalMap = struct {
                 if (self.map_code_to_space.get(left)) 
                     |next| 
                 {
+                    @branchHint(.likely);
+
                     const next_label = try node_label(
                         &next_label_buf,
                         next,
@@ -553,43 +545,230 @@ pub const TopologicalMap = struct {
     }
 };
 
+fn walk_child_spaces(
+    allocator: std.mem.Allocator,
+    parent_otio_object: core.ComposedValueRef,
+    parent_code: treecode.Treecode,
+    topo_map: *TopologicalMap,
+    otio_object_stack: anytype,
+) !void
+{
+    // walk through the spaces on this object
+    const children_ptrs = (
+        try parent_otio_object.children_refs(allocator)
+    );
+    defer allocator.free(children_ptrs);
+
+    // transforms to children
+    // each child
+    for (children_ptrs, 0..) 
+        |item_ptr, index| 
+    {
+        const child_wrapper_space_code_ptr = (
+            try sequential_child_code_leaky(
+                allocator,
+                parent_code,
+                index,
+            )
+        );
+
+        // insert the child scope of the parent
+        const space_ref = core.SpaceReference{
+            .ref = parent_otio_object,
+            .label = .child,
+            .child_index = index,
+        };
+
+        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
+        {
+            std.debug.assert(
+                topo_map.map_code_to_space.get(child_wrapper_space_code_ptr) == null
+            );
+
+            if (topo_map.map_space_to_code.get(space_ref)) 
+                |other_code| 
+                {
+                    opentime.dbg_print(
+                        @src(), 
+                        "\n ERROR SPACE ALREADY PRESENT[{d}] code: {f} "
+                        ++ "other_code: {f} "
+                        ++ "adding child space: '{s}.{s}.{d}'\n",
+                        .{
+                            index,
+                            child_wrapper_space_code_ptr,
+                            other_code,
+                            @tagName(space_ref.ref),
+                            @tagName(space_ref.label),
+                            space_ref.child_index.?,
+                        }
+                    );
+
+                    std.debug.assert(false);
+                }
+            opentime.dbg_print(
+                @src(), 
+                (
+                 "[{d}] code: {f} hash: {d} arrptr: {*} adding child space:"
+                 ++ " '{s}.{s}.{d}'\n"
+                ),
+                .{
+                    index,
+                    child_wrapper_space_code_ptr,
+                    child_wrapper_space_code_ptr.hash(),
+                    child_wrapper_space_code_ptr.treecode_array.ptr,
+                    @tagName(space_ref.ref),
+                    @tagName(space_ref.label),
+                    space_ref.child_index.?,
+                }
+            );
+        }
+
+        try topo_map.map_space_to_code.put(
+            allocator,
+            space_ref,
+            child_wrapper_space_code_ptr,
+        );
+        try topo_map.map_code_to_space.put(
+            allocator,
+            child_wrapper_space_code_ptr,
+            space_ref
+        );
+
+        // insert the child node to the stack
+        const child_code_ptr = try depth_child_code_leaky(
+            allocator,
+            child_wrapper_space_code_ptr,
+            1,
+        );
+
+        try otio_object_stack.insert(
+            allocator,
+            0,
+            .{ 
+                .otio_object= item_ptr,
+                .path_code = child_code_ptr,
+            },
+        );
+    }
+}
+
+fn walk_internal_spaces(
+    allocator: std.mem.Allocator,
+    parent_otio_object: core.ComposedValueRef,
+    parent_code: treecode.Treecode,
+    topo_map: *TopologicalMap,
+) !treecode.Treecode
+{
+    const spaces = try parent_otio_object.spaces(
+        allocator
+    );
+    defer allocator.free(spaces);
+
+    var last_space_code = parent_code;
+
+    for (0.., spaces) 
+        |index, space_ref| 
+    {
+        const space_code = (
+            if (index > 0) try depth_child_code_leaky(
+                allocator,
+                parent_code,
+                index,
+            )
+            else parent_code
+        );
+
+        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
+        {
+            // std.debug.assert(
+            //     topo_map.map_code_to_space.get(space_code.hash()) == null
+            // );
+            // const maybe_fetched_code = (
+            //     topo_map.map_space_to_code.get(space_ref)
+            // );
+            // if (maybe_fetched_code)
+            //     |code|
+            // {
+            //     std.debug.print(
+            //         "space {f} fetched code {f}\n",
+            //         .{space_ref, code},
+            //     );
+            // }
+            // else {
+            //     std.debug.print("space {f} has no code\n", .{space_ref});
+            //     return error.SpaceWasntInMap;
+            // }
+            opentime.dbg_print(@src(), 
+                (
+                      "[{d}] code: {f} hash: {d} arrptr: {*} adding local space: "
+                      ++ "'{s}.{s}'"
+                ),
+                .{
+                    index,
+                    space_code,
+                    space_code.hash(), 
+                    space_code.treecode_array.ptr,
+                    @tagName(space_ref.ref),
+                    @tagName(space_ref.label)
+                }
+            );
+        }
+
+        try topo_map.map_space_to_code.put(
+            allocator,
+            space_ref,
+            space_code,
+        );
+
+        try topo_map.map_code_to_space.put(
+            allocator,
+            space_code,
+            space_ref,
+        );
+
+        last_space_code = space_code;
+    }
+
+    return last_space_code;
+}
+
 /// Builds a TopologicalMap, which can then construct projection operators
 /// across the spaces in the map.  A root item is provided, and the map is
 /// built from the presentation space of the root object down towards the
 /// leaves.  See TopologicalMap for more details.
+///
+/// General structure: 
+/// 1. Spaces inside the node (presentation, intrinsic, etc.)
+/// 2. The child space connector 
+///
 pub fn build_topological_map(
-    allocator: std.mem.Allocator,
+    parent_allocator: std.mem.Allocator,
     root_item: core.ComposedValueRef,
 ) !TopologicalMap 
 {
+    // first off, arena this up
     var tmp_topo_map = TopologicalMap{};
-    errdefer tmp_topo_map.deinit(allocator);
+    errdefer tmp_topo_map.deinit(parent_allocator);
 
-    const Node = struct {
+    const StackNode = struct {
         path_code: treecode.Treecode,
-        object: core.ComposedValueRef,
+        otio_object: core.ComposedValueRef,
     };
 
-    var stack: std.ArrayList(Node) = .{};
-    defer {
-        for (stack.items)
-            |n|
-        {
-            n.path_code.deinit(allocator);
-        }
-        stack.deinit(allocator);
-    }
+    var otio_object_stack: std.ArrayList(StackNode) = .{};
+    try otio_object_stack.ensureTotalCapacity(parent_allocator, 1024);
+    defer otio_object_stack.deinit(parent_allocator);
 
-    // 1a
-    const start_code = try treecode.Treecode.init(allocator);
+    const root_code_ptr = try treecode.Treecode.init(
+        parent_allocator,
+    );
 
-    // root node
-    try stack.append(
-        allocator,
+    try otio_object_stack.append(
+        parent_allocator, 
         .{
-            .object = root_item,
-            .path_code = start_code,
-        },
+            .otio_object = root_item,
+            .path_code = root_code_ptr,
+        }
     );
 
     if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
@@ -600,193 +779,30 @@ pub fn build_topological_map(
         );
     }
 
-    var maybe_current = stack.pop();
-    while (maybe_current != null) 
-        : (maybe_current = stack.pop())
+    while (otio_object_stack.pop()) 
+        |current_stack_node|
     {
-        const current = maybe_current.?;
+        // presentation, intrinsic, etc.
+        const last_space = try walk_internal_spaces(
+            parent_allocator,
+            current_stack_node.otio_object,
+            current_stack_node.path_code,
+            &tmp_topo_map,
+        );
 
-        const code_from_stack = current.path_code;
-        defer code_from_stack.deinit(allocator);
-
-        var current_code = try current.path_code.clone(allocator);
-        errdefer current_code.deinit(allocator);
-
-        // push the spaces for the current object into the map/stack
-        {
-            const spaces = try current.object.spaces(
-                allocator
-            );
-            defer allocator.free(spaces);
-
-            for (0.., spaces) 
-                |index, space_ref| 
-            {
-                const child_code = try depth_child_code_leaky(
-                    allocator,
-                    current_code,
-                    index
-                );
-                defer child_code.deinit(allocator);
-
-                if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
-                    std.debug.assert(
-                        tmp_topo_map.map_code_to_space.get(child_code) == null
-                    );
-                    std.debug.assert(
-                        tmp_topo_map.map_space_to_code.get(space_ref) == null
-                    );
-                    opentime.dbg_print(@src(), 
-                        (
-                         "[{d}] code: {s} hash: {d} adding local space: "
-                         ++ "'{s}.{s}'\n"
-                        ),
-                        .{
-                            index,
-                            child_code,
-                            child_code.hash(), 
-                            @tagName(space_ref.ref),
-                            @tagName(space_ref.label)
-                        }
-                    );
-                }
-                try tmp_topo_map.map_space_to_code.put(
-                    allocator,
-                    space_ref,
-                    try child_code.clone(allocator),
-                );
-                try tmp_topo_map.map_code_to_space.put(
-                    allocator,
-                    try child_code.clone(allocator),
-                    space_ref
-                );
-
-                if (index == (spaces.len - 1)) {
-                    current_code.deinit(allocator);
-                    current_code = try child_code.clone(allocator);
-                }
-            }
-        }
-
-        // transforms to children
-        const children = switch (current.object) 
-        {
-            inline .track_ptr, .stack_ptr => |st_or_tr| (
-                st_or_tr.children.items
-            ),
-            .timeline_ptr => |tl| &[_]core.ComposableValue{
-                    core.ComposableValue.init(tl.tracks),
-            },
-            else => &[_]core.ComposableValue{},
-        };
-
-        var children_ptrs: std.ArrayList(core.ComposedValueRef) = .{};
-        defer children_ptrs.deinit(allocator);
-        for (children) 
-            |*child| 
-        {
-            const item_ptr = core.ComposedValueRef.init(child);
-            try children_ptrs.append(allocator,item_ptr);
-        }
-
-        // for things that already are core.ComposedValueRef containers
-        switch (current.object) {
-            .warp_ptr => |wp| {
-                try children_ptrs.append(allocator,wp.child);
-            },
-            inline else => {},
-        }
-
-        for (children_ptrs.items, 0..) 
-            |item_ptr, index| 
-        {
-            const child_space_code = try sequential_child_code_leaky(
-                allocator,
-                current_code,
-                index
-            );
-            defer child_space_code.deinit(allocator);
-
-            // insert the child scope
-            const space_ref = core.SpaceReference{
-                .ref = current.object,
-                .label = .child,
-                .child_index = index,
-            };
-
-            if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
-            {
-                std.debug.assert(
-                    tmp_topo_map.map_code_to_space.get(child_space_code) == null
-                );
-
-                if (tmp_topo_map.map_space_to_code.get(space_ref)) 
-                    |other_code| 
-                {
-                    opentime.dbg_print(
-                        @src(), 
-                        "\n ERROR SPACE ALREADY PRESENT[{d}] code: {s} "
-                        ++ "other_code: {s} "
-                        ++ "adding child space: '{s}.{s}.{d}'\n",
-                        .{
-                            index,
-                            child_space_code,
-                            other_code,
-                            @tagName(space_ref.ref),
-                            @tagName(space_ref.label),
-                            space_ref.child_index.?,
-                        }
-                    );
-
-                    std.debug.assert(false);
-                }
-                opentime.dbg_print(
-                    @src(), 
-                    (
-                          "[{d}] code: {s} hash: {d} adding child space:"
-                          ++ " '{s}.{s}.{d}'\n"
-                    ),
-                    .{
-                        index,
-                        child_space_code,
-                        child_space_code.hash(),
-                        @tagName(space_ref.ref),
-                        @tagName(space_ref.label),
-                        space_ref.child_index.?,
-                    }
-                );
-            }
-            try tmp_topo_map.map_space_to_code.put(
-                allocator,
-                space_ref,
-                try child_space_code.clone(allocator)
-            );
-            try tmp_topo_map.map_code_to_space.put(
-                allocator,
-                try child_space_code.clone(allocator),
-                space_ref
-            );
-
-            // creates a cone of the child_space_code
-            const child_code = try depth_child_code_leaky(
-                allocator,
-                child_space_code,
-                1
-            );
-            defer child_code.deinit(allocator);
-
-            try stack.insert(
-                allocator,
-                0,
-                .{ 
-                    .object= item_ptr,
-                    .path_code = try child_code.clone(allocator)
-                }
-            );
-        }
-
-        current_code.deinit(allocator);
+        // items that are in a stack/track/warp etc.
+        try walk_child_spaces(
+            parent_allocator,
+            current_stack_node.otio_object,
+            last_space,
+            &tmp_topo_map,
+            &otio_object_stack,
+        );
     }
+
+    // lock the maps
+    tmp_topo_map.map_code_to_space.lockPointers();
+    tmp_topo_map.map_space_to_code.lockPointers();
 
     // return result;
     return tmp_topo_map;
@@ -797,12 +813,13 @@ test "build_topological_map: leak sentinel test track w/ clip"
 {
     const allocator = std.testing.allocator;
 
-    var tr: schema.Track = .{};
-    defer tr.deinit(allocator);
+    var cl = schema.Clip{};
 
+    var tr_children = [_]core.ComposedValueRef{
+        core.ComposedValueRef.init(&cl),
+    };
+    var tr: schema.Track = .{ .children = &tr_children };
     const tr_ref = core.ComposedValueRef.init(&tr);
-
-    try tr.append(allocator,schema.Clip{});
 
     const map = try build_topological_map(
         allocator,
@@ -815,10 +832,6 @@ test "build_topological_map check root node"
 {
     const allocator = std.testing.allocator;
 
-    var tr: schema.Track = .{};
-    defer tr.deinit(allocator);
-    const tr_ref = core.ComposedValueRef.init(&tr);
-
     const start = opentime.Ordinate.ONE;
     const end = T_ORD_10;
     const cti = opentime.ContinuousInterval{
@@ -826,28 +839,23 @@ test "build_topological_map check root node"
         .end = end 
     };
 
-    try tr.append(
-        allocator,
-        schema.Clip { 
-            .bounds_s = cti, 
-        }
-    );
+    var clips: [11]schema.Clip = undefined;
+    var refs: [11]core.ComposedValueRef = undefined;
 
-    var i:i32 = 0;
-    while (i < 10) 
-        : (i += 1)
+    for (&clips, &refs)
+        |*cl_p, *ref|
     {
-        try tr.append(
-            allocator,
-            schema.Clip {
-                .bounds_s = cti,
-            },
-        );
+        cl_p.bounds_s = cti;
+
+        ref.* = core.ComposedValueRef.init(cl_p);
     }
+
+    var tr: schema.Track = .{.children = &refs };
+    const tr_ref = core.ComposedValueRef.init(&tr);
 
     try std.testing.expectEqual(
         11,
-        tr.children.items.len
+        tr.children.len
     );
 
     const map = try build_topological_map(
@@ -866,7 +874,7 @@ test "build_topological_map: leak sentinel test - single clip"
 {
     const allocator = std.testing.allocator;
 
-    const cl = schema.Clip {};
+    var cl = schema.Clip {};
 
     const map = try build_topological_map(
         allocator,
@@ -888,7 +896,7 @@ pub const TreenodeWalkingIterator = struct{
         ) !void 
         {
             try writer.print(
-                "Node(.space: {s}, .code: {s})",
+                "Node(.space: {f}, .code: {f})",
                 .{
                     self.space,
                     self.code,
@@ -973,7 +981,12 @@ pub const TreenodeWalkingIterator = struct{
             else return error.DestinationNotInMap
         );
 
-        if (treecode.path_exists(source_code, destination_code) == false) 
+        if (
+            treecode.path_exists(
+                source_code,
+                destination_code,
+            ) == false
+        )
         {
             errdefer opentime.dbg_print(
                 @src(), 
@@ -1271,7 +1284,7 @@ test "TestWalkingIterator: track with clip w/ destination"
 
 fn depth_child_code_leaky(
     allocator: std.mem.Allocator,
-    parent_code:treecode.Treecode,
+    parent_code: treecode.Treecode,
     index: usize,
 ) !treecode.Treecode 
 {
@@ -1282,6 +1295,7 @@ fn depth_child_code_leaky(
     {
         try result.append(allocator, .left);
     }
+
     return result;
 }
 
@@ -1327,18 +1341,65 @@ test "depth_child_hash: math"
 
 fn sequential_child_code_leaky(
     allocator: std.mem.Allocator,
-    src: treecode.Treecode,
+    parent_code: treecode.Treecode,
     index: usize,
 ) !treecode.Treecode 
 {
-    var result = try src.clone(allocator);
+    var result = try parent_code.clone(allocator);
 
     for (0..index+1)
         |_|
     {
         try result.append(allocator, .right);
     }
+
     return result;
+}
+
+test "sequential_child_code_leaky lifetime"
+{
+    const allocator = std.testing.allocator;
+
+    var start_code = try treecode.Treecode.init(allocator);
+
+    var next_code = try sequential_child_code_leaky(
+        allocator,
+        start_code,
+        1,
+    );
+    defer next_code.deinit(allocator);
+
+    const next_code_hash = next_code.hash();
+
+    start_code.deinit(allocator);
+
+    try std.testing.expectEqual(
+        next_code_hash,
+        next_code.hash()
+    );
+}
+
+test "depth_child_code_leaky lifetime"
+{
+    const allocator = std.testing.allocator;
+
+    var start_code = try treecode.Treecode.init(allocator);
+
+    var next_code = try depth_child_code_leaky(
+        allocator,
+        start_code,
+        1,
+    );
+    defer next_code.deinit(allocator);
+
+    const next_code_hash = next_code.hash();
+
+    start_code.deinit(allocator);
+
+    try std.testing.expectEqual(
+        next_code_hash,
+        next_code.hash()
+    );
 }
 
 test "sequential_child_hash: math" 
@@ -1347,16 +1408,15 @@ test "sequential_child_hash: math"
 
     var root = try treecode.Treecode.init_word(
         allocator,
-        0b1000
+        0b1000,
     );
     defer root.deinit(allocator);
 
     var test_code = try root.clone(allocator);
     defer test_code.deinit(allocator);
 
-    var i:usize = 0;
-    while (i<4) 
-        : (i+=1) 
+    for (0..4)
+        |i|
     {
         var result = try sequential_child_code_leaky(
             allocator,
