@@ -38,7 +38,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     };
 
     const tl_ptr = otio.ComposedValueRef{
-        .timeline_ptr = &tl 
+        .timeline = &tl 
     };
 
     // track
@@ -76,14 +76,14 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         },
     };
     var track_children=[_]otio.ComposedValueRef{
-        .{ .clip_ptr = &cl1 },
-        .{ .gap_ptr = &gp },
-        .{ .clip_ptr = &cl2 },
+        .{ .clip = &cl1 },
+        .{ .gap = &gp },
+        .{ .clip = &cl2 },
     };
     tr.children = &track_children;
 
     var timeline_tracks = [_]otio.ComposedValueRef{
-        .{ .track_ptr = &tr },
+        .{ .track = &tr },
     };
     tl.tracks.children = &timeline_tracks;
 
@@ -259,7 +259,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
                     "    Source: \n      target: {?s}\n"
                     ++ "      frames: {any}\n",
                     .{ 
-                        op.destination.ref.clip_ptr.name orelse "pasta",
+                        op.destination.ref.clip.name orelse "pasta",
                         dest_frames,
                     }
                 );
@@ -375,9 +375,9 @@ test "libsamplerate w/ high level test -- resample only"
 
     // synthesize media
     const media_samples = (
-        try cl_ptr.clip_ptr.media.ref.signal.signal_generator.rasterized(
+        try cl_ptr.clip.media.ref.signal.signal_generator.rasterized(
             allocator,
-            cl_ptr.clip_ptr.media.discrete_info.?,
+            cl_ptr.clip.media.discrete_info.?,
             true,
         )
     );
@@ -442,7 +442,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
         },
     };
     const cl_ptr = otio.ComposedValueRef{
-        .clip_ptr = &cl1,
+        .clip = &cl1,
     };
 
     // new for this test - add in an warp on the clip
@@ -509,9 +509,9 @@ test "libsamplerate w/ high level test.retime.interpolating"
 
     // synthesize media
     const media = (
-        try cl_ptr.clip_ptr.media.ref.signal.signal_generator.rasterized(
+        try cl_ptr.clip.media.ref.signal.signal_generator.rasterized(
             allocator,
-            cl_ptr.clip_ptr.media.discrete_info.?,
+            cl_ptr.clip.media.discrete_info.?,
             true,
         )
     );
@@ -599,14 +599,14 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     defer warp.transform.deinit(allocator);
 
     var track_children = [_]otio.ComposedValueRef{
-        .{ .warp_ptr = &warp },
+        .{ .warp = &warp },
     };
     var tr: otio.Track = .{
         .name = "Example Parent Track",
         .children = &track_children,
     };
     const tr_ptr = otio.ComposedValueRef{
-        .track_ptr = &tr 
+        .track = &tr 
     };
 
     var timeline_children = [_]otio.ComposedValueRef{
@@ -632,7 +632,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     ///////////////////////////////////////////////////////////////////////////
     const topo_map = try otio.build_topological_map(
         allocator,
-        .{ .timeline_ptr = &tl },
+        .{ .timeline = &tl },
     );
     defer topo_map.deinit(allocator);
 
@@ -649,9 +649,9 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
 
     // synthesize media
     const media = (
-        try cl_ptr.clip_ptr.media.ref.signal.signal_generator.rasterized(
+        try cl_ptr.clip.media.ref.signal.signal_generator.rasterized(
             allocator,
-            cl_ptr.clip_ptr.media.discrete_info.?,
+            cl_ptr.clip.media.discrete_info.?,
             false,
         )
     );
@@ -773,7 +773,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     defer wp_reverse.transform.deinit(allocator);
 
     var track_children = [_]otio.ComposedValueRef{
-        .{ .warp_ptr = &wp_reverse },
+        .{ .warp = &wp_reverse },
     };
     var tr: otio.Track = .{
         .name = "Parent Track",
@@ -781,7 +781,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     };
 
     const tr_ptr = otio.ComposedValueRef{
-        .track_ptr = &tr,
+        .track = &tr,
     };
 
     var timeline_children = [_]otio.ComposedValueRef{
@@ -803,7 +803,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
         },
     };
     const tl_ptr = otio.ComposedValueRef{
-        .timeline_ptr = &tl,
+        .timeline = &tl,
     };
 
     // build the topological map (Timeline.presentation -> ...)
@@ -919,10 +919,10 @@ test "timeline w/ warp that holds the tenth frame"
     const warp_ptr =  otio.ComposedValueRef.init(&wp);
 
     const w_ib = (
-        warp_ptr.warp_ptr.transform.input_bounds()
+        warp_ptr.warp.transform.input_bounds()
     );
     const w_ob = (
-        warp_ptr.warp_ptr.transform.output_bounds()
+        warp_ptr.warp.transform.output_bounds()
     );
 
     var tr_children = [_]otio.ComposedValueRef{
@@ -951,7 +951,7 @@ test "timeline w/ warp that holds the tenth frame"
         },
     };
     const tl_ptr = otio.ComposedValueRef{
-        .timeline_ptr = &tl 
+        .timeline = &tl 
     };
 
     errdefer opentime.dbg_print(@src(),
@@ -993,7 +993,7 @@ test "timeline w/ warp that holds the tenth frame"
     // check the actual indices
     {
         const warp_pres_to_warp_child_xform = (
-            tr_ptr.track_ptr.children[0].warp_ptr.transform
+            tr_ptr.track.children[0].warp.transform
         );
         
         const ident = (

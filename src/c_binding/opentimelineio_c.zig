@@ -155,12 +155,12 @@ pub fn to_c_ref(
 ) c.otio_ComposedValueRef
 {
     return switch (input) {
-        .timeline_ptr => |t| .{ .kind = c.otio_ct_timeline, .ref = @ptrCast(@constCast(t)) },
-        .stack_ptr => |t|       .{ .kind = c.otio_ct_stack,    .ref = @ptrCast(@constCast(t)) },
-        .track_ptr => |t|       .{ .kind = c.otio_ct_track,    .ref = @ptrCast(@constCast(t)) },
-        .clip_ptr =>  |t|        .{ .kind = c.otio_ct_clip,     .ref = @ptrCast(@constCast(t)) },
-        .gap_ptr =>   |t|         .{ .kind = c.otio_ct_gap,      .ref = @ptrCast(@constCast(t)) },
-        .warp_ptr =>  |t|        .{ .kind = c.otio_ct_warp,     .ref = @ptrCast(@constCast(t)) },
+        .timeline => |t| .{ .kind = c.otio_ct_timeline, .ref = t },
+        .stack => |t|       .{ .kind = c.otio_ct_stack,    .ref = t },
+        .track => |t|       .{ .kind = c.otio_ct_track,    .ref = t },
+        .clip =>  |t|        .{ .kind = c.otio_ct_clip,     .ref = t },
+        .gap =>   |t|         .{ .kind = c.otio_ct_gap,      .ref = t },
+        .warp =>  |t|        .{ .kind = c.otio_ct_warp,     .ref = t },
     };
 }
 
@@ -173,8 +173,8 @@ pub export fn otio_child_count_cvr(
     };
 
     return switch (ref) {
-        .timeline_ptr => |*tl| @intCast(tl.*.tracks.children.items.len),
-        inline .stack_ptr, .track_ptr => |*t|  @intCast(t.*.children.items.len),
+        .timeline => |tl| @intCast(tl.tracks.children.len),
+        inline .stack, .track => |t|  @intCast(t.children.len),
         inline else => 0,
     };
 }
@@ -191,11 +191,11 @@ pub export fn otio_fetch_child_cvr_ind(
     const index: usize = @intCast(c_index);
 
     const result = switch (ref) {
-        .timeline_ptr => |*tl| res: {
-            break :res to_c_ref(tl.*.tracks.child_ptr_from_index(index));
+        .timeline => |tl| res: {
+            break :res to_c_ref(tl.tracks.children[index]);
         },
-        inline .stack_ptr, .track_ptr => |*t|  res: {
-            break :res to_c_ref(t.*.child_ptr_from_index(index));
+        inline .stack, .track => |t|  res: {
+            break :res to_c_ref(t.children[index]);
         },
         inline else => return ERR_REF,
     };
@@ -315,7 +315,7 @@ pub export fn otio_fetch_cvr_name_str(
     const buf_slice = buf[0..len];
 
     const name = switch (ref) {
-        .warp_ptr => "",
+        .warp => "",
         inline else => |r| r.name,
     };
 
@@ -491,7 +491,7 @@ pub export fn otio_timeline_deinit(
     );
 
     switch (root) {
-        inline .timeline_ptr, .stack_ptr, .track_ptr => 
+        inline .timeline, .stack, .track => 
             |t| (
                 // @TODO: remove the need for constCast
                 //        constCast becuase ComposedValueRef is a const*

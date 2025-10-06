@@ -1463,7 +1463,7 @@ test "label_for_node_leaky"
     var tr: schema.Track = .{};
     const sr = core.SpaceReference{
         .label = .presentation,
-        .ref = .{ .track_ptr = &tr },
+        .ref = .{ .track = &tr },
     };
 
     var tc = try treecode.Treecode.init_word(
