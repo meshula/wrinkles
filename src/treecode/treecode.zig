@@ -1420,7 +1420,7 @@ test "treecode: clone - with deinit"
 
 /// Wrapper around `std.HashMap` such that the key is a `Treecode`.
 pub fn TreecodeHashMap(
-    comptime V: type
+    comptime V: type,
 ) type 
 {
     return std.HashMapUnmanaged(
@@ -1451,16 +1451,12 @@ pub fn TreecodeHashMap(
 test "treecode: BidirectionalTreecodeHashMap" 
 {
     const allocator = std.testing.allocator;
-    const this_type = u64;
 
-    var code_to_thing = TreecodeHashMap(this_type){};
-    defer code_to_thing.deinit(allocator);
+    var code_to_u64: TreecodeHashMap(u64) = .empty;
+    defer code_to_u64.deinit(allocator);
 
-    var thing_to_code = std.AutoHashMapUnmanaged(
-        this_type,
-        Treecode
-    ){};
-    defer thing_to_code.deinit(allocator);
+    var u64_to_code: std.AutoHashMapUnmanaged(u64, Treecode) = .empty;
+    defer u64_to_code.deinit(allocator);
 
     var tc = try Treecode.init_word(
         allocator,
@@ -1468,13 +1464,13 @@ test "treecode: BidirectionalTreecodeHashMap"
     );
     defer tc.deinit(allocator);
 
-    const value: this_type = 3651;
+    const value = 3651;
 
-    try code_to_thing.put(allocator, tc, value);
-    try thing_to_code.put(allocator, value, tc);
+    try code_to_u64.put(allocator, tc, value);
+    try u64_to_code.put(allocator, value, tc);
 
-    try std.testing.expectEqual(value, code_to_thing.get(tc));
-    try std.testing.expectEqual(tc, thing_to_code.get(value));
+    try std.testing.expectEqual(value, code_to_u64.get(tc));
+    try std.testing.expectEqual(tc, u64_to_code.get(value));
 }
 
 /// Determine if there is a path between the two codes.  Either can be parent.
