@@ -205,7 +205,13 @@ pub const ComposedValueRef = union(enum) {
                         .label = SpaceLabel.presentation,
                     },
                 );
-                try result.append(allocator, .{ .ref = self, .label = SpaceLabel.media});
+                try result.append(
+                    allocator,
+                    .{
+                        .ref = self,
+                        .label = SpaceLabel.media,
+                    },
+                );
             },
             .track_ptr, .timeline_ptr, .stack_ptr => {
                 try result.append(
@@ -1844,7 +1850,7 @@ test "transform: track with two clips"
         );
         defer child_code.deinit(allocator);
 
-        const child_space = map.map_code_to_space.get(child_code.hash()).?;
+        const child_space = map.map_code_to_space.get(child_code).?;
 
         const xform = try tr.transform_to_child(
             allocator,
