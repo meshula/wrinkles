@@ -1114,7 +1114,7 @@ test "TestWalkingIterator: clip"
     // media is 9 seconds long and runs at 4 hz.
     const media_source_range = T_CTI_1_10;
 
-    const cl = schema.Clip {
+    var cl = schema.Clip {
         .bounds_s = media_source_range,
     };
     const cl_ptr = core.ComposedValueRef.init(&cl);
@@ -1151,20 +1151,16 @@ test "TestWalkingIterator: track with clip"
 {
     const allocator = std.testing.allocator;
 
-    var tr: schema.Track = .{};
-    defer tr.deinit(allocator);
-
     // media is 9 seconds long and runs at 4 hz.
     const media_source_range = T_CTI_1_10;
 
-    // construct the clip and add it to the track
-    const cl = schema.Clip {
+    var cl = schema.Clip {
         .bounds_s = media_source_range,
     };
-    const cl_ptr = try tr.append_fetch_ref(
-        allocator,
-        cl,
-    );
+    const cl_ptr = core.ComposedValueRef.init(&cl);
+
+    var tr_children = [_]core.ComposedValueRef{ cl_ptr, };
+    var tr: schema.Track = .{ .children = &tr_children };
     const tr_ptr = core.ComposedValueRef.init(&tr);
 
     const map = try build_topological_map(
@@ -1224,25 +1220,23 @@ test "TestWalkingIterator: track with clip w/ destination"
 {
     const allocator = std.testing.allocator;
 
-    var tr: schema.Track = .{};
-    defer tr.deinit(allocator);
-
     // media is 9 seconds long and runs at 4 hz.
     const media_source_range = T_CTI_1_10;
 
     // construct the clip and add it to the track
-    const cl = schema.Clip {
+    var cl = schema.Clip {
         .bounds_s = media_source_range,
     };
-    try tr.append(allocator,cl);
+    var cl2 = schema.Clip {
+        .bounds_s = media_source_range,
+    };
+    const cl_ptr = core.ComposedValueRef.init(&cl2);
 
-    const cl2 = schema.Clip {
-        .bounds_s = media_source_range,
+    var tr_children = [_]core.ComposedValueRef{
+        core.ComposedValueRef.init(&cl),
+        cl_ptr,
     };
-    const cl_ptr = try tr.append_fetch_ref(
-        allocator,
-        cl2,
-    );
+    var tr: schema.Track = .{ .children = &tr_children };
     const tr_ptr = core.ComposedValueRef.init(&tr);
 
     const map = try build_topological_map(
@@ -1469,12 +1463,12 @@ test "label_for_node_leaky"
     var tr: schema.Track = .{};
     const sr = core.SpaceReference{
         .label = .presentation,
-        .ref = .{ .track_ptr = &tr } 
+        .ref = .{ .track_ptr = &tr },
     };
 
     var tc = try treecode.Treecode.init_word(
         allocator,
-        0b1101001
+        0b1101001,
     );
     defer tc.deinit(allocator);
 
