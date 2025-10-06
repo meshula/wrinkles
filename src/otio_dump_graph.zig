@@ -121,6 +121,22 @@ pub fn main(
         0,
     );
 
+    var found = true;
+    std.fs.cwd().access(
+        state.input_otio,
+        .{},
+    ) catch |e| switch (e) {
+        error.FileNotFound => found = false,
+        else => return e,
+    };
+    if (found == false)
+    {
+        std.log.err(
+            "File: {s} does not exist or is not accessible.",
+            .{ state.input_otio }
+        );
+    }
+
     // read the file
     var tl = try otio.read_from_file(
         allocator,
