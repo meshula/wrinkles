@@ -577,7 +577,7 @@ pub fn build(
         .{
             .b = b,
             .options = options,
-            .fpath = "src/treecode/treecode.zig",
+            .fpath = "src/treecode/root.zig",
             .deps = &.{},
         },
     );

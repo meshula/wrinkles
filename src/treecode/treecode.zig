@@ -1481,8 +1481,8 @@ test "treecode: BidirectionalTreecodeHashMap"
 ///
 /// Examples:
 ///
-/// * 0b101 -> 0b11101 true
-/// * 0b1101 -> 0b1100 false
+/// * (`0b101`, `0b11101`) -> true
+/// * (`0b1101`, `0b1100`) -> false
 pub fn path_exists(
     fst: Treecode,
     snd: Treecode,
