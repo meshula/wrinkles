@@ -426,12 +426,11 @@ test "treecode: code_length - init_word"
 {
     const allocator = std.testing.allocator;
 
-    const TestData = struct {
+    const tests = [_]struct{
         input: TreecodeWord,
         expected: usize,
-    };
-    const tests = [_]TestData{
-        .{ .input = 0b1,            .expected = 0 },
+    } {
+        .{ .input = 0b1,          .expected = 0 },
         .{ .input = 0b11,         .expected = 1 },
         .{ .input = 0b1101,       .expected = 3 },
         .{ .input = 0b1111111,    .expected = 6 },
@@ -698,7 +697,10 @@ test "Treecode: is a prefix"
         defer rhs.deinit(allocator);
 
         errdefer std.debug.print(
-            "Problem with loop: [{d}]\n  lhs: {f}\n rhs: {f}\n expected: {any}\n",
+            (
+                  "Problem with loop: [{d}]\n  lhs: {f}\n rhs: {f}\n "
+                  ++ "expected: {any}\n"
+            ),
             .{ i, lhs, rhs, t[2] },
         );
 
@@ -761,19 +763,9 @@ test "treecode: append"
 
 test "treecode: append up to one word loop"
 {
-    const TEST_TYPE = TreecodeWord;
+    var val: TreecodeWord = 1;
 
-    var val: TEST_TYPE = 1;
-
-    // const fmt = (
-    //     "{b:0>"
-    //     // ensure that the right number of 0s are printed
-    //     ++ std.fmt.comptimePrint("{d}", .{@bitSizeOf(TEST_TYPE)}) 
-    //     ++ "}" 
-    // );
-    // std.debug.print("val: " ++ fmt ++ "\n", .{ val });
-
-    for (0..@bitSizeOf(TEST_TYPE) - 1)
+    for (0..@bitSizeOf(TreecodeWord) - 1)
         |ind|
     {
         val = treecode_word_append(
@@ -781,18 +773,16 @@ test "treecode: append up to one word loop"
             .right,
         );
 
-        // std.debug.print("val: " ++ fmt ++ "\n", .{ val });
-
         try std.testing.expectEqual(
-            @as(TEST_TYPE, 0b11) << @intCast(ind),
+            @as(TreecodeWord, 0b11) << @intCast(ind),
             val,
         );
 
-        val = @as(TEST_TYPE, 0b1) << @intCast(ind + 1);
+        val = @as(TreecodeWord, 0b1) << @intCast(ind + 1);
     }
 }
 
-test "treecode: apped lots of 0"
+test "treecode: apped lots of .left"
 {
     const allocator = std.testing.allocator;
 
@@ -879,7 +869,7 @@ test "treecode: append beyond one word w/ right"
     try std.testing.expectEqual(bits+1, tc.code_length());
 }
 
-test "treecode: append beyond one word w/ 0"
+test "treecode: append beyond one word w/ .left"
 {
     const allocator = std.testing.allocator;
 
@@ -908,7 +898,7 @@ test "treecode: append beyond one word w/ 0"
     try std.testing.expectEqual(bits+1, tc.code_length());
 }
 
-test "treecode: append alternating 0 and 1"
+test "treecode: append alternating .left and .right"
 {   
     const allocator = std.testing.allocator;
 
@@ -1486,7 +1476,13 @@ test "treecode: BidirectionalTreecodeHashMap"
     try std.testing.expectEqual(tc, u64_to_code.get(value));
 }
 
-/// Determine if there is a path between the two codes.  Either can be parent.
+/// Return a true if there is a monotonic path from fst to snd.  Either can be
+/// parent.
+///
+/// Examples:
+///
+/// * 0b101 -> 0b11101 true
+/// * 0b1101 -> 0b1100 false
 pub fn path_exists(
     fst: Treecode,
     snd: Treecode,
@@ -1501,6 +1497,7 @@ pub fn path_exists(
     );
 }
 
+/// set `bit_index` in `word` to `val`
 inline fn set_bit_in_word(
     comptime Type: type,
     word: Type,
@@ -1530,14 +1527,6 @@ test "set_bit_in_word"
             @intCast(ind),
             .right,
         );
-
-        // const fmt = (
-        //     "{b:0>"
-        //     // ensure that the right number of 0s are printed
-        //     ++ std.fmt.comptimePrint("{d}", .{@bitSizeOf(TEST_TYPE)}) 
-        //     ++ "}" 
-        // );
-        // std.debug.print("val: " ++ fmt ++ "\n", .{ val });
 
         try std.testing.expectEqual(
             @as(TEST_TYPE, 1) << @intCast(ind),
