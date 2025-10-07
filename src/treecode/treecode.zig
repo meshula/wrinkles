@@ -2,6 +2,10 @@
 //!
 //! Also includes a `TreecodeHashMap` (`std.HashMap` wrapper for mapping
 //! treecodes to values).
+//!
+//! The source is split into the higher level `Treecode` struct, which is
+//! public and user facing, and a number of functions that operate on
+//! indidividual `TreecodeWord`s, which are private.
 
 const std = @import("std");
 
@@ -325,7 +329,9 @@ pub const Treecode = struct {
         );
     }
 
-    /// Compute and return the `Hash` for this `Treecode`.
+    /// Compute and return the `Hash` for this `Treecode`.  The hash incudes
+    /// the index and value of each non-zero word, such that 0001 0000 hashes
+    /// differently than 0000 0001, but 0000 0001 and 0001 hash the same.
     pub fn hash(
         self: @This(),
     ) Hash 
