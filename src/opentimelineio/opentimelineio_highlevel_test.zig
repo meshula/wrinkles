@@ -98,8 +98,9 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     // could do individual specific end-to-end projections here
     ///////////////////////////////////////////////////////////////////////////
     const timeline_to_clip2 = (
-        try topo_map.build_projection_operator(
+        try otio.build_projection_operator(
             allocator,
+            topo_map,
             .{
                 .source = try tl_ptr.space(.presentation),
                 .destination = try track_children[2].space(.media),
@@ -338,8 +339,9 @@ test "libsamplerate w/ high level test -- resample only"
     defer topo_map.deinit(allocator);
 
     const tr_pres_to_cl_media_po = (
-        try topo_map.build_projection_operator(
+        try otio.build_projection_operator(
             allocator,
+            topo_map,
             .{
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
@@ -497,8 +499,9 @@ test "libsamplerate w/ high level test.retime.interpolating"
     );
 
     const tr_pres_to_cl_media_po = (
-        try topo_map.build_projection_operator(
+        try otio.build_projection_operator(
             allocator,
+            topo_map,
             .{
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
@@ -637,8 +640,9 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     defer topo_map.deinit(allocator);
 
     const tr_pres_to_cl_media_po = (
-        try topo_map.build_projection_operator(
+        try otio.build_projection_operator(
             allocator,
+            topo_map,
             .{
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
@@ -817,8 +821,9 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     // build the projection operator (Track.presentation -> clip.media)
     ///////////////////////////////////////////////////////////////////////////
     const tr_pres_to_cl_media_po = (
-        try topo_map.build_projection_operator(
+        try otio.build_projection_operator(
             allocator,
+            topo_map,
             .{
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
@@ -974,8 +979,9 @@ test "timeline w/ warp that holds the tenth frame"
     defer topo_map.deinit(allocator);
 
     const tr_pres_to_cl_media_po = (
-        try topo_map.build_projection_operator(
+        try otio.build_projection_operator(
             allocator,
+            topo_map,
             .{
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
@@ -1094,8 +1100,9 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     // Build the projection from Timeline Presentation -> Clip Media
     ///////////////////////////////////////////////////////////////////////////
     const tl_pres_to_cl_media_po = (
-        try topo_map.build_projection_operator(
+        try otio.build_projection_operator(
             allocator,
+            topo_map,
             .{
                 .source = try tl_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),

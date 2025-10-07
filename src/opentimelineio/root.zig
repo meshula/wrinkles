@@ -12,6 +12,7 @@ pub const projection_map_to_media_from = core.projection_map_to_media_from;
 pub const topological_map = @import("topological_map.zig");
 pub const build_topological_map = topological_map.build_topological_map;
 pub const TopologicalMap = topological_map.TopologicalMap;
+pub const build_projection_operator = topological_map.build_projection_operator;
 
 pub const schema = @import("schema.zig");
 pub const Clip = schema.Clip;

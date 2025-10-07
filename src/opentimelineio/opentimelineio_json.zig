@@ -437,8 +437,9 @@ test "read_from_file test (simple)"
     );
     defer map.deinit(allocator);
 
-    const tl_output_to_clip_media = try map.build_projection_operator(
+    const tl_output_to_clip_media = try otio.build_projection_operator(
         std.testing.allocator,
+        map,
         .{
             .source = try tl_ptr.space(otio.SpaceLabel.presentation),
             .destination = try target_clip_ptr.space(otio.SpaceLabel.media),
