@@ -15,7 +15,7 @@ const treecode = @import("treecode");
 const sampling = @import("sampling");
 
 const schema = @import("schema.zig");
-const topological_map_m = @import("topological_map.zig");
+const topological_map = @import("topological_map.zig");
 
 /// annotate the graph algorithms
 // const GRAPH_CONSTRUCTION_TRACE_MESSAGES = true;
@@ -900,14 +900,14 @@ pub const ProjectionOperator = struct {
 /// the source space
 pub fn projection_map_to_media_from(
     allocator: std.mem.Allocator,
-    topological_map: topological_map_m.TopologicalMap,
+    map: topological_map.TopologicalMap,
     source: SpaceReference,
 ) !ProjectionOperatorMap
 {
     var iter = (
-        try topological_map_m.TreenodeWalkingIterator.init_from(
+        try topological_map.TreenodeWalkingIterator.init_from(
             allocator,
-            &topological_map, 
+            &map, 
             source,
         )
     );
@@ -917,7 +917,7 @@ pub fn projection_map_to_media_from(
         .source = source,
     };
 
-    var proj_args = ProjectionOperatorEndPoints{
+    var proj_args = topological_map.TopologicalMap.PathEndPoints{
         .source = source,
         .destination = source,
     };
@@ -935,6 +935,7 @@ pub fn projection_map_to_media_from(
         const child_op = (
             try topological_map.build_projection_operator(
                 allocator,
+                map,
                 proj_args,
             )
         );
@@ -995,7 +996,7 @@ test "ProjectionOperatorMap: projection_map_to_media_from leak test"
     };
     const cl_ptr = ComposedValueRef.init(&cl);
 
-    const map = try topological_map_m.build_topological_map(
+    const map = try topological_map.build_topological_map(
         allocator,
         cl_ptr,
     );
@@ -1350,7 +1351,7 @@ test "ProjectionOperatorMap: extend_to"
     };
     const cl_ptr = ComposedValueRef{ .clip = &cl };
 
-    const map = try topological_map_m.build_topological_map(
+    const map = try topological_map.build_topological_map(
         allocator,
         cl_ptr,
     );
@@ -1451,7 +1452,7 @@ test "ProjectionOperatorMap: split_at_each"
     };
     const cl_ptr = ComposedValueRef{ .clip = &cl };
 
-    const map = try topological_map_m.build_topological_map(
+    const map = try topological_map.build_topological_map(
         allocator,
         cl_ptr,
     );
@@ -1577,7 +1578,7 @@ test "ProjectionOperatorMap: merge_composite"
     };
     const cl_ptr = ComposedValueRef{ .clip = &cl };
 
-    const map = try topological_map_m.build_topological_map(
+    const map = try topological_map.build_topological_map(
         allocator,
         cl_ptr,
     );
@@ -1625,7 +1626,7 @@ test "ProjectionOperatorMap: clip"
     };
     const cl_ptr = ComposedValueRef{ .clip = &cl };
 
-    const map = try topological_map_m.build_topological_map(
+    const map = try topological_map.build_topological_map(
         allocator,
         cl_ptr,
     );
@@ -1644,8 +1645,9 @@ test "ProjectionOperatorMap: clip"
     try std.testing.expectEqual(2, cl_presentation_pmap.end_points.len);
 
     const known_presentation_to_media = (
-        try map.build_projection_operator(
+        try topological_map.build_projection_operator(
             allocator,
+            map,
             .{
                 .source = try cl_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
@@ -1709,7 +1711,7 @@ test "ProjectionOperatorMap: track with single clip"
     var tr: schema.Track = .{ .children = &tr_children };
     const tr_ptr = ComposedValueRef.init(&tr);
 
-    const map = try topological_map_m.build_topological_map(
+    const map = try topological_map.build_topological_map(
         allocator,
         tr_ptr,
     );
@@ -1738,8 +1740,9 @@ test "ProjectionOperatorMap: track with single clip"
         try std.testing.expectEqual(1, projection_operator_map.operators.len);
         try std.testing.expectEqual(2, projection_operator_map.end_points.len);
 
-        const known_presentation_to_media = try map.build_projection_operator(
+        const known_presentation_to_media = try topological_map.build_projection_operator(
             allocator,
+            map,
             .{
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
@@ -1810,7 +1813,7 @@ test "transform: track with two clips"
     };
     const tr_ptr = ComposedValueRef.init(&tr);
 
-    const map = try topological_map_m.build_topological_map(
+    const map = try topological_map.build_topological_map(
         allocator,
         tr_ptr,
     );
@@ -1853,8 +1856,9 @@ test "transform: track with two clips"
             }
         );
         defer xform.deinit(allocator);
-        const po = try map.build_projection_operator(
+        const po = try topological_map.build_projection_operator(
             allocator,
+            map,
             .{
                 .source = try cl2_ref.space(.presentation),
                 .destination = try cl2_ref.space(.media),
@@ -1875,8 +1879,9 @@ test "transform: track with two clips"
     }
 
     {
-        const xform = try map.build_projection_operator(
+        const xform = try topological_map.build_projection_operator(
             allocator,
+            map,
             .{
                 .source = track_presentation_space,
                 .destination = try cl2_ref.space(.media),
@@ -1930,7 +1935,7 @@ test "ProjectionOperatorMap: track with two clips"
 
     /////
 
-    const map = try topological_map_m.build_topological_map(
+    const map = try topological_map.build_topological_map(
         allocator,
         tr_ptr,
     );
@@ -1959,8 +1964,9 @@ test "ProjectionOperatorMap: track with two clips"
     try std.testing.expectEqual(2, p_o_map.operators.len);
 
     const known_presentation_to_media = (
-        try map.build_projection_operator(
+        try topological_map.build_projection_operator(
             allocator,
+            map,
             .{
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
@@ -2020,7 +2026,7 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
     var tr: schema.Track = .{ .children = &tr_children, };
     const tr_ptr = ComposedValueRef.init(&tr);
 
-    const map = try topological_map_m.build_topological_map(
+    const map = try topological_map.build_topological_map(
         allocator,
         tr_ptr,
     );
@@ -2046,8 +2052,9 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
     try std.testing.expectEqual(3, p_o_map.operators.len);
 
     const known_presentation_to_media = (
-        try map.build_projection_operator(
+        try topological_map.build_projection_operator(
             allocator,
+            map,
             .{
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
@@ -2160,7 +2167,7 @@ test "path_code: graph test"
 
     try std.testing.expectEqual(11, tr.children.len);
 
-    const map = try topological_map_m.build_topological_map(
+    const map = try topological_map.build_topological_map(
         allocator,
         tr_ref,
     );
@@ -2253,7 +2260,7 @@ test "schema.Track with clip with identity transform projection"
     var tr: schema.Track = .{ .children = &refs };
     const tr_ref = ComposedValueRef.init(&tr);
 
-    const map = try topological_map_m.build_topological_map(
+    const map = try topological_map.build_topological_map(
         allocator,
         tr_ref,
     );
@@ -2264,8 +2271,9 @@ test "schema.Track with clip with identity transform projection"
         tr_ref.track.children.len
     );
 
-    const track_to_clip = try map.build_projection_operator(
+    const track_to_clip = try topological_map.build_projection_operator(
         allocator,
+        map,
         .{
             .source = try tr_ref.space(SpaceLabel.presentation),
             .destination =  try cl_ref.space(SpaceLabel.media)
@@ -2308,7 +2316,7 @@ test "TopologicalMap: schema.Track with clip with identity transform topological
 
     const root = ComposedValueRef.init(&tr);
 
-    const map = try topological_map_m.build_topological_map(
+    const map = try topological_map.build_topological_map(
         allocator,
         root,
     );
@@ -2360,8 +2368,9 @@ test "TopologicalMap: schema.Track with clip with identity transform topological
     );
 
     const root_presentation_to_clip_media = (
-        try map.build_projection_operator(
+        try topological_map.build_projection_operator(
             allocator,
+            map,
             .{
                 .source = try root.space(SpaceLabel.presentation),
                 .destination = try cl_ref.space(SpaceLabel.media)
@@ -2398,7 +2407,7 @@ test "Projection: schema.Track with single clip with identity transform and boun
     var tr: schema.Track = .{ .children = &tr_children };
     const root = ComposedValueRef{ .track = &tr };
 
-    const map = try topological_map_m.build_topological_map(
+    const map = try topological_map.build_topological_map(
         allocator,
         root,
     );
@@ -2413,8 +2422,9 @@ test "Projection: schema.Track with single clip with identity transform and boun
         map.map_space_to_code.count()
     );
 
-    const root_presentation_to_clip_media = try map.build_projection_operator(
+    const root_presentation_to_clip_media = try topological_map.build_projection_operator(
         allocator,
+        map,
         .{ 
             .source = try root.space(SpaceLabel.presentation),
             .destination = try clip.space(SpaceLabel.media),
@@ -2482,7 +2492,7 @@ test "Projection: schema.Track 3 bounded clips identity xform"
 
     // ----
 
-    const map = try topological_map_m.build_topological_map(
+    const map = try topological_map.build_topological_map(
         allocator,
         track_ptr,
     );
@@ -2492,8 +2502,9 @@ test "Projection: schema.Track 3 bounded clips identity xform"
 
     // check that the child transform is correctly built
     {
-        const po = try map.build_projection_operator(
+        const po = try topological_map.build_projection_operator(
             allocator,
+            map,
             .{
                 .source = try track_ptr.space(.presentation),
                 .destination = (
@@ -2572,8 +2583,9 @@ test "Projection: schema.Track 3 bounded clips identity xform"
     {
         const child = tr.children[t.index];
 
-        const tr_presentation_to_clip_media = try map.build_projection_operator(
+        const tr_presentation_to_clip_media = try topological_map.build_projection_operator(
         allocator,
+        map,
             .{
                 .source = try track_ptr.space(SpaceLabel.presentation),
                 .destination = try child.space(SpaceLabel.media),
@@ -2610,8 +2622,9 @@ test "Projection: schema.Track 3 bounded clips identity xform"
 
     const clip = tr.children[0];
 
-    const root_presentation_to_clip_media = try map.build_projection_operator(
+    const root_presentation_to_clip_media = try topological_map.build_projection_operator(
         allocator,
+        map,
         .{ 
             .source = try track_ptr.space(SpaceLabel.presentation),
             .destination = try clip.space(SpaceLabel.media),
@@ -2731,7 +2744,7 @@ test "Single schema.Clip bezier transform"
 
     const wp_ptr : ComposedValueRef = .{ .warp = &wp };
 
-    const map = try topological_map_m.build_topological_map(
+    const map = try topological_map.build_topological_map(
         allocator,
         wp_ptr,
     );
@@ -2740,8 +2753,9 @@ test "Single schema.Clip bezier transform"
     // presentation->media (forward projection)
     {
         const clip_presentation_to_media_proj = (
-            try map.build_projection_operator(
+            try topological_map.build_projection_operator(
                 allocator,
+                map,
                 .{
                     .source =  try wp_ptr.space(SpaceLabel.presentation),
                     .destination = try cl_ptr.space(SpaceLabel.media),
@@ -2853,8 +2867,9 @@ test "Single schema.Clip bezier transform"
     // media->presentation (reverse projection)
     {
         const clip_media_to_presentation = (
-            try map.build_projection_operator(
+            try topological_map.build_projection_operator(
                 allocator,
+                map,
                 .{
                     .source =  try cl_ptr.space(SpaceLabel.media),
                     .destination = try wp_ptr.space(SpaceLabel.presentation),
@@ -2923,7 +2938,7 @@ test "otio projection: track with single clip"
     var tr: schema.Track = .{ .children = &tr_children };
     const tr_ptr = ComposedValueRef.init(&tr);
 
-    const map = try topological_map_m.build_topological_map(
+    const map = try topological_map.build_topological_map(
         allocator,
         tr_ptr
     );
@@ -2936,8 +2951,9 @@ test "otio projection: track with single clip"
     );
 
     const track_to_media = (
-        try map.build_projection_operator(
+        try topological_map.build_projection_operator(
             allocator,
+            map,
             .{
                 .source = try tr_ptr.space(SpaceLabel.presentation),
                 // does the discrete / continuous need to be disambiguated?
@@ -3130,13 +3146,13 @@ test "otio projection: track with single clip with transform"
 
     // build map and tests
 
-    const map_tr = try topological_map_m.build_topological_map(
+    const map_tr = try topological_map.build_topological_map(
         allocator,
         tr_ptr
     );
     defer map_tr.deinit(allocator);
 
-    const map_tl = try topological_map_m.build_topological_map(
+    const map_tl = try topological_map.build_topological_map(
         allocator,
         tl_ptr
     );
@@ -3149,8 +3165,9 @@ test "otio projection: track with single clip with transform"
     );
 
     const track_to_media = (
-        try map_tr.build_projection_operator(
+        try topological_map.build_projection_operator(
             allocator,
+            map_tr,
             .{
                 .source = try tr_ptr.space(.presentation),
                 // does the discrete / continuous need to be disambiguated?
@@ -3267,8 +3284,9 @@ test "otio projection: track with single clip with transform"
             );
 
             const timeline_to_media = (
-                try map_tl.build_projection_operator(
+                try topological_map.build_projection_operator(
                     allocator,
+                    map_tl,
                     .{
                         .source = try tl_ptr.space(.presentation),
                         // does the discrete / continuous need to be disambiguated?
@@ -3464,7 +3482,7 @@ test "test debug_print_time_hierarchy"
 
     //////
 
-    const tp = try topological_map_m.build_topological_map(
+    const tp = try topological_map.build_topological_map(
         allocator,
         tl_ptr
     );
@@ -3600,7 +3618,7 @@ test "Single clip, schema.Warp bulk"
         const wp_ptr : ComposedValueRef = .{ .warp =  &warp };
         const wp_pres = try wp_ptr.space(SpaceLabel.presentation);
 
-        const map = try topological_map_m.build_topological_map(
+        const map = try topological_map.build_topological_map(
             allocator,
             wp_ptr,
         );
@@ -3609,8 +3627,9 @@ test "Single clip, schema.Warp bulk"
         // presentation->media (forward projection)
         {
             const warp_pres_to_media_topo = (
-                try map.build_projection_operator(
+                try topological_map.build_projection_operator(
                     allocator,
+                    map,
                     .{
                         .source =  wp_pres,
                         .destination = cl_media,
@@ -3665,8 +3684,9 @@ test "Single clip, schema.Warp bulk"
         // media->presentation (reverse projection)
         {
             const clip_media_to_presentation = (
-                try map.build_projection_operator(
+                try topological_map.build_projection_operator(
                     allocator,
+                    map,
                     .{
                         .source =  cl_media,
                         .destination = wp_pres,
