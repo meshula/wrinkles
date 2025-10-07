@@ -34,7 +34,7 @@ var ROOT_WORDS = [_]treecode.TreecodeWord{treecode.MARKER};
 
 /// static code for the root of the graph
 const ROOT_CODE = treecode.Treecode {
-    .treecode_array = &ROOT_WORDS,
+    .words = &ROOT_WORDS,
 };
 
 const T_ORD_10 =  opentime.Ordinate.init(10);
@@ -633,7 +633,7 @@ fn walk_child_spaces(
                     index,
                     child_wrapper_space_code_ptr,
                     child_wrapper_space_code_ptr.hash(),
-                    child_wrapper_space_code_ptr.treecode_array.ptr,
+                    child_wrapper_space_code_ptr.words.ptr,
                     @tagName(space_ref.ref),
                     @tagName(space_ref.label),
                     space_ref.child_index.?,
@@ -725,7 +725,7 @@ fn walk_internal_spaces(
                     index,
                     space_code,
                     space_code.hash(), 
-                    space_code.treecode_array.ptr,
+                    space_code.words.ptr,
                     @tagName(space_ref.ref),
                     @tagName(space_ref.label)
                 }
@@ -1344,7 +1344,7 @@ test "depth_child_hash: math"
 
         try std.testing.expectEqual(
             expected,
-            result.treecode_array[0],
+            result.words[0],
         );
     }
 }
