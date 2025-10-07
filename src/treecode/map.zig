@@ -36,9 +36,9 @@ pub fn Map(
 {
     return struct {
         /// mapping of `GraphNodeType` to `treecode.Treecode`
-        /// NOTE: should contain the same `treecode.Treecode`s as the ones present
-        ///       in `map_code_to_space`.  Only one of the two mappings will be
-        ///       mappings' treecodes will have deinit() called.
+        /// NOTE: should contain the same `treecode.Treecode`s as the ones
+        ///       present in `map_code_to_space`.  Only one of the two mappings
+        ///       will be mappings' treecodes will have deinit() called.
         map_space_to_code:std.AutoHashMapUnmanaged(
                               GraphNodeType,
                               treecode.Treecode,
@@ -642,7 +642,7 @@ pub fn Map(
 }
 
 
-pub const DEBUG_MESSAGES= (
+const DEBUG_MESSAGES= (
     build_options.debug_graph_construction_trace_messages 
     or build_options.debug_print_messages 
 );
