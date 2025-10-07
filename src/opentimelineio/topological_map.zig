@@ -1,3 +1,14 @@
+//! Implements a path-to-temporal coordinate space mapping for OTIO.  
+//!
+//! Contents:
+//! * `TopologicalMap`, a bidirectional mapping of `core.SpaceReference` to
+//!   `treecode.Treecode`. (Representing a map of the temporal spaces in an
+//!   OTIO hierarchy).
+//! * `build_topological_map` function for constructing a mapping under a given
+//!   root.
+//! * `TreenodeWalkingIterator` iterator that walks through a map between two
+//!   end points.
+
 const std = @import("std");
 
 const build_options = @import("build_options");
@@ -9,6 +20,8 @@ const schema = @import("schema.zig");
 const core = @import("core.zig");
 const topology_m = @import("topology");
 
+/// Which style to render node labels in, as binary codes or hashes.  Codes are
+/// more readable, but make large graphs impossible to read.
 const LabelStyle = enum(u1) { treecode, hash };
 
 /// annotate the graph algorithms
@@ -17,8 +30,9 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
     build_options.debug_graph_construction_trace_messages
 );
 
-// static code for the root of the graph
 var ROOT_WORDS = [_]treecode.TreecodeWord{treecode.MARKER}; 
+
+/// static code for the root of the graph
 const ROOT_CODE = treecode.Treecode {
     .treecode_array = &ROOT_WORDS,
 };
@@ -29,13 +43,25 @@ const T_CTI_1_10 = opentime.ContinuousInterval {
     .end = T_ORD_10,
 };
 
-/// Topological Map of a Timeline.  Can be used to build projection operators
-/// to transform between various coordinate spaces within the map.
+/// Bidirectional map of `treecode.Treecode` to `core.SpaceReference`.  This
+/// allows:
+///
+/// * Random access by path of `core.SpaceReference`s in an OTIO temporal
+///   hierarchy
+/// * Fetching of a path from one `core.SpaceReference` to another, by walking
+///   along the `treecode.Treecode`s.
+/// * Construction of `core.ProjectionOperator` based on end points in this
+///   mapping
 pub const TopologicalMap = struct {
+    /// mapping of `core.SpaceReference` to `treecode.Treecode`
+    /// NOTE: should contain the same `treecode.Treecode`s as the ones present
+    ///       in `map_code_to_space`.  Only one of the two mappings will be
+    ///       mappings' treecodes will have deinit() called.
     map_space_to_code:std.AutoHashMapUnmanaged(
           core.SpaceReference,
           treecode.Treecode,
     ) = .empty,
+    /// mapping of `treecode.Treecode` to `core.SpaceReference`
     map_code_to_space:treecode.TreecodeHashMap(core.SpaceReference) = .empty,
 
     pub fn deinit(
@@ -82,8 +108,8 @@ pub const TopologicalMap = struct {
         endpoints_arg: core.ProjectionOperatorEndPoints,
     ) !core.ProjectionOperator 
     {
-        const path_info_ = try self.path_info( endpoints_arg);
-        const endpoints = path_info_.endpoints;
+        var endpoints = endpoints_arg;
+        const endpoints_were_swapped = try self.sort_endpoints(&endpoints);
 
         var root_to_current = (
             try topology_m.Topology.init_identity_infinite(allocator)
@@ -206,7 +232,7 @@ pub const TopologicalMap = struct {
         }
 
         // check to see if end points were inverted
-        if (path_info_.inverted and root_to_current.mappings.len > 0) 
+        if (endpoints_were_swapped and root_to_current.mappings.len > 0) 
         {
             // const old_proj = root_to_current;
             const inverted_topologies = (
@@ -241,8 +267,9 @@ pub const TopologicalMap = struct {
     /// Serialize this graph to dot and then use graphviz to convert that dot
     /// to a png.  Will create /var/tmp/`png_filepath`.dot.
     ///
-    /// If graphviz is disabled in the build, will return without doing
-    /// anything.
+    /// If graphviz is disabled in the build, will still write the .dot file,
+    /// but will return before attempting to call dot on it to convert it to a 
+    /// png.
     pub fn write_dot_graph(
         self:@This(),
         allocator: std.mem.Allocator,
@@ -405,13 +432,16 @@ pub const TopologicalMap = struct {
         _ = result;
     }
 
-    pub fn path_info(
+    /// Check to see if `endpoints` need to be swapped (iteration always
+    /// proceeds from parent to child).  If needed, will swap endpoints in
+    /// place and return `true` to indicate this happened.
+    ///
+    /// Will return an error if there is no path between the endpoints or one
+    /// of the endpoints is not present in the mapping.
+    pub fn sort_endpoints(
         self: @This(),
-        endpoints: core.ProjectionOperatorEndPoints,
-    ) !struct {
-        endpoints: core.ProjectionOperatorEndPoints,
-        inverted: bool,
-    }
+        endpoints: *core.ProjectionOperatorEndPoints,
+    ) !bool
     {
         var source_code = (
             if (self.map_space_to_code.get(endpoints.source)) 
@@ -434,7 +464,8 @@ pub const TopologicalMap = struct {
             ) == false
         )
         {
-            errdefer opentime.dbg_print(@src(), 
+            errdefer opentime.dbg_print(
+                @src(), 
                 "\nERROR\nsource: {f} dest: {f}\n",
                 .{
                     source_code,
@@ -447,23 +478,14 @@ pub const TopologicalMap = struct {
         // inverted
         if (source_code.code_length() > destination_code.code_length())
         {
-            return .{
-                .inverted = true,
-                .endpoints = .{
-                    .source = endpoints.destination,
-                    .destination = endpoints.source,
-                },
-            };
+            const dest = endpoints.destination;
+            endpoints.destination = endpoints.source;
+            endpoints.source = dest;
+            return true;
         }
         else 
         {
-            return .{
-                .inverted = false,
-                .endpoints = .{
-                    .source = endpoints.source,
-                    .destination = endpoints.destination,
-                },
-            };
+            return false;
         }
     }
 
@@ -475,8 +497,8 @@ pub const TopologicalMap = struct {
         endpoints_arg: core.ProjectionOperatorEndPoints,
     ) !void 
     {
-        const path_info_ = try self.path_info(endpoints_arg);
-        const endpoints = path_info_.endpoints;
+        var endpoints = endpoints_arg;
+        _ = try self.sort_endpoints(&endpoints);
 
         var iter = (
             try TreenodeWalkingIterator.init_from_to(
@@ -676,24 +698,24 @@ fn walk_internal_spaces(
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
         {
-            // std.debug.assert(
-            //     topo_map.map_code_to_space.get(space_code.hash()) == null
-            // );
-            // const maybe_fetched_code = (
-            //     topo_map.map_space_to_code.get(space_ref)
-            // );
-            // if (maybe_fetched_code)
-            //     |code|
-            // {
-            //     std.debug.print(
-            //         "space {f} fetched code {f}\n",
-            //         .{space_ref, code},
-            //     );
-            // }
-            // else {
-            //     std.debug.print("space {f} has no code\n", .{space_ref});
-            //     return error.SpaceWasntInMap;
-            // }
+            std.debug.assert(
+                topo_map.map_code_to_space.get(space_code.hash()) == null
+            );
+            const maybe_fetched_code = (
+                topo_map.map_space_to_code.get(space_ref)
+            );
+            if (maybe_fetched_code)
+                |code|
+            {
+                std.debug.print(
+                    "space {f} fetched code {f}\n",
+                    .{space_ref, code},
+                );
+            }
+            else {
+                std.debug.print("space {f} has no code\n", .{space_ref});
+                return error.SpaceWasntInMap;
+            }
             opentime.dbg_print(@src(), 
                 (
                       "[{d}] code: {f} hash: {d} arrptr: {*} adding local space: "
@@ -728,15 +750,11 @@ fn walk_internal_spaces(
     return last_space_code;
 }
 
-/// Builds a TopologicalMap, which can then construct projection operators
-/// across the spaces in the map.  A root item is provided, and the map is
-/// built from the presentation space of the root object down towards the
-/// leaves.  See TopologicalMap for more details.
+/// Walks from `root_item` through the hierarchy of OTIO objects to construct a
+/// `TopologicalMap` of all of the temporal spaces in the hierarchy.
 ///
-/// General structure: 
-/// 1. Spaces inside the node (presentation, intrinsic, etc.)
-/// 2. The child space connector 
-///
+/// For each OTIO Node, it walks through the spaces present inside the node
+/// (Presentation, Intrinsic, etc) then into the children of the node.
 pub fn build_topological_map(
     parent_allocator: std.mem.Allocator,
     root_item: core.ComposedValueRef,
@@ -803,7 +821,6 @@ pub fn build_topological_map(
     // return result;
     return tmp_topo_map;
 }
-
 
 test "build_topological_map: leak sentinel test track w/ clip"
 {
@@ -879,8 +896,8 @@ test "build_topological_map: leak sentinel test - single clip"
     defer map.deinit(allocator);
 }
 
-/// iterator that walks over each node in the graph, returning the node at each
-/// step
+/// Walks across a `TopologicalMap` by walking through the treecodes and
+/// finding the ones that are present in the `TopologicalMap`.
 pub const TreenodeWalkingIterator = struct{
     const Node = struct {
         space: core.SpaceReference,
@@ -901,7 +918,7 @@ pub const TreenodeWalkingIterator = struct{
         }
     };
 
-    stack: std.ArrayList(Node),
+    stack: std.ArrayList(Node) = .empty,
     maybe_current: ?Node,
     maybe_previous: ?Node,
     map: *const TopologicalMap,
@@ -909,6 +926,8 @@ pub const TreenodeWalkingIterator = struct{
     maybe_source: ?Node = null,
     maybe_destination: ?Node = null,
 
+    /// Walk exhaustively, depth-first, starting from the root
+    /// (treecode.MARKER) space down.
     pub fn init(
         allocator: std.mem.Allocator,
         map: *const TopologicalMap,
@@ -920,6 +939,7 @@ pub const TreenodeWalkingIterator = struct{
             map.root()
         );
     }
+
 
     pub fn init_from(
         allocator: std.mem.Allocator,
