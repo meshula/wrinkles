@@ -84,10 +84,15 @@ temporal hierarchies of editorial documents.
     * [x] Treecode Map remove hash stuff
     * [x] Topological Map bidirectional Code/Space, one copy of memory in one
 * [ ] Make Treecode a library with a root
-* [ ] move the TopologicalMap into Treecode, call it `BidirectionalMap`
+* [ ] move the TopologicalMap into Treecode, call it `treecode.Map`
+    * [ ] also move the iterator into this (`MapIterator`)
+    * [ ] Node -> `MapNode`
+    * [ ] TopolocialMap becomes TemporalMap, mapping treecode to temporal
+          spaces in the OTIO hierarchy
+          `build_topological_map` -> `build_temporal_map`
     * [ ] Abstract it away from SpaceReference so you can seed it with whatever
     * [ ] example node graph
-    * [ ] document the map only needs to free() codes once (in one of the maps)
+    * [x] document the map only needs to free() codes once (in one of the maps)
     * [ ] otio.TopologicalMap is the SpaceReference specialization of 
           `treecode.BidirectionalMap`
 * [ ] Treecode -> split into Treecode and TreecodeBuilder (mutable)
