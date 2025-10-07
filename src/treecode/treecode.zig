@@ -143,7 +143,8 @@ pub const Treecode = struct {
         self: @This(),
     ) usize 
     {
-        if (self.words.len == 0) {
+        if (self.words.len == 0) 
+        {
             // very unlikely to happen, would be an invalid treecode
             @branchHint(.cold);
             return 0;
@@ -258,7 +259,8 @@ pub const Treecode = struct {
         const new_marker_word = next_index / WORD_BIT_COUNT;
         const new_data_word = current_code_length / WORD_BIT_COUNT;
 
-        if (new_marker_word == new_data_word) {
+        if (new_marker_word == new_data_word) 
+        {
             @branchHint(.likely);
             self.words[new_marker_word] = treecode_word_append(
                 self.words[new_marker_word],
@@ -308,7 +310,8 @@ pub const Treecode = struct {
             return false;
         }
 
-        if (len_self < WORD_BIT_COUNT) {
+        if (len_self < WORD_BIT_COUNT) 
+        {
             return treecode_word_is_prefix_of(
                 self.words[0],
                 rhs.words[0],
