@@ -39,6 +39,8 @@
 
 Structure:
 
+```
+
                   `opentime`
                       |       \
 `treecode`        `sampling`   `curve`
@@ -48,6 +50,7 @@ Structure:
         '----------`ProjectionOperator`
                      |
                   `OpenTimelineIO`
+```
 
 Additionally there are tools for visualizing curves, transformations, and the
 temporal hierarchies of editorial documents.
