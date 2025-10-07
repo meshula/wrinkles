@@ -9,8 +9,6 @@
 //! * `TreenodeWalkingIterator` iterator that walks through a map between two
 //!   end points.
 
-// @TODO: rename this "temporal_hierarchy" and "TopologicalMap" to "Map"
-
 const std = @import("std");
 
 const build_options = @import("build_options");
