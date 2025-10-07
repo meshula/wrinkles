@@ -2211,7 +2211,7 @@ test "path_code: graph test"
             try tr.children[t.ind].space(SpaceLabel.presentation)
         );
         const result = (
-            map.map_space_to_code.get(space) 
+            map.get_code(space) 
             orelse return error.NoSpaceForCode
         );
 
@@ -2321,7 +2321,7 @@ test "TopologicalMap: schema.Track with clip with identity transform topological
 
     try std.testing.expectEqual(root, map.root().ref);
 
-    const maybe_root_code = map.map_space_to_code.get(map.root());
+    const maybe_root_code = map.get_code(map.root());
     try std.testing.expect(maybe_root_code != null);
     const root_code = maybe_root_code.?;
 

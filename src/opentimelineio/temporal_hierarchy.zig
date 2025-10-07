@@ -74,10 +74,10 @@ fn walk_child_spaces(
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
         {
             std.debug.assert(
-                topo_map.map_code_to_space.get(child_wrapper_space_code_ptr) == null
+                map.get_space(child_wrapper_space_code_ptr) == null
             );
 
-            if (topo_map.map_space_to_code.get(space_ref)) 
+            if (map.get_code(space_ref)) 
                 |other_code| 
                 {
                     opentime.dbg_print(
@@ -115,15 +115,12 @@ fn walk_child_spaces(
             );
         }
 
-        try topo_map.map_space_to_code.put(
+        try map.put(
             allocator,
-            space_ref,
-            child_wrapper_space_code_ptr,
-        );
-        try topo_map.map_code_to_space.put(
-            allocator,
-            child_wrapper_space_code_ptr,
-            space_ref
+            .{
+                .code = child_wrapper_space_code_ptr,
+                .space = space_ref
+            },
         );
 
         // insert the child node to the stack
@@ -173,10 +170,10 @@ fn walk_internal_spaces(
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
         {
             std.debug.assert(
-                topo_map.map_code_to_space.get(space_code.hash()) == null
+                map.get_space(space_code) == null
             );
             const maybe_fetched_code = (
-                topo_map.map_space_to_code.get(space_ref)
+                map.get_code(space_ref)
             );
             if (maybe_fetched_code)
                 |code|
@@ -206,16 +203,12 @@ fn walk_internal_spaces(
             );
         }
 
-        try topo_map.map_space_to_code.put(
+        try map.put(
             allocator,
-            space_ref,
-            space_code,
-        );
-
-        try topo_map.map_code_to_space.put(
-            allocator,
-            space_code,
-            space_ref,
+            .{
+                .code = space_code,
+                .space = space_ref,
+            },
         );
 
         last_space_code = space_code;
@@ -287,9 +280,7 @@ pub fn build_temporal_map(
         );
     }
 
-    // lock the maps
-    tmp_topo_map.map_code_to_space.lockPointers();
-    tmp_topo_map.map_space_to_code.lockPointers();
+    tmp_map.lock_pointers();
 
     // return result;
     return tmp_topo_map;

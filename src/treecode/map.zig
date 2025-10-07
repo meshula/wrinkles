@@ -75,7 +75,49 @@ pub fn Map(
             // self.map_code_to_space.deinit(allocator);
         }
 
-        /// return the root space of this topological map
+        pub fn lock_pointers(
+            self: *@This(),
+        ) void
+        {
+            self.map_code_to_space.lockPointers();
+            self.map_space_to_code.lockPointers();
+        }
+
+        pub fn put(
+            self: *@This(),
+            allocator: std.mem.Allocator,
+            node: PathNode,
+        ) !void
+        {
+            try self.map_code_to_space.put(
+                allocator,
+                node.code,
+                node.space,
+            );
+            try self.map_space_to_code.put(
+                allocator,
+                node.space,
+                node.code,
+            );
+        }
+
+        pub fn get_space(
+            self: @This(),
+            code: treecode.Treecode,
+        ) ?GraphNodeType
+        {
+            return self.map_code_to_space.get(code);
+        }
+
+        pub fn get_code(
+            self: @This(),
+            space: GraphNodeType,
+        ) ?treecode.Treecode
+        {
+            return self.map_space_to_code.get(space);
+        }
+
+        /// return the root space associated with the `ROOT_CODE`
         pub fn root(
             self: @This(),
         ) GraphNodeType 
@@ -118,7 +160,7 @@ pub fn Map(
             var file_writer = file.writer(&buf);
             var writer = &file_writer.interface;
 
-            _ = try writer.write("digraph OTIO_TopologicalMap {\n");
+            _ = try writer.write("digraph OTIO_TemporalMap {\n");
 
             var stack: std.ArrayList(MapType.PathNode) = .empty;
 
@@ -390,7 +432,7 @@ pub fn Map(
         };
 
         /// A pair of space and code along a path within the `Map`.
-        const PathNode = struct {
+        pub const PathNode = struct {
             space: GraphNodeType,
             code: treecode.Treecode,
 
