@@ -40,7 +40,6 @@
 Structure:
 
 ```
-
                   `opentime`
                       |       \
 `treecode`        `sampling`   `curve`
