@@ -228,7 +228,7 @@ fn walk_internal_spaces(
 ///
 /// For each OTIO Node, it walks through the spaces present inside the node
 /// (Presentation, Intrinsic, etc) then into the children of the node.
-pub fn build_topological_map(
+pub fn build_temporal_map(
     parent_allocator: std.mem.Allocator,
     root_item: core.ComposedValueRef,
 ) !TemporalMap 
@@ -306,7 +306,7 @@ test "build_topological_map: leak sentinel test track w/ clip"
     var tr: schema.Track = .{ .children = &tr_children };
     const tr_ref = core.ComposedValueRef.init(&tr);
 
-    const map = try build_topological_map(
+    const map = try build_temporal_map(
         allocator,
         tr_ref,
     );
@@ -343,7 +343,7 @@ test "build_topological_map check root node"
         tr.children.len
     );
 
-    const map = try build_topological_map(
+    const map = try build_temporal_map(
         allocator,
         tr_ref,
     );
@@ -361,7 +361,7 @@ test "build_topological_map: leak sentinel test - single clip"
 
     var cl = schema.Clip {};
 
-    const map = try build_topological_map(
+    const map = try build_temporal_map(
         allocator,
         core.ComposedValueRef.init(&cl)
     );
@@ -380,7 +380,7 @@ test "TestWalkingIterator: clip"
     };
     const cl_ptr = core.ComposedValueRef.init(&cl);
 
-    const map = try build_topological_map(
+    const map = try build_temporal_map(
         allocator,
         cl_ptr,
     );
@@ -424,7 +424,7 @@ test "TestWalkingIterator: track with clip"
     var tr: schema.Track = .{ .children = &tr_children };
     const tr_ptr = core.ComposedValueRef.init(&tr);
 
-    const map = try build_topological_map(
+    const map = try build_temporal_map(
         std.testing.allocator,
         tr_ptr
     );
@@ -500,7 +500,7 @@ test "TestWalkingIterator: track with clip w/ destination"
     var tr: schema.Track = .{ .children = &tr_children };
     const tr_ptr = core.ComposedValueRef.init(&tr);
 
-    const map = try build_topological_map(
+    const map = try build_temporal_map(
         std.testing.allocator,
         tr_ptr
     );

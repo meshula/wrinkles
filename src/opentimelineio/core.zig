@@ -990,7 +990,7 @@ test "ProjectionOperatorMap: projection_map_to_media_from leak test"
     };
     const cl_ptr = ComposedValueRef.init(&cl);
 
-    const map = try temporal_hierarchy.build_topological_map(
+    const map = try temporal_hierarchy.build_temporal_map(
         allocator,
         cl_ptr,
     );
@@ -1345,7 +1345,7 @@ test "ProjectionOperatorMap: extend_to"
     };
     const cl_ptr = ComposedValueRef{ .clip = &cl };
 
-    const map = try temporal_hierarchy.build_topological_map(
+    const map = try temporal_hierarchy.build_temporal_map(
         allocator,
         cl_ptr,
     );
@@ -1446,7 +1446,7 @@ test "ProjectionOperatorMap: split_at_each"
     };
     const cl_ptr = ComposedValueRef{ .clip = &cl };
 
-    const map = try temporal_hierarchy.build_topological_map(
+    const map = try temporal_hierarchy.build_temporal_map(
         allocator,
         cl_ptr,
     );
@@ -1572,7 +1572,7 @@ test "ProjectionOperatorMap: merge_composite"
     };
     const cl_ptr = ComposedValueRef{ .clip = &cl };
 
-    const map = try temporal_hierarchy.build_topological_map(
+    const map = try temporal_hierarchy.build_temporal_map(
         allocator,
         cl_ptr,
     );
@@ -1620,7 +1620,7 @@ test "ProjectionOperatorMap: clip"
     };
     const cl_ptr = ComposedValueRef{ .clip = &cl };
 
-    const map = try temporal_hierarchy.build_topological_map(
+    const map = try temporal_hierarchy.build_temporal_map(
         allocator,
         cl_ptr,
     );
@@ -1705,7 +1705,7 @@ test "ProjectionOperatorMap: track with single clip"
     var tr: schema.Track = .{ .children = &tr_children };
     const tr_ptr = ComposedValueRef.init(&tr);
 
-    const map = try temporal_hierarchy.build_topological_map(
+    const map = try temporal_hierarchy.build_temporal_map(
         allocator,
         tr_ptr,
     );
@@ -1807,7 +1807,7 @@ test "transform: track with two clips"
     };
     const tr_ptr = ComposedValueRef.init(&tr);
 
-    const map = try temporal_hierarchy.build_topological_map(
+    const map = try temporal_hierarchy.build_temporal_map(
         allocator,
         tr_ptr,
     );
@@ -1929,7 +1929,7 @@ test "ProjectionOperatorMap: track with two clips"
 
     /////
 
-    const map = try temporal_hierarchy.build_topological_map(
+    const map = try temporal_hierarchy.build_temporal_map(
         allocator,
         tr_ptr,
     );
@@ -2020,7 +2020,7 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
     var tr: schema.Track = .{ .children = &tr_children, };
     const tr_ptr = ComposedValueRef.init(&tr);
 
-    const map = try temporal_hierarchy.build_topological_map(
+    const map = try temporal_hierarchy.build_temporal_map(
         allocator,
         tr_ptr,
     );
@@ -2161,7 +2161,7 @@ test "path_code: graph test"
 
     try std.testing.expectEqual(11, tr.children.len);
 
-    const map = try temporal_hierarchy.build_topological_map(
+    const map = try temporal_hierarchy.build_temporal_map(
         allocator,
         tr_ref,
     );
@@ -2254,7 +2254,7 @@ test "schema.Track with clip with identity transform projection"
     var tr: schema.Track = .{ .children = &refs };
     const tr_ref = ComposedValueRef.init(&tr);
 
-    const map = try temporal_hierarchy.build_topological_map(
+    const map = try temporal_hierarchy.build_temporal_map(
         allocator,
         tr_ref,
     );
@@ -2310,7 +2310,7 @@ test "TopologicalMap: schema.Track with clip with identity transform topological
 
     const root = ComposedValueRef.init(&tr);
 
-    const map = try temporal_hierarchy.build_topological_map(
+    const map = try temporal_hierarchy.build_temporal_map(
         allocator,
         root,
     );
@@ -2401,7 +2401,7 @@ test "Projection: schema.Track with single clip with identity transform and boun
     var tr: schema.Track = .{ .children = &tr_children };
     const root = ComposedValueRef{ .track = &tr };
 
-    const map = try temporal_hierarchy.build_topological_map(
+    const map = try temporal_hierarchy.build_temporal_map(
         allocator,
         root,
     );
@@ -2486,7 +2486,7 @@ test "Projection: schema.Track 3 bounded clips identity xform"
 
     // ----
 
-    const map = try temporal_hierarchy.build_topological_map(
+    const map = try temporal_hierarchy.build_temporal_map(
         allocator,
         track_ptr,
     );
@@ -2738,7 +2738,7 @@ test "Single schema.Clip bezier transform"
 
     const wp_ptr : ComposedValueRef = .{ .warp = &wp };
 
-    const map = try temporal_hierarchy.build_topological_map(
+    const map = try temporal_hierarchy.build_temporal_map(
         allocator,
         wp_ptr,
     );
@@ -2932,7 +2932,7 @@ test "otio projection: track with single clip"
     var tr: schema.Track = .{ .children = &tr_children };
     const tr_ptr = ComposedValueRef.init(&tr);
 
-    const map = try temporal_hierarchy.build_topological_map(
+    const map = try temporal_hierarchy.build_temporal_map(
         allocator,
         tr_ptr
     );
@@ -3140,13 +3140,13 @@ test "otio projection: track with single clip with transform"
 
     // build map and tests
 
-    const map_tr = try temporal_hierarchy.build_topological_map(
+    const map_tr = try temporal_hierarchy.build_temporal_map(
         allocator,
         tr_ptr
     );
     defer map_tr.deinit(allocator);
 
-    const map_tl = try temporal_hierarchy.build_topological_map(
+    const map_tl = try temporal_hierarchy.build_temporal_map(
         allocator,
         tl_ptr
     );
@@ -3476,7 +3476,7 @@ test "test debug_print_time_hierarchy"
 
     //////
 
-    const tp = try temporal_hierarchy.build_topological_map(
+    const tp = try temporal_hierarchy.build_temporal_map(
         allocator,
         tl_ptr
     );
@@ -3612,7 +3612,7 @@ test "Single clip, schema.Warp bulk"
         const wp_ptr : ComposedValueRef = .{ .warp =  &warp };
         const wp_pres = try wp_ptr.space(SpaceLabel.presentation);
 
-        const map = try temporal_hierarchy.build_topological_map(
+        const map = try temporal_hierarchy.build_temporal_map(
             allocator,
             wp_ptr,
         );

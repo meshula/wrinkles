@@ -10,7 +10,7 @@ pub const SpaceLabel = core.SpaceLabel;
 pub const projection_map_to_media_from = core.projection_map_to_media_from;
 
 pub const temporal_hierarchy = @import("temporal_hierarchy.zig");
-pub const build_topological_map = temporal_hierarchy.build_topological_map;
+pub const build_topological_map = temporal_hierarchy.build_temporal_map;
 pub const TemporalMap = temporal_hierarchy.TemporalMap;
 pub const build_projection_operator = temporal_hierarchy.build_projection_operator;
 
