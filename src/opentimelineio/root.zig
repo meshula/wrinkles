@@ -9,10 +9,10 @@ pub const ProjectionOperatorMap = core.ProjectionOperatorMap;
 pub const SpaceLabel = core.SpaceLabel;
 pub const projection_map_to_media_from = core.projection_map_to_media_from;
 
-pub const topological_map = @import("topological_map.zig");
-pub const build_topological_map = topological_map.build_topological_map;
-pub const TopologicalMap = topological_map.TopologicalMap;
-pub const build_projection_operator = topological_map.build_projection_operator;
+pub const temporal_hierarchy = @import("topological_map.zig");
+pub const build_topological_map = temporal_hierarchy.build_topological_map;
+pub const TemporalMap = temporal_hierarchy.TemporalMap;
+pub const build_projection_operator = temporal_hierarchy.build_projection_operator;
 
 pub const schema = @import("schema.zig");
 pub const Clip = schema.Clip;
@@ -33,6 +33,6 @@ test {
 
     _ = otio_json;
     _ = otio_highlevel_tests;
-    _ = topological_map;
+    _ = temporal_hierarchy;
     _ = schema;
 }

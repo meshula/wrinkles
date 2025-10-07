@@ -198,14 +198,14 @@ pub export fn otio_fetch_child_cvr_ind(
     return result;
 }
 
-const ERR_TOPO_MAP = c.otio_TopologicalMap{
+const ERR_TOPO_MAP = c.otio_TemporalMap{
     .ref = null,
 };
 
-pub export fn otio_build_topo_map_cvr(
+pub export fn otio_build_time_map_cvr(
     allocator_c: c.otio_Allocator,
     timeline: c.otio_ComposedValueRef,
-) c.otio_TopologicalMap
+) c.otio_TemporalMap
 {
     const ref = init_ComposedValueRef(
         timeline
@@ -215,7 +215,7 @@ pub export fn otio_build_topo_map_cvr(
     ) catch return ERR_TOPO_MAP;
 
     const result = allocator.create(
-        otio.TopologicalMap
+        otio.TemporalMap
     ) catch return ERR_TOPO_MAP;
 
     result.* = otio.build_topological_map(
@@ -230,7 +230,7 @@ const ERR_PO_MAP = c.otio_ProjectionOperatorMap{ .ref = null };
 
 pub export fn otio_build_projection_op_map_to_media_tp_cvr(
     allocator_c: c.otio_Allocator,
-    in_map: c.otio_TopologicalMap,
+    in_map: c.otio_TemporalMap,
     source: c.otio_ComposedValueRef,
 ) c.otio_ProjectionOperatorMap
 {
@@ -243,7 +243,7 @@ pub export fn otio_build_projection_op_map_to_media_tp_cvr(
 
     const map_c = in_map.ref.?;
 
-    const map = ptrCast(otio.TopologicalMap, map_c);
+    const map = ptrCast(otio.TemporalMap, map_c);
 
     const result = allocator.create(
         otio.ProjectionOperatorMap
@@ -332,11 +332,11 @@ pub export fn otio_fetch_cvr_name_str(
 
 pub export fn otio_write_map_to_png(
     allocator_c: c.otio_Allocator,
-    in_map: c.otio_TopologicalMap,
+    in_map: c.otio_TemporalMap,
     filepath_c: [*:0]const u8,
 ) void 
 {
-    const t_map = ptrCast(otio.TopologicalMap, in_map.ref.?);
+    const t_map = ptrCast(otio.TemporalMap, in_map.ref.?);
     const allocator = fetch_allocator(
         allocator_c
     ) catch  return ; 

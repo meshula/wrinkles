@@ -900,7 +900,7 @@ pub const ProjectionOperator = struct {
 /// the source space
 pub fn projection_map_to_media_from(
     allocator: std.mem.Allocator,
-    map: topological_map.TopologicalMap,
+    map: topological_map.TemporalMap,
     source: SpaceReference,
 ) !ProjectionOperatorMap
 {
@@ -917,7 +917,7 @@ pub fn projection_map_to_media_from(
         .source = source,
     };
 
-    var proj_args = topological_map.TopologicalMap.PathEndPoints{
+    var proj_args = topological_map.TemporalMap.PathEndPoints{
         .source = source,
         .destination = source,
     };

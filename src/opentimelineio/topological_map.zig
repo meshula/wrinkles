@@ -9,6 +9,8 @@
 //! * `TreenodeWalkingIterator` iterator that walks through a map between two
 //!   end points.
 
+// @TODO: rename this "temporal_hierarchy" and "TopologicalMap" to "Map"
+
 const std = @import("std");
 
 const build_options = @import("build_options");
@@ -33,14 +35,14 @@ const T_CTI_1_10 = opentime.ContinuousInterval {
 };
 
 // lofting types back out of function
-pub const TopologicalMap = treecode.Map(core.SpaceReference);
-pub const TreenodeWalkingIterator = TopologicalMap.TreenodeWalkingIterator;
+pub const TemporalMap = treecode.Map(core.SpaceReference);
+pub const TreenodeWalkingIterator = TemporalMap.TreenodeWalkingIterator;
 
 fn walk_child_spaces(
     allocator: std.mem.Allocator,
     parent_otio_object: core.ComposedValueRef,
     parent_code: treecode.Treecode,
-    topo_map: *TopologicalMap,
+    topo_map: *TemporalMap,
     otio_object_stack: anytype,
 ) !void
 {
@@ -147,7 +149,7 @@ fn walk_internal_spaces(
     allocator: std.mem.Allocator,
     parent_otio_object: core.ComposedValueRef,
     parent_code: treecode.Treecode,
-    topo_map: *TopologicalMap,
+    topo_map: *TemporalMap,
 ) !treecode.Treecode
 {
     const spaces = try parent_otio_object.spaces(
@@ -231,10 +233,9 @@ fn walk_internal_spaces(
 pub fn build_topological_map(
     parent_allocator: std.mem.Allocator,
     root_item: core.ComposedValueRef,
-) !TopologicalMap 
+) !TemporalMap 
 {
-    // first off, arena this up
-    var tmp_topo_map = TopologicalMap{};
+    var tmp_topo_map = TemporalMap{};
     errdefer tmp_topo_map.deinit(parent_allocator);
 
     const StackNode = struct {
@@ -698,8 +699,8 @@ test "sequential_child_hash: math"
 /// endpoints.destination spaces
 pub fn build_projection_operator(
     allocator: std.mem.Allocator,
-    map: TopologicalMap,
-    endpoints: TopologicalMap.PathEndPoints,
+    map: TemporalMap,
+    endpoints: TemporalMap.PathEndPoints,
 ) !core.ProjectionOperator 
 {
     // sort endpoints so that the higher node is always the source
@@ -718,7 +719,7 @@ pub fn build_projection_operator(
     }
 
     var iter = (
-        try TopologicalMap.TreenodeWalkingIterator.init_from_to(
+        try TemporalMap.TreenodeWalkingIterator.init_from_to(
             allocator,
             &map,
             sorted_endpoints,
@@ -877,7 +878,7 @@ test "label_for_node_leaky"
     );
     defer tc.deinit(allocator);
 
-    const result = try TopologicalMap.node_label(
+    const result = try TemporalMap.node_label(
         &buf,
         sr,
         tc,

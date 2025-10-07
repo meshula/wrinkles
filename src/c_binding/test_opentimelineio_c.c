@@ -196,7 +196,7 @@ main(
     // build a topological map
     ///////////////////////////////////////////////////////////////////////////
 
-    otio_TopologicalMap map = otio_build_topo_map_cvr(
+    otio_TemporalMap map = otio_build_time_map_cvr(
             arena.allocator,
             tl
     );

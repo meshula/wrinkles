@@ -63,19 +63,19 @@ int otio_fetch_cvr_name_str(
 );
 
 
-// TopologicalMap
+// TemporalMap
 ///////////////////////////////////////////////////////////////////////////////
-typedef struct otio_TopologicalMap {
+typedef struct otio_TemporalMap {
     void* ref;
-} otio_TopologicalMap;
+} otio_TemporalMap;
 
-otio_TopologicalMap otio_build_topo_map_cvr(
+otio_TemporalMap otio_build_time_map_cvr(
         otio_Allocator allocator,
         otio_ComposedValueRef root
 );
 void otio_write_map_to_png(
         otio_Allocator allocator,
-        otio_TopologicalMap,
+        otio_TemporalMap,
         const char*
 );
 
@@ -101,7 +101,7 @@ typedef struct otio_ProjectionOperatorMap {
 
 otio_ProjectionOperatorMap otio_build_projection_op_map_to_media_tp_cvr(
     otio_Allocator allocator,
-    otio_TopologicalMap in_map,
+    otio_TemporalMap in_map,
     otio_ComposedValueRef root
 );
 size_t otio_po_map_fetch_num_endpoints(otio_ProjectionOperatorMap in_map);
