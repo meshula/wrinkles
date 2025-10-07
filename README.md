@@ -10,6 +10,8 @@
 
 ## Contents
 
+* `treecode`: library for encoding paths through graphs and a `Map` for mapping
+  paths to nodes in a graph
 * `opentime`: low level points, intervals and affine transforms, and
   `Dual` for doing dual arithmetic/implicit differentiation.  Also includes the
   likely-to-be-deleted `PhaseOrdinate` [^1].
@@ -27,12 +29,25 @@
   space to another discrete space with a continuous transformation in the
   middle.
 * `TemporalMap`: tools to transform an editorial document described by
-  OpenTimelineIO structures into a temporal hierarchy.  ProjectionOperators can
-  be built from endpoints in this hierarchy.
+  OpenTimelineIO structures into a temporal hierarchy using the `treecode`
+  library.  ProjectionOperators can be built from endpoints in this hierarchy.
 * `ProjectionOperatorMap`: decomposes/flattens a TemporalMap from a source
   space such that each segment maps a set of ProjectionOperators to region of
   the source space, mapping media under each section of the output timeline
 * `OpenTimelineIO`: structures to represent an editorial timeline document
+
+
+Structure:
+
+                  `opentime`
+                      |       \
+`treecode`        `sampling`   `curve`
+      |              |        /
+      \           `Topology`
+       \             |
+        '----------`ProjectionOperator`
+                     |
+                  `OpenTimelineIO`
 
 Additionally there are tools for visualizing curves, transformations, and the
 temporal hierarchies of editorial documents.

@@ -662,7 +662,7 @@ pub fn Map(
             }
         };
 
-        /// generate a text label based on a space reference and treecode
+        /// generate a text label based on the format() of the `GraphNodeType`
         pub fn node_label(
             buf: []u8,
             ref: GraphNodeType,
