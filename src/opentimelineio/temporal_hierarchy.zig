@@ -1,13 +1,12 @@
 //! Implements a path-to-temporal coordinate space mapping for OTIO.  
 //!
 //! Contents:
-//! * `TopologicalMap`, a bidirectional mapping of `core.SpaceReference` to
+//! * `TemporalMap`, a bidirectional mapping of `core.SpaceReference` to
 //!   `treecode.Treecode`. (Representing a map of the temporal spaces in an
 //!   OTIO hierarchy).
-//! * `build_topological_map` function for constructing a mapping under a given
+//! * `build_temporal_map` function for constructing a mapping under a given
 //!   root.
-//! * `TreenodeWalkingIterator` iterator that walks through a map between two
-//!   end points.
+//! * `PathIterator` iterator that walks through a map between two end spaces.
 
 const std = @import("std");
 
@@ -41,7 +40,7 @@ fn walk_child_spaces(
     allocator: std.mem.Allocator,
     parent_otio_object: core.ComposedValueRef,
     parent_code: treecode.Treecode,
-    topo_map: *TemporalMap,
+    map: *TemporalMap,
     otio_object_stack: anytype,
 ) !void
 {
@@ -145,7 +144,7 @@ fn walk_internal_spaces(
     allocator: std.mem.Allocator,
     parent_otio_object: core.ComposedValueRef,
     parent_code: treecode.Treecode,
-    topo_map: *TemporalMap,
+    map: *TemporalMap,
 ) !treecode.Treecode
 {
     const spaces = try parent_otio_object.spaces(
@@ -218,7 +217,7 @@ fn walk_internal_spaces(
 }
 
 /// Walks from `root_item` through the hierarchy of OTIO objects to construct a
-/// `TopologicalMap` of all of the temporal spaces in the hierarchy.
+/// `TemporalMap` of all of the temporal spaces in the hierarchy.
 ///
 /// For each OTIO Node, it walks through the spaces present inside the node
 /// (Presentation, Intrinsic, etc) then into the children of the node.
@@ -227,9 +226,11 @@ pub fn build_temporal_map(
     root_item: core.ComposedValueRef,
 ) !TemporalMap 
 {
-    var tmp_topo_map = TemporalMap{};
-    errdefer tmp_topo_map.deinit(parent_allocator);
+    var tmp_map = TemporalMap{};
+    errdefer tmp_map.deinit(parent_allocator);
 
+    // NOTE: because OTIO objects contain multiple internal spaces, there is a
+    //       stack of objects to process.
     const StackNode = struct {
         path_code: treecode.Treecode,
         otio_object: core.ComposedValueRef,
@@ -267,7 +268,7 @@ pub fn build_temporal_map(
             parent_allocator,
             current_stack_node.otio_object,
             current_stack_node.path_code,
-            &tmp_topo_map,
+            &tmp_map,
         );
 
         // items that are in a stack/track/warp etc.
@@ -275,7 +276,7 @@ pub fn build_temporal_map(
             parent_allocator,
             current_stack_node.otio_object,
             last_space,
-            &tmp_topo_map,
+            &tmp_map,
             &otio_object_stack,
         );
     }
@@ -283,10 +284,10 @@ pub fn build_temporal_map(
     tmp_map.lock_pointers();
 
     // return result;
-    return tmp_topo_map;
+    return tmp_map;
 }
 
-test "build_topological_map: leak sentinel test track w/ clip"
+test "build_temporal_map: leak sentinel test track w/ clip"
 {
     const allocator = std.testing.allocator;
 
@@ -305,7 +306,7 @@ test "build_topological_map: leak sentinel test track w/ clip"
     defer map.deinit(allocator);
 }
 
-test "build_topological_map check root node" 
+test "build_temporal_map check root node" 
 {
     const allocator = std.testing.allocator;
 
@@ -347,7 +348,7 @@ test "build_topological_map check root node"
     );
 }
 
-test "build_topological_map: leak sentinel test - single clip"
+test "build_temporal_map: leak sentinel test - single clip"
 {
     const allocator = std.testing.allocator;
 

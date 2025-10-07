@@ -2296,7 +2296,7 @@ test "schema.Track with clip with identity transform projection"
 }
 
 
-test "TopologicalMap: schema.Track with clip with identity transform topological" 
+test "TemporalMap: schema.Track with clip with identity transform" 
 {
     const allocator = std.testing.allocator;
 

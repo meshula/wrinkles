@@ -87,20 +87,20 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     };
     tl.tracks.children = &timeline_tracks;
 
-    // build the topological map
+    // build the temporal map
     ///////////////////////////////////////////////////////////////////////////
-    const topo_map = try otio.build_temporal_map(
+    const time_map = try otio.build_temporal_map(
         allocator,
         tl_ptr
     );
-    defer topo_map.deinit(allocator);
+    defer time_map.deinit(allocator);
 
     // could do individual specific end-to-end projections here
     ///////////////////////////////////////////////////////////////////////////
     const timeline_to_clip2 = (
         try otio.build_projection_operator(
             allocator,
-            topo_map,
+            time_map,
             .{
                 .source = try tl_ptr.space(.presentation),
                 .destination = try track_children[2].space(.media),
@@ -130,7 +130,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     const proj_map = (
         try otio.projection_map_to_media_from(
             allocator,
-            topo_map, 
+            time_map, 
             try tl_ptr.space(.presentation)
         )
     );
@@ -330,18 +330,18 @@ test "libsamplerate w/ high level test -- resample only"
         try std.testing.expect(bounds.start.lt(bounds.end));
     }
 
-    // build the topological map
+    // build the temporal map
     ///////////////////////////////////////////////////////////////////////////
-    const topo_map = try otio.build_temporal_map(
+    const time_map = try otio.build_temporal_map(
         allocator,
         tl_ptr,
     );
-    defer topo_map.deinit(allocator);
+    defer time_map.deinit(allocator);
 
     const tr_pres_to_cl_media_po = (
         try otio.build_projection_operator(
             allocator,
-            topo_map,
+            time_map,
             .{
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
@@ -484,15 +484,15 @@ test "libsamplerate w/ high level test.retime.interpolating"
     };
     const tl_ptr = otio.ComposedValueRef.init(&tl);
 
-    // build the topological map
+    // build the temporal map
     ///////////////////////////////////////////////////////////////////////////
-    const topo_map = try otio.build_temporal_map(
+    const time_map = try otio.build_temporal_map(
         allocator,
         tl_ptr
     );
-    defer topo_map.deinit(allocator);
+    defer time_map.deinit(allocator);
 
-    try topo_map.write_dot_graph(
+    try time_map.write_dot_graph(
         allocator,
         "/var/tmp/track_clip_warp.dot",
         .{},
@@ -501,7 +501,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
     const tr_pres_to_cl_media_po = (
         try otio.build_projection_operator(
             allocator,
-            topo_map,
+            time_map,
             .{
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
@@ -631,18 +631,18 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
         },
     };
 
-    // build the topological map
+    // build the temporal map
     ///////////////////////////////////////////////////////////////////////////
-    const topo_map = try otio.build_temporal_map(
+    const time_map = try otio.build_temporal_map(
         allocator,
         .{ .timeline = &tl },
     );
-    defer topo_map.deinit(allocator);
+    defer time_map.deinit(allocator);
 
     const tr_pres_to_cl_media_po = (
         try otio.build_projection_operator(
             allocator,
-            topo_map,
+            time_map,
             .{
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
@@ -810,20 +810,20 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
         .timeline = &tl,
     };
 
-    // build the topological map (Timeline.presentation -> ...)
+    // build the temporal map (Timeline.presentation -> ...)
     ///////////////////////////////////////////////////////////////////////////
-    const topo_map = try otio.build_temporal_map(
+    const time_map = try otio.build_temporal_map(
         allocator,
         tl_ptr,
     );
-    defer topo_map.deinit(allocator);
+    defer time_map.deinit(allocator);
 
     // build the projection operator (Track.presentation -> clip.media)
     ///////////////////////////////////////////////////////////////////////////
     const tr_pres_to_cl_media_po = (
         try otio.build_projection_operator(
             allocator,
-            topo_map,
+            time_map,
             .{
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
@@ -970,18 +970,18 @@ test "timeline w/ warp that holds the tenth frame"
     try std.testing.expect(w_ob.start.is_nan() == false);
     try std.testing.expect(w_ob.end.is_nan() == false);
 
-    // build the topological map
+    // build the temporal map
     ///////////////////////////////////////////////////////////////////////////
-    const topo_map = try otio.build_temporal_map(
+    const time_map = try otio.build_temporal_map(
         allocator,
         tl_ptr
     );
-    defer topo_map.deinit(allocator);
+    defer time_map.deinit(allocator);
 
     const tr_pres_to_cl_media_po = (
         try otio.build_projection_operator(
             allocator,
-            topo_map,
+            time_map,
             .{
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
@@ -1089,20 +1089,20 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     };
     const tl_ptr = otio.ComposedValueRef.init(&tl);
 
-    // build the topological map
+    // build the temporal map
     ///////////////////////////////////////////////////////////////////////////
-    const topo_map = try otio.build_temporal_map(
+    const map = try otio.build_temporal_map(
         allocator,
         tl_ptr,
     );
-    defer topo_map.deinit(allocator);
+    defer map.deinit(allocator);
 
     // Build the projection from Timeline Presentation -> Clip Media
     ///////////////////////////////////////////////////////////////////////////
     const tl_pres_to_cl_media_po = (
         try otio.build_projection_operator(
             allocator,
-            topo_map,
+            map,
             .{
                 .source = try tl_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),

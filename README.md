@@ -26,10 +26,10 @@
   which can define discrete spaces so that you can project from a discrete
   space to another discrete space with a continuous transformation in the
   middle.
-* `TopologicalMap`: tools to transform an editorial document described by
+* `TemporalMap`: tools to transform an editorial document described by
   OpenTimelineIO structures into a temporal hierarchy.  ProjectionOperators can
   be built from endpoints in this hierarchy.
-* `ProjectionOperatorMap`: decomposes/flattens a TopologicalMap from a source
+* `ProjectionOperatorMap`: decomposes/flattens a TemporalMap from a source
   space such that each segment maps a set of ProjectionOperators to region of
   the source space, mapping media under each section of the output timeline
 * `OpenTimelineIO`: structures to represent an editorial timeline document
