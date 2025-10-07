@@ -84,7 +84,6 @@ pub fn Map(
             return self.map_code_to_space.get(ROOT_CODE) orelse unreachable;
         }
 
-
         /// Serialize this graph to dot and then use graphviz to convert that dot
         /// to a png.  Will create /var/tmp/`png_filepath`.dot.
         ///
