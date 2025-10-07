@@ -605,12 +605,6 @@ pub const SpaceReference = struct {
     }
 };
 
-/// endpoints for a projection
-pub const ProjectionOperatorEndPoints = struct {
-    source: SpaceReference,
-    destination: SpaceReference,
-};
-
 /// Combines a source, destination and transformation from the source to the
 /// destination.  Allows continuous and discrete transformations.
 pub const ProjectionOperator = struct {
