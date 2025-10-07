@@ -344,6 +344,7 @@ pub export fn otio_write_map_to_png(
     t_map.write_dot_graph(
         allocator,
         std.mem.span(filepath_c),
+        "OTIO_TemporalHierarchy",
         .{},
     ) catch {
         std.log.err(

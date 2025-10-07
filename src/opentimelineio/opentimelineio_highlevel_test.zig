@@ -495,6 +495,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
     try time_map.write_dot_graph(
         allocator,
         "/var/tmp/track_clip_warp.dot",
+        "track_clip_warp",
         .{},
     );
 

@@ -382,6 +382,7 @@ test "TestWalkingIterator: clip"
     try map.write_dot_graph(
         allocator,
         "/var/tmp/walk.dot",
+        "walk",
         .{},
     );
 
@@ -426,6 +427,7 @@ test "TestWalkingIterator: track with clip"
     try map.write_dot_graph(
         allocator,
         "/var/tmp/walk.dot",
+        "walk",
         .{},
     );
 
@@ -502,6 +504,7 @@ test "TestWalkingIterator: track with clip w/ destination"
     try map.write_dot_graph(
         allocator,
         "/var/tmp/walk.dot",
+        "walk",
         .{},
    );
 

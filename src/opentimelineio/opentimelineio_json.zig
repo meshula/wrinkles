@@ -450,6 +450,7 @@ test "read_from_file test (simple)"
     try map.write_dot_graph(
         std.testing.allocator,
         "/var/tmp/" ++ dot_fpath,
+        "read_from_file_test",
         .{},
     );
 

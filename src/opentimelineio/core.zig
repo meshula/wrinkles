@@ -2175,6 +2175,7 @@ test "path_code: graph test"
     try map.write_dot_graph(
         allocator,
         "/var/tmp/graph_test_output.dot",
+        "graph_test",
         .{},
     );
 
@@ -2191,6 +2192,7 @@ test "path_code: graph test"
     try map.write_dot_graph(
         allocator,
         "/var/tmp/current.dot",
+        "current",
         .{},
     );
 
@@ -2941,6 +2943,7 @@ test "otio projection: track with single clip"
     try map.write_dot_graph(
         allocator,
         "/var/tmp/sampling_test.dot",
+        "sampling_test",
         .{},
     );
 
@@ -3155,6 +3158,7 @@ test "otio projection: track with single clip with transform"
     try map_tr.write_dot_graph(
         allocator,
         "/var/tmp/sampling_test.dot",
+        "sampling_test",
         .{},
     );
 
@@ -3274,6 +3278,7 @@ test "otio projection: track with single clip with transform"
             try map_tl.write_dot_graph(
                 allocator,
                 "/var/tmp/discrete_to_continuous_test.dot",
+                "discrete_to_continuous_test",
                 .{},
             );
 

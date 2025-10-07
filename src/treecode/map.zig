@@ -9,7 +9,6 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
     build_options.debug_graph_construction_trace_messages
 );
 
-
 /// Which style to render node labels in, as binary codes or hashes.  Codes are
 /// more readable, but make large graphs impossible to read.
 const LabelStyle = enum(u1) { treecode, hash };
@@ -137,6 +136,8 @@ pub fn Map(
             allocator: std.mem.Allocator,
             /// path to the desired resulting png file
             png_filepath: []const u8,
+            /// name to put at the top of the graph - may not contain spaces 
+            header_name: []const u8,
             comptime options: struct {
                 /// by default show the hashes in the node labels
                 label_style: LabelStyle = .hash,
@@ -160,7 +161,10 @@ pub fn Map(
             var file_writer = file.writer(&buf);
             var writer = &file_writer.interface;
 
-            _ = try writer.write("digraph OTIO_TemporalMap {\n");
+            _ = try writer.print(
+                "digraph {s} {{\n",
+                .{ header_name }
+            );
 
             var stack: std.ArrayList(MapType.PathNode) = .empty;
 

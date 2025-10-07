@@ -169,6 +169,7 @@ pub fn main(
     try map.write_dot_graph(
         allocator,
         state.output_png,
+        "OTIO_TemporalHierarchy",
         .{ .render_png = false },
     );
 
