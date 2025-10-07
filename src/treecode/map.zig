@@ -20,15 +20,13 @@ const ROOT_CODE = treecode.Treecode {
     .words = &ROOT_WORDS,
 };
 
-/// Bidirectional map of `treecode.Treecode` to `core.SpaceReference`.  This
-/// allows:
+/// Bidirectional map of `treecode.Treecode` to a parameterized
+/// `GraphNodeType` (presumably nodes in some graph).  This allows:
 ///
-/// * Random access by path of `core.SpaceReference`s in an OTIO temporal
-///   hierarchy
-/// * Fetching of a path from one `core.SpaceReference` to another, by walking
-///   along the `treecode.Treecode`s.
-/// * Construction of `core.ProjectionOperator` based on end points in this
-///   mapping
+/// * Random access by path of `GraphNodeType`s in a hierarchy by path
+/// * Fetching of a path from one `GraphNodeType` to another, by walking
+///   along the `treecode.Treecode`s, including a PathIterator for walking
+///   along computed paths.
 pub fn Map(
     comptime GraphNodeType: type,
 ) type
@@ -125,12 +123,12 @@ pub fn Map(
             return self.map_code_to_space.get(ROOT_CODE) orelse unreachable;
         }
 
-        /// Serialize this graph to dot and then use graphviz to convert that dot
-        /// to a png.  Will create /var/tmp/`png_filepath`.dot.
+        /// Serialize this graph to dot and then use graphviz to convert that
+        /// dot to a png.  Will create /var/tmp/`png_filepath`.dot.
         ///
-        /// If graphviz is disabled in the build, will still write the .dot file,
-        /// but will return before attempting to call dot on it to convert it to a 
-        /// png.
+        /// If graphviz is disabled in the build, will still write the .dot
+        /// file, but will return before attempting to call dot on it to
+        /// convert it to a png.
         pub fn write_dot_graph(
             self:@This(),
             allocator: std.mem.Allocator,
@@ -181,86 +179,86 @@ pub fn Map(
 
             while (stack.pop()) 
                 |current|
+            {
+                const current_label = try node_label(
+                    &label_buf,
+                    current.space,
+                    current.code,
+                    options.label_style,
+                );
+
+                // left
                 {
-                    const current_label = try node_label(
-                        &label_buf,
-                        current.space,
-                        current.code,
-                        options.label_style,
-                    );
+                    var left = try current.code.clone(arena_allocator);
+                    try left.append(arena_allocator, .left);
 
-                    // left
+                    if (self.map_code_to_space.get(left)) 
+                        |next| 
                     {
-                        var left = try current.code.clone(arena_allocator);
-                        try left.append(arena_allocator, .left);
+                        @branchHint(.likely);
 
-                        if (self.map_code_to_space.get(left)) 
-                            |next| 
-                            {
-                                @branchHint(.likely);
-
-                                const next_label = try node_label(
-                                    &next_label_buf,
-                                    next,
-                                    left,
-                                    options.label_style,
-                                );
-                                _ = try writer.print(
-                                    "  \"{s}\" -> \"{s}\"\n",
-                                    .{current_label, next_label}
-                                );
-                                try stack.append(
-                                    arena_allocator,
-                                    .{
-                                        .space = next,
-                                        .code = left
-                                    }
-                                );
-                            } 
-                        else 
-                        {
-                            _ = try writer.print(
-                                " {f} \n  [shape=point]\"{s}\" -> {f}\n",
-                                .{current.code, current_label, current.code}
-                            );
-                        }
-                    }
-
-                    // right
+                        const next_label = try node_label(
+                            &next_label_buf,
+                            next,
+                            left,
+                            options.label_style,
+                        );
+                        _ = try writer.print(
+                            "  \"{s}\" -> \"{s}\"\n",
+                            .{current_label, next_label}
+                        );
+                        try stack.append(
+                            arena_allocator,
+                            .{
+                                .space = next,
+                                .code = left
+                            }
+                        );
+                    } 
+                    else 
                     {
-                        var right = try current.code.clone(arena_allocator);
-                        try right.append(arena_allocator, .right);
-
-                        if (self.map_code_to_space.get(right)) 
-                            |next| 
-                            {
-                                const next_label = try node_label(
-                                    &next_label_buf,
-                                    next,
-                                    right,
-                                    options.label_style,
-                                );
-                                _ = try writer.print(
-                                    "  \"{s}\" -> \"{s}\"\n",
-                                    .{current_label, next_label},
-                                );
-                                try stack.append(
-                                    arena_allocator,
-                                    .{
-                                        .space = next,
-                                        .code = right
-                                    }
-                                );
-                            } 
-                        else
-                        {
-                            _ = try writer.print(
-                                " {f} \n  [shape=point]\"{s}\" -> {f}\n",
-                                .{current.code, current_label, current.code}
-                            );
-                        }
+                        _ = try writer.print(
+                            " {f} \n  [shape=point]\"{s}\" -> {f}\n",
+                            .{current.code, current_label, current.code}
+                        );
                     }
                 }
+
+                // right
+                {
+                    var right = try current.code.clone(arena_allocator);
+                    try right.append(arena_allocator, .right);
+
+                    if (self.map_code_to_space.get(right)) 
+                        |next| 
+                    {
+                        const next_label = try node_label(
+                            &next_label_buf,
+                            next,
+                            right,
+                            options.label_style,
+                        );
+                        _ = try writer.print(
+                            "  \"{s}\" -> \"{s}\"\n",
+                            .{current_label, next_label},
+                        );
+                        try stack.append(
+                            arena_allocator,
+                            .{
+                                .space = next,
+                                .code = right
+                            }
+                        );
+                    } 
+                    else
+                    {
+                        _ = try writer.print(
+                            " {f} \n  [shape=point]\"{s}\" -> {f}\n",
+                            .{current.code, current_label, current.code}
+                        );
+                    }
+                }
+            }
 
             _ = try writer.write("}\n");
 
@@ -376,7 +374,8 @@ pub fn Map(
             defer iter.deinit();
 
             if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
-                dbg_print(@src(), 
+                dbg_print(
+                    @src(), 
                     "starting walk from: {f} to: {f}\n",
                     .{
                         iter.maybe_source.?.space,
@@ -400,7 +399,7 @@ pub fn Map(
                             .source = iter.maybe_destination.?.space,
                             .destination = iter.maybe_current.?.space,
                         },
-                        )
+                    )
                 );
 
                 dbg_print(
@@ -411,7 +410,7 @@ pub fn Map(
                         iter.maybe_current.?.space,
                         dest_to_current.src_to_dst_topo.output_bounds(),
                     },
-                    );
+                );
             }
 
             dbg_print(
@@ -425,7 +424,7 @@ pub fn Map(
                         iter.maybe_destination.?.space.label
                     ),
                 },
-                );
+            );
         }
 
         /// Encoding of the end points of a path between `GraphNodeType`s in the 
@@ -687,14 +686,13 @@ pub fn Map(
     };
 }
 
-
 const DEBUG_MESSAGES= (
     build_options.debug_graph_construction_trace_messages 
     or build_options.debug_print_messages 
 );
 
 /// utility function that injects the calling info into the debug print
-pub fn dbg_print(
+fn dbg_print(
     src: std.builtin.SourceLocation,
     comptime fmt: []const u8,
     args: anytype,
