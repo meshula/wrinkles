@@ -152,7 +152,7 @@ pub fn main(
     );
 
     // build the graph
-    const map = try otio.build_topological_map(
+    const map = try otio.build_temporal_map(
         allocator,
         otio.ComposedValueRef.init(tl),
     );

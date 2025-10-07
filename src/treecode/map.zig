@@ -120,7 +120,7 @@ pub fn Map(
 
             _ = try writer.write("digraph OTIO_TopologicalMap {\n");
 
-            var stack: std.ArrayList(MapType.TreenodeWalkingIterator.Node) = .empty;
+            var stack: std.ArrayList(MapType.PathNode) = .empty;
 
             try stack.append(
                 arena_allocator,
@@ -321,7 +321,7 @@ pub fn Map(
             _ = try self.sort_endpoints(&endpoints);
 
             var iter = (
-                try MapType.TreenodeWalkingIterator.init_from_to(
+                try MapType.PathIterator.init_from_to(
                     allocator,
                     &self,
                     endpoints,
@@ -382,42 +382,45 @@ pub fn Map(
                 );
         }
 
+        /// Encoding of the end points of a path between `GraphNodeType`s in the 
+        /// `Map`.
         pub const PathEndPoints = struct {
             source: GraphNodeType,
             destination: GraphNodeType,
         };
 
+        /// A pair of space and code along a path within the `Map`.
+        const PathNode = struct {
+            space: GraphNodeType,
+            code: treecode.Treecode,
+
+            pub fn format(
+                self: @This(),
+                writer: *std.Io.Writer,
+            ) !void 
+            {
+                try writer.print(
+                    "Node(.space: {f}, .code: {f})",
+                    .{
+                        self.space,
+                        self.code,
+                    }
+                );
+            }
+        };
+
         /// Walks across a `MapType` by walking through the treecodes and
         /// finding the ones that are present in the `MapType`.
-        pub const TreenodeWalkingIterator = struct{
-            const Node = struct {
-                space: GraphNodeType,
-                code: treecode.Treecode,
-
-                pub fn format(
-                    self: @This(),
-                    writer: *std.Io.Writer,
-                ) !void 
-                {
-                    try writer.print(
-                        "Node(.space: {f}, .code: {f})",
-                        .{
-                            self.space,
-                            self.code,
-                        }
-                    );
-                }
-            };
-
+        pub const PathIterator = struct{
             pub const IteratorType = @This();
 
-            stack: std.ArrayList(Node) = .empty,
-            maybe_current: ?Node,
-            maybe_previous: ?Node,
+            stack: std.ArrayList(PathNode) = .empty,
+            maybe_current: ?PathNode,
+            maybe_previous: ?PathNode,
             map: *const MapType,
             allocator: std.mem.Allocator,
-            maybe_source: ?Node = null,
-            maybe_destination: ?Node = null,
+            maybe_source: ?PathNode = null,
+            maybe_destination: ?PathNode = null,
 
             /// Walk exhaustively, depth-first, starting from the root
             /// (treecode.MARKER) space down.

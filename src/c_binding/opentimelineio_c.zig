@@ -218,7 +218,7 @@ pub export fn otio_build_time_map_cvr(
         otio.TemporalMap
     ) catch return ERR_TOPO_MAP;
 
-    result.* = otio.build_topological_map(
+    result.* = otio.build_temporal_map(
         allocator,
         ref,
     ) catch return ERR_TOPO_MAP;

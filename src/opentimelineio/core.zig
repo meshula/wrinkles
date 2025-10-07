@@ -899,7 +899,7 @@ pub fn projection_map_to_media_from(
 ) !ProjectionOperatorMap
 {
     var iter = (
-        try temporal_hierarchy.TreenodeWalkingIterator.init_from(
+        try temporal_hierarchy.PathIterator.init_from(
             allocator,
             &map, 
             source,
@@ -911,7 +911,7 @@ pub fn projection_map_to_media_from(
         .source = source,
     };
 
-    var proj_args = temporal_hierarchy.TemporalMap.PathEndPoints{
+    var proj_args = temporal_hierarchy.PathEndPoints{
         .source = source,
         .destination = source,
     };

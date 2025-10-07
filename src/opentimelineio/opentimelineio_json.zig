@@ -431,7 +431,7 @@ test "read_from_file test (simple)"
 
     const target_clip_ptr = track0.children[0];
 
-    const map = try otio.build_topological_map(
+    const map = try otio.build_temporal_map(
         std.testing.allocator,
         tl_ptr
     );

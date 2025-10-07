@@ -34,7 +34,8 @@ const T_CTI_1_10 = opentime.ContinuousInterval {
 
 // lofting types back out of function
 pub const TemporalMap = treecode.Map(core.SpaceReference);
-pub const TreenodeWalkingIterator = TemporalMap.TreenodeWalkingIterator;
+pub const PathIterator = TemporalMap.PathIterator;
+pub const PathEndPoints = TemporalMap.PathEndPoints;
 
 fn walk_child_spaces(
     allocator: std.mem.Allocator,
@@ -392,7 +393,7 @@ test "TestWalkingIterator: clip"
         .{},
     );
 
-    var node_iter = try TreenodeWalkingIterator.init(
+    var node_iter = try PathIterator.init(
         allocator,
         &map,
     );
@@ -440,7 +441,7 @@ test "TestWalkingIterator: track with clip"
 
     // from the top
     {
-        var node_iter = try TreenodeWalkingIterator.init(
+        var node_iter = try PathIterator.init(
             allocator,
             &map,
         );
@@ -458,7 +459,7 @@ test "TestWalkingIterator: track with clip"
     // from the clip
     {
         var node_iter = (
-            try TreenodeWalkingIterator.init_from(
+            try PathIterator.init_from(
                 std.testing.allocator,
                 &map,
                 try cl_ptr.space(.presentation),
@@ -517,7 +518,7 @@ test "TestWalkingIterator: track with clip w/ destination"
     // from the top to the second clip
     {
         var node_iter = (
-            try TreenodeWalkingIterator.init_from_to(
+            try PathIterator.init_from_to(
                 allocator,
                 &map,
                 .{
@@ -717,7 +718,7 @@ pub fn build_projection_operator(
     }
 
     var iter = (
-        try TemporalMap.TreenodeWalkingIterator.init_from_to(
+        try TemporalMap.PathIterator.init_from_to(
             allocator,
             &map,
             sorted_endpoints,

@@ -89,7 +89,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
 
     // build the topological map
     ///////////////////////////////////////////////////////////////////////////
-    const topo_map = try otio.build_topological_map(
+    const topo_map = try otio.build_temporal_map(
         allocator,
         tl_ptr
     );
@@ -332,7 +332,7 @@ test "libsamplerate w/ high level test -- resample only"
 
     // build the topological map
     ///////////////////////////////////////////////////////////////////////////
-    const topo_map = try otio.build_topological_map(
+    const topo_map = try otio.build_temporal_map(
         allocator,
         tl_ptr,
     );
@@ -486,7 +486,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
 
     // build the topological map
     ///////////////////////////////////////////////////////////////////////////
-    const topo_map = try otio.build_topological_map(
+    const topo_map = try otio.build_temporal_map(
         allocator,
         tl_ptr
     );
@@ -633,7 +633,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
 
     // build the topological map
     ///////////////////////////////////////////////////////////////////////////
-    const topo_map = try otio.build_topological_map(
+    const topo_map = try otio.build_temporal_map(
         allocator,
         .{ .timeline = &tl },
     );
@@ -812,7 +812,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
 
     // build the topological map (Timeline.presentation -> ...)
     ///////////////////////////////////////////////////////////////////////////
-    const topo_map = try otio.build_topological_map(
+    const topo_map = try otio.build_temporal_map(
         allocator,
         tl_ptr,
     );
@@ -972,7 +972,7 @@ test "timeline w/ warp that holds the tenth frame"
 
     // build the topological map
     ///////////////////////////////////////////////////////////////////////////
-    const topo_map = try otio.build_topological_map(
+    const topo_map = try otio.build_temporal_map(
         allocator,
         tl_ptr
     );
@@ -1091,7 +1091,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
 
     // build the topological map
     ///////////////////////////////////////////////////////////////////////////
-    const topo_map = try otio.build_topological_map(
+    const topo_map = try otio.build_temporal_map(
         allocator,
         tl_ptr,
     );
