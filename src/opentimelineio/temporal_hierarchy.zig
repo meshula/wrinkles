@@ -361,19 +361,49 @@ test "build_temporal_map check root node"
         map.root(),
     );
 
+    try validate_connections_in_map(map);
+}
+
+pub fn validate_connections_in_map(
+    map: TemporalMap,
+) !void
+{
     // check the parent/child pointers
     for (map.nodes.items(.parent_index), map.nodes.items(.child_indices), 0..)
-        |parent_index, child_indices, index|
+        |maybe_parent_index, child_indices, index|
     {
         errdefer std.debug.print(
             "[{d}] parent: {?d} children ({?d}, {?d})\n",
-            .{index, parent_index, child_indices[0], child_indices[1]},
+            .{
+                index,
+                maybe_parent_index,
+                child_indices[0],
+                child_indices[1],
+            },
         );
         try std.testing.expect(
-            parent_index != null 
+            maybe_parent_index != null 
             or child_indices[0] != null 
             or child_indices[1] != null
         );
+
+        // if there is a parent, expect that one of its children is this index
+        if (maybe_parent_index)
+            |parent_index|
+        {
+            const parent_code = map.nodes.items(.code)[parent_index];
+            const current_code = map.nodes.items(.code)[index];
+
+            const parent_to_current = parent_code.next_step_towards(current_code);
+
+            const parent_children = (
+                map.nodes.items(.child_indices)[parent_index]
+            );
+
+            try std.testing.expect(
+                parent_children[@intFromEnum(parent_to_current)] == index
+            );
+        }
     }
 }
 
@@ -757,9 +787,7 @@ pub fn build_projection_operator(
     );
     defer iter.deinit(allocator);
 
-    _ = try iter.next(allocator);
-
-    var current = iter.maybe_current.?;
+    var current = (try iter.next(allocator)).?;
 
     if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
         opentime.dbg_print(@src(), 
@@ -789,9 +817,6 @@ pub fn build_projection_operator(
                 .{ next_step, next }
             );
         }
-
-        // in case build_transform errors
-        errdefer root_to_current.deinit(allocator);
 
         var current_to_next = (
             try current.space.ref.build_transform(
@@ -824,6 +849,7 @@ pub fn build_projection_operator(
                 .b2c = current_to_next,
             },
         );
+        errdefer root_to_next.deinit(allocator);
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
         {

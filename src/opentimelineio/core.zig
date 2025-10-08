@@ -2942,6 +2942,8 @@ test "otio projection: track with single clip"
     );
     defer map.deinit(allocator);
 
+    try temporal_hierarchy.validate_connections_in_map(map);
+
     try map.write_dot_graph(
         allocator,
         "/var/tmp/sampling_test.dot",
@@ -3624,6 +3626,8 @@ test "Single clip, schema.Warp bulk"
             wp_ptr,
         );
         defer map.deinit(allocator);
+
+        try temporal_hierarchy.validate_connections_in_map(map);
 
         // presentation->media (forward projection)
         {
