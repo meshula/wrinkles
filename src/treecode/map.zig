@@ -282,6 +282,46 @@ pub fn Map(
             _ = result;
         }
 
+        pub fn sort_endpoint_indices(
+            self: @This(),
+            endpoints: *PathEndPointIndices,
+        ) !bool
+        {
+            var source_code = self.nodes.items(.code)[endpoints.source];
+            var destination_code = self.nodes.items(.code)[endpoints.destination];
+
+            if (
+                treecode.path_exists(
+                    source_code,
+                    destination_code,
+                ) == false
+            )
+            {
+                errdefer dbg_print(
+                    @src(), 
+                    "\nERROR\nsource: {f} dest: {f}\n",
+                    .{
+                        source_code,
+                        destination_code,
+                    }
+                );
+                return error.NoPathBetweenSpaces;
+            }
+
+            // inverted
+            if (source_code.code_length() > destination_code.code_length())
+            {
+                const dest = endpoints.destination;
+                endpoints.destination = endpoints.source;
+                endpoints.source = dest;
+                return true;
+            }
+            else 
+            {
+                return false;
+            }
+        }
+
         /// Check to see if `endpoints` need to be swapped (iteration always
         /// proceeds from parent to child).  If needed, will swap endpoints in
         /// place and return `true` to indicate this happened.
@@ -418,6 +458,11 @@ pub fn Map(
         pub const PathEndPoints = struct {
             source: GraphNodeType,
             destination: GraphNodeType,
+        };
+
+        const PathEndPointIndices = struct {
+            source: NodeIndex,
+            destination: NodeIndex,
         };
 
         /// A pair of space and code along a path within the `Map`.
