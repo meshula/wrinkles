@@ -492,13 +492,12 @@ pub fn Map(
         pub const PathIterator = struct{
             pub const IteratorType = @This();
 
-            stack: std.ArrayList(PathNode) = .empty,
-            maybe_current: ?PathNode,
-            maybe_previous: ?PathNode,
+            stack: std.ArrayList(NodeIndex) = .empty,
+            maybe_current: ?NodeIndex,
             map: *const MapType,
             allocator: std.mem.Allocator,
-            maybe_source: ?PathNode = null,
-            maybe_destination: ?PathNode = null,
+            maybe_source: ?NodeIndex = null,
+            maybe_destination: ?NodeIndex = null,
 
             /// Walk exhaustively, depth-first, starting from the root
             /// (treecode.MARKER) space down.
@@ -507,13 +506,12 @@ pub fn Map(
                 map: *const MapType,
             ) !IteratorType
             {
-                return IteratorType.init_from(
+                return IteratorType.init_from_index(
                     allocator,
                     map, 
-                    map.root()
+                    0,
                 );
             }
-
 
             pub fn init_from(
                 allocator: std.mem.Allocator,
@@ -522,30 +520,34 @@ pub fn Map(
                 source: GraphNodeType,
             ) !IteratorType
             {
-                const start_code = (
-                    map.get_code(source) 
+                const start_index = (
+                    map.map_space_to_index.get(source) 
                     orelse return error.NotInMapError
                 );
 
+                return IteratorType.init_from_index(
+                    allocator,
+                    map,
+                    start_index,
+                );
+            }
+
+            fn init_from_index(
+                allocator: std.mem.Allocator,
+                map: *const MapType,
+                /// a source in the map to start the map from
+                start_index: NodeIndex,
+            ) !IteratorType
+            {
                 var result = IteratorType{
-                    .stack = .{},
+                    .stack = .empty,
                     .maybe_current = null,
-                    .maybe_previous = null,
                     .map = map,
                     .allocator = allocator,
-                    .maybe_source = .{
-                        .code = start_code,
-                        .space = source,
-                    },
+                    .maybe_source = start_index,
                 };
 
-                try result.stack.append(
-                    allocator,
-                    .{
-                        .space = source,
-                        .code = try start_code.clone(allocator),
-                    }
-                );
+                try result.stack.append(allocator, start_index);
 
                 return result;
             }
@@ -557,63 +559,36 @@ pub fn Map(
                 endpoints: PathEndPoints,
             ) !IteratorType
             {
-                var source_code = (
-                    if (map.get_code(endpoints.source)) 
-                    |code| 
-                    code
+                const source_index = (
+                    if (map.map_space_to_index.get(endpoints.source)) 
+                    |index| 
+                    index
                     else return error.SourceNotInMap
                 );
 
-                var destination_code = (
-                    if (map.get_code(endpoints.destination)) 
-                    |code| 
-                    code
-                    else return error.DestinationNotInMap
+                const destination_index = (
+                    if (map.map_space_to_index.get(endpoints.destination)) 
+                    |index| 
+                    index
+                    else return error.SourceNotInMap
                 );
 
-                if (
-                    treecode.path_exists(
-                        source_code,
-                        destination_code,
-                    ) == false
-                )
-                {
-                    errdefer dbg_print(
-                        @src(), 
-                        "\nERROR\nsource: {f} dest: {f}\n",
-                        .{
-                            source_code,
-                            destination_code,
-                        }
-                    );
-                    return error.NoPathBetweenSpaces;
-                }
+                var endpoint_indices = PathEndPointIndices{
+                    .source = source_index,
+                    .destination = destination_index,
+                };
 
-                const needs_inversion = (
-                    source_code.code_length() > destination_code.code_length()
-                );
-
-                if (needs_inversion) {
-                    const tmp = source_code;
-                    source_code = destination_code;
-                    destination_code = tmp;
-                }
+                _ = try map.sort_endpoint_indices(&endpoint_indices);
 
                 var iterator = (
-                    try IteratorType.init_from(
+                    try IteratorType.init_from_index(
                         allocator,
                         map, 
-                        endpoints.source,
+                        endpoint_indices.source,
                     )
                 );
 
-                iterator.maybe_destination = .{
-                    .code = (
-                        map.get_code(endpoints.destination) 
-                        orelse return error.SpaceNotInMap
-                    ),
-                    .space = endpoints.destination,
-                };
+                iterator.maybe_destination = endpoint_indices.destination;
 
                 return iterator;
             }
@@ -623,21 +598,6 @@ pub fn Map(
                 allocator: std.mem.Allocator,
             ) void
             {
-                if (self.maybe_previous)
-                    |n|
-                {
-                    n.code.deinit(allocator);
-                }
-                if (self.maybe_current)
-                    |n|
-                {
-                    n.code.deinit(allocator);
-                }
-                for (self.stack.items)
-                    |n|
-                {
-                    n.code.deinit(allocator);
-                }
                 self.stack.deinit(allocator);
             }
 
@@ -647,18 +607,24 @@ pub fn Map(
             ) !?PathNode
             {
                 if (self.stack.items.len == 0) {
+                    self.maybe_current = null;
                     return null;
                 }
 
-                if (self.maybe_previous)
-                    |prev|
-                {
-                    prev.code.deinit(allocator);
-                }
-                self.maybe_previous = self.maybe_current;
-
+                // there has to be a current node, since the length is > 0
                 self.maybe_current = self.stack.pop();
-                const current = self.maybe_current.?;
+                const current_index = self.maybe_current.?;
+
+                if (self.maybe_destination)
+                    |dest|
+                {
+                    if (current_index == dest) {
+                        self.stack.clearAndFree(allocator);
+                        return self.map.nodes.get(current_index);
+                    }
+                }
+
+                const current_code = self.map.nodes.items(.code)[current_index];
 
                 // if there is a destination, walk in that direction.
                 // Otherwise, walk exhaustively
@@ -666,35 +632,43 @@ pub fn Map(
                     if (self.maybe_destination) 
                     |dest| 
                     &[_]treecode.l_or_r{ 
-                        current.code.next_step_towards(dest.code)
+                        current_code.next_step_towards(
+                            self.map.nodes.items(.code)[dest]
+                        )
                     }
                     else &.{ .left,.right }
+                );
+
+                const child_indices = (
+                    self.map.nodes.items(.child_indices)[current_index]
                 );
 
                 for (next_steps)
                     |next_step|
                 {
-                    var next_code = try current.code.clone(allocator);
-                    try next_code.append(allocator, next_step);
-
-                    if (self.map.get_space(next_code))
-                        |next_space|
+                    errdefer std.debug.print(
+                        "trying to walk from {d} to {?d}\n",
+                        .{
+                            current_index,
+                            self.maybe_destination,
+                        }
+                    );
+                    if (child_indices[@intFromEnum(next_step)])
+                        |next_index|
                     {
                         try self.stack.insert(
                             allocator,
                             0,
-                            .{
-                                .space = next_space,
-                                .code = next_code,
-                            }
+                            next_index,
                         );
                     }
-                    else {
-                        next_code.deinit(allocator);
+                    else if (self.maybe_destination != null)
+                    {
+                        return error.InvalidGraphMissingConnection;
                     }
                 }
 
-                return self.maybe_current;
+                return self.map.nodes.get(current_index);
             }
         };
 
