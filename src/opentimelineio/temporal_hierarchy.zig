@@ -40,6 +40,7 @@ fn walk_child_spaces(
     allocator: std.mem.Allocator,
     parent_otio_object: core.ComposedValueRef,
     parent_code: treecode.Treecode,
+    parent_index: ?usize,
     map: *TemporalMap,
     otio_object_stack: anytype,
 ) !void
@@ -114,11 +115,12 @@ fn walk_child_spaces(
             );
         }
 
-        try map.put(
+        const new_index = try map.put(
             allocator,
             .{
                 .code = child_wrapper_space_code_ptr,
-                .space = space_ref
+                .space = space_ref,
+                .parent_index = parent_index,
             },
         );
 
@@ -135,6 +137,7 @@ fn walk_child_spaces(
             .{ 
                 .otio_object= item_ptr,
                 .path_code = child_code_ptr,
+                .parent_index = new_index,
             },
         );
     }
@@ -144,8 +147,9 @@ fn walk_internal_spaces(
     allocator: std.mem.Allocator,
     parent_otio_object: core.ComposedValueRef,
     parent_code: treecode.Treecode,
+    parent_index: ?usize,
     map: *TemporalMap,
-) !treecode.Treecode
+) !struct{ treecode.Treecode, ?usize }
 {
     const spaces = try parent_otio_object.spaces(
         allocator
@@ -153,6 +157,7 @@ fn walk_internal_spaces(
     defer allocator.free(spaces);
 
     var last_space_code = parent_code;
+    var last_index = parent_index;
 
     for (0.., spaces) 
         |index, space_ref| 
@@ -202,18 +207,19 @@ fn walk_internal_spaces(
             );
         }
 
-        try map.put(
+        last_index = try map.put(
             allocator,
             .{
                 .code = space_code,
                 .space = space_ref,
+                .parent_index = last_index,
             },
         );
 
         last_space_code = space_code;
     }
 
-    return last_space_code;
+    return .{ last_space_code, last_index };
 }
 
 /// Walks from `root_item` through the hierarchy of OTIO objects to construct a
@@ -234,6 +240,7 @@ pub fn build_temporal_map(
     const StackNode = struct {
         path_code: treecode.Treecode,
         otio_object: core.ComposedValueRef,
+        parent_index: ?usize,
     };
 
     var otio_object_stack: std.ArrayList(StackNode) = .{};
@@ -249,6 +256,7 @@ pub fn build_temporal_map(
         .{
             .otio_object = root_item,
             .path_code = root_code_ptr,
+            .parent_index = null,
         }
     );
 
@@ -264,10 +272,11 @@ pub fn build_temporal_map(
         |current_stack_node|
     {
         // presentation, intrinsic, etc.
-        const last_space = try walk_internal_spaces(
+        const new_stuff = try walk_internal_spaces(
             parent_allocator,
             current_stack_node.otio_object,
             current_stack_node.path_code,
+            current_stack_node.parent_index,
             &tmp_map,
         );
 
@@ -275,7 +284,8 @@ pub fn build_temporal_map(
         try walk_child_spaces(
             parent_allocator,
             current_stack_node.otio_object,
-            last_space,
+            new_stuff[0],
+            new_stuff[1],
             &tmp_map,
             &otio_object_stack,
         );
@@ -317,8 +327,10 @@ test "build_temporal_map check root node"
         .end = end 
     };
 
-    var clips: [11]schema.Clip = undefined;
-    var refs: [11]core.ComposedValueRef = undefined;
+    const SIZE = 11;
+
+    var clips: [SIZE]schema.Clip = undefined;
+    var refs: [SIZE]core.ComposedValueRef = undefined;
 
     for (&clips, &refs)
         |*cl_p, *ref|
@@ -332,7 +344,7 @@ test "build_temporal_map check root node"
     const tr_ref = core.ComposedValueRef.init(&tr);
 
     try std.testing.expectEqual(
-        11,
+        SIZE,
         tr.children.len
     );
 
@@ -346,6 +358,21 @@ test "build_temporal_map check root node"
         tr_ref.space(.presentation),
         map.root(),
     );
+
+    // check the parent/child pointers
+    for (map.nodes.items(.parent_index), map.nodes.items(.child_indices), 0..)
+        |parent_index, child_indices, index|
+    {
+        errdefer std.debug.print(
+            "[{d}] parent: {?d} children ({?d}, {?d})\n",
+            .{index, parent_index, child_indices[0], child_indices[1]},
+        );
+        try std.testing.expect(
+            parent_index != null 
+            or child_indices[0] != null 
+            or child_indices[1] != null
+        );
+    }
 }
 
 test "build_temporal_map: leak sentinel test - single clip"
