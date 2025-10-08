@@ -883,7 +883,6 @@ pub fn build_projection_operator(
     // check to see if end points were inverted
     if (endpoints_were_swapped and root_to_current.mappings.len > 0) 
     {
-        // const old_proj = root_to_current;
         const inverted_topologies = (
             try root_to_current.inverted(allocator)
         );

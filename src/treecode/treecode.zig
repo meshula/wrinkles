@@ -334,7 +334,7 @@ pub const Treecode = struct {
         );
     }
 
-    /// Compute and return the `Hash` for this `Treecode`.  The hash incudes
+    /// Compute and return the `Hash` for this `Treecode`.  The hash includes
     /// the index and value of each non-zero word, such that 0001 0000 hashes
     /// differently than 0000 0001, but 0000 0001 and 0001 hash the same.
     pub fn hash(
@@ -371,8 +371,6 @@ pub const Treecode = struct {
         dest: Treecode,
     ) l_or_r 
     {
-        std.debug.assert(self.is_prefix_of(dest));
-
         const self_len = self.code_length();
 
         const self_len_pos_local = @rem(self_len, WORD_BIT_COUNT);

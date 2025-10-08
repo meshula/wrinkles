@@ -34,24 +34,12 @@ pub fn Map(
 ) type
 {
     return struct {
-        /// mapping of `GraphNodeType` to `treecode.Treecode`
-        /// NOTE: should contain the same `treecode.Treecode`s as the ones
-        ///       present in `map_code_to_index`.  Only one of the two mappings
-        ///       will be mappings' treecodes will have deinit() called.
-        // map_space_to_index:std.AutoHashMapUnmanaged(
-        //                       GraphNodeType,
-        //                       treecode.Treecode,
-        //                   ) = .empty,
-        /// mapping of `treecode.Treecode` to `GraphNodeType`
-        // map_code_to_index:treecode.TreecodeHashMap(GraphNodeType) = .empty,
-
         map_space_to_index:std.AutoHashMapUnmanaged(
                               GraphNodeType,
                               NodeIndex,
                           ) = .empty,
         /// mapping of `treecode.Treecode` to `GraphNodeType`
         map_code_to_index:treecode.TreecodeHashMap(NodeIndex) = .empty,
-
         nodes: std.MultiArrayList(PathNode) = .empty,
         const MapType = @This();
 
