@@ -199,97 +199,50 @@ pub fn Map(
                 .{ header_name }
             );
 
-            var stack: std.ArrayList(MapType.PathNode) = .empty;
-
-            try stack.append(
-                arena_allocator,
-                .{
-                    .space = self.root(),
-                    .code = ROOT_CODE,
-                },
-                );
-
             var label_buf: [1024]u8 = undefined;
             var next_label_buf: [1024]u8 = undefined;
 
+            var stack: std.ArrayList(usize) = .empty;
+            try stack.append(arena_allocator, 0);
             while (stack.pop()) 
-                |current|
+                |current_index|
             {
+                const current_code = self.nodes.items(.code)[current_index];
+                const current_space = self.nodes.items(.space)[current_index];
+                // const current_children = self.nodes.items(.child_indices)[current_index];
+
                 const current_label = try node_label(
                     &label_buf,
-                    current.space,
-                    current.code,
+                    current_space,
+                    current_code,
                     options.label_style,
                 );
 
-                // left
+                for ([_]usize{ 0, 1 })
+                    |child_step|
                 {
-                    var left = try current.code.clone(arena_allocator);
-                    try left.append(arena_allocator, .left);
-
-                    if (self.get_space(left)) 
-                        |next| 
+                    if (self.nodes.items(.child_indices)[current_index][child_step])
+                        |child_index|
                     {
                         @branchHint(.likely);
 
                         const next_label = try node_label(
                             &next_label_buf,
-                            next,
-                            left,
+                            self.nodes.items(.space)[child_index],
+                            self.nodes.items(.code)[child_index],
                             options.label_style,
                         );
                         _ = try writer.print(
                             "  \"{s}\" -> \"{s}\"\n",
                             .{current_label, next_label}
                         );
-                        try stack.append(
-                            arena_allocator,
-                            .{
-                                .space = next,
-                                .code = left
-                            }
-                        );
+                        try stack.append(arena_allocator, child_index);
                     } 
                     else 
                     {
                         _ = try writer.print(
                             " {f} \n  [shape=point]\"{s}\" -> {f}\n",
-                            .{current.code, current_label, current.code}
-                        );
-                    }
-                }
-
-                // right
-                {
-                    var right = try current.code.clone(arena_allocator);
-                    try right.append(arena_allocator, .right);
-
-                    if (self.get_space(right)) 
-                        |next| 
-                    {
-                        const next_label = try node_label(
-                            &next_label_buf,
-                            next,
-                            right,
-                            options.label_style,
-                        );
-                        _ = try writer.print(
-                            "  \"{s}\" -> \"{s}\"\n",
-                            .{current_label, next_label},
-                        );
-                        try stack.append(
-                            arena_allocator,
-                            .{
-                                .space = next,
-                                .code = right
-                            }
-                        );
-                    } 
-                    else
-                    {
-                        _ = try writer.print(
-                            " {f} \n  [shape=point]\"{s}\" -> {f}\n",
-                            .{current.code, current_label, current.code}
+                            .{current_code, current_label, current_code}
                         );
                     }
                 }
