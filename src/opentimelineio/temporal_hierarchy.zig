@@ -739,6 +739,7 @@ pub fn build_projection_operator(
     var root_to_current = (
         try topology_m.Topology.init_identity_infinite(allocator)
     );
+    errdefer root_to_current.deinit(allocator);
 
     if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
         opentime.dbg_print(@src(), 
