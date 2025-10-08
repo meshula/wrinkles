@@ -35,4 +35,5 @@ test {
     _ = otio_highlevel_tests;
     _ = temporal_hierarchy;
     _ = schema;
+    _ = core;
 }
