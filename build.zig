@@ -907,4 +907,15 @@ pub fn build(
             .{ .name = "opentimelineio", .module = opentimelineio },
         },
     );
+
+    try executable(
+        b,
+        "otio_measure_timeline",
+        "src/otio_measure_timeline.zig",
+        options,
+        &.{
+            .{ .name = "string_stuff", .module = string_stuff },
+            .{ .name = "opentimelineio", .module = opentimelineio },
+        },
+    );
 }
