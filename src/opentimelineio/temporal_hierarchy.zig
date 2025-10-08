@@ -51,6 +51,8 @@ fn walk_child_spaces(
     );
     defer allocator.free(children_ptrs);
 
+    var last_index = parent_index;
+
     // transforms to children
     // each child
     for (children_ptrs, 0..) 
@@ -115,12 +117,12 @@ fn walk_child_spaces(
             );
         }
 
-        const new_index = try map.put(
+        last_index = try map.put(
             allocator,
             .{
                 .code = child_wrapper_space_code_ptr,
                 .space = space_ref,
-                .parent_index = parent_index,
+                .parent_index = last_index,
             },
         );
 
@@ -137,7 +139,7 @@ fn walk_child_spaces(
             .{ 
                 .otio_object= item_ptr,
                 .path_code = child_code_ptr,
-                .parent_index = new_index,
+                .parent_index = last_index,
             },
         );
     }
