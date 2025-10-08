@@ -1130,9 +1130,9 @@ pub const ProjectionOperatorMap = struct {
             over_conformed.end_points
         );
 
-        var end_points: std.ArrayList(opentime.Ordinate) = .{};
-        var operators: std.ArrayList([]const ProjectionOperator) = .{};
-        var current_segment: std.ArrayList(ProjectionOperator) = .{};
+        var end_points: std.ArrayList(opentime.Ordinate) = .empty;
+        var operators: std.ArrayList([]const ProjectionOperator) = .empty;
+        var current_segment: std.ArrayList(ProjectionOperator) = .empty;
 
         // both end point arrays are the same
         for (over_conformed.end_points[0..over_conformed.end_points.len - 1], 0..)
@@ -1231,9 +1231,9 @@ pub const ProjectionOperatorMap = struct {
         range: opentime.ContinuousInterval,
     ) !ProjectionOperatorMap
     {
-        var tmp_pts: std.ArrayList(opentime.Ordinate) = .{};
+        var tmp_pts: std.ArrayList(opentime.Ordinate) = .empty;
         defer tmp_pts.deinit(allocator);
-        var tmp_ops: std.ArrayList([]const ProjectionOperator) = .{};
+        var tmp_ops: std.ArrayList([]const ProjectionOperator) = .empty;
         defer tmp_ops.deinit(allocator);
 
         if (self.end_points[0].gt(range.start)) 

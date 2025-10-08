@@ -69,7 +69,7 @@ pub fn slice_with_cloned_contents_allocator(
     slice_to_clone: []const T,
 ) ![]const T
 {
-    var result: std.ArrayList(T) = .{};
+    var result: std.ArrayList(T) = .empty;
 
     for (slice_to_clone)
         |thing|
