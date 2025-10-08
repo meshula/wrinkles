@@ -84,11 +84,12 @@ pub fn Map(
             self.map_space_to_index.lockPointers();
         }
 
+        /// add the PathNode to the map and return the newly created index
         pub fn put(
             self: *@This(),
             allocator: std.mem.Allocator,
             node: PathNode,
-        ) !void
+        ) !usize
         {
             const new_index = self.nodes.len;
 
@@ -104,6 +105,19 @@ pub fn Map(
                 node.space,
                 new_index,
             );
+
+            if (node.parent_index)
+                |parent_index|
+            {
+                const parent_code = self.nodes.items(.code)[parent_index];
+                const dir = parent_code.next_step_towards(node.code);
+                var child_indices = &self.nodes.items(
+                    .child_indices
+                )[parent_index];
+                child_indices[@intFromEnum(dir)] = new_index;
+            }
+            
+            return new_index;
         }
 
         pub fn get_space(
@@ -459,8 +473,8 @@ pub fn Map(
         pub const PathNode = struct {
             space: GraphNodeType,
             code: treecode.Treecode,
-            parent: ?*PathNode = null,
-            children: [2]?*PathNode = .{ null, null},
+            parent_index: ?usize = null,
+            child_indices: [2]?usize = .{null, null},
 
             pub fn format(
                 self: @This(),
