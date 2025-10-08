@@ -908,10 +908,8 @@ pub fn projection_map_to_media_from(
         .destination = source,
     };
 
-    var space_iter = (
-        map.map_space_to_code.keyIterator()
-    );
-    while (space_iter.next())
+    const all_spaces = map.nodes.items(.space);
+    for (all_spaces)
         |current|
     {
         // skip all spaces that are not media spaces
@@ -919,7 +917,7 @@ pub fn projection_map_to_media_from(
             continue;
         }
 
-        proj_args.destination = current.*;
+        proj_args.destination = current;
 
         const child_op = (
             try temporal_hierarchy.build_projection_operator(
@@ -1825,7 +1823,7 @@ test "transform: track with two clips"
         );
         defer child_code.deinit(allocator);
 
-        const child_space = map.map_code_to_space.get(child_code).?;
+        const child_space = map.get_space(child_code).?;
 
         const xform = try tr.transform_to_child(
             allocator,
@@ -2185,12 +2183,12 @@ test "path_code: graph test"
 
     // should be the same length
     try std.testing.expectEqual(
-        map.map_space_to_code.count(),
-        map.map_code_to_space.count(),
+        map.map_space_to_index.count(),
+        map.map_code_to_index.count(),
     );
     try std.testing.expectEqual(
         35,
-        map.map_space_to_code.count()
+        map.map_space_to_index.count()
     );
 
     try map.write_dot_graph(
@@ -2322,8 +2320,8 @@ test "TemporalMap: schema.Track with clip with identity transform"
     );
     defer map.deinit(allocator);
 
-    try std.testing.expectEqual(5, map.map_code_to_space.count());
-    try std.testing.expectEqual(5, map.map_space_to_code.count());
+    try std.testing.expectEqual(5, map.map_code_to_index.count());
+    try std.testing.expectEqual(5, map.map_space_to_index.count());
 
     try std.testing.expectEqual(root, map.root().ref);
 
@@ -2339,7 +2337,7 @@ test "TemporalMap: schema.Track with clip with identity transform"
         try std.testing.expectEqual(0, tc.code_length());
     }
 
-    const maybe_clip_code = map.map_space_to_code.get(
+    const maybe_clip_code = map.get_code(
         try cl_ref.space(SpaceLabel.media)
     );
     try std.testing.expect(maybe_clip_code != null);
@@ -2415,11 +2413,11 @@ test "Projection: schema.Track with single clip with identity transform and boun
 
     try std.testing.expectEqual(
         5,
-        map.map_code_to_space.count()
+        map.map_code_to_index.count()
     );
     try std.testing.expectEqual(
         5,
-        map.map_space_to_code.count()
+        map.map_space_to_index.count()
     );
 
     const root_presentation_to_clip_media = try temporal_hierarchy.build_projection_operator(
@@ -3495,7 +3493,7 @@ test "test debug_print_time_hierarchy"
 
     // count the scopes
     var i: usize = 0;
-    var values = tp.map_code_to_space.valueIterator();
+    var values = tp.map_code_to_index.valueIterator();
     while (values.next())
         |_|
     {

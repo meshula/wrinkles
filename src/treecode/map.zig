@@ -34,15 +34,23 @@ pub fn Map(
     return struct {
         /// mapping of `GraphNodeType` to `treecode.Treecode`
         /// NOTE: should contain the same `treecode.Treecode`s as the ones
-        ///       present in `map_code_to_space`.  Only one of the two mappings
+        ///       present in `map_code_to_index`.  Only one of the two mappings
         ///       will be mappings' treecodes will have deinit() called.
-        map_space_to_code:std.AutoHashMapUnmanaged(
+        // map_space_to_index:std.AutoHashMapUnmanaged(
+        //                       GraphNodeType,
+        //                       treecode.Treecode,
+        //                   ) = .empty,
+        /// mapping of `treecode.Treecode` to `GraphNodeType`
+        // map_code_to_index:treecode.TreecodeHashMap(GraphNodeType) = .empty,
+
+        map_space_to_index:std.AutoHashMapUnmanaged(
                               GraphNodeType,
-                              treecode.Treecode,
+                              usize,
                           ) = .empty,
         /// mapping of `treecode.Treecode` to `GraphNodeType`
-        map_code_to_space:treecode.TreecodeHashMap(GraphNodeType) = .empty,
+        map_code_to_index:treecode.TreecodeHashMap(usize) = .empty,
 
+        nodes: std.MultiArrayList(PathNode) = .empty,
         const MapType = @This();
 
         pub fn deinit(
@@ -53,31 +61,27 @@ pub fn Map(
             // build a mutable alias of self
             var mutable_self = self;
 
-            var code_iter = (
-                mutable_self.map_space_to_code.valueIterator()
-            );
-
-            while (code_iter.next())
+            for (self.nodes.items(.code))
                 |code|
-                { 
-                    code.deinit(allocator);
-                }
+            { 
+                code.deinit(allocator);
+            }
 
             // free the guts
-            mutable_self.map_space_to_code.unlockPointers();
-            mutable_self.map_space_to_code.deinit(allocator);
-            mutable_self.map_code_to_space.unlockPointers();
-            mutable_self.map_code_to_space.deinit(allocator);
-            // self.map_space_to_code.deinit(allocator);
-            // self.map_code_to_space.deinit(allocator);
+            mutable_self.map_space_to_index.unlockPointers();
+            mutable_self.map_space_to_index.deinit(allocator);
+            mutable_self.map_code_to_index.unlockPointers();
+            mutable_self.map_code_to_index.deinit(allocator);
+
+            mutable_self.nodes.deinit(allocator);
         }
 
         pub fn lock_pointers(
             self: *@This(),
         ) void
         {
-            self.map_code_to_space.lockPointers();
-            self.map_space_to_code.lockPointers();
+            self.map_code_to_index.lockPointers();
+            self.map_space_to_index.lockPointers();
         }
 
         pub fn put(
@@ -86,15 +90,19 @@ pub fn Map(
             node: PathNode,
         ) !void
         {
-            try self.map_code_to_space.put(
+            const new_index = self.nodes.len;
+
+            try self.nodes.append(allocator, node);
+
+            try self.map_code_to_index.put(
                 allocator,
                 node.code,
-                node.space,
+                new_index,
             );
-            try self.map_space_to_code.put(
+            try self.map_space_to_index.put(
                 allocator,
                 node.space,
-                node.code,
+                new_index,
             );
         }
 
@@ -103,7 +111,13 @@ pub fn Map(
             code: treecode.Treecode,
         ) ?GraphNodeType
         {
-            return self.map_code_to_space.get(code);
+            if (self.map_code_to_index.get(code))
+                |index|
+            {
+                return self.nodes.items(.space)[index];
+            }
+
+            return null;
         }
 
         pub fn get_code(
@@ -111,7 +125,13 @@ pub fn Map(
             space: GraphNodeType,
         ) ?treecode.Treecode
         {
-            return self.map_space_to_code.get(space);
+            if (self.map_space_to_index.get(space))
+                |index|
+            {
+                return self.nodes.items(.code)[index];
+            }
+
+            return null;
         }
 
         /// return the root space associated with the `ROOT_CODE`
@@ -119,8 +139,9 @@ pub fn Map(
             self: @This(),
         ) GraphNodeType 
         {
-            // should always have a root object
-            return self.map_code_to_space.get(ROOT_CODE) orelse unreachable;
+            // should always have a root object, and root object should always
+            // be the first entry in the nodes list
+            return self.nodes.items(.space)[0];
         }
 
         /// Serialize this graph to dot and then use graphviz to convert that
@@ -192,7 +213,7 @@ pub fn Map(
                     var left = try current.code.clone(arena_allocator);
                     try left.append(arena_allocator, .left);
 
-                    if (self.map_code_to_space.get(left)) 
+                    if (self.get_space(left)) 
                         |next| 
                     {
                         @branchHint(.likely);
@@ -229,7 +250,7 @@ pub fn Map(
                     var right = try current.code.clone(arena_allocator);
                     try right.append(arena_allocator, .right);
 
-                    if (self.map_code_to_space.get(right)) 
+                    if (self.get_space(right)) 
                         |next| 
                     {
                         const next_label = try node_label(
@@ -308,14 +329,14 @@ pub fn Map(
         ) !bool
         {
             var source_code = (
-                if (self.map_space_to_code.get(endpoints.source)) 
+                if (self.get_code(endpoints.source)) 
                 |code| 
                 code
                 else return error.SourceNotInMap
             );
 
             var destination_code = (
-                if (self.map_space_to_code.get(endpoints.destination)) 
+                if (self.get_code(endpoints.destination)) 
                 |code| 
                 code
                 else return error.DestinationNotInMap
@@ -438,6 +459,8 @@ pub fn Map(
         pub const PathNode = struct {
             space: GraphNodeType,
             code: treecode.Treecode,
+            parent: ?*PathNode = null,
+            children: [2]?*PathNode = .{ null, null},
 
             pub fn format(
                 self: @This(),
@@ -490,7 +513,7 @@ pub fn Map(
             ) !IteratorType
             {
                 const start_code = (
-                    map.map_space_to_code.get(source) 
+                    map.get_code(source) 
                     orelse return error.NotInMapError
                 );
 
@@ -525,14 +548,14 @@ pub fn Map(
             ) !IteratorType
             {
                 var source_code = (
-                    if (map.map_space_to_code.get(endpoints.source)) 
+                    if (map.get_code(endpoints.source)) 
                     |code| 
                     code
                     else return error.SourceNotInMap
                 );
 
                 var destination_code = (
-                    if (map.map_space_to_code.get(endpoints.destination)) 
+                    if (map.get_code(endpoints.destination)) 
                     |code| 
                     code
                     else return error.DestinationNotInMap
@@ -576,7 +599,7 @@ pub fn Map(
 
                 iterator.maybe_destination = .{
                     .code = (
-                        map.map_space_to_code.get(endpoints.destination) 
+                        map.get_code(endpoints.destination) 
                         orelse return error.SpaceNotInMap
                     ),
                     .space = endpoints.destination,
