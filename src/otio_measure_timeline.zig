@@ -5,36 +5,21 @@ const otio = @import("opentimelineio");
 
 const builtin = @import("builtin");
 
-
-const State = struct {
-    input_otio: []const u8,
-    output_png: []const u8,
-
-    pub fn deinit(
-        self: @This(),
-        allocator: std.mem.Allocator,
-    ) void
-    {
-        allocator.free(self.input_otio);
-        allocator.free(self.output_png);
-    }
-};
-
 /// parse the commandline arguments and setup the state
 fn _parse_args(
     allocator: std.mem.Allocator,
-) !State 
+) ![]const []const u8 
 {
     var args = try std.process.argsWithAllocator(allocator);
     defer args.deinit();
-
-    var input_otio_fpath:[]const u8 = undefined;
-    var output_png_fpath:[]const u8 = undefined;
 
     // ignore the app name, always first in args
     _ = args.skip();
 
     var arg_count: usize = 0;
+
+    var files_to_measure: std.ArrayList([]const u8) = .empty;
+    defer files_to_measure.deinit(allocator);
 
     // read all the filepaths from the commandline
     while (args.next()) 
@@ -50,27 +35,10 @@ fn _parse_args(
             usage("");
         }
         
-        switch (arg_count) {
-            1 => {
-                input_otio_fpath = try allocator.dupe(u8, fpath);
-            },
-            2 => {
-                output_png_fpath = try allocator.dupe(u8, fpath);
-            },
-            else => {
-                usage("Too many arguments.");
-            },
-        }
+        try files_to_measure.append(allocator, fpath);
     }
 
-    if (arg_count < 2) {
-        usage("Not enough arguments.");
-    }
-
-    return .{
-        .input_otio = input_otio_fpath,
-        .output_png = output_png_fpath,
-    };
+    return try files_to_measure.toOwnedSlice(allocator);
 }
 
 /// Usage message for argument parsing.
@@ -98,104 +66,113 @@ pub fn main(
 ) !void
 {
     // use the debug allocator in debug builds, otherwise use smp
-    const parent_allocator = (
+    const allocator = (
         if (builtin.mode == .Debug) alloc: {
             var da = std.heap.DebugAllocator(.{}){};
             break :alloc da.allocator();
         } else std.heap.smp_allocator
     );
 
-    var arena = std.heap.ArenaAllocator.init(parent_allocator);
-    const allocator = arena.allocator();
-    defer arena.deinit();
-
-    const state = try _parse_args(allocator);
-    defer state.deinit(allocator);
+    const input_files = try _parse_args(allocator);
+    defer allocator.free(input_files);
 
     const prog = std.Progress.start(.{});
     defer prog.end();
 
     const parent_prog = prog.start(
-        "Dumping Graph",
-        3,
+        "Measuring OTIO Files",
+        input_files.len,
     );
 
-    const read_prog = parent_prog.start(
-        "Reading file...",
-        0,
-    );
+    var buffer:[1024]u8 = undefined;
 
-    var found = true;
-    std.fs.cwd().access(
-        state.input_otio,
-        .{},
-    ) catch |e| switch (e) {
-        error.FileNotFound => found = false,
-        else => return e,
-    };
-    if (found == false)
+    for (input_files)
+        |filepath|
     {
-        std.log.err(
-            "File: {s} does not exist or is not accessible.",
-            .{ state.input_otio }
+        const name = try std.fmt.bufPrint(
+            &buffer,
+            "File: {s}",
+            .{ filepath }
+        );
+        const file_prog = parent_prog.start(
+            name,
+            4,
+        );
+
+        const read_prog = file_prog.start(
+            "Reading file...",
+            0,
+        );
+
+        var found = true;
+        std.fs.cwd().access(
+            filepath,
+            .{},
+        ) catch |e| switch (e) {
+            error.FileNotFound => found = false,
+            else => return e,
+        };
+        if (found == false)
+        {
+            std.log.err(
+                "File: {s} does not exist or is not accessible.",
+                .{filepath}
+            );
+        }
+
+        // read the file
+        var tl = try otio.read_from_file(
+            allocator,
+            filepath,
+        );
+        defer tl.recursively_deinit(allocator);
+
+        // @TODO: should just return this since its the useful thing anyway
+        const tl_ref = otio.ComposedValueRef.init(tl);
+
+        read_prog.end();
+
+        const build_map = file_prog.start(
+            "Building map",
+            0,
+        );
+
+        // build the graph
+        const temporal_map = try otio.build_temporal_map(
+            allocator,
+            tl_ref,
+        );
+        defer temporal_map.deinit(allocator);
+
+        build_map.end();
+
+        const build_map_pro = file_prog.start(
+            "Building Projection map",
+            0,
+        );
+
+        // build a map from the presentation space to media
+        const proj_map_tl_presentation_to_media = (
+            try otio.projection_map_to_media_from(
+                allocator, 
+                temporal_map, 
+                try tl_ref.space(.presentation),
+            )
+        );
+
+        build_map_pro.end();
+
+        file_prog.end();
+
+        std.debug.print(
+            "Presentation Space Bounds of {s}: [{f}, {f})\n",
+            .{
+                filepath,
+                proj_map_tl_presentation_to_media.end_points[0],
+                proj_map_tl_presentation_to_media.end_points[
+                    proj_map_tl_presentation_to_media.end_points.len - 1
+                ],
+            },
         );
     }
-
-    // read the file
-    var tl = try otio.read_from_file(
-        allocator,
-        state.input_otio,
-    );
-    defer tl.recursively_deinit(allocator);
-
-    read_prog.end();
-
-    const build_map = parent_prog.start(
-        "Building map",
-        0,
-    );
-
-    // build the graph
-    const map = try otio.build_temporal_map(
-        allocator,
-        otio.ComposedValueRef.init(tl),
-    );
-    defer map.deinit(allocator);
-
-    build_map.end();
-
-    const build_map_pro = parent_prog.start(
-        "Building Projection map",
-        0,
-    );
-
-    const proj_map = try otio.projection_map_to_media_from(
-        allocator, 
-        map, 
-        map.root(),
-    );
-
-    _ = proj_map;
-
-    build_map_pro.end();
-
-
-    const write_dot_graph = parent_prog.start(
-        "Writing Dot Graph...",
-        0,
-    );
-
-    // render the graph to a PNG
-    try map.write_dot_graph(
-        allocator,
-        state.output_png,
-        "OTIO_TemporalHierarchy",
-        .{ .render_png = false },
-    );
-
-    write_dot_graph.end();
-
-    parent_prog.completeOne();
-
-    std.log.info("Wrote: {s}\n", .{ state.output_png });
 }
