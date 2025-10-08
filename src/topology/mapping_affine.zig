@@ -8,8 +8,8 @@ const mapping_mod = @import("mapping.zig");
 /// An affine mapping from intput to output
 pub const MappingAffine = struct {
     /// defaults to an infinite identity
-    input_bounds_val: opentime.ContinuousInterval = opentime.ContinuousInterval.INF,
-    input_to_output_xform: opentime.AffineTransform1D = opentime.AffineTransform1D.IDENTITY, 
+    input_bounds_val: opentime.ContinuousInterval = .INF,
+    input_to_output_xform: opentime.AffineTransform1D = .IDENTITY, 
 
     pub fn mapping(
         self: @This(),
@@ -29,7 +29,9 @@ pub const MappingAffine = struct {
         self: @This(),
     ) opentime.ContinuousInterval 
     {
-        return self.input_to_output_xform.applied_to_interval(self.input_bounds_val);
+        return self.input_to_output_xform.applied_to_interval(
+            self.input_bounds_val,
+        );
     }
 
     pub fn project_instantaneous_cc(
@@ -47,7 +49,9 @@ pub const MappingAffine = struct {
         }
 
         return .{ 
-            .SuccessOrdinate = self.input_to_output_xform.applied_to_ordinate(ordinate),
+            .SuccessOrdinate = (
+                self.input_to_output_xform.applied_to_ordinate(ordinate)
+            ),
         };
     }
 

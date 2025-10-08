@@ -98,12 +98,16 @@ pub fn main(
 ) !void
 {
     // use the debug allocator in debug builds, otherwise use smp
-    const allocator = (
+    const parent_allocator = (
         if (builtin.mode == .Debug) alloc: {
             var da = std.heap.DebugAllocator(.{}){};
             break :alloc da.allocator();
         } else std.heap.smp_allocator
     );
+
+    var arena = std.heap.ArenaAllocator.init(parent_allocator);
+    const allocator = arena.allocator();
+    defer arena.deinit();
 
     const state = try _parse_args(allocator);
     defer state.deinit(allocator);

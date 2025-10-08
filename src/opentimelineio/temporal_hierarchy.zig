@@ -703,7 +703,9 @@ pub fn build_projection_operator(
 {
     // sort endpoints so that the higher node is always the source
     var sorted_endpoints = endpoints;
-    const endpoints_were_swapped = try map.sort_endpoints(&sorted_endpoints);
+    const endpoints_were_swapped = try map.sort_endpoints(
+        &sorted_endpoints
+    );
 
     var root_to_current = (
         try topology_m.Topology.init_identity_infinite(allocator)
@@ -766,7 +768,7 @@ pub fn build_projection_operator(
                 allocator,
                 current.space.label,
                 next.space,
-                next_step
+                next_step,
             )
         );
         defer current_to_next.deinit(allocator);
@@ -782,7 +784,7 @@ pub fn build_projection_operator(
                     root_to_current,
                     current_to_next,
                 },
-                );
+            );
         }
 
         const root_to_next = try topology_m.join(
@@ -791,7 +793,7 @@ pub fn build_projection_operator(
                 .a2b = root_to_current,
                 .b2c = current_to_next,
             },
-            );
+        );
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
         {

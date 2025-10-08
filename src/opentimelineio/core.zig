@@ -1020,7 +1020,7 @@ pub const ProjectionOperatorMap = struct {
     /// segment endpoints
     end_points: []const opentime.Ordinate = &.{},
     /// segment projection operators 
-    operators : [][]const ProjectionOperator = &.{},
+    operators : []const []const ProjectionOperator = &.{},
 
     /// root space for the map
     source : SpaceReference,
@@ -1074,6 +1074,7 @@ pub const ProjectionOperatorMap = struct {
         over: ProjectionOperatorMap,
         under: ProjectionOperatorMap,
     };
+
     pub fn merge_composite(
         parent_allocator: std.mem.Allocator,
         args: OverlayArgs,
@@ -1104,7 +1105,10 @@ pub const ProjectionOperatorMap = struct {
         const undr = args.under;
 
         const full_range = opentime.ContinuousInterval{
-            .start = opentime.min(over.end_points[0], undr.end_points[0]),
+            .start = opentime.min(
+                over.end_points[0],
+                undr.end_points[0],
+            ),
             .end = opentime.max(
                 over.end_points[over.end_points.len - 1],
                 undr.end_points[undr.end_points.len - 1],
@@ -1123,11 +1127,11 @@ pub const ProjectionOperatorMap = struct {
         // project all splits from over to undr
         const over_conformed = try over_extended.split_at_each(
             arena_allocator,
-            undr_extended.end_points
+            undr_extended.end_points,
         );
         const undr_conformed = try undr_extended.split_at_each(
             arena_allocator,
-            over_conformed.end_points
+            over_conformed.end_points,
         );
 
         var end_points: std.ArrayList(opentime.Ordinate) = .empty;
