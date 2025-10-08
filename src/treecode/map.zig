@@ -611,10 +611,10 @@ pub fn Map(
             pub fn next(
                 self: *@This(),
                 allocator: std.mem.Allocator,
-            ) !bool
+            ) !?PathNode
             {
                 if (self.stack.items.len == 0) {
-                    return false;
+                    return null;
                 }
 
                 if (self.maybe_previous)
@@ -627,10 +627,12 @@ pub fn Map(
                 self.maybe_current = self.stack.pop();
                 const current = self.maybe_current.?;
 
-                // if there is a destination, walk in that direction. Otherwise, walk
-                // exhaustively
+                // if there is a destination, walk in that direction.
+                // Otherwise, walk exhaustively
                 const next_steps : []const treecode.l_or_r = (
-                    if (self.maybe_destination) |dest| &[_]treecode.l_or_r{ 
+                    if (self.maybe_destination) 
+                    |dest| 
+                    &[_]treecode.l_or_r{ 
                         current.code.next_step_towards(dest.code)
                     }
                     else &.{ .left,.right }
@@ -642,13 +644,14 @@ pub fn Map(
                     var next_code = try current.code.clone(allocator);
                     try next_code.append(allocator, next_step);
 
-                    if (self.map.map_code_to_space.get(next_code))
-                        |next_node|
+                    if (self.map.get_space(next_code))
+                        |next_space|
                     {
-                        try self.stack.append(
+                        try self.stack.insert(
                             allocator,
+                            0,
                             .{
-                                .space = next_node,
+                                .space = next_space,
                                 .code = next_code,
                             }
                         );
@@ -658,7 +661,7 @@ pub fn Map(
                     }
                 }
 
-                return self.maybe_current != null;
+                return self.maybe_current;
             }
         };
 

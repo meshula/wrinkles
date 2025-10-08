@@ -394,6 +394,7 @@ test "TestWalkingIterator: clip"
 
     var count:usize = 0;
     while (try node_iter.next(allocator))
+        |_|
     {
         count += 1;
     }
@@ -442,6 +443,7 @@ test "TestWalkingIterator: track with clip"
         defer node_iter.deinit(allocator);
 
         while (try node_iter.next(allocator))
+            |_|
         {
             count += 1;
         }
@@ -463,6 +465,7 @@ test "TestWalkingIterator: track with clip"
 
         count = 0;
         while (try node_iter.next(allocator))
+            |_|
         {
             count += 1;
         }
@@ -526,6 +529,7 @@ test "TestWalkingIterator: track with clip w/ destination"
 
         count = 0;
         while (try node_iter.next(allocator))
+               |_|
             : (count += 1)
         {
         }
@@ -740,11 +744,8 @@ pub fn build_projection_operator(
 
     // walk from current_code towards destination_code
     while (try iter.next(allocator)) 
+        |next|
     {
-        const next = (
-            iter.maybe_current orelse return error.TreeCodeNotInMap
-        );
-
         const next_step = current.code.next_step_towards(
             next.code,
         );

@@ -898,33 +898,28 @@ pub fn projection_map_to_media_from(
     source: SpaceReference,
 ) !ProjectionOperatorMap
 {
-    var iter = (
-        try temporal_hierarchy.PathIterator.init_from(
-            allocator,
-            &map, 
-            source,
-        )
-    );
-    defer iter.deinit(allocator);
-
     var result = ProjectionOperatorMap{
         .source = source,
     };
 
+    // start with an identity end points
     var proj_args = temporal_hierarchy.PathEndPoints{
         .source = source,
         .destination = source,
     };
-    while (try iter.next(allocator))
-    {
-        const current = iter.maybe_current.?;
 
+    var space_iter = (
+        map.map_space_to_code.keyIterator()
+    );
+    while (space_iter.next())
+        |current|
+    {
         // skip all spaces that are not media spaces
-        if (current.space.label != .media) {
+        if (current.label != .media) {
             continue;
         }
 
-        proj_args.destination = current.space;
+        proj_args.destination = current.*;
 
         const child_op = (
             try temporal_hierarchy.build_projection_operator(
@@ -933,14 +928,19 @@ pub fn projection_map_to_media_from(
                 proj_args,
             )
         );
+        defer child_op.deinit(allocator);
 
-        const child_op_map = (
-            try ProjectionOperatorMap.init_operator(
-                allocator,
-                child_op,
-            )
-        );
-        defer child_op_map.deinit(allocator);
+        const new_bounds = child_op.src_to_dst_topo.input_bounds();
+
+        const child_op_map = ProjectionOperatorMap {
+            .end_points = &. {
+                new_bounds.start, new_bounds.end,
+            },
+            .operators = &.{
+                &.{ child_op }, 
+            },
+            .source = source,
+        };
 
         const last = result;
         defer last.deinit(allocator);
