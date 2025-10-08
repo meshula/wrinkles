@@ -20,6 +20,8 @@ const ROOT_CODE = treecode.Treecode {
     .words = &ROOT_WORDS,
 };
 
+pub const NodeIndex = usize;
+
 /// Bidirectional map of `treecode.Treecode` to a parameterized
 /// `GraphNodeType` (presumably nodes in some graph).  This allows:
 ///
@@ -45,10 +47,10 @@ pub fn Map(
 
         map_space_to_index:std.AutoHashMapUnmanaged(
                               GraphNodeType,
-                              usize,
+                              NodeIndex,
                           ) = .empty,
         /// mapping of `treecode.Treecode` to `GraphNodeType`
-        map_code_to_index:treecode.TreecodeHashMap(usize) = .empty,
+        map_code_to_index:treecode.TreecodeHashMap(NodeIndex) = .empty,
 
         nodes: std.MultiArrayList(PathNode) = .empty,
         const MapType = @This();
@@ -89,7 +91,7 @@ pub fn Map(
             self: *@This(),
             allocator: std.mem.Allocator,
             node: PathNode,
-        ) !usize
+        ) !NodeIndex
         {
             const new_index = self.nodes.len;
 
@@ -426,8 +428,8 @@ pub fn Map(
         pub const PathNode = struct {
             space: GraphNodeType,
             code: treecode.Treecode,
-            parent_index: ?usize = null,
-            child_indices: [2]?usize = .{null, null},
+            parent_index: ?NodeIndex = null,
+            child_indices: [2]?NodeIndex = .{null, null},
 
             pub fn format(
                 self: @This(),
