@@ -204,30 +204,27 @@ pub fn Map(
             var label_buf: [1024]u8 = undefined;
             var next_label_buf: [1024]u8 = undefined;
 
-            var stack: std.ArrayList(usize) = .empty;
-            try stack.append(arena_allocator, 0);
-            while (stack.pop()) 
+            for (0..self.nodes.len)
                 |current_index|
             {
                 const current_code = self.nodes.items(.code)[current_index];
-                const current_space = self.nodes.items(.space)[current_index];
-                // const current_children = self.nodes.items(.child_indices)[current_index];
 
                 const current_label = try node_label(
                     &label_buf,
-                    current_space,
+                    self.nodes.items(.space)[current_index],
                     current_code,
                     options.label_style,
                 );
 
-                for ([_]usize{ 0, 1 })
-                    |child_step|
+                const current_children = (
+                    self.nodes.items(.child_indices)[current_index]
+                );
+                for (current_children)
+                    |maybe_child_index|
                 {
-                    if (self.nodes.items(.child_indices)[current_index][child_step])
+                    if (maybe_child_index)
                         |child_index|
                     {
-                        @branchHint(.likely);
-
                         const next_label = try node_label(
                             &next_label_buf,
                             self.nodes.items(.space)[child_index],
@@ -238,7 +235,6 @@ pub fn Map(
                             "  \"{s}\" -> \"{s}\"\n",
                             .{current_label, next_label}
                         );
-                        try stack.append(arena_allocator, child_index);
                     } 
                     else 
                     {
