@@ -179,7 +179,7 @@ pub fn Map(
                 /// if this is off, will generate the .dot file and return
                 render_png: bool = true,
             },
-            ) !void 
+        ) !void 
         {
             var arena = std.heap.ArenaAllocator.init(allocator);
             defer arena.deinit();
@@ -192,10 +192,11 @@ pub fn Map(
             );
             defer file.close();
 
-            var buf: [16*1024]u8 = undefined;
-            var file_writer = file.writer(&buf);
+            var file_writer_buffer: [16*1024]u8 = undefined;
+            var file_writer = file.writer(&file_writer_buffer);
             var writer = &file_writer.interface;
 
+            // header text for the dot file
             _ = try writer.print(
                 "digraph {s} {{\n",
                 .{ header_name }
