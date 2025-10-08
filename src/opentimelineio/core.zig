@@ -1015,7 +1015,7 @@ test "ProjectionOperatorMap: projection_map_to_media_from leak test"
 
 /// maps a timeline to sets of projection operators, one set per temporal slice
 pub const ProjectionOperatorMap = struct {
-    /// segment endpoints
+    /// segment endpoints in the input space
     end_points: []const opentime.Ordinate = &.{},
     /// segment projection operators 
     operators : []const []const ProjectionOperator = &.{},
