@@ -3868,4 +3868,3 @@ test "ProjectionOperatorMap: clone"
         try topo.project_instantaneous_cc(opentime.Ordinate.init(3)).ordinate()
     );
 }
-
