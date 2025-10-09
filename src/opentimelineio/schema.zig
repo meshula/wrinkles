@@ -4,7 +4,9 @@ const opentime = @import("opentime");
 const sampling = @import("sampling");
 const string = @import("string_stuff");
 const topology_m = @import("topology");
+
 const core = @import("core.zig");
+const references = @import("references.zig");
 
 /// a reference that points at some reference via a string address
 pub const ExternalReference = struct {
@@ -117,7 +119,7 @@ pub const Clip = struct {
     pub fn bounds_of(
         self: @This(),
         _: std.mem.Allocator,
-        target_space: core.SpaceLabel,
+        target_space: references.SpaceLabel,
     ) !opentime.ContinuousInterval 
     {
         const maybe_bounds_s = (
@@ -200,7 +202,7 @@ pub const Gap = struct {
 /// and and warp.child.presentation spaces.
 pub const Warp = struct {
     name: ?string.latin_s8 = null,
-    child: core.ComposedValueRef,
+    child: references.ComposedValueRef,
     transform: topology_m.Topology,
     interpolating: bool = false,
 };
@@ -208,7 +210,7 @@ pub const Warp = struct {
 /// a container in which each contained item is right-met over time
 pub const Track = struct {
     name: ?string.latin_s8 = null,
-    children: []core.ComposedValueRef = &.{},
+    children: []references.ComposedValueRef = &.{},
 
     pub const EMPTY = Track{
         .name = null,
@@ -298,7 +300,7 @@ pub const Track = struct {
         allocator: std.mem.Allocator,
         // @TODO: this is super confusing for what it does and should be
         //        renamed
-        child_space_reference: core.SpaceReference,
+        child_space_reference: references.SpaceReference,
     ) !topology_m.Topology 
     {
         // [child 1][child 2]
@@ -336,7 +338,7 @@ pub const Track = struct {
 /// children of a stack are simultaneous in time
 pub const Stack = struct {
     name: ?string.latin_s8 = null,
-    children: []core.ComposedValueRef = &.{},
+    children: []references.ComposedValueRef = &.{},
 
     pub fn deinit(
         self: *@This(),

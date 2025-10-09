@@ -14,10 +14,12 @@ const build_options = @import("build_options");
 const treecode = @import("treecode");
 const opentime = @import("opentime");
 const string = @import("string_stuff");
+const topology_m = @import("topology");
 
 const schema = @import("schema.zig");
 const core = @import("core.zig");
-const topology_m = @import("topology");
+const references = @import("references.zig");
+const projection = @import("projection.zig");
 
 /// annotate the graph algorithms
 // const GRAPH_CONSTRUCTION_TRACE_MESSAGES = true;
@@ -27,18 +29,18 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
 
 const T_ORD_10 =  opentime.Ordinate.init(10);
 const T_CTI_1_10 = opentime.ContinuousInterval {
-    .start = opentime.Ordinate.ONE,
+    .start = .ONE,
     .end = T_ORD_10,
 };
 
 // lofting types back out of function
-pub const TemporalMap = treecode.Map(core.SpaceReference);
+pub const TemporalMap = treecode.Map(references.SpaceReference);
 pub const PathIterator = TemporalMap.PathIterator;
 pub const PathEndPoints = TemporalMap.PathEndPoints;
 
 fn walk_child_spaces(
     allocator: std.mem.Allocator,
-    parent_otio_object: core.ComposedValueRef,
+    parent_otio_object: references.ComposedValueRef,
     parent_code: treecode.Treecode,
     parent_index: ?usize,
     map: *TemporalMap,
@@ -67,7 +69,7 @@ fn walk_child_spaces(
         );
 
         // insert the child scope of the parent
-        const space_ref = core.SpaceReference{
+        const space_ref = references.SpaceReference{
             .ref = parent_otio_object,
             .label = .child,
             .child_index = index,
@@ -147,7 +149,7 @@ fn walk_child_spaces(
 
 fn walk_internal_spaces(
     allocator: std.mem.Allocator,
-    parent_otio_object: core.ComposedValueRef,
+    parent_otio_object: references.ComposedValueRef,
     parent_code: treecode.Treecode,
     parent_index: ?usize,
     map: *TemporalMap,
@@ -231,7 +233,7 @@ fn walk_internal_spaces(
 /// (Presentation, Intrinsic, etc) then into the children of the node.
 pub fn build_temporal_map(
     parent_allocator: std.mem.Allocator,
-    root_item: core.ComposedValueRef,
+    root_item: references.ComposedValueRef,
 ) !TemporalMap 
 {
     var tmp_map = TemporalMap{};
@@ -241,7 +243,7 @@ pub fn build_temporal_map(
     //       stack of objects to process.
     const StackNode = struct {
         path_code: treecode.Treecode,
-        otio_object: core.ComposedValueRef,
+        otio_object: references.ComposedValueRef,
         parent_index: ?usize,
     };
 
@@ -305,11 +307,11 @@ test "build_temporal_map: leak sentinel test track w/ clip"
 
     var cl = schema.Clip{};
 
-    var tr_children = [_]core.ComposedValueRef{
-        core.ComposedValueRef.init(&cl),
+    var tr_children = [_]references.ComposedValueRef{
+        references.ComposedValueRef.init(&cl),
     };
     var tr: schema.Track = .{ .children = &tr_children };
-    const tr_ref = core.ComposedValueRef.init(&tr);
+    const tr_ref = references.ComposedValueRef.init(&tr);
 
     const map = try build_temporal_map(
         allocator,
@@ -332,18 +334,18 @@ test "build_temporal_map check root node"
     const SIZE = 11;
 
     var clips: [SIZE]schema.Clip = undefined;
-    var refs: [SIZE]core.ComposedValueRef = undefined;
+    var refs: [SIZE]references.ComposedValueRef = undefined;
 
     for (&clips, &refs)
         |*cl_p, *ref|
     {
         cl_p.bounds_s = cti;
 
-        ref.* = core.ComposedValueRef.init(cl_p);
+        ref.* = references.ComposedValueRef.init(cl_p);
     }
 
     var tr: schema.Track = .{.children = &refs };
-    const tr_ref = core.ComposedValueRef.init(&tr);
+    const tr_ref = references.ComposedValueRef.init(&tr);
 
     try std.testing.expectEqual(
         SIZE,
@@ -415,7 +417,7 @@ test "build_temporal_map: leak sentinel test - single clip"
 
     const map = try build_temporal_map(
         allocator,
-        core.ComposedValueRef.init(&cl)
+        references.ComposedValueRef.init(&cl)
     );
     defer map.deinit(allocator);
 }
@@ -430,7 +432,7 @@ test "TestWalkingIterator: clip"
     var cl = schema.Clip {
         .bounds_s = media_source_range,
     };
-    const cl_ptr = core.ComposedValueRef.init(&cl);
+    const cl_ptr = references.ComposedValueRef.init(&cl);
 
     const map = try build_temporal_map(
         allocator,
@@ -472,11 +474,11 @@ test "TestWalkingIterator: track with clip"
     var cl = schema.Clip {
         .bounds_s = media_source_range,
     };
-    const cl_ptr = core.ComposedValueRef.init(&cl);
+    const cl_ptr = references.ComposedValueRef.init(&cl);
 
-    var tr_children = [_]core.ComposedValueRef{ cl_ptr, };
+    var tr_children = [_]references.ComposedValueRef{ cl_ptr, };
     var tr: schema.Track = .{ .children = &tr_children };
-    const tr_ptr = core.ComposedValueRef.init(&tr);
+    const tr_ptr = references.ComposedValueRef.init(&tr);
 
     const map = try build_temporal_map(
         std.testing.allocator,
@@ -548,14 +550,14 @@ test "TestWalkingIterator: track with clip w/ destination"
     var cl2 = schema.Clip {
         .bounds_s = media_source_range,
     };
-    const cl_ptr = core.ComposedValueRef.init(&cl2);
+    const cl_ptr = references.ComposedValueRef.init(&cl2);
 
-    var tr_children = [_]core.ComposedValueRef{
-        core.ComposedValueRef.init(&cl),
+    var tr_children = [_]references.ComposedValueRef{
+        references.ComposedValueRef.init(&cl),
         cl_ptr,
     };
     var tr: schema.Track = .{ .children = &tr_children };
-    const tr_ptr = core.ComposedValueRef.init(&tr);
+    const tr_ptr = references.ComposedValueRef.init(&tr);
 
     const map = try build_temporal_map(
         std.testing.allocator,
@@ -758,7 +760,7 @@ pub fn build_projection_operator(
     allocator: std.mem.Allocator,
     map: TemporalMap,
     endpoints: TemporalMap.PathEndPoints,
-) !core.ProjectionOperator 
+) !projection.ProjectionOperator 
 {
     // sort endpoints so that the higher node is always the source
     var sorted_endpoints = endpoints;
@@ -919,7 +921,7 @@ test "label_for_node_leaky"
     var buf: [1024]u8 = undefined;
 
     var tr: schema.Track = .EMPTY;
-    const sr = core.SpaceReference{
+    const sr = references.SpaceReference{
         .label = .presentation,
         .ref = .{ .track = &tr },
     };
