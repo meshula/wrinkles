@@ -70,11 +70,16 @@ pub fn slice_with_cloned_contents_allocator(
 ) ![]const T
 {
     var result: std.ArrayList(T) = .empty;
+    defer result.deinit(allocator);
+    try result.ensureTotalCapacity(
+        allocator,
+        slice_to_clone.len,
+    );
 
     for (slice_to_clone)
         |thing|
     {
-        try result.append(allocator,try thing.clone(allocator));
+        result.appendAssumeCapacity(try thing.clone(allocator));
     }
 
     return try result.toOwnedSlice(allocator);

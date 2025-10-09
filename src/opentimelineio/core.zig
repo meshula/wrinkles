@@ -178,19 +178,20 @@ pub const ComposedValueRef = union(enum) {
         allocator: std.mem.Allocator,
     ) ![]const SpaceReference 
     {
-        var result: std.ArrayList(SpaceReference) = .{};
+        var result: std.ArrayList(SpaceReference) = .empty;
+        defer result.deinit(allocator);
+
+        try result.ensureTotalCapacity(allocator, 2);
 
         switch (self) {
             .clip, => {
-                try result.append(
-                    allocator,
+                result.appendAssumeCapacity(
                     .{
                         .ref = self,
                         .label = SpaceLabel.presentation,
                     },
                 );
-                try result.append(
-                    allocator,
+                result.appendAssumeCapacity(
                     .{
                         .ref = self,
                         .label = SpaceLabel.media,
@@ -198,15 +199,13 @@ pub const ComposedValueRef = union(enum) {
                 );
             },
             .track, .timeline, .stack => {
-                try result.append(
-                    allocator,
+                result.appendAssumeCapacity(
                     .{
                         .ref = self,
                         .label = SpaceLabel.presentation,
                     },
                 );
-                try result.append(
-                    allocator,
+                result.appendAssumeCapacity(
                     .{
                         .ref = self,
                         .label = SpaceLabel.intrinsic,
@@ -214,8 +213,7 @@ pub const ComposedValueRef = union(enum) {
                 );
             },
             .gap, .warp => {
-                try result.append(
-                    allocator,
+                result.appendAssumeCapacity(
                     .{
                         .ref = self,
                         .label = SpaceLabel.presentation,
@@ -728,6 +726,14 @@ pub const ProjectionOperator = struct {
 
         const duration = dst_discrete_info.sample_rate_hz.inv_as_ordinate();
 
+        const sample_count = (
+            bounds_to_walk.duration().div(duration).abs().as(usize)
+        );
+        try index_buffer_destination_discrete.ensureTotalCapacity(
+            allocator,
+            sample_count + 2,
+        );
+
         const increasing = bounds_to_walk.end.gt(bounds_to_walk.start);
 
         const increment = (
@@ -746,8 +752,7 @@ pub const ProjectionOperator = struct {
             );
 
             // ...project the continuous coordinate into the discrete space
-            try index_buffer_destination_discrete.append(
-                allocator,
+            index_buffer_destination_discrete.appendAssumeCapacity(
                 try self.destination.ref.continuous_ordinate_to_discrete_index(
                     out_ord,
                     self.destination.label,
@@ -1132,41 +1137,52 @@ pub const ProjectionOperatorMap = struct {
             over_conformed.end_points,
         );
 
+        const entries = over_conformed.end_points.len;
         var end_points: std.ArrayList(opentime.Ordinate) = .empty;
+        try end_points.ensureTotalCapacity(
+            parent_allocator,
+            entries,
+        );
+
         var operators: std.ArrayList([]const ProjectionOperator) = .empty;
+        try operators.ensureTotalCapacity(
+            parent_allocator,
+            entries,
+        );
         var current_segment: std.ArrayList(ProjectionOperator) = .empty;
 
         // both end point arrays are the same
-        for (over_conformed.end_points[0..over_conformed.end_points.len - 1], 0..)
+        for (over_conformed.end_points[0..entries - 1], 0..)
             |p, ind|
         {
-            try end_points.append(parent_allocator,p);
+            end_points.appendAssumeCapacity(p);
+            try current_segment.ensureTotalCapacity(
+                parent_allocator,
+                over_conformed.operators[ind].len
+                + undr_conformed.operators[ind].len
+            );
+            defer current_segment.clearAndFree(parent_allocator);
+
             for (over_conformed.operators[ind])
                 |op|
             {
-                try current_segment.append(
-                    parent_allocator,
+                current_segment.appendAssumeCapacity(
                     try op.clone(parent_allocator),
                 );
             }
             for (undr_conformed.operators[ind])
                 |op|
             {
-                try current_segment.append(
-                    parent_allocator,
+                current_segment.appendAssumeCapacity(
                     try op.clone(parent_allocator),
                 );
             }
-            try operators.append(
-                parent_allocator,
+            operators.appendAssumeCapacity(
                 try current_segment.toOwnedSlice(parent_allocator),
             );
-
-            current_segment.clearAndFree(parent_allocator);
         }
 
-        try end_points.append(
-            parent_allocator,
+        end_points.appendAssumeCapacity(
             over_conformed.end_points[over_conformed.end_points.len - 1],
         );
 
@@ -1192,6 +1208,20 @@ pub const ProjectionOperatorMap = struct {
     ) !ProjectionOperatorMap
     {
         var cloned_projection_operators: std.ArrayList(ProjectionOperator) = .{};
+        defer cloned_projection_operators.deinit(allocator);
+
+        // count the amount of space to reserve
+        var count:usize = 0;
+        for (self.operators)
+            |source|
+        {
+            count += source.len;
+        }
+
+        try cloned_projection_operators.ensureTotalCapacity(
+            allocator,
+            count
+        );
 
         return .{
             .source = self.source,
@@ -1212,8 +1242,7 @@ pub const ProjectionOperatorMap = struct {
                     for (source)
                         |s_mapping|
                     {
-                        try cloned_projection_operators.append(
-                            allocator,
+                        cloned_projection_operators.appendAssumeCapacity(
                             try s_mapping.clone(allocator)
                         );
                     }
@@ -1235,22 +1264,32 @@ pub const ProjectionOperatorMap = struct {
     {
         var tmp_pts: std.ArrayList(opentime.Ordinate) = .empty;
         defer tmp_pts.deinit(allocator);
+        try tmp_pts.ensureTotalCapacity(
+            allocator,
+            // possible extra end point + internal points
+            1 + self.end_points.len + 1
+        );
+
         var tmp_ops: std.ArrayList([]const ProjectionOperator) = .empty;
         defer tmp_ops.deinit(allocator);
+        try tmp_ops.ensureTotalCapacity(
+            allocator,
+            // possible extra end point + internal points
+            1 + self.operators.len + 1
+        );
 
         if (self.end_points[0].gt(range.start)) 
         {
-            try tmp_pts.append(allocator,range.start);
-            try tmp_ops.append(allocator, &.{});
+            tmp_pts.appendAssumeCapacity(range.start);
+            tmp_ops.appendAssumeCapacity(&.{});
         }
 
-        try tmp_pts.appendSlice(allocator,self.end_points);
+        tmp_pts.appendSliceAssumeCapacity(self.end_points);
 
         for (self.operators) 
             |self_ops|
         {
-            try tmp_ops.append(
-                allocator,
+            tmp_ops.appendAssumeCapacity(
                 try opentime.slice_with_cloned_contents_allocator(
                     allocator,
                     ProjectionOperator,
@@ -1261,8 +1300,8 @@ pub const ProjectionOperatorMap = struct {
 
         if (range.end.gt(self.end_points[self.end_points.len - 1])) 
         {
-            try tmp_pts.append(allocator,range.end);
-            try tmp_ops.append(allocator, &.{});
+            tmp_pts.appendAssumeCapacity(range.end);
+            tmp_ops.appendAssumeCapacity(&.{});
         }
 
         return .{
@@ -1279,8 +1318,19 @@ pub const ProjectionOperatorMap = struct {
         pts: []const opentime.Ordinate,
     ) !ProjectionOperatorMap
     {
-        var tmp_pts: std.ArrayList(opentime.Ordinate) = .{};
-        var tmp_ops: std.ArrayList([]const ProjectionOperator) = .{};
+        var tmp_pts: std.ArrayList(opentime.Ordinate) = .empty;
+        defer tmp_pts.deinit(allocator);
+        try tmp_pts.ensureTotalCapacity(
+            allocator,
+            self.end_points.len + pts.len
+        );
+
+        var tmp_ops: std.ArrayList([]const ProjectionOperator) = .empty;
+        defer tmp_ops.deinit(allocator);
+        try tmp_ops.ensureTotalCapacity(
+            allocator,
+            self.operators.len + pts.len
+        );
 
         var ind_self:usize = 0;
         var ind_other:usize = 0;
@@ -1289,15 +1339,14 @@ pub const ProjectionOperatorMap = struct {
         var t_next_other = pts[1];
 
         // append origin
-        try tmp_pts.append(allocator,self.end_points[0]);
+        tmp_pts.appendAssumeCapacity(self.end_points[0]);
 
         while (
             ind_self < self.end_points.len - 1
             and ind_other < pts.len - 1 
         )
         {
-            try tmp_ops.append(
-                allocator,
+            tmp_ops.appendAssumeCapacity(
                 try opentime.slice_with_cloned_contents_allocator(
                     allocator,
                     ProjectionOperator,
@@ -1310,7 +1359,7 @@ pub const ProjectionOperatorMap = struct {
 
             if (t_next_self.eql_approx(t_next_other))
             {
-                try tmp_pts.append(allocator,t_next_self);
+                tmp_pts.appendAssumeCapacity(t_next_self);
                 if (ind_self < self.end_points.len - 1) {
                     ind_self += 1;
                 }
@@ -1320,12 +1369,12 @@ pub const ProjectionOperatorMap = struct {
             }
             else if (t_next_self.lt(t_next_other))
             {
-                try tmp_pts.append(allocator,t_next_self);
+                tmp_pts.appendAssumeCapacity(t_next_self);
                 ind_self += 1;
             }
             else 
             {
-                try tmp_pts.append(allocator,t_next_other);
+                tmp_pts.appendAssumeCapacity(t_next_other);
                 ind_other += 1;
             }
         }
@@ -3428,7 +3477,7 @@ test "test debug_print_time_hierarchy"
     var cl1 = schema.Clip {
         .name = "Spaghetti.wav",
         .media = .{
-            .bounds_s = .{},
+            .bounds_s = null,
             .discrete_info = .{
                 .sample_rate_hz = .{ .Int = 24 },
                 .start_index = 0,

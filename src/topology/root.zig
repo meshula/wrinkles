@@ -203,11 +203,14 @@ pub const Topology = struct {
     ) !Topology
     {
         var new_mappings: std.ArrayList(mapping.Mapping,) = .{};
+        try new_mappings.ensureTotalCapacity(
+            allocator,
+            self.mappings.len
+        );
         for (self.mappings)
             |m|
         {
-            try new_mappings.append(
-                allocator,
+            new_mappings.appendAssumeCapacity(
                 try m.clone(allocator),
             );
         }
@@ -299,16 +302,20 @@ pub const Topology = struct {
         }
 
         var result: std.ArrayList(opentime.Ordinate) = .{};
-
-        try result.append(
+        defer result.deinit(allocator);
+        try result.ensureTotalCapacity(
             allocator,
+            1 + self.mappings.len,
+        );
+
+        result.appendAssumeCapacity(
             self.mappings[0].input_bounds().start,
         );
 
         for (self.mappings)
             |m|
         {
-            try result.append(allocator,m.input_bounds().end);
+            result.appendAssumeCapacity(m.input_bounds().end);
         }
 
         return try result.toOwnedSlice(allocator);
@@ -486,7 +493,12 @@ pub const Topology = struct {
         target_output_range: opentime.interval.ContinuousInterval,
     ) !Topology
     {
-        var new_mappings: std.ArrayList(mapping.Mapping) = .{};
+        var new_mappings: std.ArrayList(mapping.Mapping) = .empty;
+        defer new_mappings.deinit(allocator);
+        try new_mappings.ensureTotalCapacity(
+            allocator,
+            self.mappings.len * 3,
+        );
 
         const ob = self.output_bounds();
         if (
@@ -518,10 +530,7 @@ pub const Topology = struct {
                 )
                 {
                     // nothing to trim
-                    try new_mappings.append(
-                        allocator,
-                        try m.clone(allocator),
-                    );
+                    new_mappings.appendAssumeCapacity(try m.clone(allocator));
                     continue;
                 }
 
@@ -542,8 +551,7 @@ pub const Topology = struct {
                 ) 
                 {
                     // empty left
-                    try new_mappings.append(
-                        allocator,
+                    new_mappings.appendAssumeCapacity(
                         (
                          mapping.MappingEmpty{
                              .defined_range = .{
@@ -560,8 +568,7 @@ pub const Topology = struct {
                 )
                 {
                     // trimmed mapping
-                    try new_mappings.append(
-                        allocator,
+                    new_mappings.appendAssumeCapacity(
                         try shrunk_m.clone(allocator),
                     );
                 }
@@ -572,8 +579,7 @@ pub const Topology = struct {
                 )
                 {
                     // empty right
-                    try new_mappings.append(
-                        allocator,
+                    new_mappings.appendAssumeCapacity(
                         (
                          mapping.MappingEmpty{
                              .defined_range = .{
@@ -588,8 +594,7 @@ pub const Topology = struct {
             else 
             {
                 // no intersection
-                try new_mappings.append(
-                    allocator,
+                new_mappings.appendAssumeCapacity(
                     (
                      mapping.MappingEmpty{
                          .defined_range = m_in_range,
@@ -600,7 +605,9 @@ pub const Topology = struct {
         }
 
         return .{
-            .mappings = try new_mappings.toOwnedSlice(allocator),
+            .mappings = (
+                try new_mappings.toOwnedSlice(allocator)
+            ),
         };
     }
 
@@ -625,6 +632,12 @@ pub const Topology = struct {
         }
 
         var result_mappings: std.ArrayList(mapping.Mapping) = .{};
+        defer result_mappings.deinit(allocator);
+
+        try result_mappings.ensureTotalCapacity(
+            allocator,
+            self.mappings.len + input_points.len,
+        );
 
         for (self.mappings)
             |m|
@@ -635,11 +648,13 @@ pub const Topology = struct {
             );
             defer allocator.free(new_result);
 
-            try result_mappings.appendSlice(allocator,new_result);
+            result_mappings.appendSliceAssumeCapacity(new_result);
         }
 
         const result = Topology{
-            .mappings = try result_mappings.toOwnedSlice(allocator),
+            .mappings = (
+                try result_mappings.toOwnedSlice(allocator)
+            ),
         };
 
         return result;
@@ -1568,7 +1583,11 @@ pub fn join(
         )
     );
 
-    var a2c_mappings: std.ArrayList(mapping.Mapping) = .{};
+    var a2c_mappings: std.ArrayList(mapping.Mapping) = .empty;
+    try a2c_mappings.ensureTotalCapacity(
+        parent_allocator,
+        a2b_split.mappings.len + b2c_split.mappings.len,
+    );
 
     // at this point the start and end points are the same and there are the
     // same number of endpoints
@@ -1593,17 +1612,14 @@ pub fn join(
             ) 
             {
                 const a2c_m = try mapping.join(
-                    allocator,
+                    parent_allocator,
                     .{ 
                         .a2b = a2b_m,
                         .b2c = b2c_m,
                     },
                 );
 
-                try a2c_mappings.append(
-                    parent_allocator,
-                    try a2c_m.clone(parent_allocator),
-                );
+                a2c_mappings.appendAssumeCapacity(a2c_m);
                 break;
             }
         }
