@@ -92,6 +92,12 @@ temporal hierarchies of editorial documents.
   graph of the temporal structural, decorated with the Transformation curves
   * select two nodes to see the projection operator from one to the other
 
+## Todo List (10/9/25)
+
+* [ ] Can Projection Operator go away?
+* [ ] Can the Projection Operator map get melded in with Topology, omitting 
+      both the Projection Operator and Operator Map?
+
 ## Todo List (11/6/24)
 
 * [x] add build variable for debug messages
