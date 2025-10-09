@@ -45,7 +45,7 @@ pub const MappingAffine = struct {
             and !ordinate.eql(self.input_bounds_val.end)
         )
         {
-            return opentime.OUTOFBOUNDS;
+            return .OUTOFBOUNDS;
         }
 
         return .{ 
@@ -67,7 +67,7 @@ pub const MappingAffine = struct {
             and !(output_ordinate.eql(self.output_bounds().end))
         )
         {
-            return opentime.OUTOFBOUNDS;
+            return .OUTOFBOUNDS;
         }
 
         return .{
@@ -228,12 +228,6 @@ pub const MappingAffine = struct {
         return try result_mappings.toOwnedSlice(allocator);
     }
 };
-pub const INFINITE_IDENTITY = (
-    MappingAffine{
-        .input_bounds_val = opentime.ContinuousInterval.INF,
-        .input_to_output_xform = opentime.AffineTransform1D.IDENTITY,
-    }
-).mapping();
 
 test "MappingAffine: instantiate (identity)"
 {

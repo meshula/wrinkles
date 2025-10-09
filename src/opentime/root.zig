@@ -41,7 +41,6 @@ pub const ContinuousInterval_BaseType = interval.ContinuousInterval_BaseType;
 // transform @{
 pub const transform = @import("transform.zig");
 pub const AffineTransform1D = transform.AffineTransform1D;
-pub const IDENTITY_TRANSFORM = transform.IDENTITY_TRANSFORM;
 // @}
 
 pub const dual = @import("dual.zig");
@@ -49,13 +48,10 @@ pub const Dual_Ord = dual.Dual_Ord;
 pub const dual_ctx = dual.dual_ctx{};
 
 pub const util = @import("util.zig");
-pub const EPSILON_ORD = util.EPSILON_ORD;
 pub const EPSILON_F = util.EPSILON_F;
-pub const INF_ORD = util.INF_ORD;
 
 const projection_result = @import("projection_result.zig");
 pub const ProjectionResult = projection_result.ProjectionResult;
-pub const OUTOFBOUNDS = projection_result.OUTOFBOUNDS;
 
 const dbg_print_mod = @import("dbg_print.zig");
 pub const dbg_print = dbg_print_mod.dbg_print;

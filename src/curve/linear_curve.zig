@@ -254,7 +254,7 @@ pub fn LinearOf(
                     };
                 }
 
-                return opentime.OUTOFBOUNDS;
+                return .OUTOFBOUNDS;
             }
 
             /// compute the input ordinate at the output ordinate
@@ -264,7 +264,7 @@ pub fn LinearOf(
             ) opentime.ProjectionResult
             {
                 if (self.knots.len == 0) {
-                    return opentime.OUTOFBOUNDS;
+                    return .OUTOFBOUNDS;
                 }
 
                 if (self.nearest_knot_indices_output(output_ord)) 
@@ -290,7 +290,7 @@ pub fn LinearOf(
                     return .{ .SuccessOrdinate = first_knot.in };
                 }
 
-                return opentime.OUTOFBOUNDS;
+                return .OUTOFBOUNDS;
             }
 
             /// trim the curve to a range in the input space

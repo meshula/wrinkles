@@ -25,14 +25,15 @@ pub const MediaDataReference = union(enum) {
     external: ExternalReference,
     signal: SignalReference,
     empty: EmptyReference,
-};
 
-pub const EMPTY_REF = MediaDataReference{
-    .empty = .{} 
+    pub const EMPTY_REF = MediaDataReference{
+        .empty = .{} 
+    };
+
 };
 
 pub const MediaReference = struct {
-    ref: MediaDataReference = EMPTY_REF,
+    ref: MediaDataReference = .EMPTY_REF,
 
     /// bounds of the media space continuous time
     bounds_s: ?opentime.ContinuousInterval = null,

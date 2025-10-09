@@ -12,6 +12,11 @@ pub const ProjectionResult = union (enum) {
     SuccessInterval : interval_m.ContinuousInterval,
     OutOfBounds : ?void,
 
+    /// an out of bounds projection result
+    pub const OUTOFBOUNDS = ProjectionResult{
+        .OutOfBounds = null,
+    };
+
     pub const Errors = struct {
         pub const NotAnOrdinateResult = error.NotAnOrdinateResult;
         pub const NotAnIntervalResult = error.NotAnIntervalResult;
@@ -62,9 +67,4 @@ pub const ProjectionResult = union (enum) {
             ),
         }
     }
-};
-
-/// an out of bounds projection result
-pub const OUTOFBOUNDS = ProjectionResult{
-    .OutOfBounds = null,
 };

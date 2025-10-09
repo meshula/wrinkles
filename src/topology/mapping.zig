@@ -11,7 +11,6 @@ pub const MappingEmpty = mapping_empty.MappingEmpty;
 
 const mapping_affine = @import("mapping_affine.zig");
 pub const MappingAffine = mapping_affine.MappingAffine;
-pub const INFINITE_IDENTITY = mapping_affine.INFINITE_IDENTITY;
 
 const mapping_curve_linear = @import("mapping_curve_linear.zig");
 pub const MappingCurveLinearMonotonic = (
@@ -23,12 +22,6 @@ pub const MappingCurveBezier = mapping_curve_bezier.MappingCurveBezier;
 
 const curve = @import("curve");
 
-test {
-    _ = mapping_affine;
-    _ = mapping_curve_linear;
-    _ = mapping_curve_bezier;
-}
-
 /// A Mapping is a polymorphic container for a function that maps from an
 /// "input" space to an "output" space.  Mappings can be joined with other
 /// mappings via function composition to build new transformations via common
@@ -39,6 +32,14 @@ pub const Mapping = union (enum) {
     affine: mapping_affine.MappingAffine,
     linear: mapping_curve_linear.MappingCurveLinearMonotonic,
     // bezier: mapping_curve_bezier.MappingCurveBezier,
+
+    pub const INFINITE_IDENTITY = (
+        MappingAffine{
+            .input_bounds_val = opentime.ContinuousInterval.INF,
+            .input_to_output_xform = opentime.AffineTransform1D.IDENTITY,
+        }
+    ).mapping();
+    pub const EMPTY_INF = mapping_empty.EMPTY_INF.mapping();
 
     pub fn deinit(
         self: @This(),
@@ -299,8 +300,6 @@ pub const Mapping = union (enum) {
     pub const ProjectionError = error { OutOfBounds };
     // @}
 };
-
-pub const EMPTY_INF = mapping_empty.EMPTY_INF.mapping();
 
 // Join Functions
 //
@@ -652,7 +651,7 @@ pub fn join(
 test "Mapping: join aff/aff"
 {
     const allocator = std.testing.allocator;
-    const ident = INFINITE_IDENTITY;
+    const ident:Mapping = .INFINITE_IDENTITY;
 
     const aff = (
         MappingAffine{

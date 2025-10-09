@@ -16,10 +16,13 @@ const ContinuousInterval = interval.ContinuousInterval;
 /// Transform order scale then offset, ie y = T(x) = (x * Scale + offset)
 /// ///////////////////////////////////////////////////////////////////////////
 pub const AffineTransform1D = struct {
-    offset: ordinate.Ordinate = ordinate.Ordinate.ZERO,
-    scale: ordinate.Ordinate = ordinate.Ordinate.ONE,
+    offset: ordinate.Ordinate = .ZERO,
+    scale: ordinate.Ordinate = .ONE,
 
-    pub const IDENTITY = AffineTransform1D{};
+    pub const IDENTITY = AffineTransform1D{
+        .offset = .ZERO,
+        .scale = .ONE,
+    };
 
     /// transform the ordinate.  Order is scale and then offset.
     pub fn applied_to_ordinate(
@@ -129,11 +132,6 @@ pub const AffineTransform1D = struct {
             }
         );
     }
-};
-
-pub const IDENTITY_TRANSFORM = AffineTransform1D{
-    .offset = 0,
-    .scale = 1,
 };
 
 test "AffineTransform1D: offset test" 

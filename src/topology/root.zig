@@ -12,6 +12,7 @@ pub const Topology = topology.Topology;
 pub const join = topology.join;
 
 pub const mapping = @import("mapping.zig");
+pub const Mapping = mapping.Mapping;
 
 test 
 {

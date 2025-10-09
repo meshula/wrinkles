@@ -10,6 +10,10 @@ pub const MappingEmpty = struct {
     /// represents the input range (and effective output range) of the mapping
     defined_range: opentime.ContinuousInterval,
 
+    pub const EMPTY_INF = MappingEmpty{
+        .defined_range = .INF,
+    };
+
     /// build a generic mapping from this empty mapping
     pub fn mapping(
         self:@This(),
@@ -25,7 +29,7 @@ pub const MappingEmpty = struct {
         _: opentime.Ordinate
     ) opentime.ProjectionResult
     {
-        return opentime.OUTOFBOUNDS;
+        return .OUTOFBOUNDS;
     }
 
     pub fn project_instantaneous_cc_inv(
@@ -33,7 +37,7 @@ pub const MappingEmpty = struct {
         _: opentime.Ordinate
     ) opentime.ProjectionResult
     {
-        return opentime.OUTOFBOUNDS;
+        return .OUTOFBOUNDS;
     }
 
     pub fn inverted(
@@ -133,13 +137,9 @@ pub const MappingEmpty = struct {
     }
 };
 
-pub const EMPTY_INF = MappingEmpty{
-    .defined_range = opentime.ContinuousInterval.ZERO,
-};
-
 test "MappingEmpty: Project"
 {
-    const me = (EMPTY_INF).mapping();
+    const me = MappingEmpty.EMPTY_INF;
 
     var v = opentime.Ordinate.init(-10);
     while (v.lt(10))
