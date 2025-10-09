@@ -25,6 +25,10 @@ pub fn LinearOf(
         pub const Monotonic = struct {
             knots: []const ControlPointType,
 
+            pub const EMPTY = Monotonic {
+                .knots =  &.{} 
+            };
+
             pub fn deinit(
                 self: @This(),
                 allocator: std.mem.Allocator,
@@ -1029,7 +1033,7 @@ pub fn join(
     const b_bounds = opentime.interval.intersect(
         a2b_b_extents,
         b2c_b_extents,
-    ) orelse return .{.knots = &.{} };
+    ) orelse return .EMPTY;
 
     // trim curves to domain
     const a2b_trimmed = (
@@ -1057,7 +1061,8 @@ pub fn join(
         + b2c_trimmed.knots.len
     );
 
-    var result_knots: std.ArrayList(ControlPoint) = .{};
+    var result_knots: std.ArrayList(ControlPoint) = .empty;
+    defer result_knots.deinit(allocator);
     try result_knots.ensureTotalCapacity(
         allocator,
         total_possible_knots,
