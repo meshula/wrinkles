@@ -92,28 +92,6 @@ temporal hierarchies of editorial documents.
   graph of the temporal structural, decorated with the Transformation curves
   * select two nodes to see the projection operator from one to the other
 
-## Todo List (10/5/2025) - Refactor
-
-* [x] Checkpoint current optimization work
-    * [x] remove skipzigtest
-    * [x] check in to git
-    * [x] make topological map treecode->SpaceReference again (not `Treecode*`)
-    * [x] Treecode Map remove hash stuff
-    * [x] Topological Map bidirectional Code/Space, one copy of memory in one
-* [x] Make Treecode a library with a root
-* [x] move the TopologicalMap into Treecode, call it `treecode.Map`
-    * [x] also move the iterator into this (`MapIterator`)
-    * [x] Node -> `MapNode`
-    * [x] TopolocialMap becomes TemporalMap, mapping treecode to temporal
-          spaces in the OTIO hierarchy
-          `build_topological_map` -> `build_temporal_map`
-    * [x] Abstract it away from SpaceReference so you can seed it with whatever
-    * [ ] example node graph
-    * [x] document the map only needs to free() codes once (in one of the maps)
-    * [x] otio.TopologicalMap is the SpaceReference specialization of 
-          `treecode.BidirectionalMap`
-* [ ] Treecode -> split into Treecode and TreecodeBuilder (mutable)
-
 ## Todo List (11/6/24)
 
 * [x] add build variable for debug messages
