@@ -304,9 +304,11 @@ pub fn Map(
             // inverted
             if (source_code.code_length() > destination_code.code_length())
             {
-                const dest = endpoints.destination;
-                endpoints.destination = endpoints.source;
-                endpoints.source = dest;
+                std.mem.swap(
+                    NodeIndex,
+                    &endpoints.source,
+                    &endpoints.destination
+                );
                 return true;
             }
             else 
