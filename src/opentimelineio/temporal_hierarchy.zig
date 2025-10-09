@@ -895,7 +895,7 @@ pub fn build_projection_operator(
         );
         if (inverted_topologies.len > 1)
         {
-            return error.MoreThanOneCurveIsNotImplemented;
+            return error.MoreThanOneInversionIsNotImplemented;
         }
         if (inverted_topologies.len > 0) {
             root_to_current = inverted_topologies[0];

@@ -504,13 +504,11 @@ pub fn join_lin_aff(
         k.*.out = try args.b2c.project_instantaneous_cc(k.out).ordinate();
     }
 
-    const result= mapping_curve_linear.MappingCurveLinearMonotonic{
+    return mapping_curve_linear.MappingCurveLinearMonotonic{
         .input_to_output_curve =  .{
             .knots = a2c_knots,
         },
     };
-
-    return result;
 }
 
 pub fn join_lin_lin(

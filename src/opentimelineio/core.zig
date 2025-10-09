@@ -950,9 +950,10 @@ pub fn projection_map_to_media_from_leaky(
                 proj_args,
             )
         );
-        defer child_op.deinit(allocator);
 
-        const new_bounds = child_op.src_to_dst_topo.input_bounds();
+        const new_bounds = (
+            child_op.src_to_dst_topo.input_bounds()
+        );
 
         const child_op_map = ProjectionOperatorMap {
             .end_points = &. {
@@ -963,9 +964,6 @@ pub fn projection_map_to_media_from_leaky(
             },
             .source = source,
         };
-
-        const last = result;
-        defer last.deinit(allocator);
 
         result = try ProjectionOperatorMap.merge_composite(
             allocator,
@@ -1032,8 +1030,10 @@ test "ProjectionOperatorMap: projection_map_to_media_from leak test"
     );
 
     try opentime.expectOrdinateEqual(
-       4,
-       try m.operators[0][0].project_instantaneous_cc(opentime.Ordinate.init(3)).ordinate(),
+        4,
+        try m.operators[0][0].project_instantaneous_cc(
+            opentime.Ordinate.init(3)
+        ).ordinate(),
     );
 }
 
