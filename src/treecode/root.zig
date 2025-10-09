@@ -17,4 +17,5 @@ pub const Map = map.Map;
 test
 {
     _ = treecode;
+    _ = map;
 }

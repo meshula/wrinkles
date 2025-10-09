@@ -67,6 +67,10 @@ pub const Treecode = struct {
     /// The backing array of words for the bit path encoding.
     words: []TreecodeWord,
 
+    pub const EMPTY = Treecode{
+        .words = &.{ MARKER },
+    };
+
     /// Allocates a treecode with just the MARKER bit, otherwise empty.
     pub fn init(
         allocator: std.mem.Allocator,

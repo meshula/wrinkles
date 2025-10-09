@@ -102,5 +102,6 @@ test {
     _ = transform;
     _ = dual;
     _ = comath_wrapper;
+    _ = projection_result;
 }
 

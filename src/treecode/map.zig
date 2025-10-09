@@ -13,14 +13,9 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
 /// more readable, but make large graphs impossible to read.
 const LabelStyle = enum(u1) { treecode, hash };
 
-var ROOT_WORDS = [_]treecode.TreecodeWord{treecode.MARKER}; 
+const NodeIndex = usize;
 
-/// static code for the root of the graph
-const ROOT_CODE = treecode.Treecode {
-    .words = &ROOT_WORDS,
-};
-
-pub const NodeIndex = usize;
+const ROOT_CODE:treecode.Treecode = .EMPTY;
 
 /// Bidirectional map of `treecode.Treecode` to a parameterized
 /// `GraphNodeType` (presumably nodes in some graph).  This allows:
@@ -38,7 +33,7 @@ pub fn Map(
                               GraphNodeType,
                               NodeIndex,
                           ) = .empty,
-        /// mapping of `treecode.Treecode` to `GraphNodeType`
+        /// mapping of `treecode.Treecode` to `NodeIndex`
         map_code_to_index:treecode.TreecodeHashMap(NodeIndex) = .empty,
 
         nodes:NodesListType = .empty,
@@ -74,6 +69,8 @@ pub fn Map(
         {
             self.map_code_to_index.lockPointers();
             self.map_space_to_index.lockPointers();
+
+            // @TODO: could switch the implementation over to .Slice() here
         }
 
         /// add the PathNode to the map and return the newly created index
