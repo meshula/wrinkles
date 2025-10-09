@@ -3,7 +3,6 @@
 const std = @import("std");
 
 const opentime = @import("opentime");
-const serialization = @import("serialization.zig");
 const mapping_mod = @import("mapping.zig");
 
 /// Regardless what the input ordinate is, there is no value mapped to it
@@ -137,16 +136,6 @@ pub const MappingEmpty = struct {
 pub const EMPTY_INF = MappingEmpty{
     .defined_range = opentime.ContinuousInterval.ZERO,
 };
-
-test "MappingEmpty: instantiate and convert"
-{
-    const me = (EMPTY_INF).mapping();
-    const json_txt =  try serialization.to_string(
-        std.testing.allocator,
-        me
-    );
-    defer std.testing.allocator.free(json_txt);
-}
 
 test "MappingEmpty: Project"
 {

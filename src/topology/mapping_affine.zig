@@ -264,4 +264,3 @@ test "MappingAffine: non-identity"
        ma.project_instantaneous_cc(opentime.Ordinate.init(3)).ordinate(),
     );
 }
-
