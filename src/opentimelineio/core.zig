@@ -903,6 +903,25 @@ pub fn projection_map_to_media_from(
     source: SpaceReference,
 ) !ProjectionOperatorMap
 {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const arena_allocator = arena.allocator();
+
+    const result = try projection_map_to_media_from_leaky(
+        arena_allocator,
+        map,
+        source,
+    );
+
+    return try result.clone(allocator);
+}
+
+pub fn projection_map_to_media_from_leaky(
+    allocator: std.mem.Allocator,
+    map: temporal_hierarchy.TemporalMap,
+    source: SpaceReference,
+) !ProjectionOperatorMap
+{
     var result = ProjectionOperatorMap{
         .source = source,
     };
@@ -1210,19 +1229,6 @@ pub const ProjectionOperatorMap = struct {
         var cloned_projection_operators: std.ArrayList(ProjectionOperator) = .{};
         defer cloned_projection_operators.deinit(allocator);
 
-        // count the amount of space to reserve
-        var count:usize = 0;
-        for (self.operators)
-            |source|
-        {
-            count += source.len;
-        }
-
-        try cloned_projection_operators.ensureTotalCapacity(
-            allocator,
-            count
-        );
-
         return .{
             .source = self.source,
             .end_points = try allocator.dupe(
@@ -1239,6 +1245,10 @@ pub const ProjectionOperatorMap = struct {
                 for (outer, self.operators)
                     |*inner, source|
                 {
+                    try cloned_projection_operators.ensureTotalCapacity(
+                        allocator,
+                        source.len,
+                    );
                     for (source)
                         |s_mapping|
                     {
