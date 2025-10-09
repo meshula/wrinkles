@@ -40,8 +40,10 @@ pub fn Map(
                           ) = .empty,
         /// mapping of `treecode.Treecode` to `GraphNodeType`
         map_code_to_index:treecode.TreecodeHashMap(NodeIndex) = .empty,
-        nodes: std.MultiArrayList(PathNode) = .empty,
+
+        nodes:NodesListType = .empty,
         const MapType = @This();
+        const NodesListType = std.MultiArrayList(PathNode);
 
         pub fn deinit(
             self: @This(),
@@ -193,14 +195,16 @@ pub fn Map(
             var label_buf: [1024]u8 = undefined;
             var next_label_buf: [1024]u8 = undefined;
 
+            const nodes = self.nodes.slice();
+
             for (0..self.nodes.len)
                 |current_index|
             {
-                const current_code = self.nodes.items(.code)[current_index];
+                const current_code = nodes.items(.code)[current_index];
 
                 const current_label = try node_label(
                     &label_buf,
-                    self.nodes.items(.space)[current_index],
+                    nodes.items(.space)[current_index],
                     current_code,
                     options.label_style,
                 );
@@ -216,8 +220,8 @@ pub fn Map(
                     {
                         const next_label = try node_label(
                             &next_label_buf,
-                            self.nodes.items(.space)[child_index],
-                            self.nodes.items(.code)[child_index],
+                            nodes.items(.space)[child_index],
+                            nodes.items(.code)[child_index],
                             options.label_style,
                         );
                         _ = try writer.print(
@@ -483,7 +487,7 @@ pub fn Map(
 
             stack: std.ArrayList(NodeIndex) = .empty,
             maybe_current: ?NodeIndex,
-            map: *const MapType,
+            nodes: NodesListType.Slice,
             allocator: std.mem.Allocator,
             maybe_source: ?NodeIndex = null,
             maybe_destination: ?NodeIndex = null,
@@ -531,7 +535,7 @@ pub fn Map(
                 var result = IteratorType{
                     .stack = .empty,
                     .maybe_current = null,
-                    .map = map,
+                    .nodes = map.nodes.slice(),
                     .allocator = allocator,
                     .maybe_source = start_index,
                 };
@@ -609,11 +613,11 @@ pub fn Map(
                 {
                     if (current_index == dest) {
                         self.stack.clearAndFree(allocator);
-                        return self.map.nodes.get(current_index);
+                        return self.nodes.get(current_index);
                     }
                 }
 
-                const current_code = self.map.nodes.items(.code)[current_index];
+                const current_code = self.nodes.items(.code)[current_index];
 
                 // if there is a destination, walk in that direction.
                 // Otherwise, walk exhaustively
@@ -622,14 +626,14 @@ pub fn Map(
                     |dest| 
                     &[_]treecode.l_or_r{ 
                         current_code.next_step_towards(
-                            self.map.nodes.items(.code)[dest]
+                            self.nodes.items(.code)[dest]
                         )
                     }
                     else &.{ .left,.right }
                 );
 
                 const child_indices = (
-                    self.map.nodes.items(.child_indices)[current_index]
+                    self.nodes.items(.child_indices)[current_index]
                 );
 
                 for (next_steps)
@@ -657,7 +661,7 @@ pub fn Map(
                     }
                 }
 
-                return self.map.nodes.get(current_index);
+                return self.nodes.get(current_index);
             }
         };
 
