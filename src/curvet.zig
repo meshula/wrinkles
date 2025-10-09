@@ -228,7 +228,7 @@ fn _is_between(
 }
 
 const VisTransform = struct {
-    topology: topology.Topology = topology.INFINITE_IDENTIY,
+    topology: topology.Topology = .INFINITE_IDENTIY,
     active: bool = true,
 };
 

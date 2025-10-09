@@ -993,7 +993,7 @@ test "ProjectionOperatorMap: init_operator leak test"
             .{
                 .source = try cl_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
-                .src_to_dst_topo = topology_m.EMPTY,
+                .src_to_dst_topo = .EMPTY,
             },
         )
     );

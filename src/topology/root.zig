@@ -14,6 +14,14 @@ pub const mapping = @import("mapping.zig");
 pub const Topology = struct {
     mappings: []const mapping.Mapping,
 
+    /// an empty topology
+    pub const EMPTY = Topology{ .mappings = &.{} };
+    pub const INFINITE_IDENTIY = Topology{
+        .mappings = &.{
+            mapping.INFINITE_IDENTITY,
+        }
+    };
+
     pub fn init(
         allocator: std.mem.Allocator,
         in_mappings: []const mapping.Mapping,
@@ -21,7 +29,7 @@ pub const Topology = struct {
     {
         if (in_mappings.len == 0)
         {
-            return EMPTY;
+            return .EMPTY;
         }
 
         return .{
@@ -331,7 +339,7 @@ pub const Topology = struct {
         var new_bounds = opentime.interval.intersect(
             new_input_bounds,
             ib,
-        ) orelse return EMPTY;
+        ) orelse return .EMPTY;
 
         if (
             new_bounds.start.lteq(ib.start)
@@ -916,7 +924,7 @@ pub const Topology = struct {
     ) ![]const Topology
     {
         if (self.mappings.len == 0) {
-            return try allocator.dupe(Topology, &.{ EMPTY });
+            return try allocator.dupe(Topology, &.{ .EMPTY });
         }
 
         var result: std.ArrayList(Topology) = .{};
@@ -978,14 +986,6 @@ pub const Topology = struct {
         );
 
         return try result.toOwnedSlice(allocator);
-    }
-};
-
-/// an empty topology
-pub const EMPTY = Topology{ .mappings = &.{} };
-pub const INFINITE_IDENTIY = Topology{
-    .mappings = &.{
-        mapping.INFINITE_IDENTITY,
     }
 };
 
@@ -1136,7 +1136,7 @@ test "Topology trim_in_input_space"
 
         try std.testing.expectEqualSlices(
             mapping.Mapping,
-            EMPTY.mappings,
+            Topology.EMPTY.mappings,
             tm.mappings,
         );
     }
@@ -1518,7 +1518,7 @@ pub fn join(
 
         const output_value = switch (maybe_output_value) {
             .OutOfBounds,  => {
-                return EMPTY;
+                return .EMPTY;
             },
             .SuccessInterval => unreachable,
             .SuccessOrdinate => |val| val,
@@ -1543,7 +1543,7 @@ pub fn join(
         b2c.input_bounds(),
         // or return an empty topology
     ) orelse {
-        return EMPTY;
+        return .EMPTY;
     };
     const a2b_trimmed_in_b = try a2b.trim_in_output_space(
         allocator,

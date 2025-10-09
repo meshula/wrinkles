@@ -395,7 +395,7 @@ pub const Stack = struct {
                 .{ .input_bounds_val = b }
             );
         } else {
-            return topology_m.EMPTY;
+            return .EMPTY;
         }
     }
 };
