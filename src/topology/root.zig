@@ -1526,15 +1526,28 @@ pub fn join(
 
         const input_range = a2b.input_bounds();
 
-        return Topology.init_from_linear_monotonic(
-            parent_allocator,
-            .{
-                .knots = &.{
-                    .{ .in = input_range.start, .out = output_value },
-                    .{ .in = input_range.end, .out = output_value },
+        return try (
+            Topology{
+                .mappings = &.{
+                    (
+                     mapping.MappingCurveLinearMonotonic{
+                         .input_to_output_curve = .{
+                             .knots = &.{
+                                 .{
+                                     .in = input_range.start,
+                                     .out = output_value,
+                                 },
+                                 .{
+                                     .in = input_range.end,
+                                     .out = output_value,
+                                 },
+                                 },
+                             },
+                         }
+                    ).mapping(),
                 },
-            },
-        );
+            }
+        ).clone(parent_allocator);
     }
 
     // first trim both to the intersection range
