@@ -517,7 +517,7 @@ pub const ComposedValueRef = union(enum) {
         allocator: std.mem.Allocator,
     ) ![]ComposedValueRef
     {
-        var children_ptrs: std.ArrayList(ComposedValueRef) = .{};
+        var children_ptrs: std.ArrayList(ComposedValueRef) = .empty;
         defer children_ptrs.deinit(allocator);
 
         switch (self) {

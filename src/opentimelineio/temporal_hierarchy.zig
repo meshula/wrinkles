@@ -918,7 +918,7 @@ test "label_for_node_leaky"
 
     var buf: [1024]u8 = undefined;
 
-    var tr: schema.Track = .{};
+    var tr: schema.Track = .EMPTY;
     const sr = core.SpaceReference{
         .label = .presentation,
         .ref = .{ .track = &tr },

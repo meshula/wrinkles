@@ -1232,7 +1232,7 @@ pub fn inverted_linear(
         return crv;
     }
 
-    var result: std.ArrayList(control_point.ControlPoint) = .{};
+    var result: std.ArrayList(control_point.ControlPoint) = .empty;
     try result.appendSlice(allocator, crv.knots);
 
     for (crv.knots, result.items) 

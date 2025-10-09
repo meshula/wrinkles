@@ -19,7 +19,7 @@ pub const MappingCurveBezier = struct {
         crv: curve.Bezier,
     ) !topology.Topology
     {
-        var result_mappings: std.ArrayList(mapping_mod.Mapping) = .{};
+        var result_mappings: std.ArrayList(mapping_mod.Mapping) = .empty;
         defer result_mappings.deinit(allocator);
 
         const lin = try crv.linearized(allocator);

@@ -771,7 +771,7 @@ pub fn transform_resample_dd(
     );
     defer output_c_to_input_c_trimmed.deinit(allocator);
 
-    var output_buffer: std.ArrayList(sample_value_t) = .{};
+    var output_buffer: std.ArrayList(sample_value_t) = .empty;
 
     // walk across each mapping in the trimmed topology and transform (or omit)
     // the samples into the output space

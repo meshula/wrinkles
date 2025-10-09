@@ -13,6 +13,11 @@ pub const ContinuousInterval = struct {
     /// the end ordinate of the interval, exclusive
     end: ordinate.Ordinate = ordinate.Ordinate.INF,
 
+    pub const ZERO_TO_INF: ContinuousInterval = .{
+        .start = .ZERO,
+        .end = .INF,
+    };
+
     /// An infinite interval
     pub const INF : ContinuousInterval = .{
         .start = ordinate.Ordinate.INF_NEG, 

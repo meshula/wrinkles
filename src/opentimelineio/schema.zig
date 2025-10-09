@@ -209,6 +209,11 @@ pub const Track = struct {
     name: ?string.latin_s8 = null,
     children: []core.ComposedValueRef = &.{},
 
+    pub const EMPTY = Track{
+        .name = null,
+        .children = &.{},
+    };
+
     pub fn recursively_deinit(
         self: *@This(),
         allocator: std.mem.Allocator,

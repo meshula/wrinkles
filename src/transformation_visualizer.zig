@@ -43,7 +43,7 @@ pub fn plot_mapping(
         input_bounds[1] = plot_limits.x[1];
     }
 
-    var inputs: std.ArrayList(f64) = .{};
+    var inputs: std.ArrayList(f64) = .empty;
     defer inputs.deinit(allocator);
 
     try inputs.ensureTotalCapacity(allocator, PLOT_STEPS);

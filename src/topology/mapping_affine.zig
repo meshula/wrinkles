@@ -98,12 +98,15 @@ pub const MappingAffine = struct {
                 target_output_interval
             )
         );
+
         return .{
             .input_bounds_val = opentime.interval.intersect(
                 self.input_bounds_val,
                 target_input_interval,
-            ) orelse .{},
-            .input_to_output_xform = self.input_to_output_xform,
+            ) orelse .ZERO,
+            .input_to_output_xform = (
+                self.input_to_output_xform
+            ),
         };
     }
 
@@ -162,6 +165,7 @@ pub const MappingAffine = struct {
     ) ![]const mapping_mod.Mapping
     {
         var result_mappings: std.ArrayList(mapping_mod.Mapping) = .{};
+        defer result_mappings.deinit(allocator);
 
         var maybe_first_pt: ?usize = null;
         
@@ -188,6 +192,11 @@ pub const MappingAffine = struct {
         var current_start = self.input_bounds_val.start;
         var current_end_ind = maybe_first_pt.?;
 
+        try result_mappings.ensureTotalCapacity(
+            allocator,
+            input_points.len + 2,
+        );
+
         while (current_end_ind < input_points.len)
         {
             var current_end = input_points[current_end_ind];
@@ -198,8 +207,7 @@ pub const MappingAffine = struct {
                 current_end_ind = input_points.len;
             }
 
-            try result_mappings.append(
-                allocator,
+            result_mappings.appendAssumeCapacity(
                 .{
                     .affine = .{
                         .input_bounds_val = .{
