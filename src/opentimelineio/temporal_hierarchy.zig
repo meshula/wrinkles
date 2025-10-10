@@ -914,6 +914,189 @@ pub fn build_projection_operator(
     };
 }
 
+pub const OperatorCache = std.AutoHashMapUnmanaged(
+    TemporalMap.PathEndPoints,
+    topology_m.Topology,
+);
+
+/// build a projection operator that projects from the endpoints.source to
+/// endpoints.destination spaces
+pub fn build_projection_operator_caching(
+    allocator: std.mem.Allocator,
+    map: TemporalMap,
+    endpoints: TemporalMap.PathEndPoints,
+    operator_cache: *OperatorCache,
+) !projection.ProjectionOperator 
+{
+    // sort endpoints so that the higher node is always the source
+    var sorted_endpoints = endpoints;
+    const endpoints_were_swapped = try map.sort_endpoints(
+        &sorted_endpoints
+    );
+
+    var root_to_current = (
+        try topology_m.Topology.init_identity_infinite(allocator)
+    );
+    errdefer root_to_current.deinit(allocator);
+
+    if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
+        opentime.dbg_print(@src(), 
+            "[START] root_to_current: {f}\n",
+            .{ root_to_current }
+        );
+    }
+
+    var iter = (
+        try TemporalMap.PathIterator.init_from_to(
+            allocator,
+            &map,
+            sorted_endpoints,
+        )
+    );
+    defer iter.deinit(allocator);
+
+    var current = (try iter.next(allocator)).?;
+
+    if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
+        opentime.dbg_print(@src(), 
+            "starting walk from: {f} to: {f}\n"
+            ++ "starting projection: {f}\n"
+            ,
+            .{
+                current,
+                sorted_endpoints.destination,
+                root_to_current,
+            }
+        );
+    }
+
+    // walk from current_code towards destination_code
+    while (try iter.next(allocator)) 
+        |next|
+    {
+        const path_step = TemporalMap.PathEndPoints{
+            .source = sorted_endpoints.source,
+            .destination = next.space,
+        };
+
+        if (operator_cache.get(path_step))
+            |root_to_next|
+        {
+            current = next;
+            root_to_current = try root_to_next.clone(allocator);
+            continue;
+        }
+
+        const next_step = current.code.next_step_towards(
+            next.code,
+        );
+
+        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) { 
+            opentime.dbg_print(@src(), 
+                "  next step {b} towards next node: {f}\n"
+                ,
+                .{ next_step, next }
+            );
+        }
+
+        const current_to_next = try current.space.ref.build_transform(
+            allocator,
+            current.space.label,
+            next.space,
+            next_step,
+        );
+        defer current_to_next.deinit(allocator);
+
+        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
+        {
+            opentime.dbg_print(@src(), 
+                "    joining!\n"
+                ++ "    a2b/root_to_current: {f}\n"
+                ++ "    b2c/current_to_next: {f}\n"
+                ,
+                .{
+                    root_to_current,
+                    current_to_next,
+                },
+            );
+        }
+
+        const root_to_next = try topology_m.join(
+            allocator,
+            .{
+                .a2b = root_to_current,
+                .b2c = current_to_next,
+            },
+        );
+        errdefer root_to_next.deinit(allocator);
+
+        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
+        {
+            opentime.dbg_print(@src(), 
+                "    root_to_next: {f}\n",
+                .{root_to_next}
+            );
+            const i_b = root_to_next.input_bounds();
+            const o_b = root_to_next.output_bounds();
+
+            opentime.dbg_print(@src(), 
+                "    root_to_next (next root to current!): {f}\n"
+                ++ "    composed transform ranges {f}: {f},"
+                ++ " {f}: {f}\n"
+                ,
+                .{
+                    root_to_next,
+                    iter.maybe_source.?.space,
+                    i_b,
+                    next.space,
+                    o_b,
+                },
+                );
+        }
+        root_to_current.deinit(allocator);
+
+        try operator_cache.put(
+            allocator,
+            path_step,
+            root_to_next,
+        );
+
+        current = next;
+        root_to_current = try root_to_next.clone(allocator);
+    }
+
+    // check to see if end points were inverted
+    if (endpoints_were_swapped and root_to_current.mappings.len > 0) 
+    {
+        const inverted_topologies = (
+            try root_to_current.inverted(allocator)
+        );
+        defer allocator.free(inverted_topologies);
+        root_to_current.deinit(allocator);
+        errdefer opentime.deinit_slice(
+            allocator,
+            topology_m.Topology,
+            inverted_topologies
+        );
+        if (inverted_topologies.len > 1)
+        {
+            return error.MoreThanOneInversionIsNotImplemented;
+        }
+        if (inverted_topologies.len > 0) {
+            root_to_current = inverted_topologies[0];
+        }
+        else {
+            return error.NoInvertedTopologies;
+        }
+    }
+
+    return .{
+        .source = sorted_endpoints.source,
+        .destination = sorted_endpoints.destination,
+        .src_to_dst_topo = root_to_current,
+    };
+}
+
 test "label_for_node_leaky" 
 {
     const allocator = std.testing.allocator;
