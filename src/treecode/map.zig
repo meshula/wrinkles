@@ -318,26 +318,27 @@ pub fn Map(
         /// proceeds from parent to child).  If needed, will swap endpoints in
         /// place and return `true` to indicate this happened.
         ///
-        /// Will return an error if there is no path between the endpoints or one
-        /// of the endpoints is not present in the mapping.
+        /// Will return an error if there is no path between the endpoints or
+        /// one of the endpoints is not present in the mapping.
         pub fn sort_endpoints(
             self: @This(),
             endpoints: *PathEndPoints,
         ) !bool
         {
-            var source_code = (
-                if (self.get_code(endpoints.source)) 
-                |code| 
-                code
-                else return error.SourceNotInMap
-            );
+            const source_index = self.map_space_to_index.get(
+                endpoints.source
+            ) orelse return error.SourceNotInMap;
+            const dest_index = self.map_space_to_index.get(
+                endpoints.destination
+            ) orelse return error.DestNotInMap;
 
-            var destination_code = (
-                if (self.get_code(endpoints.destination)) 
-                |code| 
-                code
-                else return error.DestinationNotInMap
-            );
+            if (source_index == dest_index)
+            {
+                return false;
+            }
+
+            var source_code = self.nodes.items(.code)[source_index];
+            var destination_code = self.nodes.items(.code)[dest_index];
 
             if (
                 treecode.path_exists(
@@ -346,9 +347,8 @@ pub fn Map(
                 ) == false
             )
             {
-                errdefer dbg_print(
-                    @src(), 
-                    "\nERROR\nsource: {f} dest: {f}\n",
+                errdefer std.debug.print(
+                    "ERROR \nERROR\nsource: {f} dest: {f}\n",
                     .{
                         source_code,
                         destination_code,
