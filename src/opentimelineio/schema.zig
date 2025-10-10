@@ -4,9 +4,10 @@ const opentime = @import("opentime");
 const sampling = @import("sampling");
 const string = @import("string_stuff");
 const topology_m = @import("topology");
+const curve = @import("curve");
 
-const core = @import("core.zig");
 const references = @import("references.zig");
+const test_data = @import("test_structures.zig");
 
 /// a reference that points at some reference via a string address
 pub const ExternalReference = struct {
@@ -456,3 +457,105 @@ pub const Timeline = struct {
     }
 };
 
+test "clip topology construction" 
+{
+    const allocator = std.testing.allocator;
+
+    var cl = Clip {
+        .bounds_s = test_data.T_INT_1_TO_9,
+    };
+
+    const topo = try cl.topology(allocator);
+    defer topo.deinit(allocator);
+
+    try opentime.expectOrdinateEqual(
+        test_data.T_INT_1_TO_9.start,
+        topo.input_bounds().start,
+    );
+
+    try opentime.expectOrdinateEqual(
+        test_data.T_INT_1_TO_9.end,
+        topo.input_bounds().end,
+    );
+}
+
+test "track topology construction" 
+{
+    const allocator = std.testing.allocator;
+
+    var cl = Clip {
+        .bounds_s = test_data.T_INT_1_TO_9, 
+    };
+
+    var tr_children = [_]references.ComposedValueRef{
+        references.ComposedValueRef.init(&cl)
+    };
+    var tr: Track = .{
+        .children = &tr_children,
+    };
+
+    const topo = try tr.topology(allocator);
+    defer topo.deinit(allocator);
+
+    try opentime.expectOrdinateEqual(
+        test_data.T_INT_1_TO_9.start,
+        topo.input_bounds().start,
+    );
+
+    try opentime.expectOrdinateEqual(
+        test_data.T_INT_1_TO_9.end,
+        topo.input_bounds().end,
+    );
+}
+
+test "Clip: Animated Parameter example"
+{
+    const root_allocator = std.testing.allocator;
+
+    var arena = std.heap.ArenaAllocator.init(root_allocator);
+    const allocator = arena.allocator();
+    defer arena.deinit();
+
+    const media_source_range = test_data.T_INT_1_TO_9;
+    const media_discrete_info = (
+        sampling.SampleIndexGenerator{
+            .sample_rate_hz = .{ .Int = 4 },
+            .start_index = 0,
+        }
+    );
+
+    var cl = try Clip.init(
+        allocator,
+        .{ 
+            .media = .{
+                .bounds_s = media_source_range,
+                .discrete_info = media_discrete_info 
+            },
+        }
+    );
+    defer cl.destroy(allocator);
+
+    const focus_distance = (
+        Clip.ParameterVarying{
+            .domain = .time,
+            .mapping = try topology_m.Topology.init_from_linear(
+                allocator,
+                try curve.Linear.init(
+                    allocator,
+                    &.{ 
+                        curve.ControlPoint.init(.{ .in = 0, .out = 1 }),
+                        curve.ControlPoint.init(.{ .in = 1, .out = 1.25 }),
+                        curve.ControlPoint.init(.{ .in = 5, .out = 8}),
+                        curve.ControlPoint.init(.{ .in = 8, .out = 10}),
+                    },
+                )
+            ),
+        }
+    ).parameter();
+
+    var lens_data = Clip.ParameterMap.init(allocator);
+    try lens_data.put("focus_distance", focus_distance);
+
+    const param = Clip.to_param(&lens_data);
+    try cl.parameters.?.put( "lens",param );
+}

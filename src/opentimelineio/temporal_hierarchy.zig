@@ -1,7 +1,7 @@
 //! Implements a path-to-temporal coordinate space mapping for OTIO.  
 //!
 //! Contents:
-//! * `TemporalMap`, a bidirectional mapping of `core.SpaceReference` to
+//! * `TemporalMap`, a bidirectional mapping of `references.SpaceReference` to
 //!   `treecode.Treecode`. (Representing a map of the temporal spaces in an
 //!   OTIO hierarchy).
 //! * `build_temporal_map` function for constructing a mapping under a given
@@ -17,9 +17,9 @@ const string = @import("string_stuff");
 const topology_m = @import("topology");
 
 const schema = @import("schema.zig");
-const core = @import("core.zig");
 const references = @import("references.zig");
 const projection = @import("projection.zig");
+const test_data_m = @import("test_structures.zig");
 
 /// annotate the graph algorithms
 // const GRAPH_CONSTRUCTION_TRACE_MESSAGES = true;
@@ -944,3 +944,357 @@ test "label_for_node_leaky"
         result,
     );
 }
+
+test "path_code: graph test" 
+{
+    const allocator = std.testing.allocator;
+
+    var clips: [11]schema.Clip = undefined;
+    var clip_ptrs: [11]references.ComposedValueRef = undefined;
+
+    for (&clips, &clip_ptrs)
+        |*cl, *cl_p|
+    {
+        cl.* = schema.Clip {
+            .bounds_s = test_data_m.T_INT_1_TO_9,
+        };
+
+        cl_p.* = references.ComposedValueRef.init(cl);
+    }
+    var tr: schema.Track = .{
+        .children = &clip_ptrs,
+    };
+    const tr_ref = references.ComposedValueRef.init(&tr);
+
+    try std.testing.expectEqual(11, tr.children.len);
+
+    const map = try build_temporal_map(
+        allocator,
+        tr_ref,
+    );
+    defer map.deinit(allocator);
+
+    try std.testing.expectEqual(
+        tr_ref.space(.presentation),
+        map.root(),
+    );
+
+    try map.write_dot_graph(
+        allocator,
+        "/var/tmp/graph_test_output.dot",
+        "graph_test",
+        .{},
+    );
+
+    // should be the same length
+    try std.testing.expectEqual(
+        map.map_space_to_index.count(),
+        map.map_code_to_index.count(),
+    );
+    try std.testing.expectEqual(
+        35,
+        map.map_space_to_index.count()
+    );
+
+    try map.write_dot_graph(
+        allocator,
+        "/var/tmp/current.dot",
+        "current",
+        .{},
+    );
+
+    const TestData = struct {
+        ind: usize,
+        expect: treecode.TreecodeWord, 
+    };
+
+    const test_data = [_]TestData{
+        .{.ind = 0, .expect= 0b1010 },
+        .{.ind = 1, .expect= 0b10110 },
+        .{.ind = 2, .expect= 0b101110 },
+    };
+    for (0.., test_data)
+        |t_i, t| 
+    {
+        const space = (
+            try tr.children[t.ind].space(references.SpaceLabel.presentation)
+        );
+        const result = (
+            map.get_code(space) 
+            orelse return error.NoSpaceForCode
+        );
+
+        errdefer std.log.err(
+            "\n[iteration: {d}] index: {d} expected: {b} result: {f} \n",
+            .{t_i, t.ind, t.expect, result}
+        );
+
+        const expect = try treecode.Treecode.init_word(
+            allocator,
+            t.expect,
+        );
+        defer expect.deinit(allocator);
+
+        try std.testing.expect(expect.eql(result));
+    }
+}
+
+test "schema.Track with clip with identity transform projection" 
+{
+    const allocator = std.testing.allocator;
+
+    const range = test_data_m.T_INT_1_TO_9;
+
+    const cl_template = schema.Clip{
+        .bounds_s = range
+    };
+
+    var clips: [11]schema.Clip = undefined;
+    var refs: [11]references.ComposedValueRef = undefined;
+
+    for (&clips, &refs)
+        |*cl_p, *ref|
+    {
+        cl_p.* = cl_template;
+        ref.* = references.ComposedValueRef.init(cl_p);
+    }
+    const cl_ref = refs[0];
+
+    var tr: schema.Track = .{ .children = &refs };
+    const tr_ref = references.ComposedValueRef.init(&tr);
+
+    const map = try build_temporal_map(
+        allocator,
+        tr_ref,
+    );
+    defer map.deinit(allocator);
+
+    try std.testing.expectEqual(
+        11,
+        tr_ref.track.children.len
+    );
+
+    const track_to_clip = try build_projection_operator(
+        allocator,
+        map,
+        .{
+            .source = try tr_ref.space(references.SpaceLabel.presentation),
+            .destination =  try cl_ref.space(references.SpaceLabel.media)
+        }
+    );
+    defer track_to_clip.deinit(std.testing.allocator);
+
+    // check the bounds
+    try opentime.expectOrdinateEqual(
+        0,
+        track_to_clip.src_to_dst_topo.input_bounds().start,
+    );
+
+    try opentime.expectOrdinateEqual(
+        range.end.sub(range.start),
+        track_to_clip.src_to_dst_topo.input_bounds().end,
+    );
+
+    // check the projection
+    try opentime.expectOrdinateEqual(
+        4,
+        try track_to_clip.project_instantaneous_cc(
+            opentime.Ordinate.init(3)
+        ).ordinate(),
+    );
+}
+
+
+test "TemporalMap: schema.Track with clip with identity transform" 
+{
+    const allocator = std.testing.allocator;
+
+    var cl = schema.Clip{
+        .bounds_s = test_data_m.T_INT_0_TO_2,
+    };
+    const cl_ref = references.ComposedValueRef.init(&cl);
+
+    var tr_children = [_]references.ComposedValueRef{ cl_ref, };
+    var tr: schema.Track = .{ .children = &tr_children };
+
+    const root = references.ComposedValueRef.init(&tr);
+
+    const map = try build_temporal_map(
+        allocator,
+        root,
+    );
+    defer map.deinit(allocator);
+
+    try std.testing.expectEqual(5, map.map_code_to_index.count());
+    try std.testing.expectEqual(5, map.map_space_to_index.count());
+
+    try std.testing.expectEqual(root, map.root().ref);
+
+    const maybe_root_code = map.get_code(map.root());
+    try std.testing.expect(maybe_root_code != null);
+    const root_code = maybe_root_code.?;
+
+    // root object code
+    {
+        var tc = try treecode.Treecode.init(allocator);
+        defer tc.deinit(allocator);
+        try std.testing.expect(tc.eql(root_code));
+        try std.testing.expectEqual(0, tc.code_length());
+    }
+
+    const maybe_clip_code = map.get_code(
+        try cl_ref.space(references.SpaceLabel.media)
+    );
+    try std.testing.expect(maybe_clip_code != null);
+    const clip_code = maybe_clip_code.?;
+
+    // clip object code
+    {
+        var tc = try treecode.Treecode.init_word(
+            allocator,
+            0b10010
+        );
+        defer tc.deinit(allocator);
+        errdefer opentime.dbg_print(@src(), 
+            "\ntc: {f}, clip_code: {f}\n",
+            .{
+                tc,
+                clip_code,
+            },
+            );
+        try std.testing.expectEqual(4, tc.code_length());
+        try std.testing.expect(tc.eql(clip_code));
+    }
+
+    try std.testing.expect(
+        treecode.path_exists(clip_code, root_code)
+    );
+
+    const root_presentation_to_clip_media = (
+        try build_projection_operator(
+            allocator,
+            map,
+            .{
+                .source = try root.space(references.SpaceLabel.presentation),
+                .destination = try cl_ref.space(references.SpaceLabel.media)
+            }
+        )
+    );
+    defer root_presentation_to_clip_media.deinit(allocator);
+
+    try std.testing.expectError(
+        topology_m.mapping.Mapping.ProjectionError.OutOfBounds,
+        root_presentation_to_clip_media.project_instantaneous_cc(
+            opentime.Ordinate.init(3)
+        ).ordinate()
+    );
+
+    try opentime.expectOrdinateEqual(
+        1,
+        try root_presentation_to_clip_media.project_instantaneous_cc(
+            opentime.Ordinate.init(1)
+        ).ordinate(),
+    );
+}
+
+// 
+// Trace test
+//
+// What I want: trace spaces from a -> b, ie tl.presentation to clip.media
+// 
+// timeline.presentation: [0, 10)
+//
+//  timeline.presentation -> timline.child
+//  affine transform: [blah, blaah)
+//
+// timeline.child: [0, 12)
+//
+test "test debug_print_time_hierarchy"
+{
+    const allocator = std.testing.allocator;
+
+    // top level timeline
+
+    // track
+
+    // clips
+    var cl1 = schema.Clip {
+        .name = "Spaghetti.wav",
+        .media = .{
+            .bounds_s = null,
+            .discrete_info = .{
+                .sample_rate_hz = .{ .Int = 24 },
+                .start_index = 0,
+            },
+            .ref = .{ 
+                .signal = .{
+                    .signal_generator = .{
+                        .signal = .sine,
+                        .duration_s = opentime.Ordinate.init(6.0),
+                        .frequency_hz = 24,
+                    },
+                },
+            },
+        }
+    };
+    const cl_ptr = references.ComposedValueRef.init(&cl1);
+
+    // new for this test - add in an warp on the clip, which holds the frame
+    var wp = schema.Warp {
+        .child = cl_ptr,
+        .interpolating = true,
+        .transform = try topology_m.Topology.init_identity(
+            allocator,
+            test_data_m.T_INT_1_TO_9,
+        ),
+    };
+    defer wp.transform.deinit(allocator);
+
+    var tr_children = [_]references.ComposedValueRef{
+        references.ComposedValueRef.init(&wp),
+    };
+    var tr: schema.Track = .{
+        .name = "Example Parent schema.Track",
+        .children = &tr_children,
+    };
+
+    var tl_children = [_]references.ComposedValueRef{
+        references.ComposedValueRef.init(&tr),
+    };
+    var tl: schema.Timeline = .{
+        .name = "test debug_print_time_hierarchy",
+        .discrete_info = .{ 
+            .presentation = .{
+                // matches the media rate
+                .sample_rate_hz = .{ .Int = 24 },
+                .start_index = 0,
+            },
+        },
+        .tracks = .{ .children = &tl_children },
+    };
+    const tl_ptr = references.ComposedValueRef{
+        .timeline = &tl 
+    };
+
+    //////
+
+    const tp = try build_temporal_map(
+        allocator,
+        tl_ptr
+    );
+    defer tp.deinit(allocator);
+
+    //////
+
+    // count the scopes
+    var i: usize = 0;
+    var values = tp.map_code_to_index.valueIterator();
+    while (values.next())
+        |_|
+    {
+        i += 1;
+    }
+
+    try std.testing.expectEqual(13, i);
+}
+

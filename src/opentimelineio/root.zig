@@ -28,8 +28,6 @@ const otio_json = @import("opentimelineio_json.zig");
 
 pub const read_from_file = otio_json.read_from_file;
 
-pub const core = @import("core.zig");
-
 test {
     const otio_highlevel_tests = @import(
         "opentimelineio_highlevel_test.zig"
@@ -39,7 +37,6 @@ test {
     _ = otio_highlevel_tests;
     _ = temporal_hierarchy;
     _ = schema;
-    _ = core;
     _ = references;
     _ = projection;
 }
