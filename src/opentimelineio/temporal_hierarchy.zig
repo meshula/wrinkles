@@ -1051,7 +1051,7 @@ pub fn build_projection_operator_caching(
                     next.space,
                     o_b,
                 },
-                );
+            );
         }
         root_to_current.deinit(allocator);
 

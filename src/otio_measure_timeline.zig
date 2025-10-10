@@ -151,28 +151,39 @@ pub fn main(
             0,
         );
 
-        // build a map from the presentation space to media
-        const proj_map_tl_presentation_to_media = (
-            try otio.projection_map_to_media_from(
-                allocator, 
-                temporal_map, 
+        if (false)
+        {
+            // build a map from the presentation space to media
+            const proj_map_tl_presentation_to_media = (
+                try otio.projection_map_to_media_from(
+                    allocator, 
+                    temporal_map, 
+                    try tl_ref.space(.presentation),
+                )
+            );
+
+            build_map_pro.end();
+
+            file_prog.end();
+
+            std.debug.print(
+                "Presentation Space Bounds of {s}: [{f}, {f})\n",
+                .{
+                    filepath,
+                    proj_map_tl_presentation_to_media.end_points[0],
+                    proj_map_tl_presentation_to_media.end_points[
+                        proj_map_tl_presentation_to_media.end_points.len - 1
+                    ],
+                },
+                );
+        }
+        else 
+        {
+            _ = try otio.projection.ProjectionTopology.init_from_reference(
+                allocator,
+                temporal_map,
                 try tl_ref.space(.presentation),
-            )
-        );
-
-        build_map_pro.end();
-
-        file_prog.end();
-
-        std.debug.print(
-            "Presentation Space Bounds of {s}: [{f}, {f})\n",
-            .{
-                filepath,
-                proj_map_tl_presentation_to_media.end_points[0],
-                proj_map_tl_presentation_to_media.end_points[
-                    proj_map_tl_presentation_to_media.end_points.len - 1
-                ],
-            },
-        );
+            );
+        }
     }
 }
