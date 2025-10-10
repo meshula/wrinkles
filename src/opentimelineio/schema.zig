@@ -177,6 +177,14 @@ pub const Clip = struct {
             allocator.free(n);
         }
     }
+
+    /// Build a reference to this Clip
+    pub fn reference(
+        self: *@This(),
+    ) references.ComposedValueRef
+    {
+        return .{ .clip = self };
+    }
 };
 
 /// represents a space in the timeline without media
@@ -334,6 +342,13 @@ pub const Track = struct {
             }
         );
     }
+
+    pub fn reference(
+        self: *@This(),
+    ) references.ComposedValueRef
+    {
+        return .{ .track = self };
+    }
 };
 
 /// children of a stack are simultaneous in time
@@ -401,6 +416,13 @@ pub const Stack = struct {
         } else {
             return .EMPTY;
         }
+    }
+
+    pub fn reference(
+        self: *@This(),
+    ) references.ComposedValueRef
+    {
+        return .{ .stack = self };
     }
 };
 
