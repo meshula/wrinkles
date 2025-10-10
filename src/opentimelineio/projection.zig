@@ -340,6 +340,8 @@ pub fn projection_map_to_media_from_leaky(
         .destination = source,
     };
 
+    var cache: temporal_hierarchy.OperatorCache = .empty;
+
     const all_spaces = map.nodes.items(.space);
     for (all_spaces)
         |current|
@@ -352,10 +354,11 @@ pub fn projection_map_to_media_from_leaky(
         proj_args.destination = current;
 
         const child_op = (
-            try temporal_hierarchy.build_projection_operator(
+            try temporal_hierarchy.build_projection_operator_caching(
                 allocator,
                 map,
                 proj_args,
+                &cache,
             )
         );
 
@@ -2824,4 +2827,387 @@ test "Single clip, schema.Warp bulk"
             }
         }
     }
+}
+
+pub fn ReferenceTopology(
+    comptime SpaceReferenceType: type,
+) type
+{
+    return struct {
+        pub const ReferenceTopologyType = @This();
+        pub const NodeIndex = usize;
+
+        /// a transformation to a particular destination space
+        const ReferenceMapping = struct {
+            destination: SpaceReferenceType,
+            mapping: topology_m.Mapping,
+        };
+
+        /// associates an interval with a mapping
+        const IntervalMapping = struct {
+            mapping_index: []NodeIndex,
+            input_bounds: opentime.ContinuousInterval,
+        };
+
+        source: SpaceReferenceType,
+        mappings: std.MultiArrayList(ReferenceMapping),
+
+        // temporally sorted, could be more efficient with a BVH of some kind
+        intervals: std.MultiArrayList(IntervalMapping),
+
+        pub fn init_from_reference(
+            parent_allocator: std.mem.Allocator,
+            temporal_map: treecode.Map(SpaceReferenceType),
+            source_reference: SpaceReferenceType,
+        ) !ReferenceTopologyType
+        {
+            var arena = std.heap.ArenaAllocator.init(parent_allocator);
+            defer arena.deinit();
+            const allocator = arena.allocator();
+
+            var self: ReferenceTopologyType = .{
+                .source = source_reference,
+                .mappings = .empty,
+                .intervals = .empty,
+            };
+
+            var proj_args = temporal_hierarchy.PathEndPoints{
+                .source = source_reference,
+                .destination = source_reference,
+            };
+
+            var unsplit_intervals: std.MultiArrayList(
+                struct {
+                    mapping_index: usize,
+                    input_bounds: opentime.ContinuousInterval,
+                }
+            ) = .empty;
+            defer unsplit_intervals.deinit(allocator);
+
+            const vertex_kind = enum(u1) { start, end };
+
+            // to sort and split the intervals
+            var vertices : std.MultiArrayList(
+                struct{ 
+                    ordinate: opentime.Ordinate,
+                    interval_index: usize,
+                    kind: vertex_kind,
+                },
+            ) = .empty;
+            defer vertices.deinit(allocator);
+
+            const source_code = (
+                temporal_map.get_code(source_reference)
+            ) orelse return error.SourceNotInMap;
+
+            var cache: temporal_hierarchy.OperatorCache = .empty;
+
+            // Gather up all the operators and intervals
+            /////////////
+            const map_nodes = temporal_map.nodes.slice();
+            for (map_nodes.items(.space), map_nodes.items(.code))
+                |current, current_code|
+            {
+                // skip all spaces that are not media spaces
+                if (current.label != .media) {
+                    continue;
+                }
+
+                // skip all media spaces that don't have a path to source
+                if (source_code.is_prefix_of(current_code) == false)
+                {
+                    continue;
+                }
+
+                proj_args.destination = current;
+
+                const proj_op = (
+                    try temporal_hierarchy.build_projection_operator_caching(
+                        allocator,
+                        temporal_map,
+                        proj_args,
+                        &cache,
+                    )
+                );
+
+                const to_dest_topo = proj_op.src_to_dst_topo;
+
+                for (to_dest_topo.mappings)
+                    |child_mapping|
+                {
+                    const new_index = self.mappings.len;
+                    const new_bounds = (
+                        child_mapping.input_bounds()
+                    );
+                    try unsplit_intervals.append(
+                        allocator,
+                        .{
+                            .input_bounds = new_bounds,
+                            .mapping_index = new_index,
+                        },
+                    );
+                    try self.mappings.append(
+                        allocator,
+                        .{
+                            .destination = proj_args.destination,
+                            .mapping = child_mapping,
+                        },
+                    );
+
+                    try vertices.append(
+                        allocator,
+                        .{
+                            .interval_index = new_index,
+                            .ordinate = new_bounds.start,
+                            .kind = .start,
+                        },
+                    );
+                    try vertices.append(
+                        allocator,
+                        .{
+                            .interval_index = new_index,
+                            .ordinate = new_bounds.end,
+                            .kind = .end,
+                        },
+                    );
+                }
+            }
+
+            // sort the vertices
+            ///////////
+            vertices.sortUnstable(
+                struct{
+                    ordinates: []opentime.Ordinate,
+
+                    pub fn lessThan(
+                        ctx: @This(),
+                        a_index: usize,
+                        b_index: usize,
+                    ) bool
+                    {
+                        const a_ord = ctx.ordinates[a_index];
+                        const b_ord = ctx.ordinates[b_index];
+
+                        return opentime.lt(a_ord, b_ord);
+                    }
+                }{ .ordinates = vertices.items(.ordinate) }
+            );
+
+            std.debug.print("vertex: {d}\n", .{vertices.len});
+            for (
+                vertices.items(.ordinate),
+                vertices.items(.interval_index),
+                vertices.items(.kind),
+                0..,
+            ) |ord, ind, kind, i|
+            {
+                std.debug.print(
+                    "  {d}: {f}, {d}, {s}\n",
+                    .{i, ord, ind, @tagName(kind)}
+                );
+            }
+
+            const IntervalRef = struct {
+                index: usize,
+                kind: vertex_kind,
+            };
+
+            var cut_points: std.MultiArrayList(
+                struct{
+                    ordinate: opentime.Ordinate,
+                    indices: []usize,
+                    kind: []vertex_kind,
+                }
+            ) = .empty;
+            defer {
+                // for (
+                //     cut_points.items(.indices),
+                //     cut_points.items(.kind),
+                // ) |indices, kinds|
+                // {
+                //     allocator.free(indices);
+                //     allocator.free(kinds);
+                // }
+                cut_points.deinit(allocator);
+            }
+
+            // merge the intervals and combine the lists
+            ///////////
+            var vertices_slice = vertices.slice();
+            var cut_point = vertices_slice.items(.ordinate)[0];
+            var current_intervals: std.MultiArrayList(IntervalRef) = .empty;
+            try current_intervals.append(
+                allocator, 
+                .{
+                    .index = vertices_slice.items(.interval_index)[0],
+                    .kind = vertices_slice.items(.kind)[0],
+                },
+            );
+            for (1..vertices_slice.len)
+                |index|
+            {
+                // is the current vertex close enough?
+                //   no: push the current list into the upper stack, create new list
+                // append to stack
+
+                var vert = vertices_slice.items(.ordinate)[index];
+                std.debug.print("vert ind: {d} ", .{index});
+
+                const close_enough = vert.eql_approx(cut_point);
+                std.debug.print("close enough: {}", .{close_enough});
+
+                // if the ordinate is not close enough, then create a new
+                // vert
+                if (close_enough == false)
+                {
+                    var compled = current_intervals.toOwnedSlice();
+
+                    try cut_points.append(
+                        allocator,
+                        .{
+                            .ordinate = cut_point,
+                            .indices = compled.items(.index),
+                            .kind = compled.items(.kind),
+                        }
+                    );
+                    current_intervals = .empty;
+                    cut_point = vert;
+                }
+
+                try current_intervals.append(
+                    allocator,
+                    .{
+                        .index = vertices_slice.items(.interval_index)[index],
+                        .kind = vertices_slice.items(.kind)[index],
+                    },
+                );
+
+                std.debug.print("\n", .{});
+            }
+
+            // append the last segment
+            {
+                var compled = current_intervals.toOwnedSlice();
+                try cut_points.append(
+                    allocator,
+                    .{
+                        .ordinate = cut_point,
+                        .indices = compled.items(.index),
+                        .kind = compled.items(.kind),
+                    }
+                );
+            }
+
+            // print current structure
+            std.debug.print(
+                "cut_points:\n",
+                .{},
+            );
+            const cut_point_slice = cut_points.slice();
+            for (0..cut_point_slice.len)
+                |ind|
+            {
+                std.debug.print(
+                    "  ordinate: {f}\n  intervals:\n",
+                    .{cut_point_slice.items(.ordinate)[ind]}
+                );
+                for (
+                    cut_point_slice.items(.indices)[ind],
+                    cut_point_slice.items(.kind)[ind]
+                )
+                    |int_ind, kind|
+                {
+                    std.debug.print(
+                        "    {d}: {s}\n",
+                        .{int_ind, @tagName(kind)},
+                    );
+                }
+            }
+            std.debug.print("done.\n", .{});
+            
+            // split and merge intervals together
+            ////////////
+            // var current_intervals: std.ArrayList(usize) = .empty;
+            // for (
+            //     cut_point_slice.items(.ordinate),
+            //     cut_point_slice.items(.kinds),
+            //     cut_point_slice.items(.interval_index),
+            // ) |ord, kinds, intervals|
+            // {
+            // }
+
+            return self;
+        }
+
+        pub fn deinit(
+            self: *@This(),
+            allocator: std.mem.Allocator,
+        ) void
+        {
+            _= self;
+            _= allocator;
+            // self.intervals.deinit(allocator);
+            //
+            // for (self.mappings.items(.mapping))
+            //     |m|
+            // {
+            //     m.deinit(allocator);
+            // }
+            // self.mappings.deinit(allocator);
+        }
+    };
+}
+
+pub const ProjectionTopology = ReferenceTopology(references.SpaceReference);
+
+test "ReferenceTopology: init_from_reference"
+{
+    const allocator = std.testing.allocator;
+
+    var cl = schema.Clip {
+        .bounds_s = test_data.T_INT_1_TO_9,
+    };
+    const cl_ptr = cl.reference();
+
+    var cl2 = schema.Clip {
+        .bounds_s = test_data.T_INT_1_TO_9,
+    };
+    const cl2_ptr = cl2.reference();
+
+    var tr_children: [2]references.ComposedValueRef = .{cl_ptr, cl2_ptr};
+    var tr1 = schema.Track {
+        .children = &tr_children,
+    };
+    const tr1_ptr = tr1.reference();
+
+    var cl3 = schema.Clip {
+        .bounds_s = test_data.T_INT_1_TO_4,
+    };
+    const cl3_ptr = cl3.reference();
+    var tr2_children: [1]references.ComposedValueRef = .{cl3_ptr};
+    var tr2 = schema.Track {
+        .children = &tr2_children,
+    };
+    const tr2_ptr = tr2.reference();
+
+    var st_children: [2]references.ComposedValueRef = .{ tr1_ptr, tr2_ptr };
+    var st = schema.Stack {
+        .children = &st_children,
+    };
+    const st_ptr = st.reference();
+
+    const map = try temporal_hierarchy.build_temporal_map(
+        allocator,
+        st_ptr,
+    );
+    defer map.deinit(allocator);
+
+    var cl_presentation_pmap = (
+        try ProjectionTopology.init_from_reference(
+            allocator,
+            map,
+            try st_ptr.space(.presentation),
+        )
+    );
+    defer cl_presentation_pmap.deinit(allocator);
 }
