@@ -922,7 +922,7 @@ pub const OperatorCache = std.AutoHashMapUnmanaged(
 /// build a projection operator that projects from the endpoints.source to
 /// endpoints.destination spaces
 pub fn build_projection_operator_caching(
-    allocator: std.mem.Allocator,
+    parent_allocator: std.mem.Allocator,
     map: TemporalMap,
     endpoints: TemporalMap.PathEndPoints,
     operator_cache: *OperatorCache,
@@ -933,6 +933,10 @@ pub fn build_projection_operator_caching(
     const endpoints_were_swapped = try map.sort_endpoints(
         &sorted_endpoints
     );
+
+    var arena = std.heap.ArenaAllocator.init(parent_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
 
     var root_to_current = (
         try topology_m.Topology.init_identity_infinite(allocator)
@@ -983,7 +987,7 @@ pub fn build_projection_operator_caching(
             |root_to_next|
         {
             current = next;
-            root_to_current = try root_to_next.clone(allocator);
+            root_to_current = root_to_next;
             continue;
         }
 
@@ -1005,7 +1009,6 @@ pub fn build_projection_operator_caching(
             next.space,
             next_step,
         );
-        defer current_to_next.deinit(allocator);
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
         {
@@ -1028,7 +1031,6 @@ pub fn build_projection_operator_caching(
                 .b2c = current_to_next,
             },
         );
-        errdefer root_to_next.deinit(allocator);
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
         {
@@ -1053,16 +1055,15 @@ pub fn build_projection_operator_caching(
                 },
             );
         }
-        root_to_current.deinit(allocator);
 
         try operator_cache.put(
-            allocator,
+            parent_allocator,
             path_step,
             root_to_next,
         );
 
         current = next;
-        root_to_current = try root_to_next.clone(allocator);
+        root_to_current = root_to_next;
     }
 
     // check to see if end points were inverted
@@ -1093,7 +1094,7 @@ pub fn build_projection_operator_caching(
     return .{
         .source = sorted_endpoints.source,
         .destination = sorted_endpoints.destination,
-        .src_to_dst_topo = root_to_current,
+        .src_to_dst_topo = try root_to_current.clone(parent_allocator),
     };
 }
 
