@@ -2863,7 +2863,7 @@ pub fn ReferenceTopology(
         {
             var arena = std.heap.ArenaAllocator.init(parent_allocator);
             defer arena.deinit();
-            const allocator = arena.allocator();
+            const allocator_arena = arena.allocator();
 
             var self: ReferenceTopologyType = .{
                 .source = source_reference,
@@ -2882,7 +2882,7 @@ pub fn ReferenceTopology(
                     input_bounds: opentime.ContinuousInterval,
                 }
             ) = .empty;
-            defer unsplit_intervals.deinit(allocator);
+            defer unsplit_intervals.deinit(allocator_arena);
 
             const vertex_kind = enum(u1) { start, end };
 
@@ -2894,7 +2894,7 @@ pub fn ReferenceTopology(
                     kind: vertex_kind,
                 },
             ) = .empty;
-            defer vertices.deinit(allocator);
+            defer vertices.deinit(allocator_arena);
 
             const source_code = (
                 temporal_map.get_code(source_reference)
@@ -2923,7 +2923,7 @@ pub fn ReferenceTopology(
 
                 const proj_op = (
                     try temporal_hierarchy.build_projection_operator_caching(
-                        allocator,
+                        allocator_arena,
                         temporal_map,
                         proj_args,
                         &cache,
@@ -2940,14 +2940,14 @@ pub fn ReferenceTopology(
                         child_mapping.input_bounds()
                     );
                     try unsplit_intervals.append(
-                        allocator,
+                        allocator_arena,
                         .{
                             .input_bounds = new_bounds,
                             .mapping_index = new_index,
                         },
                     );
                     try self.mappings.append(
-                        allocator,
+                        allocator_arena,
                         .{
                             .destination = proj_args.destination,
                             .mapping = child_mapping,
@@ -2955,7 +2955,7 @@ pub fn ReferenceTopology(
                     );
 
                     try vertices.append(
-                        allocator,
+                        allocator_arena,
                         .{
                             .interval_index = new_index,
                             .ordinate = new_bounds.start,
@@ -2963,7 +2963,7 @@ pub fn ReferenceTopology(
                         },
                     );
                     try vertices.append(
-                        allocator,
+                        allocator_arena,
                         .{
                             .interval_index = new_index,
                             .ordinate = new_bounds.end,
@@ -3014,7 +3014,7 @@ pub fn ReferenceTopology(
                 //     allocator.free(indices);
                 //     allocator.free(kinds);
                 // }
-                cut_points.deinit(allocator);
+                cut_points.deinit(allocator_arena);
             }
 
             // merge the intervals and combine the lists
@@ -3023,7 +3023,7 @@ pub fn ReferenceTopology(
             var cut_point = vertices_slice.items(.ordinate)[0];
             var current_intervals: std.MultiArrayList(IntervalRef) = .empty;
             try current_intervals.append(
-                allocator, 
+                allocator_arena, 
                 .{
                     .index = vertices_slice.items(.interval_index)[0],
                     .kind = vertices_slice.items(.kind)[0],
@@ -3046,7 +3046,7 @@ pub fn ReferenceTopology(
                     var compled = current_intervals.toOwnedSlice();
 
                     try cut_points.append(
-                        allocator,
+                        allocator_arena,
                         .{
                             .ordinate = cut_point,
                             .indices = compled.items(.index),
@@ -3058,7 +3058,7 @@ pub fn ReferenceTopology(
                 }
 
                 try current_intervals.append(
-                    allocator,
+                    allocator_arena,
                     .{
                         .index = vertices_slice.items(.interval_index)[index],
                         .kind = vertices_slice.items(.kind)[index],
@@ -3070,7 +3070,7 @@ pub fn ReferenceTopology(
             {
                 var compled = current_intervals.toOwnedSlice();
                 try cut_points.append(
-                    allocator,
+                    allocator_arena,
                     .{
                         .ordinate = cut_point,
                         .indices = compled.items(.index),
@@ -3125,7 +3125,7 @@ pub fn ReferenceTopology(
                     if (kind == .start)
                     {
                         try active_intervals.put(
-                            allocator,
+                            allocator_arena,
                             interval,
                             {},
                         );
