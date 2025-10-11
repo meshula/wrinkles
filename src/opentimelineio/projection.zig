@@ -2993,20 +2993,6 @@ pub fn ReferenceTopology(
                 }{ .ordinates = vertices.items(.ordinate) }
             );
 
-            std.debug.print("vertex: {d}\n", .{vertices.len});
-            for (
-                vertices.items(.ordinate),
-                vertices.items(.interval_index),
-                vertices.items(.kind),
-                0..,
-            ) |ord, ind, kind, i|
-            {
-                std.debug.print(
-                    "  {d}: {f}, {d}, {s}\n",
-                    .{i, ord, ind, @tagName(kind)}
-                );
-            }
-
             const IntervalRef = struct {
                 index: usize,
                 kind: vertex_kind,
@@ -3051,13 +3037,10 @@ pub fn ReferenceTopology(
                 // append to stack
 
                 var vert = vertices_slice.items(.ordinate)[index];
-                std.debug.print("vert ind: {d} ", .{index});
 
                 const close_enough = vert.eql_approx(cut_point);
-                std.debug.print("close enough: {}", .{close_enough});
 
-                // if the ordinate is not close enough, then create a new
-                // vert
+                // if the ordinate is not close enough, then create a new vert
                 if (close_enough == false)
                 {
                     var compled = current_intervals.toOwnedSlice();
@@ -3081,8 +3064,6 @@ pub fn ReferenceTopology(
                         .kind = vertices_slice.items(.kind)[index],
                     },
                 );
-
-                std.debug.print("\n", .{});
             }
 
             // append the last segment
