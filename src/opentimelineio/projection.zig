@@ -2861,7 +2861,9 @@ pub fn ReferenceTopology(
             source_reference: SpaceReferenceType,
         ) !ReferenceTopologyType
         {
-            var arena = std.heap.ArenaAllocator.init(parent_allocator);
+            var arena = std.heap.ArenaAllocator.init(
+                parent_allocator,
+            );
             defer arena.deinit();
             const allocator_arena = arena.allocator();
 
@@ -2878,7 +2880,7 @@ pub fn ReferenceTopology(
 
             var unsplit_intervals: std.MultiArrayList(
                 struct {
-                    mapping_index: usize,
+                    mapping_index: NodeIndex,
                     input_bounds: opentime.ContinuousInterval,
                 }
             ) = .empty;
@@ -2890,7 +2892,7 @@ pub fn ReferenceTopology(
             var vertices : std.MultiArrayList(
                 struct{ 
                     ordinate: opentime.Ordinate,
-                    interval_index: usize,
+                    interval_index: NodeIndex,
                     kind: vertex_kind,
                 },
             ) = .empty;
@@ -2981,8 +2983,8 @@ pub fn ReferenceTopology(
 
                     pub fn lessThan(
                         ctx: @This(),
-                        a_index: usize,
-                        b_index: usize,
+                        a_index: NodeIndex,
+                        b_index: NodeIndex,
                     ) bool
                     {
                         const a_ord = ctx.ordinates[a_index];
@@ -2994,14 +2996,14 @@ pub fn ReferenceTopology(
             );
 
             const IntervalRef = struct {
-                index: usize,
+                index: NodeIndex,
                 kind: vertex_kind,
             };
 
             var cut_points: std.MultiArrayList(
                 struct{
                     ordinate: opentime.Ordinate,
-                    indices: []usize,
+                    indices: []NodeIndex,
                     kind: []vertex_kind,
                 }
             ) = .empty;
@@ -3108,7 +3110,10 @@ pub fn ReferenceTopology(
             
             // split and merge intervals together
             ////////////
-            var active_intervals: std.AutoHashMapUnmanaged(usize, void) = .empty;
+            var active_intervals: std.AutoHashMapUnmanaged(
+                NodeIndex,
+                void,
+            ) = .empty;
             const ordinates = cut_point_slice.items(.ordinate);
             const len = ordinates.len;
 
@@ -3136,7 +3141,7 @@ pub fn ReferenceTopology(
                     }
                 }
 
-                var indices: std.ArrayList(usize) = .empty;
+                var indices: std.ArrayList(NodeIndex) = .empty;
                 try indices.ensureTotalCapacity(
                     parent_allocator,
                     active_intervals.size
