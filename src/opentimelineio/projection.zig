@@ -3108,14 +3108,85 @@ pub fn ReferenceTopology(
             
             // split and merge intervals together
             ////////////
-            // var current_intervals: std.ArrayList(usize) = .empty;
-            // for (
-            //     cut_point_slice.items(.ordinate),
-            //     cut_point_slice.items(.kinds),
-            //     cut_point_slice.items(.interval_index),
-            // ) |ord, kinds, intervals|
-            // {
-            // }
+            var active_intervals: std.AutoHashMapUnmanaged(usize, void) = .empty;
+            const ordinates = cut_point_slice.items(.ordinate);
+            const len = ordinates.len;
+
+            for (
+                ordinates[0..len - 1],
+                ordinates[1..],
+                cut_point_slice.items(.kind)[0..len - 1],
+                cut_point_slice.items(.indices)[0..len - 1],
+            ) |ord_start, ord_end, kinds, intervals|
+            {
+                for (kinds, intervals)
+                    |kind, interval|
+                {
+                    if (kind == .start)
+                    {
+                        try active_intervals.put(
+                            allocator,
+                            interval,
+                            {},
+                        );
+                    }
+                    else if (kind == .end)
+                    {
+                        _ = active_intervals.remove(interval);
+                    }
+                }
+
+                var indices: std.ArrayList(usize) = .empty;
+                try indices.ensureTotalCapacity(
+                    parent_allocator,
+                    active_intervals.size
+                );
+                var keys = active_intervals.keyIterator();
+                while (keys.next())
+                    |key|
+                {
+                    indices.appendAssumeCapacity(key.*);
+                }
+
+                try self.intervals.append(
+                    parent_allocator,
+                    .{
+                        .input_bounds = .{
+                            .start = ord_start,
+                            .end = ord_end,
+                        },
+                        .mapping_index = try indices.toOwnedSlice(
+                            parent_allocator,
+                        ),
+                    },
+                );
+            }
+
+            // print current structure
+            std.debug.print(
+                "Final Cut Points:\n",
+                .{},
+            );
+            const interval_slice = self.intervals.slice();
+            for (0..interval_slice.len)
+                |ind|
+            {
+                std.debug.print(
+                    "  bounds: {f}\n  intervals:\n",
+                    .{interval_slice.items(.input_bounds)[ind]}
+                );
+                for (
+                    interval_slice.items(.mapping_index)[ind],
+                )
+                    |int_ind|
+                {
+                    std.debug.print(
+                        "    {d}\n",
+                        .{int_ind},
+                    );
+                }
+            }
+            std.debug.print("done.\n", .{});
 
             return self;
         }
@@ -3125,16 +3196,13 @@ pub fn ReferenceTopology(
             allocator: std.mem.Allocator,
         ) void
         {
-            _= self;
-            _= allocator;
-            // self.intervals.deinit(allocator);
-            //
-            // for (self.mappings.items(.mapping))
-            //     |m|
-            // {
-            //     m.deinit(allocator);
-            // }
-            // self.mappings.deinit(allocator);
+            for (self.intervals.items(.mapping_index))
+                |indices|
+            {
+                allocator.free(indices);
+            }
+
+            self.intervals.deinit(allocator);
         }
     };
 }
