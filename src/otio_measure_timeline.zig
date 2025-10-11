@@ -185,5 +185,19 @@ pub fn main(
                 try tl_ref.space(.presentation),
             );
         }
+
+        std.debug.print("Tracks: {d}\n", .{tl.tracks.children.len});
+        var items: usize = 0;
+        for (tl.tracks.children, 0..)
+            |child, ind|
+        {
+            std.debug.print(
+                "  Track [{d}]: {d} items\n",
+                .{ind, child.track.children.len},
+            );
+            items += child.track.children.len;
+        }
+
+        std.debug.print("Total items: {d}\n", .{items});
     }
 }
