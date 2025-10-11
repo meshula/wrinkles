@@ -648,9 +648,8 @@ pub fn Map(
                     if (child_indices[@intFromEnum(next_step)])
                         |next_index|
                     {
-                        try self.stack.insert(
+                        try self.stack.append(
                             allocator,
-                            0,
                             next_index,
                         );
                     }
