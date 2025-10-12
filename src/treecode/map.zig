@@ -452,7 +452,7 @@ pub fn Map(
             destination: GraphNodeType,
         };
 
-        const PathEndPointIndices = struct {
+        pub const PathEndPointIndices = struct {
             source: NodeIndex,
             destination: NodeIndex,
         };

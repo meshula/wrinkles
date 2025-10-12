@@ -919,13 +919,8 @@ pub fn build_projection_operator(
     };
 }
 
-pub const IndexPathEndPoints = struct {
-    source: projection.ProjectionTopology.NodeIndex,
-    destination: projection.ProjectionTopology.NodeIndex,
-};
-
 pub const OperatorCache = std.AutoHashMapUnmanaged(
-    IndexPathEndPoints,
+    TemporalMap.PathEndPointIndices,
     topology_m.Topology,
 );
 
@@ -1001,7 +996,7 @@ pub fn build_projection_operator_caching(
 
     var current = path[0];
 
-    var path_step = IndexPathEndPoints{
+    var path_step = TemporalMap.PathEndPointIndices{
         .source = @intCast(source_index),
         .destination = @intCast(source_index),
     };
