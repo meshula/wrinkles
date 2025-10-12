@@ -3110,7 +3110,7 @@ pub fn ReferenceTopology(
             
             // split and merge intervals together
             ////////////
-            var active_intervals: std.AutoHashMapUnmanaged(
+            var active_intervals: std.AutoArrayHashMapUnmanaged(
                 NodeIndex,
                 void,
             ) = .empty;
@@ -3137,20 +3137,20 @@ pub fn ReferenceTopology(
                     }
                     else if (kind == .end)
                     {
-                        _ = active_intervals.remove(interval);
+                        _ = active_intervals.swapRemove(interval);
                     }
                 }
 
                 var indices: std.ArrayList(NodeIndex) = .empty;
                 try indices.ensureTotalCapacity(
                     parent_allocator,
-                    active_intervals.size
+                    active_intervals.entries.len
                 );
-                var keys = active_intervals.keyIterator();
+                var keys = active_intervals.iterator();
                 while (keys.next())
                     |key|
                 {
-                    indices.appendAssumeCapacity(key.*);
+                    indices.appendAssumeCapacity(key.key_ptr.*);
                 }
 
                 try self.intervals.append(
