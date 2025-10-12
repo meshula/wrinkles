@@ -918,8 +918,13 @@ pub fn build_projection_operator(
     };
 }
 
+pub const IndexPathEndPoints = struct {
+    source: usize,
+    destination: usize,
+};
+
 pub const OperatorCache = std.AutoHashMapUnmanaged(
-    TemporalMap.PathEndPoints,
+    IndexPathEndPoints,
     topology_m.Topology,
 );
 
