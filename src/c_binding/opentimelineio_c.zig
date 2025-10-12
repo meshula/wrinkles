@@ -19,8 +19,13 @@ const ERR_REF : c.otio_ComposedValueRef = .{
     .ref = null 
 };
 
-const ERR_ALLOCATOR = c.otio_Allocator{ .ref = null };
-const ERR_ARENA = c.otio_Arena{ .arena = null, .allocator = ERR_ALLOCATOR };
+const ERR_ALLOCATOR = c.otio_Allocator{
+    .ref = null 
+};
+const ERR_ARENA = c.otio_Arena{
+    .arena = null,
+    .allocator = ERR_ALLOCATOR 
+};
 pub export fn otio_fetch_allocator_gpa() c.otio_Allocator
 {
     return .{ .ref = @ptrCast(@constCast(&ALLOCATOR)) };
