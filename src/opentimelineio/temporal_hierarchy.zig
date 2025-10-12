@@ -920,8 +920,8 @@ pub fn build_projection_operator(
 }
 
 pub const IndexPathEndPoints = struct {
-    source: usize,
-    destination: usize,
+    source: projection.ProjectionTopology.NodeIndex,
+    destination: projection.ProjectionTopology.NodeIndex,
 };
 
 pub const OperatorCache = std.AutoHashMapUnmanaged(

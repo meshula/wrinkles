@@ -14,6 +14,7 @@ const treecode = @import("treecode");
 const sampling = @import("sampling");
 
 const schema = @import("schema.zig");
+const projection = @import("projection.zig");
 
 const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
     build_options.debug_graph_construction_trace_messages
@@ -39,7 +40,7 @@ pub const SpaceLabel = enum(i8) {
 pub const SpaceReference = struct {
     ref: ComposedValueRef,
     label: SpaceLabel,
-    child_index: ?usize = null,
+    child_index: ?projection.ProjectionTopology.NodeIndex = null,
 
     pub fn format(
         self: @This(),
