@@ -596,7 +596,7 @@ pub fn Map(
             pub fn next(
                 self: *@This(),
                 allocator: std.mem.Allocator,
-            ) !?PathNode
+            ) !?NodeIndex
             {
                 if (self.stack.items.len == 0) {
                     self.maybe_current = null;
@@ -612,7 +612,7 @@ pub fn Map(
                 {
                     if (current_index == dest) {
                         self.stack.clearAndFree(allocator);
-                        return self.nodes.get(current_index);
+                        return current_index;
                     }
                 }
 
@@ -659,7 +659,7 @@ pub fn Map(
                     }
                 }
 
-                return self.nodes.get(current_index);
+                return current_index;
             }
         };
 
