@@ -13,32 +13,69 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
 /// more readable, but make large graphs impossible to read.
 const LabelStyle = enum(u1) { treecode, hash };
 
-const NodeIndex = usize;
+pub const PathNodeIndex = usize;
+pub const SpaceNodeIndex = usize;
 
 const ROOT_CODE:treecode.Treecode = .EMPTY;
 
 /// Bidirectional map of `treecode.Treecode` to a parameterized
-/// `GraphNodeType` (presumably nodes in some graph).  This allows:
+/// `SpaceNodeType` (presumably nodes in some graph).  This allows:
 ///
 /// * Random access by path of `GraphNodeType`s in a hierarchy by path
 /// * Fetching of a path from one `GraphNodeType` to another, by walking
 ///   along the `treecode.Treecode`s, including a PathIterator for walking
 ///   along computed paths.
 pub fn Map(
-    comptime GraphNodeType: type,
+    comptime SpaceNodeType: type,
 ) type
 {
     return struct {
-        map_space_to_index:std.AutoHashMapUnmanaged(
-                              GraphNodeType,
-                              NodeIndex,
-                          ) = .empty,
-        /// mapping of `treecode.Treecode` to `NodeIndex`
-        map_code_to_index:treecode.TreecodeHashMap(NodeIndex) = .empty,
+        /// Encoding of the end points of a path between `GraphNodeType`s in the 
+        /// `Map`.
+        pub const PathEndPoints = struct {
+            source: SpaceNodeType,
+            destination: SpaceNodeType,
+        };
 
-        nodes:NodesListType = .empty,
+        pub const PathEndPointIndices = struct {
+            source: PathNodeIndex,
+            destination: PathNodeIndex,
+        };
+
+        pub const GraphNodeList = std.MultiArrayList(SpaceNodeType);
+
+        /// A pair of space and code along a path within the `Map`.
+        pub const PathNode = struct {
+            space: SpaceNodeType,
+            code: treecode.Treecode,
+            parent_index: ?PathNodeIndex = null,
+            child_indices: [2]?PathNodeIndex = .{null, null},
+
+            pub fn format(
+                self: @This(),
+                writer: *std.Io.Writer,
+            ) !void 
+            {
+                try writer.print(
+                    "Node(.space: {f}, .code: {f})",
+                    .{
+                        self.space,
+                        self.code,
+                    }
+                );
+            }
+        };
+
         const MapType = @This();
         const NodesListType = std.MultiArrayList(PathNode);
+
+        map_space_to_index: std.AutoHashMapUnmanaged(
+                              SpaceNodeType,
+                              PathNodeIndex,
+                          ) = .empty,
+        /// mapping of `treecode.Treecode` to `NodeIndex`
+        map_code_to_index: treecode.TreecodeHashMap(PathNodeIndex) = .empty,
+        nodes:NodesListType = .empty,
 
         pub fn deinit(
             self: @This(),
@@ -78,7 +115,7 @@ pub fn Map(
             self: *@This(),
             allocator: std.mem.Allocator,
             node: PathNode,
-        ) !NodeIndex
+        ) !PathNodeIndex
         {
             const new_index = self.nodes.len;
 
@@ -112,7 +149,7 @@ pub fn Map(
         pub fn get_space(
             self: @This(),
             code: treecode.Treecode,
-        ) ?GraphNodeType
+        ) ?SpaceNodeType
         {
             if (self.map_code_to_index.get(code))
                 |index|
@@ -125,7 +162,7 @@ pub fn Map(
 
         pub fn get_code(
             self: @This(),
-            space: GraphNodeType,
+            space: SpaceNodeType,
         ) ?treecode.Treecode
         {
             if (self.map_space_to_index.get(space))
@@ -140,7 +177,7 @@ pub fn Map(
         /// return the root space associated with the `ROOT_CODE`
         pub fn root(
             self: @This(),
-        ) GraphNodeType 
+        ) SpaceNodeType 
         {
             // should always have a root object, and root object should always
             // be the first entry in the nodes list
@@ -302,7 +339,7 @@ pub fn Map(
             if (source_code.code_length() > destination_code.code_length())
             {
                 std.mem.swap(
-                    NodeIndex,
+                    PathNodeIndex,
                     &endpoints.source,
                     &endpoints.destination
                 );
@@ -445,46 +482,12 @@ pub fn Map(
             );
         }
 
-        /// Encoding of the end points of a path between `GraphNodeType`s in the 
-        /// `Map`.
-        pub const PathEndPoints = struct {
-            source: GraphNodeType,
-            destination: GraphNodeType,
-        };
-
-        pub const PathEndPointIndices = struct {
-            source: NodeIndex,
-            destination: NodeIndex,
-        };
-
-        /// A pair of space and code along a path within the `Map`.
-        pub const PathNode = struct {
-            space: GraphNodeType,
-            code: treecode.Treecode,
-            parent_index: ?NodeIndex = null,
-            child_indices: [2]?NodeIndex = .{null, null},
-
-            pub fn format(
-                self: @This(),
-                writer: *std.Io.Writer,
-            ) !void 
-            {
-                try writer.print(
-                    "Node(.space: {f}, .code: {f})",
-                    .{
-                        self.space,
-                        self.code,
-                    }
-                );
-            }
-        };
-
         /// return the indices inclusive of the endpoints
         pub fn path(
             self: @This(),
             allocator: std.mem.Allocator,
             endpoints: PathEndPointIndices,
-        ) ![]NodeIndex
+        ) ![]PathNodeIndex
         { 
             var sorted_endpoint_indices = endpoints;
             const swapped = try self.sort_endpoint_indices(
@@ -500,14 +503,14 @@ pub fn Map(
                 nodes.items(.code)[sorted_endpoint_indices.destination]
             );
 
-            var result: std.ArrayList(NodeIndex) = .empty;
+            var result: std.ArrayList(PathNodeIndex) = .empty;
             try result.ensureTotalCapacity(
                 allocator,
                 destination_code.code_length() - source_code.code_length() 
             );
             result.appendAssumeCapacity(sorted_endpoint_indices.source);
 
-            var current: NodeIndex = sorted_endpoint_indices.source;
+            var current: PathNodeIndex = sorted_endpoint_indices.source;
             var current_code = source_code;
             while (current != sorted_endpoint_indices.destination)
             {
@@ -525,7 +528,7 @@ pub fn Map(
 
             if (swapped)
             {
-                std.mem.reverse(NodeIndex, result.items);
+                std.mem.reverse(PathNodeIndex, result.items);
             }
 
             return try result.toOwnedSlice(allocator);
@@ -536,12 +539,12 @@ pub fn Map(
         pub const PathIterator = struct{
             pub const IteratorType = @This();
 
-            stack: std.ArrayList(NodeIndex) = .empty,
-            maybe_current: ?NodeIndex,
+            stack: std.ArrayList(PathNodeIndex) = .empty,
+            maybe_current: ?PathNodeIndex,
             nodes: NodesListType.Slice,
             allocator: std.mem.Allocator,
-            maybe_source: ?NodeIndex = null,
-            maybe_destination: ?NodeIndex = null,
+            maybe_source: ?PathNodeIndex = null,
+            maybe_destination: ?PathNodeIndex = null,
 
             /// Walk exhaustively, depth-first, starting from the root
             /// (treecode.MARKER) space down.
@@ -561,7 +564,7 @@ pub fn Map(
                 allocator: std.mem.Allocator,
                 map: *const MapType,
                 /// a source in the map to start the map from
-                source: GraphNodeType,
+                source: SpaceNodeType,
             ) !IteratorType
             {
                 const start_index = (
@@ -580,7 +583,7 @@ pub fn Map(
                 allocator: std.mem.Allocator,
                 map: *const MapType,
                 /// a source in the map to start the map from
-                start_index: NodeIndex,
+                start_index: PathNodeIndex,
             ) !IteratorType
             {
                 var result = IteratorType{
@@ -649,7 +652,7 @@ pub fn Map(
             pub fn next(
                 self: *@This(),
                 allocator: std.mem.Allocator,
-            ) !?NodeIndex
+            ) !?PathNodeIndex
             {
                 if (self.stack.items.len == 0) {
                     self.maybe_current = null;
@@ -719,7 +722,7 @@ pub fn Map(
         /// generate a text label based on the format() of the `GraphNodeType`
         pub fn node_label(
             buf: []u8,
-            ref: GraphNodeType,
+            ref: SpaceNodeType,
             code: treecode.Treecode,
             comptime label_style: LabelStyle,
         ) ![]const u8
