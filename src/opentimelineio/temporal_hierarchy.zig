@@ -960,16 +960,23 @@ pub fn build_projection_operator_caching(
         );
     }
 
-    var iter = (
-        try TemporalMap.PathIterator.init_from_to(
-            allocator,
-            &map,
-            sorted_endpoints,
-        )
-    );
-    defer iter.deinit(allocator);
+    const source_index = map.map_space_to_index.get(
+        sorted_endpoints.source
+    ).?;
 
-    var current = (try iter.next(allocator)).?;
+    const nodes = map.nodes.slice();
+    const codes = nodes.items(.code);
+    const spaces = nodes.items(.space);
+
+    const path = try map.path(
+        allocator,
+        .{
+            .source = source_index,
+            .destination = map.map_space_to_index.get(
+                sorted_endpoints.destination
+            ).?,
+        },
+    );
 
     if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
         opentime.dbg_print(@src(), 
@@ -977,27 +984,34 @@ pub fn build_projection_operator_caching(
             ++ "starting projection: {f}\n"
             ,
             .{
-                current,
+                spaces[path[0]],
                 sorted_endpoints.destination,
                 root_to_current,
             }
         );
     }
 
-    const source_index = map.map_space_to_index.get(
-        sorted_endpoints.source
-    ).?;
+    if (path.len < 2){
+        return .{
+            .source = endpoints.source,
+            .destination = endpoints.destination,
+            .src_to_dst_topo = .INFINITE_IDENTIY,
+        };
+    }
 
-    const nodes = map.nodes.slice();
+    var current = path[0];
 
-    // walk from current_code towards destination_code
-    while (try iter.next(allocator)) 
+    var path_step = IndexPathEndPoints{
+        .source = @intCast(source_index),
+        .destination = @intCast(source_index),
+    };
+
+    // walk from current_code towards destination_code - path[0] is the current
+    // node, can be skipped
+    for (path[1..])
         |next|
     {
-        const path_step = IndexPathEndPoints{
-            .source = source_index,
-            .destination = next,
-        };
+        path_step.destination = @intCast(next);
 
         if (operator_cache.get(path_step))
             |root_to_next|
@@ -1007,9 +1021,7 @@ pub fn build_projection_operator_caching(
             continue;
         }
 
-        const next_step = nodes.items(.code)[current].next_step_towards(
-            nodes.items(.code)[next],
-        );
+        const next_step = codes[current].next_step_towards(codes[next]);
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) { 
             opentime.dbg_print(@src(), 
@@ -1019,8 +1031,8 @@ pub fn build_projection_operator_caching(
             );
         }
 
-        const current_space = nodes.items(.space)[current];
-        const next_space = nodes.items(.space)[next];
+        const current_space = spaces[current];
+        const next_space = spaces[next];
 
         const current_to_next = try current_space.ref.build_transform(
             allocator,
@@ -1067,7 +1079,7 @@ pub fn build_projection_operator_caching(
                 ,
                 .{
                     root_to_next,
-                    iter.maybe_source.?.space,
+                    source_index,
                     i_b,
                     next.space,
                     o_b,

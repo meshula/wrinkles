@@ -479,6 +479,58 @@ pub fn Map(
             }
         };
 
+        /// return the indices inclusive of the endpoints
+        pub fn path(
+            self: @This(),
+            allocator: std.mem.Allocator,
+            endpoints: PathEndPointIndices,
+        ) ![]NodeIndex
+        { 
+            var sorted_endpoint_indices = endpoints;
+            const swapped = try self.sort_endpoint_indices(
+                &sorted_endpoint_indices
+            );
+
+            const nodes = self.nodes.slice();
+
+            const source_code = (
+                nodes.items(.code)[sorted_endpoint_indices.source]
+            );
+            const destination_code = (
+                nodes.items(.code)[sorted_endpoint_indices.destination]
+            );
+
+            var result: std.ArrayList(NodeIndex) = .empty;
+            try result.ensureTotalCapacity(
+                allocator,
+                destination_code.code_length() - source_code.code_length() 
+            );
+            result.appendAssumeCapacity(sorted_endpoint_indices.source);
+
+            var current: NodeIndex = sorted_endpoint_indices.source;
+            var current_code = source_code;
+            while (current != sorted_endpoint_indices.destination)
+            {
+                const next_step = current_code.next_step_towards(destination_code);
+
+                const next = nodes.items(.child_indices)[current][
+                    @intFromEnum(next_step)
+                ];
+
+                result.appendAssumeCapacity(next.?);
+
+                current = next.?;
+                current_code = nodes.items(.code)[current];
+            }
+
+            if (swapped)
+            {
+                std.mem.reverse(NodeIndex, result.items);
+            }
+
+            return try result.toOwnedSlice(allocator);
+        }
+
         /// Walks across a `MapType` by walking through the treecodes and
         /// finding the ones that are present in the `MapType`.
         pub const PathIterator = struct{
@@ -544,7 +596,8 @@ pub fn Map(
                 return result;
             }
 
-            /// an iterator that walks from the source node to the destination node
+            /// an iterator that walks from the source node to the destination
+            /// node
             pub fn init_from_to(
                 allocator: std.mem.Allocator,
                 map: *const MapType,
