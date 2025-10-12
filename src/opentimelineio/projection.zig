@@ -3114,6 +3114,11 @@ pub fn ReferenceTopology(
                 NodeIndex,
                 void,
             ) = .empty;
+            // worst case all intervals are active at once
+            try active_intervals.ensureTotalCapacity(
+                allocator_arena,
+                cut_point_slice.len,
+            );
             const ordinates = cut_point_slice.items(.ordinate);
             const len = ordinates.len;
 
@@ -3129,8 +3134,7 @@ pub fn ReferenceTopology(
                 {
                     if (kind == .start)
                     {
-                        try active_intervals.put(
-                            allocator_arena,
+                        active_intervals.putAssumeCapacity(
                             interval,
                             {},
                         );
