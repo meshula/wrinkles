@@ -3141,18 +3141,6 @@ pub fn ReferenceTopology(
                     }
                 }
 
-                var indices: std.ArrayList(NodeIndex) = .empty;
-                try indices.ensureTotalCapacity(
-                    parent_allocator,
-                    active_intervals.entries.len
-                );
-                var keys = active_intervals.iterator();
-                while (keys.next())
-                    |key|
-                {
-                    indices.appendAssumeCapacity(key.key_ptr.*);
-                }
-
                 try self.intervals.append(
                     parent_allocator,
                     .{
@@ -3160,8 +3148,9 @@ pub fn ReferenceTopology(
                             .start = ord_start,
                             .end = ord_end,
                         },
-                        .mapping_index = try indices.toOwnedSlice(
-                            parent_allocator,
+                        .mapping_index = try parent_allocator.dupe(
+                            NodeIndex,
+                            active_intervals.keys(),
                         ),
                     },
                 );
