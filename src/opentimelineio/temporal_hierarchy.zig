@@ -72,7 +72,7 @@ fn walk_child_spaces(
         const space_ref = references.SpaceReference{
             .ref = parent_otio_object,
             .label = .child,
-            .child_index = index,
+            .child_index = @intCast(index),
         };
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
@@ -836,7 +836,8 @@ pub fn build_projection_operator(
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
         {
-            opentime.dbg_print(@src(), 
+            opentime.dbg_print(
+                @src(), 
                 "    joining!\n"
                 ++ "    a2b/root_to_current: {f}\n"
                 ++ "    b2c/current_to_next: {f}\n"
