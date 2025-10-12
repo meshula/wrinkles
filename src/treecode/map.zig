@@ -246,6 +246,13 @@ pub fn Map(
                 .{ png_filepath }
             );
 
+            if (
+                build_options.graphviz_dot_path == null 
+                or options.render_png == false
+            ) {
+                return;
+            }
+
             const arg = &[_][]const u8{
                 // fetched from build configuration
                 build_options.graphviz_dot_path.?,
@@ -254,13 +261,6 @@ pub fn Map(
                 "-o",
                 pngfilepath,
             };
-
-            if (
-                build_options.graphviz_dot_path == null 
-                or options.render_png == false
-            ) {
-                return;
-            }
 
             // render to png
             const result = try std.process.Child.run(
