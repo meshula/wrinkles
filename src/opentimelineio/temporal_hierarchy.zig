@@ -723,171 +723,6 @@ test "sequential_child_hash: math"
     }
 }
 
-/// build a projection operator that projects from the endpoints.source to
-/// endpoints.destination spaces
-pub fn build_projection_operator(
-    allocator: std.mem.Allocator,
-    map: TemporalMap,
-    endpoints: TemporalMap.PathEndPoints,
-) !projection.ProjectionOperator 
-{
-    // sort endpoints so that the higher node is always the source
-    var sorted_endpoints = endpoints;
-    const endpoints_were_swapped = try map.sort_endpoints(
-        &sorted_endpoints
-    );
-
-    var root_to_current = (
-        try topology_m.Topology.init_identity_infinite(allocator)
-    );
-    errdefer root_to_current.deinit(allocator);
-
-    if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
-        opentime.dbg_print(@src(), 
-            "[START] root_to_current: {f}\n",
-            .{ root_to_current }
-        );
-    }
-
-    var iter = (
-        try TemporalMap.PathIterator.init_from_to(
-            allocator,
-            &map,
-            sorted_endpoints,
-        )
-    );
-    defer iter.deinit(allocator);
-
-    var current_index = (try iter.next(allocator)).?;
-
-    const nodes = map.nodes.slice();
-
-    if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
-        opentime.dbg_print(@src(), 
-            "starting walk from: {f} to: {f}\n"
-            ++ "starting projection: {f}\n"
-            ,
-            .{
-                nodes.get(current_index),
-                sorted_endpoints.destination,
-                root_to_current,
-            }
-        );
-    }
-
-    // walk from current_code towards destination_code
-    while (try iter.next(allocator)) 
-        |next|
-    {
-        const next_step = nodes.items(.code)[current_index].next_step_towards(
-            nodes.items(.code)[next],
-        );
-
-        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) { 
-            opentime.dbg_print(
-                @src(), 
-                "  next step {b} towards next node: {f}\n"
-                ,
-                .{ next_step, next }
-            );
-        }
-
-        const current_ref = nodes.items(.space)[current_index];
-        var current_to_next = (
-            try current_ref.ref.build_transform(
-                allocator,
-                current_ref.label,
-                nodes.items(.space)[next],
-                next_step,
-            )
-        );
-        defer current_to_next.deinit(allocator);
-
-        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
-        {
-            opentime.dbg_print(
-                @src(), 
-                "    joining!\n"
-                ++ "    a2b/root_to_current: {f}\n"
-                ++ "    b2c/current_to_next: {f}\n"
-                ,
-                .{
-                    root_to_current,
-                    current_to_next,
-                },
-            );
-        }
-
-        const root_to_next = try topology_m.join(
-            allocator,
-            .{
-                .a2b = root_to_current,
-                .b2c = current_to_next,
-            },
-        );
-        errdefer root_to_next.deinit(allocator);
-
-        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
-        {
-            opentime.dbg_print(@src(), 
-                "    root_to_next: {f}\n",
-                .{root_to_next}
-            );
-            const i_b = root_to_next.input_bounds();
-            const o_b = root_to_next.output_bounds();
-
-            opentime.dbg_print(@src(), 
-                "    root_to_next (next root to current!): {f}\n"
-                ++ "    composed transform ranges {f}: {f},"
-                ++ " {f}: {f}\n"
-                ,
-                .{
-                    root_to_next,
-                    iter.maybe_source.?.space,
-                    i_b,
-                    next.space,
-                    o_b,
-                },
-                );
-        }
-        root_to_current.deinit(allocator);
-
-        current_index = next;
-        root_to_current = root_to_next;
-    }
-
-    // check to see if end points were inverted
-    if (endpoints_were_swapped and root_to_current.mappings.len > 0) 
-    {
-        const inverted_topologies = (
-            try root_to_current.inverted(allocator)
-        );
-        defer allocator.free(inverted_topologies);
-        root_to_current.deinit(allocator);
-        errdefer opentime.deinit_slice(
-            allocator,
-            topology_m.Topology,
-            inverted_topologies
-        );
-        if (inverted_topologies.len > 1)
-        {
-            return error.MoreThanOneInversionIsNotImplemented;
-        }
-        if (inverted_topologies.len > 0) {
-            root_to_current = inverted_topologies[0];
-        }
-        else {
-            return error.NoInvertedTopologies;
-        }
-    }
-
-    return .{
-        .source = sorted_endpoints.source,
-        .destination = sorted_endpoints.destination,
-        .src_to_dst_topo = root_to_current,
-    };
-}
-
 pub const OperatorCache = std.AutoHashMapUnmanaged(
     TemporalMap.PathEndPointIndices,
     topology_m.Topology,
@@ -895,7 +730,7 @@ pub const OperatorCache = std.AutoHashMapUnmanaged(
 
 /// build a projection operator that projects from the endpoints.source to
 /// endpoints.destination spaces
-pub fn build_projection_operator_caching(
+pub fn build_projection_operator(
     parent_allocator: std.mem.Allocator,
     map: TemporalMap,
     endpoints: TemporalMap.PathEndPoints,
@@ -1250,13 +1085,18 @@ test "schema.Track with clip with identity transform projection"
         tr_ref.track.children.len
     );
 
+
+    var cache: OperatorCache = .empty;
+    defer cache.deinit(allocator);
+
     const track_to_clip = try build_projection_operator(
         allocator,
         map,
         .{
             .source = try tr_ref.space(references.SpaceLabel.presentation),
             .destination =  try cl_ref.space(references.SpaceLabel.media)
-        }
+        },
+        &cache,
     );
     defer track_to_clip.deinit(std.testing.allocator);
 
@@ -1346,6 +1186,9 @@ test "TemporalMap: schema.Track with clip with identity transform"
         treecode.path_exists(clip_code, root_code)
     );
 
+    var cache: OperatorCache = .empty;
+    defer cache.deinit(allocator);
+
     const root_presentation_to_clip_media = (
         try build_projection_operator(
             allocator,
@@ -1353,7 +1196,8 @@ test "TemporalMap: schema.Track with clip with identity transform"
             .{
                 .source = try root.space(references.SpaceLabel.presentation),
                 .destination = try cl_ref.space(references.SpaceLabel.media)
-            }
+            },
+            &cache,
         )
     );
     defer root_presentation_to_clip_media.deinit(allocator);

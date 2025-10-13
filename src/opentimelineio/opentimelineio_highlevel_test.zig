@@ -95,6 +95,9 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     );
     defer time_map.deinit(allocator);
 
+    var cache: otio.temporal_hierarchy.OperatorCache = .empty;
+    defer cache.deinit(allocator);
+
     // could do individual specific end-to-end projections here
     ///////////////////////////////////////////////////////////////////////////
     const timeline_to_clip2 = (
@@ -104,7 +107,8 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             .{
                 .source = try tl_ptr.space(.presentation),
                 .destination = try track_children[2].space(.media),
-            }
+            },
+            &cache,
         )
     );
     defer timeline_to_clip2.deinit(allocator);
@@ -338,6 +342,9 @@ test "libsamplerate w/ high level test -- resample only"
     );
     defer time_map.deinit(allocator);
 
+    var cache: otio.temporal_hierarchy.OperatorCache = .empty;
+    defer cache.deinit(allocator);
+
     const tr_pres_to_cl_media_po = (
         try otio.build_projection_operator(
             allocator,
@@ -346,6 +353,7 @@ test "libsamplerate w/ high level test -- resample only"
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
             },
+            &cache,
         )
     );
     defer tr_pres_to_cl_media_po.deinit(allocator);
@@ -499,6 +507,9 @@ test "libsamplerate w/ high level test.retime.interpolating"
         .{},
     );
 
+    var cache: otio.temporal_hierarchy.OperatorCache = .empty;
+    defer cache.deinit(allocator);
+
     const tr_pres_to_cl_media_po = (
         try otio.build_projection_operator(
             allocator,
@@ -507,6 +518,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
             },
+            &cache,
         )
     );
     defer tr_pres_to_cl_media_po.deinit(allocator);
@@ -640,6 +652,9 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     );
     defer time_map.deinit(allocator);
 
+    var cache: otio.temporal_hierarchy.OperatorCache = .empty;
+    defer cache.deinit(allocator);
+
     const tr_pres_to_cl_media_po = (
         try otio.build_projection_operator(
             allocator,
@@ -648,6 +663,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
             },
+            &cache,
         )
     );
     defer tr_pres_to_cl_media_po.deinit(allocator);
@@ -819,6 +835,9 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     );
     defer time_map.deinit(allocator);
 
+    var cache: otio.temporal_hierarchy.OperatorCache = .empty;
+    defer cache.deinit(allocator);
+
     // build the projection operator (Track.presentation -> clip.media)
     ///////////////////////////////////////////////////////////////////////////
     const tr_pres_to_cl_media_po = (
@@ -829,6 +848,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
             },
+            &cache,
         )
     );
     defer tr_pres_to_cl_media_po.deinit(allocator);
@@ -979,6 +999,9 @@ test "timeline w/ warp that holds the tenth frame"
     );
     defer time_map.deinit(allocator);
 
+    var cache: otio.temporal_hierarchy.OperatorCache = .empty;
+    defer cache.deinit(allocator);
+
     const tr_pres_to_cl_media_po = (
         try otio.build_projection_operator(
             allocator,
@@ -987,6 +1010,7 @@ test "timeline w/ warp that holds the tenth frame"
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
             },
+            &cache,
         )
     );
     defer tr_pres_to_cl_media_po.deinit(allocator);
@@ -1098,6 +1122,9 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     );
     defer map.deinit(allocator);
 
+    var cache: otio.temporal_hierarchy.OperatorCache = .empty;
+    defer cache.deinit(allocator);
+
     // Build the projection from Timeline Presentation -> Clip Media
     ///////////////////////////////////////////////////////////////////////////
     const tl_pres_to_cl_media_po = (
@@ -1108,6 +1135,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
                 .source = try tl_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
             },
+            &cache,
         )
     );
     defer tl_pres_to_cl_media_po.deinit(allocator);

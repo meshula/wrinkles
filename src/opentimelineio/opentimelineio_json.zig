@@ -437,13 +437,17 @@ test "read_from_file test (simple)"
     );
     defer map.deinit(allocator);
 
+    var cache: otio.temporal_hierarchy.OperatorCache = .empty;
+    defer cache.deinit(allocator);
+
     const tl_output_to_clip_media = try otio.build_projection_operator(
         std.testing.allocator,
         map,
         .{
             .source = try tl_ptr.space(otio.SpaceLabel.presentation),
             .destination = try target_clip_ptr.space(otio.SpaceLabel.media),
-        }
+        },
+        &cache,
     );
     defer tl_output_to_clip_media.deinit(allocator);
     
