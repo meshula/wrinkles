@@ -486,6 +486,47 @@ pub fn Map(
             );
         }
 
+        pub fn nodes_under(
+            self: @This(),
+            allocator: std.mem.Allocator,
+            start: SpaceNodeType,
+        ) ![]PathNodeIndex
+        {
+            const nodes = self.nodes.slice();
+            const start_index = self.map_space_to_index.get(start).?;
+
+            var result: std.ArrayList(PathNodeIndex) = .empty;
+            try result.ensureTotalCapacity(allocator, nodes.len);
+
+            var stack: std.ArrayList(PathNodeIndex) = .empty;
+            defer stack.deinit(allocator);
+            try stack.ensureTotalCapacity(
+                allocator,
+                nodes.len
+            );
+
+            stack.appendAssumeCapacity(start_index);
+
+            while (stack.pop())
+                |next|
+            {
+                result.appendAssumeCapacity(next);
+                const maybe_children = nodes.items(.child_indices)[next];
+                if (maybe_children[0])
+                    |child|
+                {
+                    stack.appendAssumeCapacity(child);
+                }
+                if (maybe_children[1])
+                    |child|
+                {
+                    stack.appendAssumeCapacity(child);
+                }
+            }
+
+            return result.toOwnedSlice(allocator);
+        }
+
         /// return the indices inclusive of the endpoints
         pub fn path(
             self: @This(),
@@ -537,191 +578,6 @@ pub fn Map(
 
             return try result.toOwnedSlice(allocator);
         }
-
-        /// Walks across a `MapType` by walking through the treecodes and
-        /// finding the ones that are present in the `MapType`.
-        pub const PathIterator = struct{
-            pub const IteratorType = @This();
-
-            stack: std.ArrayList(PathNodeIndex) = .empty,
-            maybe_current: ?PathNodeIndex,
-            nodes: NodesListType.Slice,
-            allocator: std.mem.Allocator,
-            maybe_source: ?PathNodeIndex = null,
-            maybe_destination: ?PathNodeIndex = null,
-
-            /// Walk exhaustively, depth-first, starting from the root
-            /// (treecode.MARKER) space down.
-            pub fn init(
-                allocator: std.mem.Allocator,
-                map: *const MapType,
-            ) !IteratorType
-            {
-                return IteratorType.init_from_index(
-                    allocator,
-                    map, 
-                    0,
-                );
-            }
-
-            pub fn init_from(
-                allocator: std.mem.Allocator,
-                map: *const MapType,
-                /// a source in the map to start the map from
-                source: SpaceNodeType,
-            ) !IteratorType
-            {
-                const start_index = (
-                    map.map_space_to_index.get(source) 
-                    orelse return error.NotInMapError
-                );
-
-                return IteratorType.init_from_index(
-                    allocator,
-                    map,
-                    start_index,
-                );
-            }
-
-            fn init_from_index(
-                allocator: std.mem.Allocator,
-                map: *const MapType,
-                /// a source in the map to start the map from
-                start_index: PathNodeIndex,
-            ) !IteratorType
-            {
-                var result = IteratorType{
-                    .stack = .empty,
-                    .maybe_current = null,
-                    .nodes = map.nodes.slice(),
-                    .allocator = allocator,
-                    .maybe_source = start_index,
-                };
-
-                try result.stack.append(allocator, start_index);
-
-                return result;
-            }
-
-            /// an iterator that walks from the source node to the destination
-            /// node
-            pub fn init_from_to(
-                allocator: std.mem.Allocator,
-                map: *const MapType,
-                endpoints: PathEndPoints,
-            ) !IteratorType
-            {
-                const source_index = (
-                    if (map.map_space_to_index.get(endpoints.source)) 
-                    |index| 
-                    index
-                    else return error.SourceNotInMap
-                );
-
-                const destination_index = (
-                    if (map.map_space_to_index.get(endpoints.destination)) 
-                    |index| 
-                    index
-                    else return error.SourceNotInMap
-                );
-
-                var endpoint_indices = PathEndPointIndices{
-                    .source = source_index,
-                    .destination = destination_index,
-                };
-
-                _ = try map.sort_endpoint_indices(&endpoint_indices);
-
-                var iterator = (
-                    try IteratorType.init_from_index(
-                        allocator,
-                        map, 
-                        endpoint_indices.source,
-                    )
-                );
-
-                iterator.maybe_destination = endpoint_indices.destination;
-
-                return iterator;
-            }
-
-            pub fn deinit(
-                self: *@This(),
-                allocator: std.mem.Allocator,
-            ) void
-            {
-                self.stack.deinit(allocator);
-            }
-
-            pub fn next(
-                self: *@This(),
-                allocator: std.mem.Allocator,
-            ) !?PathNodeIndex
-            {
-                if (self.stack.items.len == 0) {
-                    self.maybe_current = null;
-                    return null;
-                }
-
-                // there has to be a current node, since the length is > 0
-                self.maybe_current = self.stack.pop();
-                const current_index = self.maybe_current.?;
-
-                if (self.maybe_destination)
-                    |dest|
-                {
-                    if (current_index == dest) {
-                        self.stack.clearAndFree(allocator);
-                        return current_index;
-                    }
-                }
-
-                const current_code = self.nodes.items(.code)[current_index];
-
-                // if there is a destination, walk in that direction.
-                // Otherwise, walk exhaustively
-                const next_steps : []const treecode.l_or_r = (
-                    if (self.maybe_destination) 
-                    |dest| 
-                    &[_]treecode.l_or_r{ 
-                        current_code.next_step_towards(
-                            self.nodes.items(.code)[dest]
-                        )
-                    }
-                    else &.{ .left,.right }
-                );
-
-                const child_indices = (
-                    self.nodes.items(.child_indices)[current_index]
-                );
-
-                for (next_steps)
-                    |next_step|
-                {
-                    errdefer std.debug.print(
-                        "trying to walk from {d} to {?d}\n",
-                        .{
-                            current_index,
-                            self.maybe_destination,
-                        }
-                    );
-                    if (child_indices[@intFromEnum(next_step)])
-                        |next_index|
-                    {
-                        try self.stack.append(
-                            allocator,
-                            next_index,
-                        );
-                    }
-                    else if (self.maybe_destination != null)
-                    {
-                        return error.InvalidGraphMissingConnection;
-                    }
-                }
-
-                return current_index;
-            }
-        };
 
         /// generate a text label based on the format() of the `SpaceNodeType`
         pub fn node_label(

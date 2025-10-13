@@ -35,7 +35,6 @@ const T_CTI_1_10 = opentime.ContinuousInterval {
 
 // lofting types back out of function
 pub const TemporalMap = treecode.Map(references.SpaceReference);
-pub const PathIterator = TemporalMap.PathIterator;
 pub const PathEndPoints = TemporalMap.PathEndPoints;
 
 fn walk_child_spaces(
@@ -447,14 +446,8 @@ test "TestWalkingIterator: clip"
         .{},
     );
 
-    var node_iter = try PathIterator.init(
-        allocator,
-        &map,
-    );
-    defer node_iter.deinit(allocator);
-
     var count:usize = 0;
-    while (try node_iter.next(allocator))
+    for (map.nodes.items(.space))
         |_|
     {
         count += 1;
@@ -497,13 +490,7 @@ test "TestWalkingIterator: track with clip"
 
     // from the top
     {
-        var node_iter = try PathIterator.init(
-            allocator,
-            &map,
-        );
-        defer node_iter.deinit(allocator);
-
-        while (try node_iter.next(allocator))
+        for (map.nodes.items(.space))
             |_|
         {
             count += 1;
@@ -515,24 +502,14 @@ test "TestWalkingIterator: track with clip"
 
     // from the clip
     {
-        var node_iter = (
-            try PathIterator.init_from(
-                std.testing.allocator,
-                &map,
-                try cl_ptr.space(.presentation),
-            )
+        const nodes = try map.nodes_under(
+            allocator,
+            try cl_ptr.space(.presentation)
         );
-        defer node_iter.deinit(allocator);
-
-        count = 0;
-        while (try node_iter.next(allocator))
-            |_|
-        {
-            count += 1;
-        }
+        defer allocator.free(nodes);
 
         // 2: clip presentation, clip media
-        try std.testing.expectEqual(2, count);
+        try std.testing.expectEqual(2, nodes.len);
     }
 }
 
@@ -572,31 +549,23 @@ test "TestWalkingIterator: track with clip w/ destination"
         .{},
    );
 
-    var count:usize = 0;
-
     // from the top to the second clip
     {
-        var node_iter = (
-            try PathIterator.init_from_to(
-                allocator,
-                &map,
-                .{
-                    .source = try tr_ptr.space(.presentation),
-                    .destination = try cl_ptr.space(.media),
-                },
-            )
+        const path = try map.path(
+            allocator, 
+            .{
+                .source = map.map_space_to_index.get(
+                    try tr_ptr.space(.presentation)
+                ).?,
+                .destination = map.map_space_to_index.get(
+                    try cl_ptr.space(.media)
+                ).?,
+            },
         );
-        defer node_iter.deinit(allocator);
-
-        count = 0;
-        while (try node_iter.next(allocator))
-               |_|
-            : (count += 1)
-        {
-        }
+        defer allocator.free(path);
 
         // 2: clip presentation, clip media
-        try std.testing.expectEqual(6, count);
+        try std.testing.expectEqual(6, path.len);
     }
 }
 
