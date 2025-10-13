@@ -370,7 +370,7 @@ pub fn validate_connections_in_map(
 ) !void
 {
     // check the parent/child pointers
-    for (map.nodes.items(.parent_index), map.nodes.items(.child_indices), 0..)
+    for (map.path_nodes.items(.parent_index), map.path_nodes.items(.child_indices), 0..)
         |maybe_parent_index, child_indices, index|
     {
         errdefer std.debug.print(
@@ -392,13 +392,13 @@ pub fn validate_connections_in_map(
         if (maybe_parent_index)
             |parent_index|
         {
-            const parent_code = map.nodes.items(.code)[parent_index];
-            const current_code = map.nodes.items(.code)[index];
+            const parent_code = map.path_nodes.items(.code)[parent_index];
+            const current_code = map.path_nodes.items(.code)[index];
 
             const parent_to_current = parent_code.next_step_towards(current_code);
 
             const parent_children = (
-                map.nodes.items(.child_indices)[parent_index]
+                map.path_nodes.items(.child_indices)[parent_index]
             );
 
             try std.testing.expect(
@@ -447,7 +447,7 @@ test "TestWalkingIterator: clip"
     );
 
     var count:usize = 0;
-    for (map.nodes.items(.space))
+    for (map.path_nodes.items(.space))
         |_|
     {
         count += 1;
@@ -490,7 +490,7 @@ test "TestWalkingIterator: track with clip"
 
     // from the top
     {
-        for (map.nodes.items(.space))
+        for (map.path_nodes.items(.space))
             |_|
         {
             count += 1;
@@ -502,14 +502,14 @@ test "TestWalkingIterator: track with clip"
 
     // from the clip
     {
-        const nodes = try map.nodes_under(
+        const path_nodes = try map.nodes_under(
             allocator,
             try cl_ptr.space(.presentation)
         );
-        defer allocator.free(nodes);
+        defer allocator.free(path_nodes);
 
         // 2: clip presentation, clip media
-        try std.testing.expectEqual(2, nodes.len);
+        try std.testing.expectEqual(2, path_nodes.len);
     }
 }
 
@@ -554,10 +554,10 @@ test "TestWalkingIterator: track with clip w/ destination"
         const path = try map.path(
             allocator, 
             .{
-                .source = map.map_space_to_index.get(
+                .source = map.map_space_to_path_index.get(
                     try tr_ptr.space(.presentation)
                 ).?,
-                .destination = map.map_space_to_index.get(
+                .destination = map.map_space_to_path_index.get(
                     try cl_ptr.space(.media)
                 ).?,
             },
@@ -756,19 +756,19 @@ pub fn build_projection_operator(
         );
     }
 
-    const source_index = map.map_space_to_index.get(
+    const source_index = map.map_space_to_path_index.get(
         sorted_endpoints.source
     ).?;
 
-    const nodes = map.nodes.slice();
-    const codes = nodes.items(.code);
-    const spaces = nodes.items(.space);
+    const path_nodes = map.path_nodes.slice();
+    const codes = path_nodes.items(.code);
+    const spaces = path_nodes.items(.space);
 
     const path = try map.path(
         allocator,
         .{
             .source = source_index,
-            .destination = map.map_space_to_index.get(
+            .destination = map.map_space_to_path_index.get(
                 sorted_endpoints.destination
             ).?,
         },
@@ -999,12 +999,12 @@ test "path_code: graph test"
 
     // should be the same length
     try std.testing.expectEqual(
-        map.map_space_to_index.count(),
-        map.map_code_to_index.count(),
+        map.map_space_to_path_index.count(),
+        map.map_code_to_path_index.count(),
     );
     try std.testing.expectEqual(
         35,
-        map.map_space_to_index.count()
+        map.map_space_to_path_index.count()
     );
 
     try map.write_dot_graph(
@@ -1141,8 +1141,8 @@ test "TemporalMap: schema.Track with clip with identity transform"
     );
     defer map.deinit(allocator);
 
-    try std.testing.expectEqual(5, map.map_code_to_index.count());
-    try std.testing.expectEqual(5, map.map_space_to_index.count());
+    try std.testing.expectEqual(5, map.map_code_to_path_index.count());
+    try std.testing.expectEqual(5, map.map_space_to_path_index.count());
 
     try std.testing.expectEqual(root, map.root().ref);
 
@@ -1308,7 +1308,7 @@ test "test debug_print_time_hierarchy"
 
     // count the scopes
     var i: usize = 0;
-    var values = tp.map_code_to_index.valueIterator();
+    var values = tp.map_code_to_path_index.valueIterator();
     while (values.next())
         |_|
     {

@@ -342,7 +342,7 @@ pub fn projection_map_to_media_from_leaky(
 
     var cache: temporal_hierarchy.OperatorCache = .empty;
 
-    const all_spaces = map.nodes.items(.space);
+    const all_spaces = map.path_nodes.items(.space);
     for (all_spaces)
         |current|
     {
@@ -1688,11 +1688,11 @@ test "Projection: schema.Track with single clip with identity transform and boun
 
     try std.testing.expectEqual(
         5,
-        map.map_code_to_index.count()
+        map.map_code_to_path_index.count()
     );
     try std.testing.expectEqual(
         5,
-        map.map_space_to_index.count()
+        map.map_space_to_path_index.count()
     );
 
     var cache: temporal_hierarchy.OperatorCache = .empty;
@@ -2975,7 +2975,7 @@ pub fn ReferenceTopology(
 
             // Gather up all the operators and intervals
             /////////////
-            const map_nodes = temporal_map.nodes.slice();
+            const map_nodes = temporal_map.path_nodes.slice();
             for (map_nodes.items(.space), map_nodes.items(.code))
                 |current, current_code|
             {

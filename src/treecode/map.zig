@@ -65,20 +65,23 @@ pub fn Map(
         };
 
         const MapType = @This();
-        const NodesListType = std.MultiArrayList(PathNode);
+        pub const SpaceNodeList = std.MultiArrayList(SpaceNodeType);
+        const PathNodesList = std.MultiArrayList(PathNode);
 
-        map_space_to_index: std.AutoHashMapUnmanaged(
+        map_space_to_path_index: std.AutoHashMapUnmanaged(
             SpaceNodeType,
             PathNodeIndex,
         ),
         /// mapping of `treecode.Treecode` to `NodeIndex`
-        map_code_to_index: treecode.TreecodeHashMap(PathNodeIndex),
-        nodes:NodesListType,
+        map_code_to_path_index: treecode.TreecodeHashMap(PathNodeIndex),
+        path_nodes:PathNodesList,
+        space_nodes:SpaceNodeList,
 
         pub const empty = MapType{
-            .map_space_to_index = .empty,
-            .map_code_to_index = .empty,
-            .nodes = .empty,
+            .map_space_to_path_index = .empty,
+            .map_code_to_path_index = .empty,
+            .path_nodes = .empty,
+            .space_nodes = .empty,
         };
 
         pub fn deinit(
@@ -89,27 +92,27 @@ pub fn Map(
             // build a mutable alias of self
             var mutable_self = self;
 
-            for (self.nodes.items(.code))
+            for (self.path_nodes.items(.code))
                 |code|
             { 
                 code.deinit(allocator);
             }
 
             // free the guts
-            mutable_self.map_space_to_index.unlockPointers();
-            mutable_self.map_space_to_index.deinit(allocator);
-            mutable_self.map_code_to_index.unlockPointers();
-            mutable_self.map_code_to_index.deinit(allocator);
+            mutable_self.map_space_to_path_index.unlockPointers();
+            mutable_self.map_space_to_path_index.deinit(allocator);
+            mutable_self.map_code_to_path_index.unlockPointers();
+            mutable_self.map_code_to_path_index.deinit(allocator);
 
-            mutable_self.nodes.deinit(allocator);
+            mutable_self.path_nodes.deinit(allocator);
         }
 
         pub fn lock_pointers(
             self: *@This(),
         ) void
         {
-            self.map_code_to_index.lockPointers();
-            self.map_space_to_index.lockPointers();
+            self.map_code_to_path_index.lockPointers();
+            self.map_space_to_path_index.lockPointers();
 
             // @TODO: could switch the implementation over to .Slice() here
         }
@@ -121,16 +124,16 @@ pub fn Map(
             node: PathNode,
         ) !PathNodeIndex
         {
-            const new_index = self.nodes.len;
+            const new_index = self.path_nodes.len;
 
-            try self.nodes.append(allocator, node);
+            try self.path_nodes.append(allocator, node);
 
-            try self.map_code_to_index.put(
+            try self.map_code_to_path_index.put(
                 allocator,
                 node.code,
                 new_index,
             );
-            try self.map_space_to_index.put(
+            try self.map_space_to_path_index.put(
                 allocator,
                 node.space,
                 new_index,
@@ -139,9 +142,9 @@ pub fn Map(
             if (node.parent_index)
                 |parent_index|
             {
-                const parent_code = self.nodes.items(.code)[parent_index];
+                const parent_code = self.path_nodes.items(.code)[parent_index];
                 const dir = parent_code.next_step_towards(node.code);
-                var child_indices = &self.nodes.items(
+                var child_indices = &self.path_nodes.items(
                     .child_indices
                 )[parent_index];
                 child_indices[@intFromEnum(dir)] = new_index;
@@ -155,10 +158,10 @@ pub fn Map(
             code: treecode.Treecode,
         ) ?SpaceNodeType
         {
-            if (self.map_code_to_index.get(code))
+            if (self.map_code_to_path_index.get(code))
                 |index|
             {
-                return self.nodes.items(.space)[index];
+                return self.path_nodes.items(.space)[index];
             }
 
             return null;
@@ -169,10 +172,10 @@ pub fn Map(
             space: SpaceNodeType,
         ) ?treecode.Treecode
         {
-            if (self.map_space_to_index.get(space))
+            if (self.map_space_to_path_index.get(space))
                 |index|
             {
-                return self.nodes.items(.code)[index];
+                return self.path_nodes.items(.code)[index];
             }
 
             return null;
@@ -185,7 +188,7 @@ pub fn Map(
         {
             // should always have a root object, and root object should always
             // be the first entry in the nodes list
-            return self.nodes.items(.space)[0];
+            return self.path_nodes.items(.space)[0];
         }
 
         /// Serialize this graph to dot and then use graphviz to convert that
@@ -233,9 +236,9 @@ pub fn Map(
             var label_buf: [1024]u8 = undefined;
             var next_label_buf: [1024]u8 = undefined;
 
-            const nodes = self.nodes.slice();
+            const nodes = self.path_nodes.slice();
 
-            for (0..self.nodes.len)
+            for (0..self.path_nodes.len)
                 |current_index|
             {
                 const current_code = nodes.items(.code)[current_index];
@@ -248,7 +251,7 @@ pub fn Map(
                 );
 
                 const current_children = (
-                    self.nodes.items(.child_indices)[current_index]
+                    self.path_nodes.items(.child_indices)[current_index]
                 );
                 for (current_children)
                     |maybe_child_index|
@@ -318,8 +321,8 @@ pub fn Map(
             endpoints: *PathEndPointIndices,
         ) !bool
         {
-            var source_code = self.nodes.items(.code)[endpoints.source];
-            var destination_code = self.nodes.items(.code)[endpoints.destination];
+            var source_code = self.path_nodes.items(.code)[endpoints.source];
+            var destination_code = self.path_nodes.items(.code)[endpoints.destination];
 
             if (
                 treecode.path_exists(
@@ -366,10 +369,10 @@ pub fn Map(
             endpoints: *PathEndPoints,
         ) !bool
         {
-            const source_index = self.map_space_to_index.get(
+            const source_index = self.map_space_to_path_index.get(
                 endpoints.source
             ) orelse return error.SourceNotInMap;
-            const dest_index = self.map_space_to_index.get(
+            const dest_index = self.map_space_to_path_index.get(
                 endpoints.destination
             ) orelse return error.DestNotInMap;
 
@@ -378,8 +381,8 @@ pub fn Map(
                 return false;
             }
 
-            var source_code = self.nodes.items(.code)[source_index];
-            var destination_code = self.nodes.items(.code)[dest_index];
+            var source_code = self.path_nodes.items(.code)[source_index];
+            var destination_code = self.path_nodes.items(.code)[dest_index];
 
             if (
                 treecode.path_exists(
@@ -492,8 +495,8 @@ pub fn Map(
             start: SpaceNodeType,
         ) ![]PathNodeIndex
         {
-            const nodes = self.nodes.slice();
-            const start_index = self.map_space_to_index.get(start).?;
+            const nodes = self.path_nodes.slice();
+            const start_index = self.map_space_to_path_index.get(start).?;
 
             var result: std.ArrayList(PathNodeIndex) = .empty;
             try result.ensureTotalCapacity(allocator, nodes.len);
@@ -539,7 +542,7 @@ pub fn Map(
                 &sorted_endpoint_indices
             );
 
-            const nodes = self.nodes.slice();
+            const nodes = self.path_nodes.slice();
 
             const source_code = (
                 nodes.items(.code)[sorted_endpoint_indices.source]
