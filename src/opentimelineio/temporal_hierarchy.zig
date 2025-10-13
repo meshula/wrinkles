@@ -36,6 +36,7 @@ const T_CTI_1_10 = opentime.ContinuousInterval {
 // lofting types back out of function
 pub const TemporalMap = treecode.Map(references.SpaceReference);
 pub const PathEndPoints = TemporalMap.PathEndPoints;
+pub const PathEndPointIndices = TemporalMap.PathEndPointIndices;
 
 fn walk_child_spaces(
     allocator: std.mem.Allocator,
@@ -179,10 +180,7 @@ fn walk_internal_spaces(
             std.debug.assert(
                 map.get_space(space_code) == null
             );
-            const maybe_fetched_code = (
-                map.get_code(space_ref)
-            );
-            if (maybe_fetched_code)
+            if (map.get_code(space_ref))
                 |code|
             {
                 std.debug.print(
@@ -1000,7 +998,7 @@ test "path_code: graph test"
     // should be the same length
     try std.testing.expectEqual(
         map.map_space_to_path_index.count(),
-        map.map_code_to_path_index.count(),
+        map.path_nodes.len,
     );
     try std.testing.expectEqual(
         35,
@@ -1141,8 +1139,10 @@ test "TemporalMap: schema.Track with clip with identity transform"
     );
     defer map.deinit(allocator);
 
-    try std.testing.expectEqual(5, map.map_code_to_path_index.count());
-    try std.testing.expectEqual(5, map.map_space_to_path_index.count());
+    try std.testing.expectEqual(
+        5,
+        map.map_space_to_path_index.count()
+    );
 
     try std.testing.expectEqual(root, map.root().ref);
 
@@ -1304,17 +1304,9 @@ test "test debug_print_time_hierarchy"
     );
     defer tp.deinit(allocator);
 
-    //////
-
-    // count the scopes
-    var i: usize = 0;
-    var values = tp.map_code_to_path_index.valueIterator();
-    while (values.next())
-        |_|
-    {
-        i += 1;
-    }
-
-    try std.testing.expectEqual(13, i);
+    try std.testing.expectEqual(
+        13,
+        tp.map_space_to_path_index.count(),
+    );
 }
 

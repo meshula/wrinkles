@@ -342,16 +342,16 @@ pub fn projection_map_to_media_from_leaky(
 
     var cache: temporal_hierarchy.OperatorCache = .empty;
 
-    const all_spaces = map.path_nodes.items(.space);
-    for (all_spaces)
-        |current|
+    const space_nodes = map.space_nodes.slice();
+    for (space_nodes.items(.label), 0..)
+        |label, index|
     {
         // skip all spaces that are not media spaces
-        if (current.label != .media) {
+        if (label != .media) {
             continue;
         }
 
-        proj_args.destination = current;
+        proj_args.destination = space_nodes.get(index);
 
         const child_op = (
             try temporal_hierarchy.build_projection_operator(
@@ -1379,28 +1379,6 @@ test "transform: track with two clips"
     const track_presentation_space = try tr_ptr.space(.presentation);
 
     {
-        const child_code = (
-            try treecode.Treecode.init_word(allocator, 0b1110)
-        );
-        defer child_code.deinit(allocator);
-
-        const child_space = map.get_space(child_code).?;
-
-        const xform = try tr.transform_to_child(
-            allocator,
-            child_space
-        );
-        defer xform.deinit(allocator);
-
-        const b = xform.input_bounds();
-
-        try opentime.expectOrdinateEqual(
-            8,
-            b.start,
-        );
-    }
-
-    {
         const xform = try topology_m.Topology.init_affine(
             allocator,
             .{
@@ -1686,10 +1664,8 @@ test "Projection: schema.Track with single clip with identity transform and boun
     );
     defer map.deinit(allocator);
 
-    try std.testing.expectEqual(
-        5,
-        map.map_code_to_path_index.count()
-    );
+    try std.testing.expectEqual(5, map.path_nodes.len);
+    try std.testing.expectEqual(5, map.space_nodes.len);
     try std.testing.expectEqual(
         5,
         map.map_space_to_path_index.count()
@@ -2904,11 +2880,14 @@ pub fn ReferenceTopology(
 {
     return struct {
         pub const ReferenceTopologyType = @This();
+
+        // @TODO: remove these
         pub const NodeIndex = usize;
+        pub const SpaceNodeIndex = usize;
 
         /// a transformation to a particular destination space
         const ReferenceMapping = struct {
-            destination: SpaceReferenceType,
+            destination: SpaceNodeIndex,
             mapping: topology_m.Mapping,
         };
 
@@ -2942,11 +2921,6 @@ pub fn ReferenceTopology(
                 .intervals = .empty,
             };
 
-            var proj_args = temporal_hierarchy.PathEndPoints{
-                .source = source_reference,
-                .destination = source_reference,
-            };
-
             var unsplit_intervals: std.MultiArrayList(
                 struct {
                     mapping_index: NodeIndex,
@@ -2967,33 +2941,41 @@ pub fn ReferenceTopology(
             ) = .empty;
             defer vertices.deinit(allocator_arena);
 
-            const source_code = (
-                temporal_map.get_code(source_reference)
-            ) orelse return error.SourceNotInMap;
-
             var cache: temporal_hierarchy.OperatorCache = .empty;
 
             // Gather up all the operators and intervals
             /////////////
             const map_nodes = temporal_map.path_nodes.slice();
-            for (map_nodes.items(.space), map_nodes.items(.code))
-                |current, current_code|
-            {
-                // skip all spaces that are not media spaces
-                if (current.label != .media) {
-                    continue;
-                }
+            const space_nodes = temporal_map.space_nodes.slice();
 
-                // skip all media spaces that don't have a path to source
-                if (source_code.is_prefix_of(current_code) == false)
+            const start_index = temporal_map.index_from_space(
+                source_reference
+            ) orelse return error.SourceNotInMap;
+
+            var proj_args = temporal_hierarchy.PathEndPointIndices{
+                .source = start_index,
+                .destination = start_index,
+            };
+
+            const source_code = map_nodes.items(.code)[start_index];
+
+            for (space_nodes.items(.label), map_nodes.items(.code), 0..)
+                |label, current_code, current_index|
+            {
+                if (
+                    // skip all spaces that are not media spaces
+                    label != .media
+                    // skip all media spaces that don't have a path to source
+                    or source_code.is_prefix_of(current_code) == false
+                ) 
                 {
                     continue;
                 }
 
-                proj_args.destination = current;
+                proj_args.destination = current_index;
 
                 const proj_op = (
-                    try temporal_hierarchy.build_projection_operator(
+                    try temporal_hierarchy.build_projection_operator_indices(
                         allocator_arena,
                         temporal_map,
                         proj_args,

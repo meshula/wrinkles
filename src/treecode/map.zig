@@ -72,14 +72,11 @@ pub fn Map(
             SpaceNodeType,
             PathNodeIndex,
         ),
-        /// mapping of `treecode.Treecode` to `NodeIndex`
-        map_code_to_path_index: treecode.TreecodeHashMap(PathNodeIndex),
         path_nodes:PathNodesList,
         space_nodes:SpaceNodeList,
 
         pub const empty = MapType{
             .map_space_to_path_index = .empty,
-            .map_code_to_path_index = .empty,
             .path_nodes = .empty,
             .space_nodes = .empty,
         };
@@ -101,8 +98,6 @@ pub fn Map(
             // free the guts
             mutable_self.map_space_to_path_index.unlockPointers();
             mutable_self.map_space_to_path_index.deinit(allocator);
-            mutable_self.map_code_to_path_index.unlockPointers();
-            mutable_self.map_code_to_path_index.deinit(allocator);
 
             mutable_self.path_nodes.deinit(allocator);
         }
@@ -111,7 +106,6 @@ pub fn Map(
             self: *@This(),
         ) void
         {
-            self.map_code_to_path_index.lockPointers();
             self.map_space_to_path_index.lockPointers();
 
             // @TODO: could switch the implementation over to .Slice() here
