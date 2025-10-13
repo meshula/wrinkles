@@ -42,8 +42,6 @@ pub fn Map(
             destination: PathNodeIndex,
         };
 
-        pub const GraphNodeList = std.MultiArrayList(SpaceNodeType);
-
         /// A pair of space and code along a path within the `Map`.
         pub const PathNode = struct {
             space: SpaceNodeType,
@@ -70,12 +68,18 @@ pub fn Map(
         const NodesListType = std.MultiArrayList(PathNode);
 
         map_space_to_index: std.AutoHashMapUnmanaged(
-                              SpaceNodeType,
-                              PathNodeIndex,
-                          ) = .empty,
+            SpaceNodeType,
+            PathNodeIndex,
+        ),
         /// mapping of `treecode.Treecode` to `NodeIndex`
-        map_code_to_index: treecode.TreecodeHashMap(PathNodeIndex) = .empty,
-        nodes:NodesListType = .empty,
+        map_code_to_index: treecode.TreecodeHashMap(PathNodeIndex),
+        nodes:NodesListType,
+
+        pub const empty = MapType{
+            .map_space_to_index = .empty,
+            .map_code_to_index = .empty,
+            .nodes = .empty,
+        };
 
         pub fn deinit(
             self: @This(),
@@ -719,7 +723,7 @@ pub fn Map(
             }
         };
 
-        /// generate a text label based on the format() of the `GraphNodeType`
+        /// generate a text label based on the format() of the `SpaceNodeType`
         pub fn node_label(
             buf: []u8,
             ref: SpaceNodeType,

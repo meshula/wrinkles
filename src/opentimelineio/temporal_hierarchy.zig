@@ -236,7 +236,7 @@ pub fn build_temporal_map(
     root_item: references.ComposedValueRef,
 ) !TemporalMap 
 {
-    var tmp_map = TemporalMap{};
+    var tmp_map: TemporalMap = .empty;
     errdefer tmp_map.deinit(parent_allocator);
 
     // NOTE: because OTIO objects contain multiple internal spaces, there is a
