@@ -83,24 +83,24 @@ fn walk_child_spaces(
 
             if (map.get_code(space_ref)) 
                 |other_code| 
-                {
-                    opentime.dbg_print(
-                        @src(), 
-                        "\n ERROR SPACE ALREADY PRESENT[{d}] code: {f} "
-                        ++ "other_code: {f} "
-                        ++ "adding child space: '{s}.{s}.{d}'\n",
-                        .{
-                            index,
-                            child_wrapper_space_code_ptr,
-                            other_code,
-                            @tagName(space_ref.ref),
-                            @tagName(space_ref.label),
-                            space_ref.child_index.?,
-                        }
-                    );
+            {
+                opentime.dbg_print(
+                    @src(), 
+                    "\n ERROR SPACE ALREADY PRESENT[{d}] code: {f} "
+                    ++ "other_code: {f} "
+                    ++ "adding child space: '{s}.{s}.{d}'\n",
+                    .{
+                        index,
+                        child_wrapper_space_code_ptr,
+                        other_code,
+                        @tagName(space_ref.ref),
+                        @tagName(space_ref.label),
+                        space_ref.child_index.?,
+                    }
+                );
 
-                    std.debug.assert(false);
-                }
+                std.debug.assert(false);
+            }
             opentime.dbg_print(
                 @src(), 
                 (
@@ -167,12 +167,13 @@ fn walk_internal_spaces(
         |index, space_ref| 
     {
         const space_code = (
-            if (index > 0) try depth_child_code_leaky(
-                allocator,
-                parent_code,
-                index,
-            )
-            else parent_code
+            if (index > 0) (
+                try depth_child_code_leaky(
+                    allocator,
+                    parent_code,
+                    index,
+                )
+            ) else parent_code
         );
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
@@ -189,10 +190,14 @@ fn walk_internal_spaces(
                 );
             }
             else {
-                std.debug.print("space {f} has no code\n", .{space_ref});
+                std.debug.print(
+                    "space {f} has no code\n",
+                    .{space_ref},
+                );
                 return error.SpaceWasntInMap;
             }
-            opentime.dbg_print(@src(), 
+            opentime.dbg_print(
+                @src(), 
                 (
                       "[{d}] code: {f} hash: {d} arrptr: {*} adding local space: "
                       ++ "'{s}.{s}'"
@@ -444,15 +449,8 @@ test "TestWalkingIterator: clip"
         .{},
     );
 
-    var count:usize = 0;
-    for (map.path_nodes.items(.space))
-        |_|
-    {
-        count += 1;
-    }
-
     // 5: clip presentation, clip media
-    try std.testing.expectEqual(2, count);
+    try std.testing.expectEqual(2, map.path_nodes.len);
 }
 
 test "TestWalkingIterator: track with clip"
@@ -484,18 +482,10 @@ test "TestWalkingIterator: track with clip"
         .{},
     );
 
-    var count:usize = 0;
-
     // from the top
     {
-        for (map.path_nodes.items(.space))
-            |_|
-        {
-            count += 1;
-        }
-
         // 5: track presentation, input, child, clip presentation, clip media
-        try std.testing.expectEqual(5, count);
+        try std.testing.expectEqual(5, map.path_nodes.len);
     }
 
     // from the clip
@@ -552,10 +542,10 @@ test "TestWalkingIterator: track with clip w/ destination"
         const path = try map.path(
             allocator, 
             .{
-                .source = map.map_space_to_path_index.get(
+                .source = map.index_from_space(
                     try tr_ptr.space(.presentation)
                 ).?,
-                .destination = map.map_space_to_path_index.get(
+                .destination = map.index_from_space(
                     try cl_ptr.space(.media)
                 ).?,
             },
@@ -726,18 +716,16 @@ pub const OperatorCache = std.AutoHashMapUnmanaged(
     topology_m.Topology,
 );
 
-/// build a projection operator that projects from the endpoints.source to
-/// endpoints.destination spaces
-pub fn build_projection_operator(
+pub fn build_projection_operator_indices(
     parent_allocator: std.mem.Allocator,
     map: TemporalMap,
-    endpoints: TemporalMap.PathEndPoints,
+    endpoints: TemporalMap.PathEndPointIndices,
     operator_cache: *OperatorCache,
 ) !projection.ProjectionOperator 
 {
     // sort endpoints so that the higher node is always the source
     var sorted_endpoints = endpoints;
-    const endpoints_were_swapped = try map.sort_endpoints(
+    const endpoints_were_swapped = try map.sort_endpoint_indices(
         &sorted_endpoints
     );
 
@@ -754,21 +742,17 @@ pub fn build_projection_operator(
         );
     }
 
-    const source_index = map.map_space_to_path_index.get(
-        sorted_endpoints.source
-    ).?;
+    const source_index = sorted_endpoints.source;
 
     const path_nodes = map.path_nodes.slice();
     const codes = path_nodes.items(.code);
-    const spaces = path_nodes.items(.space);
+    const space_nodes = map.space_nodes.slice();
 
     const path = try map.path(
         allocator,
         .{
             .source = source_index,
-            .destination = map.map_space_to_path_index.get(
-                sorted_endpoints.destination
-            ).?,
+            .destination = sorted_endpoints.destination,
         },
     );
 
@@ -778,7 +762,7 @@ pub fn build_projection_operator(
             ++ "starting projection: {f}\n"
             ,
             .{
-                spaces[path[0]],
+                space_nodes.get(path[0]),
                 sorted_endpoints.destination,
                 root_to_current,
             }
@@ -787,8 +771,12 @@ pub fn build_projection_operator(
 
     if (path.len < 2){
         return .{
-            .source = endpoints.source,
-            .destination = endpoints.destination,
+            .source = map.space_nodes.get(
+                endpoints.source
+            ),
+            .destination = map.space_nodes.get(
+                endpoints.destination
+            ),
             .src_to_dst_topo = .INFINITE_IDENTIY,
         };
     }
@@ -825,13 +813,10 @@ pub fn build_projection_operator(
             );
         }
 
-        const current_space = spaces[current];
-        const next_space = spaces[next];
-
-        const current_to_next = try current_space.ref.build_transform(
+        const current_to_next = try space_nodes.items(.ref)[current].build_transform(
             allocator,
-            current_space.label,
-            next_space,
+            space_nodes.items(.label)[current],
+            space_nodes.get(next),
             next_step,
         );
 
@@ -917,10 +902,34 @@ pub fn build_projection_operator(
     }
 
     return .{
-        .source = sorted_endpoints.source,
-        .destination = sorted_endpoints.destination,
+        .source = map.space_nodes.get(
+            endpoints.source
+        ),
+        .destination = map.space_nodes.get(
+            endpoints.destination
+        ),
         .src_to_dst_topo = try root_to_current.clone(parent_allocator),
     };
+}
+
+/// build a projection operator that projects from the endpoints.source to
+/// endpoints.destination spaces
+pub fn build_projection_operator(
+    parent_allocator: std.mem.Allocator,
+    map: TemporalMap,
+    endpoints: TemporalMap.PathEndPoints,
+    operator_cache: *OperatorCache,
+) !projection.ProjectionOperator 
+{
+    return build_projection_operator_indices(
+        parent_allocator,
+        map,
+        .{
+            .source = map.index_from_space(endpoints.source).?,
+            .destination = map.index_from_space(endpoints.destination).?,
+        },
+        operator_cache,
+    );
 }
 
 test "label_for_node_leaky" 

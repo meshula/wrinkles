@@ -44,7 +44,6 @@ pub fn Map(
 
         /// A pair of space and code along a path within the `Map`.
         pub const PathNode = struct {
-            space: SpaceNodeType,
             code: treecode.Treecode,
             parent_index: ?PathNodeIndex = null,
             child_indices: [2]?PathNodeIndex = .{null, null},
@@ -100,6 +99,7 @@ pub fn Map(
             mutable_self.map_space_to_path_index.deinit(allocator);
 
             mutable_self.path_nodes.deinit(allocator);
+            mutable_self.space_nodes.deinit(allocator);
         }
 
         pub fn lock_pointers(
@@ -115,22 +115,29 @@ pub fn Map(
         pub fn put(
             self: *@This(),
             allocator: std.mem.Allocator,
-            node: PathNode,
+            node: struct{
+                code: treecode.Treecode,
+                space: SpaceNodeType,
+                parent_index: ?PathNodeIndex,
+            },
         ) !PathNodeIndex
         {
-            const new_index = self.path_nodes.len;
 
-            try self.path_nodes.append(allocator, node);
+            try self.space_nodes.append(allocator, node.space);
 
-            try self.map_code_to_path_index.put(
+            const new_path_index = self.path_nodes.len;
+            try self.path_nodes.append(
                 allocator,
-                node.code,
-                new_index,
+                .{
+                    .code = node.code,
+                    .parent_index = node.parent_index,
+                }
             );
+
             try self.map_space_to_path_index.put(
                 allocator,
                 node.space,
-                new_index,
+                new_path_index,
             );
 
             if (node.parent_index)
@@ -141,24 +148,10 @@ pub fn Map(
                 var child_indices = &self.path_nodes.items(
                     .child_indices
                 )[parent_index];
-                child_indices[@intFromEnum(dir)] = new_index;
+                child_indices[@intFromEnum(dir)] = new_path_index;
             }
             
-            return new_index;
-        }
-
-        pub fn get_space(
-            self: @This(),
-            code: treecode.Treecode,
-        ) ?SpaceNodeType
-        {
-            if (self.map_code_to_path_index.get(code))
-                |index|
-            {
-                return self.path_nodes.items(.space)[index];
-            }
-
-            return null;
+            return new_path_index;
         }
 
         pub fn get_code(
@@ -175,6 +168,14 @@ pub fn Map(
             return null;
         }
 
+        pub fn index_from_space(
+            self: @This(),
+            space: SpaceNodeType,
+        ) ?PathNodeIndex
+        {
+            return self.map_space_to_path_index.get(space);
+        }
+
         /// return the root space associated with the `ROOT_CODE`
         pub fn root(
             self: @This(),
@@ -182,7 +183,7 @@ pub fn Map(
         {
             // should always have a root object, and root object should always
             // be the first entry in the nodes list
-            return self.path_nodes.items(.space)[0];
+            return self.space_nodes.get(0);
         }
 
         /// Serialize this graph to dot and then use graphviz to convert that
@@ -239,7 +240,7 @@ pub fn Map(
 
                 const current_label = try node_label(
                     &label_buf,
-                    nodes.items(.space)[current_index],
+                    self.space_nodes.get(current_index),
                     current_code,
                     options.label_style,
                 );
@@ -255,7 +256,7 @@ pub fn Map(
                     {
                         const next_label = try node_label(
                             &next_label_buf,
-                            nodes.items(.space)[child_index],
+                            self.space_nodes.get(child_index),
                             nodes.items(.code)[child_index],
                             options.label_style,
                         );
@@ -363,10 +364,10 @@ pub fn Map(
             endpoints: *PathEndPoints,
         ) !bool
         {
-            const source_index = self.map_space_to_path_index.get(
+            const source_index = self.index_from_space(
                 endpoints.source
             ) orelse return error.SourceNotInMap;
-            const dest_index = self.map_space_to_path_index.get(
+            const dest_index = self.index_from_space(
                 endpoints.destination
             ) orelse return error.DestNotInMap;
 
@@ -490,7 +491,7 @@ pub fn Map(
         ) ![]PathNodeIndex
         {
             const nodes = self.path_nodes.slice();
-            const start_index = self.map_space_to_path_index.get(start).?;
+            const start_index = self.index_from_space(start).?;
 
             var result: std.ArrayList(PathNodeIndex) = .empty;
             try result.ensureTotalCapacity(allocator, nodes.len);
