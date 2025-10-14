@@ -55,6 +55,12 @@ fn walk_child_spaces(
 
     var last_index = parent_index;
 
+    try otio_object_stack.ensureUnusedCapacity(allocator, children_ptrs.len);
+    try map.ensure_unused_capacity(
+        allocator,
+        children_ptrs.len,
+    );
+
     // transforms to children
     // each child
     for (children_ptrs, 0..) 
@@ -119,8 +125,7 @@ fn walk_child_spaces(
             );
         }
 
-        last_index = try map.put(
-            allocator,
+        last_index = map.put_assumes_capacity(
             .{
                 .code = child_wrapper_space_code_ptr,
                 .space = space_ref,
@@ -135,9 +140,7 @@ fn walk_child_spaces(
             1,
         );
 
-        try otio_object_stack.insert(
-            allocator,
-            0,
+        otio_object_stack.appendAssumeCapacity(
             .{ 
                 .otio_object= item_ptr,
                 .path_code = child_code_ptr,
@@ -250,7 +253,6 @@ pub fn build_temporal_map(
     };
 
     var otio_object_stack: std.ArrayList(StackNode) = .{};
-    try otio_object_stack.ensureTotalCapacity(parent_allocator, 1024);
     defer otio_object_stack.deinit(parent_allocator);
 
     const root_code_ptr = try treecode.Treecode.init(

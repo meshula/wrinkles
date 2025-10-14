@@ -111,6 +111,26 @@ pub fn Map(
             // @TODO: could switch the implementation over to .Slice() here
         }
 
+        pub fn ensure_unused_capacity(
+            self: *@This(),
+            allocator: std.mem.Allocator,
+            capacity: usize,
+        ) !void
+        {
+            try self.path_nodes.ensureUnusedCapacity(
+                allocator,
+                capacity
+            );
+            try self.space_nodes.ensureUnusedCapacity(
+                allocator,
+                capacity
+            );
+            try self.map_space_to_path_index.ensureUnusedCapacity(
+                allocator,
+                @intCast(capacity)
+            );
+        }
+
         /// add the PathNode to the map and return the newly created index
         pub fn put(
             self: *@This(),
@@ -136,6 +156,46 @@ pub fn Map(
 
             try self.map_space_to_path_index.put(
                 allocator,
+                node.space,
+                new_path_index,
+            );
+
+            if (node.parent_index)
+                |parent_index|
+            {
+                const parent_code = self.path_nodes.items(.code)[parent_index];
+                const dir = parent_code.next_step_towards(node.code);
+                var child_indices = &self.path_nodes.items(
+                    .child_indices
+                )[parent_index];
+                child_indices[@intFromEnum(dir)] = new_path_index;
+            }
+            
+            return new_path_index;
+        }
+
+        /// add the PathNode to the map and return the newly created index
+        pub fn put_assumes_capacity(
+            self: *@This(),
+            node: struct{
+                code: treecode.Treecode,
+                space: SpaceNodeType,
+                parent_index: ?PathNodeIndex,
+            },
+        ) PathNodeIndex
+        {
+
+            self.space_nodes.appendAssumeCapacity(node.space);
+
+            const new_path_index = self.path_nodes.len;
+            self.path_nodes.appendAssumeCapacity(
+                .{
+                    .code = node.code,
+                    .parent_index = node.parent_index,
+                }
+            );
+
+            self.map_space_to_path_index.putAssumeCapacity(
                 node.space,
                 new_path_index,
             );
@@ -549,7 +609,12 @@ pub fn Map(
             var result: std.ArrayList(PathNodeIndex) = .empty;
             try result.ensureTotalCapacity(
                 allocator,
-                destination_code.code_length - source_code.code_length 
+                (
+                   destination_code.code_length 
+                   - source_code.code_length 
+                   // + 1 for the start point
+                   + 1
+                ),
             );
             result.appendAssumeCapacity(sorted_endpoint_indices.source);
 
