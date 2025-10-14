@@ -316,8 +316,8 @@ pub fn Map(
             endpoints: *PathEndPointIndices,
         ) !bool
         {
-            var source_code = self.path_nodes.items(.code)[endpoints.source];
-            var destination_code = self.path_nodes.items(.code)[endpoints.destination];
+            const source_code = self.path_nodes.items(.code)[endpoints.source];
+            const destination_code = self.path_nodes.items(.code)[endpoints.destination];
 
             if (
                 treecode.path_exists(
@@ -338,7 +338,7 @@ pub fn Map(
             }
 
             // inverted
-            if (source_code.code_length() > destination_code.code_length())
+            if (source_code.code_length > destination_code.code_length)
             {
                 std.mem.swap(
                     PathNodeIndex,
@@ -376,8 +376,8 @@ pub fn Map(
                 return false;
             }
 
-            var source_code = self.path_nodes.items(.code)[source_index];
-            var destination_code = self.path_nodes.items(.code)[dest_index];
+            const source_code = self.path_nodes.items(.code)[source_index];
+            const destination_code = self.path_nodes.items(.code)[dest_index];
 
             if (
                 treecode.path_exists(
@@ -397,7 +397,7 @@ pub fn Map(
             }
 
             // inverted
-            if (source_code.code_length() > destination_code.code_length())
+            if (source_code.code_length > destination_code.code_length)
             {
                 const dest = endpoints.destination;
                 endpoints.destination = endpoints.source;
@@ -549,7 +549,7 @@ pub fn Map(
             var result: std.ArrayList(PathNodeIndex) = .empty;
             try result.ensureTotalCapacity(
                 allocator,
-                destination_code.code_length() - source_code.code_length() 
+                destination_code.code_length - source_code.code_length 
             );
             result.appendAssumeCapacity(sorted_endpoint_indices.source);
 

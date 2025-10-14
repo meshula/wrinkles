@@ -64,10 +64,13 @@ pub const MARKER:TreecodeWord = 0b1;
 /// a path is appended path the capacity of the current word, realloc is
 /// triggered to increase capacity.
 pub const Treecode = struct {
+    /// amount of bits set in the Treecode
+    code_length: usize,
     /// The backing array of words for the bit path encoding.
     words: []TreecodeWord,
 
     pub const EMPTY = Treecode{
+        .code_length = 0,
         .words = &.{ MARKER },
     };
 
@@ -86,6 +89,7 @@ pub const Treecode = struct {
     ) !Treecode 
     {
         return .{
+            .code_length = code_length_measured( &.{ input }),
             .words = try allocator.dupe(
                 TreecodeWord,
                 &.{ input },
@@ -117,6 +121,7 @@ pub const Treecode = struct {
     ) !Treecode 
     {
         return .{
+            .code_length = self.code_length,
             .words = try allocator.dupe(
                 TreecodeWord,
                 self.words,
@@ -143,41 +148,11 @@ pub const Treecode = struct {
     /// * `0b11` -> 1
     /// * `0b1101` -> 3
     /// * `0b1110110101` -> 9
-    pub fn code_length(
+    fn _code_length_measured(
         self: @This(),
     ) usize 
     {
-        if (self.words.len == 0) 
-        {
-            // very unlikely to happen, would be an invalid treecode
-            @branchHint(.cold);
-            return 0;
-        }
-
-        // XXX: this loop could be removed.  The last used word could be
-        //      directly tracked, or a const variant could be built so that
-        //      the slice contains no extra empty unused words.
-        const occupied_words = word: {
-            var i = self.words.len - 1;
-            while (i > 0)
-                : (i -= 1)
-            {
-                if (self.words[i] != 0) {
-                    break :word i;
-                }
-            }
-            break :word 0;
-        };
-
-        const count = (
-            (WORD_BIT_COUNT - 1) - @clz(self.words[occupied_words])
-        );
-
-        if (occupied_words == 0) {
-            return count;
-        }
-
-        return count + (occupied_words * WORD_BIT_COUNT);
+        return code_length_measured(self.words);
     }
 
     /// By-value equality of the treecode.  IE does not consider the size of
@@ -190,13 +165,11 @@ pub const Treecode = struct {
         rhs: Treecode,
     ) bool 
     {
-        const self_code_len = self.code_length();
-
-        if (self_code_len != rhs.code_length()) {
+        if (self.code_length != rhs.code_length) {
             return false;
         }
 
-        const end_word = self_code_len / WORD_BIT_COUNT + 1;
+        const end_word = self.code_length / WORD_BIT_COUNT + 1;
 
         for (self.words[0..end_word], rhs.words[0..end_word])
             |self_word, rhs_word|
@@ -224,7 +197,9 @@ pub const Treecode = struct {
             return error.InvalidTreecode;
         }
 
-        const current_code_length = self.code_length();
+        const current_code_length = self.code_length;
+
+        self.code_length += 1;
 
         // index for the new branch
         const next_index = current_code_length + 1;
@@ -300,14 +275,14 @@ pub const Treecode = struct {
         rhs: Treecode,
     ) bool 
     {
-        const len_self: usize = self.code_length();
+        const len_self: usize = self.code_length;
 
         // empty lhs path is always a prefix of rhs, regardless of what rhs is
         if (len_self == 0) {
             return true;
         }
 
-        const len_rhs: usize = rhs.code_length();
+        const len_rhs: usize = rhs.code_length;
 
         // if rhs is 0 length or shorter than self, self is not a prefix of rhs
         if (len_rhs == 0 or len_rhs < len_self) {
@@ -375,7 +350,7 @@ pub const Treecode = struct {
         dest: Treecode,
     ) l_or_r 
     {
-        const self_len = self.code_length();
+        const self_len = self.code_length;
 
         const self_len_pos_local = @rem(self_len, WORD_BIT_COUNT);
         const self_len_word = self_len / WORD_BIT_COUNT;
@@ -403,7 +378,7 @@ pub const Treecode = struct {
         writer: *std.Io.Writer,
     ) !void 
     {
-        const marker_pos_abs = self.code_length();
+        const marker_pos_abs = self.code_length;
         const last_index = (marker_pos_abs / WORD_BIT_COUNT);
 
         const fmt = (
@@ -449,7 +424,7 @@ test "treecode: code_length - init_word"
 
         try std.testing.expectEqual(
             t.expected,
-            tc.code_length(),
+            tc.code_length,
         );
     }
 
@@ -467,7 +442,7 @@ test "treecode: code_length - init_word"
 
     try std.testing.expectEqual(
         target_code_length,
-        tc.code_length(),
+        tc.code_length,
     );
 }
 
@@ -502,6 +477,33 @@ fn treecode_word_mask(
             )
         )
     ) - 1;
+}
+
+fn code_length_measured(
+    words: []const TreecodeWord,
+) usize
+{
+    const occupied_words = word: {
+        var i = words.len - 1;
+        while (i > 0)
+            : (i -= 1)
+        {
+            if (words[i] != 0) {
+                break :word i;
+            }
+        }
+        break :word 0;
+    };
+
+    const count = (
+        (WORD_BIT_COUNT - 1) - @clz(words[occupied_words])
+    );
+
+    if (occupied_words == 0) {
+        return count;
+    }
+
+    return count + (occupied_words * WORD_BIT_COUNT);
 }
 
 /// return true if lhs is a prefix of rhs.  For more details, see:
@@ -562,7 +564,7 @@ test "fmt all ones"
     try std.testing.expectEqualStrings(expected_str, result);
 
     try std.testing.expectEqual(
-        ltc.code_length() + 1,
+        ltc.code_length + 1,
         result.len,
     );
 }
@@ -805,12 +807,12 @@ test "treecode: apped lots of .left"
     );
 
     try std.testing.expectEqual(0b100, tc.words[1]);
-    try std.testing.expectEqual(bits, tc.code_length());
+    try std.testing.expectEqual(bits, tc.code_length);
 
     try tc.append(allocator, .left);
 
     try std.testing.expectEqual(0b1000, tc.words[1]);
-    try std.testing.expectEqual(bits+1, tc.code_length());
+    try std.testing.expectEqual(bits+1, tc.code_length);
 }
 
 test "treecode: append lots of right"
@@ -834,12 +836,12 @@ test "treecode: append lots of right"
     );
 
     try std.testing.expectEqual(0b111, tc.words[1]);
-    try std.testing.expectEqual(bits, tc.code_length());
+    try std.testing.expectEqual(bits, tc.code_length);
 
     try tc.append(allocator, .left);
 
     try std.testing.expectEqual(0b1011, tc.words[1]);
-    try std.testing.expectEqual(bits+1, tc.code_length());
+    try std.testing.expectEqual(bits+1, tc.code_length);
 }
 
 test "treecode: append beyond one word w/ right"
@@ -863,12 +865,12 @@ test "treecode: append beyond one word w/ right"
     );
 
     try std.testing.expectEqual(0b111, tc.words[2]);
-    try std.testing.expectEqual(bits, tc.code_length());
+    try std.testing.expectEqual(bits, tc.code_length);
 
     try tc.append(allocator, .left);
 
     try std.testing.expectEqual(0b1011, tc.words[2]);
-    try std.testing.expectEqual(bits+1, tc.code_length());
+    try std.testing.expectEqual(bits+1, tc.code_length);
 }
 
 test "treecode: append beyond one word w/ .left"
@@ -892,12 +894,12 @@ test "treecode: append beyond one word w/ .left"
     );
 
     try std.testing.expectEqual(0b100, tc.words[2]);
-    try std.testing.expectEqual(bits, tc.code_length());
+    try std.testing.expectEqual(bits, tc.code_length);
 
     try tc.append(allocator, .right);
 
     try std.testing.expectEqual(0b1100, tc.words[2]);
-    try std.testing.expectEqual(bits+1, tc.code_length());
+    try std.testing.expectEqual(bits+1, tc.code_length);
 }
 
 test "treecode: append alternating .left and .right"
@@ -940,7 +942,7 @@ test "treecode: append alternating .left and .right"
         .{256, buf_tc, buf_known.items}
     );
 
-    try std.testing.expectEqual(buf_known.items.len-1, tc.code_length());
+    try std.testing.expectEqual(buf_known.items.len-1, tc.code_length);
     try std.testing.expectEqualStrings(buf_known.items, buf_tc);
 }
 
@@ -1011,7 +1013,7 @@ test "treecode: append variable size"
 
         try std.testing.expectEqual(
             buf_known.items.len - 1,
-            tc.code_length(),
+            tc.code_length,
         );
         try std.testing.expectEqualStrings(
             buf_known.items,
@@ -1241,6 +1243,7 @@ test "treecode: allocator doesn't participate in hash"
 
     var tmp = [_]TreecodeWord{ 0b101 };
     const t1 = Treecode{
+        .code_length = code_length_measured(&tmp),
         .words = &tmp,
     };
     const t2 = try Treecode.init_word(
@@ -1329,7 +1332,7 @@ test "treecode: next_step_towards - larger than a single word"
 
     try std.testing.expectEqual(
         @as(usize, WORD_BIT_COUNT) - 1,
-        src.code_length(),
+        src.code_length,
     );
 
     try dst.append(allocator, .right);

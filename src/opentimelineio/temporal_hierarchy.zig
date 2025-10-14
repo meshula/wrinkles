@@ -1164,7 +1164,7 @@ test "TemporalMap: schema.Track with clip with identity transform"
         var tc = try treecode.Treecode.init(allocator);
         defer tc.deinit(allocator);
         try std.testing.expect(tc.eql(root_code));
-        try std.testing.expectEqual(0, tc.code_length());
+        try std.testing.expectEqual(0, tc.code_length);
     }
 
     const maybe_clip_code = map.get_code(
@@ -1187,7 +1187,7 @@ test "TemporalMap: schema.Track with clip with identity transform"
                 clip_code,
             },
             );
-        try std.testing.expectEqual(4, tc.code_length());
+        try std.testing.expectEqual(4, tc.code_length);
         try std.testing.expect(tc.eql(clip_code));
     }
 
