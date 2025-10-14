@@ -89,7 +89,7 @@ pub const Treecode = struct {
     ) !Treecode 
     {
         return .{
-            .code_length = code_length_measured( &.{ input }),
+            .code_length = code_length_measured(&.{ input }),
             .words = try allocator.dupe(
                 TreecodeWord,
                 &.{ input },
