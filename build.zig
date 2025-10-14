@@ -916,6 +916,7 @@ pub fn build(
         &.{
             .{ .name = "string_stuff", .module = string_stuff },
             .{ .name = "opentimelineio", .module = opentimelineio },
+            .{ .name = "opentime", .module = opentime },
         },
     );
 }

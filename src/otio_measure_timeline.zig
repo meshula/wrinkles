@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const string = @import("string_stuff");
+const opentime = @import("opentime");
 const otio = @import("opentimelineio");
 
 const builtin = @import("builtin");
@@ -147,44 +148,20 @@ pub fn main(
         build_map.end();
 
         const build_map_pro = file_prog.start(
-            "Building Projection map",
+            "Building Projection Topology",
             0,
         );
 
-        if (false)
-        {
-            // build a map from the presentation space to media
-            const proj_map_tl_presentation_to_media = (
-                try otio.projection_map_to_media_from(
-                    allocator, 
-                    temporal_map, 
-                    try tl_ref.space(.presentation),
-                )
-            );
-
-            build_map_pro.end();
-
-            file_prog.end();
-
-            std.debug.print(
-                "Presentation Space Bounds of {s}: [{f}, {f})\n",
-                .{
-                    filepath,
-                    proj_map_tl_presentation_to_media.end_points[0],
-                    proj_map_tl_presentation_to_media.end_points[
-                        proj_map_tl_presentation_to_media.end_points.len - 1
-                    ],
-                },
-                );
-        }
-        else 
-        {
-            _ = try otio.projection.ProjectionTopology.init_from_reference(
+        var projection_topo = (
+            try otio.projection.ProjectionTopology.init_from_reference(
                 allocator,
                 temporal_map,
                 try tl_ref.space(.presentation),
-            );
-        }
+            )
+        );
+        defer projection_topo.deinit(allocator);
+
+        build_map_pro.end();
 
         std.debug.print("Tracks: {d}\n", .{tl.tracks.children.len});
         var items: usize = 0;
@@ -199,5 +176,28 @@ pub fn main(
         }
 
         std.debug.print("Total items: {d}\n", .{items});
+
+        const intervals = projection_topo.intervals.items(
+            .input_bounds
+        );
+
+        const interval:opentime.ContinuousInterval = .{
+            .start = intervals[0].start,
+            .end = intervals[intervals.len - 1].end,
+        };
+
+        std.debug.print(
+            "\n\nTotal timeline interval: {f}\n",
+            .{interval},
+        );
+
+        const first_m = projection_topo.mappings.items(.mapping)[0];
+
+        std.debug.print("first m: {f}\n", .{ first_m });
+
+        std.debug.print(
+            "\n",
+            .{},
+        );
     }
 }
