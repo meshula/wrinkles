@@ -3139,7 +3139,8 @@ pub fn ReferenceTopology(
 
             // sort the vertices
             ///////////
-            vertices.sortUnstable(
+            const vertices = vertices_builder.slice();
+            vertices_builder.sortUnstable(
                 struct{
                     ordinates: []opentime.Ordinate,
 
@@ -3174,42 +3175,37 @@ pub fn ReferenceTopology(
                 vertices.len,
             );
             defer {
-                // for (
-                //     cut_points.items(.indices),
-                //     cut_points.items(.kind),
-                // ) |indices, kinds|
-                // {
-                //     allocator.free(indices);
-                //     allocator.free(kinds);
-                // }
+                for (
+                    cut_points.items(.indices),
+                    cut_points.items(.kind),
+                ) |indices, kinds|
+                {
+                    allocator_arena.free(indices);
+                    allocator_arena.free(kinds);
+                }
                 cut_points.deinit(allocator_arena);
             }
 
             // merge the intervals and combine the lists
             ///////////
-            var vertices_slice = vertices.slice();
-            var cut_point = vertices_slice.items(.ordinate)[0];
+            var cut_point = vertices.items(.ordinate)[0];
             var current_intervals: std.MultiArrayList(IntervalRef) = .empty;
             try current_intervals.append(
                 allocator_arena, 
                 .{
-                    .index = vertices_slice.items(.interval_index)[0],
-                    .kind = vertices_slice.items(.kind)[0],
+                    .index = vertices.items(.interval_index)[0],
+                    .kind = vertices.items(.kind)[0],
                 },
             );
-            for (1..vertices_slice.len)
-                |index|
+
+            for (
+                vertices.items(.interval_index),
+                vertices.items(.kind),
+                vertices.items(.ordinate),
+            ) |int_ind, kind, vert|
             {
-                // is the current vertex close enough?
-                //   no: push the current list into the upper stack, create new list
-                // append to stack
-
-                var vert = vertices_slice.items(.ordinate)[index];
-
-                const close_enough = vert.eql_approx(cut_point);
-
                 // if the ordinate is not close enough, then create a new vert
-                if (close_enough == false)
+                if (vert.eql_approx(cut_point) == false)
                 {
                     var compled = current_intervals.toOwnedSlice();
 
@@ -3227,8 +3223,8 @@ pub fn ReferenceTopology(
                 try current_intervals.append(
                     allocator_arena,
                     .{
-                        .index = vertices_slice.items(.interval_index)[index],
-                        .kind = vertices_slice.items(.kind)[index],
+                        .index = int_ind,
+                        .kind = kind,
                     },
                 );
             }
@@ -3247,31 +3243,31 @@ pub fn ReferenceTopology(
             }
 
             // print current structure
-            std.debug.print(
-                "cut_points:\n",
-                .{},
-            );
+            // std.debug.print(
+            //     "cut_points:\n",
+            //     .{},
+            // );
             const cut_point_slice = cut_points.slice();
-            for (0..cut_point_slice.len)
-                |ind|
-            {
-                std.debug.print(
-                    "  ordinate: {f}\n  intervals:\n",
-                    .{cut_point_slice.items(.ordinate)[ind]}
-                );
-                for (
-                    cut_point_slice.items(.indices)[ind],
-                    cut_point_slice.items(.kind)[ind]
-                )
-                    |int_ind, kind|
-                {
-                    std.debug.print(
-                        "    {d}: {s}\n",
-                        .{int_ind, @tagName(kind)},
-                    );
-                }
-            }
-            std.debug.print("done.\n", .{});
+            // for (0..cut_point_slice.len)
+            //     |ind|
+            // {
+            //     std.debug.print(
+            //         "  ordinate: {f}\n  intervals:\n",
+            //         .{cut_point_slice.items(.ordinate)[ind]}
+            //     );
+            //     for (
+            //         cut_point_slice.items(.indices)[ind],
+            //         cut_point_slice.items(.kind)[ind]
+            //     )
+            //         |int_ind, kind|
+            //     {
+            //         std.debug.print(
+            //             "    {d}: {s}\n",
+            //             .{int_ind, @tagName(kind)},
+            //         );
+            //     }
+            // }
+            // std.debug.print("done.\n", .{});
             
             // split and merge intervals together
             ////////////
@@ -3289,6 +3285,9 @@ pub fn ReferenceTopology(
                 parent_allocator,
                 len - 1
             );
+
+            var indices:  std.ArrayList(NodeIndex) = .empty;
+
             for (
                 ordinates[0..len - 1],
                 ordinates[1..],
@@ -3378,6 +3377,7 @@ pub fn ReferenceTopology(
             }
 
             self.intervals.deinit(allocator);
+            self.mappings.deinit(allocator);
         }
     };
 }
@@ -3434,4 +3434,11 @@ test "ReferenceTopology: init_from_reference"
         )
     );
     defer cl_presentation_pmap.deinit(allocator);
+
+    std.debug.print("Mappings:\n", .{});
+    for (cl_presentation_pmap.mappings.items(.mapping), 0..)
+        |m, ind|
+    {
+        std.debug.print("  {d}: {f}\n", .{ind, m});
+    }
 }
