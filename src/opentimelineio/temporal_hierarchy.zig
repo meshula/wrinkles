@@ -896,10 +896,10 @@ pub fn build_projection_operator_indices(
         path_step.destination = @intCast(next);
 
         if (operator_cache.items[next])
-            |root_to_next|
+            |cached_topology|
         {
             current = next;
-            root_to_current = root_to_next;
+            root_to_current = cached_topology;
             continue;
         }
 

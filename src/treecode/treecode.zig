@@ -18,6 +18,13 @@ pub const Hash = u64;
 /// The left or the right branch
 pub const l_or_r = enum(u1) { left = 0, right = 1 };
 
+const TREECODE_BINARY_FMT = (
+    "{b:0>"
+    // ensure that the right number of 0s are printed
+    ++ std.fmt.comptimePrint("{d}", .{WORD_BIT_COUNT}) 
+    ++ "}" 
+);
+
 /// All treecodes start with this code.  Separates the empty 0 bits from the
 /// path bits.  See `Treecode` for more information.
 pub const MARKER:TreecodeWord = 0b1;
@@ -366,22 +373,15 @@ pub const Treecode = struct {
     ) !void 
     {
         const marker_pos_abs = self.code_length;
-        const last_index = (marker_pos_abs / WORD_BIT_COUNT);
+        var i = marker_pos_abs / WORD_BIT_COUNT;
 
-        const fmt = (
-            "{b:0>"
-            // ensure that the right number of 0s are printed
-            ++ std.fmt.comptimePrint("{d}", .{WORD_BIT_COUNT}) 
-            ++ "}" 
-        );
+        try writer.print("{b}", .{self.words[i]});
 
-        try writer.print("{b}", .{self.words[last_index]});
-
-        for (1..last_index+1)
-           |i|
+        while (i > 0)
         {
-            const tcw = self.words[last_index - i];
-            try writer.print(fmt, .{tcw});
+            i -= 1;
+            const tcw = self.words[i];
+            try writer.print(TREECODE_BINARY_FMT, .{tcw});
         }
     }
 };
