@@ -3088,6 +3088,19 @@ pub fn ReferenceTopology(
 
                 const to_dest_topo = proj_op.src_to_dst_topo;
 
+                try unsplit_intervals.ensureUnusedCapacity(
+                    allocator_arena,
+                    to_dest_topo.mappings.len
+                );
+                try self.mappings.ensureUnusedCapacity(
+                    parent_allocator,
+                    to_dest_topo.mappings.len
+                );
+                try vertices_builder.ensureUnusedCapacity(
+                    allocator_arena,
+                    2 * to_dest_topo.mappings.len,
+                );
+
                 for (to_dest_topo.mappings)
                     |child_mapping|
                 {
@@ -3095,31 +3108,26 @@ pub fn ReferenceTopology(
                     const new_bounds = (
                         child_mapping.input_bounds()
                     );
-                    try unsplit_intervals.append(
-                        allocator_arena,
+                    unsplit_intervals.appendAssumeCapacity(
                         .{
                             .input_bounds = new_bounds,
                             .mapping_index = new_index,
                         },
                     );
-                    try self.mappings.append(
-                        allocator_arena,
+                    self.mappings.appendAssumeCapacity(
                         .{
                             .destination = proj_args.destination,
                             .mapping = child_mapping,
                         },
                     );
-
-                    try vertices.append(
-                        allocator_arena,
+                    vertices_builder.appendAssumeCapacity(
                         .{
                             .interval_index = new_index,
                             .ordinate = new_bounds.start,
                             .kind = .start,
                         },
                     );
-                    try vertices.append(
-                        allocator_arena,
+                    vertices_builder.appendAssumeCapacity(
                         .{
                             .interval_index = new_index,
                             .ordinate = new_bounds.end,
@@ -3161,6 +3169,10 @@ pub fn ReferenceTopology(
                     kind: []vertex_kind,
                 }
             ) = .empty;
+            try cut_points.ensureTotalCapacity(
+                allocator_arena,
+                vertices.len,
+            );
             defer {
                 // for (
                 //     cut_points.items(.indices),
@@ -3201,8 +3213,7 @@ pub fn ReferenceTopology(
                 {
                     var compled = current_intervals.toOwnedSlice();
 
-                    try cut_points.append(
-                        allocator_arena,
+                    cut_points.appendAssumeCapacity(
                         .{
                             .ordinate = cut_point,
                             .indices = compled.items(.index),
@@ -3276,6 +3287,10 @@ pub fn ReferenceTopology(
             const ordinates = cut_point_slice.items(.ordinate);
             const len = ordinates.len;
 
+            try self.intervals.ensureTotalCapacity(
+                parent_allocator,
+                len - 1
+            );
             for (
                 ordinates[0..len - 1],
                 ordinates[1..],
@@ -3300,15 +3315,25 @@ pub fn ReferenceTopology(
                 }
 
                 try self.intervals.append(
+                try indices.ensureTotalCapacity(
                     parent_allocator,
+                    active_intervals.count()
+                );
+
+                while (bit_iter.next())
+                    |index|
+                {
+                    indices.appendAssumeCapacity(index);
+                }
+
+                self.intervals.appendAssumeCapacity(
                     .{
                         .input_bounds = .{
                             .start = ord_start,
                             .end = ord_end,
                         },
-                        .mapping_index = try parent_allocator.dupe(
-                            NodeIndex,
-                            active_intervals.keys(),
+                        .mapping_index = try indices.toOwnedSlice(
+                            parent_allocator
                         ),
                     },
                 );
