@@ -506,6 +506,53 @@ test "TestWalkingIterator: track with clip"
     }
 }
 
+pub fn path_from_parents(
+    allocator: std.mem.Allocator,
+    source_index: usize,
+    destination_index: usize,
+    codes: []treecode.Treecode,
+    parents: []?usize,
+) ![]const usize
+{
+    const source_code = codes[source_index];
+    const dest_code = codes[destination_index];
+
+    const length = dest_code.code_length - source_code.code_length + 1;
+
+    const path = try allocator.alloc(
+        usize,
+        length,
+    );
+    
+    fill_path_buffer(
+        source_index,
+        destination_index,
+        path,
+        parents,
+    );
+
+    return path;
+}
+
+pub fn fill_path_buffer(
+    source_index: usize,
+    destination_index: usize,
+    path: []usize,
+    parents: []?usize,
+) void
+{
+    var current = destination_index;
+
+    path[0] = source_index;
+
+    for (0..path.len-1)
+        |ind|
+    {
+        path[path.len - 1 - ind] = current;
+        current = parents[current].?;
+    }
+}
+
 test "TestWalkingIterator: track with clip w/ destination"
 {
     const allocator = std.testing.allocator;
@@ -556,6 +603,25 @@ test "TestWalkingIterator: track with clip w/ destination"
             },
         );
         defer allocator.free(path);
+
+        const parent_path = try path_from_parents(
+            allocator, 
+            map.index_from_space(
+                tr_ptr.space(.presentation)
+            ).?,
+            map.index_from_space(
+                cl_ptr.space(.media)
+            ).?,
+            map.path_nodes.items(.code), 
+            map.path_nodes.items(.parent_index)
+        );
+        defer allocator.free(parent_path);
+
+        try std.testing.expectEqualSlices(
+            usize,
+            path,
+            parent_path,
+        );
 
         // 2: clip presentation, clip media
         try std.testing.expectEqual(6, path.len);
@@ -781,12 +847,13 @@ pub fn build_projection_operator_indices(
     const codes = path_nodes.items(.code);
     const space_nodes = map.space_nodes.slice();
 
-    const path = try map.path(
+    // compute the path length
+    const path = try path_from_parents(
         allocator,
-        .{
-            .source = source_index,
-            .destination = sorted_endpoints.destination,
-        },
+        source_index,
+        sorted_endpoints.destination,
+        codes,
+        path_nodes.items(.parent_index),
     );
 
     if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
