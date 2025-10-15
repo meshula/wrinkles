@@ -191,22 +191,22 @@ pub const Treecode = struct {
         new_branch: l_or_r,
     ) !void 
     {
-        if (self.words.len == 0) 
-        {
-            @branchHint(.cold);
-            return error.InvalidTreecode;
-        }
+        // if (self.words.len == 0) 
+        // {
+        //     @branchHint(.cold);
+        //     return error.InvalidTreecode;
+        // }
 
+        // location to write new_branch to
         const current_code_length = self.code_length;
 
+        // location to write marker bit to (also increment the code length)
         self.code_length += 1;
-
-        // index for the new branch
-        const next_index = current_code_length + 1;
+        const new_marker_bit_index = self.code_length;
 
         // special case where there is only one word in the treecode and there
         // is still room in that one word for an append
-        if (next_index < WORD_BIT_COUNT) 
+        if (new_marker_bit_index < WORD_BIT_COUNT) 
         {
             @branchHint(.likely);
             self.words[0] = treecode_word_append(
@@ -222,7 +222,7 @@ pub const Treecode = struct {
             - 1
         );
 
-        if (next_index > last_allocated_index) 
+        if (new_marker_bit_index > last_allocated_index) 
         {
             try self.realloc(
                 allocator,
@@ -235,7 +235,7 @@ pub const Treecode = struct {
         }
 
         // move the marker one index over
-        const new_marker_word = next_index / WORD_BIT_COUNT;
+        const new_marker_word = new_marker_bit_index / WORD_BIT_COUNT;
         const new_data_word = current_code_length / WORD_BIT_COUNT;
 
         if (new_marker_word == new_data_word) 
