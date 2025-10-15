@@ -351,23 +351,16 @@ pub const Treecode = struct {
     ) l_or_r 
     {
         const self_len = self.code_length;
-
-        const self_len_pos_local = @rem(self_len, WORD_BIT_COUNT);
         const self_len_word = self_len / WORD_BIT_COUNT;
 
-        const mask = std.math.shl(
-            TreecodeWord,
-            1,
-            self_len_pos_local,
+        var target_word: std.bit_set.IntegerBitSet(@bitSizeOf(TreecodeWord)) = (
+            @bitCast(dest.words[self_len_word])
         );
 
-        const masked_val = dest.words[self_len_word] & mask;
-
+        const self_len_pos_local = @rem(self_len, WORD_BIT_COUNT);
         return @enumFromInt(
-            std.math.shr(
-                TreecodeWord,
-                masked_val,
-                self_len_pos_local,
+            @intFromBool(
+                target_word.isSet(self_len_pos_local)
             )
         );
     }
