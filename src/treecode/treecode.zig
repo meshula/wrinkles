@@ -191,12 +191,6 @@ pub const Treecode = struct {
         new_branch: l_or_r,
     ) !void 
     {
-        // if (self.words.len == 0) 
-        // {
-        //     @branchHint(.cold);
-        //     return error.InvalidTreecode;
-        // }
-
         // location to write new_branch to
         const current_code_length = self.code_length;
 
