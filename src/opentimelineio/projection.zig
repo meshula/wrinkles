@@ -3336,30 +3336,30 @@ pub fn ReferenceTopology(
             }
 
             // print current structure
-            std.debug.print(
-                "Final Cut Points:\n",
-                .{},
-            );
-            const interval_slice = self.intervals.slice();
-            for (0..interval_slice.len)
-                |ind|
-            {
-                std.debug.print(
-                    "  bounds: {f}\n  intervals:\n",
-                    .{interval_slice.items(.input_bounds)[ind]}
-                );
-                for (
-                    interval_slice.items(.mapping_index)[ind],
-                )
-                    |int_ind|
-                {
-                    std.debug.print(
-                        "    {d}\n",
-                        .{int_ind},
-                    );
-                }
-            }
-            std.debug.print("done.\n", .{});
+            // std.debug.print(
+            //     "Final Cut Points:\n",
+            //     .{},
+            // );
+            // const interval_slice = self.intervals.slice();
+            // for (0..interval_slice.len)
+            //     |ind|
+            // {
+            //     std.debug.print(
+            //         "  bounds: {f}\n  intervals:\n",
+            //         .{interval_slice.items(.input_bounds)[ind]}
+            //     );
+            //     for (
+            //         interval_slice.items(.mapping_index)[ind],
+            //     )
+            //         |int_ind|
+            //     {
+            //         std.debug.print(
+            //             "    {d}\n",
+            //             .{int_ind},
+            //         );
+            //     }
+            // }
+            // std.debug.print("done.\n", .{});
 
             return self;
         }
