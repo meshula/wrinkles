@@ -3275,15 +3275,13 @@ pub fn ReferenceTopology(
             
             // split and merge intervals together
             ////////////
-            var active_intervals: std.AutoArrayHashMapUnmanaged(
-                NodeIndex,
-                void,
-            ) = .empty;
-            // worst case all intervals are active at once
-            try active_intervals.ensureTotalCapacity(
-                allocator_arena,
-                cut_point_slice.len,
+            var active_intervals = try (
+                std.DynamicBitSetUnmanaged.initEmpty(
+                    allocator_arena,
+                    cut_point_slice.len,
+                )
             );
+
             const ordinates = cut_point_slice.items(.ordinate);
             const len = ordinates.len;
 
@@ -3303,18 +3301,18 @@ pub fn ReferenceTopology(
                 {
                     if (kind == .start)
                     {
-                        active_intervals.putAssumeCapacity(
-                            interval,
-                            {},
-                        );
+                        active_intervals.setValue(interval, true);
                     }
                     else if (kind == .end)
                     {
-                        _ = active_intervals.swapRemove(interval);
+                        active_intervals.setValue(interval, false);
                     }
                 }
 
-                try self.intervals.append(
+                var bit_iter = (
+                    active_intervals.iterator(.{})
+                );
+
                 try indices.ensureTotalCapacity(
                     parent_allocator,
                     active_intervals.count()
