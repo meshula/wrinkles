@@ -3153,7 +3153,7 @@ pub fn ReferenceTopology(
                         const a_ord = ctx.ordinates[a_index];
                         const b_ord = ctx.ordinates[b_index];
 
-                        return opentime.lt(a_ord, b_ord);
+                        return a_ord.lt(b_ord);
                     }
                 }{ .ordinates = vertices.items(.ordinate) }
             );
