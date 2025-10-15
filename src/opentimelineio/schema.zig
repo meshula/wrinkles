@@ -61,6 +61,10 @@ pub const Clip = struct {
 
     parameters: ?ParameterMap = null,
 
+    pub const internal_spaces: []const references.SpaceLabel = (
+        &.{ .presentation, .media }
+    );
+
     const Domain = enum {
         time,
         picture,
@@ -192,6 +196,10 @@ pub const Gap = struct {
     name: ?string.latin_s8 = null,
     duration_seconds: opentime.Ordinate,
 
+    pub const internal_spaces: []const references.SpaceLabel = (
+        &.{ .presentation, }
+    );
+
     pub fn topology(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -214,12 +222,20 @@ pub const Warp = struct {
     child: references.ComposedValueRef,
     transform: topology_m.Topology,
     interpolating: bool = false,
+
+    pub const internal_spaces: []const references.SpaceLabel = (
+        &.{ .presentation }
+    );
 };
 
 /// a container in which each contained item is right-met over time
 pub const Track = struct {
     name: ?string.latin_s8 = null,
     children: []references.ComposedValueRef = &.{},
+
+    pub const internal_spaces: []const references.SpaceLabel = (
+        &.{ .presentation, .intrinsic }
+    );
 
     pub const EMPTY = Track{
         .name = null,
@@ -356,6 +372,10 @@ pub const Stack = struct {
     name: ?string.latin_s8 = null,
     children: []references.ComposedValueRef = &.{},
 
+    pub const internal_spaces: []const references.SpaceLabel = (
+        &.{ .presentation, .intrinsic }
+    );
+
     pub fn deinit(
         self: *@This(),
         allocator: std.mem.Allocator,
@@ -455,6 +475,10 @@ pub const Timeline = struct {
     discrete_info: struct{
         presentation:  ?sampling.SampleIndexGenerator = null,
     } = .{},
+
+    pub const internal_spaces: []const references.SpaceLabel = (
+        &.{ .presentation, .intrinsic }
+    );
 
     pub fn recursively_deinit(
         self: *@This(),

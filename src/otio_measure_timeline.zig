@@ -156,7 +156,7 @@ pub fn main(
             try otio.projection.ProjectionTopology.init_from_reference(
                 allocator,
                 temporal_map,
-                try tl_ref.space(.presentation),
+                tl_ref.space(.presentation),
             )
         );
         defer projection_topo.deinit(allocator);

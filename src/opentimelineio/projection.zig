@@ -410,8 +410,8 @@ test "ProjectionOperatorMap: init_operator leak test"
         try ProjectionOperatorMap.init_operator(
             allocator,
             .{
-                .source = try cl_ptr.space(.presentation),
-                .destination = try cl_ptr.space(.media),
+                .source = cl_ptr.space(.presentation),
+                .destination = cl_ptr.space(.media),
                 .src_to_dst_topo = .EMPTY,
             },
         )
@@ -440,7 +440,7 @@ test "ProjectionOperatorMap: projection_map_to_media_from leak test"
     const m = try projection_map_to_media_from(
         allocator,
         map,
-        try cl_ptr.space(.presentation),
+        cl_ptr.space(.presentation),
     );
     defer m.deinit(allocator);
 
@@ -839,7 +839,7 @@ test "ProjectionOperatorMap: extend_to"
         try projection_map_to_media_from(
             allocator,
             map,
-            try cl_ptr.space(.presentation),
+            cl_ptr.space(.presentation),
         )
     );
     defer cl_presentation_pmap.deinit(allocator);
@@ -940,7 +940,7 @@ test "ProjectionOperatorMap: split_at_each"
         try projection_map_to_media_from(
             allocator,
             map,
-            try cl_ptr.space(.presentation),
+            cl_ptr.space(.presentation),
         )
     );
     defer cl_presentation_pmap.deinit(allocator);
@@ -1066,7 +1066,7 @@ test "ProjectionOperatorMap: merge_composite"
         try projection_map_to_media_from(
             allocator,
             map,
-            try cl_ptr.space(.presentation),
+            cl_ptr.space(.presentation),
         )
     );
     defer cl_presentation_pmap.deinit(allocator);
@@ -1114,7 +1114,7 @@ test "ProjectionOperatorMap: clip"
         try projection_map_to_media_from(
             allocator,
             map,
-            try cl_ptr.space(.presentation),
+            cl_ptr.space(.presentation),
         )
     );
     defer cl_presentation_pmap.deinit(allocator);
@@ -1135,8 +1135,8 @@ test "ProjectionOperatorMap: clip"
             allocator,
             map,
             .{
-                .source = try cl_ptr.space(.presentation),
-                .destination = try cl_ptr.space(.media),
+                .source = cl_ptr.space(.presentation),
+                .destination = cl_ptr.space(.media),
             },
             cache,
         )
@@ -1204,13 +1204,13 @@ test "ProjectionOperatorMap: track with single clip"
     );
     defer map.deinit(allocator);
 
-    const source_space = try tr_ptr.space(.presentation);
+    const source_space = tr_ptr.space(.presentation);
 
     const test_maps = &[_]ProjectionOperatorMap{
         // try build_projection_operator_map(
         //     allocator,
         //     map,
-        //     try cl_ptr.space(.presentation),
+        //     cl_ptr.space(.presentation),
         // ),
         try projection_map_to_media_from(
             allocator,
@@ -1239,8 +1239,8 @@ test "ProjectionOperatorMap: track with single clip"
             allocator,
             map,
             .{
-                .source = try tr_ptr.space(.presentation),
-                .destination = try cl_ptr.space(.media),
+                .source = tr_ptr.space(.presentation),
+                .destination = cl_ptr.space(.media),
             },
             cache,
         );
@@ -1310,8 +1310,8 @@ test "projection.ProjectionOperator: clone"
     const cl_ptr = references.ComposedValueRef.init(&cl);
 
     const po = ProjectionOperator{
-        .source = try cl_ptr.space(.presentation),
-        .destination = try cl_ptr.space(.media),
+        .source = cl_ptr.space(.presentation),
+        .destination = cl_ptr.space(.media),
         .src_to_dst_topo = aff1,
     };
 
@@ -1351,8 +1351,8 @@ test "ProjectionOperatorMap: clone"
         try ProjectionOperatorMap.init_operator(
             allocator,
             .{
-                .source = try cl_ptr.space(.presentation),
-                .destination = try cl_ptr.space(.media),
+                .source = cl_ptr.space(.presentation),
+                .destination = cl_ptr.space(.media),
                 .src_to_dst_topo = aff1,
             },
         )
@@ -1398,7 +1398,7 @@ test "transform: track with two clips"
     );
     defer map.deinit(allocator);
 
-    const track_presentation_space = try tr_ptr.space(.presentation);
+    const track_presentation_space = tr_ptr.space(.presentation);
 
     {
         const xform = try topology_m.Topology.init_affine(
@@ -1426,8 +1426,8 @@ test "transform: track with two clips"
             allocator,
             map,
             .{
-                .source = try cl2_ref.space(.presentation),
-                .destination = try cl2_ref.space(.media),
+                .source = cl2_ref.space(.presentation),
+                .destination = cl2_ref.space(.media),
             },
             cache,
         );
@@ -1459,7 +1459,7 @@ test "transform: track with two clips"
             map,
             .{
                 .source = track_presentation_space,
-                .destination = try cl2_ref.space(.media),
+                .destination = cl2_ref.space(.media),
             },
             cache,
         );
@@ -1519,7 +1519,7 @@ test "ProjectionOperatorMap: track with two clips"
 
     /////
 
-    const source_space = try tr_ptr.space(.presentation);
+    const source_space = tr_ptr.space(.presentation);
 
     const p_o_map = (
         try projection_map_to_media_from(
@@ -1552,8 +1552,8 @@ test "ProjectionOperatorMap: track with two clips"
             allocator,
             map,
             .{
-                .source = try tr_ptr.space(.presentation),
-                .destination = try cl_ptr.space(.media),
+                .source = tr_ptr.space(.presentation),
+                .destination = cl_ptr.space(.media),
             },
             cache,
         )
@@ -1617,7 +1617,7 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
     );
     defer map.deinit(allocator);
 
-    const source_space = try tr_ptr.space(.presentation);
+    const source_space = tr_ptr.space(.presentation);
 
     const p_o_map = (
         try projection_map_to_media_from(
@@ -1649,8 +1649,8 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
             allocator,
             map,
             .{
-                .source = try tr_ptr.space(.presentation),
-                .destination = try cl_ptr.space(.media),
+                .source = tr_ptr.space(.presentation),
+                .destination = cl_ptr.space(.media),
             },
             cache,
         )
@@ -1725,8 +1725,8 @@ test "Projection: schema.Track with single clip with identity transform and boun
         allocator,
         map,
         .{ 
-            .source = try root.space(references.SpaceLabel.presentation),
-            .destination = try clip.space(references.SpaceLabel.media),
+            .source = root.space(references.SpaceLabel.presentation),
+            .destination = clip.space(references.SpaceLabel.media),
         },
         cache,
     );
@@ -1814,9 +1814,9 @@ test "Projection: schema.Track 3 bounded clips identity xform"
             allocator,
             map,
             .{
-                .source = try track_ptr.space(.presentation),
+                .source = track_ptr.space(.presentation),
                 .destination = (
-                    try cl2_ref.space(.media)
+                    cl2_ref.space(.media)
                 ),
             },
             cache,
@@ -1838,7 +1838,7 @@ test "Projection: schema.Track 3 bounded clips identity xform"
     const po_map = try projection_map_to_media_from(
         allocator,
         map,
-        try track_ptr.space(.presentation),
+        track_ptr.space(.presentation),
     );
     defer po_map.deinit(allocator);
 
@@ -1909,8 +1909,8 @@ test "Projection: schema.Track 3 bounded clips identity xform"
         allocator,
         map,
             .{
-                .source = try track_ptr.space(references.SpaceLabel.presentation),
-                .destination = try child.space(references.SpaceLabel.media),
+                .source = track_ptr.space(references.SpaceLabel.presentation),
+                .destination = child.space(references.SpaceLabel.media),
             },
             cache,
         );
@@ -1957,8 +1957,8 @@ test "Projection: schema.Track 3 bounded clips identity xform"
         allocator,
         map,
         .{ 
-            .source = try track_ptr.space(references.SpaceLabel.presentation),
-            .destination = try clip.space(references.SpaceLabel.media),
+            .source = track_ptr.space(references.SpaceLabel.presentation),
+            .destination = clip.space(references.SpaceLabel.media),
         },
         cache,
     );
@@ -2097,8 +2097,8 @@ test "Single schema.Clip bezier transform"
                 allocator,
                 map,
                 .{
-                    .source =  try wp_ptr.space(references.SpaceLabel.presentation),
-                    .destination = try cl_ptr.space(references.SpaceLabel.media),
+                    .source =  wp_ptr.space(references.SpaceLabel.presentation),
+                    .destination = cl_ptr.space(references.SpaceLabel.media),
                 },
                 cache,
             )
@@ -2220,8 +2220,8 @@ test "Single schema.Clip bezier transform"
                 allocator,
                 map,
                 .{
-                    .source =  try cl_ptr.space(references.SpaceLabel.media),
-                    .destination = try wp_ptr.space(references.SpaceLabel.presentation),
+                    .source =  cl_ptr.space(references.SpaceLabel.media),
+                    .destination = wp_ptr.space(references.SpaceLabel.presentation),
                 },
                 cache,
             )
@@ -2241,16 +2241,15 @@ test "test spaces list"
 {
     var cl = schema.Clip{};
     const it = references.ComposedValueRef{ .clip = &cl };
-    const spaces = try it.spaces(std.testing.allocator);
-    defer std.testing.allocator.free(spaces);
+    const spaces = it.spaces();
 
     try std.testing.expectEqual(
        references.SpaceLabel.presentation,
-       spaces[0].label, 
+       spaces[0], 
     );
     try std.testing.expectEqual(
        references.SpaceLabel.media,
-       spaces[1].label, 
+       spaces[1], 
     );
     try std.testing.expectEqual(
        "presentation",
@@ -2316,9 +2315,9 @@ test "otio projection: track with single clip"
             allocator,
             map,
             .{
-                .source = try tr_ptr.space(references.SpaceLabel.presentation),
+                .source = tr_ptr.space(references.SpaceLabel.presentation),
                 // does the discrete / continuous need to be disambiguated?
-                .destination = try cl_ptr.space(references.SpaceLabel.media),
+                .destination = cl_ptr.space(references.SpaceLabel.media),
             },
             cache,
         )
@@ -2540,9 +2539,9 @@ test "otio projection: track with single clip with transform"
             allocator,
             map_tr,
             .{
-                .source = try tr_ptr.space(.presentation),
+                .source = tr_ptr.space(.presentation),
                 // does the discrete / continuous need to be disambiguated?
-                .destination = try cl_ptr.space(.media),
+                .destination = cl_ptr.space(.media),
             },
             cache_tr,
         )
@@ -2669,9 +2668,9 @@ test "otio projection: track with single clip with transform"
                     allocator,
                     map_tl,
                     .{
-                        .source = try tl_ptr.space(.presentation),
+                        .source = tl_ptr.space(.presentation),
                         // does the discrete / continuous need to be disambiguated?
-                        .destination = try cl_ptr.space(.media),
+                        .destination = cl_ptr.space(.media),
                     },
                     cache,
                 )
@@ -2751,7 +2750,7 @@ test "Single clip, schema.Warp bulk"
     defer cl.destroy(allocator);
     const cl_ptr = references.ComposedValueRef.init(&cl);
 
-    const cl_media = try cl_ptr.space(references.SpaceLabel.media);
+    const cl_media = cl_ptr.space(references.SpaceLabel.media);
 
     const TestCase = struct {
         label: []const u8,
@@ -2845,7 +2844,7 @@ test "Single clip, schema.Warp bulk"
         };
 
         const wp_ptr : references.ComposedValueRef = .{ .warp =  &warp };
-        const wp_pres = try wp_ptr.space(references.SpaceLabel.presentation);
+        const wp_pres = wp_ptr.space(references.SpaceLabel.presentation);
 
         const map = try temporal_hierarchy.build_temporal_map(
             allocator,
@@ -3430,7 +3429,7 @@ test "ReferenceTopology: init_from_reference"
         try ProjectionTopology.init_from_reference(
             allocator,
             map,
-            try st_ptr.space(.presentation),
+            st_ptr.space(.presentation),
         )
     );
     defer cl_presentation_pmap.deinit(allocator);

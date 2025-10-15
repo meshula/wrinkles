@@ -158,17 +158,18 @@ fn walk_internal_spaces(
     map: *TemporalMap,
 ) !struct{ treecode.Treecode, ?usize }
 {
-    const spaces = try parent_otio_object.spaces(
-        allocator
-    );
-    defer allocator.free(spaces);
+    const spaces = parent_otio_object.spaces();
 
     var last_space_code = parent_code;
     var last_index = parent_index;
 
     for (0.., spaces) 
-        |index, space_ref| 
+        |index, space_label| 
     {
+        const space_ref = references.SpaceReference{
+            .ref = parent_otio_object,
+            .label = space_label,
+        };
         const space_code = (
             if (index > 0) (
                 try depth_child_code_leaky(
@@ -494,7 +495,7 @@ test "TestWalkingIterator: track with clip"
     {
         const path_nodes = try map.nodes_under(
             allocator,
-            try cl_ptr.space(.presentation)
+            cl_ptr.space(.presentation)
         );
         defer allocator.free(path_nodes);
 
@@ -545,10 +546,10 @@ test "TestWalkingIterator: track with clip w/ destination"
             allocator, 
             .{
                 .source = map.index_from_space(
-                    try tr_ptr.space(.presentation)
+                    tr_ptr.space(.presentation)
                 ).?,
                 .destination = map.index_from_space(
-                    try cl_ptr.space(.media)
+                    cl_ptr.space(.media)
                 ).?,
             },
         );
@@ -1061,7 +1062,7 @@ test "path_code: graph test"
         |t_i, t| 
     {
         const space = (
-            try tr.children[t.ind].space(references.SpaceLabel.presentation)
+            tr.children[t.ind].space(references.SpaceLabel.presentation)
         );
         const result = (
             map.get_code(space) 
@@ -1130,8 +1131,8 @@ test "schema.Track with clip with identity transform projection"
         allocator,
         map,
         .{
-            .source = try tr_ref.space(references.SpaceLabel.presentation),
-            .destination =  try cl_ref.space(references.SpaceLabel.media)
+            .source = tr_ref.space(references.SpaceLabel.presentation),
+            .destination =  cl_ref.space(references.SpaceLabel.media)
         },
         cache,
     );
@@ -1198,7 +1199,7 @@ test "TemporalMap: schema.Track with clip with identity transform"
     }
 
     const maybe_clip_code = map.get_code(
-        try cl_ref.space(references.SpaceLabel.media)
+        cl_ref.space(references.SpaceLabel.media)
     );
     try std.testing.expect(maybe_clip_code != null);
     const clip_code = maybe_clip_code.?;
@@ -1238,8 +1239,8 @@ test "TemporalMap: schema.Track with clip with identity transform"
             allocator,
             map,
             .{
-                .source = try root.space(references.SpaceLabel.presentation),
-                .destination = try cl_ref.space(references.SpaceLabel.media)
+                .source = root.space(references.SpaceLabel.presentation),
+                .destination = cl_ref.space(references.SpaceLabel.media)
             },
             cache,
         )
@@ -1347,6 +1348,13 @@ test "test debug_print_time_hierarchy"
         tl_ptr
     );
     defer tp.deinit(allocator);
+
+    std.debug.print("spaces:\n", .{});
+    for (tp.space_nodes.items(.ref), tp.space_nodes.items(.label))
+        |ref, label|
+    {
+        std.debug.print("  space: {f}.{f}\n", .{ref, label});
+    }
 
     try std.testing.expectEqual(
         13,

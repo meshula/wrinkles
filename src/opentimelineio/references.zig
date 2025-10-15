@@ -187,66 +187,24 @@ pub const ComposedValueRef = union(enum) {
         };
     }
 
-    /// return list of SpaceReference for this object
+    /// Fetches the `internal_spaces` field of the referenced object.  See
+    /// `schema.Clip.internal_spaces` for example.  
+    ///
+    /// Note that this memory is static and does not need to be freed.
     pub fn spaces(
         self: @This(),
-        allocator: std.mem.Allocator,
-    ) ![]const SpaceReference 
+    ) []const SpaceLabel 
     {
-        var result: std.ArrayList(SpaceReference) = .empty;
-        defer result.deinit(allocator);
-
-        try result.ensureTotalCapacity(allocator, 2);
-
-        switch (self) {
-            .clip, => {
-                result.appendAssumeCapacity(
-                    .{
-                        .ref = self,
-                        .label = SpaceLabel.presentation,
-                    },
-                );
-                result.appendAssumeCapacity(
-                    .{
-                        .ref = self,
-                        .label = SpaceLabel.media,
-                    },
-                );
-            },
-            .track, .timeline, .stack => {
-                result.appendAssumeCapacity(
-                    .{
-                        .ref = self,
-                        .label = SpaceLabel.presentation,
-                    },
-                );
-                result.appendAssumeCapacity(
-                    .{
-                        .ref = self,
-                        .label = SpaceLabel.intrinsic,
-                    },
-                );
-            },
-            .gap, .warp => {
-                result.appendAssumeCapacity(
-                    .{
-                        .ref = self,
-                        .label = SpaceLabel.presentation,
-                    },
-                );
-            },
-            // else => { return error.NotImplemented; }
-        }
-
-        return result.toOwnedSlice(allocator);
-
+        return switch (self) {
+            inline else => |thing| @TypeOf(thing.*).internal_spaces,
+        };
     }
 
     /// build a space reference to the specified space on this CV
     pub fn space(
         self: @This(),
         label: SpaceLabel
-    ) !SpaceReference 
+    ) SpaceReference 
     {
         return .{ .ref = self, .label = label };
     }

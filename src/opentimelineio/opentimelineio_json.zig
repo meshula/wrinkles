@@ -449,8 +449,8 @@ test "read_from_file test (simple)"
         std.testing.allocator,
         map,
         .{
-            .source = try tl_ptr.space(otio.SpaceLabel.presentation),
-            .destination = try target_clip_ptr.space(otio.SpaceLabel.media),
+            .source = tl_ptr.space(otio.SpaceLabel.presentation),
+            .destination = target_clip_ptr.space(otio.SpaceLabel.media),
         },
         cache,
     );

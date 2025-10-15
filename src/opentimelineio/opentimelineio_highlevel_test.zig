@@ -110,8 +110,8 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             allocator,
             map,
             .{
-                .source = try tl_ptr.space(.presentation),
-                .destination = try track_children[2].space(.media),
+                .source = tl_ptr.space(.presentation),
+                .destination = track_children[2].space(.media),
             },
             cache,
         )
@@ -140,7 +140,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         try otio.projection_map_to_media_from(
             allocator,
             map, 
-            try tl_ptr.space(.presentation)
+            tl_ptr.space(.presentation)
         )
     );
     defer proj_map.deinit(allocator);
@@ -360,8 +360,8 @@ test "libsamplerate w/ high level test -- resample only"
             allocator,
             map,
             .{
-                .source = try tr_ptr.space(.presentation),
-                .destination = try cl_ptr.space(.media),
+                .source = tr_ptr.space(.presentation),
+                .destination = cl_ptr.space(.media),
             },
             cache,
         )
@@ -530,8 +530,8 @@ test "libsamplerate w/ high level test.retime.interpolating"
             allocator,
             map,
             .{
-                .source = try tr_ptr.space(.presentation),
-                .destination = try cl_ptr.space(.media),
+                .source = tr_ptr.space(.presentation),
+                .destination = cl_ptr.space(.media),
             },
             cache,
         )
@@ -680,8 +680,8 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
             allocator,
             map,
             .{
-                .source = try tr_ptr.space(.presentation),
-                .destination = try cl_ptr.space(.media),
+                .source = tr_ptr.space(.presentation),
+                .destination = cl_ptr.space(.media),
             },
             cache,
         )
@@ -870,8 +870,8 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
             allocator,
             map,
             .{
-                .source = try tr_ptr.space(.presentation),
-                .destination = try cl_ptr.space(.media),
+                .source = tr_ptr.space(.presentation),
+                .destination = cl_ptr.space(.media),
             },
             cache,
         )
@@ -1037,8 +1037,8 @@ test "timeline w/ warp that holds the tenth frame"
             allocator,
             map,
             .{
-                .source = try tr_ptr.space(.presentation),
-                .destination = try cl_ptr.space(.media),
+                .source = tr_ptr.space(.presentation),
+                .destination = cl_ptr.space(.media),
             },
             cache,
         )
@@ -1167,8 +1167,8 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
             allocator,
             map,
             .{
-                .source = try tl_ptr.space(.presentation),
-                .destination = try cl_ptr.space(.media),
+                .source = tl_ptr.space(.presentation),
+                .destination = cl_ptr.space(.media),
             },
             cache,
         )
