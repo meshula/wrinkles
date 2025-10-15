@@ -713,16 +713,44 @@ test "sequential_child_hash: math"
     }
 }
 
-pub const OperatorCache = std.AutoHashMapUnmanaged(
-    TemporalMap.PathEndPointIndices,
-    topology_m.Topology,
-);
+// pub const OperatorCache = std.AutoHashMapUnmanaged(
+//     usize,
+//     topology_m.Topology,
+// );
+
+/// A cache that maps an implied single source to a list of destinations, by
+/// index relative to some map
+pub const SingleSourceTopologyCache = struct { 
+    items: []?topology_m.Topology,
+
+    pub fn init(
+        allocator: std.mem.Allocator,
+        map: TemporalMap,
+    ) !SingleSourceTopologyCache
+    {
+        const cache = try allocator.alloc(
+            ?topology_m.Topology,
+            map.space_nodes.len,
+        );
+        @memset(cache, null);
+
+        return .{ .items = cache };
+    }
+
+    pub fn deinit(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        allocator.free(self.items);   
+    }
+};
 
 pub fn build_projection_operator_indices(
     parent_allocator: std.mem.Allocator,
     map: TemporalMap,
     endpoints: TemporalMap.PathEndPointIndices,
-    operator_cache: *OperatorCache,
+    operator_cache: SingleSourceTopologyCache,
 ) !projection.ProjectionOperator 
 {
     // sort endpoints so that the higher node is always the source
@@ -797,7 +825,7 @@ pub fn build_projection_operator_indices(
     {
         path_step.destination = @intCast(next);
 
-        if (operator_cache.get(path_step))
+        if (operator_cache.items[next])
             |root_to_next|
         {
             current = next;
@@ -868,11 +896,7 @@ pub fn build_projection_operator_indices(
             );
         }
 
-        try operator_cache.put(
-            parent_allocator,
-            path_step,
-            root_to_next,
-        );
+        operator_cache.items[next] = root_to_next;
 
         current = next;
         root_to_current = root_to_next;
@@ -920,7 +944,7 @@ pub fn build_projection_operator(
     parent_allocator: std.mem.Allocator,
     map: TemporalMap,
     endpoints: TemporalMap.PathEndPoints,
-    operator_cache: *OperatorCache,
+    operator_cache: SingleSourceTopologyCache,
 ) !projection.ProjectionOperator 
 {
     return build_projection_operator_indices(
@@ -1094,8 +1118,12 @@ test "schema.Track with clip with identity transform projection"
         tr_ref.track.children.len
     );
 
-
-    var cache: OperatorCache = .empty;
+    const cache = (
+        try SingleSourceTopologyCache.init(
+            allocator,
+            map,
+        )
+    );
     defer cache.deinit(allocator);
 
     const track_to_clip = try build_projection_operator(
@@ -1105,7 +1133,7 @@ test "schema.Track with clip with identity transform projection"
             .source = try tr_ref.space(references.SpaceLabel.presentation),
             .destination =  try cl_ref.space(references.SpaceLabel.media)
         },
-        &cache,
+        cache,
     );
     defer track_to_clip.deinit(std.testing.allocator);
 
@@ -1197,7 +1225,12 @@ test "TemporalMap: schema.Track with clip with identity transform"
         treecode.path_exists(clip_code, root_code)
     );
 
-    var cache: OperatorCache = .empty;
+    const cache = (
+        try SingleSourceTopologyCache.init(
+            allocator,
+            map,
+        )
+    );
     defer cache.deinit(allocator);
 
     const root_presentation_to_clip_media = (
@@ -1208,7 +1241,7 @@ test "TemporalMap: schema.Track with clip with identity transform"
                 .source = try root.space(references.SpaceLabel.presentation),
                 .destination = try cl_ref.space(references.SpaceLabel.media)
             },
-            &cache,
+            cache,
         )
     );
     defer root_presentation_to_clip_media.deinit(allocator);

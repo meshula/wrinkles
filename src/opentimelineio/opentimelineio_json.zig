@@ -437,7 +437,12 @@ test "read_from_file test (simple)"
     );
     defer map.deinit(allocator);
 
-    var cache: otio.temporal_hierarchy.OperatorCache = .empty;
+    const cache = (
+        try otio.temporal_hierarchy.SingleSourceTopologyCache.init(
+            allocator,
+            map,
+        )
+    );
     defer cache.deinit(allocator);
 
     const tl_output_to_clip_media = try otio.build_projection_operator(
@@ -447,7 +452,7 @@ test "read_from_file test (simple)"
             .source = try tl_ptr.space(otio.SpaceLabel.presentation),
             .destination = try target_clip_ptr.space(otio.SpaceLabel.media),
         },
-        &cache,
+        cache,
     );
     defer tl_output_to_clip_media.deinit(allocator);
     

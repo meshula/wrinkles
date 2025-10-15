@@ -340,14 +340,24 @@ pub fn projection_map_to_media_from_leaky(
         .destination = source,
     };
 
-    var cache: temporal_hierarchy.OperatorCache = .empty;
-
     const space_nodes = map.space_nodes.slice();
+
+    const cache = (
+        try temporal_hierarchy.SingleSourceTopologyCache.init(
+            allocator,
+            map,
+        )
+    );
+    defer cache.deinit(allocator);
+
     for (space_nodes.items(.label), 0..)
         |label, index|
     {
-        // skip all spaces that are not media spaces
-        if (label != .media) {
+        if (
+            // skip all spaces that are not media spaces
+            label != .media
+            ) 
+        {
             continue;
         }
 
@@ -358,7 +368,7 @@ pub fn projection_map_to_media_from_leaky(
                 allocator,
                 map,
                 proj_args,
-                &cache,
+                cache,
             )
         );
 
@@ -447,6 +457,8 @@ test "ProjectionOperatorMap: projection_map_to_media_from leak test"
         ).ordinate(),
     );
 }
+
+// @TODO: remove ProjectionOperatorMap
 
 /// maps a timeline to sets of projection operators, one set per temporal slice
 pub const ProjectionOperatorMap = struct {
@@ -1110,7 +1122,12 @@ test "ProjectionOperatorMap: clip"
     try std.testing.expectEqual(1, cl_presentation_pmap.operators.len);
     try std.testing.expectEqual(2, cl_presentation_pmap.end_points.len);
 
-    var cache: temporal_hierarchy.OperatorCache = .empty;
+    const cache = (
+        try temporal_hierarchy.SingleSourceTopologyCache.init(
+            allocator,
+            map,
+        )
+    );
     defer cache.deinit(allocator);
 
     const known_presentation_to_media = (
@@ -1121,7 +1138,7 @@ test "ProjectionOperatorMap: clip"
                 .source = try cl_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
             },
-            &cache,
+            cache,
         )
     );
     defer known_presentation_to_media.deinit(allocator);
@@ -1210,8 +1227,13 @@ test "ProjectionOperatorMap: track with single clip"
         try std.testing.expectEqual(1, projection_operator_map.operators.len);
         try std.testing.expectEqual(2, projection_operator_map.end_points.len);
 
-        var cache: temporal_hierarchy.OperatorCache = .empty;
-        defer cache.deinit(allocator);
+    const cache = (
+        try temporal_hierarchy.SingleSourceTopologyCache.init(
+            allocator,
+            map,
+        )
+    );
+    defer cache.deinit(allocator);
 
         const known_presentation_to_media = try temporal_hierarchy.build_projection_operator(
             allocator,
@@ -1220,7 +1242,7 @@ test "ProjectionOperatorMap: track with single clip"
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
             },
-            &cache,
+            cache,
         );
         defer known_presentation_to_media.deinit(allocator);
         const known_input_bounds = (
@@ -1392,8 +1414,13 @@ test "transform: track with two clips"
         );
         defer xform.deinit(allocator);
 
-        var cache: temporal_hierarchy.OperatorCache = .empty;
-        defer cache.deinit(allocator);
+    const cache = (
+        try temporal_hierarchy.SingleSourceTopologyCache.init(
+            allocator,
+            map,
+        )
+    );
+    defer cache.deinit(allocator);
 
         const po = try temporal_hierarchy.build_projection_operator(
             allocator,
@@ -1402,7 +1429,7 @@ test "transform: track with two clips"
                 .source = try cl2_ref.space(.presentation),
                 .destination = try cl2_ref.space(.media),
             },
-            &cache,
+            cache,
         );
         defer po.deinit(allocator);
         const result = try topology_m.join(
@@ -1419,8 +1446,13 @@ test "transform: track with two clips"
     }
 
     {
-        var cache: temporal_hierarchy.OperatorCache = .empty;
-        defer cache.deinit(allocator);
+    const cache = (
+        try temporal_hierarchy.SingleSourceTopologyCache.init(
+            allocator,
+            map,
+        )
+    );
+    defer cache.deinit(allocator);
 
         const xform = try temporal_hierarchy.build_projection_operator(
             allocator,
@@ -1429,7 +1461,7 @@ test "transform: track with two clips"
                 .source = track_presentation_space,
                 .destination = try cl2_ref.space(.media),
             },
-            &cache,
+            cache,
         );
         defer xform.deinit(allocator);
         const b = xform.src_to_dst_topo.input_bounds();
@@ -1507,7 +1539,12 @@ test "ProjectionOperatorMap: track with two clips"
     );
     try std.testing.expectEqual(2, p_o_map.operators.len);
 
-    var cache: temporal_hierarchy.OperatorCache = .empty;
+    const cache = (
+        try temporal_hierarchy.SingleSourceTopologyCache.init(
+            allocator,
+            map,
+        )
+    );
     defer cache.deinit(allocator);
 
     const known_presentation_to_media = (
@@ -1518,7 +1555,7 @@ test "ProjectionOperatorMap: track with two clips"
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
             },
-            &cache,
+            cache,
         )
     );
     defer known_presentation_to_media.deinit(allocator);
@@ -1599,7 +1636,12 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
     );
     try std.testing.expectEqual(3, p_o_map.operators.len);
 
-    var cache: temporal_hierarchy.OperatorCache = .empty;
+    const cache = (
+        try temporal_hierarchy.SingleSourceTopologyCache.init(
+            allocator,
+            map,
+        )
+    );
     defer cache.deinit(allocator);
 
     const known_presentation_to_media = (
@@ -1610,7 +1652,7 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
                 .source = try tr_ptr.space(.presentation),
                 .destination = try cl_ptr.space(.media),
             },
-            &cache,
+            cache,
         )
     );
     defer known_presentation_to_media.deinit(allocator);
@@ -1671,7 +1713,12 @@ test "Projection: schema.Track with single clip with identity transform and boun
         map.map_space_to_path_index.count()
     );
 
-    var cache: temporal_hierarchy.OperatorCache = .empty;
+    const cache = (
+        try temporal_hierarchy.SingleSourceTopologyCache.init(
+            allocator,
+            map,
+        )
+    );
     defer cache.deinit(allocator);
 
     const root_presentation_to_clip_media = try temporal_hierarchy.build_projection_operator(
@@ -1681,7 +1728,7 @@ test "Projection: schema.Track with single clip with identity transform and boun
             .source = try root.space(references.SpaceLabel.presentation),
             .destination = try clip.space(references.SpaceLabel.media),
         },
-        &cache,
+        cache,
     );
     defer root_presentation_to_clip_media.deinit(allocator);
 
@@ -1755,8 +1802,13 @@ test "Projection: schema.Track 3 bounded clips identity xform"
 
     // check that the child transform is correctly built
     {
-        var cache: temporal_hierarchy.OperatorCache = .empty;
-        defer cache.deinit(allocator);
+    const cache = (
+        try temporal_hierarchy.SingleSourceTopologyCache.init(
+            allocator,
+            map,
+        )
+    );
+    defer cache.deinit(allocator);
 
         const po = try temporal_hierarchy.build_projection_operator(
             allocator,
@@ -1767,7 +1819,7 @@ test "Projection: schema.Track 3 bounded clips identity xform"
                     try cl2_ref.space(.media)
                 ),
             },
-            &cache,
+            cache,
         );
         defer po.deinit(std.testing.allocator);
 
@@ -1845,8 +1897,13 @@ test "Projection: schema.Track 3 bounded clips identity xform"
     {
         const child = tr.children[t.index];
 
-        var cache: temporal_hierarchy.OperatorCache = .empty;
-        defer cache.deinit(allocator);
+    const cache = (
+        try temporal_hierarchy.SingleSourceTopologyCache.init(
+            allocator,
+            map,
+        )
+    );
+    defer cache.deinit(allocator);
 
         const tr_presentation_to_clip_media = try temporal_hierarchy.build_projection_operator(
         allocator,
@@ -1855,7 +1912,7 @@ test "Projection: schema.Track 3 bounded clips identity xform"
                 .source = try track_ptr.space(references.SpaceLabel.presentation),
                 .destination = try child.space(references.SpaceLabel.media),
             },
-            &cache,
+            cache,
         );
         defer tr_presentation_to_clip_media.deinit(allocator);
 
@@ -1888,7 +1945,12 @@ test "Projection: schema.Track 3 bounded clips identity xform"
 
     const clip = tr.children[0];
 
-    var cache: temporal_hierarchy.OperatorCache = .empty;
+    const cache = (
+        try temporal_hierarchy.SingleSourceTopologyCache.init(
+            allocator,
+            map,
+        )
+    );
     defer cache.deinit(allocator);
 
     const root_presentation_to_clip_media = try temporal_hierarchy.build_projection_operator(
@@ -1898,7 +1960,7 @@ test "Projection: schema.Track 3 bounded clips identity xform"
             .source = try track_ptr.space(references.SpaceLabel.presentation),
             .destination = try clip.space(references.SpaceLabel.media),
         },
-        &cache,
+        cache,
     );
     defer root_presentation_to_clip_media.deinit(allocator);
 
@@ -2022,8 +2084,13 @@ test "Single schema.Clip bezier transform"
 
     // presentation->media (forward projection)
     {
-        var cache: temporal_hierarchy.OperatorCache = .empty;
-        defer cache.deinit(allocator);
+    const cache = (
+        try temporal_hierarchy.SingleSourceTopologyCache.init(
+            allocator,
+            map,
+        )
+    );
+    defer cache.deinit(allocator);
 
         const clip_presentation_to_media_proj = (
             try temporal_hierarchy.build_projection_operator(
@@ -2033,7 +2100,7 @@ test "Single schema.Clip bezier transform"
                     .source =  try wp_ptr.space(references.SpaceLabel.presentation),
                     .destination = try cl_ptr.space(references.SpaceLabel.media),
                 },
-                &cache,
+                cache,
             )
         );
         defer clip_presentation_to_media_proj.deinit(allocator);
@@ -2140,8 +2207,13 @@ test "Single schema.Clip bezier transform"
 
     // media->presentation (reverse projection)
     {
-        var cache: temporal_hierarchy.OperatorCache = .empty;
-        defer cache.deinit(allocator);
+    const cache = (
+        try temporal_hierarchy.SingleSourceTopologyCache.init(
+            allocator,
+            map,
+        )
+    );
+    defer cache.deinit(allocator);
 
         const clip_media_to_presentation = (
             try temporal_hierarchy.build_projection_operator(
@@ -2151,7 +2223,7 @@ test "Single schema.Clip bezier transform"
                     .source =  try cl_ptr.space(references.SpaceLabel.media),
                     .destination = try wp_ptr.space(references.SpaceLabel.presentation),
                 },
-                &cache,
+                cache,
             )
         );
         defer clip_media_to_presentation.deinit(allocator);
@@ -2231,7 +2303,12 @@ test "otio projection: track with single clip"
         .{},
     );
 
-    var cache: temporal_hierarchy.OperatorCache = .empty;
+    const cache = (
+        try temporal_hierarchy.SingleSourceTopologyCache.init(
+            allocator,
+            map,
+        )
+    );
     defer cache.deinit(allocator);
 
     const track_to_media = (
@@ -2243,7 +2320,7 @@ test "otio projection: track with single clip"
                 // does the discrete / continuous need to be disambiguated?
                 .destination = try cl_ptr.space(references.SpaceLabel.media),
             },
-            &cache,
+            cache,
         )
     );
     defer track_to_media.deinit(allocator);
@@ -2450,7 +2527,12 @@ test "otio projection: track with single clip with transform"
         .{},
     );
 
-    var cache_tr: temporal_hierarchy.OperatorCache = .empty;
+    const cache_tr = (
+        try temporal_hierarchy.SingleSourceTopologyCache.init(
+            allocator,
+            map_tr,
+        )
+    );
     defer cache_tr.deinit(allocator);
 
     const track_to_media = (
@@ -2462,7 +2544,7 @@ test "otio projection: track with single clip with transform"
                 // does the discrete / continuous need to be disambiguated?
                 .destination = try cl_ptr.space(.media),
             },
-            &cache_tr,
+            cache_tr,
         )
     );
     defer track_to_media.deinit(allocator);
@@ -2574,8 +2656,13 @@ test "otio projection: track with single clip with transform"
                 .{},
             );
 
-            var cache: temporal_hierarchy.OperatorCache = .empty;
-            defer cache.deinit(allocator);
+    const cache = (
+        try temporal_hierarchy.SingleSourceTopologyCache.init(
+            allocator,
+            map_tl,
+        )
+    );
+    defer cache.deinit(allocator);
 
             const timeline_to_media = (
                 try temporal_hierarchy.build_projection_operator(
@@ -2586,7 +2673,7 @@ test "otio projection: track with single clip with transform"
                         // does the discrete / continuous need to be disambiguated?
                         .destination = try cl_ptr.space(.media),
                     },
-                    &cache,
+                    cache,
                 )
             );
             defer timeline_to_media.deinit(allocator);
@@ -2770,8 +2857,13 @@ test "Single clip, schema.Warp bulk"
 
         // presentation->media (forward projection)
         {
-            var cache: temporal_hierarchy.OperatorCache = .empty;
-            defer cache.deinit(allocator);
+    const cache = (
+        try temporal_hierarchy.SingleSourceTopologyCache.init(
+            allocator,
+            map,
+        )
+    );
+    defer cache.deinit(allocator);
 
             const warp_pres_to_media_topo = (
                 try temporal_hierarchy.build_projection_operator(
@@ -2781,7 +2873,7 @@ test "Single clip, schema.Warp bulk"
                         .source =  wp_pres,
                         .destination = cl_media,
                     },
-                    &cache,
+                    cache,
                 )
             );
             defer warp_pres_to_media_topo.deinit(allocator);
@@ -2831,8 +2923,13 @@ test "Single clip, schema.Warp bulk"
 
         // media->presentation (reverse projection)
         {
-            var cache: temporal_hierarchy.OperatorCache = .empty;
-            defer cache.deinit(allocator);
+    const cache = (
+        try temporal_hierarchy.SingleSourceTopologyCache.init(
+            allocator,
+            map,
+        )
+    );
+    defer cache.deinit(allocator);
 
             const clip_media_to_presentation = (
                 try temporal_hierarchy.build_projection_operator(
@@ -2842,7 +2939,7 @@ test "Single clip, schema.Warp bulk"
                         .source =  cl_media,
                         .destination = wp_pres,
                     },
-                    &cache,
+                    cache,
                 )
             );
             defer clip_media_to_presentation.deinit(allocator);
@@ -2932,16 +3029,22 @@ pub fn ReferenceTopology(
             const vertex_kind = enum(u1) { start, end };
 
             // to sort and split the intervals
-            var vertices : std.MultiArrayList(
+            var vertices_builder : std.MultiArrayList(
                 struct{ 
                     ordinate: opentime.Ordinate,
                     interval_index: NodeIndex,
                     kind: vertex_kind,
                 },
             ) = .empty;
-            defer vertices.deinit(allocator_arena);
+            defer vertices_builder.deinit(allocator_arena);
 
-            var cache: temporal_hierarchy.OperatorCache = .empty;
+            const cache = (
+                try temporal_hierarchy.SingleSourceTopologyCache.init(
+                    allocator_arena,
+                    temporal_map,
+                )
+            );
+            defer cache.deinit(allocator_arena);
 
             // Gather up all the operators and intervals
             /////////////
@@ -2979,7 +3082,7 @@ pub fn ReferenceTopology(
                         allocator_arena,
                         temporal_map,
                         proj_args,
-                        &cache,
+                        cache,
                     )
                 );
 
