@@ -54,6 +54,7 @@ fn walk_child_spaces(
     defer allocator.free(children_ptrs);
 
     var last_index = parent_index;
+    var last_code = parent_code;
 
     try otio_object_stack.ensureUnusedCapacity(allocator, children_ptrs.len);
     try map.ensure_unused_capacity(
@@ -69,10 +70,11 @@ fn walk_child_spaces(
         const child_wrapper_space_code_ptr = (
             try sequential_child_code_leaky(
                 allocator,
-                parent_code,
-                index,
+                last_code,
+                0,
             )
         );
+        last_code = child_wrapper_space_code_ptr;
 
         // insert the child scope of the parent
         const space_ref = references.SpaceReference{
@@ -174,8 +176,8 @@ fn walk_internal_spaces(
             if (index > 0) (
                 try depth_child_code_leaky(
                     allocator,
-                    parent_code,
-                    index,
+                    last_space_code,
+                    1,
                 )
             ) else parent_code
         );
