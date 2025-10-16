@@ -94,6 +94,7 @@ temporal hierarchies of editorial documents.
 
 ## Todo List (10/9/25)
 
+* [x] optimize generating the ProjectionOperatorMap for large otio files
 * [ ] Can Projection Operator go away?
 * [ ] Can the Projection Operator map get melded in with Topology, omitting 
       both the Projection Operator and Operator Map?
