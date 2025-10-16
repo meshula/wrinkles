@@ -8,8 +8,13 @@ const mapping_mod = @import("mapping.zig");
 /// An affine mapping from intput to output
 pub const MappingAffine = struct {
     /// defaults to an infinite identity
-    input_bounds_val: opentime.ContinuousInterval = .INF,
-    input_to_output_xform: opentime.AffineTransform1D = .IDENTITY, 
+    input_bounds_val: opentime.ContinuousInterval,
+    input_to_output_xform: opentime.AffineTransform1D, 
+
+    pub const INFINITE_IDENTITY: MappingAffine = .{
+        .input_bounds_val= .INF,
+        .input_to_output_xform= .IDENTITY, 
+    };
 
     pub fn mapping(
         self: @This(),
@@ -129,12 +134,10 @@ pub const MappingAffine = struct {
 
     pub fn split_at_input_point(
         self: @This(),
-        allocator: std.mem.Allocator,
+        _: std.mem.Allocator,
         pt_input: opentime.Ordinate,
     ) ![2]mapping_mod.Mapping
     {
-        _ = allocator;
-
         return .{
             .{ 
                 .affine = .{
@@ -231,7 +234,7 @@ pub const MappingAffine = struct {
 
 test "MappingAffine: instantiate (identity)"
 {
-    const ma = (MappingAffine{}).mapping();
+    const ma = MappingAffine.INFINITE_IDENTITY.mapping();
 
     try opentime.expectOrdinateEqual(
         12, 

@@ -34,11 +34,8 @@ pub const Mapping = union (enum) {
     // bezier: mapping_curve_bezier.MappingCurveBezier,
 
     pub const INFINITE_IDENTITY = (
-        MappingAffine{
-            .input_bounds_val = opentime.ContinuousInterval.INF,
-            .input_to_output_xform = opentime.AffineTransform1D.IDENTITY,
-        }
-    ).mapping();
+        MappingAffine.INFINITE_IDENTITY.mapping()
+    );
     pub const EMPTY_INF = mapping_empty.EMPTY_INF.mapping();
 
     pub fn deinit(
