@@ -468,14 +468,13 @@ test "libsamplerate w/ high level test.retime.interpolating"
     // new for this test - add in an warp on the clip
     var wp: otio.Warp = .{
         .child = cl_ptr,
-        .transform = try topology.Topology.init_affine(
-            allocator,
+        .transform = topology.Topology.init_affine(
             .{
                 .input_to_output_xform = T_AFF_N1_2,
+                .input_bounds_val = .INF,
             },
         )
     };
-    defer wp.transform.deinit(allocator);
 
     var track_children = [_]otio.ComposedValueRef{
         otio.ComposedValueRef.init(&wp),
@@ -620,10 +619,10 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
 
     var warp = otio.Warp{
         .child = cl_ptr,
-        .transform = try topology.Topology.init_affine(
-            allocator,
+        .transform = topology.Topology.init_affine(
             .{
                 .input_to_output_xform = T_AFF_N1_2,
+                .input_bounds_val = .INF,
             }
         )
     };

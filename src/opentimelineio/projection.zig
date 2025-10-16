@@ -180,8 +180,7 @@ pub const ProjectionOperator = struct {
     {
         // build a topology over the range in the source space
         const topology_in_source = (
-            try topology_m.Topology.init_affine(
-                allocator,
+            topology_m.Topology.init_affine(
                 .{ 
                     .input_to_output_xform = .{ 
                         .offset = range_in_source.start,
@@ -194,7 +193,6 @@ pub const ProjectionOperator = struct {
                 }
             )
         );
-        defer topology_in_source.deinit(allocator);
 
         return try self.project_topology_cc(
             allocator,
@@ -212,14 +210,13 @@ pub const ProjectionOperator = struct {
         // the range is bounding the source repo.  Therefore the topology is an
         // identity that is bounded 
         const in_to_source_topo = (
-            try topology_m.Topology.init_affine(
-                allocator,
+            topology_m.Topology.init_affine(
                 .{ 
+                    .input_to_output_xform = .IDENTITY,
                     .input_bounds_val = range_in_source,
                 }
             )
         );
-        defer in_to_source_topo.deinit(allocator);
 
         return try self.project_topology_cd(
             allocator,
@@ -1292,8 +1289,7 @@ test "projection.ProjectionOperator: clone"
 {
     const allocator = std.testing.allocator;
 
-    const aff1 = try topology_m.Topology.init_affine(
-        allocator,
+    const aff1 = topology_m.Topology.init_affine(
         .{
             .input_bounds_val = .{
                 .start = opentime.Ordinate.init(0),
@@ -1304,7 +1300,6 @@ test "projection.ProjectionOperator: clone"
             },
         },
     );
-    defer aff1.deinit(allocator);
 
     var cl = schema.Clip{};
     const cl_ptr = references.ComposedValueRef.init(&cl);
@@ -1335,8 +1330,7 @@ test "ProjectionOperatorMap: clone"
     const cl_ptr = references.ComposedValueRef{ 
         .clip = &cl 
     };
-    const aff1 = try topology_m.Topology.init_affine(
-        allocator,
+    const aff1 = topology_m.Topology.init_affine(
         .{
             .input_bounds_val = .{
                 .start = opentime.Ordinate.init(0),
@@ -1401,8 +1395,7 @@ test "transform: track with two clips"
     const track_presentation_space = tr_ptr.space(.presentation);
 
     {
-        const xform = try topology_m.Topology.init_affine(
-            allocator,
+        const xform = topology_m.Topology.init_affine(
             .{
                 .input_bounds_val = .{
                     .start = opentime.Ordinate.init(8),
@@ -1412,15 +1405,14 @@ test "transform: track with two clips"
                 },
             }
         );
-        defer xform.deinit(allocator);
 
-    const cache = (
-        try temporal_hierarchy.SingleSourceTopologyCache.init(
-            allocator,
-            map,
-        )
-    );
-    defer cache.deinit(allocator);
+        const cache = (
+            try temporal_hierarchy.SingleSourceTopologyCache.init(
+                allocator,
+                map,
+            )
+        );
+        defer cache.deinit(allocator);
 
         const po = try temporal_hierarchy.build_projection_operator(
             allocator,
@@ -2471,12 +2463,12 @@ test "otio projection: track with single clip with transform"
 
     var wp : schema.Warp = .{
         .child = cl_ptr,
-        .transform = try topology_m.Topology.init_affine(
-            allocator,
+        .transform = topology_m.Topology.init_affine(
             .{
                 .input_to_output_xform = .{
                     .scale = opentime.Ordinate.init(2),
                 },
+                .input_bounds_val = .INF,
             },
         ),
     };
@@ -2856,13 +2848,13 @@ test "Single clip, schema.Warp bulk"
 
         // presentation->media (forward projection)
         {
-    const cache = (
-        try temporal_hierarchy.SingleSourceTopologyCache.init(
-            allocator,
-            map,
-        )
-    );
-    defer cache.deinit(allocator);
+            const cache = (
+                try temporal_hierarchy.SingleSourceTopologyCache.init(
+                    allocator,
+                    map,
+                )
+            );
+            defer cache.deinit(allocator);
 
             const warp_pres_to_media_topo = (
                 try temporal_hierarchy.build_projection_operator(
@@ -2922,13 +2914,13 @@ test "Single clip, schema.Warp bulk"
 
         // media->presentation (reverse projection)
         {
-    const cache = (
-        try temporal_hierarchy.SingleSourceTopologyCache.init(
-            allocator,
-            map,
-        )
-    );
-    defer cache.deinit(allocator);
+            const cache = (
+                try temporal_hierarchy.SingleSourceTopologyCache.init(
+                    allocator,
+                    map,
+                )
+            );
+            defer cache.deinit(allocator);
 
             const clip_media_to_presentation = (
                 try temporal_hierarchy.build_projection_operator(

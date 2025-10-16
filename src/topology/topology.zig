@@ -99,15 +99,11 @@ pub const Topology = struct {
     }
 
     pub fn init_affine(
-        allocator: std.mem.Allocator,
         aff: mapping.MappingAffine,
-    ) !Topology
+    ) Topology
     {
         return Topology{
-            .mappings = try allocator.dupe(
-                mapping.Mapping,
-                &.{ aff.mapping() }
-            )
+            .mappings = &.{ aff.mapping() }
         };
     }
 
@@ -142,6 +138,7 @@ pub const Topology = struct {
                     (
                      mapping.MappingAffine{
                          .input_bounds_val = range,
+                         .input_to_output_xform = .IDENTITY,
                      }
                     ).mapping(),
                 },
@@ -2303,10 +2300,7 @@ test "Topology: project_instantaneous_cc and project_instantaneous_cc_inv"
 
 test "Topology: init_affine"
 {
-    const allocator = std.testing.allocator;
-
-    const t_aff = try Topology.init_affine(
-        allocator,
+    const t_aff = Topology.init_affine(
         .{
             .input_bounds_val = (
                 opentime.ContinuousInterval.init(
@@ -2319,7 +2313,6 @@ test "Topology: init_affine"
             },
         },
     );
-    defer t_aff.deinit(allocator);
 
     try opentime.expectOrdinateEqual(
         20,
@@ -2338,8 +2331,7 @@ test "Topology: join affine with affine"
     );
     defer ident.deinit(allocator);
 
-    const aff1 = try Topology.init_affine(
-        allocator,
+    const aff1 = Topology.init_affine(
         .{
             .input_bounds_val = (
                 opentime.ContinuousInterval.init(
@@ -2351,7 +2343,6 @@ test "Topology: join affine with affine"
             },
         },
     );
-    defer aff1.deinit(allocator);
 
     const result = try join(
         allocator,
