@@ -152,12 +152,11 @@ pub const Topology = struct {
     ) !Topology
     {
         return .{
-            .mappings = try allocator.dupe(mapping.Mapping,
+            .mappings = try allocator.dupe(
+                mapping.Mapping,
                 &.{
-                    (
-                     mapping.MappingAffine{}
-                    ).mapping(),
-                }
+                     mapping.MappingAffine.INFINITE_IDENTITY.mapping(),
+                },
             ),
         };
     }

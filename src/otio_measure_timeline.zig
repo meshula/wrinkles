@@ -175,6 +175,11 @@ pub fn main(
             items += child.track.children.len;
         }
 
+        tl.discrete_info.presentation = .{
+            .sample_rate_hz = .{ .Int = 24 },
+            .start_index = 86400,
+        };
+
         std.debug.print("Total items: {d}\n", .{items});
 
         const intervals = projection_topo.intervals.items(
@@ -187,17 +192,71 @@ pub fn main(
         };
 
         std.debug.print(
-            "\n\nTotal timeline interval: {f}\n",
-            .{interval},
+            "\n\nTotal timeline interval: {f} indices: [{d}, {d}]\n",
+            .{
+                interval,
+                try tl_ref.continuous_ordinate_to_discrete_index(
+                    interval.start, 
+                    .presentation,
+                ),
+                try tl_ref.continuous_ordinate_to_discrete_index(
+                    interval.end,
+                    .presentation
+                ) - 1,
+            },
         );
-
-        const first_m = projection_topo.mappings.items(.mapping)[0];
-
-        std.debug.print("first m: {f}\n", .{ first_m });
 
         std.debug.print(
-            "\n",
+            "Intervals mapping (showing intervals 0-10):\n",
             .{},
         );
+        for (0..@min(10, projection_topo.intervals.len))
+            |ind|
+        {
+            const first_interval_mapping = (
+                projection_topo.intervals.get(ind)
+            );
+            std.debug.print(
+                "  Presentation Space Range: {f} (index: [{d}, {d}])\n",
+                .{
+                    first_interval_mapping.input_bounds,
+                    try tl_ref.continuous_ordinate_to_discrete_index(
+                        first_interval_mapping.input_bounds.start, 
+                        .presentation,
+                    ),
+                    try tl_ref.continuous_ordinate_to_discrete_index(
+                        first_interval_mapping.input_bounds.end,
+                        .presentation
+                    ) - 1,
+                }
+            );
+            for (first_interval_mapping.mapping_index)
+                |mapping_ind|
+            {
+                const mapping = projection_topo.mappings.get(
+                    mapping_ind
+                );
+                const output_bounds = mapping.mapping.output_bounds();
+                const destination = temporal_map.space_nodes.get(
+                    mapping.destination
+                );
+
+                std.debug.print(
+                    "    -> {f} | {f} ([{d}, {d}]\n",
+                    .{
+                        destination,
+                        output_bounds,
+                        try destination.ref.continuous_ordinate_to_discrete_index(
+                            output_bounds.start, 
+                            .media,
+                        ),
+                        try destination.ref.continuous_ordinate_to_discrete_index(
+                            output_bounds.end,
+                            .media
+                        ) - 1,
+                    }
+                );
+            }
+        }
     }
 }

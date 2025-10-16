@@ -3380,14 +3380,24 @@ test "ReferenceTopology: init_from_reference"
     const allocator = std.testing.allocator;
 
     var cl = schema.Clip {
+        .name = "clip1",
         .bounds_s = test_data.T_INT_1_TO_9,
     };
     const cl_ptr = cl.reference();
+    cl.media.discrete_info = .{
+        .sample_rate_hz = .{ .Int = 24 },
+        .start_index = 86400,
+    };
 
     var cl2 = schema.Clip {
+        .name = "clip2",
         .bounds_s = test_data.T_INT_1_TO_9,
     };
     const cl2_ptr = cl2.reference();
+    cl2.media.discrete_info = .{
+        .sample_rate_hz = .{ .Int = 30 },
+        .start_index = 0,
+    };
 
     var tr_children: [2]references.ComposedValueRef = .{cl_ptr, cl2_ptr};
     var tr1 = schema.Track {
@@ -3396,40 +3406,170 @@ test "ReferenceTopology: init_from_reference"
     const tr1_ptr = tr1.reference();
 
     var cl3 = schema.Clip {
-        .bounds_s = test_data.T_INT_1_TO_4,
+        .name = "clip3_warped",
+        .bounds_s = test_data.T_INT_1_TO_9,
+    };
+    cl3.media.discrete_info = .{
+        .sample_rate_hz = .{ .Int = 24 },
+        .start_index = 0,
     };
     const cl3_ptr = cl3.reference();
-    var tr2_children: [1]references.ComposedValueRef = .{cl3_ptr};
+    var wp1 = schema.Warp {
+        .name = "Warp on Clip3",
+        .child = cl3_ptr,
+        .transform = .{
+            .mappings = &.{ 
+                (
+                 topology_m.mapping.MappingAffine{
+                     .input_to_output_xform = .{
+                         .scale = opentime.Ordinate.init(3),
+                     },
+                     .input_bounds_val = .INF,
+                 }
+                ).mapping(),
+            },
+        },
+    };
+    const wp_ref = wp1.reference();
+    var tr2_children: [1]references.ComposedValueRef = .{wp_ref};
     var tr2 = schema.Track {
         .children = &tr2_children,
     };
     const tr2_ptr = tr2.reference();
 
     var st_children: [2]references.ComposedValueRef = .{ tr1_ptr, tr2_ptr };
-    var st = schema.Stack {
-        .children = &st_children,
+    var tl = schema.Timeline {
+        .tracks = .{
+            .children = &st_children,
+        },
     };
-    const st_ptr = st.reference();
+    const tl_ref = tl.reference();
 
     const map = try temporal_hierarchy.build_temporal_map(
         allocator,
-        st_ptr,
+        tl_ref,
     );
     defer map.deinit(allocator);
 
-    var cl_presentation_pmap = (
+    var projection_topo = (
         try ProjectionTopology.init_from_reference(
             allocator,
             map,
-            st_ptr.space(.presentation),
+            tl_ref.space(.presentation),
         )
     );
-    defer cl_presentation_pmap.deinit(allocator);
+    defer projection_topo.deinit(allocator);
 
     std.debug.print("Mappings:\n", .{});
-    for (cl_presentation_pmap.mappings.items(.mapping), 0..)
+    for (projection_topo.mappings.items(.mapping), 0..)
         |m, ind|
     {
         std.debug.print("  {d}: {f}\n", .{ind, m});
+    }
+
+    std.debug.print("Tracks: {d}\n", .{tl.tracks.children.len});
+    var items: usize = 0;
+    for (tl.tracks.children, 0..)
+        |child, ind|
+    {
+        std.debug.print(
+            "  Track [{d}]: {d} items\n",
+            .{ind, child.track.children.len},
+        );
+        items += child.track.children.len;
+        for (child.track.children)
+            |tc|
+        {
+            std.debug.print("    {f}\n", .{tc});
+        }
+    }
+
+    tl.discrete_info.presentation = .{
+        .sample_rate_hz = .{ .Int = 24 },
+        .start_index = 86400,
+    };
+
+    std.debug.print("Total items: {d}\n", .{items});
+
+    const intervals = projection_topo.intervals.items(
+        .input_bounds
+    );
+
+    const interval:opentime.ContinuousInterval = .{
+        .start = intervals[0].start,
+        .end = intervals[intervals.len - 1].end,
+    };
+
+    std.debug.print(
+        "\n\nTotal timeline interval: {f} indices: [{d}, {d}]\n",
+        .{
+            interval,
+            try tl_ref.continuous_ordinate_to_discrete_index(
+                interval.start, 
+                .presentation,
+            ),
+            try tl_ref.continuous_ordinate_to_discrete_index(
+                interval.end,
+                .presentation
+            ) - 1,
+        },
+    );
+
+    std.debug.print(
+        "Intervals mapping (showing intervals 0-10):\n",
+        .{},
+    );
+    for (0..@min(10, projection_topo.intervals.len))
+        |ind|
+    {
+        const first_interval_mapping = (
+            projection_topo.intervals.get(ind)
+        );
+        std.debug.print(
+            "  Presentation Space Range: {f} (index: [{d}, {d}])\n",
+            .{
+                first_interval_mapping.input_bounds,
+                try tl_ref.continuous_ordinate_to_discrete_index(
+                    first_interval_mapping.input_bounds.start, 
+                    .presentation,
+                ),
+                try tl_ref.continuous_ordinate_to_discrete_index(
+                    first_interval_mapping.input_bounds.end,
+                    .presentation
+                ) - 1,
+            }
+        );
+        for (first_interval_mapping.mapping_index)
+            |mapping_ind|
+            {
+                const mapping = projection_topo.mappings.get(
+                    mapping_ind
+                );
+                const output_bounds = mapping.mapping.output_bounds();
+                const destination = map.space_nodes.get(
+                    mapping.destination
+                );
+
+                const start_ind = try destination.ref.continuous_ordinate_to_discrete_index(
+                    output_bounds.start, 
+                    .media,
+                );
+
+                const end_ind_inc = try destination.ref.continuous_ordinate_to_discrete_index(
+                    output_bounds.end,
+                    .media
+                ) - 1;
+
+                std.debug.print(
+                    "    -> {f} | {f} ([{d}, {d}] / {d} samples)\n",
+                    .{
+                        destination,
+                        output_bounds,
+                        start_ind,
+                        end_ind_inc,
+                        end_ind_inc-start_ind,
+                    }
+                );
+            }
     }
 }
