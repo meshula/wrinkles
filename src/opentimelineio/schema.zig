@@ -226,6 +226,13 @@ pub const Warp = struct {
     pub const internal_spaces: []const references.SpaceLabel = (
         &.{ .presentation }
     );
+
+    pub fn reference(
+        self: *@This(),
+    ) references.ComposedValueRef
+    {
+        return .{ .warp = self };
+    }
 };
 
 /// a container in which each contained item is right-met over time
@@ -501,6 +508,13 @@ pub const Timeline = struct {
     ) !topology_m.Topology
     {
         return try self.tracks.topology(allocator);
+    }
+
+    pub fn reference(
+        self: *@This(),
+    ) references.ComposedValueRef
+    {
+        return .{ .timeline = self };
     }
 };
 

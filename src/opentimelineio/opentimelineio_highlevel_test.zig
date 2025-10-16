@@ -36,10 +36,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         .sample_rate_hz = .{ .Int = 24 },
         .start_index = 86400,
     };
-
-    const tl_ptr = otio.ComposedValueRef{
-        .timeline = &tl 
-    };
+    const tl_ptr = tl.reference();
 
     // track
     var tr: otio.Track = .{};
