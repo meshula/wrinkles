@@ -416,6 +416,13 @@ pub const ComposedValueRef = union(enum) {
         return error.NoDiscreteInfoForSpace;
     }
    
+    /// Continuous to discrete transformation for the given space on the
+    /// referred object .
+    ///
+    /// EG: given in_space .presentation, builds the continuous-to-discrete
+    /// topology for transforming from the continuous presentation space to the
+    /// discrete presentation space.  This would, for example,give the sample
+    /// indices for ordinates and intervals in this space.
     pub fn continuous_to_discrete_topology(
         self: @This(),
         allocator: std.mem.Allocator,

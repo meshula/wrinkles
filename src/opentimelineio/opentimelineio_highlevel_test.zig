@@ -206,7 +206,8 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     {
         if  (PRINT_DEMO_OUTPUT)
         {
-            opentime.dbg_print(@src(),
+            opentime.dbg_print(
+                @src(),
                 "  presentation space:\n    interval: [{d}, {d})\n",
                 .{ p0, p1 },
             );
@@ -216,7 +217,8 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         {
             if (PRINT_DEMO_OUTPUT)
             {
-                opentime.dbg_print(@src(),
+                opentime.dbg_print(
+                    @src(),
                     "    Topology\n      presentation:  {any}\n"
                     ++ "      media: {any}\n",
                     .{
@@ -230,7 +232,8 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             ).?;
             if (PRINT_DEMO_OUTPUT)
             {
-                opentime.dbg_print(@src(),
+                opentime.dbg_print(
+                    @src(),
                     "    Discrete Info:\n      sampling rate: {d}\n"
                     ++ "      start index: {d}\n",
                     .{
