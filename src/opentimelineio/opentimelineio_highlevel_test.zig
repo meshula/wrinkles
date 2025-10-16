@@ -1056,12 +1056,7 @@ test "timeline w/ warp that holds the tenth frame"
             tr_ptr.track.children[0].warp.transform
         );
         
-        const ident = (
-            try topology.Topology.init_identity_infinite(
-                allocator
-            )
-        );
-        defer ident.deinit(allocator);
+        const ident:topology.Topology = .INFINITE_IDENTITY;
 
         const test_result = try topology.join(
             std.testing.allocator,

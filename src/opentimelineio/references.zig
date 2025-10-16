@@ -244,16 +244,8 @@ pub const ComposedValueRef = union(enum) {
         return switch (self) {
             .track => |*tr| {
                 switch (from_space) {
-                    SpaceLabel.presentation => (
-                        return try topology_m.Topology.init_identity_infinite(
-                            allocator
-                        )
-                    ),
-                    SpaceLabel.intrinsic => (
-                        return try topology_m.Topology.init_identity_infinite(
-                            allocator
-                        )
-                    ),
+                    SpaceLabel.presentation => return .INFINITE_IDENTITY,
+                    SpaceLabel.intrinsic => return .INFINITE_IDENTITY,
                     SpaceLabel.child => {
                         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
                             opentime.dbg_print(@src(), "     CHILD STEP: {b}\n", .{ step});
@@ -261,11 +253,7 @@ pub const ComposedValueRef = union(enum) {
 
                         // no further transformation INTO the child
                         if (step == .left) {
-                            return (
-                                try topology_m.Topology.init_identity_infinite(
-                                    allocator,
-                                )
-                            );
+                            return .INFINITE_IDENTITY;
                         } 
                         else 
                         {
@@ -300,12 +288,9 @@ pub const ComposedValueRef = union(enum) {
                 return switch (from_space) {
                     .presentation => {
                         // goes to media
-                        const pres_to_intrinsic_topo = (
-                            try topology_m.Topology.init_identity_infinite(
-                                allocator
-                            )
+                        const pres_to_intrinsic_topo:topology_m.Topology = (
+                            .INFINITE_IDENTITY
                         );
-                        defer pres_to_intrinsic_topo.deinit(allocator);
 
                         const media_bounds = (
                             try cl.*.bounds_of(
@@ -353,16 +338,10 @@ pub const ComposedValueRef = union(enum) {
             },
             .warp => |wp_ptr| switch(from_space) {
                 .presentation => wp_ptr.transform.clone(allocator),
-                else => try topology_m.Topology.init_identity_infinite(
-                    allocator
-                ),
+                else => .INFINITE_IDENTITY,
             },
             // wrapped as identity
-            .gap, .timeline, .stack => (
-                try topology_m.Topology.init_identity_infinite(
-                    allocator
-                )
-            ),
+            .gap, .timeline, .stack => .INFINITE_IDENTITY,
             // else => |case| { 
             //     std.log.err("Not Implemented: {any}\n", .{ case });
             //

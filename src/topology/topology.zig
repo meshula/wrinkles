@@ -16,7 +16,7 @@ pub const Topology = struct {
 
     /// an empty topology
     pub const EMPTY = Topology{ .mappings = &.{} };
-    pub const INFINITE_IDENTIY = Topology{
+    pub const INFINITE_IDENTITY = Topology{
         .mappings = &.{ .INFINITE_IDENTITY, }
     };
 
@@ -143,21 +143,6 @@ pub const Topology = struct {
                     ).mapping(),
                 },
             )
-        };
-    }
-
-    /// build a topology with a single identity mapping with an infinite range
-    pub fn init_identity_infinite(
-        allocator: std.mem.Allocator,
-    ) !Topology
-    {
-        return .{
-            .mappings = try allocator.dupe(
-                mapping.Mapping,
-                &.{
-                     mapping.MappingAffine.INFINITE_IDENTITY.mapping(),
-                },
-            ),
         };
     }
 
@@ -2325,10 +2310,7 @@ test "Topology: join affine with affine"
 {
     const allocator = std.testing.allocator;
 
-    const ident = try Topology.init_identity_infinite(
-        allocator
-    );
-    defer ident.deinit(allocator);
+    const ident:Topology = .INFINITE_IDENTITY;
 
     const aff1 = Topology.init_affine(
         .{

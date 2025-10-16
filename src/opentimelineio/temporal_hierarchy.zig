@@ -832,7 +832,7 @@ pub fn build_projection_operator_indices(
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    var root_to_current:topology_m.Topology = .INFINITE_IDENTIY;
+    var root_to_current:topology_m.Topology = .INFINITE_IDENTITY;
 
     if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
         opentime.dbg_print(@src(), 
@@ -877,7 +877,7 @@ pub fn build_projection_operator_indices(
             .destination = map.space_nodes.get(
                 endpoints.destination
             ),
-            .src_to_dst_topo = .INFINITE_IDENTIY,
+            .src_to_dst_topo = .INFINITE_IDENTITY,
         };
     }
 
