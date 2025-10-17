@@ -98,6 +98,9 @@ pub const Topology = struct {
         };
     }
 
+    /// initialize an affine with a single affine transformation in its mapping
+    /// slice.  Requires an allocator because still requires that the mapping
+    /// slice be allocated.
     pub fn init_affine(
         allocator: std.mem.Allocator,
         aff: mapping.MappingAffine,

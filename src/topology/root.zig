@@ -13,6 +13,9 @@ pub const join = topology.join;
 
 pub const mapping = @import("mapping.zig");
 pub const Mapping = mapping.Mapping;
+pub const MappingAffine = mapping.MappingAffine;
+pub const MappingEmpty = mapping.MappingEmpty;
+pub const MappingCurveLinearMonotonic = mapping.MappingCurveLinearMonotonic;
 
 test 
 {
