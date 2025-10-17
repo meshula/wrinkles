@@ -309,7 +309,8 @@ pub const ComposedValueRef = union(enum) {
                             .end = media_bounds.duration()
                         };
                         const intrinsic_to_media = (
-                            topology_m.Topology.init_affine(
+                            try topology_m.Topology.init_affine(
+                                allocator,
                                 .{
                                     .input_to_output_xform = intrinsic_to_media_xform,
                                     .input_bounds_val = intrinsic_bounds,

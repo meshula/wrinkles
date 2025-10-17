@@ -99,11 +99,15 @@ pub const Topology = struct {
     }
 
     pub fn init_affine(
+        allocator: std.mem.Allocator,
         aff: mapping.MappingAffine,
-    ) Topology
+    ) !Topology
     {
         return Topology{
-            .mappings = &.{ aff.mapping() }
+            .mappings = try allocator.dupe(
+                mapping.Mapping,
+                &.{ aff.mapping() }
+            )
         };
     }
 
@@ -2284,7 +2288,10 @@ test "Topology: project_instantaneous_cc and project_instantaneous_cc_inv"
 
 test "Topology: init_affine"
 {
-    const t_aff = Topology.init_affine(
+    const allocator = std.testing.allocator;
+
+    const t_aff = try Topology.init_affine(
+        allocator,
         .{
             .input_bounds_val = (
                 opentime.ContinuousInterval.init(
@@ -2297,6 +2304,7 @@ test "Topology: init_affine"
             },
         },
     );
+    defer t_aff.deinit(allocator);
 
     try opentime.expectOrdinateEqual(
         20,
@@ -2306,13 +2314,14 @@ test "Topology: init_affine"
     );
 }
 
-test "Topology: join affine with affine"
+test "Topology: join affine with ident"
 {
     const allocator = std.testing.allocator;
 
     const ident:Topology = .INFINITE_IDENTITY;
 
-    const aff1 = Topology.init_affine(
+    const aff = try Topology.init_affine(
+        allocator,
         .{
             .input_bounds_val = (
                 opentime.ContinuousInterval.init(
@@ -2324,12 +2333,13 @@ test "Topology: join affine with affine"
             },
         },
     );
+    defer aff.deinit(allocator);
 
     const result = try join(
         allocator,
         .{
             .a2b = ident,
-            .b2c = aff1,
+            .b2c = aff,
         },
     );
     defer result.deinit(allocator);
@@ -2341,6 +2351,8 @@ test "Topology: join affine with affine"
     );
     try opentime.expectOrdinateEqual(
         4,
-        try result.project_instantaneous_cc(opentime.Ordinate.init(3)).ordinate(),
+        try result.project_instantaneous_cc(
+            opentime.Ordinate.init(3)
+        ).ordinate(),
     );
 }

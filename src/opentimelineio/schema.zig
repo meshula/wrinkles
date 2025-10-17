@@ -351,7 +351,8 @@ pub const Track = struct {
         const child_duration = child_range.duration();
 
         // the transform to the next child space, compensates for this duration
-        return topology_m.Topology.init_affine(
+        return try topology_m.Topology.init_affine(
+            allocator,
             .{
                 .input_bounds_val = .{
                     .start = child_duration,
@@ -435,11 +436,12 @@ pub const Stack = struct {
         if (bounds) 
             |b| 
         {
-            return topology_m.Topology.init_affine(
+            return try topology_m.Topology.init_affine(
+                allocator,
                 .{ 
                     .input_bounds_val = b,
                     .input_to_output_xform = .IDENTITY,
-                },
+                }
             );
         } else {
             return .EMPTY;

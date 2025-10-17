@@ -180,18 +180,22 @@ pub const ProjectionOperator = struct {
     {
         // build a topology over the range in the source space
         const topology_in_source = (
-            topology_m.Topology.init_affine(
-                .{ 
-                    .input_to_output_xform = .{ 
-                        .offset = range_in_source.start,
-                        .scale = opentime.Ordinate.init(1.0),
-                    },
-                    .input_bounds_val = .{
-                        .start = opentime.Ordinate.init(0),
-                        .end = range_in_source.duration(),
-                    },
+            topology_m.Topology{
+                .mappings = &.{
+                    (
+                     topology_m.mapping.MappingAffine{ 
+                         .input_to_output_xform = .{ 
+                             .offset = range_in_source.start,
+                             .scale = .ONE,
+                         },
+                         .input_bounds_val = .{
+                             .start = .ZERO,
+                             .end = range_in_source.duration(),
+                         },
+                     }
+                    ).mapping(),
                 }
-            )
+            }
         );
 
         return try self.project_topology_cc(
@@ -210,12 +214,16 @@ pub const ProjectionOperator = struct {
         // the range is bounding the source repo.  Therefore the topology is an
         // identity that is bounded 
         const in_to_source_topo = (
-            topology_m.Topology.init_affine(
-                .{ 
-                    .input_to_output_xform = .IDENTITY,
-                    .input_bounds_val = range_in_source,
-                }
-            )
+            topology_m.Topology{
+                .mappings = &.{
+                    (
+                    topology_m.mapping.MappingAffine { 
+                        .input_to_output_xform = .IDENTITY,
+                        .input_bounds_val = range_in_source,
+                    }
+                    ).mapping(),
+                },
+            }
         );
 
         return try self.project_topology_cd(
@@ -1289,7 +1297,8 @@ test "projection.ProjectionOperator: clone"
 {
     const allocator = std.testing.allocator;
 
-    const aff1 = topology_m.Topology.init_affine(
+    const aff1 = try topology_m.Topology.init_affine(
+        allocator,
         .{
             .input_bounds_val = .{
                 .start = opentime.Ordinate.init(0),
@@ -1300,6 +1309,7 @@ test "projection.ProjectionOperator: clone"
             },
         },
     );
+    defer aff1.deinit(allocator);
 
     var cl = schema.Clip{};
     const cl_ptr = references.ComposedValueRef.init(&cl);
@@ -1330,7 +1340,8 @@ test "ProjectionOperatorMap: clone"
     const cl_ptr = references.ComposedValueRef{ 
         .clip = &cl 
     };
-    const aff1 = topology_m.Topology.init_affine(
+    const aff1 = try topology_m.Topology.init_affine(
+        allocator,
         .{
             .input_bounds_val = .{
                 .start = opentime.Ordinate.init(0),
@@ -1395,7 +1406,8 @@ test "transform: track with two clips"
     const track_presentation_space = tr_ptr.space(.presentation);
 
     {
-        const xform = topology_m.Topology.init_affine(
+        const xform = try topology_m.Topology.init_affine(
+            allocator,
             .{
                 .input_bounds_val = .{
                     .start = opentime.Ordinate.init(8),
@@ -1405,6 +1417,7 @@ test "transform: track with two clips"
                 },
             }
         );
+        defer xform.deinit(allocator);
 
         const cache = (
             try temporal_hierarchy.SingleSourceTopologyCache.init(
@@ -2463,7 +2476,8 @@ test "otio projection: track with single clip with transform"
 
     var wp : schema.Warp = .{
         .child = cl_ptr,
-        .transform = topology_m.Topology.init_affine(
+        .transform = try topology_m.Topology.init_affine(
+            allocator,
             .{
                 .input_to_output_xform = .{
                     .scale = opentime.Ordinate.init(2),
