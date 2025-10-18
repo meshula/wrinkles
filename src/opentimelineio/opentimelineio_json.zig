@@ -108,20 +108,20 @@ pub fn _read_range(
     // otherwise, fetch the media reference and try available range
     if (obj.get("media_reference"))
         |mr|
-        {
-            switch (mr) {
-                .object => |mr_o| 
-                    if (mr_o.get("available_range")) 
-                        |ar| 
-                        {
-                            switch (ar) {
-                                .object => |o| return read_time_range(o),
-                                else => return null,
-                            }
-                        },
+    {
+        switch (mr) {
+            .object => |mr_o| 
+                if (mr_o.get("available_range")) 
+                    |ar| 
+                {
+                    switch (ar) {
+                        .object => |o| return read_time_range(o),
                         else => return null,
-            }
+                    }
+                },
+                else => return null,
         }
+    }
 
     return null;
 }
