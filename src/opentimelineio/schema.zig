@@ -135,8 +135,7 @@ pub const Clip = struct {
             |bounds|
         {
             return switch (target_space) {
-                .media => bounds,
-                .presentation => bounds,
+                .presentation, .media => bounds,
                 else => error.UnsupportedSpaceError,
             };
         }

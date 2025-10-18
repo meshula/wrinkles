@@ -358,10 +358,8 @@ pub fn projection_map_to_media_from_leaky(
     for (space_nodes.items(.label), 0..)
         |label, index|
     {
-        if (
-            // skip all spaces that are not media spaces
-            label != .media
-            ) 
+        // skip spaces that aren't media spaces
+        if (label != .media)
         {
             continue;
         }
