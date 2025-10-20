@@ -3553,35 +3553,35 @@ test "ReferenceTopology: init_from_reference"
         );
         for (first_interval_mapping.mapping_index)
             |mapping_ind|
-            {
-                const mapping = projection_topo.mappings.get(
-                    mapping_ind
-                );
-                const output_bounds = mapping.mapping.output_bounds();
-                const destination = map.space_nodes.get(
-                    mapping.destination
-                );
+        {
+            const mapping = projection_topo.mappings.get(
+                mapping_ind
+            );
+            const output_bounds = mapping.mapping.output_bounds();
+            const destination = map.space_nodes.get(
+                mapping.destination
+            );
 
-                const start_ind = try destination.ref.continuous_ordinate_to_discrete_index(
-                    output_bounds.start, 
-                    .media,
-                );
+            const start_ind = try destination.ref.continuous_ordinate_to_discrete_index(
+                output_bounds.start, 
+                .media,
+            );
 
-                const end_ind_inc = try destination.ref.continuous_ordinate_to_discrete_index(
-                    output_bounds.end,
-                    .media
-                ) - 1;
+            const end_ind_inc = try destination.ref.continuous_ordinate_to_discrete_index(
+                output_bounds.end,
+                .media
+            ) - 1;
 
-                std.debug.print(
-                    "    -> {f} | {f} ([{d}, {d}] / {d} samples)\n",
-                    .{
-                        destination,
-                        output_bounds,
-                        start_ind,
-                        end_ind_inc,
-                        end_ind_inc-start_ind,
-                    }
-                );
-            }
+            std.debug.print(
+                "    -> {f} | {f} ([{d}, {d}] / {d} samples)\n",
+                .{
+                    destination,
+                    output_bounds,
+                    start_ind,
+                    end_ind_inc,
+                    end_ind_inc-start_ind,
+                }
+            );
+        }
     }
 }
