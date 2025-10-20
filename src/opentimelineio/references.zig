@@ -366,7 +366,7 @@ pub const ComposedValueRef = union(enum) {
                 };
             },
             .warp => |wp_ptr| switch(from_space_label) {
-                .presentation => wp_ptr.transform.clone(allocator),
+                .presentation => wp_ptr.transform,
                 else => .INFINITE_IDENTITY,
             },
             // wrapped as identity
