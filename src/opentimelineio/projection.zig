@@ -3002,6 +3002,7 @@ pub fn ReferenceTopology(
 
         // temporally sorted, could be more efficient with a BVH of some kind
         intervals: std.MultiArrayList(IntervalMapping),
+        temporal_map: treecode.Map(SpaceReferenceType),
 
         pub fn init_from_reference(
             parent_allocator: std.mem.Allocator,
@@ -3019,6 +3020,7 @@ pub fn ReferenceTopology(
                 .source = source_reference,
                 .mappings = .empty,
                 .intervals = .empty,
+                .temporal_map = temporal_map,
             };
 
             var unsplit_intervals: std.MultiArrayList(
