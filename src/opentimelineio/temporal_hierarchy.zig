@@ -826,7 +826,8 @@ pub fn build_projection_operator_indices(
 
     var root_to_current:topology_m.Topology = .INFINITE_IDENTITY;
 
-    if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
+    if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
+    {
         opentime.dbg_print(@src(), 
             "[START] root_to_current: {f}\n",
             .{ root_to_current }
@@ -848,7 +849,8 @@ pub fn build_projection_operator_indices(
         path_nodes.items(.parent_index),
     );
 
-    if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
+    if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
+    {
         opentime.dbg_print(@src(), 
             "starting walk from: {f} to: {f}\n"
             ++ "starting projection: {f}\n"
@@ -861,7 +863,8 @@ pub fn build_projection_operator_indices(
         );
     }
 
-    if (path.len < 2){
+    if (path.len < 2)
+    {
         return .{
             .source = map.space_nodes.get(
                 endpoints.source
@@ -875,7 +878,7 @@ pub fn build_projection_operator_indices(
 
     var current = path[0];
 
-    var path_step = TemporalMap.PathEndPointIndices{
+    var path_step:TemporalMap.PathEndPointIndices = .{
         .source = @intCast(source_index),
         .destination = @intCast(source_index),
     };

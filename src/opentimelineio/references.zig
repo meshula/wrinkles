@@ -36,8 +36,12 @@ pub const SpaceLabel = union (enum) {
     ) !void 
     {
         try switch (self) {
-            .child => |ind| writer.print( "child.{d}", .{ ind }),
-            else => |s| writer.print( "{s}", .{ @tagName(s) }),
+            .child => |ind| (
+                writer.print("child.{d}",.{ind})
+            ),
+            else => |s| (
+                writer.print("{s}",.{ @tagName(s)})
+            ),
         };
     }
 };
