@@ -195,7 +195,7 @@ pub const Gap = struct {
     duration_seconds: opentime.Ordinate,
 
     pub const internal_spaces: []const references.SpaceLabel = (
-        &.{ .presentation, }
+        &.{ .presentation, .intrinsic }
     );
 
     pub fn topology(
@@ -203,13 +203,14 @@ pub const Gap = struct {
         allocator: std.mem.Allocator,
     ) !topology_m.Topology 
     {
-        return try topology_m.Topology.init_identity(
+        const result = try topology_m.Topology.init_identity(
             allocator,
             .{
                 .start = opentime.Ordinate.ZERO,
                 .end = self.duration_seconds 
             },
         );
+        return result;
     }
 };
 

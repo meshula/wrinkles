@@ -1513,13 +1513,23 @@ test "track child after gap - use presentation space to compute offset"
         tr_pres_to_cl_media.destination_bounds().end,
     );
 
-    // const proj_topo = (
-    //     try projection.ProjectionTopology.init_from_reference(
-    //         allocator,
-    //         map,
-    //         tr_ref.space(.presentation),
-    //     )
-    // );
-    // proj_topo.intervals[0]
+    var proj_topo = (
+        try projection.ProjectionTopology.init_from_reference(
+            allocator,
+            map,
+            tr_ref.space(.presentation),
+        )
+    );
+    defer proj_topo.deinit(allocator);
+
+    try opentime.expectOrdinateEqual(
+        0, 
+        proj_topo.input_bounds().start,
+    );
+    try opentime.expectOrdinateEqual(
+        11,
+        proj_topo.input_bounds().end,
+    );
+
 }
 

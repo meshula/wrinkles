@@ -373,8 +373,12 @@ pub const ComposedValueRef = union(enum) {
                 .presentation => wp_ptr.transform,
                 else => .INFINITE_IDENTITY,
             },
+            .gap => |gap_ptr| switch (from_space_label) {
+                .presentation => gap_ptr.topology(allocator),
+                else => .INFINITE_IDENTITY,
+            },
             // wrapped as identity
-            .gap, .timeline, .stack => .INFINITE_IDENTITY,
+            .timeline, .stack => .INFINITE_IDENTITY,
             // else => |case| { 
             //     std.log.err("Not Implemented: {any}\n", .{ case });
             //

@@ -3052,25 +3052,26 @@ pub fn ReferenceTopology(
             // Gather up all the operators and intervals
             /////////////
             const map_nodes = temporal_map.path_nodes.slice();
-            const space_nodes = temporal_map.space_nodes.slice();
 
             const start_index = temporal_map.index_from_space(
                 source_reference
             ) orelse return error.SourceNotInMap;
 
-            var proj_args = temporal_hierarchy.PathEndPointIndices{
+            var proj_args:temporal_hierarchy.PathEndPointIndices = .{
                 .source = start_index,
                 .destination = start_index,
             };
 
-            const source_code = map_nodes.items(.code)[start_index];
+            const codes = map_nodes.items(.code);
+            const source_code = codes[start_index];
+            const children = map_nodes.items(.child_indices);
 
-            for (space_nodes.items(.label), map_nodes.items(.code), 0..)
-                |label, current_code, current_index|
+            for (codes, children, 0..)
+                |current_code, child_ptrs, current_index|
             {
                 if (
-                    // skip all spaces that are not media spaces
-                    label != .media
+                    // only looking for terminal scopes (gaps, clips, etc)
+                    (child_ptrs[0] != null or child_ptrs[1] != null)
                     // skip all media spaces that don't have a path to source
                     or source_code.is_prefix_of(current_code) == false
                 ) 
@@ -3381,6 +3382,17 @@ pub fn ReferenceTopology(
 
             self.intervals.deinit(allocator);
             self.mappings.deinit(allocator);
+        }
+
+        /// return the input range for this ReferenceTopology
+        pub fn input_bounds(
+            self: @This(),
+        ) opentime.ContinuousInterval
+        {
+            return .{
+                .start = self.intervals.items(.input_bounds)[0].start,
+                .end = self.intervals.items(.input_bounds)[self.intervals.len-1].end,
+            };
         }
     };
 }
