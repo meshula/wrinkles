@@ -1434,6 +1434,9 @@ test "track child after gap - use presentation space to compute offset"
     var gp = schema.Gap{
         .duration_seconds = opentime.Ordinate.init(3),
     };
+    var gp2 = schema.Gap{
+        .duration_seconds = opentime.Ordinate.init(4),
+    };
 
     var cl = schema.Clip {
         .name = "target_clip",
@@ -1446,6 +1449,7 @@ test "track child after gap - use presentation space to compute offset"
     var tr_children = [_]references.ComposedValueRef{
         references.ComposedValueRef.init(&gp),
         cl_ref,
+        references.ComposedValueRef.init(&gp2),
     };
     var tr: schema.Track = .{
         .name = "root",
@@ -1527,9 +1531,10 @@ test "track child after gap - use presentation space to compute offset"
         proj_topo.input_bounds().start,
     );
     try opentime.expectOrdinateEqual(
-        11,
+        15,
         proj_topo.input_bounds().end,
     );
 
+    std.debug.print("Proj Topo: {f}\n", .{proj_topo});
 }
 
