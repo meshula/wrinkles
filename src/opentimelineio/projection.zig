@@ -3396,6 +3396,55 @@ pub fn ReferenceTopology(
                 .end = self.intervals.items(.input_bounds)[self.intervals.len-1].end,
             };
         }
+
+        pub fn format(
+            self: @This(),
+            writer: *std.Io.Writer,
+        ) !void 
+        {
+            try writer.print(
+                "Total timeline interval: {f}\n",
+                .{ self.input_bounds(), },
+            );
+
+            try writer.print(
+                "Intervals mapping (index<100):\n",
+                .{},
+            );
+            for (0..@min(100, self.intervals.len))
+                |ind|
+            {
+                const first_interval_mapping = (
+                    self.intervals.get(ind)
+                );
+                try writer.print(
+                    "  Presentation Space Range: {f}\n",
+                    .{ first_interval_mapping.input_bounds }
+                );
+                for (first_interval_mapping.mapping_index)
+                    |mapping_ind|
+                {
+                    const mapping = self.mappings.get(
+                        mapping_ind
+                    );
+                    const output_bounds = mapping.mapping.output_bounds();
+                    const destination = (
+                        self.temporal_map.space_nodes.get(
+                        mapping.destination
+                    )
+                    );
+
+                    try writer.print(
+                        "    -> {f} | {f}\n",
+                        .{
+                            destination,
+                            output_bounds,
+                        }
+                    );
+                }
+            }
+
+        }
     };
 }
 
