@@ -98,6 +98,7 @@ temporal hierarchies of editorial documents.
 * [ ] Can Projection Operator go away?
 * [ ] Can the Projection Operator map get melded in with Topology, omitting 
       both the Projection Operator and Operator Map?
+* [ ] difference between `RANGE` and `BOUNDS` -- when to use each
 
 ## Todo List (11/6/24)
 
