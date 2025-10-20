@@ -1434,10 +1434,6 @@ test "track child after gap - use presentation space to compute offset"
     var gp = schema.Gap{
         .duration_seconds = opentime.Ordinate.init(3),
     };
-    var gp2 = schema.Gap{
-        .duration_seconds = opentime.Ordinate.init(4),
-    };
-
     var cl = schema.Clip {
         .name = "target_clip",
         .bounds_s = @import(
@@ -1445,6 +1441,9 @@ test "track child after gap - use presentation space to compute offset"
         ).T_INT_1_TO_9, 
     };
     const cl_ref = references.ComposedValueRef.init(&cl);
+    var gp2 = schema.Gap{
+        .duration_seconds = opentime.Ordinate.init(4),
+    };
 
     var tr_children = [_]references.ComposedValueRef{
         references.ComposedValueRef.init(&gp),

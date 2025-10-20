@@ -3391,9 +3391,11 @@ pub fn ReferenceTopology(
             self: @This(),
         ) opentime.ContinuousInterval
         {
+            const bounds = self.intervals.items(.input_bounds);
+
             return .{
-                .start = self.intervals.items(.input_bounds)[0].start,
-                .end = self.intervals.items(.input_bounds)[self.intervals.len-1].end,
+                .start = bounds[0].start,
+                .end = bounds[self.intervals.len-1].end,
             };
         }
 
@@ -3404,7 +3406,7 @@ pub fn ReferenceTopology(
         {
             try writer.print(
                 "Total timeline interval: {f}\n",
-                .{ self.input_bounds(), },
+                .{ self.input_bounds() },
             );
 
             try writer.print(
@@ -3427,19 +3429,16 @@ pub fn ReferenceTopology(
                     const mapping = self.mappings.get(
                         mapping_ind
                     );
-                    const output_bounds = mapping.mapping.output_bounds();
+                    const output_bounds = (
+                        mapping.mapping.output_bounds()
+                    );
                     const destination = (
-                        self.temporal_map.space_nodes.get(
-                        mapping.destination
-                    )
+                        self.temporal_map.space_nodes.get(mapping.destination)
                     );
 
                     try writer.print(
                         "    -> {f} | {f}\n",
-                        .{
-                            destination,
-                            output_bounds,
-                        }
+                        .{ destination, output_bounds, }
                     );
                 }
             }
