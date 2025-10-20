@@ -79,8 +79,7 @@ fn walk_child_spaces(
         // insert the child scope of the parent
         const space_ref = references.SpaceReference{
             .ref = parent_otio_object,
-            .label = .child,
-            .child_index = @intCast(index),
+            .label = .{ .child = @intCast(index) },
         };
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
@@ -99,7 +98,7 @@ fn walk_child_spaces(
                         other_code,
                         @tagName(space_ref.ref),
                         @tagName(space_ref.label),
-                        space_ref.child_index.?,
+                        space_ref.label.child,
                     }
                 );
 
@@ -118,7 +117,7 @@ fn walk_child_spaces(
                     child_wrapper_space_code_ptr.words.ptr,
                     @tagName(space_ref.ref),
                     @tagName(space_ref.label),
-                    space_ref.child_index.?,
+                    space_ref.label.child,
                 }
             );
         }
@@ -177,6 +176,14 @@ fn walk_internal_spaces(
                 )
             ) else parent_code
         );
+        last_index = try map.put(
+            allocator,
+            .{
+                .code = space_code,
+                .space = space_ref,
+                .parent_index = last_index,
+            },
+        );
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
         {
@@ -212,14 +219,6 @@ fn walk_internal_spaces(
             );
         }
 
-        last_index = try map.put(
-            allocator,
-            .{
-                .code = space_code,
-                .space = space_ref,
-                .parent_index = last_index,
-            },
-        );
 
         last_space_code = space_code;
     }
@@ -856,7 +855,7 @@ pub fn build_projection_operator_indices(
             ,
             .{
                 space_nodes.get(path[0]),
-                sorted_endpoints.destination,
+                space_nodes.get(sorted_endpoints.destination),
                 root_to_current,
             }
         );
@@ -899,10 +898,10 @@ pub fn build_projection_operator_indices(
         const next_step = codes[current].next_step_towards(codes[next]);
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) { 
-            opentime.dbg_print(@src(), 
-                "  next step {b} towards next node: {f}\n"
-                ,
-                .{ next_step, next }
+            opentime.dbg_print(
+                @src(), 
+                "  next step {b} towards next node: {f}\n",
+                .{ next_step, space_nodes.get(next) },
             );
         }
 
@@ -944,16 +943,17 @@ pub fn build_projection_operator_indices(
             const i_b = root_to_next.input_bounds();
             const o_b = root_to_next.output_bounds();
 
-            opentime.dbg_print(@src(), 
+            opentime.dbg_print(
+                @src(), 
                 "    root_to_next (next root to current!): {f}\n"
                 ++ "    composed transform ranges {f}: {f},"
                 ++ " {f}: {f}\n"
                 ,
                 .{
                     root_to_next,
-                    source_index,
+                    space_nodes.get(source_index),
                     i_b,
-                    next.space,
+                    space_nodes.get(next),
                     o_b,
                 },
             );
@@ -1422,5 +1422,101 @@ test "test debug_print_time_hierarchy"
         13,
         tp.map_space_to_path_index.count(),
     );
+}
+
+test "track child after gap - use presentation space to compute offset" 
+{
+    const allocator = std.testing.allocator;
+
+    var gp = schema.Gap{
+        .duration_seconds = opentime.Ordinate.init(3),
+    };
+
+    var cl = schema.Clip {
+        .name = "target_clip",
+        .bounds_s = @import(
+            "test_structures.zig"
+        ).T_INT_1_TO_9, 
+    };
+    const cl_ref = references.ComposedValueRef.init(&cl);
+
+    var tr_children = [_]references.ComposedValueRef{
+        references.ComposedValueRef.init(&gp),
+        cl_ref,
+    };
+    var tr: schema.Track = .{
+        .name = "root",
+        .children = &tr_children,
+    };
+    const tr_ref = references.ComposedValueRef.init(&tr);
+
+    // const tr_pres_hierarchy = try temporal_hierarchy_under(
+    //     allocator,
+    //     tr_ref.space(.presentation),
+    // );
+    // defer tr_pres_hierarchy.deinit(allocator);
+    //
+    // const tr_pres_to_cl_media = try tr_pres_hierarchy.projection_operator_to(
+    //     allocator,
+    //     cl_ref.space(.media),
+    // );
+
+    const map = try build_temporal_map(
+        allocator,
+        tr_ref,
+    );
+    defer map.deinit(allocator);
+
+    const cache = try SingleSourceTopologyCache.init(
+        allocator,
+        map,
+    );
+    defer cache.deinit(allocator);
+
+    const tr_pres_to_cl_media = try build_projection_operator(
+        allocator,
+        map,
+        .{
+            .source = tr_ref.space(.presentation),
+            .destination = cl_ref.space(.media),
+        },
+        cache,
+    );
+    defer tr_pres_to_cl_media.deinit(allocator);
+
+    errdefer std.debug.print(
+        "ERROR:\n  source_bounds: {f}\n  destination_bounds: {f}\n",
+        .{
+            tr_pres_to_cl_media.source_bounds(),
+            tr_pres_to_cl_media.destination_bounds(),
+        },
+    );
+
+    try opentime.expectOrdinateEqual(
+        gp.duration_seconds, 
+        tr_pres_to_cl_media.source_bounds().start,
+    );
+    try opentime.expectOrdinateEqual(
+        gp.duration_seconds.add(cl.bounds_s.?.duration()), 
+        tr_pres_to_cl_media.source_bounds().end,
+    );
+
+    try opentime.expectOrdinateEqual(
+        1, 
+        tr_pres_to_cl_media.destination_bounds().start,
+    );
+    try opentime.expectOrdinateEqual(
+        9, 
+        tr_pres_to_cl_media.destination_bounds().end,
+    );
+
+    // const proj_topo = (
+    //     try projection.ProjectionTopology.init_from_reference(
+    //         allocator,
+    //         map,
+    //         tr_ref.space(.presentation),
+    //     )
+    // );
+    // proj_topo.intervals[0]
 }
 

@@ -32,7 +32,6 @@ pub const MediaDataReference = union(enum) {
     pub const EMPTY_REF = MediaDataReference{
         .empty = .{} 
     };
-
 };
 
 pub const MediaReference = struct {
@@ -316,49 +315,44 @@ pub const Track = struct {
     /// because graphs are constructed:
     ///         track
     ///           |
-    ///           child 0
+    ///           track_child 0
     ///           |     \
-    /// child 0.presentation   child 1
+    /// child 0.presentation   track_child 1
     ///                   |   \
-    ///       child.1.presentation   child 2
+    ///       child.1.presentation   track_child 2
     ///                         ...
     ///
     ///  if called on child space child 1, will make a transform to child
     ///  space 1 from child space 0
     /// 
-    pub fn transform_to_child(
+    pub fn transform_to_next_child(
         self: @This(),
         allocator: std.mem.Allocator,
-        // @TODO: this is super confusing for what it does and should be
-        //        renamed
-        child_space_reference: references.SpaceReference,
+        current_child_index: usize,
     ) !topology_m.Topology 
     {
-        // [child 1][child 2]
-        const child_index = (
-            child_space_reference.child_index 
-            orelse return error.NoChildIndexOnChildSpaceReference
+        // offset the next child by the duration of the previous child
+        // presentation space (everything has a presentation space)
+        const current_child_pres_range = (
+            try self.children[current_child_index].bounds_of(
+                allocator,
+                .presentation,
+            )
         );
-
-        // XXX should probably check the index before calling this and call
-        //     this with index - 1 rather than have it do the offset here.
-        const child = self.children[child_index - 1];
-        const child_range = try child.bounds_of(
-            allocator,
-            .media
+        const current_child_duration = (
+            current_child_pres_range.duration()
         );
-        const child_duration = child_range.duration();
 
         // the transform to the next child space, compensates for this duration
         return try topology_m.Topology.init_affine(
             allocator,
             .{
                 .input_bounds_val = .{
-                    .start = child_duration,
+                    .start = current_child_duration,
                     .end = opentime.Ordinate.INF,
                 },
                 .input_to_output_xform = .{
-                    .offset = child_duration.neg(),
+                    .offset = current_child_duration.neg(),
                     .scale = opentime.Ordinate.ONE,
                 }
             }

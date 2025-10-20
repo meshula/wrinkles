@@ -21,18 +21,24 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
 );
 
 /// used to identify spaces on objects in the hierarchy
-pub const SpaceLabel = enum(i8) {
-    presentation = 0,
-    intrinsic,
-    media,
-    child,
+pub const SpaceLabel = union (enum) {
+    // internal spaces
+    presentation: void,
+    intrinsic: void,
+    media: void,
+
+    // The NodeIndex of the child in the Space Map
+    child: projection.ProjectionTopology.NodeIndex,
 
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
     ) !void 
     {
-        try writer.print( "{s}", .{ @tagName(self) });
+        try switch (self) {
+            .child => |ind| writer.print( "child.{d}", .{ ind }),
+            else => |s| writer.print( "{s}", .{ @tagName(s) }),
+        };
     }
 };
 
@@ -40,7 +46,6 @@ pub const SpaceLabel = enum(i8) {
 pub const SpaceReference = struct {
     ref: ComposedValueRef,
     label: SpaceLabel,
-    child_index: ?projection.ProjectionTopology.NodeIndex = null,
 
     pub fn format(
         self: @This(),
@@ -48,21 +53,18 @@ pub const SpaceReference = struct {
     ) !void 
     {
         try writer.print(
-            "{f}.{f}",
+            "{f}.{s}",
             .{
                 self.ref,
-                self.label,
+                @tagName(self.label),
             }
         );
 
-        if (self.child_index)
-            |ind|
+        if (self.label == .child)
         {
             try writer.print(
                 ".{d}",
-                .{
-                    ind,
-                }
+                .{ self.label.child },
             );
         }
     }
@@ -210,57 +212,72 @@ pub const ComposedValueRef = union(enum) {
     }
 
     /// build a topology that projections a value from_space to_space
+    /// @TODO clarify that this function is used to take one step along the
+    /// path and not do all the steps - need to use other functions for that.
     pub fn build_transform(
         self: @This(),
         allocator: std.mem.Allocator,
-        from_space: SpaceLabel,
+        from_space_label: SpaceLabel,
         to_space: SpaceReference,
         step: treecode.l_or_r,
     ) !topology_m.Topology 
     {
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
-            opentime.dbg_print(@src(), 
-                "    transform from space: {s}.{s} to space: {s}.{s} ",
+            std.debug.print(
+                "[{s}:{s}:{d}]    transform from space: {s}.{s} to space: {s}.{s}",
                 .{
+                    @src().file, 
+                    @src().fn_name, 
+                    @src().line, 
                     @tagName(self),
-                    @tagName(from_space),
+                    @tagName(from_space_label),
                     @tagName(to_space.ref),
                     @tagName(to_space.label),
-                }
+                },
             );
 
-            if (to_space.child_index)
-                |ind|
+            if (to_space.label == .child)
             {
-                opentime.dbg_print(@src(), 
-                    " index: {d}",
-                    .{ind}
+                std.debug.print(
+                    ".child.{d}",
+                    .{to_space.label.child}
                 );
-
             }
-            opentime.dbg_print(@src(),  "\n", .{});
+            std.debug.print("\n", .{});
         }
 
         return switch (self) {
             .track => |*tr| {
-                switch (from_space) {
-                    SpaceLabel.presentation => return .INFINITE_IDENTITY,
-                    SpaceLabel.intrinsic => return .INFINITE_IDENTITY,
-                    SpaceLabel.child => {
+                switch (from_space_label) {
+                    // presentation -> intrinsic
+                    .presentation => return .INFINITE_IDENTITY,
+                    // intrinsic -> first child space
+                    .intrinsic => return .INFINITE_IDENTITY,
+                    // child space to either the presentation space of that
+                    // child (left step)  or to the next child
+                    .child => |child_index| {
                         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
-                            opentime.dbg_print(@src(), "     CHILD STEP: {b}\n", .{ step});
+                            opentime.dbg_print(
+                                @src(),
+                                "     CHILD STEP: {b} to index: {d}\n",
+                                .{ step, child_index }
+                            );
                         }
 
-                        // no further transformation INTO the child
+                        // from this child space down into the presentation
+                        // space of the child (identity)
                         if (step == .left) {
                             return .INFINITE_IDENTITY;
                         } 
                         else 
                         {
-                            // transform to the next child
-                            return try tr.*.transform_to_child(
+                            // from this child space to the next child space
+                            // - account for the offset from previous child
+                            // spaces
+                            return try tr.*.transform_to_next_child(
                                 allocator,
-                                to_space,
+                                // the next child space is the current one + 1
+                                child_index,
                             );
                         }
 
@@ -285,12 +302,14 @@ pub const ComposedValueRef = union(enum) {
                 // initially only exposing the MEDIA and presentation spaces
                 //
 
-                return switch (from_space) {
+                return switch (from_space_label) {
                     .presentation => {
                         // goes to media
-                        const pres_to_intrinsic_topo:topology_m.Topology = (
-                            .INFINITE_IDENTITY
-                        );
+
+                        // implied, but inf identity
+                        // const pres_to_intrinsic_topo:topology_m.Topology = (
+                        //     .INFINITE_IDENTITY
+                        // );
 
                         const media_bounds = (
                             try cl.*.bounds_of(
@@ -308,23 +327,32 @@ pub const ComposedValueRef = union(enum) {
                             .start = opentime.Ordinate.ZERO,
                             .end = media_bounds.duration()
                         };
-                        const intrinsic_to_media = (
+
+                        const intrinsic_to_media_mapping = (
+                            topology_m.MappingAffine {
+                                .input_to_output_xform = intrinsic_to_media_xform,
+                                .input_bounds_val = intrinsic_bounds,
+                            }
+                        );
+
+                        const intrinsic_to_media_topo = (
                             try topology_m.Topology.init_affine(
                                 allocator,
-                                .{
-                                    .input_to_output_xform = intrinsic_to_media_xform,
-                                    .input_bounds_val = intrinsic_bounds,
-                                }
+                                intrinsic_to_media_mapping,
                             )
                         );
 
-                        const pres_to_media = try topology_m.join(
-                            allocator,
-                            .{ 
-                                .a2b = pres_to_intrinsic_topo,
-                                .b2c = intrinsic_to_media,
-                            },
-                        );
+                        // implied
+                        // const pres_to_media = try topology_m.join(
+                        //     allocator,
+                        //     .{ 
+                        //         .a2b = pres_to_intrinsic_topo,
+                        //         .b2c = intrinsic_to_media,
+                        //     },
+                        // );
+                        // return pres_to_media;
+
+                        const pres_to_media = intrinsic_to_media_topo;
 
                         return pres_to_media;
                     },
@@ -337,7 +365,7 @@ pub const ComposedValueRef = union(enum) {
                     ),
                 };
             },
-            .warp => |wp_ptr| switch(from_space) {
+            .warp => |wp_ptr| switch(from_space_label) {
                 .presentation => wp_ptr.transform.clone(allocator),
                 else => .INFINITE_IDENTITY,
             },
