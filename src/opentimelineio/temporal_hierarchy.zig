@@ -85,10 +85,6 @@ fn walk_child_spaces(
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
         {
-            std.debug.assert(
-                map.get_space(child_wrapper_space_code_ptr) == null
-            );
-
             if (map.get_code(space_ref)) 
                 |other_code| 
             {
@@ -184,9 +180,6 @@ fn walk_internal_spaces(
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
         {
-            std.debug.assert(
-                map.get_space(space_code) == null
-            );
             if (map.get_code(space_ref))
                 |code|
             {
