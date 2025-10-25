@@ -86,14 +86,14 @@ graph TB
     opentimelineio_c --> topology
 
     %% Styling
-    classDef foundationStyle fill:#e1f5ff,stroke:#0077be,stroke-width:2px
-    classDef layer1Style fill:#fff4e1,stroke:#ff8c00,stroke-width:2px
-    classDef layer2Style fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    classDef layer3Style fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
-    classDef layer4Style fill:#ffe0b2,stroke:#e65100,stroke-width:2px
-    classDef layer5Style fill:#ffebee,stroke:#c62828,stroke-width:2px
-    classDef cbindingStyle fill:#e0e0e0,stroke:#424242,stroke-width:2px
-    classDef externalStyle fill:#fce4ec,stroke:#880e4f,stroke-width:1px,stroke-dasharray: 5 5
+    classDef foundationStyle fill:#e1f5ff,stroke:#0077be,stroke-width:2px,color:#000
+    classDef layer1Style fill:#fff4e1,stroke:#ff8c00,stroke-width:2px,color:#000
+    classDef layer2Style fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#000
+    classDef layer3Style fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px,color:#000
+    classDef layer4Style fill:#ffe0b2,stroke:#e65100,stroke-width:2px,color:#000
+    classDef layer5Style fill:#ffebee,stroke:#c62828,stroke-width:2px,color:#000
+    classDef cbindingStyle fill:#e0e0e0,stroke:#424242,stroke-width:2px,color:#000
+    classDef externalStyle fill:#fce4ec,stroke:#880e4f,stroke-width:1px,stroke-dasharray: 5 5,color:#000
 
     class string_stuff,build_options foundationStyle
     class comath,wav,kissfft,libsamplerate,spline_gym externalStyle
