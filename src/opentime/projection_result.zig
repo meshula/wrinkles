@@ -6,7 +6,7 @@ const ordinate_m = @import("ordinate.zig");
 const interval_m = @import("interval.zig");
 
 /// Contains the result of a projection, which can be an instant (single
-/// ordinate), a range (contuous interval) or an out of bounds result.
+/// ordinate), a range (continuous interval) or an out of bounds result.
 pub const ProjectionResult = union (enum) {
     SuccessOrdinate : ordinate_m.Ordinate,
     SuccessInterval : interval_m.ContinuousInterval,
