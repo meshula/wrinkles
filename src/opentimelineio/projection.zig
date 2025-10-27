@@ -118,10 +118,12 @@ pub const ProjectionOperator = struct {
         defer in_to_dst_topo_c.deinit(allocator);
 
         const dst_discrete_info = (
-            try self.destination.ref.discrete_info_for_space(
+            self.destination.ref.discrete_info_for_space(
                 self.destination.label,
             )
-        ).?;
+        ) orelse {
+            return error.NoDiscreteInfoForDestinationSpace;
+        };
         var index_buffer_destination_discrete: std.ArrayList(
             sampling.sample_index_t
         ) = .{};

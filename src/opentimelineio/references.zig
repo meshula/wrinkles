@@ -395,7 +395,7 @@ pub const ComposedValueRef = union(enum) {
     ) !opentime.ContinuousInterval
     {
         const maybe_di = (
-            try self.discrete_info_for_space(in_space)
+            self.discrete_info_for_space(in_space)
         );
 
         if (maybe_di) 
@@ -417,7 +417,7 @@ pub const ComposedValueRef = union(enum) {
     ) !sampling.sample_index_t
     {
         const maybe_di = (
-            try self.discrete_info_for_space(in_space)
+            self.discrete_info_for_space(in_space)
         );
 
         if (maybe_di) 
@@ -476,18 +476,18 @@ pub const ComposedValueRef = union(enum) {
     pub fn discrete_info_for_space(
         self: @This(),
         in_space: SpaceLabel,
-    ) !?sampling.SampleIndexGenerator
+    ) ?sampling.SampleIndexGenerator
     {
         return switch (self) {
             .timeline => |tl| switch (in_space) {
                 .presentation => tl.discrete_info.presentation,
-                inline else => error.SpaceOnObjectCannotBeDiscrete,
+                inline else => null,
             },
             .clip => |cl| switch (in_space) {
                 .media => cl.media.discrete_info,
-                inline else => error.SpaceOnObjectCannotBeDiscrete,
+                inline else => null,
             },
-            inline else => error.ObjectDoesNotSupportDiscretespaces,
+            inline else => null,
         };
     }
 

@@ -607,7 +607,7 @@ fn otio_fetch_discrete_info_erroring(
     const label = try init_SpaceLabel(space);
 
     const maybe_di = (
-        try ref.discrete_info_for_space(label)
+        ref.discrete_info_for_space(label)
     );
 
     if (maybe_di)

@@ -246,10 +246,17 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             const destination = proj_topo.temporal_map.space_nodes.get(
                 op.destination
             );
+
             const di = (
-                try destination.ref.discrete_info_for_space(.media)
+                destination.ref.discrete_info_for_space(.media)
             );
-            if (PRINT_DEMO_OUTPUT)
+
+            if (di == null)
+            {
+                continue;
+            }
+
+            if (PRINT_DEMO_OUTPUT and di != null)
             {
                 opentime.dbg_print(
                     @src(),
