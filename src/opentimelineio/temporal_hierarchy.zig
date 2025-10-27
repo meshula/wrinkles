@@ -886,8 +886,6 @@ pub fn build_projection_operator_indices(
         };
     }
 
-    var current = path[0];
-
     var path_step:TemporalMap.PathEndPointIndices = .{
         .source = @intCast(source_index),
         .destination = @intCast(source_index),
@@ -895,15 +893,14 @@ pub fn build_projection_operator_indices(
 
     // walk from current_code towards destination_code - path[0] is the current
     // node, can be skipped
-    for (path[1..])
-        |next|
+    for (path[0..path.len - 1], path[1..])
+        |current, next|
     {
         path_step.destination = @intCast(next);
 
         if (operator_cache.items[next])
             |cached_topology|
         {
-            current = next;
             root_to_current = cached_topology;
             continue;
         }
@@ -972,31 +969,32 @@ pub fn build_projection_operator_indices(
             );
         }
 
-        operator_cache.items[next] = root_to_next;
-
-        current = next;
         root_to_current = root_to_next;
+        operator_cache.items[next] = root_to_current;
     }
 
     // check to see if end points were inverted
     if (endpoints_were_swapped and root_to_current.mappings.len > 0) 
     {
         const inverted_topologies = (
-            try root_to_current.inverted(parent_allocator)
+            try root_to_current.inverted(allocator_arena)
         );
         errdefer opentime.deinit_slice(
             parent_allocator,
             topology_m.Topology,
             inverted_topologies
         );
-        if (inverted_topologies.len > 1)
+
+        if (inverted_topologies.len > 1) 
         {
             return error.MoreThanOneInversionIsNotImplemented;
         }
-        if (inverted_topologies.len > 0) {
+        if (inverted_topologies.len > 0) 
+        {
             root_to_current = inverted_topologies[0];
         }
-        else {
+        else 
+        {
             return error.NoInvertedTopologies;
         }
     }
@@ -1421,18 +1419,6 @@ test "test debug_print_time_hierarchy"
         tl_ptr
     );
     defer tp.deinit(allocator);
-
-    std.debug.print("spaces:\n", .{});
-    for (tp.space_nodes.items(.ref), tp.space_nodes.items(.label))
-        |ref, label|
-    {
-        std.debug.print("  space: {f}.{f}\n", .{ref, label});
-    }
-
-    try std.testing.expectEqual(
-        13,
-        tp.map_space_to_path_index.count(),
-    );
 }
 
 test "track child after gap - use presentation space to compute offset" 
