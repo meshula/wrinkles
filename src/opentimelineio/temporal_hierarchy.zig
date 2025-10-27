@@ -803,6 +803,16 @@ pub const SingleSourceTopologyCache = struct {
         allocator: std.mem.Allocator,
     ) void
     {
+        for (self.items) 
+            |*maybe_topo|
+        {
+            if (maybe_topo.*)
+                |topo|
+            {
+                topo.deinit(allocator);
+            }
+            maybe_topo.* = null;
+        }
         allocator.free(self.items);   
     }
 };
@@ -822,7 +832,7 @@ pub fn build_projection_operator_indices(
 
     var arena = std.heap.ArenaAllocator.init(parent_allocator);
     defer arena.deinit();
-    const allocator = arena.allocator();
+    const allocator_arena = arena.allocator();
 
     var root_to_current:topology_m.Topology = .INFINITE_IDENTITY;
 
@@ -842,7 +852,7 @@ pub fn build_projection_operator_indices(
 
     // compute the path length
     const path = try path_from_parents(
-        allocator,
+        allocator_arena,
         source_index,
         sorted_endpoints.destination,
         codes,
@@ -909,7 +919,7 @@ pub fn build_projection_operator_indices(
         }
 
         const current_to_next = try space_nodes.items(.ref)[current].build_transform(
-            allocator,
+            allocator_arena,
             space_nodes.items(.label)[current],
             space_nodes.get(next),
             next_step,
@@ -930,7 +940,7 @@ pub fn build_projection_operator_indices(
         }
 
         const root_to_next = try topology_m.join(
-            allocator,
+            parent_allocator,
             .{
                 .a2b = root_to_current,
                 .b2c = current_to_next,
@@ -972,12 +982,10 @@ pub fn build_projection_operator_indices(
     if (endpoints_were_swapped and root_to_current.mappings.len > 0) 
     {
         const inverted_topologies = (
-            try root_to_current.inverted(allocator)
+            try root_to_current.inverted(parent_allocator)
         );
-        defer allocator.free(inverted_topologies);
-        root_to_current.deinit(allocator);
         errdefer opentime.deinit_slice(
-            allocator,
+            parent_allocator,
             topology_m.Topology,
             inverted_topologies
         );
@@ -1456,37 +1464,19 @@ test "track child after gap - use presentation space to compute offset"
     };
     const tr_ref = references.ComposedValueRef.init(&tr);
 
-    // const tr_pres_hierarchy = try temporal_hierarchy_under(
-    //     allocator,
-    //     tr_ref.space(.presentation),
-    // );
-    // defer tr_pres_hierarchy.deinit(allocator);
-    //
-    // const tr_pres_to_cl_media = try tr_pres_hierarchy.projection_operator_to(
-    //     allocator,
-    //     cl_ref.space(.media),
-    // );
-
-    const map = try build_temporal_map(
-        allocator,
-        tr_ref,
+    var proj_topo = (
+        try projection.ProjectionTopology.init_from(
+            allocator,
+            tr_ref.space(.presentation),
+        )
     );
-    defer map.deinit(allocator);
+    defer proj_topo.deinit(allocator);
 
-    const cache = try SingleSourceTopologyCache.init(
-        allocator,
-        map,
-    );
-    defer cache.deinit(allocator);
-
-    const tr_pres_to_cl_media = try build_projection_operator(
-        allocator,
-        map,
-        .{
-            .source = tr_ref.space(.presentation),
-            .destination = cl_ref.space(.media),
-        },
-        cache,
+    const tr_pres_to_cl_media = (
+        try proj_topo.projection_operator_to(
+            allocator,
+             cl_ref.space(.media),
+        )
     );
     defer tr_pres_to_cl_media.deinit(allocator);
 
@@ -1515,15 +1505,6 @@ test "track child after gap - use presentation space to compute offset"
         9, 
         tr_pres_to_cl_media.destination_bounds().end,
     );
-
-    var proj_topo = (
-        try projection.ProjectionTopology.init_from_reference(
-            allocator,
-            map,
-            tr_ref.space(.presentation),
-        )
-    );
-    defer proj_topo.deinit(allocator);
 
     try opentime.expectOrdinateEqual(
         0, 

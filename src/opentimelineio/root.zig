@@ -9,6 +9,7 @@ pub const SpaceLabel = references.SpaceLabel;
 pub const projection = @import("projection.zig");
 pub const ProjectionOperator = projection.ProjectionOperator;
 pub const ProjectionOperatorMap = projection.ProjectionOperatorMap;
+pub const ProjectionTopology = projection.ProjectionTopology;
 pub const projection_map_to_media_from = projection.projection_map_to_media_from;
 
 pub const temporal_hierarchy = @import("temporal_hierarchy.zig");

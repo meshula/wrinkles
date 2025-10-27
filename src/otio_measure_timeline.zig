@@ -153,9 +153,8 @@ pub fn main(
         );
 
         var projection_topo = (
-            try otio.projection.ProjectionTopology.init_from_reference(
+            try otio.projection.ProjectionTopology.init_from(
                 allocator,
-                temporal_map,
                 tl_ref.space(.presentation),
             )
         );

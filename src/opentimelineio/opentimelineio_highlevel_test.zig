@@ -86,34 +86,50 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
 
     // build the temporal map
     ///////////////////////////////////////////////////////////////////////////
-    const map = try otio.build_temporal_map(
-        allocator,
-        tl_ptr
-    );
-    defer map.deinit(allocator);
-
-    const cache = (
-        try otio.temporal_hierarchy.SingleSourceTopologyCache.init(
-            allocator,
-            map,
-        )
-    );
-    defer cache.deinit(allocator);
+    // const map = try otio.build_temporal_map(
+    //     allocator,
+    //     tl_ptr
+    // );
+    // defer map.deinit(allocator);
+    //
+    // const cache = (
+    //     try otio.temporal_hierarchy.SingleSourceTopologyCache.init(
+    //         allocator,
+    //         map,
+    //     )
+    // );
+    // defer cache.deinit(allocator);
 
     // could do individual specific end-to-end projections here
     ///////////////////////////////////////////////////////////////////////////
+    //     try otio.build_projection_operator(
+    //         allocator,
+    //         map,
+    //         .{
+    //             .source = tl_ptr.space(.presentation),
+    //             .destination = track_children[2].space(.media),
+    //         },
+    //         cache,
+    //     )
+    // );
+    // defer timeline_to_clip2.deinit(allocator);
+
+    var proj_topo = (
+        try otio.ProjectionTopology.init_from(
+            allocator, 
+            tl_ptr.space(.presentation)
+        )
+    );
+    defer proj_topo.deinit(allocator);
+
     const timeline_to_clip2 = (
-        try otio.build_projection_operator(
+        try proj_topo.projection_operator_to(
             allocator,
-            map,
-            .{
-                .source = tl_ptr.space(.presentation),
-                .destination = track_children[2].space(.media),
-            },
-            cache,
+            track_children[2].space(.media)
         )
     );
     defer timeline_to_clip2.deinit(allocator);
+
     const clip_indices = try timeline_to_clip2.project_range_cd(
         allocator,
         timeline_to_clip2.src_to_dst_topo.input_bounds(),
@@ -133,17 +149,17 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
 
     // ...or a general projection: build the projection operator map
     ///////////////////////////////////////////////////////////////////////////
-    const proj_map = (
-        try otio.projection_map_to_media_from(
-            allocator,
-            map, 
-            tl_ptr.space(.presentation)
-        )
-    );
-    defer proj_map.deinit(allocator);
+    // const proj_map = (
+    //     try otio.projection_map_to_media_from(
+    //         allocator,
+    //         map, 
+    //         tl_ptr.space(.presentation)
+    //     )
+    // );
+    // defer proj_map.deinit(allocator);
 
     const src_discrete_info = (
-        try proj_map.source.ref.discrete_info_for_space(.presentation)
+        proj_topo.source.ref.discrete_info_for_space(.presentation)
     );
 
     if (PRINT_DEMO_OUTPUT) 
@@ -165,8 +181,8 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         opentime.dbg_print(@src(),
             "    interval: [{d}, {d})\n",
             .{
-                proj_map.end_points[0],
-                proj_map.end_points[proj_map.end_points.len-1],
+                proj_topo.input_bounds().start,
+                proj_topo.input_bounds().end,
             },
         );
     }
@@ -197,24 +213,24 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     // walk across the general projection operator map
     ///////////////////////////////////////////////////////////////////////////
     for (
-        proj_map.end_points[0..(proj_map.end_points.len-1)],
-        proj_map.end_points[1..],
-        proj_map.operators,
+        proj_topo.intervals.items(.input_bounds),
+        proj_topo.intervals.items(.mapping_index),
         0..
-    )
-        |p0, p1, ops, op_ind|
+    ) |interval, mappings, ind|
     {
         if  (PRINT_DEMO_OUTPUT)
         {
             opentime.dbg_print(
                 @src(),
-                "  presentation space:\n    interval: [{d}, {d})\n",
-                .{ p0, p1 },
+                "  presentation space:\n    interval: {f}\n",
+                .{interval},
             );
         }
-        for (ops)
-            |op|
+        for (mappings)
+            |map_ind|
         {
+            const op = proj_topo.mappings.get(map_ind);
+
             if (PRINT_DEMO_OUTPUT)
             {
                 opentime.dbg_print(
@@ -227,9 +243,12 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
                     },
                 );
             }
+            const destination = proj_topo.temporal_map.space_nodes.get(
+                op.destination
+            );
             const di = (
-                try op.destination.ref.discrete_info_for_space(.media)
-            ).?;
+                try destination.ref.discrete_info_for_space(.media)
+            );
             if (PRINT_DEMO_OUTPUT)
             {
                 opentime.dbg_print(
@@ -243,23 +262,28 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
                 );
             }
 
-            const dest_frames = try op.project_range_cd(
+            const po = otio.ProjectionOperator{
+                .source = proj_topo.source,
+                .destination = destination,
+                .src_to_dst_topo = .{
+                    .mappings = &.{ op.mapping },
+                },
+            };
+
+            const dest_frames = try po.project_range_cd(
                 allocator,
-                .{
-                    .start = p0,
-                    .end = p1,
-                }
+                interval,
             );
             defer allocator.free(dest_frames);
 
             errdefer std.debug.print(
                 "error at op_ind: {d}\n",
-                .{ op_ind }
+                .{ ind }
             );
 
             try std.testing.expectEqualSlices(
                 sampling.sample_index_t,
-                known_frames[op_ind],
+                known_frames[ind],
                 dest_frames,
             );
 

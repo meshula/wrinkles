@@ -998,9 +998,11 @@ test "ProjectionOperatorMap: split_at_each"
             opentime.Ordinate.init(8),
         };
 
-        const result = try cl_presentation_pmap.split_at_each(
-            allocator,
-            &pts,
+        const result = (
+            try cl_presentation_pmap.split_at_each(
+                allocator,
+                &pts,
+            )
         );
         defer result.deinit(allocator);
 
@@ -1449,13 +1451,13 @@ test "transform: track with two clips"
     }
 
     {
-    const cache = (
-        try temporal_hierarchy.SingleSourceTopologyCache.init(
-            allocator,
-            map,
-        )
-    );
-    defer cache.deinit(allocator);
+        const cache = (
+            try temporal_hierarchy.SingleSourceTopologyCache.init(
+                allocator,
+                map,
+            )
+        );
+        defer cache.deinit(allocator);
 
         const xform = try temporal_hierarchy.build_projection_operator(
             allocator,
@@ -3002,25 +3004,46 @@ pub fn ReferenceTopology(
 
         // temporally sorted, could be more efficient with a BVH of some kind
         intervals: std.MultiArrayList(IntervalMapping),
-        temporal_map: treecode.Map(SpaceReferenceType),
 
-        pub fn init_from_reference(
+        temporal_map: treecode.Map(SpaceReferenceType),
+        cache: temporal_hierarchy.SingleSourceTopologyCache,
+
+        pub fn init_from(
             parent_allocator: std.mem.Allocator,
-            temporal_map: treecode.Map(SpaceReferenceType),
             source_reference: SpaceReferenceType,
         ) !ReferenceTopologyType
         {
+            std.debug.print("~~~~----~~~~\n", .{});
             var arena = std.heap.ArenaAllocator.init(
                 parent_allocator,
             );
             defer arena.deinit();
             const allocator_arena = arena.allocator();
 
+            // Build out the hierarchy of all the coordinate spaces
+            ///////////////////////////////
+            const temporal_map = (
+                try temporal_hierarchy.build_temporal_map(
+                    parent_allocator,
+                    source_reference.ref,
+                )
+            );
+
+            // Initialize a cache for projections
+            ///////////////////////////////
+            const cache = (
+                try temporal_hierarchy.SingleSourceTopologyCache.init(
+                    parent_allocator,
+                    temporal_map,
+                )
+            );
+
             var self: ReferenceTopologyType = .{
                 .source = source_reference,
                 .mappings = .empty,
                 .intervals = .empty,
                 .temporal_map = temporal_map,
+                .cache = cache,
             };
 
             var unsplit_intervals: std.MultiArrayList(
@@ -3042,14 +3065,6 @@ pub fn ReferenceTopology(
                 },
             ) = .empty;
             defer vertices_builder.deinit(allocator_arena);
-
-            const cache = (
-                try temporal_hierarchy.SingleSourceTopologyCache.init(
-                    allocator_arena,
-                    temporal_map,
-                )
-            );
-            defer cache.deinit(allocator_arena);
 
             // Gather up all the operators and intervals
             /////////////
@@ -3384,6 +3399,25 @@ pub fn ReferenceTopology(
 
             self.intervals.deinit(allocator);
             self.mappings.deinit(allocator);
+            self.temporal_map.deinit(allocator);
+            self.cache.deinit(allocator);
+        }
+
+        pub fn projection_operator_to(
+            self: @This(),
+            allocator: std.mem.Allocator,
+            destination_space: references.SpaceReference,
+        ) !ProjectionOperator
+        {
+            return try temporal_hierarchy.build_projection_operator(
+                allocator,
+                self.temporal_map,
+                .{
+                    .source = self.source,
+                    .destination = destination_space,
+                },
+                self.cache,
+            );
         }
 
         /// return the input range for this ReferenceTopology
@@ -3442,7 +3476,6 @@ pub fn ReferenceTopology(
                     );
                 }
             }
-
         }
     };
 }
@@ -3526,9 +3559,8 @@ test "ReferenceTopology: init_from_reference"
     defer map.deinit(allocator);
 
     var projection_topo = (
-        try ProjectionTopology.init_from_reference(
+        try ProjectionTopology.init_from(
             allocator,
-            map,
             tl_ref.space(.presentation),
         )
     );
