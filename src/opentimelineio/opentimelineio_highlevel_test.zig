@@ -1188,17 +1188,20 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     );
     defer cache.deinit(allocator);
 
+    var proj_topo_from_tl_pres = (
+        try otio.ProjectionTopology.init_from(
+            allocator, 
+            tl_ptr.space(.presentation)
+        )
+    );
+    defer proj_topo_from_tl_pres.deinit(allocator);
+
     // Build the projection from Timeline Presentation -> Clip Media
     ///////////////////////////////////////////////////////////////////////////
     const tl_pres_to_cl_media_po = (
-        try otio.build_projection_operator(
+        try proj_topo_from_tl_pres.projection_operator_to(
             allocator,
-            map,
-            .{
-                .source = tl_ptr.space(.presentation),
-                .destination = cl_ptr.space(.media),
-            },
-            cache,
+            cl_ptr.space(.media),
         )
     );
     defer tl_pres_to_cl_media_po.deinit(allocator);
@@ -1222,7 +1225,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
         {
             try opentime.expectOrdinateEqual(
                 i,
-                tl_pres_to_cl_media_po.project_instantaneous_cc(
+                tl_pres_to_cl_media_po.project_instantaneous_cc_assume_in_bounds(
                     i
                 ).ordinate(),
             );

@@ -66,6 +66,23 @@ pub const Mapping = union (enum) {
         };
     }
 
+    /// project an instantaneous ordinate from the input space to the output
+    /// space, without the bounds check
+    pub fn project_instantaneous_cc_assume_in_bounds(
+        self: @This(),
+        input_ord: anytype,
+    ) opentime.ProjectionResult 
+    {
+        return switch (self) {
+            inline else => |m| m.project_instantaneous_cc_assume_in_bounds(
+                switch (@TypeOf(input_ord)) {
+                    opentime.Ordinate => input_ord,
+                    else => opentime.Ordinate.init(input_ord),
+                }
+            ),
+        };
+    }
+
     /// project an instantaneous ordinate from the output space to the input
     /// space
     pub fn project_instantaneous_cc_inv(

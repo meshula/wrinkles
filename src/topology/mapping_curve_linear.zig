@@ -74,6 +74,10 @@ pub const MappingCurveLinearMonotonic = struct {
         return self.input_to_output_curve.output_at_input(input_ordinate);
     }
 
+    pub const project_instantaneous_cc_assume_in_bounds = (
+        project_instantaneous_cc
+    );
+
     pub fn project_instantaneous_cc_inv(
         self: @This(),
         output_ordinate: opentime.Ordinate,

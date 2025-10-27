@@ -62,6 +62,17 @@ pub const ProjectionOperator = struct {
         );
     }
 
+    ///project a continuous ordinate to the continuous destination space
+    pub fn project_instantaneous_cc_assume_in_bounds(
+        self: @This(),
+        ordinate_in_source_space: opentime.Ordinate,
+    ) opentime.ProjectionResult
+    {
+        return self.src_to_dst_topo.project_instantaneous_cc_assume_in_bounds(
+            ordinate_in_source_space
+        );
+    }
+
     /// project a continuous ordinate to the destination discrete sample index
     pub fn project_instantaneous_cd(
         self: @This(),

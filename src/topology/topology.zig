@@ -857,12 +857,22 @@ pub const Topology = struct {
             };
         }
 
+        return self.project_instantaneous_cc_assume_in_bounds(
+            input_ord,
+        );
+    }
+
+    pub fn project_instantaneous_cc_assume_in_bounds(
+        self: @This(),
+        input_ord: opentime.Ordinate,
+    ) opentime.ProjectionResult
+    {
         for (self.mappings)
             |m|
         {
             if (m.input_bounds().overlaps(input_ord))
             {
-                return m.project_instantaneous_cc(input_ord);
+                return m.project_instantaneous_cc_assume_in_bounds(input_ord);
             }
         }
 

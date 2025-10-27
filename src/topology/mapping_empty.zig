@@ -32,6 +32,10 @@ pub const MappingEmpty = struct {
         return .OUTOFBOUNDS;
     }
 
+    pub const project_instantaneous_cc_assume_in_bounds = (
+        project_instantaneous_cc
+    );
+
     pub fn project_instantaneous_cc_inv(
         _: @This(),
         _: opentime.Ordinate

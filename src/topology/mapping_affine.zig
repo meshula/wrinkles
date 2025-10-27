@@ -41,21 +41,33 @@ pub const MappingAffine = struct {
 
     pub fn project_instantaneous_cc(
         self: @This(),
-        ordinate: opentime.Ordinate,
+        input_space_ordinate: opentime.Ordinate,
     ) opentime.ProjectionResult
     {
         if (
-            !self.input_bounds_val.overlaps(ordinate) 
+            !self.input_bounds_val.overlaps(input_space_ordinate) 
             // allow projecting the end point
-            and !ordinate.eql(self.input_bounds_val.end)
+            and !input_space_ordinate.eql(self.input_bounds_val.end)
         )
         {
             return .OUTOFBOUNDS;
         }
 
+        return self.project_instantaneous_cc_assume_in_bounds(
+            input_space_ordinate
+        );
+    }
+
+    pub fn project_instantaneous_cc_assume_in_bounds(
+        self: MappingAffine,
+        input_space_ordinate: opentime.Ordinate,
+    ) opentime.ProjectionResult
+    {
         return .{ 
             .SuccessOrdinate = (
-                self.input_to_output_xform.applied_to_ordinate(ordinate)
+                self.input_to_output_xform.applied_to_ordinate(
+                    input_space_ordinate
+                )
             ),
         };
     }
@@ -75,6 +87,8 @@ pub const MappingAffine = struct {
             return .OUTOFBOUNDS;
         }
 
+        return self.project_instantaneous_cc_assume_in_bounds(output_ordinate);
+    }
         return .{
             .SuccessOrdinate = self.input_to_output_xform.inverted(
             ).applied_to_ordinate(output_ordinate)
