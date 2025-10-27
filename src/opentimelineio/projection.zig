@@ -11,6 +11,8 @@ const references = @import("references.zig");
 const temporal_hierarchy = @import("temporal_hierarchy.zig");
 const test_data = @import("test_structures.zig");
 
+const GRAPH_CONSTRUCTION_TRACE_MESSAGES = false;
+
 /// Combines a source, destination and transformation from the source to the
 /// destination.  Allows continuous and discrete transformations.
 pub const ProjectionOperator = struct {
@@ -3015,7 +3017,6 @@ pub fn ReferenceTopology(
             source_reference: SpaceReferenceType,
         ) !ReferenceTopologyType
         {
-            std.debug.print("~~~~----~~~~\n", .{});
             var arena = std.heap.ArenaAllocator.init(
                 parent_allocator,
             );
@@ -3101,8 +3102,8 @@ pub fn ReferenceTopology(
                 proj_args.destination = current_index;
 
                 const proj_op = (
-                    try temporal_hierarchy.build_projection_operator_indices(
-                        allocator_arena,
+                    try build_projection_operator_indices_local(
+                        parent_allocator,
                         temporal_map,
                         proj_args,
                         cache,
@@ -3486,8 +3487,14 @@ pub const ProjectionTopology = ReferenceTopology(references.SpaceReference);
 
 test "ReferenceTopology: init_from_reference"
 {
+    std.debug.print(
+        "~~**~~**~~** init_from_reference ~~**~~**~~**\n",
+        .{},
+    );
     const allocator = std.testing.allocator;
 
+    // build timeline
+    /////////////////////////////////////
     var cl = schema.Clip {
         .name = "clip1",
         .bounds_s = test_data.T_INT_1_TO_9,
@@ -3554,12 +3561,8 @@ test "ReferenceTopology: init_from_reference"
     };
     const tl_ref = tl.reference();
 
-    const map = try temporal_hierarchy.build_temporal_map(
-        allocator,
-        tl_ref,
-    );
-    defer map.deinit(allocator);
-
+    // build ProjectionTopology
+    //////////////////////////
     var projection_topo = (
         try ProjectionTopology.init_from(
             allocator,
@@ -3656,8 +3659,10 @@ test "ReferenceTopology: init_from_reference"
             const output_bounds = (
                 mapping.mapping.output_bounds()
             );
-            const destination = map.space_nodes.get(
-                mapping.destination
+            const destination = (
+                projection_topo.temporal_map.space_nodes.get(
+                    mapping.destination
+                )
             );
 
             const start_ind = (
@@ -3685,4 +3690,171 @@ test "ReferenceTopology: init_from_reference"
             );
         }
     }
+    std.debug.print(
+        "~~**~~**~~** END:init_from_reference ~~**~~**~~**\n",
+        .{},
+    );
+}
+
+/// Stashing this algorithm here while I iterate on the details to isolate bugs
+pub fn build_projection_operator_indices_local(
+    parent_allocator: std.mem.Allocator,
+    map: temporal_hierarchy.TemporalMap,
+    endpoints: temporal_hierarchy.TemporalMap.PathEndPointIndices,
+    operator_cache: temporal_hierarchy.SingleSourceTopologyCache,
+) !ProjectionOperator 
+{
+    // sort endpoints so that the higher node is always the source
+    const sorted_endpoints = endpoints;
+    // const endpoints_were_swapped = try map.sort_endpoint_indices(
+    //     &sorted_endpoints
+    // );
+
+    var arena = std.heap.ArenaAllocator.init(parent_allocator);
+    // defer arena.deinit();
+    const allocator_arena = arena.allocator();
+
+    var root_to_current:topology_m.Topology = .INFINITE_IDENTITY;
+
+    if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
+    {
+        opentime.dbg_print(@src(), 
+            "[START] root_to_current: {f}\n",
+            .{ root_to_current }
+        );
+    }
+
+    const source_index = sorted_endpoints.source;
+
+    const path_nodes = map.path_nodes.slice();
+    const codes = path_nodes.items(.code);
+    const space_nodes = map.space_nodes.slice();
+
+    // compute the path length
+    const path = try temporal_hierarchy.path_from_parents(
+        allocator_arena,
+        source_index,
+        sorted_endpoints.destination,
+        codes,
+        path_nodes.items(.parent_index),
+    );
+
+    if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
+    {
+        opentime.dbg_print(@src(), 
+            "starting walk from: {f} to: {f}\n"
+            ++ "starting projection: {f}\n"
+            ,
+            .{
+                space_nodes.get(path[0]),
+                space_nodes.get(sorted_endpoints.destination),
+                root_to_current,
+            }
+        );
+    }
+
+    if (path.len < 2)
+    {
+        return .{
+            .source = space_nodes.get(endpoints.source),
+            .destination = space_nodes.get(endpoints.destination),
+            .src_to_dst_topo = .INFINITE_IDENTITY,
+        };
+    }
+
+    var path_step:temporal_hierarchy.TemporalMap.PathEndPointIndices = .{
+        .source = @intCast(source_index),
+        .destination = @intCast(source_index),
+    };
+
+    // walk from current_code towards destination_code - path[0] is the current
+    // node, can be skipped
+    for (path[0..path.len - 1], path[1..])
+        |current, next|
+    {
+        path_step.destination = @intCast(next);
+
+        if (operator_cache.items[next])
+            |cached_topology|
+        {
+            root_to_current = cached_topology;
+            continue;
+        }
+
+        const next_step = codes[current].next_step_towards(codes[next]);
+
+        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) { 
+            opentime.dbg_print(
+                @src(), 
+                "  next step {b} towards next node: {f}\n",
+                .{ next_step, space_nodes.get(next) },
+            );
+        }
+
+        const current_to_next = try space_nodes.items(.ref)[current].build_transform(
+            allocator_arena,
+            space_nodes.items(.label)[current],
+            space_nodes.get(next),
+            next_step,
+        );
+
+        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
+        {
+            opentime.dbg_print(@src(), 
+                "    joining!\n"
+                ++ "    a2b/root_to_current: {f}\n"
+                ++ "    b2c/current_to_next: {f}\n"
+                ,
+                .{
+                    root_to_current,
+                    current_to_next,
+                },
+            );
+        }
+
+        const root_to_next = try topology_m.join(
+            parent_allocator,
+            .{
+                .a2b = root_to_current,
+                .b2c = current_to_next,
+            },
+        );
+
+        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
+        {
+            opentime.dbg_print(@src(), 
+                "    root_to_next: {f}\n",
+                .{root_to_next}
+            );
+            const i_b = root_to_next.input_bounds();
+            const o_b = root_to_next.output_bounds();
+
+            opentime.dbg_print(
+                @src(), 
+                "    root_to_next (next root to current!): {f}\n"
+                ++ "    composed transform ranges {f}: {f},"
+                ++ " {f}: {f}\n"
+                ,
+                .{
+                    root_to_next,
+                    space_nodes.get(source_index),
+                    i_b,
+                    space_nodes.get(next),
+                    o_b,
+                },
+            );
+        }
+
+        // clone a persistent copy into the cache
+        root_to_current = root_to_next;
+        operator_cache.items[next] = root_to_current;
+    }
+
+    defer arena.deinit();
+
+    return .{
+        .source = space_nodes.get(endpoints.source),
+        .destination = space_nodes.get(endpoints.destination),
+        .src_to_dst_topo = root_to_current,
+    };
 }
