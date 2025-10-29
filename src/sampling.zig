@@ -268,6 +268,25 @@ pub const Sampling = struct {
             ),
         };
     }
+
+    pub fn format(
+        self: @This(),
+        writer: *std.Io.Writer,
+    ) !void 
+    {
+        try writer.print(
+            (
+                  "Sampling{{ buffer.len: {d}, index_generator: {f}, "
+                  ++ "interpolating: {any} }}"
+            ),
+            .
+            {
+                self.buffer.len,
+                self.index_generator,
+                self.interpolating,
+            },
+        );
+    }
 };
 
 test "sampling: samples_overlapping_interval" 
