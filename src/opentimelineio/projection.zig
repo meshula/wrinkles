@@ -62,7 +62,9 @@ pub const ProjectionOperator = struct {
         );
     }
 
-    ///project a continuous ordinate to the continuous destination space
+    ///project a continuous ordinate to the continuous destination space,
+    ///assuming that the ordinate_in_source_space is within the bounds of the
+    ///src_to_dst_topo (will _not_ perform a bounds check)
     pub fn project_instantaneous_cc_assume_in_bounds(
         self: @This(),
         ordinate_in_source_space: opentime.Ordinate,
