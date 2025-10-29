@@ -1500,7 +1500,5 @@ test "track child after gap - use presentation space to compute offset"
         15,
         proj_topo.input_bounds().end,
     );
-
-    std.debug.print("Proj Topo: {f}\n", .{proj_topo});
 }
 
