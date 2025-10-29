@@ -11,10 +11,21 @@ const sampling = @import("sampling");
 // for verbose print of test
 const PRINT_DEMO_OUTPUT = false;
 
-const T_ORD_6 = opentime.Ordinate.init(6);
-const T_INT_1_TO_6 = opentime.ContinuousInterval{
-    .start = opentime.Ordinate.ONE,
-    .end = T_ORD_6,
+// Duration of the test signal
+const T_SIGNAL_DURATION = 1;
+const T_ORD_SIGNAL_DURATION = opentime.Ordinate.init(
+    T_SIGNAL_DURATION
+);
+const T_SIGNAL_START = 1;
+const T_ORD_SIGNAL_GEN_DURATION = T_ORD_SIGNAL_DURATION.mul(
+    2
+);
+const T_SIGNAL_START_ORD = opentime.Ordinate.init(
+    T_SIGNAL_START,
+);
+const T_INT_SIGNAL = opentime.ContinuousInterval{
+    .start = T_SIGNAL_START_ORD,
+    .end = T_ORD_SIGNAL_DURATION.add(T_SIGNAL_START_ORD),
 };
 const T_AFF_N1_2 = opentime.AffineTransform1D {
     .offset = opentime.Ordinate.init(-1),
@@ -27,21 +38,6 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
 
     // describe the timeline data structure
     ///////////////////////////////////////////////////////////////////////////
- 
-    // top level timeline
-    var tl: otio.Timeline = .{};
-
-    tl.name = "Example Timeline - high level procedural test";
-    tl.discrete_info.presentation = .{
-        .sample_rate_hz = .{ .Int = 24 },
-        .start_index = 86400,
-    };
-    const tl_ptr = tl.reference();
-
-    // track
-    var tr: otio.Track = .{};
-    tr.name = "Example Parent Track";
-
     // clips
     var cl1:otio.Clip = .{
         .name = "Spaghetti.mov",
@@ -72,48 +68,38 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             },
         },
     };
-    var track_children=[_]otio.ComposedValueRef{
+    var track_children = [_]otio.ComposedValueRef{
         .{ .clip = &cl1 },
         .{ .gap = &gp },
         .{ .clip = &cl2 },
     };
-    tr.children = &track_children;
 
-    var timeline_tracks = [_]otio.ComposedValueRef{
-        .{ .track = &tr },
+    // track
+    var tr: otio.Track = .{
+        .name = "Example Parent Track",
+        .children = &track_children,
     };
-    tl.tracks.children = &timeline_tracks;
+
+    // top level timeline
+    var tl_children = [_]otio.ComposedValueRef{
+        tr.reference(),
+    };
+    var tl: otio.Timeline = .{
+        .name = "Example Timeline - high level procedural test",
+        .discrete_info = .{ 
+            .presentation = .{
+                .sample_rate_hz = .{ .Int = 24 },
+                .start_index = 86400,
+            },
+        },
+        .tracks = .{ 
+            .children = &tl_children, 
+        },
+    };
+    const tl_ptr = tl.reference();
 
     // build the temporal map
     ///////////////////////////////////////////////////////////////////////////
-    // const map = try otio.build_temporal_map(
-    //     allocator,
-    //     tl_ptr
-    // );
-    // defer map.deinit(allocator);
-    //
-    // const cache = (
-    //     try otio.temporal_hierarchy.SingleSourceTopologyCache.init(
-    //         allocator,
-    //         map,
-    //     )
-    // );
-    // defer cache.deinit(allocator);
-
-    // could do individual specific end-to-end projections here
-    ///////////////////////////////////////////////////////////////////////////
-    //     try otio.build_projection_operator(
-    //         allocator,
-    //         map,
-    //         .{
-    //             .source = tl_ptr.space(.presentation),
-    //             .destination = track_children[2].space(.media),
-    //         },
-    //         cache,
-    //     )
-    // );
-    // defer timeline_to_clip2.deinit(allocator);
-
     var proj_topo = (
         try otio.ProjectionTopology.init_from(
             allocator, 
@@ -125,7 +111,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     const timeline_to_clip2 = (
         try proj_topo.projection_operator_to(
             allocator,
-            track_children[2].space(.media)
+            tr.children[2].space(.media)
         )
     );
     defer timeline_to_clip2.deinit(allocator);
@@ -146,17 +132,6 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         },
         clip_indices,
     );
-
-    // ...or a general projection: build the projection operator map
-    ///////////////////////////////////////////////////////////////////////////
-    // const proj_map = (
-    //     try otio.projection_map_to_media_from(
-    //         allocator,
-    //         map, 
-    //         tl_ptr.space(.presentation)
-    //     )
-    // );
-    // defer proj_map.deinit(allocator);
 
     const src_discrete_info = (
         proj_topo.source.ref.discrete_info_for_space(.presentation)
@@ -316,7 +291,7 @@ test "libsamplerate w/ high level test -- resample only"
     var cl1 = otio.Clip {
         .name = "Spaghetti.mov",
         .media = .{
-            .bounds_s = T_INT_1_TO_6,
+            .bounds_s = T_INT_SIGNAL,
             .discrete_info = .{
                 .sample_rate_hz = .{ .Int = 48000 },
                 .start_index = 0,
@@ -325,7 +300,7 @@ test "libsamplerate w/ high level test -- resample only"
                 .signal = .{
                     .signal_generator = .{
                         .signal = .sine,
-                        .duration_s = T_ORD_6,
+                        .duration_s = T_ORD_SIGNAL_GEN_DURATION,
                         .frequency_hz = 200,
                     }
                 }
@@ -416,7 +391,7 @@ test "libsamplerate w/ high level test -- resample only"
         pres_bounds.start,
     );
     try opentime.expectOrdinateEqual(
-        5,
+        T_ORD_SIGNAL_DURATION,
         pres_bounds.end,
     );
 
@@ -426,9 +401,9 @@ test "libsamplerate w/ high level test -- resample only"
 
     // synthesize media
     const media_samples = (
-        try cl_ptr.clip.media.ref.signal.signal_generator.rasterized(
+        try cl1.media.ref.signal.signal_generator.rasterized(
             allocator,
-            cl_ptr.clip.media.discrete_info.?,
+            cl1.media.discrete_info.?,
             true,
         )
     );
@@ -474,9 +449,9 @@ test "libsamplerate w/ high level test.retime.interpolating"
     const allocator = std.testing.allocator;
 
     var cl1 = otio.Clip {
-        .name = "Spaghetti.mov",
+        .name = "Clip w/ media ref pointing at a Sine Signal",
         .media = .{
-            .bounds_s = T_INT_1_TO_6,
+            .bounds_s = T_INT_SIGNAL,
             .discrete_info = .{
                 .sample_rate_hz = .{ .Int = 48000 },
                 .start_index = 0,
@@ -485,19 +460,21 @@ test "libsamplerate w/ high level test.retime.interpolating"
                 .signal = .{
                     .signal_generator = .{
                         .signal = .sine,
-                        .duration_s = T_ORD_6,
+                        .duration_s = T_ORD_SIGNAL_GEN_DURATION,
                         .frequency_hz = 200,
                     },
                 },
             },
         },
     };
+    
     const cl_ptr = otio.ComposedValueRef{
         .clip = &cl1,
     };
 
     // new for this test - add in an warp on the clip
     var wp: otio.Warp = .{
+        .name = "-1 offset 2 scale",
         .child = cl_ptr,
         .transform = try topology.Topology.init_affine(
             allocator,
@@ -536,45 +513,38 @@ test "libsamplerate w/ high level test.retime.interpolating"
 
     // build the temporal map
     ///////////////////////////////////////////////////////////////////////////
-    const map = try otio.build_temporal_map(
-        allocator,
-        tl_ptr
+    var proj_topo_from_tl_pres = (
+        try otio.ProjectionTopology.init_from(
+            allocator, 
+            tl_ptr.space(.presentation)
+        )
     );
-    defer map.deinit(allocator);
+    defer proj_topo_from_tl_pres.deinit(allocator);
 
-    try map.write_dot_graph(
+    try proj_topo_from_tl_pres.temporal_map.write_dot_graph(
         allocator,
         "/var/tmp/track_clip_warp.dot",
         "track_clip_warp",
         .{},
     );
 
-    const cache = (
-        try otio.temporal_hierarchy.SingleSourceTopologyCache.init(
+    const tl_pres_to_cl_media_po = (
+        try proj_topo_from_tl_pres.projection_operator_to(
             allocator,
-            map,
+            cl_ptr.space(.media),
         )
     );
-    defer cache.deinit(allocator);
+    defer tl_pres_to_cl_media_po.deinit(allocator);
 
-    const tr_pres_to_cl_media_po = (
-        try otio.build_projection_operator(
-            allocator,
-            map,
-            .{
-                .source = tr_ptr.space(.presentation),
-                .destination = cl_ptr.space(.media),
-            },
-            cache,
-        )
+    try std.testing.expect(
+        tl_pres_to_cl_media_po.src_to_dst_topo.mappings[0] != .empty
     );
-    defer tr_pres_to_cl_media_po.deinit(allocator);
 
     // synthesize media
     const media = (
-        try cl_ptr.clip.media.ref.signal.signal_generator.rasterized(
+        try cl1.media.ref.signal.signal_generator.rasterized(
             allocator,
-            cl_ptr.clip.media.discrete_info.?,
+            cl1.media.discrete_info.?,
             true,
         )
     );
@@ -593,7 +563,10 @@ test "libsamplerate w/ high level test.retime.interpolating"
     const result = try sampling.transform_resample_dd(
         allocator,
         media,
-        tr_pres_to_cl_media_po.src_to_dst_topo,
+        // @TODO: this should be input_c_to_output_c, so the inversion happens
+        //        ABOVE the resample.  its weird that its written the other way
+        //        here.
+        tl_pres_to_cl_media_po.src_to_dst_topo,
         tl.discrete_info.presentation.?,
         false,
     );
@@ -602,7 +575,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
     // result should match the timeline's discrete info
     try std.testing.expectEqual(
         tl.discrete_info.presentation.?.sample_rate_hz,
-        result.index_generator.sample_rate_hz
+        result.index_generator.sample_rate_hz,
     );
 
     const input_p2p = try sampling.peak_to_peak_distance(media.buffer);
@@ -630,9 +603,9 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     const allocator = std.testing.allocator;
 
     var cl1 = otio.Clip {
-        .name = "Spaghetti.mov",
+        .name = "Sine Wave",
         .media = .{
-            .bounds_s = T_INT_1_TO_6,
+            .bounds_s = T_INT_SIGNAL,
             .discrete_info = .{
                 .sample_rate_hz = .{ .Int = 48000 },
                 .start_index = 0,
@@ -641,7 +614,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
                 .signal = .{
                     .signal_generator = .{
                         .signal = .sine,
-                        .duration_s = T_ORD_6,
+                        .duration_s = T_ORD_SIGNAL_GEN_DURATION,
                         .frequency_hz = 200,
                     },
                 },
@@ -676,7 +649,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     var timeline_children = [_]otio.ComposedValueRef{
         tr_ptr,
     };
-    var tl: otio.Timeline = .{
+    const tl: otio.Timeline = .{
         .name = (
             "Example Timeline - high level test.retime.non_interpolating"
         ),
@@ -694,38 +667,27 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
 
     // build the temporal map
     ///////////////////////////////////////////////////////////////////////////
-    const map = try otio.build_temporal_map(
-        allocator,
-        .{ .timeline = &tl },
-    );
-    defer map.deinit(allocator);
-
-    const cache = (
-        try otio.temporal_hierarchy.SingleSourceTopologyCache.init(
-            allocator,
-            map,
+    var proj_topo_from_tr_pres = (
+        try otio.ProjectionTopology.init_from(
+            allocator, 
+            tr_ptr.space(.presentation)
         )
     );
-    defer cache.deinit(allocator);
+    defer proj_topo_from_tr_pres.deinit(allocator);
 
     const tr_pres_to_cl_media_po = (
-        try otio.build_projection_operator(
+        try proj_topo_from_tr_pres.projection_operator_to(
             allocator,
-            map,
-            .{
-                .source = tr_ptr.space(.presentation),
-                .destination = cl_ptr.space(.media),
-            },
-            cache,
+            cl_ptr.space(.media),
         )
     );
     defer tr_pres_to_cl_media_po.deinit(allocator);
 
     // synthesize media
     const media = (
-        try cl_ptr.clip.media.ref.signal.signal_generator.rasterized(
+        try cl1.media.ref.signal.signal_generator.rasterized(
             allocator,
-            cl_ptr.clip.media.discrete_info.?,
+            cl1.media.discrete_info.?,
             false,
         )
     );
@@ -757,7 +719,9 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     );
 
     const input_p2p = try sampling.peak_to_peak_distance(media.buffer);
-    const result_p2p = try sampling.peak_to_peak_distance(indices_tr_pres.buffer);
+    const result_p2p = try sampling.peak_to_peak_distance(
+        indices_tr_pres.buffer
+    );
 
     // because the warp is scaling the presentation space by 2, the
     // presentation space should have half the peak to peak of the media
@@ -804,19 +768,21 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
 {
     const allocator = std.testing.allocator;
 
+    const sample_rate = 48000;
+
     var cl1 = otio.Clip {
         .name = "Spaghetti.mov",
         .media = .{
-            .bounds_s = T_INT_1_TO_6,
+            .bounds_s = T_INT_SIGNAL,
             .discrete_info = .{
-                .sample_rate_hz = .{ .Int = 48000 },
+                .sample_rate_hz = .{ .Int = sample_rate },
                 .start_index = 0,
             },
             .ref = .{
                 .signal = .{
                     .signal_generator = .{
                         .signal = .sine,
-                        .duration_s = T_ORD_6,
+                        .duration_s = T_ORD_SIGNAL_GEN_DURATION,
                         .frequency_hz = 200,
                     },
                 },
@@ -834,10 +800,10 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
                 .knots = &.{
                     .{
                         .in = opentime.Ordinate.ZERO,
-                        .out = T_ORD_6, 
+                        .out = T_ORD_SIGNAL_DURATION, 
                     },
                     .{
-                        .in = T_ORD_6,
+                        .in = T_ORD_SIGNAL_DURATION,
                         .out = opentime.Ordinate.ZERO 
                     },   
                 },
@@ -858,55 +824,22 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
         .track = &tr,
     };
 
-    var timeline_children = [_]otio.ComposedValueRef{
-        tr_ptr,
-    };
-    var tl: otio.Timeline = .{
-        .name = (
-            "Timeline w/ 48000khz+86400 start test.retime.non_interpolating_reverse"
-        ),
-        .discrete_info = .{ 
-            .presentation = .{
-                // matches the media rate
-                .sample_rate_hz = .{ .Int = 48000 },
-                .start_index = 86400,
-            },
-        },
-        .tracks = .{
-            .children = &timeline_children,
-        },
-    };
-    const tl_ptr = otio.ComposedValueRef{
-        .timeline = &tl,
-    };
-
-    // build the temporal map (Timeline.presentation -> ...)
+    // build the temporal map (Tr.presentation -> ...)
     ///////////////////////////////////////////////////////////////////////////
-    const map = try otio.build_temporal_map(
-        allocator,
-        tl_ptr,
-    );
-    defer map.deinit(allocator);
-
-    const cache = (
-        try otio.temporal_hierarchy.SingleSourceTopologyCache.init(
-            allocator,
-            map,
+    var proj_topo_from_tr_pres = (
+        try otio.ProjectionTopology.init_from(
+            allocator, 
+            tr_ptr.space(.presentation)
         )
     );
-    defer cache.deinit(allocator);
+    defer proj_topo_from_tr_pres.deinit(allocator);
 
     // build the projection operator (Track.presentation -> clip.media)
     ///////////////////////////////////////////////////////////////////////////
     const tr_pres_to_cl_media_po = (
-        try otio.build_projection_operator(
-            allocator,
-            map,
-            .{
-                .source = tr_ptr.space(.presentation),
-                .destination = cl_ptr.space(.media),
-            },
-            cache,
+        try proj_topo_from_tr_pres.projection_operator_to(
+            allocator, 
+            cl_ptr.space(.media),
         )
     );
     defer tr_pres_to_cl_media_po.deinit(allocator);
@@ -922,10 +855,15 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
             try tr_pres_to_cl_media_po.project_instantaneous_cd(start_tr_pres)
         );
 
+        const expected_start_index = (
+            T_SIGNAL_START * sample_rate 
+            + T_SIGNAL_DURATION * sample_rate
+        );
+
         // 6 second signal at 48000 that starts 1 second in = 
         // [48000, 288000) -> [288000, 48000)
         try std.testing.expectEqual(
-            288000,
+            expected_start_index,
             start_ind_cl_media,
         );
 
@@ -944,7 +882,12 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
 
         try std.testing.expectEqualSlices(
             sampling.sample_index_t, 
-            &.{ 288000, 287999, 287998, 287997,},
+            &.{
+                expected_start_index,
+                expected_start_index - 1,
+                expected_start_index - 2,
+                expected_start_index - 3,
+            },
             indices_cl_media,
         );
     }
@@ -960,7 +903,7 @@ test "timeline w/ warp that holds the tenth frame"
     var cl1 = otio.Clip {
         .name = "Spaghetti.mov",
         .media = .{
-            .bounds_s = T_INT_1_TO_6,
+            .bounds_s = T_INT_SIGNAL,
             .discrete_info = .{
                 .sample_rate_hz = .{ .Int = 24 },
                 .start_index = 0,
@@ -969,7 +912,7 @@ test "timeline w/ warp that holds the tenth frame"
                 .signal = .{
                     .signal_generator = .{ 
                         .signal = .sine,
-                        .duration_s = T_ORD_6,
+                        .duration_s = T_ORD_SIGNAL_DURATION,
                         .frequency_hz = 24,
                     },
                 },
@@ -1018,27 +961,8 @@ test "timeline w/ warp that holds the tenth frame"
     };
     const tr_ptr = otio.ComposedValueRef.init(&tr);
 
-    var tl_children = [_]otio.ComposedValueRef{
-        tr_ptr,
-    };
-    var tl: otio.Timeline = .{
-        .name = "Top Timeline - timeline w/ warp that holds the tenth frame",
-        .discrete_info = .{ 
-            .presentation = .{
-                // matches the media rate
-                .sample_rate_hz = .{ .Int = 24 },
-                .start_index = 0,
-            },
-        },
-        .tracks = .{
-            .children = &tl_children,
-        },
-    };
-    const tl_ptr = otio.ComposedValueRef{
-        .timeline = &tl 
-    };
-
-    errdefer opentime.dbg_print(@src(),
+    errdefer opentime.dbg_print(
+        @src(),
         "WARP\n input bounds: {f}\n output bounds: {f}\n",
         .{ w_ib, w_ob },
     );
@@ -1051,29 +975,19 @@ test "timeline w/ warp that holds the tenth frame"
 
     // build the temporal map
     ///////////////////////////////////////////////////////////////////////////
-    const map = try otio.build_temporal_map(
-        allocator,
-        tl_ptr
-    );
-    defer map.deinit(allocator);
-
-    const cache = (
-        try otio.temporal_hierarchy.SingleSourceTopologyCache.init(
-            allocator,
-            map,
+    var proj_topo_from_tr_pres = (
+        try otio.ProjectionTopology.init_from(
+            allocator, 
+            tr_ptr.space(.presentation)
         )
     );
-    defer cache.deinit(allocator);
+    defer proj_topo_from_tr_pres.deinit(allocator);
 
+    // build projection operator
     const tr_pres_to_cl_media_po = (
-        try otio.build_projection_operator(
+        try proj_topo_from_tr_pres.projection_operator_to(
             allocator,
-            map,
-            .{
-                .source = tr_ptr.space(.presentation),
-                .destination = cl_ptr.space(.media),
-            },
-            cache,
+            cl_ptr.space(.media),
         )
     );
     defer tr_pres_to_cl_media_po.deinit(allocator);
@@ -1174,20 +1088,6 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
 
     // build the temporal map
     ///////////////////////////////////////////////////////////////////////////
-    const map = try otio.build_temporal_map(
-        allocator,
-        tl_ptr,
-    );
-    defer map.deinit(allocator);
-
-    const cache = (
-        try otio.temporal_hierarchy.SingleSourceTopologyCache.init(
-            allocator,
-            map,
-        )
-    );
-    defer cache.deinit(allocator);
-
     var proj_topo_from_tl_pres = (
         try otio.ProjectionTopology.init_from(
             allocator, 
@@ -1225,6 +1125,8 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
         {
             try opentime.expectOrdinateEqual(
                 i,
+                // can assume in bounds because the bounds are being explicitly
+                // walked over
                 tl_pres_to_cl_media_po.project_instantaneous_cc_assume_in_bounds(
                     i
                 ).ordinate(),
