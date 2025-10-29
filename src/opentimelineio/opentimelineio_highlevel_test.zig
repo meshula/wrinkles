@@ -1047,7 +1047,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
         .media = .{
             .bounds_s = .{
                 .start = opentime.Ordinate.ZERO,
-                .end = opentime.Ordinate.init(60000),
+                .end = opentime.Ordinate.init(24000),
             },
             .discrete_info = .{
                 .sample_rate_hz = .{ .Int = 24 },
@@ -1134,16 +1134,22 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
         }
     }
 
+    // test discrete sample projection
+    ////////////////////////////////////
+
     const TestCase = struct {
         name: []const u8,
         tl_pres_index: sampling.sample_index_t,
         cl_media_indices: []const sampling.sample_index_t,
     };
 
+    // because the top level timeline is 24 * 1000 / 1001 hz (slightly fewer
+    // samples per second) and the clip is 24 hz samples from the top level
+    // timeline will always overlap multiple samples of the clip
     const tests = [_]TestCase{
         .{ 
             .name = "zero",
-            // 23.97
+            // 24 * 1000/1001
             .tl_pres_index = 0,
             // 24
             .cl_media_indices = &.{ 0, 1 },
@@ -1153,11 +1159,11 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
             .tl_pres_index = 1000,
             .cl_media_indices = &.{ 1001, 1002 },
         },
-        // .{ 
-        //     .name = "24 thousand (err?)",
-        //     .tl_pres_index = 24000,
-        //     .cl_media_indices = &.{ 24024, 24025 },
-        // },
+        .{ 
+            .name = "24 thousand",
+            .tl_pres_index = 24000,
+            .cl_media_indices = &.{ 24024, 24025 },
+        },
     };
 
     for (&tests)
