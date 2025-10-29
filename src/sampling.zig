@@ -840,14 +840,16 @@ pub fn transform_resample_dd(
                 const ib = aff.input_bounds();
                 const ob = aff.output_bounds();
 
-                const lin = topology.mapping.MappingCurveLinearMonotonic{
-                    .input_to_output_curve = .{
-                        .knots = &.{
-                            .{ .in = ib.start, .out = ob.start },
-                            .{ .in = ib.end, .out = ob.end },
+                const lin = (
+                    topology.mapping.MappingCurveLinearMonotonic{
+                        .input_to_output_curve = .{
+                            .knots = &.{
+                                .{ .in = ib.start, .out = ob.start },
+                                .{ .in = ib.end, .out = ob.end },
+                            },
                         },
-                    },
-                };
+                    }
+                );
 
                 const new_sampling = (
                     try transform_resample_linear_dd(
@@ -1186,6 +1188,7 @@ pub fn transform_resample_linear_interpolating_dd(
     var input_transform_samples = input_d_samples.buffer[0..];
 
     // walk across each transform spec to compute the output samples
+    // XXX: not a for loop because the condition that advances this counter 
     var transform_index:sample_index_t = 0;
     while (transform_index < transform_specs.items.len)
     {
@@ -1207,7 +1210,10 @@ pub fn transform_resample_linear_interpolating_dd(
         }
 
         // process the chunk
-        const lsr_error = libsamplerate.src_process(src_state, &src_data);
+        const lsr_error = libsamplerate.src_process(
+            src_state,
+            &src_data,
+        );
         if (lsr_error != 0) {
             return error.LibSampleRateError;
         }
