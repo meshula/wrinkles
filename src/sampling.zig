@@ -479,7 +479,7 @@ pub const SampleIndexGenerator = struct {
     ) !void 
     {
         try writer.print(
-            "DiscreteIndexGenerator{{ sample_rate_hz: {d}, start_index: {d} }}",
+            "DiscreteIndexGenerator{{ sample_rate_hz: {f}, start_index: {d} }}",
             .{ self.sample_rate_hz, self.start_index, },
         );
     }
