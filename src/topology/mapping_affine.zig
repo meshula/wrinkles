@@ -89,11 +89,18 @@ pub const MappingAffine = struct {
 
         return self.project_instantaneous_cc_assume_in_bounds(output_ordinate);
     }
-        return .{
-            .SuccessOrdinate = self.input_to_output_xform.inverted(
-            ).applied_to_ordinate(output_ordinate)
-        };
-    }
+
+    // @TODO: also needed?
+    // pub fn project_instantaneous_cc_inv_assume_in_bounds(
+    //     self: @This(),
+    //     output_ordinate: opentime.Ordinate,
+    // ) opentime.ProjectionResult
+    // {
+    //     return .{
+    //         .SuccessOrdinate = self.input_to_output_xform.inverted(
+    //         ).applied_to_ordinate(output_ordinate)
+    //     };
+    // }
 
     pub fn clone(
         self: @This(),
