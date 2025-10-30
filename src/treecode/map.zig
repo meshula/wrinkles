@@ -1,83 +1,101 @@
+//! A binary `Graph` of nodes whose position in a hierarchy is encoded via
+//! `treecode.Treecode`.
+
 const std = @import("std");
 const build_options = @import("build_options");
 
 const treecode = @import("treecode.zig");
 
 /// annotate the graph algorithms
-// const GRAPH_CONSTRUCTION_TRACE_MESSAGES = true;
 const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
     build_options.debug_graph_construction_trace_messages
 );
+// const GRAPH_CONSTRUCTION_TRACE_MESSAGES = true;
+
+const DEBUG_MESSAGES= (
+    build_options.debug_graph_construction_trace_messages 
+    or build_options.debug_print_messages 
+);
+
 
 /// Which style to render node labels in, as binary codes or hashes.  Codes are
 /// more readable, but make large graphs impossible to read.
 const LabelStyle = enum(u1) { treecode, hash };
 
-pub const PathNodeIndex = usize;
-pub const SpaceNodeIndex = usize;
+/// The index type for nodes stored in the `Graph`
+pub const NodeIndex = usize;
 
+/// Root code refers the root node the tree encoded by `Graph`
 const ROOT_CODE:treecode.Treecode = .EMPTY;
 
-/// Bidirectional map of `treecode.Treecode` to a parameterized
-/// `SpaceNodeType` (presumably nodes in some graph).  This allows:
+/// Type function that returns a binary `Graph` of nodes parameterized by
+/// `NodeType`.
 ///
-/// * Random access by path of `GraphNodeType`s in a hierarchy by path
-/// * Fetching of a path from one `GraphNodeType` to another, by walking
-///   along the `treecode.Treecode`s, including a PathIterator for walking
-///   along computed paths.
-pub fn Map(
-    comptime SpaceNodeType: type,
+/// `NodeType` must have a hash() function.  `Graph` separately tracks parent
+/// and child pointers for nodes.
+///
+/// `NodeTypes` are stored in a flat `std.MultiArrayList` (SoA style) and
+/// referred to by index.
+///
+/// The `path` function can be used to efficiently compute a path of node
+/// indices between two nodes, using the treecodes and pointers to avoid a
+/// search.
+///
+/// Owns all the data put into the `Graph`, including nodes in the `.nodes`
+/// list and treecodes in the `.graph_data` list.
+pub fn Graph(
+    comptime NodeType: type,
 ) type
 {
     return struct {
-        /// Encoding of the end points of a path between `GraphNodeType`s in the 
-        /// `Map`.
+        // type alias
+        const GraphType = @This();
+
+        /// Encoding of the end points of a path between `NodeType`s in the 
+        /// `Graph`.
         pub const PathEndPoints = struct {
-            source: SpaceNodeType,
-            destination: SpaceNodeType,
+            source: NodeType,
+            destination: NodeType,
         };
 
+        /// End points of a path via the indices of the nodes
         pub const PathEndPointIndices = struct {
-            source: PathNodeIndex,
-            destination: PathNodeIndex,
+            source: NodeIndex,
+            destination: NodeIndex,
         };
 
-        /// A pair of space and code along a path within the `Map`.
-        pub const PathNode = struct {
+        /// The graph information (Parent/Child/`treecode.Treecode`) for a
+        /// given node in the graph.
+        pub const GraphData = struct {
+            /// address in the graph, see `treecode.Treecode` for more
+            /// information.
             code: treecode.Treecode,
-            parent_index: ?PathNodeIndex = null,
-            child_indices: [2]?PathNodeIndex = .{null, null},
-
-            pub fn format(
-                self: @This(),
-                writer: *std.Io.Writer,
-            ) !void 
-            {
-                try writer.print(
-                    "Node(.space: {f}, .code: {f})",
-                    .{
-                        self.space,
-                        self.code,
-                    }
-                );
-            }
+            /// Index of parent, if one is present
+            parent_index: ?NodeIndex = null,
+            /// Indices of children, if present
+            child_indices: [2]?NodeIndex = .{null, null},
         };
 
-        const MapType = @This();
-        pub const SpaceNodeList = std.MultiArrayList(SpaceNodeType);
-        const PathNodesList = std.MultiArrayList(PathNode);
-
-        map_space_to_path_index: std.AutoHashMapUnmanaged(
-            SpaceNodeType,
-            PathNodeIndex,
+        /// `std.AutoHashMapUnmanaged` mapping the hash of a `NodeType` to the
+        /// index of the node in the `Graph` the `.nodes` and
+        /// `.graph_data` lists.
+        map_node_to_index: std.AutoHashMapUnmanaged(
+            NodeType,
+            NodeIndex,
         ),
-        path_nodes:PathNodesList,
-        space_nodes:SpaceNodeList,
 
-        pub const empty = MapType{
-            .map_space_to_path_index = .empty,
-            .path_nodes = .empty,
-            .space_nodes = .empty,
+        /// The graph data (Parent/Child indices, `treecode.Treecode`) for the
+        /// corresponding index in the `.nodes` list.
+        graph_data: std.MultiArrayList(GraphData),
+
+        /// Store of nodes in the Graph
+        nodes:std.MultiArrayList(NodeType),
+
+        /// Empty Graph
+        pub const empty = GraphType{
+            .map_node_to_index = .empty,
+            .graph_data = .empty,
+            .nodes = .empty,
         };
 
         pub fn deinit(
@@ -88,165 +106,158 @@ pub fn Map(
             // build a mutable alias of self
             var mutable_self = self;
 
-            for (self.path_nodes.items(.code))
+            for (self.graph_data.items(.code))
                 |code|
             { 
                 code.deinit(allocator);
             }
 
             // free the guts
-            mutable_self.map_space_to_path_index.unlockPointers();
-            mutable_self.map_space_to_path_index.deinit(allocator);
+            mutable_self.map_node_to_index.unlockPointers();
+            mutable_self.map_node_to_index.deinit(allocator);
 
-            mutable_self.path_nodes.deinit(allocator);
-            mutable_self.space_nodes.deinit(allocator);
+            mutable_self.graph_data.deinit(allocator);
+            mutable_self.nodes.deinit(allocator);
         }
 
+        /// Lock the pointers in the hash map when done with construction
         pub fn lock_pointers(
             self: *@This(),
         ) void
         {
-            self.map_space_to_path_index.lockPointers();
+            self.map_node_to_index.lockPointers();
 
             // @TODO: could switch the implementation over to .Slice() here
         }
 
+        /// Allocate capacity in the graph for the given count of nodes
         pub fn ensure_unused_capacity(
             self: *@This(),
             allocator: std.mem.Allocator,
             capacity: usize,
         ) !void
         {
-            try self.path_nodes.ensureUnusedCapacity(
+            try self.graph_data.ensureUnusedCapacity(
                 allocator,
                 capacity
             );
-            try self.space_nodes.ensureUnusedCapacity(
+            try self.nodes.ensureUnusedCapacity(
                 allocator,
                 capacity
             );
-            try self.map_space_to_path_index.ensureUnusedCapacity(
+            try self.map_node_to_index.ensureUnusedCapacity(
                 allocator,
                 @intCast(capacity)
             );
         }
 
-        /// add the PathNode to the map and return the newly created index
+        /// Add a Node to the `Graph` and return the index of the new node
         pub fn put(
             self: *@This(),
             allocator: std.mem.Allocator,
-            node: struct{
-                code: treecode.Treecode,
-                space: SpaceNodeType,
-                parent_index: ?PathNodeIndex,
-            },
-        ) !PathNodeIndex
+            node: NodeType,
+            graph_data: GraphData,
+        ) !NodeIndex
         {
 
-            try self.space_nodes.append(allocator, node.space);
+            try self.nodes.append(allocator, node);
 
-            const new_path_index = self.path_nodes.len;
-            try self.path_nodes.append(
+            const new_path_index = self.graph_data.len;
+            try self.graph_data.append(
                 allocator,
-                .{
-                    .code = node.code,
-                    .parent_index = node.parent_index,
-                }
+                graph_data,
             );
 
-            try self.map_space_to_path_index.put(
+            try self.map_node_to_index.put(
                 allocator,
-                node.space,
+                node,
                 new_path_index,
             );
 
-            if (node.parent_index)
+            if (graph_data.parent_index)
                 |parent_index|
             {
-                const parent_code = self.path_nodes.items(.code)[parent_index];
-                const dir = parent_code.next_step_towards(node.code);
-                var child_indices = &self.path_nodes.items(
+                const parent_code = self.graph_data.items(.code)[parent_index];
+                const dir = parent_code.next_step_towards(graph_data.code);
+                var child_indices = &self.graph_data.items(
                     .child_indices
                 )[parent_index];
                 child_indices[@intFromEnum(dir)] = new_path_index;
             }
+
+            // @TODO: also connect child pointers?
             
             return new_path_index;
         }
 
-        /// add the PathNode to the map and return the newly created index
+        /// Add a Node to the `Graph` and return the index of the new node,
+        /// assuming that capacity has already been allocated
         pub fn put_assumes_capacity(
             self: *@This(),
-            node: struct{
-                code: treecode.Treecode,
-                space: SpaceNodeType,
-                parent_index: ?PathNodeIndex,
-            },
-        ) PathNodeIndex
+            node: NodeType,
+            graph_data: GraphData,
+        ) NodeIndex
         {
+            const new_index = self.nodes.len;
+            self.nodes.appendAssumeCapacity(node);
 
-            self.space_nodes.appendAssumeCapacity(node.space);
+            self.graph_data.appendAssumeCapacity(graph_data);
 
-            const new_path_index = self.path_nodes.len;
-            self.path_nodes.appendAssumeCapacity(
-                .{
-                    .code = node.code,
-                    .parent_index = node.parent_index,
-                }
+            self.map_node_to_index.putAssumeCapacity(
+                node,
+                new_index,
             );
 
-            self.map_space_to_path_index.putAssumeCapacity(
-                node.space,
-                new_path_index,
-            );
-
-            if (node.parent_index)
+            // connect parent pointer
+            if (graph_data.parent_index)
                 |parent_index|
             {
-                const parent_code = self.path_nodes.items(.code)[parent_index];
-                const dir = parent_code.next_step_towards(node.code);
-                var child_indices = &self.path_nodes.items(
+                const parent_code = self.graph_data.items(.code)[parent_index];
+                const dir = parent_code.next_step_towards(graph_data.code);
+                var child_indices = &self.graph_data.items(
                     .child_indices
                 )[parent_index];
-                child_indices[@intFromEnum(dir)] = new_path_index;
+                child_indices[@intFromEnum(dir)] = new_index;
             }
             
-            return new_path_index;
+            return new_index;
         }
 
-        pub fn get_code(
+        /// Fetch the treecode associated with a given node
+        pub fn code_from_node(
             self: @This(),
-            space: SpaceNodeType,
+            node: NodeType,
         ) ?treecode.Treecode
         {
-            if (self.map_space_to_path_index.get(space))
+            if (self.map_node_to_index.get(node))
                 |index|
             {
-                return self.path_nodes.items(.code)[index];
+                return self.graph_data.items(.code)[index];
             }
 
             return null;
         }
 
-        pub fn index_from_space(
+        /// Fetch the index of the given `node`.
+        pub fn index_for_node(
             self: @This(),
-            space: SpaceNodeType,
-        ) ?PathNodeIndex
+            node: NodeType,
+        ) ?NodeIndex
         {
-            return self.map_space_to_path_index.get(space);
+            return self.map_node_to_index.get(node);
         }
 
-        /// return the root space associated with the `ROOT_CODE`
-        pub fn root(
+        /// Return the root node associated with the `ROOT_CODE`.
+        pub fn root_node(
             self: @This(),
-        ) SpaceNodeType 
+        ) NodeType 
         {
             // should always have a root object, and root object should always
             // be the first entry in the nodes list
-            return self.space_nodes.get(0);
+            return self.nodes.get(0);
         }
 
-        /// Serialize this graph to dot and then use graphviz to convert that
+        /// Serialize this `Graph` to dot and then use graphviz to convert that
         /// dot to a png.  Will create /var/tmp/`png_filepath`.dot.
         ///
         /// If graphviz is disabled in the build, will still write the .dot
@@ -291,22 +302,22 @@ pub fn Map(
             var label_buf: [1024]u8 = undefined;
             var next_label_buf: [1024]u8 = undefined;
 
-            const nodes = self.path_nodes.slice();
+            const nodes = self.graph_data.slice();
 
-            for (0..self.path_nodes.len)
+            for (0..self.graph_data.len)
                 |current_index|
             {
                 const current_code = nodes.items(.code)[current_index];
 
                 const current_label = try node_label(
                     &label_buf,
-                    self.space_nodes.get(current_index),
+                    self.nodes.get(current_index),
                     current_code,
                     options.label_style,
                 );
 
                 const current_children = (
-                    self.path_nodes.items(.child_indices)[current_index]
+                    self.graph_data.items(.child_indices)[current_index]
                 );
                 for (current_children)
                     |maybe_child_index|
@@ -316,7 +327,7 @@ pub fn Map(
                     {
                         const next_label = try node_label(
                             &next_label_buf,
-                            self.space_nodes.get(child_index),
+                            self.nodes.get(child_index),
                             nodes.items(.code)[child_index],
                             options.label_style,
                         );
@@ -371,13 +382,21 @@ pub fn Map(
             _ = result;
         }
 
+        /// Sort the endpoints in place and return whether they were switched
+        /// or not.  Sorting places parent-most node in the
+        /// `PathEndPointIndices.source` field and the child-most node in the
+        /// `PathEndPointIndices.destination` field.
+        ///
+        /// Returns an error if there is no path between the nodes.
+        ///
+        /// This variation operates on `PathEndPointIndices`.
         pub fn sort_endpoint_indices(
             self: @This(),
             endpoints: *PathEndPointIndices,
         ) !bool
         {
-            const source_code = self.path_nodes.items(.code)[endpoints.source];
-            const destination_code = self.path_nodes.items(.code)[endpoints.destination];
+            const source_code = self.graph_data.items(.code)[endpoints.source];
+            const destination_code = self.graph_data.items(.code)[endpoints.destination];
 
             if (
                 treecode.path_exists(
@@ -394,14 +413,14 @@ pub fn Map(
                         destination_code,
                     }
                 );
-                return error.NoPathBetweenSpaces;
+                return error.NoPathBetweenNodes;
             }
 
             // inverted
             if (source_code.code_length > destination_code.code_length)
             {
                 std.mem.swap(
-                    PathNodeIndex,
+                    NodeIndex,
                     &endpoints.source,
                     &endpoints.destination
                 );
@@ -413,31 +432,34 @@ pub fn Map(
             }
         }
 
-        /// Check to see if `endpoints` need to be swapped (iteration always
-        /// proceeds from parent to child).  If needed, will swap endpoints in
-        /// place and return `true` to indicate this happened.
+        /// Sort the endpoints in place and return whether they were switched
+        /// or not.  Sorting places parent-most node in the
+        /// `PathEndPointIndices.source` field and the child-most node in the
+        /// `PathEndPointIndices.destination` field.
         ///
-        /// Will return an error if there is no path between the endpoints or
-        /// one of the endpoints is not present in the mapping.
+        /// Returns an error if there is no path between the nodes, or if
+        /// either node is not present in the Graph.
+        ///
+        /// This variation operates on `PathEndPoints`.
         pub fn sort_endpoints(
             self: @This(),
             endpoints: *PathEndPoints,
         ) !bool
         {
-            const source_index = self.index_from_space(
+            const source_index = self.index_for_node(
                 endpoints.source
-            ) orelse return error.SourceNotInMap;
-            const dest_index = self.index_from_space(
+            ) orelse return error.SourceNotInGraph;
+            const dest_index = self.index_for_node(
                 endpoints.destination
-            ) orelse return error.DestNotInMap;
+            ) orelse return error.DestinationNotInGraph;
 
             if (source_index == dest_index)
             {
                 return false;
             }
 
-            const source_code = self.path_nodes.items(.code)[source_index];
-            const destination_code = self.path_nodes.items(.code)[dest_index];
+            const source_code = self.graph_data.items(.code)[source_index];
+            const destination_code = self.graph_data.items(.code)[dest_index];
 
             if (
                 treecode.path_exists(
@@ -453,7 +475,7 @@ pub fn Map(
                         destination_code,
                     }
                 );
-                return error.NoPathBetweenSpaces;
+                return error.NoPathBetweenNodes;
             }
 
             // inverted
@@ -470,182 +492,73 @@ pub fn Map(
             }
         }
 
-        /// Build a projection operator that projects from the args.source to
-        /// args.destination spaces and print to the debug printer the structure.
-        pub fn debug_print_time_hierarchy(
-            self: @This(),
-            allocator: std.mem.Allocator,
-            endpoints_arg: PathEndPoints,
-        ) !void 
-        {
-            var endpoints = endpoints_arg;
-            _ = try self.sort_endpoints(&endpoints);
-
-            var iter = (
-                try MapType.PathIterator.init_from_to(
-                    allocator,
-                    &self,
-                    endpoints,
-                )
-            );
-            defer iter.deinit();
-
-            if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
-                dbg_print(
-                    @src(), 
-                    "starting walk from: {f} to: {f}\n",
-                    .{
-                        iter.maybe_source.?.space,
-                        iter.maybe_destination.?.space,
-                    }
-                );
-            }
-
-            // walk from current_code towards destination_code
-            while (
-                try iter.next()
-                and iter.maybe_current.?.code.eql(
-                    iter.maybe_destination.?.code
-                ) == false
-            ) 
-            {
-                const dest_to_current = (
-                    try self.build_projection_operator(
-                        allocator,
-                        .{
-                            .source = iter.maybe_destination.?.space,
-                            .destination = iter.maybe_current.?.space,
-                        },
-                    )
-                );
-
-                dbg_print(
-                    @src(), 
-                    "space: {f}\n"
-                    ++ "      local:  {f}\n",
-                    .{ 
-                        iter.maybe_current.?.space,
-                        dest_to_current.src_to_dst_topo.output_bounds(),
-                    },
-                );
-            }
-
-            dbg_print(
-                @src(), 
-                "space: {f}\n"
-                ++ "      destination:  {f}\n",
-                .{ 
-                    iter.maybe_current.?.space,
-                    try iter.maybe_destination.?.space.ref.bounds_of(
-                        allocator,
-                        iter.maybe_destination.?.space.label
-                    ),
-                },
-            );
-        }
-
-        pub fn nodes_under(
-            self: @This(),
-            allocator: std.mem.Allocator,
-            start: SpaceNodeType,
-        ) ![]PathNodeIndex
-        {
-            const nodes = self.path_nodes.slice();
-            const start_index = self.index_from_space(start).?;
-
-            var result: std.ArrayList(PathNodeIndex) = .empty;
-            try result.ensureTotalCapacity(allocator, nodes.len);
-
-            var stack: std.ArrayList(PathNodeIndex) = .empty;
-            defer stack.deinit(allocator);
-            try stack.ensureTotalCapacity(
-                allocator,
-                nodes.len
-            );
-
-            stack.appendAssumeCapacity(start_index);
-
-            while (stack.pop())
-                |next|
-            {
-                result.appendAssumeCapacity(next);
-                const maybe_children = nodes.items(.child_indices)[next];
-                if (maybe_children[0])
-                    |child|
-                {
-                    stack.appendAssumeCapacity(child);
-                }
-                if (maybe_children[1])
-                    |child|
-                {
-                    stack.appendAssumeCapacity(child);
-                }
-            }
-
-            return result.toOwnedSlice(allocator);
-        }
-
-        /// return the indices inclusive of the endpoints
+        /// Compute the path between the endpoints and return a caller-owned
+        /// slice of the indices from the source to the destination, inclusive
+        /// of the endpoints.
+        ///
+        /// Will return an error if there is no possible path or if endpoints
+        /// are not present in the graph.
         pub fn path(
             self: @This(),
             allocator: std.mem.Allocator,
             endpoints: PathEndPointIndices,
-        ) ![]PathNodeIndex
+        ) ![]NodeIndex
         { 
             var sorted_endpoint_indices = endpoints;
             const swapped = try self.sort_endpoint_indices(
                 &sorted_endpoint_indices
             );
 
-            const nodes = self.path_nodes.slice();
+            const graph_data = self.graph_data.slice();
 
             const source_code = (
-                nodes.items(.code)[sorted_endpoint_indices.source]
+                graph_data.items(.code)[sorted_endpoint_indices.source]
             );
             const destination_code = (
-                nodes.items(.code)[sorted_endpoint_indices.destination]
+                graph_data.items(.code)[sorted_endpoint_indices.destination]
             );
 
-            var result: std.ArrayList(PathNodeIndex) = .empty;
+            var result: std.ArrayList(NodeIndex) = .empty;
             try result.ensureTotalCapacity(
                 allocator,
                 (
-                   destination_code.code_length 
-                   - source_code.code_length 
                    // + 1 for the start point
-                   + 1
+                   destination_code.code_length - source_code.code_length + 1
                 ),
             );
             result.appendAssumeCapacity(sorted_endpoint_indices.source);
 
-            var current: PathNodeIndex = sorted_endpoint_indices.source;
+            var current: NodeIndex = sorted_endpoint_indices.source;
             var current_code = source_code;
             while (current != sorted_endpoint_indices.destination)
             {
-                const next_step = current_code.next_step_towards(destination_code);
+                const next_step = current_code.next_step_towards(
+                    destination_code
+                );
 
-                const next = nodes.items(.child_indices)[current][
+                const next = graph_data.items(.child_indices)[current][
                     @intFromEnum(next_step)
                 ];
 
                 result.appendAssumeCapacity(next.?);
 
                 current = next.?;
-                current_code = nodes.items(.code)[current];
+                current_code = graph_data.items(.code)[current];
             }
 
             if (swapped)
             {
-                std.mem.reverse(PathNodeIndex, result.items);
+                std.mem.reverse(NodeIndex, result.items);
             }
 
             return try result.toOwnedSlice(allocator);
         }
 
-        /// generate a text label based on the format() of the `SpaceNodeType`
+        /// Generate a text label for a given node based on the format() of the
+        /// `NodeType`.
         pub fn node_label(
             buf: []u8,
-            ref: SpaceNodeType,
+            ref: NodeType,
             code: treecode.Treecode,
             comptime label_style: LabelStyle,
         ) ![]const u8
@@ -665,11 +578,6 @@ pub fn Map(
         }
     };
 }
-
-const DEBUG_MESSAGES= (
-    build_options.debug_graph_construction_trace_messages 
-    or build_options.debug_print_messages 
-);
 
 /// utility function that injects the calling info into the debug print
 fn dbg_print(

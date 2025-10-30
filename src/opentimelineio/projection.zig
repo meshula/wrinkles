@@ -362,7 +362,7 @@ pub fn projection_map_to_media_from_leaky(
         .destination = source,
     };
 
-    const space_nodes = map.space_nodes.slice();
+    const space_nodes = map.nodes.slice();
 
     const cache = (
         try temporal_hierarchy.SingleSourceTopologyCache.init(
@@ -1728,11 +1728,11 @@ test "Projection: schema.Track with single clip with identity transform and boun
     );
     defer map.deinit(allocator);
 
-    try std.testing.expectEqual(5, map.path_nodes.len);
-    try std.testing.expectEqual(5, map.space_nodes.len);
+    try std.testing.expectEqual(5, map.graph_data.len);
+    try std.testing.expectEqual(5, map.nodes.len);
     try std.testing.expectEqual(
         5,
-        map.map_space_to_path_index.count()
+        map.map_node_to_index.count()
     );
 
     const cache = (
@@ -3022,7 +3022,7 @@ pub fn ReferenceTopology(
         // temporally sorted, could be more efficient with a BVH of some kind
         intervals: std.MultiArrayList(IntervalMapping),
 
-        temporal_map: treecode.Map(SpaceReferenceType),
+        temporal_map: treecode.Graph(SpaceReferenceType),
         cache: temporal_hierarchy.SingleSourceTopologyCache,
 
         pub fn init_from(
@@ -3062,6 +3062,9 @@ pub fn ReferenceTopology(
                 .cache = cache,
             };
 
+            // Assemble the components
+            //////////////////////
+
             var unsplit_intervals: std.MultiArrayList(
                 struct {
                     mapping_index: NodeIndex,
@@ -3084,9 +3087,9 @@ pub fn ReferenceTopology(
 
             // Gather up all the operators and intervals
             /////////////
-            const map_nodes = temporal_map.path_nodes.slice();
+            const map_nodes = temporal_map.graph_data.slice();
 
-            const start_index = temporal_map.index_from_space(
+            const start_index = temporal_map.index_for_node(
                 source_reference
             ) orelse return error.SourceNotInMap;
 
@@ -3097,14 +3100,14 @@ pub fn ReferenceTopology(
 
             const codes = map_nodes.items(.code);
             const source_code = codes[start_index];
-            const children = map_nodes.items(.child_indices);
+            const maybe_child_indices = map_nodes.items(.child_indices);
 
-            for (codes, children, 0..)
-                |current_code, child_ptrs, current_index|
+            for (codes, maybe_child_indices, 0..)
+                |current_code, maybe_children, current_index|
             {
                 if (
                     // only looking for terminal scopes (gaps, clips, etc)
-                    (child_ptrs[0] != null or child_ptrs[1] != null)
+                    (maybe_children[0] != null or maybe_children[1] != null)
                     // skip all media spaces that don't have a path to source
                     or source_code.is_prefix_of(current_code) == false
                 ) 
@@ -3335,6 +3338,11 @@ pub fn ReferenceTopology(
                 for (kinds, intervals)
                     |kind, interval|
                 {
+                    std.debug.print(
+                        "interval: {d} active_intervals_len: {d}\n",
+                        .{interval, active_intervals.bit_length },
+                    );
+
                     if (kind == .start)
                     {
                         active_intervals.setValue(interval, true);
@@ -3483,7 +3491,7 @@ pub fn ReferenceTopology(
                         mapping.mapping.output_bounds()
                     );
                     const destination = (
-                        self.temporal_map.space_nodes.get(mapping.destination)
+                        self.temporal_map.nodes.get(mapping.destination)
                     );
 
                     try writer.print(
@@ -3732,9 +3740,9 @@ pub fn build_projection_operator_indices_local(
 
     const source_index = sorted_endpoints.source;
 
-    const path_nodes = map.path_nodes.slice();
+    const path_nodes = map.graph_data.slice();
     const codes = path_nodes.items(.code);
-    const space_nodes = map.space_nodes.slice();
+    const space_nodes = map.nodes.slice();
 
     // compute the path length
     const path = try temporal_hierarchy.path_from_parents(

@@ -12,7 +12,7 @@ pub const l_or_r= treecode.l_or_r;
 pub const path_exists= treecode.path_exists;
 
 pub const map = @import("map.zig");
-pub const Map = map.Map;
+pub const Graph = map.Graph;
 
 test
 {

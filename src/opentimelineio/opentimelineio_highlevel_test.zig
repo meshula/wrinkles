@@ -218,7 +218,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
                     },
                 );
             }
-            const destination = proj_topo.temporal_map.space_nodes.get(
+            const destination = proj_topo.temporal_map.nodes.get(
                 op.destination
             );
 

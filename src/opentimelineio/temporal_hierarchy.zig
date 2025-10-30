@@ -34,7 +34,7 @@ const T_CTI_1_10 = opentime.ContinuousInterval {
 };
 
 // lofting types back out of function
-pub const TemporalMap = treecode.Map(references.SpaceReference);
+pub const TemporalMap = treecode.Graph(references.SpaceReference);
 pub const PathEndPoints = TemporalMap.PathEndPoints;
 pub const PathEndPointIndices = TemporalMap.PathEndPointIndices;
 
@@ -84,7 +84,7 @@ fn walk_child_spaces(
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
         {
-            if (map.get_code(space_ref)) 
+            if (map.code_from_node(space_ref)) 
                 |other_code| 
             {
                 opentime.dbg_print(
@@ -123,9 +123,9 @@ fn walk_child_spaces(
         }
 
         last_index = map.put_assumes_capacity(
+            space_ref,
             .{
                 .code = child_wrapper_space_code_ptr,
-                .space = space_ref,
                 .parent_index = last_index,
             },
         );
@@ -178,16 +178,16 @@ fn walk_internal_spaces(
         );
         last_index = try map.put(
             allocator,
+            space_ref,
             .{
                 .code = space_code,
-                .space = space_ref,
                 .parent_index = last_index,
             },
         );
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
         {
-            if (map.get_code(space_ref))
+            if (map.code_from_node(space_ref))
                 |code|
             {
                 std.debug.print(
@@ -359,7 +359,7 @@ test "build_temporal_map check root node"
 
     try std.testing.expectEqual(
         tr_ref.space(.presentation),
-        map.root(),
+        map.root_node(),
     );
 
     try validate_connections_in_map(map);
@@ -370,7 +370,7 @@ pub fn validate_connections_in_map(
 ) !void
 {
     // check the parent/child pointers
-    for (map.path_nodes.items(.parent_index), map.path_nodes.items(.child_indices), 0..)
+    for (map.graph_data.items(.parent_index), map.graph_data.items(.child_indices), 0..)
         |maybe_parent_index, child_indices, index|
     {
         errdefer std.debug.print(
@@ -392,13 +392,13 @@ pub fn validate_connections_in_map(
         if (maybe_parent_index)
             |parent_index|
         {
-            const parent_code = map.path_nodes.items(.code)[parent_index];
-            const current_code = map.path_nodes.items(.code)[index];
+            const parent_code = map.graph_data.items(.code)[parent_index];
+            const current_code = map.graph_data.items(.code)[index];
 
             const parent_to_current = parent_code.next_step_towards(current_code);
 
             const parent_children = (
-                map.path_nodes.items(.child_indices)[parent_index]
+                map.graph_data.items(.child_indices)[parent_index]
             );
 
             try std.testing.expect(
@@ -447,55 +447,7 @@ test "TestWalkingIterator: clip"
     );
 
     // 5: clip presentation, clip media
-    try std.testing.expectEqual(2, map.path_nodes.len);
-}
-
-test "TestWalkingIterator: track with clip"
-{
-    const allocator = std.testing.allocator;
-
-    // media is 9 seconds long and runs at 4 hz.
-    const media_source_range = T_CTI_1_10;
-
-    var cl = schema.Clip {
-        .bounds_s = media_source_range,
-    };
-    const cl_ptr = references.ComposedValueRef.init(&cl);
-
-    var tr_children = [_]references.ComposedValueRef{ cl_ptr, };
-    var tr: schema.Track = .{ .children = &tr_children };
-    const tr_ptr = references.ComposedValueRef.init(&tr);
-
-    const map = try build_temporal_map(
-        std.testing.allocator,
-        tr_ptr
-    );
-    defer map.deinit(allocator);
-
-    try map.write_dot_graph(
-        allocator,
-        "/var/tmp/walk.dot",
-        "walk",
-        .{},
-    );
-
-    // from the top
-    {
-        // 5: track presentation, input, child, clip presentation, clip media
-        try std.testing.expectEqual(5, map.path_nodes.len);
-    }
-
-    // from the clip
-    {
-        const path_nodes = try map.nodes_under(
-            allocator,
-            cl_ptr.space(.presentation)
-        );
-        defer allocator.free(path_nodes);
-
-        // 2: clip presentation, clip media
-        try std.testing.expectEqual(2, path_nodes.len);
-    }
+    try std.testing.expectEqual(2, map.graph_data.len);
 }
 
 pub fn path_from_parents(
@@ -586,10 +538,10 @@ test "TestWalkingIterator: track with clip w/ destination"
         const path = try map.path(
             allocator, 
             .{
-                .source = map.index_from_space(
+                .source = map.index_for_node(
                     tr_ptr.space(.presentation)
                 ).?,
-                .destination = map.index_from_space(
+                .destination = map.index_for_node(
                     cl_ptr.space(.media)
                 ).?,
             },
@@ -598,14 +550,14 @@ test "TestWalkingIterator: track with clip w/ destination"
 
         const parent_path = try path_from_parents(
             allocator, 
-            map.index_from_space(
+            map.index_for_node(
                 tr_ptr.space(.presentation)
             ).?,
-            map.index_from_space(
+            map.index_for_node(
                 cl_ptr.space(.media)
             ).?,
-            map.path_nodes.items(.code), 
-            map.path_nodes.items(.parent_index)
+            map.graph_data.items(.code), 
+            map.graph_data.items(.parent_index)
         );
         defer allocator.free(parent_path);
 
@@ -791,7 +743,7 @@ pub const SingleSourceTopologyCache = struct {
     {
         const cache = try allocator.alloc(
             ?topology_m.Topology,
-            map.space_nodes.len,
+            map.nodes.len,
         );
         @memset(cache, null);
 
@@ -846,9 +798,9 @@ pub fn build_projection_operator_indices(
 
     const source_index = sorted_endpoints.source;
 
-    const path_nodes = map.path_nodes.slice();
+    const path_nodes = map.graph_data.slice();
     const codes = path_nodes.items(.code);
-    const space_nodes = map.space_nodes.slice();
+    const space_nodes = map.nodes.slice();
 
     // compute the path length
     const path = try path_from_parents(
@@ -876,10 +828,10 @@ pub fn build_projection_operator_indices(
     if (path.len < 2)
     {
         return .{
-            .source = map.space_nodes.get(
+            .source = map.nodes.get(
                 endpoints.source
             ),
-            .destination = map.space_nodes.get(
+            .destination = map.nodes.get(
                 endpoints.destination
             ),
             .src_to_dst_topo = .INFINITE_IDENTITY,
@@ -1000,10 +952,10 @@ pub fn build_projection_operator_indices(
     }
 
     return .{
-        .source = map.space_nodes.get(
+        .source = map.nodes.get(
             endpoints.source
         ),
-        .destination = map.space_nodes.get(
+        .destination = map.nodes.get(
             endpoints.destination
         ),
         .src_to_dst_topo = try root_to_current.clone(parent_allocator),
@@ -1023,8 +975,8 @@ pub fn build_projection_operator(
         parent_allocator,
         map,
         .{
-            .source = map.index_from_space(endpoints.source).?,
-            .destination = map.index_from_space(endpoints.destination).?,
+            .source = map.index_for_node(endpoints.source).?,
+            .destination = map.index_for_node(endpoints.destination).?,
         },
         operator_cache,
     );
@@ -1092,7 +1044,7 @@ test "path_code: graph test"
 
     try std.testing.expectEqual(
         tr_ref.space(.presentation),
-        map.root(),
+        map.root_node(),
     );
 
     try map.write_dot_graph(
@@ -1104,12 +1056,12 @@ test "path_code: graph test"
 
     // should be the same length
     try std.testing.expectEqual(
-        map.map_space_to_path_index.count(),
-        map.path_nodes.len,
+        map.map_node_to_index.count(),
+        map.graph_data.len,
     );
     try std.testing.expectEqual(
         35,
-        map.map_space_to_path_index.count()
+        map.map_node_to_index.count()
     );
 
     try map.write_dot_graph(
@@ -1136,7 +1088,7 @@ test "path_code: graph test"
             tr.children[t.ind].space(references.SpaceLabel.presentation)
         );
         const result = (
-            map.get_code(space) 
+            map.code_from_node(space) 
             orelse return error.NoSpaceForCode
         );
 
@@ -1252,12 +1204,12 @@ test "TemporalMap: schema.Track with clip with identity transform"
 
     try std.testing.expectEqual(
         5,
-        map.map_space_to_path_index.count()
+        map.map_node_to_index.count()
     );
 
-    try std.testing.expectEqual(root, map.root().ref);
+    try std.testing.expectEqual(root, map.root_node().ref);
 
-    const maybe_root_code = map.get_code(map.root());
+    const maybe_root_code = map.code_from_node(map.root_node());
     try std.testing.expect(maybe_root_code != null);
     const root_code = maybe_root_code.?;
 
@@ -1269,7 +1221,7 @@ test "TemporalMap: schema.Track with clip with identity transform"
         try std.testing.expectEqual(0, tc.code_length);
     }
 
-    const maybe_clip_code = map.get_code(
+    const maybe_clip_code = map.code_from_node(
         cl_ref.space(references.SpaceLabel.media)
     );
     try std.testing.expect(maybe_clip_code != null);
