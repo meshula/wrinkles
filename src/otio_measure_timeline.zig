@@ -52,7 +52,7 @@ pub fn usage(
         \\Render a graph of the temporal spaces in an OpenTimelineIO file.
         \\
         \\usage:
-        \\  otio_dump_graph path/to/somefile.otio path/to/output.png
+        \\  otio_measure_graph path/to/somefile.otio path/to/output.png
         \\
         \\arguments:
         \\  -h --help: print this message and exit
