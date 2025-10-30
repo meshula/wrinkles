@@ -139,11 +139,11 @@ pub fn main(
         );
 
         // build the graph
-        const temporal_map = try otio.build_temporal_map(
+        const temporal_graph = try otio.build_temporal_graph(
             allocator,
             tl_ref,
         );
-        defer temporal_map.deinit(allocator);
+        defer temporal_graph.deinit(allocator);
 
         build_map.end();
 

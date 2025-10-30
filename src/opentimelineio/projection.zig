@@ -329,7 +329,7 @@ pub const ProjectionOperator = struct {
 /// the source space
 pub fn projection_map_to_media_from(
     allocator: std.mem.Allocator,
-    map: temporal_hierarchy.TemporalMap,
+    graph: temporal_hierarchy.TemporalSpaceGraph,
     source: references.SpaceReference,
 ) !ProjectionOperatorMap
 {
@@ -339,7 +339,7 @@ pub fn projection_map_to_media_from(
 
     const result = try projection_map_to_media_from_leaky(
         arena_allocator,
-        map,
+        graph,
         source,
     );
 
@@ -348,7 +348,7 @@ pub fn projection_map_to_media_from(
 
 pub fn projection_map_to_media_from_leaky(
     allocator: std.mem.Allocator,
-    map: temporal_hierarchy.TemporalMap,
+    graph: temporal_hierarchy.TemporalSpaceGraph,
     source: references.SpaceReference,
 ) !ProjectionOperatorMap
 {
@@ -362,12 +362,12 @@ pub fn projection_map_to_media_from_leaky(
         .destination = source,
     };
 
-    const space_nodes = map.nodes.slice();
+    const space_nodes = graph.nodes.slice();
 
     const cache = (
         try temporal_hierarchy.SingleSourceTopologyCache.init(
             allocator,
-            map,
+            graph,
         )
     );
     defer cache.deinit(allocator);
@@ -386,7 +386,7 @@ pub fn projection_map_to_media_from_leaky(
         const child_op = (
             try temporal_hierarchy.build_projection_operator(
                 allocator,
-                map,
+                graph,
                 proj_args,
                 cache,
             )
@@ -451,7 +451,7 @@ test "ProjectionOperatorMap: projection_map_to_media_from leak test"
     };
     const cl_ptr = references.ComposedValueRef.init(&cl);
 
-    const map = try temporal_hierarchy.build_temporal_map(
+    const map = try temporal_hierarchy.build_temporal_graph(
         allocator,
         cl_ptr,
     );
@@ -849,7 +849,7 @@ test "ProjectionOperatorMap: extend_to"
     };
     const cl_ptr = references.ComposedValueRef{ .clip = &cl };
 
-    const map = try temporal_hierarchy.build_temporal_map(
+    const map = try temporal_hierarchy.build_temporal_graph(
         allocator,
         cl_ptr,
     );
@@ -950,7 +950,7 @@ test "ProjectionOperatorMap: split_at_each"
     };
     const cl_ptr = references.ComposedValueRef{ .clip = &cl };
 
-    const map = try temporal_hierarchy.build_temporal_map(
+    const map = try temporal_hierarchy.build_temporal_graph(
         allocator,
         cl_ptr,
     );
@@ -1078,7 +1078,7 @@ test "ProjectionOperatorMap: merge_composite"
     };
     const cl_ptr = references.ComposedValueRef{ .clip = &cl };
 
-    const map = try temporal_hierarchy.build_temporal_map(
+    const map = try temporal_hierarchy.build_temporal_graph(
         allocator,
         cl_ptr,
     );
@@ -1126,7 +1126,7 @@ test "ProjectionOperatorMap: clip"
     };
     const cl_ptr = references.ComposedValueRef{ .clip = &cl };
 
-    const map = try temporal_hierarchy.build_temporal_map(
+    const map = try temporal_hierarchy.build_temporal_graph(
         allocator,
         cl_ptr,
     );
@@ -1220,7 +1220,7 @@ test "ProjectionOperatorMap: track with single clip"
     var tr: schema.Track = .{ .children = &tr_children };
     const tr_ptr = references.ComposedValueRef.init(&tr);
 
-    const map = try temporal_hierarchy.build_temporal_map(
+    const map = try temporal_hierarchy.build_temporal_graph(
         allocator,
         tr_ptr,
     );
@@ -1414,7 +1414,7 @@ test "transform: track with two clips"
     };
     const tr_ptr = references.ComposedValueRef.init(&tr);
 
-    const map = try temporal_hierarchy.build_temporal_map(
+    const map = try temporal_hierarchy.build_temporal_graph(
         allocator,
         tr_ptr,
     );
@@ -1533,7 +1533,7 @@ test "ProjectionOperatorMap: track with two clips"
 
     /////
 
-    const map = try temporal_hierarchy.build_temporal_map(
+    const map = try temporal_hierarchy.build_temporal_graph(
         allocator,
         tr_ptr,
     );
@@ -1633,7 +1633,7 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
     var tr: schema.Track = .{ .children = &tr_children, };
     const tr_ptr = references.ComposedValueRef.init(&tr);
 
-    const map = try temporal_hierarchy.build_temporal_map(
+    const map = try temporal_hierarchy.build_temporal_graph(
         allocator,
         tr_ptr,
     );
@@ -1722,7 +1722,7 @@ test "Projection: schema.Track with single clip with identity transform and boun
     var tr: schema.Track = .{ .children = &tr_children };
     const root = references.ComposedValueRef{ .track = &tr };
 
-    const map = try temporal_hierarchy.build_temporal_map(
+    const map = try temporal_hierarchy.build_temporal_graph(
         allocator,
         root,
     );
@@ -1814,7 +1814,7 @@ test "Projection: schema.Track 3 bounded clips identity xform"
 
     // ----
 
-    const map = try temporal_hierarchy.build_temporal_map(
+    const map = try temporal_hierarchy.build_temporal_graph(
         allocator,
         track_ptr,
     );
@@ -2098,7 +2098,7 @@ test "Single schema.Clip bezier transform"
 
     const wp_ptr : references.ComposedValueRef = .{ .warp = &wp };
 
-    const map = try temporal_hierarchy.build_temporal_map(
+    const map = try temporal_hierarchy.build_temporal_graph(
         allocator,
         wp_ptr,
     );
@@ -2309,7 +2309,7 @@ test "otio projection: track with single clip"
     var tr: schema.Track = .{ .children = &tr_children };
     const tr_ptr = references.ComposedValueRef.init(&tr);
 
-    const map = try temporal_hierarchy.build_temporal_map(
+    const map = try temporal_hierarchy.build_temporal_graph(
         allocator,
         tr_ptr
     );
@@ -2530,13 +2530,13 @@ test "otio projection: track with single clip with transform"
 
     // build map and tests
 
-    const map_tr = try temporal_hierarchy.build_temporal_map(
+    const map_tr = try temporal_hierarchy.build_temporal_graph(
         allocator,
         tr_ptr
     );
     defer map_tr.deinit(allocator);
 
-    const map_tl = try temporal_hierarchy.build_temporal_map(
+    const map_tl = try temporal_hierarchy.build_temporal_graph(
         allocator,
         tl_ptr
     );
@@ -2869,7 +2869,7 @@ test "Single clip, schema.Warp bulk"
         const wp_ptr : references.ComposedValueRef = .{ .warp =  &warp };
         const wp_pres = wp_ptr.space(references.SpaceLabel.presentation);
 
-        const map = try temporal_hierarchy.build_temporal_map(
+        const map = try temporal_hierarchy.build_temporal_graph(
             allocator,
             wp_ptr,
         );
@@ -2993,6 +2993,9 @@ test "Single clip, schema.Warp bulk"
     }
 }
 
+/// A graph of temporal spaces in `schema` objects combined with a cache of
+/// `topology.Topology` so that `ProjectionOperator`s can be efficiently
+/// created across the entire temporal graph.
 pub fn ReferenceTopology(
     comptime SpaceReferenceType: type,
 ) type
@@ -3001,8 +3004,8 @@ pub fn ReferenceTopology(
         pub const ReferenceTopologyType = @This();
 
         // @TODO: remove these
-        pub const NodeIndex = usize;
-        pub const SpaceNodeIndex = usize;
+        pub const NodeIndex = treecode.graph.NodeIndex;
+        pub const SpaceNodeIndex = treecode.graph.NodeIndex;
 
         /// a transformation to a particular destination space
         const ReferenceMapping = struct {
@@ -3022,7 +3025,7 @@ pub fn ReferenceTopology(
         // temporally sorted, could be more efficient with a BVH of some kind
         intervals: std.MultiArrayList(IntervalMapping),
 
-        temporal_map: treecode.Graph(SpaceReferenceType),
+        temporal_space_graph: temporal_hierarchy.TemporalSpaceGraph,
         cache: temporal_hierarchy.SingleSourceTopologyCache,
 
         pub fn init_from(
@@ -3039,7 +3042,7 @@ pub fn ReferenceTopology(
             // Build out the hierarchy of all the coordinate spaces
             ///////////////////////////////
             const temporal_map = (
-                try temporal_hierarchy.build_temporal_map(
+                try temporal_hierarchy.build_temporal_graph(
                     parent_allocator,
                     source_reference.ref,
                 )
@@ -3058,7 +3061,7 @@ pub fn ReferenceTopology(
                 .source = source_reference,
                 .mappings = .empty,
                 .intervals = .empty,
-                .temporal_map = temporal_map,
+                .temporal_space_graph = temporal_map,
                 .cache = cache,
             };
 
@@ -3423,7 +3426,7 @@ pub fn ReferenceTopology(
 
             self.intervals.deinit(allocator);
             self.mappings.deinit(allocator);
-            self.temporal_map.deinit(allocator);
+            self.temporal_space_graph.deinit(allocator);
             self.cache.deinit(allocator);
         }
 
@@ -3435,7 +3438,7 @@ pub fn ReferenceTopology(
         {
             return try temporal_hierarchy.build_projection_operator(
                 allocator,
-                self.temporal_map,
+                self.temporal_space_graph,
                 .{
                     .source = self.source,
                     .destination = destination_space,
@@ -3491,7 +3494,7 @@ pub fn ReferenceTopology(
                         mapping.mapping.output_bounds()
                     );
                     const destination = (
-                        self.temporal_map.nodes.get(mapping.destination)
+                        self.temporal_space_graph.nodes.get(mapping.destination)
                     );
 
                     try writer.print(
@@ -3504,7 +3507,9 @@ pub fn ReferenceTopology(
     };
 }
 
-pub const ProjectionTopology = ReferenceTopology(references.SpaceReference);
+pub const ProjectionTopology = ReferenceTopology(
+    references.SpaceReference
+);
 
 test "ReferenceTopology: init_from_reference"
 {
@@ -3713,8 +3718,8 @@ test "ReferenceTopology: init_from_reference"
 /// Stashing this algorithm here while I iterate on the details to isolate bugs
 pub fn build_projection_operator_indices_local(
     parent_allocator: std.mem.Allocator,
-    map: temporal_hierarchy.TemporalMap,
-    endpoints: temporal_hierarchy.TemporalMap.PathEndPointIndices,
+    map: temporal_hierarchy.TemporalSpaceGraph,
+    endpoints: temporal_hierarchy.TemporalSpaceGraph.PathEndPointIndices,
     operator_cache: temporal_hierarchy.SingleSourceTopologyCache,
 ) !ProjectionOperator 
 {
@@ -3776,7 +3781,7 @@ pub fn build_projection_operator_indices_local(
         };
     }
 
-    var path_step:temporal_hierarchy.TemporalMap.PathEndPointIndices = .{
+    var path_step:temporal_hierarchy.TemporalSpaceGraph.PathEndPointIndices = .{
         .source = @intCast(source_index),
         .destination = @intCast(source_index),
     };

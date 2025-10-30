@@ -156,11 +156,11 @@ pub fn main(
     );
 
     // build the graph
-    const map = try otio.build_temporal_map(
+    const graph = try otio.build_temporal_graph(
         allocator,
         otio.ComposedValueRef.init(tl),
     );
-    defer map.deinit(allocator);
+    defer graph.deinit(allocator);
 
     build_map.end();
 
@@ -170,7 +170,7 @@ pub fn main(
     );
 
     // render the graph to a PNG
-    try map.write_dot_graph(
+    try graph.write_dot_graph(
         allocator,
         state.output_png,
         "OTIO_TemporalHierarchy",

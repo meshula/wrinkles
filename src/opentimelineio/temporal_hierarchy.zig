@@ -1,12 +1,9 @@
-//! Implements a path-to-temporal coordinate space mapping for OTIO.  
+//! Builds a graph of spaces out of `schema` objects which can be used to
+//! construct `projection.ProjectionOperator`.
 //!
 //! Contents:
-//! * `TemporalMap`, a bidirectional mapping of `references.SpaceReference` to
-//!   `treecode.Treecode`. (Representing a map of the temporal spaces in an
-//!   OTIO hierarchy).
 //! * `build_temporal_map` function for constructing a mapping under a given
 //!   root.
-//! * `PathIterator` iterator that walks through a map between two end spaces.
 
 const std = @import("std");
 
@@ -34,16 +31,16 @@ const T_CTI_1_10 = opentime.ContinuousInterval {
 };
 
 // lofting types back out of function
-pub const TemporalMap = treecode.Graph(references.SpaceReference);
-pub const PathEndPoints = TemporalMap.PathEndPoints;
-pub const PathEndPointIndices = TemporalMap.PathEndPointIndices;
+pub const TemporalSpaceGraph = treecode.Graph(references.SpaceReference);
+pub const PathEndPoints = TemporalSpaceGraph.PathEndPoints;
+pub const PathEndPointIndices = TemporalSpaceGraph.PathEndPointIndices;
 
 fn walk_child_spaces(
     allocator: std.mem.Allocator,
     parent_otio_object: references.ComposedValueRef,
     parent_code: treecode.Treecode,
     parent_index: ?usize,
-    map: *TemporalMap,
+    graph: *TemporalSpaceGraph,
     otio_object_stack: anytype,
 ) !void
 {
@@ -57,7 +54,7 @@ fn walk_child_spaces(
     var last_code = parent_code;
 
     try otio_object_stack.ensureUnusedCapacity(allocator, children_ptrs.len);
-    try map.ensure_unused_capacity(
+    try graph.ensure_unused_capacity(
         allocator,
         children_ptrs.len,
     );
@@ -84,7 +81,7 @@ fn walk_child_spaces(
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
         {
-            if (map.code_from_node(space_ref)) 
+            if (graph.code_from_node(space_ref)) 
                 |other_code| 
             {
                 opentime.dbg_print(
@@ -122,7 +119,7 @@ fn walk_child_spaces(
             );
         }
 
-        last_index = map.put_assumes_capacity(
+        last_index = graph.put_assumes_capacity(
             space_ref,
             .{
                 .code = child_wrapper_space_code_ptr,
@@ -152,7 +149,7 @@ fn walk_internal_spaces(
     parent_otio_object: references.ComposedValueRef,
     parent_code: treecode.Treecode,
     parent_index: ?usize,
-    map: *TemporalMap,
+    map: *TemporalSpaceGraph,
 ) !struct{ treecode.Treecode, ?usize }
 {
     const spaces = parent_otio_object.spaces();
@@ -231,12 +228,12 @@ fn walk_internal_spaces(
 ///
 /// For each OTIO Node, it walks through the spaces present inside the node
 /// (Presentation, Intrinsic, etc) then into the children of the node.
-pub fn build_temporal_map(
+pub fn build_temporal_graph(
     parent_allocator: std.mem.Allocator,
     root_item: references.ComposedValueRef,
-) !TemporalMap 
+) !TemporalSpaceGraph 
 {
-    var tmp_map: TemporalMap = .empty;
+    var tmp_map: TemporalSpaceGraph = .empty;
     errdefer tmp_map.deinit(parent_allocator);
 
     // NOTE: because OTIO objects contain multiple internal spaces, there is a
@@ -312,7 +309,7 @@ test "build_temporal_map: leak sentinel test track w/ clip"
     var tr: schema.Track = .{ .children = &tr_children };
     const tr_ref = references.ComposedValueRef.init(&tr);
 
-    const map = try build_temporal_map(
+    const map = try build_temporal_graph(
         allocator,
         tr_ref,
     );
@@ -351,7 +348,7 @@ test "build_temporal_map check root node"
         tr.children.len
     );
 
-    const map = try build_temporal_map(
+    const map = try build_temporal_graph(
         allocator,
         tr_ref,
     );
@@ -366,7 +363,7 @@ test "build_temporal_map check root node"
 }
 
 pub fn validate_connections_in_map(
-    map: TemporalMap,
+    map: TemporalSpaceGraph,
 ) !void
 {
     // check the parent/child pointers
@@ -414,7 +411,7 @@ test "build_temporal_map: leak sentinel test - single clip"
 
     var cl = schema.Clip {};
 
-    const map = try build_temporal_map(
+    const map = try build_temporal_graph(
         allocator,
         references.ComposedValueRef.init(&cl)
     );
@@ -433,7 +430,7 @@ test "TestWalkingIterator: clip"
     };
     const cl_ptr = references.ComposedValueRef.init(&cl);
 
-    const map = try build_temporal_map(
+    const map = try build_temporal_graph(
         allocator,
         cl_ptr,
     );
@@ -520,7 +517,7 @@ test "TestWalkingIterator: track with clip w/ destination"
     var tr: schema.Track = .{ .children = &tr_children };
     const tr_ptr = references.ComposedValueRef.init(&tr);
 
-    const map = try build_temporal_map(
+    const map = try build_temporal_graph(
         std.testing.allocator,
         tr_ptr
     );
@@ -738,7 +735,7 @@ pub const SingleSourceTopologyCache = struct {
 
     pub fn init(
         allocator: std.mem.Allocator,
-        map: TemporalMap,
+        map: TemporalSpaceGraph,
     ) !SingleSourceTopologyCache
     {
         const cache = try allocator.alloc(
@@ -771,8 +768,8 @@ pub const SingleSourceTopologyCache = struct {
 
 pub fn build_projection_operator_indices(
     parent_allocator: std.mem.Allocator,
-    map: TemporalMap,
-    endpoints: TemporalMap.PathEndPointIndices,
+    map: TemporalSpaceGraph,
+    endpoints: TemporalSpaceGraph.PathEndPointIndices,
     operator_cache: SingleSourceTopologyCache,
 ) !projection.ProjectionOperator 
 {
@@ -838,7 +835,7 @@ pub fn build_projection_operator_indices(
         };
     }
 
-    var path_step:TemporalMap.PathEndPointIndices = .{
+    var path_step:TemporalSpaceGraph.PathEndPointIndices = .{
         .source = @intCast(source_index),
         .destination = @intCast(source_index),
     };
@@ -966,8 +963,8 @@ pub fn build_projection_operator_indices(
 /// endpoints.destination spaces
 pub fn build_projection_operator(
     parent_allocator: std.mem.Allocator,
-    map: TemporalMap,
-    endpoints: TemporalMap.PathEndPoints,
+    map: TemporalSpaceGraph,
+    endpoints: TemporalSpaceGraph.PathEndPoints,
     operator_cache: SingleSourceTopologyCache,
 ) !projection.ProjectionOperator 
 {
@@ -1000,7 +997,7 @@ test "label_for_node_leaky"
     );
     defer tc.deinit(allocator);
 
-    const result = try TemporalMap.node_label(
+    const result = try TemporalSpaceGraph.node_label(
         &buf,
         sr,
         tc,
@@ -1036,7 +1033,7 @@ test "path_code: graph test"
 
     try std.testing.expectEqual(11, tr.children.len);
 
-    const map = try build_temporal_map(
+    const map = try build_temporal_graph(
         allocator,
         tr_ref,
     );
@@ -1131,7 +1128,7 @@ test "schema.Track with clip with identity transform projection"
     var tr: schema.Track = .{ .children = &refs };
     const tr_ref = references.ComposedValueRef.init(&tr);
 
-    const map = try build_temporal_map(
+    const map = try build_temporal_graph(
         allocator,
         tr_ref,
     );
@@ -1196,7 +1193,7 @@ test "TemporalMap: schema.Track with clip with identity transform"
 
     const root = references.ComposedValueRef.init(&tr);
 
-    const map = try build_temporal_map(
+    const map = try build_temporal_graph(
         allocator,
         root,
     );
@@ -1366,7 +1363,7 @@ test "test debug_print_time_hierarchy"
 
     //////
 
-    const tp = try build_temporal_map(
+    const tp = try build_temporal_graph(
         allocator,
         tl_ptr
     );

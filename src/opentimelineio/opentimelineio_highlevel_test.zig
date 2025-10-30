@@ -218,7 +218,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
                     },
                 );
             }
-            const destination = proj_topo.temporal_map.nodes.get(
+            const destination = proj_topo.temporal_space_graph.nodes.get(
                 op.destination
             );
 
@@ -347,16 +347,16 @@ test "libsamplerate w/ high level test -- resample only"
 
     // build the temporal map
     ///////////////////////////////////////////////////////////////////////////
-    const map = try otio.build_temporal_map(
+    const graph = try otio.build_temporal_graph(
         allocator,
         tl_ptr,
     );
-    defer map.deinit(allocator);
+    defer graph.deinit(allocator);
 
     const cache = (
         try otio.temporal_hierarchy.SingleSourceTopologyCache.init(
             allocator,
-            map,
+            graph,
         )
     );
     defer cache.deinit(allocator);
@@ -364,7 +364,7 @@ test "libsamplerate w/ high level test -- resample only"
     const tr_pres_to_cl_media_po = (
         try otio.build_projection_operator(
             allocator,
-            map,
+            graph,
             .{
                 .source = tr_ptr.space(.presentation),
                 .destination = cl_ptr.space(.media),
@@ -521,7 +521,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
     );
     defer proj_topo_from_tl_pres.deinit(allocator);
 
-    try proj_topo_from_tl_pres.temporal_map.write_dot_graph(
+    try proj_topo_from_tl_pres.temporal_space_graph.write_dot_graph(
         allocator,
         "/var/tmp/track_clip_warp.dot",
         "track_clip_warp",

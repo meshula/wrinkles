@@ -220,10 +220,10 @@ pub export fn otio_build_time_map_cvr(
     ) catch return ERR_TOPO_MAP;
 
     const result = allocator.create(
-        otio.TemporalMap
+        otio.TemporalSpaceGraph
     ) catch return ERR_TOPO_MAP;
 
-    result.* = otio.build_temporal_map(
+    result.* = otio.build_temporal_graph(
         allocator,
         ref,
     ) catch return ERR_TOPO_MAP;
@@ -248,7 +248,7 @@ pub export fn otio_build_projection_op_map_to_media_tp_cvr(
 
     const map_c = in_map.ref.?;
 
-    const map = ptrCast(otio.TemporalMap, map_c);
+    const map = ptrCast(otio.TemporalSpaceGraph, map_c);
 
     const result = allocator.create(
         otio.ProjectionOperatorMap
@@ -338,7 +338,7 @@ pub export fn otio_write_map_to_png(
     filepath_c: [*:0]const u8,
 ) void 
 {
-    const t_map = ptrCast(otio.TemporalMap, in_map.ref.?);
+    const t_map = ptrCast(otio.TemporalSpaceGraph, in_map.ref.?);
     const allocator = fetch_allocator(
         allocator_c
     ) catch  return ; 
