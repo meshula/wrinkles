@@ -33,3 +33,12 @@ pub const T_ORD_ARR_0_8_13_21 = [_]opentime.Ordinate{
             opentime.Ordinate.init(21),
 };
 
+pub const T_O_8 = opentime.Ordinate.init(8);
+pub const T_O_12 = opentime.Ordinate.init(12);
+pub const T_O_20 = opentime.Ordinate.init(20);
+pub const T_INTERVAL_ARR_0_8_12_20 = [_]opentime.ContinuousInterval{
+    .{ .start = .ZERO, .end = T_O_8 },
+    .{ .start = T_O_8, .end = T_O_12 },
+    .{ .start = T_O_12, .end = T_O_20 },
+};
+
