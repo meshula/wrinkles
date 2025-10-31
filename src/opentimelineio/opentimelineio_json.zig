@@ -191,19 +191,46 @@ inline fn read_children(
         return &.{};
     }
 
-    const new_children = try allocator.alloc(
+    var new_children = try allocator.alloc(
         otio.ComposedValueRef,
         child_count,
     );
 
-    for (children.array.items, new_children) 
-        |track, *cvr| 
+    var currnet_index: usize = 0;
+    for (children.array.items) 
+        |track| 
     {
-        cvr.* = try read_otio_object(
+        const new_value = read_otio_object(
             allocator,
             track.object,
-        );
+        ) catch |err| 
+        {
+            switch (err) {
+                error.NoSuchSchema => {
+                    std.log.err(
+                        "Skipping: {s}\n",
+                        .{ 
+                            (
+                             track.object.get("OTIO_SCHEMA") 
+                             orelse std.json.Value{.string = ""}
+                            ).string
+                        }
+                    );
+                    continue;
+                },
+                else => {
+                    return err;
+                },
+            }
+        };
+        new_children[currnet_index] = new_value;
+        currnet_index += 1;
     }
+
+    _ = allocator.resize(
+        new_children,
+        currnet_index,
+    );
 
     return new_children;
 }
