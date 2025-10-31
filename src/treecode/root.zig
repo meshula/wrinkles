@@ -11,11 +11,11 @@ pub const TreecodeHashMap= treecode.TreecodeHashMap;
 pub const l_or_r= treecode.l_or_r;
 pub const path_exists= treecode.path_exists;
 
-pub const graph = @import("graph.zig");
-pub const BinaryTree = graph.BinaryTree;
+pub const binary_tree = @import("binary_tree.zig");
+pub const BinaryTree = binary_tree.BinaryTree;
 
 test
 {
     _ = treecode;
-    _ = graph;
+    _ = binary_tree;
 }

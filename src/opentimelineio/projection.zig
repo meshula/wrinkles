@@ -1941,8 +1941,8 @@ pub fn ReferenceTopology(
         const SOURCE_INDEX = 0;
 
         // @TODO: remove these
-        pub const NodeIndex = treecode.graph.NodeIndex;
-        pub const SpaceNodeIndex = treecode.graph.NodeIndex;
+        pub const NodeIndex = treecode.binary_tree.NodeIndex;
+        pub const SpaceNodeIndex = treecode.binary_tree.NodeIndex;
 
         /// a transformation to a particular destination space
         const ReferenceMapping = struct {
