@@ -189,6 +189,18 @@ pub const Clip = struct {
     }
 };
 
+test "Clip: spaces list" 
+{
+    var cl = Clip{};
+
+    try std.testing.expectEqualSlices(
+        references.SpaceLabel,
+        &.{ .presentation, .media },
+        cl.reference().spaces()
+    );
+}
+
+
 /// represents a space in the timeline without media
 pub const Gap = struct {
     name: ?string.latin_s8 = null,
@@ -616,3 +628,4 @@ test "Clip: Animated Parameter example"
     const param = Clip.to_param(&lens_data);
     try cl.parameters.?.put( "lens",param );
 }
+
