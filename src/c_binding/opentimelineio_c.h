@@ -62,23 +62,6 @@ int otio_fetch_cvr_name_str(
         size_t len
 );
 
-
-// TemporalMap
-///////////////////////////////////////////////////////////////////////////////
-typedef struct otio_TemporalMap {
-    void* ref;
-} otio_TemporalMap;
-
-otio_TemporalMap otio_build_time_map_cvr(
-        otio_Allocator allocator,
-        otio_ComposedValueRef root
-);
-void otio_write_map_to_png(
-        otio_Allocator allocator,
-        otio_TemporalMap,
-        const char*
-);
-
 // Topologies
 ///////////////////////////////////////////////////////////////////////////////
 typedef struct otio_Topology {
@@ -93,29 +76,28 @@ int otio_topo_fetch_input_bounds(otio_Topology, const otio_ContinuousInterval*);
 int otio_topo_fetch_output_bounds(otio_Topology, const otio_ContinuousInterval*);
 
 
-// ProjectionOperatorMap
+// ProjectionTopology
 ///////////////////////////////////////////////////////////////////////////////
-typedef struct otio_ProjectionOperatorMap {
+typedef struct otio_ProjectionTopology {
     void* ref;
-} otio_ProjectionOperatorMap;
+} otio_ProjectionTopology;
 
-otio_ProjectionOperatorMap otio_build_projection_op_map_to_media_tp_cvr(
+otio_ProjectionTopology otio_build_projection_op_map_to_media_tp_cvr(
     otio_Allocator allocator,
-    otio_TemporalMap in_map,
     otio_ComposedValueRef root
 );
-size_t otio_po_map_fetch_num_endpoints(otio_ProjectionOperatorMap in_map);
-const float* otio_po_map_fetch_endpoints(otio_ProjectionOperatorMap in_map);
+size_t otio_po_map_fetch_num_endpoints(otio_ProjectionTopology in_map);
+const float* otio_po_map_fetch_endpoints(otio_ProjectionTopology in_map);
 
 size_t otio_po_map_fetch_num_operators_for_segment(
-        otio_ProjectionOperatorMap in_map,
+        otio_ProjectionTopology in_map,
         size_t ind
 );
 typedef struct otio_ProjectionOperator {
     void* ref;
 } otio_ProjectionOperator;
 int otio_po_map_fetch_op(
-        otio_ProjectionOperatorMap,
+        otio_ProjectionTopology,
         size_t segment,
         size_t po_index,
         otio_ProjectionOperator* result
@@ -123,6 +105,12 @@ int otio_po_map_fetch_op(
 int otio_po_fetch_topology(otio_ProjectionOperator, otio_Topology*);
 otio_ComposedValueRef otio_po_fetch_source(otio_ProjectionOperator);
 otio_ComposedValueRef otio_po_fetch_destination(otio_ProjectionOperator);
+
+void otio_write_map_to_png(
+        otio_Allocator allocator,
+        otio_ProjectionTopology projection_builder,
+        const char*
+);
 
 // Spaces
 ///////////////////////////////////////////////////////////////////////////////

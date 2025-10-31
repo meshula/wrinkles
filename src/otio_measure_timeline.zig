@@ -133,20 +133,6 @@ pub fn main(
 
         read_prog.end();
 
-        const build_map = file_prog.start(
-            "Building map",
-            0,
-        );
-
-        // build the graph
-        const temporal_graph = try otio.build_temporal_graph(
-            allocator,
-            tl_ref,
-        );
-        defer temporal_graph.deinit(allocator);
-
-        build_map.end();
-
         const build_map_pro = file_prog.start(
             "Building Projection Topology",
             0,

@@ -114,7 +114,6 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             tr.children[2].space(.media)
         )
     );
-    defer timeline_to_clip2.deinit(allocator);
 
     const clip_indices = try timeline_to_clip2.project_range_cd(
         allocator,
@@ -319,7 +318,7 @@ test "libsamplerate w/ high level test -- resample only"
         otio.ComposedValueRef.init(&tr),
     };
     const tr_ptr = stack_children[0];
-    var tl: otio.Timeline = .{
+    const tl: otio.Timeline = .{
         .name = "Example Timeline - resample only test",
         .discrete_info = .{ 
             .presentation = .{
@@ -331,7 +330,6 @@ test "libsamplerate w/ high level test -- resample only"
             .children = &stack_children,
         },
     };
-    const tl_ptr = otio.ComposedValueRef.init(&tl);
 
     {
         const bounds = try cl1.bounds_of(
@@ -345,34 +343,22 @@ test "libsamplerate w/ high level test -- resample only"
         try std.testing.expect(bounds.start.lt(bounds.end));
     }
 
-    // build the temporal map
+    // build the ProjectionBuilder
     ///////////////////////////////////////////////////////////////////////////
-    const graph = try otio.build_temporal_graph(
-        allocator,
-        tl_ptr,
-    );
-    defer graph.deinit(allocator);
-
-    const cache = (
-        try otio.temporal_hierarchy.SingleSourceTopologyCache.init(
+    var tr_pres_projection_builder = (
+        try otio.ProjectionTopology.init_from(
             allocator,
-            graph,
+            tr_ptr.space(.presentation),
         )
     );
-    defer cache.deinit(allocator);
+    defer tr_pres_projection_builder.deinit(allocator);
 
     const tr_pres_to_cl_media_po = (
-        try otio.build_projection_operator(
+        try tr_pres_projection_builder.projection_operator_to(
             allocator,
-            graph,
-            .{
-                .source = tr_ptr.space(.presentation),
-                .destination = cl_ptr.space(.media),
-            },
-            cache,
+            cl_ptr.space(.media),
         )
     );
-    defer tr_pres_to_cl_media_po.deinit(allocator);
 
     try std.testing.expectEqual(
         .affine,
@@ -534,7 +520,6 @@ test "libsamplerate w/ high level test.retime.interpolating"
             cl_ptr.space(.media),
         )
     );
-    defer tl_pres_to_cl_media_po.deinit(allocator);
 
     try std.testing.expect(
         tl_pres_to_cl_media_po.src_to_dst_topo.mappings[0] != .empty
@@ -681,7 +666,6 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
             cl_ptr.space(.media),
         )
     );
-    defer tr_pres_to_cl_media_po.deinit(allocator);
 
     // synthesize media
     const media = (
@@ -842,7 +826,6 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
             cl_ptr.space(.media),
         )
     );
-    defer tr_pres_to_cl_media_po.deinit(allocator);
 
     {
         // start ordinate of the Track.presentation space
@@ -990,7 +973,6 @@ test "timeline w/ warp that holds the tenth frame"
             cl_ptr.space(.media),
         )
     );
-    defer tr_pres_to_cl_media_po.deinit(allocator);
 
     try std.testing.expect(
         std.meta.activeTag(
@@ -1104,7 +1086,6 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
             cl_ptr.space(.media),
         )
     );
-    defer tl_pres_to_cl_media_po.deinit(allocator);
 
     // Run the Tests
     ///////////////////////////////////////////////////////////////////////////

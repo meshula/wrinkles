@@ -193,36 +193,30 @@ main(
         return 0;
     }
 
-    // build a topological map
-    ///////////////////////////////////////////////////////////////////////////
-
-    otio_TemporalMap map = otio_build_time_map_cvr(
-            arena.allocator,
-            tl
-    );
-    PRINTIF("built map: %p\n", map.ref);
-
     // otio_write_map_to_png(arena.allocator, map, "/var/tmp/from_c_map.dot");
 
     // build a projection operator map to media
     ///////////////////////////////////////////////////////////////////////////
 
     // causes a "not implemented error"
-    otio_ProjectionOperatorMap po_map = (
+    otio_ProjectionTopology tl_pres_proj_builder = (
             otio_build_projection_op_map_to_media_tp_cvr(
                 arena.allocator,
-                map,
                 tl
             )
     );
-    const size_t n_endpoints = otio_po_map_fetch_num_endpoints(po_map);
+    const size_t n_endpoints = otio_po_map_fetch_num_endpoints(
+    tl_pres_proj_builder
+    );
     PRINTIF(
             "built po_map to media: %p with %ld endpoints.\n",
-            po_map.ref,
+            tl_pres_proj_builder.ref,
             n_endpoints
     );
 
-    const float* endpoints = otio_po_map_fetch_endpoints(po_map);
+    const float* endpoints = otio_po_map_fetch_endpoints(
+    tl_pres_proj_builder
+    );
 
     for (int i=0; i < n_endpoints; i++) 
     {
@@ -235,7 +229,7 @@ main(
     {
 
         const size_t ops = otio_po_map_fetch_num_operators_for_segment(
-                po_map, 
+                tl_pres_proj_builder, 
                 i
         );
 
@@ -252,7 +246,7 @@ main(
 
             if (
                     !otio_po_map_fetch_op( 
-                        po_map,
+                        tl_pres_proj_builder,
                         i,
                         o,
                         &po

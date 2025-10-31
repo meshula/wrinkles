@@ -431,33 +431,23 @@ test "read_from_file test (simple)"
 
     const target_clip_ptr = track0.children[0];
 
-    const map = try otio.build_temporal_map(
-        std.testing.allocator,
-        tl_ptr
-    );
-    defer map.deinit(allocator);
-
-    const cache = (
-        try otio.temporal_hierarchy.SingleSourceTopologyCache.init(
+    var tl_pres_projection_builder = (
+        try otio.ProjectionTopology.init_from(
             allocator,
-            map,
+            tl_ptr.space(.presentation),
         )
     );
-    defer cache.deinit(allocator);
+    defer tl_pres_projection_builder.deinit(allocator);
 
-    const tl_output_to_clip_media = try otio.build_projection_operator(
-        std.testing.allocator,
-        map,
-        .{
-            .source = tl_ptr.space(otio.SpaceLabel.presentation),
-            .destination = target_clip_ptr.space(otio.SpaceLabel.media),
-        },
-        cache,
+    const tl_output_to_clip_media = (
+        try tl_pres_projection_builder.projection_operator_to(
+            allocator,
+            target_clip_ptr.space(otio.SpaceLabel.media),
+        )
     );
-    defer tl_output_to_clip_media.deinit(allocator);
     
-    try map.write_dot_graph(
-        std.testing.allocator,
+    try tl_pres_projection_builder.temporal_space_graph.write_dot_graph(
+        allocator,
         "/var/tmp/" ++ dot_fpath,
         "read_from_file_test",
         .{},

@@ -1,3 +1,5 @@
+//! Structures and functions around projections through the temporal hierarchy
+
 const std = @import("std");
 
 const opentime = @import("opentime");
@@ -325,124 +327,7 @@ pub const ProjectionOperator = struct {
     }
 };
 
-/// maps projection to clip.media spaces to regions of whatever space is
-/// the source space
-pub fn projection_map_to_media_from(
-    allocator: std.mem.Allocator,
-    graph: temporal_hierarchy.TemporalSpaceGraph,
-    source: references.SpaceReference,
-) !ProjectionOperatorMap
-{
-    var arena = std.heap.ArenaAllocator.init(allocator);
-    defer arena.deinit();
-    const arena_allocator = arena.allocator();
-
-    const result = try projection_map_to_media_from_leaky(
-        arena_allocator,
-        graph,
-        source,
-    );
-
-    return try result.clone(allocator);
-}
-
-pub fn projection_map_to_media_from_leaky(
-    allocator: std.mem.Allocator,
-    graph: temporal_hierarchy.TemporalSpaceGraph,
-    source: references.SpaceReference,
-) !ProjectionOperatorMap
-{
-    var result = ProjectionOperatorMap{
-        .source = source,
-    };
-
-    // start with an identity end points
-    var proj_args = temporal_hierarchy.PathEndPoints{
-        .source = source,
-        .destination = source,
-    };
-
-    const space_nodes = graph.nodes.slice();
-
-    const cache = (
-        try temporal_hierarchy.SingleSourceTopologyCache.init(
-            allocator,
-            graph,
-        )
-    );
-    defer cache.deinit(allocator);
-
-    for (space_nodes.items(.label), 0..)
-        |label, index|
-    {
-        // skip spaces that aren't media spaces
-        if (label != .media)
-        {
-            continue;
-        }
-
-        proj_args.destination = space_nodes.get(index);
-
-        const child_op = (
-            try temporal_hierarchy.build_projection_operator(
-                allocator,
-                graph,
-                proj_args,
-                cache,
-            )
-        );
-
-        const new_bounds = (
-            child_op.src_to_dst_topo.input_bounds()
-        );
-
-        const child_op_map = ProjectionOperatorMap {
-            .end_points = &. {
-                new_bounds.start, new_bounds.end,
-            },
-            .operators = &.{
-                &.{ child_op }, 
-            },
-            .source = source,
-        };
-
-        result = try ProjectionOperatorMap.merge_composite(
-            allocator,
-            .{
-                .over = result,
-                .under = child_op_map,
-            }
-        );
-    }
-
-    return result;
-}
-
-test "ProjectionOperatorMap: init_operator leak test"
-{
-    const allocator = std.testing.allocator;
-
-    var cl = schema.Clip{};
-    const cl_ptr = references.ComposedValueRef{ 
-        .clip = &cl 
-    };
-    const child_op_map = (
-        try ProjectionOperatorMap.init_operator(
-            allocator,
-            .{
-                .source = cl_ptr.space(.presentation),
-                .destination = cl_ptr.space(.media),
-                .src_to_dst_topo = .EMPTY,
-            },
-        )
-    );
-    defer child_op_map.deinit(allocator);
-
-    const clone = try child_op_map.clone(allocator);
-    defer clone.deinit(allocator);
-}
-
-test "ProjectionOperatorMap: projection_map_to_media_from leak test"
+test "ReferenceTopology: leak test"
 {
     const allocator = std.testing.allocator;
 
@@ -451,670 +336,25 @@ test "ProjectionOperatorMap: projection_map_to_media_from leak test"
     };
     const cl_ptr = references.ComposedValueRef.init(&cl);
 
-    const map = try temporal_hierarchy.build_temporal_graph(
+    var cl_pres_proj_topo = try ProjectionTopology.init_from(
         allocator,
-        cl_ptr,
+        cl_ptr.space(.presentation)
     );
-    defer map.deinit(allocator);
+    defer cl_pres_proj_topo.deinit(allocator);
 
-    const m = try projection_map_to_media_from(
-        allocator,
-        map,
-        cl_ptr.space(.presentation),
-    );
-    defer m.deinit(allocator);
-
-    const mapp = m.operators[0][0].src_to_dst_topo.mappings[0];
-    try opentime.expectOrdinateEqual(
-        4,
-        mapp.project_instantaneous_cc(opentime.Ordinate.init(3)).ordinate()
+    const cl_pres_to_cl_media = (
+        try cl_pres_proj_topo.projection_operator_to(
+            allocator,
+            cl_ptr.space(.media),
+        )
     );
 
     try opentime.expectOrdinateEqual(
         4,
-        try m.operators[0][0].project_instantaneous_cc(
+        cl_pres_to_cl_media.project_instantaneous_cc(
             opentime.Ordinate.init(3)
-        ).ordinate(),
+        ).ordinate()
     );
-}
-
-// @TODO: remove ProjectionOperatorMap
-
-/// maps a timeline to sets of projection operators, one set per temporal slice
-pub const ProjectionOperatorMap = struct {
-    /// segment endpoints in the input space
-    end_points: []const opentime.Ordinate = &.{},
-    /// segment projection operators 
-    operators : []const []const ProjectionOperator = &.{},
-
-    /// root space for the map
-    source : references.SpaceReference,
-
-    /// initialize from an operator, so that the operator can be merged into 
-    /// the map
-    pub fn init_operator(
-        allocator: std.mem.Allocator,
-        op: ProjectionOperator,
-    ) !ProjectionOperatorMap
-    {
-        const input_bounds = op.src_to_dst_topo.input_bounds();
-        const end_points = try allocator.dupe(
-            opentime.Ordinate,
-            &.{ input_bounds.start, input_bounds.end } 
-        );
-
-        var operators = try allocator.alloc(
-            []const ProjectionOperator,
-            1
-        );
-        operators[0] = try allocator.dupe(ProjectionOperator, &.{ op });
-        
-        return .{
-            .end_points = end_points,
-            .operators = operators,
-            .source = op.source,
-        };
-    }
-
-    pub fn deinit(
-        self: @This(),
-        allocator: std.mem.Allocator,
-    ) void
-    {
-        allocator.free(self.end_points);
-        for (self.operators)
-            |segment_ops|
-        {
-            for (segment_ops)
-                |op|
-            {
-                op.deinit(allocator);
-            }
-            allocator.free(segment_ops);
-        }
-        allocator.free(self.operators);
-    }
-
-    const OverlayArgs = struct{
-        over: ProjectionOperatorMap,
-        under: ProjectionOperatorMap,
-    };
-
-    pub fn merge_composite(
-        parent_allocator: std.mem.Allocator,
-        args: OverlayArgs,
-    ) !ProjectionOperatorMap
-    {
-        if (args.over.is_empty() and args.under.is_empty())
-        {
-            return .{
-                .source = args.over.source,
-            };
-        }
-        if (args.over.is_empty())
-        {
-            return try args.under.clone(parent_allocator);
-        }
-        if (args.under.is_empty())
-        {
-            return try args.over.clone(parent_allocator);
-        }
-
-        var arena = std.heap.ArenaAllocator.init(
-            parent_allocator
-        );
-        defer arena.deinit();
-        const arena_allocator = arena.allocator();
-
-        const over = args.over;
-        const undr = args.under;
-
-        const full_range = opentime.ContinuousInterval{
-            .start = opentime.min(
-                over.end_points[0],
-                undr.end_points[0],
-            ),
-            .end = opentime.max(
-                over.end_points[over.end_points.len - 1],
-                undr.end_points[undr.end_points.len - 1],
-            ),
-        };
-
-        const over_extended = try over.extend_to(
-            arena_allocator,
-            full_range,
-        );
-        const undr_extended = try undr.extend_to(
-            arena_allocator,
-            full_range,
-        );
-
-        // project all splits from over to undr
-        const over_conformed = try over_extended.split_at_each(
-            arena_allocator,
-            undr_extended.end_points,
-        );
-        const undr_conformed = try undr_extended.split_at_each(
-            arena_allocator,
-            over_conformed.end_points,
-        );
-
-        const entries = over_conformed.end_points.len;
-        var end_points: std.ArrayList(opentime.Ordinate) = .empty;
-        try end_points.ensureTotalCapacity(
-            parent_allocator,
-            entries,
-        );
-
-        var operators: std.ArrayList([]const ProjectionOperator) = .empty;
-        try operators.ensureTotalCapacity(
-            parent_allocator,
-            entries,
-        );
-        var current_segment: std.ArrayList(ProjectionOperator) = .empty;
-
-        // both end point arrays are the same
-        for (over_conformed.end_points[0..entries - 1], 0..)
-            |p, ind|
-        {
-            end_points.appendAssumeCapacity(p);
-            try current_segment.ensureTotalCapacity(
-                parent_allocator,
-                over_conformed.operators[ind].len
-                + undr_conformed.operators[ind].len
-            );
-            defer current_segment.clearAndFree(parent_allocator);
-
-            for (over_conformed.operators[ind])
-                |op|
-            {
-                current_segment.appendAssumeCapacity(
-                    try op.clone(parent_allocator),
-                );
-            }
-            for (undr_conformed.operators[ind])
-                |op|
-            {
-                current_segment.appendAssumeCapacity(
-                    try op.clone(parent_allocator),
-                );
-            }
-            operators.appendAssumeCapacity(
-                try current_segment.toOwnedSlice(parent_allocator),
-            );
-        }
-
-        end_points.appendAssumeCapacity(
-            over_conformed.end_points[over_conformed.end_points.len - 1],
-        );
-
-        return .{
-            .end_points  = 
-                try end_points.toOwnedSlice(parent_allocator),
-            .operators  = 
-                try operators.toOwnedSlice(parent_allocator),
-            .source = args.over.source,
-        };
-    }
-
-    pub fn is_empty(
-        self: @This(),
-    ) bool
-    {
-        return self.end_points.len == 0 or self.operators.len == 0;
-    }
-
-    pub fn clone(
-        self: @This(),
-        allocator: std.mem.Allocator,
-    ) !ProjectionOperatorMap
-    {
-        var cloned_projection_operators: std.ArrayList(ProjectionOperator) = .{};
-        defer cloned_projection_operators.deinit(allocator);
-
-        return .{
-            .source = self.source,
-            .end_points = try allocator.dupe(
-                opentime.Ordinate,
-                self.end_points
-            ),
-            .operators = ops: {
-                const outer = (
-                    try allocator.alloc(
-                        []const ProjectionOperator,
-                        self.operators.len,
-                    )
-                );
-                for (outer, self.operators)
-                    |*inner, source|
-                {
-                    try cloned_projection_operators.ensureTotalCapacity(
-                        allocator,
-                        source.len,
-                    );
-                    for (source)
-                        |s_mapping|
-                    {
-                        cloned_projection_operators.appendAssumeCapacity(
-                            try s_mapping.clone(allocator)
-                        );
-                    }
-
-                    inner.* = try cloned_projection_operators.toOwnedSlice(
-                        allocator,
-                    );
-                }
-                break :ops outer;
-            }
-        };
-    }
-
-    pub fn extend_to(
-        self: @This(),
-        allocator: std.mem.Allocator,
-        range: opentime.ContinuousInterval,
-    ) !ProjectionOperatorMap
-    {
-        var tmp_pts: std.ArrayList(opentime.Ordinate) = .empty;
-        defer tmp_pts.deinit(allocator);
-        try tmp_pts.ensureTotalCapacity(
-            allocator,
-            // possible extra end point + internal points
-            1 + self.end_points.len + 1
-        );
-
-        var tmp_ops: std.ArrayList([]const ProjectionOperator) = .empty;
-        defer tmp_ops.deinit(allocator);
-        try tmp_ops.ensureTotalCapacity(
-            allocator,
-            // possible extra end point + internal points
-            1 + self.operators.len + 1
-        );
-
-        if (self.end_points[0].gt(range.start)) 
-        {
-            tmp_pts.appendAssumeCapacity(range.start);
-            tmp_ops.appendAssumeCapacity(&.{});
-        }
-
-        tmp_pts.appendSliceAssumeCapacity(self.end_points);
-
-        for (self.operators) 
-            |self_ops|
-        {
-            tmp_ops.appendAssumeCapacity(
-                try opentime.slice_with_cloned_contents_allocator(
-                    allocator,
-                    ProjectionOperator,
-                    self_ops,
-                )
-            );
-        }
-
-        if (range.end.gt(self.end_points[self.end_points.len - 1])) 
-        {
-            tmp_pts.appendAssumeCapacity(range.end);
-            tmp_ops.appendAssumeCapacity(&.{});
-        }
-
-        return .{
-            .end_points = try tmp_pts.toOwnedSlice(allocator),
-            .operators = try tmp_ops.toOwnedSlice(allocator),
-            .source = self.source,
-        };
-    }
-
-    pub fn split_at_each(
-        self: @This(),
-        allocator: std.mem.Allocator,
-        /// pts should have the same start and end point as self
-        pts: []const opentime.Ordinate,
-    ) !ProjectionOperatorMap
-    {
-        var tmp_pts: std.ArrayList(opentime.Ordinate) = .empty;
-        defer tmp_pts.deinit(allocator);
-        try tmp_pts.ensureTotalCapacity(
-            allocator,
-            self.end_points.len + pts.len
-        );
-
-        var tmp_ops: std.ArrayList([]const ProjectionOperator) = .empty;
-        defer tmp_ops.deinit(allocator);
-        try tmp_ops.ensureTotalCapacity(
-            allocator,
-            self.operators.len + pts.len
-        );
-
-        var ind_self:usize = 0;
-        var ind_other:usize = 0;
-
-        var t_next_self = self.end_points[1];
-        var t_next_other = pts[1];
-
-        // append origin
-        tmp_pts.appendAssumeCapacity(self.end_points[0]);
-
-        while (
-            ind_self < self.end_points.len - 1
-            and ind_other < pts.len - 1 
-        )
-        {
-            tmp_ops.appendAssumeCapacity(
-                try opentime.slice_with_cloned_contents_allocator(
-                    allocator,
-                    ProjectionOperator,
-                    self.operators[ind_self],
-                )
-            );
-
-            t_next_self = self.end_points[ind_self+1];
-            t_next_other = pts[ind_other+1];
-
-            if (t_next_self.eql_approx(t_next_other))
-            {
-                tmp_pts.appendAssumeCapacity(t_next_self);
-                if (ind_self < self.end_points.len - 1) {
-                    ind_self += 1;
-                }
-                if (ind_other < pts.len - 1) {
-                    ind_other += 1;
-                }
-            }
-            else if (t_next_self.lt(t_next_other))
-            {
-                tmp_pts.appendAssumeCapacity(t_next_self);
-                ind_self += 1;
-            }
-            else 
-            {
-                tmp_pts.appendAssumeCapacity(t_next_other);
-                ind_other += 1;
-            }
-        }
-
-        return .{
-            .end_points = try tmp_pts.toOwnedSlice(allocator),
-            .operators = try tmp_ops.toOwnedSlice(allocator),
-            .source = self.source,
-        };
-    }
-};
-
-test "ProjectionOperatorMap: extend_to"
-{
-    const allocator = std.testing.allocator;
-
-    var cl = schema.Clip {
-        .bounds_s = test_data.T_INT_1_TO_9,
-    };
-    const cl_ptr = references.ComposedValueRef{ .clip = &cl };
-
-    const map = try temporal_hierarchy.build_temporal_graph(
-        allocator,
-        cl_ptr,
-    );
-    defer map.deinit(allocator);
-
-    const cl_presentation_pmap = (
-        try projection_map_to_media_from(
-            allocator,
-            map,
-            cl_ptr.space(.presentation),
-        )
-    );
-    defer cl_presentation_pmap.deinit(allocator);
-
-    // extend_to no change
-    {
-        const result = try cl_presentation_pmap.extend_to(
-            allocator,
-            .{
-                .start = cl_presentation_pmap.end_points[0],
-                .end = cl_presentation_pmap.end_points[1],
-            },
-        );
-        defer result.deinit(allocator);
-
-        try std.testing.expectEqualSlices(
-            opentime.Ordinate,
-            cl_presentation_pmap.end_points,
-            result.end_points,
-        );
-        try std.testing.expectEqual(
-            cl_presentation_pmap.operators.len,
-            result.operators.len,
-        );
-    }
-
-    // add before
-    {
-        const result = try cl_presentation_pmap.extend_to(
-            allocator,
-            .{
-                .start = opentime.Ordinate.init(-10),
-                .end = opentime.Ordinate.init(8),
-            },
-        );
-        defer result.deinit(allocator);
-
-        try std.testing.expectEqualSlices(
-            opentime.Ordinate,
-            &.{
-                opentime.Ordinate.init(-10),
-                opentime.Ordinate.init(0),
-                opentime.Ordinate.init(8)
-            },
-            result.end_points,
-        );
-
-        try std.testing.expectEqual(
-            2,
-            result.operators.len,
-        );
-    }
-
-    // add after
-    {
-        const result = try cl_presentation_pmap.extend_to(
-            allocator,
-            .{
-                .start = opentime.Ordinate.init(0),
-                .end = opentime.Ordinate.init(18),
-            },
-        );
-        defer result.deinit(allocator);
-
-        try std.testing.expectEqualSlices(
-            opentime.Ordinate,
-            &.{
-                opentime.Ordinate.init(0),
-                opentime.Ordinate.init(8),
-                opentime.Ordinate.init(18)
-            },
-            result.end_points,
-        );
-
-        try std.testing.expectEqual(
-            2,
-            result.operators.len,
-        );
-    }
-}
-
-test "ProjectionOperatorMap: split_at_each"
-{
-    const allocator = std.testing.allocator;
-
-    var cl = schema.Clip {
-        .bounds_s = test_data.T_INT_1_TO_9,
-    };
-    const cl_ptr = references.ComposedValueRef{ .clip = &cl };
-
-    const map = try temporal_hierarchy.build_temporal_graph(
-        allocator,
-        cl_ptr,
-    );
-    defer map.deinit(allocator);
-
-    const cl_presentation_pmap = (
-        try projection_map_to_media_from(
-            allocator,
-            map,
-            cl_ptr.space(.presentation),
-        )
-    );
-    defer cl_presentation_pmap.deinit(allocator);
-
-    // split_at_each -- no change
-    {
-        const result = try cl_presentation_pmap.split_at_each(
-            allocator,
-            cl_presentation_pmap.end_points,
-        );
-        defer result.deinit(allocator);
-
-        try std.testing.expectEqualSlices(
-            opentime.Ordinate,
-            cl_presentation_pmap.end_points,
-            result.end_points,
-        );
-        try std.testing.expectEqual(
-            cl_presentation_pmap.operators.len,
-            result.operators.len,
-        );
-    }
-
-    // split_at_each -- end points are same, split in middle
-    {
-        const pts = [_]opentime.Ordinate{ opentime.Ordinate.init(0), opentime.Ordinate.init(4), opentime.Ordinate.init(8) };
-
-        const result = try cl_presentation_pmap.split_at_each(
-            allocator,
-            &pts,
-        );
-        defer result.deinit(allocator);
-
-        try std.testing.expectEqualSlices(
-            opentime.Ordinate,
-            &pts,
-            result.end_points,
-        );
-
-        try std.testing.expectEqual(
-            cl_presentation_pmap.operators.len + 1,
-            result.operators.len,
-        );
-    }
-
-    // split_at_each -- end points are same, split in middle twice
-    {
-        const pts = [_]opentime.Ordinate{
-            opentime.Ordinate.init(0),
-            opentime.Ordinate.init(1),
-            opentime.Ordinate.init(4),
-            opentime.Ordinate.init(8),
-        };
-
-        const result = (
-            try cl_presentation_pmap.split_at_each(
-                allocator,
-                &pts,
-            )
-        );
-        defer result.deinit(allocator);
-
-        try std.testing.expectEqualSlices(
-            opentime.Ordinate,
-            &pts,
-            result.end_points,
-        );
-
-        try std.testing.expectEqual(
-            3,
-            result.operators.len,
-        );
-    }
-
-    // split_at_each -- end points are same, split offset
-    {
-        const pts1 = [_]opentime.Ordinate{
-            opentime.Ordinate.init(0),
-            opentime.Ordinate.init(4),
-            opentime.Ordinate.init(8),
-        };
-        const pts2 = pts1;
-
-        const inter = try cl_presentation_pmap.split_at_each(
-            allocator,
-            &pts1,
-        );
-        defer inter.deinit(allocator);
-
-        const result = try inter.split_at_each(
-            allocator,
-            &pts2,
-        );
-        defer result.deinit(allocator);
-
-        try std.testing.expectEqualSlices(
-            opentime.Ordinate,
-            &pts1,
-            result.end_points,
-        );
-
-        try std.testing.expectEqual(
-            2,
-            result.operators.len,
-        );
-    }
-}
-
-test "ProjectionOperatorMap: merge_composite"
-{
-    const allocator = std.testing.allocator;
-
-    var cl = schema.Clip {
-        .bounds_s = test_data.T_INT_1_TO_9,
-    };
-    const cl_ptr = references.ComposedValueRef{ .clip = &cl };
-
-    const map = try temporal_hierarchy.build_temporal_graph(
-        allocator,
-        cl_ptr,
-    );
-    defer map.deinit(allocator);
-
-    const cl_presentation_pmap = (
-        try projection_map_to_media_from(
-            allocator,
-            map,
-            cl_ptr.space(.presentation),
-        )
-    );
-    defer cl_presentation_pmap.deinit(allocator);
-
-    {
-        const result = (
-            try ProjectionOperatorMap.merge_composite(
-                allocator,
-                .{
-                    .over = cl_presentation_pmap,
-                    .under = cl_presentation_pmap,
-                }
-            )
-        );
-        defer result.deinit(allocator);
-
-        try std.testing.expectEqualSlices(
-            opentime.Ordinate,
-            cl_presentation_pmap.end_points,
-            result.end_points,
-        );
-        try std.testing.expectEqual(
-            1,
-            result.operators.len
-        );
-    }
 }
 
 test "ProjectionOperatorMap: clip"
@@ -1126,54 +366,44 @@ test "ProjectionOperatorMap: clip"
     };
     const cl_ptr = references.ComposedValueRef{ .clip = &cl };
 
-    const map = try temporal_hierarchy.build_temporal_graph(
-        allocator,
-        cl_ptr,
-    );
-    defer map.deinit(allocator);
-
-    const cl_presentation_pmap = (
-        try projection_map_to_media_from(
+    var cl_pres_projection_builder = (
+        try ProjectionTopology.init_from(
             allocator,
-            map,
             cl_ptr.space(.presentation),
         )
     );
-    defer cl_presentation_pmap.deinit(allocator);
+    defer cl_pres_projection_builder.deinit(allocator);
 
-    try std.testing.expectEqual(1, cl_presentation_pmap.operators.len);
-    try std.testing.expectEqual(2, cl_presentation_pmap.end_points.len);
-
-    const cache = (
-        try temporal_hierarchy.SingleSourceTopologyCache.init(
-            allocator,
-            map,
-        )
+    try std.testing.expectEqual(
+        1,
+        cl_pres_projection_builder.intervals.len,
     );
-    defer cache.deinit(allocator);
+    try std.testing.expectEqual(
+        1,
+        cl_pres_projection_builder.mappings.len,
+    );
 
     const known_presentation_to_media = (
-        try temporal_hierarchy.build_projection_operator(
+        try build_projection_operator(
             allocator,
-            map,
+            cl_pres_projection_builder.temporal_space_graph,
             .{
                 .source = cl_ptr.space(.presentation),
                 .destination = cl_ptr.space(.media),
             },
-            cache,
+            cl_pres_projection_builder.cache,
         )
     );
-    defer known_presentation_to_media.deinit(allocator);
 
     const known_input_bounds = (
         known_presentation_to_media.src_to_dst_topo.input_bounds()
     );
 
     const guess_presentation_to_media = (
-        cl_presentation_pmap.operators[0][0]
+        cl_pres_projection_builder.mappings.items(.mapping)[0]
     );
     const guess_input_bounds = (
-        guess_presentation_to_media.src_to_dst_topo.input_bounds()
+        guess_presentation_to_media.input_bounds()
     );
 
     // topology input bounds match
@@ -1188,22 +418,22 @@ test "ProjectionOperatorMap: clip"
 
     // end points match topology
     try opentime.expectOrdinateEqual(
-        cl_presentation_pmap.end_points[0],
+        cl_pres_projection_builder.intervals.items(.input_bounds)[0].start,
         guess_input_bounds.start,
     );
     try opentime.expectOrdinateEqual(
-        cl_presentation_pmap.end_points[1],
+        cl_pres_projection_builder.intervals.items(.input_bounds)[0].end,
         guess_input_bounds.end,
     );
 
     // known input bounds matches end point
     try opentime.expectOrdinateEqual(
         known_input_bounds.start,
-        cl_presentation_pmap.end_points[0],
+        cl_pres_projection_builder.intervals.items(.input_bounds)[0].start,
     );
     try opentime.expectOrdinateEqual(
         known_input_bounds.end,
-        cl_presentation_pmap.end_points[1],
+        cl_pres_projection_builder.intervals.items(.input_bounds)[0].end,
     );
 }
 
@@ -1220,63 +450,50 @@ test "ProjectionOperatorMap: track with single clip"
     var tr: schema.Track = .{ .children = &tr_children };
     const tr_ptr = references.ComposedValueRef.init(&tr);
 
-    const map = try temporal_hierarchy.build_temporal_graph(
-        allocator,
-        tr_ptr,
-    );
-    defer map.deinit(allocator);
-
     const source_space = tr_ptr.space(.presentation);
 
-    const test_maps = &[_]ProjectionOperatorMap{
-        // try build_projection_operator_map(
-        //     allocator,
-        //     map,
-        //     cl_ptr.space(.presentation),
-        // ),
-        try projection_map_to_media_from(
+    var test_maps = [_]ProjectionTopology{
+        try ProjectionTopology.init_from(
             allocator,
-            map,
+            cl_ptr.space(.presentation),
+        ),
+        try ProjectionTopology.init_from(
+            allocator,
             source_space,
         ),
     };
 
-    for (test_maps)
-        |projection_operator_map|
+    for (&test_maps)
+        |*projection_builder|
     {
-        defer projection_operator_map.deinit(allocator);
+        defer projection_builder.deinit(allocator);
 
-        try std.testing.expectEqual(1, projection_operator_map.operators.len);
-        try std.testing.expectEqual(2, projection_operator_map.end_points.len);
+        try std.testing.expectEqual(
+            1,
+            projection_builder.mappings.len,
+        );
+        try std.testing.expectEqual(
+            1,
+            projection_builder.intervals.len,
+        );
 
-    const cache = (
-        try temporal_hierarchy.SingleSourceTopologyCache.init(
+        const known_presentation_to_media = try build_projection_operator(
             allocator,
-            map,
-        )
-    );
-    defer cache.deinit(allocator);
-
-        const known_presentation_to_media = try temporal_hierarchy.build_projection_operator(
-            allocator,
-            map,
+            projection_builder.temporal_space_graph,
             .{
-                .source = tr_ptr.space(.presentation),
+                .source = projection_builder.source,
                 .destination = cl_ptr.space(.media),
             },
-            cache,
+            projection_builder.cache,
         );
-        defer known_presentation_to_media.deinit(allocator);
         const known_input_bounds = (
             known_presentation_to_media.src_to_dst_topo.input_bounds()
         );
 
         const guess_presentation_to_media = (
-            projection_operator_map.operators[0][0]
+            projection_builder.mappings.items(.mapping)[0]
         );
-        const guess_input_bounds = (
-            guess_presentation_to_media.src_to_dst_topo.input_bounds()
-        );
+        const guess_input_bounds = guess_presentation_to_media.input_bounds();
 
         // topology input bounds match
         try opentime.expectOrdinateEqual(
@@ -1290,27 +507,27 @@ test "ProjectionOperatorMap: track with single clip"
 
         // end points match topology
         try opentime.expectOrdinateEqual(
-            projection_operator_map.end_points[0],
+            projection_builder.intervals.items(.input_bounds)[0].start,
             guess_input_bounds.start,
         );
         try opentime.expectOrdinateEqual(
-            projection_operator_map.end_points[1],
+            projection_builder.intervals.items(.input_bounds)[0].end,
             guess_input_bounds.end,
         );
 
         // known input bounds matches end point
         try opentime.expectOrdinateEqual(
             known_input_bounds.start,
-            projection_operator_map.end_points[0],
+            projection_builder.intervals.items(.input_bounds)[0].start,
         );
         try opentime.expectOrdinateEqual(
             known_input_bounds.end,
-            projection_operator_map.end_points[1],
+            projection_builder.intervals.items(.input_bounds)[0].end,
         );
     }
 }
 
-test "projection.ProjectionOperator: clone"
+test "ProjectionOperator: clone"
 {
     const allocator = std.testing.allocator;
 
@@ -1347,49 +564,6 @@ test "projection.ProjectionOperator: clone"
         try po_cloned_again.project_instantaneous_cc(
             opentime.Ordinate.init(3),
         ).ordinate(),
-    );
-}
-
-test "ProjectionOperatorMap: clone"
-{
-    const allocator = std.testing.allocator;
-    var cl = schema.Clip{};
-    const cl_ptr = references.ComposedValueRef{ 
-        .clip = &cl 
-    };
-    const aff1 = try topology_m.Topology.init_affine(
-        allocator,
-        .{
-            .input_bounds_val = .{
-                .start = opentime.Ordinate.init(0),
-                .end = opentime.Ordinate.init(8),
-            },
-            .input_to_output_xform = .{
-                .offset = opentime.Ordinate.init(1),
-            },
-        },
-    );
-    const child_op_map = (
-        try ProjectionOperatorMap.init_operator(
-            allocator,
-            .{
-                .source = cl_ptr.space(.presentation),
-                .destination = cl_ptr.space(.media),
-                .src_to_dst_topo = aff1,
-            },
-        )
-    );
-
-    const clone = try child_op_map.clone(allocator);
-    defer clone.deinit(allocator);
-
-    child_op_map.deinit(allocator);
-
-    const topo = clone.operators[0][0].src_to_dst_topo;
-
-    try opentime.expectOrdinateEqual(
-        4,
-        try topo.project_instantaneous_cc(opentime.Ordinate.init(3)).ordinate()
     );
 }
 
@@ -1437,14 +611,14 @@ test "transform: track with two clips"
         defer xform.deinit(allocator);
 
         const cache = (
-            try temporal_hierarchy.SingleSourceTopologyCache.init(
+            try SingleSourceTopologyCache.init(
                 allocator,
                 map,
             )
         );
         defer cache.deinit(allocator);
 
-        const po = try temporal_hierarchy.build_projection_operator(
+        const po = try build_projection_operator(
             allocator,
             map,
             .{
@@ -1453,7 +627,6 @@ test "transform: track with two clips"
             },
             cache,
         );
-        defer po.deinit(allocator);
         const result = try topology_m.join(
             allocator,
             .{
@@ -1469,14 +642,14 @@ test "transform: track with two clips"
 
     {
         const cache = (
-            try temporal_hierarchy.SingleSourceTopologyCache.init(
+            try SingleSourceTopologyCache.init(
                 allocator,
                 map,
             )
         );
         defer cache.deinit(allocator);
 
-        const xform = try temporal_hierarchy.build_projection_operator(
+        const xform = try build_projection_operator(
             allocator,
             map,
             .{
@@ -1485,7 +658,6 @@ test "transform: track with two clips"
             },
             cache,
         );
-        defer xform.deinit(allocator);
         const b = xform.src_to_dst_topo.input_bounds();
 
         try std.testing.expect(xform.src_to_dst_topo.mappings.len > 0);
@@ -1510,7 +682,7 @@ test "transform: track with two clips"
     }
 }
 
-test "ProjectionOperatorMap: track with two clips"
+test "ProjectionTopology: track with two clips"
 {
     const allocator = std.testing.allocator;
 
@@ -1519,77 +691,60 @@ test "ProjectionOperatorMap: track with two clips"
             .bounds_s = test_data.T_INT_1_TO_9,
         },
         .{
+            .bounds_s = test_data.T_INTERVAL_ARR_0_8_12_20[1],
+        },
+        .{
             .bounds_s = test_data.T_INT_1_TO_9,
         },
     };
     const cl_ptr = references.ComposedValueRef.init(&clips[1]);
 
     var tr_children = [_]references.ComposedValueRef{
-        references.ComposedValueRef.init(&clips[0]),
-        cl_ptr,  
+        clips[0].reference(),
+        clips[1].reference(),
+        clips[2].reference(),
     };
     var tr: schema.Track = .{ .children = &tr_children };
     const tr_ptr = references.ComposedValueRef.init(&tr);
 
-    /////
-
-    const map = try temporal_hierarchy.build_temporal_graph(
-        allocator,
-        tr_ptr,
-    );
-    defer map.deinit(allocator);
-
-    /////
-
     const source_space = tr_ptr.space(.presentation);
 
-    const p_o_map = (
-        try projection_map_to_media_from(
+    var cl_pres_projection_builder = (
+        try ProjectionTopology.init_from(
             allocator,
-            map,
             source_space,
         )
     );
-    defer p_o_map.deinit(allocator);
-
-    /////
+    defer cl_pres_projection_builder.deinit(allocator);
 
     try std.testing.expectEqualSlices(
-        opentime.Ordinate,
-        (&test_data.T_ORD_ARR_0_8_16_21)[0..3],
-        p_o_map.end_points,
+        opentime.ContinuousInterval,
+        &test_data.T_INTERVAL_ARR_0_8_12_20,
+        cl_pres_projection_builder.intervals.items(.input_bounds),
     );
-    try std.testing.expectEqual(2, p_o_map.operators.len);
-
-    const cache = (
-        try temporal_hierarchy.SingleSourceTopologyCache.init(
-            allocator,
-            map,
-        )
+    try std.testing.expectEqual(
+        3,
+        cl_pres_projection_builder.intervals.len,
     );
-    defer cache.deinit(allocator);
 
     const known_presentation_to_media = (
-        try temporal_hierarchy.build_projection_operator(
+        try build_projection_operator(
             allocator,
-            map,
+            cl_pres_projection_builder.temporal_space_graph,
             .{
                 .source = tr_ptr.space(.presentation),
                 .destination = cl_ptr.space(.media),
             },
-            cache,
+            cl_pres_projection_builder.cache,
         )
     );
-    defer known_presentation_to_media.deinit(allocator);
 
     const known_input_bounds = (
         known_presentation_to_media.src_to_dst_topo.input_bounds()
     );
 
-    const guess_presentation_to_media = p_o_map.operators[1][0];
-    const guess_input_bounds = (
-        guess_presentation_to_media.src_to_dst_topo.input_bounds()
-    );
+    const guess_presentation_to_media = cl_pres_projection_builder.mappings.items(.mapping)[1];
+    const guess_input_bounds = guess_presentation_to_media.input_bounds();
 
     // topology input bounds match
     try opentime.expectOrdinateEqual(
@@ -1607,7 +762,7 @@ test "ProjectionOperatorMap: track with two clips"
         guess_input_bounds.start,
     );
     try opentime.expectOrdinateEqual(
-        16,
+        12,
         guess_input_bounds.end,
     );
 }
@@ -1620,92 +775,52 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
         .bounds_s = test_data.T_INT_1_TO_9,
     };
     var gp = schema.Gap{
-        .duration_seconds = opentime.Ordinate.init(5),
+        .duration_seconds = opentime.Ordinate.init(4),
     };
-    var cl2 = cl;
-    const cl_ptr = references.ComposedValueRef.init(&cl2);
+    var cl2 = schema.Clip {
+        .bounds_s = test_data.T_INT_1_TO_9,
+    };
+    const cl2_ptr = cl2.reference();
 
     var tr_children = [_]references.ComposedValueRef{ 
-        references.ComposedValueRef.init(&cl),
+        cl.reference(),
         references.ComposedValueRef.init(&gp),
-        cl_ptr,
+        cl2_ptr,
     };
     var tr: schema.Track = .{ .children = &tr_children, };
     const tr_ptr = references.ComposedValueRef.init(&tr);
 
-    const map = try temporal_hierarchy.build_temporal_graph(
-        allocator,
-        tr_ptr,
-    );
-    defer map.deinit(allocator);
-
-    const source_space = tr_ptr.space(.presentation);
-
-    const p_o_map = (
-        try projection_map_to_media_from(
+    var tr_pres_projection_builder = (
+        try ProjectionTopology.init_from(
             allocator,
-            map,
-            source_space,
+            tr_ptr.space(.presentation),
         )
     );
-
-    defer p_o_map.deinit(allocator);
+    defer tr_pres_projection_builder.deinit(allocator);
 
     try std.testing.expectEqualSlices(
-        opentime.Ordinate,
-        &test_data.T_ORD_ARR_0_8_13_21,
-        p_o_map.end_points,
+        opentime.ContinuousInterval,
+        &test_data.T_INTERVAL_ARR_0_8_12_20,
+        tr_pres_projection_builder.intervals.items(.input_bounds),
     );
-    try std.testing.expectEqual(3, p_o_map.operators.len);
+    try std.testing.expectEqual(
+        3,
+        tr_pres_projection_builder.intervals.len,
+    );
 
-    const cache = (
-        try temporal_hierarchy.SingleSourceTopologyCache.init(
-            allocator,
-            map,
+    const tr_pres_to_cl_media = (
+        try tr_pres_projection_builder.projection_operator_to(
+            allocator, cl2_ptr.space(.media)
         )
     );
-    defer cache.deinit(allocator);
 
-    const known_presentation_to_media = (
-        try temporal_hierarchy.build_projection_operator(
-            allocator,
-            map,
-            .{
-                .source = tr_ptr.space(.presentation),
-                .destination = cl_ptr.space(.media),
-            },
-            cache,
-        )
-    );
-    defer known_presentation_to_media.deinit(allocator);
-
-    const known_input_bounds = (
-        known_presentation_to_media.src_to_dst_topo.input_bounds()
+    const guess_tr_presentation_bounds = (
+        tr_pres_to_cl_media.src_to_dst_topo.input_bounds()
     );
 
-    const guess_presentation_to_media = p_o_map.operators[2][0];
-    const guess_input_bounds = (
-        guess_presentation_to_media.src_to_dst_topo.input_bounds()
-    );
-
-    // topology input bounds match
-    try opentime.expectOrdinateEqual(
-        known_input_bounds.start,
-        guess_input_bounds.start,
-    );
-    try opentime.expectOrdinateEqual(
-        known_input_bounds.end,
-        guess_input_bounds.end,
-    );
-
-    // end points match topology
-    try opentime.expectOrdinateEqual(
-        13,
-        guess_input_bounds.start,
-    );
-    try opentime.expectOrdinateEqual(
-        21,
-        guess_input_bounds.end,
+    try std.testing.expectEqualDeep(
+        test_data.T_INTERVAL_ARR_0_8_12_20[2],
+        guess_tr_presentation_bounds,
     );
 }
 
@@ -1736,23 +851,22 @@ test "Projection: schema.Track with single clip with identity transform and boun
     );
 
     const cache = (
-        try temporal_hierarchy.SingleSourceTopologyCache.init(
+        try SingleSourceTopologyCache.init(
             allocator,
             map,
         )
     );
     defer cache.deinit(allocator);
 
-    const root_presentation_to_clip_media = try temporal_hierarchy.build_projection_operator(
+    const root_presentation_to_clip_media = try build_projection_operator(
         allocator,
         map,
         .{ 
-            .source = root.space(references.SpaceLabel.presentation),
-            .destination = clip.space(references.SpaceLabel.media),
+            .source = root.space(.presentation),
+            .destination = clip.space(.media),
         },
         cache,
     );
-    defer root_presentation_to_clip_media.deinit(allocator);
 
     const expected_media_temporal_bounds = (
         cl.bounds_s orelse opentime.ContinuousInterval{}
@@ -1803,102 +917,51 @@ test "Projection: schema.Track 3 bounded clips identity xform"
         cl.* = schema.Clip {
             .bounds_s = test_data.T_INT_0_TO_2 
         };
-        ref.* = references.ComposedValueRef.init(cl);
+        ref.* = cl.*.reference();
     }
-    const cl2_ref = refs[2];
 
     var tr: schema.Track = .{
         .children = &refs,
     };
-    const track_ptr = references.ComposedValueRef.init(&tr);
+    const track_ptr = tr.reference();
 
-    // ----
-
-    const map = try temporal_hierarchy.build_temporal_graph(
-        allocator,
-        track_ptr,
-    );
-    defer map.deinit(allocator);
-
-    // ---
-
-    // check that the child transform is correctly built
-    {
-    const cache = (
-        try temporal_hierarchy.SingleSourceTopologyCache.init(
+    var tr_pres_projection_builder = (
+        try ProjectionTopology.init_from(
             allocator,
-            map,
+            track_ptr.space(.presentation),
         )
     );
-    defer cache.deinit(allocator);
-
-        const po = try temporal_hierarchy.build_projection_operator(
-            allocator,
-            map,
-            .{
-                .source = track_ptr.space(.presentation),
-                .destination = (
-                    cl2_ref.space(.media)
-                ),
-            },
-            cache,
-        );
-        defer po.deinit(std.testing.allocator);
-
-        const b = po.src_to_dst_topo.input_bounds();
-
-        try opentime.expectOrdinateEqual(
-            4,
-            b.start,
-        );
-        try opentime.expectOrdinateEqual(
-            6,
-            b.end,
-        );
-    }
-
-    const po_map = try projection_map_to_media_from(
-        allocator,
-        map,
-        track_ptr.space(.presentation),
-    );
-    defer po_map.deinit(allocator);
+    defer tr_pres_projection_builder.deinit(allocator);
 
     try std.testing.expectEqual(
         3,
-        po_map.operators.len,
+        tr_pres_projection_builder.mappings.len,
     );
 
     // 1
-    for (po_map.operators,
-        &[_][2]opentime.Ordinate{ 
-            .{ test_data.T_O_0, test_data.T_O_2 },
-            .{ test_data.T_O_2, test_data.T_O_4 },
-            .{ test_data.T_O_4, test_data.T_O_6 } 
+    for (
+        tr_pres_projection_builder.intervals.items(.mapping_index),
+        tr_pres_projection_builder.intervals.items(.input_bounds),
+        &[_]opentime.ContinuousInterval{ 
+            .{ .start = test_data.T_O_0, .end = test_data.T_O_2 },
+            .{ .start = test_data.T_O_2, .end = test_data.T_O_4 },
+            .{ .start = test_data.T_O_4, .end = test_data.T_O_6 } 
         }
     )
-        |ops, expected|
+        |mapping_index, measured_interval, expected_interval|
     {
         const b = (
-            ops[0].src_to_dst_topo.input_bounds()
+            tr_pres_projection_builder.mappings.items(.mapping)[mapping_index[0]]
         );
-        try std.testing.expectEqualSlices(
-            opentime.Ordinate,
-            &expected,
-            &.{ b.start, b.end },
+        try std.testing.expectEqualDeep(
+            expected_interval,
+            measured_interval,
+        );
+        try std.testing.expectEqualDeep(
+            expected_interval,
+            b.input_bounds(),
         );
     }
-
-    try std.testing.expectEqualSlices(
-        opentime.Ordinate,
-        &.{
-            test_data.T_O_0,
-            test_data.T_O_2,
-            test_data.T_O_4,
-            test_data.T_O_6,
-        },
-        po_map.end_points,
-    );
 
     const TestData = struct {
         index: usize,
@@ -1919,41 +982,31 @@ test "Projection: schema.Track 3 bounded clips identity xform"
     {
         const child = tr.children[t.index];
 
-    const cache = (
-        try temporal_hierarchy.SingleSourceTopologyCache.init(
-            allocator,
-            map,
-        )
-    );
-    defer cache.deinit(allocator);
-
-        const tr_presentation_to_clip_media = try temporal_hierarchy.build_projection_operator(
-        allocator,
-        map,
-            .{
-                .source = track_ptr.space(references.SpaceLabel.presentation),
-                .destination = child.space(references.SpaceLabel.media),
-            },
-            cache,
+        const tr_presentation_to_child_media = (
+            try tr_pres_projection_builder.projection_operator_to(
+                allocator,
+                child.space(.media),
+            )
         );
-        defer tr_presentation_to_clip_media.deinit(allocator);
 
-        errdefer std.log.err(
-            "[{d}] index: {d} track ordinate: {d} expected: {d} error: {any}\n",
-            .{t_i, t.index, t.track_ord, t.expected_ord, t.err}
-        );
+        errdefer {
+            std.log.err(
+                "[{d}] index: {d} track ordinate: {d} expected: {d} error: {any}\n",
+                .{t_i, t.index, t.track_ord, t.expected_ord, t.err}
+            );
+        }
         if (t.err)
         {
             try std.testing.expectError(
                 opentime.ProjectionResult.Errors.OutOfBounds,
-                tr_presentation_to_clip_media.project_instantaneous_cc(
+                tr_presentation_to_child_media.project_instantaneous_cc(
                     opentime.Ordinate.init(t.track_ord)
                 ).ordinate()
             );
         }
         else{
             const result = (
-                try tr_presentation_to_clip_media.project_instantaneous_cc(
+                try tr_presentation_to_child_media.project_instantaneous_cc(
                     opentime.Ordinate.init(t.track_ord)
                 ).ordinate()
             );
@@ -1967,30 +1020,18 @@ test "Projection: schema.Track 3 bounded clips identity xform"
 
     const clip = tr.children[0];
 
-    const cache = (
-        try temporal_hierarchy.SingleSourceTopologyCache.init(
+    const tr_pres_to_cl_media = (
+        try tr_pres_projection_builder.projection_operator_to(
             allocator,
-            map,
+            clip.space(.media),
         )
     );
-    defer cache.deinit(allocator);
-
-    const root_presentation_to_clip_media = try temporal_hierarchy.build_projection_operator(
-        allocator,
-        map,
-        .{ 
-            .source = track_ptr.space(references.SpaceLabel.presentation),
-            .destination = clip.space(references.SpaceLabel.media),
-        },
-        cache,
-    );
-    defer root_presentation_to_clip_media.deinit(allocator);
 
     const expected_range = (
         tr.children[0].clip.bounds_s orelse opentime.ContinuousInterval{}
     );
     const actual_range = (
-        root_presentation_to_clip_media.src_to_dst_topo.input_bounds()
+        tr_pres_to_cl_media.src_to_dst_topo.input_bounds()
     );
 
     // check the bounds
@@ -2006,7 +1047,7 @@ test "Projection: schema.Track 3 bounded clips identity xform"
 
     try std.testing.expectError(
         opentime.ProjectionResult.Errors.OutOfBounds,
-        root_presentation_to_clip_media.project_instantaneous_cc(
+        tr_pres_to_cl_media.project_instantaneous_cc(
             opentime.Ordinate.init(3)
         ).ordinate(),
     );
@@ -2098,34 +1139,22 @@ test "Single schema.Clip bezier transform"
 
     const wp_ptr : references.ComposedValueRef = .{ .warp = &wp };
 
-    const map = try temporal_hierarchy.build_temporal_graph(
-        allocator,
-        wp_ptr,
+    var wp_pres_projection_builder = (
+        try ProjectionTopology.init_from(
+            allocator,
+            wp_ptr.space(.presentation),
+        )
     );
-    defer map.deinit(allocator);
+    defer wp_pres_projection_builder.deinit(allocator);
 
     // presentation->media (forward projection)
     {
-    const cache = (
-        try temporal_hierarchy.SingleSourceTopologyCache.init(
-            allocator,
-            map,
-        )
-    );
-    defer cache.deinit(allocator);
-
         const clip_presentation_to_media_proj = (
-            try temporal_hierarchy.build_projection_operator(
+            try wp_pres_projection_builder.projection_operator_to(
                 allocator,
-                map,
-                .{
-                    .source =  wp_ptr.space(references.SpaceLabel.presentation),
-                    .destination = cl_ptr.space(references.SpaceLabel.media),
-                },
-                cache,
+                cl_ptr.space(.media),
             )
         );
-        defer clip_presentation_to_media_proj.deinit(allocator);
 
         // note that the clips presentation space is the curve's input space
         const input_bounds = (
@@ -2140,7 +1169,7 @@ test "Single schema.Clip bezier transform"
             input_bounds.end,
         );
 
-        // invert it back and check it against the inpout curve bounds
+        // invert it back and check it against the in/out curve bounds
         const clip_media_to_output = (
             try clip_presentation_to_media_proj.src_to_dst_topo.inverted(
                 allocator
@@ -2229,23 +1258,10 @@ test "Single schema.Clip bezier transform"
 
     // media->presentation (reverse projection)
     {
-    const cache = (
-        try temporal_hierarchy.SingleSourceTopologyCache.init(
-            allocator,
-            map,
-        )
-    );
-    defer cache.deinit(allocator);
-
         const clip_media_to_presentation = (
-            try temporal_hierarchy.build_projection_operator(
+            try wp_pres_projection_builder.projection_operator_from_leaky(
                 allocator,
-                map,
-                .{
-                    .source =  cl_ptr.space(references.SpaceLabel.media),
-                    .destination = wp_ptr.space(references.SpaceLabel.presentation),
-                },
-                cache,
+                cl_ptr.space(.media),
             )
         );
         defer clip_media_to_presentation.deinit(allocator);
@@ -2257,30 +1273,6 @@ test "Single schema.Clip bezier transform"
             ).ordinate(),
         );
     }
-}
-
-test "test spaces list" 
-{
-    var cl = schema.Clip{};
-    const it = references.ComposedValueRef{ .clip = &cl };
-    const spaces = it.spaces();
-
-    try std.testing.expectEqual(
-       references.SpaceLabel.presentation,
-       spaces[0], 
-    );
-    try std.testing.expectEqual(
-       references.SpaceLabel.media,
-       spaces[1], 
-    );
-    try std.testing.expectEqual(
-       "presentation",
-       @tagName(references.SpaceLabel.presentation),
-    );
-    try std.testing.expectEqual(
-       "media",
-       @tagName(references.SpaceLabel.media),
-    );
 }
 
 test "otio projection: track with single clip"
@@ -2303,48 +1295,37 @@ test "otio projection: track with single clip"
             .discrete_info = media_discrete_info,
         },
     };
-    const cl_ptr = references.ComposedValueRef.init(&cl);
+    const cl_ptr = cl.reference();
 
     var tr_children = [_]references.ComposedValueRef{ cl_ptr, };
     var tr: schema.Track = .{ .children = &tr_children };
-    const tr_ptr = references.ComposedValueRef.init(&tr);
+    const tr_ptr = tr.reference();
 
-    const map = try temporal_hierarchy.build_temporal_graph(
-        allocator,
-        tr_ptr
+    var tr_pres_projection_builder = (
+        try ProjectionTopology.init_from(
+            allocator,
+            tr_ptr.space(.presentation),
+        )
     );
-    defer map.deinit(allocator);
+    defer tr_pres_projection_builder.deinit(allocator);
 
-    try temporal_hierarchy.validate_connections_in_map(map);
+    try temporal_hierarchy.validate_connections_in_map(
+        tr_pres_projection_builder.temporal_space_graph,
+    );
 
-    try map.write_dot_graph(
+    try tr_pres_projection_builder.temporal_space_graph.write_dot_graph(
         allocator,
         "/var/tmp/sampling_test.dot",
         "sampling_test",
         .{},
     );
 
-    const cache = (
-        try temporal_hierarchy.SingleSourceTopologyCache.init(
+    const tr_pres_to_cl_media = (
+        try tr_pres_projection_builder.projection_operator_to(
             allocator,
-            map,
+            cl_ptr.space(.media),
         )
     );
-    defer cache.deinit(allocator);
-
-    const track_to_media = (
-        try temporal_hierarchy.build_projection_operator(
-            allocator,
-            map,
-            .{
-                .source = tr_ptr.space(references.SpaceLabel.presentation),
-                // does the discrete / continuous need to be disambiguated?
-                .destination = cl_ptr.space(references.SpaceLabel.media),
-            },
-            cache,
-        )
-    );
-    defer track_to_media.deinit(allocator);
 
     // instantaneous projection tests
     {
@@ -2352,7 +1333,7 @@ test "otio projection: track with single clip"
         // continuous or interpolated samples
         try opentime.expectOrdinateEqual(
             4.5,
-            try track_to_media.project_instantaneous_cc(
+            try tr_pres_to_cl_media.project_instantaneous_cc(
                 opentime.Ordinate.init(3.5)
             ).ordinate(),
         );
@@ -2363,7 +1344,7 @@ test "otio projection: track with single clip"
             // ??? - can't be prescriptive about how data sources are indexed, ie
             // paths to EXR frames or something
             (3 + 1) * 4,
-            try track_to_media.project_instantaneous_cd(
+            try tr_pres_to_cl_media.project_instantaneous_cd(
                 opentime.Ordinate.init(3),
             ),
         );
@@ -2379,7 +1360,7 @@ test "otio projection: track with single clip"
         // continuous
         {
             const result_range_in_media = (
-                try track_to_media.project_range_cc(
+                try tr_pres_to_cl_media.project_range_cc(
                     allocator,
                     test_range_in_track,
                 )
@@ -2426,8 +1407,8 @@ test "otio projection: track with single clip"
                 [_]sampling.sample_index_t{ 18, 19, 20, 21 }
             );
 
-            const r = track_to_media.src_to_dst_topo.input_bounds();
-            const b = track_to_media.src_to_dst_topo.output_bounds();
+            const r = tr_pres_to_cl_media.src_to_dst_topo.input_bounds();
+            const b = tr_pres_to_cl_media.src_to_dst_topo.output_bounds();
 
             errdefer {
                 opentime.dbg_print(@src(), 
@@ -2454,7 +1435,7 @@ test "otio projection: track with single clip"
             }
 
             const result_media_indices = (
-                try track_to_media.project_range_cd(
+                try tr_pres_to_cl_media.project_range_cd(
                     allocator,
                     test_range_in_track,
                 )
@@ -2524,52 +1505,30 @@ test "otio projection: track with single clip with transform"
         },
         .tracks = .{ .children = &tl_children },
     };
-    const tl_ptr = references.ComposedValueRef.init(&tl);
-
+    const tl_ptr = tl.reference();
     const tr_ptr = tl.tracks.children[0];
 
-    // build map and tests
-
-    const map_tr = try temporal_hierarchy.build_temporal_graph(
-        allocator,
-        tr_ptr
+    var tr_pres_projection_builder = (
+        try ProjectionTopology.init_from(
+            allocator, 
+            tr_ptr.space(.presentation)
+        )
     );
-    defer map_tr.deinit(allocator);
+    defer tr_pres_projection_builder.deinit(allocator);
 
-    const map_tl = try temporal_hierarchy.build_temporal_graph(
-        allocator,
-        tl_ptr
-    );
-    defer map_tl.deinit(allocator);
-
-    try map_tr.write_dot_graph(
+    try tr_pres_projection_builder.temporal_space_graph.write_dot_graph(
         allocator,
         "/var/tmp/sampling_test.dot",
         "sampling_test",
         .{},
     );
 
-    const cache_tr = (
-        try temporal_hierarchy.SingleSourceTopologyCache.init(
+    const tr_pres_to_cl_media = (
+        try tr_pres_projection_builder.projection_operator_to(
             allocator,
-            map_tr,
+            cl_ptr.space(.media),
         )
     );
-    defer cache_tr.deinit(allocator);
-
-    const track_to_media = (
-        try temporal_hierarchy.build_projection_operator(
-            allocator,
-            map_tr,
-            .{
-                .source = tr_ptr.space(.presentation),
-                // does the discrete / continuous need to be disambiguated?
-                .destination = cl_ptr.space(.media),
-            },
-            cache_tr,
-        )
-    );
-    defer track_to_media.deinit(allocator);
 
     // instantaneous projection tests
     {
@@ -2578,7 +1537,7 @@ test "otio projection: track with single clip with transform"
         try opentime.expectOrdinateEqual(
             // (3.5*2 + 1),
             8,
-            try track_to_media.project_instantaneous_cc(
+            try tr_pres_to_cl_media.project_instantaneous_cc(
                 opentime.Ordinate.init(3.5)
             ).ordinate(),
         );
@@ -2589,7 +1548,7 @@ test "otio projection: track with single clip with transform"
             // ??? - can't be prescriptive about how data sources are indexed, ie
             // paths to EXR frames or something
             (3*2 + 1) * 4,
-            try track_to_media.project_instantaneous_cd(
+            try tr_pres_to_cl_media.project_instantaneous_cd(
                 opentime.Ordinate.init(3)
             ),
         );
@@ -2605,7 +1564,7 @@ test "otio projection: track with single clip with transform"
         // continuous
         {
             const result_range_in_media = (
-                try track_to_media.project_range_cc(
+                try tr_pres_to_cl_media.project_range_cc(
                     allocator,
                     test_range_in_track,
                 )
@@ -2654,7 +1613,7 @@ test "otio projection: track with single clip with transform"
             };
 
             const result_media_indices = (
-                try track_to_media.project_range_cd(
+                try tr_pres_to_cl_media.project_range_cd(
                     allocator,
                     test_range_in_track,
                 )
@@ -2671,34 +1630,27 @@ test "otio projection: track with single clip with transform"
 
         // discrete -> continuous
         {
-            try map_tl.write_dot_graph(
+            var tl_pres_projection_builder = (
+                try ProjectionTopology.init_from(
+                    allocator, 
+                    tl_ptr.space(.presentation),
+                )
+            );
+            defer tl_pres_projection_builder.deinit(allocator);
+
+            try tl_pres_projection_builder.temporal_space_graph.write_dot_graph(
                 allocator,
                 "/var/tmp/discrete_to_continuous_test.dot",
                 "discrete_to_continuous_test",
                 .{},
             );
 
-    const cache = (
-        try temporal_hierarchy.SingleSourceTopologyCache.init(
-            allocator,
-            map_tl,
-        )
-    );
-    defer cache.deinit(allocator);
-
             const timeline_to_media = (
-                try temporal_hierarchy.build_projection_operator(
+                try tl_pres_projection_builder.projection_operator_to(
                     allocator,
-                    map_tl,
-                    .{
-                        .source = tl_ptr.space(.presentation),
-                        // does the discrete / continuous need to be disambiguated?
-                        .destination = cl_ptr.space(.media),
-                    },
-                    cache,
+                    cl_ptr.space(.media),
                 )
             );
-            defer timeline_to_media.deinit(allocator);
 
             const result_tp = (
                 try timeline_to_media.project_index_dc(
@@ -2718,12 +1670,12 @@ test "otio projection: track with single clip with transform"
             );
 
             try std.testing.expectEqual(
-                track_to_media.src_to_dst_topo.output_bounds().start,
+                tr_pres_to_cl_media.src_to_dst_topo.output_bounds().start,
                 output_range.start
             );
 
             const start = (
-                track_to_media.src_to_dst_topo.output_bounds().start
+                tr_pres_to_cl_media.src_to_dst_topo.output_bounds().start
             );
 
             try opentime.expectOrdinateEqual(
@@ -2773,7 +1725,7 @@ test "Single clip, schema.Warp bulk"
     defer cl.destroy(allocator);
     const cl_ptr = references.ComposedValueRef.init(&cl);
 
-    const cl_media = cl_ptr.space(references.SpaceLabel.media);
+    const cl_media = cl_ptr.space(.media);
 
     const TestCase = struct {
         label: []const u8,
@@ -2826,7 +1778,8 @@ test "Single clip, schema.Warp bulk"
     for (&tests, 0..)
         |t, ind|
     {
-        errdefer opentime.dbg_print(@src(), 
+        errdefer opentime.dbg_print(
+            @src(), 
             "Error\n Error with test: [{d}] {s}\n",
             .{ ind, t.label },
         );
@@ -2855,7 +1808,8 @@ test "Single clip, schema.Warp bulk"
         defer xform.deinit(allocator);
 
         errdefer {
-            opentime.dbg_print(@src(), 
+            opentime.dbg_print(
+                @src(), 
                 "produced transform: {f}\n",
                 .{ xform }
             );
@@ -2867,38 +1821,27 @@ test "Single clip, schema.Warp bulk"
         };
 
         const wp_ptr : references.ComposedValueRef = .{ .warp =  &warp };
-        const wp_pres = wp_ptr.space(references.SpaceLabel.presentation);
 
-        const map = try temporal_hierarchy.build_temporal_graph(
-            allocator,
-            wp_ptr,
+        var wp_pres_projection_builder = (
+            try ProjectionTopology.init_from(
+                allocator, 
+                wp_ptr.space(.presentation),
+            )
         );
-        defer map.deinit(allocator);
+        defer wp_pres_projection_builder.deinit(allocator);
 
-        try temporal_hierarchy.validate_connections_in_map(map);
+        try temporal_hierarchy.validate_connections_in_map(
+            wp_pres_projection_builder.temporal_space_graph,
+        );
 
         // presentation->media (forward projection)
         {
-            const cache = (
-                try temporal_hierarchy.SingleSourceTopologyCache.init(
-                    allocator,
-                    map,
-                )
-            );
-            defer cache.deinit(allocator);
-
             const warp_pres_to_media_topo = (
-                try temporal_hierarchy.build_projection_operator(
+                try wp_pres_projection_builder.projection_operator_to(
                     allocator,
-                    map,
-                    .{
-                        .source =  wp_pres,
-                        .destination = cl_media,
-                    },
-                    cache,
+                    cl_media,
                 )
             );
-            defer warp_pres_to_media_topo.deinit(allocator);
             const input_bounds = (
                 warp_pres_to_media_topo.src_to_dst_topo.input_bounds()
             );
@@ -2906,7 +1849,8 @@ test "Single clip, schema.Warp bulk"
                 warp_pres_to_media_topo.src_to_dst_topo.output_bounds()
             );
 
-            errdefer opentime.dbg_print(@src(), 
+            errdefer opentime.dbg_print(
+                @src(), 
                 "test data:\nprovided: {f}\n"
                 ++ "input:  [{d}, {d})\n"
                 ++ "output: [{d}, {d})\n"
@@ -2945,23 +1889,13 @@ test "Single clip, schema.Warp bulk"
 
         // media->presentation (reverse projection)
         {
-            const cache = (
-                try temporal_hierarchy.SingleSourceTopologyCache.init(
-                    allocator,
-                    map,
-                )
-            );
-            defer cache.deinit(allocator);
-
+            // @TODO: inverted topologies are owned by the caller, but
+            //        non-inverted ones are owned by the cache.  Need to make
+            //        this consistent.
             const clip_media_to_presentation = (
-                try temporal_hierarchy.build_projection_operator(
+                try wp_pres_projection_builder.projection_operator_from_leaky(
                     allocator,
-                    map,
-                    .{
-                        .source =  cl_media,
-                        .destination = wp_pres,
-                    },
-                    cache,
+                    cl_media,
                 )
             );
             defer clip_media_to_presentation.deinit(allocator);
@@ -3003,6 +1937,9 @@ pub fn ReferenceTopology(
     return struct {
         pub const ReferenceTopologyType = @This();
 
+        /// index of the root node
+        const SOURCE_INDEX = 0;
+
         // @TODO: remove these
         pub const NodeIndex = treecode.graph.NodeIndex;
         pub const SpaceNodeIndex = treecode.graph.NodeIndex;
@@ -3026,7 +1963,7 @@ pub fn ReferenceTopology(
         intervals: std.MultiArrayList(IntervalMapping),
 
         temporal_space_graph: temporal_hierarchy.TemporalSpaceGraph,
-        cache: temporal_hierarchy.SingleSourceTopologyCache,
+        cache: SingleSourceTopologyCache,
 
         pub fn init_from(
             parent_allocator: std.mem.Allocator,
@@ -3051,7 +1988,7 @@ pub fn ReferenceTopology(
             // Initialize a cache for projections
             ///////////////////////////////
             const cache = (
-                try temporal_hierarchy.SingleSourceTopologyCache.init(
+                try SingleSourceTopologyCache.init(
                     parent_allocator,
                     temporal_map,
                 )
@@ -3095,6 +2032,7 @@ pub fn ReferenceTopology(
             const start_index = temporal_map.index_for_node(
                 source_reference
             ) orelse return error.SourceNotInMap;
+            std.debug.assert(start_index == SOURCE_INDEX);
 
             var proj_args:temporal_hierarchy.PathEndPointIndices = .{
                 .source = start_index,
@@ -3121,7 +2059,7 @@ pub fn ReferenceTopology(
                 proj_args.destination = current_index;
 
                 const proj_op = (
-                    try build_projection_operator_indices_local(
+                    try build_projection_operator_indices(
                         parent_allocator,
                         temporal_map,
                         proj_args,
@@ -3341,10 +2279,10 @@ pub fn ReferenceTopology(
                 for (kinds, intervals)
                     |kind, interval|
                 {
-                    std.debug.print(
-                        "interval: {d} active_intervals_len: {d}\n",
-                        .{interval, active_intervals.bit_length },
-                    );
+                    // std.debug.print(
+                    //     "interval: {d} active_intervals_len: {d}\n",
+                    //     .{interval, active_intervals.bit_length },
+                    // );
 
                     if (kind == .start)
                     {
@@ -3436,12 +2374,87 @@ pub fn ReferenceTopology(
             destination_space: references.SpaceReference,
         ) !ProjectionOperator
         {
-            return try temporal_hierarchy.build_projection_operator(
+            return try build_projection_operator_assume_sorted(
                 allocator,
                 self.temporal_space_graph,
                 .{
-                    .source = self.source,
-                    .destination = destination_space,
+                    .source = SOURCE_INDEX,
+                    .destination = (
+                        self.temporal_space_graph.map_node_to_index.get(
+                            destination_space
+                        ) 
+                        orelse return error.DestinationSpaceNotChildOfSource
+                    ),
+                },
+                self.cache,
+            );
+        }
+
+        /// build a projection from `target` space to `self.source` space
+        pub fn projection_operator_from_leaky(
+            self: @This(),
+            allocator: std.mem.Allocator,
+            target: references.SpaceReference,
+        ) !ProjectionOperator
+        {
+            var result = (
+                try build_projection_operator_assume_sorted(
+                    allocator,
+                    self.temporal_space_graph,
+                    .{
+                        .source = SOURCE_INDEX,
+                        .destination = (
+                            self.temporal_space_graph.map_node_to_index.get(target)
+                            orelse return error.DestinationSpaceNotUnderSource
+                        ),
+                    },
+                    self.cache,
+                )
+            );
+
+            const inverted_topologies = (
+                try result.src_to_dst_topo.inverted(allocator)
+            );
+            errdefer opentime.deinit_slice(
+                allocator,
+                topology_m.Topology,
+                inverted_topologies
+            );
+
+            if (inverted_topologies.len > 1) 
+            {
+                return error.MoreThanOneInversionIsNotImplemented;
+            }
+            if (inverted_topologies.len > 0) 
+            {
+                result.src_to_dst_topo = inverted_topologies[0];
+                std.mem.swap(
+                    references.SpaceReference,
+                    &result.source,
+                    &result.destination,
+                );
+                allocator.free(inverted_topologies);
+            }
+            else 
+            {
+                return error.NoInvertedTopologies;
+            }
+
+            return result;
+        }
+
+        pub fn projection_operator_to_index(
+            self: @This(),
+            allocator: std.mem.Allocator,
+            destination_space_index: NodeIndex,
+        ) !ProjectionOperator
+        {
+            return try build_projection_operator_indices(
+                allocator,
+                self.temporal_space_graph,
+                .{
+                    .source = 0,
+                    .destination = destination_space_index,
                 },
                 self.cache,
             );
@@ -3715,22 +2728,125 @@ test "ReferenceTopology: init_from_reference"
     // );
 }
 
-/// Stashing this algorithm here while I iterate on the details to isolate bugs
-pub fn build_projection_operator_indices_local(
+/// A cache that maps an implied single source to a list of destinations, by
+/// index relative to some map
+pub const SingleSourceTopologyCache = struct { 
+    items: []?topology_m.Topology,
+
+    pub fn init(
+        allocator: std.mem.Allocator,
+        map: temporal_hierarchy.TemporalSpaceGraph,
+    ) !SingleSourceTopologyCache
+    {
+        const cache = try allocator.alloc(
+            ?topology_m.Topology,
+            map.nodes.len,
+        );
+        @memset(cache, null);
+
+        return .{ .items = cache };
+    }
+
+    pub fn deinit(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        for (self.items) 
+            |*maybe_topo|
+        {
+            if (maybe_topo.*)
+                |topo|
+            {
+                topo.deinit(allocator);
+            }
+            maybe_topo.* = null;
+        }
+        allocator.free(self.items);   
+    }
+};
+
+pub fn build_projection_operator_indices(
     parent_allocator: std.mem.Allocator,
     map: temporal_hierarchy.TemporalSpaceGraph,
     endpoints: temporal_hierarchy.TemporalSpaceGraph.PathEndPointIndices,
-    operator_cache: temporal_hierarchy.SingleSourceTopologyCache,
+    operator_cache: SingleSourceTopologyCache,
 ) !ProjectionOperator 
 {
     // sort endpoints so that the higher node is always the source
-    const sorted_endpoints = endpoints;
-    // const endpoints_were_swapped = try map.sort_endpoint_indices(
-    //     &sorted_endpoints
-    // );
+    var sorted_endpoints = endpoints;
+    const endpoints_were_swapped = try map.sort_endpoint_indices(
+        &sorted_endpoints
+    );
+
+    // var result = try build_projection_operator_assume_sorted(
+    var result = try build_projection_operator_assume_sorted(
+        parent_allocator,
+        map,
+        sorted_endpoints,
+        operator_cache
+    );
+
+    // check to see if end points were inverted
+    if (endpoints_were_swapped and result.src_to_dst_topo.mappings.len > 0) 
+    {
+        const inverted_topologies = (
+            try result.src_to_dst_topo.inverted(parent_allocator)
+        );
+        errdefer opentime.deinit_slice(
+            parent_allocator,
+            topology_m.Topology,
+            inverted_topologies
+        );
+
+        if (inverted_topologies.len > 1) 
+        {
+            return error.MoreThanOneInversionIsNotImplemented;
+        }
+        if (inverted_topologies.len > 0) 
+        {
+            result.src_to_dst_topo = inverted_topologies[0];
+            std.mem.swap(
+                references.SpaceReference,
+                &result.source,
+                &result.destination,
+            );
+        }
+        else 
+        {
+            return error.NoInvertedTopologies;
+        }
+    }
+
+    return result;
+}
+
+pub fn build_projection_operator_assume_sorted(
+    parent_allocator: std.mem.Allocator,
+    map: temporal_hierarchy.TemporalSpaceGraph,
+    sorted_endpoints: temporal_hierarchy.TemporalSpaceGraph.PathEndPointIndices,
+    operator_cache: SingleSourceTopologyCache,
+) !ProjectionOperator 
+{
+    const space_nodes = map.nodes.slice();
+
+    // if destination is already present in the cache
+    if (operator_cache.items[sorted_endpoints.destination])
+        |cached_topology|
+    {
+        return .{
+            .source = (
+                space_nodes.get(sorted_endpoints.source)
+            ),
+            .destination = space_nodes.get(
+                sorted_endpoints.destination
+            ),
+            .src_to_dst_topo = cached_topology,
+        };
+    }
 
     var arena = std.heap.ArenaAllocator.init(parent_allocator);
-    // defer arena.deinit();
+    defer arena.deinit();
     const allocator_arena = arena.allocator();
 
     var root_to_current:topology_m.Topology = .INFINITE_IDENTITY;
@@ -3747,7 +2863,6 @@ pub fn build_projection_operator_indices_local(
 
     const path_nodes = map.graph_data.slice();
     const codes = path_nodes.items(.code);
-    const space_nodes = map.nodes.slice();
 
     // compute the path length
     const path = try temporal_hierarchy.path_from_parents(
@@ -3775,8 +2890,12 @@ pub fn build_projection_operator_indices_local(
     if (path.len < 2)
     {
         return .{
-            .source = space_nodes.get(endpoints.source),
-            .destination = space_nodes.get(endpoints.destination),
+            .source = space_nodes.get(
+                sorted_endpoints.source,
+            ),
+            .destination = space_nodes.get(
+                sorted_endpoints.destination
+            ),
             .src_to_dst_topo = .INFINITE_IDENTITY,
         };
     }
@@ -3864,16 +2983,33 @@ pub fn build_projection_operator_indices_local(
             );
         }
 
-        // clone a persistent copy into the cache
         root_to_current = root_to_next;
         operator_cache.items[next] = root_to_current;
     }
 
-    defer arena.deinit();
-
     return .{
-        .source = space_nodes.get(endpoints.source),
-        .destination = space_nodes.get(endpoints.destination),
+        .source = space_nodes.get(sorted_endpoints.source),
+        .destination = space_nodes.get(sorted_endpoints.destination),
         .src_to_dst_topo = root_to_current,
     };
+}
+
+/// build a projection operator that projects from the endpoints.source to
+/// endpoints.destination spaces
+pub fn build_projection_operator(
+    parent_allocator: std.mem.Allocator,
+    map: temporal_hierarchy.TemporalSpaceGraph,
+    endpoints: temporal_hierarchy.TemporalSpaceGraph.PathEndPoints,
+    operator_cache: SingleSourceTopologyCache,
+) !ProjectionOperator 
+{
+    return build_projection_operator_indices(
+        parent_allocator,
+        map,
+        .{
+            .source = map.index_for_node(endpoints.source).?,
+            .destination = map.index_for_node(endpoints.destination).?,
+        },
+        operator_cache,
+    );
 }

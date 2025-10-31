@@ -203,64 +203,27 @@ pub export fn otio_fetch_child_cvr_ind(
     return result;
 }
 
-const ERR_TOPO_MAP = c.otio_TemporalMap{
-    .ref = null,
-};
-
-pub export fn otio_build_time_map_cvr(
-    allocator_c: c.otio_Allocator,
-    timeline: c.otio_ComposedValueRef,
-) c.otio_TemporalMap
-{
-    const ref = init_ComposedValueRef(
-        timeline
-    ) catch return ERR_TOPO_MAP;
-    const allocator = fetch_allocator(
-        allocator_c
-    ) catch return ERR_TOPO_MAP;
-
-    const result = allocator.create(
-        otio.TemporalSpaceGraph
-    ) catch return ERR_TOPO_MAP;
-
-    result.* = otio.build_temporal_graph(
-        allocator,
-        ref,
-    ) catch return ERR_TOPO_MAP;
-
-    return .{ .ref = result };
-}
-
-const ERR_PO_MAP = c.otio_ProjectionOperatorMap{ .ref = null };
+const ERR_PO_MAP = c.otio_ProjectionTopology{ .ref = null };
 
 pub export fn otio_build_projection_op_map_to_media_tp_cvr(
     allocator_c: c.otio_Allocator,
-    in_map: c.otio_TemporalMap,
     source: c.otio_ComposedValueRef,
-) c.otio_ProjectionOperatorMap
+) c.otio_ProjectionTopology
 {
-    if (in_map.ref == null) {
-        return ERR_PO_MAP;
-    }
     const allocator = fetch_allocator(
         allocator_c
     ) catch return ERR_PO_MAP;
 
-    const map_c = in_map.ref.?;
-
-    const map = ptrCast(otio.TemporalSpaceGraph, map_c);
-
     const result = allocator.create(
-        otio.ProjectionOperatorMap
+        otio.ProjectionTopology
     ) catch return ERR_PO_MAP;
 
     const src = init_ComposedValueRef(
         source
     ) catch return ERR_PO_MAP;
 
-    result.* = otio.projection_map_to_media_from(
+    result.* = otio.ProjectionTopology.init_from(
         allocator,
-        map.*,
         src.space(.presentation),
     ) catch |err| {
         std.log.err("Couldn't build map: {any}\n", .{ err});
@@ -334,16 +297,19 @@ pub export fn otio_fetch_cvr_name_str(
 
 pub export fn otio_write_map_to_png(
     allocator_c: c.otio_Allocator,
-    in_map: c.otio_TemporalMap,
+    projection_builder_c: c.otio_ProjectionTopology,
     filepath_c: [*:0]const u8,
 ) void 
 {
-    const t_map = ptrCast(otio.TemporalSpaceGraph, in_map.ref.?);
+    const projection_builder = ptrCast(
+        otio.ProjectionTopology,
+        projection_builder_c.ref.?
+    );
     const allocator = fetch_allocator(
         allocator_c
     ) catch  return ; 
 
-    t_map.write_dot_graph(
+    projection_builder.temporal_space_graph.write_dot_graph(
         allocator,
         std.mem.span(filepath_c),
         "OTIO_TemporalHierarchy",
@@ -360,56 +326,71 @@ pub export fn otio_write_map_to_png(
 }
 
 pub export fn otio_po_map_fetch_num_endpoints(
-    in_po_map: c.otio_ProjectionOperatorMap,
+    in_po_map: c.otio_ProjectionTopology,
 ) usize
 {
     const po_map = ptrCast(
-        otio.ProjectionOperatorMap,
+        otio.ProjectionTopology,
         in_po_map.ref.?
     );
 
-    return po_map.end_points.len;
+    return po_map.intervals.items(.mapping_index).len;
 }
 
 pub export fn otio_po_map_fetch_endpoints(
-    in_po_map_c: c.otio_ProjectionOperatorMap,
-) [*]const f32
+    in_po_map_c: c.otio_ProjectionTopology,
+) [*]const c.otio_ContinuousInterval
 {
     const po_map = ptrCast(
-        otio.ProjectionOperatorMap,
+        otio.ProjectionTopology,
         in_po_map_c.ref.?
     );
 
     // because Ordinate is a boxed float, the ptr can be cast to a ptr to an
     // array of f32
-    return @ptrCast(po_map.end_points.ptr);
+    return @ptrCast(po_map.intervals.items(.input_bounds).ptr);
 }
 
 pub export fn otio_po_map_fetch_num_operators_for_segment(
-    in_po_map_c: c.otio_ProjectionOperatorMap,
+    in_po_map_c: c.otio_ProjectionTopology,
     ind: usize,
 ) usize
 {
     const po_map = ptrCast(
-        otio.ProjectionOperatorMap,
+        otio.ProjectionTopology,
         in_po_map_c.ref.?
     );
 
-    return po_map.operators[ind].len;
+    return po_map.intervals.items(.mapping_index)[ind].len;
 }
 pub export fn otio_po_map_fetch_op(
-    in_po_map_c: c.otio_ProjectionOperatorMap,
+    allocator_c: c.otio_Allocator,
+    in_po_map_c: c.otio_ProjectionTopology,
     segment_ind: usize,
     operator_ind: usize,
     result: *c.otio_ProjectionOperator,
 ) c_int
 {
     const po_map = ptrCast(
-        otio.ProjectionOperatorMap,
+        otio.ProjectionTopology,
         in_po_map_c.ref.?
     );
 
-    const po = &po_map.operators[segment_ind][operator_ind];
+    const destination_index = (
+        po_map.intervals.items(.mapping_index)[segment_ind][operator_ind]
+    );
+
+    const allocator = fetch_allocator(allocator_c) catch return 1;
+
+    const po = allocator.create(
+        otio.ProjectionOperator
+    ) catch return 1;
+
+    // @TODO: Error Codes
+    po.* = po_map.projection_operator_to_index(
+        allocator,
+        destination_index,
+    ) catch return 1;
 
     result.ref = @constCast(@ptrCast(po));
 

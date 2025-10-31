@@ -8,14 +8,9 @@ pub const SpaceLabel = references.SpaceLabel;
 
 pub const projection = @import("projection.zig");
 pub const ProjectionOperator = projection.ProjectionOperator;
-pub const ProjectionOperatorMap = projection.ProjectionOperatorMap;
 pub const ProjectionTopology = projection.ProjectionTopology;
-pub const projection_map_to_media_from = projection.projection_map_to_media_from;
 
 pub const temporal_hierarchy = @import("temporal_hierarchy.zig");
-pub const build_temporal_graph = temporal_hierarchy.build_temporal_graph;
-pub const TemporalSpaceGraph = temporal_hierarchy.TemporalSpaceGraph;
-pub const build_projection_operator = temporal_hierarchy.build_projection_operator;
 
 pub const schema = @import("schema.zig");
 pub const Clip = schema.Clip;
