@@ -923,9 +923,9 @@ pub const Topology = struct {
             return try allocator.dupe(Topology, &.{ .EMPTY });
         }
 
-        var result: std.ArrayList(Topology) = .{};
+        var result: std.ArrayList(Topology) = .empty;
 
-        var current_mappings:std.ArrayList(mapping.Mapping) = .{};
+        var current_mappings:std.ArrayList(mapping.Mapping) = .empty;
         defer current_mappings.deinit(allocator);
 
         var maybe_input_range: ?opentime.ContinuousInterval = null;
