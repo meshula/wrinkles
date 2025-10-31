@@ -31,7 +31,7 @@ const T_CTI_1_10 = opentime.ContinuousInterval {
 };
 
 // lofting types back out of function
-pub const TemporalSpaceGraph = treecode.Graph(references.SpaceReference);
+pub const TemporalSpaceGraph = treecode.BinaryTree(references.SpaceReference);
 pub const PathEndPoints = TemporalSpaceGraph.PathEndPoints;
 pub const PathEndPointIndices = TemporalSpaceGraph.PathEndPointIndices;
 
@@ -367,7 +367,7 @@ pub fn validate_connections_in_map(
 ) !void
 {
     // check the parent/child pointers
-    for (map.graph_data.items(.parent_index), map.graph_data.items(.child_indices), 0..)
+    for (map.tree_data.items(.parent_index), map.tree_data.items(.child_indices), 0..)
         |maybe_parent_index, child_indices, index|
     {
         errdefer std.debug.print(
@@ -389,13 +389,13 @@ pub fn validate_connections_in_map(
         if (maybe_parent_index)
             |parent_index|
         {
-            const parent_code = map.graph_data.items(.code)[parent_index];
-            const current_code = map.graph_data.items(.code)[index];
+            const parent_code = map.tree_data.items(.code)[parent_index];
+            const current_code = map.tree_data.items(.code)[index];
 
             const parent_to_current = parent_code.next_step_towards(current_code);
 
             const parent_children = (
-                map.graph_data.items(.child_indices)[parent_index]
+                map.tree_data.items(.child_indices)[parent_index]
             );
 
             try std.testing.expect(
@@ -444,7 +444,7 @@ test "TestWalkingIterator: clip"
     );
 
     // 5: clip presentation, clip media
-    try std.testing.expectEqual(2, map.graph_data.len);
+    try std.testing.expectEqual(2, map.tree_data.len);
 }
 
 pub fn path_from_parents(
@@ -553,8 +553,8 @@ test "TestWalkingIterator: track with clip w/ destination"
             map.index_for_node(
                 cl_ptr.space(.media)
             ).?,
-            map.graph_data.items(.code), 
-            map.graph_data.items(.parent_index)
+            map.tree_data.items(.code), 
+            map.tree_data.items(.parent_index)
         );
         defer allocator.free(parent_path);
 
@@ -798,7 +798,7 @@ test "path_code: graph test"
     // should be the same length
     try std.testing.expectEqual(
         map.map_node_to_index.count(),
-        map.graph_data.len,
+        map.tree_data.len,
     );
     try std.testing.expectEqual(
         35,

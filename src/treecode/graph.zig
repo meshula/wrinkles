@@ -1,4 +1,4 @@
-//! A binary `Graph` of nodes whose position in a hierarchy is encoded via
+//! A `BinaryTree` of nodes whose position in a hierarchy is encoded via
 //! `treecode.Treecode`.
 
 const std = @import("std");
@@ -6,7 +6,7 @@ const build_options = @import("build_options");
 
 const treecode = @import("treecode.zig");
 
-/// annotate the graph algorithms
+/// annotate the tree algorithms
 const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
     build_options.debug_graph_construction_trace_messages
 );
@@ -22,17 +22,16 @@ const DEBUG_MESSAGES= (
 /// more readable, but make large graphs impossible to read.
 const LabelStyle = enum(u1) { treecode, hash };
 
-/// The index type for nodes stored in the `Graph`
+/// The index type for nodes stored in the `BinaryTree`
 pub const NodeIndex = usize;
 
-/// Root code refers the root node the tree encoded by `Graph`
+/// Root code refers the root node the `BinaryTree`
 const ROOT_CODE:treecode.Treecode = .EMPTY;
 
-/// Type function that returns a binary `Graph` of nodes parameterized by
+/// Type function that returns a `BinaryTree` of nodes parameterized by
 /// `NodeType`.
 ///
-/// `NodeType` must have a hash() function.  `Graph` separately tracks parent
-/// and child pointers for nodes.
+/// `NodeType` must have a hash() function.  
 ///
 /// `NodeTypes` are stored in a flat `std.MultiArrayList` (SoA style) and
 /// referred to by index.
@@ -41,18 +40,18 @@ const ROOT_CODE:treecode.Treecode = .EMPTY;
 /// indices between two nodes, using the treecodes and pointers to avoid a
 /// search.
 ///
-/// Owns all the data put into the `Graph`, including nodes in the `.nodes`
+/// Owns all the data put into the `BinaryTree`, including nodes in the `.nodes`
 /// list and treecodes in the `.graph_data` list.
-pub fn Graph(
+pub fn BinaryTree(
     comptime NodeType: type,
 ) type
 {
     return struct {
         // type alias
-        const GraphType = @This();
+        const BinaryTreeType = @This();
 
         /// Encoding of the end points of a path between `NodeType`s in the 
-        /// `Graph`.
+        /// `BinaryTree`.
         pub const PathEndPoints = struct {
             source: NodeType,
             destination: NodeType,
@@ -65,20 +64,20 @@ pub fn Graph(
         };
 
         /// The graph information (Parent/Child/`treecode.Treecode`) for a
-        /// given node in the graph.
-        pub const GraphData = struct {
-            /// address in the graph, see `treecode.Treecode` for more
+        /// given node in the `BinaryTree`.
+        pub const TreeData = struct {
+            /// address in the `BinaryTree`, see `treecode.Treecode` for more
             /// information.
             code: treecode.Treecode,
-            /// Index of parent, if one is present
+            /// Index in the `.nodes` list of parent, if one is present
             parent_index: ?NodeIndex = null,
             /// Indices of children, if present
             child_indices: [2]?NodeIndex = .{null, null},
         };
 
         /// `std.AutoHashMapUnmanaged` mapping the hash of a `NodeType` to the
-        /// index of the node in the `Graph` the `.nodes` and
-        /// `.graph_data` lists.
+        /// index of the node in the `BinaryTree` the `.nodes` and
+        /// `.tree_data` lists.
         map_node_to_index: std.AutoHashMapUnmanaged(
             NodeType,
             NodeIndex,
@@ -86,15 +85,15 @@ pub fn Graph(
 
         /// The graph data (Parent/Child indices, `treecode.Treecode`) for the
         /// corresponding index in the `.nodes` list.
-        graph_data: std.MultiArrayList(GraphData),
+        tree_data: std.MultiArrayList(TreeData),
 
-        /// Store of nodes in the Graph
+        /// Store of nodes in the `BinaryTree`
         nodes:std.MultiArrayList(NodeType),
 
-        /// Empty Graph
-        pub const empty = GraphType{
+        /// Empty BinaryTree
+        pub const empty = BinaryTreeType{
             .map_node_to_index = .empty,
-            .graph_data = .empty,
+            .tree_data = .empty,
             .nodes = .empty,
         };
 
@@ -106,7 +105,7 @@ pub fn Graph(
             // build a mutable alias of self
             var mutable_self = self;
 
-            for (self.graph_data.items(.code))
+            for (self.tree_data.items(.code))
                 |code|
             { 
                 code.deinit(allocator);
@@ -116,7 +115,7 @@ pub fn Graph(
             mutable_self.map_node_to_index.unlockPointers();
             mutable_self.map_node_to_index.deinit(allocator);
 
-            mutable_self.graph_data.deinit(allocator);
+            mutable_self.tree_data.deinit(allocator);
             mutable_self.nodes.deinit(allocator);
         }
 
@@ -130,14 +129,14 @@ pub fn Graph(
             // @TODO: could switch the implementation over to .Slice() here
         }
 
-        /// Allocate capacity in the graph for the given count of nodes
+        /// Allocate capacity for the given count of nodes
         pub fn ensure_unused_capacity(
             self: *@This(),
             allocator: std.mem.Allocator,
             capacity: usize,
         ) !void
         {
-            try self.graph_data.ensureUnusedCapacity(
+            try self.tree_data.ensureUnusedCapacity(
                 allocator,
                 capacity
             );
@@ -151,21 +150,21 @@ pub fn Graph(
             );
         }
 
-        /// Add a Node to the `Graph` and return the index of the new node
+        /// Add a Node to the `BinaryTree` and return the index of the new node
         pub fn put(
             self: *@This(),
             allocator: std.mem.Allocator,
             node: NodeType,
-            graph_data: GraphData,
+            tree_data: TreeData,
         ) !NodeIndex
         {
 
             try self.nodes.append(allocator, node);
 
-            const new_path_index = self.graph_data.len;
-            try self.graph_data.append(
+            const new_path_index = self.tree_data.len;
+            try self.tree_data.append(
                 allocator,
-                graph_data,
+                tree_data,
             );
 
             try self.map_node_to_index.put(
@@ -174,12 +173,12 @@ pub fn Graph(
                 new_path_index,
             );
 
-            if (graph_data.parent_index)
+            if (tree_data.parent_index)
                 |parent_index|
             {
-                const parent_code = self.graph_data.items(.code)[parent_index];
-                const dir = parent_code.next_step_towards(graph_data.code);
-                var child_indices = &self.graph_data.items(
+                const parent_code = self.tree_data.items(.code)[parent_index];
+                const dir = parent_code.next_step_towards(tree_data.code);
+                var child_indices = &self.tree_data.items(
                     .child_indices
                 )[parent_index];
                 child_indices[@intFromEnum(dir)] = new_path_index;
@@ -190,18 +189,18 @@ pub fn Graph(
             return new_path_index;
         }
 
-        /// Add a Node to the `Graph` and return the index of the new node,
-        /// assuming that capacity has already been allocated
+        /// Add a Node to the `BinaryTree` and return the index of the new
+        /// node, assuming that capacity has already been allocated
         pub fn put_assumes_capacity(
             self: *@This(),
             node: NodeType,
-            graph_data: GraphData,
+            tree_data: TreeData,
         ) NodeIndex
         {
             const new_index = self.nodes.len;
             self.nodes.appendAssumeCapacity(node);
 
-            self.graph_data.appendAssumeCapacity(graph_data);
+            self.tree_data.appendAssumeCapacity(tree_data);
 
             self.map_node_to_index.putAssumeCapacity(
                 node,
@@ -209,12 +208,12 @@ pub fn Graph(
             );
 
             // connect parent pointer
-            if (graph_data.parent_index)
+            if (tree_data.parent_index)
                 |parent_index|
             {
-                const parent_code = self.graph_data.items(.code)[parent_index];
-                const dir = parent_code.next_step_towards(graph_data.code);
-                var child_indices = &self.graph_data.items(
+                const parent_code = self.tree_data.items(.code)[parent_index];
+                const dir = parent_code.next_step_towards(tree_data.code);
+                var child_indices = &self.tree_data.items(
                     .child_indices
                 )[parent_index];
                 child_indices[@intFromEnum(dir)] = new_index;
@@ -232,7 +231,7 @@ pub fn Graph(
             if (self.map_node_to_index.get(node))
                 |index|
             {
-                return self.graph_data.items(.code)[index];
+                return self.tree_data.items(.code)[index];
             }
 
             return null;
@@ -257,8 +256,8 @@ pub fn Graph(
             return self.nodes.get(0);
         }
 
-        /// Serialize this `Graph` to dot and then use graphviz to convert that
-        /// dot to a png.  Will create /var/tmp/`png_filepath`.dot.
+        /// Serialize this `BinaryTree` to dot and then use graphviz to convert
+        /// that dot to a png.  Will create /var/tmp/`png_filepath`.dot.
         ///
         /// If graphviz is disabled in the build, will still write the .dot
         /// file, but will return before attempting to call dot on it to
@@ -302,9 +301,9 @@ pub fn Graph(
             var label_buf: [1024]u8 = undefined;
             var next_label_buf: [1024]u8 = undefined;
 
-            const nodes = self.graph_data.slice();
+            const nodes = self.tree_data.slice();
 
-            for (0..self.graph_data.len)
+            for (0..self.tree_data.len)
                 |current_index|
             {
                 const current_code = nodes.items(.code)[current_index];
@@ -317,7 +316,7 @@ pub fn Graph(
                 );
 
                 const current_children = (
-                    self.graph_data.items(.child_indices)[current_index]
+                    self.tree_data.items(.child_indices)[current_index]
                 );
                 for (current_children)
                     |maybe_child_index|
@@ -395,8 +394,8 @@ pub fn Graph(
             endpoints: *PathEndPointIndices,
         ) !bool
         {
-            const source_code = self.graph_data.items(.code)[endpoints.source];
-            const destination_code = self.graph_data.items(.code)[endpoints.destination];
+            const source_code = self.tree_data.items(.code)[endpoints.source];
+            const destination_code = self.tree_data.items(.code)[endpoints.destination];
 
             if (
                 treecode.path_exists(
@@ -438,7 +437,7 @@ pub fn Graph(
         /// `PathEndPointIndices.destination` field.
         ///
         /// Returns an error if there is no path between the nodes, or if
-        /// either node is not present in the Graph.
+        /// either node is not present in the `BinaryTree`.
         ///
         /// This variation operates on `PathEndPoints`.
         pub fn sort_endpoints(
@@ -448,18 +447,18 @@ pub fn Graph(
         {
             const source_index = self.index_for_node(
                 endpoints.source
-            ) orelse return error.SourceNotInGraph;
+            ) orelse return error.SourceNotInTree;
             const dest_index = self.index_for_node(
                 endpoints.destination
-            ) orelse return error.DestinationNotInGraph;
+            ) orelse return error.DestinationNotInTree;
 
             if (source_index == dest_index)
             {
                 return false;
             }
 
-            const source_code = self.graph_data.items(.code)[source_index];
-            const destination_code = self.graph_data.items(.code)[dest_index];
+            const source_code = self.tree_data.items(.code)[source_index];
+            const destination_code = self.tree_data.items(.code)[dest_index];
 
             if (
                 treecode.path_exists(
@@ -497,7 +496,7 @@ pub fn Graph(
         /// of the endpoints.
         ///
         /// Will return an error if there is no possible path or if endpoints
-        /// are not present in the graph.
+        /// are not present in the `BinaryTree`.
         pub fn path(
             self: @This(),
             allocator: std.mem.Allocator,
@@ -509,13 +508,13 @@ pub fn Graph(
                 &sorted_endpoint_indices
             );
 
-            const graph_data = self.graph_data.slice();
+            const tree_data = self.tree_data.slice();
 
             const source_code = (
-                graph_data.items(.code)[sorted_endpoint_indices.source]
+                tree_data.items(.code)[sorted_endpoint_indices.source]
             );
             const destination_code = (
-                graph_data.items(.code)[sorted_endpoint_indices.destination]
+                tree_data.items(.code)[sorted_endpoint_indices.destination]
             );
 
             var result: std.ArrayList(NodeIndex) = .empty;
@@ -536,14 +535,14 @@ pub fn Graph(
                     destination_code
                 );
 
-                const next = graph_data.items(.child_indices)[current][
+                const next = tree_data.items(.child_indices)[current][
                     @intFromEnum(next_step)
                 ];
 
                 result.appendAssumeCapacity(next.?);
 
                 current = next.?;
-                current_code = graph_data.items(.code)[current];
+                current_code = tree_data.items(.code)[current];
             }
 
             if (swapped)

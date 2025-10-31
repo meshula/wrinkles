@@ -843,7 +843,7 @@ test "Projection: schema.Track with single clip with identity transform and boun
     );
     defer map.deinit(allocator);
 
-    try std.testing.expectEqual(5, map.graph_data.len);
+    try std.testing.expectEqual(5, map.tree_data.len);
     try std.testing.expectEqual(5, map.nodes.len);
     try std.testing.expectEqual(
         5,
@@ -2027,7 +2027,7 @@ pub fn ReferenceTopology(
 
             // Gather up all the operators and intervals
             /////////////
-            const map_nodes = temporal_map.graph_data.slice();
+            const map_nodes = temporal_map.tree_data.slice();
 
             const start_index = temporal_map.index_for_node(
                 source_reference
@@ -2861,7 +2861,7 @@ pub fn build_projection_operator_assume_sorted(
 
     const source_index = sorted_endpoints.source;
 
-    const path_nodes = map.graph_data.slice();
+    const path_nodes = map.tree_data.slice();
     const codes = path_nodes.items(.code);
 
     // compute the path length
