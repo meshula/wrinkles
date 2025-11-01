@@ -262,6 +262,18 @@ pub const Treecode = struct {
         );
     }
 
+    pub fn append_to_clone(
+        self: *@This(),
+        allocator: std.mem.Allocator,
+        /// new bit to append to self
+        new_branch: l_or_r,
+    ) !Treecode 
+    {
+        var new_code = try self.clone(allocator);
+        try new_code.append(allocator, new_branch);
+        return new_code;
+    }
+
     /// Self is a prefix of rhs if self is the same length or shorter than rhs
     /// and all of the bits in self's path are the same as the first bits of
     /// rhs.
