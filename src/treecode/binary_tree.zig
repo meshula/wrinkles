@@ -17,7 +17,6 @@ const DEBUG_MESSAGES= (
     or build_options.debug_print_messages 
 );
 
-
 /// Which style to render node labels in, as binary codes or hashes.  Codes are
 /// more readable, but make large graphs impossible to read.
 const LabelStyle = enum(u1) { treecode, hash };
@@ -122,7 +121,7 @@ pub fn BinaryTree(
             mutable_self.nodes.deinit(allocator);
         }
 
-        /// Lock the pointers in the hash map when done with construction
+        /// Lock the pointers in the hash map when done with construction.
         pub fn lock_pointers(
             self: *@This(),
         ) void
@@ -132,7 +131,7 @@ pub fn BinaryTree(
             // @TODO: could switch the implementation over to .Slice() here
         }
 
-        /// Allocate capacity for the given count of nodes
+        /// Allocate capacity for the given count of nodes.
         pub fn ensure_unused_capacity(
             self: *@This(),
             allocator: std.mem.Allocator,
@@ -153,7 +152,10 @@ pub fn BinaryTree(
             );
         }
 
-        /// Add a Node to the `BinaryTree` and return the index of the new node
+        /// Add a Node to the `BinaryTree` and return the index of the new node.
+        ///
+        /// Note that `tree_data` is owned by the `BinaryTree`, specifically 
+        /// the `treecode.Treecode`.
         pub fn put(
             self: *@This(),
             allocator: std.mem.Allocator,
@@ -202,7 +204,10 @@ pub fn BinaryTree(
         }
 
         /// Add a Node to the `BinaryTree` and return the index of the new
-        /// node, assuming that capacity has already been allocated
+        /// node, assuming that capacity has already been allocated.
+        ///
+        /// Note that `tree_data` is owned by the `BinaryTree`, specifically 
+        /// the `treecode.Treecode`.
         pub fn put_assumes_capacity(
             self: *@This(),
             node: NodeType,
@@ -234,7 +239,10 @@ pub fn BinaryTree(
             return new_index;
         }
 
-        /// Fetch the treecode associated with a given node
+        /// Fetch the treecode associated with a given node.
+        ///
+        /// Note that this `treecode.Treecode` is still owned by the
+        /// `BinaryTree`.
         pub fn code_from_node(
             self: @This(),
             node: NodeType,

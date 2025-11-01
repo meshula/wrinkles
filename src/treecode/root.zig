@@ -1,11 +1,13 @@
 //! Treecode Library
 //!
-//! * `treecode.Treecode`: binary encoding of a path through a graph
-//! * `map.Map`: a Mapping of treecodes to entries in a graph
+//! * `treecode.Treecode`: binary encoding of a path through a binary tree
+//! * `binary_tree.BinaryTree`: nodetype-agnostic implementation of a binary
+//!                             tree, including `treecode.Treecode` addresses
+//!                             for efficient, low-cost path computation
+//!                             between nodes.
 
 pub const treecode = @import("treecode.zig");
 pub const Treecode = treecode.Treecode;
-pub const MARKER = treecode.MARKER;
 pub const TreecodeWord = treecode.TreecodeWord;
 pub const TreecodeHashMap= treecode.TreecodeHashMap;
 pub const l_or_r= treecode.l_or_r;

@@ -28,6 +28,7 @@ const TREECODE_BINARY_FMT = (
 /// All treecodes start with this code.  Separates the empty 0 bits from the
 /// path bits.  See `Treecode` for more information.
 pub const MARKER:TreecodeWord = 0b1;
+var MARKER_CODE = [_]TreecodeWord{MARKER};
 
 /// A binary encoding of a path through a binary tree, packed into a slice of
 /// `TreecodeWord` (integer) words which contain the bits.
@@ -78,7 +79,7 @@ pub const Treecode = struct {
 
     pub const EMPTY = Treecode{
         .code_length = 0,
-        .words = &.{ MARKER },
+        .words = &MARKER_CODE,
     };
 
     /// Allocates a treecode with just the MARKER bit, otherwise empty.

@@ -974,13 +974,14 @@ test "TemporalMap: schema.Track with clip with identity transform"
             0b10010
         );
         defer tc.deinit(allocator);
-        errdefer opentime.dbg_print(@src(), 
+        errdefer opentime.dbg_print(
+            @src(), 
             "\ntc: {f}, clip_code: {f}\n",
             .{
                 tc,
                 clip_code,
             },
-            );
+        );
         try std.testing.expectEqual(4, tc.code_length);
         try std.testing.expect(tc.eql(clip_code));
     }
