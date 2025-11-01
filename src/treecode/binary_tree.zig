@@ -187,8 +187,17 @@ pub fn BinaryTree(
                 child_indices[@intFromEnum(dir)] = new_path_index;
             }
 
-            // @TODO: also connect child pointers?
-            
+            if (tree_data.child_indices[@intFromEnum(treecode.l_or_r.left)])
+                |left_child|
+            {
+                self.tree_data.items(.parent_index)[left_child] = new_path_index;
+            }
+            if (tree_data.child_indices[@intFromEnum(treecode.l_or_r.right)])
+                |right_child|
+            {
+                self.tree_data.items(.parent_index)[right_child] = new_path_index;
+            }
+
             return new_path_index;
         }
 
@@ -597,6 +606,220 @@ fn dbg_print(
                 src.fn_name,
                 src.line,
             } ++ args,
+        );
+    }
+}
+
+const DummyNode = struct {
+    label: enum (u8) { A, B, C, D, E },
+};
+
+test "BinaryTree: build w/ dummy node"
+{
+    const allocator = std.testing.allocator;
+
+    //
+    // Builds Tree:
+    //
+    // A
+    // |\
+    // B
+    // |\
+    // C D
+    //   |\
+    //     E
+    //
+
+    const DummyTree = BinaryTree(DummyNode);
+
+    var tree: DummyTree = .empty;
+    defer tree.deinit(allocator);
+
+    const d_a = DummyNode{ .label = .A };
+
+    const root_code: treecode.Treecode = .EMPTY;
+
+    const root_index = try tree.put(
+        allocator,
+        d_a,
+        .{
+            .code = try root_code.clone(allocator),
+        }
+    );
+
+    const d_b = DummyNode{ .label = .B };
+    var b_code = try root_code.clone(allocator);
+    try b_code.append(
+        allocator,
+        .left,
+    );
+    const b_index = try tree.put(
+        allocator,
+        d_b,
+        .{
+            .code = b_code,
+            .parent_index = root_index,
+        }
+    );
+
+    const d_c = DummyNode{ .label = .C };
+    var c_code = try b_code.clone(allocator);
+    try c_code.append(
+        allocator,
+        .left,
+    );
+    const c_index = try tree.put(
+        allocator,
+        d_c,
+        .{
+            .code = c_code,
+            .parent_index = b_index,
+        }
+    );
+
+    // add d in the reverse order - add child first and then parent
+
+    // add e without a parent pointer
+    const d_e = DummyNode{ .label = .E };
+    var e_code = try b_code.clone(allocator);
+    try e_code.append(
+        allocator,
+        .right,
+    );
+    const e_index = try tree.put(
+        allocator,
+        d_e,
+        .{
+            .code = e_code,
+        },
+    );
+
+    const d_d = DummyNode{ .label = .D };
+    var d_code = try b_code.clone(allocator);
+    try d_code.append(
+        allocator,
+        .right,
+    );
+    const d_index = try tree.put(
+        allocator,
+        d_d,
+        .{
+            .code = d_code,
+            .parent_index = b_index,
+            .child_indices = .{
+                null,
+                e_index,
+            },
+        }
+    );
+
+    tree.lock_pointers();
+
+    try std.testing.expectEqual(
+        e_index,
+        tree.tree_data.items(.child_indices)[d_index][
+            @intFromEnum(treecode.l_or_r.right)
+        ]
+    );
+
+    {
+        const path_A_C = try tree.path(
+            allocator,
+            .{
+                .source = tree.map_node_to_index.get(d_a).?,
+                .destination = tree.map_node_to_index.get(d_c).?,
+            }
+        );
+        defer allocator.free(path_A_C);
+
+        try std.testing.expectEqualSlices(
+            NodeIndex,
+            &.{ root_index, b_index, c_index, },
+            path_A_C,
+        );
+    }
+
+    {
+        const path_A_E = try tree.path(
+            allocator,
+            .{
+                .source = root_index,
+                .destination = e_index,
+            }
+        );
+        defer allocator.free(path_A_E);
+
+        try std.testing.expectEqualSlices(
+            NodeIndex,
+            &.{ root_index, b_index, d_index, e_index },
+            path_A_E,
+        );
+    }
+
+    {
+        const path_B_E = try tree.path(
+            allocator,
+            .{
+                .source = b_index,
+                .destination = e_index,
+            }
+        );
+        defer allocator.free(path_B_E);
+
+        try std.testing.expectEqualSlices(
+            NodeIndex,
+            &.{ b_index, d_index, e_index },
+            path_B_E,
+        );
+    }
+
+    // reverse the order of the endpoints
+    {
+        const path_E_B = try tree.path(
+            allocator,
+            .{
+                .source = e_index,
+                .destination = b_index,
+            }
+        );
+        defer allocator.free(path_E_B);
+
+        try std.testing.expectEqualSlices(
+            NodeIndex,
+            &.{ e_index, d_index, b_index },
+            path_E_B,
+        );
+    }
+
+    // single node
+    {
+        const path_E_E = try tree.path(
+            allocator,
+            .{
+                .source = e_index,
+                .destination = e_index,
+            }
+        );
+        defer allocator.free(path_E_E);
+
+        try std.testing.expectEqualSlices(
+            NodeIndex,
+            &.{ e_index, },
+            path_E_E,
+        );
+    }
+
+    // invalid path end points
+    {
+        try std.testing.expectError(
+            error.NoPathBetweenNodes,
+            tree.path(
+                allocator,
+                .{
+                    .source = c_index,
+                    .destination = e_index,
+                }
+            )        
         );
     }
 }
