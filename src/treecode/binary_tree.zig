@@ -77,6 +77,9 @@ pub fn BinaryTree(
         /// `std.AutoHashMapUnmanaged` mapping the hash of a `NodeType` to the
         /// index of the node in the `BinaryTree` the `.nodes` and
         /// `.tree_data` lists.
+        ///
+        /// XXX: this currently does not support node types with slices in them,
+        ///      due to constrants in the autohasher (as of zig 0.15.2)
         map_node_to_index: std.AutoHashMapUnmanaged(
             NodeType,
             NodeIndex,
@@ -620,6 +623,14 @@ fn dbg_print(
 
 const DummyNode = struct {
     label: enum (u8) { A, B, C, D, E },
+
+    pub fn format(
+        self: @This(),
+        writer: *std.Io.Writer,
+    ) !void 
+    {
+        try writer.print("Node: {s}",.{@tagName(self.label)});
+    }
 };
 
 test "BinaryTree: build w/ dummy node"
@@ -686,10 +697,15 @@ test "BinaryTree: build w/ dummy node"
     );
 
     // add d in the reverse order - add child first and then parent
+    var d_code = try b_code.clone(allocator);
+    try d_code.append(
+        allocator,
+        .right,
+    );
 
     // add e without a parent pointer
     const d_e = DummyNode{ .label = .E };
-    var e_code = try b_code.clone(allocator);
+    var e_code = try d_code.clone(allocator);
     try e_code.append(
         allocator,
         .right,
@@ -703,11 +719,6 @@ test "BinaryTree: build w/ dummy node"
     );
 
     const d_d = DummyNode{ .label = .D };
-    var d_code = try b_code.clone(allocator);
-    try d_code.append(
-        allocator,
-        .right,
-    );
     const d_index = try tree.put(
         allocator,
         d_d,
@@ -830,4 +841,14 @@ test "BinaryTree: build w/ dummy node"
             )        
         );
     }
+
+    try tree.write_dot_graph(
+        allocator,
+        "/var/tmp/binary_tree_test.dot",
+       "Binary_Tree_Test", 
+       .{
+           .label_style = .treecode,
+           .render_png = true,
+       },
+    );
 }
