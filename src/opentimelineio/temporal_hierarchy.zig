@@ -1,9 +1,11 @@
-//! Builds a graph of spaces out of `schema` objects which can be used to
-//! construct `projection.ProjectionOperator`.
+//! Library for converting the objects from `schema` into a
+//! `treecode.BinaryTree` via their `references.SpaceReference`s.
 //!
-//! Contents:
-//! * `build_temporal_map` function for constructing a mapping under a given
-//!   root.
+//! Includes:
+//! * `TemporalTree`: a specialization of `treecode.BinaryTree` over
+//!    `references.SpaceReference`
+//! * `build_temporal_tree`: that builds the `TemporalTree` under a given 
+//!    `references.SpaceReference`
 
 const std = @import("std");
 
@@ -30,17 +32,17 @@ const T_CTI_1_10 = opentime.ContinuousInterval {
     .end = T_ORD_10,
 };
 
-// lofting types back out of function
-pub const TemporalSpaceGraph = treecode.BinaryTree(references.SpaceReference);
-pub const PathEndPoints = TemporalSpaceGraph.PathEndPoints;
-pub const PathEndPointIndices = TemporalSpaceGraph.PathEndPointIndices;
+/// Specialization of `treecode.BinaryTree` over `references.SpaceReference`
+pub const TemporalTree = treecode.BinaryTree(references.SpaceReference);
+pub const PathEndPoints = TemporalTree.PathEndPoints;
+pub const PathEndPointIndices = TemporalTree.PathEndPointIndices;
 
 fn walk_child_spaces(
     allocator: std.mem.Allocator,
     parent_otio_object: references.ComposedValueRef,
     parent_code: treecode.Treecode,
     parent_index: ?usize,
-    graph: *TemporalSpaceGraph,
+    tree: *TemporalTree,
     otio_object_stack: anytype,
 ) !void
 {
@@ -54,7 +56,7 @@ fn walk_child_spaces(
     var last_code = parent_code;
 
     try otio_object_stack.ensureUnusedCapacity(allocator, children_ptrs.len);
-    try graph.ensure_unused_capacity(
+    try tree.ensure_unused_capacity(
         allocator,
         children_ptrs.len,
     );
@@ -81,7 +83,7 @@ fn walk_child_spaces(
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
         {
-            if (graph.code_from_node(space_ref)) 
+            if (tree.code_from_node(space_ref)) 
                 |other_code| 
             {
                 opentime.dbg_print(
@@ -119,7 +121,7 @@ fn walk_child_spaces(
             );
         }
 
-        last_index = graph.put_assumes_capacity(
+        last_index = tree.put_assumes_capacity(
             space_ref,
             .{
                 .code = child_wrapper_space_code_ptr,
@@ -149,7 +151,7 @@ fn walk_internal_spaces(
     parent_otio_object: references.ComposedValueRef,
     parent_code: treecode.Treecode,
     parent_index: ?usize,
-    map: *TemporalSpaceGraph,
+    tree: *TemporalTree,
 ) !struct{ treecode.Treecode, ?usize }
 {
     const spaces = parent_otio_object.spaces();
@@ -173,7 +175,7 @@ fn walk_internal_spaces(
                 )
             ) else parent_code
         );
-        last_index = try map.put(
+        last_index = try tree.put(
             allocator,
             space_ref,
             .{
@@ -184,7 +186,7 @@ fn walk_internal_spaces(
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
         {
-            if (map.code_from_node(space_ref))
+            if (tree.code_from_node(space_ref))
                 |code|
             {
                 std.debug.print(
@@ -197,7 +199,7 @@ fn walk_internal_spaces(
                     "space {f} has no code\n",
                     .{space_ref},
                 );
-                return error.SpaceWasntInMap;
+                return error.SpaceWasntInTree;
             }
             opentime.dbg_print(
                 @src(), 
@@ -223,18 +225,16 @@ fn walk_internal_spaces(
     return .{ last_space_code, last_index };
 }
 
-/// Walks from `root_item` through the hierarchy of OTIO objects to construct a
-/// `TemporalMap` of all of the temporal spaces in the hierarchy.
-///
-/// For each OTIO Node, it walks through the spaces present inside the node
-/// (Presentation, Intrinsic, etc) then into the children of the node.
-pub fn build_temporal_graph(
+/// Walks from `root_item` through the hierarchy of OTIO `schema` objects to
+/// construct a `TemporalTree` of all of the temporal spaces in the hierarchy.
+pub fn build_temporal_tree(
     parent_allocator: std.mem.Allocator,
+    /// root item of the tree
     root_item: references.ComposedValueRef,
-) !TemporalSpaceGraph 
+) !TemporalTree 
 {
-    var tmp_map: TemporalSpaceGraph = .empty;
-    errdefer tmp_map.deinit(parent_allocator);
+    var tmp_tree: TemporalTree = .empty;
+    errdefer tmp_tree.deinit(parent_allocator);
 
     // NOTE: because OTIO objects contain multiple internal spaces, there is a
     //       stack of objects to process.
@@ -263,7 +263,7 @@ pub fn build_temporal_graph(
     if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
         opentime.dbg_print(
             @src(),
-            "\nstarting graph...\n",
+            "\nstarting tree...\n",
             .{},
         );
     }
@@ -277,7 +277,7 @@ pub fn build_temporal_graph(
             current_stack_node.otio_object,
             current_stack_node.path_code,
             current_stack_node.parent_index,
-            &tmp_map,
+            &tmp_tree,
         );
 
         // items that are in a stack/track/warp etc.
@@ -286,18 +286,18 @@ pub fn build_temporal_graph(
             current_stack_node.otio_object,
             new_stuff[0],
             new_stuff[1],
-            &tmp_map,
+            &tmp_tree,
             &otio_object_stack,
         );
     }
 
-    tmp_map.lock_pointers();
+    tmp_tree.lock_pointers();
 
     // return result;
-    return tmp_map;
+    return tmp_tree;
 }
 
-test "build_temporal_map: leak sentinel test track w/ clip"
+test "build_temporal_tree: leak sentinel test track w/ clip"
 {
     const allocator = std.testing.allocator;
 
@@ -309,14 +309,14 @@ test "build_temporal_map: leak sentinel test track w/ clip"
     var tr: schema.Track = .{ .children = &tr_children };
     const tr_ref = references.ComposedValueRef.init(&tr);
 
-    const map = try build_temporal_graph(
+    const tree = try build_temporal_tree(
         allocator,
         tr_ref,
     );
-    defer map.deinit(allocator);
+    defer tree.deinit(allocator);
 }
 
-test "build_temporal_map check root node" 
+test "build_temporal_tree check root node" 
 {
     const allocator = std.testing.allocator;
 
@@ -348,26 +348,26 @@ test "build_temporal_map check root node"
         tr.children.len
     );
 
-    const map = try build_temporal_graph(
+    const tree = try build_temporal_tree(
         allocator,
         tr_ref,
     );
-    defer map.deinit(allocator);
+    defer tree.deinit(allocator);
 
     try std.testing.expectEqual(
         tr_ref.space(.presentation),
-        map.root_node(),
+        tree.root_node(),
     );
 
-    try validate_connections_in_map(map);
+    try validate_connections_in_tree(tree);
 }
 
-pub fn validate_connections_in_map(
-    map: TemporalSpaceGraph,
+pub fn validate_connections_in_tree(
+    tree: TemporalTree,
 ) !void
 {
     // check the parent/child pointers
-    for (map.tree_data.items(.parent_index), map.tree_data.items(.child_indices), 0..)
+    for (tree.tree_data.items(.parent_index), tree.tree_data.items(.child_indices), 0..)
         |maybe_parent_index, child_indices, index|
     {
         errdefer std.debug.print(
@@ -389,13 +389,13 @@ pub fn validate_connections_in_map(
         if (maybe_parent_index)
             |parent_index|
         {
-            const parent_code = map.tree_data.items(.code)[parent_index];
-            const current_code = map.tree_data.items(.code)[index];
+            const parent_code = tree.tree_data.items(.code)[parent_index];
+            const current_code = tree.tree_data.items(.code)[index];
 
             const parent_to_current = parent_code.next_step_towards(current_code);
 
             const parent_children = (
-                map.tree_data.items(.child_indices)[parent_index]
+                tree.tree_data.items(.child_indices)[parent_index]
             );
 
             try std.testing.expect(
@@ -405,17 +405,17 @@ pub fn validate_connections_in_map(
     }
 }
 
-test "build_temporal_map: leak sentinel test - single clip"
+test "build_temporal_tree: leak sentinel test - single clip"
 {
     const allocator = std.testing.allocator;
 
     var cl = schema.Clip {};
 
-    const map = try build_temporal_graph(
+    const tree = try build_temporal_tree(
         allocator,
         references.ComposedValueRef.init(&cl)
     );
-    defer map.deinit(allocator);
+    defer tree.deinit(allocator);
 }
 
 test "TestWalkingIterator: clip"
@@ -430,13 +430,13 @@ test "TestWalkingIterator: clip"
     };
     const cl_ptr = references.ComposedValueRef.init(&cl);
 
-    const map = try build_temporal_graph(
+    const tree = try build_temporal_tree(
         allocator,
         cl_ptr,
     );
-    defer map.deinit(allocator);
+    defer tree.deinit(allocator);
 
-    try map.write_dot_graph(
+    try tree.write_dot_graph(
         allocator,
         "/var/tmp/walk.dot",
         "walk",
@@ -444,7 +444,7 @@ test "TestWalkingIterator: clip"
     );
 
     // 5: clip presentation, clip media
-    try std.testing.expectEqual(2, map.tree_data.len);
+    try std.testing.expectEqual(2, tree.tree_data.len);
 }
 
 pub fn path_from_parents(
@@ -517,13 +517,13 @@ test "TestWalkingIterator: track with clip w/ destination"
     var tr: schema.Track = .{ .children = &tr_children };
     const tr_ptr = references.ComposedValueRef.init(&tr);
 
-    const map = try build_temporal_graph(
+    const tree = try build_temporal_tree(
         std.testing.allocator,
         tr_ptr
     );
-    defer map.deinit(allocator);
+    defer tree.deinit(allocator);
 
-    try map.write_dot_graph(
+    try tree.write_dot_graph(
         allocator,
         "/var/tmp/walk.dot",
         "walk",
@@ -532,13 +532,13 @@ test "TestWalkingIterator: track with clip w/ destination"
 
     // from the top to the second clip
     {
-        const path = try map.path(
+        const path = try tree.path(
             allocator, 
             .{
-                .source = map.index_for_node(
+                .source = tree.index_for_node(
                     tr_ptr.space(.presentation)
                 ).?,
-                .destination = map.index_for_node(
+                .destination = tree.index_for_node(
                     cl_ptr.space(.media)
                 ).?,
             },
@@ -547,14 +547,14 @@ test "TestWalkingIterator: track with clip w/ destination"
 
         const parent_path = try path_from_parents(
             allocator, 
-            map.index_for_node(
+            tree.index_for_node(
                 tr_ptr.space(.presentation)
             ).?,
-            map.index_for_node(
+            tree.index_for_node(
                 cl_ptr.space(.media)
             ).?,
-            map.tree_data.items(.code), 
-            map.tree_data.items(.parent_index)
+            tree.tree_data.items(.code), 
+            tree.tree_data.items(.parent_index)
         );
         defer allocator.free(parent_path);
 
@@ -741,7 +741,7 @@ test "label_for_node_leaky"
     );
     defer tc.deinit(allocator);
 
-    const result = try TemporalSpaceGraph.node_label(
+    const result = try TemporalTree.node_label(
         &buf,
         sr,
         tc,
@@ -754,7 +754,7 @@ test "label_for_node_leaky"
     );
 }
 
-test "path_code: graph test" 
+test "path_code: tree test" 
 {
     const allocator = std.testing.allocator;
 
@@ -777,18 +777,18 @@ test "path_code: graph test"
 
     try std.testing.expectEqual(11, tr.children.len);
 
-    const map = try build_temporal_graph(
+    const tree = try build_temporal_tree(
         allocator,
         tr_ref,
     );
-    defer map.deinit(allocator);
+    defer tree.deinit(allocator);
 
     try std.testing.expectEqual(
         tr_ref.space(.presentation),
-        map.root_node(),
+        tree.root_node(),
     );
 
-    try map.write_dot_graph(
+    try tree.write_dot_graph(
         allocator,
         "/var/tmp/graph_test_output.dot",
         "graph_test",
@@ -797,15 +797,15 @@ test "path_code: graph test"
 
     // should be the same length
     try std.testing.expectEqual(
-        map.map_node_to_index.count(),
-        map.tree_data.len,
+        tree.map_node_to_index.count(),
+        tree.tree_data.len,
     );
     try std.testing.expectEqual(
         35,
-        map.map_node_to_index.count()
+        tree.map_node_to_index.count()
     );
 
-    try map.write_dot_graph(
+    try tree.write_dot_graph(
         allocator,
         "/var/tmp/current.dot",
         "current",
@@ -829,7 +829,7 @@ test "path_code: graph test"
             tr.children[t.ind].space(references.SpaceLabel.presentation)
         );
         const result = (
-            map.code_from_node(space) 
+            tree.code_from_node(space) 
             orelse return error.NoSpaceForCode
         );
 
@@ -872,11 +872,11 @@ test "schema.Track with clip with identity transform projection"
     var tr: schema.Track = .{ .children = &refs };
     const tr_ref = references.ComposedValueRef.init(&tr);
 
-    const map = try build_temporal_graph(
+    const tree = try build_temporal_tree(
         allocator,
         tr_ref,
     );
-    defer map.deinit(allocator);
+    defer tree.deinit(allocator);
 
     try std.testing.expectEqual(
         11,
@@ -886,14 +886,14 @@ test "schema.Track with clip with identity transform projection"
     const cache = (
         try projection.SingleSourceTopologyCache.init(
             allocator,
-            map,
+            tree,
         )
     );
     defer cache.deinit(allocator);
 
     const track_to_clip = try projection.build_projection_operator(
         allocator,
-        map,
+        tree,
         .{
             .source = tr_ref.space(references.SpaceLabel.presentation),
             .destination =  cl_ref.space(references.SpaceLabel.media)
@@ -922,7 +922,7 @@ test "schema.Track with clip with identity transform projection"
 }
 
 
-test "TemporalMap: schema.Track with clip with identity transform" 
+test "Temporaltree: schema.Track with clip with identity transform" 
 {
     const allocator = std.testing.allocator;
 
@@ -936,20 +936,20 @@ test "TemporalMap: schema.Track with clip with identity transform"
 
     const root = references.ComposedValueRef.init(&tr);
 
-    const map = try build_temporal_graph(
+    const tree = try build_temporal_tree(
         allocator,
         root,
     );
-    defer map.deinit(allocator);
+    defer tree.deinit(allocator);
 
     try std.testing.expectEqual(
         5,
-        map.map_node_to_index.count()
+        tree.map_node_to_index.count()
     );
 
-    try std.testing.expectEqual(root, map.root_node().ref);
+    try std.testing.expectEqual(root, tree.root_node().ref);
 
-    const maybe_root_code = map.code_from_node(map.root_node());
+    const maybe_root_code = tree.code_from_node(tree.root_node());
     try std.testing.expect(maybe_root_code != null);
     const root_code = maybe_root_code.?;
 
@@ -961,7 +961,7 @@ test "TemporalMap: schema.Track with clip with identity transform"
         try std.testing.expectEqual(0, tc.code_length);
     }
 
-    const maybe_clip_code = map.code_from_node(
+    const maybe_clip_code = tree.code_from_node(
         cl_ref.space(references.SpaceLabel.media)
     );
     try std.testing.expect(maybe_clip_code != null);
@@ -993,7 +993,7 @@ test "TemporalMap: schema.Track with clip with identity transform"
     const cache = (
         try projection.SingleSourceTopologyCache.init(
             allocator,
-            map,
+            tree,
         )
     );
     defer cache.deinit(allocator);
@@ -1001,7 +1001,7 @@ test "TemporalMap: schema.Track with clip with identity transform"
     const root_presentation_to_clip_media = (
         try projection.build_projection_operator(
             allocator,
-            map,
+            tree,
             .{
                 .source = root.space(.presentation),
                 .destination = cl_ref.space(.media)
@@ -1106,7 +1106,7 @@ test "test debug_print_time_hierarchy"
 
     //////
 
-    const tp = try build_temporal_graph(
+    const tp = try build_temporal_tree(
         allocator,
         tl_ptr
     );

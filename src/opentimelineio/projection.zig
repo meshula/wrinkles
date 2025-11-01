@@ -588,7 +588,7 @@ test "transform: track with two clips"
     };
     const tr_ptr = references.ComposedValueRef.init(&tr);
 
-    const map = try temporal_hierarchy.build_temporal_graph(
+    const map = try temporal_hierarchy.build_temporal_tree(
         allocator,
         tr_ptr,
     );
@@ -837,7 +837,7 @@ test "Projection: schema.Track with single clip with identity transform and boun
     var tr: schema.Track = .{ .children = &tr_children };
     const root = references.ComposedValueRef{ .track = &tr };
 
-    const map = try temporal_hierarchy.build_temporal_graph(
+    const map = try temporal_hierarchy.build_temporal_tree(
         allocator,
         root,
     );
@@ -1309,7 +1309,7 @@ test "otio projection: track with single clip"
     );
     defer tr_pres_projection_builder.deinit(allocator);
 
-    try temporal_hierarchy.validate_connections_in_map(
+    try temporal_hierarchy.validate_connections_in_tree(
         tr_pres_projection_builder.temporal_space_graph,
     );
 
@@ -1830,7 +1830,7 @@ test "Single clip, schema.Warp bulk"
         );
         defer wp_pres_projection_builder.deinit(allocator);
 
-        try temporal_hierarchy.validate_connections_in_map(
+        try temporal_hierarchy.validate_connections_in_tree(
             wp_pres_projection_builder.temporal_space_graph,
         );
 
@@ -1962,7 +1962,7 @@ pub fn ReferenceTopology(
         // temporally sorted, could be more efficient with a BVH of some kind
         intervals: std.MultiArrayList(IntervalMapping),
 
-        temporal_space_graph: temporal_hierarchy.TemporalSpaceGraph,
+        temporal_space_graph: temporal_hierarchy.TemporalTree,
         cache: SingleSourceTopologyCache,
 
         pub fn init_from(
@@ -1979,7 +1979,7 @@ pub fn ReferenceTopology(
             // Build out the hierarchy of all the coordinate spaces
             ///////////////////////////////
             const temporal_map = (
-                try temporal_hierarchy.build_temporal_graph(
+                try temporal_hierarchy.build_temporal_tree(
                     parent_allocator,
                     source_reference.ref,
                 )
@@ -2735,7 +2735,7 @@ pub const SingleSourceTopologyCache = struct {
 
     pub fn init(
         allocator: std.mem.Allocator,
-        map: temporal_hierarchy.TemporalSpaceGraph,
+        map: temporal_hierarchy.TemporalTree,
     ) !SingleSourceTopologyCache
     {
         const cache = try allocator.alloc(
@@ -2768,8 +2768,8 @@ pub const SingleSourceTopologyCache = struct {
 
 pub fn build_projection_operator_indices(
     parent_allocator: std.mem.Allocator,
-    map: temporal_hierarchy.TemporalSpaceGraph,
-    endpoints: temporal_hierarchy.TemporalSpaceGraph.PathEndPointIndices,
+    map: temporal_hierarchy.TemporalTree,
+    endpoints: temporal_hierarchy.TemporalTree.PathEndPointIndices,
     operator_cache: SingleSourceTopologyCache,
 ) !ProjectionOperator 
 {
@@ -2823,8 +2823,8 @@ pub fn build_projection_operator_indices(
 
 pub fn build_projection_operator_assume_sorted(
     parent_allocator: std.mem.Allocator,
-    map: temporal_hierarchy.TemporalSpaceGraph,
-    sorted_endpoints: temporal_hierarchy.TemporalSpaceGraph.PathEndPointIndices,
+    map: temporal_hierarchy.TemporalTree,
+    sorted_endpoints: temporal_hierarchy.TemporalTree.PathEndPointIndices,
     operator_cache: SingleSourceTopologyCache,
 ) !ProjectionOperator 
 {
@@ -2900,7 +2900,7 @@ pub fn build_projection_operator_assume_sorted(
         };
     }
 
-    var path_step:temporal_hierarchy.TemporalSpaceGraph.PathEndPointIndices = .{
+    var path_step:temporal_hierarchy.TemporalTree.PathEndPointIndices = .{
         .source = @intCast(source_index),
         .destination = @intCast(source_index),
     };
@@ -2998,8 +2998,8 @@ pub fn build_projection_operator_assume_sorted(
 /// endpoints.destination spaces
 pub fn build_projection_operator(
     parent_allocator: std.mem.Allocator,
-    map: temporal_hierarchy.TemporalSpaceGraph,
-    endpoints: temporal_hierarchy.TemporalSpaceGraph.PathEndPoints,
+    map: temporal_hierarchy.TemporalTree,
+    endpoints: temporal_hierarchy.TemporalTree.PathEndPoints,
     operator_cache: SingleSourceTopologyCache,
 ) !ProjectionOperator 
 {
