@@ -633,7 +633,7 @@ const DummyNode = struct {
     }
 };
 
-test "BinaryTree: build w/ dummy node"
+test "BinaryTree: build w/ dummy node type and test path"
 {
     const allocator = std.testing.allocator;
 
