@@ -1,4 +1,4 @@
-//! Structures and functions around projections through the temporal hierarchy
+//! Structures and functions around projections through the temporal tree.
 
 const std = @import("std");
 
@@ -10,7 +10,7 @@ const curve = @import("curve");
 
 const schema = @import("schema.zig");
 const references = @import("references.zig");
-const temporal_hierarchy = @import("temporal_hierarchy.zig");
+const temporal_tree = @import("temporal_tree.zig");
 const test_data = @import("test_structures.zig");
 
 const GRAPH_CONSTRUCTION_TRACE_MESSAGES = false;
@@ -588,7 +588,7 @@ test "transform: track with two clips"
     };
     const tr_ptr = references.ComposedValueRef.init(&tr);
 
-    const map = try temporal_hierarchy.build_temporal_tree(
+    const map = try temporal_tree.build_temporal_tree(
         allocator,
         tr_ptr,
     );
@@ -837,7 +837,7 @@ test "Projection: schema.Track with single clip with identity transform and boun
     var tr: schema.Track = .{ .children = &tr_children };
     const root = references.ComposedValueRef{ .track = &tr };
 
-    const map = try temporal_hierarchy.build_temporal_tree(
+    const map = try temporal_tree.build_temporal_tree(
         allocator,
         root,
     );
@@ -1309,7 +1309,7 @@ test "otio projection: track with single clip"
     );
     defer tr_pres_projection_builder.deinit(allocator);
 
-    try temporal_hierarchy.validate_connections_in_tree(
+    try temporal_tree.validate_connections_in_tree(
         tr_pres_projection_builder.temporal_space_graph,
     );
 
@@ -1830,7 +1830,7 @@ test "Single clip, schema.Warp bulk"
         );
         defer wp_pres_projection_builder.deinit(allocator);
 
-        try temporal_hierarchy.validate_connections_in_tree(
+        try temporal_tree.validate_connections_in_tree(
             wp_pres_projection_builder.temporal_space_graph,
         );
 
@@ -1962,7 +1962,7 @@ pub fn ReferenceTopology(
         // temporally sorted, could be more efficient with a BVH of some kind
         intervals: std.MultiArrayList(IntervalMapping),
 
-        temporal_space_graph: temporal_hierarchy.TemporalTree,
+        temporal_space_graph: temporal_tree.TemporalTree,
         cache: SingleSourceTopologyCache,
 
         pub fn init_from(
@@ -1979,7 +1979,7 @@ pub fn ReferenceTopology(
             // Build out the hierarchy of all the coordinate spaces
             ///////////////////////////////
             const temporal_map = (
-                try temporal_hierarchy.build_temporal_tree(
+                try temporal_tree.build_temporal_tree(
                     parent_allocator,
                     source_reference.ref,
                 )
@@ -2034,7 +2034,7 @@ pub fn ReferenceTopology(
             ) orelse return error.SourceNotInMap;
             std.debug.assert(start_index == SOURCE_INDEX);
 
-            var proj_args:temporal_hierarchy.PathEndPointIndices = .{
+            var proj_args:temporal_tree.PathEndPointIndices = .{
                 .source = start_index,
                 .destination = start_index,
             };
@@ -2735,7 +2735,7 @@ pub const SingleSourceTopologyCache = struct {
 
     pub fn init(
         allocator: std.mem.Allocator,
-        map: temporal_hierarchy.TemporalTree,
+        map: temporal_tree.TemporalTree,
     ) !SingleSourceTopologyCache
     {
         const cache = try allocator.alloc(
@@ -2768,8 +2768,8 @@ pub const SingleSourceTopologyCache = struct {
 
 pub fn build_projection_operator_indices(
     parent_allocator: std.mem.Allocator,
-    map: temporal_hierarchy.TemporalTree,
-    endpoints: temporal_hierarchy.TemporalTree.PathEndPointIndices,
+    map: temporal_tree.TemporalTree,
+    endpoints: temporal_tree.TemporalTree.PathEndPointIndices,
     operator_cache: SingleSourceTopologyCache,
 ) !ProjectionOperator 
 {
@@ -2823,8 +2823,8 @@ pub fn build_projection_operator_indices(
 
 pub fn build_projection_operator_assume_sorted(
     parent_allocator: std.mem.Allocator,
-    map: temporal_hierarchy.TemporalTree,
-    sorted_endpoints: temporal_hierarchy.TemporalTree.PathEndPointIndices,
+    map: temporal_tree.TemporalTree,
+    sorted_endpoints: temporal_tree.TemporalTree.PathEndPointIndices,
     operator_cache: SingleSourceTopologyCache,
 ) !ProjectionOperator 
 {
@@ -2865,7 +2865,7 @@ pub fn build_projection_operator_assume_sorted(
     const codes = path_nodes.items(.code);
 
     // compute the path length
-    const path = try temporal_hierarchy.path_from_parents(
+    const path = try temporal_tree.path_from_parents(
         allocator_arena,
         source_index,
         sorted_endpoints.destination,
@@ -2900,7 +2900,7 @@ pub fn build_projection_operator_assume_sorted(
         };
     }
 
-    var path_step:temporal_hierarchy.TemporalTree.PathEndPointIndices = .{
+    var path_step:temporal_tree.TemporalTree.PathEndPointIndices = .{
         .source = @intCast(source_index),
         .destination = @intCast(source_index),
     };
@@ -2998,8 +2998,8 @@ pub fn build_projection_operator_assume_sorted(
 /// endpoints.destination spaces
 pub fn build_projection_operator(
     parent_allocator: std.mem.Allocator,
-    map: temporal_hierarchy.TemporalTree,
-    endpoints: temporal_hierarchy.TemporalTree.PathEndPoints,
+    map: temporal_tree.TemporalTree,
+    endpoints: temporal_tree.TemporalTree.PathEndPoints,
     operator_cache: SingleSourceTopologyCache,
 ) !ProjectionOperator 
 {

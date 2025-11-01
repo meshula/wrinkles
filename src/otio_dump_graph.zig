@@ -156,7 +156,7 @@ pub fn main(
     );
 
     // build the graph
-    const graph = try otio.temporal_hierarchy.build_temporal_tree(
+    const graph = try otio.temporal_tree.build_temporal_tree(
         allocator,
         otio.ComposedValueRef.init(tl),
     );

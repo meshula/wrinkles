@@ -10,7 +10,7 @@ pub const projection = @import("projection.zig");
 pub const ProjectionOperator = projection.ProjectionOperator;
 pub const ProjectionTopology = projection.ProjectionTopology;
 
-pub const temporal_hierarchy = @import("temporal_hierarchy.zig");
+pub const temporal_tree = @import("temporal_tree.zig");
 
 pub const schema = @import("schema.zig");
 pub const Clip = schema.Clip;
@@ -31,7 +31,7 @@ test {
 
     _ = otio_json;
     _ = otio_highlevel_tests;
-    _ = temporal_hierarchy;
+    _ = temporal_tree;
     _ = schema;
     _ = references;
     _ = projection;
