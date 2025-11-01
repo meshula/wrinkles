@@ -112,7 +112,10 @@ pub fn BinaryTree(
             }
 
             // free the guts
-            mutable_self.map_node_to_index.unlockPointers();
+            if (self.map_node_to_index.pointer_stability.state == .locked)
+            {
+                mutable_self.map_node_to_index.unlockPointers();
+            }
             mutable_self.map_node_to_index.deinit(allocator);
 
             mutable_self.tree_data.deinit(allocator);
