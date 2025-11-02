@@ -473,7 +473,7 @@ test "read_from_file test (simple)"
         )
     );
     
-    try tl_pres_projection_builder.temporal_space_graph.write_dot_graph(
+    try tl_pres_projection_builder.tree.write_dot_graph(
         allocator,
         "/var/tmp/" ++ dot_fpath,
         "read_from_file_test",

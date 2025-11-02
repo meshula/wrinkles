@@ -217,7 +217,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
                     },
                 );
             }
-            const destination = proj_topo.temporal_space_graph.nodes.get(
+            const destination = proj_topo.tree.nodes.get(
                 op.destination
             );
 
@@ -507,7 +507,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
     );
     defer proj_topo_from_tl_pres.deinit(allocator);
 
-    try proj_topo_from_tl_pres.temporal_space_graph.write_dot_graph(
+    try proj_topo_from_tl_pres.tree.write_dot_graph(
         allocator,
         "/var/tmp/track_clip_warp.dot",
         "track_clip_warp",

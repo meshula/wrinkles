@@ -386,7 +386,7 @@ test "ProjectionOperatorMap: clip"
     const known_presentation_to_media = (
         try build_projection_operator(
             allocator,
-            cl_pres_projection_builder.temporal_space_graph,
+            cl_pres_projection_builder.tree,
             .{
                 .source = cl_ptr.space(.presentation),
                 .destination = cl_ptr.space(.media),
@@ -479,7 +479,7 @@ test "ProjectionOperatorMap: track with single clip"
 
         const known_presentation_to_media = try build_projection_operator(
             allocator,
-            projection_builder.temporal_space_graph,
+            projection_builder.tree,
             .{
                 .source = projection_builder.source,
                 .destination = cl_ptr.space(.media),
@@ -730,7 +730,7 @@ test "ProjectionTopology: track with two clips"
     const known_presentation_to_media = (
         try build_projection_operator(
             allocator,
-            cl_pres_projection_builder.temporal_space_graph,
+            cl_pres_projection_builder.tree,
             .{
                 .source = tr_ptr.space(.presentation),
                 .destination = cl_ptr.space(.media),
@@ -1310,10 +1310,10 @@ test "otio projection: track with single clip"
     defer tr_pres_projection_builder.deinit(allocator);
 
     try temporal_tree.validate_connections_in_tree(
-        tr_pres_projection_builder.temporal_space_graph,
+        tr_pres_projection_builder.tree,
     );
 
-    try tr_pres_projection_builder.temporal_space_graph.write_dot_graph(
+    try tr_pres_projection_builder.tree.write_dot_graph(
         allocator,
         "/var/tmp/sampling_test.dot",
         "sampling_test",
@@ -1516,7 +1516,7 @@ test "otio projection: track with single clip with transform"
     );
     defer tr_pres_projection_builder.deinit(allocator);
 
-    try tr_pres_projection_builder.temporal_space_graph.write_dot_graph(
+    try tr_pres_projection_builder.tree.write_dot_graph(
         allocator,
         "/var/tmp/sampling_test.dot",
         "sampling_test",
@@ -1638,7 +1638,7 @@ test "otio projection: track with single clip with transform"
             );
             defer tl_pres_projection_builder.deinit(allocator);
 
-            try tl_pres_projection_builder.temporal_space_graph.write_dot_graph(
+            try tl_pres_projection_builder.tree.write_dot_graph(
                 allocator,
                 "/var/tmp/discrete_to_continuous_test.dot",
                 "discrete_to_continuous_test",
@@ -1831,7 +1831,7 @@ test "Single clip, schema.Warp bulk"
         defer wp_pres_projection_builder.deinit(allocator);
 
         try temporal_tree.validate_connections_in_tree(
-            wp_pres_projection_builder.temporal_space_graph,
+            wp_pres_projection_builder.tree,
         );
 
         // presentation->media (forward projection)
@@ -1962,7 +1962,7 @@ pub fn ReferenceTopology(
         // temporally sorted, could be more efficient with a BVH of some kind
         intervals: std.MultiArrayList(IntervalMapping),
 
-        temporal_space_graph: temporal_tree.TemporalTree,
+        tree: temporal_tree.TemporalTree,
         cache: SingleSourceTopologyCache,
 
         /// Construct a `ReferenceTopologyType` rooted at `source_reference`.
@@ -1999,7 +1999,7 @@ pub fn ReferenceTopology(
                 .source = source_reference,
                 .mappings = .empty,
                 .intervals = .empty,
-                .temporal_space_graph = tree,
+                .tree = tree,
                 .cache = cache,
             };
 
@@ -2380,7 +2380,7 @@ pub fn ReferenceTopology(
 
             self.intervals.deinit(allocator);
             self.mappings.deinit(allocator);
-            self.temporal_space_graph.deinit(allocator);
+            self.tree.deinit(allocator);
             self.cache.deinit(allocator);
         }
 
@@ -2392,11 +2392,11 @@ pub fn ReferenceTopology(
         {
             return try build_projection_operator_assume_sorted(
                 allocator,
-                self.temporal_space_graph,
+                self.tree,
                 .{
                     .source = SOURCE_INDEX,
                     .destination = (
-                        self.temporal_space_graph.map_node_to_index.get(
+                        self.tree.map_node_to_index.get(
                             destination_space
                         ) 
                         orelse return error.DestinationSpaceNotChildOfSource
@@ -2416,11 +2416,11 @@ pub fn ReferenceTopology(
             var result = (
                 try build_projection_operator_assume_sorted(
                     allocator,
-                    self.temporal_space_graph,
+                    self.tree,
                     .{
                         .source = SOURCE_INDEX,
                         .destination = (
-                            self.temporal_space_graph.map_node_to_index.get(target)
+                            self.tree.map_node_to_index.get(target)
                             orelse return error.DestinationSpaceNotUnderSource
                         ),
                     },
@@ -2467,7 +2467,7 @@ pub fn ReferenceTopology(
         {
             return try build_projection_operator_indices(
                 allocator,
-                self.temporal_space_graph,
+                self.tree,
                 .{
                     .source = 0,
                     .destination = destination_space_index,
@@ -2523,7 +2523,7 @@ pub fn ReferenceTopology(
                         mapping.mapping.output_bounds()
                     );
                     const destination = (
-                        self.temporal_space_graph.nodes.get(mapping.destination)
+                        self.tree.nodes.get(mapping.destination)
                     );
 
                     try writer.print(
@@ -3014,17 +3014,17 @@ pub fn build_projection_operator_assume_sorted(
 /// endpoints.destination spaces
 pub fn build_projection_operator(
     parent_allocator: std.mem.Allocator,
-    map: temporal_tree.TemporalTree,
+    tree: temporal_tree.TemporalTree,
     endpoints: temporal_tree.TemporalTree.PathEndPoints,
     operator_cache: SingleSourceTopologyCache,
 ) !ProjectionOperator 
 {
     return build_projection_operator_indices(
         parent_allocator,
-        map,
+        tree,
         .{
-            .source = map.index_for_node(endpoints.source).?,
-            .destination = map.index_for_node(endpoints.destination).?,
+            .source = tree.index_for_node(endpoints.source).?,
+            .destination = tree.index_for_node(endpoints.destination).?,
         },
         operator_cache,
     );
