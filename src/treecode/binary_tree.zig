@@ -93,6 +93,8 @@ pub fn BinaryTree(
         /// Store of nodes in the `BinaryTree`
         nodes:std.MultiArrayList(NodeType),
 
+        locked: bool = false,
+
         /// Empty BinaryTree
         pub const empty = BinaryTreeType{
             .map_node_to_index = .empty,
@@ -115,9 +117,7 @@ pub fn BinaryTree(
             }
 
             // free the guts
-            if (builtin.mode == .Debug 
-                and self.map_node_to_index.pointer_stability.state == .locked
-            )
+            if (self.locked)
             {
                 mutable_self.map_node_to_index.unlockPointers();
             }
@@ -133,6 +133,7 @@ pub fn BinaryTree(
         ) void
         {
             self.map_node_to_index.lockPointers();
+            self.locked = true;
 
             // @TODO: could switch the implementation over to .Slice() here
         }
