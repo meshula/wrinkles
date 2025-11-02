@@ -3,6 +3,7 @@
 
 const std = @import("std");
 const build_options = @import("build_options");
+const builtin = @import("builtin");
 
 const treecode = @import("treecode.zig");
 
@@ -114,7 +115,9 @@ pub fn BinaryTree(
             }
 
             // free the guts
-            if (self.map_node_to_index.pointer_stability.state == .locked)
+            if (builtin.mode == .Debug 
+                and self.map_node_to_index.pointer_stability.state == .locked
+            )
             {
                 mutable_self.map_node_to_index.unlockPointers();
             }
@@ -531,50 +534,51 @@ pub fn BinaryTree(
                 &sorted_endpoint_indices
             );
 
-            const tree_data = self.tree_data.slice();
-
-            const source_code = (
-                tree_data.items(.code)[sorted_endpoint_indices.source]
-            );
-            const destination_code = (
-                tree_data.items(.code)[sorted_endpoint_indices.destination]
-            );
-
-            var result: std.ArrayList(NodeIndex) = .empty;
-            try result.ensureTotalCapacity(
+            const result = try self.path_assume_sorted(
                 allocator,
-                (
-                   // + 1 for the start point
-                   destination_code.code_length - source_code.code_length + 1
-                ),
+                sorted_endpoint_indices.source,
+                sorted_endpoint_indices.destination,
             );
-            result.appendAssumeCapacity(sorted_endpoint_indices.source);
-
-            var current: NodeIndex = sorted_endpoint_indices.source;
-            var current_code = source_code;
-            while (current != sorted_endpoint_indices.destination)
-            {
-                const next_step = current_code.next_step_towards(
-                    destination_code
-                );
-
-                const next = tree_data.items(.child_indices)[current][
-                    @intFromEnum(next_step)
-                ];
-
-                result.appendAssumeCapacity(next.?);
-
-                current = next.?;
-                current_code = tree_data.items(.code)[current];
-            }
 
             if (swapped)
             {
-                std.mem.reverse(NodeIndex, result.items);
+                std.mem.reverse(NodeIndex, result);
             }
 
-            return try result.toOwnedSlice(allocator);
+            return result;
         }
+
+        pub fn path_assume_sorted(
+            self: @This(),
+            allocator: std.mem.Allocator,
+            source_index: usize,
+            destination_index: usize,
+        ) ![]usize
+        {
+            const tree_slice = self.tree_data.slice();
+            const codes = tree_slice.items(.code);
+            const parents = tree_slice.items(.parent_index);
+
+            const source_code = codes[source_index];
+            const dest_code = codes[destination_index];
+
+            const length = dest_code.code_length - source_code.code_length + 1;
+
+            const result_path = try allocator.alloc(
+                usize,
+                length,
+            );
+
+            fill_path_buffer(
+                source_index,
+                destination_index,
+                result_path,
+                parents,
+            );
+
+            return result_path;
+        }
+
 
         /// Generate a text label for a given node based on the format() of the
         /// `NodeType`.
@@ -852,3 +856,23 @@ test "BinaryTree: build w/ dummy node type and test path"
        },
     );
 }
+
+fn fill_path_buffer(
+    source_index: usize,
+    destination_index: usize,
+    path: []usize,
+    parents: []?usize,
+) void
+{
+    var current = destination_index;
+
+    path[0] = source_index;
+
+    for (0..path.len-1)
+        |ind|
+    {
+        path[path.len - 1 - ind] = current;
+        current = parents[current].?;
+    }
+}
+

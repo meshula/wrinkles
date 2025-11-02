@@ -447,53 +447,6 @@ test "TestWalkingIterator: clip"
     try std.testing.expectEqual(2, tree.tree_data.len);
 }
 
-pub fn path_from_parents(
-    allocator: std.mem.Allocator,
-    source_index: usize,
-    destination_index: usize,
-    codes: []treecode.Treecode,
-    parents: []?usize,
-) ![]const usize
-{
-    const source_code = codes[source_index];
-    const dest_code = codes[destination_index];
-
-    const length = dest_code.code_length - source_code.code_length + 1;
-
-    const path = try allocator.alloc(
-        usize,
-        length,
-    );
-    
-    fill_path_buffer(
-        source_index,
-        destination_index,
-        path,
-        parents,
-    );
-
-    return path;
-}
-
-pub fn fill_path_buffer(
-    source_index: usize,
-    destination_index: usize,
-    path: []usize,
-    parents: []?usize,
-) void
-{
-    var current = destination_index;
-
-    path[0] = source_index;
-
-    for (0..path.len-1)
-        |ind|
-    {
-        path[path.len - 1 - ind] = current;
-        current = parents[current].?;
-    }
-}
-
 test "TestWalkingIterator: track with clip w/ destination"
 {
     const allocator = std.testing.allocator;
@@ -545,16 +498,16 @@ test "TestWalkingIterator: track with clip w/ destination"
         );
         defer allocator.free(path);
 
-        const parent_path = try path_from_parents(
+        const parent_path = try tree.path(
             allocator, 
-            tree.index_for_node(
-                tr_ptr.space(.presentation)
-            ).?,
-            tree.index_for_node(
-                cl_ptr.space(.media)
-            ).?,
-            tree.tree_data.items(.code), 
-            tree.tree_data.items(.parent_index)
+            .{
+                .source = tree.index_for_node(
+                    tr_ptr.space(.presentation)
+                ).?,
+                .destination = tree.index_for_node(
+                        cl_ptr.space(.media)
+                    ).?,
+                },
         );
         defer allocator.free(parent_path);
 

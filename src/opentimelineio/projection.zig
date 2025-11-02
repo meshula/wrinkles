@@ -1965,32 +1965,33 @@ pub fn ReferenceTopology(
         temporal_space_graph: temporal_tree.TemporalTree,
         cache: SingleSourceTopologyCache,
 
+        /// Construct a `ReferenceTopologyType` rooted at `source_reference`.
         pub fn init_from(
-            parent_allocator: std.mem.Allocator,
+            allocator_parent: std.mem.Allocator,
             source_reference: SpaceReferenceType,
         ) !ReferenceTopologyType
         {
             var arena = std.heap.ArenaAllocator.init(
-                parent_allocator,
+                allocator_parent,
             );
             defer arena.deinit();
             const allocator_arena = arena.allocator();
 
             // Build out the hierarchy of all the coordinate spaces
             ///////////////////////////////
-            const temporal_map = (
+            const tree = (
                 try temporal_tree.build_temporal_tree(
-                    parent_allocator,
+                    allocator_parent,
                     source_reference.ref,
                 )
             );
 
-            // Initialize a cache for projections
+            // Initialize a cache for topologies
             ///////////////////////////////
             const cache = (
                 try SingleSourceTopologyCache.init(
-                    parent_allocator,
-                    temporal_map,
+                    allocator_parent,
+                    tree,
                 )
             );
 
@@ -1998,38 +1999,29 @@ pub fn ReferenceTopology(
                 .source = source_reference,
                 .mappings = .empty,
                 .intervals = .empty,
-                .temporal_space_graph = temporal_map,
+                .temporal_space_graph = tree,
                 .cache = cache,
             };
 
             // Assemble the components
             //////////////////////
-
-            var unsplit_intervals: std.MultiArrayList(
-                struct {
-                    mapping_index: NodeIndex,
-                    input_bounds: opentime.ContinuousInterval,
-                }
-            ) = .empty;
-            defer unsplit_intervals.deinit(allocator_arena);
-
-            const vertex_kind = enum(u1) { start, end };
+            const start_or_end = enum(u1) { start, end };
 
             // to sort and split the intervals
-            var vertices_builder : std.MultiArrayList(
+            var unsorted_vertices : std.MultiArrayList(
                 struct{ 
                     ordinate: opentime.Ordinate,
                     interval_index: NodeIndex,
-                    kind: vertex_kind,
+                    kind: start_or_end,
                 },
             ) = .empty;
-            defer vertices_builder.deinit(allocator_arena);
+            defer unsorted_vertices.deinit(allocator_arena);
 
             // Gather up all the operators and intervals
             /////////////
-            const map_nodes = temporal_map.tree_data.slice();
+            const tree_nodes = tree.tree_data.slice();
 
-            const start_index = temporal_map.index_for_node(
+            const start_index = tree.index_for_node(
                 source_reference
             ) orelse return error.SourceNotInMap;
             std.debug.assert(start_index == SOURCE_INDEX);
@@ -2039,10 +2031,13 @@ pub fn ReferenceTopology(
                 .destination = start_index,
             };
 
-            const codes = map_nodes.items(.code);
+            const codes = tree_nodes.items(.code);
             const source_code = codes[start_index];
-            const maybe_child_indices = map_nodes.items(.child_indices);
+            const maybe_child_indices = tree_nodes.items(.child_indices);
 
+            // for each terminal space, build the topology to transform to that
+            // space.  For each mapping in each topology, add the end points
+            // for the mapping to the unsorted_vertices list
             for (codes, maybe_child_indices, 0..)
                 |current_code, maybe_children, current_index|
             {
@@ -2058,42 +2053,34 @@ pub fn ReferenceTopology(
 
                 proj_args.destination = current_index;
 
-                const proj_op = (
+                const source_to_current_proj_op = (
                     try build_projection_operator_indices(
-                        parent_allocator,
-                        temporal_map,
+                        allocator_parent,
+                        tree,
                         proj_args,
                         cache,
                     )
                 );
 
-                const to_dest_topo = proj_op.src_to_dst_topo;
+                const to_dest_topo = (
+                    source_to_current_proj_op.src_to_dst_topo
+                );
 
-                try unsplit_intervals.ensureUnusedCapacity(
-                    allocator_arena,
-                    to_dest_topo.mappings.len
-                );
                 try self.mappings.ensureUnusedCapacity(
-                    parent_allocator,
+                    allocator_parent,
                     to_dest_topo.mappings.len
                 );
-                try vertices_builder.ensureUnusedCapacity(
+                try unsorted_vertices.ensureUnusedCapacity(
                     allocator_arena,
                     2 * to_dest_topo.mappings.len,
                 );
 
-                for (to_dest_topo.mappings)
-                    |child_mapping|
+                const first_mapping_index = self.mappings.len;
+                for (to_dest_topo.mappings, first_mapping_index..)
+                    |child_mapping, new_mapping_index|
                 {
-                    const new_index = self.mappings.len;
-                    const new_bounds = (
+                    const interval_bounds = (
                         child_mapping.input_bounds()
-                    );
-                    unsplit_intervals.appendAssumeCapacity(
-                        .{
-                            .input_bounds = new_bounds,
-                            .mapping_index = new_index,
-                        },
                     );
                     self.mappings.appendAssumeCapacity(
                         .{
@@ -2101,27 +2088,30 @@ pub fn ReferenceTopology(
                             .mapping = child_mapping,
                         },
                     );
-                    vertices_builder.appendAssumeCapacity(
+                    unsorted_vertices.appendAssumeCapacity(
                         .{
-                            .interval_index = new_index,
-                            .ordinate = new_bounds.start,
+                            .interval_index = new_mapping_index,
+                            .ordinate = interval_bounds.start,
                             .kind = .start,
                         },
                     );
-                    vertices_builder.appendAssumeCapacity(
+                    unsorted_vertices.appendAssumeCapacity(
                         .{
-                            .interval_index = new_index,
-                            .ordinate = new_bounds.end,
+                            .interval_index = new_mapping_index,
+                            .ordinate = interval_bounds.end,
                             .kind = .end,
                         },
                     );
                 }
             }
 
-            // sort the vertices
+            // sort the vertices in time.  given the intervals:
+            // 1:[0, 3), 2:[0, 6) and 3:[3, 6)
+            // the result should be:
+            // [0.1, 0.2, 3.1, 3.3, 6.2, 6.3]
             ///////////
-            const vertices = vertices_builder.slice();
-            vertices_builder.sortUnstable(
+            const sorted_vertices = unsorted_vertices.slice();
+            unsorted_vertices.sortUnstable(
                 struct{
                     ordinates: []opentime.Ordinate,
 
@@ -2136,24 +2126,23 @@ pub fn ReferenceTopology(
 
                         return a_ord.lt(b_ord);
                     }
-                }{ .ordinates = vertices.items(.ordinate) }
+                }{ 
+                    .ordinates = (
+                        sorted_vertices.items(.ordinate) 
+                    )
+                }
             );
-
-            const IntervalRef = struct {
-                index: NodeIndex,
-                kind: vertex_kind,
-            };
 
             var cut_points: std.MultiArrayList(
                 struct{
                     ordinate: opentime.Ordinate,
                     indices: []NodeIndex,
-                    kind: []vertex_kind,
+                    kind: []start_or_end,
                 }
             ) = .empty;
             try cut_points.ensureTotalCapacity(
                 allocator_arena,
-                vertices.len,
+                sorted_vertices.len,
             );
             defer {
                 for (
@@ -2166,35 +2155,49 @@ pub fn ReferenceTopology(
                 }
                 cut_points.deinit(allocator_arena);
             }
+            var current_intervals: std.MultiArrayList(
+                struct {
+                    index: NodeIndex,
+                    kind: start_or_end,
+                }
+            ) = .empty;
 
-            // merge the intervals and combine the lists
+            // merge the sorted vertices and create lists of associated
+            // interval start/end.
+            //
+            // Given the previous result:
+            // [0.1, 0.2, 3.1, 3.3, 6.2, 6.3]
+            // merged/sorted_lists: [
+            //            0: {1.start, 2.start}, 
+            //            3: {1.end, 3.start}, 
+            //            6: {2.end, 3.end}
+            //  ]
             ///////////
-            var cut_point = vertices.items(.ordinate)[0];
-            var current_intervals: std.MultiArrayList(IntervalRef) = .empty;
+            var cut_point = sorted_vertices.items(.ordinate)[0];
             try current_intervals.append(
                 allocator_arena, 
                 .{
-                    .index = vertices.items(.interval_index)[0],
-                    .kind = vertices.items(.kind)[0],
+                    .index = sorted_vertices.items(.interval_index)[0],
+                    .kind = sorted_vertices.items(.kind)[0],
                 },
             );
 
             for (
-                vertices.items(.interval_index),
-                vertices.items(.kind),
-                vertices.items(.ordinate),
+                sorted_vertices.items(.interval_index),
+                sorted_vertices.items(.kind),
+                sorted_vertices.items(.ordinate),
             ) |int_ind, kind, vert|
             {
                 // if the ordinate is not close enough, then create a new vert
                 if (vert.eql_approx(cut_point) == false)
                 {
-                    var compled = current_intervals.toOwnedSlice();
+                    var current_slice = current_intervals.toOwnedSlice();
 
                     cut_points.appendAssumeCapacity(
                         .{
                             .ordinate = cut_point,
-                            .indices = compled.items(.index),
-                            .kind = compled.items(.kind),
+                            .indices = current_slice.items(.index),
+                            .kind = current_slice.items(.kind),
                         }
                     );
                     current_intervals = .empty;
@@ -2212,13 +2215,13 @@ pub fn ReferenceTopology(
 
             // append the last segment
             {
-                var compled = current_intervals.toOwnedSlice();
+                var current_slice = current_intervals.toOwnedSlice();
                 try cut_points.append(
                     allocator_arena,
                     .{
                         .ordinate = cut_point,
-                        .indices = compled.items(.index),
-                        .kind = compled.items(.kind),
+                        .indices = current_slice.items(.index),
+                        .kind = current_slice.items(.kind),
                     }
                 );
             }
@@ -2251,19 +2254,31 @@ pub fn ReferenceTopology(
             // std.debug.print("done.\n", .{});
             
             // split and merge intervals together
+            // given: [
+            //            0: {1.start, 2.start}, 
+            //            3: {1.end, 3.start}, 
+            //            6: {2.end, 3.end}
+            //  ]
+            //  track which mappings are active over which segments:
+            //  [ 
+            //      { [0, 3): 1, 2 },
+            //      { [3, 6): 2, 3 } 
+            //  ]
             ////////////
-            var active_intervals = try (
+            var active_mappings = try (
                 std.DynamicBitSetUnmanaged.initEmpty(
                     allocator_arena,
-                    cut_point_slice.len,
+                    self.mappings.len,
                 )
             );
 
             const ordinates = cut_point_slice.items(.ordinate);
             const len = ordinates.len;
 
+            std.debug.assert(ordinates.len == cut_point_slice.len);
+
             try self.intervals.ensureTotalCapacity(
-                parent_allocator,
+                allocator_parent,
                 len - 1
             );
 
@@ -2274,39 +2289,40 @@ pub fn ReferenceTopology(
                 ordinates[1..],
                 cut_point_slice.items(.kind)[0..len - 1],
                 cut_point_slice.items(.indices)[0..len - 1],
-            ) |ord_start, ord_end, kinds, intervals|
+            ) |ord_start, ord_end, kinds, mappings|
             {
-                for (kinds, intervals)
-                    |kind, interval|
+                for (kinds, mappings)
+                    |kind, mapping|
                 {
                     // std.debug.print(
                     //     "interval: {d} active_intervals_len: {d}\n",
                     //     .{interval, active_intervals.bit_length },
                     // );
+                    std.debug.assert(mapping < active_mappings.bit_length);
 
                     if (kind == .start)
                     {
-                        active_intervals.setValue(interval, true);
+                        active_mappings.setValue(mapping, true);
                     }
                     else if (kind == .end)
                     {
-                        active_intervals.setValue(interval, false);
+                        active_mappings.setValue(mapping, false);
                     }
                 }
 
                 var bit_iter = (
-                    active_intervals.iterator(.{})
+                    active_mappings.iterator(.{})
                 );
 
                 try indices.ensureTotalCapacity(
-                    parent_allocator,
-                    active_intervals.count()
+                    allocator_parent,
+                    active_mappings.count(),
                 );
 
                 while (bit_iter.next())
-                    |index|
+                    |active_mapping_index|
                 {
-                    indices.appendAssumeCapacity(index);
+                    indices.appendAssumeCapacity(active_mapping_index);
                 }
 
                 self.intervals.appendAssumeCapacity(
@@ -2316,7 +2332,7 @@ pub fn ReferenceTopology(
                             .end = ord_end,
                         },
                         .mapping_index = try indices.toOwnedSlice(
-                            parent_allocator
+                            allocator_parent
                         ),
                     },
                 );
@@ -2735,12 +2751,12 @@ pub const SingleSourceTopologyCache = struct {
 
     pub fn init(
         allocator: std.mem.Allocator,
-        map: temporal_tree.TemporalTree,
+        tree: temporal_tree.TemporalTree,
     ) !SingleSourceTopologyCache
     {
         const cache = try allocator.alloc(
             ?topology_m.Topology,
-            map.nodes.len,
+            tree.nodes.len,
         );
         @memset(cache, null);
 
@@ -2823,12 +2839,12 @@ pub fn build_projection_operator_indices(
 
 pub fn build_projection_operator_assume_sorted(
     parent_allocator: std.mem.Allocator,
-    map: temporal_tree.TemporalTree,
+    tree: temporal_tree.TemporalTree,
     sorted_endpoints: temporal_tree.TemporalTree.PathEndPointIndices,
     operator_cache: SingleSourceTopologyCache,
 ) !ProjectionOperator 
 {
-    const space_nodes = map.nodes.slice();
+    const space_nodes = tree.nodes.slice();
 
     // if destination is already present in the cache
     if (operator_cache.items[sorted_endpoints.destination])
@@ -2861,16 +2877,16 @@ pub fn build_projection_operator_assume_sorted(
 
     const source_index = sorted_endpoints.source;
 
-    const path_nodes = map.tree_data.slice();
+    const path_nodes = tree.tree_data.slice();
     const codes = path_nodes.items(.code);
 
     // compute the path length
-    const path = try temporal_tree.path_from_parents(
+    const path = try tree.path(
         allocator_arena,
-        source_index,
-        sorted_endpoints.destination,
-        codes,
-        path_nodes.items(.parent_index),
+        .{ 
+            .source = source_index,
+            .destination = sorted_endpoints.destination,
+        },
     );
 
     if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
