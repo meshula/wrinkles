@@ -101,7 +101,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     // build the temporal map
     ///////////////////////////////////////////////////////////////////////////
     var proj_topo = (
-        try otio.ProjectionTopology.init_from(
+        try otio.TemporalProjectionBuilder.init_from(
             allocator, 
             tl_ptr.space(.presentation)
         )
@@ -346,7 +346,7 @@ test "libsamplerate w/ high level test -- resample only"
     // build the ProjectionBuilder
     ///////////////////////////////////////////////////////////////////////////
     var tr_pres_projection_builder = (
-        try otio.ProjectionTopology.init_from(
+        try otio.TemporalProjectionBuilder.init_from(
             allocator,
             tr_ptr.space(.presentation),
         )
@@ -500,7 +500,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
     // build the temporal map
     ///////////////////////////////////////////////////////////////////////////
     var proj_topo_from_tl_pres = (
-        try otio.ProjectionTopology.init_from(
+        try otio.TemporalProjectionBuilder.init_from(
             allocator, 
             tl_ptr.space(.presentation)
         )
@@ -653,7 +653,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     // build the temporal map
     ///////////////////////////////////////////////////////////////////////////
     var proj_topo_from_tr_pres = (
-        try otio.ProjectionTopology.init_from(
+        try otio.TemporalProjectionBuilder.init_from(
             allocator, 
             tr_ptr.space(.presentation)
         )
@@ -811,7 +811,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     // build the temporal map (Tr.presentation -> ...)
     ///////////////////////////////////////////////////////////////////////////
     var proj_topo_from_tr_pres = (
-        try otio.ProjectionTopology.init_from(
+        try otio.TemporalProjectionBuilder.init_from(
             allocator, 
             tr_ptr.space(.presentation)
         )
@@ -959,7 +959,7 @@ test "timeline w/ warp that holds the tenth frame"
     // build the temporal map
     ///////////////////////////////////////////////////////////////////////////
     var proj_topo_from_tr_pres = (
-        try otio.ProjectionTopology.init_from(
+        try otio.TemporalProjectionBuilder.init_from(
             allocator, 
             tr_ptr.space(.presentation)
         )
@@ -1071,7 +1071,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     // build the temporal map
     ///////////////////////////////////////////////////////////////////////////
     var proj_topo_from_tl_pres = (
-        try otio.ProjectionTopology.init_from(
+        try otio.TemporalProjectionBuilder.init_from(
             allocator, 
             tl_ptr.space(.presentation)
         )

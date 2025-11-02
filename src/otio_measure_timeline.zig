@@ -139,7 +139,7 @@ pub fn main(
         );
 
         var projection_topo = (
-            try otio.projection.ProjectionTopology.init_from(
+            try otio.projection.TemporalProjectionBuilder.init_from(
                 allocator,
                 tl_ref.space(.presentation),
             )

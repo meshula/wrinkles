@@ -336,7 +336,7 @@ test "ReferenceTopology: leak test"
     };
     const cl_ptr = references.ComposedValueRef.init(&cl);
 
-    var cl_pres_proj_topo = try ProjectionTopology.init_from(
+    var cl_pres_proj_topo = try TemporalProjectionBuilder.init_from(
         allocator,
         cl_ptr.space(.presentation)
     );
@@ -357,7 +357,7 @@ test "ReferenceTopology: leak test"
     );
 }
 
-test "ProjectionOperatorMap: clip"
+test "ProjectionBuilder: clip"
 {
     const allocator = std.testing.allocator;
 
@@ -367,7 +367,7 @@ test "ProjectionOperatorMap: clip"
     const cl_ptr = references.ComposedValueRef{ .clip = &cl };
 
     var cl_pres_projection_builder = (
-        try ProjectionTopology.init_from(
+        try TemporalProjectionBuilder.init_from(
             allocator,
             cl_ptr.space(.presentation),
         )
@@ -437,7 +437,7 @@ test "ProjectionOperatorMap: clip"
     );
 }
 
-test "ProjectionOperatorMap: track with single clip"
+test "ProjectionBuilder: track with single clip"
 {
     const allocator = std.testing.allocator;
 
@@ -452,12 +452,12 @@ test "ProjectionOperatorMap: track with single clip"
 
     const source_space = tr_ptr.space(.presentation);
 
-    var test_maps = [_]ProjectionTopology{
-        try ProjectionTopology.init_from(
+    var test_maps = [_]TemporalProjectionBuilder{
+        try TemporalProjectionBuilder.init_from(
             allocator,
             cl_ptr.space(.presentation),
         ),
-        try ProjectionTopology.init_from(
+        try TemporalProjectionBuilder.init_from(
             allocator,
             source_space,
         ),
@@ -710,7 +710,7 @@ test "ProjectionTopology: track with two clips"
     const source_space = tr_ptr.space(.presentation);
 
     var cl_pres_projection_builder = (
-        try ProjectionTopology.init_from(
+        try TemporalProjectionBuilder.init_from(
             allocator,
             source_space,
         )
@@ -767,7 +767,7 @@ test "ProjectionTopology: track with two clips"
     );
 }
 
-test "ProjectionOperatorMap: track [c1][gap][c2]"
+test "ProjectionBuilder: track [c1][gap][c2]"
 {
     const allocator = std.testing.allocator;
 
@@ -791,7 +791,7 @@ test "ProjectionOperatorMap: track [c1][gap][c2]"
     const tr_ptr = references.ComposedValueRef.init(&tr);
 
     var tr_pres_projection_builder = (
-        try ProjectionTopology.init_from(
+        try TemporalProjectionBuilder.init_from(
             allocator,
             tr_ptr.space(.presentation),
         )
@@ -926,7 +926,7 @@ test "Projection: schema.Track 3 bounded clips identity xform"
     const track_ptr = tr.reference();
 
     var tr_pres_projection_builder = (
-        try ProjectionTopology.init_from(
+        try TemporalProjectionBuilder.init_from(
             allocator,
             track_ptr.space(.presentation),
         )
@@ -1140,7 +1140,7 @@ test "Single schema.Clip bezier transform"
     const wp_ptr : references.ComposedValueRef = .{ .warp = &wp };
 
     var wp_pres_projection_builder = (
-        try ProjectionTopology.init_from(
+        try TemporalProjectionBuilder.init_from(
             allocator,
             wp_ptr.space(.presentation),
         )
@@ -1302,7 +1302,7 @@ test "otio projection: track with single clip"
     const tr_ptr = tr.reference();
 
     var tr_pres_projection_builder = (
-        try ProjectionTopology.init_from(
+        try TemporalProjectionBuilder.init_from(
             allocator,
             tr_ptr.space(.presentation),
         )
@@ -1509,7 +1509,7 @@ test "otio projection: track with single clip with transform"
     const tr_ptr = tl.tracks.children[0];
 
     var tr_pres_projection_builder = (
-        try ProjectionTopology.init_from(
+        try TemporalProjectionBuilder.init_from(
             allocator, 
             tr_ptr.space(.presentation)
         )
@@ -1631,7 +1631,7 @@ test "otio projection: track with single clip with transform"
         // discrete -> continuous
         {
             var tl_pres_projection_builder = (
-                try ProjectionTopology.init_from(
+                try TemporalProjectionBuilder.init_from(
                     allocator, 
                     tl_ptr.space(.presentation),
                 )
@@ -1823,7 +1823,7 @@ test "Single clip, schema.Warp bulk"
         const wp_ptr : references.ComposedValueRef = .{ .warp =  &warp };
 
         var wp_pres_projection_builder = (
-            try ProjectionTopology.init_from(
+            try TemporalProjectionBuilder.init_from(
                 allocator, 
                 wp_ptr.space(.presentation),
             )
@@ -1927,15 +1927,33 @@ test "Single clip, schema.Warp bulk"
     }
 }
 
-/// A graph of temporal spaces in `schema` objects combined with a cache of
-/// `topology.Topology` so that `ProjectionOperator`s can be efficiently
-/// created across the entire temporal graph.
-pub fn ReferenceTopology(
+/// Acceleration structure that decomposes the tree of spaces under `source`
+/// into a list of intervals in the source space associated with the
+/// transformation into the terminal space.
+///
+/// Given a timeline with two tracks:
+///
+///     0     3     6
+/// t1: [ c1 )[  c2 )
+/// t2: [    c3     )
+///
+/// Creates a flat data structure:
+///
+/// [
+///     { [0, 3): -> c1, -> c3 },
+///     { [3, 6): -> c2, -> c3 },
+/// ]
+///
+/// This allows fast construction of projection operators over large trees.
+///
+/// Includes a `cache` for interior transformations and a tree of all the
+/// spaces under the `source` space.
+pub fn ProjectionBuilder(
     comptime SpaceReferenceType: type,
 ) type
 {
     return struct {
-        pub const ReferenceTopologyType = @This();
+        pub const ProjectionBuilderType = @This();
 
         /// index of the root node
         const SOURCE_INDEX = 0;
@@ -1969,7 +1987,7 @@ pub fn ReferenceTopology(
         pub fn init_from(
             allocator_parent: std.mem.Allocator,
             source_reference: SpaceReferenceType,
-        ) !ReferenceTopologyType
+        ) !ProjectionBuilderType
         {
             var arena = std.heap.ArenaAllocator.init(
                 allocator_parent,
@@ -1995,7 +2013,7 @@ pub fn ReferenceTopology(
                 )
             );
 
-            var self: ReferenceTopologyType = .{
+            var self: ProjectionBuilderType = .{
                 .source = source_reference,
                 .mappings = .empty,
                 .intervals = .empty,
@@ -2536,7 +2554,7 @@ pub fn ReferenceTopology(
     };
 }
 
-pub const ProjectionTopology = ReferenceTopology(
+pub const TemporalProjectionBuilder = ProjectionBuilder(
     references.SpaceReference
 );
 
@@ -2626,7 +2644,7 @@ test "ReferenceTopology: init_from_reference"
     // build ProjectionTopology
     //////////////////////////
     var projection_topo = (
-        try ProjectionTopology.init_from(
+        try TemporalProjectionBuilder.init_from(
             allocator,
             tl_ref.space(.presentation),
         )

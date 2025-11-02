@@ -459,7 +459,7 @@ test "read_from_file test (simple)"
     const target_clip_ptr = track0.children[0];
 
     var tl_pres_projection_builder = (
-        try otio.ProjectionTopology.init_from(
+        try otio.TemporalProjectionBuilder.init_from(
             allocator,
             tl_ptr.space(.presentation),
         )

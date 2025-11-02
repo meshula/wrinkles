@@ -8,7 +8,7 @@ pub const SpaceLabel = references.SpaceLabel;
 
 pub const projection = @import("projection.zig");
 pub const ProjectionOperator = projection.ProjectionOperator;
-pub const ProjectionTopology = projection.ProjectionTopology;
+pub const TemporalProjectionBuilder = projection.TemporalProjectionBuilder;
 
 pub const temporal_tree = @import("temporal_tree.zig");
 

@@ -1096,7 +1096,7 @@ test "track child after gap - use presentation space to compute offset"
     const tr_ref = references.ComposedValueRef.init(&tr);
 
     var proj_topo = (
-        try projection.ProjectionTopology.init_from(
+        try projection.TemporalProjectionBuilder.init_from(
             allocator,
             tr_ref.space(.presentation),
         )
