@@ -230,11 +230,13 @@ fn walk_internal_spaces(
 pub fn build_temporal_tree(
     parent_allocator: std.mem.Allocator,
     /// root item of the tree
-    root_item: references.ComposedValueRef,
+    root_space: references.SpaceReference,
 ) !TemporalTree 
 {
     var tmp_tree: TemporalTree = .empty;
     errdefer tmp_tree.deinit(parent_allocator);
+
+    const root_item = root_space.ref;
 
     // NOTE: because OTIO objects contain multiple internal spaces, there is a
     //       stack of objects to process.
@@ -257,7 +259,7 @@ pub fn build_temporal_tree(
             .otio_object = root_item,
             .path_code = root_code_ptr,
             .parent_index = null,
-        }
+        },
     );
 
     if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
@@ -311,7 +313,7 @@ test "build_temporal_tree: leak sentinel test track w/ clip"
 
     const tree = try build_temporal_tree(
         allocator,
-        tr_ref,
+        tr_ref.space(.presentation),
     );
     defer tree.deinit(allocator);
 }
@@ -350,7 +352,7 @@ test "build_temporal_tree check root node"
 
     const tree = try build_temporal_tree(
         allocator,
-        tr_ref,
+        tr_ref.space(.presentation),
     );
     defer tree.deinit(allocator);
 
@@ -413,7 +415,7 @@ test "build_temporal_tree: leak sentinel test - single clip"
 
     const tree = try build_temporal_tree(
         allocator,
-        references.ComposedValueRef.init(&cl)
+        cl.reference().space(.presentation)
     );
     defer tree.deinit(allocator);
 }
@@ -432,7 +434,7 @@ test "TestWalkingIterator: clip"
 
     const tree = try build_temporal_tree(
         allocator,
-        cl_ptr,
+        cl_ptr.space(.presentation),
     );
     defer tree.deinit(allocator);
 
@@ -472,7 +474,7 @@ test "TestWalkingIterator: track with clip w/ destination"
 
     const tree = try build_temporal_tree(
         std.testing.allocator,
-        tr_ptr
+        tr_ptr.space(.presentation)
     );
     defer tree.deinit(allocator);
 
@@ -732,7 +734,7 @@ test "path_code: tree test"
 
     const tree = try build_temporal_tree(
         allocator,
-        tr_ref,
+        tr_ref.space(.presentation),
     );
     defer tree.deinit(allocator);
 
@@ -827,7 +829,7 @@ test "schema.Track with clip with identity transform projection"
 
     const tree = try build_temporal_tree(
         allocator,
-        tr_ref,
+        tr_ref.space(.presentation),
     );
     defer tree.deinit(allocator);
 
@@ -837,7 +839,7 @@ test "schema.Track with clip with identity transform projection"
     );
 
     const cache = (
-        try projection.SingleSourceTopologyCache.init(
+        try projection.TemporalProjectionBuilder.SingleSourceTopologyCache.init(
             allocator,
             tree,
         )
@@ -891,7 +893,7 @@ test "Temporaltree: schema.Track with clip with identity transform"
 
     const tree = try build_temporal_tree(
         allocator,
-        root,
+        root.space(.presentation),
     );
     defer tree.deinit(allocator);
 
@@ -944,7 +946,7 @@ test "Temporaltree: schema.Track with clip with identity transform"
     );
 
     const cache = (
-        try projection.SingleSourceTopologyCache.init(
+        try projection.TemporalProjectionBuilder.SingleSourceTopologyCache.init(
             allocator,
             tree,
         )
@@ -1053,15 +1055,13 @@ test "test debug_print_time_hierarchy"
         },
         .tracks = .{ .children = &tl_children },
     };
-    const tl_ptr = references.ComposedValueRef{
-        .timeline = &tl 
-    };
+    const tl_ptr = tl.reference();
 
     //////
 
     const tp = try build_temporal_tree(
         allocator,
-        tl_ptr
+        tl_ptr.space(.presentation),
     );
     defer tp.deinit(allocator);
 }

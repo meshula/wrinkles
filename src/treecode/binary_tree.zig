@@ -49,6 +49,7 @@ pub fn BinaryTree(
     return struct {
         // type alias
         const BinaryTreeType = @This();
+        pub const TreeNodeType = NodeType;
 
         /// Encoding of the end points of a path between `NodeType`s in the 
         /// `BinaryTree`.

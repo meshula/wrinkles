@@ -28,7 +28,7 @@ pub const SpaceLabel = union (enum) {
     media: void,
 
     // The NodeIndex of the child in the Space Map
-    child: projection.TemporalProjectionBuilder.NodeIndex,
+    child: treecode.binary_tree.NodeIndex,
 
     pub fn format(
         self: @This(),

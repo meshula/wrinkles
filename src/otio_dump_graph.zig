@@ -158,7 +158,7 @@ pub fn main(
     // build the graph
     const graph = try otio.temporal_tree.build_temporal_tree(
         allocator,
-        otio.ComposedValueRef.init(tl),
+        tl.reference().space(.presentation),
     );
     defer graph.deinit(allocator);
 
