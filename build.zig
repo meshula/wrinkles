@@ -862,6 +862,8 @@ pub fn build(
         // libraries with c components
         .{ .name = "spline_gym", .module = spline_gym.root_module },
         .{ .name = "sampling", .module = sampling },
+
+        .{ .name = "opentimelineio", .module = opentimelineio },
     };
 
     // probably gone for good, but haven't removed yet
