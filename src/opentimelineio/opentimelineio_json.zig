@@ -196,7 +196,7 @@ inline fn read_children(
         child_count,
     );
 
-    var currnet_index: usize = 0;
+    var current_index: usize = 0;
     for (children.array.items) 
         |track| 
     {
@@ -223,13 +223,13 @@ inline fn read_children(
                 },
             }
         };
-        new_children[currnet_index] = new_value;
-        currnet_index += 1;
+        new_children[current_index] = new_value;
+        current_index += 1;
     }
 
-    _ = allocator.resize(
+    new_children = try allocator.realloc(
         new_children,
-        currnet_index,
+        current_index - 1,
     );
 
     return new_children;
