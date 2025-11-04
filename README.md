@@ -10,8 +10,8 @@
 
 ## Contents
 
-* `treecode`: library for encoding paths through graphs and a `Map` for mapping
-  paths to nodes in a graph
+* `treecode`: library for encoding paths through graphs and a `BinaryTree` for
+  which uses the treecodes to encode node locations
 * `opentime`: low level points, intervals and affine transforms, and
   `Dual` for doing dual arithmetic/implicit differentiation.  Also includes the
   likely-to-be-deleted `PhaseOrdinate` [^1].
@@ -28,14 +28,12 @@
   which can define discrete spaces so that you can project from a discrete
   space to another discrete space with a continuous transformation in the
   middle.
-* `TemporalMap`: tools to transform an editorial document described by
-  OpenTimelineIO structures into a temporal hierarchy using the `treecode`
-  library.  ProjectionOperators can be built from endpoints in this hierarchy.
-* `ProjectionOperatorMap`: decomposes/flattens a TemporalMap from a source
-  space such that each segment maps a set of ProjectionOperators to region of
-  the source space, mapping media under each section of the output timeline
-* `OpenTimelineIO`: structures to represent an editorial timeline document
-
+* `OpenTimelineIO`: structures to represent an editorial timeline document and
+  construct `SpaceReferences`
+* `TemporalTree`: A specialization of the `treecode.BinaryTree` over
+  `SpaceReference`
+* `TemporalProjectionBuilder`: An acceleration structure that allows quickly
+  building projections from a complex graph
 
 Structure:
 
@@ -44,11 +42,13 @@ Structure:
                       |       \
 `treecode`        `sampling`   `curve`
       |              |        /
-      \           `Topology`
+      |           `Topology`
+      |              |
+      |           `ProjectionOperator`
+      |              |
+      \           `OpenTimelineIO`
        \             |
-        '----------`ProjectionOperator`
-                     |
-                  `OpenTimelineIO`
+        `---------`TemporalProjectionBuilder`
 ```
 
 Additionally there are tools for visualizing curves, transformations, and the
@@ -95,10 +95,14 @@ temporal hierarchies of editorial documents.
 ## Todo List (10/9/25)
 
 * [x] optimize generating the ProjectionOperatorMap for large otio files
-* [ ] Can Projection Operator go away?
-* [ ] Can the Projection Operator map get melded in with Topology, omitting 
+* [x] Can Projection Operator go away?
+* [x] Can the Projection Operator map get melded in with Topology, omitting 
       both the Projection Operator and Operator Map?
 * [ ] difference between `RANGE` and `BOUNDS` -- when to use each
+* [ ] Raven recode against this tooling?
+* [ ] serialize OTIO Files for round tripping?
+* [ ] warp schema?  Transition 2.0?
+* [ ] schema updater app?
 
 ## Todo List (11/6/24)
 
