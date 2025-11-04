@@ -1932,6 +1932,7 @@ test "Single clip, schema.Warp bulk"
 
 pub const TemporalProjectionBuilder = projection_builder.ProjectionBuilder(
     references.SpaceReference,
+    ProjectionOperator,
     temporal_tree.build_temporal_tree,
 );
 

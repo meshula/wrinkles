@@ -7,8 +7,6 @@ const opentime = @import("opentime");
 const topology_m = @import("topology");
 const treecode = @import("treecode");
 
-const projection = @import("projection.zig");
-
 const GRAPH_CONSTRUCTION_TRACE_MESSAGES = false;
 
 /// Acceleration structure that decomposes the tree of spaces under `source`
@@ -17,28 +15,46 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = false;
 ///
 /// Given a timeline with two tracks:
 ///
+/// ```
 ///     0     3     6
 /// t1: [ c1 )[  c2 )
 /// t2: [    c3     )
+/// ```
 ///
 /// Creates a flat data structure:
 ///
+/// ```
 /// [
 ///     { [0, 3): -> c1, -> c3 },
 ///     { [3, 6): -> c2, -> c3 },
 /// ]
+/// ```
 ///
 /// This allows fast construction of projection operators over large trees.
 ///
 /// Includes a `cache` for interior transformations and a tree of all the
 /// spaces under the `source` space.
 pub fn ProjectionBuilder(
-    comptime SpaceReferenceType : type,
-    comptime tree_builder_fn: fn (std.mem.Allocator, SpaceReferenceType) anyerror!treecode.BinaryTree(SpaceReferenceType)
+    /// A reference to a single space in the hierarchy
+    comptime SpaceReferenceType: type,
+    /// An operator which can project between different points in the hierarchy
+    comptime ProjectionOperatorType: type,
+    /// A function which can be called and given a root space to generate a
+    /// `treecode.BinaryTree` specialized over the `SpaceReferenceType` of all
+    /// spaces under the source space.
+    comptime tree_builder_fn: (
+        fn (
+            std.mem.Allocator,
+            SpaceReferenceType
+        ) anyerror!treecode.BinaryTree(SpaceReferenceType)
+    )
 ) type
 {
     return struct {
+        /// Alias to this type
         pub const ProjectionBuilderType = @This();
+        /// Alias to the `treecode.BinaryTree` specialization for
+        /// `SpaceReferenceType` 
         pub const TreeType = treecode.BinaryTree(SpaceReferenceType);
 
         /// index of the root node
@@ -52,6 +68,7 @@ pub fn ProjectionBuilder(
         source: SpaceReferenceType,
         /// Tree of all spaces underneath the `source` space.
         tree: TreeType,
+        /// cache of intermediate topologies inside the tree
         cache: SingleSourceTopologyCache,
 
         /// Linking the mapping to the destination space in `tree`
@@ -497,7 +514,7 @@ pub fn ProjectionBuilder(
             self: @This(),
             allocator: std.mem.Allocator,
             destination_space: SpaceReferenceType,
-        ) !projection.ProjectionOperator
+        ) !ProjectionOperatorType
         {
             return try build_projection_operator_assume_sorted(
                 allocator,
@@ -520,7 +537,7 @@ pub fn ProjectionBuilder(
             self: @This(),
             allocator: std.mem.Allocator,
             target: SpaceReferenceType,
-        ) !projection.ProjectionOperator
+        ) !ProjectionOperatorType
         {
             var result = (
                 try build_projection_operator_assume_sorted(
@@ -572,7 +589,7 @@ pub fn ProjectionBuilder(
             self: @This(),
             allocator: std.mem.Allocator,
             destination_space_index: NodeIndex,
-        ) !projection.ProjectionOperator
+        ) !ProjectionOperatorType
         {
             return try build_projection_operator_indices(
                 allocator,
@@ -648,7 +665,7 @@ pub fn ProjectionBuilder(
             tree: TreeType,
             endpoints: TreeType.PathEndPointIndices,
             operator_cache: SingleSourceTopologyCache,
-        ) !projection.ProjectionOperator 
+        ) !ProjectionOperatorType
         {
             // sort endpoints so that the higher node is always the source
             var sorted_endpoints = endpoints;
@@ -703,7 +720,7 @@ pub fn ProjectionBuilder(
             tree: TreeType,
             sorted_endpoints: TreeType.PathEndPointIndices,
             operator_cache: SingleSourceTopologyCache,
-        ) !projection.ProjectionOperator 
+        ) !ProjectionOperatorType
         {
             const space_nodes = tree.nodes.slice();
 
@@ -866,8 +883,12 @@ pub fn ProjectionBuilder(
             }
 
             return .{
-                .source = space_nodes.get(sorted_endpoints.source),
-                .destination = space_nodes.get(sorted_endpoints.destination),
+                .source = (
+                    space_nodes.get(sorted_endpoints.source)
+                ),
+                .destination = (
+                    space_nodes.get(sorted_endpoints.destination)
+                ),
                 .src_to_dst_topo = root_to_current,
             };
         }
