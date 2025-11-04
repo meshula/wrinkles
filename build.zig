@@ -899,6 +899,14 @@ pub fn build(
 
     try executable(
         b,
+        "otio_space_visualizer",
+        "src/otio_space_visualizer.zig",
+        options,
+        common_deps,
+    );
+
+    try executable(
+        b,
         "otio_dump_graph",
         "src/otio_dump_graph.zig",
         options,
