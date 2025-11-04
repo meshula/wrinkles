@@ -142,11 +142,11 @@ pub fn main(
     }
 
     // read the file
-    var tl = try otio.read_from_file(
+    var tl_ref = try otio.read_from_file(
         allocator,
         state.input_otio,
     );
-    defer tl.recursively_deinit(allocator);
+    defer tl_ref.recursively_deinit(allocator);
 
     read_prog.end();
 
@@ -158,7 +158,7 @@ pub fn main(
     // build the graph
     const graph = try otio.temporal_tree.build_temporal_tree(
         allocator,
-        tl.reference().space(.presentation),
+        tl_ref.space(.presentation),
     );
     defer graph.deinit(allocator);
 

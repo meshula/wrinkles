@@ -105,7 +105,7 @@ pub export fn otio_read_from_file(
 
     return .{
         .kind = c.otio_ct_timeline,
-        .ref = @ptrCast(result),
+        .ref = @ptrCast(result.timeline),
     };
 }
 

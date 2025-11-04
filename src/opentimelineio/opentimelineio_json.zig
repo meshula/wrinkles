@@ -389,7 +389,7 @@ pub fn read_otio_object(
 pub fn read_from_file(
     in_allocator: std.mem.Allocator,
     file_path: string.latin_s8
-) !*otio.Timeline 
+) !otio.ComposedValueRef
 {
     const fi = try std.fs.cwd().openFile(file_path, .{});
     defer fi.close();
@@ -416,7 +416,7 @@ pub fn read_from_file(
     );
 
     if (hopefully_timeline == otio.ComposedValueRef.timeline) {
-        return hopefully_timeline.timeline;
+        return hopefully_timeline;
     }
 
     return error.NotImplemented;
@@ -430,20 +430,23 @@ test "read_from_file test (simple)"
     const otio_fpath = root ++ ".otio";
     const dot_fpath = root ++ ".dot";
 
-    var tl = try read_from_file(
+    var tl_ref = try read_from_file(
         std.testing.allocator,
         "sample_otio_files/"++otio_fpath,
     );
     defer {
-        tl.recursively_deinit(allocator);
-        allocator.destroy(tl);
+        tl_ref.recursively_deinit(allocator);
+        allocator.destroy(tl_ref);
     }
 
-    const track0 = tl.tracks.children[0].track;
+    const track0 = tl_ref.timeline.tracks.children[0].track;
 
     if (std.mem.eql(u8, root, "simple_cut"))
     {
-        try expectEqual(@as(usize, 1), tl.tracks.children.len);
+        try expectEqual(
+            @as(usize, 1),
+            tl_ref.timeline.tracks.children.len,
+        );
 
         try expectEqual(@as(usize, 4), track0.children.len);
         try std.testing.expectEqualStrings(
@@ -452,16 +455,12 @@ test "read_from_file test (simple)"
         );
     }
 
-    const tl_ptr = otio.ComposedValueRef{
-        .timeline = tl,
-    };
-
     const target_clip_ptr = track0.children[0];
 
     var tl_pres_projection_builder = (
         try otio.TemporalProjectionBuilder.init_from(
             allocator,
-            tl_ptr.space(.presentation),
+            tl_ref.space(.presentation),
         )
     );
     defer tl_pres_projection_builder.deinit(allocator);

@@ -122,14 +122,11 @@ pub fn main(
         }
 
         // read the file
-        var tl = try otio.read_from_file(
+        var tl_ref = try otio.read_from_file(
             allocator,
             filepath,
         );
-        defer tl.recursively_deinit(allocator);
-
-        // @TODO: should just return this since its the useful thing anyway
-        const tl_ref = otio.ComposedValueRef.init(tl);
+        defer tl_ref.recursively_deinit(allocator);
 
         read_prog.end();
 
@@ -137,6 +134,44 @@ pub fn main(
             "Building Projection Topology",
             0,
         );
+
+        std.debug.print(
+            "Timeline {?s} has {d} tracks\nTracks:\n",
+            .{
+                tl_ref.name(),
+                tl_ref.timeline.tracks.children.len 
+            },
+        );
+
+        for (tl_ref.timeline.tracks.children, 0..)
+            |child, track_ind|
+        {
+            const children = (
+                try child.children_refs(allocator)
+            );
+            std.debug.print(
+                "  Track: {d}:{?s} has {d} children\n",
+                .{ 
+                    track_ind,
+                    child.name(),
+                    children.len,
+                },
+            );
+            defer allocator.free(children);
+
+            for (children, 0..)
+                |child_child, ind|
+            {
+                std.debug.print(
+                    "    Child {d}:{s}.{?s}\n",
+                    .{
+                        ind,
+                        @tagName(child_child),
+                        child_child.name(),
+                    }
+                );
+            }
+        }
 
         var projection_topo = (
             try otio.projection.TemporalProjectionBuilder.init_from(
@@ -148,9 +183,12 @@ pub fn main(
 
         build_map_pro.end();
 
-        std.debug.print("Tracks: {d}\n", .{tl.tracks.children.len});
+        std.debug.print(
+            "Tracks: {d}\n",
+            .{tl_ref.timeline.tracks.children.len}
+        );
         var items: usize = 0;
-        for (tl.tracks.children, 0..)
+        for (tl_ref.timeline.tracks.children, 0..)
             |child, ind|
         {
             std.debug.print(
@@ -160,7 +198,7 @@ pub fn main(
             items += child.track.children.len;
         }
 
-        tl.discrete_info.presentation = .{
+        tl_ref.timeline.discrete_info.presentation = .{
             .sample_rate_hz = .{ .Int = 24 },
             .start_index = 86400,
         };
