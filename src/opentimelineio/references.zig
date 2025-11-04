@@ -1,9 +1,9 @@
 //! Reference Container Objects
 //!
-//! `ComposedValueRef`: Points at an object in an OTIO composition.
-//! `SpaceReference`: References a temporal space on a particular object in an
-//!                   OTIO composition.
-//! `SpaceLabel`: Name of spaces on otio object.
+//! - `ComposedValueRef`: Points at an object in an OTIO composition.
+//! - `SpaceReference`: References a temporal space on a particular object in
+//!                     an OTIO composition.
+//! - `SpaceLabel`: Name of spaces on otio object.
 
 const std = @import("std");
 const build_options = @import("build_options");
