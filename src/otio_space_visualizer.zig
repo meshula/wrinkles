@@ -36,14 +36,88 @@ const STATE = struct {
 
     var target_otio_file: []const u8 = undefined;
     var otio_root: otio.ComposedValueRef = undefined;
+    var current_selected_object: ?otio.ComposedValueRef = null;
 };
 
 const IS_WASM = builtin.target.cpu.arch.isWasm();
+
+fn label_for_ref(
+    buf: []u8,
+    ref: otio.ComposedValueRef,
+) ![]const u8
+{
+    return try std.fmt.bufPrintZ(
+        buf,
+        "{s}.{?s}",
+        .{ @tagName(ref), ref.name() }
+    );
+
+}
+
+fn child_tree(
+    allocator: std.mem.Allocator,
+    children: []otio.ComposedValueRef,
+) !void
+{
+    // if (zgui.isItemHovered(.{}))
+    // {
+    //     zgui.sameLine(.{});
+    //     if (zgui.button("Source", .{}))
+    //     {
+    //     }
+    //     zgui.sameLine(.{});
+    //     if (zgui.button("Destination", .{}))
+    //     {
+    //     }
+    // }
+
+    if (children.len == 0)
+    {
+        return;
+    }
+
+    for (children, 0..)
+        |child,ind|
+    {
+        var buf:[1024:0]u8 = undefined;
+
+        const label = try std.fmt.bufPrintZ(
+            buf[0..512],
+            "{d}: {s}",
+            .{ ind, try label_for_ref(buf[512..], child) }
+        );
+
+        const next_children = try child.children_refs(allocator);
+        defer allocator.free(next_children);
+
+        if (
+            zgui.treeNodeFlags(
+                label,
+                .{
+                    .bullet = next_children.len == 0,
+                }
+            )
+        )
+        {
+            defer zgui.treePop();
+
+            try child_tree(allocator, next_children);
+        }
+
+        if (zgui.isItemClicked(.left))
+        {
+            STATE.current_selected_object = child;
+            std.debug.print("clicked on: {s}\n", .{label});
+        }
+    }
+}
 
 /// draw the UI
 fn draw(
 ) !void 
 {
+    const allocator = STATE.allocator;
+
     const vp = zgui.getMainViewport();
     const size = vp.getSize();
 
@@ -73,7 +147,44 @@ fn draw(
     {
         defer zgui.end();
 
-        zgui.text("Current File: {s}", .{ STATE.target_otio_file });
+        if (
+            zgui.beginChild(
+                "Object Info",
+                .{
+                    .w = -1,
+                    .h = 30,
+                }
+            )
+        )
+        {
+            defer zgui.endChild();
+
+            var buf2:[1024]u8 = undefined;
+
+            zgui.text(
+                "Current Object: {s}",
+                .{
+                    if (STATE.current_selected_object) |obj| (
+                        try label_for_ref(&buf2, obj)
+                    ) else "[Click in the tree to select an object]"
+                },
+            );
+        }
+
+        if (zgui.beginChild("Object Tree", .{}))
+        {
+            defer zgui.endChild();
+
+            zgui.text("Current File: {s}", .{ STATE.target_otio_file });
+
+            var root = [_]otio.ComposedValueRef{
+                STATE.otio_root,
+            };
+
+            try child_tree(allocator, &root );
+        }
+
+
 
 
         // var new = STATE.f;
