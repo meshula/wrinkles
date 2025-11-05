@@ -434,10 +434,7 @@ test "read_from_file test (simple)"
         std.testing.allocator,
         "sample_otio_files/"++otio_fpath,
     );
-    defer {
-        tl_ref.recursively_deinit(allocator);
-        allocator.destroy(tl_ref);
-    }
+    defer  tl_ref.recursively_deinit(allocator); 
 
     const track0 = tl_ref.timeline.tracks.children[0].track;
 
@@ -498,8 +495,5 @@ test "read_from_file test (multiple, smoke)"
         std.testing.allocator,
         "sample_otio_files/"++otio_fpath,
     );
-    defer {
-        tl.recursively_deinit(allocator);
-        allocator.destroy(tl);
-    }
+    defer  tl.recursively_deinit(allocator); 
 }
