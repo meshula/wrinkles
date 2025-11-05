@@ -14,6 +14,18 @@ const cimgui = ziis.cimgui;
 const otio = @import("opentimelineio");
 const topology = @import("topology");
 
+fn table_fill_row(
+    cells: []const []const u8
+) void
+{
+    for (cells, 0..)
+        |text, col|
+    {
+        _ = zgui.tableSetColumnIndex(@intCast(col));
+        zgui.text("{s}", .{text});
+    }
+}
+
 /// State container
 const STATE = struct {
     // var f: f32 = 0;
@@ -280,6 +292,7 @@ fn draw(
                                 );
                                 STATE.maybe_transform = null;
                             }
+                            zgui.tableNextRow(.{});
                         }
                     }
                 }
@@ -533,6 +546,18 @@ fn draw(
                     }
                     const xform = STATE.maybe_transform.?;
                     zgui.text("{d}", .{xform.mappings.len});
+
+                    zgui.tableNextRow(.{});
+                    table_fill_row(&.{ "Mappings:", "" });
+
+                    for (xform.mappings)
+                        |m|
+                    {
+                        zgui.tableNextRow(.{});
+                        var buf:[1024]u8 = undefined;
+                        const m_s = try std.fmt.bufPrint(&buf, "{f}", .{m});
+                        table_fill_row(&.{"", m_s});
+                    }
                 }
                 else
                 {
