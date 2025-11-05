@@ -55,6 +55,7 @@ const STATE = struct {
     var maybe_src: ?otio.references.SpaceReference = null;
     var maybe_dst: ?otio.references.SpaceReference = null;
     var maybe_transform: ?topology.Topology = null;
+    var maybe_proj_builder: ?otio.TemporalProjectionBuilder = null;
 };
 
 const IS_WASM = builtin.target.cpu.arch.isWasm();
@@ -282,6 +283,12 @@ fn draw(
                                 STATE.maybe_src = (
                                     STATE.maybe_current_selected_object.?.space(space)
                                 );
+                                STATE.maybe_proj_builder = (
+                                    try otio.TemporalProjectionBuilder.init_from(
+                                        allocator,
+                                        STATE.maybe_src.?,
+                                    )
+                                );
                                 STATE.maybe_transform = null;
                             }
                             zgui.sameLine(.{});
@@ -291,6 +298,17 @@ fn draw(
                                     STATE.maybe_current_selected_object.?.space(space)
                                 );
                                 STATE.maybe_transform = null;
+                                if (STATE.maybe_proj_builder)
+                                    |builder|
+                                {
+                                    STATE.maybe_transform = (
+                                        try builder.projection_operator_to(
+                                            allocator,
+                                            STATE.maybe_dst.?,
+                                        )
+                                    ).src_to_dst_topo;
+                                }
+                                    
                             }
                             zgui.tableNextRow(.{});
                         }
@@ -298,18 +316,18 @@ fn draw(
                 }
             }
 
-        if (zgui.beginChild("Object Tree", .{}))
-        {
-            defer zgui.endChild();
+            if (zgui.beginChild("Object Tree", .{}))
+            {
+                defer zgui.endChild();
 
-            zgui.text("Current File: {s}", .{ STATE.target_otio_file });
+                zgui.text("Current File: {s}", .{ STATE.target_otio_file });
 
-            var root = [_]otio.ComposedValueRef{
-                STATE.otio_root,
-            };
+                var root = [_]otio.ComposedValueRef{
+                    STATE.otio_root,
+                };
 
-            try child_tree(allocator, &root );
-        }
+                try child_tree(allocator, &root );
+            }
 
 
 
@@ -527,24 +545,9 @@ fn draw(
                 zgui.text("Mappings", .{});
 
                 _ = zgui.tableSetColumnIndex(@intCast(1));
-                if (STATE.maybe_src != null and STATE.maybe_dst != null)
+                if (STATE.maybe_transform)
+                    |xform|
                 {
-                    if (STATE.maybe_transform == null)
-                    {
-                        const builder = (
-                            try otio.TemporalProjectionBuilder.init_from(
-                                allocator,
-                                STATE.maybe_src.?,
-                            )
-                        );
-                        STATE.maybe_transform = (
-                            try builder.projection_operator_to(
-                                allocator,
-                                STATE.maybe_dst.?,
-                            )
-                        ).src_to_dst_topo;
-                    }
-                    const xform = STATE.maybe_transform.?;
                     zgui.text("{d}", .{xform.mappings.len});
 
                     zgui.tableNextRow(.{});
@@ -565,6 +568,109 @@ fn draw(
                 }
             }
 
+            // graph of the trasnformation from source to dst
+            if (STATE.maybe_transform)
+                |xform|
+            {
+                if (
+                    zgui.plot.beginPlot(
+                        "Test ZPlot Plot",
+                        .{ 
+                            .w = -1.0,
+                            .h = -1.0,
+                            .flags = .{ .equal = true },
+                        },
+                        )
+                ) 
+                {
+                    defer zgui.plot.endPlot();
+
+                    var buf:[1024]u8 = undefined;
+
+                    const input_space_name = try std.fmt.bufPrintZ(
+                       &buf,
+                       "{f}",
+                       .{ STATE.maybe_src.? },
+                    );
+                    zgui.plot.setupAxis(
+                        .x1,
+                        .{ .label = input_space_name },
+                    );
+
+                    const output_space_name = try std.fmt.bufPrintZ(
+                       &buf,
+                       "{f}",
+                       .{ STATE.maybe_dst.? },
+                    );
+                    zgui.plot.setupAxis(
+                        .y1,
+                        .{ .label = output_space_name },
+                    );
+                    zgui.plot.setupLegend(
+                        .{ 
+                            .south = true,
+                            .west = true 
+                        },
+                        .{},
+                    );
+                    zgui.plot.setupFinish();
+
+                    const NUM_POINTS = 300;
+
+                    var xs: [NUM_POINTS]f32 = undefined;
+                    var ys: [NUM_POINTS]f32 = undefined;
+
+                    var current_x = xform.input_bounds().start;
+                    const inc = xform.input_bounds().duration().div(
+                        @as(f32, @floatFromInt(NUM_POINTS))
+                    );
+                    zgui.text("Inc: {f}", .{ inc });
+
+                    for (&xs, &ys)
+                        |*x, *y|
+                    {
+                        x.* = current_x.as(f32);
+                        y.* = (
+                            xform.project_instantaneous_cc_assume_in_bounds(current_x).SuccessOrdinate.as(f32)
+                        );
+
+                        current_x = current_x.add(inc);
+                    }
+
+                    zplot.pushStyleColor4f(
+                        .{
+                            .idx = .fill,
+                            .c = .{ 0.1, 0.1, 0.4, 0.4 },
+                        },
+                    );
+
+                    const plotlabel = try std.fmt.bufPrintZ(
+                        buf[800..],
+                        "{s} -> {s}",
+                        .{ input_space_name, output_space_name },
+                    );
+                    zplot.plotShaded(
+                        plotlabel,
+                        f32, 
+                        .{
+                            .xv = &xs,
+                            .yv = &ys,
+                            .flags = .{
+                        },
+                        },
+                    );
+                    zplot.popStyleColor(.{.count = 1});
+
+                    zplot.plotLine(
+                        "test plot",
+                        f32, 
+                        .{
+                            .xv = &xs,
+                            .yv = &ys,
+                        },
+                        );
+                }
+            }
         }
     }
 }
