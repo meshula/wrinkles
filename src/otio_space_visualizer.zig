@@ -36,7 +36,7 @@ const STATE = struct {
 
     var target_otio_file: []const u8 = undefined;
     var otio_root: otio.ComposedValueRef = undefined;
-    var current_selected_object: ?otio.ComposedValueRef = null;
+    var maybe_current_selected_object: ?otio.ComposedValueRef = null;
 };
 
 const IS_WASM = builtin.target.cpu.arch.isWasm();
@@ -106,7 +106,7 @@ fn child_tree(
 
         if (zgui.isItemClicked(.left))
         {
-            STATE.current_selected_object = child;
+            STATE.maybe_current_selected_object = child;
             std.debug.print("clicked on: {s}\n", .{label});
         }
     }
@@ -164,11 +164,99 @@ fn draw(
             zgui.text(
                 "Current Object: {s}",
                 .{
-                    if (STATE.current_selected_object) |obj| (
+                    if (STATE.maybe_current_selected_object) |obj| (
                         try label_for_ref(&buf2, obj)
                     ) else "[Click in the tree to select an object]"
                 },
             );
+
+            if (STATE.maybe_current_selected_object)
+                |obj|
+            {
+                if (
+                    zgui.beginTable(
+                        "Object Details",
+                        .{
+                            .column = 2,
+                        },
+                    )
+                )
+                {
+                    defer zgui.endTable();
+
+                    // header row
+                    zgui.tableNextRow(
+                        .{ .row_flags = .{ .headers = true } }
+                    );
+
+                    _ = zgui.tableSetColumnIndex(0);
+                    zgui.text("Key", .{});
+
+                    _ = zgui.tableSetColumnIndex(1);
+                    zgui.text("Value", .{});
+
+                    zgui.tableNextRow(.{});
+
+                    var buf3_s: [1024]u8 = undefined;
+                    var buf3: []u8 = &buf3_s;
+
+                    const pres_bounds = try std.fmt.bufPrint(
+                        buf3,
+                        "{f}",
+                        .{ 
+                            try obj.bounds_of(
+                                allocator,
+                                .presentation,
+                            ),
+                        },
+                    );
+                    buf3 = buf3[pres_bounds.len..];
+
+                    const pres_di = try std.fmt.bufPrint(
+                        buf3,
+                        "{?f}", 
+                        .{ obj.discrete_info_for_space(.presentation) },
+                    );
+                    buf3 = buf3[pres_di.len..];
+
+                    const rows = [_][2][]const u8{
+                        .{ "Schema", @tagName(obj) },
+                        .{ "Presentation Space Bounds", pres_bounds },
+                        .{ "Presentation Space Discrete Info", pres_di },
+                        .{ "Coordinate Spaces", "" },
+                    };
+
+                    for (&rows)
+                        |row|
+                    {
+                        for (row, 0..)
+                            |field, col|
+                        {
+                            _ = zgui.tableSetColumnIndex(@intCast(col));
+                            zgui.text("{s}", .{ field });
+                        }
+                        zgui.tableNextRow(.{});
+                    }
+
+                    for (obj.spaces())
+                        |space|
+                    {
+                        _ = zgui.tableSetColumnIndex(@intCast(0));
+                        zgui.text("Space: {s}", .{@tagName(space)});
+
+                        _ = zgui.tableSetColumnIndex(@intCast(1));
+
+                        zgui.pushIntId(@intFromEnum(space));
+                        defer zgui.popId();
+
+                        _ = zgui.button("SET SOURCE", .{});
+                        zgui.sameLine(.{});
+                        _ = zgui.button("SET DEST", .{});
+
+                        zgui.tableNextRow(.{});
+                    }
+                }
+            }
         }
 
         if (zgui.beginChild("Object Tree", .{}))
