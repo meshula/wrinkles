@@ -152,7 +152,7 @@ fn draw(
                 "Object Info",
                 .{
                     .w = -1,
-                    .h = 30,
+                    .h = 180,
                 }
             )
         )
