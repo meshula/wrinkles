@@ -39,6 +39,10 @@ const STATE = struct {
     var otio_root: otio.ComposedValueRef = undefined;
     var maybe_current_selected_object: ?otio.ComposedValueRef = null;
     var maybe_cached_topology: ?topology.Topology = null;
+
+    var maybe_src: ?otio.references.SpaceReference = null;
+    var maybe_dst: ?otio.references.SpaceReference = null;
+    var maybe_transform: ?topology.Topology = null;
 };
 
 const IS_WASM = builtin.target.cpu.arch.isWasm();
@@ -61,18 +65,6 @@ fn child_tree(
     children: []otio.ComposedValueRef,
 ) !void
 {
-    // if (zgui.isItemHovered(.{}))
-    // {
-    //     zgui.sameLine(.{});
-    //     if (zgui.button("Source", .{}))
-    //     {
-    //     }
-    //     zgui.sameLine(.{});
-    //     if (zgui.button("Destination", .{}))
-    //     {
-    //     }
-    // }
-
     if (children.len == 0)
     {
         return;
@@ -158,114 +150,140 @@ fn draw(
     {
         defer zgui.end();
 
+        const LEFT_PANEL_WIDTH = 500;
+
         if (
             zgui.beginChild(
-                "Object Info",
+                "LEFT_PANEL",
                 .{
-                    .w = -1,
-                    .h = 180,
-                }
+                    .w = LEFT_PANEL_WIDTH,
+                    .child_flags = .{
+                        .border = true,
+                        .resize_x = true,
+                    },
+                },
             )
         )
         {
             defer zgui.endChild();
 
-            var buf2:[1024]u8 = undefined;
-
-            zgui.text(
-                "Current Object: {s}",
-                .{
-                    if (STATE.maybe_current_selected_object) |obj| (
-                        try label_for_ref(&buf2, obj)
-                    ) else "[Click in the tree to select an object]"
-                },
-            );
-
-            if (STATE.maybe_current_selected_object)
-                |obj|
-            {
-                if (
-                    zgui.beginTable(
-                        "Object Details",
-                        .{
-                            .column = 2,
-                        },
-                    )
-                )
-                {
-                    defer zgui.endTable();
-
-                    // header row
-                    zgui.tableNextRow(
-                        .{ .row_flags = .{ .headers = true } }
-                    );
-
-                    _ = zgui.tableSetColumnIndex(0);
-                    zgui.text("Key", .{});
-
-                    _ = zgui.tableSetColumnIndex(1);
-                    zgui.text("Value", .{});
-
-                    zgui.tableNextRow(.{});
-
-                    var buf3_s: [1024]u8 = undefined;
-                    var buf3: []u8 = &buf3_s;
-
-                    const pres_bounds = try std.fmt.bufPrint(
-                        buf3,
-                        "{f}",
-                        .{ 
-                            STATE.maybe_cached_topology.?.input_bounds(),
-                        },
-                    );
-                    buf3 = buf3[pres_bounds.len..];
-
-                    const pres_di = try std.fmt.bufPrint(
-                        buf3,
-                        "{?f}", 
-                        .{ obj.discrete_info_for_space(.presentation) },
-                    );
-                    buf3 = buf3[pres_di.len..];
-
-                    const rows = [_][2][]const u8{
-                        .{ "Schema", @tagName(obj) },
-                        .{ "Presentation Space Bounds", pres_bounds },
-                        .{ "Presentation Space Discrete Info", pres_di },
-                        .{ "Coordinate Spaces", "" },
-                    };
-
-                    for (&rows)
-                        |row|
-                    {
-                        for (row, 0..)
-                            |field, col|
-                        {
-                            _ = zgui.tableSetColumnIndex(@intCast(col));
-                            zgui.text("{s}", .{ field });
-                        }
-                        zgui.tableNextRow(.{});
+            if (
+                zgui.beginChild(
+                    "Object Info",
+                    .{
+                        .h = 180,
                     }
+                )
+            )
+            {
+                defer zgui.endChild();
 
-                    for (obj.spaces())
-                        |space|
+                var buf2:[1024]u8 = undefined;
+
+                zgui.text(
+                    "Current Object: {s}",
+                    .{
+                        if (STATE.maybe_current_selected_object) |obj| (
+                            try label_for_ref(&buf2, obj)
+                        ) else "[Click in the tree to select an object]"
+                    },
+                );
+
+                if (STATE.maybe_current_selected_object)
+                    |obj|
+                {
+                    if (
+                        zgui.beginTable(
+                            "Object Details",
+                            .{
+                                .column = 2,
+                            },
+                        )
+                    )
                     {
-                        _ = zgui.tableSetColumnIndex(@intCast(0));
-                        zgui.text("Space: {s}", .{@tagName(space)});
+                        defer zgui.endTable();
 
-                        _ = zgui.tableSetColumnIndex(@intCast(1));
+                        // header row
+                        zgui.tableNextRow(
+                            .{ .row_flags = .{ .headers = true } }
+                        );
 
-                        zgui.pushIntId(@intFromEnum(space));
-                        defer zgui.popId();
+                        _ = zgui.tableSetColumnIndex(0);
+                        zgui.text("Key", .{});
 
-                        _ = zgui.button("SET SOURCE", .{});
-                        zgui.sameLine(.{});
-                        _ = zgui.button("SET DEST", .{});
+                        _ = zgui.tableSetColumnIndex(1);
+                        zgui.text("Value", .{});
 
                         zgui.tableNextRow(.{});
+
+                        var buf3_s: [1024]u8 = undefined;
+                        var buf3: []u8 = &buf3_s;
+
+                        const pres_bounds = try std.fmt.bufPrint(
+                            buf3,
+                            "{f}",
+                            .{ 
+                                STATE.maybe_cached_topology.?.input_bounds(),
+                            },
+                        );
+                        buf3 = buf3[pres_bounds.len..];
+
+                        const pres_di = try std.fmt.bufPrint(
+                            buf3,
+                            "{?f}", 
+                            .{ obj.discrete_info_for_space(.presentation) },
+                        );
+                        buf3 = buf3[pres_di.len..];
+
+                        const rows = [_][2][]const u8{
+                            .{ "Schema", @tagName(obj) },
+                            .{ "Presentation Space Bounds", pres_bounds },
+                            .{ "Presentation Space Discrete Info", pres_di },
+                            .{ "Coordinate Spaces", "" },
+                        };
+
+                        for (&rows)
+                            |row|
+                        {
+                            for (row, 0..)
+                                |field, col|
+                            {
+                                _ = zgui.tableSetColumnIndex(@intCast(col));
+                                zgui.text("{s}", .{ field });
+                            }
+                            zgui.tableNextRow(.{});
+                        }
+
+                        for (obj.spaces())
+                            |space|
+                        {
+                            _ = zgui.tableSetColumnIndex(@intCast(0));
+                            zgui.text("Space: {s}", .{@tagName(space)});
+
+                            _ = zgui.tableSetColumnIndex(@intCast(1));
+
+                            zgui.pushIntId(@intFromEnum(space));
+                            defer zgui.popId();
+
+                            if (zgui.button("SET SOURCE", .{}))
+                            {
+                                STATE.maybe_src = (
+                                    STATE.maybe_current_selected_object.?.space(space)
+                                );
+                                STATE.maybe_transform = null;
+                            }
+                            zgui.sameLine(.{});
+                            if (zgui.button("SET DEST", .{}))
+                            {
+                                STATE.maybe_dst = (
+                                    STATE.maybe_current_selected_object.?.space(space)
+                                );
+                                STATE.maybe_transform = null;
+                            }
+                        }
                     }
                 }
             }
-        }
 
         if (zgui.beginChild("Object Tree", .{}))
         {
@@ -435,6 +453,94 @@ fn draw(
         //         );
         //     }
         // }
+        }
+
+        zgui.sameLine(.{});
+
+        if (zgui.beginChild("Transform", .{}))
+        {
+            defer zgui.endChild();
+
+            if (
+                zgui.beginTable(
+                    "Transform Info Table",
+                    .{
+                        .column = 2,
+                        .flags = .{
+                            .borders = .all,
+                        },
+                    },
+                )
+            )
+            {
+                defer zgui.endTable();
+
+                zgui.tableNextRow(.{});
+
+                _ = zgui.tableSetColumnIndex(0);
+                zgui.text("Source Space: ", .{});
+
+                _ = zgui.tableSetColumnIndex(1);
+
+                if (STATE.maybe_src)
+                    |src|
+                {
+                    zgui.text("{f}", .{src});
+                }
+                else
+                {
+                    zgui.text("NONE SET", .{});
+                }
+
+                zgui.tableNextRow(.{});
+
+                _ = zgui.tableSetColumnIndex(0);
+                zgui.text("Destination Space: ", .{});
+
+                _ = zgui.tableSetColumnIndex(1);
+                if (STATE.maybe_dst)
+                    |dst|
+                {
+                    zgui.text("{f}", .{dst});
+                }
+                else
+                {
+                    zgui.text("NONE SET", .{});
+                }
+
+                zgui.tableNextRow(.{});
+
+                _ = zgui.tableSetColumnIndex(@intCast(0));
+                zgui.text("Mappings", .{});
+
+                _ = zgui.tableSetColumnIndex(@intCast(1));
+                if (STATE.maybe_src != null and STATE.maybe_dst != null)
+                {
+                    if (STATE.maybe_transform == null)
+                    {
+                        const builder = (
+                            try otio.TemporalProjectionBuilder.init_from(
+                                allocator,
+                                STATE.maybe_src.?,
+                            )
+                        );
+                        STATE.maybe_transform = (
+                            try builder.projection_operator_to(
+                                allocator,
+                                STATE.maybe_dst.?,
+                            )
+                        ).src_to_dst_topo;
+                    }
+                    const xform = STATE.maybe_transform.?;
+                    zgui.text("{d}", .{xform.mappings.len});
+                }
+                else
+                {
+                    zgui.text("---", .{});
+                }
+            }
+
+        }
     }
 }
 
