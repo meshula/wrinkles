@@ -584,25 +584,28 @@ fn draw(
                 {
                     defer zgui.plot.endPlot();
 
-                    var buf:[1024]u8 = undefined;
+                    var buf_src:[1024]u8 = undefined;
 
                     if (STATE.maybe_transform != null)
                     {
+                        var buf:[]u8 = buf_src[0..];
                         const input_space_name = try std.fmt.bufPrintZ(
-                           &buf,
+                           buf,
                            "{f}",
                            .{ STATE.maybe_src.? },
                         );
+                        buf = buf[input_space_name.len..];
                         zgui.plot.setupAxis(
                             .x1,
                             .{ .label = input_space_name },
                         );
 
                         const output_space_name = try std.fmt.bufPrintZ(
-                           &buf,
+                           buf,
                            "{f}",
                            .{ STATE.maybe_dst.? },
                         );
+                        buf = buf_src[output_space_name.len..];
                         zgui.plot.setupAxis(
                             .y1,
                             .{ .label = output_space_name },
@@ -643,7 +646,7 @@ fn draw(
                             }
 
                             const plotlabel = try std.fmt.bufPrintZ(
-                                buf[800..],
+                                buf,
                                 "Full Range of {s}",
                                 .{ input_space_name },
                             );
@@ -654,7 +657,7 @@ fn draw(
                                 },
                             );
                             zplot.plotShaded(
-                                plotlabel,
+                                "shaded transform",
                                 f32, 
                                 .{
                                     .xv = &xs,
@@ -689,7 +692,9 @@ fn draw(
                             {
                                 x.* = current_x.as(f32);
                                 y.* = (
-                                    xform.project_instantaneous_cc_assume_in_bounds(current_x).SuccessOrdinate.as(f32)
+                                    xform.project_instantaneous_cc_assume_in_bounds(
+                                        current_x,
+                                    ).SuccessOrdinate.as(f32)
                                 );
 
                                 current_x = current_x.add(inc);
