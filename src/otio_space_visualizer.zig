@@ -12,6 +12,7 @@ const app_wrapper = ziis.app_wrapper;
 const cimgui = ziis.cimgui;
 
 const otio = @import("opentimelineio");
+const topology = @import("topology");
 
 /// State container
 const STATE = struct {
@@ -37,6 +38,7 @@ const STATE = struct {
     var target_otio_file: []const u8 = undefined;
     var otio_root: otio.ComposedValueRef = undefined;
     var maybe_current_selected_object: ?otio.ComposedValueRef = null;
+    var maybe_cached_topology: ?topology.Topology = null;
 };
 
 const IS_WASM = builtin.target.cpu.arch.isWasm();
@@ -107,6 +109,15 @@ fn child_tree(
         if (zgui.isItemClicked(.left))
         {
             STATE.maybe_current_selected_object = child;
+
+            if (STATE.maybe_cached_topology)
+                |topo|
+            {
+                topo.deinit(allocator);
+                STATE.maybe_cached_topology = null;
+            }
+
+            STATE.maybe_cached_topology = try child.topology(allocator);
             std.debug.print("clicked on: {s}\n", .{label});
         }
     }
@@ -204,10 +215,7 @@ fn draw(
                         buf3,
                         "{f}",
                         .{ 
-                            try obj.bounds_of(
-                                allocator,
-                                .presentation,
-                            ),
+                            STATE.maybe_cached_topology.?.input_bounds(),
                         },
                     );
                     buf3 = buf3[pres_bounds.len..];
