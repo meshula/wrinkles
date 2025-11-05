@@ -667,6 +667,12 @@ fn draw(
                             );
                             zplot.popStyleColor(.{.count = 1});
 
+                            zplot.pushStyleColor4f(
+                                .{
+                                    .idx = .fill,
+                                    .c = .{ 0.1, 0.4, 0.1, 0.8 },
+                                },
+                            );
                             zplot.plotLine(
                                 plotlabel,
                                 f32, 
@@ -675,6 +681,7 @@ fn draw(
                                     .yv = &ys,
                                 },
                             );
+                            zplot.popStyleColor(.{.count = 1});
                         }
 
                         // plot the transform
