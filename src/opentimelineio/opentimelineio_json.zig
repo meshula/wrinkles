@@ -227,10 +227,17 @@ inline fn read_children(
         current_index += 1;
     }
 
-    new_children = try allocator.realloc(
-        new_children,
-        current_index - 1,
-    );
+    // true the allocated size of the slice to the number of children that were
+    // readable -- schemas that aren't readable by the zig system get skipped
+    if (current_index != new_children.len) 
+    {
+        const old_children = new_children;
+        new_children = try allocator.realloc(
+            new_children,
+            current_index,
+        );
+        allocator.free(old_children);
+    }
 
     return new_children;
 }

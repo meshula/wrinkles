@@ -123,6 +123,7 @@ pub const ComposedValueRef = union(enum) {
         };
     }
 
+    /// recurse through
     pub fn recursively_deinit(
         self: *@This(),
         allocator: std.mem.Allocator,
@@ -141,6 +142,16 @@ pub const ComposedValueRef = union(enum) {
             .clip => |cl| {
                 cl.destroy(allocator);
                 allocator.destroy(cl);
+            },
+            .timeline => |tl| {
+                tl.*.tracks.recursively_deinit(allocator);
+                if (tl.name)
+                    |n|
+                {
+                    allocator.free(n);
+                    tl.name = null;
+                }
+                allocator.destroy(tl);
             },
             inline else => |o| {
                 if (o.name)

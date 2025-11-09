@@ -150,19 +150,21 @@ pub fn main(
 
     read_prog.end();
 
-    const build_map = parent_prog.start(
+    const build_tree = parent_prog.start(
         "Building map",
         0,
     );
 
     // build the graph
-    const graph = try otio.temporal_tree.build_temporal_tree(
-        allocator,
-        tl_ref.space(.presentation),
+    const tree = (
+        try otio.temporal_tree.build_temporal_tree(
+            allocator,
+            tl_ref.space(.presentation),
+        )
     );
-    defer graph.deinit(allocator);
+    defer tree.deinit(allocator);
 
-    build_map.end();
+    build_tree.end();
 
     const write_dot_graph = parent_prog.start(
         "Writing Dot Graph...",
@@ -170,7 +172,7 @@ pub fn main(
     );
 
     // render the graph to a PNG
-    try graph.write_dot_graph(
+    try tree.write_dot_graph(
         allocator,
         state.output_png,
         "OTIO_TemporalHierarchy",

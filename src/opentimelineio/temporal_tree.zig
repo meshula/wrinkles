@@ -37,6 +37,7 @@ pub const TemporalTree = treecode.BinaryTree(references.SpaceReference);
 pub const PathEndPoints = TemporalTree.PathEndPoints;
 pub const PathEndPointIndices = TemporalTree.PathEndPointIndices;
 
+/// walk through the spaces that lead to child objects
 fn walk_child_spaces(
     allocator: std.mem.Allocator,
     parent_otio_object: references.ComposedValueRef,
@@ -228,6 +229,7 @@ fn walk_internal_spaces(
 /// Walks from `root_item` through the hierarchy of OTIO `schema` objects to
 /// construct a `TemporalTree` of all of the temporal spaces in the hierarchy.
 pub fn build_temporal_tree(
+    /// 
     parent_allocator: std.mem.Allocator,
     /// root item of the tree
     root_space: references.SpaceReference,
