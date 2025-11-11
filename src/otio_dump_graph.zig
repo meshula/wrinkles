@@ -181,6 +181,14 @@ pub fn main(
 
     write_dot_graph.end();
 
+    std.debug.print("TREE NODES:", .{});
+
+    for (tree.nodes.items(.ref), tree.nodes.items(.label))
+        |ref, label|
+    {
+        std.debug.print("  {f}.{s}\n", .{ref, @tagName(label)});
+    }
+
     parent_prog.completeOne();
 
     std.log.info("Wrote: {s}\n", .{ state.output_png });

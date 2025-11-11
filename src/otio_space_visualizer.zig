@@ -16,7 +16,7 @@ const otio = @import("opentimelineio");
 const topology = @import("topology");
 
 fn table_fill_row(
-    cells: []const []const u8
+    cells: []const []const u8,
 ) void
 {
     for (cells, 0..)
@@ -26,6 +26,97 @@ fn table_fill_row(
         zgui.text("{s}", .{text});
     }
 }
+
+fn fill_topdown_point_buffers(
+    allocator: std.mem.Allocator,
+) !void
+{
+    var points = &STATE.points;
+    var slices = &STATE.slices;
+
+    // clear whatever is there
+    points.deinit(allocator);
+
+    for (slices.items(.label))
+        |label|
+    {
+        allocator.free(label);
+    }
+    slices.deinit(allocator);
+
+    points.* = .empty;
+    slices.* = .empty;
+
+    // var label_writer = label_bucket.writer(allocator);
+    var allocating_label_writer = std.Io.Writer.Allocating.init(allocator);
+    const label_writer = &allocating_label_writer.writer;
+
+    // generate profile curve
+    const builder = (
+        STATE.maybe_proj_builder.?
+    );
+
+    try slices.ensureTotalCapacity(
+        allocator, 
+        builder.intervals.len
+    );
+
+    const interval_slice =  builder.intervals.slice();
+    const mapping_slice = builder.mappings.slice();
+
+    for (
+        interval_slice.items(.mapping_index),
+        interval_slice.items(.input_bounds)
+    ) |mapping_indices, input_bound|
+    {
+        _ = input_bound;
+        for (mapping_indices)
+            |mapping_ind|
+        {
+            const mapping = mapping_slice.items(.mapping)[mapping_ind];
+            const ref_ind = mapping_slice.items(.destination)[mapping_ind];
+            const dst = builder.tree.nodes.get(ref_ind);
+            switch (mapping)
+            {
+                .affine => |aff| {
+                    const start = points.len;
+                    const end = start + 2;
+                    try points.ensureUnusedCapacity(
+                        allocator,
+                        2,
+                    );
+                    const ib = aff.input_bounds();
+                    points.appendAssumeCapacity(
+                        .{.x = ib.start.as(f32), .y = ib.end.as(f32)},
+                    );
+                    const ob = aff.output_bounds();
+                    points.appendAssumeCapacity(
+                        .{.x = ob.start.as(f32), .y = ob.end.as(f32)},
+                    );
+                    try label_writer.print("{f}" ++ .{0}, .{ dst });
+                    try slices.append(
+                        allocator,
+                        .{
+                            .xs = points.items(.x)[start..end],
+                            .ys = points.items(.y)[start..end],
+                            .label = @ptrCast(
+                                try allocating_label_writer.toOwnedSlice()
+                            ),
+                        },
+                    );
+                },
+                else => {
+                },
+            }
+        }
+    }
+}
+
+/// 2d Point in a plot
+const PlotPoint2d = struct{
+    x: f32,
+    y: f32,
+};
 
 /// State container
 const STATE = struct {
@@ -57,6 +148,19 @@ const STATE = struct {
     var maybe_dst: ?otio.references.SpaceReference = null;
     var maybe_transform: ?topology.Topology = null;
     var maybe_proj_builder: ?otio.TemporalProjectionBuilder = null;
+
+    var xs:[1024 * 10]f32 = undefined;
+    var ys:[1024 * 10]f32 = undefined;
+
+    /// referrred to by the label field in the slices MAL
+    var points: std.MultiArrayList(PlotPoint2d) = .empty;
+    var slices: std.MultiArrayList(
+        struct{
+            xs: []const f32,
+            ys: []const f32,
+            label: [:0]const u8,
+        }
+    ) = .empty;
 };
 
 const IS_WASM = builtin.target.cpu.arch.isWasm();
@@ -291,6 +395,10 @@ fn draw(
                                     )
                                 );
                                 STATE.maybe_transform = null;
+
+                                try fill_topdown_point_buffers(
+                                    allocator,
+                                );
                             }
                             zgui.sameLine(.{});
                             if (zgui.button("SET DEST", .{}))
@@ -570,9 +678,13 @@ fn draw(
             }
 
             // graph of the transformation from source to dst
+            if (zgui.beginTabBar("Plots", .{}))
             {
+                defer zgui.endTabBar();
+
                 if (
-                    zgui.plot.beginPlot(
+                    zgui.beginTabItem("Transformation Plot", .{})
+                    and zgui.plot.beginPlot(
                         "Transformation Plot",
                         .{ 
                             .w = -1.0,
@@ -582,6 +694,7 @@ fn draw(
                     )
                 ) 
                 {
+                    defer zgui.endTabItem();
                     defer zgui.plot.endPlot();
 
                     var buf_src:[1024]u8 = undefined;
@@ -736,6 +849,121 @@ fn draw(
                                 .{
                                     .xv = &xs,
                                     .yv = &ys,
+                                },
+                            );
+                        }
+                    }
+                }
+
+                if (
+                    zgui.beginTabItem("All Items Under Source", .{})
+                    and zgui.plot.beginPlot(
+                        "All Items Under Source",
+                        .{ 
+                            .w = -1.0,
+                            .h = -1.0,
+                            .flags = .{ .equal = true },
+                        },
+                    )
+                )
+                {
+                    defer zgui.endTabItem();
+                    defer zgui.plot.endPlot();
+
+                    var buf_src:[1024]u8 = undefined;
+
+                    if (STATE.maybe_proj_builder)
+                        |builder|
+                    {
+                        var buf:[]u8 = buf_src[0..];
+                        const input_space_name = try std.fmt.bufPrintZ(
+                           buf,
+                           "{f}",
+                           .{ STATE.maybe_src.? },
+                        );
+                        buf = buf[input_space_name.len..];
+                        zgui.plot.setupAxis(
+                            .x1,
+                            .{ .label = input_space_name },
+                        );
+                        zgui.plot.setupAxis(
+                            .y1,
+                            .{ .label = "output space" },
+                        );
+                        zgui.plot.setupLegend(
+                            .{ 
+                                .south = true,
+                                .west = true 
+                            },
+                            .{},
+                        );
+                        zgui.plot.setupFinish();
+
+                        // plot the input space - always linear
+                        {
+                            var xs: [2]f32 = undefined;
+                            var ys: [2]f32 = undefined;
+
+                            const ib = builder.input_bounds();
+                            xs[0] = 0;
+                            xs[1] = ib.duration().as(f32);
+
+                            ys[0] = ib.start.as(f32);
+                            ys[1] = ib.end.as(f32);
+
+                            const plotlabel = try std.fmt.bufPrintZ(
+                                buf,
+                                "Full Range of {s}",
+                                .{ input_space_name },
+                            );
+                            zplot.pushStyleColor4f(
+                                .{
+                                    .idx = .fill,
+                                    .c = .{ 0.1, 0.4, 0.1, 0.4 },
+                                },
+                            );
+                            zplot.plotShaded(
+                                "shaded transform",
+                                f32, 
+                                .{
+                                    .xv = &xs,
+                                    .yv = &ys,
+                                    .flags = .{},
+                                },
+                            );
+                            zplot.popStyleColor(.{.count = 1});
+
+                            zplot.pushStyleColor4f(
+                                .{
+                                    .idx = .fill,
+                                    .c = .{ 0.1, 0.4, 0.1, 0.8 },
+                                },
+                            );
+                            zplot.plotLine(
+                                plotlabel,
+                                f32, 
+                                .{
+                                    .xv = &xs,
+                                    .yv = &ys,
+                                },
+                            );
+                            zplot.popStyleColor(.{.count = 1});
+                        }
+
+                        // plot each child space
+                        const slices = STATE.slices.slice();
+                        for (
+                            slices.items(.xs),
+                            slices.items(.ys),
+                            slices.items(.label),
+                        ) |xs, ys, label|
+                        {
+                            zplot.plotLine(
+                                label,
+                                f32, 
+                                .{
+                                    .xv = xs,
+                                    .yv = ys,
                                 },
                             );
                         }
