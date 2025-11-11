@@ -86,13 +86,18 @@ fn fill_topdown_point_buffers(
                         2,
                     );
                     const ib = aff.input_bounds();
-                    points.appendAssumeCapacity(
-                        .{.x = ib.start.as(f32), .y = ib.end.as(f32)},
-                    );
                     const ob = aff.output_bounds();
+
                     points.appendAssumeCapacity(
-                        .{.x = ob.start.as(f32), .y = ob.end.as(f32)},
+                        .{.x = ib.start.as(f32), .y = ob.start.as(f32)},
                     );
+                    var last_point = points.get(points.len - 1);
+                    std.debug.print("added X: {d}, {d}\n", .{last_point.x, last_point.y});
+                    points.appendAssumeCapacity(
+                        .{.x = ib.end.as(f32), .y = ob.end.as(f32)},
+                    );
+                    last_point = points.get(points.len - 1);
+                    std.debug.print("added Y: {d}, {d}\n", .{last_point.x, last_point.y});
                     try label_writer.print("{f}" ++ .{0}, .{ dst });
                     try slices.append(
                         allocator,
@@ -395,6 +400,15 @@ fn draw(
                                     )
                                 );
                                 STATE.maybe_transform = null;
+
+                                if (STATE.maybe_proj_builder)
+                                    |builder|
+                                {
+                                    std.debug.print(
+                                        "{f}\n",
+                                        .{builder}
+                                    );
+                                }
 
                                 try fill_topdown_point_buffers(
                                     allocator,
@@ -763,27 +777,10 @@ fn draw(
                                 "Full Range of {s}",
                                 .{ input_space_name },
                             );
-                            zplot.pushStyleColor4f(
+                            zplot.pushStyleVar1f(
                                 .{
-                                    .idx = .fill,
-                                    .c = .{ 0.1, 0.4, 0.1, 0.4 },
-                                },
-                            );
-                            zplot.plotShaded(
-                                "shaded transform",
-                                f32, 
-                                .{
-                                    .xv = &xs,
-                                    .yv = &ys,
-                                    .flags = .{},
-                                },
-                            );
-                            zplot.popStyleColor(.{.count = 1});
-
-                            zplot.pushStyleColor4f(
-                                .{
-                                    .idx = .fill,
-                                    .c = .{ 0.1, 0.4, 0.1, 0.8 },
+                                    .idx = .fill_alpha,
+                                    .v = 0.4,
                                 },
                             );
                             zplot.plotLine(
@@ -792,9 +789,10 @@ fn draw(
                                 .{
                                     .xv = &xs,
                                     .yv = &ys,
+                                    .flags = .{.shaded = true},
                                 },
                             );
-                            zplot.popStyleColor(.{.count = 1});
+                            zplot.popStyleVar(.{ .count = 1 });
                         }
 
                         // plot the transform
@@ -916,27 +914,11 @@ fn draw(
                                 "Full Range of {s}",
                                 .{ input_space_name },
                             );
-                            zplot.pushStyleColor4f(
-                                .{
-                                    .idx = .fill,
-                                    .c = .{ 0.1, 0.4, 0.1, 0.4 },
-                                },
-                            );
-                            zplot.plotShaded(
-                                "shaded transform",
-                                f32, 
-                                .{
-                                    .xv = &xs,
-                                    .yv = &ys,
-                                    .flags = .{},
-                                },
-                            );
-                            zplot.popStyleColor(.{.count = 1});
 
-                            zplot.pushStyleColor4f(
+                            zplot.pushStyleVar1f(
                                 .{
-                                    .idx = .fill,
-                                    .c = .{ 0.1, 0.4, 0.1, 0.8 },
+                                    .idx = .fill_alpha,
+                                    .v = 0.4,
                                 },
                             );
                             zplot.plotLine(
@@ -945,13 +927,15 @@ fn draw(
                                 .{
                                     .xv = &xs,
                                     .yv = &ys,
+                                    .flags = .{ .shaded = true, },
                                 },
                             );
-                            zplot.popStyleColor(.{.count = 1});
+                            zplot.popStyleVar(.{ .count = 1 });
                         }
 
                         // plot each child space
                         const slices = STATE.slices.slice();
+                        zplot.pushStyleVar1f(.{ .idx = .fill_alpha, .v = 0.2 });
                         for (
                             slices.items(.xs),
                             slices.items(.ys),
@@ -964,9 +948,13 @@ fn draw(
                                 .{
                                     .xv = xs,
                                     .yv = ys,
+                                    .flags = .{
+                                        .shaded = true,
+                                    },
                                 },
                             );
                         }
+                        zplot.popStyleVar(.{ .count = 1 });
                     }
                 }
             }

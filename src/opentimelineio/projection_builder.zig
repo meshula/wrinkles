@@ -893,6 +893,15 @@ pub fn ProjectionBuilder(
             };
         }
 
+        pub fn space_from_mapping_index(
+            self: @This(),
+            mapping_index: usize
+        ) SpaceReferenceType
+        {
+            const destination_ind = self.mappings.items(.destination)[mapping_index];
+            return self.tree.nodes.get(destination_ind);
+        }
+
         pub const SingleSourceTopologyCache = struct { 
             items: []?topology_m.Topology,
 
