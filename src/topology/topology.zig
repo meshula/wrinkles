@@ -250,6 +250,7 @@ pub const Topology = struct {
         };
     }
 
+    /// compute the bounds in the output space of this topology
     pub fn output_bounds(
         self: @This(),
     ) opentime.ContinuousInterval
@@ -259,7 +260,7 @@ pub const Topology = struct {
             unreachable;
         }
 
-        var bounds:?opentime.ContinuousInterval = null;
+        var maybe_bounds:?opentime.ContinuousInterval = null;
 
         for (self.mappings)
             |m|
@@ -267,22 +268,22 @@ pub const Topology = struct {
             switch (m) {
                 .empty => continue,
                 else => {
-                    if (bounds)
+                    if (maybe_bounds)
                         |b|
                     {
-                        bounds = opentime.interval.extend(
-                            bounds orelse b,
-                            m.output_bounds()
+                        maybe_bounds = opentime.interval.extend(
+                            b,
+                            m.output_bounds(),
                         );
                     }
                     else {
-                        bounds = m.output_bounds();
+                        maybe_bounds = m.output_bounds();
                     }
                 }
             }
         }
 
-        return bounds orelse opentime.ContinuousInterval.INF;
+        return maybe_bounds orelse opentime.ContinuousInterval.INF;
     }
 
     pub fn end_points_input(
