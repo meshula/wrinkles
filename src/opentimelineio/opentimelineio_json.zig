@@ -14,6 +14,43 @@ pub const SerializableObjectTypes = enum {
     Gap,
 };
 
+fn read_schema(
+    comptime EnumType: type,
+    obj: std.json.ObjectMap,
+) !EnumType
+{
+    const maybe_schema_and_version_str = obj.get("OTIO_SCHEMA");
+
+    if (maybe_schema_and_version_str == null) {
+        return error.NotAnOtioSchemaObject;
+    }
+
+    const full_string = maybe_schema_and_version_str.?.string;
+
+    var split_schema_string = std.mem.splitSequence(
+        u8,
+        full_string,
+        "."
+    );
+
+    const maybe_schema_str = split_schema_string.next();
+    if (maybe_schema_str == null) {
+        return error.MalformedSchemaString;
+    }
+    const schema_str = maybe_schema_str.?;
+
+    const maybe_schema_enum = std.meta.stringToEnum(
+        EnumType,
+        schema_str
+    );
+    if (maybe_schema_enum == null) {
+        errdefer std.log.err("No schema: {s}\n", .{schema_str});
+        return error.NoSuchSchema;
+    }
+
+    return maybe_schema_enum.?;
+}
+
 pub fn read_float(
     obj:std.json.Value
 ) opentime.Ordinate.BaseType 
@@ -42,12 +79,12 @@ pub fn read_ordinate_from_rt(
 {
     if (obj) 
         |o| 
-        {
-            const value = read_float(o.get("value").?);
-            const rate = read_float(o.get("rate").?);
+    {
+        const value = read_float(o.get("value").?);
+        const rate = read_float(o.get("rate").?);
 
-            return opentime.Ordinate.init(value / rate);
-        } 
+        return opentime.Ordinate.init(value / rate);
+    } 
     else 
     {
         return null;
@@ -58,11 +95,16 @@ fn read_rate(
     maybe_obj:?std.json.ObjectMap
 ) ?u32
 {
+
     if (maybe_obj)
         |o|
+    {
+        if (o.get("rate")) 
+            |r| 
         {
-            if (o.get("rate")) |r| return @intFromFloat(read_float(r));
+            return @intFromFloat(read_float(r));
         }
+    }
 
     return null;
 }
@@ -73,16 +115,22 @@ pub fn read_time_range(
 {
     if (maybe_obj) 
         |o| 
-        {
-            const start_time = read_ordinate_from_rt(o.get("start_time").?.object).?;
-            const duration = read_ordinate_from_rt(o.get("duration").?.object).?;
-            return .{ 
-                .start = start_time, 
-                .end = start_time.add(duration)
-            };
-        } else {
-            return null;
-        }
+    {
+        const start_time = (
+            read_ordinate_from_rt(o.get("start_time").?.object).?
+        );
+        const duration = (
+            read_ordinate_from_rt(o.get("duration").?.object).?
+        );
+        return .{ 
+            .start = start_time, 
+            .end = start_time.add(duration)
+        };
+    } 
+    else 
+    {
+        return null;
+    }
 }
 
 pub fn _read_range(
@@ -98,12 +146,12 @@ pub fn _read_range(
     // prefer source range
     if (obj.get("source_range")) 
         |sr| 
-        {
-            switch (sr) {
-                .object => |o| return read_time_range(o),
-                else => {},
-            }
+    {
+        switch (sr) {
+            .object => |o| return read_time_range(o),
+            else => {},
         }
+    }
 
     // otherwise, fetch the media reference and try available range
     if (obj.get("media_reference"))
@@ -136,10 +184,14 @@ pub fn _read_rate(
 
     const obj = maybe_obj.?;
 
-    if (obj.get("source_range")) |sr| {
+    if (obj.get("source_range")) 
+        |sr| 
+    {
         switch (sr) {
             .object => |o| {
-                if (o.get("start_time")) |st| {
+                if (o.get("start_time")) 
+                    |st| 
+                {
                     switch (st){
                         .object => |sto| return read_rate(sto),
                         else => {},
@@ -148,14 +200,20 @@ pub fn _read_rate(
             },
             else => {},
         }
-    } else if (obj.get("media_reference")) |mrv| 
+    } 
+    else if (obj.get("media_reference")) 
+        |mrv| 
     {
         switch (mrv) {
             .object => |mr| {
-                if (mr.get("available_range")) |ar| {
+                if (mr.get("available_range")) 
+                    |ar| 
+                {
                     switch (ar) {
                         .object => |o| {
-                            if (o.get("start_time")) |st| {
+                            if (o.get("start_time")) 
+                                |st| 
+                            {
                                 switch (st){
                                     .object => |sto| return read_rate(sto),
                                     else => {},
@@ -251,43 +309,21 @@ pub fn read_otio_object(
     NotImplemented,
 } !otio.ComposedValueRef 
 {
-    const maybe_schema_and_version_str = obj.get("OTIO_SCHEMA");
-
-    if (maybe_schema_and_version_str == null) {
-        return error.NotAnOtioSchemaObject;
-    }
-
-    const full_string = maybe_schema_and_version_str.?.string;
-
-    var split_schema_string = std.mem.splitSequence(
-        u8,
-        full_string,
-        "."
-    );
-
-    const maybe_schema_str = split_schema_string.next();
-    if (maybe_schema_str == null) {
-        return error.MalformedSchemaString;
-    }
-    const schema_str = maybe_schema_str.?;
-
-    const maybe_schema_enum = std.meta.stringToEnum(
+    const schema_enum = try read_schema(
         SerializableObjectTypes,
-        schema_str
+        obj,
     );
-    if (maybe_schema_enum == null) {
-        errdefer std.log.err("No schema: {s}\n", .{schema_str});
-        return error.NoSuchSchema;
-    }
 
-    const schema_enum = maybe_schema_enum.?;
-
-    const maybe_name = if (obj.get("name")) |n| 
+    const maybe_name = (
+        if (obj.get("name")) 
+            |n| 
         switch (n) 
-    {
-        .string => |s| try allocator.dupe(u8, s),
-        else => null
-    } else null;
+        {
+            .string => |s| try allocator.dupe(u8, s),
+            else => null
+        } 
+        else null
+    );
 
     switch (schema_enum) {
         .Timeline => { 
