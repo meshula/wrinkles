@@ -231,12 +231,10 @@ inline fn read_children(
     // readable -- schemas that aren't readable by the zig system get skipped
     if (current_index != new_children.len) 
     {
-        const old_children = new_children;
         new_children = try allocator.realloc(
             new_children,
             current_index,
         );
-        allocator.free(old_children);
     }
 
     return new_children;

@@ -92,12 +92,10 @@ fn fill_topdown_point_buffers(
                         .{.x = ib.start.as(f32), .y = ob.start.as(f32)},
                     );
                     var last_point = points.get(points.len - 1);
-                    std.debug.print("added X: {d}, {d}\n", .{last_point.x, last_point.y});
                     points.appendAssumeCapacity(
                         .{.x = ib.end.as(f32), .y = ob.end.as(f32)},
                     );
                     last_point = points.get(points.len - 1);
-                    std.debug.print("added Y: {d}, {d}\n", .{last_point.x, last_point.y});
                     try label_writer.print("{f}" ++ .{0}, .{ dst });
                     try slices.append(
                         allocator,
