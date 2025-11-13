@@ -15,6 +15,35 @@ const opentime = @import("opentime");
 const otio = @import("opentimelineio");
 const topology = @import("topology");
 
+fn set_source(
+    allocator: std.mem.Allocator,
+    src: otio.references.SpaceReference
+) !void
+{
+    STATE.maybe_src = src;
+
+    STATE.maybe_proj_builder = (
+        try otio.TemporalProjectionBuilder.init_from(
+            allocator,
+            src,
+        )
+    );
+    STATE.maybe_transform = null;
+
+    if (STATE.maybe_proj_builder)
+        |builder|
+        {
+            std.debug.print(
+                "{f}\n",
+                .{builder}
+            );
+        }
+
+    try fill_topdown_point_buffers(
+        allocator,
+    );
+}
+
 fn table_fill_row(
     cells: []const []const u8,
 ) void
@@ -388,28 +417,9 @@ fn draw(
 
                             if (zgui.button("SET SOURCE", .{}))
                             {
-                                STATE.maybe_src = (
-                                    STATE.maybe_current_selected_object.?.space(space)
-                                );
-                                STATE.maybe_proj_builder = (
-                                    try otio.TemporalProjectionBuilder.init_from(
-                                        allocator,
-                                        STATE.maybe_src.?,
-                                    )
-                                );
-                                STATE.maybe_transform = null;
-
-                                if (STATE.maybe_proj_builder)
-                                    |builder|
-                                {
-                                    std.debug.print(
-                                        "{f}\n",
-                                        .{builder}
-                                    );
-                                }
-
-                                try fill_topdown_point_buffers(
+                                try set_source(
                                     allocator,
+                                    STATE.maybe_current_selected_object.?.space(space)
                                 );
                             }
                             zgui.sameLine(.{});
@@ -1060,6 +1070,10 @@ pub fn main(
         STATE.otio_root = try otio.read_from_file(
             STATE.allocator,
             STATE.target_otio_file,
+        );
+        try set_source(
+            STATE.allocator,
+            STATE.otio_root.space(.presentation)
         );
     }
 
