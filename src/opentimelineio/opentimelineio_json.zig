@@ -5,6 +5,7 @@ const otio  = @import("root.zig");
 const opentime = @import("opentime");
 const interval = opentime.interval;
 const string = @import("string_stuff");
+const topology = @import("topology");
 
 pub const SerializableObjectTypes = enum {
     Timeline,
@@ -12,7 +13,103 @@ pub const SerializableObjectTypes = enum {
     Track,
     Clip,
     Gap,
+    Warp,
 };
+
+pub const TransformTypes = enum {
+    AffineTransform1D,
+};
+
+fn maybe_object(
+    maybe_obj: ?std.json.Value
+) ?std.json.ObjectMap
+{
+    if (maybe_obj)
+        |obj|
+    {
+        if (std.meta.activeTag(obj) == .object)
+        {
+            return obj.object;
+        }
+    }
+
+    return null;
+}
+
+fn maybe_object_child(
+    object: std.json.Value,
+    key: []const u8,
+) ?std.json.ObjectMap
+{
+    return (
+        if (maybe_object(object)) 
+            |obj| 
+        maybe_object(obj.get(key)) orelse null
+        else null
+    );
+}
+
+fn maybe_range(
+    object: std.json.ObjectMap,
+    key: []const u8,
+) ?opentime.ContinuousInterval
+{
+    return (
+        if (maybe_object(object.get(key))) 
+            |range_container| 
+        _read_range(range_container) 
+        else null
+    );
+}
+
+fn read_transform(
+    allocator: std.mem.Allocator,
+    obj:std.json.ObjectMap,
+) !topology.Topology
+{
+    const schema = try read_schema(
+        TransformTypes,
+        obj,
+    );
+
+    switch (schema) {
+        .AffineTransform1D => {
+            const transform:opentime.AffineTransform1D = (
+                if (obj.get("input_to_output_xform")) 
+                    |xform_json| 
+                .{
+                    .offset = (
+                        if (maybe_object_child(xform_json, "offset")) 
+                            |offset_json| 
+                        read_ordinate_from_rt(offset_json) orelse .ZERO
+                        else .ZERO
+                    ),
+                    .scale = (
+                        if (maybe_object_child(xform_json, "scale")) 
+                            |scale_json| 
+                        read_ordinate_from_rt(scale_json) 
+                        orelse .ONE
+                        else .ONE
+                    ),
+                } 
+                else .IDENTITY
+            );
+
+            std.debug.print("Transform: {f}\n", .{transform});
+            const range: opentime.ContinuousInterval = (
+                maybe_range(obj, "input_bounds_val")
+                orelse .INF
+            );
+            return try topology.Topology.init_affine(
+                allocator,
+                .{
+                    .input_to_output_xform = transform,
+                    .input_bounds_val = range,
+                },
+            );
+        },
+    }
+}
 
 fn read_schema(
     comptime EnumType: type,
@@ -240,6 +337,7 @@ inline fn read_children(
     NoSuchSchema,
     MalformedSchemaString,
     NotImplemented,
+    NotImplementedFetchTopology,
 }![]otio.ComposedValueRef
 {
     const child_count = children.array.items.len;
@@ -307,6 +405,7 @@ pub fn read_otio_object(
     NotAnOtioSchemaObject,
     MalformedSchemaString,
     NotImplemented,
+    NotImplementedFetchTopology,
 } !otio.ComposedValueRef 
 {
     const schema_enum = try read_schema(
@@ -416,6 +515,22 @@ pub fn read_otio_object(
             };
 
             return .{ .gap = gp };
+        },
+        .Warp => {
+            const wp = try allocator.create(otio.Warp);
+            wp.* = .{
+                .name = maybe_name,
+                .child = try read_otio_object(allocator, obj.get("child").?.object),
+                .transform = try read_transform(allocator,obj.get("transform").?.object),
+            };
+            std.debug.print(
+                "read warp: \n  .transform: {f}\n  .child: .{f}\n",
+                .{wp.transform, wp.child}
+            );
+            std.debug.print("M0: {f}\n", .{wp.transform.mappings[0]});
+            const wp_ptr = otio.ComposedValueRef{ .warp = wp };
+            std.debug.print("inner t: {f}\n", .{try wp_ptr.topology(allocator)});
+            return .{ .warp = wp };
         },
         // else => { 
         //     errdefer std.log.err("Not implemented yet: {s}\n", .{ schema_str });
