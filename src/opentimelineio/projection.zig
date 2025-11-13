@@ -2,6 +2,8 @@
 
 const std = @import("std");
 
+const build_options = @import("build_options");
+
 const opentime = @import("opentime");
 const sampling = @import("sampling");
 const topology_m = @import("topology");
@@ -14,7 +16,9 @@ const temporal_tree = @import("temporal_tree.zig");
 const test_data = @import("test_structures.zig");
 const projection_builder = @import("projection_builder.zig");
 
-const GRAPH_CONSTRUCTION_TRACE_MESSAGES = false;
+const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
+    build_options.debug_graph_construction_trace_messages
+);
 
 /// Combines a source, destination and transformation from the source to the
 /// destination.  Allows continuous and discrete transformations.

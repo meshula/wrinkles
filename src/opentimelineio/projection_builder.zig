@@ -3,11 +3,15 @@
 
 const std = @import("std");
 
+const build_options = @import("build_options");
+
 const opentime = @import("opentime");
 const topology_m = @import("topology");
 const treecode = @import("treecode");
 
-const GRAPH_CONSTRUCTION_TRACE_MESSAGES = false;
+const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
+    build_options.debug_graph_construction_trace_messages
+);
 
 /// Acceleration structure that decomposes the tree of spaces under `source`
 /// into a list of intervals in the source space associated with the
