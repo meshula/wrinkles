@@ -300,7 +300,7 @@ fn draw(
     {
         defer zgui.end();
 
-        const LEFT_PANEL_WIDTH = 500;
+        const LEFT_PANEL_WIDTH = 300;
 
         if (
             zgui.beginChild(
@@ -705,6 +705,111 @@ fn draw(
                 defer zgui.endTabBar();
 
                 if (
+                    zgui.beginTabItem("All Items Under Source", .{})
+                    and zgui.plot.beginPlot(
+                        "All Items Under Source",
+                        .{ 
+                            .w = -1.0,
+                            .h = -1.0,
+                            .flags = .{ .equal = true },
+                        },
+                    )
+                )
+                {
+                    defer zgui.endTabItem();
+                    defer zgui.plot.endPlot();
+
+                    var buf_src:[1024]u8 = undefined;
+
+                    if (STATE.maybe_proj_builder)
+                        |builder|
+                    {
+                        var buf:[]u8 = buf_src[0..];
+                        const input_space_name = try std.fmt.bufPrintZ(
+                           buf,
+                           "{f}",
+                           .{ STATE.maybe_src.? },
+                        );
+                        buf = buf[input_space_name.len..];
+                        zgui.plot.setupAxis(
+                            .x1,
+                            .{ .label = input_space_name },
+                        );
+                        zgui.plot.setupAxis(
+                            .y1,
+                            .{ .label = "output space" },
+                        );
+                        zgui.plot.setupLegend(
+                            .{ 
+                                .south = true,
+                                .west = true 
+                            },
+                            .{},
+                        );
+                        zgui.plot.setupFinish();
+
+                        // plot the input space - always linear
+                        {
+                            var xs: [2]f32 = undefined;
+                            var ys: [2]f32 = undefined;
+
+                            const ib = builder.input_bounds();
+                            xs[0] = 0;
+                            xs[1] = ib.duration().as(f32);
+
+                            ys[0] = ib.start.as(f32);
+                            ys[1] = ib.end.as(f32);
+
+                            const plotlabel = try std.fmt.bufPrintZ(
+                                buf,
+                                "Full Range of {s}",
+                                .{ input_space_name },
+                            );
+
+                            zplot.pushStyleVar1f(
+                                .{
+                                    .idx = .fill_alpha,
+                                    .v = 0.4,
+                                },
+                            );
+                            zplot.plotLine(
+                                plotlabel,
+                                f32, 
+                                .{
+                                    .xv = &xs,
+                                    .yv = &ys,
+                                    .flags = .{ .shaded = true, },
+                                },
+                            );
+                            zplot.popStyleVar(.{ .count = 1 });
+                        }
+
+                        // plot each child space
+                        const slices = STATE.slices.slice();
+                        zplot.pushStyleVar1f(.{ .idx = .fill_alpha, .v = 0.2 });
+                        for (
+                            slices.items(.xs),
+                            slices.items(.ys),
+                            slices.items(.label),
+                        ) |xs, ys, label|
+                        {
+                            zplot.plotLine(
+                                label,
+                                f32, 
+                                .{
+                                    .xv = xs,
+                                    .yv = ys,
+                                    .flags = .{
+                                        .shaded = true,
+                                    },
+                                },
+                            );
+                        }
+                        zplot.popStyleVar(.{ .count = 1 });
+                    }
+                }
+
+                if (
                     zgui.beginTabItem("Transformation Plot", .{})
                     and zgui.plot.beginPlot(
                         "Transformation Plot",
@@ -861,110 +966,6 @@ fn draw(
                     }
                 }
 
-                if (
-                    zgui.beginTabItem("All Items Under Source", .{})
-                    and zgui.plot.beginPlot(
-                        "All Items Under Source",
-                        .{ 
-                            .w = -1.0,
-                            .h = -1.0,
-                            .flags = .{ .equal = true },
-                        },
-                    )
-                )
-                {
-                    defer zgui.endTabItem();
-                    defer zgui.plot.endPlot();
-
-                    var buf_src:[1024]u8 = undefined;
-
-                    if (STATE.maybe_proj_builder)
-                        |builder|
-                    {
-                        var buf:[]u8 = buf_src[0..];
-                        const input_space_name = try std.fmt.bufPrintZ(
-                           buf,
-                           "{f}",
-                           .{ STATE.maybe_src.? },
-                        );
-                        buf = buf[input_space_name.len..];
-                        zgui.plot.setupAxis(
-                            .x1,
-                            .{ .label = input_space_name },
-                        );
-                        zgui.plot.setupAxis(
-                            .y1,
-                            .{ .label = "output space" },
-                        );
-                        zgui.plot.setupLegend(
-                            .{ 
-                                .south = true,
-                                .west = true 
-                            },
-                            .{},
-                        );
-                        zgui.plot.setupFinish();
-
-                        // plot the input space - always linear
-                        {
-                            var xs: [2]f32 = undefined;
-                            var ys: [2]f32 = undefined;
-
-                            const ib = builder.input_bounds();
-                            xs[0] = 0;
-                            xs[1] = ib.duration().as(f32);
-
-                            ys[0] = ib.start.as(f32);
-                            ys[1] = ib.end.as(f32);
-
-                            const plotlabel = try std.fmt.bufPrintZ(
-                                buf,
-                                "Full Range of {s}",
-                                .{ input_space_name },
-                            );
-
-                            zplot.pushStyleVar1f(
-                                .{
-                                    .idx = .fill_alpha,
-                                    .v = 0.4,
-                                },
-                            );
-                            zplot.plotLine(
-                                plotlabel,
-                                f32, 
-                                .{
-                                    .xv = &xs,
-                                    .yv = &ys,
-                                    .flags = .{ .shaded = true, },
-                                },
-                            );
-                            zplot.popStyleVar(.{ .count = 1 });
-                        }
-
-                        // plot each child space
-                        const slices = STATE.slices.slice();
-                        zplot.pushStyleVar1f(.{ .idx = .fill_alpha, .v = 0.2 });
-                        for (
-                            slices.items(.xs),
-                            slices.items(.ys),
-                            slices.items(.label),
-                        ) |xs, ys, label|
-                        {
-                            zplot.plotLine(
-                                label,
-                                f32, 
-                                .{
-                                    .xv = xs,
-                                    .yv = ys,
-                                    .flags = .{
-                                        .shaded = true,
-                                    },
-                                },
-                            );
-                        }
-                        zplot.popStyleVar(.{ .count = 1 });
-                    }
-                }
             }
         }
     }
