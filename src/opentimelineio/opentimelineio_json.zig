@@ -460,7 +460,9 @@ pub fn read_from_file(
         return hopefully_timeline;
     }
 
-    return error.NotImplemented;
+    return hopefully_timeline;
+
+    // return error.NotImplemented;
 }
 
 test "read_from_file test (simple)" 
