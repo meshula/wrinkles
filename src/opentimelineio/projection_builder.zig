@@ -827,11 +827,13 @@ pub fn ProjectionBuilder(
                     );
                 }
 
-                const current_to_next = try space_nodes.items(.ref)[current].build_transform(
-                    allocator_arena,
-                    space_nodes.items(.label)[current],
-                    space_nodes.get(next),
-                    next_step,
+                const current_to_next = (
+                    try space_nodes.items(.ref)[current].build_transform(
+                        allocator_arena,
+                        space_nodes.items(.label)[current],
+                        space_nodes.get(next),
+                        next_step,
+                    )
                 );
 
                 if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
@@ -879,7 +881,7 @@ pub fn ProjectionBuilder(
                             space_nodes.get(next),
                             o_b,
                         },
-                        );
+                    );
                 }
 
                 root_to_current = root_to_next;
@@ -887,22 +889,20 @@ pub fn ProjectionBuilder(
             }
 
             return .{
-                .source = (
-                    space_nodes.get(sorted_endpoints.source)
-                ),
-                .destination = (
-                    space_nodes.get(sorted_endpoints.destination)
-                ),
+                .source = space_nodes.get(sorted_endpoints.source),
+                .destination = space_nodes.get(sorted_endpoints.destination),
                 .src_to_dst_topo = root_to_current,
             };
         }
 
         pub fn space_from_mapping_index(
             self: @This(),
-            mapping_index: usize
+            mapping_index: usize,
         ) SpaceReferenceType
         {
-            const destination_ind = self.mappings.items(.destination)[mapping_index];
+            const destination_ind = (
+                self.mappings.items(.destination)[mapping_index]
+            );
             return self.tree.nodes.get(destination_ind);
         }
 

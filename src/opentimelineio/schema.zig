@@ -628,4 +628,3 @@ test "Clip: Animated Parameter example"
     const param = Clip.to_param(&lens_data);
     try cl.parameters.?.put( "lens",param );
 }
-

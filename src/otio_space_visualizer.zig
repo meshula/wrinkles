@@ -118,7 +118,10 @@ fn fill_topdown_point_buffers(
                     const ob = aff.output_bounds();
 
                     points.appendAssumeCapacity(
-                        .{.x = ib.start.as(f32), .y = ob.start.as(f32)},
+                        .{
+                            .x = ib.start.as(f32),
+                            .y = ob.start.as(f32),
+                        },
                     );
                     var last_point = points.get(points.len - 1);
                     points.appendAssumeCapacity(

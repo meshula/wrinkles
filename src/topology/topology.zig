@@ -1538,9 +1538,9 @@ pub fn join(
                                      .in = input_range.end,
                                      .out = output_value,
                                  },
-                                 },
                              },
-                         }
+                         },
+                     }
                     ).mapping(),
                 },
             }
@@ -1640,7 +1640,6 @@ pub fn join(
             parent_allocator,
         ),
     };
-
     return result;
 }
 

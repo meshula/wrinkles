@@ -371,7 +371,10 @@ test "libsamplerate w/ high level test -- resample only"
         tr_pres_to_cl_media_po.source_bounds().end.gt(0),
     );
 
-    const pres_bounds = tr_pres_to_cl_media_po.source_bounds();
+    const pres_bounds = (
+        tr_pres_to_cl_media_po.source_bounds()
+    );
+
     try opentime.expectOrdinateEqual(
         0,
         pres_bounds.start,
