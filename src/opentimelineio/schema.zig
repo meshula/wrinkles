@@ -150,22 +150,38 @@ pub const Clip = struct {
         allocator: std.mem.Allocator,
     ) !topology_m.Topology 
     {
-        if (self.bounds_s) 
-            |range| 
-        {
-            const media_bounds = (
-                try topology_m.Topology.init_identity(
-                    allocator,
-                    range
-                )
-            );
+        const media_bounds = (
+            self.bounds_s 
+            orelse self.media.bounds_s 
+            orelse return error.NotImplementedFetchTopology
+        );
 
-            return media_bounds;
-        } 
-        else 
-        {
-            return error.NotImplementedFetchTopology;
-        }
+        const presentation_to_media_xform = (
+            opentime.AffineTransform1D{
+                .offset = media_bounds.start,
+                .scale = opentime.Ordinate.ONE,
+            }
+        );
+
+        const presentation_bounds = (
+            opentime.ContinuousInterval{
+                .start = opentime.Ordinate.ZERO,
+                .end = media_bounds.duration()
+            }
+        );
+
+        const presentation_to_media_topo = (
+            try topology_m.Topology.init_affine(
+                allocator,
+                topology_m.MappingAffine {
+                    .input_to_output_xform = presentation_to_media_xform,
+                    .input_bounds_val = presentation_bounds,
+                }
+                ,
+            )
+        );
+
+        return presentation_to_media_topo;
     }
 
     pub fn destroy(
@@ -243,6 +259,24 @@ pub const Warp = struct {
     ) references.ComposedValueRef
     {
         return .{ .warp = self };
+    }
+
+    pub fn topology(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) !topology_m.Topology
+    {
+        // build the maybe_bounds
+        const child_topo = try self.child.topology(allocator);
+        defer child_topo.deinit(allocator);
+
+        return try topology_m.join(
+            allocator,
+            .{
+                .a2b = self.transform,
+                .b2c = child_topo,
+            }
+        );
     }
 };
 
@@ -530,22 +564,61 @@ test "clip topology construction"
 {
     const allocator = std.testing.allocator;
 
-    var cl = Clip {
-        .bounds_s = test_data.T_INT_1_TO_9,
-    };
+    // setting the bounds on the clip
+    {
+        var cl = Clip {
+            .bounds_s = test_data.T_INT_1_TO_9,
+        };
 
-    const topo = try cl.topology(allocator);
-    defer topo.deinit(allocator);
+        const topo = try cl.topology(allocator);
+        defer topo.deinit(allocator);
 
-    try opentime.expectOrdinateEqual(
-        test_data.T_INT_1_TO_9.start,
-        topo.input_bounds().start,
-    );
+        const expected_input_bounds = (
+            opentime.ContinuousInterval{
+                .start = .ZERO,
+                .end = test_data.T_INT_1_TO_9.duration(),
+            }
+        );
 
-    try opentime.expectOrdinateEqual(
-        test_data.T_INT_1_TO_9.end,
-        topo.input_bounds().end,
-    );
+        try std.testing.expectEqual(
+            expected_input_bounds,
+            topo.input_bounds(),
+        );
+
+        try std.testing.expectEqual(
+            test_data.T_INT_1_TO_9,
+            topo.output_bounds(),
+        );
+    }
+
+    // setting the bounds on the media
+    {
+        var cl = Clip {
+            .media = .{
+                .bounds_s = test_data.T_INT_1_TO_9,
+            },
+        };
+
+        const topo = try cl.topology(allocator);
+        defer topo.deinit(allocator);
+
+        const expected_input_bounds = (
+            opentime.ContinuousInterval{
+                .start = .ZERO,
+                .end = test_data.T_INT_1_TO_9.duration(),
+            }
+        );
+
+        try std.testing.expectEqual(
+            expected_input_bounds,
+            topo.input_bounds(),
+        );
+
+        try std.testing.expectEqual(
+            test_data.T_INT_1_TO_9,
+            topo.output_bounds(),
+        );
+    }
 }
 
 test "track topology construction" 
@@ -557,7 +630,7 @@ test "track topology construction"
     };
 
     var tr_children = [_]references.ComposedValueRef{
-        references.ComposedValueRef.init(&cl)
+        cl.reference()
     };
     var tr: Track = .{
         .children = &tr_children,
@@ -566,15 +639,22 @@ test "track topology construction"
     const topo = try tr.topology(allocator);
     defer topo.deinit(allocator);
 
-    try opentime.expectOrdinateEqual(
-        test_data.T_INT_1_TO_9.start,
-        topo.input_bounds().start,
+    const expected_clip_input_bounds = (
+        opentime.ContinuousInterval{
+            .start = .ZERO,
+            .end = test_data.T_INT_1_TO_9.duration(),
+        }
     );
 
-    try opentime.expectOrdinateEqual(
-        test_data.T_INT_1_TO_9.end,
-        topo.input_bounds().end,
-    );
+        try std.testing.expectEqual(
+            expected_clip_input_bounds,
+            topo.input_bounds(),
+        );
+
+        try std.testing.expectEqual(
+            expected_clip_input_bounds,
+            topo.output_bounds(),
+        );
 }
 
 test "Clip: Animated Parameter example"

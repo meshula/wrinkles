@@ -338,10 +338,12 @@ pub const ComposedValueRef = union(enum) {
                                 .scale = opentime.Ordinate.ONE,
                             }
                         );
-                        const intrinsic_bounds = opentime.ContinuousInterval{
-                            .start = opentime.Ordinate.ZERO,
-                            .end = media_bounds.duration()
-                        };
+                        const intrinsic_bounds = (
+                            opentime.ContinuousInterval{
+                                .start = opentime.Ordinate.ZERO,
+                                .end = media_bounds.duration(),
+                            }
+                        );
 
                         const intrinsic_to_media_mapping = (
                             topology_m.MappingAffine {
@@ -371,17 +373,51 @@ pub const ComposedValueRef = union(enum) {
 
                         return pres_to_media;
                     },
-                    else => try topology_m.Topology.init_identity(
-                        allocator,
-                        try cl.*.bounds_of(
-                            allocator,
-                            .media,
-                        )
-                    ),
+                    else => {
+                        // the only further transfomartion from media space is 
+                        // to bound (should have already been bounded in the 
+                        // presentation->media transformation)
+                        const result = (
+                            try topology_m.Topology.init_identity(
+                                allocator,
+                                try cl.*.bounds_of(
+                                    allocator,
+                                    .media,
+                                )
+                            )
+                        );
+
+                        return result;
+                    }
                 };
             },
             .warp => |wp_ptr| switch(from_space_label) {
-                .presentation => wp_ptr.transform,
+                .presentation => {
+                    const presentation_to_warp = wp_ptr.transform;
+
+                    const child_bounds = (
+                        try wp_ptr.child.bounds_of(
+                            allocator,
+                            .presentation,
+                        )
+                    );
+
+                    // needs the boundaries from the child
+                    const warp_to_child_presentation = (
+                        try topology_m.Topology.init_identity(
+                            allocator, 
+                            child_bounds,
+                        )
+                    );
+
+                    return topology_m.join(
+                        allocator,
+                        .{
+                            .a2b = presentation_to_warp,
+                            .b2c = warp_to_child_presentation,
+                        }
+                    );
+                },
                 else => .INFINITE_IDENTITY,
             },
             .gap => |gap_ptr| switch (from_space_label) {
