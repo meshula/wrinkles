@@ -841,11 +841,13 @@ pub fn ProjectionBuilder(
                     opentime.dbg_print(
                         @src(), 
                         "    joining!\n"
-                        ++ "    a2b/root_to_current: {f}\n"
-                        ++ "    b2c/current_to_next: {f}\n"
+                        ++ "    a2b {f}/root_to_current: {f}\n"
+                        ++ "    b2c {f}/current_to_next: {f}\n"
                         ,
                         .{
+                            space_nodes.get(current),
                             root_to_current,
+                            space_nodes.get(next),
                             current_to_next,
                         },
                     );
