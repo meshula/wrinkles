@@ -261,21 +261,64 @@ pub const Warp = struct {
         return .{ .warp = self };
     }
 
+    /// Presentation space of warp -> presentation space of child
     pub fn topology(
         self: @This(),
         allocator: std.mem.Allocator,
     ) !topology_m.Topology
     {
-        // build the maybe_bounds
-        const child_topo = try self.child.topology(allocator);
-        defer child_topo.deinit(allocator);
+        const child_bounds = try self.child.bounds_of(
+            allocator,
+            .presentation,
+        );
 
-        return try topology_m.join(
+        const child_bounds_topo = try topology_m.Topology.init_affine(
+            allocator,
+            .{
+                .input_bounds_val = .{
+                    .start = .ZERO,
+                    .end = child_bounds.duration(),
+                },
+                .input_to_output_xform = .{
+                    .offset = child_bounds.start,
+                    .scale = .ONE,
+                },
+            },
+        );
+        defer child_bounds_topo.deinit(allocator);
+
+        const warped_to_child = try topology_m.join(
             allocator,
             .{
                 .a2b = self.transform,
-                .b2c = child_topo,
+                .b2c = child_bounds_topo,
             }
+        );
+        defer warped_to_child.deinit(allocator);
+
+        const warped_range = warped_to_child.input_bounds();
+
+        const presentation_to_warped = try topology_m.Topology.init_affine(
+            allocator,
+            .{ 
+                .input_bounds_val = .{
+                    .start = .ZERO,
+                    .end = warped_range.duration(),
+                },
+                .input_to_output_xform = .{
+                    .offset = warped_range.start,
+                    .scale = .ONE,
+                },
+            }
+        );
+        defer presentation_to_warped.deinit(allocator);
+
+        return topology_m.join(
+            allocator,
+            .{
+                .a2b = presentation_to_warped,
+                .b2c = warped_to_child,
+            },
         );
     }
 };
@@ -386,6 +429,8 @@ pub const Track = struct {
                 .presentation,
             )
         );
+
+        std.debug.assert(current_child_pres_range.is_infinite() == false);
         const current_child_duration = (
             current_child_pres_range.duration()
         );
@@ -707,4 +752,113 @@ test "Clip: Animated Parameter example"
 
     const param = Clip.to_param(&lens_data);
     try cl.parameters.?.put( "lens",param );
+}
+
+test "warp topology"
+{
+    const allocator = std.testing.allocator;
+
+    // setting the bounds on the clip
+    {
+        var cl = Clip {
+            .bounds_s = test_data.T_INT_1_TO_9,
+        };
+
+        const xform = opentime.AffineTransform1D {
+            .offset = .ZERO,
+            .scale = .{ .v = 2 },
+        };
+
+        const wp = Warp {
+            .child = cl.reference(),
+            .transform = try topology_m.Topology.init_affine(
+                allocator, 
+                .{
+                    .input_to_output_xform = xform,
+                    .input_bounds_val = .INF,
+                },
+            ),
+        };
+        defer wp.transform.deinit(allocator);
+
+        const topo = try wp.topology(allocator);
+        defer topo.deinit(allocator);
+
+        const range = opentime.ContinuousInterval {
+            .start = .ONE,
+            .end = .{ .v = 5 },
+        };
+
+        const expected_input_bounds = (
+            opentime.ContinuousInterval{
+                .start = .ZERO,
+                .end = range.duration(),
+            }
+        );
+
+        try std.testing.expectEqual(
+            expected_input_bounds,
+            topo.input_bounds(),
+        );
+
+        try std.testing.expectEqual(
+            opentime.ContinuousInterval{
+                .start = .ZERO,
+                .end = test_data.T_INT_1_TO_9.duration(),
+        },
+            topo.output_bounds(),
+        );
+    }
+
+    // with an offset (no change)
+    {
+        var cl = Clip {
+            .bounds_s = test_data.T_INT_1_TO_9,
+        };
+
+        const xform = opentime.AffineTransform1D {
+            .offset = .ONE,
+            .scale = .{ .v = 2 },
+        };
+
+        const wp = Warp {
+            .child = cl.reference(),
+            .transform = try topology_m.Topology.init_affine(
+                allocator, 
+                .{
+                    .input_to_output_xform = xform,
+                    .input_bounds_val = .INF,
+                },
+            ),
+        };
+        defer wp.transform.deinit(allocator);
+
+        const topo = try wp.topology(allocator);
+        defer topo.deinit(allocator);
+
+        const range = opentime.ContinuousInterval {
+            .start = .ONE,
+            .end = .{ .v = 5 },
+        };
+
+        const expected_input_bounds = (
+            opentime.ContinuousInterval{
+                .start = .ZERO,
+                .end = range.duration(),
+            }
+        );
+
+        try std.testing.expectEqual(
+            expected_input_bounds,
+            topo.input_bounds(),
+        );
+
+        try std.testing.expectEqual(
+            opentime.ContinuousInterval{
+                .start = .ZERO,
+                .end = test_data.T_INT_1_TO_9.duration(),
+        },
+            topo.output_bounds(),
+        );
+    }
 }

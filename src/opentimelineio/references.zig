@@ -178,10 +178,16 @@ pub const ComposedValueRef = union(enum) {
     pub fn topology(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) error{OutOfMemory,NotImplementedFetchTopology}!topology_m.Topology 
+    ) error{
+        NotAnOrdinateResult,
+        NoOverlap,
+        OutOfBounds,
+        OutOfMemory,
+        NotImplementedFetchTopology,
+        UnsupportedSpaceError,
+    }!topology_m.Topology 
     {
-        return switch (self) {
-            .warp => |wp_ptr| wp_ptr.transform,
+        return  switch (self) {
             inline else => |it_ptr| try it_ptr.topology(allocator),
         };
     }

@@ -338,6 +338,10 @@ inline fn read_children(
     MalformedSchemaString,
     NotImplemented,
     NotImplementedFetchTopology,
+    NotAnOrdinateResult,
+    NoOverlap,
+    OutOfBounds,
+    UnsupportedSpaceError,
 }![]otio.ComposedValueRef
 {
     const child_count = children.array.items.len;
@@ -406,6 +410,10 @@ pub fn read_otio_object(
     MalformedSchemaString,
     NotImplemented,
     NotImplementedFetchTopology,
+    NotAnOrdinateResult,
+    NoOverlap,
+    OutOfBounds,
+    UnsupportedSpaceError,
 } !otio.ComposedValueRef 
 {
     const schema_enum = try read_schema(
