@@ -92,16 +92,35 @@ temporal hierarchies of editorial documents.
   graph of the temporal structural, decorated with the Transformation curves
   * select two nodes to see the projection operator from one to the other
 
+## Todo List 11/14/25
+
+* [ ] difference between `RANGE` and `BOUNDS` -- when to use each
+* [ ] warp schema
+    * [x] affine transforms
+    * [ ] negative scale bug
+    * [ ] curve based transformation
+    * [ ] test warping a track or other structure
+* [ ] Transition Schema
+* [ ] OTIO 2.0 file format
+    * [ ] translator python script
+    * [ ] don't need a rational time based format anymore
+* [ ] Serializer 
+* [ ] visualizer
+    * [ ] rearrange based on a table of all the children to control visibility
+    * [ ] UI to represent tracks?
+    * [ ] visualize discrete spaces (stairstep plot in implot?)
+    * [ ] struct data visualizer/editor
+* [ ] C++ test API
+* [ ] Python test API (ziggy-pydust)
+
 ## Todo List (10/9/25)
 
 * [x] optimize generating the ProjectionOperatorMap for large otio files
 * [x] Can Projection Operator go away?
 * [x] Can the Projection Operator map get melded in with Topology, omitting 
       both the Projection Operator and Operator Map?
-* [ ] difference between `RANGE` and `BOUNDS` -- when to use each
 * [ ] Raven recode against this tooling?
 * [ ] serialize OTIO Files for round tripping?
-* [ ] warp schema?  Transition 2.0?
 * [ ] schema updater app?
 
 ## Todo List (11/6/24)
