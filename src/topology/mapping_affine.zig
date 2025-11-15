@@ -34,9 +34,22 @@ pub const MappingAffine = struct {
         self: @This(),
     ) opentime.ContinuousInterval 
     {
-        return self.input_to_output_xform.applied_to_interval(
-            self.input_bounds_val,
+        const unsorted_bounds = (
+            self.input_to_output_xform.applied_to_interval(
+                self.input_bounds_val,
+            )
         );
+
+        return .{
+            .start = opentime.min(
+                unsorted_bounds.start,
+                unsorted_bounds.end
+            ),
+            .end = opentime.max(
+                unsorted_bounds.start,
+                unsorted_bounds.end
+            ),
+        };
     }
 
     pub fn project_instantaneous_cc(
