@@ -2166,3 +2166,48 @@ pub fn build_projection_operator(
         operator_cache,
     );
 }
+
+test "projection builder over warp with negative scale"
+{
+    const allocator = std.testing.allocator;
+
+    var cl = schema.Clip {
+        .bounds_s = test_data.T_INT_1_TO_9,
+    };
+
+    const xform = opentime.AffineTransform1D {
+        .offset = .ZERO,
+        .scale = opentime.Ordinate.init(-2),
+    };
+
+    var wp = schema.Warp {
+        .child = cl.reference(),
+        .transform = try topology_m.Topology.init_affine(
+            allocator, 
+            .{
+                .input_to_output_xform = xform,
+                .input_bounds_val = .INF,
+            },
+        ),
+    };
+    defer wp.transform.deinit(allocator);
+    const wp_ptr = wp.reference();
+
+    var builder = (
+        try TemporalProjectionBuilder.init_from(
+            allocator,
+            wp_ptr.space(.presentation),
+        )
+    );
+    defer builder.deinit(allocator);
+
+    std.debug.print("b: {f}\n", .{builder});
+
+    const wp_pres_to_child = try wp.topology(allocator);
+    defer wp_pres_to_child.deinit(allocator);
+
+    try std.testing.expectEqual(
+        wp_pres_to_child.input_bounds(),
+        builder.input_bounds(),
+    );
+}
