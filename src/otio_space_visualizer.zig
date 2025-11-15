@@ -93,6 +93,14 @@ fn fill_topdown_point_buffers(
     const interval_slice =  builder.intervals.slice();
     const mapping_slice = builder.mappings.slice();
 
+    var slice_indices : std.MultiArrayList(
+        struct{
+            start: usize,
+            end: usize,
+            label: [:0]const u8,
+        },
+    ) = .empty;
+
     for (
         interval_slice.items(.mapping_index),
         interval_slice.items(.input_bounds)
@@ -129,22 +137,41 @@ fn fill_topdown_point_buffers(
                     );
                     last_point = points.get(points.len - 1);
                     try label_writer.print("{f}" ++ .{0}, .{ dst });
-                    try slices.append(
+                    try slice_indices.append(
                         allocator,
                         .{
-                            .xs = points.items(.x)[start..end],
-                            .ys = points.items(.y)[start..end],
+                            .start = start,
+                            .end = end,
                             .label = @ptrCast(
                                 try allocating_label_writer.toOwnedSlice()
                             ),
                         },
                     );
+
                 },
                 else => {
                 },
             }
         }
     }
+
+    for (
+        slice_indices.items(.start),
+        slice_indices.items(.end),
+        slice_indices.items(.label),
+    )
+        |start, end, label|
+    {
+        try slices.append(
+            allocator,
+            .{
+                .xs = points.items(.x)[start..end],
+                .ys = points.items(.y)[start..end],
+                .label = label,
+            },
+        );
+    }
+
 }
 
 /// 2d Point in a plot
@@ -702,273 +729,293 @@ fn draw(
                 }
             }
 
-            // graph of the transformation from source to dst
-            if (zgui.beginTabBar("Plots", .{}))
+            if (zgui.beginChild("PlotsTabs", .{}))
             {
-                defer zgui.endTabBar();
+                defer zgui.endChild();
 
-                if (
-                    zgui.beginTabItem("All Items Under Source", .{})
-                    and zgui.plot.beginPlot(
-                        "All Items Under Source",
-                        .{ 
-                            .w = -1.0,
-                            .h = -1.0,
-                            .flags = .{ .equal = true },
-                        },
-                    )
-                )
+                // graph of the transformation from source to dst
+                if (zgui.beginTabBar("Plots", .{}))
                 {
-                    defer zgui.endTabItem();
-                    defer zgui.plot.endPlot();
+                    defer zgui.endTabBar();
 
-                    var buf_src:[1024]u8 = undefined;
-
-                    if (STATE.maybe_proj_builder)
-                        |builder|
-                    {
-                        var buf:[]u8 = buf_src[0..];
-                        const input_space_name = try std.fmt.bufPrintZ(
-                           buf,
-                           "{f}",
-                           .{ STATE.maybe_src.? },
-                        );
-                        buf = buf[input_space_name.len..];
-                        zgui.plot.setupAxis(
-                            .x1,
-                            .{ .label = input_space_name },
-                        );
-                        zgui.plot.setupAxis(
-                            .y1,
-                            .{ .label = "output space" },
-                        );
-                        zgui.plot.setupLegend(
+                    if (
+                        zgui.beginTabItem("All Items Under Source", .{})
+                        and zgui.plot.beginPlot(
+                            "All Items Under Source",
                             .{ 
-                                .south = true,
-                                .west = true 
+                                .w = -1.0,
+                                .h = -1.0,
+                                .flags = .{ .equal = true },
                             },
-                            .{},
-                        );
-                        zgui.plot.setupFinish();
-
-                        // plot the input space - always linear
-                        {
-                            var xs: [2]f32 = undefined;
-                            var ys: [2]f32 = undefined;
-
-                            const ib = builder.input_bounds();
-                            xs[0] = 0;
-                            xs[1] = ib.duration().as(f32);
-
-                            ys[0] = ib.start.as(f32);
-                            ys[1] = ib.end.as(f32);
-
-                            const plotlabel = try std.fmt.bufPrintZ(
-                                buf,
-                                "Full Range of {s}",
-                                .{ input_space_name },
-                            );
-
-                            zplot.pushStyleVar1f(
-                                .{
-                                    .idx = .fill_alpha,
-                                    .v = 0.4,
-                                },
-                            );
-                            zplot.plotLine(
-                                plotlabel,
-                                f32, 
-                                .{
-                                    .xv = &xs,
-                                    .yv = &ys,
-                                    .flags = .{ .shaded = true, },
-                                },
-                            );
-                            zplot.popStyleVar(.{ .count = 1 });
-                        }
-
-                        // plot each child space
-                        const slices = STATE.slices.slice();
-                        zplot.pushStyleVar1f(.{ .idx = .fill_alpha, .v = 0.2 });
-                        for (
-                            slices.items(.xs),
-                            slices.items(.ys),
-                            slices.items(.label),
-                        ) |xs, ys, label|
-                        {
-                            zplot.plotLine(
-                                label,
-                                f32, 
-                                .{
-                                    .xv = xs,
-                                    .yv = ys,
-                                    .flags = .{
-                                        .shaded = true,
-                                    },
-                                },
-                            );
-                        }
-                        zplot.popStyleVar(.{ .count = 1 });
-                    }
-                }
-
-                if (
-                    zgui.beginTabItem("Transformation Plot", .{})
-                    and zgui.plot.beginPlot(
-                        "Transformation Plot",
-                        .{ 
-                            .w = -1.0,
-                            .h = -1.0,
-                            .flags = .{ .equal = true },
-                        },
+                        )
                     )
-                ) 
-                {
-                    defer zgui.endTabItem();
-                    defer zgui.plot.endPlot();
-
-                    var buf_src:[1024]u8 = undefined;
-
-                    if (STATE.maybe_transform != null)
                     {
-                        var buf:[]u8 = buf_src[0..];
-                        const input_space_name = try std.fmt.bufPrintZ(
-                           buf,
-                           "{f}",
-                           .{ STATE.maybe_src.? },
-                        );
-                        buf = buf[input_space_name.len..];
-                        zgui.plot.setupAxis(
-                            .x1,
-                            .{ .label = input_space_name },
-                        );
+                        defer zgui.endTabItem();
+                        defer zgui.plot.endPlot();
 
-                        const output_space_name = try std.fmt.bufPrintZ(
-                           buf,
-                           "{f}",
-                           .{ STATE.maybe_dst.? },
-                        );
-                        buf = buf_src[output_space_name.len..];
-                        zgui.plot.setupAxis(
-                            .y1,
-                            .{ .label = output_space_name },
-                        );
-                        zgui.plot.setupLegend(
-                            .{ 
-                                .south = true,
-                                .west = true 
-                            },
-                            .{},
-                        );
-                        zgui.plot.setupFinish();
+                        var buf_src:[1024]u8 = undefined;
 
-                        const NUM_POINTS = 300;
-
-                        var xs: [NUM_POINTS]f32 = undefined;
-                        var ys: [NUM_POINTS]f32 = undefined;
-
-                        // plot the input space
                         if (STATE.maybe_proj_builder)
                             |builder|
                         {
-                            var current_x = builder.input_bounds().start;
-                            var current_y:opentime.Ordinate = .ZERO;
-                            const inc = builder.input_bounds().duration().div(
-                                @as(f32, @floatFromInt(NUM_POINTS))
+                            var buf:[]u8 = buf_src[0..];
+                            const input_space_name = (
+                                try std.fmt.bufPrintZ(
+                                    buf,
+                                    "{f}",
+                                    .{ STATE.maybe_src.? },
+                                )
                             );
-                            zgui.text("Inc: {f}", .{ inc });
+                            buf = buf[input_space_name.len..];
+                            zgui.plot.setupAxis(
+                                .x1,
+                                .{ .label = input_space_name },
+                            );
+                            zgui.plot.setupAxis(
+                                .y1,
+                                .{ .label = "output space" },
+                            );
+                            zgui.plot.setupLegend(
+                                .{ 
+                                    .south = true,
+                                    .west = true 
+                                },
+                                .{},
+                            );
+                            zgui.plot.setupFinish();
 
-                            for (&xs, &ys)
-                                |*x, *y|
+                            // plot the input space - always linear
                             {
-                                x.* = current_x.as(f32);
-                                y.* = current_y.as(f32);
+                                var xs: [2]f32 = undefined;
+                                var ys: [2]f32 = undefined;
 
-                                current_x = current_x.add(inc);
-                                current_y = current_y.add(inc);
+                                const ib = builder.input_bounds();
+                                xs[0] = 0;
+                                xs[1] = ib.duration().as(f32);
+
+                                ys[0] = ib.start.as(f32);
+                                ys[1] = ib.end.as(f32);
+
+                                const plotlabel = try std.fmt.bufPrintZ(
+                                    buf,
+                                    "Full Range of {s}",
+                                    .{ input_space_name },
+                                );
+
+                                zplot.pushStyleVar1f(
+                                    .{
+                                        .idx = .fill_alpha,
+                                        .v = 0.4,
+                                    },
+                                );
+                                zplot.plotLine(
+                                    plotlabel,
+                                    f32, 
+                                    .{
+                                        .xv = &xs,
+                                        .yv = &ys,
+                                        .flags = .{ 
+                                            .shaded = true, 
+                                        },
+                                    },
+                                );
+                                zplot.popStyleVar(.{ .count = 1 });
                             }
 
-                            const plotlabel = try std.fmt.bufPrintZ(
-                                buf,
-                                "Full Range of {s}",
-                                .{ input_space_name },
-                            );
+                            // plot each child space
+                            const slices = STATE.slices.slice();
                             zplot.pushStyleVar1f(
                                 .{
                                     .idx = .fill_alpha,
-                                    .v = 0.4,
+                                    .v = 0.2,
                                 },
                             );
-                            zplot.plotLine(
-                                plotlabel,
-                                f32, 
-                                .{
-                                    .xv = &xs,
-                                    .yv = &ys,
-                                    .flags = .{.shaded = true},
-                                },
-                            );
+
+                            // @TODO: make this a control - where in the
+                            //        timeline you're viewing
+                            const MAX_ITEMS = @min(slices.len, 6000);
+                            for (
+                                slices.items(.xs)[0..MAX_ITEMS],
+                                slices.items(.ys)[0..MAX_ITEMS],
+                                slices.items(.label)[0..MAX_ITEMS],
+                            ) |xs, ys, label|
+                            {
+                                // std.debug.print("plotting: {s}\n", .{label});
+                                // std.debug.print("  xs: {any}\n", .{xs});
+                                // std.debug.print("  ys: {any}\n", .{ys});
+                                zplot.plotLine(
+                                    label,
+                                    f32, 
+                                    .{
+                                        .xv = xs,
+                                        .yv = ys,
+                                        .flags = .{
+                                            .shaded = true,
+                                        },
+                                    },
+                                );
+                            }
                             zplot.popStyleVar(.{ .count = 1 });
                         }
+                    }
 
-                        // plot the transform
-                        if (STATE.maybe_transform)
-                            |xform|
+                    if (
+                        zgui.beginTabItem("Transformation Plot", .{})
+                        and zgui.plot.beginPlot(
+                            "Transformation Plot",
+                            .{ 
+                                .w = -1.0,
+                                .h = -1.0,
+                                .flags = .{ .equal = true },
+                            },
+                        )
+                    ) 
+                    {
+                        defer zgui.endTabItem();
+                        defer zgui.plot.endPlot();
+
+                        var buf_src:[1024]u8 = undefined;
+
+                        if (STATE.maybe_transform != null)
                         {
-                            var current_x = xform.input_bounds().start;
-                            const inc = xform.input_bounds().duration().div(
-                                @as(f32, @floatFromInt(NUM_POINTS))
+                            var buf:[]u8 = buf_src[0..];
+                            const input_space_name = try std.fmt.bufPrintZ(
+                               buf,
+                               "{f}",
+                               .{ STATE.maybe_src.? },
                             );
-                            zgui.text("Inc: {f}", .{ inc });
+                            buf = buf[input_space_name.len..];
+                            zgui.plot.setupAxis(
+                                .x1,
+                                .{ .label = input_space_name },
+                            );
 
-                            for (&xs, &ys)
-                                |*x, *y|
+                            const output_space_name = try std.fmt.bufPrintZ(
+                               buf,
+                               "{f}",
+                               .{ STATE.maybe_dst.? },
+                            );
+                            buf = buf_src[output_space_name.len..];
+                            zgui.plot.setupAxis(
+                                .y1,
+                                .{ .label = output_space_name },
+                            );
+                            zgui.plot.setupLegend(
+                                .{ 
+                                    .south = true,
+                                    .west = true 
+                                },
+                                .{},
+                            );
+                            zgui.plot.setupFinish();
+
+                            const NUM_POINTS = 300;
+
+                            var xs: [NUM_POINTS]f32 = undefined;
+                            var ys: [NUM_POINTS]f32 = undefined;
+
+                            // plot the input space
+                            if (STATE.maybe_proj_builder)
+                                |builder|
                             {
-                                x.* = current_x.as(f32);
-                                y.* = (
-                                    xform.project_instantaneous_cc_assume_in_bounds(
-                                        current_x,
-                                    ).SuccessOrdinate.as(f32)
+                                var current_x = builder.input_bounds().start;
+                                var current_y:opentime.Ordinate = .ZERO;
+                                const inc = builder.input_bounds().duration().div(
+                                    @as(f32, @floatFromInt(NUM_POINTS))
                                 );
+                                zgui.text("Inc: {f}", .{ inc });
 
-                                current_x = current_x.add(inc);
+                                for (&xs, &ys)
+                                    |*x, *y|
+                                {
+                                    x.* = current_x.as(f32);
+                                    y.* = current_y.as(f32);
+
+                                    current_x = current_x.add(inc);
+                                    current_y = current_y.add(inc);
+                                }
+
+                                const plotlabel = try std.fmt.bufPrintZ(
+                                    buf,
+                                    "Full Range of {s}",
+                                    .{ input_space_name },
+                                );
+                                zplot.pushStyleVar1f(
+                                    .{
+                                        .idx = .fill_alpha,
+                                        .v = 0.4,
+                                    },
+                                );
+                                zplot.plotLine(
+                                    plotlabel,
+                                    f32, 
+                                    .{
+                                        .xv = &xs,
+                                        .yv = &ys,
+                                        .flags = .{.shaded = true},
+                                    },
+                                );
+                                zplot.popStyleVar(.{ .count = 1 });
                             }
 
-                            zplot.pushStyleColor4f(
-                                .{
-                                    .idx = .fill,
-                                    .c = .{ 0.1, 0.1, 0.4, 0.4 },
-                                },
-                            );
+                            // plot the transform
+                            if (STATE.maybe_transform)
+                                |xform|
+                            {
+                                var current_x = xform.input_bounds().start;
+                                const inc = xform.input_bounds().duration().div(
+                                    @as(f32, @floatFromInt(NUM_POINTS))
+                                );
+                                zgui.text("Inc: {f}", .{ inc });
 
-                            const plotlabel = try std.fmt.bufPrintZ(
-                                buf[800..],
-                                "{s} -> {s}",
-                                .{ input_space_name, output_space_name },
-                            );
-                            zplot.plotShaded(
-                                plotlabel,
-                                f32, 
-                                .{
-                                    .xv = &xs,
-                                    .yv = &ys,
-                                    .flags = .{},
-                                },
-                            );
-                            zplot.popStyleColor(.{.count = 1});
+                                for (&xs, &ys)
+                                    |*x, *y|
+                                {
+                                    x.* = current_x.as(f32);
+                                    y.* = (
+                                        xform.project_instantaneous_cc_assume_in_bounds(
+                                            current_x,
+                                        ).SuccessOrdinate.as(f32)
+                                    );
 
-                            zplot.plotLine(
-                                plotlabel,
-                                f32, 
-                                .{
-                                    .xv = &xs,
-                                    .yv = &ys,
-                                },
-                            );
+                                    current_x = current_x.add(inc);
+                                }
+
+                                zplot.pushStyleColor4f(
+                                    .{
+                                        .idx = .fill,
+                                        .c = .{ 0.1, 0.1, 0.4, 0.4 },
+                                    },
+                                );
+
+                                const plotlabel = try std.fmt.bufPrintZ(
+                                    buf[800..],
+                                    "{s} -> {s}",
+                                    .{ input_space_name, output_space_name },
+                                );
+                                zplot.plotShaded(
+                                    plotlabel,
+                                    f32, 
+                                    .{
+                                        .xv = &xs,
+                                        .yv = &ys,
+                                        .flags = .{},
+                                    },
+                                );
+                                zplot.popStyleColor(.{.count = 1});
+
+                                zplot.plotLine(
+                                    plotlabel,
+                                    f32, 
+                                    .{
+                                        .xv = &xs,
+                                        .yv = &ys,
+                                    },
+                                );
+                            }
                         }
                     }
                 }
-
             }
         }
     }
