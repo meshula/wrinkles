@@ -2369,3 +2369,66 @@ test "Topology: join affine with ident"
         ).ordinate(),
     );
 }
+
+test "Topology output_bounds are sorted after negative scale"
+{
+    const allocator = std.testing.allocator;
+
+    // offset = 0
+    {
+        const aff = try Topology.init_affine(
+            allocator,
+            .{
+                .input_bounds_val = (
+                    opentime.ContinuousInterval.init(
+                        .{ .start = 0, .end = 8, }
+                    )
+                ),
+                .input_to_output_xform = .{
+                    .offset = opentime.Ordinate.ZERO,
+                    .scale = opentime.Ordinate.init(-1),
+                },
+            },
+        );
+        defer aff.deinit(allocator);
+
+        const output_bounds = aff.output_bounds();
+
+        try std.testing.expectEqual(
+            opentime.ContinuousInterval{
+                .start = opentime.Ordinate.init(-8),
+                .end = .ZERO,
+            }, 
+            output_bounds,
+        );
+    }
+
+    // offset = 1
+    {
+        const aff = try Topology.init_affine(
+            allocator,
+            .{
+                .input_bounds_val = (
+                    opentime.ContinuousInterval.init(
+                        .{ .start = 0, .end = 8, }
+                    )
+                ),
+                .input_to_output_xform = .{
+                    .offset = opentime.Ordinate.init(1),
+                    .scale = opentime.Ordinate.init(-1),
+                },
+            },
+        );
+        defer aff.deinit(allocator);
+
+        const output_bounds = aff.output_bounds();
+
+        try std.testing.expectEqual(
+            opentime.ContinuousInterval{
+                .start = opentime.Ordinate.init(-7),
+                .end = .ONE,
+            }, 
+            output_bounds,
+        );
+    }
+}
