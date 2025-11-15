@@ -861,4 +861,84 @@ test "warp topology"
             topo.output_bounds(),
         );
     }
+
+    // negative scale
+    {
+        var cl = Clip {
+            .bounds_s = test_data.T_INT_1_TO_9,
+        };
+
+        const xform = opentime.AffineTransform1D {
+            .offset = .ZERO,
+            .scale = opentime.Ordinate.init(-2),
+        };
+
+        const wp = Warp {
+            .child = cl.reference(),
+            .transform = try topology_m.Topology.init_affine(
+                allocator, 
+                .{
+                    .input_to_output_xform = xform,
+                    .input_bounds_val = .INF,
+                },
+            ),
+        };
+        defer wp.transform.deinit(allocator);
+
+        const wp_pres_to_child = try wp.topology(allocator);
+        defer wp_pres_to_child.deinit(allocator);
+
+        const range = opentime.ContinuousInterval {
+            .start = .ONE,
+            .end = .{ .v = 5 },
+        };
+
+        const expected_input_bounds = (
+            opentime.ContinuousInterval{
+                .start = .ZERO,
+                .end = range.duration(),
+            }
+        );
+
+        try std.testing.expectEqual(
+            expected_input_bounds,
+            wp_pres_to_child.input_bounds(),
+        );
+
+        const child_bounds = (
+            opentime.ContinuousInterval{
+                .start = .ZERO,
+                .end = test_data.T_INT_1_TO_9.duration(),
+            }
+        );
+
+        try std.testing.expectEqual(
+            child_bounds,
+            wp_pres_to_child.output_bounds(),
+        );
+
+        // project the start and end points to see where they land
+        try std.testing.expectEqual(
+            child_bounds.end,
+            wp_pres_to_child.project_instantaneous_cc(
+                expected_input_bounds.start
+            ).ordinate(),
+        );
+
+        const inverted = try wp_pres_to_child.inverted(
+            allocator
+        );
+        const wp_child_to_pres = inverted[0];
+        defer {
+            wp_child_to_pres.deinit(allocator);
+            allocator.free(inverted);
+        }
+
+        try std.testing.expectEqual(
+            expected_input_bounds.end,
+            wp_child_to_pres.project_instantaneous_cc(
+                child_bounds.start
+            ).ordinate(),
+        );
+    }
 }
