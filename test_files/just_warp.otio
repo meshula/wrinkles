@@ -12,7 +12,7 @@
             "scale": {
                 "OTIO_SCHEMA": "RationalTime.1",
                 "rate": 1,
-                "value": 2
+                "value": -2
             }
         }
     },
