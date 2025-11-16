@@ -147,10 +147,19 @@ pub fn LinearOf(
                         and opentime.lteq(output_ord, after.out) 
                     )
                     {
-                        if (slope == .rising) {
-                            return .{ .lt_output = index, .gt_output = index + 1 };
-                        } else {
-                            return .{ .lt_output = index + 1, .gt_output = index };
+                        if (slope == .rising) 
+                        {
+                            return .{
+                                .lt_output = index,
+                                .gt_output = index + 1,
+                            };
+                        } 
+                        else 
+                        {
+                            return .{
+                                .lt_output = index + 1,
+                                .gt_output = index,
+                            };
                         }
                     }
                 }
