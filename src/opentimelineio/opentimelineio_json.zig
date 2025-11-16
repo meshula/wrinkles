@@ -95,7 +95,6 @@ fn read_transform(
                 else .IDENTITY
             );
 
-            std.debug.print("Transform: {f}\n", .{transform});
             const range: opentime.ContinuousInterval = (
                 maybe_range(obj, "input_bounds_val")
                 orelse .INF
@@ -531,13 +530,6 @@ pub fn read_otio_object(
                 .child = try read_otio_object(allocator, obj.get("child").?.object),
                 .transform = try read_transform(allocator,obj.get("transform").?.object),
             };
-            std.debug.print(
-                "read warp: \n  .transform: {f}\n  .child: .{f}\n",
-                .{wp.transform, wp.child}
-            );
-            std.debug.print("M0: {f}\n", .{wp.transform.mappings[0]});
-            const wp_ptr = otio.ComposedValueRef{ .warp = wp };
-            std.debug.print("inner t: {f}\n", .{try wp_ptr.topology(allocator)});
             return .{ .warp = wp };
         },
         // else => { 

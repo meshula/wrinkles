@@ -408,8 +408,6 @@ pub const ComposedValueRef = union(enum) {
                         )
                     );
 
-                    std.debug.print("child_bounds: {f}\n", .{child_bounds});
-
                     // needs the boundaries from the child
                     const warp_unbounded_to_child = (
                         try topology_m.Topology.init_identity(

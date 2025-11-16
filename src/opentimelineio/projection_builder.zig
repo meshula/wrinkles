@@ -163,7 +163,9 @@ pub fn ProjectionBuilder(
 
             const codes = tree_nodes.items(.code);
             const source_code = codes[start_index];
-            const maybe_child_indices = tree_nodes.items(.child_indices);
+            const maybe_child_indices = (
+                tree_nodes.items(.child_indices)
+            );
 
             // for each terminal space, build the topology to transform to that
             // space.  For each mapping in each topology, add the end points
