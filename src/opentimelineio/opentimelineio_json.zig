@@ -243,9 +243,8 @@ pub fn read_ordinate(
 ) opentime.Ordinate 
 {
     return switch (obj) {
-        .integer => |i| opentime.Ordinate.init(i),
-        .float => |f| opentime.Ordinate.init(f),
-        else => opentime.Ordinate.ZERO,
+        inline .integer, .float => |v| opentime.Ordinate.init(v),
+        else => .ZERO,
     };
 }
 
