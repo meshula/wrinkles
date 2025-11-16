@@ -1,0 +1,78 @@
+{
+    "OTIO_SCHEMA": "Warp.1", 
+    "name": "-1 Aff",
+    "transform": {
+        "OTIO_SCHEMA": "AffineTransform1D",
+        "input_to_output_xform": {
+            "offset": {
+                "OTIO_SCHEMA": "RationalTime.1",
+                "rate": 24,
+                "value": 0
+            },
+            "scale": {
+                "OTIO_SCHEMA": "RationalTime.1",
+                "rate": 1,
+                "value": -1
+            }
+        }
+    },
+    "child": {
+        "OTIO_SCHEMA": "Warp.1", 
+        "name": "2x Aff",
+        "transform": {
+            "OTIO_SCHEMA": "AffineTransform1D",
+            "input_to_output_xform": {
+                "offset": {
+                    "OTIO_SCHEMA": "RationalTime.1",
+                    "rate": 24,
+                    "value": 0
+                },
+                "scale": {
+                    "OTIO_SCHEMA": "RationalTime.1",
+                    "rate": 1,
+                    "value": 2
+                }
+            }
+        },
+        "child": {
+            "OTIO_SCHEMA": "Clip.1",
+            "effects": [],
+            "markers": [],
+            "enabled": true,
+            "media_reference": {
+                "OTIO_SCHEMA": "ExternalReference.1",
+                "available_range": {
+                    "OTIO_SCHEMA": "TimeRange.1",
+                    "duration": {
+                        "OTIO_SCHEMA": "RationalTime.1",
+                        "rate": 1,
+                        "value": 1
+                    },
+                    "start_time": {
+                        "OTIO_SCHEMA": "RationalTime.1",
+                        "rate": 1,
+                        "value": 0.5
+                    }
+                },
+                "metadata": {},
+                "target_url": "file:///folder/titles.mov",
+                "name": "Media-001"
+            },
+            "metadata": {},
+            "name": "Clip-001",
+            "source_range": {
+                "OTIO_SCHEMA": "TimeRange.1",
+                "duration": {
+                    "OTIO_SCHEMA": "RationalTime.1",
+                    "rate": 1,
+                    "value": 1
+                },
+                "start_time": {
+                    "OTIO_SCHEMA": "RationalTime.1",
+                    "rate": 1,
+                    "value": 0
+                }
+            }
+        }
+    }
+}
