@@ -1,6 +1,6 @@
 {
     "OTIO_SCHEMA": "Warp.1", 
-    "name": "Linear Curve",
+    "name": "Bezier Curve",
     "transform": {
         "OTIO_SCHEMA": "BezierCurve1D.1",
         "knots": {
