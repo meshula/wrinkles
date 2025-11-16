@@ -610,6 +610,9 @@ pub fn read_otio_object(
                 .child = try read_otio_object(allocator, obj.get("child").?.object),
                 .transform = try read_transform(allocator,obj.get("transform").?.object),
             };
+
+            std.debug.assert(wp.transform.mappings.len != 0);
+
             return .{ .warp = wp };
         },
         // else => { 

@@ -401,6 +401,10 @@ pub const ComposedValueRef = union(enum) {
                 .presentation => {
                     const intrinsic_to_warp_unbounded = wp_ptr.transform;
 
+                    std.debug.assert(
+                        wp_ptr.transform.input_bounds().is_instant() == false
+                    );
+
                     const child_bounds = (
                         try wp_ptr.child.bounds_of(
                             allocator,
@@ -424,6 +428,9 @@ pub const ComposedValueRef = union(enum) {
                         }
                     );
 
+                    std.debug.assert(
+                        intrinsic_to_child.input_bounds().is_instant() == false
+                    );
                     const intrinsic_bounds = (
                         intrinsic_to_child.input_bounds()
                     );
@@ -441,13 +448,17 @@ pub const ComposedValueRef = union(enum) {
                         )
                     );
 
-                    return try topology_m.join(
+                    const result = try topology_m.join(
                         allocator,
                         .{
                             .a2b = presentation_to_intrinsic,
                             .b2c = intrinsic_to_child,
                         }
                     );
+
+                    std.debug.assert(result.input_bounds().is_instant() == false);
+
+                    return result;
                 },
                 else => .INFINITE_IDENTITY,
             },

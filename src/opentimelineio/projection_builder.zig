@@ -470,6 +470,8 @@ pub fn ProjectionBuilder(
                 );
             }
 
+            std.debug.assert(self.intervals.len != 0);
+
             // print current structure
             // std.debug.print(
             //     "Final Cut Points:\n",
