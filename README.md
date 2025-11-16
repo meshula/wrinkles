@@ -99,8 +99,8 @@ temporal hierarchies of editorial documents.
     * [x] affine transforms
     * [x] negative scale bug
     * [ ] curve based transformation
-    * [ ] test warping a track or other structure
-    * [ ] warp on a warp
+    * [x] test warping a track or other structure
+    * [x] warp on a warp
 * [ ] Transition Schema
 * [ ] OTIO 2.0 file format
     * [ ] translator python script
