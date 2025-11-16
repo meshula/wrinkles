@@ -97,9 +97,10 @@ temporal hierarchies of editorial documents.
 * [ ] difference between `RANGE` and `BOUNDS` -- when to use each
 * [ ] warp schema
     * [x] affine transforms
-    * [ ] negative scale bug
+    * [x] negative scale bug
     * [ ] curve based transformation
     * [ ] test warping a track or other structure
+    * [ ] warp on a warp
 * [ ] Transition Schema
 * [ ] OTIO 2.0 file format
     * [ ] translator python script

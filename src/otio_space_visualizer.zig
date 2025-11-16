@@ -123,17 +123,24 @@ fn fill_topdown_point_buffers(
                         2,
                     );
                     const ib = aff.input_bounds();
-                    const ob = aff.output_bounds();
+                    var ob: [2]opentime.Ordinate = .{
+                        aff.project_instantaneous_cc_assume_in_bounds(
+                            ib.start,
+                        ).SuccessOrdinate,
+                        aff.project_instantaneous_cc_assume_in_bounds(
+                            ib.end,
+                        ).SuccessOrdinate,
+                    };
 
                     points.appendAssumeCapacity(
                         .{
                             .x = ib.start.as(f32),
-                            .y = ob.start.as(f32),
+                            .y = ob[0].as(f32),
                         },
                     );
                     var last_point = points.get(points.len - 1);
                     points.appendAssumeCapacity(
-                        .{.x = ib.end.as(f32), .y = ob.end.as(f32)},
+                        .{.x = ib.end.as(f32), .y = ob[1].as(f32)},
                     );
                     last_point = points.get(points.len - 1);
                     try label_writer.print("{f}" ++ .{0}, .{ dst });

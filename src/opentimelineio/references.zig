@@ -399,7 +399,7 @@ pub const ComposedValueRef = union(enum) {
             },
             .warp => |wp_ptr| switch(from_space_label) {
                 .presentation => {
-                    const presentation_to_warp = wp_ptr.transform;
+                    const intrinsic_to_warp_unbounded = wp_ptr.transform;
 
                     const child_bounds = (
                         try wp_ptr.child.bounds_of(
@@ -408,19 +408,46 @@ pub const ComposedValueRef = union(enum) {
                         )
                     );
 
+                    std.debug.print("child_bounds: {f}\n", .{child_bounds});
+
                     // needs the boundaries from the child
-                    const warp_to_child_presentation = (
+                    const warp_unbounded_to_child = (
                         try topology_m.Topology.init_identity(
                             allocator, 
                             child_bounds,
                         )
                     );
 
-                    return topology_m.join(
+                    const intrinsic_to_child = try topology_m.join(
                         allocator,
                         .{
-                            .a2b = presentation_to_warp,
-                            .b2c = warp_to_child_presentation,
+                            .a2b = intrinsic_to_warp_unbounded,
+                            .b2c = warp_unbounded_to_child,
+                        }
+                    );
+
+                    const intrinsic_bounds = (
+                        intrinsic_to_child.input_bounds()
+                    );
+
+                    const presentation_to_intrinsic = (
+                        try topology_m.Topology.init_affine(
+                            allocator, 
+                            .{
+                                .input_to_output_xform = .{
+                                    .offset = intrinsic_bounds.start,
+                                    .scale = .ONE,
+                                },
+                                .input_bounds_val = .INF,
+                            },
+                        )
+                    );
+
+                    return try topology_m.join(
+                        allocator,
+                        .{
+                            .a2b = presentation_to_intrinsic,
+                            .b2c = intrinsic_to_child,
                         }
                     );
                 },
