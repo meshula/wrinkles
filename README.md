@@ -95,25 +95,29 @@ temporal hierarchies of editorial documents.
 ## Todo List 11/14/25
 
 * [ ] difference between `RANGE` and `BOUNDS` -- when to use each
-* [ ] warp schema
+* [x] Basic warp schema
     * [x] affine transforms
     * [x] negative scale bug
     * [x] curve based transformation
         * [x] linear curve
         * [x] single segment bezier
-        * [ ] multi segment bezier
     * [x] test warping a track or other structure
     * [x] warp on a warp
 * [ ] Transition Schema
+    * [ ] Add type
 * [ ] OTIO 2.0 file format
     * [ ] translator python script
     * [ ] don't need a rational time based format anymore
+    * [ ] expressing points/ranges discrete/continuously
+    * [ ] describing discrete spaces
+    * [ ] Warp Schema: multi segment bezier / pt-tangent form
 * [ ] Serializer 
 * [ ] visualizer
     * [ ] rearrange based on a table of all the children to control visibility
     * [ ] UI to represent tracks?
     * [ ] visualize discrete spaces (stairstep plot in implot?)
     * [ ] struct data visualizer/editor
+* [ ] code cleanup pass on projection_builder
 * [ ] C++ test API
 * [ ] Python test API (ziggy-pydust)
 
