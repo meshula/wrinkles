@@ -156,11 +156,45 @@ fn fill_topdown_point_buffers(
                     );
 
                 },
+                .linear => |lin| {
+                    const start = points.len;
+                    const end = start + lin.input_to_output_curve.knots.len;
+
+                    try points.ensureUnusedCapacity(
+                        allocator,
+                        lin.input_to_output_curve.knots.len,
+                    );
+
+                    for (lin.input_to_output_curve.knots)
+                        |k|
+                    {
+                        points.appendAssumeCapacity(
+                            .{
+                                .x = k.in.as(f32),
+                                .y = k.out.as(f32),
+                            },
+                        );
+                    }
+
+                    try label_writer.print("{f}" ++ .{0}, .{ dst });
+                    try slice_indices.append(
+                        allocator,
+                        .{
+                            .start = start,
+                            .end = end,
+                            .label = @ptrCast(
+                                try allocating_label_writer.toOwnedSlice()
+                            ),
+                        },
+                    );
+                },
                 else => {
                 },
             }
         }
     }
+
+    std.debug.assert(slice_indices.len != 0);
 
     for (
         slice_indices.items(.start),
@@ -179,6 +213,7 @@ fn fill_topdown_point_buffers(
         );
     }
 
+    std.debug.assert(slices.len != 0);
 }
 
 /// 2d Point in a plot
@@ -1073,6 +1108,8 @@ pub fn init(
 pub fn main(
 ) !void 
 {
+    std.debug.print("bloop\n", .{});
+
     const prog = std.Progress.start(.{});
     defer prog.end();
 
@@ -1129,10 +1166,22 @@ pub fn main(
             STATE.allocator,
             STATE.target_otio_file,
         );
+        std.debug.print("bloop\n", .{});
+
+        std.debug.print(
+            "mappings: {d}\n",
+            .{STATE.otio_root.warp.transform.mappings.len},
+        );
+        std.debug.print(
+            "mapping: {f}\n",
+            .{STATE.otio_root.warp.transform.mappings[0]},
+        );
+
         try set_source(
             STATE.allocator,
             STATE.otio_root.space(.presentation)
         );
+
     }
 
     parent_prog.end();

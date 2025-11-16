@@ -3,6 +3,7 @@ const expectEqual = std.testing.expectEqual;
 
 const otio  = @import("root.zig");
 const opentime = @import("opentime");
+const curve = @import("curve");
 const interval = opentime.interval;
 const string = @import("string_stuff");
 const topology = @import("topology");
@@ -18,6 +19,7 @@ pub const SerializableObjectTypes = enum {
 
 pub const TransformTypes = enum {
     AffineTransform1D,
+    LinearCurve1D,
 };
 
 fn maybe_object(
@@ -106,6 +108,84 @@ fn read_transform(
                     .input_bounds_val = range,
                 },
             );
+        },
+        .LinearCurve1D => {
+            var buffer: std.ArrayList(curve.ControlPoint) = .empty;
+
+            if (obj.get("knots"))
+                |knots_obj|
+            {
+                const schema_knots = try read_schema(
+                    enum { ControlPoint2dOrdinateArray },
+                    knots_obj.object,
+                );
+                if (schema_knots != .ControlPoint2dOrdinateArray)
+                {
+                    std.log.err(
+                        "Expected knots schema: "
+                        ++ "ControlPointOrdinateArray, got: {s}",
+                        .{@tagName(schema)},
+                    );
+                    return error.InvalidKnotsSchema;
+                }
+
+                if (knots_obj.object.get("ControlPoints"))
+                    |control_points|
+                {
+                    const arr = control_points.array;
+                    for (arr.items)
+                        |child|
+                    {
+                        // each point
+                        const points: curve.ControlPoint = .{
+                            .in = read_ordinate(
+                                child.array.items[0],
+                            ),
+                            .out = read_ordinate(
+                                child.array.items[1],
+                            ),
+                        };
+
+                        try buffer.append(allocator, points);
+                    }
+                }
+            }
+
+            const result = try topology.Topology.init(
+                allocator,
+                &.{ 
+                    (
+                     try topology.MappingCurveLinearMonotonic.init_knots(
+                         allocator,
+                         try buffer.toOwnedSlice(allocator)
+                     )
+                    ).mapping(),
+                }
+            );
+
+            std.debug.print("Topo Curve: {f}\n", .{result});
+            for (result.mappings)
+                |m|
+            {
+                std.debug.print(
+                    "  m ({s}): {f}\n",
+                    .{@tagName(m), m},
+                );
+
+                switch (m) {
+                    .linear => |lin| {
+                        std.debug.print("    knots: \n", .{});
+                        for (lin.input_to_output_curve.knots)
+                            |knot|
+                        {
+                            std.debug.print("      {f}\n", .{knot});
+                        }
+                    },
+                    else => {},
+                }
+            }
+
+            return result;
         },
     }
 }
