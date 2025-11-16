@@ -20,6 +20,7 @@ pub const SerializableObjectTypes = enum {
 pub const TransformTypes = enum {
     AffineTransform1D,
     LinearCurve1D,
+    BezierCurve1D,
 };
 
 fn maybe_object(
@@ -161,6 +162,84 @@ fn read_transform(
                      )
                     ).mapping(),
                 }
+            );
+
+            std.debug.print("Topo Curve: {f}\n", .{result});
+            for (result.mappings)
+                |m|
+            {
+                std.debug.print(
+                    "  m ({s}): {f}\n",
+                    .{@tagName(m), m},
+                );
+
+                switch (m) {
+                    .linear => |lin| {
+                        std.debug.print("    knots: \n", .{});
+                        for (lin.input_to_output_curve.knots)
+                            |knot|
+                        {
+                            std.debug.print("      {f}\n", .{knot});
+                        }
+                    },
+                    else => {},
+                }
+            }
+
+            return result;
+        },
+        .BezierCurve1D => {
+            var buffer: std.ArrayList(curve.ControlPoint) = .empty;
+
+            if (obj.get("knots"))
+                |knots_obj|
+            {
+                const schema_knots = try read_schema(
+                    enum { ControlPoint2dOrdinateArray },
+                    knots_obj.object,
+                );
+                if (schema_knots != .ControlPoint2dOrdinateArray)
+                {
+                    std.log.err(
+                        "Expected knots schema: "
+                        ++ "ControlPointOrdinateArray, got: {s}",
+                        .{@tagName(schema)},
+                    );
+                    return error.InvalidKnotsSchema;
+                }
+
+                if (knots_obj.object.get("ControlPoints"))
+                    |control_points|
+                {
+                    const arr = control_points.array;
+                    for (arr.items)
+                        |child|
+                    {
+                        // each point
+                        const points: curve.ControlPoint = .{
+                            .in = read_ordinate(
+                                child.array.items[0],
+                            ),
+                            .out = read_ordinate(
+                                child.array.items[1],
+                            ),
+                        };
+
+                        try buffer.append(allocator, points);
+                    }
+                }
+            }
+
+            const result = try topology.Topology.init_bezier(
+                allocator,
+                &.{
+                    .{
+                        .p0 = buffer.items[0],
+                        .p1 = buffer.items[1],
+                        .p2 = buffer.items[2],
+                        .p3 = buffer.items[3],
+                    }
+                },
             );
 
             std.debug.print("Topo Curve: {f}\n", .{result});
@@ -420,6 +499,7 @@ inline fn read_children(
     NoOverlap,
     OutOfBounds,
     UnsupportedSpaceError,
+    NoSplitForLinearization,
 }![]otio.ComposedValueRef
 {
     const child_count = children.array.items.len;
@@ -492,6 +572,7 @@ pub fn read_otio_object(
     NoOverlap,
     OutOfBounds,
     UnsupportedSpaceError,
+    NoSplitForLinearization,
 } !otio.ComposedValueRef 
 {
     const schema_enum = try read_schema(
