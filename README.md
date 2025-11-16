@@ -98,7 +98,10 @@ temporal hierarchies of editorial documents.
 * [ ] warp schema
     * [x] affine transforms
     * [x] negative scale bug
-    * [ ] curve based transformation
+    * [x] curve based transformation
+        * [x] linear curve
+        * [x] single segment bezier
+        * [ ] multi segment bezier
     * [x] test warping a track or other structure
     * [x] warp on a warp
 * [ ] Transition Schema
