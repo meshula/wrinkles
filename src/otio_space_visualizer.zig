@@ -1168,15 +1168,6 @@ pub fn main(
         );
         std.debug.print("bloop\n", .{});
 
-        std.debug.print(
-            "mappings: {d}\n",
-            .{STATE.otio_root.warp.transform.mappings.len},
-        );
-        std.debug.print(
-            "mapping: {f}\n",
-            .{STATE.otio_root.warp.transform.mappings[0]},
-        );
-
         try set_source(
             STATE.allocator,
             STATE.otio_root.space(.presentation)

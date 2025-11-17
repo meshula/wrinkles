@@ -242,6 +242,35 @@ pub const Gap = struct {
     }
 };
 
+/// A transition is a specific object that associates a text "transition type"
+/// with a stack of children
+pub const Transition = struct {
+    container: Stack,
+    name: ?string.latin_s8,
+    // for now, string tag the type (IE "crossdissolve")
+    kind: string.latin_s8,
+    range: ?opentime.ContinuousInterval,
+
+    pub const internal_spaces: []const references.SpaceLabel = (
+        &.{ .presentation }
+    );
+
+    pub fn reference(
+        self: *@This(),
+    ) references.ComposedValueRef
+    {
+        return .{ .transition = self };
+    }
+
+    pub fn topology(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) !topology_m.Topology
+    {
+        return self.container.topology(allocator);
+    }
+};
+
 /// a warp is an additional nonlinear transformation between the warp.parent
 /// and and warp.child.presentation spaces.
 pub const Warp = struct {

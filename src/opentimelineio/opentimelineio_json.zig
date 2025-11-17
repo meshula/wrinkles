@@ -15,6 +15,7 @@ pub const SerializableObjectTypes = enum {
     Clip,
     Gap,
     Warp,
+    Transition,
 };
 
 pub const TransformTypes = enum {
@@ -37,6 +38,24 @@ fn maybe_object(
     }
 
     return null;
+}
+
+fn maybe_string(
+    allocator: std.mem.Allocator,
+    obj: std.json.ObjectMap,
+    key: []const u8,
+) !?[]const u8
+{
+    return (
+        if (obj.get(key)) 
+        |n| 
+        switch (n) 
+        {
+            .string => |s| try allocator.dupe(u8, s),
+            else => null
+        } 
+        else null
+    );
 }
 
 fn maybe_object_child(
@@ -580,16 +599,7 @@ pub fn read_otio_object(
         obj,
     );
 
-    const maybe_name = (
-        if (obj.get("name")) 
-            |n| 
-        switch (n) 
-        {
-            .string => |s| try allocator.dupe(u8, s),
-            else => null
-        } 
-        else null
-    );
+    const maybe_name = try maybe_string(allocator, obj, "name");
 
     switch (schema_enum) {
         .Timeline => { 
@@ -699,6 +709,25 @@ pub fn read_otio_object(
         //     errdefer std.log.err("Not implemented yet: {s}\n", .{ schema_str });
         //     return error.NotImplemented; 
         // }
+        .Transition => {
+            const tx = try allocator.create(otio.Transition);
+            const container_json = try read_otio_object(
+                allocator,
+                obj.get("container").?.object,
+            );
+            const container = otio.Stack {
+                .name = container_json.stack.name,
+                .children = container_json.stack.children,
+            };
+            tx.* = .{
+                .name = maybe_name,
+                .container = container,
+                .kind = (try maybe_string(allocator, obj, "kind")) orelse "None",
+                .range = null,
+            };
+
+            return .{ .transition = tx };
+        },
     }
 
     return error.NotImplemented;

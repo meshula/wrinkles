@@ -82,6 +82,7 @@ pub const ComposedValueRef = union(enum) {
     timeline: *schema.Timeline,
     stack: *schema.Stack,
     warp: *schema.Warp,
+    transition: *schema.Transition,
 
     pub fn init_type(
         comptime Type: type,
@@ -116,6 +117,7 @@ pub const ComposedValueRef = union(enum) {
             schema.Stack => .{ .stack = input },
             schema.Warp => .{ .warp = input },
             schema.Timeline => .{ .timeline = input },
+            schema.Transition => .{ .transition = input },
             inline else => @compileError(
                 "ComposedValueRef cannot reference to type: "
                 ++ @typeName(@TypeOf(input))
@@ -431,6 +433,7 @@ pub const ComposedValueRef = union(enum) {
                     std.debug.assert(
                         intrinsic_to_child.input_bounds().is_instant() == false
                     );
+
                     const intrinsic_bounds = (
                         intrinsic_to_child.input_bounds()
                     );
@@ -467,7 +470,7 @@ pub const ComposedValueRef = union(enum) {
                 else => .INFINITE_IDENTITY,
             },
             // wrapped as identity
-            .timeline, .stack => .INFINITE_IDENTITY,
+            .timeline, .stack, .transition => .INFINITE_IDENTITY,
             // else => |case| { 
             //     std.log.err("Not Implemented: {any}\n", .{ case });
             //
@@ -613,6 +616,10 @@ pub const ComposedValueRef = union(enum) {
             .timeline => |tl| try children_ptrs.append(
                 allocator,
                 ComposedValueRef.init(&tl.tracks)
+            ),
+            .transition => |tl| try children_ptrs.append(
+                allocator,
+                ComposedValueRef.init(&tl.container)
             ),
             .warp => |wp| {
                 try children_ptrs.append(allocator,wp.child);

@@ -143,6 +143,7 @@ fn init_ComposedValueRef(
             c.otio_ct_clip =>  otio.ComposedValueRef.init(ptrCast(otio.Clip, ptr)),
             c.otio_ct_gap =>   otio.ComposedValueRef.init(ptrCast(otio.Gap, ptr)),
             c.otio_ct_warp =>  otio.ComposedValueRef.init(ptrCast(otio.Warp, ptr)),
+            c.otio_ct_transition =>  otio.ComposedValueRef.init(ptrCast(otio.Transition, ptr)),
             else => return error.ErrorReference,
         };
     }
@@ -161,6 +162,7 @@ pub fn to_c_ref(
         .clip =>  |t|        .{ .kind = c.otio_ct_clip,     .ref = t },
         .gap =>   |t|         .{ .kind = c.otio_ct_gap,      .ref = t },
         .warp =>  |t|        .{ .kind = c.otio_ct_warp,     .ref = t },
+        .transition => |t| .{ .kind = c.otio_ct_transition, .ref = t },
     };
 }
 

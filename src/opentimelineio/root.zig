@@ -16,6 +16,7 @@ pub const schema = @import("schema.zig");
 pub const Clip = schema.Clip;
 pub const Gap = schema.Gap;
 pub const Warp = schema.Warp;
+pub const Transition = schema.Transition;
 pub const Track = schema.Track;
 pub const Stack = schema.Stack;
 pub const Timeline = schema.Timeline;

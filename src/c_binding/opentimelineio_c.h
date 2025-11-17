@@ -31,6 +31,7 @@ typedef enum otio_ComposableTypes_t {
     otio_ct_clip,
     otio_ct_gap,
     otio_ct_warp,
+    otio_ct_transition,
     otio_ct_err 
 } otio_ComposableTypes_t;
 
