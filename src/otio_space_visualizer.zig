@@ -32,12 +32,12 @@ fn set_source(
 
     if (STATE.maybe_proj_builder)
         |builder|
-        {
-            std.debug.print(
-                "{f}\n",
-                .{builder}
-            );
-        }
+    {
+        std.debug.print(
+            "{f}\n",
+            .{builder}
+        );
+    }
 
     try fill_topdown_point_buffers(
         allocator,
@@ -511,7 +511,6 @@ fn draw(
                                         )
                                     ).src_to_dst_topo;
                                 }
-                                    
                             }
                             zgui.tableNextRow(.{});
                         }
@@ -531,162 +530,6 @@ fn draw(
 
                 try child_tree(allocator, &root );
             }
-
-
-
-
-        // var new = STATE.f;
-        // if (zgui.dragFloat("texture offset", .{.v = &new})) 
-        // {
-        //     const cmd = try ziis.undo.SetValue(f32).init(
-        //             STATE.allocator,
-        //             &STATE.f,
-        //             new,
-        //             "texture offset"
-        //     );
-        //     try cmd.do();
-        //     try STATE.maybe_journal.?.update_if_new_or_add(cmd);
-        // }
-        //
-        // for (STATE.maybe_journal.?.entries.items, 0..)
-        //     |cmd, ind|
-        // {
-        //     zgui.bulletText("{d}: {s}", .{ ind, cmd.message });
-        // }
-        //
-        // zgui.bulletText(
-        //     "Head Entry in Journal: {?d}",
-        //     .{ STATE.maybe_journal.?.maybe_head_entry }
-        // );
-        //
-        // if (zgui.beginItemTooltip()) 
-        // {
-        //     zgui.text("Hi, this is a tooltip", .{});
-        //     zgui.endTooltip();
-        // }
-        //
-        // if (zgui.button("undo", .{}))
-        // {
-        //     try STATE.maybe_journal.?.undo();
-        // }
-        //
-        // zgui.sameLine(.{});
-        //
-        // if (zgui.button("redo", .{}))
-        // {
-        //     try STATE.maybe_journal.?.redo();
-        // }
-        //
-        // if (zgui.button("show gui demo", .{}) )
-        // { 
-        //     STATE.demo_window_gui = ! STATE.demo_window_gui; 
-        // }
-        // if (zgui.button("show plot demo", .{}))
-        // {
-        //     STATE.demo_window_gui = ! STATE.demo_window_plot; 
-        // }
-        //
-        // if (STATE.demo_window_gui) 
-        // {
-        //     zgui.showDemoWindow(&STATE.demo_window_gui);
-        // }
-        // if (STATE.demo_window_plot) 
-        // {
-        //     zplot.showDemoWindow(&STATE.demo_window_plot);
-        // }
-        //
-        // if (zgui.beginTabBar("Panes", .{}))
-        // {
-        //     defer zgui.endTabBar();
-        //
-        //     if (zgui.beginTabItem("PlotTab", .{}))
-        //     {
-        //         defer zgui.endTabItem();
-        //
-        //         if (
-        //             zgui.beginChild(
-        //                 "Plot", 
-        //                 .{ .w = -1, .h = -1, },
-        //             )
-        //         )
-        //         {
-        //             defer zgui.endChild();
-        //
-        //             if (
-        //                 zgui.plot.beginPlot(
-        //                     "Test ZPlot Plot",
-        //                     .{ 
-        //                         .w = -1.0,
-        //                         .h = -1.0,
-        //                         .flags = .{ .equal = true },
-        //                     },
-        //                 )
-        //             ) 
-        //             {
-        //                 defer zgui.plot.endPlot();
-        //
-        //                 zgui.plot.setupAxis(
-        //                     .x1,
-        //                     .{ .label = "input" },
-        //                 );
-        //                 zgui.plot.setupAxis(
-        //                     .y1,
-        //                     .{ .label = "output" },
-        //                 );
-        //                 zgui.plot.setupLegend(
-        //                     .{ 
-        //                         .south = true,
-        //                         .west = true 
-        //                     },
-        //                     .{},
-        //                 );
-        //                 zgui.plot.setupFinish();
-        //
-        //                 const xs= [_]f32{0, 1, 2, 3, 4};
-        //                 const ys= [_]f32{0, 1, 2, 3, 6};
-        //
-        //                 zplot.pushStyleColor4f(
-        //                     .{
-        //                         .idx = .fill,
-        //                         .c = .{ 0.1, 0.1, 0.4, 0.4 },
-        //                     },
-        //                 );
-        //                 zplot.plotShaded(
-        //                     "test plot (shaded)",
-        //                     f32, 
-        //                     .{
-        //                         .xv = &xs,
-        //                         .yv = &ys,
-        //                         .flags = .{
-        //                         },
-        //                     },
-        //                 );
-        //                 zplot.popStyleColor(.{.count = 1});
-        //
-        //                 zplot.plotLine(
-        //                     "test plot",
-        //                     f32, 
-        //                     .{
-        //                         .xv = &xs,
-        //                         .yv = &ys,
-        //                     },
-        //                 );
-        //             }
-        //         }
-        //     }
-        //
-        //     if (zgui.beginTabItem("Texture Example", .{}))
-        //     {
-        //         defer zgui.endTabItem();
-        //
-        //         const wsize = zgui.getWindowSize();
-        //
-        //         ziis.cimgui.igImage(
-        //             .{ ._TexID = STATE.texid },
-        //             .{ .x = wsize[0], .y = wsize[1]},
-        //         );
-        //     }
-        // }
         }
 
         zgui.sameLine(.{});
@@ -1172,7 +1015,6 @@ pub fn main(
             STATE.allocator,
             STATE.otio_root.space(.presentation)
         );
-
     }
 
     parent_prog.end();
