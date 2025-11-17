@@ -72,6 +72,13 @@ pub const SpaceReference = struct {
             );
         }
     }
+
+    pub fn discrete_info(
+        self: @This(),
+    ) ?sampling.SampleIndexGenerator
+    {
+        return self.ref.discrete_info_for_space(self.label);
+    }
 };
 
 /// a pointer to something in the composition hierarchy

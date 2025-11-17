@@ -62,9 +62,11 @@ fn fill_topdown_point_buffers(
 {
     var points = &STATE.points;
     var slices = &STATE.slices;
+    var discrete_points = &STATE.discrete_points;
 
     // clear whatever is there
     points.deinit(allocator);
+    discrete_points.deinit(allocator);
 
     for (slices.items(.label))
         |label|
@@ -75,6 +77,7 @@ fn fill_topdown_point_buffers(
 
     points.* = .empty;
     slices.* = .empty;
+    discrete_points.* = .empty;
 
     // var label_writer = label_bucket.writer(allocator);
     var allocating_label_writer = std.Io.Writer.Allocating.init(allocator);
@@ -214,6 +217,40 @@ fn fill_topdown_point_buffers(
     }
 
     std.debug.assert(slices.len != 0);
+
+    // generate the discrete space, if there is a definition on the source
+    if (STATE.maybe_src.?.discrete_info())
+        |discrete_info|
+    {
+        const buffer_length = discrete_info.buffer_size_for_length(
+            builder.input_bounds().duration()
+        );
+
+        try STATE.discrete_points.ensureTotalCapacity(
+            allocator, 
+            // two points per index to create horizontal line
+            2 * buffer_length,
+        );
+
+        for (discrete_info.start_index.. (discrete_info.start_index + buffer_length))
+            |index|
+        {
+            const ord = discrete_info.ord_interval_for_index(index);
+
+            STATE.discrete_points.appendAssumeCapacity(
+                .{
+                    .x = ord.start.as(f32),
+                    .y = ord.start.as(f32),
+                }
+            );
+            STATE.discrete_points.appendAssumeCapacity(
+                .{
+                    .x = ord.end.as(f32),
+                    .y = ord.start.as(f32),
+                }
+            );
+        }
+    }
 }
 
 /// 2d Point in a plot
@@ -265,6 +302,7 @@ const STATE = struct {
             label: [:0]const u8,
         }
     ) = .empty;
+    var discrete_points: std.MultiArrayList(PlotPoint2d) = .empty;
 };
 
 const IS_WASM = builtin.target.cpu.arch.isWasm();
