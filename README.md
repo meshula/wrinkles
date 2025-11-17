@@ -104,7 +104,9 @@ temporal hierarchies of editorial documents.
     * [x] test warping a track or other structure
     * [x] warp on a warp
 * [ ] Transition Schema
-    * [ ] Add type
+    * [x] Add type
+    * [ ] Animated parameter for amount [0, 1)
+    * [ ] add a boundary to the transition
 * [ ] OTIO 2.0 file format
     * [ ] translator python script
     * [ ] don't need a rational time based format anymore
@@ -117,6 +119,8 @@ temporal hierarchies of editorial documents.
     * [ ] UI to represent tracks?
     * [ ] visualize discrete spaces (stairstep plot in implot?)
     * [ ] struct data visualizer/editor
+    * [ ] vertical bars to see cuts
+    * [ ] highlight overlapped item and show in graph
 * [ ] code cleanup pass on projection_builder
 * [ ] C++ test API
 * [ ] Python test API (ziggy-pydust)
