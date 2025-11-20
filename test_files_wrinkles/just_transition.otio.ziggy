@@ -1,0 +1,115 @@
+track {
+    .value = {
+        .name = "tracks",
+        .children = [
+            clip {
+                .value = {
+                    .name = "Clip-001",
+                    .bounds_s = {
+                        .start = {
+                            .v = 0,
+                        },
+                        .end = {
+                            .v = 1,
+                        },
+                    },
+                    .media = {
+                        .ref = empty {},
+                        .bounds_s = null,
+                        .discrete_info = {
+                            .sample_rate_hz = Int {
+                                .value = 24,
+                            },
+                            .start_index = 0,
+                        },
+                        .interpolating = false,
+                    },
+                },
+            },
+            transition {
+                .value = {
+                    .container = {
+                        .name = "tracks",
+                        .children = [
+                            clip {
+                                .value = {
+                                    .name = "Clip-001",
+                                    .bounds_s = {
+                                        .start = {
+                                            .v = 1,
+                                        },
+                                        .end = {
+                                            .v = 2,
+                                        },
+                                    },
+                                    .media = {
+                                        .ref = empty {},
+                                        .bounds_s = null,
+                                        .discrete_info = {
+                                            .sample_rate_hz = Int {
+                                                .value = 24,
+                                            },
+                                            .start_index = 0,
+                                        },
+                                        .interpolating = false,
+                                    },
+                                },
+                            },
+                            clip {
+                                .value = {
+                                    .name = "Clip-002",
+                                    .bounds_s = {
+                                        .start = {
+                                            .v = 0,
+                                        },
+                                        .end = {
+                                            .v = 1,
+                                        },
+                                    },
+                                    .media = {
+                                        .ref = empty {},
+                                        .bounds_s = null,
+                                        .discrete_info = {
+                                            .sample_rate_hz = Int {
+                                                .value = 24,
+                                            },
+                                            .start_index = 0,
+                                        },
+                                        .interpolating = false,
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                    .name = "A to B",
+                    .kind = "Cross Dissolve",
+                    .range = null,
+                },
+            },
+            clip {
+                .value = {
+                    .name = "Clip-002",
+                    .bounds_s = {
+                        .start = {
+                            .v = 1,
+                        },
+                        .end = {
+                            .v = 2,
+                        },
+                    },
+                    .media = {
+                        .ref = empty {},
+                        .bounds_s = null,
+                        .discrete_info = {
+                            .sample_rate_hz = Int {
+                                .value = 24,
+                            },
+                            .start_index = 0,
+                        },
+                        .interpolating = false,
+                    },
+                },
+            },
+        ],
+    },
+}

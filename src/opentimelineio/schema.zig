@@ -1113,3 +1113,64 @@ test "warp topology"
         );
     }
 }
+
+const ziggy = @import("ziggy");
+
+test "ziggy schemas"
+{
+    if (true)
+    {
+        // ziggy can't directly serialize the schema types. They need to be
+        // translated to a serializable variant and then serialized.
+        return error.SkipZigTest;
+    }
+
+    const allocator = std.testing.allocator;
+
+    var out: std.Io.Writer.Allocating = .init(allocator);
+    defer out.deinit();
+
+    var cl: Clip = .{
+        .maybe_name = "Clip-01",
+        .maybe_bounds_s = opentime.ContinuousInterval.init(
+            .{ .start = 0, .end = 12 }
+        ),
+        .media = .{
+            .domain = .picture,
+
+            .maybe_bounds_s = opentime.ContinuousInterval.init(
+                .{ .start = 0, .end = 18 }
+            ),
+            .maybe_discrete_partition = .{
+                .sample_rate_hz = .{ .Int = 24 },
+                .start_index = 0,
+            },
+
+            .data_reference = .{
+                .uri = .{
+                    .target_uri = "pasta.wav", 
+                },
+            }
+        },
+    };
+
+    const cl_ptr = cl.handle();
+    var track_children = (
+        [_]references.CompositionItemHandle{ 
+            cl_ptr 
+        }
+    );
+
+    const tr = Track{
+        .children = &track_children,
+        .maybe_name = "DemoTrack",
+    };
+
+    try ziggy.stringify(
+        tr,
+        .{.whitespace = .space_4},
+        &out.writer,
+    );
+
+    std.debug.print("result: {s}\n", .{out.written()});
+}

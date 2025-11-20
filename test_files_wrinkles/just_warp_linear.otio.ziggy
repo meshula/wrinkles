@@ -1,0 +1,72 @@
+warp {
+    .value = {
+        .name = "Linear Curve",
+        .child = clip {
+            .value = {
+                .name = "Clip-001",
+                .bounds_s = {
+                    .start = {
+                        .v = 0,
+                    },
+                    .end = {
+                        .v = 10,
+                    },
+                },
+                .media = {
+                    .ref = empty {},
+                    .bounds_s = null,
+                    .discrete_info = {
+                        .sample_rate_hz = Int {
+                            .value = 1,
+                        },
+                        .start_index = 0,
+                    },
+                    .interpolating = false,
+                },
+            },
+        },
+        .transform = {
+            .mappings = [
+                linear {
+                    .input_to_output_curve = {
+                        .knots = [
+                            {
+                                .in = {
+                                    .v = 0,
+                                },
+                                .out = {
+                                    .v = 0,
+                                },
+                            },
+                            {
+                                .in = {
+                                    .v = 1,
+                                },
+                                .out = {
+                                    .v = 1,
+                                },
+                            },
+                            {
+                                .in = {
+                                    .v = 1.25,
+                                },
+                                .out = {
+                                    .v = 1.6,
+                                },
+                            },
+                            {
+                                .in = {
+                                    .v = 2,
+                                },
+                                .out = {
+                                    .v = 4,
+                                },
+                            },
+                        ],
+                    },
+                },
+            ],
+        },
+        .interpolating = false,
+    },
+}

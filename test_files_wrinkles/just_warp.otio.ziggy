@@ -1,0 +1,52 @@
+warp {
+    .value = {
+        .name = "Linear Accel",
+        .child = clip {
+            .value = {
+                .name = "Clip-001",
+                .bounds_s = {
+                    .start = {
+                        .v = 0,
+                    },
+                    .end = {
+                        .v = 0.125,
+                    },
+                },
+                .media = {
+                    .ref = empty {},
+                    .bounds_s = null,
+                    .discrete_info = {
+                        .sample_rate_hz = Int {
+                            .value = 24,
+                        },
+                        .start_index = 0,
+                    },
+                    .interpolating = false,
+                },
+            },
+        },
+        .transform = {
+            .mappings = [
+                affine {
+                    .input_bounds_val = {
+                        .start = {
+                            .v = -inf,
+                        },
+                        .end = {
+                            .v = inf,
+                        },
+                    },
+                    .input_to_output_xform = {
+                        .offset = {
+                            .v = 0,
+                        },
+                        .scale = {
+                            .v = -2,
+                        },
+                    },
+                },
+            ],
+        },
+        .interpolating = false,
+    },
+}

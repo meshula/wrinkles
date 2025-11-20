@@ -477,6 +477,14 @@ pub fn build(
         },
     ).module("wav_io");
 
+    const dep_ziggy = b.dependency(
+        "ziggy",
+        .{
+            .target = options.target,
+            .optimize = options.optimize,
+        }
+    );
+
     const string_stuff = module_with_tests_and_artifact(
         "string_stuff",
         .{
@@ -714,6 +722,7 @@ pub fn build(
                 .{ .name = "treecode", .module = treecode },
                 .{ .name = "sampling", .module = sampling },
                 .{ .name = "build_options", .module = build_options_mod},
+                .{ .name = "ziggy", .module = dep_ziggy.module("ziggy") },
             },
         },
     );

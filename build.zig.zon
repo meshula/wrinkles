@@ -24,6 +24,10 @@
             .url = "git+https://github.com/ssteinbach/zgui_cimgui_implot_sokol.git#68cbce413883e6d8806c5da304a4a6f3c93cf125",
             .hash = "zgui_cimgui_implot_sokol-1.91.8-17SdXtkNCAAVNEezE-MaA8CWf_y3Ms9vWk_teKoXW-jG",
         },
+        .ziggy = .{
+            .url = "git+https://github.com/kristoff-it/ziggy.git#4353b20ef2ac750e35c6d68e4eb2a07c2d7cf901",
+            .hash = "ziggy-0.1.0-kTg8v5pABgDztlefWHceH-Sh8tVveguFC61QkmLkIRaA",
+        },
     },
     .paths = .{
         "build.zig",

@@ -1,0 +1,145 @@
+timeline {
+    .value = {
+        .name = "Warp Example",
+        .tracks = {
+            .name = "tracks",
+            .children = [
+                track {
+                    .value = {
+                        .name = "Track-001",
+                        .children = [
+                            warp {
+                                .value = {
+                                    .name = "Linear Accel",
+                                    .child = clip {
+                                        .value = {
+                                            .name = "Clip-001",
+                                            .bounds_s = {
+                                                .start = {
+                                                    .v = 0.125,
+                                                },
+                                                .end = {
+                                                    .v = 0.25,
+                                                },
+                                            },
+                                            .media = {
+                                                .ref = empty {},
+                                                .bounds_s = null,
+                                                .discrete_info = {
+                                                    .sample_rate_hz = Int {
+                                                        .value = 24,
+                                                    },
+                                                    .start_index = 0,
+                                                },
+                                                .interpolating = false,
+                                            },
+                                        },
+                                    },
+                                    .transform = {
+                                        .mappings = [
+                                            affine {
+                                                .input_bounds_val = {
+                                                    .start = {
+                                                        .v = -inf,
+                                                    },
+                                                    .end = {
+                                                        .v = inf,
+                                                    },
+                                                },
+                                                .input_to_output_xform = {
+                                                    .offset = {
+                                                        .v = -0.041666666666666664,
+                                                    },
+                                                    .scale = {
+                                                        .v = -0.08333333333333333,
+                                                    },
+                                                },
+                                            },
+                                        ],
+                                    },
+                                    .interpolating = false,
+                                },
+                            },
+                            clip {
+                                .value = {
+                                    .name = "Clip-002",
+                                    .bounds_s = {
+                                        .start = {
+                                            .v = 0.08333333333333333,
+                                        },
+                                        .end = {
+                                            .v = 0.3333333333333333,
+                                        },
+                                    },
+                                    .media = {
+                                        .ref = empty {},
+                                        .bounds_s = null,
+                                        .discrete_info = {
+                                            .sample_rate_hz = Int {
+                                                .value = 24,
+                                            },
+                                            .start_index = 0,
+                                        },
+                                        .interpolating = false,
+                                    },
+                                },
+                            },
+                            clip {
+                                .value = {
+                                    .name = "Clip-003",
+                                    .bounds_s = {
+                                        .start = {
+                                            .v = 0,
+                                        },
+                                        .end = {
+                                            .v = 0.16666666666666666,
+                                        },
+                                    },
+                                    .media = {
+                                        .ref = empty {},
+                                        .bounds_s = null,
+                                        .discrete_info = {
+                                            .sample_rate_hz = Int {
+                                                .value = 24,
+                                            },
+                                            .start_index = 0,
+                                        },
+                                        .interpolating = false,
+                                    },
+                                },
+                            },
+                            clip {
+                                .value = {
+                                    .name = "Clip-004",
+                                    .bounds_s = {
+                                        .start = {
+                                            .v = 4.166666666666667,
+                                        },
+                                        .end = {
+                                            .v = 4.416666666666667,
+                                        },
+                                    },
+                                    .media = {
+                                        .ref = empty {},
+                                        .bounds_s = null,
+                                        .discrete_info = null,
+                                        .interpolating = false,
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+            ],
+        },
+        .time_spaces = {
+            .presentation = {
+                .picture = null,
+                .audio = null,
+            },
+        },
+        .discrete_info = {
+            .presentation = null,
+        },
+    },
+}
