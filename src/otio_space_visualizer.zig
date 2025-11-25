@@ -22,6 +22,12 @@ fn set_source(
 {
     STATE.maybe_src = src;
 
+    if (STATE.maybe_proj_builder)
+        |*builder|
+    {
+        builder.deinit(allocator);
+    }
+
     STATE.maybe_proj_builder = (
         try otio.TemporalProjectionBuilder.init_from(
             allocator,
@@ -39,9 +45,7 @@ fn set_source(
         );
     }
 
-    try fill_topdown_point_buffers(
-        allocator,
-    );
+    try fill_topdown_point_buffers(allocator);
 }
 
 fn table_fill_row(
@@ -78,7 +82,7 @@ fn fill_topdown_point_buffers(
     for (slices.items(.label))
         |label|
     {
-        allocator.free(label);
+        allocator.free(@as([]const u8, @ptrCast(label)));
     }
     slices.deinit(allocator);
 
@@ -994,6 +998,13 @@ fn cleanup (
     // clear whatever is there
     points.deinit(STATE.allocator);
     discrete_points.deinit(STATE.allocator);
+
+    if (STATE.maybe_cached_topology)
+        |topo|
+    {
+        topo.deinit(STATE.allocator);
+        STATE.maybe_cached_topology = null;
+    }
 
     if (cut_points.*)
         |cp|
