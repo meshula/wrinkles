@@ -1067,8 +1067,6 @@ pub fn init(
 pub fn main(
 ) !void 
 {
-    std.debug.print("bloop\n", .{});
-
     const prog = std.Progress.start(.{});
     defer prog.end();
 
@@ -1124,7 +1122,6 @@ pub fn main(
             STATE.allocator,
             STATE.target_otio_file,
         );
-        std.debug.print("bloop\n", .{});
 
         try set_source(
             STATE.allocator,
