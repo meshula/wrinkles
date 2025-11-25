@@ -1015,6 +1015,8 @@ fn cleanup (
     for (slices.items(.label))
         |label|
     {
+        // Label does some shenanigans with [:0] casting, this puts it back the
+        // way it was allocated.  This is because allocPrintZ no longer exists.
         STATE.allocator.free(@as([]const u8, @ptrCast(label)));
     }
     slices.deinit(STATE.allocator);
