@@ -88,7 +88,10 @@ fn fill_topdown_point_buffers(
     cut_points.* = null;
 
     // var label_writer = label_bucket.writer(allocator);
-    var allocating_label_writer = std.Io.Writer.Allocating.init(allocator);
+    var allocating_label_writer = std.Io.Writer.Allocating.init(
+        allocator
+    );
+    defer allocating_label_writer.deinit();
     const label_writer = &allocating_label_writer.writer;
 
     // generate profile curve
@@ -113,6 +116,7 @@ fn fill_topdown_point_buffers(
             label: [:0]const u8,
         },
     ) = .empty;
+    defer slice_indices.deinit(allocator);
 
     for (
         interval_slice.items(.mapping_index),
@@ -982,6 +986,38 @@ fn cleanup (
         definitely_journal.deinit();
     }
 
+    var points = &STATE.points;
+    var slices = &STATE.slices;
+    var discrete_points = &STATE.discrete_points;
+    const cut_points = &STATE.maybe_cut_points;
+
+    // clear whatever is there
+    points.deinit(STATE.allocator);
+    discrete_points.deinit(STATE.allocator);
+
+    if (cut_points.*)
+        |cp|
+    {
+        STATE.allocator.free(cp);
+    }
+
+    for (slices.items(.label))
+        |label|
+    {
+        STATE.allocator.free(label);
+    }
+    slices.deinit(STATE.allocator);
+
+    if (STATE.maybe_proj_builder)
+        |*builder|
+    {
+        builder.deinit(STATE.allocator);
+    }
+
+    STATE.otio_root.recursively_deinit(STATE.allocator);
+
+    STATE.allocator.free(STATE.target_otio_file);
+
     if (IS_WASM == false and builtin.mode == .Debug)
     {
         const result = STATE.maybe_debug_allocator.?.deinit();
@@ -1037,9 +1073,8 @@ pub fn main(
 
         STATE.allocator = (
             if (builtin.mode == .Debug) alloc: {
-                var da = std.heap.DebugAllocator(.{}){};
-                STATE.maybe_debug_allocator = da;
-                break :alloc da.allocator();
+                STATE.maybe_debug_allocator =  std.heap.DebugAllocator(.{}){};
+                break :alloc STATE.maybe_debug_allocator.?.allocator();
             } else std.heap.smp_allocator
         );
 
