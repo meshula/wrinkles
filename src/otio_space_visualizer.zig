@@ -63,10 +63,17 @@ fn fill_topdown_point_buffers(
     var points = &STATE.points;
     var slices = &STATE.slices;
     var discrete_points = &STATE.discrete_points;
+    const cut_points = &STATE.maybe_cut_points;
 
     // clear whatever is there
     points.deinit(allocator);
     discrete_points.deinit(allocator);
+
+    if (cut_points.*)
+        |cp|
+    {
+        allocator.free(cp);
+    }
 
     for (slices.items(.label))
         |label|
@@ -78,6 +85,7 @@ fn fill_topdown_point_buffers(
     points.* = .empty;
     slices.* = .empty;
     discrete_points.* = .empty;
+    cut_points.* = null;
 
     // var label_writer = label_bucket.writer(allocator);
     var allocating_label_writer = std.Io.Writer.Allocating.init(allocator);
@@ -93,6 +101,8 @@ fn fill_topdown_point_buffers(
         builder.intervals.len
     );
 
+    cut_points.* = try allocator.alloc(f32, builder.intervals.len + 1);
+
     const interval_slice =  builder.intervals.slice();
     const mapping_slice = builder.mappings.slice();
 
@@ -106,10 +116,11 @@ fn fill_topdown_point_buffers(
 
     for (
         interval_slice.items(.mapping_index),
-        interval_slice.items(.input_bounds)
-    ) |mapping_indices, input_bound|
+        interval_slice.items(.input_bounds),
+        0..,
+    ) |mapping_indices, input_bound, ind|
     {
-        _ = input_bound;
+        cut_points.*.?[ind] = input_bound.start.as(f32);
         for (mapping_indices)
             |mapping_ind|
         {
@@ -197,6 +208,7 @@ fn fill_topdown_point_buffers(
         }
     }
 
+    cut_points.*.?[builder.intervals.len] = builder.input_bounds().end.as(f32);
     std.debug.assert(slice_indices.len != 0);
 
     for (
@@ -303,6 +315,8 @@ const STATE = struct {
         }
     ) = .empty;
     var discrete_points: std.MultiArrayList(PlotPoint2d) = .empty;
+
+    var maybe_cut_points: ?[]f32 = null;
 };
 
 const IS_WASM = builtin.target.cpu.arch.isWasm();
@@ -756,7 +770,7 @@ fn draw(
 
                             // @TODO: make this a control - where in the
                             //        timeline you're viewing
-                            const MAX_ITEMS = @min(slices.len, 6000);
+                            const MAX_ITEMS = @min(slices.len, 3000);
                             for (
                                 slices.items(.xs)[0..MAX_ITEMS],
                                 slices.items(.ys)[0..MAX_ITEMS],
@@ -779,6 +793,21 @@ fn draw(
                                 );
                             }
                             zplot.popStyleVar(.{ .count = 1 });
+
+                            const max_cut_points = @min(slices.len + 1, 3000);
+                            if (STATE.maybe_cut_points)
+                                |cut_points|
+                            {
+                                zplot.plotInfLines(
+                                    "Cut Points",
+                                    f32,
+                                    .{
+                                        .v = (
+                                            cut_points[0..max_cut_points] 
+                                        ),
+                                    },
+                                );
+                            }
                         }
                     }
 
