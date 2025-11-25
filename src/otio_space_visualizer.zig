@@ -161,7 +161,7 @@ fn fill_topdown_point_buffers(
                         .{.x = ib.end.as(f32), .y = ob[1].as(f32)},
                     );
                     last_point = points.get(points.len - 1);
-                    try label_writer.print("{f}" ++ .{0}, .{ dst });
+                    try label_writer.print("{f}\x00", .{ dst });
                     try slice_indices.append(
                         allocator,
                         .{
@@ -1004,7 +1004,7 @@ fn cleanup (
     for (slices.items(.label))
         |label|
     {
-        STATE.allocator.free(label);
+        STATE.allocator.free(@as([]const u8, @ptrCast(label)));
     }
     slices.deinit(STATE.allocator);
 
