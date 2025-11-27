@@ -94,7 +94,9 @@ temporal hierarchies of editorial documents.
 
 ## Todo List 11/14/25
 
-* [ ] difference between `RANGE` and `BOUNDS` -- when to use each
+* [ ] Consistent-ify the terminology
+    * [ ] difference between `RANGE` and `BOUNDS` -- when to use each
+    * [ ] `string.latin_s8` vs `[]const u8`
 * [x] Basic warp schema
     * [x] affine transforms
     * [x] negative scale bug
@@ -107,6 +109,17 @@ temporal hierarchies of editorial documents.
     * [x] Add type
     * [ ] Animated parameter for amount [0, 1)
     * [ ] add a boundary to the transition
+* [ ] Currently references.ComposedValueRef.recursively_deinit is doing a lot
+      of heavy lifting.  This should probably be pushed into schema and made
+      consistent -- Just have deinit() and that be the recursive deinit thing.
+      Children can be copied out and removed using dupe() so simplifying the
+      code would be good
+* [ ] Mapping/Topology inits unnecessarily copy memory (they always dupe
+      argument lists in)
+* [ ] discrete space description
+    * [ ] Clip specification
+    * [ ] description of bounds in either Continuous or Discrete space
+* [ ] build out domain modelling from sketch into serialization
 * [ ] OTIO 2.0 file format
     * [ ] translator python script
     * [ ] don't need a rational time based format anymore
