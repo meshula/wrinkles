@@ -131,6 +131,10 @@ fn read_transform(
         },
         .LinearCurve1D => {
             var buffer: std.ArrayList(curve.ControlPoint) = .empty;
+            // note that mapping inits tend to duplicate lists, so this buffer
+            // gets read into and then freed because memory is duplicated into
+            // the newly created mappings. (for better or for worse)
+            defer buffer.deinit(allocator);
 
             if (obj.get("knots"))
                 |knots_obj|
@@ -177,38 +181,17 @@ fn read_transform(
                     (
                      try topology.MappingCurveLinearMonotonic.init_knots(
                          allocator,
-                         try buffer.toOwnedSlice(allocator)
+                         buffer.items
                      )
                     ).mapping(),
                 }
             );
 
-            std.debug.print("Topo Curve: {f}\n", .{result});
-            for (result.mappings)
-                |m|
-            {
-                std.debug.print(
-                    "  m ({s}): {f}\n",
-                    .{@tagName(m), m},
-                );
-
-                switch (m) {
-                    .linear => |lin| {
-                        std.debug.print("    knots: \n", .{});
-                        for (lin.input_to_output_curve.knots)
-                            |knot|
-                        {
-                            std.debug.print("      {f}\n", .{knot});
-                        }
-                    },
-                    else => {},
-                }
-            }
-
             return result;
         },
         .BezierCurve1D => {
             var buffer: std.ArrayList(curve.ControlPoint) = .empty;
+            defer buffer.deinit(allocator);
 
             if (obj.get("knots"))
                 |knots_obj|
@@ -260,28 +243,6 @@ fn read_transform(
                     }
                 },
             );
-
-            std.debug.print("Topo Curve: {f}\n", .{result});
-            for (result.mappings)
-                |m|
-            {
-                std.debug.print(
-                    "  m ({s}): {f}\n",
-                    .{@tagName(m), m},
-                );
-
-                switch (m) {
-                    .linear => |lin| {
-                        std.debug.print("    knots: \n", .{});
-                        for (lin.input_to_output_curve.knots)
-                            |knot|
-                        {
-                            std.debug.print("      {f}\n", .{knot});
-                        }
-                    },
-                    else => {},
-                }
-            }
 
             return result;
         },
@@ -697,8 +658,14 @@ pub fn read_otio_object(
             const wp = try allocator.create(otio.Warp);
             wp.* = .{
                 .name = maybe_name,
-                .child = try read_otio_object(allocator, obj.get("child").?.object),
-                .transform = try read_transform(allocator,obj.get("transform").?.object),
+                .child = try read_otio_object(
+                    allocator,
+                    obj.get("child").?.object
+                ),
+                .transform = try read_transform(
+                    allocator,
+                    obj.get("transform").?.object
+                ),
             };
 
             std.debug.assert(wp.transform.mappings.len != 0);
@@ -719,6 +686,7 @@ pub fn read_otio_object(
                 .name = container_json.stack.name,
                 .children = container_json.stack.children,
             };
+            allocator.destroy(container_json.stack);
             tx.* = .{
                 .name = maybe_name,
                 .container = container,

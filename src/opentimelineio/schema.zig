@@ -269,6 +269,21 @@ pub const Transition = struct {
     {
         return self.container.topology(allocator);
     }
+
+    pub fn recursively_deinit(
+        self: *@This(),
+        allocator: std.mem.Allocator,
+    ) void 
+    {
+        self.container.recursively_deinit(allocator);
+        if (self.name)
+            |n|
+        {
+            allocator.free(n);
+            self.name = null;
+        }
+        allocator.free(self.kind);
+    }
 };
 
 /// a warp is an additional nonlinear transformation between the warp.parent

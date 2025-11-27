@@ -140,17 +140,26 @@ pub const ComposedValueRef = union(enum) {
     {
         switch (self.*) 
         {
-            .track => |tr| {
-                tr.recursively_deinit(allocator);
-                allocator.destroy(tr);
-            },
-            .stack => |st| {
-                st.recursively_deinit(allocator);
-                allocator.destroy(st);
+            inline .track, .stack, .transition => |ob| {
+                ob.recursively_deinit(allocator);
+                allocator.destroy(ob);
             },
             .clip => |cl| {
                 cl.destroy(allocator);
                 allocator.destroy(cl);
+            },
+            .warp => |wp| {
+                wp.child.recursively_deinit(allocator);
+                wp.transform.deinit(allocator);
+
+                if (wp.name)
+                    |n|
+                {
+                    allocator.free(n);
+                    wp.name = null;
+                }
+
+                allocator.destroy(wp);
             },
             .timeline => |tl| {
                 tl.*.tracks.recursively_deinit(allocator);
