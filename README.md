@@ -94,6 +94,9 @@ temporal hierarchies of editorial documents.
 
 ## Todo List 11/14/25
 
+* [x] leak pass
+    * [x] write program that loads and then deinits otio files to check for
+          leaks
 * [ ] Consistent-ify the terminology
     * [ ] difference between `RANGE` and `BOUNDS` -- when to use each
     * [ ] `string.latin_s8` vs `[]const u8`
@@ -119,6 +122,8 @@ temporal hierarchies of editorial documents.
 * [ ] discrete space description
     * [ ] Clip specification
     * [ ] description of bounds in either Continuous or Discrete space
+* [ ] add hover behavior to otio_space_visualizer that lists active media per
+      cut point, index, etc.
 * [ ] build out domain modelling from sketch into serialization
 * [ ] OTIO 2.0 file format
     * [ ] translator python script
