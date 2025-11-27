@@ -909,6 +909,14 @@ pub fn build(
 
     try executable(
         b,
+        "otio_leak_test",
+        "src/otio_leak_test.zig",
+        options,
+        common_deps,
+    );
+
+    try executable(
+        b,
         "otio_dump_graph",
         "src/otio_dump_graph.zig",
         options,
