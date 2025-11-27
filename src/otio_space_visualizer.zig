@@ -14,6 +14,7 @@ const cimgui = ziis.cimgui;
 const opentime = @import("opentime");
 const otio = @import("opentimelineio");
 const topology = @import("topology");
+const treecode = @import("treecode");
 
 fn set_source(
     allocator: std.mem.Allocator,
@@ -113,7 +114,7 @@ fn fill_topdown_point_buffers(
     const interval_slice =  builder.intervals.slice();
     const mapping_slice = builder.mappings.slice();
 
-    var slice_indices : std.MultiArrayList(
+    var slice_indices: std.MultiArrayList(
         struct{
             start: usize,
             end: usize,
@@ -126,15 +127,31 @@ fn fill_topdown_point_buffers(
         interval_slice.items(.mapping_index),
         interval_slice.items(.input_bounds),
         0..,
-    ) |mapping_indices, input_bound, ind|
+    ) |mapping_indices, input_bound, interval_ind|
     {
-        cut_points.*.?[ind] = input_bound.start.as(f32);
+        cut_points.*.?[interval_ind] = input_bound.start.as(f32);
         for (mapping_indices)
             |mapping_ind|
         {
             const mapping = mapping_slice.items(.mapping)[mapping_ind];
             const ref_ind = mapping_slice.items(.destination)[mapping_ind];
             const dst = builder.tree.nodes.get(ref_ind);
+
+            // try table_data.append(
+            //     allocator,
+            //     .{
+            //         .name = try std.fmt.allocPrint(
+            //             allocator,
+            //             "{f}", 
+            //             .{ dst },
+            //         ),
+            //         .ref = (
+            //             &builder.tree.nodes.get(ref_ind)
+            //         ),
+            //         .indices = .{ interval_ind, mapping_ind },
+            //     },
+            // );
+
             switch (mapping)
             {
                 .affine => |aff| {
@@ -279,6 +296,14 @@ const PlotPoint2d = struct{
     y: f32,
 };
 
+const Spaces = std.EnumSet(
+    enum {
+        presentation,
+        intrinsic,
+        media,
+    }
+);
+
 /// State container
 const STATE = struct {
     // var f: f32 = 0;
@@ -298,7 +323,7 @@ const STATE = struct {
     var maybe_journal : ?ziis.undo.Journal = null;
 
     var allocator: std.mem.Allocator = undefined;
-    var maybe_debug_allocator: ?std.heap.DebugAllocator(.{}) = null;
+    var debug_allocator: std.heap.DebugAllocator(.{}) = undefined;
 
     var target_otio_file: []const u8 = undefined;
     var otio_root: otio.ComposedValueRef = undefined;
@@ -325,6 +350,17 @@ const STATE = struct {
     var discrete_points: std.MultiArrayList(PlotPoint2d) = .empty;
 
     var maybe_cut_points: ?[]f32 = null;
+
+    // a depth first list of all the nodes in the tree
+    var table_data: std.MultiArrayList(
+        struct{
+            name: []const u8,
+            depth: usize,
+            ref: *const otio.references.SpaceReference,
+            // spaces: SpacesBitMask,
+            code: *treecode.Treecode,
+        }
+    ) = .empty;
 };
 
 const IS_WASM = builtin.target.cpu.arch.isWasm();
@@ -401,8 +437,6 @@ fn child_tree(
 fn draw(
 ) !void 
 {
-    const allocator = STATE.allocator;
-
     const vp = zgui.getMainViewport();
     const size = vp.getSize();
 
@@ -432,247 +466,308 @@ fn draw(
     {
         defer zgui.end();
 
-        const LEFT_PANEL_WIDTH = 300;
-
         if (
             zgui.beginChild(
-                "LEFT_PANEL",
+                "TableChild",
                 .{
-                    .w = LEFT_PANEL_WIDTH,
-                    .child_flags = .{
-                        .border = true,
-                        .resize_x = true,
-                    },
+                    .w = -1,
+                    .h = 300,
+                    .child_flags = .{ .resize_y = true },
                 },
             )
         )
         {
             defer zgui.endChild();
 
-            if (
-                zgui.beginChild(
-                    "Object Info",
-                    .{
-                        .h = 180,
-                    }
-                )
-            )
-            {
-                defer zgui.endChild();
+             if (
+                 zgui.beginTable(
+                     "NodeTreeTable",
+                     .{.column = 4}
+                 )
+             )
+             {
+                 defer zgui.endTable();
 
-                var buf2:[1024]u8 = undefined;
-
-                zgui.text(
-                    "Current Object: {s}",
+                // headers
+                zgui.tableNextRow(
                     .{
-                        if (STATE.maybe_current_selected_object) |obj| (
-                            try label_for_ref(&buf2, obj)
-                        ) else "[Click in the tree to select an object]"
+                        .row_flags = .{
+                            .headers = true,
+                        },
                     },
                 );
-
-                if (STATE.maybe_current_selected_object)
-                    |obj|
+                for (
+                    &[_] []const u8{
+                        "Node Name",
+                        "Show Graph",
+                        "Source",
+                        "Destination",
+                    },
+                ) |key|
                 {
-                    if (
-                        zgui.beginTable(
-                            "Object Details",
-                            .{
-                                .column = 2,
-                            },
-                        )
-                    )
-                    {
-                        defer zgui.endTable();
-
-                        // header row
-                        zgui.tableNextRow(
-                            .{ .row_flags = .{ .headers = true } }
-                        );
-
-                        _ = zgui.tableSetColumnIndex(0);
-                        zgui.text("Key", .{});
-
-                        _ = zgui.tableSetColumnIndex(1);
-                        zgui.text("Value", .{});
-
-                        zgui.tableNextRow(.{});
-
-                        var buf3_s: [1024]u8 = undefined;
-                        var buf3: []u8 = &buf3_s;
-
-                        const pres_bounds = try std.fmt.bufPrint(
-                            buf3,
-                            "{f}",
-                            .{ 
-                                STATE.maybe_cached_topology.?.input_bounds(),
-                            },
-                        );
-                        buf3 = buf3[pres_bounds.len..];
-
-                        const pres_di = try std.fmt.bufPrint(
-                            buf3,
-                            "{?f}", 
-                            .{ obj.discrete_info_for_space(.presentation) },
-                        );
-                        buf3 = buf3[pres_di.len..];
-
-                        const rows = [_][2][]const u8{
-                            .{ "Schema", @tagName(obj) },
-                            .{ "Presentation Space Bounds", pres_bounds },
-                            .{ "Presentation Space Discrete Info", pres_di },
-                            .{ "Coordinate Spaces", "" },
-                        };
-
-                        for (&rows)
-                            |row|
-                        {
-                            for (row, 0..)
-                                |field, col|
-                            {
-                                _ = zgui.tableSetColumnIndex(@intCast(col));
-                                zgui.text("{s}", .{ field });
-                            }
-                            zgui.tableNextRow(.{});
-                        }
-
-                        for (obj.spaces())
-                            |space|
-                        {
-                            _ = zgui.tableSetColumnIndex(@intCast(0));
-                            zgui.text("Space: {s}", .{@tagName(space)});
-
-                            _ = zgui.tableSetColumnIndex(@intCast(1));
-
-                            zgui.pushIntId(@intFromEnum(space));
-                            defer zgui.popId();
-
-                            if (zgui.button("SET SOURCE", .{}))
-                            {
-                                try set_source(
-                                    allocator,
-                                    STATE.maybe_current_selected_object.?.space(space)
-                                );
-                            }
-                            zgui.sameLine(.{});
-                            if (zgui.button("SET DEST", .{}))
-                            {
-                                STATE.maybe_dst = (
-                                    STATE.maybe_current_selected_object.?.space(space)
-                                );
-                                STATE.maybe_transform = null;
-                                if (STATE.maybe_proj_builder)
-                                    |builder|
-                                {
-                                    STATE.maybe_transform = (
-                                        try builder.projection_operator_to(
-                                            allocator,
-                                            STATE.maybe_dst.?,
-                                        )
-                                    ).src_to_dst_topo;
-                                }
-                            }
-                            zgui.tableNextRow(.{});
-                        }
-                    }
+                    zgui.text("{s}", .{ key });
+                    _ = zgui.tableNextColumn();
                 }
-            }
 
-            if (zgui.beginChild("Object Tree", .{}))
-            {
-                defer zgui.endChild();
+                for (
+                    STATE.slices.items(.label)
+                ) |name|
+                {
+                    zgui.tableNextRow(.{});
 
-                zgui.text("Current File: {s}", .{ STATE.target_otio_file });
+                    zgui.text("{s}", .{ name });
+                    _ = zgui.tableNextColumn();
 
-                var root = [_]otio.ComposedValueRef{
-                    STATE.otio_root,
-                };
+                    _ = zgui.button("V", .{});
+                    _ = zgui.tableNextColumn();
 
-                try child_tree(allocator, &root );
+                    _ = zgui.button("Source", .{});
+                    _ = zgui.tableNextColumn();
+
+                    _ = zgui.button("Dest", .{});
+                    _ = zgui.tableNextColumn();
+                }
             }
         }
 
-        zgui.sameLine(.{});
+        // const LEFT_PANEL_WIDTH = 300;
+        // if (
+        //     zgui.beginChild(
+        //         "LEFT_PANEL",
+        //         .{
+        //             .w = LEFT_PANEL_WIDTH,
+        //             .child_flags = .{
+        //                 .border = true,
+        //                 .resize_x = true,
+        //             },
+        //         },
+        //     )
+        // )
+        // {
+        //     defer zgui.endChild();
+        //
+        //     if (
+        //         zgui.beginChild(
+        //             "Object Info",
+        //             .{
+        //                 .h = 180,
+        //             }
+        //         )
+        //     )
+        //     {
+        //         defer zgui.endChild();
+        //
+        //         var buf2:[1024]u8 = undefined;
+        //
+        //         zgui.text(
+        //             "Current Object: {s}",
+        //             .{
+        //                 if (STATE.maybe_current_selected_object) |obj| (
+        //                     try label_for_ref(&buf2, obj)
+        //                 ) else "[Click in the tree to select an object]"
+        //             },
+        //         );
+        //
+        //         if (STATE.maybe_current_selected_object)
+        //             |obj|
+        //         {
+        //             if (
+        //                 zgui.beginTable(
+        //                     "Object Details",
+        //                     .{
+        //                         .column = 2,
+        //                     },
+        //                 )
+        //             )
+        //             {
+        //                 defer zgui.endTable();
+        //
+        //                 // header row
+        //                 zgui.tableNextRow(
+        //                     .{ .row_flags = .{ .headers = true } }
+        //                 );
+        //
+        //                 _ = zgui.tableSetColumnIndex(0);
+        //                 zgui.text("Key", .{});
+        //
+        //                 _ = zgui.tableSetColumnIndex(1);
+        //                 zgui.text("Value", .{});
+        //
+        //                 zgui.tableNextRow(.{});
+        //
+        //                 var buf3_s: [1024]u8 = undefined;
+        //                 var buf3: []u8 = &buf3_s;
+        //
+        //                 const pres_bounds = try std.fmt.bufPrint(
+        //                     buf3,
+        //                     "{f}",
+        //                     .{ 
+        //                         STATE.maybe_cached_topology.?.input_bounds(),
+        //                     },
+        //                 );
+        //                 buf3 = buf3[pres_bounds.len..];
+        //
+        //                 const pres_di = try std.fmt.bufPrint(
+        //                     buf3,
+        //                     "{?f}", 
+        //                     .{ obj.discrete_info_for_space(.presentation) },
+        //                 );
+        //                 buf3 = buf3[pres_di.len..];
+        //
+        //                 const rows = [_][2][]const u8{
+        //                     .{ "Schema", @tagName(obj) },
+        //                     .{ "Presentation Space Bounds", pres_bounds },
+        //                     .{ "Presentation Space Discrete Info", pres_di },
+        //                     .{ "Coordinate Spaces", "" },
+        //                 };
+        //
+        //                 for (&rows)
+        //                     |row|
+        //                 {
+        //                     for (row, 0..)
+        //                         |field, col|
+        //                     {
+        //                         _ = zgui.tableSetColumnIndex(@intCast(col));
+        //                         zgui.text("{s}", .{ field });
+        //                     }
+        //                     zgui.tableNextRow(.{});
+        //                 }
+        //
+        //                 for (obj.spaces())
+        //                     |space|
+        //                 {
+        //                     _ = zgui.tableSetColumnIndex(@intCast(0));
+        //                     zgui.text("Space: {s}", .{@tagName(space)});
+        //
+        //                     _ = zgui.tableSetColumnIndex(@intCast(1));
+        //
+        //                     zgui.pushIntId(@intFromEnum(space));
+        //                     defer zgui.popId();
+        //
+        //                     if (zgui.button("SET SOURCE", .{}))
+        //                     {
+        //                         try set_source(
+        //                             allocator,
+        //                             STATE.maybe_current_selected_object.?.space(space)
+        //                         );
+        //                     }
+        //                     zgui.sameLine(.{});
+        //                     if (zgui.button("SET DEST", .{}))
+        //                     {
+        //                         STATE.maybe_dst = (
+        //                             STATE.maybe_current_selected_object.?.space(space)
+        //                         );
+        //                         STATE.maybe_transform = null;
+        //                         if (STATE.maybe_proj_builder)
+        //                             |builder|
+        //                         {
+        //                             STATE.maybe_transform = (
+        //                                 try builder.projection_operator_to(
+        //                                     allocator,
+        //                                     STATE.maybe_dst.?,
+        //                                 )
+        //                             ).src_to_dst_topo;
+        //                         }
+        //                     }
+        //                     zgui.tableNextRow(.{});
+        //                 }
+        //             }
+        //         }
+        //     }
+        //
+        //     if (zgui.beginChild("Object Tree", .{}))
+        //     {
+        //         defer zgui.endChild();
+        //
+        //         zgui.text("Current File: {s}", .{ STATE.target_otio_file });
+        //
+        //         var root = [_]otio.ComposedValueRef{
+        //             STATE.otio_root,
+        //         };
+        //
+        //         try child_tree(allocator, &root );
+        //     }
+        // }
 
         if (zgui.beginChild("Transform", .{}))
         {
             defer zgui.endChild();
 
-            if (
-                zgui.beginTable(
-                    "Transform Info Table",
-                    .{
-                        .column = 2,
-                        .flags = .{
-                            .borders = .all,
-                        },
-                    },
-                )
-            )
-            {
-                defer zgui.endTable();
-
-                zgui.tableNextRow(.{});
-
-                _ = zgui.tableSetColumnIndex(0);
-                zgui.text("Source Space: ", .{});
-
-                _ = zgui.tableSetColumnIndex(1);
-
-                if (STATE.maybe_src)
-                    |src|
-                {
-                    zgui.text("{f}", .{src});
-                }
-                else
-                {
-                    zgui.text("NONE SET", .{});
-                }
-
-                zgui.tableNextRow(.{});
-
-                _ = zgui.tableSetColumnIndex(0);
-                zgui.text("Destination Space: ", .{});
-
-                _ = zgui.tableSetColumnIndex(1);
-                if (STATE.maybe_dst)
-                    |dst|
-                {
-                    zgui.text("{f}", .{dst});
-                }
-                else
-                {
-                    zgui.text("NONE SET", .{});
-                }
-
-                zgui.tableNextRow(.{});
-
-                _ = zgui.tableSetColumnIndex(@intCast(0));
-                zgui.text("Mappings", .{});
-
-                _ = zgui.tableSetColumnIndex(@intCast(1));
-                if (STATE.maybe_transform)
-                    |xform|
-                {
-                    zgui.text("{d}", .{xform.mappings.len});
-
-                    zgui.tableNextRow(.{});
-                    table_fill_row(&.{ "Mappings:", "" });
-
-                    for (xform.mappings)
-                        |m|
-                    {
-                        zgui.tableNextRow(.{});
-                        var buf:[1024]u8 = undefined;
-                        const m_s = try std.fmt.bufPrint(&buf, "{f}", .{m});
-                        table_fill_row(&.{"", m_s});
-                    }
-                }
-                else
-                {
-                    zgui.text("---", .{});
-                }
-            }
+            // if (
+            //     zgui.beginTable(
+            //         "Transform Info Table",
+            //         .{
+            //             .column = 2,
+            //             .flags = .{
+            //                 .borders = .all,
+            //             },
+            //         },
+            //     )
+            // )
+            // {
+            //     defer zgui.endTable();
+            //
+            //     zgui.tableNextRow(.{});
+            //
+            //     _ = zgui.tableSetColumnIndex(0);
+            //     zgui.text("Source Space: ", .{});
+            //
+            //     _ = zgui.tableSetColumnIndex(1);
+            //
+            //     if (STATE.maybe_src)
+            //         |src|
+            //     {
+            //         zgui.text("{f}", .{src});
+            //     }
+            //     else
+            //     {
+            //         zgui.text("NONE SET", .{});
+            //     }
+            //
+            //     zgui.tableNextRow(.{});
+            //
+            //     _ = zgui.tableSetColumnIndex(0);
+            //     zgui.text("Destination Space: ", .{});
+            //
+            //     _ = zgui.tableSetColumnIndex(1);
+            //     if (STATE.maybe_dst)
+            //         |dst|
+            //     {
+            //         zgui.text("{f}", .{dst});
+            //     }
+            //     else
+            //     {
+            //         zgui.text("NONE SET", .{});
+            //     }
+            //
+            //     zgui.tableNextRow(.{});
+            //
+            //     _ = zgui.tableSetColumnIndex(@intCast(0));
+            //     zgui.text("Mappings", .{});
+            //
+            //     _ = zgui.tableSetColumnIndex(@intCast(1));
+            //     if (STATE.maybe_transform)
+            //         |xform|
+            //     {
+            //         zgui.text("{d}", .{xform.mappings.len});
+            //
+            //         zgui.tableNextRow(.{});
+            //         table_fill_row(&.{ "Mappings:", "" });
+            //
+            //         for (xform.mappings)
+            //             |m|
+            //         {
+            //             zgui.tableNextRow(.{});
+            //             var buf:[1024]u8 = undefined;
+            //             const m_s = try std.fmt.bufPrint(&buf, "{f}", .{m});
+            //             table_fill_row(&.{"", m_s});
+            //         }
+            //     }
+            //     else
+            //     {
+            //         zgui.text("---", .{});
+            //     }
+            // }
 
             if (zgui.beginChild("PlotsTabs", .{}))
             {
@@ -802,10 +897,10 @@ fn draw(
                             }
                             zplot.popStyleVar(.{ .count = 1 });
 
-                            const max_cut_points = @min(slices.len + 1, 3000);
                             if (STATE.maybe_cut_points)
                                 |cut_points|
                             {
+                                const max_cut_points = @min(cut_points.len, 3000);
                                 zplot.plotInfLines(
                                     "Cut Points",
                                     f32,
@@ -813,6 +908,92 @@ fn draw(
                                         .v = (
                                             cut_points[0..max_cut_points] 
                                         ),
+                                    },
+                                );
+                            }
+
+                            if (zplot.isPlotHovered())
+                            {
+                                const mouse_pos = zplot.getPlotMousePos(
+                                    .x1,
+                                    .y1,
+                                );
+
+                                const maybe_ind = (
+                                    builder.interval_index_for_time(
+                                        opentime.Ordinate.init(mouse_pos[0]),
+                                    )
+                                );
+
+                                var active_media: std.ArrayList([]const u8) = .empty;
+                                defer {
+                                    for (active_media.items)
+                                        |n|
+                                    {
+                                        STATE.allocator.free(n);
+                                    }
+                                    active_media.deinit(STATE.allocator);
+                                }
+
+                                if (maybe_ind)
+                                    |ind|
+                                {
+                                    const mapping_indices = (
+                                        builder.intervals.items(
+                                            .mapping_index,
+                                        )[ind]
+                                    );
+
+                                    for (mapping_indices)
+                                        |map_ind|
+                                    {
+                                        const dest_ind= builder.mappings.items(.destination)[map_ind];
+                                        const dest = builder.tree.nodes.get(dest_ind);
+
+                                        try active_media.append(
+                                            STATE.allocator,
+                                            try std.fmt.allocPrint(
+                                                STATE.allocator,
+                                                "{f}",
+                                                .{ dest },
+                                            )
+                                        );
+
+                                    }
+                                }
+
+                                var bufs= std.Io.Writer.Allocating.init(STATE.allocator);
+                                for (active_media.items, 0..)
+                                    |cl, ind|
+                                {
+                                    try bufs.writer.print("  {s}", .{ cl });
+                                    if (ind < active_media.items.len - 1)
+                                    {
+                                        _ = try bufs.writer.write("\n");
+                                    }
+                                }
+                                defer bufs.deinit();
+
+                                var buf2:[1024]u8 = undefined;
+                                const lbl = try std.fmt.bufPrintZ(
+                                    &buf2,
+                                    (
+                                          "t: {d:0.2}\n"
+                                          ++ "interval: {?d}\n"
+                                          ++ "mappings active:\n{s}\n"
+                                    ),
+                                    .{
+                                        mouse_pos[0],
+                                        maybe_ind,
+                                        bufs.written(),
+                                    },
+                                );
+                                zplot.plotText(
+                                    lbl,
+                                    .{
+                                        .x = mouse_pos[0],
+                                        .y = mouse_pos[1],
+                                        .pix_offset = .{ 90, 30 },
                                     },
                                 );
                             }
@@ -1028,12 +1209,11 @@ fn cleanup (
     }
 
     STATE.otio_root.recursively_deinit(STATE.allocator);
-
     STATE.allocator.free(STATE.target_otio_file);
 
     if (IS_WASM == false and builtin.mode == .Debug)
     {
-        const result = STATE.maybe_debug_allocator.?.deinit();
+        const result = STATE.debug_allocator.deinit();
         if (result == .leak) 
         {
             std.log.debug("leak!", .{});
@@ -1067,6 +1247,14 @@ pub fn init(
 pub fn main(
 ) !void 
 {
+    // configure the allocator
+    STATE.allocator = (
+        if (builtin.mode == .Debug) alloc: {
+            STATE.debug_allocator =  std.heap.DebugAllocator(.{}){};
+            break :alloc STATE.debug_allocator.allocator();
+        } else std.heap.smp_allocator
+    );
+
     const prog = std.Progress.start(.{});
     defer prog.end();
 
@@ -1081,13 +1269,6 @@ pub fn main(
             0,
         );
         defer init_progress.end();
-
-        STATE.allocator = (
-            if (builtin.mode == .Debug) alloc: {
-                STATE.maybe_debug_allocator =  std.heap.DebugAllocator(.{}){};
-                break :alloc STATE.maybe_debug_allocator.?.allocator();
-            } else std.heap.smp_allocator
-        );
 
         STATE.maybe_journal = ziis.undo.Journal.init(
             STATE.allocator,
@@ -1165,7 +1346,9 @@ pub fn usage(
 
 fn _parse_args(
     allocator: std.mem.Allocator,
-) !struct { input_otio: []const u8, }
+) !struct {
+    input_otio: []const u8, 
+}
 {
     var args = try std.process.argsWithAllocator(allocator);
     defer args.deinit();

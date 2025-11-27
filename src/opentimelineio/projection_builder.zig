@@ -610,6 +610,30 @@ pub fn ProjectionBuilder(
             );
         }
 
+        /// returns the interval index if the time is within the interval,
+        /// otherwise returns null
+        pub fn interval_index_for_time(
+            self: @This(),
+            t: opentime.Ordinate,
+        ) ?usize
+        {
+            if (self.input_bounds().overlaps(t) == false)
+            {
+                return null;
+            }
+
+            for (self.intervals.items(.input_bounds), 0..)
+                |interval, ind|
+            {
+                if (interval.overlaps(t))
+                {
+                    return ind;
+                }
+            }
+
+            return null;
+        }
+
         /// return the input range for this ReferenceTopology
         pub fn input_bounds(
             self: @This(),
