@@ -950,13 +950,21 @@ fn draw(
                                     {
                                         const dest_ind= builder.mappings.items(.destination)[map_ind];
                                         const dest = builder.tree.nodes.get(dest_ind);
+                                        const mapping = builder.mappings.items(.mapping)[map_ind];
+
+                                        const dest_time = (
+                                                    mapping.project_instantaneous_cc_assume_in_bounds(mouse_pos[0]).SuccessOrdinate
+                                        );
 
                                         try active_media.append(
                                             STATE.allocator,
                                             try std.fmt.allocPrint(
                                                 STATE.allocator,
-                                                "{f}",
-                                                .{ dest },
+                                                "{f}: {d:0.2}",
+                                                .{
+                                                    dest,
+                                                    dest_time.as(f32),
+                                                },
                                             )
                                         );
 
@@ -967,7 +975,10 @@ fn draw(
                                 for (active_media.items, 0..)
                                     |cl, ind|
                                 {
-                                    try bufs.writer.print("  {s}", .{ cl });
+                                    try bufs.writer.print(
+                                        "  {s}",
+                                        .{ cl },
+                                    );
                                     if (ind < active_media.items.len - 1)
                                     {
                                         _ = try bufs.writer.write("\n");
@@ -989,14 +1000,41 @@ fn draw(
                                         bufs.written(),
                                     },
                                 );
-                                zplot.plotText(
-                                    lbl,
+
+                                const mouse_screen_pos = zgui.getMousePos();
+                                zgui.setNextWindowPos(
                                     .{
-                                        .x = mouse_pos[0],
-                                        .y = mouse_pos[1],
-                                        .pix_offset = .{ 90, 30 },
-                                    },
+                                        .x = mouse_screen_pos[0] + 15,
+                                        .y = mouse_screen_pos[1] + 15,
+                                    }
                                 );
+                                zgui.setNextWindowBgAlpha(.{ .alpha = 0.75 });
+
+                                if (
+                                    zgui.begin(
+                                        "###PlotHoveredText",
+                                        .{
+                                            .flags = .{
+                                                .no_title_bar = true,
+                                                .no_resize = true,
+                                                .no_move = true,
+                                                .always_auto_resize = true,
+                                                .no_saved_settings = true,
+                                                .no_focus_on_appearing = true,
+                                                .no_nav_inputs = true,
+                                                .no_nav_focus = true,
+                                            },
+                                        },
+                                    )
+                                )
+                                {
+                                    defer zgui.end();
+
+                                    zgui.text(
+                                        "{s}",
+                                        .{lbl}
+                                    );
+                                }
                             }
                         }
                     }
