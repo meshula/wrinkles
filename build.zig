@@ -49,6 +49,8 @@ pub const Options = struct {
 
     // ziis dep is needed for some internal steps
     dep_ziis: ?*std.Build.Dependency = null,
+
+    c_deps: []const *std.Build.Step.Compile = undefined,
 };
 
 /// c-code compilation arguments
@@ -185,67 +187,17 @@ pub fn executable(
     }
     else
     {
-        // @TODO: restore WASM build
-        // const emsdk = ziis.fetchEmSdk(
-        //     options.dep_ziis.?,
-        //     options.optimize,
-        //     options.target,
-        // );
-        //
-        // for (module_deps)
-        //     |mod|
-        // {
-        //     mod.module.addSystemIncludePath(
-        //         ziis.fetchEmSdkIncludePath(
-        //             options.dep_ziis.?,
-        //             options.optimize,
-        //             options.target,
-        //         )
-        //     );
-        // }
-        //
-        // const shell_path_abs = ziis.fetchShellPath(
-        //     options.dep_ziis.?,
-        //     options.optimize,
-        //     options.target,
-        // );
-        //
-        // const link_step = try ziis.emLinkStep(
-        //     b,
-        //     .{
-        //         .lib_main = exe,
-        //         .target = options.target,
-        //         .optimize = options.optimize,
-        //         .emsdk = emsdk,
-        //         // .use_webgpu = backend == .wgpu,
-        //         .use_webgl2 = true,
-        //         .use_emmalloc = true,
-        //         .use_filesystem = true,
-        //         .shell_file_path = shell_path_abs,
-        //         .extra_args = &.{
-        //             "-sUSE_OFFSET_CONVERTER=1",
-        //             // "-sTOTAL_STACK=1024MB",
-        //              "-sALLOW_MEMORY_GROWTH=1",
-        //              "-sASSERTIONS=1",
-        //              "-sSAFE_HEAP=0",
-        //              "-g",
-        //              "-gsource-map",
-        //              "-fsanitize=undefined",
-        //         },
-        //     },
-        // );
-        // const run = ziis.emRunStep(
-        //     b,
-        //     .{
-        //         .name = name,
-        //         .emsdk = emsdk,
-        //     },
-        // );
-        // run.step.dependOn(&link_step.step);
-        // b.step(
-        //     name ++ "-run",
-        //     "Run " ++ name
-        // ).dependOn(&run.step);
+        try ziis.build_wasm(
+            b,
+            .{
+                .app_name = name,
+                .mod_main = exe.root_module,
+                .dep_c_libs = options.c_deps,
+                .dep_ziis_builder = options.dep_ziis.?.builder,
+                .target = options.target,
+                .optimize = options.optimize,
+            }
+        );
     }
 
     // docs
@@ -697,6 +649,12 @@ pub fn build(
         //     );
         // }
     }
+
+    options.c_deps = &.{
+        libsamplerate,
+        spline_gym,
+        kissfft,
+    };
 
     const topology = module_with_tests_and_artifact(
         "topology",
