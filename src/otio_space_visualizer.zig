@@ -459,6 +459,7 @@ fn draw(
                     .no_move = true,
                     .no_collapse = true,
                     .no_title_bar = true,
+                    .no_bring_to_front_on_focus = true,
                 },
             },
         )
