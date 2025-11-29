@@ -382,20 +382,37 @@ fn draw_hover_extras(
             const dest = builder.tree.nodes.get(dest_ind);
             const mapping = builder.mappings.items(.mapping)[map_ind];
 
-            const dest_time = (
-                mapping.project_instantaneous_cc_assume_in_bounds(
-                    mouse_pos[0]
-                ).SuccessOrdinate
+            const projection_operator = (
+                otio.ProjectionOperator{
+                    .destination = dest,
+                    .source = builder.source,
+                    .src_to_dst_topo = .{
+                        .mappings = &.{ mapping },
+                    },
+                }
+            );
+
+            const dest_time = projection_operator.project_instantaneous_cc_assume_in_bounds(
+                opentime.Ordinate.init(mouse_pos[0])
+            ).SuccessOrdinate;
+
+            const dest_ind_d = (
+                if (dest.discrete_info()) |_|
+                    try projection_operator.project_instantaneous_cd(
+                        opentime.Ordinate.init(mouse_pos[0])
+                    )
+                else null
             );
 
             try active_media.append(
                 STATE.allocator,
                 try std.fmt.allocPrint(
                     STATE.allocator,
-                    "{f}: {d:0.2}",
+                    "{f}: {d:0.2}s / d: {?d}",
                     .{
                         dest,
                         dest_time.as(f32),
+                        dest_ind_d,
                     },
                 )
             );
@@ -473,7 +490,7 @@ fn draw_hover_extras(
     const lbl = try std.fmt.bufPrintZ(
         &buf2,
         (
-              "t: {d:0.2}\n"
+              "source time: {d:0.2}s\n"
               ++ "interval: {?d}\n"
               ++ "mappings active:\n{s}\n"
         ),

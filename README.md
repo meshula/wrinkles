@@ -137,17 +137,21 @@ temporal hierarchies of editorial documents.
     * [ ] struct data visualizer/editor
     * [x] vertical bars to see cuts
     * [ ] highlight overlapped item and show in graph
-    * [ ] add hover behavior to otio_space_visualizer that lists active media per
-          cut point, index, etc.
+    * [x] add "s" suffix to continuous times
+    * [x] add hover behavior to otio_space_visualizer that lists active media
+          per cut point, index, etc.
       * [x] continuous time
       * [x] draw points on plot
-      * [ ] show discrete time too (? draw discrete point?)
+      * [x] show discrete time too (? draw discrete point?)
     * [ ] add ALL nodes to the table instead of just terminal spaces
       * [ ] allow controlling visibility from intermediate (non-plotted) scopes
       * [ ] optionally plot intermediate scopes
 * [ ] code cleanup pass on projection_builder
 * [ ] C++ test API
 * [ ] Python test API (ziggy-pydust)
+* [ ] project_*_cd should return an optional instead of an error?
+* [ ] building a projection operator should not require allocation from a
+      builder
 
 ## Todo List (10/9/25)
 
