@@ -219,7 +219,6 @@ fn walk_internal_spaces(
             );
         }
 
-
         last_space_code = space_code;
     }
 
