@@ -350,11 +350,9 @@ fn draw_hover_extras(
         .y1,
     );
 
-    const maybe_ind = (
-        builder.interval_index_for_time(
-            opentime.Ordinate.init(mouse_pos[0]),
-        )
-    );
+    const source_ord = opentime.Ordinate.init(mouse_pos[0]);
+
+    const maybe_ind = builder.interval_index_for_time(source_ord);
 
     var active_media: std.ArrayList([]const u8) = .empty;
     defer {
@@ -393,13 +391,13 @@ fn draw_hover_extras(
             );
 
             const dest_time = projection_operator.project_instantaneous_cc_assume_in_bounds(
-                opentime.Ordinate.init(mouse_pos[0])
+                source_ord
             ).SuccessOrdinate;
 
             const dest_ind_d = (
                 if (dest.discrete_info()) |_|
                     try projection_operator.project_instantaneous_cd(
-                        opentime.Ordinate.init(mouse_pos[0])
+                        source_ord
                     )
                 else null
             );
