@@ -1288,10 +1288,16 @@ pub fn main(
 {
     // configure the allocator
     STATE.allocator = (
-        if (builtin.mode == .Debug) alloc: {
-            STATE.debug_allocator =  std.heap.DebugAllocator(.{}){};
-            break :alloc STATE.debug_allocator.allocator();
-        } else std.heap.smp_allocator
+        if (IS_WASM) (
+            std.heap.c_allocator
+        )
+        else 
+        (
+            if (builtin.mode == .Debug) alloc: {
+                STATE.debug_allocator =  std.heap.DebugAllocator(.{}){};
+                break :alloc STATE.debug_allocator.allocator();
+            } else std.heap.smp_allocator
+        )
     );
 
     const prog = std.Progress.start(.{});
