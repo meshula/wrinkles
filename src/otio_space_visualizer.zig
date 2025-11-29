@@ -1040,18 +1040,12 @@ fn draw(
                                 },
                             );
 
-                            // @TODO: make this a control - where in the
-                            //        timeline you're viewing
-                            const MAX_ITEMS = @min(slices.len, 3000);
                             for (
-                                slices.items(.xs)[0..MAX_ITEMS],
-                                slices.items(.ys)[0..MAX_ITEMS],
-                                slices.items(.label)[0..MAX_ITEMS],
+                                slices.items(.xs),
+                                slices.items(.ys),
+                                slices.items(.label),
                             ) |xs, ys, label|
                             {
-                                // std.debug.print("plotting: {s}\n", .{label});
-                                // std.debug.print("  xs: {any}\n", .{xs});
-                                // std.debug.print("  ys: {any}\n", .{ys});
                                 zplot.plotLine(
                                     label,
                                     f32, 
@@ -1069,15 +1063,10 @@ fn draw(
                             if (STATE.maybe_cut_points)
                                 |cut_points|
                             {
-                                const max_cut_points = @min(cut_points.len, 3000);
                                 zplot.plotInfLines(
                                     "Cut Points",
                                     f32,
-                                    .{
-                                        .v = (
-                                            cut_points[0..max_cut_points] 
-                                        ),
-                                    },
+                                    .{ .v = cut_points, },
                                 );
                             }
 
