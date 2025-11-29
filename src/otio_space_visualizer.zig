@@ -290,6 +290,179 @@ fn fill_topdown_point_buffers(
     }
 }
 
+fn draw_hover_extras(
+    builder: otio.projection.TemporalProjectionBuilder,
+) !void
+{
+    const mouse_pos = zplot.getPlotMousePos(
+        .x1,
+        .y1,
+    );
+
+    const maybe_ind = (
+        builder.interval_index_for_time(
+            opentime.Ordinate.init(mouse_pos[0]),
+        )
+    );
+
+    var active_media: std.ArrayList([]const u8) = .empty;
+    defer {
+        for (active_media.items)
+            |n|
+            {
+                STATE.allocator.free(n);
+            }
+        active_media.deinit(STATE.allocator);
+    }
+
+    if (maybe_ind)
+        |ind|
+        {
+            const mapping_indices = (
+                builder.intervals.items(
+                    .mapping_index,
+                )[ind]
+            );
+
+            for (mapping_indices)
+                |map_ind|
+                {
+                    const dest_ind= builder.mappings.items(.destination)[map_ind];
+                    const dest = builder.tree.nodes.get(dest_ind);
+                    const mapping = builder.mappings.items(.mapping)[map_ind];
+
+                    const dest_time = (
+                        mapping.project_instantaneous_cc_assume_in_bounds(mouse_pos[0]).SuccessOrdinate
+                    );
+
+                    try active_media.append(
+                        STATE.allocator,
+                        try std.fmt.allocPrint(
+                            STATE.allocator,
+                            "{f}: {d:0.2}",
+                            .{
+                                dest,
+                                dest_time.as(f32),
+                            },
+                            )
+                    );
+
+                    zplot.pushStyleVar1f(.{ .idx = .line_weight, .v = 4.0 });
+                    zplot.pushStyleVar1f(.{ .idx = .marker_weight, .v = 4.0 });
+                    defer zplot.popStyleVar(.{ .count = 2 });
+
+                    // x-axis -> mouse
+                    {
+                        var xs: [2]f64 = .{ mouse_pos[0], mouse_pos[0] };
+                        var ys: [2]f64 = .{ 0, dest_time.as(f64), }; 
+
+                        zplot.plotLine(
+                            "Projected Point",
+                            f64, 
+                            .{
+                                .xv = &xs,
+                                .yv = &ys,
+                            },
+                            );
+                    }
+
+                    // mouse -> y-axis
+                    {
+                        var xs: [2]f64 = .{ 0, mouse_pos[0] };
+                        var ys: [2]f64 = .{ dest_time.as(f64), dest_time.as(f64) }; 
+
+                        zplot.plotLine(
+                            "Projected Point",
+                            f64, 
+                            .{
+                                .xv = &xs,
+                                .yv = &ys,
+                            },
+                            );
+                    }
+
+                    {
+                        var xs: [1]f64 = .{ mouse_pos[0] };
+                        var ys: [1]f64 = .{ dest_time.as(f64) }; 
+                        zplot.plotScatter(
+                            "Projected Point",
+                            f64, 
+                            .{
+                                .xv = &xs,
+                                .yv = &ys,
+                            },
+                            );
+                    }
+                }
+
+        }
+
+    var bufs= std.Io.Writer.Allocating.init(STATE.allocator);
+    for (active_media.items, 0..)
+        |cl, ind|
+        {
+            try bufs.writer.print(
+                "  {s}",
+                .{ cl },
+            );
+            if (ind < active_media.items.len - 1)
+            {
+                _ = try bufs.writer.write("\n");
+            }
+        }
+    defer bufs.deinit();
+
+    var buf2:[1024]u8 = undefined;
+    const lbl = try std.fmt.bufPrintZ(
+        &buf2,
+        (
+              "t: {d:0.2}\n"
+              ++ "interval: {?d}\n"
+              ++ "mappings active:\n{s}\n"
+        ),
+        .{
+            mouse_pos[0],
+            maybe_ind,
+            bufs.written(),
+        },
+        );
+
+    const mouse_screen_pos = zgui.getMousePos();
+    zgui.setNextWindowPos(
+        .{
+            .x = mouse_screen_pos[0] + 15,
+            .y = mouse_screen_pos[1] + 15,
+        }
+    );
+    zgui.setNextWindowBgAlpha(.{ .alpha = 0.75 });
+
+    if (
+        zgui.begin(
+            "###PlotHoveredText",
+            .{
+                .flags = .{
+                    .no_title_bar = true,
+                    .no_resize = true,
+                    .no_move = true,
+                    .always_auto_resize = true,
+                    .no_saved_settings = true,
+                    .no_focus_on_appearing = true,
+                    .no_nav_inputs = true,
+                    .no_nav_focus = true,
+                },
+                },
+            )
+    )
+    {
+        defer zgui.end();
+
+        zgui.text(
+            "{s}",
+            .{lbl}
+        );
+    }
+}
+
 /// 2d Point in a plot
 const PlotPoint2d = struct{
     x: f32,
@@ -915,126 +1088,7 @@ fn draw(
 
                             if (zplot.isPlotHovered())
                             {
-                                const mouse_pos = zplot.getPlotMousePos(
-                                    .x1,
-                                    .y1,
-                                );
-
-                                const maybe_ind = (
-                                    builder.interval_index_for_time(
-                                        opentime.Ordinate.init(mouse_pos[0]),
-                                    )
-                                );
-
-                                var active_media: std.ArrayList([]const u8) = .empty;
-                                defer {
-                                    for (active_media.items)
-                                        |n|
-                                    {
-                                        STATE.allocator.free(n);
-                                    }
-                                    active_media.deinit(STATE.allocator);
-                                }
-
-                                if (maybe_ind)
-                                    |ind|
-                                {
-                                    const mapping_indices = (
-                                        builder.intervals.items(
-                                            .mapping_index,
-                                        )[ind]
-                                    );
-
-                                    for (mapping_indices)
-                                        |map_ind|
-                                    {
-                                        const dest_ind= builder.mappings.items(.destination)[map_ind];
-                                        const dest = builder.tree.nodes.get(dest_ind);
-                                        const mapping = builder.mappings.items(.mapping)[map_ind];
-
-                                        const dest_time = (
-                                                    mapping.project_instantaneous_cc_assume_in_bounds(mouse_pos[0]).SuccessOrdinate
-                                        );
-
-                                        try active_media.append(
-                                            STATE.allocator,
-                                            try std.fmt.allocPrint(
-                                                STATE.allocator,
-                                                "{f}: {d:0.2}",
-                                                .{
-                                                    dest,
-                                                    dest_time.as(f32),
-                                                },
-                                            )
-                                        );
-
-                                    }
-                                }
-
-                                var bufs= std.Io.Writer.Allocating.init(STATE.allocator);
-                                for (active_media.items, 0..)
-                                    |cl, ind|
-                                {
-                                    try bufs.writer.print(
-                                        "  {s}",
-                                        .{ cl },
-                                    );
-                                    if (ind < active_media.items.len - 1)
-                                    {
-                                        _ = try bufs.writer.write("\n");
-                                    }
-                                }
-                                defer bufs.deinit();
-
-                                var buf2:[1024]u8 = undefined;
-                                const lbl = try std.fmt.bufPrintZ(
-                                    &buf2,
-                                    (
-                                          "t: {d:0.2}\n"
-                                          ++ "interval: {?d}\n"
-                                          ++ "mappings active:\n{s}\n"
-                                    ),
-                                    .{
-                                        mouse_pos[0],
-                                        maybe_ind,
-                                        bufs.written(),
-                                    },
-                                );
-
-                                const mouse_screen_pos = zgui.getMousePos();
-                                zgui.setNextWindowPos(
-                                    .{
-                                        .x = mouse_screen_pos[0] + 15,
-                                        .y = mouse_screen_pos[1] + 15,
-                                    }
-                                );
-                                zgui.setNextWindowBgAlpha(.{ .alpha = 0.75 });
-
-                                if (
-                                    zgui.begin(
-                                        "###PlotHoveredText",
-                                        .{
-                                            .flags = .{
-                                                .no_title_bar = true,
-                                                .no_resize = true,
-                                                .no_move = true,
-                                                .always_auto_resize = true,
-                                                .no_saved_settings = true,
-                                                .no_focus_on_appearing = true,
-                                                .no_nav_inputs = true,
-                                                .no_nav_focus = true,
-                                            },
-                                        },
-                                    )
-                                )
-                                {
-                                    defer zgui.end();
-
-                                    zgui.text(
-                                        "{s}",
-                                        .{lbl}
-                                    );
-                                }
+                                try draw_hover_extras(builder);
                             }
                         }
                     }
