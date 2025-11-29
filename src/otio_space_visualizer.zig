@@ -309,107 +309,113 @@ fn draw_hover_extras(
     defer {
         for (active_media.items)
             |n|
-            {
-                STATE.allocator.free(n);
-            }
+        {
+            STATE.allocator.free(n);
+        }
         active_media.deinit(STATE.allocator);
     }
 
     if (maybe_ind)
         |ind|
+    {
+        const mapping_indices = (
+            builder.intervals.items(
+                .mapping_index,
+            )[ind]
+        );
+
+        for (mapping_indices)
+            |map_ind|
         {
-            const mapping_indices = (
-                builder.intervals.items(
-                    .mapping_index,
-                )[ind]
+            const dest_ind= builder.mappings.items(.destination)[map_ind];
+            const dest = builder.tree.nodes.get(dest_ind);
+            const mapping = builder.mappings.items(.mapping)[map_ind];
+
+            const dest_time = (
+                mapping.project_instantaneous_cc_assume_in_bounds(
+                    mouse_pos[0]
+                ).SuccessOrdinate
             );
 
-            for (mapping_indices)
-                |map_ind|
-                {
-                    const dest_ind= builder.mappings.items(.destination)[map_ind];
-                    const dest = builder.tree.nodes.get(dest_ind);
-                    const mapping = builder.mappings.items(.mapping)[map_ind];
+            try active_media.append(
+                STATE.allocator,
+                try std.fmt.allocPrint(
+                    STATE.allocator,
+                    "{f}: {d:0.2}",
+                    .{
+                        dest,
+                        dest_time.as(f32),
+                    },
+                )
+            );
 
-                    const dest_time = (
-                        mapping.project_instantaneous_cc_assume_in_bounds(mouse_pos[0]).SuccessOrdinate
-                    );
+            zplot.pushStyleVar1f(
+                .{ .idx = .line_weight, .v = 4.0 },
+            );
+            zplot.pushStyleVar1f(
+                .{ .idx = .marker_weight, .v = 4.0 },
+            );
+            defer zplot.popStyleVar(.{ .count = 2 });
 
-                    try active_media.append(
-                        STATE.allocator,
-                        try std.fmt.allocPrint(
-                            STATE.allocator,
-                            "{f}: {d:0.2}",
-                            .{
-                                dest,
-                                dest_time.as(f32),
-                            },
-                            )
-                    );
+            // x-axis -> mouse
+            {
+                var xs: [2]f64 = .{ mouse_pos[0], mouse_pos[0] };
+                var ys: [2]f64 = .{ 0, dest_time.as(f64), }; 
 
-                    zplot.pushStyleVar1f(.{ .idx = .line_weight, .v = 4.0 });
-                    zplot.pushStyleVar1f(.{ .idx = .marker_weight, .v = 4.0 });
-                    defer zplot.popStyleVar(.{ .count = 2 });
+                zplot.plotLine(
+                    "Projected Point",
+                    f64, 
+                    .{
+                        .xv = &xs,
+                        .yv = &ys,
+                    },
+                );
+            }
 
-                    // x-axis -> mouse
-                    {
-                        var xs: [2]f64 = .{ mouse_pos[0], mouse_pos[0] };
-                        var ys: [2]f64 = .{ 0, dest_time.as(f64), }; 
+            // mouse -> y-axis
+            {
+                var xs: [2]f64 = .{ 0, mouse_pos[0] };
+                var ys: [2]f64 = .{ dest_time.as(f64), dest_time.as(f64) }; 
 
-                        zplot.plotLine(
-                            "Projected Point",
-                            f64, 
-                            .{
-                                .xv = &xs,
-                                .yv = &ys,
-                            },
-                            );
-                    }
+                zplot.plotLine(
+                    "Projected Point",
+                    f64, 
+                    .{
+                        .xv = &xs,
+                        .yv = &ys,
+                    },
+                );
+            }
 
-                    // mouse -> y-axis
-                    {
-                        var xs: [2]f64 = .{ 0, mouse_pos[0] };
-                        var ys: [2]f64 = .{ dest_time.as(f64), dest_time.as(f64) }; 
-
-                        zplot.plotLine(
-                            "Projected Point",
-                            f64, 
-                            .{
-                                .xv = &xs,
-                                .yv = &ys,
-                            },
-                            );
-                    }
-
-                    {
-                        var xs: [1]f64 = .{ mouse_pos[0] };
-                        var ys: [1]f64 = .{ dest_time.as(f64) }; 
-                        zplot.plotScatter(
-                            "Projected Point",
-                            f64, 
-                            .{
-                                .xv = &xs,
-                                .yv = &ys,
-                            },
-                            );
-                    }
-                }
-
+            {
+                var xs: [1]f64 = .{ mouse_pos[0] };
+                var ys: [1]f64 = .{ dest_time.as(f64) }; 
+                zplot.plotScatter(
+                    "Projected Point",
+                    f64, 
+                    .{
+                        .xv = &xs,
+                        .yv = &ys,
+                    },
+                );
+            }
         }
+
+    }
 
     var bufs= std.Io.Writer.Allocating.init(STATE.allocator);
     for (active_media.items, 0..)
         |cl, ind|
+    {
+        try bufs.writer.print(
+            "  {s}",
+            .{ cl },
+        );
+        if (ind < active_media.items.len - 1)
         {
-            try bufs.writer.print(
-                "  {s}",
-                .{ cl },
-            );
-            if (ind < active_media.items.len - 1)
-            {
-                _ = try bufs.writer.write("\n");
-            }
+            _ = try bufs.writer.write("\n");
         }
+    }
     defer bufs.deinit();
 
     var buf2:[1024]u8 = undefined;
@@ -425,7 +431,7 @@ fn draw_hover_extras(
             maybe_ind,
             bufs.written(),
         },
-        );
+    );
 
     const mouse_screen_pos = zgui.getMousePos();
     zgui.setNextWindowPos(
@@ -450,8 +456,8 @@ fn draw_hover_extras(
                     .no_nav_inputs = true,
                     .no_nav_focus = true,
                 },
-                },
-            )
+            },
+        )
     )
     {
         defer zgui.end();
@@ -1316,25 +1322,7 @@ fn cleanup (
 
 pub fn init(
 ) void
-{ 
-    // STATE.tex = sg.makeImage(
-    //     .{
-    //         .width = STATE.TEX_DIM[0],
-    //         .height = STATE.TEX_DIM[1],
-    //         .usage = .{ .stream_update = true },
-    //         .pixel_format = .RGBA8,
-    //     },
-    // );
-    //
-    // STATE.view = sg.makeView(
-    //     .{
-    //         .texture = .{
-    //             .image = STATE.tex,
-    //         },
-    //     },
-    // );
-    //
-    // STATE.texid = ziis.sokol.imgui.imtextureid(STATE.view);
+{
 }
 
 pub fn main(
