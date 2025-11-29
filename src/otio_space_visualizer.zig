@@ -17,6 +17,49 @@ const otio = @import("opentimelineio");
 const topology = @import("topology");
 const treecode = @import("treecode");
 
+fn parent_path(
+    allocator: std.mem.Allocator,
+    builder: otio.TemporalProjectionBuilder,
+    destination: otio.references.SpaceReference,
+) ![]const u8
+{
+    const path = try builder.tree.path(
+        allocator,
+        .{
+            .source = 0,
+            .destination = builder.tree.index_for_node(destination).?,
+        }
+    );
+    defer allocator.free(path);
+
+    var last_ref: otio.ComposedValueRef = undefined;
+
+    var buf: std.ArrayList(u8) = .empty;
+    var writer = buf.writer(allocator);
+
+    for (path)
+        |node_index|
+    {
+        const current_node_ref = builder.tree.nodes.items(.ref)[node_index];
+        if (std.meta.eql(destination.ref, current_node_ref))
+        {
+            break;
+        }
+
+        if (std.meta.eql(last_ref, current_node_ref))
+        {
+            continue;
+        }
+
+        last_ref = current_node_ref;
+        try writer.print("{f}/", .{last_ref});
+    }
+
+    try writer.print("{f}", .{ destination });
+
+    return try buf.toOwnedSlice(allocator);
+}
+
 fn set_source(
     allocator: std.mem.Allocator,
     src: otio.references.SpaceReference
@@ -183,7 +226,14 @@ fn fill_topdown_point_buffers(
                         .{.x = ib.end.as(f32), .y = ob[1].as(f32)},
                     );
                     last_point = points.get(points.len - 1);
-                    try label_writer.print("{f}\x00", .{ dst });
+                    const path = try parent_path(
+                        allocator,
+                        builder,
+                        dst,
+                    );
+                    defer allocator.free(path);
+
+                    try label_writer.print("{s}\x00", .{ path });
                     try slice_indices.append(
                         allocator,
                         .{
@@ -652,13 +702,16 @@ fn draw(
              if (
                  zgui.beginTable(
                      "NodeTreeTable",
-                     .{.column = 4}
+                     .{
+                         .column = 4,
+                         .flags = .{
+                             .resizable = true,
+                         }
+                     }
                  )
              )
              {
                  defer zgui.endTable();
-
-                 zgui.tableHeader("Terminal Spaces Table");
 
                  // headers
                  zgui.tableNextRow(
