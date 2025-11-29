@@ -1354,20 +1354,26 @@ pub fn main(
         )
     );
 
-    const prog = std.Progress.start(.{});
-    defer prog.end();
+    const prog = (
+        if (IS_WASM == false) std.Progress.start(.{})
+    );
+    defer if (IS_WASM == false) prog.end();
 
-    const parent_prog = prog.start(
-        "Initializing",
-        3,
+    const parent_prog = if (IS_WASM == false) (
+        prog.start(
+            "Initializing",
+            3,
+        )
     );
 
     {
-        const init_progress = parent_prog.start(
-            "Initializing State...",
-            0,
+        const init_progress = if (IS_WASM == false) (
+            parent_prog.start(
+                "Initializing State...",
+                0,
+            )
         );
-        defer init_progress.end();
+        defer if (IS_WASM == false) init_progress.end();
 
         STATE.maybe_journal = ziis.undo.Journal.init(
             STATE.allocator,
@@ -1376,14 +1382,18 @@ pub fn main(
     }
 
     {
-        const read_prog = parent_prog.start(
-            "Reading file...",
-            0,
+        const read_prog = if (IS_WASM == false) (
+            parent_prog.start(
+                "Reading file...",
+                0,
+            )
         );
-        defer read_prog.end();
+        defer if (IS_WASM == false) read_prog.end();
 
         STATE.target_otio_file = (try _parse_args(STATE.allocator)).input_otio;
         var found = true;
+
+        std.debug.print("attempting fetch\n", .{});
         std.fs.cwd().access(
             STATE.target_otio_file,
             .{},
@@ -1409,7 +1419,7 @@ pub fn main(
         );
     }
 
-    parent_prog.end();
+    if (IS_WASM == false) parent_prog.end();
 
     app_wrapper.sokol_main(
         .{
