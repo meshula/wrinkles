@@ -122,8 +122,6 @@ temporal hierarchies of editorial documents.
 * [ ] discrete space description
     * [ ] Clip specification
     * [ ] description of bounds in either Continuous or Discrete space
-* [ ] add hover behavior to otio_space_visualizer that lists active media per
-      cut point, index, etc.
 * [ ] build out domain modelling from sketch into serialization
 * [ ] OTIO 2.0 file format
     * [ ] translator python script
@@ -133,12 +131,20 @@ temporal hierarchies of editorial documents.
     * [ ] Warp Schema: multi segment bezier / pt-tangent form
 * [ ] Serializer 
 * [ ] visualizer
-    * [ ] rearrange based on a table of all the children to control visibility
+    * [x] rearrange based on a table of all the children to control visibility
     * [ ] UI to represent tracks?
     * [ ] visualize discrete spaces (stairstep plot in implot?)
     * [ ] struct data visualizer/editor
-    * [ ] vertical bars to see cuts
+    * [x] vertical bars to see cuts
     * [ ] highlight overlapped item and show in graph
+    * [ ] add hover behavior to otio_space_visualizer that lists active media per
+          cut point, index, etc.
+      * [x] continuous time
+      * [x] draw points on plot
+      * [ ] show discrete time too (? draw discrete point?)
+    * [ ] add ALL nodes to the table instead of just terminal spaces
+      * [ ] allow controlling visibility from intermediate (non-plotted) scopes
+      * [ ] optionally plot intermediate scopes
 * [ ] code cleanup pass on projection_builder
 * [ ] C++ test API
 * [ ] Python test API (ziggy-pydust)
