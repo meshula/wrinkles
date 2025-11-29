@@ -485,19 +485,8 @@ const Spaces = std.EnumSet(
 
 /// State container
 const STATE = struct {
-    // var f: f32 = 0;
     var demo_window_gui = false;
     var demo_window_plot = false;
-    // const TEX_DIM : [2]i32 = .{ 256, 256 };
-    // const COLOR_CHANNELS:usize = 4;
-    // var tex: sg.Image = .{};
-    // var view: sg.View = .{};
-    // var texid: u64 = 0;
-    // var frame_number: usize = 0;
-    // var buffer = std.mem.zeroes(
-    //     [STATE.TEX_DIM[0]][STATE.TEX_DIM[1]][COLOR_CHANNELS]u8
-    // );
-    // var image_data = ziis.sokol.gfx.ImageData{};
 
     var maybe_journal : ?ziis.undo.Journal = null;
 
