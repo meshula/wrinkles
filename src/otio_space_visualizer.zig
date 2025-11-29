@@ -658,46 +658,51 @@ fn draw(
              {
                  defer zgui.endTable();
 
-                // headers
-                zgui.tableNextRow(
-                    .{
-                        .row_flags = .{
-                            .headers = true,
-                        },
-                    },
-                );
-                for (
-                    &[_] []const u8{
-                        "Node Name",
-                        "Show Graph",
-                        "Source",
-                        "Destination",
-                    },
-                ) |key|
-                {
-                    zgui.text("{s}", .{ key });
-                    _ = zgui.tableNextColumn();
-                }
+                 zgui.tableHeader("Terminal Spaces Table");
 
-                for (
-                    STATE.slices.items(.label)
-                ) |name|
-                {
-                    zgui.tableNextRow(.{});
+                 // headers
+                 zgui.tableNextRow(
+                     .{
+                         .row_flags = .{
+                             .headers = true,
+                         },
+                     },
+                 );
 
-                    zgui.text("{s}", .{ name });
-                    _ = zgui.tableNextColumn();
+                 _ = zgui.tableSetColumnIndex(0);
+                 inline for (
+                     &[_] []const u8{
+                         "Node Name",
+                         "Show Graph",
+                         "Source",
+                         "Destination",
+                     },
+                 ) |key|
+                 {
+                     zgui.textUnformatted(key);
+                     _ = zgui.tableNextColumn();
+                 }
 
-                    _ = zgui.button("V", .{});
-                    _ = zgui.tableNextColumn();
+                 _ = zgui.tableSetColumnIndex(0);
 
-                    _ = zgui.button("Source", .{});
-                    _ = zgui.tableNextColumn();
+                 const slices = STATE.slices.slice();
+                 const labels = slices.items(.label);
+                 for (labels)
+                     |name|
+                 {
+                     zgui.textUnformatted(name);
+                     _ = zgui.tableNextColumn();
 
-                    _ = zgui.button("Dest", .{});
-                    _ = zgui.tableNextColumn();
-                }
-            }
+                     zgui.textUnformatted("View");
+                     _ = zgui.tableNextColumn();
+
+                     zgui.textUnformatted("Set Source");
+                     _ = zgui.tableNextColumn();
+
+                     zgui.textUnformatted("Set Dest");
+                     _ = zgui.tableNextColumn();
+                 }
+             }
         }
 
         // const LEFT_PANEL_WIDTH = 300;
