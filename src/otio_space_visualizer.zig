@@ -1,6 +1,7 @@
 //! example app using the app wrapper
 
 const std = @import("std");
+const build_options = @import("build_options");
 const builtin = @import("builtin");
 
 const ziis = @import("zgui_cimgui_implot_sokol");
@@ -1389,7 +1390,10 @@ pub fn main(
 
     app_wrapper.sokol_main(
         .{
-            .title = "OTIO Space Visualizer",
+            .title = (
+                "OTIO Space Visualizer | " 
+                ++ build_options.hash[0..6]
+            ),
             .draw = draw, 
             .maybe_pre_zgui_shutdown_cleanup = cleanup,
             .maybe_post_zgui_init = init,
