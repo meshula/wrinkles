@@ -162,6 +162,7 @@ fn fill_topdown_point_buffers(
         struct{
             start: usize,
             end: usize,
+            discrete_indedx_range: ?[2]usize,
             label: [:0]const u8,
         },
     ) = .empty;
@@ -233,12 +234,39 @@ fn fill_topdown_point_buffers(
                     );
                     defer allocator.free(path);
 
+                    var discrete_indices:?[2]usize = null;
+
+                    if (dst.discrete_info())
+                        |discrete_space|
+                    {
+                        discrete_indices = .{ points.len, points.len };
+                        // make a discrete space over the continuous one
+                        var current = ib.start;
+                        const inc = ib.duration().div(
+                            discrete_space.sample_rate_hz.as_ordinate()
+                        ).as(f32);
+                        while  (current.lt(ib.end))
+                            : (current = current.add(inc))
+                        {
+                            try points.append(
+                                allocator,
+                                .{
+                                    .x = current.as(f32),
+                                    .y = mapping.project_instantaneous_cc_assume_in_bounds(current).SuccessOrdinate.as(f32),
+                                }
+                            );
+                        }
+
+                        discrete_indices.?[1] = points.len;
+                    }
+
                     try label_writer.print("{s}\x00", .{ path });
                     try slice_indices.append(
                         allocator,
                         .{
                             .start = start,
                             .end = end,
+                            .discrete_indedx_range = discrete_indices,
                             .label = @ptrCast(
                                 try allocating_label_writer.toOwnedSlice()
                             ),
@@ -266,12 +294,41 @@ fn fill_topdown_point_buffers(
                         );
                     }
 
+                    var discrete_indices:?[2]usize = null;
+
+                    if (dst.discrete_info())
+                        |discrete_space|
+                    {
+                        discrete_indices = .{ points.len, points.len };
+                        // make a discrete space over the continuous one
+                        const ib = mapping.input_bounds();
+                        var current = ib.start;
+                        const inc = ib.duration().div(
+                            discrete_space.sample_rate_hz.as_ordinate()
+                        ).as(f32);
+                        while  (current.lt(ib.end))
+                            : (current = current.add(inc))
+                        {
+                            try points.append(
+                                allocator,
+                                .{
+                                    .x = current.as(f32),
+                                    .y = mapping.project_instantaneous_cc_assume_in_bounds(current).SuccessOrdinate.as(f32),
+                                }
+                            );
+                        }
+
+                        discrete_indices.?[1] = points.len;
+                    }
+
+
                     try label_writer.print("{f}" ++ .{0}, .{ dst });
                     try slice_indices.append(
                         allocator,
                         .{
                             .start = start,
                             .end = end,
+                            .discrete_indedx_range = discrete_indices,
                             .label = @ptrCast(
                                 try allocating_label_writer.toOwnedSlice()
                             ),
@@ -290,15 +347,19 @@ fn fill_topdown_point_buffers(
     for (
         slice_indices.items(.start),
         slice_indices.items(.end),
+        slice_indices.items(.discrete_indedx_range),
         slice_indices.items(.label),
-    )
-        |start, end, label|
+    ) |start, end, discrete_indices, label|
     {
         try slices.append(
             allocator,
             .{
                 .xs = points.items(.x)[start..end],
                 .ys = points.items(.y)[start..end],
+                .discrete_points = if (discrete_indices) |di| .{
+                    points.items(.x)[di[0]..di[1]],
+                    points.items(.y)[di[0]..di[1]],
+                } else null,
                 .label = label,
             },
         );
@@ -465,6 +526,27 @@ fn draw_hover_extras(
                     },
                 );
             }
+
+            if (dest.discrete_info())
+                |_|
+            {
+                const dest_time_discrete = (
+                    try projection_operator.project_instantaneous_cd(
+                        source_ord
+                    )
+                );
+                var xs: [1]f64 = .{ mouse_pos[0] };
+                var ys: [1]f64 = .{ @floatFromInt(dest_time_discrete) }; 
+                std.debug.print("d: {d}\n", .{dest_time_discrete});
+                zplot.plotScatter(
+                    "Projected Point (Discrete)",
+                    f64, 
+                    .{
+                        .xv = &xs,
+                        .yv = &ys,
+                    },
+                );
+            }
         }
 
     }
@@ -576,8 +658,14 @@ const STATE = struct {
     var points: std.MultiArrayList(PlotPoint2d) = .empty;
     var slices: std.MultiArrayList(
         struct{
+            // continuous points
             xs: []const f32,
             ys: []const f32,
+
+            // discrete points
+            discrete_points: ?[2][]const f32,
+            
+            /// Text label for the mapping curve
             label: [:0]const u8,
         }
     ) = .empty;
@@ -1117,8 +1205,9 @@ fn draw(
                             for (
                                 slices.items(.xs),
                                 slices.items(.ys),
+                                slices.items(.discrete_points),
                                 slices.items(.label),
-                            ) |xs, ys, label|
+                            ) |xs, ys, maybe_d_xys, label|
                             {
                                 zplot.plotLine(
                                     label,
@@ -1131,6 +1220,26 @@ fn draw(
                                         },
                                     },
                                 );
+
+                                if (maybe_d_xys)
+                                    |d_xys|
+                                {
+                                    var style = zplot.getStyle();
+                                    const old_marker = style.marker;
+                                    defer style.marker = old_marker;
+                                    style.marker = .circle;
+                                    zplot.plotStairs(
+                                        label,
+                                        f32, 
+                                        .{
+                                            .xv = d_xys[0],
+                                            .yv = d_xys[1],
+                                            .flags = .{
+                                                .shaded = true,
+                                            },
+                                        },
+                                    );
+                                }
                             }
                             zplot.popStyleVar(.{ .count = 1 });
 
