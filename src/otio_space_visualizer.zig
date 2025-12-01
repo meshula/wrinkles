@@ -537,7 +537,6 @@ fn draw_hover_extras(
                 );
                 var xs: [1]f64 = .{ mouse_pos[0] };
                 var ys: [1]f64 = .{ @floatFromInt(dest_time_discrete) }; 
-                std.debug.print("d: {d}\n", .{dest_time_discrete});
                 zplot.plotScatter(
                     "Projected Point (Discrete)",
                     f64, 
