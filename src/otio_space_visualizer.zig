@@ -1261,8 +1261,23 @@ fn draw(
                                 slices.items(.ys),
                                 slices.items(.discrete_points),
                                 slices.items(.label),
-                            ) |xs, ys, maybe_d_xys, label|
+                                0..
+                            ) |xs, ys, maybe_d_xys, label, ind|
                             {
+                                const hovered_interval = (
+                                    STATE.maybe_hovered_interval != null
+                                    and STATE.maybe_hovered_interval == ind
+                                );
+                                if (hovered_interval) 
+                                {
+                                    zplot.pushStyleVar1f(
+                                        .{
+                                            .idx = .line_weight,
+                                            .v = 4,
+                                        }
+                                    );
+                                }
+
                                 zplot.plotLine(
                                     label,
                                     f32, 
@@ -1275,7 +1290,13 @@ fn draw(
                                     },
                                 );
 
-                                if (STATE.options.show_discrete_ouput_spaces == .always)
+                                if (
+                                    STATE.options.show_discrete_ouput_spaces == .always
+                                    or (
+                                        STATE.options.show_discrete_ouput_spaces == .hovered
+                                        and hovered_interval
+                                    )
+                                )
                                 {
                                     if (maybe_d_xys)
                                         |d_xys|
@@ -1296,6 +1317,10 @@ fn draw(
                                             },
                                         );
                                     }
+                                }
+                                if (hovered_interval)
+                                {
+                                    zplot.popStyleVar(.{ .count = 1 });
                                 }
                             }
                             zplot.popStyleVar(.{ .count = 1 });
