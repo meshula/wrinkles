@@ -442,7 +442,7 @@ fn draw_hover_extras(
 
     const source_ord = opentime.Ordinate.init(mouse_pos[0]);
 
-    const maybe_ind = builder.interval_index_for_time(source_ord);
+    STATE.maybe_hovered_interval = builder.interval_index_for_time(source_ord);
 
     var active_media: std.ArrayList([]const u8) = .empty;
     defer {
@@ -454,7 +454,7 @@ fn draw_hover_extras(
         active_media.deinit(STATE.allocator);
     }
 
-    if (maybe_ind)
+    if (STATE.maybe_hovered_interval)
         |ind|
     {
         const mapping_indices = (
@@ -603,7 +603,7 @@ fn draw_hover_extras(
         ),
         .{
             mouse_pos[0],
-            maybe_ind,
+            STATE.maybe_hovered_interval,
             bufs.written(),
         },
     );
@@ -699,6 +699,8 @@ const STATE = struct {
     var discrete_points: std.MultiArrayList(PlotPoint2d) = .empty;
 
     var maybe_cut_points: ?[]f32 = null;
+
+    var maybe_hovered_interval: ?usize = null;
 
     // a depth first list of all the nodes in the tree
     var table_data: std.MultiArrayList(
