@@ -17,6 +17,30 @@ const otio = @import("opentimelineio");
 const topology = @import("topology");
 const treecode = @import("treecode");
 
+fn struct_editor_ui(
+    comptime T: type,
+    thing: *T,
+) !void
+{
+    inline for (std.meta.fields(T))
+        |field|
+    {
+        switch (@typeInfo(field.type)) {
+            .@"enum" => |_| {
+                _ = zgui.comboFromEnum(
+                    field.name, 
+                    &@field(thing.*, field.name)
+                );
+            },
+            else => @compileError(
+                "Field type: " 
+                ++ @typeName(field.type) 
+                ++ " not supported."
+            ),
+        }
+    }
+}
+
 fn parent_path(
     allocator: std.mem.Allocator,
     builder: otio.TemporalProjectionBuilder,
@@ -400,6 +424,11 @@ fn fill_topdown_point_buffers(
             );
         }
     }
+
+    if (STATE.slices.len > 100)
+    {
+        STATE.options.show_discrete_ouput_spaces = .never;
+    }
 }
 
 fn draw_hover_extras(
@@ -547,7 +576,6 @@ fn draw_hover_extras(
                 );
             }
         }
-
     }
 
     var bufs= std.Io.Writer.Allocating.init(STATE.allocator);
@@ -682,6 +710,14 @@ const STATE = struct {
             code: *treecode.Treecode,
         }
     ) = .empty;
+
+    var options: struct {
+        show_discrete_ouput_spaces: enum (u4) {
+            never,
+            hovered,
+            always,
+        } = .always,
+    } = .{};
 };
 
 const IS_WASM = builtin.target.cpu.arch.isWasm();
@@ -789,75 +825,92 @@ fn draw(
         defer zgui.end();
 
         if (
-            zgui.beginChild(
-                "TableChild",
+            zgui.beginTabBar(
+                "TopChunk",
                 .{
-                    .w = -1,
-                    .h = 300,
-                    .child_flags = .{ .resize_y = true },
-                },
+                }
             )
         )
         {
-            defer zgui.endChild();
+            defer zgui.endTabBar();
 
-             if (
-                 zgui.beginTable(
-                     "NodeTreeTable",
-                     .{
-                         .column = 4,
-                         .flags = .{
-                             .resizable = true,
-                         }
-                     }
-                 )
-             )
-             {
-                 defer zgui.endTable();
+            if (
+                zgui.beginTabItem("Node Table", .{})
+            )
+            {
+                defer zgui.endTabItem();
+                // defer zgui.endChild();
 
-                 // headers
-                 zgui.tableNextRow(
-                     .{
-                         .row_flags = .{
-                             .headers = true,
-                         },
-                     },
-                 );
+                if (
+                    zgui.beginTable(
+                        "NodeTreeTable",
+                        .{
+                            .column = 4,
+                            .flags = .{
+                                .resizable = true,
+                            }
+                        }
+                    )
+                )
+                {
+                    defer zgui.endTable();
 
-                 _ = zgui.tableSetColumnIndex(0);
-                 inline for (
-                     &[_] []const u8{
-                         "Node Name",
-                         "Show Graph",
-                         "Source",
-                         "Destination",
-                     },
-                 ) |key|
-                 {
-                     zgui.textUnformatted(key);
-                     _ = zgui.tableNextColumn();
-                 }
+                    // headers
+                    zgui.tableNextRow(
+                        .{
+                            .row_flags = .{
+                                .headers = true,
+                            },
+                        },
+                    );
 
-                 _ = zgui.tableSetColumnIndex(0);
+                    _ = zgui.tableSetColumnIndex(0);
+                    inline for (
+                        &[_] []const u8{
+                            "Node Name",
+                            "Show Graph",
+                            "Source",
+                            "Destination",
+                        },
+                    ) |key|
+                    {
+                        zgui.textUnformatted(key);
+                        _ = zgui.tableNextColumn();
+                    }
 
-                 const slices = STATE.slices.slice();
-                 const labels = slices.items(.label);
-                 for (labels)
-                     |name|
-                 {
-                     zgui.textUnformatted(name);
-                     _ = zgui.tableNextColumn();
+                    _ = zgui.tableSetColumnIndex(0);
 
-                     zgui.textUnformatted("View");
-                     _ = zgui.tableNextColumn();
+                    const slices = STATE.slices.slice();
+                    const labels = slices.items(.label);
+                    for (labels)
+                        |name|
+                    {
+                        zgui.textUnformatted(name);
+                        _ = zgui.tableNextColumn();
 
-                     zgui.textUnformatted("Set Source");
-                     _ = zgui.tableNextColumn();
+                        zgui.textUnformatted("View");
+                        _ = zgui.tableNextColumn();
 
-                     zgui.textUnformatted("Set Dest");
-                     _ = zgui.tableNextColumn();
-                 }
-             }
+                        zgui.textUnformatted("Set Source");
+                        _ = zgui.tableNextColumn();
+
+                        zgui.textUnformatted("Set Dest");
+                        _ = zgui.tableNextColumn();
+                    }
+                }
+            }
+
+            if (zgui.beginTabItem("Options", .{}))
+            {
+                defer zgui.endTabItem();
+
+                zgui.separatorText("Runtime Options");
+
+                try struct_editor_ui(
+                    @TypeOf(STATE.options),
+                    &STATE.options,
+                );
+            }
         }
 
         // const LEFT_PANEL_WIDTH = 300;
@@ -1220,24 +1273,27 @@ fn draw(
                                     },
                                 );
 
-                                if (maybe_d_xys)
-                                    |d_xys|
+                                if (STATE.options.show_discrete_ouput_spaces == .always)
                                 {
-                                    var style = zplot.getStyle();
-                                    const old_marker = style.marker;
-                                    defer style.marker = old_marker;
-                                    style.marker = .circle;
-                                    zplot.plotStairs(
-                                        label,
-                                        f32, 
-                                        .{
-                                            .xv = d_xys[0],
-                                            .yv = d_xys[1],
-                                            .flags = .{
-                                                .shaded = true,
+                                    if (maybe_d_xys)
+                                        |d_xys|
+                                    {
+                                        var style = zplot.getStyle();
+                                        const old_marker = style.marker;
+                                        defer style.marker = old_marker;
+                                        style.marker = .circle;
+                                        zplot.plotStairs(
+                                            label,
+                                            f32, 
+                                            .{
+                                                .xv = d_xys[0],
+                                                .yv = d_xys[1],
+                                                .flags = .{
+                                                    .shaded = true,
+                                                },
                                             },
-                                        },
-                                    );
+                                        );
+                                    }
                                 }
                             }
                             zplot.popStyleVar(.{ .count = 1 });
