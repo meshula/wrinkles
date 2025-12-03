@@ -520,20 +520,20 @@ fn draw_hover_extras(
     }
 
     if (STATE.maybe_hovered_interval)
-        |ind|
+        |hovered_ind|
     {
-        const mapping_indices = (
+        const hovered_mapping_indices = (
             builder.intervals.items(
                 .mapping_index,
-            )[ind]
+            )[hovered_ind]
         );
 
-        for (mapping_indices)
-            |map_ind|
+        for (hovered_mapping_indices)
+            |hovered_map_ind|
         {
-            const dest_ind= builder.mappings.items(.destination)[map_ind];
+            const dest_ind= builder.mappings.items(.destination)[hovered_map_ind];
             const dest = builder.tree.nodes.get(dest_ind);
-            const mapping = builder.mappings.items(.mapping)[map_ind];
+            const mapping = builder.mappings.items(.mapping)[hovered_map_ind];
 
             const projection_operator = (
                 otio.ProjectionOperator{
@@ -545,6 +545,20 @@ fn draw_hover_extras(
                 }
             );
 
+            const proj_result = projection_operator.project_instantaneous_cc_assume_in_bounds(
+                source_ord
+            );
+
+            if (proj_result == .OutOfBounds)
+            {
+                std.debug.print(
+                    "Error: could not project into space: {f}.\n",
+                    .{
+                        dest
+                    }
+                );
+                continue;
+            }
             const dest_time = projection_operator.project_instantaneous_cc_assume_in_bounds(
                 source_ord
             ).SuccessOrdinate;
@@ -913,6 +927,136 @@ fn draw(
                     @TypeOf(STATE.options),
                     &STATE.options,
                 );
+            }
+
+            const cols = (
+                if (STATE.maybe_proj_builder) 
+                    |b| 
+                    b.intervals.len 
+                else 0
+            );
+
+            if (
+                zgui.beginTabItem("Interval Spreadsheet", .{})
+                and zgui.beginTable(
+                    "IntervalTable",
+                    .{
+                        .column = @intCast(cols),
+                    }
+                )
+            )
+            {
+                defer zgui.endTabItem();
+                defer zgui.endTable();
+
+                var rows:usize = 0;
+                if (STATE.maybe_proj_builder)
+                    |builder|
+                {
+                    const intervals = builder.intervals.slice();
+                    for (intervals.items(.mapping_index))
+                        |mappings|
+                    {
+                        rows = @max(rows, mappings.len);
+                    }
+
+                    zgui.tableHeadersRow();
+                    _ = zgui.tableSetColumnIndex(0);
+
+                    for (0..cols)
+                        |col|
+                    {
+                        const hovered_interval = (
+                            STATE.maybe_hovered_interval != null
+                            and STATE.maybe_hovered_interval == col
+                        );
+
+                        if (hovered_interval)
+                        {
+                            zgui.pushStyleColor4f(
+                                .{ 
+                                    .c = .{ 1, 1, 0, 1  },
+                                    .idx = .text,
+                                }
+                            );
+                        }
+                        defer {
+                            if (hovered_interval)
+                            {
+                                zgui.popStyleColor(.{ .count = 1 });
+                            }
+                        }
+                        zgui.text(
+                            "{d}{s}",
+                            .{
+                                col,
+                                if (hovered_interval) " (HOVERED)" else ""
+                            }
+                        );
+                        _ = zgui.tableNextColumn();
+                    }
+
+                    zgui.tableNextRow(.{});
+                    _ = zgui.tableSetColumnIndex(0);
+
+                    for (0..rows)
+                        |row_index|
+                    {
+                        for (0..cols)
+                            |col|
+                        {
+                            const hovered_interval = (
+                                STATE.maybe_hovered_interval != null
+                                and STATE.maybe_hovered_interval == col
+                            );
+
+                            if (hovered_interval)
+                            {
+                                zgui.pushStyleColor4f(
+                                    .{ 
+                                        .c = .{ 1, 1, 0, 1  },
+                                        .idx = .text,
+                                    }
+                                );
+                            }
+                            defer {
+                                if (hovered_interval)
+                                {
+                                    zgui.popStyleColor(.{ .count = 1 });
+                                }
+                            }
+
+                            const mappings = intervals.items(.mapping_index)[col];
+                            if (row_index < mappings.len) 
+                            {
+                                zgui.text(
+                                    "{f}",
+                                    .{
+                                        builder.space_from_mapping_index(
+                                            mappings[row_index] 
+                                        ) 
+                                    },
+                                );
+                            }
+
+                            _ = zgui.tableNextColumn();
+                        }
+                        zgui.tableNextRow(.{});
+                        _ = zgui.tableSetColumnIndex(0);
+                    }
+
+                }
+
+
+
+                // for (STATE.slices.get(.label), 0..)
+                //     |lbl, ind|
+                // {
+                //     _ = lbl;
+                //     _ = ind;
+                //     // zgui.
+                // }
+
             }
         }
 
