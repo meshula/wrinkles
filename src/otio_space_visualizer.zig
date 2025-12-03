@@ -17,6 +17,71 @@ const otio = @import("opentimelineio");
 const topology = @import("topology");
 const treecode = @import("treecode");
 
+/// State container
+const STATE = struct {
+    var demo_window_gui = false;
+    var demo_window_plot = false;
+
+    var maybe_journal : ?ziis.undo.Journal = null;
+
+    var allocator: std.mem.Allocator = undefined;
+    var debug_allocator: std.heap.DebugAllocator(.{}) = undefined;
+
+    var target_otio_file: []const u8 = undefined;
+    var otio_root: otio.ComposedValueRef = undefined;
+    var maybe_current_selected_object: ?otio.ComposedValueRef = null;
+    var maybe_cached_topology: ?topology.Topology = null;
+
+    var maybe_src: ?otio.references.SpaceReference = null;
+    var maybe_dst: ?otio.references.SpaceReference = null;
+    var maybe_transform: ?topology.Topology = null;
+    var maybe_proj_builder: ?otio.TemporalProjectionBuilder = null;
+
+    var xs:[1024 * 10]f32 = undefined;
+    var ys:[1024 * 10]f32 = undefined;
+
+    /// referrred to by the label field in the slices MAL
+    var points: std.MultiArrayList(PlotPoint2d) = .empty;
+    var slices: std.MultiArrayList(
+        struct{
+            // continuous points
+            xs: []const f32,
+            ys: []const f32,
+
+            // discrete points
+            discrete_points: ?[2][]const f32,
+            
+            /// Text label for the mapping curve
+            label: [:0]const u8,
+        }
+    ) = .empty;
+    var discrete_points: std.MultiArrayList(PlotPoint2d) = .empty;
+
+    var maybe_cut_points: ?[]f32 = null;
+
+    var maybe_hovered_interval: ?usize = null;
+
+    // a depth first list of all the nodes in the tree
+    var table_data: std.MultiArrayList(
+        struct{
+            name: []const u8,
+            depth: usize,
+            ref: *const otio.references.SpaceReference,
+            // spaces: SpacesBitMask,
+            code: *treecode.Treecode,
+        }
+    ) = .empty;
+
+    var options: struct {
+        show_discrete_ouput_spaces: enum (u4) {
+            never,
+            hovered,
+            always,
+        } = .always,
+    } = .{};
+};
+
+
 fn struct_editor_ui(
     comptime T: type,
     thing: *T,
@@ -657,70 +722,6 @@ const Spaces = std.EnumSet(
         media,
     }
 );
-
-/// State container
-const STATE = struct {
-    var demo_window_gui = false;
-    var demo_window_plot = false;
-
-    var maybe_journal : ?ziis.undo.Journal = null;
-
-    var allocator: std.mem.Allocator = undefined;
-    var debug_allocator: std.heap.DebugAllocator(.{}) = undefined;
-
-    var target_otio_file: []const u8 = undefined;
-    var otio_root: otio.ComposedValueRef = undefined;
-    var maybe_current_selected_object: ?otio.ComposedValueRef = null;
-    var maybe_cached_topology: ?topology.Topology = null;
-
-    var maybe_src: ?otio.references.SpaceReference = null;
-    var maybe_dst: ?otio.references.SpaceReference = null;
-    var maybe_transform: ?topology.Topology = null;
-    var maybe_proj_builder: ?otio.TemporalProjectionBuilder = null;
-
-    var xs:[1024 * 10]f32 = undefined;
-    var ys:[1024 * 10]f32 = undefined;
-
-    /// referrred to by the label field in the slices MAL
-    var points: std.MultiArrayList(PlotPoint2d) = .empty;
-    var slices: std.MultiArrayList(
-        struct{
-            // continuous points
-            xs: []const f32,
-            ys: []const f32,
-
-            // discrete points
-            discrete_points: ?[2][]const f32,
-            
-            /// Text label for the mapping curve
-            label: [:0]const u8,
-        }
-    ) = .empty;
-    var discrete_points: std.MultiArrayList(PlotPoint2d) = .empty;
-
-    var maybe_cut_points: ?[]f32 = null;
-
-    var maybe_hovered_interval: ?usize = null;
-
-    // a depth first list of all the nodes in the tree
-    var table_data: std.MultiArrayList(
-        struct{
-            name: []const u8,
-            depth: usize,
-            ref: *const otio.references.SpaceReference,
-            // spaces: SpacesBitMask,
-            code: *treecode.Treecode,
-        }
-    ) = .empty;
-
-    var options: struct {
-        show_discrete_ouput_spaces: enum (u4) {
-            never,
-            hovered,
-            always,
-        } = .always,
-    } = .{};
-};
 
 const IS_WASM = builtin.target.cpu.arch.isWasm();
 
