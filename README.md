@@ -131,9 +131,15 @@ temporal hierarchies of editorial documents.
     * [ ] Warp Schema: multi segment bezier / pt-tangent form
 * [ ] Serializer 
 * [ ] visualizer
+    * [ ] Options pane
+    * [ ] Normalized view that sorts by track and normalizes output range 0-1
+          for each leaf
+    * [ ] performance pass
+        * [ ] option to only show discrete space under mouse
+        * [ ] detect large timelines and default ^ to on for large timelines
     * [x] rearrange based on a table of all the children to control visibility
     * [ ] UI to represent tracks?
-    * [ ] visualize discrete spaces (stairstep plot in implot?)
+    * [x] visualize discrete spaces (stairstep plot in implot?)
     * [ ] struct data visualizer/editor
     * [x] vertical bars to see cuts
     * [ ] highlight overlapped item and show in graph
@@ -146,6 +152,7 @@ temporal hierarchies of editorial documents.
     * [ ] add ALL nodes to the table instead of just terminal spaces
       * [ ] allow controlling visibility from intermediate (non-plotted) scopes
       * [ ] optionally plot intermediate scopes
+    * [ ] add visibility controls over the hierarchy
 * [ ] code cleanup pass on projection_builder
 * [ ] C++ test API
 * [ ] Python test API (ziggy-pydust)
