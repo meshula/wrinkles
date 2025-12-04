@@ -1061,6 +1061,14 @@ fn draw(
                     }
 
                 }
+
+                {
+                    const col = zgui.tableGetHoveredColumn();
+                    if (col >= 0)
+                    {
+                        STATE.maybe_hovered_interval = @intCast(col);
+                    }
+                }
             }
 
             if (
