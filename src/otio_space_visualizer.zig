@@ -947,7 +947,7 @@ fn draw(
             const cols = (
                 if (STATE.maybe_proj_builder) 
                     |b| 
-                    b.intervals.len 
+                    @min(511, b.intervals.len)
                 else 0
             );
 
@@ -956,6 +956,11 @@ fn draw(
                 and zgui.beginTable(
                     "IntervalTable",
                     .{
+                        .flags = .{
+                            .highlight_hovered_column = true,
+                            .resizable = true,
+                            .scroll_x = true,
+                        },
                         .column = @intCast(cols),
                     }
                 )
@@ -1089,6 +1094,7 @@ fn draw(
                     "Inner Long Text Window",
                     .{
                         .h = -1,
+                        .w = -1,
                         .window_flags= .{
                             .always_vertical_scrollbar = true,
                         },
@@ -1700,7 +1706,7 @@ pub fn main(
 
             STATE.otio_src_json = try file.readToEndAlloc(
                 STATE.allocator,
-                1024*1024,
+                1024*1024*1024,
             );
         }
 
