@@ -72,6 +72,8 @@ const STATE = struct {
         }
     ) = .empty;
 
+    var otio_src_json:[]const u8 = undefined;
+
     var options: struct {
         show_discrete_ouput_spaces: enum (u4) {
             never,
@@ -834,6 +836,7 @@ fn draw(
                     .no_collapse = true,
                     .no_title_bar = true,
                     .no_bring_to_front_on_focus = true,
+                    .no_scrollbar = true,
                 },
             },
         )
@@ -842,18 +845,30 @@ fn draw(
         defer zgui.end();
 
         if (
-            zgui.beginTabBar(
+            zgui.beginChild(
+                "TopChunk",
+                .{
+                    .h = 10,
+                    .w = size[0],
+                    .child_flags = .{
+                        .resize_y = true,
+                    },
+                    .window_flags = .{
+                        .no_resize = false,
+                    },
+                },
+            )
+            and zgui.beginTabBar(
                 "TopChunk",
                 .{
                 }
             )
         )
         {
+            defer zgui.endChild();
             defer zgui.endTabBar();
 
-            if (
-                zgui.beginTabItem("Node Table", .{})
-            )
+            if (zgui.beginTabItem("Node Table", .{}))
             {
                 defer zgui.endTabItem();
                 // defer zgui.endChild();
@@ -1046,180 +1061,56 @@ fn draw(
                     }
 
                 }
+            }
 
+            if (
+                zgui.beginTabItem(
+                    "Raw OTIO",
+                    .{
+                        .flags = .{
+                            // .leading = true 
+                            .leading = false 
+                        }
+                    },
+                )
+            )
+            {
+                defer zgui.endTabItem();
 
+                _ = zgui.beginChild(
+                    "Inner Long Text Window",
+                    .{
+                        .h = -1,
+                        .window_flags= .{
+                            .always_vertical_scrollbar = true,
+                        },
+                        .child_flags = .{
+                            .border = true,
+                        },
+                    }
+                );
+                defer zgui.endChild();
 
-                // for (STATE.slices.get(.label), 0..)
-                //     |lbl, ind|
-                // {
-                //     _ = lbl;
-                //     _ = ind;
-                //     // zgui.
-                // }
-
+                zgui.text(
+                    "Loaded file: {s}",
+                    .{ STATE.target_otio_file }
+                );
+                zgui.separator();
+                
+                zgui.textUnformatted(STATE.otio_src_json);
             }
         }
 
-        // const LEFT_PANEL_WIDTH = 300;
-        // if (
-        //     zgui.beginChild(
-        //         "LEFT_PANEL",
-        //         .{
-        //             .w = LEFT_PANEL_WIDTH,
-        //             .child_flags = .{
-        //                 .border = true,
-        //                 .resize_x = true,
-        //             },
-        //         },
-        //     )
-        // )
-        // {
-        //     defer zgui.endChild();
-        //
-        //     if (
-        //         zgui.beginChild(
-        //             "Object Info",
-        //             .{
-        //                 .h = 180,
-        //             }
-        //         )
-        //     )
-        //     {
-        //         defer zgui.endChild();
-        //
-        //         var buf2:[1024]u8 = undefined;
-        //
-        //         zgui.text(
-        //             "Current Object: {s}",
-        //             .{
-        //                 if (STATE.maybe_current_selected_object) |obj| (
-        //                     try label_for_ref(&buf2, obj)
-        //                 ) else "[Click in the tree to select an object]"
-        //             },
-        //         );
-        //
-        //         if (STATE.maybe_current_selected_object)
-        //             |obj|
-        //         {
-        //             if (
-        //                 zgui.beginTable(
-        //                     "Object Details",
-        //                     .{
-        //                         .column = 2,
-        //                     },
-        //                 )
-        //             )
-        //             {
-        //                 defer zgui.endTable();
-        //
-        //                 // header row
-        //                 zgui.tableNextRow(
-        //                     .{ .row_flags = .{ .headers = true } }
-        //                 );
-        //
-        //                 _ = zgui.tableSetColumnIndex(0);
-        //                 zgui.text("Key", .{});
-        //
-        //                 _ = zgui.tableSetColumnIndex(1);
-        //                 zgui.text("Value", .{});
-        //
-        //                 zgui.tableNextRow(.{});
-        //
-        //                 var buf3_s: [1024]u8 = undefined;
-        //                 var buf3: []u8 = &buf3_s;
-        //
-        //                 const pres_bounds = try std.fmt.bufPrint(
-        //                     buf3,
-        //                     "{f}",
-        //                     .{ 
-        //                         STATE.maybe_cached_topology.?.input_bounds(),
-        //                     },
-        //                 );
-        //                 buf3 = buf3[pres_bounds.len..];
-        //
-        //                 const pres_di = try std.fmt.bufPrint(
-        //                     buf3,
-        //                     "{?f}", 
-        //                     .{ obj.discrete_info_for_space(.presentation) },
-        //                 );
-        //                 buf3 = buf3[pres_di.len..];
-        //
-        //                 const rows = [_][2][]const u8{
-        //                     .{ "Schema", @tagName(obj) },
-        //                     .{ "Presentation Space Bounds", pres_bounds },
-        //                     .{ "Presentation Space Discrete Info", pres_di },
-        //                     .{ "Coordinate Spaces", "" },
-        //                 };
-        //
-        //                 for (&rows)
-        //                     |row|
-        //                 {
-        //                     for (row, 0..)
-        //                         |field, col|
-        //                     {
-        //                         _ = zgui.tableSetColumnIndex(@intCast(col));
-        //                         zgui.text("{s}", .{ field });
-        //                     }
-        //                     zgui.tableNextRow(.{});
-        //                 }
-        //
-        //                 for (obj.spaces())
-        //                     |space|
-        //                 {
-        //                     _ = zgui.tableSetColumnIndex(@intCast(0));
-        //                     zgui.text("Space: {s}", .{@tagName(space)});
-        //
-        //                     _ = zgui.tableSetColumnIndex(@intCast(1));
-        //
-        //                     zgui.pushIntId(@intFromEnum(space));
-        //                     defer zgui.popId();
-        //
-        //                     if (zgui.button("SET SOURCE", .{}))
-        //                     {
-        //                         try set_source(
-        //                             allocator,
-        //                             STATE.maybe_current_selected_object.?.space(space)
-        //                         );
-        //                     }
-        //                     zgui.sameLine(.{});
-        //                     if (zgui.button("SET DEST", .{}))
-        //                     {
-        //                         STATE.maybe_dst = (
-        //                             STATE.maybe_current_selected_object.?.space(space)
-        //                         );
-        //                         STATE.maybe_transform = null;
-        //                         if (STATE.maybe_proj_builder)
-        //                             |builder|
-        //                         {
-        //                             STATE.maybe_transform = (
-        //                                 try builder.projection_operator_to(
-        //                                     allocator,
-        //                                     STATE.maybe_dst.?,
-        //                                 )
-        //                             ).src_to_dst_topo;
-        //                         }
-        //                     }
-        //                     zgui.tableNextRow(.{});
-        //                 }
-        //             }
-        //         }
-        //     }
-        //
-        //     if (zgui.beginChild("Object Tree", .{}))
-        //     {
-        //         defer zgui.endChild();
-        //
-        //         zgui.text("Current File: {s}", .{ STATE.target_otio_file });
-        //
-        //         var root = [_]otio.ComposedValueRef{
-        //             STATE.otio_root,
-        //         };
-        //
-        //         try child_tree(allocator, &root );
-        //     }
-        // }
-
-        if (zgui.beginChild("Transform", .{}))
+        if (
+            zgui.beginChild(
+                "Bottom Chunk",
+                .{
+                    .child_flags = .{
+                        .resize_y = true,
+                    },
+                }
+            )
+        )
         {
             defer zgui.endChild();
 
@@ -1698,6 +1589,8 @@ fn cleanup (
     STATE.otio_root.recursively_deinit(STATE.allocator);
     STATE.allocator.free(STATE.target_otio_file);
 
+    STATE.allocator.free(STATE.otio_src_json);
+
     if (IS_WASM == false and builtin.mode == .Debug)
     {
         const result = STATE.debug_allocator.deinit();
@@ -1788,6 +1681,20 @@ pub fn main(
             STATE.allocator,
             STATE.target_otio_file,
         );
+
+        // read the file contents
+        {
+            const file = try std.fs.cwd().openFile(
+                STATE.target_otio_file,
+                .{},
+            );
+            defer file.close();
+
+            STATE.otio_src_json = try file.readToEndAlloc(
+                STATE.allocator,
+                1024*1024,
+            );
+        }
 
         try set_source(
             STATE.allocator,
