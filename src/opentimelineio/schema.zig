@@ -9,6 +9,25 @@ const curve = @import("curve");
 const references = @import("references.zig");
 const test_data = @import("test_structures.zig");
 
+// Schema Iteration Notes
+// ----------------------
+//
+// To start with embededd spaces are explicit and fixed
+// * On everything but Clips, the spaces for parameters and bounds and so on
+//   is the presentation space
+// * On Clips the embedding space is the media space
+// * Clips need to have room for multiple media references
+// * Serialized bounds can be discrete or continuous - in-memory bounds are
+//   strictly continuous, but can be set either discrete or continuous
+// * Sequences have a singular domain.  This eliminates fuzzyness like things
+//   that don't have the domain are gaps, etc.  (hopefully)
+// * Stacks (eventually) probably want a compositing rule per domain, but for
+//   now lets not worry about that
+// * Discrete info is currently only present on the top level timeline and on
+//   root clips (is there a better name than "Discrete Info"?
+//   "DiscreteParameterization"?  The sampling library calls this a
+//   `SampleIndexGenerator`.  Maybe thats better?
+
 /// a reference that points at some reference via a string address
 pub const ExternalReference = struct {
     target_uri : []const u8,
