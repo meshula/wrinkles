@@ -106,7 +106,7 @@ pub const Clip = struct {
         dictionary: *const ParameterMap,
         value: *const ParameterVarying,
     };
-    pub const ParameterMap = std.StringHashMap(Parameter);
+    pub const ParameterMap = std.StringHashMapUnmanaged(Parameter);
 
     pub fn to_param(m: *ParameterMap) Parameter {
         return .{
@@ -130,9 +130,9 @@ pub const Clip = struct {
         if (copy_from.parameters)
             |params|
         {
-            result.parameters = try params.clone();
+            result.parameters = try params.clone(allocator);
         } else {
-            result.parameters = ParameterMap.init(allocator);
+            result.parameters = .empty;
         }
 
         return result;
