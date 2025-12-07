@@ -580,6 +580,7 @@ fn init_SpaceLabel(
 fn otio_fetch_discrete_info_erroring(
     ref_c: c.otio_ComposedValueRef,
     space: c.otio_SpaceLabel,
+    domain: c.otio_Domain,
     result: *c.otio_DiscreteDatasourceIndexGenerator,
 ) !c_int
 {
@@ -587,7 +588,10 @@ fn otio_fetch_discrete_info_erroring(
     const label = try init_SpaceLabel(space);
 
     const maybe_di = (
-        ref.discrete_info_for_space(label)
+        ref.discrete_info_for_space(
+            label,
+            domain_from_c(domain),
+        )
     );
 
     if (maybe_di)
@@ -611,13 +615,15 @@ fn otio_fetch_discrete_info_erroring(
 pub export fn otio_fetch_discrete_info(
     ref_c: c.otio_ComposedValueRef,
     space: c.otio_SpaceLabel,
+    domain: c.otio_Domain,
     result: *c.otio_DiscreteDatasourceIndexGenerator,
 ) c_int
 {
     return otio_fetch_discrete_info_erroring(
         ref_c,
         space,
-        result
+        domain,
+        result,
     ) catch 
     {
         // std.log.err("couldn't fetch discrete info: {any}\n", .{err});
@@ -625,17 +631,33 @@ pub export fn otio_fetch_discrete_info(
     };
 }
 
+fn domain_from_c(
+    c_domain: c.otio_Domain,
+) otio.Domain
+{
+    return switch (c_domain) {
+        0 => .time,
+        1 => .picture,
+        2 => .audio,
+        3 => .metadata,
+        // "other" + is unsupported
+        else => @panic("unsupported"),
+    };
+}
+
 fn otio_fetch_continuous_ordinate_to_discrete_index_erroring(
     ref_c: c.otio_ComposedValueRef,
     val: f32,
     space_c: c.otio_SpaceLabel,
+    domain: c.otio_Domain,
 ) !usize
 {
     const ref = try init_ComposedValueRef(ref_c);
     const space = try init_SpaceLabel(space_c);
     return try ref.continuous_ordinate_to_discrete_index(
         opentime.Ordinate.init(val),
-        space
+        space,
+        domain_from_c(domain),
     );
 }
 
@@ -643,12 +665,14 @@ pub export fn otio_fetch_continuous_ordinate_to_discrete_index(
     ref_c: c.otio_ComposedValueRef,
     val: f32,
     space_c: c.otio_SpaceLabel,
+    domain: c.otio_Domain,
 ) usize
 {
     return otio_fetch_continuous_ordinate_to_discrete_index_erroring(
         ref_c,
         val,
         space_c,
+        domain,
     ) catch |err| {
         std.log.err(
             "Error fetching the continuous value: {any}\n",

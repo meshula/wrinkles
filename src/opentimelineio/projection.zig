@@ -15,6 +15,7 @@ const references = @import("references.zig");
 const temporal_tree = @import("temporal_tree.zig");
 const test_data = @import("test_structures.zig");
 const projection_builder = @import("projection_builder.zig");
+const domain_mod = @import("domain.zig");
 
 const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
     build_options.debug_graph_construction_trace_messages
@@ -88,6 +89,7 @@ pub const ProjectionOperator = struct {
     pub fn project_instantaneous_cd(
         self: @This(),
         ordinate_in_source_space: opentime.Ordinate,
+        domain: domain_mod.Domain,
     ) !sampling.sample_index_t 
     {
         const continuous_in_destination_space =  (
@@ -99,6 +101,7 @@ pub const ProjectionOperator = struct {
         return try self.destination.ref.continuous_ordinate_to_discrete_index(
             continuous_in_destination_space,
             self.destination.label,
+            domain,
         );
     }
 
@@ -130,6 +133,7 @@ pub const ProjectionOperator = struct {
         self: @This(),
         allocator: std.mem.Allocator,
         in_to_src_topo: topology_m.Topology,
+        domain: domain_mod.Domain,
     ) ![]sampling.sample_index_t
     {
         // project the source range into the destination space
@@ -144,6 +148,7 @@ pub const ProjectionOperator = struct {
         const dst_discrete_info = (
             self.destination.ref.discrete_info_for_space(
                 self.destination.label,
+                domain,
             )
         ) orelse {
             return error.NoDiscreteInfoForDestinationSpace;
@@ -190,6 +195,7 @@ pub const ProjectionOperator = struct {
                 try self.destination.ref.continuous_ordinate_to_discrete_index(
                     out_ord,
                     self.destination.label,
+                    domain,
                 )
             );
         }
@@ -235,6 +241,7 @@ pub const ProjectionOperator = struct {
         self: @This(),
         allocator: std.mem.Allocator,
         range_in_source: opentime.ContinuousInterval,
+        domain: domain_mod.Domain,
     ) ![]sampling.sample_index_t
     {
         // the range is bounding the source repo.  Therefore the topology is an
@@ -255,6 +262,7 @@ pub const ProjectionOperator = struct {
         return try self.project_topology_cd(
             allocator,
             in_to_source_topo,
+            domain,
         );
     }
 
@@ -263,12 +271,14 @@ pub const ProjectionOperator = struct {
         self: @This(),
         allocator: std.mem.Allocator,
         index_in_source: sampling.sample_index_t,
+        domain: domain_mod.Domain,
     ) !topology_m.Topology
     {
         const c_range_in_source = (
             try self.source.ref.discrete_index_to_continuous_range(
                 index_in_source,
                 self.source.label,
+                domain,
             )
         );
 
@@ -284,18 +294,21 @@ pub const ProjectionOperator = struct {
         self: @This(),
         allocator: std.mem.Allocator,
         index_in_source: sampling.sample_index_t,
+        domain: domain_mod.Domain,
     ) ![]sampling.sample_index_t
     {
         const c_range_in_source = (
             try self.source.ref.discrete_index_to_continuous_range(
                 index_in_source,
                 self.source.label,
+                domain,
             )
         );
 
         return try self.project_range_cd(
             allocator,
             c_range_in_source,
+            domain,
         );
     }
 
@@ -339,7 +352,8 @@ test "ReferenceTopology: leak test"
     const allocator = std.testing.allocator;
 
     var cl = schema.Clip {
-        .bounds_s = test_data.T_INT_1_TO_9,
+        .media = .null_picture,
+        .maybe_bounds_s = test_data.T_INT_1_TO_9,
     };
     const cl_ptr = references.ComposedValueRef.init(&cl);
 
@@ -369,7 +383,8 @@ test "ProjectionBuilder: clip"
     const allocator = std.testing.allocator;
 
     var cl = schema.Clip {
-        .bounds_s = test_data.T_INT_1_TO_9,
+        .media = .null_picture,
+        .maybe_bounds_s = test_data.T_INT_1_TO_9,
     };
     const cl_ptr = references.ComposedValueRef{ .clip = &cl };
 
@@ -449,7 +464,8 @@ test "ProjectionBuilder: track with single clip"
     const allocator = std.testing.allocator;
 
     var cl = schema.Clip {
-        .bounds_s = test_data.T_INT_1_TO_9,
+        .media = .null_picture,
+        .maybe_bounds_s = test_data.T_INT_1_TO_9,
     };
     const cl_ptr = references.ComposedValueRef.init(&cl);
 
@@ -552,8 +568,8 @@ test "ProjectionOperator: clone"
     );
     defer aff1.deinit(allocator);
 
-    var cl = schema.Clip{};
-    const cl_ptr = references.ComposedValueRef.init(&cl);
+    var cl: schema.Clip = .null_picture;
+    const cl_ptr = cl.reference();
 
     const po = ProjectionOperator{
         .source = cl_ptr.space(.presentation),
@@ -579,10 +595,12 @@ test "transform: track with two clips"
     const allocator = std.testing.allocator;
 
     var cl1 = schema.Clip {
-        .bounds_s = test_data.T_INT_1_TO_9,
+        .media = .null_picture,
+        .maybe_bounds_s = test_data.T_INT_1_TO_9,
     };
     var cl2 = schema.Clip {
-        .bounds_s = test_data.T_INT_1_TO_4,
+        .media = .null_picture,
+        .maybe_bounds_s = test_data.T_INT_1_TO_4,
     };
     const cl2_ref = references.ComposedValueRef.init(&cl2);
 
@@ -695,13 +713,16 @@ test "ProjectionTopology: track with two clips"
 
     var clips = [_]schema.Clip{
         .{
-            .bounds_s = test_data.T_INT_1_TO_9,
+            .media = .null_picture,
+            .maybe_bounds_s = test_data.T_INT_1_TO_9,
         },
         .{
-            .bounds_s = test_data.T_INTERVAL_ARR_0_8_12_20[1],
+            .media = .null_picture,
+            .maybe_bounds_s = test_data.T_INTERVAL_ARR_0_8_12_20[1],
         },
         .{
-            .bounds_s = test_data.T_INT_1_TO_9,
+            .media = .null_picture,
+            .maybe_bounds_s = test_data.T_INT_1_TO_9,
         },
     };
     const cl_ptr = references.ComposedValueRef.init(&clips[1]);
@@ -779,13 +800,15 @@ test "ProjectionBuilder: track [c1][gap][c2]"
     const allocator = std.testing.allocator;
 
     var cl = schema.Clip {
-        .bounds_s = test_data.T_INT_1_TO_9,
+        .media = .null_picture,
+        .maybe_bounds_s = test_data.T_INT_1_TO_9,
     };
     var gp = schema.Gap{
         .duration_seconds = opentime.Ordinate.init(4),
     };
     var cl2 = schema.Clip {
-        .bounds_s = test_data.T_INT_1_TO_9,
+        .media = .null_picture,
+        .maybe_bounds_s = test_data.T_INT_1_TO_9,
     };
     const cl2_ptr = cl2.reference();
 
@@ -836,7 +859,8 @@ test "Projection: schema.Track with single clip with identity transform and boun
     const allocator = std.testing.allocator;
 
     var cl = schema.Clip{
-        .bounds_s = test_data.T_INT_0_TO_2,
+        .media = .null_picture,
+        .maybe_bounds_s = test_data.T_INT_0_TO_2,
     };
     const clip = references.ComposedValueRef.init(&cl);
 
@@ -876,7 +900,7 @@ test "Projection: schema.Track with single clip with identity transform and boun
     );
 
     const expected_media_temporal_bounds = (
-        cl.bounds_s orelse opentime.ContinuousInterval{}
+        cl.maybe_bounds_s orelse opentime.ContinuousInterval{}
     );
 
     const actual_media_temporal_bounds = (
@@ -922,7 +946,8 @@ test "Projection: schema.Track 3 bounded clips identity xform"
         |*cl, *ref|
     {
         cl.* = schema.Clip {
-            .bounds_s = test_data.T_INT_0_TO_2 
+            .media = .null_picture,
+            .maybe_bounds_s = test_data.T_INT_0_TO_2 
         };
         ref.* = cl.*.reference();
     }
@@ -1035,7 +1060,7 @@ test "Projection: schema.Track 3 bounded clips identity xform"
     );
 
     const expected_range = (
-        tr.children[0].clip.bounds_s orelse opentime.ContinuousInterval{}
+        tr.children[0].clip.maybe_bounds_s orelse opentime.ContinuousInterval{}
     );
     const actual_range = (
         tr_pres_to_cl_media.src_to_dst_topo.input_bounds()
@@ -1135,7 +1160,8 @@ test "Single schema.Clip bezier transform"
         .end = opentime.Ordinate.init(110),
     };
     var cl = schema.Clip {
-        .bounds_s = media_temporal_bounds,
+        .media = .null_picture,
+        .maybe_bounds_s = media_temporal_bounds,
     };
     const cl_ptr:references.ComposedValueRef = .{ .clip = &cl };
 
@@ -1298,8 +1324,10 @@ test "otio projection: track with single clip"
     // construct the clip and add it to the track
     var cl = schema.Clip {
         .media = .{
-            .bounds_s = media_source_range,
-            .discrete_info = media_discrete_info,
+            .ref = .empty,
+            .domain = .picture,
+            .maybe_bounds_s = media_source_range,
+            .maybe_discrete_partition = media_discrete_info,
         },
     };
     const cl_ptr = cl.reference();
@@ -1353,6 +1381,7 @@ test "otio projection: track with single clip"
             (3 + 1) * 4,
             try tr_pres_to_cl_media.project_instantaneous_cd(
                 opentime.Ordinate.init(3),
+                .picture,
             ),
         );
     }
@@ -1445,6 +1474,7 @@ test "otio projection: track with single clip"
                 try tr_pres_to_cl_media.project_range_cd(
                     allocator,
                     test_range_in_track,
+                    .picture,
                 )
             );
             defer allocator.free(result_media_indices);
@@ -1473,8 +1503,10 @@ test "otio projection: track with single clip with transform"
 
     var cl = schema.Clip {
         .media = .{
-            .bounds_s = media_source_range,
-            .discrete_info = media_discrete_info,
+            .ref = .empty,
+            .domain = .picture,
+            .maybe_bounds_s = media_source_range,
+            .maybe_discrete_partition = media_discrete_info,
         },
     };
     const cl_ptr = references.ComposedValueRef.init(&cl);
@@ -1504,10 +1536,13 @@ test "otio projection: track with single clip with transform"
         references.ComposedValueRef.init(&tr),
     };
     var tl: schema.Timeline = .{
-        .discrete_info = .{ 
+        .discrete_space_partitions = .{ 
             .presentation = .{
-                .sample_rate_hz = .{ .Int = 24 },
-                .start_index = 12,
+                .picture = .{
+                    .sample_rate_hz = .{ .Int = 24 },
+                    .start_index = 12,
+                },
+                .audio = null,
             },
         },
         .tracks = .{ .children = &tl_children },
@@ -1556,7 +1591,8 @@ test "otio projection: track with single clip with transform"
             // paths to EXR frames or something
             (3*2 + 1) * 4,
             try tr_pres_to_cl_media.project_instantaneous_cd(
-                opentime.Ordinate.init(3)
+                opentime.Ordinate.init(3),
+                .picture,
             ),
         );
     }
@@ -1623,6 +1659,7 @@ test "otio projection: track with single clip with transform"
                 try tr_pres_to_cl_media.project_range_cd(
                     allocator,
                     test_range_in_track,
+                    .picture,
                 )
             );
 
@@ -1663,6 +1700,7 @@ test "otio projection: track with single clip with transform"
                 try timeline_to_media.project_index_dc(
                     allocator,
                     12,
+                    .picture,
                 )
             );
             defer result_tp.deinit(allocator);
@@ -1689,7 +1727,7 @@ test "otio projection: track with single clip with transform"
                 (
                  start.add(
                  // @TODO: should the 2.0 be a 1.0?
-                 tl.discrete_info.presentation.?.sample_rate_hz.inv_as_ordinate().mul(2)
+                 tl.discrete_space_partitions.presentation.picture.?.sample_rate_hz.inv_as_ordinate().mul(2)
                  )
                 ),
                 output_range.end,
@@ -1699,6 +1737,7 @@ test "otio projection: track with single clip with transform"
                 try timeline_to_media.project_index_dd(
                     allocator,
                     12,
+                    .picture,
                 )
             );
             defer allocator.free(result_indices);
@@ -1727,7 +1766,8 @@ test "Single clip, schema.Warp bulk"
     };
 
     var cl = schema.Clip {
-        .bounds_s = media_temporal_bounds,
+        .media = .null_picture,
+        .maybe_bounds_s = media_temporal_bounds,
     };
     defer cl.destroy(allocator);
     const cl_ptr = references.ComposedValueRef.init(&cl);
@@ -1947,10 +1987,13 @@ test "ReferenceTopology: init_from_reference"
     // build timeline
     /////////////////////////////////////
     var cl = schema.Clip {
-        .name = "clip1",
-        .bounds_s = test_data.T_INT_1_TO_9,
+        .maybe_name = "clip1",
+        .maybe_bounds_s = test_data.T_INT_1_TO_9,
         .media = .{
-            .discrete_info = .{
+            .ref = .empty,
+            .domain = .picture,
+            .maybe_bounds_s = null,
+            .maybe_discrete_partition = .{
                 .sample_rate_hz = .{ .Int = 24 },
                 .start_index = 86400,
             } 
@@ -1959,10 +2002,13 @@ test "ReferenceTopology: init_from_reference"
     const cl_ptr = cl.reference();
 
     var cl2 = schema.Clip {
-        .name = "clip2",
-        .bounds_s = test_data.T_INT_1_TO_9,
+        .maybe_name = "clip2",
+        .maybe_bounds_s = test_data.T_INT_1_TO_9,
         .media = .{
-            .discrete_info = .{
+            .ref = .empty,
+            .domain = .picture,
+            .maybe_bounds_s = null,
+            .maybe_discrete_partition = .{
                 .sample_rate_hz = .{ .Int = 30 },
                 .start_index = 0,
             },
@@ -1977,16 +2023,17 @@ test "ReferenceTopology: init_from_reference"
     const tr1_ptr = tr1.reference();
 
     var cl3 = schema.Clip {
-        .name = "clip3_warped",
-        .bounds_s = test_data.T_INT_1_TO_9,
+        .media = .null_picture,
+        .maybe_name = "clip3_warped",
+        .maybe_bounds_s = test_data.T_INT_1_TO_9,
     };
-    cl3.media.discrete_info = .{
+    cl3.media.maybe_discrete_partition = .{
         .sample_rate_hz = .{ .Int = 24 },
         .start_index = 0,
     };
     const cl3_ptr = cl3.reference();
     var wp1 = schema.Warp {
-        .name = "Warp on Clip3",
+        .maybe_name = "Warp on Clip3",
         .child = cl3_ptr,
         .transform = .{
             .mappings = &.{ 
@@ -2013,12 +2060,14 @@ test "ReferenceTopology: init_from_reference"
         .tracks = .{
             .children = &st_children,
         },
-        .discrete_info = .{ 
+        .discrete_space_partitions = .{ 
             .presentation = .{
-                .sample_rate_hz = .{ .Int = 24 },
-                .start_index = 86400,
+                .picture = .{
+                    .sample_rate_hz = .{ .Int = 24 },
+                    .start_index = 86400,
+                },
+                .audio = null,
             }
-
         }
     };
     const tl_ref = tl.reference();
@@ -2045,10 +2094,11 @@ test "ReferenceTopology: init_from_reference"
 
 
     try std.testing.expectEqual(
-        cl.media.discrete_info.?.start_index,
+        cl.media.maybe_discrete_partition.?.start_index,
         try tl_ref.continuous_ordinate_to_discrete_index(
             interval.start, 
             .presentation,
+            .picture,
         ),
     );
     try std.testing.expectEqual(
@@ -2057,13 +2107,13 @@ test "ReferenceTopology: init_from_reference"
             @intFromFloat(
                 @as(
                     opentime.Ordinate.BaseType,
-                    @floatFromInt(tl.discrete_info.presentation.?.start_index)
+                    @floatFromInt(tl.discrete_space_partitions.presentation.picture.?.start_index)
                 )
                 + (
                     interval.end.v 
                     * @as(
                         opentime.Ordinate.BaseType,
-                        @floatFromInt(tl.discrete_info.presentation.?.sample_rate_hz.Int)
+                        @floatFromInt(tl.discrete_space_partitions.presentation.picture.?.sample_rate_hz.Int)
                     )
                 )
             )
@@ -2071,6 +2121,7 @@ test "ReferenceTopology: init_from_reference"
         try tl_ref.continuous_ordinate_to_discrete_index(
             interval.end, 
             .presentation,
+            .picture,
         ),
     );
 
@@ -2172,7 +2223,8 @@ test "projection builder over warp with negative scale"
     const allocator = std.testing.allocator;
 
     var cl = schema.Clip {
-        .bounds_s = test_data.T_INT_1_TO_9,
+        .media = .null_picture,
+        .maybe_bounds_s = test_data.T_INT_1_TO_9,
     };
 
     const xform = opentime.AffineTransform1D {

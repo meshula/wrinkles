@@ -578,8 +578,8 @@ pub fn read_otio_object(
             tl.* = .{
                 .maybe_name = maybe_name,
                 .tracks = st,
-                .discrete_info = .{
-                    .presentation = null,
+                .discrete_space_partitions = .{
+                    .presentation = .no_discretizations,
                 },
             };
             allocator.destroy(so_stack.stack);
@@ -629,6 +629,7 @@ pub fn read_otio_object(
             cl.* = .{
                 .maybe_name = maybe_name,
                 .maybe_bounds_s  = range,
+                .media = .null_picture,
             };
 
             // @TODO: read more of the media reference
@@ -637,7 +638,7 @@ pub fn read_otio_object(
             if (maybe_rate)
                 |rate|
             {
-                cl.media.discrete_info = .{
+                cl.media.maybe_discrete_partition = .{
                     .sample_rate_hz = .{ .Int = rate },
                 };
             }

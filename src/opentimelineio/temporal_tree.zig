@@ -304,7 +304,7 @@ test "build_temporal_tree: leak sentinel test track w/ clip"
 {
     const allocator = std.testing.allocator;
 
-    var cl = schema.Clip{};
+    var cl: schema.Clip = .null_picture;
 
     var tr_children = [_]references.ComposedValueRef{
         references.ComposedValueRef.init(&cl),
@@ -412,7 +412,7 @@ test "build_temporal_tree: leak sentinel test - single clip"
 {
     const allocator = std.testing.allocator;
 
-    var cl = schema.Clip {};
+    var cl : schema.Clip = .null_picture;
 
     const tree = try build_temporal_tree(
         allocator,
@@ -430,6 +430,7 @@ test "TestWalkingIterator: clip"
 
     var cl = schema.Clip {
         .maybe_bounds_s = media_source_range,
+        .media = .null_picture,
     };
     const cl_ptr = references.ComposedValueRef.init(&cl);
 
@@ -460,9 +461,11 @@ test "TestWalkingIterator: track with clip w/ destination"
     // construct the clip and add it to the track
     var cl = schema.Clip {
         .maybe_bounds_s = media_source_range,
+        .media = .null_picture,
     };
     var cl2 = schema.Clip {
         .maybe_bounds_s = media_source_range,
+        .media = .null_picture,
     };
     const cl_ptr = references.ComposedValueRef.init(&cl2);
 
@@ -685,7 +688,7 @@ test "label_for_node_leaky"
 
     var buf: [1024]u8 = undefined;
 
-    var tr: schema.Track = .EMPTY;
+    var tr: schema.Track = .empty;
     const sr = references.SpaceReference{
         .label = .presentation,
         .ref = .{ .track = &tr },
@@ -722,6 +725,7 @@ test "path_code: tree test"
     {
         cl.* = schema.Clip {
             .maybe_bounds_s = test_data_m.T_INT_1_TO_9,
+            .media = .null_picture,
         };
 
         cl_p.* = references.ComposedValueRef.init(cl);
@@ -812,6 +816,7 @@ test "schema.Track with clip with identity transform projection"
 
     const cl_template = schema.Clip{
         .maybe_bounds_s = range,
+        .media = .null_picture,
     };
 
     var clips: [11]schema.Clip = undefined;
@@ -884,6 +889,7 @@ test "Temporaltree: schema.Track with clip with identity transform"
 
     var cl = schema.Clip{
         .maybe_bounds_s = test_data_m.T_INT_0_TO_2,
+        .media = .null_picture,
     };
     const cl_ref = references.ComposedValueRef.init(&cl);
 
@@ -1005,8 +1011,9 @@ test "test debug_print_time_hierarchy"
     var cl1 = schema.Clip {
         .maybe_name = "Spaghetti.wav",
         .media = .{
-            .discrete_info = .{
+            .domain = .picture,
             .maybe_bounds_s = null,
+            .maybe_discrete_partition = .{
                 .sample_rate_hz = .{ .Int = 24 },
                 .start_index = 0,
             },
@@ -1046,12 +1053,15 @@ test "test debug_print_time_hierarchy"
         references.ComposedValueRef.init(&tr),
     };
     var tl: schema.Timeline = .{
-        .discrete_info = .{ 
         .maybe_name = "test debug_print_time_hierarchy",
+        .discrete_space_partitions = .{ 
             .presentation = .{
-                // matches the media rate
-                .sample_rate_hz = .{ .Int = 24 },
-                .start_index = 0,
+                .picture = .{ 
+                    // matches the media rate
+                    .sample_rate_hz = .{ .Int = 24 },
+                    .start_index = 0,
+                },
+                .audio = null,
             },
         },
         .tracks = .{ .children = &tl_children },
@@ -1079,6 +1089,7 @@ test "track child after gap - use presentation space to compute offset"
         .maybe_bounds_s = @import(
             "test_structures.zig"
         ).T_INT_1_TO_9, 
+        .media = .null_picture,
     };
     const cl_ref = references.ComposedValueRef.init(&cl);
     var gp2 = schema.Gap{

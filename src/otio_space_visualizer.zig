@@ -255,6 +255,7 @@ fn fill_topdown_point_buffers(
             end: usize,
             discrete_indedx_range: ?[2]usize,
             label: [:0]const u8,
+            domain: otio.Domain,
         },
     ) = .empty;
     defer slice_indices.deinit(allocator);
@@ -327,42 +328,54 @@ fn fill_topdown_point_buffers(
 
                     var discrete_indices:?[2]usize = null;
 
-                    if (dst.discrete_info())
-                        |discrete_space|
+                    inline for (@typeInfo(otio.Domain).@"union".fields)
+                        |field|
                     {
-                        discrete_indices = .{ points.len, points.len };
-                        // make a discrete space over the continuous one
-                        var current = ib.start;
-                        const inc = ib.duration().div(
-                            discrete_space.sample_rate_hz.as_ordinate()
-                        ).as(f32);
-                        while  (current.lt(ib.end))
-                            : (current = current.add(inc))
+                        const domain = @unionInit(
+                            otio.Domain,
+                            field.name,
+                            undefined,
+                        );
+
+                        if (dst.discrete_info(domain))
+                            |discrete_space|
                         {
-                            try points.append(
-                                allocator,
-                                .{
-                                    .x = current.as(f32),
-                                    .y = mapping.project_instantaneous_cc_assume_in_bounds(current).SuccessOrdinate.as(f32),
-                                }
-                            );
+                            discrete_indices = .{ points.len, points.len };
+                            // make a discrete space over the continuous one
+                            var current = ib.start;
+                            const inc = ib.duration().div(
+                                discrete_space.sample_rate_hz.as_ordinate()
+                            ).as(f32);
+                            while  (current.lt(ib.end))
+                                : (current = current.add(inc))
+                            {
+                                try points.append(
+                                    allocator,
+                                    .{
+                                        .x = current.as(f32),
+                                        .y = mapping.project_instantaneous_cc_assume_in_bounds(current).SuccessOrdinate.as(f32),
+                                    }
+                                );
+                            }
+
+                            discrete_indices.?[1] = points.len;
                         }
 
-                        discrete_indices.?[1] = points.len;
+                        try label_writer.print("{s}\x00", .{ path });
+                        try slice_indices.append(
+                            allocator,
+                            .{
+                                .start = start,
+                                .end = end,
+                                .discrete_indedx_range = discrete_indices,
+                                .label = @ptrCast(
+                                    try allocating_label_writer.toOwnedSlice()
+                                ),
+                                .domain = domain,
+                            },
+                        );
                     }
 
-                    try label_writer.print("{s}\x00", .{ path });
-                    try slice_indices.append(
-                        allocator,
-                        .{
-                            .start = start,
-                            .end = end,
-                            .discrete_indedx_range = discrete_indices,
-                            .label = @ptrCast(
-                                try allocating_label_writer.toOwnedSlice()
-                            ),
-                        },
-                    );
 
                 },
                 .linear => |lin| {
@@ -387,44 +400,53 @@ fn fill_topdown_point_buffers(
 
                     var discrete_indices:?[2]usize = null;
 
-                    if (dst.discrete_info())
-                        |discrete_space|
+                    inline for (@typeInfo(otio.Domain).@"union".fields)
+                        |field|
                     {
-                        discrete_indices = .{ points.len, points.len };
-                        // make a discrete space over the continuous one
-                        const ib = mapping.input_bounds();
-                        var current = ib.start;
-                        const inc = ib.duration().div(
-                            discrete_space.sample_rate_hz.as_ordinate()
-                        ).as(f32);
-                        while  (current.lt(ib.end))
-                            : (current = current.add(inc))
+                        const domain = @unionInit(
+                            otio.Domain,
+                            field.name,
+                            undefined,
+                        );
+                        if (dst.discrete_info(domain))
+                            |discrete_space|
                         {
-                            try points.append(
-                                allocator,
-                                .{
-                                    .x = current.as(f32),
-                                    .y = mapping.project_instantaneous_cc_assume_in_bounds(current).SuccessOrdinate.as(f32),
-                                }
-                            );
+                            discrete_indices = .{ points.len, points.len };
+                            // make a discrete space over the continuous one
+                            const ib = mapping.input_bounds();
+                            var current = ib.start;
+                            const inc = ib.duration().div(
+                                discrete_space.sample_rate_hz.as_ordinate()
+                            ).as(f32);
+                            while  (current.lt(ib.end))
+                                : (current = current.add(inc))
+                            {
+                                try points.append(
+                                    allocator,
+                                    .{
+                                        .x = current.as(f32),
+                                        .y = mapping.project_instantaneous_cc_assume_in_bounds(current).SuccessOrdinate.as(f32),
+                                    }
+                                );
+                            }
+
+                            discrete_indices.?[1] = points.len;
                         }
 
-                        discrete_indices.?[1] = points.len;
+                        try label_writer.print("{f}" ++ .{0}, .{ dst });
+                        try slice_indices.append(
+                            allocator,
+                            .{
+                                .start = start,
+                                .end = end,
+                                .discrete_indedx_range = discrete_indices,
+                                .label = @ptrCast(
+                                    try allocating_label_writer.toOwnedSlice()
+                                ),
+                                .domain = domain,
+                            },
+                        );
                     }
-
-
-                    try label_writer.print("{f}" ++ .{0}, .{ dst });
-                    try slice_indices.append(
-                        allocator,
-                        .{
-                            .start = start,
-                            .end = end,
-                            .discrete_indedx_range = discrete_indices,
-                            .label = @ptrCast(
-                                try allocating_label_writer.toOwnedSlice()
-                            ),
-                        },
-                    );
                 },
                 else => {
                 },
@@ -459,36 +481,45 @@ fn fill_topdown_point_buffers(
     std.debug.assert(slices.len != 0);
 
     // generate the discrete space, if there is a definition on the source
-    if (STATE.maybe_src.?.discrete_info())
-        |discrete_info|
+    inline for (@typeInfo(otio.Domain).@"union".fields)
+        |field|
     {
-        const buffer_length = discrete_info.buffer_size_for_length(
-            builder.input_bounds().duration()
+        const domain = @unionInit(
+            otio.Domain,
+            field.name,
+            undefined,
         );
-
-        try STATE.discrete_points.ensureTotalCapacity(
-            allocator, 
-            // two points per index to create horizontal line
-            2 * buffer_length,
-        );
-
-        for (discrete_info.start_index.. (discrete_info.start_index + buffer_length))
-            |index|
+        if (STATE.maybe_src.?.discrete_info(domain))
+            |discrete_info|
         {
-            const ord = discrete_info.ord_interval_for_index(index);
+            const buffer_length = discrete_info.buffer_size_for_length(
+                builder.input_bounds().duration()
+            );
 
-            STATE.discrete_points.appendAssumeCapacity(
-                .{
-                    .x = ord.start.as(f32),
-                    .y = ord.start.as(f32),
-                }
+            try STATE.discrete_points.ensureTotalCapacity(
+                allocator, 
+                // two points per index to create horizontal line
+                2 * buffer_length,
             );
-            STATE.discrete_points.appendAssumeCapacity(
-                .{
-                    .x = ord.end.as(f32),
-                    .y = ord.start.as(f32),
-                }
-            );
+
+            for (discrete_info.start_index.. (discrete_info.start_index + buffer_length))
+                |index|
+            {
+                const ord = discrete_info.ord_interval_for_index(index);
+
+                STATE.discrete_points.appendAssumeCapacity(
+                    .{
+                        .x = ord.start.as(f32),
+                        .y = ord.start.as(f32),
+                    }
+                );
+                STATE.discrete_points.appendAssumeCapacity(
+                    .{
+                        .x = ord.end.as(f32),
+                        .y = ord.start.as(f32),
+                    }
+                );
+            }
         }
     }
 
@@ -499,6 +530,7 @@ fn fill_topdown_point_buffers(
 }
 
 fn draw_hover_extras(
+    allocator: std.mem.Allocator,
     builder: otio.projection.TemporalProjectionBuilder,
 ) !void
 {
@@ -565,23 +597,49 @@ fn draw_hover_extras(
                 source_ord
             ).SuccessOrdinate;
 
-            const dest_ind_d = (
-                if (dest.discrete_info()) |_|
-                    try projection_operator.project_instantaneous_cd(
-                        source_ord
-                    )
-                else null
+            var discrete_writer = std.Io.Writer.Allocating.init(
+                allocator,
             );
+            const d_w = &discrete_writer.writer;
+            defer discrete_writer.deinit();
+
+            inline for (@typeInfo(otio.Domain).@"union".fields)
+                |field|
+            {
+                const domain = @unionInit(
+                    otio.Domain,
+                    field.name,
+                    undefined,
+                );
+                if (
+                    if (dest.discrete_info(domain) != null) (
+                        try projection_operator.project_instantaneous_cd(
+                            source_ord,
+                            domain,
+                        )
+                    )
+                    else null
+                ) |discrete_ind|
+                {
+                    try d_w.print(
+                        "\n  d/{s}: {d}",
+                        .{
+                            @tagName(domain),
+                            discrete_ind,
+                        },
+                    );
+                }
+            }
 
             try active_media.append(
                 STATE.allocator,
                 try std.fmt.allocPrint(
                     STATE.allocator,
-                    "{f}: {d:0.2}s / d: {?d}",
+                    "{f}: {d:0.2}s / {s}",
                     .{
                         dest,
                         dest_time.as(f32),
-                        dest_ind_d,
+                        discrete_writer.written(),
                     },
                 )
             );
@@ -637,25 +695,25 @@ fn draw_hover_extras(
                 );
             }
 
-            if (dest.discrete_info())
-                |_|
-            {
-                const dest_time_discrete = (
-                    try projection_operator.project_instantaneous_cd(
-                        source_ord
-                    )
-                );
-                var xs: [1]f64 = .{ mouse_pos[0] };
-                var ys: [1]f64 = .{ @floatFromInt(dest_time_discrete) }; 
-                zplot.plotScatter(
-                    "Projected Point (Discrete)",
-                    f64, 
-                    .{
-                        .xv = &xs,
-                        .yv = &ys,
-                    },
-                );
-            }
+            // if (dest.discrete_info())
+            //     |_|
+            // {
+            //     const dest_time_discrete = (
+            //         try projection_operator.project_instantaneous_cd(
+            //             source_ord
+            //         )
+            //     );
+            //     var xs: [1]f64 = .{ mouse_pos[0] };
+            //     var ys: [1]f64 = .{ @floatFromInt(dest_time_discrete) }; 
+            //     zplot.plotScatter(
+            //         "Projected Point (Discrete)",
+            //         f64, 
+            //         .{
+            //             .xv = &xs,
+            //             .yv = &ys,
+            //         },
+            //     );
+            // }
         }
     }
 
@@ -815,6 +873,8 @@ fn draw(
 {
     const vp = zgui.getMainViewport();
     const size = vp.getSize();
+
+    const allocator = STATE.allocator;
 
     zgui.setNextWindowPos(.{ .x = 0, .y = 0 });
     zgui.setNextWindowSize(
@@ -1387,7 +1447,10 @@ fn draw(
 
                             if (zplot.isPlotHovered())
                             {
-                                try draw_hover_extras(builder);
+                                try draw_hover_extras(
+                                    allocator,
+                                    builder,
+                                );
                             }
                         }
                     }

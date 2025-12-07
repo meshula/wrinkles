@@ -55,12 +55,16 @@ print_tree(
             otio_ContinuousInterval input_bounds;
 
             otio_DiscreteDatasourceIndexGenerator di;
+
+            //
+            // @TODO: for now, only supports the picture domain
+            //
             otio_SpaceLabel di_space = -1;
-            if (!otio_fetch_discrete_info(root_ref, otio_sl_presentation, &di)) 
+            if (!otio_fetch_discrete_info(root_ref, otio_sl_presentation, 1, &di)) 
             {
                 di_space = otio_sl_presentation;
             }
-            if (!otio_fetch_discrete_info(root_ref, otio_sl_media, &di))
+            if (!otio_fetch_discrete_info(root_ref, otio_sl_media,1, &di))
             {
                 di_space = otio_sl_media;
             }
@@ -75,14 +79,16 @@ print_tree(
                         otio_fetch_continuous_ordinate_to_discrete_index(
                             root_ref, 
                             input_bounds.start,
-                            di_space
+                            di_space,
+                            1
                         )
                     );
                     size_t discrete_end = (
                         otio_fetch_continuous_ordinate_to_discrete_index(
                             root_ref, 
                             input_bounds.end,
-                            di_space
+                            di_space,
+                            1
                         )
                     );
 
@@ -108,10 +114,18 @@ print_tree(
             }
 
             if (di_space == otio_sl_presentation) {
-                PRINTIF(" | discrete presentation: %d hz ", di.sample_rate_hz );
+                PRINTIF(
+                        " | discrete presentation: %d/%d hz ",
+                        di.sample_rate_hz.num,
+                        di.sample_rate_hz.den 
+                );
             }
             if (di_space == otio_sl_media) {
-                PRINTIF(" | discrete media: %d hz ", di.sample_rate_hz );
+                PRINTIF(
+                        " | discrete media: %d/%d hz ",
+                        di.sample_rate_hz.num,
+                        di.sample_rate_hz.den 
+                );
             }
 
         }
@@ -265,7 +279,7 @@ main(
                     otio_DiscreteDatasourceIndexGenerator di;
                     otio_SpaceLabel di_space = -1;
 
-                    if (!otio_fetch_discrete_info(dest, otio_sl_media, &di))
+                    if (!otio_fetch_discrete_info(dest, otio_sl_media,1, &di))
                     {
                         di_space = otio_sl_media;
                         if (di_space != -1) 
@@ -274,14 +288,16 @@ main(
                                 otio_fetch_continuous_ordinate_to_discrete_index(
                                     dest, 
                                     tr.start,
-                                    di_space
+                                    di_space,
+                                    1
                                 )
                             );
                             size_t discrete_end = (
                                 otio_fetch_continuous_ordinate_to_discrete_index(
                                     dest, 
                                     tr.end,
-                                    di_space
+                                    di_space,
+                                    1
                                 )
                             );
 
@@ -294,8 +310,9 @@ main(
                             if (di_space == otio_sl_media) 
                             {
                                 PRINTIF(
-                                        " | discrete media: %d hz ",
-                                        di.sample_rate_hz 
+                                        " | discrete media: %d/%d hz ",
+                                        di.sample_rate_hz.num, 
+                                        di.sample_rate_hz.den
                                 );
                             }
                         } 

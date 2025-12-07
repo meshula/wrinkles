@@ -13,6 +13,7 @@ const topology_m = @import("topology");
 const treecode = @import("treecode");
 const sampling = @import("sampling");
 
+const domain_mod = @import("domain.zig");
 const schema = @import("schema.zig");
 const projection = @import("projection.zig");
 
@@ -75,9 +76,13 @@ pub const SpaceReference = struct {
 
     pub fn discrete_info(
         self: @This(),
+        domain: domain_mod.Domain,
     ) ?sampling.SampleIndexGenerator
     {
-        return self.ref.discrete_info_for_space(self.label);
+        return self.ref.discrete_info_for_space(
+            self.label,
+            domain,
+        );
     }
 };
 
@@ -250,9 +255,10 @@ pub const ComposedValueRef = union(enum) {
         return .{ .ref = self, .label = label };
     }
 
-    /// build a topology that projections a value from_space to_space
+    /// build a topology that projects a value `from_space` -> `to_space`
     /// @TODO clarify that this function is used to take one step along the
     /// path and not do all the steps - need to use other functions for that.
+    /// @TODO -> rename internal_transform
     pub fn build_transform(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -263,7 +269,8 @@ pub const ComposedValueRef = union(enum) {
     {
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
             std.debug.print(
-                "[{s}:{s}:{d}]    transform from space: {s}.{s} to space: {s}.{s}",
+                "[{s}:{s}:{d}]    transform from space: {s}.{s}"
+                ++ " to space: {s}.{s}",
                 .{
                     @src().file, 
                     @src().fn_name, 
@@ -500,10 +507,11 @@ pub const ComposedValueRef = union(enum) {
         self: @This(),
         ind_discrete: sampling.sample_index_t,
         in_space: SpaceLabel,
+        domain: domain_mod.Domain,
     ) !opentime.ContinuousInterval
     {
         const maybe_di = (
-            self.discrete_info_for_space(in_space)
+            self.discrete_info_for_space(in_space, domain)
         );
 
         if (maybe_di) 
@@ -522,10 +530,11 @@ pub const ComposedValueRef = union(enum) {
         self: @This(),
         ord_continuous: opentime.Ordinate,
         in_space: SpaceLabel,
+        domain: domain_mod.Domain,
     ) !sampling.sample_index_t
     {
         const maybe_di = (
-            self.discrete_info_for_space(in_space)
+            self.discrete_info_for_space(in_space, domain)
         );
 
         if (maybe_di) 
@@ -581,18 +590,58 @@ pub const ComposedValueRef = union(enum) {
         );
     }
 
+    pub fn discrete_info_media(
+        self: @This(),
+    ) ?sampling.SampleIndexGenerator
+    {
+        switch (self)
+        {
+            .clip => |cl| return cl.media.maybe_discrete_partition,
+            // is it an error?  Or null
+            else => null,
+        }
+    }
+
+    pub fn discrete_info_presentation(
+        self: @This(),
+        domain: domain_mod.Domain,
+    ) ?sampling.SampleIndexGenerator
+    {
+        return switch (self)
+        {
+            .timeline => |tl| switch (domain) {
+                .picture => tl.discrete_space_partitions.presentation.picture,
+                .audio => tl.discrete_space_partitions.presentation.audio,
+                else => null,
+            },
+            // is it an error?  Or null
+            else => null,
+        };
+    }
+
     pub fn discrete_info_for_space(
         self: @This(),
         in_space: SpaceLabel,
+        domain: domain_mod.Domain,
     ) ?sampling.SampleIndexGenerator
     {
+        // currently these are the only supported domain queries
+        // std.debug.assert(domain == .audio or domain == .picture);
+
         return switch (self) {
             .timeline => |tl| switch (in_space) {
-                .presentation => tl.discrete_info.presentation,
+                .presentation => switch (domain) {
+                    .picture => tl.discrete_space_partitions.presentation.picture,
+                    .audio => tl.discrete_space_partitions.presentation.audio,
+                    inline else => null,
+                },
                 inline else => null,
             },
             .clip => |cl| switch (in_space) {
-                .media => cl.media.discrete_info,
+                .media => if (
+                    std.meta.activeTag(domain) 
+                    == std.meta.activeTag(cl.media.domain)
+                ) cl.media.maybe_discrete_partition else null,
                 inline else => null,
             },
             inline else => null,

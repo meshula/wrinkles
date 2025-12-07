@@ -46,8 +46,10 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             .end = opentime.Ordinate.init(3),
         },
         .media = .{
-            .discrete_info = .{
+            .ref = .empty,
             .maybe_bounds_s = null,
+            .domain = .picture,
+            .maybe_discrete_partition = .{
                 .sample_rate_hz = .{ .Int = 24 },
                 .start_index = 10,
             },
@@ -59,11 +61,13 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     var cl2: otio.Clip = .{
         .maybe_name = "Taco.mov",
         .media = .{
+            .ref = .empty,
+            .domain = .picture,
             .maybe_bounds_s = .{
                 .start = opentime.Ordinate.init(10),
                 .end = opentime.Ordinate.init(11), 
             },
-            .discrete_info = .{
+            .maybe_discrete_partition = .{
                 .sample_rate_hz = .{ .Int = 30 },
                 .start_index = 10,
             },
@@ -86,11 +90,14 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         tr.reference(),
     };
     var tl: otio.Timeline = .{
-        .discrete_info = .{ 
         .maybe_name = "Example Timeline - high level procedural test",
+        .discrete_space_partitions = .{ 
             .presentation = .{
-                .sample_rate_hz = .{ .Int = 24 },
-                .start_index = 86400,
+                .picture = .{
+                    .sample_rate_hz = .{ .Int = 24 },
+                    .start_index = 86400,
+                },
+                .audio = null,
             },
         },
         .tracks = .{ 
@@ -119,6 +126,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     const clip_indices = try timeline_to_clip2.project_range_cd(
         allocator,
         timeline_to_clip2.src_to_dst_topo.input_bounds(),
+        .audio,
     );
     defer allocator.free(clip_indices);
 
@@ -134,7 +142,10 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     );
 
     const src_discrete_info = (
-        proj_topo.source.ref.discrete_info_for_space(.presentation)
+        proj_topo.source.ref.discrete_info_for_space(
+            .presentation,
+            .picture,
+            )
     );
 
     if (PRINT_DEMO_OUTPUT) 
@@ -162,28 +173,30 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         );
     }
 
-    const known_frames = &[3][]const sampling.sample_index_t{
-        &[_]sampling.sample_index_t{ 
-                            34, 35, 36, 37, 38, 39,
-            40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
-            50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
-            60, 61, 62, 63, 64, 65, 66, 67, 68, 69,
-            70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
-            80, 81,
-        },
-        &[_]sampling.sample_index_t{ 
-            310, 311, 312, 313, 314, 315, 316, 317, 318, 319,
-            320, 321, 322, 323, 324, 325, 326, 327, 328, 329,
-            330, 331, 332, 333, 334, 335, 336, 337, 338, 339,
-            340, 341, 342, 343, 344, 345, 346, 347, 348, 349,
-        },
-        &[_]sampling.sample_index_t{ 
-            310, 311, 312, 313, 314, 315, 316, 317, 318, 319,
-            320, 321, 322, 323, 324, 325, 326, 327, 328, 329,
-            330, 331, 332, 333, 334, 335, 336, 337, 338, 339,
-            340, 
-        },
-    };
+    const known_frames = (
+        &[3][]const sampling.sample_index_t{
+            &[_]sampling.sample_index_t{ 
+                34, 35, 36, 37, 38, 39,
+                40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
+                50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
+                60, 61, 62, 63, 64, 65, 66, 67, 68, 69,
+                70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
+                80, 81,
+            },
+            &[_]sampling.sample_index_t{ 
+                310, 311, 312, 313, 314, 315, 316, 317, 318, 319,
+                320, 321, 322, 323, 324, 325, 326, 327, 328, 329,
+                330, 331, 332, 333, 334, 335, 336, 337, 338, 339,
+                340, 341, 342, 343, 344, 345, 346, 347, 348, 349,
+            },
+            &[_]sampling.sample_index_t{ 
+                310, 311, 312, 313, 314, 315, 316, 317, 318, 319,
+                320, 321, 322, 323, 324, 325, 326, 327, 328, 329,
+                330, 331, 332, 333, 334, 335, 336, 337, 338, 339,
+                340, 
+            },
+        }
+    );
 
     // walk across the general projection operator map
     ///////////////////////////////////////////////////////////////////////////
@@ -223,7 +236,10 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             );
 
             const di = (
-                destination.ref.discrete_info_for_space(.media)
+                destination.ref.discrete_info_for_space(
+                    .media,
+                    .picture,
+                )
             );
 
             if (di == null)
@@ -255,6 +271,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             const dest_frames = try po.project_range_cd(
                 allocator,
                 interval,
+                .picture,
             );
             defer allocator.free(dest_frames);
 
@@ -291,8 +308,9 @@ test "libsamplerate w/ high level test -- resample only"
     var cl1 = otio.Clip {
         .maybe_name = "Spaghetti.mov",
         .media = .{
-            .discrete_info = .{
+            .domain = .picture,
             .maybe_bounds_s = T_INT_SIGNAL,
+            .maybe_discrete_partition = .{
                 .sample_rate_hz = .{ .Int = 48000 },
                 .start_index = 0,
             },
@@ -320,11 +338,14 @@ test "libsamplerate w/ high level test -- resample only"
     };
     const tr_ptr = stack_children[0];
     const tl: otio.Timeline = .{
-        .discrete_info = .{ 
         .maybe_name = "Example Timeline - resample only test",
+        .discrete_space_partitions = .{ 
             .presentation = .{
-                .sample_rate_hz = .{ .Int = 44100 },
-                .start_index = 86400,
+                .audio = .{
+                    .sample_rate_hz = .{ .Int = 44100 },
+                    .start_index = 86400,
+                },
+                .picture = null,
             },
         },
         .tracks = .{
@@ -413,14 +434,14 @@ test "libsamplerate w/ high level test -- resample only"
         allocator,
         media_samples,
         tr_pres_to_cl_media_po.src_to_dst_topo,
-        tl.discrete_info.presentation.?,
+        tl.discrete_space_partitions.presentation.audio.?,
         false,
     );
     defer cl_media_samples_for_tr_pres.deinit(allocator);
 
     // result should match the timeline's discrete info
     try std.testing.expectEqual(
-        tl.discrete_info.presentation.?.sample_rate_hz,
+        tl.discrete_space_partitions.presentation.audio.?.sample_rate_hz,
         cl_media_samples_for_tr_pres.index_generator.sample_rate_hz
     );
 
@@ -441,8 +462,9 @@ test "libsamplerate w/ high level test.retime.interpolating"
     var cl1 = otio.Clip {
         .maybe_name = "Clip w/ media ref pointing at a Sine Signal",
         .media = .{
-            .discrete_info = .{
             .maybe_bounds_s = T_INT_SIGNAL,
+            .domain = .audio,
+            .maybe_discrete_partition = .{
                 .sample_rate_hz = .{ .Int = 48000 },
                 .start_index = 0,
             },
@@ -487,12 +509,15 @@ test "libsamplerate w/ high level test.retime.interpolating"
 
     var stack_children = [_]otio.ComposedValueRef{tr_ptr};
     var tl: otio.Timeline = .{
-        .discrete_info = .{ 
         .maybe_name = "Example Timeline test.retime.interpolating",
+        .discrete_space_partitions = .{ 
             .presentation = .{
-                // matches the media rate
-                .sample_rate_hz = .{ .Int = 48000 },
-                .start_index = 86400,
+                .picture = null,
+                .audio = .{
+                    // matches the media rate
+                    .sample_rate_hz = .{ .Int = 48000 },
+                    .start_index = 86400,
+                },
             },
         },
         .tracks = .{
@@ -533,7 +558,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
     const media = (
         try cl1.media.ref.signal.signal_generator.rasterized(
             allocator,
-            cl1.media.discrete_info.?,
+            cl1.media.maybe_discrete_partition.?,
             true,
         )
     );
@@ -556,14 +581,14 @@ test "libsamplerate w/ high level test.retime.interpolating"
         //        ABOVE the resample.  its weird that its written the other way
         //        here.
         tl_pres_to_cl_media_po.src_to_dst_topo,
-        tl.discrete_info.presentation.?,
+        tl.discrete_space_partitions.presentation.audio.?,
         false,
     );
     defer result.deinit(allocator);
 
     // result should match the timeline's discrete info
     try std.testing.expectEqual(
-        tl.discrete_info.presentation.?.sample_rate_hz,
+        tl.discrete_space_partitions.presentation.audio.?.sample_rate_hz,
         result.index_generator.sample_rate_hz,
     );
 
@@ -594,8 +619,9 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     var cl1 = otio.Clip {
         .maybe_name = "Sine Wave",
         .media = .{
-            .discrete_info = .{
+            .domain = .audio,
             .maybe_bounds_s = T_INT_SIGNAL,
+            .maybe_discrete_partition = .{
                 .sample_rate_hz = .{ .Int = 48000 },
                 .start_index = 0,
             },
@@ -642,11 +668,14 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
         .maybe_name = (
             "Example Timeline - high level test.retime.non_interpolating"
         ),
-        .discrete_info = .{ 
+        .discrete_space_partitions = .{ 
             .presentation = .{
-                // matches the media rate
-                .sample_rate_hz = .{ .Int = 48000 },
-                .start_index = 86400,
+                .audio = .{
+                    // matches the media rate
+                    .sample_rate_hz = .{ .Int = 48000 },
+                    .start_index = 86400,
+                },
+                .picture = null,
             },
         },
         .tracks = .{
@@ -675,7 +704,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     const media = (
         try cl1.media.ref.signal.signal_generator.rasterized(
             allocator,
-            cl1.media.discrete_info.?,
+            cl1.media.maybe_discrete_partition.?,
             false,
         )
     );
@@ -695,14 +724,14 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
         allocator,
         media,
         tr_pres_to_cl_media_po.src_to_dst_topo,
-        tl.discrete_info.presentation.?,
+        tl.discrete_space_partitions.presentation.audio.?,
         false,
     );
     defer indices_tr_pres.deinit(allocator);
 
     // result should match the timeline's discrete info
     try std.testing.expectEqual(
-        tl.discrete_info.presentation.?.sample_rate_hz,
+        tl.discrete_space_partitions.presentation.audio.?.sample_rate_hz,
         indices_tr_pres.index_generator.sample_rate_hz
     );
 
@@ -739,6 +768,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
                     .start = start_tr_pres,
                     .end = start_tr_pres.add(2.0/48000.0),
                 },
+                .picture
             )
         );
         defer allocator.free(cl_media_indices);
@@ -761,8 +791,9 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     var cl1 = otio.Clip {
         .maybe_name = "Spaghetti.mov",
         .media = .{
-            .discrete_info = .{
+            .domain = .audio,
             .maybe_bounds_s = T_INT_SIGNAL,
+            .maybe_discrete_partition = .{
                 .sample_rate_hz = .{ .Int = sample_rate },
                 .start_index = 0,
             },
@@ -839,7 +870,10 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
 
         // project into the media index
         const start_ind_cl_media = (
-            try tr_pres_to_cl_media_po.project_instantaneous_cd(start_tr_pres)
+            try tr_pres_to_cl_media_po.project_instantaneous_cd(
+                start_tr_pres,
+                .audio,
+            )
         );
 
         const expected_start_index = (
@@ -861,6 +895,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
                     .start = start_tr_pres,
                     .end = start_tr_pres.add(4.0/48000.0),
                 },
+                .audio,
             )
         );
         defer allocator.free(indices_cl_media);
@@ -890,8 +925,9 @@ test "timeline w/ warp that holds the tenth frame"
     var cl1 = otio.Clip {
         .maybe_name = "Spaghetti.mov",
         .media = .{
-            .discrete_info = .{
+            .domain = .picture,
             .maybe_bounds_s = T_INT_SIGNAL,
+            .maybe_discrete_partition = .{
                 .sample_rate_hz = .{ .Int = 24 },
                 .start_index = 0,
             },
@@ -1008,6 +1044,7 @@ test "timeline w/ warp that holds the tenth frame"
                     .start = opentime.Ordinate.ZERO,
                     .end =  opentime.Ordinate.init(4.0/24.0),
                 },
+                .picture,
             )
         );
         defer allocator.free(result_buf);
@@ -1031,10 +1068,13 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     var cl = otio.Clip {
         .maybe_name = "Clip at 24",
         .media = .{
+            .ref = .empty,
+            .domain = .picture,
+            .maybe_bounds_s = .{
                 .start = opentime.Ordinate.ZERO,
                 .end = opentime.Ordinate.init(24000),
             },
-            .discrete_info = .{
+            .maybe_discrete_partition = .{
                 .sample_rate_hz = .{ .Int = 24 },
                 .start_index = 0,
             },
@@ -1054,17 +1094,20 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
         otio.ComposedValueRef.init(&tr),
     };
     var tl: otio.Timeline = .{
-        .discrete_info = .{ 
         .maybe_name = "Timeline @ 24 * 1000/1001 with media showing skew",
+        .discrete_space_partitions = .{ 
             .presentation = .{
-                .sample_rate_hz = .{ 
-                    // matches the media rate
-                    .Rat = .{
-                        .num = 24 * 1000,
-                        .den = 1001 
-                    } 
+                .picture = .{
+                    .sample_rate_hz = .{ 
+                        // matches the media rate
+                        .Rat = .{
+                            .num = 24 * 1000,
+                            .den = 1001 
+                        } 
+                    },
+                    .start_index = 0,
                 },
-                .start_index = 0,
+                .audio = null,
             },
         },
         .tracks = .{ .children = &tl_children },
@@ -1157,6 +1200,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
             try tl_pres_to_cl_media_po.project_index_dd(
                 allocator,
                 t.tl_pres_index,
+                .picture,
             )
         );
         defer allocator.free(clip_media_indices);

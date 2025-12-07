@@ -5,6 +5,7 @@ const sampling = @import("sampling");
 const string = @import("string_stuff");
 const topology_m = @import("topology");
 const curve = @import("curve");
+const domain = @import("domain.zig");
 
 const references = @import("references.zig");
 const test_data = @import("test_structures.zig");
@@ -28,6 +29,15 @@ const test_data = @import("test_structures.zig");
 //   "DiscreteParameterization"?  The sampling library calls this a
 //   `SampleIndexGenerator`.  Maybe thats better?
 
+/// Indicates whether samples should be interpolated when the parameter space
+/// (usually time) is warped.  Examples include audio (interpolated) vs picture
+/// (snapped, typically)
+const ResamplingBehavior = enum {
+    interpolate,
+    snap,
+    default_from_domain,
+};
+
 /// a reference that points at some reference via a string address
 pub const ExternalReference = struct {
     target_uri : []const u8,
@@ -39,30 +49,45 @@ pub const SignalReference = struct {
 };
 
 /// an opaque reference
-pub const EmptyReference = struct {
-};
+pub const EmptyReference = void;
 
-/// information about the media that this clip is cutting into the timeline
+/// The way to get to the media
 pub const MediaDataReference = union(enum) {
+    /// Usually a file or URI somewhere
     external: ExternalReference,
+    /// A Procedurally defined signal (A tone, a color, etc.)
     signal: SignalReference,
+    /// An opaque unknown reference
     empty: EmptyReference,
 
     pub const EMPTY_REF = MediaDataReference{
-        .empty = .{} 
+        .empty = {},
     };
 };
 
+/// Refers to a piece of media or signal that is being cut into a composition
 pub const MediaReference = struct {
-    ref: MediaDataReference = .EMPTY_REF,
+    /// the specific kind of media reference.  By default an opaque reference.
+    ref: MediaDataReference,
 
     /// bounds of the media space continuous time, the interval of media time
     /// in which the media is defined
     maybe_bounds_s: ?opentime.ContinuousInterval,
 
-    discrete_info: ?sampling.SampleIndexGenerator = null,
-    // should be part of the transform?
-    interpolating: bool = false,
+    /// Media domain for this reference
+    domain: domain.Domain,
+
+    /// If the media has a discrete partition
+    maybe_discrete_partition: ?sampling.SampleIndexGenerator = null,
+
+    /// Media that is interpolating can be resampled when under time warps.
+    interpolating: ResamplingBehavior = .default_from_domain,
+
+    pub const null_picture: MediaReference = .{
+        .ref = .EMPTY_REF,
+        .maybe_bounds_s = null,
+        .domain = .picture,
+    };
 };
 
 /// clip with an implied media reference
@@ -74,22 +99,21 @@ pub const Clip = struct {
     maybe_bounds_s: ?opentime.ContinuousInterval = null,
 
     /// Information about the media this clip cuts into the track
-    media: MediaReference = .{},
+    media: MediaReference,
 
-    parameters: ?ParameterMap = null,
+    maybe_parameters: ?ParameterMap = null,
 
-    pub const internal_spaces: []const references.SpaceLabel = (
-        &.{ .presentation, .media }
-    );
-
-    const Domain = enum {
-        time,
-        picture,
-        audio,
-        metadata,
+    pub const internal_spaces: []const references.SpaceLabel = &.{
+        .presentation,
+        .media,
     };
+
+    pub const null_picture: Clip = .{
+        .media = .null_picture,
+    };
+
     pub const ParameterVarying = struct {
-        domain: Domain,
+        domain: domain.Domain,
         mapping: topology_m.Topology,
 
         pub fn parameter(
@@ -126,12 +150,12 @@ pub const Clip = struct {
         {
             result.maybe_name = try allocator.dupe(u8, n);
         }
-        if (copy_from.parameters)
+        if (copy_from.maybe_parameters)
             |params|
         {
-            result.parameters = try params.clone(allocator);
+            result.maybe_parameters = try params.clone(allocator);
         } else {
-            result.parameters = .empty;
+            result.maybe_parameters = .empty;
         }
 
         return result;
@@ -158,7 +182,6 @@ pub const Clip = struct {
         }
 
         return error.NotImplementedFetchTopology;
-
     }
 
     /// build a topology that maps from the presentation space to the media
@@ -225,7 +248,7 @@ pub const Clip = struct {
 
 test "Clip: spaces list" 
 {
-    var cl = Clip{};
+    var cl: Clip = .null_picture;
 
     try std.testing.expectEqualSlices(
         references.SpaceLabel,
@@ -603,39 +626,42 @@ pub const Stack = struct {
     }
 };
 
+/// A mapping of domain to a corresponding discrete partition for that domain
+pub const DiscretePartitionDomainMap = struct {
+    picture: ?sampling.SampleIndexGenerator,
+    audio: ?sampling.SampleIndexGenerator,
+    /// Non-picture/audio domain discretizations can be stored here, ie:
+    ///   "Gyroscope"
+    ///   "Fireworks"
+    other: ?std.StringHashMapUnmanaged(sampling.SampleIndexGenerator) = null,
+
+    /// no discrete partitions for any domains
+    pub const no_discretizations : DiscretePartitionDomainMap = .{
+        .picture = null,
+        .audio = null,
+        .other = null,
+    };
+};
+
 /// top level object
+///
+/// Contains a stack called "tracks".
+/// Also allows for a discretization of the "result" space for your timeline,
+/// IE if it is intended for 24fps picture and 192khz audio, that is configured
+/// on the timeline so that regardless of what the discretizations for the
+/// various child objects might be, the output is fixed at that description.
 pub const Timeline = struct {
     maybe_name: ?string.latin_s8 = null,
     tracks:Stack = .{},
 
-    /// currently there is a single discrete_info struct for the "presentation
-    /// space" - this should probably be broken down by domain, and then by
-    /// target space
-    ///
-    ///currently organized by target space / domain
-    time_spaces: struct{
-        presentation: struct{
-            picture: ?sampling.SampleIndexGenerator
-            // picture: ?sampling.TimeSampleIndexGenerator(
-                         // sampling.DiscreteTimeSampleSpec(24),
-                         // sampling.ImageSampleSpec(.{1024, 768}, .rec709)
-            = null,
-            // audio: ?sampling.TimeSampleIndexGenerator(
-            audio: ?sampling.SampleIndexGenerator
-                // sampling.DiscreteTimeSampleSpec(192000),
-                // sampling.AudioSampleSpec(f32, .normalized, .aifc),
-            = null,
-        } = .{},
+    discrete_space_partitions: struct {
+        presentation: DiscretePartitionDomainMap = .no_discretizations,
     } = .{},
 
-    ///
-    discrete_info: struct{
-        presentation:  ?sampling.SampleIndexGenerator = null,
-    } = .{},
-
-    pub const internal_spaces: []const references.SpaceLabel = (
-        &.{ .presentation, .intrinsic }
-    );
+    pub const internal_spaces: []const references.SpaceLabel = &.{
+        .presentation,
+        .intrinsic,
+    };
 
     pub fn recursively_deinit(
         self: *@This(),
@@ -674,6 +700,7 @@ test "clip topology construction"
     // setting the bounds on the clip
     {
         var cl = Clip {
+            .media = .null_picture,
             .maybe_bounds_s = test_data.T_INT_1_TO_9,
         };
 
@@ -702,7 +729,10 @@ test "clip topology construction"
     {
         var cl = Clip {
             .media = .{
+                .ref = .empty,
                 .maybe_bounds_s = test_data.T_INT_1_TO_9,
+                .domain = .picture,
+                .interpolating = .snap,
             },
         };
 
@@ -733,6 +763,7 @@ test "track topology construction"
     const allocator = std.testing.allocator;
 
     var cl = Clip {
+        .media = .null_picture,
         .maybe_bounds_s = test_data.T_INT_1_TO_9, 
     };
 
@@ -784,8 +815,11 @@ test "Clip: Animated Parameter example"
         allocator,
         .{ 
             .media = .{
-                .discrete_info = media_discrete_info 
+                .ref = .empty,
+                .domain = .picture,
+                .interpolating = .snap,
                 .maybe_bounds_s = media_source_range,
+                .maybe_discrete_partition = media_discrete_info 
             },
         }
     );
@@ -809,11 +843,19 @@ test "Clip: Animated Parameter example"
         }
     ).parameter();
 
-    var lens_data = Clip.ParameterMap.init(allocator);
-    try lens_data.put("focus_distance", focus_distance);
+    var lens_data: Clip.ParameterMap = .empty;
+    try lens_data.put(
+        allocator,
+        "focus_distance",
+        focus_distance,
+    );
 
     const param = Clip.to_param(&lens_data);
-    try cl.parameters.?.put( "lens",param );
+    try cl.maybe_parameters.?.put(
+        allocator,
+        "lens",
+        param,
+    );
 }
 
 test "warp topology"
@@ -823,6 +865,7 @@ test "warp topology"
     // setting the bounds on the clip
     {
         var cl = Clip {
+            .media = .null_picture,
             .maybe_bounds_s = test_data.T_INT_1_TO_9,
         };
 
@@ -875,6 +918,7 @@ test "warp topology"
     // with an offset (no change)
     {
         var cl = Clip {
+            .media = .null_picture,
             .maybe_bounds_s = test_data.T_INT_1_TO_9,
         };
 
@@ -927,6 +971,7 @@ test "warp topology"
     // negative scale
     {
         var cl = Clip {
+            .media = .null_picture,
             .maybe_bounds_s = test_data.T_INT_1_TO_9,
         };
 
