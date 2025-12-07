@@ -113,6 +113,17 @@ void otio_write_map_to_png(
         const char*
 );
 
+// Domains
+///////////////////////////////////////////////////////////////////////////////
+typedef enum otio_Domain {
+    otio_dm_time,
+    otio_dm_picture,
+    otio_dm_audio,
+    otio_dm_metadata,
+    otio_dm_other,
+} otio_Domain;
+///////////////////////////////////////////////////////////////////////////////
+
 // Spaces
 ///////////////////////////////////////////////////////////////////////////////
 typedef enum otio_SpaceLabel { 
@@ -131,8 +142,10 @@ typedef struct otio_DiscreteDatasourceIndexGenerator {
 int otio_fetch_discrete_info(
         otio_ComposedValueRef,
         otio_SpaceLabel,
+        otio_Domain,
         otio_DiscreteDatasourceIndexGenerator*);
 size_t otio_fetch_continuous_ordinate_to_discrete_index(
         otio_ComposedValueRef,
         float,
-        otio_SpaceLabel);
+        otio_SpaceLabel,
+        otio_Domain);

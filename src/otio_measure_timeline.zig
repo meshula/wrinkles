@@ -198,7 +198,7 @@ pub fn main(
             items += child.track.children.len;
         }
 
-        tl_ref.timeline.discrete_info.presentation = .{
+        tl_ref.timeline.discrete_space_partitions.presentation.picture = .{
             .sample_rate_hz = .{ .Int = 24 },
             .start_index = 86400,
         };

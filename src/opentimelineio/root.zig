@@ -21,6 +21,9 @@ pub const Track = schema.Track;
 pub const Stack = schema.Stack;
 pub const Timeline = schema.Timeline;
 
+pub const domain = @import("domain.zig");
+pub const Domain = domain.Domain;
+
 const otio_json = @import("opentimelineio_json.zig");
 
 pub const read_from_file = otio_json.read_from_file;
@@ -36,4 +39,5 @@ test {
     _ = schema;
     _ = references;
     _ = projection;
+    _ = domain;
 }
