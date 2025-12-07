@@ -72,6 +72,15 @@ temporal hierarchies of editorial documents.
   language bindings
 * explicitly model references into the hierarchy
 
+### Unsupported/Unimplemented Features From OTIO v1
+
+There are some features that we didn't include in this prototype, because they
+didn't impact the deisgn or problems we were specifically solving.
+
+* Multiple media references (left eye/right eye)
+* Metadata
+* Spatial Coordinate Systems
+
 ## Ideal Demonstrator Gui App 8/23
 
 * timeline view
@@ -112,6 +121,9 @@ temporal hierarchies of editorial documents.
     * [x] Add type
     * [ ] Animated parameter for amount [0, 1)
     * [ ] add a boundary to the transition
+* [ ] Separate the concept of a presentation discrete space (which requires an
+      additional domain to resolve) from a media presentation space (in which
+      the domain is implicitly encoded on the container reference)
 * [ ] Currently references.ComposedValueRef.recursively_deinit is doing a lot
       of heavy lifting.  This should probably be pushed into schema and made
       consistent -- Just have deinit() and that be the recursive deinit thing.
@@ -131,28 +143,30 @@ temporal hierarchies of editorial documents.
     * [ ] Warp Schema: multi segment bezier / pt-tangent form
 * [ ] Serializer 
 * [ ] visualizer
-    * [ ] Options pane
     * [ ] Normalized view that sorts by track and normalizes output range 0-1
           for each leaf
     * [ ] performance pass
         * [ ] option to only show discrete space under mouse
         * [ ] detect large timelines and default ^ to on for large timelines
-    * [x] rearrange based on a table of all the children to control visibility
     * [ ] UI to represent tracks?
+        * [ ] raven-lite. would be nice to confirm the view for the feature
+              timeline (feels like there is an offset in there?)
+    * [ ] add ALL nodes to the table instead of just terminal spaces
+      * [ ] allow controlling visibility from intermediate (non-plotted) scopes
+      * [ ] optionally plot intermediate scopes
+    * [ ] add visibility controls over the hierarchy
+    * [x] Options pane
+    * [x] rearrange based on a table of all the children to control visibility
     * [x] visualize discrete spaces (stairstep plot in implot?)
-    * [ ] struct data visualizer/editor
+    * [x] struct data visualizer/editor
     * [x] vertical bars to see cuts
-    * [ ] highlight overlapped item and show in graph
+    * [x] highlight overlapped item and show in graph
     * [x] add "s" suffix to continuous times
     * [x] add hover behavior to otio_space_visualizer that lists active media
           per cut point, index, etc.
       * [x] continuous time
       * [x] draw points on plot
       * [x] show discrete time too (? draw discrete point?)
-    * [ ] add ALL nodes to the table instead of just terminal spaces
-      * [ ] allow controlling visibility from intermediate (non-plotted) scopes
-      * [ ] optionally plot intermediate scopes
-    * [ ] add visibility controls over the hierarchy
 * [ ] code cleanup pass on projection_builder
 * [ ] C++ test API
 * [ ] Python test API (ziggy-pydust)
