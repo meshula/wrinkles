@@ -40,13 +40,14 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     ///////////////////////////////////////////////////////////////////////////
     // clips
     var cl1:otio.Clip = .{
-        .name = "Spaghetti.mov",
-        .bounds_s = .{
+        .maybe_name = "Spaghetti.mov",
+        .maybe_bounds_s = .{
             .start = opentime.Ordinate.ONE,
             .end = opentime.Ordinate.init(3),
         },
         .media = .{
             .discrete_info = .{
+            .maybe_bounds_s = null,
                 .sample_rate_hz = .{ .Int = 24 },
                 .start_index = 10,
             },
@@ -56,9 +57,9 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         .duration_seconds = opentime.Ordinate.ONE,
     };
     var cl2: otio.Clip = .{
-        .name = "Taco.mov",
+        .maybe_name = "Taco.mov",
         .media = .{
-            .bounds_s = .{
+            .maybe_bounds_s = .{
                 .start = opentime.Ordinate.init(10),
                 .end = opentime.Ordinate.init(11), 
             },
@@ -76,7 +77,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
 
     // track
     var tr: otio.Track = .{
-        .name = "Example Parent Track",
+        .maybe_name = "Example Parent Track",
         .children = &track_children,
     };
 
@@ -85,8 +86,8 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         tr.reference(),
     };
     var tl: otio.Timeline = .{
-        .name = "Example Timeline - high level procedural test",
         .discrete_info = .{ 
+        .maybe_name = "Example Timeline - high level procedural test",
             .presentation = .{
                 .sample_rate_hz = .{ .Int = 24 },
                 .start_index = 86400,
@@ -141,7 +142,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         opentime.dbg_print(@src(),
             "Media Frames Needed to Render '{s}'\n",
             .{
-                tr.name orelse "pasta"
+                tr.maybe_name orelse "pasta"
             }
         );
         opentime.dbg_print(@src(),
@@ -274,7 +275,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
                     "    Source: \n      target: {?s}\n"
                     ++ "      frames: {any}\n",
                     .{ 
-                        op.destination.ref.clip.name orelse "pasta",
+                        op.destination.ref.clip.maybe_name orelse "pasta",
                         dest_frames,
                     }
                 );
@@ -288,10 +289,10 @@ test "libsamplerate w/ high level test -- resample only"
     const allocator = std.testing.allocator;
 
     var cl1 = otio.Clip {
-        .name = "Spaghetti.mov",
+        .maybe_name = "Spaghetti.mov",
         .media = .{
-            .bounds_s = T_INT_SIGNAL,
             .discrete_info = .{
+            .maybe_bounds_s = T_INT_SIGNAL,
                 .sample_rate_hz = .{ .Int = 48000 },
                 .start_index = 0,
             },
@@ -311,7 +312,7 @@ test "libsamplerate w/ high level test -- resample only"
     };
     const cl_ptr = track_children[0];
     var tr: otio.Track = .{
-        .name = "Example Parent Track",
+        .maybe_name = "Example Parent Track",
         .children = &track_children,
     };
     var stack_children = [_]otio.ComposedValueRef{
@@ -319,8 +320,8 @@ test "libsamplerate w/ high level test -- resample only"
     };
     const tr_ptr = stack_children[0];
     const tl: otio.Timeline = .{
-        .name = "Example Timeline - resample only test",
         .discrete_info = .{ 
+        .maybe_name = "Example Timeline - resample only test",
             .presentation = .{
                 .sample_rate_hz = .{ .Int = 44100 },
                 .start_index = 86400,
@@ -337,7 +338,7 @@ test "libsamplerate w/ high level test -- resample only"
             .media
         );
         try std.testing.expect(
-            cl1.media.bounds_s.?.start.lt(cl1.media.bounds_s.?.end)
+            cl1.media.maybe_bounds_s.?.start.lt(cl1.media.maybe_bounds_s.?.end)
         );
         try std.testing.expect(bounds.end.eql(0) == false);
         try std.testing.expect(bounds.start.lt(bounds.end));
@@ -392,7 +393,7 @@ test "libsamplerate w/ high level test -- resample only"
     const media_samples = (
         try cl1.media.ref.signal.signal_generator.rasterized(
             allocator,
-            cl1.media.discrete_info.?,
+            cl1.media.maybe_discrete_partition.?,
             true,
         )
     );
@@ -438,10 +439,10 @@ test "libsamplerate w/ high level test.retime.interpolating"
     const allocator = std.testing.allocator;
 
     var cl1 = otio.Clip {
-        .name = "Clip w/ media ref pointing at a Sine Signal",
+        .maybe_name = "Clip w/ media ref pointing at a Sine Signal",
         .media = .{
-            .bounds_s = T_INT_SIGNAL,
             .discrete_info = .{
+            .maybe_bounds_s = T_INT_SIGNAL,
                 .sample_rate_hz = .{ .Int = 48000 },
                 .start_index = 0,
             },
@@ -463,7 +464,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
 
     // new for this test - add in an warp on the clip
     var wp: otio.Warp = .{
-        .name = "-1 offset 2 scale",
+        .maybe_name = "-1 offset 2 scale",
         .child = cl_ptr,
         .transform = try topology.Topology.init_affine(
             allocator,
@@ -479,15 +480,15 @@ test "libsamplerate w/ high level test.retime.interpolating"
         otio.ComposedValueRef.init(&wp),
     };
     var tr: otio.Track = .{
-        .name ="Example Parent Track",
+        .maybe_name ="Example Parent Track",
         .children = &track_children,
     };
     const tr_ptr = otio.ComposedValueRef.init(&tr);
 
     var stack_children = [_]otio.ComposedValueRef{tr_ptr};
     var tl: otio.Timeline = .{
-        .name = "Example Timeline test.retime.interpolating",
         .discrete_info = .{ 
+        .maybe_name = "Example Timeline test.retime.interpolating",
             .presentation = .{
                 // matches the media rate
                 .sample_rate_hz = .{ .Int = 48000 },
@@ -591,10 +592,10 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     const allocator = std.testing.allocator;
 
     var cl1 = otio.Clip {
-        .name = "Sine Wave",
+        .maybe_name = "Sine Wave",
         .media = .{
-            .bounds_s = T_INT_SIGNAL,
             .discrete_info = .{
+            .maybe_bounds_s = T_INT_SIGNAL,
                 .sample_rate_hz = .{ .Int = 48000 },
                 .start_index = 0,
             },
@@ -627,7 +628,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
         .{ .warp = &warp },
     };
     var tr: otio.Track = .{
-        .name = "Example Parent Track",
+        .maybe_name = "Example Parent Track",
         .children = &track_children,
     };
     const tr_ptr = otio.ComposedValueRef{
@@ -638,7 +639,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
         tr_ptr,
     };
     const tl: otio.Timeline = .{
-        .name = (
+        .maybe_name = (
             "Example Timeline - high level test.retime.non_interpolating"
         ),
         .discrete_info = .{ 
@@ -758,10 +759,10 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     const sample_rate = 48000;
 
     var cl1 = otio.Clip {
-        .name = "Spaghetti.mov",
+        .maybe_name = "Spaghetti.mov",
         .media = .{
-            .bounds_s = T_INT_SIGNAL,
             .discrete_info = .{
+            .maybe_bounds_s = T_INT_SIGNAL,
                 .sample_rate_hz = .{ .Int = sample_rate },
                 .start_index = 0,
             },
@@ -803,7 +804,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
         .{ .warp = &wp_reverse },
     };
     var tr: otio.Track = .{
-        .name = "Parent Track",
+        .maybe_name = "Parent Track",
         .children = &track_children,
     };
 
@@ -887,10 +888,10 @@ test "timeline w/ warp that holds the tenth frame"
 
     // clips
     var cl1 = otio.Clip {
-        .name = "Spaghetti.mov",
+        .maybe_name = "Spaghetti.mov",
         .media = .{
-            .bounds_s = T_INT_SIGNAL,
             .discrete_info = .{
+            .maybe_bounds_s = T_INT_SIGNAL,
                 .sample_rate_hz = .{ .Int = 24 },
                 .start_index = 0,
             },
@@ -942,7 +943,7 @@ test "timeline w/ warp that holds the tenth frame"
         warp_ptr,
     };
     var tr: otio.Track = .{
-        .name = "Example Parent Track",
+        .maybe_name = "Example Parent Track",
         .children = &tr_children,
     };
     const tr_ptr = otio.ComposedValueRef.init(&tr);
@@ -1028,9 +1029,8 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     ///////////////////////////////////////////////////////////////////////////
 
     var cl = otio.Clip {
-        .name = "Clip at 24",
+        .maybe_name = "Clip at 24",
         .media = .{
-            .bounds_s = .{
                 .start = opentime.Ordinate.ZERO,
                 .end = opentime.Ordinate.init(24000),
             },
@@ -1046,7 +1046,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
         cl_ptr
     };
     var tr: otio.Track = .{
-        .name = "Track for clip",
+        .maybe_name = "Track for clip",
         .children = &tr_children,
     };
 
@@ -1054,8 +1054,8 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
         otio.ComposedValueRef.init(&tr),
     };
     var tl: otio.Timeline = .{
-        .name = "Timeline @ 24 * 1000/1001 with media showing skew",
         .discrete_info = .{ 
+        .maybe_name = "Timeline @ 24 * 1000/1001 with media showing skew",
             .presentation = .{
                 .sample_rate_hz = .{ 
                     // matches the media rate
@@ -1122,7 +1122,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     ////////////////////////////////////
 
     const TestCase = struct {
-        name: []const u8,
+        maybe_name: []const u8,
         tl_pres_index: sampling.sample_index_t,
         cl_media_indices: []const sampling.sample_index_t,
     };
@@ -1132,19 +1132,19 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     // timeline will always overlap multiple samples of the clip
     const tests = [_]TestCase{
         .{ 
-            .name = "zero",
+            .maybe_name = "zero",
             // 24 * 1000/1001
             .tl_pres_index = 0,
             // 24
             .cl_media_indices = &.{ 0, 1 },
         },
         .{ 
-            .name = "one thousand",
+            .maybe_name = "one thousand",
             .tl_pres_index = 1000,
             .cl_media_indices = &.{ 1001, 1002 },
         },
         .{ 
-            .name = "24 thousand",
+            .maybe_name = "24 thousand",
             .tl_pres_index = 24000,
             .cl_media_indices = &.{ 24024, 24025 },
         },

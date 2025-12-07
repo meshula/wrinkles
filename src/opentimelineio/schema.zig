@@ -56,10 +56,9 @@ pub const MediaDataReference = union(enum) {
 pub const MediaReference = struct {
     ref: MediaDataReference = .EMPTY_REF,
 
-    /// bounds of the media space continuous time
-    bounds_s: ?opentime.ContinuousInterval = null,
-    // @TODO: should there also be a bounds in sample index space?  Or one or
-    //        the other?
+    /// bounds of the media space continuous time, the interval of media time
+    /// in which the media is defined
+    maybe_bounds_s: ?opentime.ContinuousInterval,
 
     discrete_info: ?sampling.SampleIndexGenerator = null,
     // should be part of the transform?
@@ -69,10 +68,10 @@ pub const MediaReference = struct {
 /// clip with an implied media reference
 pub const Clip = struct {
     /// identifier name
-    name: ?string.latin_s8 = null,
+    maybe_name: ?string.latin_s8 = null,
 
     /// a trim on the media space, in the media coordinate system
-    bounds_s: ?opentime.ContinuousInterval = null,
+    maybe_bounds_s: ?opentime.ContinuousInterval = null,
 
     /// Information about the media this clip cuts into the track
     media: MediaReference = .{},
@@ -122,10 +121,10 @@ pub const Clip = struct {
     {
         var result = copy_from;
         
-        if (copy_from.name)
+        if (copy_from.maybe_name)
             |n|
         {
-            result.name = try allocator.dupe(u8, n);
+            result.maybe_name = try allocator.dupe(u8, n);
         }
         if (copy_from.parameters)
             |params|
@@ -146,7 +145,7 @@ pub const Clip = struct {
     ) !opentime.ContinuousInterval 
     {
         const maybe_bounds_s = (
-            self.bounds_s orelse self.media.bounds_s
+            self.maybe_bounds_s orelse self.media.maybe_bounds_s
         );
 
         if (maybe_bounds_s)
@@ -170,8 +169,8 @@ pub const Clip = struct {
     ) !topology_m.Topology 
     {
         const media_bounds = (
-            self.bounds_s 
-            orelse self.media.bounds_s 
+            self.maybe_bounds_s 
+            orelse self.media.maybe_bounds_s 
             orelse return error.NotImplementedFetchTopology
         );
 
@@ -208,7 +207,7 @@ pub const Clip = struct {
         allocator: std.mem.Allocator,
     ) void
     {
-        if (self.name)
+        if (self.maybe_name)
             |n|
         {
             allocator.free(n);
@@ -238,7 +237,7 @@ test "Clip: spaces list"
 
 /// represents a space in the timeline without media
 pub const Gap = struct {
-    name: ?string.latin_s8 = null,
+    maybe_name: ?string.latin_s8 = null,
     duration_seconds: opentime.Ordinate,
 
     pub const internal_spaces: []const references.SpaceLabel = (
@@ -265,7 +264,7 @@ pub const Gap = struct {
 /// with a stack of children
 pub const Transition = struct {
     container: Stack,
-    name: ?string.latin_s8,
+    maybe_name: ?string.latin_s8,
     // for now, string tag the type (IE "crossdissolve")
     kind: string.latin_s8,
     range: ?opentime.ContinuousInterval,
@@ -295,11 +294,11 @@ pub const Transition = struct {
     ) void 
     {
         self.container.recursively_deinit(allocator);
-        if (self.name)
+        if (self.maybe_name)
             |n|
         {
             allocator.free(n);
-            self.name = null;
+            self.maybe_name = null;
         }
         allocator.free(self.kind);
     }
@@ -308,7 +307,7 @@ pub const Transition = struct {
 /// a warp is an additional nonlinear transformation between the warp.parent
 /// and and warp.child.presentation spaces.
 pub const Warp = struct {
-    name: ?string.latin_s8 = null,
+    maybe_name: ?string.latin_s8 = null,
     child: references.ComposedValueRef,
     transform: topology_m.Topology,
     interpolating: bool = false,
@@ -388,15 +387,15 @@ pub const Warp = struct {
 
 /// a container in which each contained item is right-met over time
 pub const Track = struct {
-    name: ?string.latin_s8 = null,
+    maybe_name: ?string.latin_s8 = null,
     children: []references.ComposedValueRef = &.{},
 
     pub const internal_spaces: []const references.SpaceLabel = (
         &.{ .presentation, .intrinsic }
     );
 
-    pub const EMPTY = Track{
-        .name = null,
+    pub const empty = Track{
+        .maybe_name = null,
         .children = &.{},
     };
 
@@ -419,11 +418,11 @@ pub const Track = struct {
         allocator: std.mem.Allocator,
     ) void 
     {
-        if (self.name)
+        if (self.maybe_name)
             |n|
         {
             allocator.free(n);
-            self.name = null;
+            self.maybe_name = null;
         }
         allocator.free(self.children);
     }
@@ -524,7 +523,7 @@ pub const Track = struct {
 
 /// children of a stack are simultaneous in time
 pub const Stack = struct {
-    name: ?string.latin_s8 = null,
+    maybe_name: ?string.latin_s8 = null,
     children: []references.ComposedValueRef = &.{},
 
     pub const internal_spaces: []const references.SpaceLabel = (
@@ -536,11 +535,11 @@ pub const Stack = struct {
         allocator: std.mem.Allocator,
     ) void 
     {
-        if (self.name)
+        if (self.maybe_name)
             |n|
         {
             allocator.free(n);
-            self.name = null;
+            self.maybe_name = null;
         }
         allocator.free(self.children);
     }
@@ -606,7 +605,7 @@ pub const Stack = struct {
 
 /// top level object
 pub const Timeline = struct {
-    name: ?string.latin_s8 = null,
+    maybe_name: ?string.latin_s8 = null,
     tracks:Stack = .{},
 
     /// currently there is a single discrete_info struct for the "presentation
@@ -643,11 +642,11 @@ pub const Timeline = struct {
         allocator: std.mem.Allocator,
     ) void 
     {
-        if (self.name)
+        if (self.maybe_name)
             |n|
         {
             allocator.free(n);
-            self.name = null;
+            self.maybe_name = null;
         }
         self.tracks.recursively_deinit(allocator);
     }
@@ -675,7 +674,7 @@ test "clip topology construction"
     // setting the bounds on the clip
     {
         var cl = Clip {
-            .bounds_s = test_data.T_INT_1_TO_9,
+            .maybe_bounds_s = test_data.T_INT_1_TO_9,
         };
 
         const topo = try cl.topology(allocator);
@@ -703,7 +702,7 @@ test "clip topology construction"
     {
         var cl = Clip {
             .media = .{
-                .bounds_s = test_data.T_INT_1_TO_9,
+                .maybe_bounds_s = test_data.T_INT_1_TO_9,
             },
         };
 
@@ -734,7 +733,7 @@ test "track topology construction"
     const allocator = std.testing.allocator;
 
     var cl = Clip {
-        .bounds_s = test_data.T_INT_1_TO_9, 
+        .maybe_bounds_s = test_data.T_INT_1_TO_9, 
     };
 
     var tr_children = [_]references.ComposedValueRef{
@@ -785,8 +784,8 @@ test "Clip: Animated Parameter example"
         allocator,
         .{ 
             .media = .{
-                .bounds_s = media_source_range,
                 .discrete_info = media_discrete_info 
+                .maybe_bounds_s = media_source_range,
             },
         }
     );
@@ -824,7 +823,7 @@ test "warp topology"
     // setting the bounds on the clip
     {
         var cl = Clip {
-            .bounds_s = test_data.T_INT_1_TO_9,
+            .maybe_bounds_s = test_data.T_INT_1_TO_9,
         };
 
         const xform = opentime.AffineTransform1D {
@@ -876,7 +875,7 @@ test "warp topology"
     // with an offset (no change)
     {
         var cl = Clip {
-            .bounds_s = test_data.T_INT_1_TO_9,
+            .maybe_bounds_s = test_data.T_INT_1_TO_9,
         };
 
         const xform = opentime.AffineTransform1D {
@@ -928,7 +927,7 @@ test "warp topology"
     // negative scale
     {
         var cl = Clip {
-            .bounds_s = test_data.T_INT_1_TO_9,
+            .maybe_bounds_s = test_data.T_INT_1_TO_9,
         };
 
         const xform = opentime.AffineTransform1D {

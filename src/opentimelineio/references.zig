@@ -152,31 +152,31 @@ pub const ComposedValueRef = union(enum) {
                 wp.child.recursively_deinit(allocator);
                 wp.transform.deinit(allocator);
 
-                if (wp.name)
+                if (wp.maybe_name)
                     |n|
                 {
                     allocator.free(n);
-                    wp.name = null;
+                    wp.maybe_name = null;
                 }
 
                 allocator.destroy(wp);
             },
             .timeline => |tl| {
                 tl.*.tracks.recursively_deinit(allocator);
-                if (tl.name)
+                if (tl.maybe_name)
                     |n|
                 {
                     allocator.free(n);
-                    tl.name = null;
+                    tl.maybe_name = null;
                 }
                 allocator.destroy(tl);
             },
             inline else => |o| {
-                if (o.name)
+                if (o.maybe_name)
                     |n|
                 {
                     allocator.free(n);
-                    o.name = null;
+                    o.maybe_name = null;
                 }
                 allocator.destroy(o);
             },
@@ -184,12 +184,12 @@ pub const ComposedValueRef = union(enum) {
     }
 
     /// return the name field of the referenced object
-    pub fn name(
+    pub fn maybe_name(
         self: @This(),
     ) ?[]const u8
     {
         return switch (self) {
-            inline else => |t| t.name
+            inline else => |t| t.maybe_name
         };
     }
 
@@ -607,7 +607,7 @@ pub const ComposedValueRef = union(enum) {
         try writer.print(
             "{s}.{s}",
             .{
-                self.name() orelse "null",
+                self.maybe_name() orelse "null",
                 @tagName(self),
             }
         );
@@ -649,13 +649,14 @@ pub const ComposedValueRef = union(enum) {
 
 test "ComposedValueRef init test"
 {
-    var clip = schema.Clip{.name = "hi"};
+    var clip: schema.Clip = .null_picture;
+    clip.maybe_name = "pasta";
 
     const cvr_clip = ComposedValueRef.init(&clip);
 
     try std.testing.expectEqualStrings(
-        clip.name.?,
-        cvr_clip.clip.name.?,
+        clip.maybe_name.?,
+        cvr_clip.clip.maybe_name.?,
     );
     try std.testing.expectEqual(&clip, cvr_clip.clip);
 }

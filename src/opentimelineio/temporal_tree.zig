@@ -338,7 +338,7 @@ test "build_temporal_tree check root node"
     for (&clips, &refs)
         |*cl_p, *ref|
     {
-        cl_p.bounds_s = cti;
+        cl_p.maybe_bounds_s = cti;
 
         ref.* = references.ComposedValueRef.init(cl_p);
     }
@@ -429,7 +429,7 @@ test "TestWalkingIterator: clip"
     const media_source_range = T_CTI_1_10;
 
     var cl = schema.Clip {
-        .bounds_s = media_source_range,
+        .maybe_bounds_s = media_source_range,
     };
     const cl_ptr = references.ComposedValueRef.init(&cl);
 
@@ -459,10 +459,10 @@ test "TestWalkingIterator: track with clip w/ destination"
 
     // construct the clip and add it to the track
     var cl = schema.Clip {
-        .bounds_s = media_source_range,
+        .maybe_bounds_s = media_source_range,
     };
     var cl2 = schema.Clip {
-        .bounds_s = media_source_range,
+        .maybe_bounds_s = media_source_range,
     };
     const cl_ptr = references.ComposedValueRef.init(&cl2);
 
@@ -721,7 +721,7 @@ test "path_code: tree test"
         |*cl, *cl_p|
     {
         cl.* = schema.Clip {
-            .bounds_s = test_data_m.T_INT_1_TO_9,
+            .maybe_bounds_s = test_data_m.T_INT_1_TO_9,
         };
 
         cl_p.* = references.ComposedValueRef.init(cl);
@@ -811,7 +811,7 @@ test "schema.Track with clip with identity transform projection"
     const range = test_data_m.T_INT_1_TO_9;
 
     const cl_template = schema.Clip{
-        .bounds_s = range
+        .maybe_bounds_s = range,
     };
 
     var clips: [11]schema.Clip = undefined;
@@ -883,7 +883,7 @@ test "Temporaltree: schema.Track with clip with identity transform"
     const allocator = std.testing.allocator;
 
     var cl = schema.Clip{
-        .bounds_s = test_data_m.T_INT_0_TO_2,
+        .maybe_bounds_s = test_data_m.T_INT_0_TO_2,
     };
     const cl_ref = references.ComposedValueRef.init(&cl);
 
@@ -1003,10 +1003,10 @@ test "test debug_print_time_hierarchy"
 
     // clips
     var cl1 = schema.Clip {
-        .name = "Spaghetti.wav",
+        .maybe_name = "Spaghetti.wav",
         .media = .{
-            .bounds_s = null,
             .discrete_info = .{
+            .maybe_bounds_s = null,
                 .sample_rate_hz = .{ .Int = 24 },
                 .start_index = 0,
             },
@@ -1038,7 +1038,7 @@ test "test debug_print_time_hierarchy"
         references.ComposedValueRef.init(&wp),
     };
     var tr: schema.Track = .{
-        .name = "Example Parent schema.Track",
+        .maybe_name = "Example Parent schema.Track",
         .children = &tr_children,
     };
 
@@ -1046,8 +1046,8 @@ test "test debug_print_time_hierarchy"
         references.ComposedValueRef.init(&tr),
     };
     var tl: schema.Timeline = .{
-        .name = "test debug_print_time_hierarchy",
         .discrete_info = .{ 
+        .maybe_name = "test debug_print_time_hierarchy",
             .presentation = .{
                 // matches the media rate
                 .sample_rate_hz = .{ .Int = 24 },
@@ -1075,8 +1075,8 @@ test "track child after gap - use presentation space to compute offset"
         .duration_seconds = opentime.Ordinate.init(3),
     };
     var cl = schema.Clip {
-        .name = "target_clip",
-        .bounds_s = @import(
+        .maybe_name = "target_clip",
+        .maybe_bounds_s = @import(
             "test_structures.zig"
         ).T_INT_1_TO_9, 
     };
@@ -1091,7 +1091,7 @@ test "track child after gap - use presentation space to compute offset"
         references.ComposedValueRef.init(&gp2),
     };
     var tr: schema.Track = .{
-        .name = "root",
+        .maybe_name = "root",
         .children = &tr_children,
     };
     const tr_ref = references.ComposedValueRef.init(&tr);
@@ -1124,7 +1124,7 @@ test "track child after gap - use presentation space to compute offset"
         tr_pres_to_cl_media.source_bounds().start,
     );
     try opentime.expectOrdinateEqual(
-        gp.duration_seconds.add(cl.bounds_s.?.duration()), 
+        gp.duration_seconds.add(cl.maybe_bounds_s.?.duration()), 
         tr_pres_to_cl_media.source_bounds().end,
     );
 

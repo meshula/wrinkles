@@ -571,12 +571,12 @@ pub fn read_otio_object(
                 )
             );
             const st = otio.Stack{
-                .name = so_stack.stack.name,
+                .maybe_name = so_stack.stack.maybe_name,
                 .children = so_stack.stack.children,
             };
             const tl = try allocator.create(otio.Timeline);
             tl.* = .{
-                .name = maybe_name,
+                .maybe_name = maybe_name,
                 .tracks = st,
                 .discrete_info = .{
                     .presentation = null,
@@ -588,7 +588,7 @@ pub fn read_otio_object(
         .Stack => {
             // @TODO: add stack init that takes a name string and copies it in 
             var st = try allocator.create(otio.Stack);
-            st.name = maybe_name;
+            st.maybe_name = maybe_name;
 
             if (obj.get("children"))
                 |children|
@@ -603,7 +603,7 @@ pub fn read_otio_object(
         },
         .Track => {
             var tr = try allocator.create(otio.Track);
-            tr.name = maybe_name;
+            tr.maybe_name = maybe_name;
 
             if (obj.get("children"))
                 |children|
@@ -627,8 +627,8 @@ pub fn read_otio_object(
 
             var cl = try allocator.create(otio.Clip);
             cl.* = .{
-                .name = maybe_name,
-                .bounds_s  = range,
+                .maybe_name = maybe_name,
+                .maybe_bounds_s  = range,
             };
 
             // @TODO: read more of the media reference
@@ -648,7 +648,7 @@ pub fn read_otio_object(
             const source_range = _read_range(obj);
             const gp = try allocator.create(otio.Gap);
             gp.* = .{
-                .name= maybe_name,
+                .maybe_name= maybe_name,
                 .duration_seconds = source_range.?.duration(),
             };
 
@@ -657,7 +657,7 @@ pub fn read_otio_object(
         .Warp => {
             const wp = try allocator.create(otio.Warp);
             wp.* = .{
-                .name = maybe_name,
+                .maybe_name = maybe_name,
                 .child = try read_otio_object(
                     allocator,
                     obj.get("child").?.object
@@ -683,12 +683,12 @@ pub fn read_otio_object(
                 obj.get("container").?.object,
             );
             const container = otio.Stack {
-                .name = container_json.stack.name,
+                .maybe_name = container_json.stack.maybe_name,
                 .children = container_json.stack.children,
             };
             allocator.destroy(container_json.stack);
             tx.* = .{
-                .name = maybe_name,
+                .maybe_name = maybe_name,
                 .container = container,
                 .kind = (try maybe_string(allocator, obj, "kind")) orelse "None",
                 .range = null,
@@ -766,7 +766,7 @@ test "read_from_file test (simple)"
         try expectEqual(@as(usize, 4), track0.children.len);
         try std.testing.expectEqualStrings(
             "Clip-001",
-            track0.children[0].clip.name.?
+            track0.children[0].clip.maybe_name.?
         );
     }
 
