@@ -1,0 +1,81 @@
+{
+    "OTIO_SCHEMA": "Timeline.1",
+    "metadata": {},
+    "name": "Discrete Test Track",
+    "discrete_space_partitions" : {
+        "presentation": {
+            "picture": {
+                "OTIO_SCHEMA": "DiscreteSpacePartition.1",
+                "sample_rate_hz": 24,
+                "start_index": 100
+            },
+            "audio": {
+                "sample_rate_hz": 100,
+                "start_index": 0
+            }
+        }
+    },
+    "tracks": {
+        "OTIO_SCHEMA": "Stack.1",
+        "children": [
+            {
+                "OTIO_SCHEMA": "Track.1",
+                "children": [
+                    {
+                        "OTIO_SCHEMA": "Clip.1",
+                        "effects": [],
+                        "markers": [],
+                        "enabled": true,
+                        "media_reference": {
+                            "OTIO_SCHEMA": "ExternalReference.1",
+                            "available_range": {
+                                "OTIO_SCHEMA": "TimeRange.1",
+                                "duration": {
+                                    "OTIO_SCHEMA": "RationalTime.1",
+                                    "rate": 24,
+                                    "value": 8
+                                },
+                                "start_time": {
+                                    "OTIO_SCHEMA": "RationalTime.1",
+                                    "rate": 24,
+                                    "value": 0
+                                }
+                            },
+                            "metadata": {},
+                            "target_url": "file:///folder/titles.mov",
+                            "name": "Media-001"
+                        },
+                        "metadata": {},
+                        "name": "Clip-001",
+                        "source_range": {
+                            "OTIO_SCHEMA": "TimeRange.1",
+                            "duration": {
+                                "OTIO_SCHEMA": "RationalTime.1",
+                                "rate": 24,
+                                "value": 3
+                            },
+                            "start_time": {
+                                "OTIO_SCHEMA": "RationalTime.1",
+                                "rate": 24,
+                                "value": 3
+                            }
+                        }
+                    }
+                ],
+                "effects": [],
+                "kind": "Video",
+                "markers": [],
+                "enabled": true,
+                "metadata": {},
+                "name": "Track-001",
+                "source_range": null
+            }
+        ],
+        "effects": [],
+        "markers": [],
+        "enabled": true,
+        "metadata": {},
+        "name": "tracks",
+        "source_range": null
+    }
+}
