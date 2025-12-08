@@ -126,7 +126,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     const clip_indices = try timeline_to_clip2.project_range_cd(
         allocator,
         timeline_to_clip2.src_to_dst_topo.input_bounds(),
-        .audio,
+        .picture,
     );
     defer allocator.free(clip_indices);
 
@@ -768,7 +768,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
                     .start = start_tr_pres,
                     .end = start_tr_pres.add(2.0/48000.0),
                 },
-                .picture
+                .audio
             )
         );
         defer allocator.free(cl_media_indices);
