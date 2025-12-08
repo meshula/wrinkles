@@ -7,6 +7,7 @@ const curve = @import("curve");
 const interval = opentime.interval;
 const string = @import("string_stuff");
 const topology = @import("topology");
+const sampling = @import("sampling");
 
 pub const SerializableObjectTypes = enum {
     Timeline,
@@ -23,6 +24,17 @@ pub const TransformTypes = enum {
     LinearCurve1D,
     BezierCurve1D,
 };
+
+// in case you need to dump json object
+// fn debug_print() void
+// {
+//     const fmt = std.json.fmt(my_struct, .{ .whitespace = .indent_2 });
+//
+//     var writer = std.Io.Writer.Allocating.init(allocator);
+//     try fmt.format(&writer.writer);
+//
+//     const json_string = try writer.toOwnedSlice();
+// }
 
 fn maybe_object(
     maybe_obj: ?std.json.Value
@@ -480,6 +492,15 @@ inline fn read_children(
     OutOfBounds,
     UnsupportedSpaceError,
     NoSplitForLinearization,
+    Overflow,
+    InvalidCharacter,
+    UnexpectedToken,
+    InvalidNumber,
+    InvalidEnumTag,
+    UnknownField,
+    MissingField,
+    LengthMismatch,
+    DuplicateField,
 }![]otio.ComposedValueRef
 {
     const child_count = children.array.items.len;
@@ -553,6 +574,15 @@ pub fn read_otio_object(
     OutOfBounds,
     UnsupportedSpaceError,
     NoSplitForLinearization,
+    Overflow,
+    InvalidCharacter,
+    UnexpectedToken,
+    InvalidNumber,
+    InvalidEnumTag,
+    UnknownField,
+    MissingField,
+    LengthMismatch,
+    DuplicateField,
 } !otio.ComposedValueRef 
 {
     const schema_enum = try read_schema(
@@ -575,11 +605,77 @@ pub fn read_otio_object(
                 .children = so_stack.stack.children,
             };
             const tl = try allocator.create(otio.Timeline);
+
+            // discrete information
+            var ddp: otio.schema.DiscretePartitionDomainMap = .no_discretizations;
+
+            // fetch parent object if it exists
+            if (maybe_object(obj.get("discrete_space_partitions")))
+                |json_ddp|
+            {
+                if (maybe_object(json_ddp.get("presentation")))
+                    |json_ddp_pres|
+                {
+                    inline for (&[_][]const u8{"picture", "audio"})
+                        |field|
+                    {
+                        if (json_ddp_pres.get(field))
+                            |json_domain|
+                        {
+                            const discrete = &@field(
+                                ddp,
+                                field,
+                            );
+
+                            // const fmt = std.json.fmt(
+                            //     json_domain,
+                            //     .{
+                            //         .whitespace = .indent_2 
+                            //     }
+                            // );
+                            //
+                            // var writer = std.Io.Writer.Allocating.init(allocator);
+                            // fmt.format(&writer.writer) catch {};
+                            //
+                            // const json_string = try writer.toOwnedSlice();
+                            // defer allocator.free(json_string);
+                            //
+                            // std.debug.print(
+                            //     "parsing: {s}\n",
+                            //     .{
+                            //         json_string,
+                            //     }
+                            // );
+
+                            var json_blob = try std.json.parseFromValue(
+                                sampling.SampleIndexGenerator,
+                                allocator, 
+                                json_domain,
+                                .{
+                                    .allocate = .alloc_if_needed,
+                                    .ignore_unknown_fields = true,
+                                    .parse_numbers = true,
+                                    .duplicate_field_behavior = .use_last,
+                                },
+                            );
+                            defer json_blob.deinit();
+
+                            discrete.* = json_blob.value;
+
+                            std.debug.print(
+                                "found: blah {?f}\n",
+                                .{discrete.*}
+                            );
+                        }
+                    }
+                }
+            }
+
             tl.* = .{
                 .maybe_name = maybe_name,
                 .tracks = st,
                 .discrete_space_partitions = .{
-                    .presentation = .no_discretizations,
+                    .presentation = ddp,
                 },
             };
             allocator.destroy(so_stack.stack);
