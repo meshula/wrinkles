@@ -93,7 +93,7 @@ fn struct_editor_ui(
             else => @compileError(
                 "Field type: " 
                 ++ @typeName(field.type) 
-                ++ " not supported."
+                ++ " not supported.",
             ),
         }
     }
@@ -144,7 +144,7 @@ fn parent_path(
 
 fn set_source(
     allocator: std.mem.Allocator,
-    src: otio.references.SpaceReference
+    src: otio.references.SpaceReference,
 ) !void
 {
     STATE.maybe_src = src;
@@ -685,26 +685,6 @@ fn draw_hover_extras(
                     },
                 );
             }
-
-            // if (dest.discrete_info())
-            //     |_|
-            // {
-            //     const dest_time_discrete = (
-            //         try projection_operator.project_instantaneous_cd(
-            //             source_ord
-            //         )
-            //     );
-            //     var xs: [1]f64 = .{ mouse_pos[0] };
-            //     var ys: [1]f64 = .{ @floatFromInt(dest_time_discrete) }; 
-            //     zplot.plotScatter(
-            //         "Projected Point (Discrete)",
-            //         f64, 
-            //         .{
-            //             .xv = &xs,
-            //             .yv = &ys,
-            //         },
-            //     );
-            // }
         }
     }
 
@@ -769,7 +749,7 @@ fn draw_hover_extras(
 
         zgui.text(
             "{s}",
-            .{lbl}
+            .{lbl},
         );
     }
 }
@@ -798,7 +778,7 @@ fn label_for_ref(
     return try std.fmt.bufPrintZ(
         buf,
         "{s}.{?s}",
-        .{ @tagName(ref), ref.name() }
+        .{ @tagName(ref), ref.name() },
     );
 
 }
