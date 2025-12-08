@@ -59,13 +59,23 @@ const STATE = struct {
             label: [:0]const u8,
         }
     ) = .empty;
-    var discrete_points: std.MultiArrayList(PlotPoint2d) = .empty;
+
+    /// plotted space by domain
+    var discrete_points: struct {
+        audio: ?std.MultiArrayList(PlotPoint2d) = null,
+        picture: ?std.MultiArrayList(PlotPoint2d) = null,
+    } = .{};
 
     var maybe_cut_points: ?[]f32 = null;
 
     var maybe_hovered_interval: ?usize = null;
 
     var options: struct {
+        show_discrete_input_spaces: enum (u4) {
+            never,
+            hovered,
+            always,
+        } = .always,
         show_discrete_ouput_spaces: enum (u4) {
             never,
             hovered,
@@ -193,12 +203,21 @@ fn fill_topdown_point_buffers(
 {
     var points = &STATE.points;
     var slices = &STATE.slices;
-    var discrete_points = &STATE.discrete_points;
+    var discrete_points = STATE.discrete_points;
     const cut_points = &STATE.maybe_cut_points;
 
     // clear whatever is there
     points.deinit(allocator);
-    discrete_points.deinit(allocator);
+    inline for (&[_][]const u8{ "picture", "audio" })
+        |field|
+    {
+        if (@field(discrete_points, field))
+            |*discrete|
+        {
+            discrete.deinit(allocator);
+        }
+        @field(discrete_points, field) = null;
+    }
 
     if (cut_points.*)
         |cp|
@@ -215,7 +234,8 @@ fn fill_topdown_point_buffers(
 
     points.* = .empty;
     slices.* = .empty;
-    discrete_points.* = .empty;
+    discrete_points.picture = null;
+    discrete_points.audio = null;
     cut_points.* = null;
 
     // var label_writer = label_bucket.writer(allocator);
@@ -472,22 +492,27 @@ fn fill_topdown_point_buffers(
     std.debug.assert(slices.len != 0);
 
     // generate the discrete space, if there is a definition on the source
-    inline for (@typeInfo(otio.Domain).@"union".fields)
+    inline for (&[_][]const u8{"picture", "audio"})
         |field|
     {
         const domain = @unionInit(
             otio.Domain,
-            field.name,
+            field,
             undefined,
         );
+
+        const result = &@field(STATE.discrete_points, field);
+        result.* = null;
+
         if (STATE.maybe_src.?.discrete_info(domain))
             |discrete_info|
         {
+            result.* = .empty;
             const buffer_length = discrete_info.buffer_size_for_length(
                 builder.input_bounds().duration()
             );
 
-            try STATE.discrete_points.ensureTotalCapacity(
+            try result.*.?.ensureTotalCapacity(
                 allocator, 
                 // two points per index to create horizontal line
                 2 * buffer_length,
@@ -498,13 +523,13 @@ fn fill_topdown_point_buffers(
             {
                 const ord = discrete_info.ord_interval_for_index(index);
 
-                STATE.discrete_points.appendAssumeCapacity(
+                result.*.?.appendAssumeCapacity(
                     .{
                         .x = ord.start.as(f32),
                         .y = ord.start.as(f32),
                     }
                 );
-                STATE.discrete_points.appendAssumeCapacity(
+                result.*.?.appendAssumeCapacity(
                     .{
                         .x = ord.end.as(f32),
                         .y = ord.start.as(f32),
@@ -1304,7 +1329,7 @@ fn draw(
 
                                 const plotlabel = try std.fmt.bufPrintZ(
                                     buf,
-                                    "Full Range of {s}",
+                                    "Continuous Presentation Space of {s}",
                                     .{ input_space_name },
                                 );
 
@@ -1326,6 +1351,44 @@ fn draw(
                                     },
                                 );
                                 zplot.popStyleVar(.{ .count = 1 });
+                            }
+
+                            inline for (&[_][]const u8{ "picture", "audio" })
+                                |field|
+                            {
+                                if (@field(STATE.discrete_points, field))
+                                    |discrete|
+                                {
+                                    zplot.pushStyleVar1f(
+                                        .{
+                                            .idx = .fill_alpha,
+                                            .v = 0.4,
+                                        },
+                                    );
+
+                                    const xs = discrete.items(.x);
+                                    const ys = discrete.items(.y);
+
+                                    var buf2:[1024]u8 = undefined;
+                                    const plotlabel = try std.fmt.bufPrintZ(
+                                        &buf2,
+                                        "timeline presentation discrete {s}",
+                                        .{ field },
+                                    );
+
+                                    zplot.plotLine(
+                                        plotlabel,
+                                        f32, 
+                                        .{
+                                            .xv = xs,
+                                            .yv = ys,
+                                            .flags = .{ 
+                                                .shaded = true, 
+                                            },
+                                        },
+                                    );
+                                    zplot.popStyleVar(.{ .count = 1 });
+                                }
                             }
 
                             // plot each child space
@@ -1591,6 +1654,8 @@ fn draw(
 fn cleanup (
 ) void
 {
+    const allocator = STATE.allocator;
+
     if (STATE.maybe_journal)
         |*definitely_journal|
     {
@@ -1599,12 +1664,21 @@ fn cleanup (
 
     var points = &STATE.points;
     var slices = &STATE.slices;
-    var discrete_points = &STATE.discrete_points;
     const cut_points = &STATE.maybe_cut_points;
+
+    var discrete_points = &STATE.discrete_points;
+    inline for (&[_][]const u8{ "picture", "audio" })
+        |field|
+    {
+        if (@field(discrete_points, field))
+            |*discrete|
+        {
+            discrete.deinit(allocator);
+        }
+    }
 
     // clear whatever is there
     points.deinit(STATE.allocator);
-    discrete_points.deinit(STATE.allocator);
 
     if (STATE.maybe_cached_topology)
         |topo|
