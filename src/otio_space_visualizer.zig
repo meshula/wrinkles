@@ -27,8 +27,15 @@ const STATE = struct {
     var allocator: std.mem.Allocator = undefined;
     var debug_allocator: std.heap.DebugAllocator(.{}) = undefined;
 
+    /// path to the otio file
     var target_otio_file: []const u8 = undefined;
+
+    /// copy of the OTIO json
+    var otio_src_json:[]const u8 = undefined;
+
+    /// root object in the read in OTIO file
     var otio_root: otio.ComposedValueRef = undefined;
+
     var maybe_current_selected_object: ?otio.ComposedValueRef = null;
     var maybe_cached_topology: ?topology.Topology = null;
 
@@ -36,9 +43,6 @@ const STATE = struct {
     var maybe_dst: ?otio.references.SpaceReference = null;
     var maybe_transform: ?topology.Topology = null;
     var maybe_proj_builder: ?otio.TemporalProjectionBuilder = null;
-
-    var xs:[1024 * 10]f32 = undefined;
-    var ys:[1024 * 10]f32 = undefined;
 
     /// referrred to by the label field in the slices MAL
     var points: std.MultiArrayList(PlotPoint2d) = .empty;
@@ -60,19 +64,6 @@ const STATE = struct {
     var maybe_cut_points: ?[]f32 = null;
 
     var maybe_hovered_interval: ?usize = null;
-
-    // a depth first list of all the nodes in the tree
-    var table_data: std.MultiArrayList(
-        struct{
-            name: []const u8,
-            depth: usize,
-            ref: *const otio.references.SpaceReference,
-            // spaces: SpacesBitMask,
-            code: *treecode.Treecode,
-        }
-    ) = .empty;
-
-    var otio_src_json:[]const u8 = undefined;
 
     var options: struct {
         show_discrete_ouput_spaces: enum (u4) {
