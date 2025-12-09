@@ -56,7 +56,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         },
     };
     var gp = otio.Gap{
-        .duration_seconds = opentime.Ordinate.ONE,
+        .duration_s = opentime.Ordinate.ONE,
     };
     var cl2: otio.Clip = .{
         .maybe_name = "Taco.mov",

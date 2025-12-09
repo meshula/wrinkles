@@ -804,7 +804,7 @@ test "ProjectionBuilder: track [c1][gap][c2]"
         .maybe_bounds_s = test_data.T_INT_1_TO_9,
     };
     var gp = schema.Gap{
-        .duration_seconds = opentime.Ordinate.init(4),
+        .duration_s = opentime.Ordinate.init(4),
     };
     var cl2 = schema.Clip {
         .media = .null_picture,
