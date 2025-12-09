@@ -1324,7 +1324,7 @@ test "otio projection: track with single clip"
     // construct the clip and add it to the track
     var cl = schema.Clip {
         .media = .{
-            .ref = .empty,
+            .data_reference = .null,
             .domain = .picture,
             .maybe_bounds_s = media_source_range,
             .maybe_discrete_partition = media_discrete_info,
@@ -1503,7 +1503,7 @@ test "otio projection: track with single clip with transform"
 
     var cl = schema.Clip {
         .media = .{
-            .ref = .empty,
+            .data_reference = .null,
             .domain = .picture,
             .maybe_bounds_s = media_source_range,
             .maybe_discrete_partition = media_discrete_info,
@@ -1990,7 +1990,7 @@ test "ReferenceTopology: init_from_reference"
         .maybe_name = "clip1",
         .maybe_bounds_s = test_data.T_INT_1_TO_9,
         .media = .{
-            .ref = .empty,
+            .data_reference = .null,
             .domain = .picture,
             .maybe_bounds_s = null,
             .maybe_discrete_partition = .{
@@ -2005,7 +2005,7 @@ test "ReferenceTopology: init_from_reference"
         .maybe_name = "clip2",
         .maybe_bounds_s = test_data.T_INT_1_TO_9,
         .media = .{
-            .ref = .empty,
+            .data_reference = .null,
             .domain = .picture,
             .maybe_bounds_s = null,
             .maybe_discrete_partition = .{

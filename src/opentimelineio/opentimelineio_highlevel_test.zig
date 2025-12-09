@@ -46,7 +46,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             .end = opentime.Ordinate.init(3),
         },
         .media = .{
-            .ref = .empty,
+            .data_reference = .null,
             .maybe_bounds_s = null,
             .domain = .picture,
             .maybe_discrete_partition = .{
@@ -61,7 +61,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     var cl2: otio.Clip = .{
         .maybe_name = "Taco.mov",
         .media = .{
-            .ref = .empty,
+            .data_reference = .null,
             .domain = .picture,
             .maybe_bounds_s = .{
                 .start = opentime.Ordinate.init(10),
@@ -314,7 +314,7 @@ test "libsamplerate w/ high level test -- resample only"
                 .sample_rate_hz = .{ .Int = 48000 },
                 .start_index = 0,
             },
-            .ref = .{ 
+            .data_reference = .{ 
                 .signal = .{
                     .signal_generator = .{
                         .signal = .sine,
@@ -407,12 +407,12 @@ test "libsamplerate w/ high level test -- resample only"
     );
 
     try std.testing.expect(
-        cl1.media.ref.signal.signal_generator.duration_s.gt(0)
+        cl1.media.data_reference.signal.signal_generator.duration_s.gt(0)
     );
 
     // synthesize media
     const media_samples = (
-        try cl1.media.ref.signal.signal_generator.rasterized(
+        try cl1.media.data_reference.signal.signal_generator.rasterized(
             allocator,
             cl1.media.maybe_discrete_partition.?,
             true,
@@ -426,7 +426,7 @@ test "libsamplerate w/ high level test -- resample only"
         allocator,
         "/var/tmp",
         "highlevel_libsamplerate_test_clip_media.",
-        cl1.media.ref.signal.signal_generator,
+        cl1.media.data_reference.signal.signal_generator,
     );
 
     // goal
@@ -468,7 +468,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
                 .sample_rate_hz = .{ .Int = 48000 },
                 .start_index = 0,
             },
-            .ref = .{ 
+            .data_reference = .{ 
                 .signal = .{
                     .signal_generator = .{
                         .signal = .sine,
@@ -556,7 +556,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
 
     // synthesize media
     const media = (
-        try cl1.media.ref.signal.signal_generator.rasterized(
+        try cl1.media.data_reference.signal.signal_generator.rasterized(
             allocator,
             cl1.media.maybe_discrete_partition.?,
             true,
@@ -570,7 +570,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
         allocator,
         "/var/tmp",
         "highlevel_libsamplerate_test_clip_media.",
-        cl1.media.ref.signal.signal_generator,
+        cl1.media.data_reference.signal.signal_generator,
     );
 
     // goal
@@ -625,7 +625,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
                 .sample_rate_hz = .{ .Int = 48000 },
                 .start_index = 0,
             },
-            .ref = .{
+            .data_reference = .{
                 .signal = .{
                     .signal_generator = .{
                         .signal = .sine,
@@ -702,7 +702,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
 
     // synthesize media
     const media = (
-        try cl1.media.ref.signal.signal_generator.rasterized(
+        try cl1.media.data_reference.signal.signal_generator.rasterized(
             allocator,
             cl1.media.maybe_discrete_partition.?,
             false,
@@ -716,7 +716,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
         allocator,
         "/var/tmp",
         "highlevel_libsamplerate_test_clip_media.",
-        cl1.media.ref.signal.signal_generator,
+        cl1.media.data_reference.signal.signal_generator,
     );
 
     // goal
@@ -797,7 +797,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
                 .sample_rate_hz = .{ .Int = sample_rate },
                 .start_index = 0,
             },
-            .ref = .{
+            .data_reference = .{
                 .signal = .{
                     .signal_generator = .{
                         .signal = .sine,
@@ -931,7 +931,7 @@ test "timeline w/ warp that holds the tenth frame"
                 .sample_rate_hz = .{ .Int = 24 },
                 .start_index = 0,
             },
-            .ref = .{
+            .data_reference = .{
                 .signal = .{
                     .signal_generator = .{ 
                         .signal = .sine,
@@ -1068,7 +1068,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     var cl = otio.Clip {
         .maybe_name = "Clip at 24",
         .media = .{
-            .ref = .empty,
+            .data_reference = .null,
             .domain = .picture,
             .maybe_bounds_s = .{
                 .start = opentime.Ordinate.ZERO,
