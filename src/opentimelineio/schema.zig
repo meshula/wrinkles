@@ -90,76 +90,32 @@ pub const MediaReference = struct {
     };
 };
 
-/// clip with an implied media reference
+/// Clip places a media reference in a track.
+///
+/// Has a name and an  optional media space bound that can be imposed, intended
+/// to make it easier to swap out references.
 pub const Clip = struct {
-    /// identifier name
+    /// Optional name, for labelling and human readability.
     maybe_name: ?string.latin_s8 = null,
 
-    /// a trim on the media space, in the media coordinate system
+    /// A trim on the media space, in the media coordinate system.
     maybe_bounds_s: ?opentime.ContinuousInterval = null,
 
-    /// Information about the media this clip cuts into the track
+    /// Information about the media this clip cuts into the track.
     media: MediaReference,
 
-    maybe_parameters: ?ParameterMap = null,
-
+    /// Clips provide a `media` space in addition to the `presentation` space.
+    ///
+    /// The media space is defined by the media reference.
     pub const internal_spaces: []const references.SpaceLabel = &.{
         .presentation,
         .media,
     };
 
+    /// An empty clip with an infinite continuous picture media reference.
     pub const null_picture: Clip = .{
         .media = .null_picture,
     };
-
-    pub const ParameterVarying = struct {
-        domain: domain.Domain,
-        mapping: topology_m.Topology,
-
-        pub fn parameter(
-            self: *const @This()
-        ) Parameter
-        {
-            return .{
-                .value = self,
-            };
-        }
-    };
-    pub const Parameter = union(enum) {
-        dictionary: *const ParameterMap,
-        value: *const ParameterVarying,
-    };
-    pub const ParameterMap = std.StringHashMapUnmanaged(Parameter);
-
-    pub fn to_param(m: *ParameterMap) Parameter {
-        return .{
-            .dictionary = m,
-        };
-    }
-
-    /// copy values from argument and allocate as necessary
-    pub fn init(
-        allocator: std.mem.Allocator,
-        copy_from: Clip,
-    ) !Clip
-    {
-        var result = copy_from;
-        
-        if (copy_from.maybe_name)
-            |n|
-        {
-            result.maybe_name = try allocator.dupe(u8, n);
-        }
-        if (copy_from.maybe_parameters)
-            |params|
-        {
-            result.maybe_parameters = try params.clone(allocator);
-        } else {
-            result.maybe_parameters = .empty;
-        }
-
-        return result;
-    }
 
     /// compute the bounds of the specified target space
     pub fn bounds_of(
@@ -184,8 +140,8 @@ pub const Clip = struct {
         return error.NotImplementedFetchTopology;
     }
 
-    /// build a topology that maps from the presentation space to the media
-    /// space of the clip
+    /// Build a topology that maps from the presentation space to the media
+    /// space of the clip.  Resulting memory is owned by the caller.
     pub fn topology(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -217,14 +173,14 @@ pub const Clip = struct {
                 topology_m.MappingAffine {
                     .input_to_output_xform = presentation_to_media_xform,
                     .input_bounds_val = presentation_bounds,
-                }
-                ,
+                },
             )
         );
 
         return presentation_to_media_topo;
     }
 
+    /// Free memory owned by the Clip.
     pub fn destroy(
         self: *@This(),
         allocator: std.mem.Allocator,
@@ -237,7 +193,7 @@ pub const Clip = struct {
         }
     }
 
-    /// Build a reference to this Clip
+    /// Build a reference to this Clip.
     pub fn reference(
         self: *@This(),
     ) references.ComposedValueRef
@@ -793,69 +749,6 @@ test "track topology construction"
             expected_clip_input_bounds,
             topo.output_bounds(),
         );
-}
-
-test "Clip: Animated Parameter example"
-{
-    const root_allocator = std.testing.allocator;
-
-    var arena = std.heap.ArenaAllocator.init(root_allocator);
-    const allocator = arena.allocator();
-    defer arena.deinit();
-
-    const media_source_range = test_data.T_INT_1_TO_9;
-    const media_discrete_info = (
-        sampling.SampleIndexGenerator{
-            .sample_rate_hz = .{ .Int = 4 },
-            .start_index = 0,
-        }
-    );
-
-    var cl = try Clip.init(
-        allocator,
-        .{ 
-            .media = .{
-                .ref = .empty,
-                .domain = .picture,
-                .interpolating = .snap,
-                .maybe_bounds_s = media_source_range,
-                .maybe_discrete_partition = media_discrete_info 
-            },
-        }
-    );
-    defer cl.destroy(allocator);
-
-    const focus_distance = (
-        Clip.ParameterVarying{
-            .domain = .time,
-            .mapping = try topology_m.Topology.init_from_linear(
-                allocator,
-                try curve.Linear.init(
-                    allocator,
-                    &.{ 
-                        curve.ControlPoint.init(.{ .in = 0, .out = 1 }),
-                        curve.ControlPoint.init(.{ .in = 1, .out = 1.25 }),
-                        curve.ControlPoint.init(.{ .in = 5, .out = 8}),
-                        curve.ControlPoint.init(.{ .in = 8, .out = 10}),
-                    },
-                )
-            ),
-        }
-    ).parameter();
-
-    var lens_data: Clip.ParameterMap = .empty;
-    try lens_data.put(
-        allocator,
-        "focus_distance",
-        focus_distance,
-    );
-
-    const param = Clip.to_param(&lens_data);
-    try cl.maybe_parameters.?.put(
-        allocator,
-        "lens",
-        param,
-    );
 }
 
 test "warp topology"
