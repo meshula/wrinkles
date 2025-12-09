@@ -71,6 +71,7 @@ temporal hierarchies of editorial documents.
 * implementing in a low level language (zig->C) to allow flatter higher level
   language bindings
 * explicitly model references into the hierarchy
+* The in-memory model does not intend to 1:1 match the serialized format
 
 ### Unsupported/Unimplemented Features From OTIO v1
 
@@ -173,6 +174,7 @@ didn't impact the deisgn or problems we were specifically solving.
 * [ ] project_*_cd should return an optional instead of an error?
 * [ ] building a projection operator should not require allocation from a
       builder
+* [ ] OTIO 1.0 missing features list
 
 ## Todo List (10/9/25)
 
