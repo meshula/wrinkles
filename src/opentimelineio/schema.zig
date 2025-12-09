@@ -38,53 +38,58 @@ const ResamplingBehavior = enum {
     default_from_domain,
 };
 
-/// a reference that points at some reference via a string address
-pub const ExternalReference = struct {
+/// A reference described by a URI that is interpreted by clients in some way.
+pub const URIReference = struct {
     target_uri : []const u8,
 };
 
-/// a procedural signal
+/// A procedurally described Signal.
 pub const SignalReference = struct {
     signal_generator: sampling.SignalGenerator,
 };
 
 /// an opaque reference
-pub const EmptyReference = void;
+pub const OpaqueReference = void;
 
 /// The way to get to the media
 pub const MediaDataReference = union(enum) {
     /// Usually a file or URI somewhere
-    external: ExternalReference,
+    uri: URIReference,
+
     /// A Procedurally defined signal (A tone, a color, etc.)
     signal: SignalReference,
-    /// An opaque unknown reference
-    empty: EmptyReference,
 
-    pub const EMPTY_REF = MediaDataReference{
-        .empty = {},
-    };
+    /// No data to reference this media.
+    null: void,
 };
 
-/// Refers to a piece of media or signal that is being cut into a composition
+/// Refers to a piece of media or signal that is being cut into a composition.
+///
+/// Contains information about the media including bounds, discrete space
+/// partition and domain.
 pub const MediaReference = struct {
-    /// the specific kind of media reference.  By default an opaque reference.
-    ref: MediaDataReference,
+    /// Data used to find the media.
+    data_reference: MediaDataReference,
 
     /// bounds of the media space continuous time, the interval of media time
-    /// in which the media is defined
+    /// in which the media is defined.
     maybe_bounds_s: ?opentime.ContinuousInterval,
 
-    /// Media domain for this reference
+    /// Media domain for this reference.
     domain: domain.Domain,
 
-    /// If the media has a discrete partition
+    /// The discrete space partitioning for the media (if it is discrete and
+    /// known).  Required to do a discrete projection into sample index space.
     maybe_discrete_partition: ?sampling.SampleIndexGenerator = null,
 
     /// Media that is interpolating can be resampled when under time warps.
     interpolating: ResamplingBehavior = .default_from_domain,
 
+    /// Default Media Reference that is empty and specifies picture domain.
+    ///
+    /// Intended for unit testing.
     pub const null_picture: MediaReference = .{
-        .ref = .EMPTY_REF,
+        .data_reference = .null,
         .maybe_bounds_s = null,
         .domain = .picture,
     };
@@ -117,7 +122,7 @@ pub const Clip = struct {
         .media = .null_picture,
     };
 
-    /// compute the bounds of the specified target space
+    /// Compute the bounds of `target_space` on this clip.
     pub fn bounds_of(
         self: @This(),
         _: std.mem.Allocator,
@@ -131,6 +136,7 @@ pub const Clip = struct {
         if (maybe_bounds_s)
             |bounds|
         {
+            // @TODO: the bounds of the presentation space should be 0->duration
             return switch (target_space) {
                 .presentation, .media => bounds,
                 else => error.UnsupportedSpaceError,
@@ -685,7 +691,7 @@ test "clip topology construction"
     {
         var cl = Clip {
             .media = .{
-                .ref = .empty,
+                .data_reference = .null,
                 .maybe_bounds_s = test_data.T_INT_1_TO_9,
                 .domain = .picture,
                 .interpolating = .snap,

@@ -1017,7 +1017,7 @@ test "test debug_print_time_hierarchy"
                 .sample_rate_hz = .{ .Int = 24 },
                 .start_index = 0,
             },
-            .ref = .{ 
+            .data_reference = .{ 
                 .signal = .{
                     .signal_generator = .{
                         .signal = .sine,
