@@ -746,7 +746,7 @@ pub fn read_otio_object(
             const gp = try allocator.create(otio.Gap);
             gp.* = .{
                 .maybe_name= maybe_name,
-                .duration_seconds = source_range.?.duration(),
+                .duration_s = source_range.?.duration(),
             };
 
             return .{ .gap = gp };

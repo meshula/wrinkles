@@ -220,15 +220,22 @@ test "Clip: spaces list"
 }
 
 
-/// represents a space in the timeline without media
+/// A duration of the temporal space for which no media is mapped.  
+///
+/// Silent, Transparent.  Regions of the timeline for which there are no media
+/// mapped, ie only gaps are undefined as far as pixels/audio is concerned.
 pub const Gap = struct {
+    /// Optional name, for labelling and human readability.
     maybe_name: ?string.latin_s8 = null,
-    duration_seconds: opentime.Ordinate,
+    /// A Gaps coordinate system is always 0->duration_seconds
+    duration_s: opentime.Ordinate,
 
     pub const internal_spaces: []const references.SpaceLabel = (
         &.{ .presentation, .intrinsic }
     );
 
+    /// A Gap's topology is always an identity bounded by the duration of the
+    /// gap.
     pub fn topology(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -238,7 +245,7 @@ pub const Gap = struct {
             allocator,
             .{
                 .start = opentime.Ordinate.ZERO,
-                .end = self.duration_seconds 
+                .end = self.duration_s 
             },
         );
         return result;
