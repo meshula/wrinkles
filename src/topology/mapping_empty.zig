@@ -10,8 +10,8 @@ pub const MappingEmpty = struct {
     /// represents the input range (and effective output range) of the mapping
     defined_range: opentime.ContinuousInterval,
 
-    pub const EMPTY_INF = MappingEmpty{
-        .defined_range = .INF,
+    pub const empty_infinite = MappingEmpty{
+        .defined_range = .inf_neg_to_pos,
     };
 
     /// build a generic mapping from this empty mapping
@@ -143,7 +143,7 @@ pub const MappingEmpty = struct {
 
 test "MappingEmpty: Project"
 {
-    const me = MappingEmpty.EMPTY_INF;
+    const me = MappingEmpty.empty_infinite;
 
     var v = opentime.Ordinate.init(-10);
     while (v.lt(10))

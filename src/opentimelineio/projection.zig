@@ -279,7 +279,7 @@ pub const ProjectionOperator = struct {
                              .scale = .ONE,
                          },
                          .input_bounds_val = .{
-                             .start = .ZERO,
+                             .start = .zero,
                              .end = range_in_source.duration(),
                          },
                      }
@@ -313,7 +313,7 @@ pub const ProjectionOperator = struct {
                 .mappings = &.{
                     (
                     topology_m.mapping.MappingAffine { 
-                        .input_to_output_xform = .IDENTITY,
+                        .input_to_output_xform = .identity,
                         .input_bounds_val = range_in_source,
                     }
                     ).mapping(),
@@ -1582,7 +1582,7 @@ test "otio projection: track with single clip with transform"
                 .input_to_output_xform = .{
                     .scale = opentime.Ordinate.init(2),
                 },
-                .input_bounds_val = .INF,
+                .input_bounds_val = .inf_neg_to_pos,
             },
         ),
     };
@@ -2105,7 +2105,7 @@ test "ReferenceTopology: init_from_reference"
                      .input_to_output_xform = .{
                          .scale = opentime.Ordinate.init(3),
                      },
-                     .input_bounds_val = .INF,
+                     .input_bounds_val = .inf_neg_to_pos,
                  }
                 ).mapping(),
             },
@@ -2295,7 +2295,7 @@ test "projection builder over warp with negative scale"
     };
 
     const xform = opentime.AffineTransform1D {
-        .offset = .ZERO,
+        .offset = .zero,
         .scale = opentime.Ordinate.init(-2),
     };
 
@@ -2305,7 +2305,7 @@ test "projection builder over warp with negative scale"
             allocator, 
             .{
                 .input_to_output_xform = xform,
-                .input_bounds_val = .INF,
+                .input_bounds_val = .inf_neg_to_pos,
             },
         ),
     };

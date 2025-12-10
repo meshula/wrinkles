@@ -989,7 +989,7 @@ pub fn transform_resample_linear_non_interpolating_dd(
 
     const input_c_to_input_d = topology.mapping.MappingAffine{
         .input_bounds_val = input_d_extents_c,
-        .input_to_output_xform = .IDENTITY,
+        .input_to_output_xform = .identity,
     };
 
     const output_c_to_input_d = (

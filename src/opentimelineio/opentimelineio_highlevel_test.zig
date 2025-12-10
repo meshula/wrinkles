@@ -489,7 +489,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
             allocator,
             .{
                 .input_to_output_xform = T_AFF_N1_2,
-                .input_bounds_val = .INF,
+                .input_bounds_val = .inf_neg_to_pos,
             },
         )
     };
@@ -641,7 +641,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
             allocator,
             .{
                 .input_to_output_xform = T_AFF_N1_2,
-                .input_bounds_val = .INF,
+                .input_bounds_val = .inf_neg_to_pos,
             }
         )
     };
@@ -815,12 +815,12 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
             .{
                 .knots = &.{
                     .{
-                        .in = opentime.Ordinate.ZERO,
+                        .in = opentime.Ordinate.zero,
                         .out = T_ORD_SIGNAL_DURATION, 
                     },
                     .{
                         .in = T_ORD_SIGNAL_DURATION,
-                        .out = opentime.Ordinate.ZERO 
+                        .out = opentime.Ordinate.zero 
                     },   
                 },
             },
@@ -951,7 +951,7 @@ test "timeline w/ warp that holds the tenth frame"
             .{
                 .knots = &.{
                     .{
-                        .in = opentime.Ordinate.ZERO,
+                        .in = opentime.Ordinate.zero,
                         .out = ord_10f24hz,
                     },
                     .{
@@ -1023,7 +1023,7 @@ test "timeline w/ warp that holds the tenth frame"
             tr_ptr.track.children[0].warp.transform
         );
         
-        const ident:topology.Topology = .INFINITE_IDENTITY;
+        const ident:topology.Topology = .identity_infinite;
 
         const test_result = try topology.join(
             std.testing.allocator,
@@ -1038,7 +1038,7 @@ test "timeline w/ warp that holds the tenth frame"
             try tr_pres_to_cl_media_po.project_range_cd(
                 allocator,
                 .{
-                    .start = opentime.Ordinate.ZERO,
+                    .start = opentime.Ordinate.zero,
                     .end =  opentime.Ordinate.init(4.0/24.0),
                 },
                 .picture,
@@ -1068,7 +1068,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
             .data_reference = .null,
             .domain = .picture,
             .maybe_bounds_s = .{
-                .start = opentime.Ordinate.ZERO,
+                .start = opentime.Ordinate.zero,
                 .end = opentime.Ordinate.init(24000),
             },
             .maybe_discrete_partition = .{

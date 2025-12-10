@@ -234,7 +234,7 @@ pub fn _findU(
     );
     const MAX_ITERATIONS: u8 = 45;
 
-    if (opentime.lteq(x, opentime.Ordinate.ZERO)) {
+    if (opentime.lteq(x, opentime.Ordinate.zero)) {
         return 0;
     }
 
@@ -242,8 +242,8 @@ pub fn _findU(
         return 1;
     }
 
-    var _u1=opentime.Ordinate.ZERO;
-    var _u2=opentime.Ordinate.ZERO;
+    var _u1=opentime.Ordinate.zero;
+    var _u2=opentime.Ordinate.zero;
 
     var x1 = x.neg(); // same as: bezier0 (0, p1, p2, p3) - x;
     var x2 = opentime.eval(
@@ -282,7 +282,7 @@ pub fn _findU(
         }
         else
         {
-            _u1 = opentime.Ordinate.ZERO;
+            _u1 = opentime.Ordinate.zero;
 
             x1 = opentime.eval(
                 "x1 * x2 / (x2 + x3)",
@@ -369,7 +369,7 @@ fn first_valid_root(
         |root|
     {
         if (
-            opentime.Ordinate.ZERO.lteq(root.r) 
+            opentime.Ordinate.zero.lteq(root.r) 
             and root.r.lteq(opentime.Ordinate.ONE)
         )
         {
@@ -1642,7 +1642,7 @@ pub const SlopeKind = enum {
 
         const s = slope(start, end);
 
-        if (opentime.gt(s, opentime.Ordinate.ZERO))
+        if (opentime.gt(s, opentime.Ordinate.zero))
         {
             return .rising;
         }

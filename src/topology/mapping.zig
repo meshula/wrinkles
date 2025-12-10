@@ -31,12 +31,10 @@ pub const Mapping = union (enum) {
     empty: mapping_empty.MappingEmpty,
     affine: mapping_affine.MappingAffine,
     linear: mapping_curve_linear.MappingCurveLinearMonotonic,
-    // bezier: mapping_curve_bezier.MappingCurveBezier,
 
-    pub const INFINITE_IDENTITY = (
-        MappingAffine.INFINITE_IDENTITY.mapping()
+    pub const identity_infinite = (
+        MappingAffine.identity_infinite.mapping()
     );
-    pub const EMPTY_INF = mapping_empty.EMPTY_INF.mapping();
 
     pub fn deinit(
         self: @This(),
@@ -665,7 +663,7 @@ pub fn join(
 test "Mapping: join aff/aff"
 {
     const allocator = std.testing.allocator;
-    const ident:Mapping = .INFINITE_IDENTITY;
+    const ident:Mapping = .identity_infinite;
 
     const aff = (
         MappingAffine{

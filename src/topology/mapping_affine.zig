@@ -11,9 +11,9 @@ pub const MappingAffine = struct {
     input_bounds_val: opentime.ContinuousInterval,
     input_to_output_xform: opentime.AffineTransform1D, 
 
-    pub const INFINITE_IDENTITY: MappingAffine = .{
-        .input_bounds_val= .INF,
-        .input_to_output_xform= .IDENTITY, 
+    pub const identity_infinite: MappingAffine = .{
+        .input_bounds_val= .inf_neg_to_pos,
+        .input_to_output_xform= .identity, 
     };
 
     pub fn mapping(
@@ -268,7 +268,7 @@ pub const MappingAffine = struct {
 
 test "MappingAffine: instantiate (identity)"
 {
-    const ma = MappingAffine.INFINITE_IDENTITY.mapping();
+    const ma = MappingAffine.identity_infinite.mapping();
 
     try opentime.expectOrdinateEqual(
         12, 

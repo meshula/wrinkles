@@ -12,12 +12,15 @@ pub const mapping = @import("mapping.zig");
 /// implicit "Empty" mappings outside of the end points which map to no values
 /// before and after the mappings contained by the Topology.
 pub const Topology = struct {
+    /// Mappings that compose the topology.  Memory owned by the topology.
     mappings: []const mapping.Mapping,
 
-    /// an empty topology
-    pub const EMPTY = Topology{ .mappings = &.{} };
-    pub const INFINITE_IDENTITY = Topology{
-        .mappings = &.{ .INFINITE_IDENTITY, }
+    /// An Empty Topology.
+    pub const empty = Topology{ .mappings = &.{} };
+
+    /// A Topology with a single, infinite identity mapping.
+    pub const identity_infinite = Topology{
+        .mappings = &.{ .identity_infinite, }
     };
 
     pub fn init(
@@ -27,7 +30,7 @@ pub const Topology = struct {
     {
         if (in_mappings.len == 0)
         {
-            return .EMPTY;
+            return .empty;
         }
 
         return .{
@@ -145,7 +148,7 @@ pub const Topology = struct {
                     (
                      mapping.MappingAffine{
                          .input_bounds_val = range,
-                         .input_to_output_xform = .IDENTITY,
+                         .input_to_output_xform = .identity,
                      }
                     ).mapping(),
                 },
@@ -283,7 +286,7 @@ pub const Topology = struct {
             }
         }
 
-        return maybe_bounds orelse opentime.ContinuousInterval.INF;
+        return maybe_bounds orelse opentime.ContinuousInterval.inf_neg_to_pos;
     }
 
     pub fn end_points_input(
@@ -326,7 +329,7 @@ pub const Topology = struct {
         var new_bounds = opentime.interval.intersect(
             new_input_bounds,
             ib,
-        ) orelse return .EMPTY;
+        ) orelse return .empty;
 
         if (
             new_bounds.start.lteq(ib.start)
@@ -921,7 +924,7 @@ pub const Topology = struct {
     ) ![]const Topology
     {
         if (self.mappings.len == 0) {
-            return try allocator.dupe(Topology, &.{ .EMPTY });
+            return try allocator.dupe(Topology, &.{ .empty });
         }
 
         var result: std.ArrayList(Topology) = .empty;
@@ -1133,7 +1136,7 @@ test "Topology trim_in_input_space"
 
         try std.testing.expectEqualSlices(
             mapping.Mapping,
-            Topology.EMPTY.mappings,
+            Topology.empty.mappings,
             tm.mappings,
         );
     }
@@ -1165,7 +1168,7 @@ pub fn join(
 
         const output_value = switch (maybe_output_value) {
             .OutOfBounds,  => {
-                return .EMPTY;
+                return .empty;
             },
             .SuccessInterval => unreachable,
             .SuccessOrdinate => |val| val,
@@ -1203,7 +1206,7 @@ pub fn join(
         b2c.input_bounds(),
         // or return an empty topology
     ) orelse {
-        return .EMPTY;
+        return .empty;
     };
     const a2b_trimmed_in_b = try a2b.trim_in_output_space(
         allocator,
@@ -1981,7 +1984,7 @@ test "Topology: join affine with ident"
 {
     const allocator = std.testing.allocator;
 
-    const ident:Topology = .INFINITE_IDENTITY;
+    const ident:Topology = .identity_infinite;
 
     const aff = try Topology.init_affine(
         allocator,
@@ -2035,7 +2038,7 @@ test "Topology output_bounds are sorted after negative scale"
                     )
                 ),
                 .input_to_output_xform = .{
-                    .offset = opentime.Ordinate.ZERO,
+                    .offset = opentime.Ordinate.zero,
                     .scale = opentime.Ordinate.init(-1),
                 },
             },
@@ -2047,7 +2050,7 @@ test "Topology output_bounds are sorted after negative scale"
         try std.testing.expectEqual(
             opentime.ContinuousInterval{
                 .start = opentime.Ordinate.init(-8),
-                .end = .ZERO,
+                .end = .zero,
             }, 
             output_bounds,
         );

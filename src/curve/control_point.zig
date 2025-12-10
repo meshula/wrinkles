@@ -38,10 +38,10 @@ pub fn ControlPointOf(
             default_out,
         );
 
-        pub const ZERO = ControlPointType.init(
+        pub const zero = ControlPointType.init(
             .{ .in = 0, .out = 0 }
         );
-        pub const ONE = ControlPointType.init(
+        pub const one = ControlPointType.init(
             .{ .in = 1, .out = 1 }
         );
 
@@ -245,8 +245,8 @@ pub fn ControlPointOf(
 /// Define base ControlPoint type over the ordinate from opentime
 pub const ControlPoint = ControlPointOf(
     opentime.Ordinate,
-    opentime.Ordinate.ZERO,
-    opentime.Ordinate.ZERO,
+    opentime.Ordinate.zero,
+    opentime.Ordinate.zero,
 );
 pub const ControlPoint_BaseType = ControlPointOf(
     opentime.Ordinate.BaseType, 
