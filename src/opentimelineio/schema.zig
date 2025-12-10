@@ -122,7 +122,6 @@ pub const Clip = struct {
     /// Compute the bounds of `target_space` on this clip.
     pub fn bounds_of(
         self: @This(),
-        _: std.mem.Allocator,
         target_space: references.SpaceLabel,
     ) !opentime.ContinuousInterval 
     {
