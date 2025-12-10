@@ -54,11 +54,13 @@ const ResamplingBehavior = enum {
 
 /// A reference described by a URI that is interpreted by clients in some way.
 pub const URIReference = struct {
+    /// URI encoded in a string for locating the data for referenced media.
     target_uri : []const u8,
 };
 
 /// A procedurally described Signal.
 pub const SignalReference = struct {
+    /// Parameters for synthesizing a signal for this media.
     signal_generator: sampling.SignalGenerator,
 };
 
