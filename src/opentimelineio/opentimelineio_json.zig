@@ -115,8 +115,8 @@ fn read_transform(
                     .offset = (
                         if (maybe_object_child(xform_json, "offset")) 
                             |offset_json| 
-                        read_ordinate_from_rt(offset_json) orelse .ZERO
-                        else .ZERO
+                        read_ordinate_from_rt(offset_json) orelse .zero
+                        else .zero
                     ),
                     .scale = (
                         if (maybe_object_child(xform_json, "scale")) 
@@ -126,12 +126,12 @@ fn read_transform(
                         else .ONE
                     ),
                 } 
-                else .IDENTITY
+                else .identity
             );
 
             const range: opentime.ContinuousInterval = (
                 maybe_range(obj, "input_bounds_val")
-                orelse .INF
+                orelse .inf_neg_to_pos
             );
             return try topology.Topology.init_affine(
                 allocator,
@@ -315,7 +315,7 @@ pub fn read_ordinate(
 {
     return switch (obj) {
         inline .integer, .float => |v| opentime.Ordinate.init(v),
-        else => .ZERO,
+        else => .zero,
     };
 }
 

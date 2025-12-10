@@ -181,7 +181,7 @@ pub const Clip = struct {
 
         const presentation_bounds = (
             opentime.ContinuousInterval{
-                .start = opentime.Ordinate.ZERO,
+                .start = opentime.Ordinate.zero,
                 .end = media_bounds.duration()
             }
         );
@@ -259,7 +259,7 @@ pub const Gap = struct {
         const result = try topology_m.Topology.init_identity(
             allocator,
             .{
-                .start = opentime.Ordinate.ZERO,
+                .start = opentime.Ordinate.zero,
                 .end = self.duration_s 
             },
         );
@@ -365,7 +365,7 @@ pub const Warp = struct {
             allocator,
             .{
                 .input_bounds_val = .{
-                    .start = .ZERO,
+                    .start = .zero,
                     .end = child_bounds.duration(),
                 },
                 .input_to_output_xform = .{
@@ -391,7 +391,7 @@ pub const Warp = struct {
             allocator,
             .{ 
                 .input_bounds_val = .{
-                    .start = .ZERO,
+                    .start = .zero,
                     .end = warped_range.duration(),
                 },
                 .input_to_output_xform = .{
@@ -632,11 +632,11 @@ pub const Stack = struct {
                 allocator,
                 .{ 
                     .input_bounds_val = b,
-                    .input_to_output_xform = .IDENTITY,
+                    .input_to_output_xform = .identity,
                 }
             );
         } else {
-            return .EMPTY;
+            return .empty;
         }
     }
 
@@ -748,7 +748,7 @@ test "clip topology construction"
 
         const expected_input_bounds = (
             opentime.ContinuousInterval{
-                .start = .ZERO,
+                .start = .zero,
                 .end = test_data.T_INT_1_TO_9.duration(),
             }
         );
@@ -780,7 +780,7 @@ test "clip topology construction"
 
         const expected_input_bounds = (
             opentime.ContinuousInterval{
-                .start = .ZERO,
+                .start = .zero,
                 .end = test_data.T_INT_1_TO_9.duration(),
             }
         );
@@ -818,7 +818,7 @@ test "track topology construction"
 
     const expected_clip_input_bounds = (
         opentime.ContinuousInterval{
-            .start = .ZERO,
+            .start = .zero,
             .end = test_data.T_INT_1_TO_9.duration(),
         }
     );
@@ -846,7 +846,7 @@ test "warp topology"
         };
 
         const xform = opentime.AffineTransform1D {
-            .offset = .ZERO,
+            .offset = .zero,
             .scale = .{ .v = 2 },
         };
 
@@ -856,7 +856,7 @@ test "warp topology"
                 allocator, 
                 .{
                     .input_to_output_xform = xform,
-                    .input_bounds_val = .INF,
+                    .input_bounds_val = .inf_neg_to_pos,
                 },
             ),
         };
@@ -872,7 +872,7 @@ test "warp topology"
 
         const expected_input_bounds = (
             opentime.ContinuousInterval{
-                .start = .ZERO,
+                .start = .zero,
                 .end = range.duration(),
             }
         );
@@ -884,7 +884,7 @@ test "warp topology"
 
         try std.testing.expectEqual(
             opentime.ContinuousInterval{
-                .start = .ZERO,
+                .start = .zero,
                 .end = test_data.T_INT_1_TO_9.duration(),
         },
             topo.output_bounds(),
@@ -909,7 +909,7 @@ test "warp topology"
                 allocator, 
                 .{
                     .input_to_output_xform = xform,
-                    .input_bounds_val = .INF,
+                    .input_bounds_val = .inf_neg_to_pos,
                 },
             ),
         };
@@ -925,7 +925,7 @@ test "warp topology"
 
         const expected_input_bounds = (
             opentime.ContinuousInterval{
-                .start = .ZERO,
+                .start = .zero,
                 .end = range.duration(),
             }
         );
@@ -937,7 +937,7 @@ test "warp topology"
 
         try std.testing.expectEqual(
             opentime.ContinuousInterval{
-                .start = .ZERO,
+                .start = .zero,
                 .end = test_data.T_INT_1_TO_9.duration(),
         },
             topo.output_bounds(),
@@ -952,7 +952,7 @@ test "warp topology"
         };
 
         const xform = opentime.AffineTransform1D {
-            .offset = .ZERO,
+            .offset = .zero,
             .scale = opentime.Ordinate.init(-2),
         };
 
@@ -962,7 +962,7 @@ test "warp topology"
                 allocator, 
                 .{
                     .input_to_output_xform = xform,
-                    .input_bounds_val = .INF,
+                    .input_bounds_val = .inf_neg_to_pos,
                 },
             ),
         };
@@ -978,7 +978,7 @@ test "warp topology"
 
         const expected_input_bounds = (
             opentime.ContinuousInterval{
-                .start = .ZERO,
+                .start = .zero,
                 .end = range.duration(),
             }
         );
@@ -990,7 +990,7 @@ test "warp topology"
 
         const child_bounds = (
             opentime.ContinuousInterval{
-                .start = .ZERO,
+                .start = .zero,
                 .end = test_data.T_INT_1_TO_9.duration(),
             }
         );

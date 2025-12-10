@@ -244,7 +244,7 @@ const PRESETS = struct{
                 .name = "Clip",
                 .input = "presentation",
                 .output = "media",
-                .mapping = .INFINITE_IDENTITY,
+                .mapping = .identity_infinite,
             },
         },
     };

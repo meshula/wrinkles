@@ -1549,7 +1549,7 @@ fn draw(
                                 |builder|
                             {
                                 var current_x = builder.input_bounds().start;
-                                var current_y:opentime.Ordinate = .ZERO;
+                                var current_y:opentime.Ordinate = .zero;
                                 const inc = builder.input_bounds().duration().div(
                                     @as(f32, @floatFromInt(NUM_POINTS))
                                 );

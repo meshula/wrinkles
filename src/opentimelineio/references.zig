@@ -319,9 +319,9 @@ pub const CompositionItemHandle = union(enum) {
             .track => |*tr| {
                 switch (from_space_label) {
                     // presentation -> intrinsic
-                    .presentation => return .INFINITE_IDENTITY,
+                    .presentation => return .identity_infinite,
                     // intrinsic -> first child space
-                    .intrinsic => return .INFINITE_IDENTITY,
+                    .intrinsic => return .identity_infinite,
                     // child space to either the presentation space of that
                     // child (left step)  or to the next child
                     .child => |child_index| {
@@ -336,7 +336,7 @@ pub const CompositionItemHandle = union(enum) {
                         // from this child space down into the presentation
                         // space of the child (identity)
                         if (step == .left) {
-                            return .INFINITE_IDENTITY;
+                            return .identity_infinite;
                         } 
                         else 
                         {
@@ -391,7 +391,7 @@ pub const CompositionItemHandle = union(enum) {
                         );
                         const intrinsic_bounds = (
                             opentime.ContinuousInterval{
-                                .start = opentime.Ordinate.ZERO,
+                                .start = opentime.Ordinate.zero,
                                 .end = media_bounds.duration(),
                             }
                         );
@@ -486,7 +486,7 @@ pub const CompositionItemHandle = union(enum) {
                                     .offset = intrinsic_bounds.start,
                                     .scale = .ONE,
                                 },
-                                .input_bounds_val = .INF,
+                                .input_bounds_val = .inf_neg_to_pos,
                             },
                         )
                     );
@@ -503,14 +503,14 @@ pub const CompositionItemHandle = union(enum) {
 
                     return result;
                 },
-                else => .INFINITE_IDENTITY,
+                else => .identity_infinite,
             },
             .gap => |gap_ptr| switch (from_space_label) {
                 .presentation => gap_ptr.topology(allocator),
-                else => .INFINITE_IDENTITY,
+                else => .identity_infinite,
             },
             // wrapped as identity
-            .timeline, .stack, .transition => .INFINITE_IDENTITY,
+            .timeline, .stack, .transition => .identity_infinite,
             // else => |case| { 
             //     std.log.err("Not Implemented: {any}\n", .{ case });
             //

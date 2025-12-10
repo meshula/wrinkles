@@ -16,11 +16,11 @@ const ContinuousInterval = interval.ContinuousInterval;
 /// Transform order scale then offset, ie y = T(x) = (x * Scale + offset)
 /// ///////////////////////////////////////////////////////////////////////////
 pub const AffineTransform1D = struct {
-    offset: ordinate.Ordinate = .ZERO,
+    offset: ordinate.Ordinate = .zero,
     scale: ordinate.Ordinate = .ONE,
 
-    pub const IDENTITY = AffineTransform1D{
-        .offset = .ZERO,
+    pub const identity = AffineTransform1D{
+        .offset = .zero,
         .scale = .ONE,
     };
 
@@ -222,7 +222,7 @@ test "AffineTransform1D: invert test"
         xform.inverted()
     );
 
-    try std.testing.expectEqual(ordinate.Ordinate.ZERO, identity.offset);
+    try std.testing.expectEqual(ordinate.Ordinate.zero, identity.offset);
     try std.testing.expectEqual(ordinate.Ordinate.ONE, identity.scale);
 
     const pt=ordinate.Ordinate.init(10);

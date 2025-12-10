@@ -15,7 +15,7 @@ fn OrdinateOf(
 
         pub const BaseType = t;
         pub const OrdinateType = @This();
-        pub const ZERO : OrdinateType = OrdinateType.init(0);
+        pub const zero : OrdinateType = OrdinateType.init(0);
         pub const ONE : OrdinateType = OrdinateType.init(1);
         pub const INF : OrdinateType = OrdinateType.init(std.math.inf(t));
         pub const INF_NEG : OrdinateType = OrdinateType.init(-std.math.inf(t));

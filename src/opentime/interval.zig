@@ -8,25 +8,25 @@ const ordinate = @import("ordinate.zig");
 /// at 0 and has no end.
 pub const ContinuousInterval = struct {
     /// the start ordinate of the interval, inclusive
-    start: ordinate.Ordinate = ordinate.Ordinate.ZERO,
+    start: ordinate.Ordinate = ordinate.Ordinate.zero,
 
     /// the end ordinate of the interval, exclusive
     end: ordinate.Ordinate = ordinate.Ordinate.INF,
 
     pub const ZERO_TO_INF: ContinuousInterval = .{
-        .start = .ZERO,
+        .start = .zero,
         .end = .INF,
     };
 
     /// An infinite interval
-    pub const INF : ContinuousInterval = .{
+    pub const inf_neg_to_pos : ContinuousInterval = .{
         .start = ordinate.Ordinate.INF_NEG, 
         .end = ordinate.Ordinate.INF,
     };
 
     pub const ZERO : ContinuousInterval = .{
-        .start = ordinate.Ordinate.ZERO,
-        .end = ordinate.Ordinate.ZERO,
+        .start = ordinate.Ordinate.zero,
+        .end = ordinate.Ordinate.zero,
     };
 
     pub fn init(
@@ -319,7 +319,7 @@ test "intersection test - contained" {
 }
 
 test "intersection test - infinite" {
-    const int1 = ContinuousInterval.INF;
+    const int1 = ContinuousInterval.inf_neg_to_pos;
     const int2 = ContinuousInterval.init(
         .{ .start = 1, .end = 3 }
     );

@@ -775,7 +775,7 @@ pub fn ProjectionBuilder(
             defer arena.deinit();
             const allocator_arena = arena.allocator();
 
-            var root_to_current:topology_m.Topology = .INFINITE_IDENTITY;
+            var root_to_current:topology_m.Topology = .identity_infinite;
 
             if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
             {
@@ -822,7 +822,7 @@ pub fn ProjectionBuilder(
                     .destination = space_nodes.get(
                         sorted_endpoints.destination
                     ),
-                    .src_to_dst_topo = .INFINITE_IDENTITY,
+                    .src_to_dst_topo = .identity_infinite,
                 };
             }
 

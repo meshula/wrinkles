@@ -244,25 +244,25 @@ pub fn DualOfStruct(
 {
     return struct {
         /// real component
-        r: T = T.ZERO,
+        r: T = T.zero,
         /// infinitesimal component
-        i: T = T.ZERO,
+        i: T = T.zero,
 
         pub const BaseType = T;
         pub const DualType = @This();
         pub const __IS_DUAL = true;
 
         pub const ZERO_ZERO = DualType{
-            .r = T.ZERO,
-            .i = T.ZERO,
+            .r = T.zero,
+            .i = T.zero,
         };
         pub const ONE_ZERO = DualType{
             .r = T.ONE,
-            .i = T.ZERO,
+            .i = T.zero,
         };
         pub const EPSILON = DualType {
             .r = T.EPSILON,
-            .i = T.ZERO,
+            .i = T.zero,
         };
 
         pub inline fn init(
