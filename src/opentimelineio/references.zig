@@ -61,7 +61,7 @@ pub const SpaceLabel = union (enum) {
 };
 
 /// References a specific temporal space on a specific `CompositionItemHandle`
-/// object in the composition.
+/// in the composition.
 pub const TemporalSpaceReference = struct {
     /// The object in the composition.
     ref: CompositionItemHandle,
@@ -149,7 +149,7 @@ pub const CompositionItemHandle = union(enum) {
         };
     }
 
-    /// recurse through
+    /// Clear the memory of the item this is a handle of and any children.
     pub fn recursively_deinit(
         self: *@This(),
         allocator: std.mem.Allocator,
@@ -200,7 +200,7 @@ pub const CompositionItemHandle = union(enum) {
         }
     }
 
-    /// return the name field of the referenced object
+    /// The (optional) name of the referred item.
     pub fn maybe_name(
         self: @This(),
     ) ?[]const u8
@@ -210,6 +210,7 @@ pub const CompositionItemHandle = union(enum) {
         };
     }
 
+    /// Fetch the internal topology of the referred item.
     pub fn topology(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -227,6 +228,7 @@ pub const CompositionItemHandle = union(enum) {
         };
     }
 
+    /// Compute the bounds of space `target_space` on the referred item.
     pub fn bounds_of(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -258,24 +260,33 @@ pub const CompositionItemHandle = union(enum) {
         };
     }
 
-    /// build a space reference to the specified space on this CV
+    /// Build a TemporalSpaceReference from a space on the referred item.
     pub fn space(
         self: @This(),
+        /// Target space
         label: SpaceLabel
     ) TemporalSpaceReference 
     {
-        return .{ .ref = self, .label = label };
+        return .{
+            .ref = self,
+            .label = label,
+        };
     }
 
-    /// build a topology that projects a value `from_space` -> `to_space`
-    /// @TODO clarify that this function is used to take one step along the
-    /// path and not do all the steps - need to use other functions for that.
-    /// @TODO -> rename internal_transform
+    /// Build a topology that projects a value `from_space` -> `to_space`
+    ///
+    /// * @TODO clarify that this function is used to take one step along the
+    ///   path and not do all the steps - need to use other functions for that.
+    /// * @TODO -> rename internal_transform.
+    ///
+    /// Returend memory is owned by the caller.
     pub fn build_transform(
         self: @This(),
         allocator: std.mem.Allocator,
+        /// Label of the starting space on the referred item.
         from_space_label: SpaceLabel,
         to_space: TemporalSpaceReference,
+        /// Step taken from previous node.
         step: treecode.l_or_r,
     ) !topology_m.Topology 
     {
@@ -509,6 +520,8 @@ pub const CompositionItemHandle = union(enum) {
         };
     }
 
+    /// If the referred item has a discrete_partition, transform the discrete
+    /// index into a continuous interval in the target `in_space`.
     pub fn discrete_index_to_continuous_range(
         self: @This(),
         ind_discrete: sampling.sample_index_t,
@@ -532,6 +545,8 @@ pub const CompositionItemHandle = union(enum) {
         return error.NoDiscreteInfoForSpace;
     }
 
+    /// Transform the continuous ordinate to a discrete ordinate `in_space`.,
+    /// if that space has a discrete space partition.
     pub fn continuous_ordinate_to_discrete_index(
         self: @This(),
         ord_continuous: opentime.Ordinate,
@@ -552,11 +567,13 @@ pub const CompositionItemHandle = union(enum) {
             );
         }
 
+        // @TODO: should this be an error?  or a null (no projection).
+
         return error.NoDiscreteInfoForSpace;
     }
    
     /// Continuous to discrete transformation for the given space on the
-    /// referred object .
+    /// referred item.
     ///
     /// EG: given in_space .presentation, builds the continuous-to-discrete
     /// topology for transforming from the continuous presentation space to the
@@ -596,44 +613,15 @@ pub const CompositionItemHandle = union(enum) {
         );
     }
 
-    pub fn discrete_info_media(
-        self: @This(),
-    ) ?sampling.SampleIndexGenerator
-    {
-        switch (self)
-        {
-            .clip => |cl| return cl.media.maybe_discrete_partition,
-            // is it an error?  Or null
-            else => null,
-        }
-    }
-
-    pub fn discrete_info_presentation(
-        self: @This(),
-        domain: domain_mod.Domain,
-    ) ?sampling.SampleIndexGenerator
-    {
-        return switch (self)
-        {
-            .timeline => |tl| switch (domain) {
-                .picture => tl.discrete_space_partitions.presentation.picture,
-                .audio => tl.discrete_space_partitions.presentation.audio,
-                else => null,
-            },
-            // is it an error?  Or null
-            else => null,
-        };
-    }
-
+    /// Return the discrete partition for the specified space label on the
+    /// referred item in the specified domain.  Return null if no discrete
+    /// partition exists.
     pub fn discrete_info_for_space(
         self: @This(),
         in_space: SpaceLabel,
         domain: domain_mod.Domain,
     ) ?sampling.SampleIndexGenerator
     {
-        // currently these are the only supported domain queries
-        // std.debug.assert(domain == .audio or domain == .picture);
-
         return switch (self) {
             .timeline => |tl| switch (in_space) {
                 .presentation => switch (domain) {
