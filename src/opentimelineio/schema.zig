@@ -272,7 +272,7 @@ pub const Transition = struct {
         &.{ .presentation }
     );
 
-    /// Build a reference to this Clip.
+    /// Build a reference to this Transition.
     pub fn reference(
         self: *@This(),
     ) references.ComposedValueRef
@@ -306,18 +306,25 @@ pub const Transition = struct {
     }
 };
 
-/// a warp is an additional nonlinear transformation between the warp.parent
-/// and and warp.child.presentation spaces.
+/// An explicit temporal transformation from the parent space of the warp to
+/// the child space of the warp.
 pub const Warp = struct {
+    /// Optional name, for labelling and human readability.
     maybe_name: ?string.latin_s8 = null,
-    child: references.ComposedValueRef,
-    transform: topology_m.Topology,
-    interpolating: bool = false,
 
+    /// The child object of the warp.  Effectively warping the presentation
+    /// space of the child.
+    child: references.ComposedValueRef,
+
+    /// The Transformation (topology) to use to warp the child space.
+    transform: topology_m.Topology,
+
+    /// The internal temporal coordinate systems of the Warp.
     pub const internal_spaces: []const references.SpaceLabel = (
         &.{ .presentation }
     );
 
+    /// Build a reference to this Warp.
     pub fn reference(
         self: *@This(),
     ) references.ComposedValueRef
