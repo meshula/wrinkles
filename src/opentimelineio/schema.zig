@@ -667,26 +667,36 @@ pub const DiscretePartitionDomainMap = struct {
     };
 };
 
-/// top level object
+/// Root temporal object of a temporal hierarchy.
 ///
-/// Contains a stack called "tracks".
-/// Also allows for a discretization of the "result" space for your timeline,
-/// IE if it is intended for 24fps picture and 192khz audio, that is configured
-/// on the timeline so that regardless of what the discretizations for the
-/// various child objects might be, the output is fixed at that description.
+/// Contains a `Stack` called `tracks` which contains the top children of the
+/// timeline document.
+///
+/// Also allows for a discretization of the presentation space for your
+/// timeline, IE if it is intended for 24fps picture and 192khz audio, that is
+/// configured on the timeline so that regardless of what the discretizations
+/// for the various child objects might be, the output is fixed at that
+/// description.
 pub const Timeline = struct {
+
+    /// Optional name, for labelling and human readability.
     maybe_name: ?string.latin_s8 = null,
+
+    /// Container for children of the Timeline.
     tracks:Stack = .{},
 
+    /// Discrete space descriptions for the presentation space of the timeline.
     discrete_space_partitions: struct {
         presentation: DiscretePartitionDomainMap = .no_discretizations,
     } = .{},
 
+    /// The internal temporal coordinate systems of the Timeline.
     pub const internal_spaces: []const references.SpaceLabel = &.{
         .presentation,
         .intrinsic,
     };
 
+    /// Clear the memory of self and any child objects.
     pub fn recursively_deinit(
         self: *@This(),
         allocator: std.mem.Allocator,
@@ -701,6 +711,7 @@ pub const Timeline = struct {
         self.tracks.recursively_deinit(allocator);
     }
 
+    /// Presentation space of Timeline -> presentation space of `Tracks` stack.
     pub fn topology(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -709,6 +720,7 @@ pub const Timeline = struct {
         return try self.tracks.topology(allocator);
     }
 
+    /// Build a reference to this Timeline.
     pub fn reference(
         self: *@This(),
     ) references.ComposedValueRef
