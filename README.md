@@ -81,6 +81,11 @@ didn't impact the deisgn or problems we were specifically solving.
 * Multiple media references (left eye/right eye)
 * Metadata
 * Spatial Coordinate Systems
+* Markers
+* Schema Versioning
+* User-defined runtime schemas
+* Metadata with arbitrary user defined schemas
+* Algorithms for filtering or iterating over all the children of a timeline.
 
 ## Ideal Demonstrator Gui App 8/23
 
@@ -133,9 +138,10 @@ didn't impact the deisgn or problems we were specifically solving.
 * [ ] Mapping/Topology inits unnecessarily copy memory (they always dupe
       argument lists in)
 * [ ] discrete space description
-    * [ ] Clip specification
+    * [x] Clip specification
     * [ ] description of bounds in either Continuous or Discrete space
 * [ ] build out domain modelling from sketch into serialization
+* [ ] clip.presentation bounds are currently the same for media and presentation space, this is incorrect.  The presentation space should _always_ be [0,duration)
 * [ ] OTIO 2.0 file format
     * [ ] translator python script
     * [ ] don't need a rational time based format anymore
@@ -174,7 +180,7 @@ didn't impact the deisgn or problems we were specifically solving.
 * [ ] project_*_cd should return an optional instead of an error?
 * [ ] building a projection operator should not require allocation from a
       builder
-* [ ] OTIO 1.0 missing features list
+* [ ] OTIO 1.0 missing vs omitted features list
 
 ## Todo List (10/9/25)
 
