@@ -8,7 +8,7 @@
 //!
 //! The `TemporalProjectionBuilder` is the user-facing object that can build
 //! `ProjectionOperator` objects they can use to perform transformations from a
-//! `references.ComposedValueRef`.
+//! `references.CompositionItemHandle`.
 //!
 //! Projection functions end in a two letter code which refers to the type of
 //! the from and two spaces.  The first letter refers to the source space and
@@ -427,7 +427,7 @@ test "ReferenceTopology: leak test"
         .media = .null_picture,
         .maybe_bounds_s = test_data.T_INT_1_TO_9,
     };
-    const cl_ptr = references.ComposedValueRef.init(&cl);
+    const cl_ptr = references.CompositionItemHandle.init(&cl);
 
     var cl_pres_proj_topo = try TemporalProjectionBuilder.init_from(
         allocator,
@@ -458,7 +458,7 @@ test "ProjectionBuilder: clip"
         .media = .null_picture,
         .maybe_bounds_s = test_data.T_INT_1_TO_9,
     };
-    const cl_ptr = references.ComposedValueRef{ .clip = &cl };
+    const cl_ptr = references.CompositionItemHandle{ .clip = &cl };
 
     var cl_pres_projection_builder = (
         try TemporalProjectionBuilder.init_from(
@@ -539,11 +539,11 @@ test "ProjectionBuilder: track with single clip"
         .media = .null_picture,
         .maybe_bounds_s = test_data.T_INT_1_TO_9,
     };
-    const cl_ptr = references.ComposedValueRef.init(&cl);
+    const cl_ptr = references.CompositionItemHandle.init(&cl);
 
-    var tr_children = [_]references.ComposedValueRef{ cl_ptr, };
+    var tr_children = [_]references.CompositionItemHandle{ cl_ptr, };
     var tr: schema.Track = .{ .children = &tr_children };
-    const tr_ptr = references.ComposedValueRef.init(&tr);
+    const tr_ptr = references.CompositionItemHandle.init(&tr);
 
     const source_space = tr_ptr.space(.presentation);
 
@@ -674,16 +674,16 @@ test "transform: track with two clips"
         .media = .null_picture,
         .maybe_bounds_s = test_data.T_INT_1_TO_4,
     };
-    const cl2_ref = references.ComposedValueRef.init(&cl2);
+    const cl2_ref = references.CompositionItemHandle.init(&cl2);
 
-    var tr_children = [_]references.ComposedValueRef{
-        references.ComposedValueRef.init(&cl1),
+    var tr_children = [_]references.CompositionItemHandle{
+        references.CompositionItemHandle.init(&cl1),
         cl2_ref 
     };
     var tr: schema.Track = .{
         .children = &tr_children,
     };
-    const tr_ptr = references.ComposedValueRef.init(&tr);
+    const tr_ptr = references.CompositionItemHandle.init(&tr);
 
     const map = try temporal_tree.build_temporal_tree(
         allocator,
@@ -791,15 +791,15 @@ test "ProjectionTopology: track with two clips"
             .maybe_bounds_s = test_data.T_INT_1_TO_9,
         },
     };
-    const cl_ptr = references.ComposedValueRef.init(&clips[1]);
+    const cl_ptr = references.CompositionItemHandle.init(&clips[1]);
 
-    var tr_children = [_]references.ComposedValueRef{
+    var tr_children = [_]references.CompositionItemHandle{
         clips[0].reference(),
         clips[1].reference(),
         clips[2].reference(),
     };
     var tr: schema.Track = .{ .children = &tr_children };
-    const tr_ptr = references.ComposedValueRef.init(&tr);
+    const tr_ptr = references.CompositionItemHandle.init(&tr);
 
     const source_space = tr_ptr.space(.presentation);
 
@@ -878,13 +878,13 @@ test "ProjectionBuilder: track [c1][gap][c2]"
     };
     const cl2_ptr = cl2.reference();
 
-    var tr_children = [_]references.ComposedValueRef{ 
+    var tr_children = [_]references.CompositionItemHandle{ 
         cl.reference(),
-        references.ComposedValueRef.init(&gp),
+        references.CompositionItemHandle.init(&gp),
         cl2_ptr,
     };
     var tr: schema.Track = .{ .children = &tr_children, };
-    const tr_ptr = references.ComposedValueRef.init(&tr);
+    const tr_ptr = references.CompositionItemHandle.init(&tr);
 
     var tr_pres_projection_builder = (
         try TemporalProjectionBuilder.init_from(
@@ -928,11 +928,11 @@ test "Projection: schema.Track with single clip with identity transform and boun
         .media = .null_picture,
         .maybe_bounds_s = test_data.T_INT_0_TO_2,
     };
-    const clip = references.ComposedValueRef.init(&cl);
+    const clip = references.CompositionItemHandle.init(&cl);
 
-    var tr_children = [_]references.ComposedValueRef{ clip, };
+    var tr_children = [_]references.CompositionItemHandle{ clip, };
     var tr: schema.Track = .{ .children = &tr_children };
-    const root = references.ComposedValueRef{ .track = &tr };
+    const root = references.CompositionItemHandle{ .track = &tr };
 
     const map = try temporal_tree.build_temporal_tree(
         allocator,
@@ -1006,7 +1006,7 @@ test "Projection: schema.Track 3 bounded clips identity xform"
 
     // build timeline
     var clips: [3]schema.Clip = undefined;
-    var refs: [3]references.ComposedValueRef = undefined;
+    var refs: [3]references.CompositionItemHandle = undefined;
 
     for (&clips, &refs)
         |*cl, *ref|
@@ -1229,14 +1229,14 @@ test "Single schema.Clip bezier transform"
         .media = .null_picture,
         .maybe_bounds_s = media_temporal_bounds,
     };
-    const cl_ptr:references.ComposedValueRef = .{ .clip = &cl };
+    const cl_ptr:references.CompositionItemHandle = .{ .clip = &cl };
 
     var wp: schema.Warp = .{
         .child = cl_ptr,
         .transform = curve_topo,
     };
 
-    const wp_ptr : references.ComposedValueRef = .{ .warp = &wp };
+    const wp_ptr : references.CompositionItemHandle = .{ .warp = &wp };
 
     var wp_pres_projection_builder = (
         try TemporalProjectionBuilder.init_from(
@@ -1398,7 +1398,7 @@ test "otio projection: track with single clip"
     };
     const cl_ptr = cl.reference();
 
-    var tr_children = [_]references.ComposedValueRef{ cl_ptr, };
+    var tr_children = [_]references.CompositionItemHandle{ cl_ptr, };
     var tr: schema.Track = .{ .children = &tr_children };
     const tr_ptr = tr.reference();
 
@@ -1572,7 +1572,7 @@ test "otio projection: track with single clip with transform"
             .maybe_discrete_partition = media_discrete_info,
         },
     };
-    const cl_ptr = references.ComposedValueRef.init(&cl);
+    const cl_ptr = references.CompositionItemHandle.init(&cl);
 
     var wp : schema.Warp = .{
         .child = cl_ptr,
@@ -1588,15 +1588,15 @@ test "otio projection: track with single clip with transform"
     };
     defer wp.transform.deinit(allocator);
 
-    var tr_children = [_]references.ComposedValueRef{
-        references.ComposedValueRef.init(&wp),
+    var tr_children = [_]references.CompositionItemHandle{
+        references.CompositionItemHandle.init(&wp),
     };
     var tr: schema.Track = .{
         .children = &tr_children,
     };
 
-    var tl_children = [_]references.ComposedValueRef{
-        references.ComposedValueRef.init(&tr),
+    var tl_children = [_]references.CompositionItemHandle{
+        references.CompositionItemHandle.init(&tr),
     };
     var tl: schema.Timeline = .{
         .discrete_space_partitions = .{ 
@@ -1830,7 +1830,7 @@ test "Single clip, schema.Warp bulk"
         .maybe_bounds_s = media_temporal_bounds,
     };
     defer cl.destroy(allocator);
-    const cl_ptr = references.ComposedValueRef.init(&cl);
+    const cl_ptr = references.CompositionItemHandle.init(&cl);
 
     const cl_media = cl_ptr.space(.media);
 
@@ -1927,7 +1927,7 @@ test "Single clip, schema.Warp bulk"
             .transform = xform,
         };
 
-        const wp_ptr : references.ComposedValueRef = .{ .warp =  &warp };
+        const wp_ptr : references.CompositionItemHandle = .{ .warp =  &warp };
 
         var wp_pres_projection_builder = (
             try TemporalProjectionBuilder.init_from(
@@ -2079,7 +2079,7 @@ test "ReferenceTopology: init_from_reference"
     };
     const cl2_ptr = cl2.reference();
 
-    var tr_children: [2]references.ComposedValueRef = .{cl_ptr, cl2_ptr};
+    var tr_children: [2]references.CompositionItemHandle = .{cl_ptr, cl2_ptr};
     var tr1 = schema.Track {
         .children = &tr_children,
     };
@@ -2112,13 +2112,13 @@ test "ReferenceTopology: init_from_reference"
         },
     };
     const wp_ref = wp1.reference();
-    var tr2_children: [1]references.ComposedValueRef = .{wp_ref};
+    var tr2_children: [1]references.CompositionItemHandle = .{wp_ref};
     var tr2 = schema.Track {
         .children = &tr2_children,
     };
     const tr2_ptr = tr2.reference();
 
-    var st_children: [2]references.ComposedValueRef = .{ tr1_ptr, tr2_ptr };
+    var st_children: [2]references.CompositionItemHandle = .{ tr1_ptr, tr2_ptr };
     var tl = schema.Timeline {
         .tracks = .{
             .children = &st_children,

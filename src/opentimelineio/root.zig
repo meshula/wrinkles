@@ -3,7 +3,7 @@
 //! that might eventually get ported to 'real' OTIO.
 
 pub const references = @import("references.zig");
-pub const ComposedValueRef = references.ComposedValueRef;
+pub const CompositionItemHandle = references.CompositionItemHandle;
 pub const SpaceLabel = references.SpaceLabel;
 
 pub const projection = @import("projection.zig");

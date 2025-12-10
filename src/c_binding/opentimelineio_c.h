@@ -35,30 +35,30 @@ typedef enum otio_ComposableTypes_t {
     otio_ct_err 
 } otio_ComposableTypes_t;
 
-typedef struct otio_ComposedValueRef {
+typedef struct otio_CompositionItemHandle {
     otio_ComposableTypes_t kind;
     void* ref;
-} otio_ComposedValueRef;
+} otio_CompositionItemHandle;
 
 
-otio_ComposedValueRef otio_read_from_file(
+otio_CompositionItemHandle otio_read_from_file(
         otio_Allocator,
         const char* filepath
  );
-void otio_timeline_deinit(otio_ComposedValueRef root);
+void otio_timeline_deinit(otio_CompositionItemHandle root);
 
-otio_ComposedValueRef otio_fetch_child_cvr_ind(
-        otio_ComposedValueRef parent,
+otio_CompositionItemHandle otio_fetch_child_cvr_ind(
+        otio_CompositionItemHandle parent,
         int index
 );
-int otio_child_count_cvr(otio_ComposedValueRef parent);
+int otio_child_count_cvr(otio_CompositionItemHandle parent);
 int otio_fetch_cvr_type_str(
-        otio_ComposedValueRef self,
+        otio_CompositionItemHandle self,
         char* result,
         size_t len
 );
 int otio_fetch_cvr_name_str(
-        otio_ComposedValueRef self,
+        otio_CompositionItemHandle self,
         char* result,
         size_t len
 );
@@ -71,7 +71,7 @@ typedef struct otio_Topology {
 
 otio_Topology otio_fetch_topology(
         otio_Allocator allocator,
-        otio_ComposedValueRef ref
+        otio_CompositionItemHandle ref
 );
 int otio_topo_fetch_input_bounds(otio_Topology, const otio_ContinuousInterval*);
 int otio_topo_fetch_output_bounds(otio_Topology, const otio_ContinuousInterval*);
@@ -85,7 +85,7 @@ typedef struct otio_ProjectionTopology {
 
 otio_ProjectionTopology otio_build_projection_op_map_to_media_tp_cvr(
     otio_Allocator allocator,
-    otio_ComposedValueRef root
+    otio_CompositionItemHandle root
 );
 size_t otio_po_map_fetch_num_endpoints(otio_ProjectionTopology in_map);
 const float* otio_po_map_fetch_endpoints(otio_ProjectionTopology in_map);
@@ -104,8 +104,8 @@ int otio_po_map_fetch_op(
         otio_ProjectionOperator* result
 );
 int otio_po_fetch_topology(otio_ProjectionOperator, otio_Topology*);
-otio_ComposedValueRef otio_po_fetch_source(otio_ProjectionOperator);
-otio_ComposedValueRef otio_po_fetch_destination(otio_ProjectionOperator);
+otio_CompositionItemHandle otio_po_fetch_source(otio_ProjectionOperator);
+otio_CompositionItemHandle otio_po_fetch_destination(otio_ProjectionOperator);
 
 void otio_write_map_to_png(
         otio_Allocator allocator,
@@ -140,12 +140,12 @@ typedef struct otio_DiscreteDatasourceIndexGenerator {
 } otio_DiscreteDatasourceIndexGenerator;
 
 int otio_fetch_discrete_info(
-        otio_ComposedValueRef,
+        otio_CompositionItemHandle,
         otio_SpaceLabel,
         otio_Domain,
         otio_DiscreteDatasourceIndexGenerator*);
 size_t otio_fetch_continuous_ordinate_to_discrete_index(
-        otio_ComposedValueRef,
+        otio_CompositionItemHandle,
         float,
         otio_SpaceLabel,
         otio_Domain);

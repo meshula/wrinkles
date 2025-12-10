@@ -34,9 +34,9 @@ const STATE = struct {
     var otio_src_json:[]const u8 = undefined;
 
     /// root object in the read in OTIO file
-    var otio_root: otio.ComposedValueRef = undefined;
+    var otio_root: otio.CompositionItemHandle = undefined;
 
-    var maybe_current_selected_object: ?otio.ComposedValueRef = null;
+    var maybe_current_selected_object: ?otio.CompositionItemHandle = null;
     var maybe_cached_topology: ?topology.Topology = null;
 
     var maybe_src: ?otio.references.TemporalSpaceReference = null;
@@ -124,7 +124,7 @@ fn parent_path(
     );
     defer allocator.free(path);
 
-    var last_ref: otio.ComposedValueRef = undefined;
+    var last_ref: otio.CompositionItemHandle = undefined;
 
     var buf: std.ArrayList(u8) = .empty;
     var writer = buf.writer(allocator);
@@ -797,7 +797,7 @@ const IS_WASM = builtin.target.cpu.arch.isWasm();
 
 fn label_for_ref(
     buf: []u8,
-    ref: otio.ComposedValueRef,
+    ref: otio.CompositionItemHandle,
 ) ![]const u8
 {
     return try std.fmt.bufPrintZ(
@@ -810,7 +810,7 @@ fn label_for_ref(
 
 fn child_tree(
     allocator: std.mem.Allocator,
-    children: []otio.ComposedValueRef,
+    children: []otio.CompositionItemHandle,
 ) !void
 {
     if (children.len == 0)

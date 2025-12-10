@@ -5,7 +5,7 @@
 //!
 //! Objects typically have an optional `maybe_name` parameter and functions
 //! that allow querying their temporal state.  Generally they refer to other
-//! objects through the `references.ComposedValueRef`.
+//! objects through the `references.CompositionItemHandle`.
 //!
 //! Deviates from OpenTimelineIO in order to present a rigorous temporal
 //! hierarchy.
@@ -215,7 +215,7 @@ pub const Clip = struct {
     /// Build a reference to this Clip.
     pub fn reference(
         self: *@This(),
-    ) references.ComposedValueRef
+    ) references.CompositionItemHandle
     {
         return .{ .clip = self };
     }
@@ -293,7 +293,7 @@ pub const Transition = struct {
     /// Build a reference to this Transition.
     pub fn reference(
         self: *@This(),
-    ) references.ComposedValueRef
+    ) references.CompositionItemHandle
     {
         return .{ .transition = self };
     }
@@ -332,7 +332,7 @@ pub const Warp = struct {
 
     /// The child object of the warp.  Effectively warping the presentation
     /// space of the child.
-    child: references.ComposedValueRef,
+    child: references.CompositionItemHandle,
 
     /// The Transformation (topology) to use to warp the child space.
     transform: topology_m.Topology,
@@ -345,7 +345,7 @@ pub const Warp = struct {
     /// Build a reference to this Warp.
     pub fn reference(
         self: *@This(),
-    ) references.ComposedValueRef
+    ) references.CompositionItemHandle
     {
         return .{ .warp = self };
     }
@@ -419,7 +419,7 @@ pub const Track = struct {
 
     /// Child objects of the track, listed from first to last in temporal order.
     /// A sequence of right met segments.
-    children: []references.ComposedValueRef = &.{},
+    children: []references.CompositionItemHandle = &.{},
 
     /// The internal temporal coordinate systems of the Track.
     pub const internal_spaces: []const references.SpaceLabel = (
@@ -551,7 +551,7 @@ pub const Track = struct {
     /// Build a reference to this Track.
     pub fn reference(
         self: *@This(),
-    ) references.ComposedValueRef
+    ) references.CompositionItemHandle
     {
         return .{ .track = self };
     }
@@ -565,7 +565,7 @@ pub const Stack = struct {
     /// Child objects of the Stack (for example, tracks).  Children are listed
     /// in compositing order, with later children coming "above" earlier
     /// entries.
-    children: []references.ComposedValueRef = &.{},
+    children: []references.CompositionItemHandle = &.{},
 
     /// The internal temporal coordinate systems of the Track.
     pub const internal_spaces: []const references.SpaceLabel = (
@@ -643,7 +643,7 @@ pub const Stack = struct {
     /// Build a reference to this Stack.
     pub fn reference(
         self: *@This(),
-    ) references.ComposedValueRef
+    ) references.CompositionItemHandle
     {
         return .{ .stack = self };
     }
@@ -726,7 +726,7 @@ pub const Timeline = struct {
     /// Build a reference to this Timeline.
     pub fn reference(
         self: *@This(),
-    ) references.ComposedValueRef
+    ) references.CompositionItemHandle
     {
         return .{ .timeline = self };
     }
@@ -806,7 +806,7 @@ test "track topology construction"
         .maybe_bounds_s = test_data.T_INT_1_TO_9, 
     };
 
-    var tr_children = [_]references.ComposedValueRef{
+    var tr_children = [_]references.CompositionItemHandle{
         cl.reference()
     };
     var tr: Track = .{
