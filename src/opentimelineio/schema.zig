@@ -395,18 +395,25 @@ pub const Warp = struct {
 
 /// a container in which each contained item is right-met over time
 pub const Track = struct {
+    /// Optional name, for labelling and human readability.
     maybe_name: ?string.latin_s8 = null,
+
+    /// Child objects of the track, listed from first to last in temporal order.
+    /// A sequence of right met segments.
     children: []references.ComposedValueRef = &.{},
 
+    /// The internal temporal coordinate systems of the Track.
     pub const internal_spaces: []const references.SpaceLabel = (
         &.{ .presentation, .intrinsic }
     );
 
+    /// An empty track.
     pub const empty = Track{
         .maybe_name = null,
         .children = &.{},
     };
 
+    /// Clear the memory of self and any child objects.
     pub fn recursively_deinit(
         self: *@This(),
         allocator: std.mem.Allocator,
@@ -421,6 +428,7 @@ pub const Track = struct {
         self.deinit(allocator);
     }
 
+    /// Clear the memory of this object but not of children.
     pub fn deinit(
         self: *@This(),
         allocator: std.mem.Allocator,
@@ -521,6 +529,7 @@ pub const Track = struct {
         );
     }
 
+    /// Build a reference to this Track.
     pub fn reference(
         self: *@This(),
     ) references.ComposedValueRef
