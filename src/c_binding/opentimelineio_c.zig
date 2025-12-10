@@ -442,7 +442,7 @@ fn otio_po_fetch_destination_erroring(
     const po = try init_ProjectionOperator(in_po_c);
 
     // note - returns a SpaceReference, not a CompositionItemHandle
-    return to_c_ref(po.destination.ref);
+    return to_c_ref(po.destination.item);
 }
 
 pub export fn otio_po_fetch_destination(

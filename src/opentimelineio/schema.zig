@@ -126,7 +126,7 @@ pub const Clip = struct {
     /// Clips provide a `media` space in addition to the `presentation` space.
     ///
     /// The media space is defined by the media reference.
-    pub const internal_spaces: []const references.SpaceLabel = &.{
+    pub const internal_spaces: []const references.TemporalSpace = &.{
         .presentation,
         .media,
     };
@@ -139,7 +139,7 @@ pub const Clip = struct {
     /// Compute the bounds of `target_space` on this clip.
     pub fn bounds_of(
         self: @This(),
-        target_space: references.SpaceLabel,
+        target_space: references.TemporalSpace,
     ) !opentime.ContinuousInterval 
     {
         const maybe_bounds_s = (
@@ -226,7 +226,7 @@ test "Clip: spaces list"
     var cl: Clip = .null_picture;
 
     try std.testing.expectEqualSlices(
-        references.SpaceLabel,
+        references.TemporalSpace,
         &.{ .presentation, .media },
         cl.reference().spaces()
     );
@@ -245,7 +245,7 @@ pub const Gap = struct {
     duration_s: opentime.Ordinate,
 
     /// The internal temporal coordinate systems of the Gap.
-    pub const internal_spaces: []const references.SpaceLabel = (
+    pub const internal_spaces: []const references.TemporalSpace = (
         &.{ .presentation, .intrinsic }
     );
 
@@ -286,7 +286,7 @@ pub const Transition = struct {
     maybe_bounds_s: ?opentime.ContinuousInterval,
 
     /// The internal temporal coordinate systems of the Timeline.
-    pub const internal_spaces: []const references.SpaceLabel = (
+    pub const internal_spaces: []const references.TemporalSpace = (
         &.{ .presentation }
     );
 
@@ -338,7 +338,7 @@ pub const Warp = struct {
     transform: topology_m.Topology,
 
     /// The internal temporal coordinate systems of the Warp.
-    pub const internal_spaces: []const references.SpaceLabel = (
+    pub const internal_spaces: []const references.TemporalSpace = (
         &.{ .presentation }
     );
 
@@ -422,7 +422,7 @@ pub const Track = struct {
     children: []references.CompositionItemHandle = &.{},
 
     /// The internal temporal coordinate systems of the Track.
-    pub const internal_spaces: []const references.SpaceLabel = (
+    pub const internal_spaces: []const references.TemporalSpace = (
         &.{ .presentation, .intrinsic }
     );
 
@@ -568,7 +568,7 @@ pub const Stack = struct {
     children: []references.CompositionItemHandle = &.{},
 
     /// The internal temporal coordinate systems of the Track.
-    pub const internal_spaces: []const references.SpaceLabel = (
+    pub const internal_spaces: []const references.TemporalSpace = (
         &.{ .presentation, .intrinsic }
     );
 
@@ -694,7 +694,7 @@ pub const Timeline = struct {
     } = .{},
 
     /// The internal temporal coordinate systems of the Timeline.
-    pub const internal_spaces: []const references.SpaceLabel = &.{
+    pub const internal_spaces: []const references.TemporalSpace = &.{
         .presentation,
         .intrinsic,
     };

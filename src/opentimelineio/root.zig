@@ -4,7 +4,7 @@
 
 pub const references = @import("references.zig");
 pub const CompositionItemHandle = references.CompositionItemHandle;
-pub const SpaceLabel = references.SpaceLabel;
+pub const SpaceLabel = references.TemporalSpace;
 
 pub const projection = @import("projection.zig");
 pub const ProjectionOperator = projection.ProjectionOperator;

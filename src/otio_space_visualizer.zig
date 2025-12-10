@@ -39,8 +39,8 @@ const STATE = struct {
     var maybe_current_selected_object: ?otio.CompositionItemHandle = null;
     var maybe_cached_topology: ?topology.Topology = null;
 
-    var maybe_src: ?otio.references.TemporalSpaceReference = null;
-    var maybe_dst: ?otio.references.TemporalSpaceReference = null;
+    var maybe_src: ?otio.references.TemporalSpaceNode = null;
+    var maybe_dst: ?otio.references.TemporalSpaceNode = null;
     var maybe_transform: ?topology.Topology = null;
     var maybe_proj_builder: ?otio.TemporalProjectionBuilder = null;
 
@@ -112,7 +112,7 @@ fn struct_editor_ui(
 fn parent_path(
     allocator: std.mem.Allocator,
     builder: otio.TemporalProjectionBuilder,
-    destination: otio.references.TemporalSpaceReference,
+    destination: otio.references.TemporalSpaceNode,
 ) ![]const u8
 {
     const path = try builder.tree.path(
@@ -132,8 +132,8 @@ fn parent_path(
     for (path)
         |node_index|
     {
-        const current_node_ref = builder.tree.nodes.items(.ref)[node_index];
-        if (std.meta.eql(destination.ref, current_node_ref))
+        const current_node_ref = builder.tree.nodes.items(.item)[node_index];
+        if (std.meta.eql(destination.item, current_node_ref))
         {
             break;
         }
@@ -154,7 +154,7 @@ fn parent_path(
 
 fn set_source(
     allocator: std.mem.Allocator,
-    src: otio.references.TemporalSpaceReference,
+    src: otio.references.TemporalSpaceNode,
 ) !void
 {
     STATE.maybe_src = src;
@@ -293,7 +293,7 @@ fn fill_topdown_point_buffers(
             //             "{f}", 
             //             .{ dst },
             //         ),
-            //         .ref = (
+            //         .item = (
             //             &builder.tree.nodes.get(ref_ind)
             //         ),
             //         .indices = .{ interval_ind, mapping_ind },
@@ -797,13 +797,13 @@ const IS_WASM = builtin.target.cpu.arch.isWasm();
 
 fn label_for_ref(
     buf: []u8,
-    ref: otio.CompositionItemHandle,
+    item: otio.CompositionItemHandle,
 ) ![]const u8
 {
     return try std.fmt.bufPrintZ(
         buf,
         "{s}.{?s}",
-        .{ @tagName(ref), ref.name() },
+        .{ @tagName(item), item.name() },
     );
 
 }
