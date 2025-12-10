@@ -201,7 +201,7 @@ pub const ProjectionOperator = struct {
         defer in_to_dst_topo_c.deinit(allocator);
 
         const dst_discrete_info = (
-            self.destination.ref.discrete_info_for_space(
+            self.destination.ref.discrete_partition_for_space(
                 self.destination.label,
                 domain,
             )

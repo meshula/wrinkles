@@ -142,7 +142,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     );
 
     const src_discrete_info = (
-        proj_topo.source.ref.discrete_info_for_space(
+        proj_topo.source.ref.discrete_partition_for_space(
             .presentation,
             .picture,
             )
@@ -236,7 +236,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             );
 
             const di = (
-                destination.ref.discrete_info_for_space(
+                destination.ref.discrete_partition_for_space(
                     .media,
                     .picture,
                 )
