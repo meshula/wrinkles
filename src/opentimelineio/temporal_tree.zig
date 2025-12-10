@@ -1033,7 +1033,6 @@ test "test debug_print_time_hierarchy"
     // new for this test - add in an warp on the clip, which holds the frame
     var wp = schema.Warp {
         .child = cl_ptr,
-        .interpolating = true,
         .transform = try topology_m.Topology.init_identity(
             allocator,
             test_data_m.T_INT_1_TO_9,
