@@ -33,7 +33,7 @@ const T_CTI_1_10 = opentime.ContinuousInterval {
 };
 
 /// Specialization of `treecode.BinaryTree` over `references.SpaceReference`
-pub const TemporalTree = treecode.BinaryTree(references.SpaceReference);
+pub const TemporalTree = treecode.BinaryTree(references.TemporalSpaceReference);
 pub const PathEndPoints = TemporalTree.PathEndPoints;
 pub const PathEndPointIndices = TemporalTree.PathEndPointIndices;
 
@@ -77,7 +77,7 @@ fn walk_child_spaces(
         last_code = child_wrapper_space_code_ptr;
 
         // insert the child scope of the parent
-        const space_ref = references.SpaceReference{
+        const space_ref = references.TemporalSpaceReference{
             .ref = parent_otio_object,
             .label = .{ .child = @intCast(index) },
         };
@@ -163,7 +163,7 @@ fn walk_internal_spaces(
     for (0.., spaces) 
         |index, space_label| 
     {
-        const space_ref = references.SpaceReference{
+        const space_ref = references.TemporalSpaceReference{
             .ref = parent_otio_object,
             .label = space_label,
         };
@@ -231,7 +231,7 @@ pub fn build_temporal_tree(
     /// 
     parent_allocator: std.mem.Allocator,
     /// root item of the tree
-    root_space: references.SpaceReference,
+    root_space: references.TemporalSpaceReference,
 ) !TemporalTree 
 {
     var tmp_tree: TemporalTree = .empty;
@@ -689,7 +689,7 @@ test "label_for_node_leaky"
     var buf: [1024]u8 = undefined;
 
     var tr: schema.Track = .empty;
-    const sr = references.SpaceReference{
+    const sr = references.TemporalSpaceReference{
         .label = .presentation,
         .ref = .{ .track = &tr },
     };

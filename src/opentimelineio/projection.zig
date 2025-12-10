@@ -78,10 +78,10 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
 /// continuous projections are permitted.
 pub const ProjectionOperator = struct {
     /// The source space of the projection.
-    source: references.SpaceReference,
+    source: references.TemporalSpaceReference,
     
     /// The destination space of the projection.
-    destination: references.SpaceReference,
+    destination: references.TemporalSpaceReference,
 
     /// The `topology_m.Topology` that describes the relationship between the
     /// continuous `source` space to the continuous `discrete` space.
@@ -2038,7 +2038,7 @@ test "Single clip, schema.Warp bulk"
 /// using references.SpaceReference as the spatial references and
 /// `temporal_tree.build_temporal_tree` as the Tree constructor.
 pub const TemporalProjectionBuilder = projection_builder.ProjectionBuilder(
-    references.SpaceReference,
+    references.TemporalSpaceReference,
     ProjectionOperator,
     temporal_tree.build_temporal_tree,
 );
