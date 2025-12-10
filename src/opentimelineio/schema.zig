@@ -62,7 +62,8 @@ pub const SignalReference = struct {
     signal_generator: sampling.SignalGenerator,
 };
 
-/// The way to get to the media
+/// Data that assists consumers of this library in finding the data for
+/// referenced media.
 pub const MediaDataReference = union(enum) {
     /// Usually a file or URI somewhere
     uri: URIReference,
