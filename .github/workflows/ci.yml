@@ -1,46 +1,23 @@
-name: CI
-on:
-  push:
-    branches: ["main"]
-  pull_request:
-  workflow_dispatch:
+name: Run unit zig build check/test
+on: [push, pull_request]
 
 jobs:
-  test:
+  build:
     strategy:
       matrix:
-        os: [ubuntu-24.04, macos-26, windows-2025]
-        version: [0.15.2]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{matrix.os}}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@main
       - uses: mlugg/setup-zig@v2
         with:
-          version: ${{matrix.version}}
-      - run: echo "OS=$(uname -s), ARCH=$(uname -m), RUNNER=${{matrix.os}}"
-      - run: zig version
-      - run: zig env
-      - run: zig build check test --summary all
-  # lint:
-  #   name: Check Format and Spell Check
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Checkout actions
-  #       uses: actions/checkout@v4
-  #     - name: Setup latest zig
-  #       uses: mlugg/setup-zig@v2
-  #       with:
-  #         version: latest
-      # - name: Syntax check (vale)
-      #   uses: errata-ai/vale-action@v2
-      #   with:
-      #     vale_flags: "--glob=*.md"
-      #     fail_on_error: true
-      #     reporter: github-check
-      # - name: Code spell check (typos)
-      #   uses: crate-ci/typos@v1
-      #   with:
-      #     files: ./
-      # we're not following standard zig conventions
-      # - name: Code format check (zig fmt)
-      #   run: zig fmt --check .
+          version: 0.15.2
+      - name: prepare-linux
+        if: runner.os == 'Linux'
+        run: |
+            sudo apt-get update
+            sudo apt-get install libglu1-mesa-dev mesa-common-dev xorg-dev libasound-dev
+      - name: build Native
+        run: zig build check test docs install --summary all
+      - name: build Wasm
+        run: zig build check test docs install --summary all -Dtarget=wasm32-emscripten
