@@ -1,4 +1,34 @@
 //! Structures and functions around projections through the temporal tree.
+//!
+//! A projection transforms an ordinate, range or topology from one temporal
+//! space to another.  It can include continuous to discrete or discrete to
+//! continuous transformation for handling discrete spaces.
+//!
+//! Transformatinos are handled in continuous space by the `topology` library. 
+//!
+//! The `TemporalProjectionBuilder` is the user-facing object that can build
+//! `ProjectionOperator` objects they can use to perform transformations from a
+//! `references.ComposedValueRef`.
+//!
+//! Projection functions end in a two letter code which refers to the type of
+//! the from and two spaces.  The first letter refers to the source space and
+//! the second one refers to the destination space.
+//!
+//! * `c` means a **continuous** space
+//! * `d` means a **discrete** space
+//!
+//! Examples:
+//!
+//! * `cc`: source and destination are both continuous
+//! * `cd`: source is continuous and destination is discrete
+//! * `dc`: source is discrete and destination is continuous
+//! * `cc`: source and destination are both discrete
+//!
+//! Continuous functions operate on/return `opentime.Ordindate`,
+//! `opentime.ContinuousInterval` or `topology_m.Topology`.
+//!
+//! Discrete functions operate on/return `sampling.sample_index_t` or
+//! `[]sampling.sample_index_t` (a sample index array).
 
 const std = @import("std");
 
@@ -23,30 +53,42 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
 
 /// Combines a source, destination and transformation from the source to the
 /// destination.  Allows continuous and discrete transformations.
+///
+/// ### Projection Types
+/// 
+/// * Root:
+///   * instant
+///     * project_instantaneous_cc -> ordinate -> ordinate
+///     * project_instantaneous_cd -> ordinate -> index
+///   * topology-based
+///     * project_topology_cc -> topology -> topology
+///     * project_topology_cd -> topology -> index array
+/// * Derilved:
+///   * project_range_cc -> range -> topology
+///   * project_range_cd -> range -> index array
+///   * project_index_dc -> index -> topology
+///   * project_index_dd -> index -> index array
+///   * project_indices_dc -> index array -> topology
+///   * project_indices_dd -> index array -> index array
+///
+/// ### **Note** 
+///
+/// In order for discrete transformations to be supported, the
+/// respective spaces must define discrete space partitions.  Otherwise only
+/// continuous projections are permitted.
 pub const ProjectionOperator = struct {
+    /// The source space of the projection.
     source: references.SpaceReference,
+    
+    /// The destination space of the projection.
     destination: references.SpaceReference,
+
+    /// The `topology_m.Topology` that describes the relationship between the
+    /// continuous `source` space to the continuous `discrete` space.
     src_to_dst_topo: topology_m.Topology,
 
-    //
-    // options:
-    //  instant
-    //   project_instantaneous_cc -> ordinate -> ordinate
-    //   project_instantaneous_cd -> ordinate -> index
-    //  topology-based
-    //   project_topology_cc -> topology -> topology
-    //   project_topology_cd -> topology -> index array
-    //
-    //   derivatives:
-    //
-    //    project_range_cc -> range -> topology
-    //    project_range_cd -> range -> index array
-    //    project_index_dc -> index -> topology
-    //    project_index_dd -> index -> index array
-    //    project_indices_dc -> index array -> topology
-    //    project_indices_dd -> index array -> index array
-    //
-
+    /// Return the input bounds of the `source` space of the
+    /// `ProjectionOperator`.
     pub fn source_bounds(
         self: @This(),
     ) opentime.ContinuousInterval
@@ -54,6 +96,8 @@ pub const ProjectionOperator = struct {
         return self.src_to_dst_topo.input_bounds();
     }
 
+    /// Return the output bounds of the `destination` space of the
+    /// `ProjectionOperator`.
     pub fn destination_bounds(
         self: @This(),
     ) opentime.ContinuousInterval
@@ -61,9 +105,10 @@ pub const ProjectionOperator = struct {
         return self.src_to_dst_topo.output_bounds();
     }
 
-    ///project a continuous ordinate to the continuous destination space
+    /// Project a continuous ordinate to the continuous destination space.
     pub fn project_instantaneous_cc(
         self: @This(),
+        /// `opentime.Ordinate` in the source coordinate space to project.
         ordinate_in_source_space: opentime.Ordinate,
     ) opentime.ProjectionResult
     {
@@ -72,11 +117,12 @@ pub const ProjectionOperator = struct {
         );
     }
 
-    ///project a continuous ordinate to the continuous destination space,
-    ///assuming that the ordinate_in_source_space is within the bounds of the
-    ///src_to_dst_topo (will _not_ perform a bounds check)
+    /// Project a continuous ordinate to the continuous destination space,
+    /// assuming that the ordinate_in_source_space is within the bounds of the
+    /// src_to_dst_topo (will _not_ perform a bounds check).
     pub fn project_instantaneous_cc_assume_in_bounds(
         self: @This(),
+        /// `opentime.Ordinate` in the source coordinate space to project.
         ordinate_in_source_space: opentime.Ordinate,
     ) opentime.ProjectionResult
     {
@@ -85,10 +131,12 @@ pub const ProjectionOperator = struct {
         );
     }
 
-    /// project a continuous ordinate to the destination discrete sample index
+    /// Project a continuous ordinate to the destination discrete sample index.
     pub fn project_instantaneous_cd(
         self: @This(),
+        /// `opentime.Ordinate` in the source coordinate space to project.
         ordinate_in_source_space: opentime.Ordinate,
+        /// Domain of the discrete space to project.
         domain: domain_mod.Domain,
     ) !sampling.sample_index_t 
     {
@@ -105,11 +153,14 @@ pub const ProjectionOperator = struct {
         );
     }
 
-    /// given a topology mapping "A" to "SOURCE" return a topology that maps
-    /// "A" to the "DESTINATION" continuous space of the projection operator
+    /// Given a topology mapping "A" to "SOURCE" return a topology that maps
+    /// "A" to the "DESTINATION" continuous space of the projection operator.
+    ///
+    /// Memory is owned by the caller.
     pub fn project_topology_cc(
         self: @This(),
         allocator: std.mem.Allocator,
+        /// Topology to project.
         in_to_src_topo: topology_m.Topology,
     ) !topology_m.Topology
     {
@@ -127,12 +178,16 @@ pub const ProjectionOperator = struct {
         return in_to_dst_topo;
     }
 
-    /// given a topology mapping "A" to "SOURCE" return a topology that maps
-    /// "A" to the "DESTINATION" discrete space of the projection operator
+    /// Given a topology mapping "A" to "SOURCE" return a topology that maps
+    /// "A" to the "DESTINATION" discrete space of the projection operator.
+    ///
+    /// Memory is owned by the caller.
     pub fn project_topology_cd(
         self: @This(),
         allocator: std.mem.Allocator,
+        /// Topology to project.
         in_to_src_topo: topology_m.Topology,
+        /// Domain of the discrete space to project into.
         domain: domain_mod.Domain,
     ) ![]sampling.sample_index_t
     {
@@ -203,10 +258,13 @@ pub const ProjectionOperator = struct {
         return index_buffer_destination_discrete.toOwnedSlice(allocator);
     }
 
-    /// project a continuous range into the continuous destination space
+    /// Project a continuous range into the continuous destination space.
+    ///
+    /// Memory is owned by the caller.
     pub fn project_range_cc(
         self: @This(),
         allocator: std.mem.Allocator,
+        /// Range in the source space to project to the destination space.
         range_in_source: opentime.ContinuousInterval,
     ) !topology_m.Topology
     {
@@ -236,11 +294,15 @@ pub const ProjectionOperator = struct {
         );
     }
 
-    /// project a continuous range into the discrete index space
+    /// Project a continuous range into the discrete index space.
+    ///
+    /// Memory is owned by the caller.
     pub fn project_range_cd(
         self: @This(),
         allocator: std.mem.Allocator,
+        /// Range in the source space to project to the destination space.
         range_in_source: opentime.ContinuousInterval,
+        /// Domain of the discrete space to project into.
         domain: domain_mod.Domain,
     ) ![]sampling.sample_index_t
     {
@@ -266,11 +328,15 @@ pub const ProjectionOperator = struct {
         );
     }
 
-    /// project a discrete index into the continuous space
+    /// Project a discrete index into the continuous space.
+    ///
+    /// Memory is owned by the caller.
     pub fn project_index_dc(
         self: @This(),
         allocator: std.mem.Allocator,
+        /// `sampling.sample_index_t` source index to project.
         index_in_source: sampling.sample_index_t,
+        /// Domain of the discrete space to project.
         domain: domain_mod.Domain,
     ) !topology_m.Topology
     {
@@ -288,12 +354,16 @@ pub const ProjectionOperator = struct {
         );
     }
 
-    /// project an index from the source to the overlapping indices in the
-    /// destination discrete space
+    /// Project an index from the source to the overlapping indices in the
+    /// destination discrete space.
+    ///
+    /// Memory is owned by the caller.
     pub fn project_index_dd(
         self: @This(),
         allocator: std.mem.Allocator,
+        /// `sampling.sample_index_t` source index to project.
         index_in_source: sampling.sample_index_t,
+        /// Domain of the discrete space to project.
         domain: domain_mod.Domain,
     ) ![]sampling.sample_index_t
     {
@@ -312,6 +382,7 @@ pub const ProjectionOperator = struct {
         );
     }
 
+    /// Free the memory of the owned `src_to_dst_topo`.
     pub fn deinit(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -320,7 +391,7 @@ pub const ProjectionOperator = struct {
         self.src_to_dst_topo.deinit(allocator);
     }
 
-    /// return true if lhs.topology.input_bounds().start_time < rhs...
+    /// Return true if lhs starts before rhs starts.
     pub fn less_than_input_space_start_point(
         lhs: @This(),
         rhs: @This(),
@@ -332,6 +403,7 @@ pub const ProjectionOperator = struct {
         );
     }
 
+    /// Create a caller-owned copy of this `ProjectionOperator`.
     pub fn clone(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -1962,6 +2034,9 @@ test "Single clip, schema.Warp bulk"
     }
 }
 
+/// Temporal Specialization of the `projection_builder.ProjectionBuilder`,
+/// using references.SpaceReference as the spatial references and
+/// `temporal_tree.build_temporal_tree` as the Tree constructor.
 pub const TemporalProjectionBuilder = projection_builder.ProjectionBuilder(
     references.SpaceReference,
     ProjectionOperator,
@@ -2183,15 +2258,19 @@ test "ReferenceTopology: init_from_reference"
     // );
 }
 
-/// A cache that maps an implied single source to a list of destinations, by
-/// index relative to some map
-
-/// build a projection operator that projects from the endpoints.source to
-/// endpoints.destination spaces
+/// Build a projection operator that projects from the `endpoints.source` to
+/// `endpoints.destination` spaces within `tree`.
+///
+/// Caches results in the `operator_cache`.
+///
+/// @TODO: remove this, merge into TemporalProjectionBuilder.
 pub fn build_projection_operator(
     allocator_parent: std.mem.Allocator,
+    /// Tree of nodes that encodes the temporal space hierarchy.
     tree: TemporalProjectionBuilder.TreeType,
+    /// Endpoints in the tree to project between.
     endpoints: TemporalProjectionBuilder.TreeType.PathEndPoints,
+    /// Cache to update/use.
     operator_cache: TemporalProjectionBuilder.SingleSourceTopologyCache,
 ) !ProjectionOperator 
 {
