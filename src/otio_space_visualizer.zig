@@ -39,8 +39,8 @@ const STATE = struct {
     var maybe_current_selected_object: ?otio.ComposedValueRef = null;
     var maybe_cached_topology: ?topology.Topology = null;
 
-    var maybe_src: ?otio.references.SpaceReference = null;
-    var maybe_dst: ?otio.references.SpaceReference = null;
+    var maybe_src: ?otio.references.TemporalSpaceReference = null;
+    var maybe_dst: ?otio.references.TemporalSpaceReference = null;
     var maybe_transform: ?topology.Topology = null;
     var maybe_proj_builder: ?otio.TemporalProjectionBuilder = null;
 
@@ -112,7 +112,7 @@ fn struct_editor_ui(
 fn parent_path(
     allocator: std.mem.Allocator,
     builder: otio.TemporalProjectionBuilder,
-    destination: otio.references.SpaceReference,
+    destination: otio.references.TemporalSpaceReference,
 ) ![]const u8
 {
     const path = try builder.tree.path(
@@ -154,7 +154,7 @@ fn parent_path(
 
 fn set_source(
     allocator: std.mem.Allocator,
-    src: otio.references.SpaceReference,
+    src: otio.references.TemporalSpaceReference,
 ) !void
 {
     STATE.maybe_src = src;
@@ -348,7 +348,7 @@ fn fill_topdown_point_buffers(
                             undefined,
                         );
 
-                        if (dst.discrete_info(domain))
+                        if (dst.discrete_partition(domain))
                             |discrete_space|
                         {
                             discrete_indices = .{ points.len, points.len };
@@ -419,7 +419,7 @@ fn fill_topdown_point_buffers(
                             field.name,
                             undefined,
                         );
-                        if (dst.discrete_info(domain))
+                        if (dst.discrete_partition(domain))
                             |discrete_space|
                         {
                             discrete_indices = .{ points.len, points.len };
@@ -504,7 +504,7 @@ fn fill_topdown_point_buffers(
         const result = &@field(STATE.discrete_points, field);
         result.* = null;
 
-        if (STATE.maybe_src.?.discrete_info(domain))
+        if (STATE.maybe_src.?.discrete_partition(domain))
             |discrete_info|
         {
             result.* = .empty;
@@ -628,7 +628,7 @@ fn draw_hover_extras(
                     undefined,
                 );
                 if (
-                    if (dest.discrete_info(domain) != null) (
+                    if (dest.discrete_partition(domain) != null) (
                         try projection_operator.project_instantaneous_cd(
                             source_ord,
                             domain,

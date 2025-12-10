@@ -60,9 +60,9 @@ pub const SpaceLabel = union (enum) {
     }
 };
 
-/// References a specific space on a specific `ComposedValueRef` object in the
-/// composition.
-pub const SpaceReference = struct {
+/// References a specific temporal space on a specific `ComposedValueRef`
+/// object in the composition.
+pub const TemporalSpaceReference = struct {
     /// The object in the composition.
     ref: ComposedValueRef,
     /// The specific space on the `ref`.
@@ -92,7 +92,7 @@ pub const SpaceReference = struct {
     }
 
     /// Return the discrete partition for this space (if it exists).
-    pub fn discrete_info(
+    pub fn discrete_partition(
         self: @This(),
         /// The domain to query
         domain: domain_mod.Domain,
@@ -269,7 +269,7 @@ pub const ComposedValueRef = union(enum) {
     pub fn space(
         self: @This(),
         label: SpaceLabel
-    ) SpaceReference 
+    ) TemporalSpaceReference 
     {
         return .{ .ref = self, .label = label };
     }
@@ -282,7 +282,7 @@ pub const ComposedValueRef = union(enum) {
         self: @This(),
         allocator: std.mem.Allocator,
         from_space_label: SpaceLabel,
-        to_space: SpaceReference,
+        to_space: TemporalSpaceReference,
         step: treecode.l_or_r,
     ) !topology_m.Topology 
     {
