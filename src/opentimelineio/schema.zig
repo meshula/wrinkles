@@ -540,13 +540,20 @@ pub const Track = struct {
 
 /// children of a stack are simultaneous in time
 pub const Stack = struct {
+    /// Optional name, for labelling and human readability.
     maybe_name: ?string.latin_s8 = null,
+
+    /// Child objects of the Stack (for example, tracks).  Children are listed
+    /// in compositing order, with later children coming "above" earlier
+    /// entries.
     children: []references.ComposedValueRef = &.{},
 
+    /// The internal temporal coordinate systems of the Track.
     pub const internal_spaces: []const references.SpaceLabel = (
         &.{ .presentation, .intrinsic }
     );
 
+    /// Clear the memory of this object but not of children.
     pub fn deinit(
         self: *@This(),
         allocator: std.mem.Allocator,
@@ -561,6 +568,7 @@ pub const Stack = struct {
         allocator.free(self.children);
     }
 
+    /// Clear the memory of self and any child objects.
     pub fn recursively_deinit(
         self: *@This(),
         allocator: std.mem.Allocator,
@@ -575,6 +583,7 @@ pub const Stack = struct {
         self.deinit(allocator);
     }
 
+    /// construct the topology mapping the output to the intrinsic space
     pub fn topology(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -612,6 +621,7 @@ pub const Stack = struct {
         }
     }
 
+    /// Build a reference to this Stack.
     pub fn reference(
         self: *@This(),
     ) references.ComposedValueRef
