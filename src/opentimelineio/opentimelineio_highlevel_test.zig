@@ -354,10 +354,7 @@ test "libsamplerate w/ high level test -- resample only"
     };
 
     {
-        const bounds = try cl1.bounds_of(
-            allocator,
-            .media
-        );
+        const bounds = try cl1.bounds_of(.media);
         try std.testing.expect(
             cl1.media.maybe_bounds_s.?.start.lt(cl1.media.maybe_bounds_s.?.end)
         );

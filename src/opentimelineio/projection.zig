@@ -687,14 +687,8 @@ test "transform: track with two clips"
 
         try std.testing.expect(xform.src_to_dst_topo.mappings.len > 0);
 
-        const cl1_range = try cl1.bounds_of(
-            allocator, 
-            .media,
-        );
-        const cl2_range = try cl2.bounds_of(
-            allocator,
-            .media,
-        );
+        const cl1_range = try cl1.bounds_of(.media,);
+        const cl2_range = try cl2.bounds_of(.media,);
 
         try std.testing.expectEqualSlices(
             opentime.Ordinate,
@@ -1403,10 +1397,7 @@ test "otio projection: track with single clip"
             );
             defer result_range_in_media.deinit(allocator);
 
-            const r = try cl.bounds_of(
-                allocator,
-                .media,
-            );
+            const r = try cl.bounds_of(.media,);
             const b = result_range_in_media.output_bounds();
             errdefer {
                 opentime.dbg_print(@src(), 
@@ -1614,10 +1605,7 @@ test "otio projection: track with single clip with transform"
             );
             defer result_range_in_media.deinit(allocator);
 
-            const r = try cl.bounds_of(
-                allocator,
-                .media,
-            );
+            const r = try cl.bounds_of(.media,);
             const b = result_range_in_media.output_bounds();
             errdefer {
                 opentime.dbg_print(@src(), 

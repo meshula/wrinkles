@@ -358,10 +358,7 @@ pub const ComposedValueRef = union(enum) {
                         // );
 
                         const media_bounds = (
-                            try cl.*.bounds_of(
-                                allocator,
-                                .media
-                            )
+                            try cl.*.bounds_of(.media)
                         );
                         const intrinsic_to_media_xform = (
                             opentime.AffineTransform1D{
@@ -411,10 +408,7 @@ pub const ComposedValueRef = union(enum) {
                         const result = (
                             try topology_m.Topology.init_identity(
                                 allocator,
-                                try cl.*.bounds_of(
-                                    allocator,
-                                    .media,
-                                )
+                                try cl.*.bounds_of(.media,)
                             )
                         );
 
