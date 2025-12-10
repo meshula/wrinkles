@@ -798,6 +798,53 @@ pub fn build(
         }
     }
 
+    // Documentation Module that exposes the others (as a sort of landing page)
+    const opentimelineio_docs = module_with_tests_and_artifact(
+        "docs",
+        .{
+            .b = b,
+            .options = options,
+            .fpath = "src/docs/root.zig",
+            .deps = &.{
+                .{ .name = "string_stuff", .module = string_stuff },
+                .{ .name = "opentime", .module = opentime },
+                .{ .name = "opentimelineio", .module = opentimelineio },
+                .{ .name = "curve", .module = curve },
+                .{ .name = "topology", .module = topology },
+                .{ .name = "treecode", .module = treecode },
+                .{ .name = "sampling", .module = sampling },
+                .{ .name = "build_options", .module = build_options_mod},
+            },
+        },
+    );
+
+    {
+        const opentimelineio_docs_test = b.addTest(
+            .{
+                .name = "test_docs",
+                .root_module = opentimelineio_docs,
+                .filters = &.{
+                    options.test_filter orelse &.{},
+                },
+            },
+        );
+        const install_docs = b.addInstallDirectory(
+            .{
+                .source_dir = opentimelineio_docs_test.getEmittedDocs(),
+                .install_dir = .prefix,
+                .install_subdir = "docs",
+            },
+        );
+
+        // each module gets an individual docs step
+        const docs_step = b.step(
+            "docs_wrinkles",
+            "User-facing documentation for the wrinkles library.",
+        );
+        docs_step.dependOn(&install_docs.step);
+        options.all_docs_step.dependOn(docs_step);
+    }
+
     //
     // executables
     //
