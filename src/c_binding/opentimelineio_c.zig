@@ -588,7 +588,7 @@ fn otio_fetch_discrete_info_erroring(
     const label = try init_SpaceLabel(space);
 
     const maybe_di = (
-        ref.discrete_info_for_space(
+        ref.discrete_partition_for_space(
             label,
             domain_from_c(domain),
         )

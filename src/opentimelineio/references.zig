@@ -99,7 +99,7 @@ pub const TemporalSpaceReference = struct {
         domain: domain_mod.Domain,
     ) ?sampling.SampleIndexGenerator
     {
-        return self.ref.discrete_info_for_space(
+        return self.ref.discrete_partition_for_space(
             self.label,
             domain,
         );
@@ -530,7 +530,7 @@ pub const CompositionItemHandle = union(enum) {
     ) !opentime.ContinuousInterval
     {
         const maybe_di = (
-            self.discrete_info_for_space(in_space, domain)
+            self.discrete_partition_for_space(in_space, domain)
         );
 
         if (maybe_di) 
@@ -555,7 +555,7 @@ pub const CompositionItemHandle = union(enum) {
     ) !sampling.sample_index_t
     {
         const maybe_di = (
-            self.discrete_info_for_space(in_space, domain)
+            self.discrete_partition_for_space(in_space, domain)
         );
 
         if (maybe_di) 
@@ -586,7 +586,7 @@ pub const CompositionItemHandle = union(enum) {
     ) !topology_m.Topology
     {
         const maybe_discrete_info = (
-            try self.discrete_info_for_space(in_space)
+            try self.discrete_partition_for_space(in_space)
         );
         if (maybe_discrete_info == null)
         {
@@ -616,7 +616,7 @@ pub const CompositionItemHandle = union(enum) {
     /// Return the discrete partition for the specified space label on the
     /// referred item in the specified domain.  Return null if no discrete
     /// partition exists.
-    pub fn discrete_info_for_space(
+    pub fn discrete_partition_for_space(
         self: @This(),
         in_space: SpaceLabel,
         domain: domain_mod.Domain,
@@ -642,6 +642,7 @@ pub const CompositionItemHandle = union(enum) {
         };
     }
 
+    /// Formatter for `std.Io.Writer`.
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
