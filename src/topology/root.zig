@@ -1,7 +1,10 @@
-//! Topology Library
+//! # Topology Library
 //!
-//! Public interface is the Mapping, a monotonic mapping function, and the
-//! Topology, a sequence of Mappings that are used to transform between spaces.
+//! The mathematical underpinning of temporal projection.  `topology.Topology`
+//! is a right met set of individually continuous and 1:1 `mapping.Mapping`s.
+//! A `topology.Topology` transforms from its input space to its output space
+//! and can be joined with other topologies (using the `join` function) to
+//! collapse transformations together into a single operation.
 //!
 //! Topologys can be "joined" together such that a topology mapping space a to
 //! space b can be joined with a topology that maps from space b to space c
