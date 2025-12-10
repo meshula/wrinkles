@@ -241,6 +241,7 @@ pub const Gap = struct {
     /// A Gaps coordinate system is always 0->duration_seconds
     duration_s: opentime.Ordinate,
 
+    /// The internal temporal coordinate systems of the Gap.
     pub const internal_spaces: []const references.SpaceLabel = (
         &.{ .presentation, .intrinsic }
     );
@@ -281,6 +282,7 @@ pub const Transition = struct {
     /// Optional bound of the presentation space of the Transition.
     maybe_bounds_s: ?opentime.ContinuousInterval,
 
+    /// The internal temporal coordinate systems of the Timeline.
     pub const internal_spaces: []const references.SpaceLabel = (
         &.{ .presentation }
     );
@@ -646,8 +648,12 @@ pub const Stack = struct {
 
 /// A mapping of domain to a corresponding discrete partition for that domain
 pub const DiscretePartitionDomainMap = struct {
+    /// Discrete Partition for the "picture" domain.
     picture: ?sampling.SampleIndexGenerator,
+
+    /// Discrete Partition for the "audio" domain.
     audio: ?sampling.SampleIndexGenerator,
+
     /// Non-picture/audio domain discretizations can be stored here, ie:
     ///   "Gyroscope"
     ///   "Fireworks"
