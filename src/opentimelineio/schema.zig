@@ -1,3 +1,35 @@
+//! # Schema Library
+//!
+//! Data types that encode the structure of an editorial document in a temporal
+//! hierarchy.
+//!
+//! Objects typically have an optional `maybe_name` parameter and functions
+//! that allow querying their temporal state.  Generally they refer to other
+//! objects through the `references.ComposedValueRef`.
+//!
+//! Deviates from OpenTimelineIO in order to present a rigorous temporal
+//! hierarchy.
+//!
+//! Schema Iteration Notes
+//! ----------------------
+//!
+//! To start with embededd spaces are explicit and fixed
+//! * On everything but Clips, the spaces for parameters and bounds and so on
+//!   is the presentation space
+//! * On Clips the embedding space is the media space
+//! * Clips need to have room for multiple media references
+//! * Serialized bounds can be discrete or continuous - in-memory bounds are
+//!   strictly continuous, but can be set either discrete or continuous
+//! * Sequences have a singular domain.  This eliminates fuzzyness like things
+//!   that don't have the domain are gaps, etc.  (hopefully)
+//! * Stacks (eventually) probably want a compositing rule per domain, but for
+//!   now lets not worry about that
+//! * Discrete info is currently only present on the top level timeline and on
+//!   root clips (is there a better name than "Discrete Info"?
+//!   "DiscreteParameterization"?  The sampling library calls this a
+//!   `SampleIndexGenerator`.  Maybe thats better?
+
+
 const std = @import("std");
 
 const opentime = @import("opentime");
@@ -10,24 +42,6 @@ const domain = @import("domain.zig");
 const references = @import("references.zig");
 const test_data = @import("test_structures.zig");
 
-// Schema Iteration Notes
-// ----------------------
-//
-// To start with embededd spaces are explicit and fixed
-// * On everything but Clips, the spaces for parameters and bounds and so on
-//   is the presentation space
-// * On Clips the embedding space is the media space
-// * Clips need to have room for multiple media references
-// * Serialized bounds can be discrete or continuous - in-memory bounds are
-//   strictly continuous, but can be set either discrete or continuous
-// * Sequences have a singular domain.  This eliminates fuzzyness like things
-//   that don't have the domain are gaps, etc.  (hopefully)
-// * Stacks (eventually) probably want a compositing rule per domain, but for
-//   now lets not worry about that
-// * Discrete info is currently only present on the top level timeline and on
-//   root clips (is there a better name than "Discrete Info"?
-//   "DiscreteParameterization"?  The sampling library calls this a
-//   `SampleIndexGenerator`.  Maybe thats better?
 
 /// Indicates whether samples should be interpolated when the parameter space
 /// (usually time) is warped.  Examples include audio (interpolated) vs picture
