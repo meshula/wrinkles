@@ -627,36 +627,18 @@ pub fn read_otio_object(
                                 field,
                             );
 
-                            // const fmt = std.json.fmt(
-                            //     json_domain,
-                            //     .{
-                            //         .whitespace = .indent_2 
-                            //     }
-                            // );
-                            //
-                            // var writer = std.Io.Writer.Allocating.init(allocator);
-                            // fmt.format(&writer.writer) catch {};
-                            //
-                            // const json_string = try writer.toOwnedSlice();
-                            // defer allocator.free(json_string);
-                            //
-                            // std.debug.print(
-                            //     "parsing: {s}\n",
-                            //     .{
-                            //         json_string,
-                            //     }
-                            // );
-
-                            var json_blob = try std.json.parseFromValue(
-                                sampling.SampleIndexGenerator,
-                                allocator, 
-                                json_domain,
-                                .{
-                                    .allocate = .alloc_if_needed,
-                                    .ignore_unknown_fields = true,
-                                    .parse_numbers = true,
-                                    .duplicate_field_behavior = .use_last,
-                                },
+                            var json_blob = (
+                                try std.json.parseFromValue(
+                                    sampling.SampleIndexGenerator,
+                                    allocator, 
+                                    json_domain,
+                                    .{
+                                        .allocate = .alloc_if_needed,
+                                        .ignore_unknown_fields = true,
+                                        .parse_numbers = true,
+                                        .duplicate_field_behavior = .use_last,
+                                    },
+                                )
                             );
                             defer json_blob.deinit();
 
@@ -788,7 +770,7 @@ pub fn read_otio_object(
                 .maybe_name = maybe_name,
                 .container = container,
                 .kind = (try maybe_string(allocator, obj, "kind")) orelse "None",
-                .range = null,
+                .maybe_bounds_s = null,
             };
 
             return .{ .transition = tx };

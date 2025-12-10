@@ -252,19 +252,29 @@ pub const Gap = struct {
     }
 };
 
-/// A transition is a specific object that associates a text "transition type"
-/// with a stack of children
+/// A Transition between different objects held within the `container` stack.
+///
+/// The objects are listed in the stack in their transition order, IE a wipe
+/// that goes from A to B will have container [A, B].
 pub const Transition = struct {
+    /// Objects to include in the transition.  Listed in their transition
+    /// order.
     container: Stack,
+
+    /// Optional name, for labelling and human readability.
     maybe_name: ?string.latin_s8,
-    // for now, string tag the type (IE "crossdissolve")
+
+    /// The "kind" of the transition to use.  IE "wipe" "dissolve" etc.
     kind: string.latin_s8,
-    range: ?opentime.ContinuousInterval,
+
+    /// Optional bound of the presentation space of the Transition.
+    maybe_bounds_s: ?opentime.ContinuousInterval,
 
     pub const internal_spaces: []const references.SpaceLabel = (
         &.{ .presentation }
     );
 
+    /// Build a reference to this Clip.
     pub fn reference(
         self: *@This(),
     ) references.ComposedValueRef
@@ -272,6 +282,7 @@ pub const Transition = struct {
         return .{ .transition = self };
     }
 
+    /// The topology of the Transition is just the topology of the container.
     pub fn topology(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -280,6 +291,7 @@ pub const Transition = struct {
         return self.container.topology(allocator);
     }
 
+    /// Clear the memory of self and any child objects.
     pub fn recursively_deinit(
         self: *@This(),
         allocator: std.mem.Allocator,
