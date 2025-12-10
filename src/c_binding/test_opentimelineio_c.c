@@ -26,7 +26,7 @@ void
 print_tree(
         otio_Arena arena,
         // the reference to start at
-        otio_ComposedValueRef root_ref,
+        otio_CompositionItemHandle root_ref,
         int indent)
 {
     const size_t nchildren = otio_child_count_cvr(root_ref);
@@ -182,7 +182,7 @@ main(
 
     // read the file
     ///////////////////////////////////////////////////////////////////////////
-    otio_ComposedValueRef tl = otio_read_from_file(
+    otio_CompositionItemHandle tl = otio_read_from_file(
             arena.allocator,
             argv[1]
     );
@@ -267,7 +267,7 @@ main(
                     )
             ) 
             {
-                otio_ComposedValueRef dest = otio_po_fetch_destination(po);
+                otio_CompositionItemHandle dest = otio_po_fetch_destination(po);
 
                 // error fetching topology, skip this projection operator
                 if (otio_po_fetch_topology(po, &topo)) {

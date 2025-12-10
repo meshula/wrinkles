@@ -1,6 +1,6 @@
 //! Reference Container Objects
 //!
-//! - `ComposedValueRef`: Points at an object in an OTIO composition.
+//! - `CompositionItemHandle`: Points at an object in an OTIO composition.
 //! - `SpaceReference`: References a temporal space on a particular object in
 //!                     an OTIO composition.
 //! - `SpaceLabel`: Name of spaces on otio object.
@@ -60,11 +60,12 @@ pub const SpaceLabel = union (enum) {
     }
 };
 
-/// References a specific temporal space on a specific `ComposedValueRef`
+/// References a specific temporal space on a specific `CompositionItemHandle`
 /// object in the composition.
 pub const TemporalSpaceReference = struct {
     /// The object in the composition.
-    ref: ComposedValueRef,
+    ref: CompositionItemHandle,
+
     /// The specific space on the `ref`.
     label: SpaceLabel,
 
@@ -105,8 +106,8 @@ pub const TemporalSpaceReference = struct {
     }
 };
 
-/// a pointer to something in the composition hierarchy
-pub const ComposedValueRef = union(enum) {
+/// A handle to an item that could be present in a composition.
+pub const CompositionItemHandle = union(enum) {
     clip: *schema.Clip,
     gap: *schema.Gap,
     track: *schema.Track,
@@ -115,25 +116,17 @@ pub const ComposedValueRef = union(enum) {
     warp: *schema.Warp,
     transition: *schema.Transition,
 
-    pub fn init_type(
-        comptime Type: type,
-        input: *Type,
-    ) ComposedValueRef
-    {
-        return ComposedValueRef.init(input);
-    }
-
-    /// construct a ComposedValueRef from a ComposableValue or value type
+    /// construct a CompositionItemHandle from a ComposableValue or value type
     pub fn init(
         input: anytype,
-    ) ComposedValueRef
+    ) CompositionItemHandle
     {
         comptime {
             const ti= @typeInfo(@TypeOf(input));
             if (std.meta.activeTag(ti) != .pointer) 
             {
                 @compileError(
-                    "ComposedValueRef can only be constructed from "
+                    "CompositionItemHandle can only be constructed from "
                     ++ "pointers to previously allocated OTIO objects, not "
                     ++ @typeName(@TypeOf(input))
                 );
@@ -150,7 +143,7 @@ pub const ComposedValueRef = union(enum) {
             schema.Timeline => .{ .timeline = input },
             schema.Transition => .{ .transition = input },
             inline else => @compileError(
-                "ComposedValueRef cannot reference to type: "
+                "CompositionItemHandle cannot reference to type: "
                 ++ @typeName(@TypeOf(input))
             ),
         };
@@ -679,9 +672,9 @@ pub const ComposedValueRef = union(enum) {
     pub fn children_refs(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) ![]ComposedValueRef
+    ) ![]CompositionItemHandle
     {
-        var children_ptrs: std.ArrayList(ComposedValueRef) = .empty;
+        var children_ptrs: std.ArrayList(CompositionItemHandle) = .empty;
         defer children_ptrs.deinit(allocator);
 
         switch (self) {
@@ -693,11 +686,11 @@ pub const ComposedValueRef = union(enum) {
             ),
             .timeline => |tl| try children_ptrs.append(
                 allocator,
-                ComposedValueRef.init(&tl.tracks)
+                CompositionItemHandle.init(&tl.tracks)
             ),
             .transition => |tl| try children_ptrs.append(
                 allocator,
-                ComposedValueRef.init(&tl.container)
+                CompositionItemHandle.init(&tl.container)
             ),
             .warp => |wp| {
                 try children_ptrs.append(allocator,wp.child);
@@ -709,12 +702,12 @@ pub const ComposedValueRef = union(enum) {
     }
 };
 
-test "ComposedValueRef init test"
+test "CompositionItemHandle init test"
 {
     var clip: schema.Clip = .null_picture;
     clip.maybe_name = "pasta";
 
-    const cvr_clip = ComposedValueRef.init(&clip);
+    const cvr_clip = CompositionItemHandle.init(&clip);
 
     try std.testing.expectEqualStrings(
         clip.maybe_name.?,

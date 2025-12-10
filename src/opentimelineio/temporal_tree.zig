@@ -40,7 +40,7 @@ pub const PathEndPointIndices = TemporalTree.PathEndPointIndices;
 /// walk through the spaces that lead to child objects
 fn walk_child_spaces(
     allocator: std.mem.Allocator,
-    parent_otio_object: references.ComposedValueRef,
+    parent_otio_object: references.CompositionItemHandle,
     parent_code: treecode.Treecode,
     parent_index: ?usize,
     tree: *TemporalTree,
@@ -149,7 +149,7 @@ fn walk_child_spaces(
 
 fn walk_internal_spaces(
     allocator: std.mem.Allocator,
-    parent_otio_object: references.ComposedValueRef,
+    parent_otio_object: references.CompositionItemHandle,
     parent_code: treecode.Treecode,
     parent_index: ?usize,
     tree: *TemporalTree,
@@ -243,7 +243,7 @@ pub fn build_temporal_tree(
     //       stack of objects to process.
     const StackNode = struct {
         path_code: treecode.Treecode,
-        otio_object: references.ComposedValueRef,
+        otio_object: references.CompositionItemHandle,
         parent_index: ?usize,
     };
 
@@ -306,11 +306,11 @@ test "build_temporal_tree: leak sentinel test track w/ clip"
 
     var cl: schema.Clip = .null_picture;
 
-    var tr_children = [_]references.ComposedValueRef{
-        references.ComposedValueRef.init(&cl),
+    var tr_children = [_]references.CompositionItemHandle{
+        references.CompositionItemHandle.init(&cl),
     };
     var tr: schema.Track = .{ .children = &tr_children };
-    const tr_ref = references.ComposedValueRef.init(&tr);
+    const tr_ref = references.CompositionItemHandle.init(&tr);
 
     const tree = try build_temporal_tree(
         allocator,
@@ -333,18 +333,18 @@ test "build_temporal_tree check root node"
     const SIZE = 11;
 
     var clips: [SIZE]schema.Clip = undefined;
-    var refs: [SIZE]references.ComposedValueRef = undefined;
+    var refs: [SIZE]references.CompositionItemHandle = undefined;
 
     for (&clips, &refs)
         |*cl_p, *ref|
     {
         cl_p.maybe_bounds_s = cti;
 
-        ref.* = references.ComposedValueRef.init(cl_p);
+        ref.* = references.CompositionItemHandle.init(cl_p);
     }
 
     var tr: schema.Track = .{.children = &refs };
-    const tr_ref = references.ComposedValueRef.init(&tr);
+    const tr_ref = references.CompositionItemHandle.init(&tr);
 
     try std.testing.expectEqual(
         SIZE,
@@ -432,7 +432,7 @@ test "TestWalkingIterator: clip"
         .maybe_bounds_s = media_source_range,
         .media = .null_picture,
     };
-    const cl_ptr = references.ComposedValueRef.init(&cl);
+    const cl_ptr = references.CompositionItemHandle.init(&cl);
 
     const tree = try build_temporal_tree(
         allocator,
@@ -467,14 +467,14 @@ test "TestWalkingIterator: track with clip w/ destination"
         .maybe_bounds_s = media_source_range,
         .media = .null_picture,
     };
-    const cl_ptr = references.ComposedValueRef.init(&cl2);
+    const cl_ptr = references.CompositionItemHandle.init(&cl2);
 
-    var tr_children = [_]references.ComposedValueRef{
-        references.ComposedValueRef.init(&cl),
+    var tr_children = [_]references.CompositionItemHandle{
+        references.CompositionItemHandle.init(&cl),
         cl_ptr,
     };
     var tr: schema.Track = .{ .children = &tr_children };
-    const tr_ptr = references.ComposedValueRef.init(&tr);
+    const tr_ptr = references.CompositionItemHandle.init(&tr);
 
     const tree = try build_temporal_tree(
         std.testing.allocator,
@@ -718,7 +718,7 @@ test "path_code: tree test"
     const allocator = std.testing.allocator;
 
     var clips: [11]schema.Clip = undefined;
-    var clip_ptrs: [11]references.ComposedValueRef = undefined;
+    var clip_ptrs: [11]references.CompositionItemHandle = undefined;
 
     for (&clips, &clip_ptrs)
         |*cl, *cl_p|
@@ -728,12 +728,12 @@ test "path_code: tree test"
             .media = .null_picture,
         };
 
-        cl_p.* = references.ComposedValueRef.init(cl);
+        cl_p.* = references.CompositionItemHandle.init(cl);
     }
     var tr: schema.Track = .{
         .children = &clip_ptrs,
     };
-    const tr_ref = references.ComposedValueRef.init(&tr);
+    const tr_ref = references.CompositionItemHandle.init(&tr);
 
     try std.testing.expectEqual(11, tr.children.len);
 
@@ -820,18 +820,18 @@ test "schema.Track with clip with identity transform projection"
     };
 
     var clips: [11]schema.Clip = undefined;
-    var refs: [11]references.ComposedValueRef = undefined;
+    var refs: [11]references.CompositionItemHandle = undefined;
 
     for (&clips, &refs)
         |*cl_p, *ref|
     {
         cl_p.* = cl_template;
-        ref.* = references.ComposedValueRef.init(cl_p);
+        ref.* = references.CompositionItemHandle.init(cl_p);
     }
     const cl_ref = refs[0];
 
     var tr: schema.Track = .{ .children = &refs };
-    const tr_ref = references.ComposedValueRef.init(&tr);
+    const tr_ref = references.CompositionItemHandle.init(&tr);
 
     const tree = try build_temporal_tree(
         allocator,
@@ -891,12 +891,12 @@ test "Temporaltree: schema.Track with clip with identity transform"
         .maybe_bounds_s = test_data_m.T_INT_0_TO_2,
         .media = .null_picture,
     };
-    const cl_ref = references.ComposedValueRef.init(&cl);
+    const cl_ref = references.CompositionItemHandle.init(&cl);
 
-    var tr_children = [_]references.ComposedValueRef{ cl_ref, };
+    var tr_children = [_]references.CompositionItemHandle{ cl_ref, };
     var tr: schema.Track = .{ .children = &tr_children };
 
-    const root = references.ComposedValueRef.init(&tr);
+    const root = references.CompositionItemHandle.init(&tr);
 
     const tree = try build_temporal_tree(
         allocator,
@@ -1028,7 +1028,7 @@ test "test debug_print_time_hierarchy"
             },
         }
     };
-    const cl_ptr = references.ComposedValueRef.init(&cl1);
+    const cl_ptr = references.CompositionItemHandle.init(&cl1);
 
     // new for this test - add in an warp on the clip, which holds the frame
     var wp = schema.Warp {
@@ -1040,16 +1040,16 @@ test "test debug_print_time_hierarchy"
     };
     defer wp.transform.deinit(allocator);
 
-    var tr_children = [_]references.ComposedValueRef{
-        references.ComposedValueRef.init(&wp),
+    var tr_children = [_]references.CompositionItemHandle{
+        references.CompositionItemHandle.init(&wp),
     };
     var tr: schema.Track = .{
         .maybe_name = "Example Parent schema.Track",
         .children = &tr_children,
     };
 
-    var tl_children = [_]references.ComposedValueRef{
-        references.ComposedValueRef.init(&tr),
+    var tl_children = [_]references.CompositionItemHandle{
+        references.CompositionItemHandle.init(&tr),
     };
     var tl: schema.Timeline = .{
         .maybe_name = "test debug_print_time_hierarchy",
@@ -1090,21 +1090,21 @@ test "track child after gap - use presentation space to compute offset"
         ).T_INT_1_TO_9, 
         .media = .null_picture,
     };
-    const cl_ref = references.ComposedValueRef.init(&cl);
+    const cl_ref = references.CompositionItemHandle.init(&cl);
     var gp2 = schema.Gap{
         .duration_s = opentime.Ordinate.init(4),
     };
 
-    var tr_children = [_]references.ComposedValueRef{
-        references.ComposedValueRef.init(&gp),
+    var tr_children = [_]references.CompositionItemHandle{
+        references.CompositionItemHandle.init(&gp),
         cl_ref,
-        references.ComposedValueRef.init(&gp2),
+        references.CompositionItemHandle.init(&gp2),
     };
     var tr: schema.Track = .{
         .maybe_name = "root",
         .children = &tr_children,
     };
-    const tr_ref = references.ComposedValueRef.init(&tr);
+    const tr_ref = references.CompositionItemHandle.init(&tr);
 
     var proj_topo = (
         try projection.TemporalProjectionBuilder.init_from(

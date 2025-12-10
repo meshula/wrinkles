@@ -501,7 +501,7 @@ inline fn read_children(
     MissingField,
     LengthMismatch,
     DuplicateField,
-}![]otio.ComposedValueRef
+}![]otio.CompositionItemHandle
 {
     const child_count = children.array.items.len;
 
@@ -511,7 +511,7 @@ inline fn read_children(
     }
 
     var new_children = try allocator.alloc(
-        otio.ComposedValueRef,
+        otio.CompositionItemHandle,
         child_count,
     );
 
@@ -583,7 +583,7 @@ pub fn read_otio_object(
     MissingField,
     LengthMismatch,
     DuplicateField,
-} !otio.ComposedValueRef 
+} !otio.CompositionItemHandle 
 {
     const schema_enum = try read_schema(
         SerializableObjectTypes,
@@ -784,7 +784,7 @@ pub fn read_otio_object(
 pub fn read_from_file(
     in_allocator: std.mem.Allocator,
     file_path: string.latin_s8
-) !otio.ComposedValueRef
+) !otio.CompositionItemHandle
 {
     const fi = try std.fs.cwd().openFile(file_path, .{});
     defer fi.close();
@@ -810,7 +810,7 @@ pub fn read_from_file(
         result.object
     );
 
-    if (hopefully_timeline == otio.ComposedValueRef.timeline) {
+    if (hopefully_timeline == otio.CompositionItemHandle.timeline) {
         return hopefully_timeline;
     }
 

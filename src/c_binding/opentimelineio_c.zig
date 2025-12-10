@@ -14,7 +14,7 @@ var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const ALLOCATOR:std.mem.Allocator = gpa.allocator();
 
 /// constant to represent an error (nullpointer)
-const ERR_REF : c.otio_ComposedValueRef = .{
+const ERR_REF : c.otio_CompositionItemHandle = .{
     .kind = c.otio_ct_err,
     .ref = null 
 };
@@ -85,7 +85,7 @@ pub export fn otio_arena_deinit(
 pub export fn otio_read_from_file(
     allocator_c: c.otio_Allocator,
     filepath_c: [*:0]const u8,
-) c.otio_ComposedValueRef
+) c.otio_CompositionItemHandle
 {
     const filepath : []const u8 = std.mem.span(filepath_c);
     const allocator = fetch_allocator(
@@ -129,21 +129,21 @@ fn fetch_allocator(
     return ptrCast(std.mem.Allocator, input.ref.?).*;
 }
 
-fn init_ComposedValueRef(
-    input: c.otio_ComposedValueRef,
-) !otio.ComposedValueRef
+fn init_CompositionItemHandle(
+    input: c.otio_CompositionItemHandle,
+) !otio.CompositionItemHandle
 {
     if (input.ref)
         |ptr|
     {
         return switch (input.kind) {
-            c.otio_ct_timeline => otio.ComposedValueRef.init(ptrCast(otio.Timeline, ptr)),
-            c.otio_ct_stack => otio.ComposedValueRef.init(ptrCast(otio.Stack, ptr)),
-            c.otio_ct_track => otio.ComposedValueRef.init(ptrCast(otio.Track, ptr)),
-            c.otio_ct_clip =>  otio.ComposedValueRef.init(ptrCast(otio.Clip, ptr)),
-            c.otio_ct_gap =>   otio.ComposedValueRef.init(ptrCast(otio.Gap, ptr)),
-            c.otio_ct_warp =>  otio.ComposedValueRef.init(ptrCast(otio.Warp, ptr)),
-            c.otio_ct_transition =>  otio.ComposedValueRef.init(ptrCast(otio.Transition, ptr)),
+            c.otio_ct_timeline => otio.CompositionItemHandle.init(ptrCast(otio.Timeline, ptr)),
+            c.otio_ct_stack => otio.CompositionItemHandle.init(ptrCast(otio.Stack, ptr)),
+            c.otio_ct_track => otio.CompositionItemHandle.init(ptrCast(otio.Track, ptr)),
+            c.otio_ct_clip =>  otio.CompositionItemHandle.init(ptrCast(otio.Clip, ptr)),
+            c.otio_ct_gap =>   otio.CompositionItemHandle.init(ptrCast(otio.Gap, ptr)),
+            c.otio_ct_warp =>  otio.CompositionItemHandle.init(ptrCast(otio.Warp, ptr)),
+            c.otio_ct_transition =>  otio.CompositionItemHandle.init(ptrCast(otio.Transition, ptr)),
             else => return error.ErrorReference,
         };
     }
@@ -152,8 +152,8 @@ fn init_ComposedValueRef(
 }
 
 pub fn to_c_ref(
-    input: otio.ComposedValueRef,
-) c.otio_ComposedValueRef
+    input: otio.CompositionItemHandle,
+) c.otio_CompositionItemHandle
 {
     return switch (input) {
         .timeline => |t| .{ .kind = c.otio_ct_timeline, .ref = t },
@@ -167,10 +167,10 @@ pub fn to_c_ref(
 }
 
 pub export fn otio_child_count_cvr(
-    input: c.otio_ComposedValueRef,
+    input: c.otio_CompositionItemHandle,
 ) c_int
 {
-    const ref: otio.ComposedValueRef = init_ComposedValueRef(input) catch { 
+    const ref: otio.CompositionItemHandle = init_CompositionItemHandle(input) catch { 
         return -1;
     };
 
@@ -182,11 +182,11 @@ pub export fn otio_child_count_cvr(
 }
 
 pub export fn otio_fetch_child_cvr_ind(
-    input: c.otio_ComposedValueRef,
+    input: c.otio_CompositionItemHandle,
     c_index: c_int,
-) c.otio_ComposedValueRef
+) c.otio_CompositionItemHandle
 {
-    const ref: otio.ComposedValueRef = init_ComposedValueRef(input) catch { 
+    const ref: otio.CompositionItemHandle = init_CompositionItemHandle(input) catch { 
         return ERR_REF; 
     };
 
@@ -209,7 +209,7 @@ const ERR_PO_MAP = c.otio_ProjectionTopology{ .ref = null };
 
 pub export fn otio_build_projection_op_map_to_media_tp_cvr(
     allocator_c: c.otio_Allocator,
-    source: c.otio_ComposedValueRef,
+    source: c.otio_CompositionItemHandle,
 ) c.otio_ProjectionTopology
 {
     const allocator = fetch_allocator(
@@ -220,7 +220,7 @@ pub export fn otio_build_projection_op_map_to_media_tp_cvr(
         otio.TemporalProjectionBuilder
     ) catch return ERR_PO_MAP;
 
-    const src = init_ComposedValueRef(
+    const src = init_CompositionItemHandle(
         source
     ) catch return ERR_PO_MAP;
 
@@ -236,7 +236,7 @@ pub export fn otio_build_projection_op_map_to_media_tp_cvr(
 }
 
 pub export fn otio_fetch_cvr_type_str(
-    self: c.otio_ComposedValueRef,
+    self: c.otio_CompositionItemHandle,
     buf: [*]u8,
     len: usize,
 ) c_int
@@ -269,12 +269,12 @@ pub export fn otio_fetch_cvr_type_str(
 }
 
 pub export fn otio_fetch_cvr_name_str(
-    self: c.otio_ComposedValueRef,
+    self: c.otio_CompositionItemHandle,
     buf: [*]u8,
     len: usize,
 ) c_int
 {
-    const ref = init_ComposedValueRef(self) catch return -1;
+    const ref = init_CompositionItemHandle(self) catch return -1;
 
     const buf_slice = buf[0..len];
 
@@ -437,17 +437,17 @@ pub export fn otio_po_fetch_topology(
 
 fn otio_po_fetch_destination_erroring(
     in_po_c: c.otio_ProjectionOperator,
-) !c.otio_ComposedValueRef
+) !c.otio_CompositionItemHandle
 {
     const po = try init_ProjectionOperator(in_po_c);
 
-    // note - returns a SpaceReference, not a ComposedValueRef
+    // note - returns a SpaceReference, not a CompositionItemHandle
     return to_c_ref(po.destination.ref);
 }
 
 pub export fn otio_po_fetch_destination(
     in_po_c: c.otio_ProjectionOperator,
-) c.otio_ComposedValueRef
+) c.otio_CompositionItemHandle
 {
     return otio_po_fetch_destination_erroring(in_po_c) catch {
         return ERR_REF;
@@ -457,11 +457,11 @@ pub export fn otio_po_fetch_destination(
 /// attempt to clean up the timeline/object
 pub export fn otio_timeline_deinit(
     allocator_c: c.otio_Allocator,
-    root_c : c.otio_ComposedValueRef,
+    root_c : c.otio_CompositionItemHandle,
 ) void
 {
     const root = (
-        init_ComposedValueRef(root_c) catch |err| {
+        init_CompositionItemHandle(root_c) catch |err| {
             std.log.err(
                 "Error converting to object: {any}\n",
                 .{ err} ,
@@ -474,7 +474,7 @@ pub export fn otio_timeline_deinit(
         inline .timeline, .stack, .track => 
             |t| (
                 // @TODO: remove the need for constCast
-                //        constCast becuase ComposedValueRef is a const*
+                //        constCast becuase CompositionItemHandle is a const*
                 //        wrapper
                 @constCast(t).recursively_deinit(
                     fetch_allocator(allocator_c) catch @panic(
@@ -489,13 +489,13 @@ pub export fn otio_timeline_deinit(
 
 const ERR_TOPO:c.otio_Topology = .{ .ref = null };
 
-/// compute the topology for the ComposedValueRef
+/// compute the topology for the CompositionItemHandle
 pub export fn otio_fetch_topology(
     allocator_c: c.otio_Allocator,
-    ref_c: c.otio_ComposedValueRef,
+    ref_c: c.otio_CompositionItemHandle,
 ) c.otio_Topology
 {
-    const ref = init_ComposedValueRef(ref_c) 
+    const ref = init_CompositionItemHandle(ref_c) 
         catch return ERR_TOPO;
     const allocator = fetch_allocator(
         allocator_c
@@ -578,13 +578,13 @@ fn init_SpaceLabel(
 }
 
 fn otio_fetch_discrete_info_erroring(
-    ref_c: c.otio_ComposedValueRef,
+    ref_c: c.otio_CompositionItemHandle,
     space: c.otio_SpaceLabel,
     domain: c.otio_Domain,
     result: *c.otio_DiscreteDatasourceIndexGenerator,
 ) !c_int
 {
-    const ref = try init_ComposedValueRef(ref_c);
+    const ref = try init_CompositionItemHandle(ref_c);
     const label = try init_SpaceLabel(space);
 
     const maybe_di = (
@@ -613,7 +613,7 @@ fn otio_fetch_discrete_info_erroring(
 }
 
 pub export fn otio_fetch_discrete_info(
-    ref_c: c.otio_ComposedValueRef,
+    ref_c: c.otio_CompositionItemHandle,
     space: c.otio_SpaceLabel,
     domain: c.otio_Domain,
     result: *c.otio_DiscreteDatasourceIndexGenerator,
@@ -646,13 +646,13 @@ fn domain_from_c(
 }
 
 fn otio_fetch_continuous_ordinate_to_discrete_index_erroring(
-    ref_c: c.otio_ComposedValueRef,
+    ref_c: c.otio_CompositionItemHandle,
     val: f32,
     space_c: c.otio_SpaceLabel,
     domain: c.otio_Domain,
 ) !usize
 {
-    const ref = try init_ComposedValueRef(ref_c);
+    const ref = try init_CompositionItemHandle(ref_c);
     const space = try init_SpaceLabel(space_c);
     return try ref.continuous_ordinate_to_discrete_index(
         opentime.Ordinate.init(val),
@@ -662,7 +662,7 @@ fn otio_fetch_continuous_ordinate_to_discrete_index_erroring(
 }
 
 pub export fn otio_fetch_continuous_ordinate_to_discrete_index(
-    ref_c: c.otio_ComposedValueRef,
+    ref_c: c.otio_CompositionItemHandle,
     val: f32,
     space_c: c.otio_SpaceLabel,
     domain: c.otio_Domain,

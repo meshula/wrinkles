@@ -130,7 +130,7 @@ didn't impact the deisgn or problems we were specifically solving.
 * [ ] Separate the concept of a presentation discrete space (which requires an
       additional domain to resolve) from a media presentation space (in which
       the domain is implicitly encoded on the container reference)
-* [ ] Currently references.ComposedValueRef.recursively_deinit is doing a lot
+* [ ] Currently references.CompositionItemHandle.recursively_deinit is doing a lot
       of heavy lifting.  This should probably be pushed into schema and made
       consistent -- Just have deinit() and that be the recursive deinit thing.
       Children can be copied out and removed using dupe() so simplifying the

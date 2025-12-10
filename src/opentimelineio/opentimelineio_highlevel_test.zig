@@ -73,7 +73,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             },
         },
     };
-    var track_children = [_]otio.ComposedValueRef{
+    var track_children = [_]otio.CompositionItemHandle{
         .{ .clip = &cl1 },
         .{ .gap = &gp },
         .{ .clip = &cl2 },
@@ -86,7 +86,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     };
 
     // top level timeline
-    var tl_children = [_]otio.ComposedValueRef{
+    var tl_children = [_]otio.CompositionItemHandle{
         tr.reference(),
     };
     var tl: otio.Timeline = .{
@@ -325,16 +325,16 @@ test "libsamplerate w/ high level test -- resample only"
             },
         }
     };
-    var track_children = [_]otio.ComposedValueRef{
-        otio.ComposedValueRef.init(&cl1),
+    var track_children = [_]otio.CompositionItemHandle{
+        otio.CompositionItemHandle.init(&cl1),
     };
     const cl_ptr = track_children[0];
     var tr: otio.Track = .{
         .maybe_name = "Example Parent Track",
         .children = &track_children,
     };
-    var stack_children = [_]otio.ComposedValueRef{
-        otio.ComposedValueRef.init(&tr),
+    var stack_children = [_]otio.CompositionItemHandle{
+        otio.CompositionItemHandle.init(&tr),
     };
     const tr_ptr = stack_children[0];
     const tl: otio.Timeline = .{
@@ -477,7 +477,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
         },
     };
     
-    const cl_ptr = otio.ComposedValueRef{
+    const cl_ptr = otio.CompositionItemHandle{
         .clip = &cl1,
     };
 
@@ -495,16 +495,16 @@ test "libsamplerate w/ high level test.retime.interpolating"
     };
     defer wp.transform.deinit(allocator);
 
-    var track_children = [_]otio.ComposedValueRef{
-        otio.ComposedValueRef.init(&wp),
+    var track_children = [_]otio.CompositionItemHandle{
+        otio.CompositionItemHandle.init(&wp),
     };
     var tr: otio.Track = .{
         .maybe_name ="Example Parent Track",
         .children = &track_children,
     };
-    const tr_ptr = otio.ComposedValueRef.init(&tr);
+    const tr_ptr = otio.CompositionItemHandle.init(&tr);
 
-    var stack_children = [_]otio.ComposedValueRef{tr_ptr};
+    var stack_children = [_]otio.CompositionItemHandle{tr_ptr};
     var tl: otio.Timeline = .{
         .maybe_name = "Example Timeline test.retime.interpolating",
         .discrete_space_partitions = .{ 
@@ -521,7 +521,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
             .children = &stack_children,
         },
     };
-    const tl_ptr = otio.ComposedValueRef.init(&tl);
+    const tl_ptr = otio.CompositionItemHandle.init(&tl);
 
     // build the temporal map
     ///////////////////////////////////////////////////////////////////////////
@@ -633,7 +633,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
             },
         }
     };
-    const cl_ptr = otio.ComposedValueRef.init(&cl1);
+    const cl_ptr = otio.CompositionItemHandle.init(&cl1);
 
     var warp = otio.Warp{
         .child = cl_ptr,
@@ -647,18 +647,18 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     };
     defer warp.transform.deinit(allocator);
 
-    var track_children = [_]otio.ComposedValueRef{
+    var track_children = [_]otio.CompositionItemHandle{
         .{ .warp = &warp },
     };
     var tr: otio.Track = .{
         .maybe_name = "Example Parent Track",
         .children = &track_children,
     };
-    const tr_ptr = otio.ComposedValueRef{
+    const tr_ptr = otio.CompositionItemHandle{
         .track = &tr 
     };
 
-    var timeline_children = [_]otio.ComposedValueRef{
+    var timeline_children = [_]otio.CompositionItemHandle{
         tr_ptr,
     };
     const tl: otio.Timeline = .{
@@ -805,7 +805,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
             },
         },
     };
-    const cl_ptr = otio.ComposedValueRef.init(&cl1);
+    const cl_ptr = otio.CompositionItemHandle.init(&cl1);
 
     // reverse the first 6 seconds of the target
     var wp_reverse: otio.Warp = .{
@@ -828,7 +828,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     };
     defer wp_reverse.transform.deinit(allocator);
 
-    var track_children = [_]otio.ComposedValueRef{
+    var track_children = [_]otio.CompositionItemHandle{
         .{ .warp = &wp_reverse },
     };
     var tr: otio.Track = .{
@@ -836,7 +836,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
         .children = &track_children,
     };
 
-    const tr_ptr = otio.ComposedValueRef{
+    const tr_ptr = otio.CompositionItemHandle{
         .track = &tr,
     };
 
@@ -939,7 +939,7 @@ test "timeline w/ warp that holds the tenth frame"
             },
         },
     };
-    const cl_ptr = otio.ComposedValueRef.init(&cl1);
+    const cl_ptr = otio.CompositionItemHandle.init(&cl1);
 
     const ord_10f24hz = opentime.Ordinate.init(10.0/24.0);
 
@@ -963,7 +963,7 @@ test "timeline w/ warp that holds the tenth frame"
         )
     };
     defer wp.transform.deinit(allocator);
-    const warp_ptr =  otio.ComposedValueRef.init(&wp);
+    const warp_ptr =  otio.CompositionItemHandle.init(&wp);
 
     const w_ib = (
         warp_ptr.warp.transform.input_bounds()
@@ -972,14 +972,14 @@ test "timeline w/ warp that holds the tenth frame"
         warp_ptr.warp.transform.output_bounds()
     );
 
-    var tr_children = [_]otio.ComposedValueRef{
+    var tr_children = [_]otio.CompositionItemHandle{
         warp_ptr,
     };
     var tr: otio.Track = .{
         .maybe_name = "Example Parent Track",
         .children = &tr_children,
     };
-    const tr_ptr = otio.ComposedValueRef.init(&tr);
+    const tr_ptr = otio.CompositionItemHandle.init(&tr);
 
     errdefer opentime.dbg_print(
         @src(),
@@ -1077,9 +1077,9 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
             },
         },
     };
-    const cl_ptr = otio.ComposedValueRef.init(&cl);
+    const cl_ptr = otio.CompositionItemHandle.init(&cl);
 
-    var tr_children = [_]otio.ComposedValueRef{
+    var tr_children = [_]otio.CompositionItemHandle{
         cl_ptr
     };
     var tr: otio.Track = .{
@@ -1087,8 +1087,8 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
         .children = &tr_children,
     };
 
-    var tl_children = [_]otio.ComposedValueRef{
-        otio.ComposedValueRef.init(&tr),
+    var tl_children = [_]otio.CompositionItemHandle{
+        otio.CompositionItemHandle.init(&tr),
     };
     var tl: otio.Timeline = .{
         .maybe_name = "Timeline @ 24 * 1000/1001 with media showing skew",
@@ -1109,7 +1109,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
         },
         .tracks = .{ .children = &tl_children },
     };
-    const tl_ptr = otio.ComposedValueRef.init(&tl);
+    const tl_ptr = otio.CompositionItemHandle.init(&tl);
 
     // build the temporal map
     ///////////////////////////////////////////////////////////////////////////
