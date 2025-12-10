@@ -32,9 +32,16 @@ const T_CTI_1_10 = opentime.ContinuousInterval {
     .end = T_ORD_10,
 };
 
-/// Specialization of `treecode.BinaryTree` over `references.SpaceReference`
-pub const TemporalTree = treecode.BinaryTree(references.TemporalSpaceReference);
+/// Specialization of `treecode.BinaryTree` over
+/// `references.TemporalSpaceReference`.
+pub const TemporalTree = treecode.BinaryTree(
+    references.TemporalSpaceReference
+);
+
+/// End points of a path in the tree.
 pub const PathEndPoints = TemporalTree.PathEndPoints;
+
+/// End points of a path in the tree expressed as indices.
 pub const PathEndPointIndices = TemporalTree.PathEndPointIndices;
 
 /// walk through the spaces that lead to child objects
@@ -225,10 +232,9 @@ fn walk_internal_spaces(
     return .{ last_space_code, last_index };
 }
 
-/// Walks from `root_item` through the hierarchy of OTIO `schema` objects to
+/// Walks from `root_space` through the hierarchy of OTIO `schema` items to
 /// construct a `TemporalTree` of all of the temporal spaces in the hierarchy.
 pub fn build_temporal_tree(
-    /// 
     parent_allocator: std.mem.Allocator,
     /// root item of the tree
     root_space: references.TemporalSpaceReference,
@@ -365,13 +371,17 @@ test "build_temporal_tree check root node"
     try validate_connections_in_tree(tree);
 }
 
+/// Ensure that parent/child pointers in a tree are correctly set.
 pub fn validate_connections_in_tree(
     tree: TemporalTree,
 ) !void
 {
     // check the parent/child pointers
-    for (tree.tree_data.items(.parent_index), tree.tree_data.items(.child_indices), 0..)
-        |maybe_parent_index, child_indices, index|
+    for (
+        tree.tree_data.items(.parent_index),
+        tree.tree_data.items(.child_indices),
+        0..,
+    ) |maybe_parent_index, child_indices, index|
     {
         errdefer std.debug.print(
             "[{d}] parent: {?d} children ({?d}, {?d})\n",
