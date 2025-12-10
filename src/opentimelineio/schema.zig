@@ -48,9 +48,6 @@ pub const SignalReference = struct {
     signal_generator: sampling.SignalGenerator,
 };
 
-/// an opaque reference
-pub const OpaqueReference = void;
-
 /// The way to get to the media
 pub const MediaDataReference = union(enum) {
     /// Usually a file or URI somewhere
@@ -227,6 +224,7 @@ test "Clip: spaces list"
 pub const Gap = struct {
     /// Optional name, for labelling and human readability.
     maybe_name: ?string.latin_s8 = null,
+
     /// A Gaps coordinate system is always 0->duration_seconds
     duration_s: opentime.Ordinate,
 
