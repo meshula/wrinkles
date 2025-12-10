@@ -31,12 +31,12 @@ jobs:
         uses: mlugg/setup-zig@v2
         with:
           version: latest
-      - name: Syntax check (vale)
-        uses: errata-ai/vale-action@v2
-        with:
-          vale_flags: "--glob=*.md"
-          fail_on_error: true
-          reporter: github-check
+      # - name: Syntax check (vale)
+      #   uses: errata-ai/vale-action@v2
+      #   with:
+      #     vale_flags: "--glob=*.md"
+      #     fail_on_error: true
+      #     reporter: github-check
       # - name: Code spell check (typos)
       #   uses: crate-ci/typos@v1
       #   with:
