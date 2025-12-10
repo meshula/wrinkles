@@ -23,14 +23,27 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
 
 /// used to identify spaces on objects in the hierarchy
 pub const SpaceLabel = union (enum) {
-    // internal spaces
+    /// The presentation space is the "output" (from a rendering perspective)
+    /// space, but the "input (from a projection/functional
+    /// composition/mathematical perspective) space of a given object in an
+    /// OTIO composition.
+    ///
+    /// Every object in an `schema` composition has a `presentation` space, and
+    /// it always starts at time 0 and goes for the duration of the object.
     presentation: void,
+
+    /// The intrinsic space is an internal space that is used by some objects
+    /// between the `Presentation` and Child spaces for example.
     intrinsic: void,
+
+    /// The `media` space is present on clips and describes the coordinate
+    /// space of a piece of media being cut into the timeline.
     media: void,
 
-    // The NodeIndex of the child in the Space Map
+    /// The NodeIndex of the child in the Space Map
     child: treecode.binary_tree.NodeIndex,
 
+    /// Formatter function for `std.Io.Writer`.
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
@@ -47,11 +60,15 @@ pub const SpaceLabel = union (enum) {
     }
 };
 
-/// references a specific space on a specific object
+/// References a specific space on a specific `ComposedValueRef` object in the
+/// composition.
 pub const SpaceReference = struct {
+    /// The object in the composition.
     ref: ComposedValueRef,
+    /// The specific space on the `ref`.
     label: SpaceLabel,
 
+    /// Formatter function for `std.Io.Writer`.
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
@@ -74,8 +91,10 @@ pub const SpaceReference = struct {
         }
     }
 
+    /// Return the discrete partition for this space (if it exists).
     pub fn discrete_info(
         self: @This(),
+        /// The domain to query
         domain: domain_mod.Domain,
     ) ?sampling.SampleIndexGenerator
     {
