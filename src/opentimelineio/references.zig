@@ -21,8 +21,8 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
     build_options.debug_graph_construction_trace_messages
 );
 
-/// used to identify spaces on objects in the hierarchy
-pub const SpaceLabel = union (enum) {
+/// A Temporal Spaces on `CompositionItemHandle`.
+pub const TemporalSpace = union (enum) {
     /// The presentation space is the "output" (from a rendering perspective)
     /// space, but the "input (from a projection/functional
     /// composition/mathematical perspective) space of a given object in an
@@ -60,14 +60,14 @@ pub const SpaceLabel = union (enum) {
     }
 };
 
-/// References a specific temporal space on a specific `CompositionItemHandle`
+/// Joins a specific `TemporalSpace` on a specific `CompositionItemHandle`
 /// in the composition.
-pub const TemporalSpaceReference = struct {
-    /// The object in the composition.
-    ref: CompositionItemHandle,
+pub const TemporalSpaceNode = struct {
+    /// The item in the composition.
+    item: CompositionItemHandle,
 
-    /// The specific space on the `ref`.
-    label: SpaceLabel,
+    /// The specific temporal space on the `item`.
+    space: TemporalSpace,
 
     /// Formatter function for `std.Io.Writer`.
     pub fn format(
@@ -78,16 +78,16 @@ pub const TemporalSpaceReference = struct {
         try writer.print(
             "{f}.{s}",
             .{
-                self.ref,
-                @tagName(self.label),
+                self.item,
+                @tagName(self.space),
             }
         );
 
-        if (self.label == .child)
+        if (self.space == .child)
         {
             try writer.print(
                 ".{d}",
-                .{ self.label.child },
+                .{ self.space.child },
             );
         }
     }
@@ -99,8 +99,8 @@ pub const TemporalSpaceReference = struct {
         domain: domain_mod.Domain,
     ) ?sampling.SampleIndexGenerator
     {
-        return self.ref.discrete_partition_for_space(
-            self.label,
+        return self.item.discrete_partition_for_space(
+            self.space,
             domain,
         );
     }
@@ -232,7 +232,7 @@ pub const CompositionItemHandle = union(enum) {
     pub fn bounds_of(
         self: @This(),
         allocator: std.mem.Allocator,
-        target_space: SpaceLabel,
+        target_space: TemporalSpace,
     ) !opentime.ContinuousInterval 
     {
         const presentation_to_intrinsic_topo = (
@@ -253,7 +253,7 @@ pub const CompositionItemHandle = union(enum) {
     /// Note that this memory is static and does not need to be freed.
     pub fn spaces(
         self: @This(),
-    ) []const SpaceLabel 
+    ) []const TemporalSpace 
     {
         return switch (self) {
             inline else => |thing| @TypeOf(thing.*).internal_spaces,
@@ -264,12 +264,12 @@ pub const CompositionItemHandle = union(enum) {
     pub fn space(
         self: @This(),
         /// Target space
-        label: SpaceLabel
-    ) TemporalSpaceReference 
+        label: TemporalSpace
+    ) TemporalSpaceNode 
     {
         return .{
-            .ref = self,
-            .label = label,
+            .item = self,
+            .space = label,
         };
     }
 
@@ -284,8 +284,8 @@ pub const CompositionItemHandle = union(enum) {
         self: @This(),
         allocator: std.mem.Allocator,
         /// Label of the starting space on the referred item.
-        from_space_label: SpaceLabel,
-        to_space: TemporalSpaceReference,
+        from_space_label: TemporalSpace,
+        to_space: TemporalSpaceNode,
         /// Step taken from previous node.
         step: treecode.l_or_r,
     ) !topology_m.Topology 
@@ -300,16 +300,16 @@ pub const CompositionItemHandle = union(enum) {
                     @src().line, 
                     @tagName(self),
                     @tagName(from_space_label),
-                    @tagName(to_space.ref),
-                    @tagName(to_space.label),
+                    @tagName(to_space.item),
+                    @tagName(to_space.space),
                 },
             );
 
-            if (to_space.label == .child)
+            if (to_space.space == .child)
             {
                 std.debug.print(
                     ".child.{d}",
-                    .{to_space.label.child}
+                    .{to_space.space.child}
                 );
             }
             std.debug.print("\n", .{});
@@ -525,7 +525,7 @@ pub const CompositionItemHandle = union(enum) {
     pub fn discrete_index_to_continuous_range(
         self: @This(),
         ind_discrete: sampling.sample_index_t,
-        in_space: SpaceLabel,
+        in_space: TemporalSpace,
         domain: domain_mod.Domain,
     ) !opentime.ContinuousInterval
     {
@@ -550,7 +550,7 @@ pub const CompositionItemHandle = union(enum) {
     pub fn continuous_ordinate_to_discrete_index(
         self: @This(),
         ord_continuous: opentime.Ordinate,
-        in_space: SpaceLabel,
+        in_space: TemporalSpace,
         domain: domain_mod.Domain,
     ) !sampling.sample_index_t
     {
@@ -582,7 +582,7 @@ pub const CompositionItemHandle = union(enum) {
     pub fn continuous_to_discrete_topology(
         self: @This(),
         allocator: std.mem.Allocator,
-        in_space: SpaceLabel,
+        in_space: TemporalSpace,
     ) !topology_m.Topology
     {
         const maybe_discrete_info = (
@@ -618,7 +618,7 @@ pub const CompositionItemHandle = union(enum) {
     /// partition exists.
     pub fn discrete_partition_for_space(
         self: @This(),
-        in_space: SpaceLabel,
+        in_space: TemporalSpace,
         domain: domain_mod.Domain,
     ) ?sampling.SampleIndexGenerator
     {

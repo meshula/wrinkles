@@ -78,10 +78,10 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
 /// continuous projections are permitted.
 pub const ProjectionOperator = struct {
     /// The source space of the projection.
-    source: references.TemporalSpaceReference,
+    source: references.TemporalSpaceNode,
     
     /// The destination space of the projection.
-    destination: references.TemporalSpaceReference,
+    destination: references.TemporalSpaceNode,
 
     /// The `topology_m.Topology` that describes the relationship between the
     /// continuous `source` space to the continuous `discrete` space.
@@ -146,9 +146,9 @@ pub const ProjectionOperator = struct {
             ).ordinate()
         );
 
-        return try self.destination.ref.continuous_ordinate_to_discrete_index(
+        return try self.destination.item.continuous_ordinate_to_discrete_index(
             continuous_in_destination_space,
-            self.destination.label,
+            self.destination.space,
             domain,
         );
     }
@@ -201,8 +201,8 @@ pub const ProjectionOperator = struct {
         defer in_to_dst_topo_c.deinit(allocator);
 
         const dst_discrete_info = (
-            self.destination.ref.discrete_partition_for_space(
-                self.destination.label,
+            self.destination.item.discrete_partition_for_space(
+                self.destination.space,
                 domain,
             )
         ) orelse {
@@ -247,9 +247,9 @@ pub const ProjectionOperator = struct {
 
             // ...project the continuous coordinate into the discrete space
             index_buffer_destination_discrete.appendAssumeCapacity(
-                try self.destination.ref.continuous_ordinate_to_discrete_index(
+                try self.destination.item.continuous_ordinate_to_discrete_index(
                     out_ord,
-                    self.destination.label,
+                    self.destination.space,
                     domain,
                 )
             );
@@ -341,9 +341,9 @@ pub const ProjectionOperator = struct {
     ) !topology_m.Topology
     {
         const c_range_in_source = (
-            try self.source.ref.discrete_index_to_continuous_range(
+            try self.source.item.discrete_index_to_continuous_range(
                 index_in_source,
-                self.source.label,
+                self.source.space,
                 domain,
             )
         );
@@ -368,9 +368,9 @@ pub const ProjectionOperator = struct {
     ) ![]sampling.sample_index_t
     {
         const c_range_in_source = (
-            try self.source.ref.discrete_index_to_continuous_range(
+            try self.source.item.discrete_index_to_continuous_range(
                 index_in_source,
-                self.source.label,
+                self.source.space,
                 domain,
             )
         );
@@ -2038,7 +2038,7 @@ test "Single clip, schema.Warp bulk"
 /// using references.SpaceReference as the spatial references and
 /// `temporal_tree.build_temporal_tree` as the Tree constructor.
 pub const TemporalProjectionBuilder = projection_builder.ProjectionBuilder(
-    references.TemporalSpaceReference,
+    references.TemporalSpaceNode,
     ProjectionOperator,
     temporal_tree.build_temporal_tree,
 );
@@ -2154,7 +2154,6 @@ test "ReferenceTopology: init_from_reference"
         .start = intervals[0].start,
         .end = intervals[intervals.len - 1].end,
     };
-
 
     try std.testing.expectEqual(
         cl.media.maybe_discrete_partition.?.start_index,

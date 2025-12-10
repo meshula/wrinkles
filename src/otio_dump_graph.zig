@@ -183,10 +183,10 @@ pub fn main(
 
     std.debug.print("TREE NODES:", .{});
 
-    for (tree.nodes.items(.ref), tree.nodes.items(.label))
-        |ref, label|
+    for (tree.nodes.items(.item), tree.nodes.items(.space))
+        |item, space|
     {
-        std.debug.print("  {f}.{s}\n", .{ref, @tagName(label)});
+        std.debug.print("  {f}.{s}\n", .{item, @tagName(space)});
     }
 
     parent_prog.completeOne();

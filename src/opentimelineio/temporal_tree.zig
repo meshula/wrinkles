@@ -35,7 +35,7 @@ const T_CTI_1_10 = opentime.ContinuousInterval {
 /// Specialization of `treecode.BinaryTree` over
 /// `references.TemporalSpaceReference`.
 pub const TemporalTree = treecode.BinaryTree(
-    references.TemporalSpaceReference
+    references.TemporalSpaceNode
 );
 
 /// End points of a path in the tree.
@@ -84,9 +84,9 @@ fn walk_child_spaces(
         last_code = child_wrapper_space_code_ptr;
 
         // insert the child scope of the parent
-        const space_ref = references.TemporalSpaceReference{
-            .ref = parent_otio_object,
-            .label = .{ .child = @intCast(index) },
+        const space_ref = references.TemporalSpaceNode{
+            .item = parent_otio_object,
+            .space = .{ .child = @intCast(index) },
         };
 
         if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
@@ -103,9 +103,9 @@ fn walk_child_spaces(
                         index,
                         child_wrapper_space_code_ptr,
                         other_code,
-                        @tagName(space_ref.ref),
-                        @tagName(space_ref.label),
-                        space_ref.label.child,
+                        @tagName(space_ref.item),
+                        @tagName(space_ref.space),
+                        space_ref.space.child,
                     }
                 );
 
@@ -122,9 +122,9 @@ fn walk_child_spaces(
                     child_wrapper_space_code_ptr,
                     child_wrapper_space_code_ptr.hash(),
                     child_wrapper_space_code_ptr.words.ptr,
-                    @tagName(space_ref.ref),
-                    @tagName(space_ref.label),
-                    space_ref.label.child,
+                    @tagName(space_ref.item),
+                    @tagName(space_ref.space),
+                    space_ref.space.child,
                 }
             );
         }
@@ -170,9 +170,9 @@ fn walk_internal_spaces(
     for (0.., spaces) 
         |index, space_label| 
     {
-        const space_ref = references.TemporalSpaceReference{
-            .ref = parent_otio_object,
-            .label = space_label,
+        const space_ref = references.TemporalSpaceNode{
+            .item = parent_otio_object,
+            .space = space_label,
         };
         const space_code = (
             if (index > 0) (
@@ -220,8 +220,8 @@ fn walk_internal_spaces(
                     space_code,
                     space_code.hash(), 
                     space_code.words.ptr,
-                    @tagName(space_ref.ref),
-                    @tagName(space_ref.label)
+                    @tagName(space_ref.item),
+                    @tagName(space_ref.space)
                 }
             );
         }
@@ -237,13 +237,13 @@ fn walk_internal_spaces(
 pub fn build_temporal_tree(
     parent_allocator: std.mem.Allocator,
     /// root item of the tree
-    root_space: references.TemporalSpaceReference,
+    root_space: references.TemporalSpaceNode,
 ) !TemporalTree 
 {
     var tmp_tree: TemporalTree = .empty;
     errdefer tmp_tree.deinit(parent_allocator);
 
-    const root_item = root_space.ref;
+    const root_item = root_space.item;
 
     // NOTE: because OTIO objects contain multiple internal spaces, there is a
     //       stack of objects to process.
@@ -699,9 +699,9 @@ test "label_for_node_leaky"
     var buf: [1024]u8 = undefined;
 
     var tr: schema.Track = .empty;
-    const sr = references.TemporalSpaceReference{
-        .label = .presentation,
-        .ref = .{ .track = &tr },
+    const sr = references.TemporalSpaceNode{
+        .space = .presentation,
+        .item = .{ .track = &tr },
     };
 
     var tc = try treecode.Treecode.init_word(
@@ -796,7 +796,7 @@ test "path_code: tree test"
         |t_i, t| 
     {
         const space = (
-            tr.children[t.ind].space(references.SpaceLabel.presentation)
+            tr.children[t.ind].space(.presentation)
         );
         const result = (
             tree.code_from_node(space) 
@@ -866,8 +866,8 @@ test "schema.Track with clip with identity transform projection"
         allocator,
         tree,
         .{
-            .source = tr_ref.space(references.SpaceLabel.presentation),
-            .destination =  cl_ref.space(references.SpaceLabel.media)
+            .source = tr_ref.space(.presentation),
+            .destination =  cl_ref.space(.media)
         },
         cache,
     );
@@ -919,7 +919,7 @@ test "Temporaltree: schema.Track with clip with identity transform"
         tree.map_node_to_index.count()
     );
 
-    try std.testing.expectEqual(root, tree.root_node().ref);
+    try std.testing.expectEqual(root, tree.root_node().item);
 
     const maybe_root_code = tree.code_from_node(tree.root_node());
     try std.testing.expect(maybe_root_code != null);
@@ -934,7 +934,7 @@ test "Temporaltree: schema.Track with clip with identity transform"
     }
 
     const maybe_clip_code = tree.code_from_node(
-        cl_ref.space(references.SpaceLabel.media)
+        cl_ref.space(.media)
     );
     try std.testing.expect(maybe_clip_code != null);
     const clip_code = maybe_clip_code.?;
