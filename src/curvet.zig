@@ -228,8 +228,13 @@ fn _is_between(
 }
 
 const VisTransform = struct {
-    topology: topology.Topology = .identity_infinite,
-    active: bool = true,
+    topology: topology.Topology,
+    active: bool,
+
+    pub const identify_infinite: VisTransform = .{
+        .topology = .identity_infinite,
+        .active = true,
+    };
 };
 
 const VisOperation = union(enum) {
@@ -247,7 +252,7 @@ const ProjectionResultDebugFlags = struct {
 };
 
 const VisState = struct {
-    operations: *std.ArrayList(VisOperation),
+    operations: std.ArrayList(VisOperation),
     show_demo: bool = false,
     show_test_curves: bool = false,
     show_projection_result: bool = false,
@@ -257,7 +262,7 @@ const VisState = struct {
     g_prime_of_t: bool = false,
 
     pub fn deinit(
-        self: *const @This(),
+        self: *@This(),
         allocator: std.mem.Allocator
     ) void 
     {
@@ -302,44 +307,44 @@ pub fn main(
     };
     const allocator = ALLOCATOR;
 
-    STATE = try _parse_args(allocator);
+    try _parse_args(allocator, &STATE);
+
+    std.debug.print("STATE MADE\n", .{});
+    std.debug.print("Items: {d}\n", .{STATE.operations.items.len});
 
     const built_in_curve_data = struct{
         const upside_down_u = @embedFile("upside_down_u.curve.json");
     };
 
-    // u
-    const fst_name:[:0]const u8 = "upside down u";
-    const fst_crv = try curve.read_bezier_curve_data(
-        allocator,
-        built_in_curve_data.upside_down_u
-    );
-    defer fst_crv.deinit(allocator);
-
-    var segments = [_]curve.Bezier.Segment{
-        .init_identity(
-            opentime.Ordinate.init(-3),
-            opentime.Ordinate.init(3),
-        ) 
-    };
-    const snd_crv = curve.Bezier{
-        .segments = &segments,
-    };
-    const snd_name:[:0]const u8 ="linear [-0.2, 1)" ;
-
-    TMPCURVES = projTmpTest{
-        // projecting "snd" through "fst"
-        .b2c = .{ 
-            .curve = fst_crv,
-            .fpath = fst_name,
-            .split_hodograph = try fst_crv.split_on_critical_points(allocator),
-        },
+    TMPCURVES = projTmpTest {
         .a2b = .{ 
-            .curve = snd_crv,
-            .fpath = snd_name,
-            .split_hodograph = try snd_crv.split_on_critical_points(allocator),
+            .curve = .{
+                .segments = &.{
+                    .init_identity(
+                        opentime.Ordinate.init(-3),
+                        opentime.Ordinate.init(3),
+                    ) 
+                },
+                },
+            .fpath = try allocator.dupeZ(
+                u8,
+                "linear [-0.2, 1)",
+            ),
+            .split_hodograph = undefined,
+        },
+        .b2c = .{ 
+            .curve = try curve.read_bezier_curve_data(
+                allocator,
+                built_in_curve_data.upside_down_u
+            ),
+            .fpath = try allocator.dupeZ(u8, "upside down u"),
+            .split_hodograph = undefined,
         },
     };
+
+    TMPCURVES.a2b.split_hodograph = try TMPCURVES.a2b.curve.split_on_critical_points(allocator);
+    TMPCURVES.b2c.split_hodograph = try TMPCURVES.b2c.curve.split_on_critical_points(allocator);
+
     defer TMPCURVES.a2b.split_hodograph.deinit(allocator);
     defer TMPCURVES.b2c.split_hodograph.deinit(allocator);
     defer STATE.deinit(allocator);
@@ -1252,74 +1257,6 @@ fn plot_tpa_guts(
     }
 }
 
-// plot using a two point approximation
-fn plot_two_point_approx(
-    crv: curve.Bezier,
-    flags: DebugDrawCurveFlags,
-    name: [:0]const u8,
-    allocator: std.mem.Allocator,
-) !void
-{
-    var buf:[1024:0]u8 = undefined;
-
-    const approx_label = try std.fmt.bufPrintZ(
-        &buf,
-        "{s} / approximation using two point method (+computed derivatives at endpoints)",
-        .{ name }
-    );
-    var approx_segments = std.ArrayList(curve.Bezier.Segment).init(allocator);
-    defer approx_segments.deinit();
-
-    for (crv.segments) 
-        |seg| 
-    {
-        if (seg.p0.in > 0) {
-            continue;
-        }
-        // const cSeg = seg.to_cSeg();
-        // var hodo = curve.bezier_curve.hodographs.compute_hodograph(&cSeg);
-        //     const d_midpoint_dt = (
-        //         curve.bezier_curve.hodographs.evaluate_bezier(
-        //             &hodo,
-        //             u
-        //         )
-        //     );
-        //     const d_mid_point_dt = curve.ControlPoint{
-        //         .in = d_midpoint_dt.x,
-        //         .out = d_midpoint_dt.y,
-        //     };
-        //
-        //     const tpa_guts = curve.bezier_curve.three_point_guts_plot(
-        //         seg.p0,
-        //         mid_point,
-        //         u,
-        //         d_mid_point_dt,
-        //         seg.p3,
-        //     );
-        //
-        //     // derivative at the midpoint
-        //     try approx_segments.append(tpa_guts.result.?);
-        //
-        //     try plot_tpa_guts(
-        //         tpa_guts,
-        //         label,
-        //         flags.three_point_approximation,
-        //         allocator,
-        //     );
-    }
-
-    const approx_crv = try curve.Bezier.init(
-        allocator,
-        approx_segments.items
-    );
-
-    try plot_bezier_curve(
-        approx_crv,
-        approx_label,
-        flags.three_point_approximation.result_curves,
-        allocator
-    );
-}
 
 fn plot_three_point_approx(
     crv: curve.Bezier,
@@ -1430,8 +1367,10 @@ fn plot_curve(
     const flags = crv.draw_flags;
 
     // input curve
-    if (flags.input_curve.bezier) {
-        if (crv.editable) {
+    if (flags.input_curve.bezier) 
+    {
+        if (crv.editable) 
+        {
             try plot_editable_bezier_curve(&crv.curve, name, allocator);
             crv.split_hodograph.deinit(allocator);
             crv.split_hodograph = (
@@ -1448,7 +1387,8 @@ fn plot_curve(
     }
 
     // input curve linearized
-    if (flags.input_curve.linearized) {
+    if (flags.input_curve.linearized) 
+    {
         const lin_label = try std.fmt.bufPrintZ(
             &buf,
             "{s} / linearized", 
@@ -1461,7 +1401,12 @@ fn plot_curve(
     }
 
     // three point approximation
-    try plot_three_point_approx(crv.split_hodograph, flags, name, allocator);
+    try plot_three_point_approx(
+        crv.split_hodograph,
+        flags,
+        name,
+        allocator,
+    );
 
     // split on critical points
     {
@@ -1491,7 +1436,9 @@ fn plot_curve(
 
 }
 
-var STATE : VisState = undefined;
+var STATE : VisState = .{
+    .operations = .empty,
+};
 var TMPCURVES : projTmpTest = undefined; 
 var ALLOCATOR : std.mem.Allocator = undefined;
 
@@ -1502,51 +1449,9 @@ fn update() !void
     };
 }
 
-var first_time = true;
-
 fn update_with_error(
 ) !void 
 {
-    if (first_time) {
-        
-    }
-
-    // const allocator = std.heap.c_allocator;
-    
-    // var _proj = topology.Topology.init_identity_infinite(allocator);
-    // const inf = topology.Topology.init_identity_infinite(allocator);
-    //
-    // for (STATE.operations.items) 
-    //     |visop| 
-    // {
-    //     var _topology: topology.Topology = .{ .empty = .{} };
-    //
-    //     switch (visop) 
-    //     {
-    //         .transform => |xform| {
-    //             if (!xform.active) {
-    //                 continue;
-    //             } else {
-    //                 _topology = .{ .affine = xform.topology };
-    //             }
-    //         },
-    //         .curve => |crv| {
-    //             if (!crv.active) {
-    //                 continue;
-    //             } else {
-    //                 _topology = .{ .bezier_curve = .{ .curve = crv.curve } };
-    //             }
-    //         },
-    //     }
-    //
-    //     const tmp = _proj;
-    //     _proj = _topology.project_topology(
-    //         ALLOCATOR,
-    //         _proj
-    //     ) catch inf;
-    //     tmp.deinit(ALLOCATOR);
-    // }
-
     zgui.setNextWindowPos(.{ .x = 0.0, .y = 0.0, });
 
     const vp = zgui.getMainViewport();
@@ -1579,126 +1484,127 @@ fn update_with_error(
     );
     zgui.spacing();
 
-    var tmp_buf:[1024:0]u8 = undefined;
+    var tmp_buf:[2*1024:0]u8 = undefined;
     @memset(&tmp_buf, 0);
 
+    if (zgui.beginChild("Plot", .{ .w = width - 600 }))
     {
-        if (zgui.beginChild("Plot", .{ .w = width - 600 }))
-        {
-
-            if (zgui.plot.beginPlot(
-                    "Curve Plot",
-                    .{ 
-                        .h = -1.0,
-                        .flags = .{ .equal = true },
-                    }
-                )
-            ) 
-            {
-                zgui.plot.setupAxis(.x1, .{ .label = "input" });
-                zgui.plot.setupAxis(.y1, .{ .label = "output" });
-                zgui.plot.setupLegend(
-                    .{ 
-                        .south = true,
-                        .west = true 
-                    },
-                    .{}
-                );
-                zgui.plot.setupFinish();
-                for (STATE.operations.items, 0..) 
-                    |*visop, op_index| 
-                {
-
-                    switch (visop.*) 
-                    {
-                        .curve => |*crv| {
-                            const name = try std.fmt.bufPrintZ(
-                                &tmp_buf,
-                                "{d}: Bezier Curve / {s}",
-                                .{op_index, crv.fpath[0..]}
-                            );
-
-                            try plot_curve(crv, name, ALLOCATOR);
-                        },
-                        else => {},
-                    }
-                }
-
-                // if (STATE.show_projection_result) 
-                // {
-                //     switch (_proj) 
-                //     {
-                //         .linear_curve => |lint| { 
-                //             const lin = lint.curve;
-                //             try plot_linear_curve(
-                //                 lin,
-                //                 "result / linear",
-                //                 ALLOCATOR
-                //             );
-                //         },
-                //         .bezier_curve => |bez| {
-                //             const pts = try evaluated_curve(
-                //                 bez.curve,
-                //                 CURVE_SAMPLE_COUNT
-                //             );
-                //
-                //             zgui.plot.plotLine(
-                //                 "result [bezier]",
-                //                 f32,
-                //                 .{ .xv = &pts.xv, .yv = &pts.yv }
-                //             );
-                //         },
-                //         .affine =>  {
-                //             zgui.plot.plotLine(
-                //                 "NO RESULT: AFFINE",
-                //                 f32,
-                //                 .{ 
-                //                     .xv = &[_] f32{},
-                //                     .yv = &[_] f32{},
-                //                 }
-                //             );
-                //         },
-                //         .empty => {
-                //             zgui.plot.plotLine(
-                //                 "EMPTY RESULT",
-                //                 f32,
-                //                 .{ 
-                //                     .xv = &[_] f32{},
-                //                     .yv = &[_] f32{},
-                //                 }
-                //             );
-                //         },
-                //     }
-                // }
-
-                if (STATE.show_test_curves) 
-                {
-                    // debug 
-                    const self = TMPCURVES.a2b.curve;
-                    const other = TMPCURVES.b2c.curve;
-
-                    try plot_bezier_curve(
-                        self,
-                        "self",
-                        STATE.show_projection_result_guts.fst,
-                        ALLOCATOR
-                    );
-                    try plot_bezier_curve(
-                        other,
-                        "other",
-                        STATE.show_projection_result_guts.snd,
-                        ALLOCATOR
-                    );
-
-                    //
-                    const self_hodograph = try self.split_on_critical_points(ALLOCATOR);
-                    defer self_hodograph.deinit(ALLOCATOR);
-                }
-
-                zgui.plot.endPlot();
-            }
-        }
         defer zgui.endChild();
+
+        if (zgui.plot.beginPlot(
+                "Curve Plot",
+                .{ 
+                    .h = -1.0,
+                    .flags = .{ .equal = true },
+                }
+            )
+        ) 
+        {
+            defer zgui.plot.endPlot();
+
+            zgui.plot.setupAxis(.x1, .{ .label = "input" });
+            zgui.plot.setupAxis(.y1, .{ .label = "output" });
+            zgui.plot.setupLegend(
+                .{ 
+                    .south = true,
+                    .west = true 
+                },
+                .{}
+            );
+            zgui.plot.setupFinish();
+            for (STATE.operations.items, 0..) 
+                |*visop, op_index| 
+            {
+                std.debug.print("index: {d}\n", .{op_index});
+                std.debug.print("tag: {s}\n", .{@tagName(visop.*)});
+                switch (visop.*) 
+                {
+                    .curve => |*crv| {
+                        std.debug.print("{d}: Bezier Curve / filename: {s}\n", .{op_index, crv.fpath});
+                        const name = try std.fmt.bufPrintZ(
+                            &tmp_buf,
+                            "{d}: Bezier Curve / {s}",
+                            .{op_index, crv.fpath}
+                        );
+
+                        try plot_curve(crv, name, ALLOCATOR);
+                    },
+                    else => {},
+                }
+            }
+
+            // if (STATE.show_projection_result) 
+            // {
+            //     switch (_proj) 
+            //     {
+            //         .linear_curve => |lint| { 
+            //             const lin = lint.curve;
+            //             try plot_linear_curve(
+            //                 lin,
+            //                 "result / linear",
+            //                 ALLOCATOR
+            //             );
+            //         },
+            //         .bezier_curve => |bez| {
+            //             const pts = try evaluated_curve(
+            //                 bez.curve,
+            //                 CURVE_SAMPLE_COUNT
+            //             );
+            //
+            //             zgui.plot.plotLine(
+            //                 "result [bezier]",
+            //                 f32,
+            //                 .{ .xv = &pts.xv, .yv = &pts.yv }
+            //             );
+            //         },
+            //         .affine =>  {
+            //             zgui.plot.plotLine(
+            //                 "NO RESULT: AFFINE",
+            //                 f32,
+            //                 .{ 
+            //                     .xv = &[_] f32{},
+            //                     .yv = &[_] f32{},
+            //                 }
+            //             );
+            //         },
+            //         .empty => {
+            //             zgui.plot.plotLine(
+            //                 "EMPTY RESULT",
+            //                 f32,
+            //                 .{ 
+            //                     .xv = &[_] f32{},
+            //                     .yv = &[_] f32{},
+            //                 }
+            //             );
+            //         },
+            //     }
+            // }
+
+            if (STATE.show_test_curves) 
+            {
+                // debug 
+                const self = TMPCURVES.a2b.curve;
+                const other = TMPCURVES.b2c.curve;
+
+                try plot_bezier_curve(
+                    self,
+                    "self",
+                    STATE.show_projection_result_guts.fst,
+                    ALLOCATOR
+                );
+                try plot_bezier_curve(
+                    other,
+                    "other",
+                    STATE.show_projection_result_guts.snd,
+                    ALLOCATOR
+                );
+
+                //
+                const self_hodograph = try self.split_on_critical_points(ALLOCATOR);
+                defer self_hodograph.deinit(ALLOCATOR);
+            }
+
+        }
     }
 
     zgui.sameLine(.{});
@@ -2104,8 +2010,8 @@ fn update_with_error(
                     else => {},
                 }
             }
+            defer zgui.endChild();
         }
-        defer zgui.endChild();
     }
 
     if (STATE.show_demo) {
@@ -2118,8 +2024,9 @@ fn update_with_error(
 
 /// parse the commandline arguments and setup the state
 fn _parse_args(
-    allocator: std.mem.Allocator
-) !VisState 
+    allocator: std.mem.Allocator,
+    state: *VisState,
+) !void
 {
     var args = try std.process.argsWithAllocator(allocator);
     defer args.deinit();
@@ -2127,7 +2034,8 @@ fn _parse_args(
     // ignore the app name, always first in args
     _ = args.skip();
 
-    var operations: std.ArrayList(VisOperation) = .{};
+    var operations = state.operations;
+    operations = .empty;
 
     // read all the filepaths from the commandline
     while (args.next()) 
@@ -2142,7 +2050,11 @@ fn _parse_args(
             usage();
         }
 
-        const crv = curve.read_curve_json(fpath, allocator) catch |err| {
+        const crv = curve.read_curve_json(
+            fpath,
+            allocator,
+        ) catch |err| 
+        {
             std.debug.print(
                 "Something went wrong reading: '{s}'\n",
                 .{ fpath }
@@ -2151,26 +2063,28 @@ fn _parse_args(
             return err;
         };
 
-        const viscurve = VisCurve{
-            .fpath = try allocator.dupeZ(u8, fpath),
-            .curve = crv,
-            .split_hodograph = try crv.split_on_critical_points(allocator),
-        };
-
+        std.debug.print("Loaded curve: '{s}'\n", .{fpath});
+        std.debug.print("...'{d}' segments\n", .{crv.segments.len});
         std.debug.assert(crv.segments.len > 0);
 
         try operations.append(
             allocator,
-            .{ .curve = viscurve },
-        );
+            .{ 
+                .curve = .{
+                    .fpath = try allocator.dupeZ(u8, fpath),
+                    .curve = crv,
+                    .split_hodograph = try crv.split_on_critical_points(allocator),
+                }
+            },
+            );
     }
 
     try operations.append(
         allocator,
-        .{ .transform = .{} }
+        .{ .transform = .identify_infinite },
     );
-
-    return .{ .operations = &operations };
+    
+    std.debug.print("arguments parsed, operations length: {d}\n", .{operations.items.len});
 }
 
 /// print the usage message out and quit
