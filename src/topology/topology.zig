@@ -119,15 +119,9 @@ pub const Topology = struct {
 
     pub fn init_bezier(
         allocator: std.mem.Allocator,
-        segments: []const curve.Bezier.Segment,
+        crv: curve.Bezier,
     ) !Topology
     {
-        const crv = try curve.Bezier.init(
-            allocator,
-            segments
-        );
-        defer crv.deinit(allocator);
-
         return try mapping.MappingCurveBezier.init_curve(
             allocator,
             crv,
@@ -1397,15 +1391,17 @@ fn build_test_topo_from_slides(
 {
     const topo_a2b = (
         try Topology.init_bezier(
-            allocator, 
-            &.{
-                .{
-                    .p0 = curve.ControlPoint.init(.{ .in = 1, .out = 0 }),
-                    .p1 = curve.ControlPoint.init(.{ .in = 1, .out = 5 }),
-                    .p2 = curve.ControlPoint.init(.{ .in = 5, .out = 5 }),
-                    .p3 = curve.ControlPoint.init(.{ .in = 5, .out = 1 }),
+            allocator,
+            .{
+                .segments = &.{
+                    .{
+                        .p0 = .init(.{ .in = 1, .out = 0 }),
+                        .p1 = .init(.{ .in = 1, .out = 5 }),
+                        .p2 = .init(.{ .in = 5, .out = 5 }),
+                        .p3 = .init(.{ .in = 5, .out = 1 }),
+                    },
                 },
-            },
+            }
         )
     );
 
@@ -1875,14 +1871,16 @@ test "Topology: Bezier construction/leak"
     const tm_a2b = (
         try Topology.init_bezier(
             allocator, 
-            &.{
-                .{
-                    .p0 = curve.ControlPoint.init(.{ .in = 1, .out = 0 }),
-                    .p1 = curve.ControlPoint.init(.{ .in = 1, .out = 5 }),
-                    .p2 = curve.ControlPoint.init(.{ .in = 5, .out = 5 }),
-                    .p3 = curve.ControlPoint.init(.{ .in = 5, .out = 1 }),
+            .{
+                .segments = &.{
+                    .{
+                        .p0 = .init(.{ .in = 1, .out = 0 }),
+                        .p1 = .init(.{ .in = 1, .out = 5 }),
+                        .p2 = .init(.{ .in = 5, .out = 5 }),
+                        .p3 = .init(.{ .in = 5, .out = 1 }),
+                    },
                 },
-            },
+            }
         )
     );
     defer tm_a2b.deinit(allocator);

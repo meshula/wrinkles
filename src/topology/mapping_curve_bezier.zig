@@ -324,16 +324,14 @@ test "MappingCurveBezier: init and project"
 {
     const allocator = std.testing.allocator;
 
-    const crv = try curve.Bezier.init(
-        allocator,
-        &.{ 
-            curve.Bezier.Segment.init_from_start_end(
-                curve.ControlPoint.init(.{ .in = 0, .out = 0 }),
-                curve.ControlPoint.init(.{ .in = 10, .out = 20 }),
+    const crv = curve.Bezier {
+        .segments = &.{ 
+            .init_from_start_end(
+                .init(.{ .in = 0, .out = 0 }),
+                .init(.{ .in = 10, .out = 20 }),
             ),
         }
-    );
-    defer crv.deinit(allocator);
+    };
 
     const t_bez = (
         try MappingCurveBezier.init_curve(

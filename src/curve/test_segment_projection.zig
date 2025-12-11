@@ -22,53 +22,6 @@ fn expectNotEqual(
     };
 }
 
-test "segment projection: identity projection" 
-{
-    // note that intervals are identical
-    var identity_tc = try curve.Bezier.init_from_start_end(
-        std.testing.allocator,
-        curve.ControlPoint.init(.{ .in = 0, .out = 0 }),
-        curve.ControlPoint.init(.{ .in = 10, .out = 10 }),
-    );
-    defer identity_tc.deinit(std.testing.allocator);
-
-    const double_tc = try curve.Bezier.init_from_start_end(
-        std.testing.allocator,
-        curve.ControlPoint.init(.{ .in = 0, .out = 0 }),
-        curve.ControlPoint.init(.{ .in = 1, .out = 2 }),
-    );
-    defer double_tc.deinit(std.testing.allocator);
-
-    const results = try identity_tc.project_curve_guts(
-        std.testing.allocator,
-        double_tc,
-    );
-    defer results.deinit();
-
-    // both are already linear, should result in a single segment
-    try expectEqual(1, results.result.?.segments.len);
-
-    const result = results.result.?.segments[0];
-
-    try expectEqual(
-        double_tc.extents()[0].in,
-        result.extents()[0].in,
-    );
-    try expectEqual(
-        double_tc.extents()[1].in,
-        result.extents()[1].in,
-    );
-
-    for (result.points())
-        |pt|
-    {
-        try opentime.expectOrdinateEqual(
-            pt.out,
-            result.output_at_input(pt.in),
-        );
-    }
-}
-
 test "segment projection:  identity projection" 
 {
     // note that intervals are identical

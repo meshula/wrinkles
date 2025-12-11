@@ -1196,7 +1196,7 @@ test "Single schema.Clip bezier transform"
     defer xform_curve.deinit(allocator);
     const curve_topo = try topology_m.Topology.init_bezier(
         allocator,
-        xform_curve.segments,
+        xform_curve,
     );
     defer curve_topo.deinit(allocator);
 

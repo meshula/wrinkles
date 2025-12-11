@@ -1569,18 +1569,16 @@ test "Linear.Monotonic.SplitAtCriticalPoints"
 {
     const allocator = std.testing.allocator;
 
-    const crv = try bezier_curve.Bezier.init(
-        allocator,
-        &.{
+    const crv = bezier_curve.Bezier {
+        .segments = &.{
             .{
-                .p0 = ControlPoint.init(.{ .in = 1, .out = 0 }),
-                .p1 = ControlPoint.init(.{ .in = 1, .out = 5 }),
-                .p2 = ControlPoint.init(.{ .in = 5, .out = 5 }),
-                .p3 = ControlPoint.init(.{ .in = 5, .out = 1 }),
+                .p0 = .init(.{ .in = 1, .out = 0 }),
+                .p1 = .init(.{ .in = 1, .out = 5 }),
+                .p2 = .init(.{ .in = 5, .out = 5 }),
+                .p3 = .init(.{ .in = 5, .out = 1 }),
             }
         },
-    );
-    defer crv.deinit(allocator);
+    };
     
     const lin = try crv.linearized(allocator);
     defer lin.deinit(allocator);

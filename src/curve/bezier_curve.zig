@@ -40,22 +40,16 @@
 //! Includes functions that operate on `Dual_CP` for implicit differentation.
 
 const std = @import("std");
-const expectEqual = std.testing.expectEqual;
-const expectEqualStrings = std.testing.expectEqualStrings;
-const expectError = std.testing.expectError;
-const expect = std.testing.expect;
 
 const opentime = @import("opentime");
+
 pub const math = @import("bezier_math.zig");
 const generic_curve = @import("generic_curve.zig");
 const linear_curve = @import("linear_curve.zig");
 const control_point = @import("control_point.zig");
-const string_stuff = @import("string_stuff");
+pub const hodographs = @import("spline_gym");
 
 pub const U_TYPE = opentime.Ordinate.InnerType;
-
-// hodographs c-library
-pub const hodographs = @import("spline_gym");
 
 pub var u_val_of_midpoint:U_TYPE = 0.5;
 pub var fudge:U_TYPE = 1;
@@ -75,11 +69,14 @@ pub const ProjectionAlgorithms = enum (i32) {
 /// the projection algorithm to use when projecting a Bezier through a Bezier
 pub var project_algo = ProjectionAlgorithms.linearized;
 
-/// returns true if val is between fst and snd regardless of whether fst or snd
-/// is greater
+/// Returns true if val is between fst and snd regardless of whether fst or snd
+/// is greater.
 inline fn _is_between(
+    /// value to check
     val: anytype,
+    /// first bound
     fst: anytype,
+    /// second bound
     snd: anytype,
 ) bool 
 {
@@ -107,8 +104,8 @@ test "Bezier.Segment: can_project test"
         .init(.{ .in = 0.5, .out = 1, }),
     );
 
-    try expectEqual(true, double.can_project(half));
-    try expectEqual(false, half.can_project(double));
+    try std.testing.expectEqual(true, double.can_project(half));
+    try std.testing.expectEqual(false, half.can_project(double));
 }
 
 test "Bezier.Segment: debug_str test" 
@@ -132,7 +129,7 @@ test "Bezier.Segment: debug_str test"
         const blob = try seg.debug_json_str(std.testing.allocator);
         defer std.testing.allocator.free(blob);
 
-        try expectEqualStrings( result,blob);
+        try std.testing.expectEqualStrings( result,blob);
 }
 
 fn _is_approximately_linear(
@@ -230,7 +227,7 @@ test "segment: linearize basic test"
             0.01,
         );
         defer std.testing.allocator.free(linearized_knots);
-        try expectEqual(@as(usize, 8+1), linearized_knots.len);
+        try std.testing.expectEqual(@as(usize, 8+1), linearized_knots.len);
     }
 
     {
@@ -240,7 +237,7 @@ test "segment: linearize basic test"
             0.000001,
         );
         defer std.testing.allocator.free(linearized_knots);
-        try expectEqual(@as(usize, 68+1), linearized_knots.len);
+        try std.testing.expectEqual(@as(usize, 68+1), linearized_knots.len);
     }
 
     {
@@ -250,7 +247,7 @@ test "segment: linearize basic test"
             0.00000001,
         );
         defer std.testing.allocator.free(linearized_knots);
-        try expectEqual(@as(usize, 256+1), linearized_knots.len);
+        try std.testing.expectEqual(@as(usize, 256+1), linearized_knots.len);
     }
 }
 
@@ -275,7 +272,7 @@ test "segment from point array"
         0.01
     );
     defer std.testing.allocator.free(linearized_ident_knots);
-    try expectEqual(@as(usize, 2), linearized_ident_knots.len);
+    try std.testing.expectEqual(@as(usize, 2), linearized_ident_knots.len);
 
     try opentime.expectOrdinateEqual(
         original_knots_ident[0].in,
@@ -310,13 +307,13 @@ test "segment: linearize already linearized curve"
     defer std.testing.allocator.free(linearized_knots);
 
     // already linear!
-    try expectEqual(@as(usize, 2), linearized_knots.len);
+    try std.testing.expectEqual(@as(usize, 2), linearized_knots.len);
 }
 
 /// Read a Bezier segment from a json file on disk.
 pub fn read_segment_json(
     allocator:std.mem.Allocator,
-    file_path: string_stuff.latin_s8,
+    file_path: []const u8,
 ) !Bezier.Segment 
 {
     const fi = try std.fs.cwd().openFile(file_path, .{});
@@ -462,7 +459,9 @@ test "Bezier.Segment.init_identity check cubic spline"
 /// equations.
 pub const Bezier = struct {
     /// Bezier segments that compose the curve.
-    segments: []Segment = &.{},
+    segments: []const Segment,
+
+    pub const empty: Bezier = .{ .segments = &.{} };
 
     pub const Segment = struct {
         p0: control_point.ControlPoint,
@@ -485,10 +484,10 @@ pub const Bezier = struct {
         ) Segment
         {
             return .{
-                .p0 = control_point.ControlPoint.init(in_seg.p0),
-                .p1 = control_point.ControlPoint.init(in_seg.p1),
-                .p2 = control_point.ControlPoint.init(in_seg.p2),
-                .p3 = control_point.ControlPoint.init(in_seg.p3),
+                .p0 = .init(in_seg.p0),
+                .p1 = .init(in_seg.p1),
+                .p2 = .init(in_seg.p2),
+                .p3 = .init(in_seg.p3),
             };
         }
 
@@ -589,9 +588,10 @@ pub const Bezier = struct {
             self.p3 = pts[3];
         }
 
+        /// Evaluate the segment with implicit differentiation.
         pub fn eval_at_dual(
             self: @This(),
-            unorm_dual:opentime.Dual_Ord,
+            unorm_dual: opentime.Dual_Ord,
         ) control_point.Dual_CP
         {
             var self_dual : [4]control_point.Dual_CP = undefined;
@@ -611,7 +611,7 @@ pub const Bezier = struct {
         }
 
         /// Compute the point on the curve for parameter unorm along the curve
-        /// [0, 1)
+        /// [0, 1).
         pub inline fn eval_at(
             self: @This(),
             unorm: anytype,
@@ -658,7 +658,7 @@ pub const Bezier = struct {
             const Q2 = opentime.lerp(
                 unorm,
                 Q1,
-                opentime.lerp(unorm, p[1], p[2])
+                opentime.lerp(unorm, p[1], p[2]),
             );
             const Q3 = opentime.lerp(
                 unorm,
@@ -666,8 +666,8 @@ pub const Bezier = struct {
                 opentime.lerp(
                     unorm,
                     opentime.lerp(unorm, p[1], p[2]),
-                    opentime.lerp(unorm, p[2], p[3])
-                )
+                    opentime.lerp(unorm, p[2], p[3]),
+                ),
             );
 
             const R0 = Q3;
@@ -684,13 +684,13 @@ pub const Bezier = struct {
                     .p0 = Q0,
                     .p1 = Q1,
                     .p2 = Q2,
-                    .p3 = Q3
+                    .p3 = Q3,
                 },
                 Segment{
                     .p0 = R0,
                     .p1 = R1,
                     .p2 = R2,
-                    .p3 = R3
+                    .p3 = R3,
                 },
             };
         }
@@ -707,7 +707,7 @@ pub const Bezier = struct {
 
         /// compute the extents of the segment
         pub fn extents(
-            self: @This()
+            self: @This(),
         ) [2]control_point.ControlPoint 
         {
             var min: control_point.ControlPoint = self.p0;
@@ -715,17 +715,17 @@ pub const Bezier = struct {
 
             inline for ([3][]const u8{"p1", "p2", "p3"}) 
                 |field| 
-                {
-                    const pt = @field(self, field);
-                    min = .{
-                        .in = opentime.min(min.in, pt.in),
-                        .out = opentime.min(min.out, pt.out),
-                    };
-                    max = .{
-                        .in = opentime.max(max.in, pt.in),
-                        .out = opentime.max(max.out, pt.out),
-                    };
-                }
+            {
+                const pt = @field(self, field);
+                min = .{
+                    .in = opentime.min(min.in, pt.in),
+                    .out = opentime.min(min.out, pt.out),
+                };
+                max = .{
+                    .in = opentime.max(max.in, pt.in),
+                    .out = opentime.max(max.out, pt.out),
+                };
+            }
 
             return .{ min, max };
         }
@@ -740,13 +740,17 @@ pub const Bezier = struct {
             const other_extents = segment_to_project.extents();
 
             return (
-                other_extents[0].out.gteq(my_extents[0].in.sub(opentime.Ordinate.epsilon))
-                and other_extents[1].out.lt(my_extents[1].in.add(opentime.Ordinate.epsilon))
+                other_extents[0].out.gteq(
+                    my_extents[0].in.sub(opentime.Ordinate.epsilon)
+                )
+                and other_extents[1].out.lt(
+                    my_extents[1].in.add(opentime.Ordinate.epsilon)
+                )
             );
         }
 
-        /// assuming that segment_to_project is contained by self, project the 
-        /// points of segment_to_project through self
+        /// Assuming that segment_to_project is contained by self, project the 
+        /// points of segment_to_project through self.
         pub fn project_segment(
             self: @This(),
             segment_to_project: Segment,
@@ -920,12 +924,12 @@ pub const Bezier = struct {
 
                     inline for (&.{ self.p0, self.p1, self.p2, self.p3 }, 0..) 
                         |pt, pt_ind| 
-                        {
-                            tmp[pt_ind] = .{
-                                .x = pt.in.as(f32),
-                                .y = pt.out.as(f32),
-                            };
-                        }
+                    {
+                        tmp[pt_ind] = .{
+                            .x = pt.in.as(f32),
+                            .y = pt.out.as(f32),
+                        };
+                    }
 
                     break :translate tmp;
                 },
@@ -953,21 +957,7 @@ pub const Bezier = struct {
         }
     };
 
-
     /// dupe the segments argument into the returned object
-    pub fn init(
-        allocator:std.mem.Allocator,
-        segments: []const Segment,
-    ) !Bezier 
-    {
-        return Bezier{ 
-            .segments = try allocator.dupe(
-                Segment,
-                segments
-            ) 
-        };
-    }
-
     pub fn deinit(
         self: @This(),
         allocator: std.mem.Allocator
@@ -978,7 +968,7 @@ pub const Bezier = struct {
 
     pub fn clone(
         self: @This(),
-        allocator: std.mem.Allocator
+        allocator: std.mem.Allocator,
     ) !Bezier
     {
         return .{ 
@@ -995,10 +985,12 @@ pub const Bezier = struct {
         p1: control_point.ControlPoint,
     ) !Bezier 
     {
-        return try Bezier.init(
-            allocator,
-            &.{ Segment.init_from_start_end(p0, p1) }
-        );
+        return Bezier{
+            .segments = try allocator.dupe(
+                Segment,
+                &.{ .init_from_start_end(p0, p1) }
+            ),
+        };
     }
 
     /// convert a linear curve into a bezier one
@@ -1104,7 +1096,7 @@ pub const Bezier = struct {
     pub fn find_segment(
         self: @This(),
         ord_input: opentime.Ordinate,
-    ) ?*Segment 
+    ) ?*const Segment 
     {
         if (self.find_segment_index(ord_input)) 
            |ind|
@@ -1160,454 +1152,6 @@ pub const Bezier = struct {
                 try linearized_knots.toOwnedSlice(allocator)
             ),
         };
-    }
-
-    /// project another curve through this one.  A curve maps 'input' to
-    /// 'output' parameters.  
-    ///
-    /// if self maps from space b->c, and other maps from a->b, then the result
-    /// will map a->c.
-    pub fn project_curve(
-        self: @This(),
-        allocator: std.mem.Allocator,
-        other: Bezier
-        // @TODO: should be []Bezier <-  come back to this later
-    ) !Bezier 
-    {
-        const result = try project_curve_guts(
-            self,
-            allocator,
-            other,
-        );
-        defer result.deinit();
-
-        if (result.result)
-            |crv|
-        {
-            return try crv.clone(allocator);
-        }
-
-        return error.NoProjectionResult;
-    }
-
-    const ProjectCurveGuts = struct {
-        allocator: std.mem.Allocator,
-        result : ?Bezier = null,
-        self_split: ?Bezier = null,
-        other_split: ?Bezier = null,
-        to_project : ?Bezier = null,
-        tpa: ?[]tpa_result = null,
-        segments_to_project_through: ?[]usize = null,
-        midpoint_derivatives: ?[]control_point.ControlPoint = null,
-        f_prime_of_g_of_t: ?[]control_point.ControlPoint = null,
-        g_prime_of_t: ?[]control_point.ControlPoint = null,
-
-        pub fn deinit(
-            self: @This(),
-        ) void 
-        {
-            inline for (
-                &.{
-                    "result",
-                    "self_split",
-                    "other_split",
-                    "to_project",
-                }
-            ) |it|
-            {
-                if (@field(self, it)) 
-                    |thing| 
-                {
-                    thing.deinit(self.allocator);
-                }
-            }
-
-            const things_to_free = &.{
-                "tpa",
-                "segments_to_project_through",
-                "midpoint_derivatives",
-                "f_prime_of_g_of_t",
-                "g_prime_of_t"
-            };
-
-            inline for (things_to_free) 
-                       |t| 
-            {
-                if (@field(self, t)) 
-                    |thing| 
-                {
-                    self.allocator.free(thing);
-                }
-            }
-        }
-    };
-
-    /// implementation of the bezier/bezier projection, including extra
-    /// instrumentation ("guts") for debugging/visualization purposes
-    pub fn project_curve_guts(
-        self: @This(),
-        allocator: std.mem.Allocator,
-        other: Bezier,
-        // should be []Bezier <-  come back to this later
-    ) !ProjectCurveGuts 
-    {
-        var result = ProjectCurveGuts{.allocator = allocator};
-
-        var self_split = try self.split_on_critical_points(
-            allocator
-        );
-        defer self_split.deinit(allocator);
-
-        var other_split = try other.split_on_critical_points(
-            allocator
-        );
-        defer other_split.deinit(allocator);
-
-        const self_bounds = self.extents();
-
-        // @TODO: skip segments in self that are BEFORE other and skip segments
-        //        in self that are AFTER other
-
-        {
-            var split_points: std.ArrayList(opentime.Ordinate) = .{};
-            defer split_points.deinit(allocator);
-
-            // self split
-            {
-                // find all knots in self that are within the other bounds
-                const endpoints = try other_split.segment_endpoints(
-                    allocator
-                );
-                defer allocator.free(endpoints);
-
-                for (endpoints)
-                    |other_knot| 
-                {
-                    if (
-                        _is_between(
-                            other_knot.out,
-                            self_bounds[0].in,
-                            self_bounds[1].in
-                        )
-                        // @TODO: omit cases where either endpoint is within an
-                        //        epsilon of an endpoint
-                    ) {
-                        try split_points.append(allocator, other_knot.out);
-                    }
-                }
-                const old_ptr = self_split.segments;
-                defer allocator.free(old_ptr);
-
-                self_split = (
-                    try self_split.split_at_each_input_ordinate(
-                        allocator,
-                        split_points.items,
-                    )
-                );
-            }
-
-            result.self_split = try self_split.clone(allocator);
-
-            // other split
-            {
-                const other_bounds = other.extents();
-
-                split_points.clearAndFree(allocator);
-
-                // find all knots in self that are within the other bounds
-                const endpoints = try self_split.segment_endpoints(
-                    allocator
-                );
-                defer allocator.free(endpoints);
-
-                for (endpoints)
-                    |self_knot| 
-                {
-                    if (
-                        _is_between(
-                            self_knot.in,
-                            other_bounds[0].out,
-                            other_bounds[1].out
-                        )
-                    ) {
-                        try split_points.append(allocator, self_knot.in);
-                    }
-                }
-                const old_ptr = other_split.segments;
-                defer allocator.free(old_ptr);
-
-                other_split = (
-                    try other_split.split_at_each_output_ordinate(
-                        allocator,
-                        split_points.items,
-                    )
-                );
-            }
-        }
-
-        result.other_split = try other_split.clone(allocator);
-
-        var curves_to_project: std.ArrayList(Bezier) = .{};
-        defer curves_to_project.deinit(allocator);
-
-        var last_index: i32 = -10;
-        var current_curve: std.ArrayList(Segment) = .{};
-        // defer current_curve.deinit(allocator);
-
-        // having split both curves by both endpoints, throw out the segments
-        // in other that will not be projected
-        for (other_split.segments, 0..) 
-            |other_segment, index| 
-        {
-            const other_seg_ext = other_segment.extents();
-
-            if (
-                (other_seg_ext[0].out.lt(self_bounds[1].in.sub(opentime.Ordinate.epsilon)))
-                and (other_seg_ext[1].out.gt(self_bounds[0].in.add(opentime.Ordinate.epsilon)))
-            )
-            {
-                if (index != last_index+1) 
-                {
-                    // curves of less than one point are trimmed, because they
-                    // have no duration, and therefore are not modelled in our
-                    // system.
-                    if (current_curve.items.len > 1) 
-                    {
-                        try curves_to_project.append(
-                            allocator,
-                            Bezier{
-                                .segments = (
-                                    try current_curve.toOwnedSlice(allocator)
-                                ),
-                            }
-                        );
-                    }
-                    current_curve.clearAndFree(allocator);
-                }
-
-                try current_curve.append(allocator,other_segment);
-                last_index = @intCast(index);
-            }
-        }
-        if (current_curve.items.len > 0) 
-        {
-            try curves_to_project.append(
-                allocator,
-                Bezier{
-                    .segments = (
-                        try current_curve.toOwnedSlice(allocator)
-                    ),
-                }
-            );
-        }
-        current_curve.deinit(allocator);
-
-        if (curves_to_project.items.len == 0) 
-        {
-            result.result = Bezier{};
-            return result;
-        }
-        result.to_project = .{ 
-            .segments = try allocator.alloc(
-                Segment,
-                curves_to_project.items[0].segments.len
-            ),
-        };
-        std.mem.copyForwards(
-            Segment,
-            result.to_project.?.segments,
-            curves_to_project.items[0].segments
-        );
-
-        var guts: std.ArrayList(tpa_result) = .{};
-        var segments_to_project_through: std.ArrayList(usize) = .{};
-        var midpoint_derivatives: std.ArrayList(control_point.ControlPoint) = .{};
-        var cache_f_prime_of_g_of_t: std.ArrayList(control_point.ControlPoint) = .{};
-        var cache_g_prime_of_t: std.ArrayList(control_point.ControlPoint) = .{};
-
-        // do the projection
-        for (curves_to_project.items) 
-            |*crv| 
-        {
-            for (crv.segments)
-                |*segment|
-            {
-                const self_seg = self_split.find_segment(segment.p0.in) orelse {
-                    continue;
-                };
-                try segments_to_project_through.append(
-                    allocator,
-                    self_split.find_segment_index(segment.p0.in) orelse continue
-                );
-
-                switch (project_algo) {
-                    .three_point_approx => {
-                        // @TODO: question 1- should this be halfway across the input
-                        //                    space (vs 0.5 across the parameter space)
-                        // review - want the point on the curve furthest from the line
-                        //          from A to C (in tpa terms)
-                        //          see "aligning a curve" on pomax to compute the
-                        //          extremity
-                        const t_midpoint_other = u_val_of_midpoint;
-                        const midpoint = segment.eval_at(t_midpoint_other);
-
-                        var projected_pts = [_]control_point.ControlPoint{
-                            segment.p0,
-                            midpoint,
-                            segment.p3, 
-                        };
-
-                        // explicitly project start, mid, and end
-                        inline for (&projected_pts, 0..) 
-                            |pt, pt_ind|
-                        {
-                            projected_pts[pt_ind] = .{
-                                .in  = pt.in,
-                                .out = self_seg.output_at_input(pt.out)
-                            };
-                        }
-
-                        // chain rule: h'(x) = f'(g(x)) * g'(x)
-                        // chain rule: h'(t) = f'(g(t)) * g'(t)
-                        // g(t) == midpoint (other @ t = 0.5)
-                        // f'(g(t)) == f'(midpoint -- other @ t = 0.5)
-                        // g'(t) == hodograph of other @ t = 0.5
-                        // h'(t) = f'(midpoint) * hodograph of other @ t= 0.5
-                        const u_in_self = self_seg.findU_input(
-                            midpoint.out
-                        );
-                        const d_mid_point_dt = chain_rule: 
-                        {
-                            var self_cSeg = self_seg.to_cSeg();
-                            var self_hodo = hodographs.compute_hodograph(&self_cSeg);
-                            const f_prime_of_g_of_t = hodographs.evaluate_bezier(
-                                &self_hodo,
-                                @floatCast(u_in_self),
-                            );
-                            try cache_f_prime_of_g_of_t.append(
-                                allocator,
-                                control_point.ControlPoint.init(
-                                    .{
-                                        .in = f_prime_of_g_of_t.x, 
-                                        .out= f_prime_of_g_of_t.y
-                                    }
-                                )
-                            );
-
-                            // project derivative by the chain rule
-                            var other_cSeg = segment.to_cSeg();
-                            var other_hodo = hodographs.compute_hodograph(&other_cSeg);
-                            const g_prime_of_t = hodographs.evaluate_bezier(
-                                &other_hodo,
-                                @floatCast(t_midpoint_other),
-                            );
-                            try cache_g_prime_of_t.append(
-                                allocator,
-                                control_point.ControlPoint.init(
-                                    .{
-                                        .in = g_prime_of_t.x, 
-                                        .out= g_prime_of_t.y
-                                    }
-                                )
-                            );
-
-                            if (true) {
-                                break :chain_rule control_point.ControlPoint.init(
-                                   .{
-                                       .in  = f_prime_of_g_of_t.x * g_prime_of_t.x,
-                                       .out = f_prime_of_g_of_t.y * g_prime_of_t.y,
-                                   }
-                               );
-                            } else {
-                                break :chain_rule control_point.ControlPoint.init(
-                                   .{
-                                       .in  = g_prime_of_t.x,
-                                       .out = f_prime_of_g_of_t.y * g_prime_of_t.y,
-                                   }
-                               );
-                            }
-                        };
-
-                        try midpoint_derivatives.append(allocator,d_mid_point_dt);
-
-                        const m_ratio = (u_in_self * t_midpoint_other) / ((1-u_in_self)*(1-t_midpoint_other));
-                        const projected_t = m_ratio / (m_ratio + 1);
-
-                        const final = three_point_guts_plot(
-                            projected_pts[0],
-                            projected_pts[1],
-                            projected_t, // <- should be u_in_projected_curve
-                            d_mid_point_dt.mul(fudge),
-                            projected_pts[2],
-                        );
-
-                        try guts.append(allocator,final);
-
-                        segment.p0 = projected_pts[0];
-                        segment.p1 = final.C1.?;
-                        segment.p2 = final.C2.?;
-                        segment.p3 = projected_pts[2];
-                    },
-                    .two_point_approx => {
-
-                        // project p0, p3 and their derivaties
-                        // p1 and p2 are derived by using the derivatives at p0
-                        // and p3
-
-                        var projected_pts = [_]control_point.ControlPoint{
-                            segment.p0,
-                            segment.p3, 
-                        };
-                        var projected_derivatives: [2]control_point.ControlPoint = undefined;
-
-                        inline for (&projected_pts, 0..) 
-                            |*pt, pt_ind|
-                        {
-                            const projection_dual = self_seg.output_at_input_dual(
-                                pt.out
-                            );
-
-                            // project the point
-                            pt.* = .{
-                                .in  = pt.in,
-                                .out = projection_dual.r.out,
-                            };
-                            projected_derivatives[pt_ind] = projection_dual.i;
-                        }
-
-                        segment.p0 = projected_pts[0];
-                        segment.p1 = projected_pts[0].add(
-                            projected_derivatives[0].div(3)
-                        );
-                        segment.p2 = projected_pts[1].sub(
-                            projected_derivatives[1].div(3)
-                        );
-                        segment.p3 = projected_pts[1];
-
-                        try guts.append(
-                            allocator,
-                            .{ 
-                                .start = projected_pts[0],
-                                .start_ddt = projected_derivatives[0].mul(fudge),
-                                .end = projected_pts[1],
-                                .end_ddt = projected_derivatives[1].mul(fudge),
-                            }
-                        );
-                    },
-                    else => {}
-                }
-            }
-        }
-
-        result.tpa = try guts.toOwnedSlice(allocator);
-        result.segments_to_project_through = try segments_to_project_through.toOwnedSlice(allocator);
-        result.midpoint_derivatives = try midpoint_derivatives.toOwnedSlice(allocator);
-        result.f_prime_of_g_of_t = try cache_f_prime_of_g_of_t.toOwnedSlice(allocator);
-        result.g_prime_of_t = try cache_g_prime_of_t.toOwnedSlice(allocator);
-
-        result.result = curves_to_project.items[0];
-
-        return result;
     }
 
     /// compute an array of all the segment endpoints
@@ -1990,7 +1534,7 @@ pub const Bezier = struct {
 
         const maybe_split_segments = seg_to_split.split_at(unorm);
         if (maybe_split_segments == null) {
-            return .{};
+            return .empty;
         }
         const split_segments = maybe_split_segments.?;
 
@@ -2193,7 +1737,7 @@ pub const Bezier = struct {
 
 /// Parse a .curve.json file from disk and return a Bezier.
 pub fn read_curve_json(
-    file_path: string_stuff.latin_s8,
+    file_path: []const u8,
     allocator:std.mem.Allocator
 ) !Bezier 
 {
@@ -2312,7 +1856,7 @@ test "Curve: read_curve_json"
     );
     defer curve.deinit(std.testing.allocator);
 
-    try expectEqual(1, curve.segments.len);
+    try std.testing.expectEqual(1, curve.segments.len);
 
     // first segment should already be linear
     const segment = curve.segments[0];
@@ -2325,7 +1869,7 @@ test "Curve: read_curve_json"
     defer std.testing.allocator.free(linearized_knots);
 
     // already linear!
-    try expectEqual(2, linearized_knots.len);
+    try std.testing.expectEqual(2, linearized_knots.len);
     try std.testing.expectEqualSlices(
         control_point.ControlPoint,
         &[_]control_point.ControlPoint{
@@ -2398,14 +1942,14 @@ test "Bezier: positive length 1 linear segment test"
     const xform_curve: Bezier = .{ .segments = &crv_seg, };
 
     // out of range returns error.OutOfBounds
-    try expectError(error.OutOfBounds, xform_curve.output_at_input(2));
-    try expectError(error.OutOfBounds, xform_curve.output_at_input(3));
-    try expectError(error.OutOfBounds, xform_curve.output_at_input(0));
+    try std.testing.expectError(error.OutOfBounds, xform_curve.output_at_input(2));
+    try std.testing.expectError(error.OutOfBounds, xform_curve.output_at_input(3));
+    try std.testing.expectError(error.OutOfBounds, xform_curve.output_at_input(0));
 
     // find segment
-    try expect(xform_curve.find_segment(opentime.Ordinate.init(1)) != null);
-    try expect(xform_curve.find_segment(opentime.Ordinate.init(1.5)) != null);
-    try expectEqual(
+    try std.testing.expect(xform_curve.find_segment(opentime.Ordinate.init(1)) != null);
+    try std.testing.expect(xform_curve.find_segment(opentime.Ordinate.init(1.5)) != null);
+    try std.testing.expectEqual(
         null,
         xform_curve.find_segment(opentime.Ordinate.init(2))
     );
@@ -2429,36 +1973,6 @@ test "Bezier: positive length 1 linear segment test"
     );
 }
 
-test "Bezier: projection_test non-overlapping" 
-{
-    const allocator = std.testing.allocator; 
-
-    var seg_0_1 = [_]Bezier.Segment{
-        Bezier.Segment.ident_zero_one 
-    };
-    const fst: Bezier = .{ .segments = &seg_0_1 };
-
-    var seg_1_9 = [_]Bezier.Segment{ 
-        Bezier.Segment.init_from_start_end(
-            control_point.ControlPoint.init(
-                .{ .in = 1, .out = 1, }
-            ),
-            control_point.ControlPoint.init(
-                .{ .in = 9, .out = 5, }
-            ),
-        )
-    };
-    const snd: Bezier = .{ .segments = &seg_1_9 };
-
-    const result = try fst.project_curve(
-        allocator,
-        snd,
-    );
-    defer result.deinit(allocator);
-
-    try expectEqual(@as(usize, 0), result.segments.len);
-}
-
 test "positive slope 2 linear segment test" 
 {
     var test_segment_arr = [_]Bezier.Segment{
@@ -2470,7 +1984,7 @@ test "positive slope 2 linear segment test"
     const xform_curve = Bezier{ .segments = &test_segment_arr };
 
     const tests = &.{
-        // expect result
+        // std.testing.expect result
         .{ 0,   1   },
         .{ 0.5, 1.25},
         .{ 1,   1.5 },
@@ -2501,9 +2015,9 @@ test "negative length 1 linear segment test"
 
     // outside of the range should return the original result
     // (identity transform)
-    try expectError(error.OutOfBounds, xform_curve.output_at_input(0));
-    try expectError(error.OutOfBounds, xform_curve.output_at_input(-3));
-    try expectError(error.OutOfBounds, xform_curve.output_at_input(-1));
+    try std.testing.expectError(error.OutOfBounds, xform_curve.output_at_input(0));
+    try std.testing.expectError(error.OutOfBounds, xform_curve.output_at_input(-3));
+    try std.testing.expectError(error.OutOfBounds, xform_curve.output_at_input(-1));
 
     // within the range
     try opentime.expectOrdinateEqual(
@@ -2526,10 +2040,10 @@ test "Bezier.Segment: eval_at for out of range u"
     };
     const tc = Bezier{ .segments = &seg};
 
-    try expectError(error.OutOfBounds, tc.output_at_input(0));
+    try std.testing.expectError(error.OutOfBounds, tc.output_at_input(0));
     // right open intervals means the end point is out
-    try expectError(error.OutOfBounds, tc.output_at_input(4));
-    try expectError(error.OutOfBounds, tc.output_at_input(5));
+    try std.testing.expectError(error.OutOfBounds, tc.output_at_input(4));
+    try std.testing.expectError(error.OutOfBounds, tc.output_at_input(5));
 }
 
 pub fn write_json_file(
@@ -2564,15 +2078,19 @@ pub fn write_json_file_curve(
 
 test "json writer: curve" 
 {
-    const ident = try Bezier.init(
-        std.testing.allocator,
-        &.{
-            Bezier.Segment.init_identity(
-                opentime.Ordinate.init(-20), 
-                opentime.Ordinate.init(30),
-            )
-        },
-    );
+    const allocator = std.testing.allocator;
+
+    const ident = Bezier {
+        .segments = try allocator.dupe(
+            Bezier.Segment,
+            &.{
+                Bezier.Segment.init_identity(
+                    opentime.Ordinate.init(-20), 
+                    opentime.Ordinate.init(30),
+                )
+            },
+        ),
+    };
     defer ident.deinit(std.testing.allocator);
 
     const fpath = "/var/tmp/test.curve.json";
@@ -2596,7 +2114,7 @@ test "json writer: curve"
     const blob = try ident.debug_json_str(std.testing.allocator);
     defer std.testing.allocator.free(blob);
 
-    try expectEqualStrings(buffer[0..bytes_read], blob);
+    try std.testing.expectEqualStrings(buffer[0..bytes_read], blob);
 }
 
 test "segment: findU_value" 
@@ -2622,244 +2140,21 @@ test "segment: findU_value"
     );
 }
 
-test "Bezier: project u loop bug" 
-{
-    // specific to the linearized implementation
-    const old_project_algo = project_algo;
-    project_algo = ProjectionAlgorithms.linearized;
-    defer project_algo = old_project_algo;
-
-    const simple_s_segments = [_]Bezier.Segment{
-        Bezier.Segment.init_from_start_end(
-            control_point.ControlPoint.init(.{ .in = 0, .out = 0}),
-            control_point.ControlPoint.init(.{ .in = 30, .out = 10}),
-        ),
-        Bezier.Segment.init_from_start_end(
-            control_point.ControlPoint.init(.{ .in = 30, .out = 10}),
-            control_point.ControlPoint.init(.{ .in = 60, .out = 90}),
-        ),
-        Bezier.Segment.init_from_start_end(
-            control_point.ControlPoint.init(.{ .in = 60, .out = 90}),
-            control_point.ControlPoint.init(.{ .in = 100, .out = 100}),
-        ),
-    };
-    const simple_s = try Bezier.init(
-        std.testing.allocator,
-        &simple_s_segments
-    );
-    defer simple_s.deinit(std.testing.allocator);
-
-    const u_seg = [_]Bezier.Segment{
-        Bezier.Segment.init_f32(
-            .{
-                .p0 = .{ .in = 0, .out = 0 },
-                .p1 = .{ .in = 0, .out = 100 },
-                .p2 = .{ .in = 100, .out = 100 },
-                .p3 = .{ .in = 100, .out = 0 },
-            },
-        )
-    }; 
-    const upside_down_u = try Bezier.init(
-        std.testing.allocator,
-        &u_seg,
-    );
-    defer upside_down_u.deinit(std.testing.allocator);
-
-    const result  = try simple_s.project_curve(
-        std.testing.allocator,
-        upside_down_u,
-    );
-    defer result.deinit(std.testing.allocator);
-
-    for (result.segments)
-        |seg|
-    {
-        for (seg.points())
-            |p|
-        {
-            try std.testing.expect(!p.in.is_nan());
-            try std.testing.expect(!p.out.is_nan());
-        }
-    }
-
-    errdefer std.log.err("simple_s: {f}\n", .{ simple_s } );
-    errdefer std.log.err("upside_down_u: {f}\n", .{ upside_down_u } );
-    errdefer std.log.err("result: {f}\n", .{ result } );
-
-    try expectEqual(5, result.segments.len);
-}
-
-test "Bezier: project linear identity with linear 1/2 slope" 
-{
-    const linear_segment = [_]Bezier.Segment{
-        Bezier.Segment.init_from_start_end(
-            control_point.ControlPoint.init(.{ .in = 60, .out = 60}),
-            control_point.ControlPoint.init(.{ .in = 230, .out = 230}),
-        ),
-    };
-    const linear_crv = try Bezier.init(
-        std.testing.allocator,
-        &linear_segment,
-    );
-    defer linear_crv.deinit(std.testing.allocator);
-
-    const linear_half_segment = [_]Bezier.Segment{
-        Bezier.Segment.init_from_start_end(
-            control_point.ControlPoint.init(.{ .in = 0, .out = 100}),
-            control_point.ControlPoint.init(.{ .in = 200, .out = 200}),
-        ),
-    };
-    const linear_half_crv = try Bezier.init(
-        std.testing.allocator,
-        &linear_half_segment
-    );
-    defer linear_half_crv.deinit(std.testing.allocator);
-
-    const result = try linear_half_crv.project_curve(
-        std.testing.allocator,
-        linear_crv,
-    );
-    defer result.deinit(std.testing.allocator);
-
-    try expectEqual(@as(usize, 2), result.segments.len);
-
-    var i = result.extents_input().start.v;
-    while (i < result.extents_input().end.sub(opentime.Ordinate.epsilon).v)
-        : (i += 0.1)
-    {
-        errdefer std.debug.print("i: {d}\n", .{ i });
-        const i_ord = opentime.Ordinate.init(i);
-        const measured = try result.output_at_input(i_ord);
-
-        try opentime.expectOrdinateEqual(
-            i,
-            measured,
-        );
-    }
-}
-
-// // this test is disabled because at it is testing projecting a bezier curve
-// // through another bezier curve.  At present, the library only supports
-// // this through linearization.  This could be re-enabled at some point if
-// // the bezier/bezier projection is implemented correctly or if another curve
-// // base was used that wasn't linear - for example b-splines.  At present,
-// // this isn't a particularly useful test.
-// test "Bezier: project linear u with out-of-bounds segments" 
-// {
-//     if (true) {
-//         return error.SkipZigTest;
-//     }
-//
-//     var linear_segment = [_]Bezier.Segment{
-//         Bezier.Segment.init_from_start_end(
-//             .{ .in = 60, .out = 60},
-//             .{ .in = 130, .out = 130},
-//         ),
-//     };
-//     const linear_crv = Bezier{
-//         .segments = &linear_segment,
-//     };
-//     const linear_crv_lin = try linear_crv.linearized(
-//         std.testing.allocator
-//     );
-//     defer linear_crv_lin.deinit(std.testing.allocator);
-//
-//     var u_seg = [_]Bezier.Segment{
-//         Bezier.Segment{
-//             .p0 = .{ .in = 0, .out = 0 },
-//             .p1 = .{ .in = 0, .out = 100 },
-//             .p2 = .{ .in = 100, .out = 100 },
-//             .p3 = .{ .in = 100, .out = 0 },
-//         },
-//     }; 
-//     const upside_down_u = Bezier{
-//         .segments = &u_seg,
-//     };
-//
-//     const upside_down_u_linearizied = try upside_down_u.linearized(
-//         std.testing.allocator
-//     );
-//     defer upside_down_u.deinit(std.testing.allocator);
-//
-//     const result : Bezier = try upside_down_u.project_curve(
-//         std.testing.allocator,
-//         linear_crv,
-//     );
-//     defer result.deinit(std.testing.allocator);
-//
-//     const result_lin = try upside_down_u_linearizied.project_curve(
-//         std.testing.allocator,
-//         linear_crv_lin
-//     );
-//     defer {
-//         for (result_lin)
-//             |crv|
-//         {
-//             crv.deinit(std.testing.allocator);
-//         }
-//         std.testing.allocator.free(result_lin);
-//     }
-//
-//     errdefer {
-//         std.debug.print( "Projection made result:\n",.{});
-//
-//         for (result.segments, 0..)
-//             |seg, seg_ind|
-//         {
-//             std.debug.print("  {d}:\n", .{ seg_ind });
-//             for (seg.points())
-//                 |pt|
-//             {
-//                 std.debug.print(
-//                     "    ({d}, {d})\n",
-//                     .{ pt.in, pt.out }
-//                 );
-//             }
-//         }
-//
-//         std.debug.print( "Linearized result:\n",.{});
-//
-//         for (result_lin, 0..)
-//             |crv, crv_ind|
-//         {
-//             std.debug.print(
-//                 "curve: {d}\n",
-//                 .{ crv_ind }
-//             );
-//             for (crv.knots, 0..)
-//                 |knot, knot_ind|
-//                 {
-//                     std.debug.print(
-//                         "  {d}: ({d}, {d})\n",
-//                         .{ knot_ind, knot.in, knot.out }
-//                     );
-//                 }
-//         }
-// }
-//
-//     try expectEqual(
-//         @as(usize, 4),
-//         result.segments.len
-//     );
-// }
-
 test "Bezier: split_at_each_value u curve" 
 {
-    const u_seg = [_]Bezier.Segment{
-        Bezier.Segment.init_f32(
-            .{
-                .p0 = .{ .in = 0, .out = 0 },
-                .p1 = .{ .in = 0, .out = 100 },
-                .p2 = .{ .in = 100, .out = 100 },
-                .p3 = .{ .in = 100, .out = 0 },
-            }
-        ),
-    }; 
-    const upside_down_u = try Bezier.init(
-        std.testing.allocator,
-        &u_seg
-    );
-    defer upside_down_u.deinit(std.testing.allocator);
+    const upside_down_u = Bezier {
+        .segments = &.{
+            Bezier.Segment.init_f32(
+                .{
+                    .p0 = .{ .in = 0, .out = 0 },
+                    .p1 = .{ .in = 0, .out = 100 },
+                    .p2 = .{ .in = 100, .out = 100 },
+                    .p3 = .{ .in = 100, .out = 0 },
+                }
+            ),
+        },
+    };
+    const u_seg = upside_down_u.segments[0];
 
     const upside_down_u_hodo = try upside_down_u.split_on_critical_points(
         std.testing.allocator
@@ -2867,11 +2162,11 @@ test "Bezier: split_at_each_value u curve"
     defer upside_down_u_hodo.deinit(std.testing.allocator);
 
     const split_points = [_]opentime.Ordinate{
-        u_seg[0].eval_at(0).out, 
-        u_seg[0].eval_at(0.5).out, 
-        u_seg[0].eval_at(0.75).out, 
-        u_seg[0].eval_at(0.88).out, 
-        u_seg[0].eval_at(1).out, 
+        u_seg.eval_at(0).out, 
+        u_seg.eval_at(0.5).out, 
+        u_seg.eval_at(0.75).out, 
+        u_seg.eval_at(0.88).out, 
+        u_seg.eval_at(1).out, 
     };
 
     const result = try upside_down_u_hodo.split_at_each_output_ordinate(
@@ -2917,20 +2212,16 @@ test "Bezier: split_at_each_value u curve"
         try std.testing.expect(found);
     }
 
-    try expectEqual(@as(usize, 4), result.segments.len);
+    try std.testing.expectEqual(@as(usize, 4), result.segments.len);
 }
 
 test "Bezier: split_at_each_value linear" 
 {
-    const identSeg = Bezier.Segment.init_identity(
-        opentime.Ordinate.init(-0.2),
-        opentime.Ordinate.init(1),
-    );
-    const lin = try Bezier.init(
-        std.testing.allocator,
-        &.{identSeg},
-    );
-    defer lin.deinit(std.testing.allocator);
+    const lin = Bezier {
+        .segments = &.{
+            .init_identity(.init(-0.2), .init(1),)
+        },
+    };
 
     const split_points = [_]opentime.Ordinate{ 
         opentime.Ordinate.init(-0.2),
@@ -2989,26 +2280,22 @@ test "Bezier: split_at_each_value linear"
         try std.testing.expect(found);
     }
 
-    try expectEqual(3, result.segments.len);
+    try std.testing.expectEqual(3, result.segments.len);
 }
 
 test "Bezier: split_at_each_input_ordinate linear" 
 {
-    const identSeg = Bezier.Segment.init_identity(
-        opentime.Ordinate.init(-0.2),
-        opentime.Ordinate.init(1),
-    );
-    const lin = try Bezier.init(
-        std.testing.allocator,
-        &.{identSeg},
-    );
-    defer lin.deinit(std.testing.allocator);
+    const lin = Bezier {
+        .segments = &.{
+            .init_identity( .init(-0.2), .one,)
+        },
+    };
 
     const split_points = [_]opentime.Ordinate{ 
-        opentime.Ordinate.init(-0.2),
-        opentime.Ordinate.init(0),
-        opentime.Ordinate.init(0.5),
-        opentime.Ordinate.init(1),
+        .init(-0.2),
+        .init(0),
+        .init(0.5),
+        .init(1),
     };
 
     const result = try lin.split_at_each_input_ordinate(
@@ -3062,25 +2349,23 @@ test "Bezier: split_at_each_input_ordinate linear"
         try std.testing.expect(found);
     }
 
-    try expectEqual(@as(usize, 3), result.segments.len);
+    try std.testing.expectEqual(@as(usize, 3), result.segments.len);
 }
 
 test "Bezier: split_at_input_ordinate" 
 {
     const test_curves = [_]Bezier{
-        try Bezier.init(
-            std.testing.allocator,
-            &.{
+        .{
+            .segments = &.{
                 Bezier.Segment.init_identity(
                     opentime.Ordinate.init(-20),
                     opentime.Ordinate.init(30),
                 ) 
             },
-        ),
+        },
         try read_curve_json("curves/upside_down_u.curve.json", std.testing.allocator), 
         try read_curve_json("curves/scurve.curve.json", std.testing.allocator), 
     };
-    defer test_curves[0].deinit(std.testing.allocator);
     defer test_curves[1].deinit(std.testing.allocator);
     defer test_curves[2].deinit(std.testing.allocator);
 
@@ -3107,17 +2392,17 @@ test "Bezier: split_at_input_ordinate"
             );
             defer split_ident.deinit(std.testing.allocator);
 
-            try expectEqual(
+            try std.testing.expectEqual(
                 ident.segments.len + 1,
                 split_ident.segments.len
             );
 
             // check that the end points are the same
-            try expectEqual(
+            try std.testing.expectEqual(
                 ident.segments[0].p0.in,
                 split_ident.segments[0].p0.in
             );
-            try expectEqual(
+            try std.testing.expectEqual(
                 ident.segments[0].p3.in,
                 split_ident.segments[1].p3.in
             );
@@ -3158,9 +2443,8 @@ test "Bezier: trimmed_from_input_ordinate"
             "curves/linear_scurve_u.curve.json",
             std.testing.allocator
         ), 
-        try Bezier.init(
-            std.testing.allocator,
-            &.{
+        .{
+            .segments = &.{
                 Bezier.Segment.init_identity(
                     opentime.Ordinate.init(-25),
                     opentime.Ordinate.init(-5),
@@ -3173,12 +2457,11 @@ test "Bezier: trimmed_from_input_ordinate"
                     opentime.Ordinate.init(5),
                     opentime.Ordinate.init(25),
                 ), 
-            }
-        ),
+            },
+        },
     };
 
     defer test_curves[0].deinit(std.testing.allocator);
-    defer test_curves[1].deinit(std.testing.allocator);
 
     for (test_curves, 0..) 
         |ident, curve_index| 
@@ -3272,28 +2555,28 @@ test "Bezier: trimmed_from_input_ordinate"
 
 test "Bezier: trimmed_in_input_space" 
 {
+    const allocator = std.testing.allocator;
+
     const TestData = struct {
         trim_range: opentime.ContinuousInterval,
         result_extents: opentime.ContinuousInterval,
     };
 
     const test_curves = [_]Bezier{
-        try Bezier.init(
-            std.testing.allocator,
-            &.{
-                Bezier.Segment.init_identity(
+        .{
+            .segments = &.{
+                .init_identity(
                     opentime.Ordinate.init(-20),
                     opentime.Ordinate.init(30),
                 ) 
             }
-        ),
+        },
         try read_curve_json("curves/upside_down_u.curve.json", std.testing.allocator), 
         try read_curve_json("curves/scurve.curve.json", std.testing.allocator), 
     };
 
-    defer test_curves[0].deinit(std.testing.allocator);
-    defer test_curves[1].deinit(std.testing.allocator);
-    defer test_curves[2].deinit(std.testing.allocator);
+    defer test_curves[1].deinit(allocator);
+    defer test_curves[2].deinit(allocator);
 
     for (test_curves, 0..) 
         |ident, crv_ind|
@@ -3458,7 +2741,7 @@ test "Bezier: project_affine"
         defer result.deinit(std.testing.allocator);
 
         // number of segments shouldn't have changed
-        try expectEqual(test_crv.segments.len, result.segments.len);
+        try std.testing.expectEqual(test_crv.segments.len, result.segments.len);
 
         for (test_crv.segments, 0..) 
             |t_seg, t_seg_index| 
@@ -3500,19 +2783,27 @@ pub fn join_bez_aff_unbounded(
     },
 ) !Bezier 
 {
-    const a2c = try args.a2b.clone(allocator);
+    const new_segments = try allocator.alloc(
+        Bezier.Segment,
+        args.a2b.segments.len,
+    );
 
-    for (a2c.segments) 
-        |*seg| 
+    for (args.a2b.segments, new_segments) 
+        |src_seg, *dst_seg| 
     {
-        for (seg.point_ptrs()) 
-            |pt| 
+        for (src_seg.points(), dst_seg.point_ptrs()) 
+            |pt, dst_pt| 
         {
-            pt.out = args.b2c.applied_to_ordinate(pt.out);
+            dst_pt.* = .{
+                .in = pt.in,
+                .out = args.b2c.applied_to_ordinate(pt.out),
+            };
         }
     }
 
-    return a2c;
+    return .{
+        .segments = new_segments,
+    };
 }
 
 test "join_bez_aff_unbounded" 
@@ -3561,7 +2852,7 @@ test "join_bez_aff_unbounded"
         defer result.deinit(std.testing.allocator);
 
         // number of segments shouldn't have changed
-        try expectEqual(test_crv.segments.len, result.segments.len);
+        try std.testing.expectEqual(test_crv.segments.len, result.segments.len);
 
         for (test_crv.segments, 0..) 
             |t_seg, t_seg_index| 
@@ -3593,28 +2884,27 @@ test "join_bez_aff_unbounded"
 
 test "Bezier: split_on_critical_points s curve" 
 {
-    const s_seg = [_]Bezier.Segment{
-        Bezier.Segment.init_f32(
-            .{
-                .p0 = .{ .in = 0, .out = 0 },
-                .p1 = .{ .in = 0, .out = 200 },
-                .p2 = .{ .in = 100, .out = -100 },
-                .p3 = .{ .in = 100, .out = 100 },
-            }
-        ),
-    }; 
-    const s_curve_seg = try Bezier.init(
-        std.testing.allocator,
-        &s_seg
-    );
-    defer s_curve_seg.deinit(std.testing.allocator);
+    const allocator = std.testing.allocator;
+
+    const s_curve_seg = Bezier {
+        .segments = &.{
+            Bezier.Segment.init_f32(
+                .{
+                    .p0 = .{ .in = 0, .out = 0 },
+                    .p1 = .{ .in = 0, .out = 200 },
+                    .p2 = .{ .in = 100, .out = -100 },
+                    .p3 = .{ .in = 100, .out = 100 },
+                }
+            ),
+        },
+    };
 
     const s_curve_split = try s_curve_seg.split_on_critical_points(
-        std.testing.allocator
+        allocator
     );
-    defer s_curve_split.deinit(std.testing.allocator);
+    defer s_curve_split.deinit(allocator);
 
-    try std.testing.expectEqual(@as(usize, 4), s_curve_split.segments.len);
+    try std.testing.expectEqual(4, s_curve_split.segments.len);
 }
 
 test "Bezier: split_on_critical_points symmetric about the origin" 
@@ -3667,23 +2957,22 @@ test "Bezier: split_on_critical_points symmetric about the origin"
         |td, td_ind| 
     {
         errdefer std.debug.print("test that failed: {d}\n", .{ td_ind });
-        const s_seg:[1]Bezier.Segment = .{ td.segment };
-        const s_curve_seg = try Bezier.init(
-            std.testing.allocator,
-            &s_seg
-        );
-        defer s_curve_seg.deinit(std.testing.allocator);
+        const s_curve_seg = Bezier {
+            .segments = &.{ td.segment },
+        };
+        const seg = s_curve_seg.segments[0];
 
-        const cSeg : hodographs.BezierSegment = .{
+        const cSeg: hodographs.BezierSegment = .{
             .order = 3,
             .p = .{
-                .{ .x = s_seg[0].p0.in.as(f32), .y = s_seg[0].p0.out.as(f32) },
-                .{ .x = s_seg[0].p1.in.as(f32), .y = s_seg[0].p1.out.as(f32) },
-                .{ .x = s_seg[0].p2.in.as(f32), .y = s_seg[0].p2.out.as(f32) },
-                .{ .x = s_seg[0].p3.in.as(f32), .y = s_seg[0].p3.out.as(f32) },
+                .{ .x = seg.p0.in.as(f32), .y = seg.p0.out.as(f32) },
+                .{ .x = seg.p1.in.as(f32), .y = seg.p1.out.as(f32) },
+                .{ .x = seg.p2.in.as(f32), .y = seg.p2.out.as(f32) },
+                .{ .x = seg.p3.in.as(f32), .y = seg.p3.out.as(f32) },
             },
         };
         const inflections = hodographs.inflection_points(&cSeg);
+
         try std.testing.expectApproxEqAbs(
             td.inflection_point.as(f32),
             inflections.x,
@@ -3703,7 +2992,7 @@ test "Bezier: split_on_critical_points symmetric about the origin"
                 &c_split_r
             );
 
-            const maybe_zig_splits = s_seg[0].split_at(t);
+            const maybe_zig_splits = seg.split_at(t);
 
             errdefer std.debug.print("\nt: {}\n", .{t});
 

@@ -1,7 +1,6 @@
-//! Bezier Math components to use with curves
+//! Bezier Math components to use with curves.
 
 const std = @import("std");
-const expectEqual = std.testing.expectEqual;
 
 const control_point = @import("control_point.zig");
 const bezier_curve = @import("bezier_curve.zig");
@@ -11,17 +10,7 @@ const opentime = @import("opentime");
 
 const U_TYPE = bezier_curve.U_TYPE;
 
-inline fn expectApproxEql(
-    expected: anytype,
-    actual: @TypeOf(expected),
-) !void 
-{
-    return std.testing.expectApproxEqAbs(
-        expected,
-        actual,
-        generic_curve.EPSILON
-    );
-}
+const ALWAYS_USE_DUALS_FINDU = false;
 
 pub fn output_at_input_between(
     t: opentime.Ordinate,
@@ -429,7 +418,7 @@ test "bezier_math: actual_order: linear"
 
     const seg = crv.segments[0];
 
-    try expectEqual(
+    try std.testing.expectEqual(
         1,
         try actual_order(
             seg.p0.in,
@@ -438,7 +427,7 @@ test "bezier_math: actual_order: linear"
             seg.p3.in,
         )
     );
-    try expectEqual(
+    try std.testing.expectEqual(
         1,
         try actual_order(
             seg.p0.out,
@@ -460,7 +449,7 @@ test "bezier_math: actual_order: quadratic"
     const seg = crv.segments[0];
 
     // cubic over time
-    try expectEqual(
+    try std.testing.expectEqual(
         @as(u8, 3),
         try actual_order(
             seg.p0.in,
@@ -470,7 +459,7 @@ test "bezier_math: actual_order: quadratic"
         )
     );
     // quadratic over value
-    try expectEqual(
+    try std.testing.expectEqual(
         @as(u8, 2),
         try actual_order(
             seg.p0.out,
@@ -491,11 +480,11 @@ test "bezier_math: actual_order: cubic"
 
     const seg = crv.segments[0];
 
-    try expectEqual(
+    try std.testing.expectEqual(
         @as(u8, 3),
         try actual_order(seg.p0.in, seg.p1.in, seg.p2.in, seg.p3.in)
     );
-    try expectEqual(
+    try std.testing.expectEqual(
         @as(u8, 3),
         try actual_order(seg.p0.out, seg.p1.out, seg.p2.out, seg.p3.out)
     );
@@ -651,9 +640,6 @@ pub fn findU_dual3(
     return _u2;
 }
 
-// @TODO: this has some behavioral differences when set to true
-const ALWAYS_USE_DUALS_FINDU = false;
-
 /// Given x in the interval [p0, p3], and a monotonically nondecreasing
 /// 1-D Bezier bezier_curve, B(u), with control points (p0, p1, p2, p3), find
 /// u so that B(u) == x.
@@ -666,7 +652,7 @@ pub fn findU(
 ) U_TYPE
 {
     if (ALWAYS_USE_DUALS_FINDU) {
-        return findU_dual(x, p0, p1, p2, p3).r;
+        return findU_dual(x, p0, p1, p2, p3).r.as(U_TYPE);
     }
     else {
         return _findU(
@@ -825,11 +811,11 @@ test "bezier_math: findU_dual matches findU"
     const t05 = opentime.Ordinate.init(0.5);
     const t05_n = opentime.Ordinate.init(-0.5);
 
-    try expectEqual(
+    try std.testing.expectEqual(
         opentime.Ordinate.init(0),
         findU_dual( t0, t0,t1,t2,t3).r
     );
-    try expectEqual(
+    try std.testing.expectEqual(
         opentime.Ordinate.init(1.0/6.0),
         findU_dual(t05, t0,t1,t2,t3).r
     );
@@ -1015,7 +1001,7 @@ test "bezier_math: derivative at 0 for linear bezier_curve"
     );
     defer allocator.free(crv.segments);
 
-    try expectEqual(1, crv.segments.len);
+    try std.testing.expectEqual(1, crv.segments.len);
 
     const seg_0 = crv.segments[0];
 
@@ -1063,9 +1049,12 @@ test "bezier_math: derivative at 0 for linear bezier_curve"
     }
 }
 
-/// return crv normalized into the space provided
+/// Return crv normalized into the space provided.
+///
+/// Caller owns memory of new curve.
 pub fn normalized_to(
     allocator: std.mem.Allocator,
+    /// Curve to normalize.
     crv:bezier_curve.Bezier,
     min_point:control_point.ControlPoint,
     max_point:control_point.ControlPoint,
@@ -1073,27 +1062,31 @@ pub fn normalized_to(
 {
     // return input, bezier_curve is empty
     if (crv.segments.len == 0) {
-        return crv;
+        return .empty;
     }
 
     const src_extents = crv.extents();
 
-    const result = try crv.clone(allocator);
-    for (result.segments) 
-        |*seg| 
+    const new_segments = try allocator.alloc(
+        bezier_curve.Bezier.Segment,
+        crv.segments.len,
+    );
+
+    for (crv.segments, new_segments) 
+        |seg, *dst_seg| 
     {
-        for (seg.point_ptrs()) 
-            |pt| 
+        for (seg.points(), dst_seg.point_ptrs()) 
+            |pt, dst_pt| 
         {
-            pt.* = _remap(
-                pt.*,
+            dst_pt.* = _remap(
+                pt,
                 src_extents[0], src_extents[1],
                 min_point, max_point
             );
         }
     }
 
-    return result;
+    return .{ .segments = new_segments };
 }
 
 test "bezier_math: normalized_to" 
@@ -1120,11 +1113,11 @@ test "bezier_math: normalized_to"
     defer result_crv.deinit(std.testing.allocator);
     const result_extents = result_crv.extents();
 
-    try expectEqual(min_point.in, result_extents[0].in);
-    try expectEqual(min_point.out, result_extents[0].out);
+    try std.testing.expectEqual(min_point.in, result_extents[0].in);
+    try std.testing.expectEqual(min_point.out, result_extents[0].out);
 
-    try expectEqual(max_point.in, result_extents[1].in);
-    try expectEqual(max_point.out, result_extents[1].out);
+    try std.testing.expectEqual(max_point.in, result_extents[1].in);
+    try std.testing.expectEqual(max_point.out, result_extents[1].out);
 }
 
 test "bezier_math: normalize_to_screen_coords" 
@@ -1153,11 +1146,11 @@ test "bezier_math: normalize_to_screen_coords"
     defer result_crv.deinit(std.testing.allocator);
     const result_extents = result_crv.extents();
 
-    try expectEqual(min_point.in, result_extents[0].in);
-    try expectEqual(min_point.out, result_extents[0].out);
+    try std.testing.expectEqual(min_point.in, result_extents[0].in);
+    try std.testing.expectEqual(min_point.out, result_extents[0].out);
 
-    try expectEqual(max_point.in, result_extents[1].in);
-    try expectEqual(max_point.out, result_extents[1].out);
+    try std.testing.expectEqual(max_point.in, result_extents[1].in);
+    try std.testing.expectEqual(max_point.out, result_extents[1].out);
 }
 
 // pub fn inverted_bezier(
@@ -1351,7 +1344,7 @@ test "bezier_math: normalize_to_screen_coords"
 //         const fwd = try crv_linear.output_at_input(t);
 //         const dbl = try crv_double_inv.output_at_input(t);
 //
-//         try expectEqual(fwd, dbl);
+//         try std.testing.expectEqual(fwd, dbl);
 //
 //         // const inv = try crv_linear_inv.output_at_input(fwd);
 //         //
@@ -1359,7 +1352,7 @@ test "bezier_math: normalize_to_screen_coords"
 //         //     "\n  t: {d} not equals projected {d}\n",
 //         //     .{ t, inv }
 //         // );
-//         // try expectEqual(t, inv);
+//         // try std.testing.expectEqual(t, inv);
 //     }
 // }
 
@@ -1406,9 +1399,12 @@ pub fn rescaled_curve(
 {
     const original_extents = crv.extents();
 
-    const result = try crv.clone(allocator);
+    const new_segments = try allocator.dupe(
+        bezier_curve.Bezier.Segment,
+        crv.segments
+    );
 
-    for (result.segments) 
+    for (new_segments) 
         |*seg| 
     {
         for (seg.point_ptrs()) 
@@ -1423,7 +1419,9 @@ pub fn rescaled_curve(
         }
     }
 
-    return result;
+    return .{
+        .segments = new_segments,
+    };
 }
 
 test "bezier_math: BezierMath: rescaled parameter" 
