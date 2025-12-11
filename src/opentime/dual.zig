@@ -1,21 +1,29 @@
 //! Automatic differentiation with dual numbers library based on the comath
 //! module.
 //!
-//! Math on duals automatically computes derivatives.
+//! Math on duals automatically computes derivatives, stored in the `.i`
+//! component.
+//!
+//! IE, given a dual d1 and d2, (d1 + d2) * d2 => d3 will compute the real
+//! value of (d1.real + d1.real) * d2.real and simultanesouly compute and store
+//! the deriviative in the d3.i (imaginary) component.
+//!
+//! These are built out to support use in comath for polymorphic math.
 
 const std = @import("std");
 
 const ordinate = @import("ordinate.zig");
 const comath_wrapper = @import("comath_wrapper.zig");
 
-/// build a dual around type T
+/// Build a dual type around type `inner_type`, resolving to `DualOfNumberType`
+/// or `DualOfStruct` as necessary.
 pub fn DualOf(
-    comptime T: type,
+    comptime inner_type: type,
 ) type 
 {
-    return switch(@typeInfo(T)) {
-        .@"struct" =>  DualOfStruct(T),
-        else => DualOfNumberType(T),
+    return switch(@typeInfo(inner_type)) {
+        .@"struct" =>  DualOfStruct(inner_type),
+        else => DualOfNumberType(inner_type),
     };
 }
 
@@ -64,28 +72,34 @@ test "Dual: * float"
     );
 }
 
-/// default dual type for opentime
+/// Dual with `opentime.Ordinate` as the inner type.
 pub const Dual_Ord = DualOf(ordinate.Ordinate);
 
+/// Dual type wrapper around a POD number type.
 pub fn DualOfNumberType(
-    comptime T: type,
+    comptime inner_type: type,
 ) type 
 {
     return struct {
-        /// real component
-        r: T = 0,
-        /// infinitesimal component
-        i: T = 0,
+        /// Real component.
+        r: inner_type,
+        /// Infinitesimal component.
+        i: inner_type,
 
-        pub const BaseType = T;
+        /// The inner type of the Dual.
+        pub const InnerType = inner_type;
+
+        /// Sentinel field detectable at comptime to determine if the Struct is
+        /// a dual type.
         pub const __IS_DUAL = true;
 
-        /// initialize with i = 0
+        /// Initialize with i = 0.
         pub fn init(
-            r: T,
+            /// Real component of the resulting dual.
+            r: inner_type,
         ) @This() 
         {
-            return .{ .r = r };
+            return .{ .r = r, .i = 0 };
         }
 
         pub inline fn neg(
@@ -232,50 +246,64 @@ pub fn DualOfNumberType(
         {
             try writer.print(
                 "Dual ({s}){{ {f} + {f} }}",
-                .{ @typeName(BaseType), self.r, self.i, },
+                .{ @typeName(InnerType), self.r, self.i, },
             );
         }
     };
 }
 
+/// Dual type wrapper around a struct boxed number (like `opentime.Ordinate`)
+/// type.
+///
+/// Assumes that `inner_type` has constants .one and .zero, and implements math
+/// functions .add, .sub, .mul, .div, .gt, .lt, .eq, etc.
 pub fn DualOfStruct(
-    comptime T: type,
+    comptime inner_type: type,
 ) type 
 {
     return struct {
         /// real component
-        r: T = T.zero,
-        /// infinitesimal component
-        i: T = T.zero,
+        r: inner_type = .zero,
 
-        pub const BaseType = T;
+        /// infinitesimal component
+        i: inner_type = .zero,
+
+        /// The inner type of the Dual.
+        pub const InnerType = inner_type;
+
+        /// This Dual type.
         pub const DualType = @This();
+
+        /// Sentinel field detectable at comptime to determine if the Struct is
+        /// a dual type.
         pub const __IS_DUAL = true;
 
-        pub const ZERO_ZERO = DualType{
-            .r = T.zero,
-            .i = T.zero,
+        pub const zero_zero = DualType{
+            .r = .zero,
+            .i = .zero,
         };
-        pub const ONE_ZERO = DualType{
-            .r = T.one,
-            .i = T.zero,
+        pub const one_zero = DualType{
+            .r = .one,
+            .i = .zero,
         };
-        pub const EPSILON = DualType {
-            .r = T.EPSILON,
-            .i = T.zero,
+        pub const epsilon = DualType {
+            .r = .epsilon,
+            .i = .zero,
         };
 
+        /// Initialize with i = 0.
         pub inline fn init(
             r: anytype,
         ) @This()
         {
             return switch (@TypeOf(r)) {
                 @This() => r,
-                T => .{ .r = r },
-                else => .{ .r = T.init(r)},
+                inner_type => .{ .r = r },
+                else => .{ .r = inner_type.init(r)},
             };
         }
 
+        /// Initialize from the `InnerType.InnerType`.
         pub inline fn init_ri(
             r: anytype,
             i: anytype,
@@ -283,12 +311,12 @@ pub fn DualOfStruct(
         {
             return .{
                 .r = switch (@TypeOf(r)) {
-                    BaseType => r,
-                    else => BaseType.init(r),
+                    InnerType => r,
+                    else => InnerType.init(r),
                 },
                 .i = switch (@TypeOf(i)) {
-                    BaseType => i,
-                    else => BaseType.init(i),
+                    InnerType => i,
+                    else => InnerType.init(i),
                 },
             };
         }
@@ -304,7 +332,7 @@ pub fn DualOfStruct(
             };
             const rhs_i = switch (is_dual_type(@TypeOf(rhs))) {
                 true => rhs.i,
-                else => BaseType.init(0.0),
+                else => InnerType.init(0.0),
             };
 
             return .{
@@ -330,7 +358,7 @@ pub fn DualOfStruct(
             };
             const rhs_i = switch (is_dual_type(@TypeOf(rhs))) {
                 true => rhs.i,
-                else => BaseType.init(0.0),
+                else => InnerType.init(0.0),
             };
 
             return .{
@@ -414,7 +442,7 @@ pub fn DualOfStruct(
         {
             return .{
                 .r = (
-                    BaseType.init(
+                    InnerType.init(
                         std.math.cos(
                             self.r.as(ordinate.Ordinate.InnerType)
                         )
@@ -422,7 +450,7 @@ pub fn DualOfStruct(
                 ),
                 .i = (
                     (self.i.neg()).mul(
-                        BaseType.init(
+                        InnerType.init(
                             std.math.sin(
                                 self.r.as(ordinate.Ordinate.InnerType)
                             )
@@ -439,7 +467,7 @@ pub fn DualOfStruct(
             return .{
                 // XXX: Easier right now to route through f64 than build an
                 //      acos out on opentime.Ordinate
-                .r = BaseType.init(std.math.acos(self.r.as(BaseType))),
+                .r = InnerType.init(std.math.acos(self.r.as(InnerType))),
                 .i = (self.i.neg()).div(
                     comath_wrapper.eval(
                         "- (r * r) + 1",
@@ -481,7 +509,7 @@ pub fn DualOfStruct(
         {
             try writer.print(
                 "Dual ({s}){{ {f} + {f} }}",
-                .{ @typeName(BaseType), self.r, self.i, },
+                .{ @typeName(InnerType), self.r, self.i, },
             );
         }
 
@@ -507,8 +535,8 @@ pub fn DualOfStruct(
         {
             return switch (@TypeOf(rhs)) {
                 DualType => (
-                    self.r.lt(EPSILON.add(rhs.r))
-                    and self.r.gt((EPSILON.neg().add(rhs.r)))
+                    self.r.lt(epsilon.add(rhs.r))
+                    and self.r.gt((epsilon.neg().add(rhs.r)))
                 ),
                 else => self.r.eql(rhs),
             };
@@ -568,7 +596,7 @@ pub fn DualOfStruct(
         {
             @compileError(
                 @typeName(@This()) ++ " can only do math over floats,"
-                ++ " ints, " ++ @typeName(BaseType) ++ ", and other " ++ @typeName(@This()) ++ ", not: " 
+                ++ " ints, " ++ @typeName(InnerType) ++ ", and other " ++ @typeName(@This()) ++ ", not: " 
                 ++ @typeName(@TypeOf(thing))
             );
         }

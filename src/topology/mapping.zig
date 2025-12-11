@@ -682,7 +682,6 @@ pub fn join(
 test "Mapping: join aff/aff"
 {
     const allocator = std.testing.allocator;
-    const ident:Mapping = .identity_infinite;
 
     const aff = (
         MappingAffine{
@@ -692,7 +691,8 @@ test "Mapping: join aff/aff"
                 )
             ),
             .input_to_output_xform = .{
-                .offset = opentime.Ordinate.init(1),
+                .offset = .one,
+                .scale = .one,
             },
         }
     );
@@ -700,7 +700,7 @@ test "Mapping: join aff/aff"
     const result = try join(
         allocator,
         .{
-            .a2b = ident,
+            .a2b = .identity_infinite,
             .b2c = aff.mapping(),
         },
     );

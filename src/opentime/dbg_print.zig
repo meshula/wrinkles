@@ -1,3 +1,5 @@
+//! Utility debugger function including a compile switch and line/file in the
+//! printout.
 const std = @import("std");
 
 const build_options = @import("build_options");
@@ -7,7 +9,8 @@ pub const DEBUG_MESSAGES= (
     or build_options.debug_print_messages 
 );
 
-/// utility function that injects the calling info into the debug print
+/// Utility function that injects the calling info into the debug print.  Uses
+/// `std.debug.print`.
 pub fn dbg_print(
     src: std.builtin.SourceLocation,
     comptime fmt: []const u8,

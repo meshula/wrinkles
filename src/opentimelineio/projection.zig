@@ -637,6 +637,7 @@ test "ProjectionOperator: clone"
             },
             .input_to_output_xform = .{
                 .offset = .one,
+                .scale = .one,
             },
         },
     );
@@ -705,6 +706,7 @@ test "transform: track with two clips"
                 },
                 .input_to_output_xform = .{
                     .offset = opentime.Ordinate.init(-8),
+                    .scale = .one,
                 },
             }
         );
@@ -1586,6 +1588,7 @@ test "otio projection: track with single clip with transform"
             allocator,
             .{
                 .input_to_output_xform = .{
+                    .offset = .zero,
                     .scale = opentime.Ordinate.init(2),
                 },
                 .input_bounds_val = .inf_neg_to_pos,
@@ -2110,6 +2113,7 @@ test "ReferenceTopology: init_from_reference"
                 (
                  topology_m.mapping.MappingAffine{
                      .input_to_output_xform = .{
+                         .offset = .zero,
                          .scale = opentime.Ordinate.init(3),
                      },
                      .input_bounds_val = .inf_neg_to_pos,
