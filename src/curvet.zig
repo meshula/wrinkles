@@ -2051,8 +2051,8 @@ fn _parse_args(
         }
 
         const crv = curve.read_curve_json(
-            fpath,
             allocator,
+            fpath,
         ) catch |err| 
         {
             std.debug.print(

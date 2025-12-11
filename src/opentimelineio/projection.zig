@@ -1178,8 +1178,8 @@ test "Single schema.Clip bezier transform"
     //
 
     const base_curve = try curve.read_curve_json(
-        "curves/scurve.curve.json",
         allocator,
+        "curves/scurve.curve.json",
     );
     defer base_curve.deinit(allocator);
 

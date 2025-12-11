@@ -233,34 +233,6 @@ pub const Mapping = union (enum) {
 
         return self.split_at_input_points(allocator, input_points.items);
     }
-    /// /// spit this mapping at any critical points, placing the new mappings into
-    /// /// the array list.  returns a slice of the new mappings
-    /// pub fn split_at_critical_points(
-    ///     self: @This(),
-    ///     result: std.ArrayList(Mapping),
-    /// ) ![]Mapping
-    /// {
-    ///     const allocator = result.allocator;
-    ///
-    ///     switch (self) {
-    ///         .empty => {
-    ///             try result.append(EMPTY);
-    ///             return result[result.len - 1..];
-    ///         },
-    ///         .affine => |aff| {
-    ///             try result.append(aff);
-    ///             return result[result.len - 1..];
-    ///         },
-    ///         .linear => |lin| {
-    ///             const new_lin = lin.input_to_output_curve.split_at_critical_points(
-    ///                 allocator
-    ///             );
-    ///         },
-    ///         .bezier => |bez| {
-    ///             bez.input_to_output_curve.split_on_critical_points(allocator);
-    ///         }
-    ///     }
-    /// }
 
     pub fn format(
         self: @This(),
@@ -365,41 +337,6 @@ pub fn test_structs(
                 },
             },
         };
-
-
-        // pub const BEZ = mapping_curve_bezier.MappingCurveBezier {
-        //     .input_to_output_curve = .{
-        //         .segments = &.{
-        //             .{
-        //                 curve.Bezier.Segment.init_from_start_end(
-        //                     START_PT,
-        //                     END_PT
-        //                 )
-        //             }
-        //         },
-        //     },
-        // };
-        //
-        // pub const BEZ_U = mapping_curve_bezier.MappingCurveBezier {
-        //     .input_to_output_curve = .{
-        //         .segments = @constCast(
-        //             &[_]curve.Bezier.Segment{
-        //                 .{
-        //                     .p0 = START_PT,
-        //                     .p1 = .{
-        //                         .in = START_PT.in,
-        //                         .out = END_PT.out,
-        //                     },
-        //                     .p2 = END_PT,
-        //                     .p3 = .{
-        //                         .in = END_PT.in,
-        //                         .out = START_PT.out,
-        //                     },
-        //                 }
-        //             }
-        //         ),
-        //     },
-        // };
     };
 }
 

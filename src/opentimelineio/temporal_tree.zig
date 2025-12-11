@@ -487,7 +487,7 @@ test "TestWalkingIterator: track with clip w/ destination"
     const tr_ptr = references.CompositionItemHandle.init(&tr);
 
     const tree = try build_temporal_tree(
-        std.testing.allocator,
+        allocator,
         tr_ptr.space(.presentation)
     );
     defer tree.deinit(allocator);
