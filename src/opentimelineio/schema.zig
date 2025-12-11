@@ -420,9 +420,9 @@ pub const Track = struct {
     /// Optional name, for labelling and human readability.
     maybe_name: ?string.latin_s8 = null,
 
-    /// Child objects of the track, listed from first to last in temporal order.
-    /// A sequence of right met segments.
-    children: []references.CompositionItemHandle = &.{},
+    /// Child objects of the track, listed from first to last in temporal
+    /// order. A sequence of right met segments.
+    children: []references.CompositionItemHandle,
 
     /// The internal temporal coordinate systems of the Track.
     pub const internal_spaces: []const references.TemporalSpace = (
@@ -572,7 +572,7 @@ pub const Stack = struct {
     /// Child objects of the Stack (for example, tracks).  Children are listed
     /// in compositing order, with later children coming "above" earlier
     /// entries.
-    children: []references.CompositionItemHandle = &.{},
+    children: []references.CompositionItemHandle,
 
     /// The internal temporal coordinate systems of the Track.
     pub const internal_spaces: []const references.TemporalSpace = (
