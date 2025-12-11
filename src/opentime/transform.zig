@@ -7,24 +7,27 @@ const comath_wrapper = @import("comath_wrapper.zig");
 const interval = @import("interval.zig");
 const ContinuousInterval = interval.ContinuousInterval; 
 
-/// AffineTransform1D @{
-/// ///////////////////////////////////////////////////////////////////////////
 /// Represents a homogenous-coordinates transform matrix of the form:
-///     | Scale Offset |
-///     |   0     1    | (Implicit)
+/// 
+/// ```
+///     | Scale | Offset |
+///     |   0   |   1    | (Implicit)
+/// ```
 ///
-/// Transform order scale then offset, ie y = T(x) = (x * Scale + offset)
-/// ///////////////////////////////////////////////////////////////////////////
+/// Transform order scale then offset, ie:
+/// ```
+/// y = T(x) = (x * Scale + offset)
+/// ```
 pub const AffineTransform1D = struct {
-    offset: ordinate.Ordinate = .zero,
-    scale: ordinate.Ordinate = .one,
+    offset: ordinate.Ordinate,
+    scale: ordinate.Ordinate,
 
     pub const identity = AffineTransform1D{
         .offset = .zero,
         .scale = .one,
     };
 
-    /// transform the ordinate.  Order is scale and then offset.
+    /// Transform the ordinate.  Order is scale and then offset.
     pub fn applied_to_ordinate(
         self: @This(),
         ord: ordinate.Ordinate,
@@ -36,7 +39,7 @@ pub const AffineTransform1D = struct {
         );
     }
 
-    /// transform the interval by transforming its endpoints.
+    /// Transform the interval by transforming its endpoints.
     pub fn applied_to_interval(
         self: @This(),
         cint: ContinuousInterval,
@@ -48,7 +51,7 @@ pub const AffineTransform1D = struct {
         };
     }
 
-    /// if the scale of the transform is negative, the ends will flip during
+    /// If the scale of the transform is negative, the ends will flip during
     /// projection.  For bounds, this isn't meaningful and can cause problems.
     /// This function makes sure that result.start < result.end
     pub fn applied_to_bounds(
@@ -65,7 +68,7 @@ pub const AffineTransform1D = struct {
         return self.applied_to_interval(bnds);
     }
 
-    /// transform the transform
+    /// Transform the transform.
     pub fn applied_to_transform(
         self: @This(),
         rhs: AffineTransform1D,
@@ -84,13 +87,19 @@ pub const AffineTransform1D = struct {
     ///    ** assumes that scale is non-zero **
     ///
     /// Because the AffineTransform1D is a 2x2 matrix of the form:
+    /// ```
     ///     | scale offset |
     ///     |   0     1    |
+    /// ```
     ///
     /// The inverse is:
+    /// ```
     ///     | 1/scale -offset/scale |
     ///     |   0           1       |
+    /// ```
+    ///
     /// To derive this:
+    /// ```
     ///     | A B | * | S O |   | 1 0 |
     ///     | C D |   | 0 1 | = | 0 1 |
     ///     =>
@@ -98,14 +107,14 @@ pub const AffineTransform1D = struct {
     ///     A*O + B = 0 => B = -O*A => B = -O/S
     ///     C * S = 0 => C = 0
     ///     C * O + D = 1 => D = 1
+    /// ```
+    ///
+    /// Asserts that self.scale != 0.
     pub fn inverted(
         self: @This(),
     ) AffineTransform1D
     {
-        // !! Assumes that scale is not 0
-        // if (self.scale == 0) {
-        //     return ZeroScaleError;
-        // }
+        std.debug.assert(self.scale.eql(ordinate.Ordinate.zero) == false);
 
         return .{
             .offset = comath_wrapper.eval(
@@ -118,7 +127,7 @@ pub const AffineTransform1D = struct {
         };
     }
 
-    /// custom formatter for std.fmt
+    /// Formatter function for `std.Io.Writer` {f}.
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
@@ -217,6 +226,12 @@ test "AffineTransform1D: invert test"
         .offset = ordinate.Ordinate.init(10),
         .scale = ordinate.Ordinate.init(2),
     };
+
+    try std.testing.expect(xform.scale.eql(0) != true);
+
+    const inverted = xform.inverted();
+
+    try std.testing.expect(inverted.scale.eql(0) != true);
 
     const identity = xform.applied_to_transform(
         xform.inverted()

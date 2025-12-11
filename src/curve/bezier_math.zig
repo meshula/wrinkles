@@ -554,15 +554,15 @@ pub fn findU_dual3(
     const MAX_ITERATIONS: u8 = 45;
 
     // if (x.lteq(opentime.Ordinate.ZERO)) {
-    //     return opentime.Dual_Ord.ZERO_ZERO;
+    //     return opentime.Dual_Ord.zero_zero;
     // }
     //
     // if (x.gteq(p3)) {
     //     return opentime.Dual_Ord.ONE_ZERO;
     // }
 
-    var _u1=opentime.Dual_Ord.ZERO_ZERO;
-    var _u2=opentime.Dual_Ord.ZERO_ZERO;
+    var _u1=opentime.Dual_Ord.zero_zero;
+    var _u2=opentime.Dual_Ord.zero_zero;
 
     var x1 = x.neg(); // same as: bezier0 (0, p1, p2, p3) - x;
     var x2 = opentime.eval(
@@ -574,7 +574,7 @@ pub fn findU_dual3(
 
         const _u3 = opentime.eval(
             "ONE - (x2 / (x2 - x1))",
-            .{ .ONE = opentime.Dual_Ord.ONE_ZERO, .x2 = x2, .x1 = x1 }
+            .{ .ONE = opentime.Dual_Ord.one_zero, .x2 = x2, .x1 = x1 }
         );
         const x3 = _bezier0_dual(
             _u3,
@@ -589,7 +589,7 @@ pub fn findU_dual3(
 
         if (x3.lt(0))
         {
-            if (opentime.Dual_Ord.ONE_ZERO.sub(_u3).lteq(MAX_ABS_ERROR)) {
+            if (opentime.Dual_Ord.one_zero.sub(_u3).lteq(MAX_ABS_ERROR)) {
                 // if (x2.lt(x3.neg())) {
                 //     return opentime.Dual_Ord.ONE_ZERO;
                 // }
@@ -597,12 +597,12 @@ pub fn findU_dual3(
                 return _u3;
             }
 
-            _u1 = opentime.Dual_Ord.ONE_ZERO;
+            _u1 = opentime.Dual_Ord.one_zero;
             x1 = x2;
         }
         else
         {
-            _u1 = opentime.Dual_Ord.ZERO_ZERO;
+            _u1 = opentime.Dual_Ord.zero_zero;
             x1 = opentime.eval(
                 "x1 * x2 / (x2 + x3)",
                 .{ .x1 = x1, .x2 = x2, .x3 = x3 }
@@ -611,7 +611,7 @@ pub fn findU_dual3(
             if (_u3.lteq(MAX_ABS_ERROR)) 
             {
                 // if (x1.neg().lt(x3)) {
-                //     return opentime.Dual_Ord.ZERO_ZERO;
+                //     return opentime.Dual_Ord.zero_zero;
                 // }
                 //
                 return _u3;
