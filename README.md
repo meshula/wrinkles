@@ -181,6 +181,8 @@ didn't impact the deisgn or problems we were specifically solving.
 * [ ] building a projection operator should not require allocation from a
       builder
 * [ ] OTIO 1.0 missing vs omitted features list
+* [ ] look for tests that are manually comparing interval endpoints and just
+      compare the entire (optional) interval
 
 ## Todo List (10/9/25)
 
