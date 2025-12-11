@@ -446,10 +446,10 @@ pub const Bezier = struct {
 
     /// Bezier Curve Segment
     pub const Segment = struct {
-        p0: control_point.ControlPoint = control_point.ControlPoint.zero,
-        p1: control_point.ControlPoint = control_point.ControlPoint.zero,
-        p2: control_point.ControlPoint = control_point.ControlPoint.one,
-        p3: control_point.ControlPoint = control_point.ControlPoint.one,
+        p0: control_point.ControlPoint = .zero,
+        p1: control_point.ControlPoint = .zero,
+        p2: control_point.ControlPoint = .one,
+        p3: control_point.ControlPoint = .one,
 
         pub const IDENT_ZERO_ONE = Segment.init_identity(
             opentime.Ordinate.init(0),
