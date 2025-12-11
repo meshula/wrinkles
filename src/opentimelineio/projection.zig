@@ -2033,11 +2033,11 @@ test "Single clip, schema.Warp bulk"
                 );
                 try opentime.expectOrdinateEqual(
                     0,
-                    r.SuccessInterval.start
+                    r.success_interval.start
                 );
                 try opentime.expectOrdinateEqual(
                     5,
-                    r.SuccessInterval.end
+                    r.success_interval.end
                 );
             }
         }

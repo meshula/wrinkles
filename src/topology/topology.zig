@@ -906,7 +906,7 @@ pub const Topology = struct {
     {
         const ib = (
             self.input_bounds()
-            orelse return .OUTOFBOUNDS
+            orelse return .out_of_bounds
         );
         if (ib.is_instant()) 
         {
@@ -914,10 +914,10 @@ pub const Topology = struct {
                 return .{ 
                     // already checked that input bounds are valid, so can
                     // access output bounds directly
-                    .SuccessInterval = self.output_bounds().?,
+                    .success_interval = self.output_bounds().?,
                 };
             }
-            return .OUTOFBOUNDS;
+            return .out_of_bounds;
         }
 
         return self.project_instantaneous_cc_assume_in_bounds(
@@ -936,7 +936,7 @@ pub const Topology = struct {
             if (
                 (
                  m.input_bounds() 
-                 orelse return .OUTOFBOUNDS
+                 orelse return .out_of_bounds
                 ).overlaps(input_ord)
             )
             {
@@ -944,9 +944,7 @@ pub const Topology = struct {
             }
         }
 
-        return .{
-            .OutOfBounds = null,
-        };
+        return .out_of_bounds;
     }
 
     /// project the output space ordinate into the input space.  Because
@@ -1261,11 +1259,9 @@ pub fn join(
         );
 
         const output_value = switch (maybe_output_value) {
-            .OutOfBounds,  => {
-                return .empty;
-            },
-            .SuccessInterval => unreachable,
-            .SuccessOrdinate => |val| val,
+            .out_of_bounds,  => { return .empty; },
+            .success_interval => unreachable,
+            .success_ordinate => |val| val,
         };
 
         const input_range = a2b.input_bounds().?;
@@ -2057,7 +2053,7 @@ test "Topology: project_instantaneous_cc and project_instantaneous_cc_inv"
 
             try opentime.expectOrdinateEqual(
                 pt.out,
-                measured_out.SuccessOrdinate,
+                measured_out.success_ordinate,
             );
         }
 

@@ -63,7 +63,7 @@ pub const MappingAffine = struct {
             and !input_space_ordinate.eql(self.input_bounds_val.end)
         )
         {
-            return .OUTOFBOUNDS;
+            return .out_of_bounds;
         }
 
         return self.project_instantaneous_cc_assume_in_bounds(
@@ -77,7 +77,7 @@ pub const MappingAffine = struct {
     ) opentime.ProjectionResult
     {
         return .{ 
-            .SuccessOrdinate = (
+            .success_ordinate = (
                 self.input_to_output_xform.applied_to_ordinate(
                     input_space_ordinate
                 )
@@ -97,7 +97,7 @@ pub const MappingAffine = struct {
             and !(output_ordinate.eql(self.output_bounds().end))
         )
         {
-            return .OUTOFBOUNDS;
+            return .out_of_bounds;
         }
 
         return self.project_instantaneous_cc_assume_in_bounds(output_ordinate);
@@ -110,7 +110,7 @@ pub const MappingAffine = struct {
     // ) opentime.ProjectionResult
     // {
     //     return .{
-    //         .SuccessOrdinate = self.input_to_output_xform.inverted(
+    //         .success_ordinate = self.input_to_output_xform.inverted(
     //         ).applied_to_ordinate(output_ordinate)
     //     };
     // }

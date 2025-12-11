@@ -313,10 +313,10 @@ fn fill_topdown_point_buffers(
                     var ob: [2]opentime.Ordinate = .{
                         aff.project_instantaneous_cc_assume_in_bounds(
                             ib.start,
-                        ).SuccessOrdinate,
+                        ).success_ordinate,
                         aff.project_instantaneous_cc_assume_in_bounds(
                             ib.end,
-                        ).SuccessOrdinate,
+                        ).success_ordinate,
                     };
 
                     points.appendAssumeCapacity(
@@ -364,7 +364,7 @@ fn fill_topdown_point_buffers(
                                     allocator,
                                     .{
                                         .x = current.as(f32),
-                                        .y = mapping.project_instantaneous_cc_assume_in_bounds(current).SuccessOrdinate.as(f32),
+                                        .y = mapping.project_instantaneous_cc_assume_in_bounds(current).success_ordinate.as(f32),
                                     }
                                 );
                             }
@@ -441,7 +441,7 @@ fn fill_topdown_point_buffers(
                                         allocator,
                                         .{
                                             .x = current.as(f32),
-                                            .y = mapping.project_instantaneous_cc_assume_in_bounds(current).SuccessOrdinate.as(f32),
+                                            .y = mapping.project_instantaneous_cc_assume_in_bounds(current).success_ordinate.as(f32),
                                         }
                                     );
                                 }
@@ -605,7 +605,7 @@ fn draw_hover_extras(
                 source_ord
             );
 
-            if (proj_result == .OutOfBounds)
+            if (proj_result == .out_of_bounds)
             {
                 std.debug.print(
                     "Error: could not project into space: {f}.\n",
@@ -617,7 +617,7 @@ fn draw_hover_extras(
             }
             const dest_time = projection_operator.project_instantaneous_cc_assume_in_bounds(
                 source_ord
-            ).SuccessOrdinate;
+            ).success_ordinate;
 
             var discrete_writer = std.Io.Writer.Allocating.init(
                 allocator,
@@ -1621,7 +1621,7 @@ fn draw(
                                     y.* = (
                                         xform.project_instantaneous_cc_assume_in_bounds(
                                             current_x,
-                                        ).SuccessOrdinate.as(f32)
+                                        ).success_ordinate.as(f32)
                                     );
 
                                     current_x = current_x.add(inc);
