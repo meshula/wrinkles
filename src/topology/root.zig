@@ -25,7 +25,6 @@ test
     _ = topology;
     _ = mapping;
     _ = @import("mapping_affine.zig");
-    _ = @import("mapping_curve_bezier.zig");
     _ = @import("mapping_curve_linear.zig");
     _ = @import("mapping_empty.zig");
 }
