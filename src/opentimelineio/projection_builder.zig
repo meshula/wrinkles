@@ -41,8 +41,10 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
 pub fn ProjectionBuilder(
     /// A reference to a single space in the hierarchy
     comptime SpaceReferenceType: type,
+
     /// An operator which can project between different points in the hierarchy
     comptime ProjectionOperatorType: type,
+
     /// A function which can be called and given a root space to generate a
     /// `treecode.BinaryTree` specialized over the `SpaceReferenceType` of all
     /// spaces under the source space.
@@ -57,6 +59,7 @@ pub fn ProjectionBuilder(
     return struct {
         /// Alias to this type
         pub const ProjectionBuilderType = @This();
+
         /// Alias to the `treecode.BinaryTree` specialization for
         /// `SpaceReferenceType` 
         pub const TreeType = treecode.BinaryTree(SpaceReferenceType);
@@ -70,9 +73,11 @@ pub fn ProjectionBuilder(
 
         /// the source space for the ProjectionBuilder
         source: SpaceReferenceType,
+
         /// Tree of all spaces underneath the `source` space.
         tree: TreeType,
-        /// cache of intermediate topologies inside the tree
+
+        /// Cache of intermediate topologies inside the tree.
         cache: SingleSourceTopologyCache,
 
         /// Linking the mapping to the destination space in `tree`
