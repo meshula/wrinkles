@@ -59,7 +59,7 @@ print_tree(
             //
             // @TODO: for now, only supports the picture domain
             //
-            otio_SpaceLabel di_space = -1;
+            otio_TemporalSpace di_space = -1;
             if (!otio_fetch_discrete_info(root_ref, otio_sl_presentation, 1, &di)) 
             {
                 di_space = otio_sl_presentation;
@@ -277,7 +277,7 @@ main(
                 if (!otio_topo_fetch_output_bounds(topo, &tr)) 
                 {
                     otio_DiscreteDatasourceIndexGenerator di;
-                    otio_SpaceLabel di_space = -1;
+                    otio_TemporalSpace di_space = -1;
 
                     if (!otio_fetch_discrete_info(dest, otio_sl_media,1, &di))
                     {

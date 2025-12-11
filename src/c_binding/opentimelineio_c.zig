@@ -566,26 +566,26 @@ pub export fn otio_topo_fetch_output_bounds(
     return 0;
 }
 
-fn init_SpaceLabel(
-    in_c: c.otio_SpaceLabel
-) !otio.SpaceLabel
+fn init_TemporalSpace(
+    in_c: c.otio_TemporalSpace
+) !otio.TemporalSpace
 {
     return switch (in_c) {
         c.otio_sl_presentation => .presentation,
         c.otio_sl_media => .media,
-        else => error.InvalidSpaceLabel,
+        else => error.InvalidTemporalSpace,
     };
 }
 
 fn otio_fetch_discrete_info_erroring(
     ref_c: c.otio_CompositionItemHandle,
-    space: c.otio_SpaceLabel,
+    space: c.otio_TemporalSpace,
     domain: c.otio_Domain,
     result: *c.otio_DiscreteDatasourceIndexGenerator,
 ) !c_int
 {
     const ref = try init_CompositionItemHandle(ref_c);
-    const label = try init_SpaceLabel(space);
+    const label = try init_TemporalSpace(space);
 
     const maybe_di = (
         ref.discrete_partition_for_space(
@@ -614,7 +614,7 @@ fn otio_fetch_discrete_info_erroring(
 
 pub export fn otio_fetch_discrete_info(
     ref_c: c.otio_CompositionItemHandle,
-    space: c.otio_SpaceLabel,
+    space: c.otio_TemporalSpace,
     domain: c.otio_Domain,
     result: *c.otio_DiscreteDatasourceIndexGenerator,
 ) c_int
@@ -648,12 +648,12 @@ fn domain_from_c(
 fn otio_fetch_continuous_ordinate_to_discrete_index_erroring(
     ref_c: c.otio_CompositionItemHandle,
     val: f32,
-    space_c: c.otio_SpaceLabel,
+    space_c: c.otio_TemporalSpace,
     domain: c.otio_Domain,
 ) !usize
 {
     const ref = try init_CompositionItemHandle(ref_c);
-    const space = try init_SpaceLabel(space_c);
+    const space = try init_TemporalSpace(space_c);
     return try ref.continuous_ordinate_to_discrete_index(
         opentime.Ordinate.init(val),
         space,
@@ -664,7 +664,7 @@ fn otio_fetch_continuous_ordinate_to_discrete_index_erroring(
 pub export fn otio_fetch_continuous_ordinate_to_discrete_index(
     ref_c: c.otio_CompositionItemHandle,
     val: f32,
-    space_c: c.otio_SpaceLabel,
+    space_c: c.otio_TemporalSpace,
     domain: c.otio_Domain,
 ) usize
 {
