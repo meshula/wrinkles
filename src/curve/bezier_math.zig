@@ -230,7 +230,7 @@ pub fn _findU(
 ) U_TYPE
 {
     const MAX_ABS_ERROR = opentime.Ordinate.init(
-        std.math.floatEps(opentime.Ordinate.BaseType) * 2.0
+        std.math.floatEps(opentime.Ordinate.InnerType) * 2.0
     );
     const MAX_ITERATIONS: u8 = 45;
 
@@ -549,7 +549,7 @@ pub fn findU_dual3(
     const p3 = opentime.Dual_Ord.init(p3_ord);
 
     const MAX_ABS_ERROR = opentime.Ordinate.init(
-        std.math.floatEps(opentime.Ordinate.BaseType) * 2.0
+        std.math.floatEps(opentime.Ordinate.InnerType) * 2.0
     );
     const MAX_ITERATIONS: u8 = 45;
 
@@ -816,8 +816,8 @@ test "bezier_math: findU"
 
 test "bezier_math: _bezier0 matches _bezier0_dual" 
 {
-    const test_data = [_][4]opentime.Ordinate.BaseType{
-        [4]opentime.Ordinate.BaseType{ 0, 1, 2, 3 },
+    const test_data = [_][4]opentime.Ordinate.InnerType{
+        [4]opentime.Ordinate.InnerType{ 0, 1, 2, 3 },
     };
 
     for (test_data)
@@ -892,7 +892,7 @@ test "bezier_math: findU_dual matches findU"
     );
 
     {
-        const test_data = [_][4]opentime.Ordinate.BaseType{
+        const test_data = [_][4]opentime.Ordinate.InnerType{
            .{ 0.0, 1.0, 2.0, 3.0 }
        };
 
@@ -958,8 +958,8 @@ test "bezier_math: dydx matches expected at endpoints"
     };
 
     const test_data = struct {
-        r: opentime.Ordinate.BaseType,
-        e_dydu: opentime.Ordinate.BaseType,
+        r: opentime.Ordinate.InnerType,
+        e_dydu: opentime.Ordinate.InnerType,
     };
     const tests = [_]test_data{
         .{ .r = 0.0,  .e_dydu = 0.0, },

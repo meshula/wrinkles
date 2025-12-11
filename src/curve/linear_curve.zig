@@ -626,7 +626,7 @@ pub fn LinearOf(
         /// ordinates
         pub fn init_identity(
             allocator: std.mem.Allocator,
-            knot_input_ords:[]const opentime.Ordinate.BaseType,
+            knot_input_ords:[]const opentime.Ordinate.InnerType,
         ) !LinearType.Monotonic 
         {
             var result: std.ArrayList(ControlPointType) = .{};
@@ -924,7 +924,7 @@ test "Linear: projection_test - compose to identity"
         result.knots[1].out
     );
 
-    var x:opentime.Ordinate.BaseType = 0;
+    var x:opentime.Ordinate.InnerType = 0;
     while (x < 1) 
         : (x += 0.1)
     {
@@ -1612,7 +1612,7 @@ test "Linear.Monotonic.split_at_input_ordinates"
         },
     };
 
-    const split_pts = &[_]opentime.Ordinate.BaseType{ -1, 0, 1.0, 1.5, 2.0, 2.1, 4.5 };
+    const split_pts = &[_]opentime.Ordinate.InnerType{ -1, 0, 1.0, 1.5, 2.0, 2.1, 4.5 };
     var split_ords: std.ArrayList(opentime.Ordinate) = .{};
     for (split_pts)
         |pt|
@@ -1652,7 +1652,7 @@ test "Linear.Monotonic: nearest_knot_indices_output"
 
     const TestCase = struct {
         name: []const u8,
-        pt: opentime.Ordinate.BaseType,
+        pt: opentime.Ordinate.InnerType,
         expected: ?Linear.Monotonic.NearestIndices,
     };
 

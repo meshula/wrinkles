@@ -704,7 +704,7 @@ pub const Topology = struct {
                         key: opentime.Ordinate,
                     ) u64
                     {
-                        return @bitCast(key.as(opentime.Ordinate.BaseType));
+                        return @bitCast(key.as(opentime.Ordinate.InnerType));
                     }
 
                     pub fn eql(

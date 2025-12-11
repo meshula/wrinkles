@@ -249,7 +249,7 @@ pub const ControlPoint = ControlPointOf(
     opentime.Ordinate.zero,
 );
 pub const ControlPoint_BaseType = ControlPointOf(
-    opentime.Ordinate.BaseType, 
+    opentime.Ordinate.InnerType, 
     0,
     0,
 );

@@ -85,7 +85,7 @@ pub fn project_index_dc(
 {
     var start = sample_ordinate_t.init(ind_discrete);
     start = start.sub(
-        @as(sample_ordinate_t.BaseType, @floatFromInt(self.start_index))
+        @as(sample_ordinate_t.InnerType, @floatFromInt(self.start_index))
     );
     const s_per_cycle = self.sample_rate_hz.inv_as_ordinate();
     start = start.mul(s_per_cycle);
@@ -329,7 +329,7 @@ pub const URational = struct {
     /// convert the rational to a floating point number
     pub fn as_float(
         self: @This(),
-    ) sample_ordinate_t.BaseType
+    ) sample_ordinate_t.InnerType
     {
         const num : f32 = @floatFromInt(self.num);
         const den : f32 = @floatFromInt(self.den);
@@ -348,7 +348,7 @@ pub const RateSpecifier = union (enum) {
     {
         return opentime.Ordinate.init(
             @as(
-                sample_ordinate_t.BaseType,
+                sample_ordinate_t.InnerType,
                 switch (self) {
                     inline .Int => |b| @floatFromInt(b),
                     inline .Rat => |r| r.as_float(),
@@ -365,7 +365,7 @@ pub const RateSpecifier = union (enum) {
         return opentime.Ordinate.init(
             1.0 / 
             @as(
-                sample_ordinate_t.BaseType,
+                sample_ordinate_t.InnerType,
                 switch (self) {
                     inline .Int => |b| @floatFromInt(b),
                     inline .Rat => |r| r.as_float(),
