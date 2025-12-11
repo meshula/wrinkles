@@ -24,8 +24,10 @@ pub const ContinuousInterval = struct {
         .end = ordinate.Ordinate.inf,
     };
 
+    /// Convienence constructor using two numbers of `Ordinate.InnerType`,
+    /// which converts `args` into `ordinate.Ordinate`.
     pub fn init(
-        args: ContinuousInterval_BaseType,
+        args: ContinuousInterval_InnerType,
     ) ContinuousInterval
     {
         return .{
@@ -34,7 +36,7 @@ pub const ContinuousInterval = struct {
         };
     }
 
-    /// compute the duration of the interval, if either boundary is not finite,
+    /// Compute the duration of the interval, if either boundary is not finite,
     /// the duration is infinite.
     pub fn duration(
         self: @This(),
@@ -48,23 +50,24 @@ pub const ContinuousInterval = struct {
         return self.end.sub(self.start);
     }
 
+    /// Construct an ordinate from a `start` ordinate and a `duration` instead
+    /// of start, end.
+    ///
+    /// Asserts that duration >= 0.
     pub fn from_start_duration(
         start: ordinate.Ordinate,
-        in_duration: ordinate.Ordinate,
+        duration_arg: ordinate.Ordinate,
     ) ContinuousInterval
     {
-        if (in_duration.lteq(0))
-        {
-            @panic("duration <= 0");
-        }
+        std.debug.assert(duration_arg.gteq(0));
 
         return .{
             .start = start,
-            .end = start.add(in_duration),
+            .end = start.add(duration_arg),
         };
     }
 
-    /// return true if ord is within the interval
+    /// Return true if `ord` is within the interval.
     pub fn overlaps(
         self: @This(),
         ord: ordinate.Ordinate,
@@ -83,7 +86,7 @@ pub const ContinuousInterval = struct {
         );
     }
 
-    /// return whether one of the end points of the interval is infinite
+    /// Return whether one of the end points of the interval is infinite.
     pub fn is_infinite(
         self: @This(),
     ) bool
@@ -91,7 +94,7 @@ pub const ContinuousInterval = struct {
         return (self.start.is_inf() or self.end.is_inf());
     }
 
-    /// detect if this interval starts and ends at the same ordinate
+    /// Detect if this interval starts and ends at the same ordinate.
     pub fn is_instant(
         self: @This(),
     ) bool
@@ -99,7 +102,7 @@ pub const ContinuousInterval = struct {
         return (ordinate.eql(self.start, self.end));
     }
 
-    /// custom formatter for std.fmt
+    /// Formatter function for `std.Io.Writer` {f}.
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
@@ -115,7 +118,9 @@ pub const ContinuousInterval = struct {
     }
 };
 
-pub const ContinuousInterval_BaseType = struct {
+/// A convienence type for building intervals from the
+/// `ordinate.Ordinate.InnerType`.
+pub const ContinuousInterval_InnerType = struct {
     start : ordinate.Ordinate.InnerType,
     end : ordinate.Ordinate.InnerType,
 };
@@ -144,7 +149,7 @@ test "ContinuousInterval: is_infinite"
     try std.testing.expectEqual(false, cti.is_infinite());
 }
 
-/// return a new interval that spans the duration of both argument intervals
+/// Return a new interval that spans the duration of both argument intervals.
 pub fn extend(
     fst: ContinuousInterval,
     snd: ContinuousInterval,
@@ -202,7 +207,7 @@ test "ContinuousInterval: extend"
     }
 }
 
-/// return whether there is any overlap between fst and snd
+/// Return whether there is any overlap between fst and snd.
 pub fn any_overlap(
     fst: ContinuousInterval,
     snd: ContinuousInterval,
@@ -284,7 +289,7 @@ test "ContinuousInterval: any_overlap"
     }
 }
 
-/// return an interval of the intersection or null if they are disjoint
+/// Return an interval of the intersection or null if they are disjoint.
 pub fn intersect(
     fst: ContinuousInterval,
     snd: ContinuousInterval,
