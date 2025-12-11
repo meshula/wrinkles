@@ -126,10 +126,10 @@ typedef enum otio_Domain {
 
 // Spaces
 ///////////////////////////////////////////////////////////////////////////////
-typedef enum otio_SpaceLabel { 
+typedef enum otio_TemporalSpace { 
     otio_sl_presentation,
     otio_sl_media,
-} otio_SpaceLabel;
+} otio_TemporalSpace;
 typedef struct otio_Rational {
     uint32_t num;
     uint32_t den;
@@ -141,11 +141,11 @@ typedef struct otio_DiscreteDatasourceIndexGenerator {
 
 int otio_fetch_discrete_info(
         otio_CompositionItemHandle,
-        otio_SpaceLabel,
+        otio_TemporalSpace,
         otio_Domain,
         otio_DiscreteDatasourceIndexGenerator*);
 size_t otio_fetch_continuous_ordinate_to_discrete_index(
         otio_CompositionItemHandle,
         float,
-        otio_SpaceLabel,
+        otio_TemporalSpace,
         otio_Domain);

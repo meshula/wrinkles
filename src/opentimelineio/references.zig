@@ -1,9 +1,8 @@
 //! Reference Container Objects
 //!
 //! - `CompositionItemHandle`: Points at an object in an OTIO composition.
-//! - `SpaceReference`: References a temporal space on a particular object in
-//!                     an OTIO composition.
-//! - `SpaceLabel`: Name of spaces on otio object.
+//! - `TemporalSpace`: Name of spaces on otio object.
+//! - `TemporalSpaceNode`: A `TemporalSpace` on a `CompositionItemHandle`.
 
 const std = @import("std");
 const build_options = @import("build_options");
@@ -21,26 +20,27 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
     build_options.debug_graph_construction_trace_messages
 );
 
-/// A Temporal Spaces on `CompositionItemHandle`.
+/// A Temporal Space on a `CompositionItemHandle`.
 pub const TemporalSpace = union (enum) {
     /// The presentation space is the "output" (from a rendering perspective)
     /// space, but the "input (from a projection/functional
     /// composition/mathematical perspective) space of a given object in an
     /// OTIO composition.
     ///
-    /// Every object in an `schema` composition has a `presentation` space, and
-    /// it always starts at time 0 and goes for the duration of the object.
+    /// Every object in an `schema` CompositionItemHandle has a `presentation`
+    /// space, and it always starts at time 0 and goes for the duration of the
+    /// object.
     presentation: void,
 
     /// The intrinsic space is an internal space that is used by some objects
-    /// between the `Presentation` and Child spaces for example.
+    /// between the `presentation` and `child` spaces for example.
     intrinsic: void,
 
-    /// The `media` space is present on clips and describes the coordinate
-    /// space of a piece of media being cut into the timeline.
+    /// The `media` space is present on `schema.Clip` and describes the
+    /// coordinate space of a piece of media being cut into the timeline.
     media: void,
 
-    /// The NodeIndex of the child in the Space Map
+    /// The index of the child space in the parent.  IE track.children[i].
     child: treecode.binary_tree.NodeIndex,
 
     /// Formatter function for `std.Io.Writer`.
