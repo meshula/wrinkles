@@ -237,18 +237,23 @@ pub const Topology = struct {
 
     pub fn input_bounds(
         self: @This(),
-    ) opentime.ContinuousInterval
+    ) ?opentime.ContinuousInterval
     {
         if (self.mappings.len == 0)
         {
-            return .{ };
+            return null;
         }
+
         return .{
-            .start = self.mappings[0].input_bounds().start,
+            .start = (
+                self.mappings[0].input_bounds() 
+                orelse return null
+            ).start,
             .end = (
-                self.mappings[
-                    self.mappings.len - 1
-                ].input_bounds().end
+                (
+                 self.mappings[self.mappings.len - 1].input_bounds() 
+                 orelse return null
+                ).end
             ),
         };
     }
@@ -256,11 +261,10 @@ pub const Topology = struct {
     /// compute the bounds in the output space of this topology
     pub fn output_bounds(
         self: @This(),
-    ) opentime.ContinuousInterval
+    ) ?opentime.ContinuousInterval
     {
-        // @TODO: handle this case
         if (self.mappings.len == 0) {
-            unreachable;
+            return null;
         }
 
         var maybe_bounds:?opentime.ContinuousInterval = null;
@@ -276,17 +280,18 @@ pub const Topology = struct {
                     {
                         maybe_bounds = opentime.interval.extend(
                             b,
-                            m.output_bounds(),
+                            m.output_bounds()
+                            orelse return null,
                         );
                     }
                     else {
-                        maybe_bounds = m.output_bounds();
+                        maybe_bounds = m.output_bounds() orelse return null;
                     }
                 }
             }
         }
 
-        return maybe_bounds orelse opentime.ContinuousInterval.inf_neg_to_pos;
+        return maybe_bounds;
     }
 
     pub fn end_points_input(
@@ -307,13 +312,19 @@ pub const Topology = struct {
         );
 
         result.appendAssumeCapacity(
-            self.mappings[0].input_bounds().start,
+            (
+             self.mappings[0].input_bounds()
+             orelse return error.InvalidMapping
+            ).start,
         );
 
         for (self.mappings)
             |m|
         {
-            result.appendAssumeCapacity(m.input_bounds().end);
+            const m_input_bounds = (
+                m.input_bounds() orelse return error.InvalidMapping
+            );
+            result.appendAssumeCapacity(m_input_bounds.end);
         }
 
         return try result.toOwnedSlice(allocator);
@@ -325,7 +336,11 @@ pub const Topology = struct {
         new_input_bounds: opentime.ContinuousInterval,
     ) !Topology
     {
-        const ib = self.input_bounds();
+        const ib = (
+            self.input_bounds()
+            orelse return .empty
+        );
+
         var new_bounds = opentime.interval.intersect(
             new_input_bounds,
             ib,
@@ -498,7 +513,10 @@ pub const Topology = struct {
             self.mappings.len * 3,
         );
 
-        const ob = self.output_bounds();
+        const ob = (
+            self.output_bounds()
+            orelse return .empty
+        );
         if (
             target_output_range.start.lteq(ob.start)
             and target_output_range.end.gteq(ob.end)
@@ -509,8 +527,14 @@ pub const Topology = struct {
         for (self.mappings, 0..)
             |m, m_ind|
         {
-            const m_in_range = m.input_bounds();
-            const m_out_range = m.output_bounds();
+            const m_in_range = (
+                m.input_bounds() 
+                orelse return error.InvalidMapping
+            );
+            const m_out_range = (
+                 m.output_bounds() 
+                 orelse return error.InvalidMapping
+            );
 
             const maybe_overlap = (
                 opentime.interval.intersect(
@@ -535,11 +559,12 @@ pub const Topology = struct {
                 const shrunk_m = try m.shrink_to_output_interval(
                     allocator,
                     target_output_range,
-                );
+                ) orelse return error.InvalidMapping;
                 defer shrunk_m.deinit(allocator);
 
+                // mapping should be correct, bounds should exist
                 const shrunk_input_bounds = (
-                    shrunk_m.input_bounds()
+                    shrunk_m.input_bounds().?
                 );
 
                 if (
@@ -618,7 +643,10 @@ pub const Topology = struct {
         input_points: []const opentime.Ordinate,
     ) !Topology
     {
-        const ib = self.input_bounds();
+        const ib = (
+            self.input_bounds()
+            orelse return .empty
+        );
 
         if (
             input_points.len == 0
@@ -697,7 +725,11 @@ pub const Topology = struct {
         for (self.mappings)
             |m|
         {
-            const b = m.output_bounds();
+            const b = (
+                m.output_bounds() 
+                orelse return error.InvalidMapping
+            );
+
             for (&[_]opentime.Ordinate{ b.start, b.end })
                 |new_point|
             {
@@ -747,8 +779,14 @@ pub const Topology = struct {
         for (self.mappings)
             |m|
         {
-            const m_bounds_in = m.input_bounds();
-            const m_bounds_out = m.output_bounds();
+            const m_bounds_in = (
+                m.input_bounds() 
+                orelse return error.InvalidMapping
+            );
+            const m_bounds_out = (
+                m.output_bounds() 
+                orelse return error.InvalidMapping
+            );
 
             switch (m) {
                 .empty => {
@@ -848,17 +886,20 @@ pub const Topology = struct {
         input_ord: opentime.Ordinate,
     ) opentime.ProjectionResult
     {
-        const ib = self.input_bounds();
+        const ib = (
+            self.input_bounds()
+            orelse return .OUTOFBOUNDS
+        );
         if (ib.is_instant()) 
         {
             if (ib.start.eql(input_ord)) {
                 return .{ 
-                    .SuccessInterval = self.output_bounds(),
+                    // already checked that input bounds are valid, so can
+                    // access output bounds directly
+                    .SuccessInterval = self.output_bounds().?,
                 };
             }
-            return .{
-                .OutOfBounds = null,
-            };
+            return .OUTOFBOUNDS;
         }
 
         return self.project_instantaneous_cc_assume_in_bounds(
@@ -874,7 +915,12 @@ pub const Topology = struct {
         for (self.mappings)
             |m|
         {
-            if (m.input_bounds().overlaps(input_ord))
+            if (
+                (
+                 m.input_bounds() 
+                 orelse return .OUTOFBOUNDS
+                ).overlaps(input_ord)
+            )
             {
                 return m.project_instantaneous_cc_assume_in_bounds(input_ord);
             }
@@ -900,9 +946,14 @@ pub const Topology = struct {
         for (self.mappings)
             |m|
         {
+            const m_output_bounds = (
+                m.output_bounds()
+                orelse return error.InvalidMapping
+            );
+
             if (
-                m.output_bounds().overlaps(output_ord)
-                or output_ord.eql(m.output_bounds().end)
+                m_output_bounds.overlaps(output_ord)
+                or output_ord.eql(m_output_bounds.end)
             )
             {
                 try input_ordinates.append(
@@ -1107,16 +1158,28 @@ test "Topology trim_in_input_space"
 
             try opentime.expectOrdinateEqual(
                 t.expected.start,
-                tm.input_bounds().start,
+                (
+                          tm.input_bounds() 
+                          orelse return error.InvalidBounds
+                ).start,
             );
             try opentime.expectOrdinateEqual(
                 t.expected.end,
-                tm.input_bounds().end,
+                (
+                  tm.input_bounds() 
+                  orelse return error.InvalidBounds
+                ).end,
             );
 
             try opentime.expectOrdinateEqual(
-                tm.mappings[0].input_bounds().duration(), 
-                tm.input_bounds().duration(),
+                (
+                      tm.mappings[0].input_bounds()
+                      orelse return error.InvalidBounds
+                ).duration(), 
+                (
+                 tm.input_bounds() 
+                 orelse return error.InvalidBounds
+                ).duration(),
             );
 
             try std.testing.expectEqual(
@@ -1159,11 +1222,18 @@ pub fn join(
     const a2b = topologies.a2b;
     const b2c = topologies.b2c;
 
-    if (a2b.output_bounds().is_instant())
+    const a2b_output_bounds = (
+        a2b.output_bounds() 
+        orelse return .empty
+    );
+
+    if (a2b_output_bounds.is_instant())
     {
         // compute the projected flat value
-        const maybe_output_value = b2c.project_instantaneous_cc(
-            a2b.output_bounds().start
+        const maybe_output_value = (
+            b2c.project_instantaneous_cc(
+                a2b_output_bounds.start
+            )
         );
 
         const output_value = switch (maybe_output_value) {
@@ -1174,7 +1244,7 @@ pub fn join(
             .SuccessOrdinate => |val| val,
         };
 
-        const input_range = a2b.input_bounds();
+        const input_range = a2b.input_bounds().?;
 
         return try (
             Topology{
@@ -1202,12 +1272,11 @@ pub fn join(
 
     // first trim both to the intersection range
     const b_range = opentime.interval.intersect(
-        a2b.output_bounds(),
-        b2c.input_bounds(),
+        a2b_output_bounds,
+        b2c.input_bounds() orelse return .empty,
         // or return an empty topology
-    ) orelse {
-        return .empty;
-    };
+    ) orelse return .empty;
+
     const a2b_trimmed_in_b = try a2b.trim_in_output_space(
         allocator,
         b_range,
@@ -1257,11 +1326,17 @@ pub fn join(
     for (a2b_split.mappings)
         |a2b_m|
     {
-        const a2b_m_ob = a2b_m.output_bounds();
+        const a2b_m_ob = (
+            a2b_m.output_bounds()
+            orelse return error.InvalidMapping
+        );
         for (b2c_split.mappings)
             |b2c_m|
         {
-            const b2c_m_ib = b2c_m.input_bounds();
+            const b2c_m_ib = (
+                b2c_m.input_bounds()
+                orelse return error.InvalidMapping
+            );
             if (
                 opentime.interval.intersect(
                     a2b_m_ob,
@@ -1400,22 +1475,30 @@ test "Topology: join (slides)"
 
     try std.testing.expect(ep.len > 0);
     
+    const a2c_ib = (
+        a2c.input_bounds() orelse return error.InvalidBounds
+    );
     try opentime.expectOrdinateEqual(
         1,
-        a2c.input_bounds().start,
+        a2c_ib.start,
     );
     try opentime.expectOrdinateEqual(
         5,
-        a2c.input_bounds().end,
+        a2c_ib.end,
+    );
+
+    const a2c_ob = (
+        a2c.output_bounds()
+        orelse return error.InvalidBounds
     );
     try opentime.expectOrdinateEqual(
         // 0.123208,
         0,
-        a2c.output_bounds().start,
+        a2c_ob.start,
     );
     try opentime.expectOrdinateEqual(
         3.999999995,
-        a2c.output_bounds().end,
+        a2c_ob.end,
     );
 }
 
@@ -1586,10 +1669,14 @@ test "Topology: trim_in_output_space"
 
     const INPUT_TOPO = MIDDLE.LIN_TOPO;
     try std.testing.expect(
-        INPUT_TOPO.output_bounds().start.is_finite()
+        (
+         INPUT_TOPO.output_bounds() 
+         orelse return error.ShouldHaveBounds
+        ).start.is_finite()
     );
     try std.testing.expect(
-        INPUT_TOPO.output_bounds().end.is_finite()
+        // already checked that output_bounds is not null
+        INPUT_TOPO.output_bounds().?.end.is_finite()
     );
 
     for (tests)
@@ -1629,13 +1716,17 @@ test "Topology: trim_in_output_space"
             trimmed.mappings.len,
         );
 
+        const trimmed_output_bounds = (
+            trimmed.output_bounds()
+            orelse return error.InvalidBounds
+        );
         try opentime.expectOrdinateEqual(
             t.expected.start,
-            trimmed.output_bounds().start,
+            trimmed_output_bounds.start,
         );
         try opentime.expectOrdinateEqual(
             t.expected.end,
-            trimmed.output_bounds().end,
+            trimmed_output_bounds.end,
         );
     }
 
@@ -1673,7 +1764,10 @@ test "Topology: trim_in_output_space"
     defer rf_topo_trimmed.deinit(allocator);
 
     {
-        const result = rf_topo_trimmed.output_bounds();
+        const result = (
+            rf_topo_trimmed.output_bounds()
+            orelse return error.InvalidBounds
+        );
 
         try opentime.expectOrdinateEqual(
             1,
@@ -1699,8 +1793,8 @@ test "Topology: trim_in_output_space (slides)"
     const b2c = slides_test_data.b2c;
 
     const b_range = opentime.interval.intersect(
-        a2b.output_bounds(),
-        b2c.input_bounds(),
+        a2b.output_bounds().?,
+        b2c.input_bounds().?,
     ) orelse return error.OutOfBounds;
 
     const a2b_trimmed = (
@@ -1711,13 +1805,17 @@ test "Topology: trim_in_output_space (slides)"
     );
     defer a2b_trimmed.deinit(allocator);
 
+    const a2b_output_bounds = (
+        a2b_trimmed.output_bounds()
+        orelse return error.InvalidBounds
+    );
     try std.testing.expectEqual(
         b_range.start,
-        a2b_trimmed.output_bounds().start,
+        a2b_output_bounds.start,
     );
     try std.testing.expectEqual(
         b_range.end,
-        a2b_trimmed.output_bounds().end,
+        a2b_output_bounds.end,
     );
 }
 
@@ -1750,13 +1848,17 @@ test "Topology: trim_in_output_space (trim to multiple split bug)"
         .linear,
         std.meta.activeTag(a2b_trimmed.mappings[0])
     );
+    const ib = (
+        a2b_trimmed.mappings[0].input_bounds() 
+        orelse return error.InvalidBounds
+    );
     try opentime.expectOrdinateEqual(
         0.5,
-        a2b_trimmed.mappings[0].input_bounds().start,
+        ib.start,
     );
     try opentime.expectOrdinateEqual(
         1,
-        a2b_trimmed.mappings[0].input_bounds().end,
+        ib.end,
     );
 }
 
@@ -1844,16 +1946,16 @@ test "Topology: output_bounds w/ empty"
             .{ .linear = MIDDLE.MAPPINGS.LIN},
         },
     };
-    const expected = MIDDLE.MAPPINGS.LIN.output_bounds();
+    const expected = MIDDLE.MAPPINGS.LIN.output_bounds().?;
 
     try std.testing.expectEqual(
         expected.start,
-        tm.output_bounds().start,
+        tm.output_bounds().?.start,
     );
 
     try std.testing.expectEqual(
         expected.end,
-        tm.output_bounds().end,
+        tm.output_bounds().?.end,
     );
 }
 

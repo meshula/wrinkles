@@ -967,6 +967,7 @@ test "timeline w/ warp that holds the tenth frame"
 
     const w_ib = (
         warp_ptr.warp.transform.input_bounds()
+        orelse return error.ShouldHaveInputBounds
     );
     const w_ob = (
         warp_ptr.warp.transform.output_bounds()

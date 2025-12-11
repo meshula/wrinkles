@@ -241,13 +241,19 @@ pub const CompositionItemHandle = union(enum) {
         defer presentation_to_intrinsic_topo.deinit(allocator);
 
         return switch (target_space) {
-            .media, .intrinsic => presentation_to_intrinsic_topo.output_bounds(),
-            .presentation => presentation_to_intrinsic_topo.input_bounds(),
+            .media, .intrinsic => (
+                presentation_to_intrinsic_topo.output_bounds()
+                orelse return error.InvalidTransformationNoBounds
+            ),
+            .presentation => (
+                presentation_to_intrinsic_topo.input_bounds()
+                orelse return error.InvalidTransformationNoBounds
+            ),
             else => error.UnsupportedSpaceError,
         };
     }
 
-    /// Fetches the `internal_spaces` field of the referenced object.  See
+    /// Fetches the `internal_spaces` field of the referenced item.  See
     /// `schema.Clip.internal_spaces` for example.  
     ///
     /// Note that this memory is static and does not need to be freed.

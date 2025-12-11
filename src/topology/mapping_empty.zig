@@ -82,7 +82,7 @@ pub const MappingEmpty = struct {
         self: @This(),
         _: std.mem.Allocator,
         target_range: opentime.ContinuousInterval,
-    ) !MappingEmpty
+    ) !?mapping_mod.Mapping
     {
         const maybe_new_range = (
             opentime.interval.intersect(
@@ -93,9 +93,11 @@ pub const MappingEmpty = struct {
         if (maybe_new_range)
             |new_range|
         {
-            return .{
-                .defined_range = new_range,
-            };
+            return (
+                MappingEmpty{
+                    .defined_range = new_range,
+                }
+            ).mapping();
         }
 
         return error.OutOfBounds;
@@ -106,9 +108,9 @@ pub const MappingEmpty = struct {
         self: @This(),
         _: std.mem.Allocator,
         _: opentime.ContinuousInterval,
-    ) !MappingEmpty
+    ) !?mapping_mod.Mapping
     {
-        return self;
+        return self.mapping();
     }
 
     ///
@@ -167,7 +169,7 @@ test "MappingEmpty: Bounds"
         }
     ).mapping();
 
-    const i_b = me.input_bounds();
+    const i_b = me.input_bounds().?;
     try opentime.expectOrdinateEqual(
         -2,
         i_b.start
@@ -178,7 +180,7 @@ test "MappingEmpty: Bounds"
     );
 
     // returns an infinite output bounds
-    const o_b = me.output_bounds();
+    const o_b = me.output_bounds().?;
     try opentime.expectOrdinateEqual(
         -2,
         o_b.start

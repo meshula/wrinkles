@@ -699,6 +699,7 @@ test "transform: track with two clips"
             .{
                 .input_bounds_val = .{
                     .start = opentime.Ordinate.init(8),
+                    .end = .INF,
                 },
                 .input_to_output_xform = .{
                     .offset = opentime.Ordinate.init(-8),
@@ -1196,7 +1197,10 @@ test "Single schema.Clip bezier transform"
     defer curve_topo.deinit(allocator);
 
     // test the input space range
-    const curve_bounds_input = curve_topo.input_bounds();
+    const curve_bounds_input = (
+        curve_topo.input_bounds()
+        orelse return error.ShouldHaveInputBounds
+    );
     try opentime.expectOrdinateEqual(
         0,
         curve_bounds_input.start,
