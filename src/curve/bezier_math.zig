@@ -254,7 +254,7 @@ pub fn _findU(
     {
         const _u3 = opentime.eval(
             "ONE - (x2 / (x2 - x1))",
-            .{ .ONE = opentime.Ordinate.ONE, .x2 = x2, .x1 = x1 }
+            .{ .ONE = opentime.Ordinate.one, .x2 = x2, .x1 = x1 }
         );
         const x3 = _bezier0(
             _u3,
@@ -269,7 +269,7 @@ pub fn _findU(
 
         if (x3.lt(0))
         {
-            if (opentime.Ordinate.ONE.sub(_u3).lteq(MAX_ABS_ERROR)) {
+            if (opentime.Ordinate.one.sub(_u3).lteq(MAX_ABS_ERROR)) {
                 if (x2.lt(x3.neg())) {
                     return 1.0;
                 }
@@ -277,7 +277,7 @@ pub fn _findU(
                 return _u3.as(U_TYPE);
             }
 
-            _u1 = opentime.Ordinate.ONE;
+            _u1 = opentime.Ordinate.one;
             x1 = x2;
         }
         else
@@ -370,7 +370,7 @@ fn first_valid_root(
     {
         if (
             opentime.Ordinate.zero.lteq(root.r) 
-            and root.r.lteq(opentime.Ordinate.ONE)
+            and root.r.lteq(opentime.Ordinate.one)
         )
         {
             return root;
@@ -430,13 +430,13 @@ pub fn actual_order(
         },
     );
 
-    if (opentime.lt(d.abs(), opentime.Ordinate.EPSILON))
+    if (opentime.lt(d.abs(), opentime.Ordinate.epsilon))
     {
         // not cubic
-        if (opentime.lt(a.abs(), opentime.Ordinate.EPSILON))
+        if (opentime.lt(a.abs(), opentime.Ordinate.epsilon))
         {
             // linear
-            if (opentime.lt(b.abs(), opentime.Ordinate.EPSILON))
+            if (opentime.lt(b.abs(), opentime.Ordinate.epsilon))
             {
                 return error.NoSolution;
             }
@@ -543,7 +543,7 @@ pub fn findU_dual3(
         opentime.Ordinate.init(0),
     );
 
-    const x = opentime.Dual_Ord.init_ri(x_ord, opentime.Ordinate.ONE);
+    const x = opentime.Dual_Ord.init_ri(x_ord, opentime.Ordinate.one);
     const p1 = opentime.Dual_Ord.init(p1_ord);
     const p2 = opentime.Dual_Ord.init(p2_ord);
     const p3 = opentime.Dual_Ord.init(p3_ord);
@@ -834,7 +834,7 @@ test "bezier_math: _bezier0 matches _bezier0_dual"
             try opentime.expectOrdinateEqual(
                 _bezier0(x, t1, t2, t3),
                 _bezier0_dual(
-                    .{ .r = x, .i = opentime.Ordinate.ONE},
+                    .{ .r = x, .i = opentime.Ordinate.one},
                     t1,
                     t2,
                     t3
@@ -978,7 +978,7 @@ test "bezier_math: dydx matches expected at endpoints"
         );
         
         const u_zero_dual = seg.eval_at_dual(
-            .{ .r = opentime.Ordinate.init(t.r), .i = opentime.Ordinate.ONE }
+            .{ .r = opentime.Ordinate.init(t.r), .i = opentime.Ordinate.one }
         );
         try opentime.expectOrdinateEqual(
             opentime.Ordinate.init(t.e_dydu),

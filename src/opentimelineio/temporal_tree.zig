@@ -28,7 +28,7 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
 
 const T_ORD_10 =  opentime.Ordinate.init(10);
 const T_CTI_1_10 = opentime.ContinuousInterval {
-    .start = .ONE,
+    .start = .one,
     .end = T_ORD_10,
 };
 
@@ -329,7 +329,7 @@ test "build_temporal_tree check root node"
 {
     const allocator = std.testing.allocator;
 
-    const start = opentime.Ordinate.ONE;
+    const start = opentime.Ordinate.one;
     const end = T_ORD_10;
     const cti = opentime.ContinuousInterval{
         .start = start,

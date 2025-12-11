@@ -54,7 +54,7 @@ pub fn project_instantaneous_cd(
                     .{ 
                         .ord = ord_continuous,
                         .rate = rate_hz_ord, 
-                        .ONE = sample_ordinate_t.ONE,
+                        .ONE = sample_ordinate_t.one,
                     },
                 ).as(f32)
             )
@@ -1373,8 +1373,8 @@ test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1kh
     var transform_curve_segments = [_]curve.Bezier.Segment{
         // identity
         curve.Bezier.Segment.init_identity(
-            opentime.Ordinate.init(0),
-            opentime.Ordinate.init(1.0)
+            .zero,
+            .one,
         ),
         // go up
         curve.Bezier.Segment.init_from_start_end(
@@ -1943,7 +1943,7 @@ test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(
 
     const ramp_signal = SignalGenerator{
         .frequency_hz = 1,
-        .duration_s = opentime.Ordinate.init(1),
+        .duration_s = .one,
         .signal = .ramp,
         .amplitude = 4,
     };

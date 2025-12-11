@@ -35,7 +35,7 @@ test "Dual: dual + float"
         .{
             .x = Dual_Ord{
                 .r = ordinate.Ordinate.init(3),
-                .i = ordinate.Ordinate.ONE, 
+                .i = ordinate.Ordinate.one, 
             },
             .three = Dual_Ord.init(3),
         }
@@ -257,7 +257,7 @@ pub fn DualOfStruct(
             .i = T.zero,
         };
         pub const ONE_ZERO = DualType{
-            .r = T.ONE,
+            .r = T.one,
             .i = T.zero,
         };
         pub const EPSILON = DualType {
@@ -624,7 +624,7 @@ test "Dual: Dual_Ord sqrt (3-4-5 triangle)"
 {
     const d = Dual_Ord{
         .r = ordinate.Ordinate.init(3*3 + 4*4),
-        .i = ordinate.Ordinate.ONE, 
+        .i = ordinate.Ordinate.one, 
     };
 
     try ordinate.expectOrdinateEqual(

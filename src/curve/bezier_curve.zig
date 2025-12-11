@@ -82,12 +82,12 @@ inline fn _is_between(
 {
     return (
         (
-         fst.lt(val.sub(opentime.Ordinate.EPSILON)) 
-         and val.lt(snd.sub(opentime.Ordinate.EPSILON))
+         fst.lt(val.sub(opentime.Ordinate.epsilon)) 
+         and val.lt(snd.sub(opentime.Ordinate.epsilon))
         )
         or (
-            fst.gt(val.add(opentime.Ordinate.EPSILON)) 
-            and val.gt(snd.add(opentime.Ordinate.EPSILON))
+            fst.gt(val.add(opentime.Ordinate.epsilon)) 
+            and val.gt(snd.add(opentime.Ordinate.epsilon))
         )
     );
 }
@@ -707,8 +707,8 @@ pub const Bezier = struct {
             const other_extents = segment_to_project.extents();
 
             return (
-                other_extents[0].out.gteq(my_extents[0].in.sub(opentime.Ordinate.EPSILON))
-                and other_extents[1].out.lt(my_extents[1].in.add(opentime.Ordinate.EPSILON))
+                other_extents[0].out.gteq(my_extents[0].in.sub(opentime.Ordinate.epsilon))
+                and other_extents[1].out.lt(my_extents[1].in.add(opentime.Ordinate.epsilon))
             );
         }
 
@@ -1030,10 +1030,10 @@ pub const Bezier = struct {
     ) ?usize 
     {
         const input_start = (
-            self.segments[0].p0.in.sub(opentime.Ordinate.EPSILON)
+            self.segments[0].p0.in.sub(opentime.Ordinate.epsilon)
         );
         const last_seg = self.segments[self.segments.len - 1];
-        const input_end = last_seg.p3.in.sub(opentime.Ordinate.EPSILON);
+        const input_end = last_seg.p3.in.sub(opentime.Ordinate.epsilon);
 
         // @TODO: should this be inclusive of the endpoint?
         if (
@@ -1054,8 +1054,8 @@ pub const Bezier = struct {
             |seg, index| 
         {
             if (
-                seg.p0.in.lteq(ord_input.add(opentime.Ordinate.EPSILON))
-                and ord_input.lteq(seg.p3.in.sub(opentime.Ordinate.EPSILON))
+                seg.p0.in.lteq(ord_input.add(opentime.Ordinate.epsilon))
+                and ord_input.lteq(seg.p3.in.sub(opentime.Ordinate.epsilon))
             ) 
             {
                 // exactly in a segment
@@ -1329,8 +1329,8 @@ pub const Bezier = struct {
             const other_seg_ext = other_segment.extents();
 
             if (
-                (other_seg_ext[0].out.lt(self_bounds[1].in.sub(opentime.Ordinate.EPSILON)))
-                and (other_seg_ext[1].out.gt(self_bounds[0].in.add(opentime.Ordinate.EPSILON)))
+                (other_seg_ext[0].out.lt(self_bounds[1].in.sub(opentime.Ordinate.epsilon)))
+                and (other_seg_ext[1].out.gt(self_bounds[0].in.add(opentime.Ordinate.epsilon)))
             )
             {
                 if (index != last_index+1) 
@@ -2686,7 +2686,7 @@ test "Bezier: project linear identity with linear 1/2 slope"
     try expectEqual(@as(usize, 2), result.segments.len);
 
     var i = result.extents_input().start.v;
-    while (i < result.extents_input().end.sub(opentime.Ordinate.EPSILON).v)
+    while (i < result.extents_input().end.sub(opentime.Ordinate.epsilon).v)
         : (i += 0.1)
     {
         errdefer std.debug.print("i: {d}\n", .{ i });

@@ -122,8 +122,8 @@ fn read_transform(
                         if (maybe_object_child(xform_json, "scale")) 
                             |scale_json| 
                         read_ordinate_from_rt(scale_json) 
-                        orelse .ONE
-                        else .ONE
+                        orelse .one
+                        else .one
                     ),
                 } 
                 else .identity

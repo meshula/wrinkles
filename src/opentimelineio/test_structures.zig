@@ -3,11 +3,11 @@ const opentime = @import("opentime");
 
 // TEST STRUCTS
 pub const T_INT_1_TO_9 = opentime.ContinuousInterval{
-    .start = .ONE,
+    .start = .one,
     .end = opentime.Ordinate.init(9),
 };
 pub const T_INT_1_TO_4 = opentime.ContinuousInterval{
-    .start = .ONE,
+    .start = .one,
     .end = opentime.Ordinate.init(4),
 };
 pub const T_INT_0_TO_2 = opentime.ContinuousInterval{

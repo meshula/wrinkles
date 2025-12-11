@@ -2103,7 +2103,7 @@ test "Topology: join affine with ident"
                 )
             ),
             .input_to_output_xform = .{
-                .offset = opentime.Ordinate.ONE,
+                .offset = opentime.Ordinate.one,
             },
         },
     );
@@ -2187,7 +2187,7 @@ test "Topology output_bounds are sorted after negative scale"
         try std.testing.expectEqual(
             opentime.ContinuousInterval{
                 .start = opentime.Ordinate.init(-7),
-                .end = .ONE,
+                .end = .one,
             }, 
             output_bounds,
         );
