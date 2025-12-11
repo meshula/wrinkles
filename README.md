@@ -240,6 +240,28 @@ didn't impact the deisgn or problems we were specifically solving.
   directly
 * [ ] integrate inside of raven
 
+## Serializer
+
+### OTIO v1 
+
+* .otio - json
+*   `- can have any kind of object as its top object
+* ^
+* .otioz 
+* .otiod 
+
+### Proposal for v2
+
+[]const schema.Timeline
+[]const CompositionItemHandle
+
+* .ottl + [a, b, z] -- top level of these files is only ever a list of timelines
+* .otco + [a, b, z] -- top level is a collection
+* suffixes:
+    * a: ascii
+    * b: binary
+    * z: zip bundle
+
 ## Todo List (8/23/24)
 
 * build new gui app
