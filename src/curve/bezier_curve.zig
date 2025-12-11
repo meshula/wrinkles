@@ -43,12 +43,16 @@ const std = @import("std");
 
 const opentime = @import("opentime");
 
+pub const hodographs = @import("spline_gym");
 pub const math = @import("bezier_math.zig");
+
 const linear_curve = @import("linear_curve.zig");
 const control_point = @import("control_point.zig");
-pub const hodographs = @import("spline_gym");
 
 const epsilon = @import("epsilon.zig").epsilon;
+
+/// Type of the `u` parameter of the Bezier curve, follows
+/// `opentime.Ordinate.InnerType`.
 pub const U_TYPE = opentime.Ordinate.InnerType;
 
 /// Returns true if val is between fst and snd regardless of whether fst or snd
