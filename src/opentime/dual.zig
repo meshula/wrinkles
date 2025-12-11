@@ -416,7 +416,7 @@ pub fn DualOfStruct(
                 .r = (
                     BaseType.init(
                         std.math.cos(
-                            self.r.as(ordinate.Ordinate.BaseType)
+                            self.r.as(ordinate.Ordinate.InnerType)
                         )
                     )
                 ),
@@ -424,7 +424,7 @@ pub fn DualOfStruct(
                     (self.i.neg()).mul(
                         BaseType.init(
                             std.math.sin(
-                                self.r.as(ordinate.Ordinate.BaseType)
+                                self.r.as(ordinate.Ordinate.InnerType)
                             )
                         )
                     )
@@ -651,8 +651,8 @@ test "Dual: binary operator test"
     // operations over 8 and 2
     const TestCase = struct {
         op: []const u8,
-        exp_r: ordinate.Ordinate.BaseType,
-        exp_i: ordinate.Ordinate.BaseType,
+        exp_r: ordinate.Ordinate.InnerType,
+        exp_i: ordinate.Ordinate.InnerType,
     };
     const tests = [_]TestCase{
         .{ .op = "add", .exp_r = 10, .exp_i = 1 },
@@ -698,8 +698,8 @@ test "Dual: unary operator test"
     // operations over 8 and 2
     const TestCase = struct {
         op: []const u8,
-        exp_r: ordinate.Ordinate.BaseType,
-        exp_i: ordinate.Ordinate.BaseType,
+        exp_r: ordinate.Ordinate.InnerType,
+        exp_i: ordinate.Ordinate.InnerType,
     };
     const tests = [_]TestCase{
         .{ .op = "neg", .exp_r = -16, .exp_i = -1 },
@@ -733,10 +733,10 @@ test "Dual: unary operator test"
 test "Dual: pow"
 { 
     const TestCase = struct{
-        x: ordinate.Ordinate.BaseType,
-        exp: ordinate.Ordinate.BaseType,
-        exp_r: ordinate.Ordinate.BaseType,
-        exp_i: ordinate.Ordinate.BaseType,
+        x: ordinate.Ordinate.InnerType,
+        exp: ordinate.Ordinate.InnerType,
+        exp_r: ordinate.Ordinate.InnerType,
+        exp_i: ordinate.Ordinate.InnerType,
     };
     const tests = [_]TestCase{
         .{

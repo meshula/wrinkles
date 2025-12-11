@@ -1066,8 +1066,8 @@ test "Projection: schema.Track 3 bounded clips identity xform"
 
     const TestData = struct {
         index: usize,
-        track_ord: opentime.Ordinate.BaseType,
-        expected_ord: opentime.Ordinate.BaseType,
+        track_ord: opentime.Ordinate.InnerType,
+        expected_ord: opentime.Ordinate.InnerType,
         err: bool
     };
 
@@ -1843,10 +1843,10 @@ test "Single clip, schema.Warp bulk"
 
     const TestCase = struct {
         label: []const u8,
-        presentation_range : [2]opentime.Ordinate.BaseType, 
-        warp_child_range : [2]opentime.Ordinate.BaseType,
-        presentation_test : opentime.Ordinate.BaseType,
-        clip_media_test : opentime.Ordinate.BaseType,
+        presentation_range : [2]opentime.Ordinate.InnerType, 
+        warp_child_range : [2]opentime.Ordinate.InnerType,
+        presentation_test : opentime.Ordinate.InnerType,
+        clip_media_test : opentime.Ordinate.InnerType,
         project_to_finite: bool = true,
     };
 
@@ -2175,13 +2175,13 @@ test "ReferenceTopology: init_from_reference"
             usize,
             @intFromFloat(
                 @as(
-                    opentime.Ordinate.BaseType,
+                    opentime.Ordinate.InnerType,
                     @floatFromInt(tl.discrete_space_partitions.presentation.picture.?.start_index)
                 )
                 + (
                     interval.end.v 
                     * @as(
-                        opentime.Ordinate.BaseType,
+                        opentime.Ordinate.InnerType,
                         @floatFromInt(tl.discrete_space_partitions.presentation.picture.?.sample_rate_hz.Int)
                     )
                 )

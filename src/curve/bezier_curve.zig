@@ -49,7 +49,7 @@ const linear_curve = @import("linear_curve.zig");
 const control_point = @import("control_point.zig");
 const string_stuff = @import("string_stuff");
 
-pub const U_TYPE = opentime.Ordinate.BaseType;
+pub const U_TYPE = opentime.Ordinate.InnerType;
 
 // hodographs c-library
 pub const hodographs = @import("spline_gym");
@@ -343,7 +343,7 @@ test "segment: output_at_input and findU test over linear curve"
         control_point.ControlPoint.init(.{.in = 3, .out = 3}),
     );
 
-    inline for ([_]opentime.Ordinate.BaseType{2.1, 2.2, 2.3, 2.5, 2.7}) 
+    inline for ([_]opentime.Ordinate.InnerType{2.1, 2.2, 2.3, 2.5, 2.7}) 
                |coord| 
     {
         try opentime.expectOrdinateEqual(
@@ -362,7 +362,7 @@ test "segment: dual_eval_at over linear curve"
             opentime.Ordinate.init(1),
         );
 
-        inline for ([_]opentime.Ordinate.BaseType{0.2, 0.4, 0.5, 0.98}) 
+        inline for ([_]opentime.Ordinate.InnerType{0.2, 0.4, 0.5, 0.98}) 
             |coord| 
         {
             const result = seg.eval_at_dual(
@@ -2066,11 +2066,11 @@ pub const Bezier = struct {
             //-----------------------------------------------------------------
             // compute splits
             //-----------------------------------------------------------------
-            var splits:[3]opentime.Ordinate.BaseType = .{ 1,1,1 };
+            var splits:[3]opentime.Ordinate.InnerType = .{ 1,1,1 };
 
             var split_count:usize = 0;
 
-            const possible_splits:[3]opentime.Ordinate.BaseType = .{
+            const possible_splits:[3]opentime.Ordinate.InnerType = .{
                 roots.x,
                 roots.y,
                 inflections.x,
@@ -2104,10 +2104,10 @@ pub const Bezier = struct {
             }
 
             std.mem.sort(
-                opentime.Ordinate.BaseType,
+                opentime.Ordinate.InnerType,
                 &splits,
                 {},
-                std.sort.asc(opentime.Ordinate.BaseType),
+                std.sort.asc(opentime.Ordinate.InnerType),
             );
 
             var current_seg = seg;
@@ -2865,9 +2865,9 @@ test "Bezier: split_at_each_value u curve"
         {
             if (
                 std.math.approxEqAbs(
-                    opentime.Ordinate.BaseType,
-                    sp_p.as(opentime.Ordinate.BaseType),
-                    pt.out.as(opentime.Ordinate.BaseType),
+                    opentime.Ordinate.InnerType,
+                    sp_p.as(opentime.Ordinate.InnerType),
+                    pt.out.as(opentime.Ordinate.InnerType),
                     0.00001
                 )
             ) 
@@ -2937,9 +2937,9 @@ test "Bezier: split_at_each_value linear"
         {
             if (
                 std.math.approxEqAbs(
-                    opentime.Ordinate.BaseType,
-                    sp_p.as(opentime.Ordinate.BaseType),
-                    pt.as(opentime.Ordinate.BaseType),
+                    opentime.Ordinate.InnerType,
+                    sp_p.as(opentime.Ordinate.InnerType),
+                    pt.as(opentime.Ordinate.InnerType),
                     0.00001,
                 )
             )
@@ -3010,9 +3010,9 @@ test "Bezier: split_at_each_input_ordinate linear"
         {
             if (
                 std.math.approxEqAbs(
-                    opentime.Ordinate.BaseType,
-                    sp_p.as(opentime.Ordinate.BaseType),
-                    pt.as(opentime.Ordinate.BaseType),
+                    opentime.Ordinate.InnerType,
+                    sp_p.as(opentime.Ordinate.InnerType),
+                    pt.as(opentime.Ordinate.InnerType),
                     0.00001,
                 )
             ) 
@@ -3050,11 +3050,11 @@ test "Bezier: split_at_input_ordinate"
         |ident, loop| 
     {
         const extents = ident.extents();
-        var split_loc:opentime.Ordinate.BaseType = (
-            extents[0].in.as(opentime.Ordinate.BaseType) + 1
+        var split_loc:opentime.Ordinate.InnerType = (
+            extents[0].in.as(opentime.Ordinate.InnerType) + 1
         );
 
-        while (split_loc < extents[1].in.as(opentime.Ordinate.BaseType)) 
+        while (split_loc < extents[1].in.as(opentime.Ordinate.InnerType)) 
             : (split_loc += 1) 
         {
             errdefer std.log.err(
@@ -3775,7 +3775,7 @@ pub const tpa_result = struct {
     v2: ?control_point.ControlPoint = null,
     C1: ?control_point.ControlPoint = null,
     C2: ?control_point.ControlPoint = null,
-    t: ?opentime.Ordinate.BaseType = null,
+    t: ?opentime.Ordinate.InnerType = null,
 };
 
 pub fn three_point_guts_plot(

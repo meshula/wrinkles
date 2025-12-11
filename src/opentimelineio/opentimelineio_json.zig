@@ -300,7 +300,7 @@ fn read_schema(
 
 pub fn read_float(
     obj:std.json.Value
-) opentime.Ordinate.BaseType 
+) opentime.Ordinate.InnerType 
 {
     return switch (obj) {
         .integer => |i| @floatFromInt(i),

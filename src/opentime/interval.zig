@@ -12,12 +12,13 @@ pub const ContinuousInterval = struct {
     /// the end ordinate of the interval, exclusive
     end: ordinate.Ordinate,
 
+    /// [0, +inf)
     pub const zero_to_inf_pos: ContinuousInterval = .{
         .start = .zero,
         .end = .inf,
     };
 
-    /// An infinite interval
+    /// [-inf, +inf)
     pub const inf_neg_to_pos : ContinuousInterval = .{
         .start = ordinate.Ordinate.inf_neg, 
         .end = ordinate.Ordinate.inf,
@@ -115,8 +116,8 @@ pub const ContinuousInterval = struct {
 };
 
 pub const ContinuousInterval_BaseType = struct {
-    start : ordinate.Ordinate.BaseType,
-    end : ordinate.Ordinate.BaseType,
+    start : ordinate.Ordinate.InnerType,
+    end : ordinate.Ordinate.InnerType,
 };
 
 test "ContinuousInterval: is_infinite"
