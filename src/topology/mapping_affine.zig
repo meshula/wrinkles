@@ -7,10 +7,10 @@ const mapping_mod = @import("mapping.zig");
 
 /// An affine mapping from intput to output
 pub const MappingAffine = struct {
-    /// defaults to an infinite identity
     input_bounds_val: opentime.ContinuousInterval,
     input_to_output_xform: opentime.AffineTransform1D, 
 
+    /// An infinite identity mapping.
     pub const identity_infinite: MappingAffine = .{
         .input_bounds_val= .inf_neg_to_pos,
         .input_to_output_xform= .identity, 
@@ -207,7 +207,7 @@ pub const MappingAffine = struct {
         input_points: []const opentime.Ordinate,
     ) ![]const mapping_mod.Mapping
     {
-        var result_mappings: std.ArrayList(mapping_mod.Mapping) = .{};
+        var result_mappings: std.ArrayList(mapping_mod.Mapping) = .empty;
         defer result_mappings.deinit(allocator);
 
         var maybe_first_pt: ?usize = null;
@@ -278,7 +278,9 @@ test "MappingAffine: instantiate (identity)"
 
     try opentime.expectOrdinateEqual(
         12, 
-        ma.project_instantaneous_cc(opentime.Ordinate.init(12)).ordinate(),
+        ma.project_instantaneous_cc(
+            opentime.Ordinate.init(12)
+        ).ordinate(),
     );
 }
 
@@ -286,18 +288,20 @@ test "MappingAffine: non-identity"
 {
     const ma = (
         MappingAffine{
-            .input_bounds_val = opentime.ContinuousInterval.init(
+            .input_bounds_val = .init(
                 .{ .start = 3, .end = 6, }
             ),
             .input_to_output_xform = .{
-                .offset = opentime.Ordinate.init(2),
-                .scale = opentime.Ordinate.init(4),
+                .offset = .init(2),
+                .scale = .init(4),
             },
         }
     ).mapping();
 
    try opentime.expectOrdinateEqual(
        14,
-       ma.project_instantaneous_cc(opentime.Ordinate.init(3)).ordinate(),
+       ma.project_instantaneous_cc(
+           opentime.Ordinate.init(3)
+        ).ordinate(),
     );
 }

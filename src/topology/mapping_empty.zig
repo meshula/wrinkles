@@ -5,9 +5,9 @@ const std = @import("std");
 const opentime = @import("opentime");
 const mapping_mod = @import("mapping.zig");
 
-/// Regardless what the input ordinate is, there is no value mapped to it
+/// Regardless what the input ordinate is, there is no value mapped to it.
 pub const MappingEmpty = struct {
-    /// represents the input range (and effective output range) of the mapping
+    /// The input range (and effective output range) of the mapping.
     defined_range: opentime.ContinuousInterval,
 
     pub const empty_infinite = MappingEmpty{
@@ -163,8 +163,8 @@ test "MappingEmpty: Bounds"
     const me = (
         MappingEmpty{
             .defined_range = .{
-                .start = opentime.Ordinate.init(-2),
-                .end = opentime.Ordinate.init(2),
+                .start = .init(-2),
+                .end = .init(2),
             },
         }
     ).mapping();

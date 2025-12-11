@@ -8,17 +8,23 @@ const interval_m = @import("interval.zig");
 /// Contains the result of a projection, which can be an instant (single
 /// ordinate), a range (continuous interval) or an out of bounds result.
 pub const ProjectionResult = union (enum) {
+    /// The projection resulted in an ordinate.
     success_ordinate: ordinate_m.Ordinate,
+
+    /// The projection resulted in an interval..
     success_interval: interval_m.ContinuousInterval,
+
+    /// There was no projection because a point was out of bounds.
     out_of_bounds: void,
 
+    /// Errors that can be returned from Projections
     pub const Errors = struct {
         pub const NotAnOrdinateResult = error.NotAnOrdinateResult;
         pub const NotAnIntervalResult = error.NotAnIntervalResult;
         pub const OutOfBounds = error.OutOfBounds;
     };
 
-    /// fetch the finite result or return an error if it is not a finite sucess
+    /// Fetch the finite result or return an error if it is not a finite sucess.
     pub fn ordinate(
         self: @This(),
     ) !ordinate_m.Ordinate
@@ -30,7 +36,7 @@ pub const ProjectionResult = union (enum) {
         }
     }
 
-    /// fetch a range result or return an error if the result isn't a range
+    /// Fetch a range result or return an error if the result isn't a range.
     pub fn interval(
         self: @This(),
     ) !interval_m.ContinuousInterval
@@ -42,6 +48,7 @@ pub const ProjectionResult = union (enum) {
         }
     }
 
+    /// Formatter function for `std.Io.Writer`.
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
