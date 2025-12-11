@@ -251,14 +251,16 @@ fn read_transform(
 
             const result = try topology.Topology.init_bezier(
                 allocator,
-                &.{
-                    .{
-                        .p0 = buffer.items[0],
-                        .p1 = buffer.items[1],
-                        .p2 = buffer.items[2],
-                        .p3 = buffer.items[3],
-                    }
-                },
+                .{
+                    .segments = &.{
+                        .{
+                            .p0 = buffer.items[0],
+                            .p1 = buffer.items[1],
+                            .p2 = buffer.items[2],
+                            .p3 = buffer.items[3],
+                        }
+                    },
+                }
             );
 
             return result;

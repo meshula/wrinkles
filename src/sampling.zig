@@ -1402,7 +1402,7 @@ test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1kh
 
     const input_to_output_cc = try topology.Topology.init_bezier(
         allocator,
-        transform_curve.segments,
+        transform_curve,
     );
     defer input_to_output_cc.deinit(allocator);
 
@@ -1514,7 +1514,7 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
 
     const input_to_output_cc = try topology.Topology.init_bezier(
         allocator,
-        cubic_transform_curve.segments,
+        cubic_transform_curve,
     );
     defer input_to_output_cc.deinit(allocator);
 

@@ -316,15 +316,15 @@ pub fn main(
     );
     defer fst_crv.deinit(allocator);
 
-    const identSeg = curve.Bezier.Segment.init_identity(
-        opentime.Ordinate.init(-3),
-        opentime.Ordinate.init(3),
-    ) ;
-    const snd_crv = try curve.Bezier.init(
-        allocator,
-        &.{identSeg}
-    );
-    defer snd_crv.deinit(allocator);
+    var segments = [_]curve.Bezier.Segment{
+        .init_identity(
+            opentime.Ordinate.init(-3),
+            opentime.Ordinate.init(3),
+        ) 
+    };
+    const snd_crv = curve.Bezier{
+        .segments = &segments,
+    };
     const snd_name:[:0]const u8 ="linear [-0.2, 1)" ;
 
     TMPCURVES = projTmpTest{
@@ -636,12 +636,17 @@ fn plot_editable_bezier_curve(
         std.hash.autoHash(&hasher, char);
     }
 
-    for (crv.segments, 0..) 
-        |*seg, seg_ind| 
+    const new_segments = try allocator.alloc(
+        curve.Bezier.Segment,
+        crv.segments.len,
+    );
+
+    for (crv.segments, new_segments, 0..) 
+        |src_seg, *dst_seg, seg_ind| 
     {
         std.hash.autoHash(&hasher, seg_ind);
 
-        var in_pts = seg.points();
+        var in_pts = src_seg.points();
         var times: [4]f64 = .{ 
             in_pts[0].in.as(f64),
             in_pts[1].in.as(f64),
@@ -675,8 +680,11 @@ fn plot_editable_bezier_curve(
             };
         }
 
-        seg.set_points(in_pts);
+        dst_seg.set_points(in_pts);
     }
+
+    allocator.free(crv.segments);
+    crv.segments = new_segments;
 
     try plot_bezier_curve(crv.*, name, .{}, allocator);
 }
@@ -1397,10 +1405,9 @@ fn plot_three_point_approx(
             );
         }
 
-        const approx_crv = try curve.Bezier.init(
-            allocator,
-            approx_segments.items,
-        );
+        const approx_crv = curve.Bezier{
+            .segments = try approx_segments.toOwnedSlice(allocator),
+        };
 
         try plot_bezier_curve(
             approx_crv,
@@ -1686,187 +1693,6 @@ fn update_with_error(
                     //
                     const self_hodograph = try self.split_on_critical_points(ALLOCATOR);
                     defer self_hodograph.deinit(ALLOCATOR);
-
-                    const other_hodograph = try other.split_on_critical_points(ALLOCATOR);
-                    defer other_hodograph.deinit(ALLOCATOR);
-                    //
-                    const other_bounds = other.extents();
-                    var other_copy = try curve.Bezier.init(
-                        ALLOCATOR,
-                        other_hodograph.segments,
-                    );
-
-                    {
-                        var split_points: std.ArrayList(opentime.Ordinate) = .{};
-                        defer split_points.deinit(ALLOCATOR);
-
-                        // find all knots in self that are within the other bounds
-                        const endpoints = try self_hodograph.segment_endpoints(
-                            ALLOCATOR
-                        );
-                        defer ALLOCATOR.free(endpoints);
-
-                        for (endpoints)
-                            |self_knot| 
-                        {
-                            if (
-                                _is_between(
-                                    self_knot.in.as(f32),
-                                    other_bounds[0].out.as(f32),
-                                    other_bounds[1].out.as(f32)
-                                )
-                            ) {
-                                try split_points.append(
-                                    ALLOCATOR,
-                                    self_knot.in,
-                                );
-                            }
-
-                        }
-
-                        var result = try other_copy.split_at_each_output_ordinate(
-                            ALLOCATOR,
-                            split_points.items,
-                        );
-                        const tmp = other_copy;
-                        other_copy = try curve.Bezier.init(
-                            ALLOCATOR,
-                            result.segments,
-                        );
-                        tmp.deinit(ALLOCATOR);
-                        result.deinit(ALLOCATOR);
-                    }
-
-                     defer other_copy.deinit(ALLOCATOR);
-
-                     const result_guts = try self_hodograph.project_curve_guts(
-                         ALLOCATOR,
-                         other_hodograph,
-                     );
-                     defer result_guts.deinit();
-
-                     try plot_bezier_curve(
-                         result_guts.self_split.?,
-                         "self_split",
-                         STATE.show_projection_result_guts.self_split,
-                         ALLOCATOR
-                     );
-
-                     zgui.text("Segments to project through indices: ", .{});
-                     for (result_guts.segments_to_project_through.?) 
-                     |ind| 
-                     {
-                         zgui.text("{d}", .{ ind });
-                     }
-
-                     try plot_bezier_curve(
-                         result_guts.other_split.?,
-                         "other_split",
-                         STATE.show_projection_result_guts.other_split,
-                         ALLOCATOR
-                     );
-
-                     var buf:[1024:0]u8 = undefined;
-                     @memset(&buf, 0);
-                     {
-                         const result_name = try std.fmt.bufPrintZ(
-                             &buf,
-                             "result of projection{s}",
-                             .{
-                                 if (result_guts.result.?.segments.len > 0) "" 
-                                 else " [NO SEGMENTS/EMPTY]",
-                             }
-                         );
-
-                         try plot_bezier_curve(
-                             result_guts.result.?,
-                             result_name,
-                             STATE.show_projection_result_guts.tpa_flags.result_curves,
-                             ALLOCATOR
-                         );
-                     }
-
-                     {
-                         try plot_bezier_curve(
-                             result_guts.to_project.?,
-                             "Segments of Other that will be projected",
-                             STATE.show_projection_result_guts.to_project,
-                             ALLOCATOR
-                         );
-                     }
-
-                     {
-                         for (result_guts.tpa.?, 0..) 
-                             |tpa, ind| 
-                         {
-                             const label = try std.fmt.bufPrintZ(
-                                 &buf,
-                                 "Three Point Approx Projected.segments[{d}]",
-                                 .{ind }
-                             );
-                             try plot_tpa_guts(
-                                 tpa,
-                                 label,
-                                 STATE.show_projection_result_guts.tpa_flags,
-                                 ALLOCATOR,
-                             );
-
-                         }
-                     }
-
-                     const derivs = .{
-                         "f_prime_of_g_of_t",
-                         "g_prime_of_t",
-                         "midpoint_derivatives",
-                     };
-
-                     // midpoint derivatives
-                     inline for (derivs) 
-                         |d_name| 
-                     {
-                         if (@field(STATE, d_name))
-                         {
-                             for (@field(result_guts, d_name).?, 0..) 
-                                 |d, ind|
-                             {
-                                 const midpoint = result_guts.tpa.?[ind].midpoint.?;
-                                 const p1 = midpoint.add(d);
-                                 const p2 = midpoint.sub(d);
-
-                                 const xv = &.{
-                                     p1.in.as(f32),
-                                     midpoint.in.as(f32),
-                                     p2.in.as(f32) 
-                                 };
-                                 const yv = &.{
-                                     p1.out.as(f32),
-                                     midpoint.out.as(f32),
-                                     p2.out.as(f32) 
-                                 };
-
-                                 zgui.plot.plotLine(
-                                     d_name,
-                                     f32,
-                                     .{ .xv = xv, .yv = yv }
-                                 );
-                                 {
-                                     const label = try std.fmt.bufPrintZ(
-                                         &buf,
-                                         "d/dt: ({d:0.6}, {d:0.6})",
-                                         .{d.in, d.out},
-                                     );
-                                     zgui.plot.plotText(
-                                         label,
-                                         .{ 
-                                             .x = p1.in.as(f32), 
-                                             .y = p1.out.as(f32), 
-                                             .pix_offset = .{ 0, 16 } 
-                                         },
-                                     );
-                                 }
-                             }
-                         }
-                     }
                 }
 
                 zgui.plot.endPlot();
