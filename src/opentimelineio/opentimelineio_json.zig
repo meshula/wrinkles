@@ -1,3 +1,8 @@
+//! First-pass JSON parser that reads "appoximately" OTIO V1.
+//!
+//! Omits support for Effects, Transitions since that format has diverged.
+//! Infers discrete partitions.
+
 const std = @import("std");
 const expectEqual = std.testing.expectEqual;
 
@@ -9,7 +14,7 @@ const string = @import("string_stuff");
 const topology = @import("topology");
 const sampling = @import("sampling");
 
-pub const SerializableObjectTypes = enum {
+const SerializableObjectTypes = enum {
     Timeline,
     Stack,
     Track,
@@ -19,7 +24,7 @@ pub const SerializableObjectTypes = enum {
     Transition,
 };
 
-pub const TransformTypes = enum {
+const TransformTypes = enum {
     AffineTransform1D,
     LinearCurve1D,
     BezierCurve1D,
@@ -298,7 +303,7 @@ fn read_schema(
     return maybe_schema_enum.?;
 }
 
-pub fn read_float(
+fn read_float(
     obj:std.json.Value
 ) opentime.Ordinate.InnerType 
 {
@@ -309,7 +314,7 @@ pub fn read_float(
     };
 }
 
-pub fn read_ordinate(
+fn read_ordinate(
     obj:std.json.Value
 ) opentime.Ordinate 
 {
@@ -319,7 +324,7 @@ pub fn read_ordinate(
     };
 }
 
-pub fn read_ordinate_from_rt(
+fn read_ordinate_from_rt(
     obj:?std.json.ObjectMap
 ) ?opentime.Ordinate 
 {
@@ -355,7 +360,7 @@ fn read_rate(
     return null;
 }
 
-pub fn read_time_range(
+fn read_time_range(
     maybe_obj:?std.json.ObjectMap
 ) ?interval.ContinuousInterval 
 {
@@ -379,7 +384,7 @@ pub fn read_time_range(
     }
 }
 
-pub fn _read_range(
+fn _read_range(
     maybe_obj: ?std.json.ObjectMap
 ) ?interval.ContinuousInterval
 {
@@ -420,7 +425,7 @@ pub fn _read_range(
     return null;
 }
 
-pub fn _read_rate(
+fn _read_rate(
     maybe_obj: ?std.json.ObjectMap
 ) ?u32
 {
@@ -559,7 +564,7 @@ inline fn read_children(
     return new_children;
 }
 
-pub fn read_otio_object(
+fn read_otio_object(
     allocator: std.mem.Allocator,
     obj:std.json.ObjectMap
 ) error{
@@ -780,10 +785,11 @@ pub fn read_otio_object(
     return error.NotImplemented;
 }
 
-/// deserialize OTIO json to the in-memory structure
+/// Deserialize the OTIO v1 JSON file at `file_path` to the in-memory wrinkles
+/// format.
 pub fn read_from_file(
     in_allocator: std.mem.Allocator,
-    file_path: string.latin_s8
+    file_path: string.latin_s8,
 ) !otio.CompositionItemHandle
 {
     const fi = try std.fs.cwd().openFile(file_path, .{});
@@ -815,8 +821,6 @@ pub fn read_from_file(
     }
 
     return hopefully_timeline;
-
-    // return error.NotImplemented;
 }
 
 test "read_from_file test (simple)" 
@@ -862,7 +866,7 @@ test "read_from_file test (simple)"
     const tl_output_to_clip_media = (
         try tl_pres_projection_builder.projection_operator_to(
             allocator,
-            target_clip_ptr.space(otio.SpaceLabel.media),
+            target_clip_ptr.space(.media),
         )
     );
     
