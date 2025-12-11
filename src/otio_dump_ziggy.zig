@@ -160,7 +160,7 @@ pub fn main(
     var out: std.Io.Writer.Allocating = .init(allocator);
     defer out.deinit();
 
-    var file = try std.fs.createFileAbsolute(
+    var file = try std.fs.cwd().createFile(
         state.output_ziggy,
         .{},
     );

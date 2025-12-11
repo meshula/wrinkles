@@ -1137,7 +1137,6 @@ test "ziggy schemas"
         ),
         .media = .{
             .domain = .picture,
-
             .maybe_bounds_s = opentime.ContinuousInterval.init(
                 .{ .start = 0, .end = 18 }
             ),
@@ -1145,7 +1144,6 @@ test "ziggy schemas"
                 .sample_rate_hz = .{ .Int = 24 },
                 .start_index = 0,
             },
-
             .data_reference = .{
                 .uri = .{
                     .target_uri = "pasta.wav", 
