@@ -210,7 +210,7 @@ pub const ProjectionOperator = struct {
         };
         var index_buffer_destination_discrete: std.ArrayList(
             sampling.sample_index_t
-        ) = .{};
+        ) = .empty;
         defer index_buffer_destination_discrete.deinit(allocator);
 
         const in_c_bounds = (
