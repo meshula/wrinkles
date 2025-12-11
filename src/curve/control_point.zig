@@ -16,37 +16,37 @@ const std = @import("std");
 
 const opentime = @import("opentime");
 
-/// A control point maps a single instantaneous input ordinate to a single
-/// instantaneous output ordinate.
+/// A control point maps a single input `inner_type` to a single output
+/// `inner_type`.
 pub fn ControlPointOf(
-    comptime t: type,
-    default_in: t,
-    default_out: t,
+    comptime inner_type: type,
 ) type
 {
     return struct {
         /// input ordinate
-        in: t = default_in,
+        in: inner_type,
+
         /// output ordinate
-        out: t = default_out,
+        out: inner_type,
 
-        /// internal type aliases
-        pub const OrdinateType = t;
-        pub const ControlPointType = ControlPointOf(
-            t,
-            default_in,
-            default_out,
-        );
+        /// Inner type of the ControlPoint.
+        pub const OrdinateType = inner_type;
 
+        /// Type alias for `@This()`.
+        pub const ControlPointType = @This();
+
+        /// (0, 0)
         pub const zero = ControlPointType.init(
             .{ .in = 0, .out = 0 }
         );
+
+        /// (1, 1)
         pub const one = ControlPointType.init(
             .{ .in = 1, .out = 1 }
         );
 
         pub inline fn init(
-            from: ControlPoint_BaseType,
+            from: ControlPoint_InnerType,
         ) ControlPointType
         {
             return .{ 
@@ -242,18 +242,19 @@ pub fn ControlPointOf(
     };
 }
 
-/// Define base ControlPoint type over the ordinate from opentime
+/// Define base ControlPoint type over the ordinate from opentime.
 pub const ControlPoint = ControlPointOf(
     opentime.Ordinate,
-    opentime.Ordinate.zero,
-    opentime.Ordinate.zero,
 );
-pub const ControlPoint_BaseType = ControlPointOf(
-    opentime.Ordinate.InnerType, 
-    0,
-    0,
-);
+
+/// A Dual over `ControlPoint`.
 pub const Dual_CP = opentime.dual.DualOf(ControlPoint);
+
+/// A convienence type for building ControlPoints from the
+/// `ordinate.Ordinate.InnerType`.
+pub const ControlPoint_InnerType = ControlPointOf(
+    opentime.Ordinate.InnerType, 
+);
 
 /// check equality between two control points
 pub fn expectControlPointEqual(

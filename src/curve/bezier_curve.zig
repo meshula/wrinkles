@@ -454,10 +454,10 @@ pub const Bezier = struct {
 
         pub fn init_f32(
             in_seg : struct{
-                p0: control_point.ControlPoint_BaseType,
-                p1: control_point.ControlPoint_BaseType,
-                p2: control_point.ControlPoint_BaseType,
-                p3: control_point.ControlPoint_BaseType,
+                p0: control_point.ControlPoint_InnerType,
+                p1: control_point.ControlPoint_InnerType,
+                p2: control_point.ControlPoint_InnerType,
+                p3: control_point.ControlPoint_InnerType,
             },
         ) Segment
         {
@@ -2189,7 +2189,7 @@ pub fn read_curve_json(
 }
 
 const BezierF = struct {
-    const ControlPointType = control_point.ControlPoint_BaseType;
+    const ControlPointType = control_point.ControlPoint_InnerType;
     const Segment = struct {
         p0 : ControlPointType,
         p1 : ControlPointType,

@@ -8,7 +8,7 @@ const opentime = @import("opentime");
 const bezier_curve = @import("bezier_curve.zig");
 const bezier_math = @import("bezier_math.zig");
 const ControlPoint = @import("control_point.zig").ControlPoint;
-const ControlPoint_BaseType = @import("control_point.zig").ControlPoint_BaseType;
+const ControlPoint_BaseType = @import("control_point.zig").ControlPoint_InnerType;
 
 /// A polyline that is linearly interpolated between knots
 pub fn LinearOf(
