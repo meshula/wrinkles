@@ -9,26 +9,24 @@
 //! Also includes simple serializers for working with test data on disk.
 
 pub const bezier = @import("bezier_curve.zig");
-pub const linear = @import("linear_curve.zig");
-
-const bezier_math = @import("bezier_math.zig");
-const control_point = @import("control_point.zig");
-const test_segment_projection = @import("test_segment_projection.zig");
-
 pub const Bezier = bezier.Bezier;
-pub const Linear = linear.Linear;
-pub const ControlPoint = control_point.ControlPoint;
-
 pub const read_curve_json = bezier.read_curve_json;
 pub const read_bezier_curve_data = bezier.read_bezier_curve_data;
+
+pub const linear = @import("linear_curve.zig");
+pub const Linear = linear.Linear;
 pub const join = linear.join;
 
+const control_point = @import("control_point.zig");
+pub const ControlPoint = control_point.ControlPoint;
+
+// Imported so that the hyperlink in the document functions (autodoc).
 const opentime = @import("opentime");
 
 test {
-    _ = bezier_math;
     _ = linear;
     _ = bezier;
     _ = control_point;
-    _ = test_segment_projection;
+    _ = @import("test_segment_projection.zig");
+    _ = @import("bezier_math.zig");
 }

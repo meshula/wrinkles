@@ -5,7 +5,7 @@ const std = @import("std");
 const control_point = @import("control_point.zig");
 const bezier_curve = @import("bezier_curve.zig");
 const linear_curve = @import("linear_curve.zig");
-const generic_curve = @import("generic_curve.zig");
+const epsilon = @import("epsilon.zig").epsilon;
 const opentime = @import("opentime");
 
 const U_TYPE = bezier_curve.U_TYPE;

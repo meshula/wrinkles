@@ -44,7 +44,7 @@ const std = @import("std");
 const opentime = @import("opentime");
 
 pub const math = @import("bezier_math.zig");
-const generic_curve = @import("generic_curve.zig");
+const epsilon = @import("epsilon.zig").epsilon;
 const linear_curve = @import("linear_curve.zig");
 const control_point = @import("control_point.zig");
 pub const hodographs = @import("spline_gym");
@@ -642,7 +642,7 @@ pub const Bezier = struct {
             unorm:U_TYPE,
         ) ?[2]Segment 
         {
-            if (unorm < generic_curve.EPSILON or unorm >= 1)
+            if (unorm < epsilon or unorm >= 1)
             {
                 return null;
             }
@@ -1666,7 +1666,7 @@ pub const Bezier = struct {
                     {
                         if (
                             opentime.abs(splits[s_i] - possible_split) 
-                            < generic_curve.EPSILON
+                            < epsilon
                         ) {
                             duplicate = true;
                             break;
