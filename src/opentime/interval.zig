@@ -4,14 +4,13 @@ const std = @import("std");
 
 const ordinate = @import("ordinate.zig"); 
 
-/// Right open interval in a continuous metric space.  Default interval starts
-/// at 0 and has no end.
+/// Right open interval in a continuous metric space.
 pub const ContinuousInterval = struct {
     /// the start ordinate of the interval, inclusive
-    start: ordinate.Ordinate = ordinate.Ordinate.zero,
+    start: ordinate.Ordinate,
 
     /// the end ordinate of the interval, exclusive
-    end: ordinate.Ordinate = ordinate.Ordinate.INF,
+    end: ordinate.Ordinate,
 
     pub const ZERO_TO_INF: ContinuousInterval = .{
         .start = .zero,
@@ -22,11 +21,6 @@ pub const ContinuousInterval = struct {
     pub const inf_neg_to_pos : ContinuousInterval = .{
         .start = ordinate.Ordinate.INF_NEG, 
         .end = ordinate.Ordinate.INF,
-    };
-
-    pub const ZERO : ContinuousInterval = .{
-        .start = ordinate.Ordinate.zero,
-        .end = ordinate.Ordinate.zero,
     };
 
     pub fn init(
@@ -127,17 +121,26 @@ pub const ContinuousInterval_BaseType = struct {
 
 test "ContinuousInterval: is_infinite"
 {
-    var cti = ContinuousInterval{};
-
+    var cti: ContinuousInterval = .ZERO_TO_INF;
     try std.testing.expectEqual(true, cti.is_infinite());
 
+    // assign a finite end point
     cti.end = ordinate.Ordinate.init(2);
-
     try std.testing.expectEqual(false, cti.is_infinite());
 
-    cti.start = ordinate.Ordinate.INF;
-
+    // assign another infinite end point
+    cti.start = .INF_NEG;
     try std.testing.expectEqual(true, cti.is_infinite());
+
+    // assign a finite end point and an infinite start point
+    cti.start = .zero;
+    cti.end = ordinate.Ordinate.init(2);
+    try std.testing.expectEqual(false, cti.is_infinite());
+
+    // assign a finite end point and an infinite start point
+    cti.start = .NAN;
+    cti.end = .ONE;
+    try std.testing.expectEqual(false, cti.is_infinite());
 }
 
 /// return a new interval that spans the duration of both argument intervals
@@ -296,7 +299,8 @@ pub fn intersect(
     };
 }
 
-test "intersection test - contained" {
+test "intersection test - contained" 
+{
     const int1 = ContinuousInterval.init(
         .{ .start = 0, .end = 10 },
     );
@@ -306,7 +310,7 @@ test "intersection test - contained" {
     const res = intersect(
         int1, 
         int2
-    ) orelse ContinuousInterval{};
+    ) orelse return error.ShouldIntersect;
 
     try ordinate.expectOrdinateEqual(
         res.start,
@@ -326,7 +330,7 @@ test "intersection test - infinite" {
     const res = intersect(
         int1,
         int2
-    ) orelse ContinuousInterval{};
+    ) orelse return error.ShouldIntersect;
 
     try ordinate.expectOrdinateEqual(
         res.start,
