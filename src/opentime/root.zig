@@ -35,7 +35,7 @@ pub const eval = comath_wrapper.eval;
 // interval @{
 pub const interval = @import("interval.zig");
 pub const ContinuousInterval = interval.ContinuousInterval;
-pub const ContinuousInterval_BaseType = interval.ContinuousInterval_BaseType;
+pub const ContinuousInterval_BaseType = interval.ContinuousInterval_InnerType;
 // @}
 
 // transform @{
@@ -56,7 +56,7 @@ pub const ProjectionResult = projection_result.ProjectionResult;
 const dbg_print_mod = @import("dbg_print.zig");
 pub const dbg_print = dbg_print_mod.dbg_print;
 
-/// clone return a new slice with each thing in the slice having been .cloned()
+/// Clone return a new slice with each thing in the slice having been .cloned()
 /// from the thing in the original list.  Assumes that clone takes an allocator
 /// argument and returns in the same order.
 pub fn slice_with_cloned_contents_allocator(
@@ -81,7 +81,7 @@ pub fn slice_with_cloned_contents_allocator(
     return try result.toOwnedSlice(allocator);
 }
 
-/// call .deinit(allocator) on all the items in the slice, then free the slice
+/// Call .deinit(allocator) on all the items in the slice, then free the slice.
 pub fn deinit_slice(
     allocator: std.mem.Allocator,
     comptime T:type,
