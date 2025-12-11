@@ -36,6 +36,8 @@
 //!            in_1      in_2               input parameterization
 //!            p0 p1 p2 p3                  segment parameterization
 //! ```
+//!
+//! Includes functions that operate on `Dual_CP` for implicit differentation.
 
 const std = @import("std");
 const expectEqual = std.testing.expectEqual;
@@ -97,12 +99,12 @@ inline fn _is_between(
 test "Bezier.Segment: can_project test" 
 {
     const half = Bezier.Segment.init_from_start_end(
-        control_point.ControlPoint.init(.{ .in = -0.5, .out = -0.25, }),
-        control_point.ControlPoint.init(.{ .in = 0.5, .out = 0.25, }),
+        .init(.{ .in = -0.5, .out = -0.25, }),
+        .init(.{ .in = 0.5, .out = 0.25, }),
     );
     const double = Bezier.Segment.init_from_start_end(
-        control_point.ControlPoint.init(.{ .in = -0.5, .out = -1, }),
-        control_point.ControlPoint.init(.{ .in = 0.5, .out = 1, }),
+        .init(.{ .in = -0.5, .out = -1, }),
+        .init(.{ .in = 0.5, .out = 1, }),
     );
 
     try expectEqual(true, double.can_project(half));
@@ -112,8 +114,8 @@ test "Bezier.Segment: can_project test"
 test "Bezier.Segment: debug_str test" 
 {
     const seg = Bezier.Segment.init_from_start_end(
-        control_point.ControlPoint.init(.{.in = -0.5, .out = -0.5}),
-        control_point.ControlPoint.init(.{.in =  0.5, .out = 0.5}),
+        .init(.{.in = -0.5, .out = -0.5}),
+        .init(.{.in =  0.5, .out = 0.5}),
     );
 
     const result: []const u8=
@@ -177,11 +179,14 @@ pub fn linearize_segment(
     //        bezier segments
     var result: std.ArrayList(control_point.ControlPoint) = .empty;
 
-    if (_is_approximately_linear(segment, tolerance)) {
+    if (_is_approximately_linear(segment, tolerance)) 
+    {
         // terminal condition
         try result.append(allocator, segment.p0);
         try result.append(allocator, segment.p3);
-    } else {
+    } 
+    else 
+    {
         // recursion
         const subsegments = (
             segment.split_at(0.5) orelse return error.NoSplitForLinearization
@@ -191,7 +196,7 @@ pub fn linearize_segment(
             const l_result = try linearize_segment(
                 allocator,
                 subsegments[0],
-                tolerance
+                tolerance,
             );
             defer allocator.free(l_result);
             try result.appendSlice(allocator, l_result);
@@ -201,7 +206,7 @@ pub fn linearize_segment(
             const r_result = try linearize_segment(
                 allocator,
                 subsegments[1],
-                tolerance
+                tolerance,
             );
             defer allocator.free(r_result);
             try result.appendSlice(allocator, r_result[1..]);
@@ -222,7 +227,7 @@ test "segment: linearize basic test"
         const linearized_knots = try linearize_segment(
             std.testing.allocator,
             segment,
-            0.01
+            0.01,
         );
         defer std.testing.allocator.free(linearized_knots);
         try expectEqual(@as(usize, 8+1), linearized_knots.len);
@@ -232,7 +237,7 @@ test "segment: linearize basic test"
         const linearized_knots = try linearize_segment(
             std.testing.allocator,
             segment,
-            0.000001
+            0.000001,
         );
         defer std.testing.allocator.free(linearized_knots);
         try expectEqual(@as(usize, 68+1), linearized_knots.len);
@@ -242,7 +247,7 @@ test "segment: linearize basic test"
         const linearized_knots = try linearize_segment(
             std.testing.allocator,
             segment,
-            0.00000001
+            0.00000001,
         );
         defer std.testing.allocator.free(linearized_knots);
         try expectEqual(@as(usize, 256+1), linearized_knots.len);
@@ -252,10 +257,10 @@ test "segment: linearize basic test"
 test "segment from point array" 
 {
     const original_knots_ident: [4]control_point.ControlPoint = .{
-        control_point.ControlPoint.init(.{ .in = -0.5,     .out = -0.5}),
-        control_point.ControlPoint.init(.{ .in = -0.16666, .out = -0.16666}),
-        control_point.ControlPoint.init(.{ .in = 0.166666, .out = 0.16666}),
-        control_point.ControlPoint.init(.{ .in = 0.5,      .out = 0.5})
+        .init(.{ .in = -0.5,     .out = -0.5}),
+        .init(.{ .in = -0.16666, .out = -0.16666}),
+        .init(.{ .in = 0.166666, .out = 0.16666}),
+        .init(.{ .in = 0.5,      .out = 0.5})
     };
     const ident = Bezier.Segment.from_pt_array(original_knots_ident);
 
@@ -308,7 +313,7 @@ test "segment: linearize already linearized curve"
     try expectEqual(@as(usize, 2), linearized_knots.len);
 }
 
-/// read a Bezier segment from a json file on disk
+/// Read a Bezier segment from a json file on disk.
 pub fn read_segment_json(
     allocator:std.mem.Allocator,
     file_path: string_stuff.latin_s8,
@@ -332,21 +337,21 @@ pub fn read_segment_json(
     defer result.deinit();
 
     return .{
-        .p0 = control_point.ControlPoint.init(result.value.p0),
-        .p1 = control_point.ControlPoint.init(result.value.p1),
-        .p2 = control_point.ControlPoint.init(result.value.p2),
-        .p3 = control_point.ControlPoint.init(result.value.p3),
+        .p0 = .init(result.value.p0),
+        .p1 = .init(result.value.p1),
+        .p2 = .init(result.value.p2),
+        .p3 = .init(result.value.p3),
     };
 }
 
 test "segment: output_at_input and findU test over linear curve" 
 {
     const seg = Bezier.Segment.init_from_start_end(
-        control_point.ControlPoint.init(.{.in = 2, .out = 2}),
-        control_point.ControlPoint.init(.{.in = 3, .out = 3}),
+        .init(.{.in = 2, .out = 2}),
+        .init(.{.in = 3, .out = 3}),
     );
 
-    inline for ([_]opentime.Ordinate.InnerType{2.1, 2.2, 2.3, 2.5, 2.7}) 
+    for ([_]opentime.Ordinate.InnerType{2.1, 2.2, 2.3, 2.5, 2.7}) 
                |coord| 
     {
         try opentime.expectOrdinateEqual(
@@ -360,55 +365,76 @@ test "segment: dual_eval_at over linear curve"
 {
     // identity curve
     {
-        const seg = Bezier.Segment.init_identity(
-            opentime.Ordinate.init(0),
-            opentime.Ordinate.init(1),
-        );
+        const seg = Bezier.Segment.ident_zero_one;
 
-        inline for ([_]opentime.Ordinate.InnerType{0.2, 0.4, 0.5, 0.98}) 
+        for ([_]opentime.Ordinate.InnerType{0.2, 0.4, 0.5, 0.98}) 
             |coord| 
         {
             const result = seg.eval_at_dual(
-                opentime.Dual_Ord.init_ri( coord, 1),
+                .init_ri(coord, 1),
             );
             errdefer std.log.err(
                 "coord: {any}, result: {any}\n",
                 .{ coord, result }
             );
-            try opentime.expectOrdinateEqual(coord, result.r.in);
-            try opentime.expectOrdinateEqual(coord, result.r.out);
-            try opentime.expectOrdinateEqual(1, result.i.in);
-            try opentime.expectOrdinateEqual(1, result.i.out);
+            try opentime.expectOrdinateEqual(
+                coord,
+                result.r.in,
+            );
+            try opentime.expectOrdinateEqual(
+                coord,
+                result.r.out,
+            );
+            try opentime.expectOrdinateEqual(
+                1,
+                result.i.in,
+            );
+            try opentime.expectOrdinateEqual(
+                1,
+                result.i.out,
+            );
         }
     }
 
     // curve with slope 2
     {
         const seg = Bezier.Segment.init_from_start_end(
-            control_point.ControlPoint.init(.{ .in = 0, .out = 0 }),
-            control_point.ControlPoint.init(.{ .in = 1, .out = 2 }),
+            .init(.{ .in = 0, .out = 0 }),
+            .init(.{ .in = 1, .out = 2 }),
         );
 
         inline for (
             [_]opentime.Ordinate{
-                opentime.Ordinate.init(0.2),
-                opentime.Ordinate.init(0.4),
-                opentime.Ordinate.init(0.5),
-                opentime.Ordinate.init(0.98),
+                .init(0.2),
+                .init(0.4),
+                .init(0.5),
+                .init(0.98),
             }
         ) |coord| 
         {
             const result = seg.eval_at_dual(
-                opentime.Dual_Ord.init_ri(coord, 1)
+                .init_ri(coord, 1)
             );
             errdefer std.log.err(
                 "coord: {any}, result: {any}\n",
                 .{ coord, result }
             );
-            try opentime.expectOrdinateEqual(coord, result.r.in);
-            try opentime.expectOrdinateEqual(coord.mul(2), result.r.out);
-            try opentime.expectOrdinateEqual(1, result.i.in);
-            try opentime.expectOrdinateEqual(2, result.i.out);
+            try opentime.expectOrdinateEqual(
+                coord,
+                result.r.in,
+            );
+            try opentime.expectOrdinateEqual(
+                coord.mul(2),
+                result.r.out,
+            );
+            try opentime.expectOrdinateEqual(
+                1,
+                result.i.in,
+            );
+            try opentime.expectOrdinateEqual(
+                2,
+                result.i.out,
+            );
         }
     }
 }
@@ -416,10 +442,7 @@ test "segment: dual_eval_at over linear curve"
 test "Bezier.Segment.init_identity check cubic spline" 
 {
     // ensure that points are along line even for linear case
-    const seg = Bezier.Segment.init_identity(
-        opentime.Ordinate.init(0),
-        opentime.Ordinate.init(1),
-    );
+    const seg = Bezier.Segment.ident_zero_one;
 
     try opentime.expectOrdinateEqual(0, seg.p0.in);
     try opentime.expectOrdinateEqual(0, seg.p0.out);
@@ -431,10 +454,7 @@ test "Bezier.Segment.init_identity check cubic spline"
     try opentime.expectOrdinateEqual(1, seg.p3.out);
 }
 
-/// A bezier interpolation mapping input times to output times
-///
-/// The Bezier is a sequence of 2d cubic bezier segments, closed at the start,
-/// and open at the end, where each segment is met by the previous one.
+/// A sequence of 2d cubic right met bezier segments.
 ///
 /// The evaluation of a Bezier (S0, S1, ... Sn) at t, is therefore t if t <
 /// S0.p0.in or t >= S0.p3.in. Otherwise, the segment S whose interval
@@ -444,14 +464,13 @@ pub const Bezier = struct {
     /// Bezier segments that compose the curve.
     segments: []Segment = &.{},
 
-    /// Bezier Curve Segment
     pub const Segment = struct {
-        p0: control_point.ControlPoint = .zero,
-        p1: control_point.ControlPoint = .zero,
-        p2: control_point.ControlPoint = .one,
-        p3: control_point.ControlPoint = .one,
+        p0: control_point.ControlPoint,
+        p1: control_point.ControlPoint,
+        p2: control_point.ControlPoint,
+        p3: control_point.ControlPoint,
 
-        pub const IDENT_ZERO_ONE = Segment.init_identity(
+        pub const ident_zero_one = Segment.init_identity(
             opentime.Ordinate.init(0),
             opentime.Ordinate.init(1),
         );
@@ -479,8 +498,14 @@ pub const Bezier = struct {
         ) Segment
         {
             return Segment.init_from_start_end(
-                .{ .in = input_start, .out = input_start },
-                .{ .in = input_end, .out = input_end }
+                .{
+                    .in = input_start,
+                    .out = input_start,
+                },
+                .{
+                    .in = input_end,
+                    .out = input_end,
+                }
             );
         }
 
@@ -727,7 +752,7 @@ pub const Bezier = struct {
             segment_to_project: Segment,
         ) Segment
         {
-            var result: Segment = .{};
+            var result: Segment = undefined;
 
             inline for ([4][]const u8{"p0", "p1", "p2", "p3"}) 
                 |field| 
@@ -2409,7 +2434,7 @@ test "Bezier: projection_test non-overlapping"
     const allocator = std.testing.allocator; 
 
     var seg_0_1 = [_]Bezier.Segment{
-        Bezier.Segment.IDENT_ZERO_ONE 
+        Bezier.Segment.ident_zero_one 
     };
     const fst: Bezier = .{ .segments = &seg_0_1 };
 
