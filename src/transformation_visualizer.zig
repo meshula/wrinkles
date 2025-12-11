@@ -308,8 +308,8 @@ const PRESETS = struct{
                                             .out = opentime.Ordinate.init(-10),
                                         },
                                         .{ 
-                                            .in = opentime.Ordinate.init(0),
-                                            .out = opentime.Ordinate.init(0),
+                                            .in = .zero,
+                                            .out = .zero,
                                         },
                                         .{ 
                                             .in = opentime.Ordinate.init(5),

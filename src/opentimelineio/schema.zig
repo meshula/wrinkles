@@ -175,7 +175,7 @@ pub const Clip = struct {
         const presentation_to_media_xform = (
             opentime.AffineTransform1D{
                 .offset = media_bounds.start,
-                .scale = opentime.Ordinate.ONE,
+                .scale = opentime.Ordinate.one,
             }
         );
 
@@ -370,7 +370,7 @@ pub const Warp = struct {
                 },
                 .input_to_output_xform = .{
                     .offset = child_bounds.start,
-                    .scale = .ONE,
+                    .scale = .one,
                 },
             },
         );
@@ -399,7 +399,7 @@ pub const Warp = struct {
                 },
                 .input_to_output_xform = .{
                     .offset = warped_range.start,
-                    .scale = .ONE,
+                    .scale = .one,
                 },
             }
         );
@@ -545,11 +545,11 @@ pub const Track = struct {
             .{
                 .input_bounds_val = .{
                     .start = current_child_duration,
-                    .end = opentime.Ordinate.INF,
+                    .end = opentime.Ordinate.inf,
                 },
                 .input_to_output_xform = .{
                     .offset = current_child_duration.neg(),
-                    .scale = opentime.Ordinate.ONE,
+                    .scale = opentime.Ordinate.one,
                 }
             }
         );
@@ -874,7 +874,7 @@ test "warp topology"
         defer topo.deinit(allocator);
 
         const range = opentime.ContinuousInterval {
-            .start = .ONE,
+            .start = .one,
             .end = .{ .v = 5 },
         };
 
@@ -907,7 +907,7 @@ test "warp topology"
         };
 
         const xform = opentime.AffineTransform1D {
-            .offset = .ONE,
+            .offset = .one,
             .scale = .{ .v = 2 },
         };
 
@@ -927,7 +927,7 @@ test "warp topology"
         defer topo.deinit(allocator);
 
         const range = opentime.ContinuousInterval {
-            .start = .ONE,
+            .start = .one,
             .end = .{ .v = 5 },
         };
 
@@ -980,7 +980,7 @@ test "warp topology"
         defer wp_pres_to_child.deinit(allocator);
 
         const range = opentime.ContinuousInterval {
-            .start = .ONE,
+            .start = .one,
             .end = .{ .v = 5 },
         };
 

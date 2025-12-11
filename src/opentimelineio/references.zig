@@ -395,12 +395,12 @@ pub const CompositionItemHandle = union(enum) {
                         const intrinsic_to_media_xform = (
                             opentime.AffineTransform1D{
                                 .offset = media_bounds.start,
-                                .scale = opentime.Ordinate.ONE,
+                                .scale = .one,
                             }
                         );
                         const intrinsic_bounds = (
                             opentime.ContinuousInterval{
-                                .start = opentime.Ordinate.zero,
+                                .start = .zero,
                                 .end = media_bounds.duration(),
                             }
                         );
@@ -500,7 +500,7 @@ pub const CompositionItemHandle = union(enum) {
                             .{
                                 .input_to_output_xform = .{
                                     .offset = intrinsic_bounds.start,
-                                    .scale = .ONE,
+                                    .scale = .one,
                                 },
                                 .input_bounds_val = .inf_neg_to_pos,
                             },

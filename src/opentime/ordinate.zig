@@ -15,12 +15,12 @@ fn OrdinateOf(
 
         pub const BaseType = t;
         pub const OrdinateType = @This();
-        pub const zero : OrdinateType = OrdinateType.init(0);
-        pub const ONE : OrdinateType = OrdinateType.init(1);
-        pub const INF : OrdinateType = OrdinateType.init(std.math.inf(t));
-        pub const INF_NEG : OrdinateType = OrdinateType.init(-std.math.inf(t));
-        pub const NAN : OrdinateType = OrdinateType.init(std.math.nan(t));
-        pub const EPSILON = OrdinateType.init(util.EPSILON_F);
+        pub const zero = OrdinateType.init(0);
+        pub const one = OrdinateType.init(1);
+        pub const inf = OrdinateType.init(std.math.inf(t));
+        pub const inf_neg = OrdinateType.init(-std.math.inf(t));
+        pub const nan = OrdinateType.init(std.math.nan(t));
+        pub const epsilon = OrdinateType.init(util.EPSILON_F);
 
         /// build an ordinate out of the incoming value, casting as necessary
         pub inline fn init(
@@ -267,12 +267,12 @@ fn OrdinateOf(
         {
             return switch (@TypeOf(rhs)) {
                 OrdinateType => (
-                    self.v < rhs.v + EPSILON.v 
-                    and self.v > rhs.v - EPSILON.v
+                    self.v < rhs.v + epsilon.v 
+                    and self.v > rhs.v - epsilon.v
                 ),
                 else => switch (@typeInfo(@TypeOf(rhs))) {
                     .float, .comptime_float, .int, .comptime_int => (
-                        self.v < rhs.v + EPSILON.v and self.v > rhs.v - EPSILON.v
+                        self.v < rhs.v + epsilon.v and self.v > rhs.v - epsilon.v
                     ),
                     else => type_error(rhs),
                 },

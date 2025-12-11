@@ -17,11 +17,11 @@ const ContinuousInterval = interval.ContinuousInterval;
 /// ///////////////////////////////////////////////////////////////////////////
 pub const AffineTransform1D = struct {
     offset: ordinate.Ordinate = .zero,
-    scale: ordinate.Ordinate = .ONE,
+    scale: ordinate.Ordinate = .one,
 
     pub const identity = AffineTransform1D{
         .offset = .zero,
-        .scale = .ONE,
+        .scale = .one,
     };
 
     /// transform the ordinate.  Order is scale and then offset.
@@ -113,7 +113,7 @@ pub const AffineTransform1D = struct {
                 .{ .offset = self.offset, .scale = self.scale },
             ),
             .scale = comath_wrapper.eval("one/scale",
-                .{ .one = ordinate.Ordinate.ONE, .scale = self.scale },
+                .{ .one = ordinate.Ordinate.one, .scale = self.scale },
             ),
         };
     }
@@ -223,7 +223,7 @@ test "AffineTransform1D: invert test"
     );
 
     try std.testing.expectEqual(ordinate.Ordinate.zero, identity.offset);
-    try std.testing.expectEqual(ordinate.Ordinate.ONE, identity.scale);
+    try std.testing.expectEqual(ordinate.Ordinate.one, identity.scale);
 
     const pt=ordinate.Ordinate.init(10);
 

@@ -42,7 +42,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     var cl1:otio.Clip = .{
         .maybe_name = "Spaghetti.mov",
         .maybe_bounds_s = .{
-            .start = opentime.Ordinate.ONE,
+            .start = .one,
             .end = opentime.Ordinate.init(3),
         },
         .media = .{
@@ -56,7 +56,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         },
     };
     var gp = otio.Gap{
-        .duration_s = opentime.Ordinate.ONE,
+        .duration_s = .one,
     };
     var cl2: otio.Clip = .{
         .maybe_name = "Taco.mov",
@@ -815,12 +815,12 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
             .{
                 .knots = &.{
                     .{
-                        .in = opentime.Ordinate.zero,
+                        .in = .zero,
                         .out = T_ORD_SIGNAL_DURATION, 
                     },
                     .{
                         .in = T_ORD_SIGNAL_DURATION,
-                        .out = opentime.Ordinate.zero 
+                        .out = .zero 
                     },   
                 },
             },
@@ -951,7 +951,7 @@ test "timeline w/ warp that holds the tenth frame"
             .{
                 .knots = &.{
                     .{
-                        .in = opentime.Ordinate.zero,
+                        .in = .zero,
                         .out = ord_10f24hz,
                     },
                     .{
@@ -1039,7 +1039,7 @@ test "timeline w/ warp that holds the tenth frame"
             try tr_pres_to_cl_media_po.project_range_cd(
                 allocator,
                 .{
-                    .start = opentime.Ordinate.zero,
+                    .start = .zero,
                     .end =  opentime.Ordinate.init(4.0/24.0),
                 },
                 .picture,
@@ -1069,7 +1069,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
             .data_reference = .null,
             .domain = .picture,
             .maybe_bounds_s = .{
-                .start = opentime.Ordinate.zero,
+                .start = .zero,
                 .end = opentime.Ordinate.init(24000),
             },
             .maybe_discrete_partition = .{

@@ -12,15 +12,15 @@ pub const ContinuousInterval = struct {
     /// the end ordinate of the interval, exclusive
     end: ordinate.Ordinate,
 
-    pub const ZERO_TO_INF: ContinuousInterval = .{
+    pub const zero_to_inf_pos: ContinuousInterval = .{
         .start = .zero,
-        .end = .INF,
+        .end = .inf,
     };
 
     /// An infinite interval
     pub const inf_neg_to_pos : ContinuousInterval = .{
-        .start = ordinate.Ordinate.INF_NEG, 
-        .end = ordinate.Ordinate.INF,
+        .start = ordinate.Ordinate.inf_neg, 
+        .end = ordinate.Ordinate.inf,
     };
 
     pub fn init(
@@ -41,7 +41,7 @@ pub const ContinuousInterval = struct {
     {
         if (self.is_infinite())
         {
-            return ordinate.Ordinate.INF;
+            return ordinate.Ordinate.inf;
         }
 
         return self.end.sub(self.start);
@@ -121,7 +121,7 @@ pub const ContinuousInterval_BaseType = struct {
 
 test "ContinuousInterval: is_infinite"
 {
-    var cti: ContinuousInterval = .ZERO_TO_INF;
+    var cti: ContinuousInterval = .zero_to_inf_pos;
     try std.testing.expectEqual(true, cti.is_infinite());
 
     // assign a finite end point
@@ -129,7 +129,7 @@ test "ContinuousInterval: is_infinite"
     try std.testing.expectEqual(false, cti.is_infinite());
 
     // assign another infinite end point
-    cti.start = .INF_NEG;
+    cti.start = .inf_neg;
     try std.testing.expectEqual(true, cti.is_infinite());
 
     // assign a finite end point and an infinite start point
@@ -138,8 +138,8 @@ test "ContinuousInterval: is_infinite"
     try std.testing.expectEqual(false, cti.is_infinite());
 
     // assign a finite end point and an infinite start point
-    cti.start = .NAN;
-    cti.end = .ONE;
+    cti.start = .nan;
+    cti.end = .one;
     try std.testing.expectEqual(false, cti.is_infinite());
 }
 

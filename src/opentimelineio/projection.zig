@@ -280,7 +280,7 @@ pub const ProjectionOperator = struct {
                      topology_m.mapping.MappingAffine{ 
                          .input_to_output_xform = .{ 
                              .offset = range_in_source.start,
-                             .scale = .ONE,
+                             .scale = .one,
                          },
                          .input_bounds_val = .{
                              .start = .zero,
@@ -632,11 +632,11 @@ test "ProjectionOperator: clone"
         allocator,
         .{
             .input_bounds_val = .{
-                .start = opentime.Ordinate.init(0),
+                .start = .zero,
                 .end = opentime.Ordinate.init(8),
             },
             .input_to_output_xform = .{
-                .offset = opentime.Ordinate.init(1),
+                .offset = .one,
             },
         },
     );
@@ -701,7 +701,7 @@ test "transform: track with two clips"
             .{
                 .input_bounds_val = .{
                     .start = opentime.Ordinate.init(8),
-                    .end = .INF,
+                    .end = .inf,
                 },
                 .input_to_output_xform = .{
                     .offset = opentime.Ordinate.init(-8),

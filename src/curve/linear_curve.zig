@@ -832,20 +832,20 @@ test "Linear: proj_ident"
         try expectEqual(@as(usize, 2), result.knots.len);
 
         try opentime.expectOrdinateEqual(
-            opentime.Ordinate.init(10),
+            10,
             result.knots[0].in
         );
         try opentime.expectOrdinateEqual(
-            opentime.Ordinate.init(0),
+            0,
             result.knots[0].out
         );
 
         try opentime.expectOrdinateEqual(
-            opentime.Ordinate.init(30),
+            30,
             result.knots[1].in
         );
         try opentime.expectOrdinateEqual(
-            opentime.Ordinate.init(10),
+            10,
             result.knots[1].out
         );
     }
