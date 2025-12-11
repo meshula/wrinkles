@@ -183,8 +183,8 @@ didn't impact the deisgn or problems we were specifically solving.
 * [ ] OTIO 1.0 missing vs omitted features list
 * [ ] look for tests that are manually comparing interval endpoints and just
       compare the entire (optional) interval
-* [ ] remove defaults for prescribed initializers 
-    * [ ] ControlPoint
+* [x] remove defaults for prescribed initializers 
+    * [x] ControlPoint
 
 ## Todo List (10/9/25)
 
