@@ -410,9 +410,11 @@ pub fn actual_order(
 
 test "bezier_math: actual_order: linear" 
 {
+    const allocator = std.testing.allocator;
+
     const crv = try bezier_curve.read_curve_json(
+        allocator,
         "curves/linear.curve.json",
-        std.testing.allocator
     );
     defer std.testing.allocator.free(crv.segments);
 
@@ -441,8 +443,8 @@ test "bezier_math: actual_order: linear"
 test "bezier_math: actual_order: quadratic" 
 {
     const crv = try bezier_curve.read_curve_json(
+        std.testing.allocator,
         "curves/upside_down_u.curve.json",
-        std.testing.allocator
     );
     defer std.testing.allocator.free(crv.segments);
 
@@ -473,8 +475,8 @@ test "bezier_math: actual_order: quadratic"
 test "bezier_math: actual_order: cubic" 
 {
     const crv = try bezier_curve.read_curve_json(
+        std.testing.allocator,
         "curves/scurve_extreme.curve.json",
-        std.testing.allocator
     );
     defer std.testing.allocator.free(crv.segments);
 
@@ -1427,8 +1429,8 @@ pub fn rescaled_curve(
 test "bezier_math: BezierMath: rescaled parameter" 
 {
     const crv = try bezier_curve.read_curve_json(
+        std.testing.allocator,
         "curves/scurve.curve.json",
-        std.testing.allocator
     );
     defer std.testing.allocator.free(crv.segments);
 

@@ -96,6 +96,8 @@ test "Bezier.Segment: can_project test"
 
 test "Bezier.Segment: debug_str test" 
 {
+    const allocator = std.testing.allocator;
+
     const seg = Bezier.Segment.init_from_start_end(
         .init(.{.in = -0.5, .out = -0.5}),
         .init(.{.in =  0.5, .out = 0.5}),
@@ -112,8 +114,8 @@ test "Bezier.Segment: debug_str test"
         \\
             ;
 
-        const blob = try seg.debug_json_str(std.testing.allocator);
-        defer std.testing.allocator.free(blob);
+        const blob = try seg.debug_json_str(allocator);
+        defer allocator.free(blob);
 
         try std.testing.expectEqualStrings( result,blob);
 }
@@ -201,44 +203,57 @@ pub fn linearize_segment(
 
 test "segment: linearize basic test" 
 {
+    const allocator = std.testing.allocator;
+
     const segment = try read_segment_json(
-        std.testing.allocator,
+        allocator,
         "segments/upside_down_u.json"
     );
 
     {
         const linearized_knots = try linearize_segment(
-            std.testing.allocator,
+            allocator,
             segment,
             0.01,
         );
-        defer std.testing.allocator.free(linearized_knots);
-        try std.testing.expectEqual(@as(usize, 8+1), linearized_knots.len);
+        defer allocator.free(linearized_knots);
+        try std.testing.expectEqual(
+            8+1,
+            linearized_knots.len,
+        );
     }
 
     {
         const linearized_knots = try linearize_segment(
-            std.testing.allocator,
+            allocator,
             segment,
             0.000001,
         );
-        defer std.testing.allocator.free(linearized_knots);
-        try std.testing.expectEqual(@as(usize, 68+1), linearized_knots.len);
+        defer allocator.free(linearized_knots);
+        try std.testing.expectEqual(
+            68+1,
+            linearized_knots.len,
+        );
     }
 
     {
         const linearized_knots = try linearize_segment(
-            std.testing.allocator,
+            allocator,
             segment,
             0.00000001,
         );
-        defer std.testing.allocator.free(linearized_knots);
-        try std.testing.expectEqual(@as(usize, 256+1), linearized_knots.len);
+        defer allocator.free(linearized_knots);
+        try std.testing.expectEqual(
+            256+1,
+            linearized_knots.len,
+        );
     }
 }
 
 test "segment from point array" 
 {
+    const allocator = std.testing.allocator;
+
     const original_knots_ident: [4]control_point.ControlPoint = .{
         .init(.{ .in = -0.5,     .out = -0.5}),
         .init(.{ .in = -0.16666, .out = -0.16666}),
@@ -249,51 +264,56 @@ test "segment from point array"
 
     try opentime.expectOrdinateEqual(
         0,
-        ident.eval_at(0.5).out
+        ident.eval_at(0.5).out,
     );
 
     const linearized_ident_knots = try linearize_segment(
-        std.testing.allocator,
+        allocator,
         ident,
         0.01
     );
-    defer std.testing.allocator.free(linearized_ident_knots);
-    try std.testing.expectEqual(@as(usize, 2), linearized_ident_knots.len);
+    defer allocator.free(linearized_ident_knots);
+    try std.testing.expectEqual(
+        2,
+        linearized_ident_knots.len,
+    );
 
     try opentime.expectOrdinateEqual(
         original_knots_ident[0].in,
-        linearized_ident_knots[0].in
+        linearized_ident_knots[0].in,
     );
     try opentime.expectOrdinateEqual(
         original_knots_ident[0].out,
-        linearized_ident_knots[0].out
+        linearized_ident_knots[0].out,
     );
 
     try opentime.expectOrdinateEqual(
         original_knots_ident[3].in,
-        linearized_ident_knots[1].in
+        linearized_ident_knots[1].in,
     );
     try opentime.expectOrdinateEqual(
         original_knots_ident[3].out,
-        linearized_ident_knots[1].out
+        linearized_ident_knots[1].out,
     );
 }
 
 test "segment: linearize already linearized curve" 
 {
+    const allocator = std.testing.allocator;
+
     const segment = try read_segment_json(
-        std.testing.allocator,
+        allocator,
         "segments/linear.json"
     );
     const linearized_knots = try linearize_segment(
-        std.testing.allocator,
+        allocator,
         segment,
         0.01
     );
-    defer std.testing.allocator.free(linearized_knots);
+    defer allocator.free(linearized_knots);
 
     // already linear!
-    try std.testing.expectEqual(@as(usize, 2), linearized_knots.len);
+    try std.testing.expectEqual(2, linearized_knots.len);
 }
 
 /// Read a Bezier segment from a json file on disk.
@@ -1113,7 +1133,8 @@ pub const Bezier = struct {
         for (self_split_on_critical_points.segments, 0..) 
             |seg, seg_ind| 
         {
-            if (seg_ind > 0) {
+            if (seg_ind > 0) 
+            {
                 start_knot = 1;
             }
 
@@ -1121,7 +1142,7 @@ pub const Bezier = struct {
             const subseg = try linearize_segment(
                 allocator,
                 seg,
-                0.000001
+                0.000001,
             );
             defer allocator.free(subseg);
 
@@ -1129,7 +1150,7 @@ pub const Bezier = struct {
                 allocator,
                 // first knot of all interior segments should match the 
                 // last knot of the previous segment, so can be skipped
-                subseg[start_knot..]
+                subseg[start_knot..],
             );
         }
 
@@ -1190,7 +1211,7 @@ pub const Bezier = struct {
     {
         const result_segments = try allocator.dupe(
             Segment,
-            self.segments
+            self.segments,
         );
 
         for (result_segments) 
@@ -1302,7 +1323,7 @@ pub const Bezier = struct {
             return .{ 
                 .segments = try allocator.dupe(
                     Segment,
-                    self.segments
+                    self.segments,
                 ) 
             };
         }
@@ -1377,7 +1398,8 @@ pub const Bezier = struct {
                     const u = seg.findU_value(ordinate);
 
                     // if it isn't an end point
-                    if (u > 0 + 0.000001 and u < 1 - 0.000001) {
+                    if (u > 0 + 0.000001 and u < 1 - 0.000001) 
+                    {
                         const maybe_split_segments = seg.split_at(u);
 
                         if (maybe_split_segments) 
@@ -1487,8 +1509,8 @@ pub const Bezier = struct {
              self.extents_input().end.lteq(ordinate)
              and direction == .trim_after
             )
-
-        ) {
+        ) 
+        {
             return try self.clone(allocator);
         }
 
@@ -1678,7 +1700,7 @@ pub const Bezier = struct {
             for (0..split_count) 
                 |i| 
             {
-                const pt = seg.eval_at(opentime.Ordinate.init(splits[i]));
+                const pt = seg.eval_at(splits[i]);
                 const u = current_seg.findU_input(pt.in);
 
                 // @TODO: question - should the "U" in the bezier be a phase
@@ -1723,8 +1745,8 @@ pub const Bezier = struct {
 
 /// Parse a .curve.json file from disk and return a Bezier.
 pub fn read_curve_json(
+    allocator:std.mem.Allocator,
     file_path: []const u8,
-    allocator:std.mem.Allocator
 ) !Bezier 
 {
     const fi = try std.fs.cwd().openFile(file_path, .{});
@@ -1779,29 +1801,23 @@ pub fn read_bezier_curve_data(
     );
     defer allocator.free(b_f.segments);
 
-    var out_segments: std.ArrayList(Bezier.Segment) = .empty;
-    try out_segments.ensureTotalCapacity(
-        allocator,
+    const result_segments = try allocator.alloc(
+        Bezier.Segment,
         b_f.segments.len,
     );
-    defer out_segments.deinit(allocator);
 
-    for (b_f.segments)
-        |s|
+    for (b_f.segments, result_segments)
+        |src_seg, *dst_seg|
     {
-        out_segments.appendAssumeCapacity(
-            .{
-                .p0 = .init(s.p0),
-                .p1 = .init(s.p1),
-                .p2 = .init(s.p2),
-                .p3 = .init(s.p3),
-            },
-        );
+        dst_seg.* = .{
+            .p0 = .init(src_seg.p0),
+            .p1 = .init(src_seg.p1),
+            .p2 = .init(src_seg.p2),
+            .p3 = .init(src_seg.p3),
+        };
     }
 
-    return .{
-        .segments = try out_segments.toOwnedSlice(allocator),
-    };
+    return .{ .segments = result_segments, };
 }
 
 pub fn read_linear_curve_data(
@@ -1812,35 +1828,38 @@ pub fn read_linear_curve_data(
     const lin_curve = try std.json.parseFromSliceLeaky(
         linear_curve.LinearF,
         allocator,
-        source, .{}
+        source, 
+        .{},
     );
 
-    var out_knots: std.ArrayList(control_point.ControlPoint) = .{};
-    for (lin_curve.knots)
-        |k|
+    const out_knots = try allocator.alloc(
+        control_point.ControlPoint,
+        lin_curve.knots.len,
+    );
+
+    for (lin_curve.knots, out_knots)
+        |src_knot, *dst_knot|
     {
-        try out_knots.append(
-            allocator,
-            control_point.ControlPoint.init(k),
-        );
+        dst_knot.* = .init(src_knot);
     }
 
-    return Bezier.init_from_linear_curve(
+    return try Bezier.init_from_linear_curve(
         allocator,
         .{
-            .knots = 
-                try out_knots.toOwnedSlice(allocator),
+            .knots = out_knots,
         },
     );
 }
 
 test "Curve: read_curve_json" 
 {
+    const allocator = std.testing.allocator;
+
     const curve = try read_curve_json(
+        allocator,
         "curves/linear.curve.json",
-        std.testing.allocator
     );
-    defer curve.deinit(std.testing.allocator);
+    defer curve.deinit(allocator);
 
     try std.testing.expectEqual(1, curve.segments.len);
 
@@ -1848,19 +1867,19 @@ test "Curve: read_curve_json"
     const segment = curve.segments[0];
 
     const linearized_knots = try linearize_segment(
-        std.testing.allocator,
+        allocator,
         segment,
         0.01
     );
-    defer std.testing.allocator.free(linearized_knots);
+    defer allocator.free(linearized_knots);
 
     // already linear!
     try std.testing.expectEqual(2, linearized_knots.len);
     try std.testing.expectEqualSlices(
         control_point.ControlPoint,
         &[_]control_point.ControlPoint{
-            control_point.ControlPoint.init(.{ .in = -0.5, .out = -0.5 }),
-            control_point.ControlPoint.init(.{ .in =  0.5, .out =  0.5 }),
+            .init(.{ .in = -0.5, .out = -0.5 }),
+            .init(.{ .in =  0.5, .out =  0.5 }),
         },
         linearized_knots,
     );
@@ -1870,12 +1889,12 @@ test "Bezier.Segment: projected_segment to 1/2"
 {
     {
         const half = Bezier.Segment.init_from_start_end(
-            control_point.ControlPoint.init(.{ .in = -0.5, .out = -0.25, }),
-            control_point.ControlPoint.init(.{ .in = 0.5, .out = 0.25, }),
+            .init(.{ .in = -0.5, .out = -0.25, }),
+            .init(.{ .in = 0.5, .out = 0.25, }),
         );
         const double = Bezier.Segment.init_from_start_end(
-            control_point.ControlPoint.init(.{ .in = -0.5, .out = -1, }),
-            control_point.ControlPoint.init(.{ .in = 0.5, .out = 1, }),
+            .init(.{ .in = -0.5, .out = -1, }),
+            .init(.{ .in = 0.5, .out = 1, }),
         );
 
         const half_through_double = double.project_segment(half);
@@ -1894,12 +1913,12 @@ test "Bezier.Segment: projected_segment to 1/2"
 
     {
         const half = Bezier.Segment.init_from_start_end(
-            control_point.ControlPoint.init(.{ .in = -0.5, .out = -0.5, }),
-            control_point.ControlPoint.init(.{ .in = 0.5, .out = 0.0, }),
+            .init(.{ .in = -0.5, .out = -0.5, }),
+            .init(.{ .in = 0.5, .out = 0.0, }),
         );
         const double = Bezier.Segment.init_from_start_end(
-            control_point.ControlPoint.init(.{ .in = -0.5, .out = -0.5, }),
-            control_point.ControlPoint.init(.{ .in = 0.5, .out = 1.5, }),
+            .init(.{ .in = -0.5, .out = -0.5, }),
+            .init(.{ .in = 0.5, .out = 1.5, }),
         );
 
         const half_through_double = double.project_segment(half);
@@ -1921,41 +1940,54 @@ test "Bezier: positive length 1 linear segment test"
 {
     var crv_seg = [_]Bezier.Segment{
         Bezier.Segment.init_from_start_end(
-            control_point.ControlPoint.init(.{ .in = 1, .out = 0, }),
-            control_point.ControlPoint.init(.{ .in = 2, .out = 1, }),
+            .init(.{ .in = 1, .out = 0, }),
+            .init(.{ .in = 2, .out = 1, }),
         )
     };
     const xform_curve: Bezier = .{ .segments = &crv_seg, };
 
     // out of range returns error.OutOfBounds
-    try std.testing.expectError(error.OutOfBounds, xform_curve.output_at_input(2));
-    try std.testing.expectError(error.OutOfBounds, xform_curve.output_at_input(3));
-    try std.testing.expectError(error.OutOfBounds, xform_curve.output_at_input(0));
+    try std.testing.expectError(
+        error.OutOfBounds,
+        xform_curve.output_at_input(2),
+    );
+    try std.testing.expectError(
+        error.OutOfBounds,
+        xform_curve.output_at_input(3),
+    );
+    try std.testing.expectError(
+        error.OutOfBounds,
+        xform_curve.output_at_input(0),
+    );
 
     // find segment
-    try std.testing.expect(xform_curve.find_segment(opentime.Ordinate.init(1)) != null);
-    try std.testing.expect(xform_curve.find_segment(opentime.Ordinate.init(1.5)) != null);
+    try std.testing.expect(
+        xform_curve.find_segment(opentime.Ordinate.init(1)) != null
+    );
+    try std.testing.expect(
+        xform_curve.find_segment(opentime.Ordinate.init(1.5)) != null
+    );
     try std.testing.expectEqual(
         null,
-        xform_curve.find_segment(opentime.Ordinate.init(2))
+        xform_curve.find_segment(opentime.Ordinate.init(2)),
     );
 
     // within the range of the curve
     try opentime.expectOrdinateEqual(
         0,
-        try xform_curve.output_at_input(1)
+        try xform_curve.output_at_input(1),
     );
     try opentime.expectOrdinateEqual(
         0.25,
-        try xform_curve.output_at_input(1.25)
+        try xform_curve.output_at_input(1.25),
     );
     try opentime.expectOrdinateEqual(
         0.5,
-        try xform_curve.output_at_input(1.5)
+        try xform_curve.output_at_input(1.5),
     );
     try opentime.expectOrdinateEqual(
         0.75,
-        try xform_curve.output_at_input(1.75)
+        try xform_curve.output_at_input(1.75),
     );
 }
 
@@ -1963,8 +1995,8 @@ test "positive slope 2 linear segment test"
 {
     var test_segment_arr = [_]Bezier.Segment{
         Bezier.Segment.init_from_start_end(
-            control_point.ControlPoint.init(.{ .in = 1, .out = 0, }),
-            control_point.ControlPoint.init(.{ .in = 2, .out = 2, }),
+            .init(.{ .in = 1, .out = 0, }),
+            .init(.{ .in = 2, .out = 2, }),
         )
     };
     const xform_curve = Bezier{ .segments = &test_segment_arr };
@@ -1993,17 +2025,26 @@ test "negative length 1 linear segment test"
     // by stack unwinding
     var segments_xform = [_]Bezier.Segment{
         Bezier.Segment.init_from_start_end(
-            control_point.ControlPoint.init(.{ .in = -2, .out = 0, }),
-            control_point.ControlPoint.init(.{ .in = -1, .out = 1, }),
+            .init(.{ .in = -2, .out = 0, }),
+            .init(.{ .in = -1, .out = 1, }),
         )
     };
     const xform_curve = Bezier{ .segments = &segments_xform };
 
     // outside of the range should return the original result
     // (identity transform)
-    try std.testing.expectError(error.OutOfBounds, xform_curve.output_at_input(0));
-    try std.testing.expectError(error.OutOfBounds, xform_curve.output_at_input(-3));
-    try std.testing.expectError(error.OutOfBounds, xform_curve.output_at_input(-1));
+    try std.testing.expectError(
+        error.OutOfBounds,
+        xform_curve.output_at_input(0),
+    );
+    try std.testing.expectError(
+        error.OutOfBounds,
+        xform_curve.output_at_input(-3),
+    );
+    try std.testing.expectError(
+        error.OutOfBounds,
+        xform_curve.output_at_input(-1),
+    );
 
     // within the range
     try opentime.expectOrdinateEqual(
@@ -2026,10 +2067,21 @@ test "Bezier.Segment: eval_at for out of range u"
     };
     const tc = Bezier{ .segments = &seg};
 
-    try std.testing.expectError(error.OutOfBounds, tc.output_at_input(0));
+    try std.testing.expectError(
+        error.OutOfBounds,
+        tc.output_at_input(0),
+    );
+
     // right open intervals means the end point is out
-    try std.testing.expectError(error.OutOfBounds, tc.output_at_input(4));
-    try std.testing.expectError(error.OutOfBounds, tc.output_at_input(5));
+    try std.testing.expectError(
+        error.OutOfBounds,
+        tc.output_at_input(4),
+    );
+
+    try std.testing.expectError(
+        error.OutOfBounds,
+        tc.output_at_input(5),
+    );
 }
 
 pub fn write_json_file(
@@ -2058,7 +2110,7 @@ pub fn write_json_file_curve(
 
     try write_json_file(
         json_blob,
-        to_fpath
+        to_fpath,
     );
 }
 
@@ -2067,24 +2119,17 @@ test "json writer: curve"
     const allocator = std.testing.allocator;
 
     const ident = Bezier {
-        .segments = try allocator.dupe(
-            Bezier.Segment,
-            &.{
-                Bezier.Segment.init_identity(
-                    opentime.Ordinate.init(-20), 
-                    opentime.Ordinate.init(30),
-                )
-            },
-        ),
+        .segments = &.{
+            .init_identity(.init(-20), .init(30),)
+        },
     };
-    defer ident.deinit(std.testing.allocator);
 
     const fpath = "/var/tmp/test.curve.json";
 
     try write_json_file_curve(
-        std.testing.allocator,
+        allocator,
         ident,
-        fpath
+        fpath,
     );
 
     const file = try std.fs.cwd().openFile(
@@ -2097,10 +2142,13 @@ test "json writer: curve"
     try file.seekTo(0);
     const bytes_read = try file.readAll(&buffer);
 
-    const blob = try ident.debug_json_str(std.testing.allocator);
-    defer std.testing.allocator.free(blob);
+    const blob = try ident.debug_json_str(allocator);
+    defer allocator.free(blob);
 
-    try std.testing.expectEqualStrings(buffer[0..bytes_read], blob);
+    try std.testing.expectEqualStrings(
+        buffer[0..bytes_read],
+        blob,
+    );
 }
 
 test "segment: findU_value" 
@@ -2128,9 +2176,11 @@ test "segment: findU_value"
 
 test "Bezier: split_at_each_value u curve" 
 {
+    const allocator = std.testing.allocator;
+
     const upside_down_u = Bezier {
         .segments = &.{
-            Bezier.Segment.init_f32(
+            .init_f32(
                 .{
                     .p0 = .{ .in = 0, .out = 0 },
                     .p1 = .{ .in = 0, .out = 100 },
@@ -2143,9 +2193,9 @@ test "Bezier: split_at_each_value u curve"
     const u_seg = upside_down_u.segments[0];
 
     const upside_down_u_hodo = try upside_down_u.split_on_critical_points(
-        std.testing.allocator
+        allocator
     );
-    defer upside_down_u_hodo.deinit(std.testing.allocator);
+    defer upside_down_u_hodo.deinit(allocator);
 
     const split_points = [_]opentime.Ordinate{
         u_seg.eval_at(0).out, 
@@ -2156,15 +2206,15 @@ test "Bezier: split_at_each_value u curve"
     };
 
     const result = try upside_down_u_hodo.split_at_each_output_ordinate(
-        std.testing.allocator,
+        allocator,
         &split_points,
     );
-    defer result.deinit(std.testing.allocator);
+    defer result.deinit(allocator);
 
     const endpoints = try result.segment_endpoints(
-        std.testing.allocator
+        allocator
     );
-    defer std.testing.allocator.free(endpoints);
+    defer allocator.free(endpoints);
 
     for (split_points, 0..)
         |sp_p, index|
@@ -2203,6 +2253,8 @@ test "Bezier: split_at_each_value u curve"
 
 test "Bezier: split_at_each_value linear" 
 {
+    const allocator = std.testing.allocator;
+
     const lin = Bezier {
         .segments = &.{
             .init_identity(.init(-0.2), .init(1),)
@@ -2217,16 +2269,16 @@ test "Bezier: split_at_each_value linear"
     };
 
     const result = try lin.split_at_each_output_ordinate(
-        std.testing.allocator,
+        allocator,
         &split_points,
     );
-    defer result.deinit(std.testing.allocator);
+    defer result.deinit(allocator);
 
     var fbuf: [1024]opentime.Ordinate = undefined;
     const endpoints_cp = try result.segment_endpoints(
-        std.testing.allocator
+        allocator
     );
-    defer std.testing.allocator.free(endpoints_cp);
+    defer allocator.free(endpoints_cp);
     for (endpoints_cp, 0..) 
         |cp, index| 
     {
@@ -2271,6 +2323,8 @@ test "Bezier: split_at_each_value linear"
 
 test "Bezier: split_at_each_input_ordinate linear" 
 {
+    const allocator = std.testing.allocator;
+
     const lin = Bezier {
         .segments = &.{
             .init_identity( .init(-0.2), .one,)
@@ -2285,16 +2339,16 @@ test "Bezier: split_at_each_input_ordinate linear"
     };
 
     const result = try lin.split_at_each_input_ordinate(
-        std.testing.allocator,
+        allocator,
         &split_points,
     );
-    defer result.deinit(std.testing.allocator);
+    defer result.deinit(allocator);
 
     var fbuf: [1024]opentime.Ordinate = undefined;
     const endpoints_cp = try result.segment_endpoints(
-        std.testing.allocator
+        allocator
     );
-    defer std.testing.allocator.free(endpoints_cp);
+    defer allocator.free(endpoints_cp);
 
     for (endpoints_cp, 0..) 
         |cp, index| 
@@ -2340,26 +2394,34 @@ test "Bezier: split_at_each_input_ordinate linear"
 
 test "Bezier: split_at_input_ordinate" 
 {
+    const allocator = std.testing.allocator;
+
     const test_curves = [_]Bezier{
         .{
             .segments = &.{
-                Bezier.Segment.init_identity(
+                .init_identity(
                     opentime.Ordinate.init(-20),
                     opentime.Ordinate.init(30),
                 ) 
             },
         },
-        try read_curve_json("curves/upside_down_u.curve.json", std.testing.allocator), 
-        try read_curve_json("curves/scurve.curve.json", std.testing.allocator), 
+        try read_curve_json(
+            allocator,
+            "curves/upside_down_u.curve.json",
+        ), 
+        try read_curve_json(
+            allocator,
+            "curves/scurve.curve.json",
+        ), 
     };
-    defer test_curves[1].deinit(std.testing.allocator);
-    defer test_curves[2].deinit(std.testing.allocator);
+    defer test_curves[1].deinit(allocator);
+    defer test_curves[2].deinit(allocator);
 
     for (test_curves, 0..) 
         |ident, loop| 
     {
         const extents = ident.extents();
-        var split_loc:opentime.Ordinate.InnerType = (
+        var split_loc = (
             extents[0].in.as(opentime.Ordinate.InnerType) + 1
         );
 
@@ -2369,14 +2431,14 @@ test "Bezier: split_at_input_ordinate"
             errdefer std.log.err(
                 "loop_index: {} extents: {any}, split_loc: {} curve: {!s}\n",
                 .{
-                    loop, extents, split_loc, ident.debug_json_str(std.testing.allocator)
+                    loop, extents, split_loc, ident.debug_json_str(allocator)
                 }
             );
             const split_ident = try ident.split_at_input_ordinate(
-                std.testing.allocator,
+                allocator,
                 opentime.Ordinate.init(split_loc),
             );
-            defer split_ident.deinit(std.testing.allocator);
+            defer split_ident.deinit(allocator);
 
             try std.testing.expectEqual(
                 ident.segments.len + 1,
@@ -2414,6 +2476,8 @@ test "Bezier: split_at_input_ordinate"
 
 test "Bezier: trimmed_from_input_ordinate" 
 {
+    const allocator = std.testing.allocator;
+
     const TestData = struct {
         // inputs
         ordinate:opentime.Ordinate,
@@ -2426,8 +2490,8 @@ test "Bezier: trimmed_from_input_ordinate"
 
     const test_curves = [_]Bezier{
         try read_curve_json(
+            allocator,
             "curves/linear_scurve_u.curve.json",
-            std.testing.allocator
         ), 
         .{
             .segments = &.{
@@ -2447,7 +2511,7 @@ test "Bezier: trimmed_from_input_ordinate"
         },
     };
 
-    defer test_curves[0].deinit(std.testing.allocator);
+    defer test_curves[0].deinit(allocator);
 
     for (test_curves, 0..) 
         |ident, curve_index| 
@@ -2515,12 +2579,12 @@ test "Bezier: trimmed_from_input_ordinate"
             );
 
             const trimmed_curve = try ident.trimmed_from_input_ordinate(
-                std.testing.allocator,
+                allocator,
                 td.ordinate,
                 td.direction,
             );
             const trimmed_extents = trimmed_curve.extents();
-            defer trimmed_curve.deinit(std.testing.allocator);
+            defer trimmed_curve.deinit(allocator);
 
             errdefer std.debug.print(
                 "\n test: {any}\n trimmed_extents: {any} \n\n",
@@ -2557,8 +2621,14 @@ test "Bezier: trimmed_in_input_space"
                 ) 
             }
         },
-        try read_curve_json("curves/upside_down_u.curve.json", std.testing.allocator), 
-        try read_curve_json("curves/scurve.curve.json", std.testing.allocator), 
+        try read_curve_json(
+            allocator,
+            "curves/upside_down_u.curve.json",
+        ), 
+        try read_curve_json(
+            allocator,
+            "curves/scurve.curve.json",
+        ), 
     };
 
     defer test_curves[1].deinit(allocator);
@@ -2631,9 +2701,9 @@ test "Bezier: trimmed_in_input_space"
         {
             errdefer {
                 const crv_str = ident.debug_json_str(
-                    std.testing.allocator
+                    allocator
                 ) catch "ERRMAKESTRING";
-                defer std.testing.allocator.free(crv_str);
+                defer allocator.free(crv_str);
                 const crv_extents = ident.extents();
 
                 std.debug.print(
@@ -2657,10 +2727,10 @@ test "Bezier: trimmed_in_input_space"
                 );
             }
             const trimmed_curve = try ident.trimmed_in_input_space(
-                std.testing.allocator,
+                allocator,
                 td.trim_range,
             );
-            defer trimmed_curve.deinit(std.testing.allocator);
+            defer trimmed_curve.deinit(allocator);
 
             const trimmed_extents = trimmed_curve.extents();
             errdefer {
@@ -2689,30 +2759,30 @@ test "Bezier: trimmed_in_input_space"
 
 test "Bezier: project_affine" 
 {
-    // @TODO: test bounds
+    const allocator = std.testing.allocator;
 
     const test_crv = try read_curve_json(
+        allocator,
         "curves/upside_down_u.curve.json",
-        std.testing.allocator
     );
-    defer test_crv.deinit(std.testing.allocator);
+    defer test_crv.deinit(allocator);
 
     const test_affine = [_]opentime.transform.AffineTransform1D{
         .{
-            .offset = opentime.Ordinate.init(-10),
-            .scale = opentime.Ordinate.init(0.5),
+            .offset = .init(-10),
+            .scale = .init(0.5),
         },
         .{
-            .offset = opentime.Ordinate.init(0),
-            .scale = opentime.Ordinate.init(1),
+            .offset = .init(0),
+            .scale = .init(1),
         },
         .{
-            .offset = opentime.Ordinate.init(0),
-            .scale = opentime.Ordinate.init(2),
+            .offset = .init(0),
+            .scale = .init(2),
         },
         .{
-            .offset = opentime.Ordinate.init(10),
-            .scale = opentime.Ordinate.init(1),
+            .offset = .init(10),
+            .scale = .init(1),
         },
     };
 
@@ -2721,13 +2791,16 @@ test "Bezier: project_affine"
         |testdata| 
     {
         const result = try test_crv.project_affine(
-            std.testing.allocator,
+            allocator,
             testdata,
         );
-        defer result.deinit(std.testing.allocator);
+        defer result.deinit(allocator);
 
         // number of segments shouldn't have changed
-        try std.testing.expectEqual(test_crv.segments.len, result.segments.len);
+        try std.testing.expectEqual(
+            test_crv.segments.len,
+            result.segments.len,
+        );
 
         for (test_crv.segments, 0..) 
             |t_seg, t_seg_index| 
@@ -2735,7 +2808,10 @@ test "Bezier: project_affine"
             for (t_seg.points(), 0..) 
                 |pt, pt_index| 
             {
-                const result_pt = result.segments[t_seg_index].points()[pt_index];
+                const result_pt = (
+                    result.segments[t_seg_index].points()[pt_index]
+                );
+
                 errdefer  std.log.err(
                     "\nseg: {} pt: {} ({d:.2}, {d:.2})\n"
                     ++ "computed: ({d:.2}, {d:.2})\n\n", 
@@ -2748,6 +2824,7 @@ test "Bezier: project_affine"
                         result_pt.out, 
                     }
                 );
+
                 try opentime.expectOrdinateEqual(
                     (testdata.scale.mul(pt.in)).add(testdata.offset),
                     result_pt.in,
@@ -2794,30 +2871,30 @@ pub fn join_bez_aff_unbounded(
 
 test "join_bez_aff_unbounded" 
 {
-    // @TODO: test bounds
+    const allocator = std.testing.allocator;
 
     const test_crv = try read_curve_json(
+        allocator,
         "curves/upside_down_u.curve.json",
-        std.testing.allocator
     );
-    defer test_crv.deinit(std.testing.allocator);
+    defer test_crv.deinit(allocator);
 
     const test_affine = [_]opentime.transform.AffineTransform1D{
         .{
-            .offset = opentime.Ordinate.init(-10),
-            .scale = opentime.Ordinate.init(0.5),
+            .offset = .init(-10),
+            .scale = .init(0.5),
         },
         .{
-            .offset = opentime.Ordinate.init(0),
-            .scale = opentime.Ordinate.init(1),
+            .offset = .init(0),
+            .scale = .init(1),
         },
         .{
-            .offset = opentime.Ordinate.init(0),
-            .scale = opentime.Ordinate.init(2),
+            .offset = .init(0),
+            .scale = .init(2),
         },
         .{
-            .offset = opentime.Ordinate.init(10),
-            .scale = opentime.Ordinate.init(1),
+            .offset = .init(10),
+            .scale = .init(1),
         },
     };
 
@@ -2829,13 +2906,13 @@ test "join_bez_aff_unbounded"
             .{ test_loop_index, testdata.offset, testdata.scale }
         );
         const result = try join_bez_aff_unbounded(
-            std.testing.allocator,
+            allocator,
             .{
                 .a2b = test_crv,
                 .b2c = testdata,
             },
         );
-        defer result.deinit(std.testing.allocator);
+        defer result.deinit(allocator);
 
         // number of segments shouldn't have changed
         try std.testing.expectEqual(test_crv.segments.len, result.segments.len);
@@ -2874,7 +2951,7 @@ test "Bezier: split_on_critical_points s curve"
 
     const s_curve_seg = Bezier {
         .segments = &.{
-            Bezier.Segment.init_f32(
+            .init_f32(
                 .{
                     .p0 = .{ .in = 0, .out = 0 },
                     .p1 = .{ .in = 0, .out = 200 },
@@ -2895,6 +2972,7 @@ test "Bezier: split_on_critical_points s curve"
 
 test "Bezier: split_on_critical_points symmetric about the origin" 
 {
+    const allocator = std.testing.allocator;
 
     const TestData = struct {
         segment: Bezier.Segment,
@@ -2905,7 +2983,7 @@ test "Bezier: split_on_critical_points symmetric about the origin"
 
     const tests = [_]TestData{
         .{
-            .segment = Bezier.Segment.init_f32(
+            .segment = .init_f32(
                 .{
                     .p0 = .{ .in = -0.5, .out = -0.5 },
                     .p1 = .{ .in =    0, .out = -0.5 },
@@ -2913,15 +2991,15 @@ test "Bezier: split_on_critical_points symmetric about the origin"
                     .p3 = .{ .in =  0.5, .out =  0.5 },
                 }
             ),
-            .inflection_point = opentime.Ordinate.init(0.5),
+            .inflection_point = .init(0.5),
             .roots = .{
-                opentime.Ordinate.init(-1),
-                opentime.Ordinate.init(-1), 
+                .init(-1),
+                .init(-1), 
             },
             .split_segments = 2,
         },
         .{
-            .segment = Bezier.Segment.init_f32(
+            .segment = .init_f32(
                 .{
                     .p0 = .{ .in = -0.5, .out =    0 },
                     .p1 = .{ .in =    0, .out =   -1 },
@@ -2929,11 +3007,11 @@ test "Bezier: split_on_critical_points symmetric about the origin"
                     .p3 = .{ .in =  0.5, .out =    0 },
                 }
             ),
-            .inflection_point = opentime.Ordinate.init(0.5),
+            .inflection_point = .init(0.5),
             // assuming this is correct
             .roots = .{
-                opentime.Ordinate.init(0.21132487),
-                opentime.Ordinate.init(0.788675129),
+                .init(0.21132487),
+                .init(0.788675129),
             },
             .split_segments = 4,
         },
@@ -3047,9 +3125,9 @@ test "Bezier: split_on_critical_points symmetric about the origin"
         }
 
         const s_curve_split = try s_curve_seg.split_on_critical_points(
-            std.testing.allocator
+            allocator,
         );
-        defer s_curve_split.deinit(std.testing.allocator);
+        defer s_curve_split.deinit(allocator);
 
         try std.testing.expectEqual(
             @as(usize, td.split_segments),

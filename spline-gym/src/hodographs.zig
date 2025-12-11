@@ -1,3 +1,5 @@
+//! Zig wrapper of the hodographs c-library.
+
 const libhodographs = @cImport(
     {
         @cInclude("hodographs.h");
@@ -19,47 +21,67 @@ const hodographs = libhodographs;
 const opentime = @import("opentime");
 const curve = @import("curve");
 
-test "hodograph: simple" {
+test "hodograph: simple" 
+{
+    const allocator = std.testing.allocator;
+
     const crv = try curve.read_curve_json(
+        allocator,
         "curves/upside_down_u.curve.json",
-        std.testing.allocator,
     );
-    defer crv.deinit(std.testing.allocator);
+    defer crv.deinit(allocator);
 
     var cSeg : hodographs.BezierSegment = .{
         .order = 3,
         .p = undefined,
     };
     
-    for (crv.segments[0].points(), 0..) |pt, index| {
+    for (crv.segments[0].points(), 0..) 
+        |pt, index| 
+    {
         cSeg.p[index].x = pt.time;
         cSeg.p[index].y = pt.value;
     }
 
-    if (cSeg.p[0].y == cSeg.p[3].y) {
+    if (cSeg.p[0].y == cSeg.p[3].y) 
+    {
         cSeg.p[0].y += 0.0001;
     }
 
     var hodo = hodographs.compute_hodograph(&cSeg);
     const roots = hodographs.bezier_roots(&hodo);
 
-    try std.testing.expectApproxEqAbs(@as(f32, 0.5), roots.x, 0.00001);
-    try std.testing.expectApproxEqAbs(roots.y, -1, 0.00001);
+    try std.testing.expectApproxEqAbs(
+        0.5,
+        roots.x,
+        0.00001,
+    );
+    try std.testing.expectApproxEqAbs(
+        roots.y,
+        -1,
+        0.00001,
+    );
 
-    const split_crv = try crv.split_on_critical_points(std.testing.allocator);
-    defer std.testing.allocator.free(split_crv.segments);
+    const split_crv = try crv.split_on_critical_points(allocator);
+    defer allocator.free(split_crv.segments);
 
-    try std.testing.expectEqual(@as(usize, 2), split_crv.segments.len);
+    try std.testing.expectEqual(
+        2,
+        split_crv.segments.len,
+    );
 }
 
-test "hodograph: uuuuu" {
+test "hodograph: uuuuu" 
+{
+    const allocator = std.testing.allocator;
+
     const crv = try curve.read_curve_json(
         "curves/upside_down_u.curve.json",
-        std.testing.allocator,
+        allocator,
     );
-    defer crv.deinit(std.testing.allocator);
+    defer crv.deinit(allocator);
 
-    var seg_list = std.ArrayList(curve.Segment).init(std.testing.allocator);
+    var seg_list = std.ArrayList(curve.Segment).init(allocator);
     defer seg_list.deinit();
 
     const u_count:usize = 5;
@@ -68,39 +90,57 @@ test "hodograph: uuuuu" {
 
     const crv_to_split = curve.TimeCurve{ .segments = seg_list.items };
 
-    const split_crv = try crv_to_split.split_on_critical_points(std.testing.allocator);
-    defer std.testing.allocator.free(split_crv.segments);
+    const split_crv = try crv_to_split.split_on_critical_points(allocator);
+    defer allocator.free(split_crv.segments);
 
-    try std.testing.expectEqual(u_count*2, split_crv.segments.len);
+    try std.testing.expectEqual(
+        u_count*2,
+        split_crv.segments.len,
+    );
 }
 
-test "hodograph: multisegment curve" {
+test "hodograph: multisegment curve" 
+{
+    const allocator = std.testing.allocator;
+
     {
         const crv = try curve.read_curve_json(
             "curves/linear.curve.json",
-            std.testing.allocator,
+            allocator
         );
-        defer crv.deinit(std.testing.allocator);
+        defer crv.deinit(allocator);
 
-        try std.testing.expectEqual(@as(usize, 1), crv.segments.len);
-        const split_crv = try crv.split_on_critical_points(std.testing.allocator);
-        defer std.testing.allocator.free(split_crv.segments);
+        try std.testing.expectEqual(
+            1,
+            crv.segments.len,
+        );
+        const split_crv = try crv.split_on_critical_points(allocator);
+        defer allocator.free(split_crv.segments);
 
-        try std.testing.expectEqual(@as(usize, 1), split_crv.segments.len);
+        try std.testing.expectEqual(
+            1,
+            split_crv.segments.len,
+        );
     }
 
     {
         const crv = try curve.read_curve_json(
             "curves/linear_scurve_u.curve.json",
-            std.testing.allocator,
+            allocator,
         );
-        defer crv.deinit(std.testing.allocator);
+        defer crv.deinit(allocator);
 
-        try std.testing.expectEqual(@as(usize, 3), crv.segments.len);
-        const split_crv = try crv.split_on_critical_points(std.testing.allocator);
-        defer std.testing.allocator.free(split_crv.segments);
+        try std.testing.expectEqual(
+            3,
+            crv.segments.len,
+        );
+        const split_crv = try crv.split_on_critical_points(allocator);
+        defer allocator.free(split_crv.segments);
 
         // 1 segment for the linear, two for the s and 2 for the u
-        try std.testing.expectEqual(@as(usize, 5), split_crv.segments.len);
+        try std.testing.expectEqual(
+            5,
+            split_crv.segments.len,
+        );
     }
 }

@@ -1,15 +1,12 @@
 //! Linear curves are made of right-met connected line segments
 
 const std = @import("std");
-const expectEqual = std.testing.expectEqual;
 
 const opentime = @import("opentime");
 
 const bezier_curve = @import("bezier_curve.zig");
 const bezier_math = @import("bezier_math.zig");
 const control_point = @import("control_point.zig");
-const ControlPoint = control_point.ControlPoint;
-const ControlPoint_InnerType = control_point.ControlPoint_InnerType;
 
 /// A polyline that is linearly interpolated between knots
 pub fn LinearOf(
@@ -700,7 +697,7 @@ pub fn LinearOf(
                     allocator,
                     .{
                         .knots = try allocator.dupe(
-                            ControlPoint,
+                            ControlPointType,
                             self.knots
                         ), 
                     }
@@ -766,8 +763,8 @@ pub fn LinearOf(
     };
 }
 
-pub const Linear = LinearOf(ControlPoint);
-pub const LinearF = LinearOf(ControlPoint_InnerType);
+pub const Linear = LinearOf(control_point.ControlPoint);
+pub const LinearF = LinearOf(control_point.ControlPoint_InnerType);
 
 test "Linear: extents" 
 {
@@ -805,16 +802,16 @@ test "Linear: proj_ident"
 
     const ident = Linear.Monotonic{
         .knots = &.{ 
-            ControlPoint.init(.{ .in = 0, .out = 0, }),
-            ControlPoint.init(.{ .in = 100, .out = 100, }),
+            .init(.{ .in = 0, .out = 0, }),
+            .init(.{ .in = 100, .out = 100, }),
         },
     };
 
     {
         const right_overhang_lin = Linear.Monotonic{
             .knots = &.{
-                ControlPoint.init(.{ .in = -10, .out = -10}),
-                ControlPoint.init(.{ .in = 30, .out = 10}),
+                .init(.{ .in = -10, .out = -10}),
+                .init(.{ .in = 30, .out = 10}),
             },
         };
 
@@ -827,7 +824,7 @@ test "Linear: proj_ident"
         );
         defer result.deinit(allocator);
 
-        try expectEqual(@as(usize, 2), result.knots.len);
+        try std.testing.expectEqual(@as(usize, 2), result.knots.len);
 
         try opentime.expectOrdinateEqual(
             10,
@@ -851,8 +848,8 @@ test "Linear: proj_ident"
     {
         const left_overhang_lin = Linear.Monotonic{
             .knots = &.{ 
-                ControlPoint.init(.{ .in = 90, .out = 90}),
-                ControlPoint.init(.{ .in = 110, .out = 130}),
+                .init(.{ .in = 90, .out = 90}),
+                .init(.{ .in = 110, .out = 130}),
             },
         };
 
@@ -865,7 +862,7 @@ test "Linear: proj_ident"
         );
         defer result.deinit(allocator); 
 
-        try expectEqual(@as(usize, 2), result.knots.len);
+        try std.testing.expectEqual(@as(usize, 2), result.knots.len);
 
         try opentime.expectOrdinateEqual(
             opentime.Ordinate.init(90),
@@ -895,15 +892,15 @@ test "Linear: projection_test - compose to identity"
 
     const fst= Linear.Monotonic{
         .knots = &.{
-            ControlPoint.init(.{ .in = 0, .out = 0, }),
-            ControlPoint.init(.{ .in = 4, .out = 8, }),
+            .init(.{ .in = 0, .out = 0, }),
+            .init(.{ .in = 4, .out = 8, }),
         }
     };
 
     const snd= Linear.Monotonic{
         .knots = &.{
-            ControlPoint.init(.{ .in = 0, .out = 0, }),
-            ControlPoint.init(.{ .in = 8, .out = 4, }),
+            .init(.{ .in = 0, .out = 0, }),
+            .init(.{ .in = 8, .out = 4, }),
         },
     };
 
@@ -945,8 +942,8 @@ test "Linear: to Monotonic leak test"
     const src =  try Linear.init(
         allocator,
         &.{
-            ControlPoint.init(.{ .in = 0, .out = 5 }),
-            ControlPoint.init(.{ .in = 10, .out = 5 }),
+            .init(.{ .in = 0, .out = 5 }),
+            .init(.{ .in = 10, .out = 5 }),
         },
     );
     const monotonics = (
@@ -977,8 +974,8 @@ test "Linear: to Monotonic Test"
             .curve = try Linear.init(
                 allocator,
                 &.{
-                    ControlPoint.init(.{ .in = 0, .out = 5 }),
-                    ControlPoint.init(.{ .in = 10, .out = 5 }),
+                    .init(.{ .in = 0, .out = 5 }),
+                    .init(.{ .in = 10, .out = 5 }),
                 },
             ),
             .monotonic_splits = 1,
@@ -988,8 +985,8 @@ test "Linear: to Monotonic Test"
             .curve = try Linear.init(
                 allocator,
                 &.{
-                    ControlPoint.init(.{ .in = 0, .out = 0 }),
-                    ControlPoint.init(.{ .in = 10, .out = 10 }),
+                    .init(.{ .in = 0, .out = 0 }),
+                    .init(.{ .in = 10, .out = 10 }),
                 },
             ),
             .monotonic_splits = 1,
@@ -999,9 +996,9 @@ test "Linear: to Monotonic Test"
             .curve = try Linear.init(
                 allocator,
                 &.{
-                    ControlPoint.init(.{ .in = 0, .out = 0 }),
-                    ControlPoint.init(.{ .in = 10, .out = 10 }),
-                    ControlPoint.init(.{ .in = 20, .out = 0 }),
+                    .init(.{ .in = 0, .out = 0 }),
+                    .init(.{ .in = 10, .out = 10 }),
+                    .init(.{ .in = 20, .out = 0 }),
                 },
             ),
             .monotonic_splits = 2,
@@ -1011,10 +1008,10 @@ test "Linear: to Monotonic Test"
             .curve = try Linear.init(
                 allocator,
                 &.{
-                    ControlPoint.init(.{ .in = 0, .out = 0 }),
-                    ControlPoint.init(.{ .in = 10, .out = 10 }),
-                    ControlPoint.init(.{ .in = 20, .out = 10 }),
-                    ControlPoint.init(.{ .in = 30, .out = 0 }),
+                    .init(.{ .in = 0, .out = 0 }),
+                    .init(.{ .in = 10, .out = 10 }),
+                    .init(.{ .in = 20, .out = 10 }),
+                    .init(.{ .in = 30, .out = 0 }),
                 },
             ),
             .monotonic_splits = 3,
@@ -1024,9 +1021,9 @@ test "Linear: to Monotonic Test"
             .curve = try Linear.init(
                 allocator,
                 &.{
-                    ControlPoint.init(.{ .in = 0, .out = 10 }),
-                    ControlPoint.init(.{ .in = 10, .out = 10 }),
-                    ControlPoint.init(.{ .in = 20, .out = 0 }),
+                    .init(.{ .in = 0, .out = 10 }),
+                    .init(.{ .in = 10, .out = 10 }),
+                    .init(.{ .in = 20, .out = 0 }),
                 },
             ),
             .monotonic_splits = 2,
@@ -1113,8 +1110,9 @@ pub fn join(
         + b2c_trimmed.knots.len
     );
 
-    var result_knots: std.ArrayList(ControlPoint) = .empty;
+    var result_knots: std.ArrayList(control_point.ControlPoint) = .empty;
     defer result_knots.deinit(allocator);
+
     try result_knots.ensureTotalCapacity(
         allocator,
         total_possible_knots,
@@ -1169,8 +1167,9 @@ pub fn join(
     }
 
     return .{
-        .knots = 
-            try result_knots.toOwnedSlice(allocator),
+        .knots = (
+            try result_knots.toOwnedSlice(allocator)
+        ),
     };
 }
 
@@ -1181,8 +1180,8 @@ test "Linear: Join ident -> held"
     const ident = try Linear.init(
         allocator,
         &.{
-            ControlPoint.init(.{ .in = 0, .out = 0 }),
-            ControlPoint.init(.{ .in = 10, .out = 10 }),
+            .init(.{ .in = 0, .out = 0 }),
+            .init(.{ .in = 10, .out = 10 }),
         },
     );
     defer ident.deinit(allocator);
@@ -1190,8 +1189,8 @@ test "Linear: Join ident -> held"
     const held = try Linear.init(
         allocator,
         &.{
-            ControlPoint.init(.{ .in = 0, .out = 5 }),
-            ControlPoint.init(.{ .in = 10, .out = 5 }),
+            .init(.{ .in = 0, .out = 5 }),
+            .init(.{ .in = 10, .out = 5 }),
         },
     );
     defer held.deinit(allocator);
@@ -1267,9 +1266,9 @@ test "Linear: Join held -> non-ident"
     const doubler = try Linear.init(
         allocator,
         &.{
-            ControlPoint.init(.{ .in = 0, .out = 0 }),
-            ControlPoint.init(.{ .in = 10, .out = 20 }),
-            ControlPoint.init(.{ .in = 20, .out = 40 }),
+            .init(.{ .in = 0, .out = 0 }),
+            .init(.{ .in = 10, .out = 20 }),
+            .init(.{ .in = 20, .out = 40 }),
         },
     );
     defer doubler.deinit(allocator);
@@ -1277,8 +1276,8 @@ test "Linear: Join held -> non-ident"
     const held = try Linear.init(
         allocator,
         &.{
-            ControlPoint.init(.{ .in = 0, .out = 5 }),
-            ControlPoint.init(.{ .in = 20, .out = 5 }),
+            .init(.{ .in = 0, .out = 5 }),
+            .init(.{ .in = 20, .out = 5 }),
         },
     );
     defer held.deinit(allocator);
@@ -1354,8 +1353,8 @@ test "Linear: Monotonic Trimmed Input"
     const ident = try Linear.init(
         allocator,
         &.{
-            ControlPoint.init(.{ .in = 0, .out = 0 }),
-            ControlPoint.init(.{ .in = 10, .out = 10 }),
+            .init(.{ .in = 0, .out = 0 }),
+            .init(.{ .in = 10, .out = 10 }),
         },
     );
     defer ident.deinit(allocator);
@@ -1383,13 +1382,13 @@ test "Linear: Monotonic Trimmed Input"
         .{
             .name = "no trim",
             .target_range = 
-                opentime.ContinuousInterval.init(
+                .init(
                     .{
                         .start = -1,
                         .end = 11,
                     }
                 ),
-            .expected_range = opentime.ContinuousInterval.init(
+            .expected_range = .init(
                 .{
                     .start = 0,
                     .end = 10,
@@ -1398,13 +1397,13 @@ test "Linear: Monotonic Trimmed Input"
         },
         .{
             .name = "left trim",
-            .target_range = opentime.ContinuousInterval.init(
+            .target_range = .init(
                 .{
                 .start = 3,
                 .end = 11,
             }
             ),
-            .expected_range = opentime.ContinuousInterval.init(
+            .expected_range = .init(
                 .{
                     .start = 3,
                     .end = 10,
@@ -1413,13 +1412,13 @@ test "Linear: Monotonic Trimmed Input"
         },
         .{
             .name = "right trim",
-            .target_range = opentime.ContinuousInterval.init(
+            .target_range = .init(
                 .{
                     .start = -1,
                     .end = 8,
                 }
             ),
-            .expected_range = opentime.ContinuousInterval.init(
+            .expected_range = .init(
                 .{
                     .start = 0,
                     .end = 8,
@@ -1464,8 +1463,8 @@ test "Linear: Monotonic Trimmed Output"
     const ident = try Linear.init(
         allocator,
         &.{
-            ControlPoint.init(.{ .in = 0, .out = 0 }),
-            ControlPoint.init(.{ .in = 10, .out = 10 }),
+            .init(.{ .in = 0, .out = 0 }),
+            .init(.{ .in = 10, .out = 10 }),
         },
     );
     defer ident.deinit(allocator);
@@ -1606,8 +1605,8 @@ test "Linear.Monotonic.split_at_input_ordinates"
 
     const crv = Linear.Monotonic{
         .knots = &.{
-            ControlPoint.init(.{ .in = 0, .out = 0, }),
-            ControlPoint.init(.{ .in = 2, .out = 4, }),
+            .init(.{ .in = 0, .out = 0, }),
+            .init(.{ .in = 2, .out = 4, }),
         },
     };
 
@@ -1643,9 +1642,9 @@ test "Linear.Monotonic: nearest_knot_indices_output"
 {
     const crv = Linear.Monotonic{
         .knots = &.{
-            ControlPoint.init(.{ .in = 0, .out = 0, }),
-            ControlPoint.init(.{ .in = 4, .out = 4, }),
-            ControlPoint.init(.{ .in = 6, .out = 8, }),
+            .init(.{ .in = 0, .out = 0, }),
+            .init(.{ .in = 4, .out = 4, }),
+            .init(.{ .in = 6, .out = 8, }),
         },
     };
 
@@ -1703,8 +1702,8 @@ test "Linear.Monotonic: slope_kind"
     {
         const crv_rising = Linear.Monotonic{
             .knots = &.{
-                ControlPoint.init(.{ .in = 0, .out = 0, }),
-                ControlPoint.init(.{ .in = 2, .out = 4, }),
+                .init(.{ .in = 0, .out = 0, }),
+                .init(.{ .in = 2, .out = 4, }),
             },
         };
 
@@ -1717,8 +1716,8 @@ test "Linear.Monotonic: slope_kind"
     {
         const crv_flat = Linear.Monotonic{
             .knots = &.{
-                ControlPoint.init(.{ .in = 0, .out = 2, }),
-                ControlPoint.init(.{ .in = 2, .out = 2, }),
+                .init(.{ .in = 0, .out = 2, }),
+                .init(.{ .in = 2, .out = 2, }),
             },
         };
 
@@ -1731,8 +1730,8 @@ test "Linear.Monotonic: slope_kind"
     {
         const crv_falling = Linear.Monotonic{
             .knots = &.{
-                ControlPoint.init(.{ .in = 0, .out = 4, }),
-                ControlPoint.init(.{ .in = 2, .out = 0, }),
+                .init(.{ .in = 0, .out = 4, }),
+                .init(.{ .in = 2, .out = 0, }),
             },
         };
 

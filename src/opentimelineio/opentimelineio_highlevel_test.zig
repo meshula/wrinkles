@@ -1027,7 +1027,7 @@ test "timeline w/ warp that holds the tenth frame"
         const ident:topology.Topology = .identity_infinite;
 
         const test_result = try topology.join(
-            std.testing.allocator,
+            allocator,
             .{ 
                 .a2b = ident,
                 .b2c = warp_pres_to_warp_child_xform,
