@@ -92,6 +92,7 @@ pub fn segment_reduce4(
         .p0 = opentime.lerp(u, segment.p0, segment.p1),
         .p1 = opentime.lerp(u, segment.p1, segment.p2),
         .p2 = opentime.lerp(u, segment.p2, segment.p3),
+        .p3 = .zero,
     };
 }
 
@@ -103,6 +104,8 @@ pub fn segment_reduce3(
     return .{
         .p0 = opentime.lerp(u, segment.p0, segment.p1),
         .p1 = opentime.lerp(u, segment.p1, segment.p2),
+        .p2 = .zero,
+        .p3 = .zero,
     };
 }
 
@@ -113,6 +116,9 @@ pub fn segment_reduce2(
 {
     return .{
         .p0 = opentime.lerp(u, segment.p0, segment.p1),
+        .p1 = .zero,
+        .p2 = .zero,
+        .p3 = .zero,
     };
 }
 
