@@ -2330,8 +2330,6 @@ test "projection builder over warp with negative scale"
     );
     defer builder.deinit(allocator);
 
-    std.debug.print("b: {f}\n", .{builder});
-
     const wp_pres_to_child = try wp.topology(allocator);
     defer wp_pres_to_child.deinit(allocator);
 
