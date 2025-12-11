@@ -44,30 +44,12 @@ const std = @import("std");
 const opentime = @import("opentime");
 
 pub const math = @import("bezier_math.zig");
-const epsilon = @import("epsilon.zig").epsilon;
 const linear_curve = @import("linear_curve.zig");
 const control_point = @import("control_point.zig");
 pub const hodographs = @import("spline_gym");
 
+const epsilon = @import("epsilon.zig").epsilon;
 pub const U_TYPE = opentime.Ordinate.InnerType;
-
-pub var u_val_of_midpoint:U_TYPE = 0.5;
-pub var fudge:U_TYPE = 1;
-
-/// options for projecting bezier through bezier
-pub const ProjectionAlgorithms = enum (i32) {
-    /// project endpoints, midpoint + midpoint derviatives, run decastlejau in
-    /// reverse (so called three-point-approximation) to infer P1, P2
-    three_point_approx=0,
-    /// project each endpoint, chain rule derivatives, then use derivative
-    /// length to estimate P1, P2
-    two_point_approx,
-    /// linearize both curves, then project linear segments
-    linearized,
-};
-
-/// the projection algorithm to use when projecting a Bezier through a Bezier
-pub var project_algo = ProjectionAlgorithms.linearized;
 
 /// Returns true if val is between fst and snd regardless of whether fst or snd
 /// is greater.

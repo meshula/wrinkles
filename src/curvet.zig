@@ -1727,41 +1727,6 @@ fn update_with_error(
                 .{ .v = &STATE.show_projection_result }
             );
 
-            if (zgui.treeNode("Projection Algorithm Debug Switches")) 
-            {
-                defer zgui.treePop();
-
-                const bcrv = curve.bezier;
-                var f : f32 = @floatCast(bcrv.u_val_of_midpoint);
-                zgui.text("U value: {d}", .{ bcrv.u_val_of_midpoint });
-                _ = zgui.sliderFloat(
-                    "U Value",
-                    .{
-                        .min = 0,
-                        .max = 1,
-                        .v = &f
-                    }
-                );
-                bcrv.u_val_of_midpoint = @floatCast(f);
-                zgui.text("fudge: {d}", .{ bcrv.fudge });
-                f = @floatCast(bcrv.fudge);
-                _ = zgui.sliderFloat(
-                    "scale e1/e2 fudge factor",
-                    .{ 
-                        .min = 0.1,
-                        .max = 10,
-                        .v = &f
-                    }
-                );
-                bcrv.fudge = @floatCast(f);
-
-                _ = zgui.comboFromEnum(
-                    "Projection Algorithm",
-                    &bcrv.project_algo
-                );
-            }
-
-
             if (STATE.show_test_curves and zgui.treeNode("Test Curve Settings"))
             {
                 defer zgui.treePop();
