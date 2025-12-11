@@ -101,6 +101,41 @@ pub const Topology = struct {
         };
     }
 
+    /// Construct a topology from a cubic Bezier `curve.Bezier`.
+    ///
+    /// Linearizes and splits at critical points.
+    pub fn init_bezier(
+        allocator: std.mem.Allocator,
+        crv: curve.Bezier,
+    ) !Topology
+    {
+        const lin = try crv.linearized(allocator);
+        defer lin.deinit(allocator);
+
+        const lin_split = try lin.split_at_critical_points(
+            allocator
+        );
+        // Free the outer slice, not the inner mappings.
+        defer allocator.free(lin_split);
+
+        const new_mappings = try allocator.alloc(
+            mapping.Mapping,
+            lin_split.len,
+        );
+
+        for (lin_split, new_mappings)
+            |mono_lin, *dst_mapping|
+        {
+            dst_mapping.* = (
+                mapping.MappingCurveLinearMonotonic {
+                    .input_to_output_curve = mono_lin,
+                }
+            ).mapping();
+        }
+
+        return .{ .mappings = new_mappings, };
+    }
+
     /// initialize an affine with a single affine transformation in its mapping
     /// slice.  Requires an allocator because still requires that the mapping
     /// slice be allocated.
@@ -117,18 +152,7 @@ pub const Topology = struct {
         };
     }
 
-    pub fn init_bezier(
-        allocator: std.mem.Allocator,
-        crv: curve.Bezier,
-    ) !Topology
-    {
-        return try mapping.MappingCurveBezier.init_curve(
-            allocator,
-            crv,
-        );
-    }
-
-    /// build a topology with a single identity mapping over the range
+    /// build a topology with a single identittopologyover the range
     /// specified
     pub fn init_identity(
         allocator: std.mem.Allocator,
@@ -2189,4 +2213,29 @@ test "Topology output_bounds are sorted after negative scale"
             output_bounds,
         );
     }
+}
+
+test "Topology: init_bezier"
+{
+    const allocator = std.testing.allocator;
+
+    const bez = curve.Bezier{
+        .segments = &.{ 
+            .init_from_start_end(
+                .init(.{ .in = 0, .out = 0 }),
+                .init(.{ .in = 10, .out = 20 }),
+            ),
+        }
+    };
+
+    const topo_bez = try Topology.init_bezier(
+        allocator,
+        bez,
+    );
+    defer topo_bez.deinit(std.testing.allocator);
+
+    try opentime.expectOrdinateEqual(
+        10,
+        topo_bez.project_instantaneous_cc(.init(5)).ordinate(),
+    );
 }

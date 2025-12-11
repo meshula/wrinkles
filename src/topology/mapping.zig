@@ -17,9 +17,6 @@ pub const MappingCurveLinearMonotonic = (
     mapping_curve_linear.MappingCurveLinearMonotonic
 );
 
-const mapping_curve_bezier = @import("mapping_curve_bezier.zig");
-pub const MappingCurveBezier = mapping_curve_bezier.MappingCurveBezier;
-
 const curve = @import("curve");
 
 /// A Mapping is a polymorphic container for a function that maps from an
