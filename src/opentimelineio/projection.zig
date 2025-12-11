@@ -1184,7 +1184,7 @@ test "Single schema.Clip bezier transform"
     defer base_curve.deinit(allocator);
 
     // this curve is [-0.5, 0.5), rescale it into test range
-    const xform_curve = try curve.rescaled_curve(
+    const xform_curve = try curve.bezier.math.rescaled_curve(
         allocator,
         base_curve,
         //  the range of the clip for testing - rescale factors

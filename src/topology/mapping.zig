@@ -302,7 +302,7 @@ pub const Mapping = union (enum) {
             .linear => |lin| return .{
                 .linear = .{
                     .input_to_output_curve = (
-                        try curve.bezier_math.inverted_linear(
+                        try curve.linear.inverted_linear(
                             allocator,
                            lin.input_to_output_curve
                         )
@@ -344,7 +344,7 @@ pub fn test_structs(
             .{ .in = int.end, .out = int.end * 4, }
         );
         pub const CENTER_PT = (
-            curve.bezier_math.lerp(0.5, START_PT, END_PT)
+            opentime.lerp(0.5, START_PT, END_PT)
         );
 
         pub const INT = (
@@ -535,7 +535,7 @@ pub fn join_lin_lin(
 ) !mapping_curve_linear.MappingCurveLinearMonotonic
 {
     return .{
-        .input_to_output_curve = try curve.linear_curve.join(
+        .input_to_output_curve = try curve.join(
             allocator,
             .{
                 .a2b = args.a2b.input_to_output_curve,

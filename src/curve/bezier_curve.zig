@@ -44,7 +44,7 @@ const expectError = std.testing.expectError;
 const expect = std.testing.expect;
 
 const opentime = @import("opentime");
-const bezier_math = @import("bezier_math.zig");
+pub const math = @import("bezier_math.zig");
 const generic_curve = @import("generic_curve.zig");
 const linear_curve = @import("linear_curve.zig");
 const control_point = @import("control_point.zig");
@@ -167,7 +167,9 @@ fn _is_approximately_linear(
 /// ASSUMES THAT ALL POINTS ARE FINITE
 pub fn linearize_segment(
     allocator: std.mem.Allocator,
+    /// Bezier segment to linearize.
     segment: Bezier.Segment,
+    /// How close the linearized segment should be to the original Bezier curve.
     tolerance:f32,
 ) ![]control_point.ControlPoint
 {
@@ -439,6 +441,7 @@ test "Bezier.Segment.init_identity check cubic spline"
 /// [S.p0.in, S.p3.in) contains t is evaluated according to the cubic Bezier
 /// equations.
 pub const Bezier = struct {
+    /// Bezier segments that compose the curve.
     segments: []Segment = &.{},
 
     /// Bezier Curve Segment
@@ -490,8 +493,8 @@ pub const Bezier = struct {
             {
                 return .{
                     .p0 = start,
-                    .p1 = bezier_math.lerp(1.0/3.0, start, end),
-                    .p2 = bezier_math.lerp(2.0/3.0, start, end),
+                    .p1 = opentime.lerp(1.0/3.0, start, end),
+                    .p2 = opentime.lerp(2.0/3.0, start, end),
                     .p3 = end,
                 };
             }
@@ -575,9 +578,9 @@ pub const Bezier = struct {
                 dual_p.* = control_point.Dual_CP.init(p);
             }
 
-            const seg3 = bezier_math.segment_reduce4_dual(unorm_dual, self_dual);
-            const seg2 = bezier_math.segment_reduce3_dual(unorm_dual, seg3);
-            const result = bezier_math.segment_reduce2_dual(unorm_dual, seg2);
+            const seg3 = math.segment_reduce4_dual(unorm_dual, self_dual);
+            const seg2 = math.segment_reduce3_dual(unorm_dual, seg3);
+            const result = math.segment_reduce2_dual(unorm_dual, seg2);
 
             return result[0];
         }
@@ -601,9 +604,9 @@ pub const Bezier = struct {
             unorm: opentime.Ordinate,
         ) control_point.ControlPoint
         {
-            const seg3 = bezier_math.segment_reduce4(unorm, self);
-            const seg2 = bezier_math.segment_reduce3(unorm, seg3);
-            const result = bezier_math.segment_reduce2(unorm, seg2);
+            const seg3 = math.segment_reduce4(unorm, self);
+            const seg2 = math.segment_reduce3(unorm, seg3);
+            const result = math.segment_reduce2(unorm, seg2);
             return result.p0;
         }
 
@@ -622,27 +625,31 @@ pub const Bezier = struct {
             const p = self.points();
 
             const Q0 = self.p0;
-            const Q1 = bezier_math.lerp(unorm, p[0], p[1]);
-            const Q2 = bezier_math.lerp(
+            const Q1 = opentime.lerp(
+                unorm,
+                p[0],
+                p[1],
+            );
+            const Q2 = opentime.lerp(
                 unorm,
                 Q1,
-                bezier_math.lerp(unorm, p[1], p[2])
+                opentime.lerp(unorm, p[1], p[2])
             );
-            const Q3 = bezier_math.lerp(
+            const Q3 = opentime.lerp(
                 unorm,
                 Q2,
-                bezier_math.lerp(
+                opentime.lerp(
                     unorm,
-                    bezier_math.lerp(unorm, p[1], p[2]),
-                    bezier_math.lerp(unorm, p[2], p[3])
+                    opentime.lerp(unorm, p[1], p[2]),
+                    opentime.lerp(unorm, p[2], p[3])
                 )
             );
 
             const R0 = Q3;
-            const R2 = bezier_math.lerp(unorm, p[2], p[3]);
-            const R1 = bezier_math.lerp(
+            const R2 = opentime.lerp(unorm, p[2], p[3]);
+            const R1 = opentime.lerp(
                 unorm,
-                bezier_math.lerp(unorm, p[1], p[2]), 
+                opentime.lerp(unorm, p[1], p[2]), 
                 R2,
             );
             const R3 = p[3];
@@ -743,7 +750,7 @@ pub const Bezier = struct {
             tgt_value: opentime.Ordinate
         ) U_TYPE
         {
-            return bezier_math.findU(
+            return math.findU(
                 tgt_value,
                 self.p0.out,
                 self.p1.out,
@@ -757,7 +764,7 @@ pub const Bezier = struct {
             tgt_value: opentime.Ordinate
         ) opentime.Dual_Ord 
         {
-            return bezier_math.findU_dual(
+            return math.findU_dual(
                 tgt_value,
                 self.p0.out,
                 self.p1.out,
@@ -771,7 +778,7 @@ pub const Bezier = struct {
             input_ordinate: opentime.Ordinate
         ) U_TYPE
         {
-            return bezier_math.findU(
+            return math.findU(
                 input_ordinate,
                 self.p0.in,
                 self.p1.in,
@@ -785,7 +792,7 @@ pub const Bezier = struct {
             input_ordinate: opentime.Ordinate,
         ) opentime.Dual_Ord 
         {
-            return bezier_math.findU_dual(
+            return math.findU_dual(
                 input_ordinate,
                 self.p0.in,
                 self.p1.in,
@@ -813,7 +820,7 @@ pub const Bezier = struct {
             input_ord: opentime.Ordinate,
         ) opentime.Ordinate 
         {
-            const u:U_TYPE = bezier_math.findU(
+            const u:U_TYPE = math.findU(
                 input_ord,
                 self.p0.in,
                 self.p1.in,
@@ -828,7 +835,7 @@ pub const Bezier = struct {
             x: opentime.Ordinate,
         ) control_point.Dual_CP 
         {
-            const u = bezier_math.findU_dual(
+            const u = math.findU_dual(
                 x,
                 self.p0.in,
                 self.p1.in,
@@ -2159,7 +2166,7 @@ pub const Bezier = struct {
     }
 };
 
-/// parse a .curve.json file from disk and return a Bezier
+/// Parse a .curve.json file from disk and return a Bezier.
 pub fn read_curve_json(
     file_path: string_stuff.latin_s8,
     allocator:std.mem.Allocator
@@ -2189,6 +2196,7 @@ pub fn read_curve_json(
     return read_bezier_curve_data(allocator, source);
 }
 
+/// Intermediate type that unboxes the ordinate for a convenient json format.
 const BezierF = struct {
     const ControlPointType = control_point.ControlPoint_InnerType;
     const Segment = struct {
@@ -2197,37 +2205,41 @@ const BezierF = struct {
         p2 : ControlPointType,
         p3 : ControlPointType,
     };
-    segments: []Segment,
+    segments: []const Segment,
 };
 
+/// Parse curve json text and build a `Bezier`.
 pub fn read_bezier_curve_data(
     allocator: std.mem.Allocator,
+    /// Source text containing curve json.
     source: []const u8,
 ) !Bezier
 {
+    // parse float form
     const b_f = try std.json.parseFromSliceLeaky(
         BezierF,
         allocator,
         source,
         .{}
     );
-    defer {
-        allocator.free(b_f.segments);
-    }
+    defer allocator.free(b_f.segments);
 
-    var out_segments: std.ArrayList(Bezier.Segment) = .{};
+    var out_segments: std.ArrayList(Bezier.Segment) = .empty;
+    try out_segments.ensureTotalCapacity(
+        allocator,
+        b_f.segments.len,
+    );
     defer out_segments.deinit(allocator);
 
     for (b_f.segments)
         |s|
     {
-        try out_segments.append(
-            allocator,
+        out_segments.appendAssumeCapacity(
             .{
-                .p0 = control_point.ControlPoint.init(s.p0),
-                .p1 = control_point.ControlPoint.init(s.p1),
-                .p2 = control_point.ControlPoint.init(s.p2),
-                .p3 = control_point.ControlPoint.init(s.p3),
+                .p0 = .init(s.p0),
+                .p1 = .init(s.p1),
+                .p2 = .init(s.p2),
+                .p3 = .init(s.p3),
             },
         );
     }
@@ -3451,11 +3463,15 @@ test "Bezier: project_affine"
     }
 }
 
+/// Join `args.a2b` (a `Bezier`) with `args.b2c` (an Affine Transform) to
+/// create a transformation curve `a2c`.
+///
+/// Resulting memory is owned by the caller.
 pub fn join_bez_aff_unbounded(
     allocator: std.mem.Allocator,
     args: struct {
-        b2c: opentime.transform.AffineTransform1D,
         a2b: Bezier,
+        b2c: opentime.transform.AffineTransform1D,
     },
 ) !Bezier 
 {
@@ -3808,7 +3824,11 @@ pub fn three_point_guts_plot(
     const u = one_minus_t_cubed / (t_cubed + one_minus_t_cubed);
 
     // C is a lerp between the end points
-    const C = bezier_math.lerp(1-u, start_knot, end_knot);
+    const C = opentime.lerp(
+        1-u,
+        start_knot,
+        end_knot,
+    );
     final_result.C = C;
 
     // abs( (t^3 + (1-t)^3 - 1) / ( t^3 + (1-t)^3 ) )
