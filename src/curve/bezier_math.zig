@@ -23,50 +23,14 @@ inline fn expectApproxEql(
     );
 }
 
-/// lerp from a to b by amount u, [0, 1]
-pub fn lerp(
-    u: anytype,
-    a: anytype,
-    b: @TypeOf(a),
-) @TypeOf(a) 
-{
-    return opentime.eval(
-        "(a * ((-u) + 1.0)) + (b * u)",
-        .{
-            .a = a,
-            .b = b,
-            .u = u,
-        }
-    );
-}
-
-pub fn invlerp(
-    v: anytype,
-    a: anytype,
-    b: @TypeOf(a),
-) @TypeOf(a)
-{
-    if (opentime.eql(b, a)) {
-        return a;
-    }
-    return opentime.eval(
-        "(v - a)/(b - a)",
-        .{
-            .v = v,
-            .a = a,
-            .b = b,
-        }
-    );
-}
-
 pub fn output_at_input_between(
     t: opentime.Ordinate,
     fst: control_point.ControlPoint,
     snd: control_point.ControlPoint,
 ) opentime.Ordinate 
 {
-    const u = invlerp(t, fst.in, snd.in);
-    return lerp(u, fst.out, snd.out);
+    const u = opentime.invlerp(t, fst.in, snd.in);
+    return opentime.lerp(u, fst.out, snd.out);
 }
 
 pub fn input_at_output_between(
@@ -75,8 +39,8 @@ pub fn input_at_output_between(
     snd: control_point.ControlPoint,
 ) opentime.Ordinate 
 {
-    const u = invlerp(v, fst.out, snd.out);
-    return lerp(u, fst.in, snd.in);
+    const u = opentime.invlerp(v, fst.out, snd.out);
+    return opentime.lerp(u, fst.in, snd.in);
 }
 
 // dual variety
@@ -86,9 +50,9 @@ pub fn segment_reduce4_dual(
 ) [4]control_point.Dual_CP 
 {
     return .{
-        lerp(u, segment[0], segment[1]),
-        lerp(u, segment[1], segment[2]),
-        lerp(u, segment[2], segment[3]),
+        opentime.lerp(u, segment[0], segment[1]),
+        opentime.lerp(u, segment[1], segment[2]),
+        opentime.lerp(u, segment[2], segment[3]),
         .zero_zero,
     };
 }
@@ -99,8 +63,8 @@ pub fn segment_reduce3_dual(
 ) [4]control_point.Dual_CP 
 {
     return .{
-        lerp(u, segment[0], segment[1]),
-        lerp(u, segment[1], segment[2]),
+        opentime.lerp(u, segment[0], segment[1]),
+        opentime.lerp(u, segment[1], segment[2]),
         .zero_zero,
         .zero_zero,
     };
@@ -112,7 +76,7 @@ pub fn segment_reduce2_dual(
 ) [4]control_point.Dual_CP 
 {
     return .{
-        lerp(u, segment[0], segment[1]),
+        opentime.lerp(u, segment[0], segment[1]),
         .zero_zero,
         .zero_zero,
         .zero_zero,
@@ -125,9 +89,9 @@ pub fn segment_reduce4(
 ) bezier_curve.Bezier.Segment 
 {
     return .{
-        .p0 = lerp(u, segment.p0, segment.p1),
-        .p1 = lerp(u, segment.p1, segment.p2),
-        .p2 = lerp(u, segment.p2, segment.p3),
+        .p0 = opentime.lerp(u, segment.p0, segment.p1),
+        .p1 = opentime.lerp(u, segment.p1, segment.p2),
+        .p2 = opentime.lerp(u, segment.p2, segment.p3),
     };
 }
 
@@ -137,8 +101,8 @@ pub fn segment_reduce3(
 ) bezier_curve.Bezier.Segment 
 {
     return .{
-        .p0 = lerp(u, segment.p0, segment.p1),
-        .p1 = lerp(u, segment.p1, segment.p2),
+        .p0 = opentime.lerp(u, segment.p0, segment.p1),
+        .p1 = opentime.lerp(u, segment.p1, segment.p2),
     };
 }
 
@@ -148,7 +112,7 @@ pub fn segment_reduce2(
 ) bezier_curve.Bezier.Segment 
 {
     return .{
-        .p0 = lerp(u, segment.p0, segment.p1),
+        .p0 = opentime.lerp(u, segment.p0, segment.p1),
     };
 }
 
@@ -724,28 +688,28 @@ pub fn findU_dual(
     );
 }
 
-test "bezier_math: lerp" 
+test "bezier_math: opentime.lerp" 
 {
     const fst = control_point.ControlPoint.init(.{ .in = 0, .out = 0 });
     const snd = control_point.ControlPoint.init(.{ .in = 1, .out = 1 });
 
-    try opentime.expectOrdinateEqual(0, lerp(0, fst, snd).out);
-    try opentime.expectOrdinateEqual(0.25, lerp(0.25, fst, snd).out);
-    try opentime.expectOrdinateEqual(0.5, lerp(0.5, fst, snd).out);
-    try opentime.expectOrdinateEqual(0.75, lerp(0.75, fst, snd).out);
+    try opentime.expectOrdinateEqual(0, opentime.lerp(0, fst, snd).out);
+    try opentime.expectOrdinateEqual(0.25, opentime.lerp(0.25, fst, snd).out);
+    try opentime.expectOrdinateEqual(0.5, opentime.lerp(0.5, fst, snd).out);
+    try opentime.expectOrdinateEqual(0.75, opentime.lerp(0.75, fst, snd).out);
 
-    try opentime.expectOrdinateEqual(0, lerp(0, fst, snd).in);
-    try opentime.expectOrdinateEqual(0.25, lerp(0.25, fst, snd).in);
-    try opentime.expectOrdinateEqual(0.5, lerp(0.5, fst, snd).in);
-    try opentime.expectOrdinateEqual(0.75, lerp(0.75, fst, snd).in);
+    try opentime.expectOrdinateEqual(0, opentime.lerp(0, fst, snd).in);
+    try opentime.expectOrdinateEqual(0.25, opentime.lerp(0.25, fst, snd).in);
+    try opentime.expectOrdinateEqual(0.5, opentime.lerp(0.5, fst, snd).in);
+    try opentime.expectOrdinateEqual(0.75, opentime.lerp(0.75, fst, snd).in);
 
-    // dual lerp test
+    // dual opentime.lerp test
     {
         const d_u = opentime.Dual_Ord.init_ri(0.25, 1);
         const p1 = opentime.Dual_Ord.init(10);
         const p2 = opentime.Dual_Ord.init(20);
 
-        const measured = lerp(d_u, p1, p2);
+        const measured = opentime.lerp(d_u, p1, p2);
 
         try opentime.expectOrdinateEqual(
             12.5,           
@@ -1013,7 +977,7 @@ test "bezier_math: findU for upside down u"
     const u_zero_dual =  seg.findU_input_dual(seg.p0.in);
     try opentime.expectOrdinateEqual(0, u_zero_dual.r);
 
-    const half_x = lerp(0.5, seg.p0.in, seg.p3.in);
+    const half_x = opentime.lerp(0.5, seg.p0.in, seg.p3.in);
     const u_half_dual = seg.findU_input_dual(half_x);
 
     // u_half_dual = (u, du/dx)
@@ -1188,78 +1152,6 @@ test "bezier_math: normalize_to_screen_coords"
 
     try expectEqual(max_point.in, result_extents[1].in);
     try expectEqual(max_point.out, result_extents[1].out);
-}
-
-/// compute the slope of the line segment from start to end
-pub fn slope(
-    start: control_point.ControlPoint,
-    end: control_point.ControlPoint,
-) opentime.Ordinate 
-{
-    return opentime.eval(
-        "((end_out - start_out) / (end_in - start_in))",
-        .{
-            .end_in = end.in,
-            .end_out = end.out,
-            .start_in = start.in,
-            .start_out = start.out,
-        },
-    );
-}
-
-test "bezier_math: slope"
-{
-    const start = control_point.ControlPoint.init(
-        .{ .in = 0, .out = 0, }
-    );
-    const end = control_point.ControlPoint.init(
-        .{ .in = 2, .out = 4, }
-    );
-
-    try opentime.expectOrdinateEqual(
-        2,
-        slope(start, end)
-    );
-}
-
-pub fn inverted_linear(
-    allocator: std.mem.Allocator,
-    crv: linear_curve.Linear.Monotonic,
-) !linear_curve.Linear.Monotonic 
-{
-    // require two points to define a line
-    if (crv.knots.len < 2) {
-        return crv;
-    }
-
-    var result: std.ArrayList(control_point.ControlPoint) = .empty;
-    try result.appendSlice(allocator, crv.knots);
-
-    for (crv.knots, result.items) 
-        |src_knot, *dst_knot| 
-    {
-        dst_knot.* = .{
-            .in = src_knot.out,
-            .out = src_knot.in, 
-        };
-    }
-
-    const slope_kind = SlopeKind.compute(
-        crv.knots[0],
-        crv.knots[1]
-    );
-    if (slope_kind == .falling) {
-        std.mem.reverse(
-            control_point.ControlPoint,
-            result.items
-        );
-    }
-
-    return .{
-        .knots = try result.toOwnedSlice(
-            allocator,
-        ) 
-    };
 }
 
 // pub fn inverted_bezier(
@@ -1620,91 +1512,3 @@ test "bezier_math: BezierMath: rescaled parameter"
 //     }
 // }
 
-/// encodes and computes the slope of a segment between two ControlPoints
-pub const SlopeKind = enum {
-    flat,
-    rising,
-    falling,
-
-    /// compute the slope kind between the two control points
-    pub fn compute(
-        start: control_point.ControlPoint,
-        end: control_point.ControlPoint,
-    ) SlopeKind
-    {
-        if (
-            opentime.eql(start.in, end.in) 
-            or opentime.eql(start.out, end.out)
-        )
-        {
-            return .flat;
-        }
-
-        const s = slope(start, end);
-
-        if (opentime.gt(s, opentime.Ordinate.zero))
-        {
-            return .rising;
-        }
-        else 
-        {
-            return .falling;
-        }
-    }
-};
-
-test "bezier_math: SlopeKind"
-{
-    const TestCase = struct {
-        name: []const u8,
-        points: [2]control_point.ControlPoint,
-        expected: SlopeKind,
-    };
-    const tests: []const TestCase = &.{
-        .{
-            .name = "flat",  
-            .points = .{
-                control_point.ControlPoint.init(.{ .in = 0, .out = 5 }),
-                control_point.ControlPoint.init(.{ .in = 10, .out = 5 }),
-            },
-            .expected = .flat,
-        },
-        .{
-            .name = "rising",  
-            .points = .{
-                control_point.ControlPoint.init(.{ .in = 0, .out = 0 }),
-                control_point.ControlPoint.init(.{ .in = 10, .out = 15 }),
-            },
-            .expected = .rising,
-        },
-        .{
-            .name = "falling",  
-            .points = .{
-                control_point.ControlPoint.init(.{ .in = 0, .out = 10 }),
-                control_point.ControlPoint.init(.{ .in = 10, .out = 0 }),
-            },
-            .expected = .falling,
-        },
-        .{
-            .name = "column",  
-            .points = .{
-                control_point.ControlPoint.init(.{ .in = 0, .out = 10 }),
-                control_point.ControlPoint.init(.{ .in = 0, .out = 0 }),
-            },
-            .expected = .flat,
-        },
-    };
-
-    for (tests)
-        |t|
-    {
-        const measured = SlopeKind.compute(
-            t.points[0],
-            t.points[1]
-        );
-        try std.testing.expectEqual(
-            t.expected,
-            measured,
-        );
-    }
-}

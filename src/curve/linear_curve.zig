@@ -7,8 +7,9 @@ const opentime = @import("opentime");
 
 const bezier_curve = @import("bezier_curve.zig");
 const bezier_math = @import("bezier_math.zig");
-const ControlPoint = @import("control_point.zig").ControlPoint;
-const ControlPoint_BaseType = @import("control_point.zig").ControlPoint_InnerType;
+const control_point = @import("control_point.zig");
+const ControlPoint = control_point.ControlPoint;
+const ControlPoint_InnerType = control_point.ControlPoint_InnerType;
 
 /// A polyline that is linearly interpolated between knots
 pub fn LinearOf(
@@ -210,9 +211,9 @@ pub fn LinearOf(
 
             pub fn slope_kind(
                 self: @This(),
-            ) bezier_math.SlopeKind
+            ) SlopeKind
             {
-                return bezier_math.SlopeKind.compute(
+                return SlopeKind.compute(
                     self.knots[0],
                     self.knots[self.knots.len-1],
                 );
@@ -403,7 +404,7 @@ pub fn LinearOf(
                     return try self.clone(allocator);
                 }
 
-                const segment_slope = bezier_math.SlopeKind.compute(
+                const segment_slope = SlopeKind.compute(
                     self.knots[0],
                     self.knots[self.knots.len-1],
                 );
@@ -711,7 +712,7 @@ pub fn LinearOf(
             defer splits.deinit(allocator);
 
             var segment_start_index: usize = 0;
-            var slope = bezier_math.SlopeKind.compute(
+            var slope = SlopeKind.compute(
                 self.knots[0],
                 self.knots[1]
             );
@@ -719,7 +720,7 @@ pub fn LinearOf(
             for (self.knots[1..self.knots.len-1], 2.., self.knots[2..])
                 |left, right_ind, right|
             {
-                const new_slope = bezier_math.SlopeKind.compute(
+                const new_slope = SlopeKind.compute(
                     left,
                     right
                 );
@@ -766,7 +767,7 @@ pub fn LinearOf(
 }
 
 pub const Linear = LinearOf(ControlPoint);
-pub const LinearF = LinearOf(ControlPoint_BaseType);
+pub const LinearF = LinearOf(ControlPoint_InnerType);
 
 test "Linear: extents" 
 {
@@ -1743,3 +1744,171 @@ test "Linear.Monotonic: slope_kind"
         );
     }
 }
+
+/// Create a new `linear_curve.Linear.Monotonic` which is the inversion of
+/// `crv`.
+///
+/// Returned curve memory is owned by the caller.
+pub fn inverted_linear(
+    allocator: std.mem.Allocator,
+    /// Curve to invert.
+    crv: Linear.Monotonic,
+) !Linear.Monotonic 
+{
+    // require two points to define a line
+    if (crv.knots.len < 2) {
+        // @TODO: clone the result so that memory is owned by the caller.
+        return crv;
+    }
+
+    var result: std.ArrayList(control_point.ControlPoint) = .empty;
+    try result.appendSlice(allocator, crv.knots);
+
+    for (crv.knots, result.items) 
+        |src_knot, *dst_knot| 
+    {
+        dst_knot.* = .{
+            .in = src_knot.out,
+            .out = src_knot.in, 
+        };
+    }
+
+    const slope_kind = SlopeKind.compute(
+        crv.knots[0],
+        crv.knots[1]
+    );
+    if (slope_kind == .falling) {
+        std.mem.reverse(
+            control_point.ControlPoint,
+            result.items
+        );
+    }
+
+    return .{
+        .knots = try result.toOwnedSlice(
+            allocator,
+        ) 
+    };
+}
+
+/// Encodes and computes the slope of a segment between two ControlPoints
+pub const SlopeKind = enum {
+    flat,
+    rising,
+    falling,
+
+    /// compute the slope kind between the two control points
+    pub fn compute(
+        start: control_point.ControlPoint,
+        end: control_point.ControlPoint,
+    ) SlopeKind
+    {
+        if (
+            opentime.eql(start.in, end.in) 
+            or opentime.eql(start.out, end.out)
+        )
+        {
+            return .flat;
+        }
+
+        const s = slope_between(start, end);
+
+        if (opentime.gt(s, opentime.Ordinate.zero))
+        {
+            return .rising;
+        }
+        else 
+        {
+            return .falling;
+        }
+    }
+};
+
+test "bezier_math: SlopeKind"
+{
+    const TestCase = struct {
+        name: []const u8,
+        points: [2]control_point.ControlPoint,
+        expected: SlopeKind,
+    };
+    const tests: []const TestCase = &.{
+        .{
+            .name = "flat",  
+            .points = .{
+                control_point.ControlPoint.init(.{ .in = 0, .out = 5 }),
+                control_point.ControlPoint.init(.{ .in = 10, .out = 5 }),
+            },
+            .expected = .flat,
+        },
+        .{
+            .name = "rising",  
+            .points = .{
+                control_point.ControlPoint.init(.{ .in = 0, .out = 0 }),
+                control_point.ControlPoint.init(.{ .in = 10, .out = 15 }),
+            },
+            .expected = .rising,
+        },
+        .{
+            .name = "falling",  
+            .points = .{
+                control_point.ControlPoint.init(.{ .in = 0, .out = 10 }),
+                control_point.ControlPoint.init(.{ .in = 10, .out = 0 }),
+            },
+            .expected = .falling,
+        },
+        .{
+            .name = "column",  
+            .points = .{
+                control_point.ControlPoint.init(.{ .in = 0, .out = 10 }),
+                control_point.ControlPoint.init(.{ .in = 0, .out = 0 }),
+            },
+            .expected = .flat,
+        },
+    };
+
+    for (tests)
+        |t|
+    {
+        const measured = SlopeKind.compute(
+            t.points[0],
+            t.points[1]
+        );
+        try std.testing.expectEqual(
+            t.expected,
+            measured,
+        );
+    }
+}
+
+/// Compute the slope of the line segment from start to end.
+pub fn slope_between(
+    start: control_point.ControlPoint,
+    end: control_point.ControlPoint,
+) opentime.Ordinate 
+{
+    return opentime.eval(
+        "((end_out - start_out) / (end_in - start_in))",
+        .{
+            .end_in = end.in,
+            .end_out = end.out,
+            .start_in = start.in,
+            .start_out = start.out,
+        },
+    );
+}
+
+test "bezier_math: slope"
+{
+    const start = control_point.ControlPoint.init(
+        .{ .in = 0, .out = 0, }
+    );
+    const end = control_point.ControlPoint.init(
+        .{ .in = 2, .out = 4, }
+    );
+
+    try opentime.expectOrdinateEqual(
+        2,
+        slope_between(start, end)
+    );
+}
+

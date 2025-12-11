@@ -844,11 +844,11 @@ fn plot_bezier_curve(
                 if (flags.derivatives_hodo_ddu)
                 {
                     const cSeg = seg.to_cSeg();
-                    var hodo = curve.bezier_curve.hodographs.compute_hodograph(
+                    var hodo = curve.bezier.hodographs.compute_hodograph(
                         &cSeg
                     );
                     const hodo_d_du = (
-                        curve.bezier_curve.hodographs.evaluate_bezier(
+                        curve.bezier.hodographs.evaluate_bezier(
                             &hodo,
                             unorm
                         )
@@ -962,9 +962,9 @@ fn plot_bezier_curve(
 
             if (flags.show_decastlejau_point)
             {
-                const I1 = curve.bezier_math.lerp(unorm, seg.p0, seg.p1);
-                const I2 = curve.bezier_math.lerp(unorm, seg.p1, seg.p2);
-                const I3 = curve.bezier_math.lerp(unorm, seg.p2, seg.p3);
+                const I1 = opentime.lerp(unorm, seg.p0, seg.p1);
+                const I2 = opentime.lerp(unorm, seg.p1, seg.p2);
+                const I3 = opentime.lerp(unorm, seg.p2, seg.p3);
 
                 {
                     const xv = [_]f32{
@@ -984,8 +984,8 @@ fn plot_bezier_curve(
                     );
                 }
 
-                const e1 = curve.bezier_math.lerp(unorm, I1, I2);
-                const e2 = curve.bezier_math.lerp(unorm, I2, I3);
+                const e1 = opentime.lerp(unorm, I1, I2);
+                const e2 = opentime.lerp(unorm, I2, I3);
 
                 {
                     const xv = [_]f32{
@@ -1014,7 +1014,7 @@ fn plot_bezier_curve(
 }
 
 fn plot_tpa_guts(
-    guts: curve.bezier_curve.tpa_result,
+    guts: curve.bezier.tpa_result,
     name: []const u8,
     flags: tpa_flags,
     allocator: std.mem.Allocator,
@@ -1364,9 +1364,9 @@ fn plot_three_point_approx(
             const mid_point = seg.eval_at(u);
 
             const cSeg = seg.to_cSeg();
-            var hodo = curve.bezier_curve.hodographs.compute_hodograph(&cSeg);
+            var hodo = curve.bezier.hodographs.compute_hodograph(&cSeg);
             const d_midpoint_dt = (
-                curve.bezier_curve.hodographs.evaluate_bezier(
+                curve.bezier.hodographs.evaluate_bezier(
                     &hodo,
                     u
                 )
@@ -1378,7 +1378,7 @@ fn plot_three_point_approx(
                 }
             );
 
-            const tpa_guts = curve.bezier_curve.three_point_guts_plot(
+            const tpa_guts = curve.bezier.three_point_guts_plot(
                 seg.p0,
                 mid_point,
                 u,
@@ -1905,7 +1905,7 @@ fn update_with_error(
             {
                 defer zgui.treePop();
 
-                const bcrv = curve.bezier_curve;
+                const bcrv = curve.bezier;
                 var f : f32 = @floatCast(bcrv.u_val_of_midpoint);
                 zgui.text("U value: {d}", .{ bcrv.u_val_of_midpoint });
                 _ = zgui.sliderFloat(
@@ -2036,7 +2036,7 @@ fn update_with_error(
                                     zgui.bulletText(
                                         "Measured Order [time]: {d}",
                                         .{ 
-                                            try curve.bezier_math.actual_order(
+                                            try curve.bezier.math.actual_order(
                                                 seg.p0.in,
                                                 seg.p1.in,
                                                 seg.p2.in,
@@ -2048,7 +2048,7 @@ fn update_with_error(
                                     zgui.bulletText(
                                         "Measured Order [value]: {d}",
                                         .{ 
-                                            try curve.bezier_math.actual_order(
+                                            try curve.bezier.math.actual_order(
                                                 seg.p0.out,
                                                 seg.p1.out,
                                                 seg.p2.out,
@@ -2204,7 +2204,7 @@ fn update_with_error(
                             if (zgui.treeNode("Hodograph Debug")) {
                                 defer zgui.treePop();
 
-                                const hgraph = curve.bezier_curve.hodographs;
+                                const hgraph = curve.bezier.hodographs;
                                 const cSeg = crv.curve.segments[0].to_cSeg();
                                 const inflections = hgraph.inflection_points(
                                     &cSeg

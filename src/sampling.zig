@@ -543,7 +543,7 @@ pub const SignalGenerator = struct {
                 .ramp => {
                     sample.* = (
                         self.amplitude 
-                        * curve.bezier_math.lerp(
+                        * opentime.lerp(
                             mod_phase_angle,
                             @as(sample_value_t,0),
                             1,
@@ -1378,13 +1378,13 @@ test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1kh
         ),
         // go up
         curve.Bezier.Segment.init_from_start_end(
-            curve.ControlPoint.init(.{ .in = 1.0, .out = 1.0 }),
-            curve.ControlPoint.init(.{ .in = 2.0, .out = 3.0 }),
+            .init(.{ .in = 1.0, .out = 1.0 }),
+            .init(.{ .in = 2.0, .out = 3.0 }),
         ),
         // identity
         curve.Bezier.Segment.init_from_start_end(
-            curve.ControlPoint.init(.{ .in = 2.0, .out = 3.0 }),
-            curve.ControlPoint.init(.{ .in = 3.0, .out = 4.0 }),
+            .init(.{ .in = 2.0, .out = 3.0 }),
+            .init(.{ .in = 3.0, .out = 4.0 }),
         ),
     };
     const transform_curve : curve.Bezier = .{
@@ -1738,7 +1738,7 @@ test "sampling: frame phase slide 1: (time*1 freq*1 phase+0) 0,1,2,3->0,1,2,3"
     const sample_to_output_crv = (
         topology.mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = (
-                try curve.linear_curve.Linear.init_identity(
+                try curve.Linear.init_identity(
                     allocator,
                     &.{0, 2},
                 )
@@ -1806,10 +1806,10 @@ test "sampling: frame phase slide 2: (time*2 bounds*1 freq*1 phase+0) 0,1,2,3->0
 
     const sample_to_output_crv = (
         topology.mapping.MappingCurveLinearMonotonic{
-            .input_to_output_curve = curve.linear_curve.Linear.Monotonic{
+            .input_to_output_curve = curve.Linear.Monotonic{
                 .knots = &.{
-                    curve.ControlPoint.init(.{ .in = 0, .out = 0 }),
-                    curve.ControlPoint.init(.{ .in = 1, .out = 0.5 }),
+                    .init(.{ .in = 0, .out = 0 }),
+                    .init(.{ .in = 1, .out = 0.5 }),
                 },
             }
         }
@@ -1889,10 +1889,10 @@ test "sampling: frame phase slide 2.5: (time*2 bounds*2 freq*1 phase+0) 0,1,2,3-
 
     const transformd_to_sample_crv = (
         topology.mapping.MappingCurveLinearMonotonic{
-            .input_to_output_curve = curve.linear_curve.Linear.Monotonic {
+            .input_to_output_curve = curve.Linear.Monotonic {
                 .knots = &.{
-                    curve.ControlPoint.init(.{ .in = 0.0, .out = 0.0, }),
-                    curve.ControlPoint.init(.{ .in = 2.0, .out = 1.0, }),
+                    .init(.{ .in = 0.0, .out = 0.0, }),
+                    .init(.{ .in = 2.0, .out = 1.0, }),
                 },
             }
         }
@@ -1970,7 +1970,7 @@ test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(
     const sample_to_output_crv = (
         topology.mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = (
-                try curve.linear_curve.Linear.init_identity(
+                try curve.Linear.init_identity(
                     allocator,
                     &.{0, 1.0},
                 )
@@ -2085,10 +2085,10 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
 
     const transform_to_inter_crv = (
         topology.mapping.MappingCurveLinearMonotonic {
-            .input_to_output_curve = curve.linear_curve.Linear.Monotonic {
+            .input_to_output_curve = curve.Linear.Monotonic {
                 .knots = &.{ 
-                    curve.ControlPoint.init(.{ .in = 0.25, .out = 0.25 }),
-                    curve.ControlPoint.init(.{ .in = 1.25, .out = 1.25 }),
+                    .init(.{ .in = 0.25, .out = 0.25 }),
+                    .init(.{ .in = 1.25, .out = 1.25 }),
                 },
             }
         }
@@ -2096,10 +2096,10 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
 
     const inter_to_sample_crv = (
         topology.mapping.MappingCurveLinearMonotonic {
-            .input_to_output_curve = curve.linear_curve.Linear.Monotonic{
+            .input_to_output_curve = curve.Linear.Monotonic{
                 .knots = &.{ 
-                    curve.ControlPoint.init(.{ .in = 0, .out = 0 }),
-                    curve.ControlPoint.init(.{ .in = 2, .out = 1 }),
+                    .init(.{ .in = 0, .out = 0 }),
+                    .init(.{ .in = 2, .out = 1 }),
                 },
             },
         }
@@ -2194,8 +2194,8 @@ test "sampling: frame phase slide 5: arbitrary held frames 0,1,2->0,0,0,0,1,1,2,
                  topology.mapping.MappingCurveLinearMonotonic{
                      .input_to_output_curve = .{
                          .knots = &.{
-                             curve.ControlPoint.init(.{ .in = 0.0,    .out = 0.0 }),
-                             curve.ControlPoint.init(.{ .in = 1.25, .out = 0.0 }),
+                             .init(.{ .in = 0.0,    .out = 0.0 }),
+                             .init(.{ .in = 1.25, .out = 0.0 }),
                          },
                      },
                  }
@@ -2204,8 +2204,8 @@ test "sampling: frame phase slide 5: arbitrary held frames 0,1,2->0,0,0,0,1,1,2,
                  topology.mapping.MappingCurveLinearMonotonic{
                      .input_to_output_curve = .{
                          .knots = &.{
-                             curve.ControlPoint.init(.{ .in = 1.25, .out = 0.25 }),
-                             curve.ControlPoint.init(.{ .in = 1.75, .out = 0.25 }),
+                             .init(.{ .in = 1.25, .out = 0.25 }),
+                             .init(.{ .in = 1.75, .out = 0.25 }),
                          }
                      },
                  }
@@ -2214,8 +2214,8 @@ test "sampling: frame phase slide 5: arbitrary held frames 0,1,2->0,0,0,0,1,1,2,
                  topology.mapping.MappingCurveLinearMonotonic{
                      .input_to_output_curve = .{
                          .knots = &.{
-                             curve.ControlPoint.init(.{ .in = 1.75, .out = 0.5 }),
-                             curve.ControlPoint.init(.{ .in = 2.5,  .out = 0.5 }),
+                             .init(.{ .in = 1.75, .out = 0.5 }),
+                             .init(.{ .in = 2.5,  .out = 0.5 }),
                          }
                      },
                  }
@@ -2322,8 +2322,8 @@ test "sampling: transformed leak test"
     };
 
     var knots = [_]curve.ControlPoint{
-        curve.ControlPoint.init(.{ .in = 0, .out = 0 }),
-        curve.ControlPoint.init(.{ .in = 1, .out = 1 }),
+        .init(.{ .in = 0, .out = 0 }),
+        .init(.{ .in = 1, .out = 1 }),
     };
     const transformed_to_sample_crv = (
         topology.mapping.MappingCurveLinearMonotonic{
