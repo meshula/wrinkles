@@ -56,6 +56,10 @@ pub const ProjectionResult = projection_result.ProjectionResult;
 const dbg_print_mod = @import("dbg_print.zig");
 pub const dbg_print = dbg_print_mod.dbg_print;
 
+const lerp_math = @import("lerp.zig");
+pub const lerp = lerp_math.lerp;
+pub const invlerp = lerp_math.invlerp;
+
 /// Clone return a new slice with each thing in the slice having been .cloned()
 /// from the thing in the original list.  Assumes that clone takes an allocator
 /// argument and returns in the same order.
@@ -97,6 +101,7 @@ pub fn deinit_slice(
 }
 
 test {
+    _ = lerp_math;
     _ = ordinate;
     _ = interval;
     _ = transform;
