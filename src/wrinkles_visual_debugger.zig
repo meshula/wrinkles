@@ -235,7 +235,7 @@ pub fn plot_mapping(
     name: [:0]const u8,
 ) !void
 {
-    const input_bounds_ord = map.input_bounds();
+    const input_bounds_ord = map.input_bounds().?;
     var input_bounds : [2]f64 = .{
         input_bounds_ord.start.as(f64),
         input_bounds_ord.end.as(f64),
@@ -383,7 +383,10 @@ const SpaceUI = struct {
                     },
                     .{}
                 );
-                const input_limits = self.mapping.input_bounds();
+                const input_limits = (
+                    self.mapping.input_bounds().?
+                );
+
                 const range_start = @max(
                     input_limits.start.as(f64),
                     @as(f64, @floatFromInt(- std.math.maxInt(i64))),
@@ -400,7 +403,10 @@ const SpaceUI = struct {
                     },
                 );
 
-                const output_limits = self.mapping.output_bounds();
+                const output_limits = (
+                    self.mapping.output_bounds().?
+                );
+
                 zgui.plot.setupAxisLimits(
                     .y1, 
                     .{

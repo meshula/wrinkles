@@ -997,7 +997,10 @@ pub const Topology = struct {
                 if (
                     opentime.interval.intersect(
                         current_range,
-                        m_inverted.input_bounds(),
+                        (
+                              m_inverted.input_bounds() 
+                              orelse return error.InvalidMapping
+                        ),
                     ) != null
                     and current_mappings.items.len > 0
                 )
@@ -1016,7 +1019,10 @@ pub const Topology = struct {
                     // continue the current topology
                     maybe_input_range = opentime.interval.extend(
                         current_range,
-                        m_inverted.input_bounds(),
+                        (
+                         m_inverted.input_bounds()
+                         orelse return error.InvalidMapping
+                        ),
                     );
                     try current_mappings.append(allocator,m_inverted);
                 }

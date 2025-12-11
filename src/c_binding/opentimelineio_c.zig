@@ -532,7 +532,7 @@ pub export fn otio_topo_fetch_input_bounds(
         ref,
     );
 
-    const b = topo.input_bounds();
+    const b = topo.input_bounds() orelse return -1;
 
     result.*.start = b.start.as(@TypeOf(result.start));
     result.*.end = b.end.as(@TypeOf(result.end));
@@ -558,7 +558,7 @@ pub export fn otio_topo_fetch_output_bounds(
         ref,
     );
 
-    const b = topo.output_bounds();
+    const b = topo.output_bounds() orelse return -1;
 
     result.*.start = b.start.as(@TypeOf(result.start));
     result.*.end = b.end.as(@TypeOf(result.end));

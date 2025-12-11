@@ -91,7 +91,7 @@ pub const ProjectionOperator = struct {
     /// `ProjectionOperator`.
     pub fn source_bounds(
         self: @This(),
-    ) opentime.ContinuousInterval
+    ) ?opentime.ContinuousInterval
     {
         return self.src_to_dst_topo.input_bounds();
     }
@@ -100,7 +100,7 @@ pub const ProjectionOperator = struct {
     /// `ProjectionOperator`.
     pub fn destination_bounds(
         self: @This(),
-    ) opentime.ContinuousInterval
+    ) ?opentime.ContinuousInterval
     {
         return self.src_to_dst_topo.output_bounds();
     }
@@ -213,7 +213,11 @@ pub const ProjectionOperator = struct {
         ) = .{};
         defer index_buffer_destination_discrete.deinit(allocator);
 
-        const in_c_bounds = in_to_dst_topo_c.input_bounds();
+        const in_c_bounds = (
+            in_to_dst_topo_c.input_bounds()
+            // if there are no input bounds, then there are no samples
+            orelse return &.{}
+        );
 
         // const bounds_to_walk = dst_c_bounds;
         const bounds_to_walk = in_c_bounds;
@@ -491,14 +495,12 @@ test "ProjectionBuilder: clip"
 
     const known_input_bounds = (
         known_presentation_to_media.src_to_dst_topo.input_bounds()
-    );
+    ).?;
 
     const guess_presentation_to_media = (
         cl_pres_projection_builder.mappings.items(.mapping)[0]
     );
-    const guess_input_bounds = (
-        guess_presentation_to_media.input_bounds()
-    );
+    const guess_input_bounds = guess_presentation_to_media.input_bounds().?;
 
     // topology input bounds match
     try opentime.expectOrdinateEqual(
@@ -582,13 +584,13 @@ test "ProjectionBuilder: track with single clip"
             pb.cache,
         );
         const known_input_bounds = (
-            known_presentation_to_media.src_to_dst_topo.input_bounds()
+            known_presentation_to_media.src_to_dst_topo.input_bounds().?
         );
 
         const guess_presentation_to_media = (
             pb.mappings.items(.mapping)[0]
         );
-        const guess_input_bounds = guess_presentation_to_media.input_bounds();
+        const guess_input_bounds = guess_presentation_to_media.input_bounds().?;
 
         // topology input bounds match
         try opentime.expectOrdinateEqual(
@@ -756,7 +758,7 @@ test "transform: track with two clips"
             },
             cache,
         );
-        const b = xform.src_to_dst_topo.input_bounds();
+        const b = xform.src_to_dst_topo.input_bounds().?;
 
         try std.testing.expect(xform.src_to_dst_topo.mappings.len > 0);
 
@@ -835,11 +837,11 @@ test "ProjectionTopology: track with two clips"
     );
 
     const known_input_bounds = (
-        known_presentation_to_media.src_to_dst_topo.input_bounds()
+        known_presentation_to_media.src_to_dst_topo.input_bounds().?
     );
 
     const guess_presentation_to_media = cl_pres_projection_builder.mappings.items(.mapping)[1];
-    const guess_input_bounds = guess_presentation_to_media.input_bounds();
+    const guess_input_bounds = guess_presentation_to_media.input_bounds().?;
 
     // topology input bounds match
     try opentime.expectOrdinateEqual(
@@ -967,11 +969,11 @@ test "Projection: schema.Track with single clip with identity transform and boun
     );
 
     const expected_media_temporal_bounds = (
-        cl.maybe_bounds_s orelse opentime.ContinuousInterval{}
+        cl.maybe_bounds_s.?
     );
 
     const actual_media_temporal_bounds = (
-        root_presentation_to_clip_media.src_to_dst_topo.input_bounds()
+        root_presentation_to_clip_media.src_to_dst_topo.input_bounds().?
     );
 
     // cexpected_media_temporal_bounds
@@ -1127,10 +1129,10 @@ test "Projection: schema.Track 3 bounded clips identity xform"
     );
 
     const expected_range = (
-        tr.children[0].clip.maybe_bounds_s orelse opentime.ContinuousInterval{}
+        tr.children[0].clip.maybe_bounds_s.?
     );
     const actual_range = (
-        tr_pres_to_cl_media.src_to_dst_topo.input_bounds()
+        tr_pres_to_cl_media.src_to_dst_topo.input_bounds().?
     );
 
     // check the bounds
@@ -1261,7 +1263,7 @@ test "Single schema.Clip bezier transform"
 
         // note that the clips presentation space is the curve's input space
         const input_bounds = (
-            clip_presentation_to_media_proj.src_to_dst_topo.input_bounds()
+            clip_presentation_to_media_proj.src_to_dst_topo.input_bounds().?
         );
         try opentime.expectOrdinateEqual(
             curve_bounds_output.start, 
@@ -1291,7 +1293,7 @@ test "Single schema.Clip bezier transform"
             |topo|
         {
             const clip_media_to_presentation_input_bounds = (
-                topo.input_bounds()
+                topo.input_bounds().?
             );
             try opentime.expectOrdinateEqual(
                 100,
@@ -1329,7 +1331,7 @@ test "Single schema.Clip bezier transform"
                     ,
                     .{
                         output_time,
-                        clip_pres_to_media_topo.input_bounds(),
+                        clip_pres_to_media_topo.input_bounds().?,
                     }
                 );
 
@@ -1474,7 +1476,7 @@ test "otio projection: track with single clip"
             defer result_range_in_media.deinit(allocator);
 
             const r = try cl.bounds_of(.media,);
-            const b = result_range_in_media.output_bounds();
+            const b = result_range_in_media.output_bounds().?;
             errdefer {
                 opentime.dbg_print(@src(), 
                     "clip trimmed range: [{d}, {d})\n",
@@ -1510,8 +1512,8 @@ test "otio projection: track with single clip"
                 [_]sampling.sample_index_t{ 18, 19, 20, 21 }
             );
 
-            const r = tr_pres_to_cl_media.src_to_dst_topo.input_bounds();
-            const b = tr_pres_to_cl_media.src_to_dst_topo.output_bounds();
+            const r = tr_pres_to_cl_media.src_to_dst_topo.input_bounds().?;
+            const b = tr_pres_to_cl_media.src_to_dst_topo.output_bounds().?;
 
             errdefer {
                 opentime.dbg_print(@src(), 
@@ -1682,7 +1684,7 @@ test "otio projection: track with single clip with transform"
             defer result_range_in_media.deinit(allocator);
 
             const r = try cl.bounds_of(.media,);
-            const b = result_range_in_media.output_bounds();
+            const b = result_range_in_media.output_bounds().?;
             errdefer {
                 opentime.dbg_print(@src(), 
                     "clip trimmed range: [{d}, {d})\n",
@@ -1770,7 +1772,7 @@ test "otio projection: track with single clip with transform"
             defer result_tp.deinit(allocator);
 
             const output_range = (
-                result_tp.output_bounds()
+                result_tp.output_bounds().?
             );
 
             errdefer opentime.dbg_print(@src(), 
@@ -1779,19 +1781,20 @@ test "otio projection: track with single clip with transform"
             );
 
             try std.testing.expectEqual(
-                tr_pres_to_cl_media.src_to_dst_topo.output_bounds().start,
+                tr_pres_to_cl_media.src_to_dst_topo.output_bounds().?.start,
                 output_range.start
             );
 
             const start = (
-                tr_pres_to_cl_media.src_to_dst_topo.output_bounds().start
+                tr_pres_to_cl_media.src_to_dst_topo.output_bounds().?.start
             );
 
             try opentime.expectOrdinateEqual(
                 (
                  start.add(
-                 // @TODO: should the 2.0 be a 1.0?
-                 tl.discrete_space_partitions.presentation.picture.?.sample_rate_hz.inv_as_ordinate().mul(2)
+                     (
+                      tl.discrete_space_partitions.presentation.picture.?
+                     ).sample_rate_hz.inv_as_ordinate().mul(2)
                  )
                 ),
                 output_range.end,
@@ -1954,10 +1957,10 @@ test "Single clip, schema.Warp bulk"
                 )
             );
             const input_bounds = (
-                warp_pres_to_media_topo.src_to_dst_topo.input_bounds()
+                warp_pres_to_media_topo.src_to_dst_topo.input_bounds().?
             );
             const output_bounds = (
-                warp_pres_to_media_topo.src_to_dst_topo.output_bounds()
+                warp_pres_to_media_topo.src_to_dst_topo.output_bounds().?
             );
 
             errdefer opentime.dbg_print(
@@ -2329,7 +2332,7 @@ test "projection builder over warp with negative scale"
     defer wp_pres_to_child.deinit(allocator);
 
     try std.testing.expectEqual(
-        wp_pres_to_child.input_bounds(),
-        builder.input_bounds(),
+        wp_pres_to_child.input_bounds().?,
+        builder.input_bounds().?,
     );
 }

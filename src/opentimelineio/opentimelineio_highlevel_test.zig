@@ -125,7 +125,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
 
     const clip_indices = try timeline_to_clip2.project_range_cd(
         allocator,
-        timeline_to_clip2.src_to_dst_topo.input_bounds(),
+        timeline_to_clip2.src_to_dst_topo.input_bounds().?,
         .picture,
     );
     defer allocator.free(clip_indices);
@@ -387,11 +387,11 @@ test "libsamplerate w/ high level test -- resample only"
     );
 
     try std.testing.expect(
-        tr_pres_to_cl_media_po.source_bounds().end.gt(0),
+        tr_pres_to_cl_media_po.source_bounds().?.end.gt(0),
     );
 
     const pres_bounds = (
-        tr_pres_to_cl_media_po.source_bounds()
+        tr_pres_to_cl_media_po.source_bounds().?
     );
 
     try opentime.expectOrdinateEqual(
@@ -756,7 +756,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     // check the actual indices
 
     {
-        const start_tr_pres = tr_pres_to_cl_media_po.source_bounds().start;
+        const start_tr_pres = tr_pres_to_cl_media_po.source_bounds().?.start;
 
         const cl_media_indices = (
             try tr_pres_to_cl_media_po.project_range_cd(
@@ -862,7 +862,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     {
         // start ordinate of the Track.presentation space
         const start_tr_pres = (
-            tr_pres_to_cl_media_po.source_bounds().start
+            tr_pres_to_cl_media_po.source_bounds().?.start
         );
 
         // project into the media index
@@ -970,7 +970,7 @@ test "timeline w/ warp that holds the tenth frame"
         orelse return error.ShouldHaveInputBounds
     );
     const w_ob = (
-        warp_ptr.warp.transform.output_bounds()
+        warp_ptr.warp.transform.output_bounds().?
     );
 
     var tr_children = [_]otio.CompositionItemHandle{
@@ -1138,7 +1138,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     // identity
     {
         const tl_pres_bounds = (
-            tl_pres_to_cl_media_po.source_bounds()
+            tl_pres_to_cl_media_po.source_bounds().?
         );
 
         // continuous projection is an identity across the entire domain,

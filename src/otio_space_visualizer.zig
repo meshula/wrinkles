@@ -423,22 +423,28 @@ fn fill_topdown_point_buffers(
                             |discrete_space|
                         {
                             discrete_indices = .{ points.len, points.len };
+
                             // make a discrete space over the continuous one
-                            const ib = mapping.input_bounds();
-                            var current = ib.start;
-                            const inc = ib.duration().div(
-                                discrete_space.sample_rate_hz.as_ordinate()
-                            ).as(f32);
-                            while  (current.lt(ib.end))
-                                : (current = current.add(inc))
+                            const maybe_ib = mapping.input_bounds();
+
+                            if (maybe_ib)
+                                |ib|
                             {
-                                try points.append(
-                                    allocator,
-                                    .{
-                                        .x = current.as(f32),
-                                        .y = mapping.project_instantaneous_cc_assume_in_bounds(current).SuccessOrdinate.as(f32),
-                                    }
-                                );
+                                var current = ib.start;
+                                const inc = ib.duration().div(
+                                    discrete_space.sample_rate_hz.as_ordinate()
+                                ).as(f32);
+                                while  (current.lt(ib.end))
+                                    : (current = current.add(inc))
+                                {
+                                    try points.append(
+                                        allocator,
+                                        .{
+                                            .x = current.as(f32),
+                                            .y = mapping.project_instantaneous_cc_assume_in_bounds(current).SuccessOrdinate.as(f32),
+                                        }
+                                    );
+                                }
                             }
 
                             discrete_indices.?[1] = points.len;
@@ -465,7 +471,7 @@ fn fill_topdown_point_buffers(
         }
     }
 
-    cut_points.*.?[builder.intervals.len] = builder.input_bounds().end.as(f32);
+    cut_points.*.?[builder.intervals.len] = builder.input_bounds().?.end.as(f32);
     std.debug.assert(slice_indices.len != 0);
 
     for (
@@ -509,7 +515,7 @@ fn fill_topdown_point_buffers(
         {
             result.* = .empty;
             const buffer_length = discrete_info.buffer_size_for_length(
-                builder.input_bounds().duration()
+                builder.input_bounds().?.duration()
             );
 
             try result.*.?.ensureTotalCapacity(
@@ -1320,7 +1326,9 @@ fn draw(
                                 var xs: [2]f32 = undefined;
                                 var ys: [2]f32 = undefined;
 
-                                const ib = builder.input_bounds();
+                                const ib = (
+                                    builder.input_bounds().?
+                                );
                                 xs[0] = 0;
                                 xs[1] = ib.duration().as(f32);
 
@@ -1548,10 +1556,14 @@ fn draw(
                             if (STATE.maybe_proj_builder)
                                 |builder|
                             {
-                                var current_x = builder.input_bounds().start;
+                                var current_x = (
+                                    builder.input_bounds().?.start
+                                );
                                 var current_y:opentime.Ordinate = .zero;
-                                const inc = builder.input_bounds().duration().div(
-                                    @as(f32, @floatFromInt(NUM_POINTS))
+                                const inc = (
+                                    builder.input_bounds().?.duration().div(
+                                        @as(f32, @floatFromInt(NUM_POINTS))
+                                    )
                                 );
                                 zgui.text("Inc: {f}", .{ inc });
 
@@ -1592,9 +1604,13 @@ fn draw(
                             if (STATE.maybe_transform)
                                 |xform|
                             {
-                                var current_x = xform.input_bounds().start;
-                                const inc = xform.input_bounds().duration().div(
-                                    @as(f32, @floatFromInt(NUM_POINTS))
+                                var current_x = (
+                                    xform.input_bounds().?.start
+                                );
+                                const inc = (
+                                    xform.input_bounds().?.duration().div(
+                                        @as(f32, @floatFromInt(NUM_POINTS))
+                                    )
                                 );
                                 zgui.text("Inc: {f}", .{ inc });
 

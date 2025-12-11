@@ -221,6 +221,9 @@ pub const CompositionItemHandle = union(enum) {
         OutOfMemory,
         NotImplementedFetchTopology,
         UnsupportedSpaceError,
+        InvalidChildTopology,
+        InvalidTransformationNoBounds,
+        InvalidMapping,
     }!topology_m.Topology 
     {
         return  switch (self) {
@@ -450,7 +453,10 @@ pub const CompositionItemHandle = union(enum) {
                     const intrinsic_to_warp_unbounded = wp_ptr.transform;
 
                     std.debug.assert(
-                        wp_ptr.transform.input_bounds().is_instant() == false
+                        (
+                         wp_ptr.transform.input_bounds() 
+                         orelse return error.InvalidBounds
+                        ).is_instant() == false
                     );
 
                     const child_bounds = (
@@ -477,11 +483,15 @@ pub const CompositionItemHandle = union(enum) {
                     );
 
                     std.debug.assert(
-                        intrinsic_to_child.input_bounds().is_instant() == false
+                        (
+                         intrinsic_to_child.input_bounds()
+                         orelse return error.InvalidBounds
+                        ).is_instant() == false
                     );
 
                     const intrinsic_bounds = (
                         intrinsic_to_child.input_bounds()
+                        orelse return error.InvalidBounds
                     );
 
                     const presentation_to_intrinsic = (
@@ -505,7 +515,12 @@ pub const CompositionItemHandle = union(enum) {
                         }
                     );
 
-                    std.debug.assert(result.input_bounds().is_instant() == false);
+                    std.debug.assert(
+                        (
+                         result.input_bounds()
+                         orelse return error.InvalidBounds
+                        ).is_instant() == false
+                    );
 
                     return result;
                 },
