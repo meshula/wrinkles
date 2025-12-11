@@ -579,6 +579,11 @@ pub const Stack = struct {
         &.{ .presentation, .intrinsic }
     );
 
+    pub const empty: Stack = .{
+        .maybe_name = null,
+        .children = &.{},
+    };
+
     /// Clear the memory of this object but not of children.
     pub fn deinit(
         self: *@This(),
@@ -694,7 +699,7 @@ pub const Timeline = struct {
     maybe_name: ?string.latin_s8 = null,
 
     /// Container for children of the Timeline.
-    tracks:Stack = .{},
+    tracks:Stack = .empty,
 
     /// Discrete space descriptions for the presentation space of the timeline.
     discrete_space_partitions: struct {

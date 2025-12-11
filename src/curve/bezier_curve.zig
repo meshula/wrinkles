@@ -31,10 +31,11 @@
 //!
 //! A Bezier with a single segment spanning t1 to t2 therefore looks like this:
 //! 
+//! ```
 //! -inf ------[---------)------- inf+
 //!            in_1      in_2               input parameterization
 //!            p0 p1 p2 p3                  segment parameterization
-//! 
+//! ```
 
 const std = @import("std");
 const expectEqual = std.testing.expectEqual;
@@ -62,8 +63,8 @@ pub const ProjectionAlgorithms = enum (i32) {
     /// project endpoints, midpoint + midpoint derviatives, run decastlejau in
     /// reverse (so called three-point-approximation) to infer P1, P2
     three_point_approx=0,
-    /// project each endpoint, chain rule derivatives, then use derivative length
-    /// to estimate P1, P2
+    /// project each endpoint, chain rule derivatives, then use derivative
+    /// length to estimate P1, P2
     two_point_approx,
     /// linearize both curves, then project linear segments
     linearized,
@@ -172,7 +173,7 @@ pub fn linearize_segment(
 {
     // @TODO: this function should compute and preserve the derivatives on the
     //        bezier segments
-    var result: std.ArrayList(control_point.ControlPoint) = .{};
+    var result: std.ArrayList(control_point.ControlPoint) = .empty;
 
     if (_is_approximately_linear(segment, tolerance)) {
         // terminal condition

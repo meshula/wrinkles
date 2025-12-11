@@ -263,10 +263,10 @@ pub fn DualOfStruct(
 {
     return struct {
         /// real component
-        r: inner_type = .zero,
+        r: inner_type,
 
         /// infinitesimal component
-        i: inner_type = .zero,
+        i: inner_type,
 
         /// The inner type of the Dual.
         pub const InnerType = inner_type;
@@ -298,8 +298,14 @@ pub fn DualOfStruct(
         {
             return switch (@TypeOf(r)) {
                 @This() => r,
-                inner_type => .{ .r = r },
-                else => .{ .r = inner_type.init(r)},
+                inner_type => .{
+                    .r = r,
+                    .i = .zero,
+                },
+                else => .{
+                    .r = inner_type.init(r),
+                    .i = .zero,
+                },
             };
         }
 

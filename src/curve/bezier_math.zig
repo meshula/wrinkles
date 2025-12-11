@@ -89,7 +89,7 @@ pub fn segment_reduce4_dual(
         lerp(u, segment[0], segment[1]),
         lerp(u, segment[1], segment[2]),
         lerp(u, segment[2], segment[3]),
-        .{}
+        .zero_zero,
     };
 }
 
@@ -101,8 +101,8 @@ pub fn segment_reduce3_dual(
     return .{
         lerp(u, segment[0], segment[1]),
         lerp(u, segment[1], segment[2]),
-        .{},
-        .{},
+        .zero_zero,
+        .zero_zero,
     };
 }
 
@@ -113,9 +113,9 @@ pub fn segment_reduce2_dual(
 {
     return .{
         lerp(u, segment[0], segment[1]),
-        .{},
-        .{},
-        .{},
+        .zero_zero,
+        .zero_zero,
+        .zero_zero,
     };
 }
 
