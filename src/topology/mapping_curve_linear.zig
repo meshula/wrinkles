@@ -239,8 +239,8 @@ test "MappingCurveLinearMonotonic: init_knots"
         try MappingCurveLinearMonotonic.init_knots(
             std.testing.allocator,
             &.{
-                curve.ControlPoint.init(.{ .in = 0,  .out = 0  }),
-                curve.ControlPoint.init(.{ .in = 10, .out = 10 }),
+                .init(.{ .in = 0,  .out = 0  }),
+                .init(.{ .in = 10, .out = 10 }),
             },
         )
     ).mapping();
@@ -258,12 +258,12 @@ test "Mapping"
         try MappingCurveLinearMonotonic.init_knots(
             std.testing.allocator,
             &.{
-                curve.ControlPoint.init(.{ .in = 0,  .out = 0  }),
-                curve.ControlPoint.init(.{ .in = 10, .out = 10 }),
-                curve.ControlPoint.init(.{ .in = 20, .out = 30 }),
-                curve.ControlPoint.init(.{ .in = 30, .out = 30 }),
-                curve.ControlPoint.init(.{ .in = 40, .out = 0 }),
-                curve.ControlPoint.init(.{ .in = 50, .out = -10 }),
+                .init(.{ .in = 0,  .out = 0  }),
+                .init(.{ .in = 10, .out = 10 }),
+                .init(.{ .in = 20, .out = 30 }),
+                .init(.{ .in = 30, .out = 30 }),
+                .init(.{ .in = 40, .out = 0 }),
+                .init(.{ .in = 50, .out = -10 }),
             },
         )
     ).mapping();
@@ -314,9 +314,9 @@ test "Linear.Monotonic: shrink_to_output_interval"
             allocator,
             .{
                 .knots = &.{
-                    curve.ControlPoint.init(.{ .in = 0,  .out = 0  }),
-                    curve.ControlPoint.init(.{ .in = 10, .out = 10 }),
-                    curve.ControlPoint.init(.{ .in = 20, .out = 30 }),
+                    .init(.{ .in = 0,  .out = 0  }),
+                    .init(.{ .in = 10, .out = 10 }),
+                    .init(.{ .in = 20, .out = 30 }),
                 },
             },
         )

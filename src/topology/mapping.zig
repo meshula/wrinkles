@@ -195,7 +195,7 @@ pub const Mapping = union (enum) {
         };
     }
 
-    /// split the mapping at each point in output space
+    /// Split the mapping at each point in output space.
     pub fn split_at_output_points(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -231,9 +231,13 @@ pub const Mapping = union (enum) {
             }
         }
 
-        return self.split_at_input_points(allocator, input_points.items);
+        return self.split_at_input_points(
+            allocator,
+            input_points.items,
+        );
     }
 
+    /// Formatter function for `std.Io.Writer`.
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
@@ -249,6 +253,7 @@ pub const Mapping = union (enum) {
         );
     }
 
+    /// Return an self inverted.  Caller owns the memory.
     pub fn inverted(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -285,20 +290,6 @@ pub const Mapping = union (enum) {
     pub const ProjectionError = error { OutOfBounds };
     // @}
 };
-
-// Join Functions
-//
-// These functions are all of the form:
-// fn (
-//   [allocator]
-//   args: struct {
-//     .a2b: MappingSubType,
-//     .b2c: MappingSubType,
-//   }
-// ) MappingSubType
-//
-// The intent is to use the join() function in the interface
-///////////////////////////////////////////////////////////////////////////////
 
 /// Produce test structures at comptime
 pub fn test_structs(
@@ -358,6 +349,20 @@ pub const RIGHT = test_structs(
         .end = 12,
     }
 );
+
+// Join Functions
+//
+// These functions are all of the form:
+// fn (
+//   [allocator]
+//   args: struct {
+//     .a2b: MappingSubType,
+//     .b2c: MappingSubType,
+//   }
+// ) MappingSubType
+//
+// The intent is to use the join() function in the interface
+///////////////////////////////////////////////////////////////////////////////
 
 pub fn join_aff_aff(
     args: struct{
@@ -490,6 +495,7 @@ pub fn join_lin_lin(
 ///
 /// Handles the type mapping:
 ///
+/// ```
 ///     .    a2b ->
 /// b2c v  | empty | affine | linear | bezier |
 /// -------|-------|--------|--------|--------|
@@ -498,6 +504,7 @@ pub fn join_lin_lin(
 /// linear | empty | linear | linear | linear |
 /// bezier | empty | linear | linear | linear |
 /// -------|-------|--------|--------|--------|
+/// ```
 ///
 /// (return value is always a `Mapping`)
 ///
