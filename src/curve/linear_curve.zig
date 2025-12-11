@@ -776,10 +776,7 @@ test "Linear: extents"
     );
     defer crv.deinit(std.testing.allocator);
 
-    const bounds = (
-        crv.extents()
-        orelse return error.NoExtents
-    );
+    const bounds = crv.extents().?;
 
     try opentime.expectOrdinateEqual(
         100,
@@ -790,14 +787,14 @@ test "Linear: extents"
         bounds[1].in,
     );
 
-    const bounds_input = crv.extents_input();
+    const bounds_input = crv.extents_input().?;
     try opentime.expectOrdinateEqual(
         100,
-        bounds_input.?.start,
+        bounds_input.start,
     );
     try opentime.expectOrdinateEqual(
         200,
-        bounds_input.?.end,
+        bounds_input.end,
     );
 }
 
