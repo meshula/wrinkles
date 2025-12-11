@@ -54,14 +54,14 @@ pub const MappingCurveLinearMonotonic = struct {
 
     pub fn input_bounds(
         self: @This(),
-    ) opentime.ContinuousInterval 
+    ) ?opentime.ContinuousInterval 
     {
         return self.input_to_output_curve.extents_input();
     }
 
     pub fn output_bounds(
         self: @This(),
-    ) opentime.ContinuousInterval 
+    ) ?opentime.ContinuousInterval 
     {
         return self.input_to_output_curve.extents_output();
     }
@@ -103,32 +103,36 @@ pub const MappingCurveLinearMonotonic = struct {
         self: @This(),
         allocator: std.mem.Allocator,
         target_output_interval: opentime.ContinuousInterval,
-    ) !MappingCurveLinearMonotonic
+    ) !?mapping_mod.Mapping
     {
-        return .{
-            .input_to_output_curve = (
-                try self.input_to_output_curve.trimmed_output(
-                    allocator,
-                    target_output_interval,
-                )
-            ),
-        };
+        return (
+            MappingCurveLinearMonotonic{
+                .input_to_output_curve = (
+                    try self.input_to_output_curve.trimmed_output(
+                        allocator,
+                        target_output_interval,
+                    )
+                ),
+            }
+        ).mapping();
     }
 
     pub fn shrink_to_input_interval(
         self: @This(),
         allocator: std.mem.Allocator,
         target_intput_interval: opentime.ContinuousInterval,
-    ) !MappingCurveLinearMonotonic
+    ) !?mapping_mod.Mapping
     {
-        return .{
-            .input_to_output_curve = (
-                try self.input_to_output_curve.trimmed_input(
-                    allocator,
-                    target_intput_interval,
-                )
-            ),
-        };
+        return (
+            MappingCurveLinearMonotonic{
+                .input_to_output_curve = (
+                    try self.input_to_output_curve.trimmed_input(
+                        allocator,
+                        target_intput_interval,
+                    )
+                ),
+            }
+        ).mapping();
     }
 
     pub fn split_at_input_points(
@@ -319,15 +323,17 @@ test "Linear.Monotonic: shrink_to_output_interval"
     ).mapping();
     defer mcl.deinit(allocator);
 
-    const result = try mcl.shrink_to_output_interval(
-        allocator,
-        opentime.ContinuousInterval.init(
-            .{ 
-                .start = 5,
-                .end = 25,
-            }
-        ),
-    );
+    const result = (
+        try mcl.shrink_to_output_interval(
+            allocator,
+            opentime.ContinuousInterval.init(
+                .{ 
+                    .start = 5,
+                    .end = 25,
+                }
+            ),
+        )
+    ) orelse return error.InvalidBounds;
 
     defer result.deinit(allocator);
 
@@ -337,7 +343,10 @@ test "Linear.Monotonic: shrink_to_output_interval"
     const c = try result.clone(allocator);
     defer c.deinit(allocator);
 
-    const result_extents = result.output_bounds();
+    const result_extents = (
+        result.output_bounds()
+        orelse return error.InvalidBounds
+    );
     try opentime.expectOrdinateEqual(
         5,
         result_extents.start,

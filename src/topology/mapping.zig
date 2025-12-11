@@ -96,7 +96,7 @@ pub const Mapping = union (enum) {
     /// fetch (computing if necessary) the input bounds of the mapping
     pub fn input_bounds(
         self: @This(),
-    ) opentime.ContinuousInterval
+    ) ?opentime.ContinuousInterval
     {
         return switch (self) {
             inline else => |contained| contained.input_bounds(),
@@ -106,7 +106,7 @@ pub const Mapping = union (enum) {
     /// fetch (computing if necessary) the output bounds of the mapping
     pub fn output_bounds(
         self: @This(),
-    ) opentime.ContinuousInterval
+    ) ?opentime.ContinuousInterval
     {
         return switch (self) {
             inline else => |contained| contained.output_bounds(),
@@ -132,7 +132,7 @@ pub const Mapping = union (enum) {
         self: @This(),
         allocator: std.mem.Allocator,
         target_input_interval: opentime.ContinuousInterval,
-    ) !Mapping
+    ) !?Mapping
     {
         return switch (self) {
             inline else => |contained| (
@@ -140,7 +140,7 @@ pub const Mapping = union (enum) {
                     allocator,
                     target_input_interval
                 )
-            ).mapping(),
+            ),
         };
     }
 
@@ -150,15 +150,19 @@ pub const Mapping = union (enum) {
         self: @This(),
         allocator: std.mem.Allocator,
         target_output_interval: opentime.ContinuousInterval,
-    ) !Mapping
+    ) !?Mapping
     {
         return switch (self) {
             inline else => |contained| (
-                try contained.shrink_to_output_interval(
-                    allocator,
-                    target_output_interval
-                )
-            ).mapping(),
+                (
+                 try (
+                     contained.shrink_to_output_interval(
+                         allocator,
+                         target_output_interval
+                     ) 
+                 )
+                ) orelse return null
+            )
         };
     }
 
@@ -576,7 +580,10 @@ pub fn join(
 
     const empty_result = (
         MappingEmpty{
-            .defined_range = a2b.input_bounds(),
+            .defined_range = (
+                a2b.input_bounds() 
+                orelse return error.InvalidMapping
+            )
         }
     ).mapping();
 
@@ -586,8 +593,11 @@ pub fn join(
     }
 
     // manage the boundary conditions
-    const a2b_b_bounds = a2b.output_bounds();
-    const b2c_b_bounds = b2c.input_bounds();
+    const a2b_b_bounds = a2b.output_bounds().?;
+    const b2c_b_bounds = (
+        b2c.input_bounds() 
+        orelse return empty_result
+    );
 
     const maybe_b_bounds_intersection = (
         opentime.interval.intersect(
@@ -604,16 +614,25 @@ pub fn join(
     );
 
     // trimmed and linearized
-    const a2b_trimmed = try a2b.shrink_to_output_interval(
-        allocator,
-        b_bounds_intersection,
+    const a2b_trimmed = (
+        try (
+            a2b.shrink_to_output_interval(
+                allocator,
+                b_bounds_intersection,
+
+            )
+        ) orelse return empty_result
     );
     defer a2b_trimmed.deinit(allocator);
 
-    const b2c_trimmed = try b2c.shrink_to_input_interval(
-        allocator,
-        b_bounds_intersection,
-    );
+    // already checked that there is an intersection, would have caught the
+    // invalid bounds
+    const b2c_trimmed = (
+        try b2c.shrink_to_input_interval(
+            allocator,
+            b_bounds_intersection,
+        )
+    ).?;
     defer b2c_trimmed.deinit(allocator);
 
     return switch (b2c_trimmed) {
@@ -694,21 +713,31 @@ test "Mapping: join aff/aff"
         4,
         result.project_instantaneous_cc(opentime.Ordinate.init(3)).ordinate(),
     );
+
+    const ib = (
+        result.input_bounds() 
+        orelse return error.InvalidBounds
+    );
     try opentime.expectOrdinateEqual(
         aff.input_bounds().start,
-        result.input_bounds().start,
+        ib.start,
     );
     try opentime.expectOrdinateEqual(
         aff.input_bounds().end,
-        result.input_bounds().end,
+        ib.end,
+    );
+
+    const ob = (
+        result.output_bounds()
+        orelse return error.InvalidBounds
     );
     try opentime.expectOrdinateEqual(
         aff.output_bounds().start,
-        result.output_bounds().start,
+        ob.start,
     );
     try opentime.expectOrdinateEqual(
         aff.output_bounds().end,
-        result.output_bounds().end,
+        ob.end,
     );
 
     try std.testing.expectEqual(

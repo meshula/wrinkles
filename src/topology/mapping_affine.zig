@@ -128,9 +128,11 @@ pub const MappingAffine = struct {
 
     pub fn shrink_to_output_interval(
         self: @This(),
+        // other implementations of shrink_to_input_interval take an allocator
+        // and might return an error
         _: std.mem.Allocator,
         target_output_interval: opentime.ContinuousInterval,
-    ) !MappingAffine
+    ) !?mapping_mod.Mapping
     {
         const target_input_interval = (
             self.input_to_output_xform.inverted().applied_to_bounds(
@@ -138,32 +140,36 @@ pub const MappingAffine = struct {
             )
         );
 
-        return .{
-            .input_bounds_val = opentime.interval.intersect(
-                self.input_bounds_val,
-                target_input_interval,
-            ) orelse .ZERO,
-            .input_to_output_xform = (
-                self.input_to_output_xform
-            ),
-        };
+        return (
+            MappingAffine{
+                .input_bounds_val = opentime.interval.intersect(
+                    self.input_bounds_val,
+                    target_input_interval,
+                ) orelse return null,
+                .input_to_output_xform = (
+                    self.input_to_output_xform
+                ),
+            }
+        ).mapping();
     }
 
     pub fn shrink_to_input_interval(
         self: @This(),
         _: std.mem.Allocator,
         target_output_interval: opentime.ContinuousInterval,
-    ) !MappingAffine
+    ) !?mapping_mod.Mapping
     {
-        return .{
-            .input_bounds_val = (
-                opentime.interval.intersect(
-                    self.input_bounds_val,
-                    target_output_interval,
-                ) orelse return error.NoOverlap
-            ),
-            .input_to_output_xform = self.input_to_output_xform,
-        };
+        return (
+            MappingAffine{
+                .input_bounds_val = (
+                    opentime.interval.intersect(
+                        self.input_bounds_val,
+                        target_output_interval,
+                    ) orelse return error.NoOverlap
+                ),
+                .input_to_output_xform = self.input_to_output_xform,
+            }
+        ).mapping();
     }
 
     pub fn split_at_input_point(
