@@ -385,7 +385,10 @@ pub const Warp = struct {
         );
         defer warped_to_child.deinit(allocator);
 
-        const warped_range = warped_to_child.input_bounds();
+        const warped_range = (
+            warped_to_child.input_bounds()
+            orelse return .empty
+        );
 
         const presentation_to_warped = try topology_m.Topology.init_affine(
             allocator,
@@ -475,7 +478,10 @@ pub const Track = struct {
         {
             const topo = try it.topology(allocator);
             defer topo.deinit(allocator);
-            const it_bound = (topo).input_bounds();
+            const it_bound = (
+                topo.input_bounds()
+                orelse return error.InvalidChildTopology
+            );
             if (maybe_bounds) 
                 |b| 
             {
@@ -487,7 +493,8 @@ pub const Track = struct {
 
         // unpack the optional
         const result_bound:opentime.ContinuousInterval = (
-            maybe_bounds orelse opentime.ContinuousInterval.ZERO
+            maybe_bounds 
+            orelse return .empty
         );
 
         return try topology_m.Topology.init_identity(
@@ -615,6 +622,7 @@ pub const Stack = struct {
         {
             const it_bound = (
                 (try it.topology(allocator)).input_bounds()
+                orelse return error.InvalidChildTopology
             );
             if (bounds) 
                 |b| 

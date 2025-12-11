@@ -271,7 +271,7 @@ pub const Mapping = union (enum) {
     ) !void 
     {
         try writer.print(
-            "Mapping {s} mapping space {f} to {f}",
+            "Mapping {s} mapping space {?f} to {?f}",
             .{
                 @tagName(self),
                 self.input_bounds(),

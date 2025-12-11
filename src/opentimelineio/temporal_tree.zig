@@ -875,12 +875,12 @@ test "schema.Track with clip with identity transform projection"
     // check the bounds
     try opentime.expectOrdinateEqual(
         0,
-        track_to_clip.src_to_dst_topo.input_bounds().start,
+        track_to_clip.src_to_dst_topo.input_bounds().?.start,
     );
 
     try opentime.expectOrdinateEqual(
         range.end.sub(range.start),
-        track_to_clip.src_to_dst_topo.input_bounds().end,
+        track_to_clip.src_to_dst_topo.input_bounds().?.end,
     );
 
     // check the projection
@@ -1132,7 +1132,7 @@ test "track child after gap - use presentation space to compute offset"
     );
 
     errdefer std.debug.print(
-        "ERROR:\n  source_bounds: {f}\n  destination_bounds: {f}\n",
+        "ERROR:\n  source_bounds: {?f}\n  destination_bounds: {?f}\n",
         .{
             tr_pres_to_cl_media.source_bounds(),
             tr_pres_to_cl_media.destination_bounds(),
@@ -1141,28 +1141,28 @@ test "track child after gap - use presentation space to compute offset"
 
     try opentime.expectOrdinateEqual(
         gp.duration_s, 
-        tr_pres_to_cl_media.source_bounds().start,
+        tr_pres_to_cl_media.source_bounds().?.start,
     );
     try opentime.expectOrdinateEqual(
         gp.duration_s.add(cl.maybe_bounds_s.?.duration()), 
-        tr_pres_to_cl_media.source_bounds().end,
+        tr_pres_to_cl_media.source_bounds().?.end,
     );
 
     try opentime.expectOrdinateEqual(
         1, 
-        tr_pres_to_cl_media.destination_bounds().start,
+        tr_pres_to_cl_media.destination_bounds().?.start,
     );
     try opentime.expectOrdinateEqual(
         9, 
-        tr_pres_to_cl_media.destination_bounds().end,
+        tr_pres_to_cl_media.destination_bounds().?.end,
     );
 
     try opentime.expectOrdinateEqual(
         0, 
-        proj_topo.input_bounds().start,
+        proj_topo.input_bounds().?.start,
     );
     try opentime.expectOrdinateEqual(
         15,
-        proj_topo.input_bounds().end,
+        proj_topo.input_bounds().?.end,
     );
 }

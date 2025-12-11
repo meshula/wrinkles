@@ -213,6 +213,7 @@ pub fn ProjectionBuilder(
                 {
                     const interval_bounds = (
                         child_mapping.input_bounds()
+                        orelse return error.InvalidMapping
                     );
                     self.mappings.appendAssumeCapacity(
                         .{
@@ -617,7 +618,8 @@ pub fn ProjectionBuilder(
             t: opentime.Ordinate,
         ) ?usize
         {
-            if (self.input_bounds().overlaps(t) == false)
+            const ib = self.input_bounds();
+            if (ib == null or ib.?.overlaps(t) == false)
             {
                 return null;
             }
@@ -637,8 +639,13 @@ pub fn ProjectionBuilder(
         /// return the input range for this ReferenceTopology
         pub fn input_bounds(
             self: @This(),
-        ) opentime.ContinuousInterval
+        ) ?opentime.ContinuousInterval
         {
+            if (self.intervals.len == 0)
+            {
+                return null;
+            }
+
             const bounds = self.intervals.items(.input_bounds);
 
             return .{
@@ -653,7 +660,7 @@ pub fn ProjectionBuilder(
         ) !void 
         {
             try writer.print(
-                "Total timeline interval: {f}\n",
+                "Total timeline interval: {?f}\n",
                 .{ self.input_bounds() },
             );
 
@@ -685,7 +692,7 @@ pub fn ProjectionBuilder(
                     );
 
                     try writer.print(
-                        "    -> {f} | {f}\n",
+                        "    -> {f} | {?f}\n",
                         .{ destination, output_bounds, }
                     );
                 }

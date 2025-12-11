@@ -1005,6 +1005,7 @@ pub fn transform_resample_linear_non_interpolating_dd(
 
     const output_d_extents = (
         output_c_to_input_d.input_bounds()
+        orelse return error.InvalidJoinedMapping
     );
 
     std.debug.assert(output_d_extents.is_infinite() == false);

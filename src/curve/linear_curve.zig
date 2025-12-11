@@ -54,8 +54,13 @@ pub fn LinearOf(
             /// exhaustively.  [0] is the minimum and [1] is the maximum
             pub fn extents(
                 self:@This(),
-            ) [2]ControlPointType 
+            ) ?[2]ControlPointType 
             {
+                if (self.knots.len == 0)
+                {
+                    return null;
+                }
+
                 var min:ControlPointType = self.knots[0];
                 var max:ControlPointType = self.knots[0];
 
@@ -77,10 +82,10 @@ pub fn LinearOf(
             /// compute both the input extents for the curve exhaustively
             pub fn extents_input(
                 self:@This(),
-            ) opentime.ContinuousInterval
+            ) ?opentime.ContinuousInterval
             {
                 if (self.knots.len < 1) {
-                    return opentime.ContinuousInterval.ZERO;
+                    return null;
                 }
                 const fst = self.knots[0].in;
                 const lst = self.knots[self.knots.len-1].in;
@@ -93,10 +98,10 @@ pub fn LinearOf(
             /// compute both the output extents for the curve exhaustively
             pub fn extents_output(
                 self:@This(),
-            ) opentime.ContinuousInterval
+            ) ?opentime.ContinuousInterval
             {
                 if (self.knots.len == 0) {
-                    return opentime.ContinuousInterval.ZERO;
+                    return null;
                 }
                 const fst = self.knots[0].out;
                 const lst = self.knots[self.knots.len-1].out;
@@ -116,7 +121,10 @@ pub fn LinearOf(
                 output_ord: ControlPointType.OrdinateType, 
             ) ?NearestIndices
             {
-                const ob = self.extents_output();
+                const ob = (
+                    self.extents_output() 
+                    orelse return null
+                );
 
                 // out of bounds
                 if (
@@ -219,10 +227,16 @@ pub fn LinearOf(
                 const slope = self.slope_kind();
                 if (
                     slope == .flat 
-                    and self.extents_input().overlaps(input_ord)
+                    and (
+                        self.extents_input() 
+                        orelse return .OUTOFBOUNDS
+                    ).overlaps(input_ord)
                 ) 
                 {
-                    const self_ob = self.extents_output();
+                    const self_ob = (
+                        self.extents_output() 
+                        orelse return .OUTOFBOUNDS
+                    );
                     
                     if (self_ob.is_instant()) {
                         return .{
@@ -231,7 +245,7 @@ pub fn LinearOf(
                     }
 
                     return .{
-                        .SuccessInterval = self.extents_output(),
+                        .SuccessInterval = self_ob,
                     };
                 }
 
@@ -309,7 +323,11 @@ pub fn LinearOf(
                 input_bounds: opentime.ContinuousInterval,
             ) !Monotonic
             {
-                const current_bounds = self.extents_input();
+                const current_bounds = (
+                    self.extents_input()
+                    orelse return .EMPTY
+                );
+
                 if (
                     opentime.gteq(current_bounds.start, input_bounds.start)
                     and opentime.lteq(current_bounds.end, input_bounds.end)
@@ -320,7 +338,10 @@ pub fn LinearOf(
                 var result: std.ArrayList(ControlPointType) = .{};
                 defer result.deinit(allocator);
 
-                const ext = self.extents_input();
+                // cannot have output bounds but not input bounds (previous
+                // check on current bounds makes sure that current_bounds
+                // exists)
+                const ext = self.extents_input().?;
 
                 const first_point = if (
                     opentime.gteq(input_bounds.start, ext.start)
@@ -337,7 +358,7 @@ pub fn LinearOf(
                     .out = try self.output_at_input(
                         input_bounds.end
                     ).ordinate(),
-                } else self.extents()[1];
+                } else self.extents().?[1];
 
                 for (self.knots) 
                     |knot|
@@ -371,7 +392,10 @@ pub fn LinearOf(
                     return try self.clone(allocator);
                 }
 
-                const ext = self.extents_output();
+                const ext = (
+                    self.extents_output()
+                    orelse return .EMPTY
+                );
                 if (
                     opentime.lt(ext.end,output_bounds.end)
                     and opentime.gt(ext.start, output_bounds.start)
@@ -472,7 +496,10 @@ pub fn LinearOf(
                 input_points: []const opentime.Ordinate,
             ) ![]const Monotonic
             {
-                const ib = self.extents_input();
+                const ib = (
+                    self.extents_input()
+                    orelse return &.{}
+                );
 
                 if (
                     // empty
@@ -749,17 +776,29 @@ test "Linear: extents"
     );
     defer crv.deinit(std.testing.allocator);
 
-    const bounds = crv.extents();
+    const bounds = (
+        crv.extents()
+        orelse return error.NoExtents
+    );
 
     try opentime.expectOrdinateEqual(
         100,
         bounds[0].in
     );
-    try opentime.expectOrdinateEqual(200, bounds[1].in);
+    try opentime.expectOrdinateEqual(
+        200,
+        bounds[1].in,
+    );
 
     const bounds_input = crv.extents_input();
-    try opentime.expectOrdinateEqual(100, bounds_input.start);
-    try opentime.expectOrdinateEqual(200, bounds_input.end);
+    try opentime.expectOrdinateEqual(
+        100,
+        bounds_input.?.start,
+    );
+    try opentime.expectOrdinateEqual(
+        200,
+        bounds_input.?.end,
+    );
 }
 
 test "Linear: proj_ident" 
@@ -1024,9 +1063,9 @@ test "Linear: to Monotonic Test"
     }
 }
 
-/// given two monotonic curves, one that maps spaces "a"-> space "b" and a
+/// Given two monotonic curves, one that maps spaces "a"-> space "b" and a
 /// second that maps space "b" to space "c", build a new curve that maps space
-/// "a" to space "c"
+/// "a" to space "c".
 pub fn join(
     allocator: std.mem.Allocator,
     curves: struct{
@@ -1036,8 +1075,14 @@ pub fn join(
 ) !Linear.Monotonic
 {
     // compute domain of projection
-    const a2b_b_extents = curves.a2b.extents_output();
-    const b2c_b_extents = curves.b2c.extents_input();
+    const a2b_b_extents = (
+        curves.a2b.extents_output()
+        orelse return .EMPTY
+    );
+    const b2c_b_extents = (
+        curves.b2c.extents_input()
+        orelse return .EMPTY
+    );
 
     const b_bounds = opentime.interval.intersect(
         a2b_b_extents,
@@ -1176,7 +1221,10 @@ test "Linear: Join ident -> held"
         );
         defer result.deinit(allocator);
 
-        const result_extents = result.extents();
+        const result_extents = (
+            result.extents()
+            orelse return error.NoExtents
+        );
 
         try std.testing.expectEqual(
             opentime.Ordinate.init(5),
@@ -1198,7 +1246,10 @@ test "Linear: Join ident -> held"
         );
         defer result.deinit(allocator);
 
-        const result_extents = result.extents();
+        const result_extents = (
+            result.extents()
+            orelse return error.NoExtents
+        );
 
         try opentime.expectOrdinateEqual(
             5,
@@ -1257,7 +1308,10 @@ test "Linear: Join held -> non-ident"
         );
         defer result.deinit(allocator);
 
-        const result_extents = result.extents();
+        const result_extents = (
+            result.extents()
+            orelse return error.NoExtents
+        );
 
         try std.testing.expectEqual(
             opentime.Ordinate.init(5),
@@ -1279,7 +1333,10 @@ test "Linear: Join held -> non-ident"
         );
         defer result.deinit(allocator);
 
-        const result_extents = result.extents();
+        const result_extents = (
+            result.extents()
+            orelse return error.NoExtents
+        );
 
         try opentime.expectOrdinateEqual(
             10,
@@ -1382,7 +1439,8 @@ test "Linear: Monotonic Trimmed Input"
         );
         defer result.deinit(allocator);
 
-        errdefer opentime.dbg_print(@src(), 
+        errdefer opentime.dbg_print(
+            @src(), 
             "test: {s}\n result: {f}",
             .{
                 t.name,
@@ -1392,11 +1450,11 @@ test "Linear: Monotonic Trimmed Input"
         
         try std.testing.expectEqual(
             t.expected_range.start,
-            result.extents_input().start,
+            result.extents_input().?.start,
         );
         try std.testing.expectEqual(
             t.expected_range.end,
-            result.extents_input().end,
+            result.extents_input().?.end,
         );
     }
 }
@@ -1500,11 +1558,11 @@ test "Linear: Monotonic Trimmed Output"
         
         try std.testing.expectEqual(
             t.expected_range.start,
-            result.extents_output().start,
+            result.extents_output().?.start,
         );
         try std.testing.expectEqual(
             t.expected_range.end,
-            result.extents_output().end,
+            result.extents_output().?.end,
         );
     }
 }
@@ -1541,8 +1599,8 @@ test "Linear.Monotonic.SplitAtCriticalPoints"
         // also clean up the curves
         defer lin_crv.deinit(allocator);
         const range = lin_crv.extents_input();
-        try std.testing.expectEqual(last, range.start);
-        last = range.end;
+        try std.testing.expectEqual(last, range.?.start);
+        last = range.?.end;
     }
 }
 
