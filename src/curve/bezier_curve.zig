@@ -1820,7 +1820,8 @@ pub fn read_bezier_curve_data(
     return .{ .segments = result_segments, };
 }
 
-pub fn read_linear_curve_data(
+/// Inner function that reads linear curve knots from the json
+fn read_linear_curve_data(
     allocator: std.mem.Allocator,
     source: []const u8,
 ) !Bezier
@@ -2084,7 +2085,7 @@ test "Bezier.Segment: eval_at for out of range u"
     );
 }
 
-pub fn write_json_file(
+fn write_text_to_file(
     json_blob: []const u8,
     to_fpath: []const u8
 ) !void 
@@ -2108,7 +2109,7 @@ pub fn write_json_file_curve(
     const json_blob = try curve.debug_json_str(allocator);
     defer allocator.free(json_blob);
 
-    try write_json_file(
+    try write_text_to_file(
         json_blob,
         to_fpath,
     );
@@ -3173,6 +3174,7 @@ pub const tpa_result = struct {
     t: ?opentime.Ordinate.InnerType = null,
 };
 
+/// Plot the "three point approximation" of a bezier spline.
 pub fn three_point_guts_plot(
     start_knot: control_point.ControlPoint,
     mid_point: control_point.ControlPoint,

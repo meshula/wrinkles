@@ -14,16 +14,24 @@ pub fn LinearOf(
 ) type
 {
     return struct {
-        knots: []ControlPointType = &.{},
+        /// knots of the curve
+        knots: []const ControlPointType,
 
         const LinearType = LinearOf(ControlPointType);
+
+        /// An empty curve with no knots.
+        pub const empty = LinearType {
+            .knots = &.{},
+        };
 
         /// Immutable Monotonic form of the Linear curve.  Constructed by
         /// splitting a Linear with split_at_critical_points
         pub const Monotonic = struct {
+            /// knots of the curve
             knots: []const ControlPointType,
 
-            pub const EMPTY = Monotonic {
+            /// An empty curve with no knots.
+            pub const empty = Monotonic {
                 .knots =  &.{} 
             };
 
@@ -227,23 +235,23 @@ pub fn LinearOf(
                     slope == .flat 
                     and (
                         self.extents_input() 
-                        orelse return .OUTOFBOUNDS
+                        orelse return .out_of_bounds
                     ).overlaps(input_ord)
                 ) 
                 {
                     const self_ob = (
                         self.extents_output() 
-                        orelse return .OUTOFBOUNDS
+                        orelse return .out_of_bounds
                     );
                     
                     if (self_ob.is_instant()) {
                         return .{
-                            .SuccessOrdinate = self_ob.start,
+                            .success_ordinate = self_ob.start,
                         };
                     }
 
                     return .{
-                        .SuccessInterval = self_ob,
+                        .success_interval = self_ob,
                     };
                 }
 
@@ -251,7 +259,7 @@ pub fn LinearOf(
                     |index| 
                 {
                     return .{
-                        .SuccessOrdinate = bezier_math.output_at_input_between(
+                        .success_ordinate = bezier_math.output_at_input_between(
                             input_ord,
                             self.knots[index],
                             self.knots[index+1],
@@ -264,18 +272,18 @@ pub fn LinearOf(
                 if (opentime.eql(input_ord, last_knot.in)) 
                 {
                     return .{
-                        .SuccessOrdinate = last_knot.out,
+                        .success_ordinate = last_knot.out,
                     };
                 }
 
                 if (opentime.eql(input_ord, self.knots[0].in))
                 {
                     return .{
-                        .SuccessOrdinate = last_knot.out,
+                        .success_ordinate = last_knot.out,
                     };
                 }
 
-                return .OUTOFBOUNDS;
+                return .out_of_bounds;
             }
 
             /// compute the input ordinate at the output ordinate
@@ -285,14 +293,14 @@ pub fn LinearOf(
             ) opentime.ProjectionResult
             {
                 if (self.knots.len == 0) {
-                    return .OUTOFBOUNDS;
+                    return .out_of_bounds;
                 }
 
                 if (self.nearest_knot_indices_output(output_ord)) 
                     |indices| 
                 {
                     return .{
-                        .SuccessOrdinate = bezier_math.input_at_output_between(
+                        .success_ordinate = bezier_math.input_at_output_between(
                             output_ord,
                             self.knots[indices.lt_output],
                             self.knots[indices.gt_output],
@@ -303,15 +311,15 @@ pub fn LinearOf(
                 // specially handle the endpoint
                 const last_knot = self.knots[self.knots.len - 1];
                 if (opentime.eql(output_ord, last_knot.out)) {
-                    return .{ .SuccessOrdinate = last_knot.in };
+                    return .{ .success_ordinate = last_knot.in };
                 }
 
                 const first_knot = self.knots[0];
                 if (opentime.eql(output_ord, first_knot.out)) {
-                    return .{ .SuccessOrdinate = first_knot.in };
+                    return .{ .success_ordinate = first_knot.in };
                 }
 
-                return .OUTOFBOUNDS;
+                return .out_of_bounds;
             }
 
             /// trim the curve to a range in the input space
@@ -323,7 +331,7 @@ pub fn LinearOf(
             {
                 const current_bounds = (
                     self.extents_input()
-                    orelse return .EMPTY
+                    orelse return .empty
                 );
 
                 if (
@@ -333,7 +341,7 @@ pub fn LinearOf(
                     return try self.clone(allocator);
                 }
 
-                var result: std.ArrayList(ControlPointType) = .{};
+                var result: std.ArrayList(ControlPointType) = .empty;
                 defer result.deinit(allocator);
 
                 // cannot have output bounds but not input bounds (previous
@@ -392,7 +400,7 @@ pub fn LinearOf(
 
                 const ext = (
                     self.extents_output()
-                    orelse return .EMPTY
+                    orelse return .empty
                 );
                 if (
                     opentime.lt(ext.end,output_bounds.end)
@@ -414,7 +422,7 @@ pub fn LinearOf(
                     return try self.clone(allocator);
                 }
 
-                var knots: std.ArrayList(ControlPointType) = .{};
+                var knots: std.ArrayList(ControlPointType) = .empty;
                 defer knots.deinit(allocator);
 
                 try knots.appendSlice(allocator, self.knots);
@@ -424,7 +432,7 @@ pub fn LinearOf(
                     std.mem.reverse(ControlPointType, knots.items);
                 }
 
-                var result: std.ArrayList(ControlPointType) = .{};
+                var result: std.ArrayList(ControlPointType) = .empty;
                 defer result.deinit(allocator);
 
                 const first_point = if (
@@ -510,10 +518,10 @@ pub fn LinearOf(
                     return &.{ try self.clone(allocator) };
                 }
 
-                var new_knot_slices: std.ArrayList([]ControlPointType) = .{};
+                var new_knot_slices: std.ArrayList([]ControlPointType) = .empty;
                 defer new_knot_slices.deinit(allocator);
 
-                var current_curve: std.ArrayList(ControlPointType) = .{};
+                var current_curve: std.ArrayList(ControlPointType) = .empty;
                 defer current_curve.deinit(allocator,);
 
                 // search for first point that is in range
@@ -593,7 +601,7 @@ pub fn LinearOf(
                 }
 
                 // build knot slices into curves
-                var new_curves: std.ArrayList(Monotonic) = .{};
+                var new_curves: std.ArrayList(Monotonic) = .empty;
                 defer new_curves.deinit(allocator);
 
                 for (new_knot_slices.items)
@@ -620,29 +628,30 @@ pub fn LinearOf(
             };
         }
 
-        /// initialize an identity LinearType with knots at the specified input
-        /// ordinates
+        /// Initialize an identity LinearType with knots at the specified input
+        /// ordinates.
         pub fn init_identity(
             allocator: std.mem.Allocator,
             knot_input_ords:[]const opentime.Ordinate.InnerType,
         ) !LinearType.Monotonic 
         {
-            var result: std.ArrayList(ControlPointType) = .{};
-            for (knot_input_ords) 
-                |t| 
+            const out_knots = try allocator.alloc(
+                ControlPointType,
+                knot_input_ords.len,
+            );
+
+            for (knot_input_ords, out_knots) 
+                |src_ord, *dst_knot| 
             {
-                try result.append(
-                    allocator,
-                    .{
-                        .in = opentime.Ordinate.init(t),
-                        .out = opentime.Ordinate.init(t),
-                    }
-                );
+
+                dst_knot.* = .{
+                    .in = .init(src_ord),
+                    .out = .init(src_ord), 
+                };
             }
 
             return LinearType.Monotonic{
-                .knots = 
-                    try result.toOwnedSlice(allocator), 
+                .knots = out_knots,
             };
         }
 
@@ -689,7 +698,7 @@ pub fn LinearOf(
 
             // @TODO: this doesn't handle curves with vertical segments,
             //        repeated knots, etc.
-            var result: std.ArrayList(Monotonic) = .{};
+            var result: std.ArrayList(Monotonic) = .empty;
 
             // single segment line is monotonic by definition
             if (self.knots.len < 3) {
@@ -705,7 +714,7 @@ pub fn LinearOf(
                 return try result.toOwnedSlice(allocator);
             }
 
-            var splits: std.ArrayList([]ControlPointType) = .{};
+            var splits: std.ArrayList([]const ControlPointType) = .empty;
             defer splits.deinit(allocator);
 
             var segment_start_index: usize = 0;
@@ -1072,17 +1081,17 @@ pub fn join(
     // compute domain of projection
     const a2b_b_extents = (
         curves.a2b.extents_output()
-        orelse return .EMPTY
+        orelse return .empty
     );
     const b2c_b_extents = (
         curves.b2c.extents_input()
-        orelse return .EMPTY
+        orelse return .empty
     );
 
     const b_bounds = opentime.interval.intersect(
         a2b_b_extents,
         b2c_b_extents,
-    ) orelse return .EMPTY;
+    ) orelse return .empty;
 
     // trim curves to domain
     const a2b_trimmed = (
@@ -1611,7 +1620,7 @@ test "Linear.Monotonic.split_at_input_ordinates"
     };
 
     const split_pts = &[_]opentime.Ordinate.InnerType{ -1, 0, 1.0, 1.5, 2.0, 2.1, 4.5 };
-    var split_ords: std.ArrayList(opentime.Ordinate) = .{};
+    var split_ords: std.ArrayList(opentime.Ordinate) = .empty;
     for (split_pts)
         |pt|
     {

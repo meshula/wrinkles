@@ -8,14 +8,9 @@ const interval_m = @import("interval.zig");
 /// Contains the result of a projection, which can be an instant (single
 /// ordinate), a range (continuous interval) or an out of bounds result.
 pub const ProjectionResult = union (enum) {
-    SuccessOrdinate : ordinate_m.Ordinate,
-    SuccessInterval : interval_m.ContinuousInterval,
-    OutOfBounds : ?void,
-
-    /// an out of bounds projection result
-    pub const OUTOFBOUNDS = ProjectionResult{
-        .OutOfBounds = null,
-    };
+    success_ordinate: ordinate_m.Ordinate,
+    success_interval: interval_m.ContinuousInterval,
+    out_of_bounds: void,
 
     pub const Errors = struct {
         pub const NotAnOrdinateResult = error.NotAnOrdinateResult;
@@ -29,8 +24,8 @@ pub const ProjectionResult = union (enum) {
     ) !ordinate_m.Ordinate
     {
         switch (self) {
-            .SuccessOrdinate => |val| return val,
-            .OutOfBounds => return Errors.OutOfBounds,
+            .success_ordinate => |val| return val,
+            .out_of_bounds => return Errors.OutOfBounds,
             else => return Errors.NotAnOrdinateResult,
         }
     }
@@ -41,8 +36,8 @@ pub const ProjectionResult = union (enum) {
     ) !interval_m.ContinuousInterval
     {
         switch (self) {
-            .SuccessInterval => |val| return val,
-            .OutOfBounds => return Errors.OutOfBounds,
+            .success_interval => |val| return val,
+            .out_of_bounds => return Errors.OutOfBounds,
             else => return Errors.NotAnIntervalResult,
         }
     }
@@ -53,16 +48,16 @@ pub const ProjectionResult = union (enum) {
     ) !void 
     {
         switch (self) {
-            .SuccessOrdinate => |ord| try writer.print(
+            .success_ordinate => |ord| try writer.print(
                 "ProjResult{{ .ordinate = {d} }}",
                 .{ ord },
             ),
-            .SuccessInterval => |inf| try writer.print(
+            .success_interval => |inf| try writer.print(
                 "ProjResult{{ .interval = {s} }}",
                 .{ inf },
             ),
-            .OutOfBounds => try writer.print(
-                "ProjResult{{ .OutOfBounds }}",
+            .out_of_bounds => try writer.print(
+                "ProjResult{{ .out_of_bounds }}",
                 .{},
             ),
         }

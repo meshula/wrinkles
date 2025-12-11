@@ -29,7 +29,7 @@ pub const MappingEmpty = struct {
         _: opentime.Ordinate
     ) opentime.ProjectionResult
     {
-        return .OUTOFBOUNDS;
+        return .out_of_bounds;
     }
 
     pub const project_instantaneous_cc_assume_in_bounds = (
@@ -41,7 +41,7 @@ pub const MappingEmpty = struct {
         _: opentime.Ordinate
     ) opentime.ProjectionResult
     {
-        return .OUTOFBOUNDS;
+        return .out_of_bounds;
     }
 
     pub fn inverted(
