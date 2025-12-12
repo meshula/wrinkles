@@ -1724,7 +1724,7 @@ fn cleanup (
         builder.deinit(STATE.allocator);
     }
 
-    STATE.otio_root.recursively_deinit(STATE.allocator);
+    STATE.otio_root.deinit(STATE.allocator);
     STATE.allocator.free(STATE.target_otio_file);
 
     STATE.allocator.free(STATE.otio_src_json);

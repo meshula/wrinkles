@@ -476,7 +476,7 @@ pub export fn otio_timeline_deinit(
                 // @TODO: remove the need for constCast
                 //        constCast becuase CompositionItemHandle is a const*
                 //        wrapper
-                @constCast(t).recursively_deinit(
+                @constCast(t).deinit(
                     fetch_allocator(allocator_c) catch @panic(
                         "Couldn't find allocator",
                     ),

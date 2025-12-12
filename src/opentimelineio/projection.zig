@@ -1839,13 +1839,13 @@ test "Single clip, schema.Warp bulk"
         .media = .null_picture,
         .maybe_bounds_s = media_temporal_bounds,
     };
-    defer cl.destroy(allocator);
+    defer cl.deinit(allocator);
     const cl_ptr = references.CompositionItemHandle.init(&cl);
 
     const cl_media = cl_ptr.space(.media);
 
     const TestCase = struct {
-        label: string_stuff.latin_s8,
+        label: []const u8,
         presentation_range : [2]opentime.Ordinate.InnerType, 
         warp_child_range : [2]opentime.Ordinate.InnerType,
         presentation_test : opentime.Ordinate.InnerType,

@@ -126,7 +126,7 @@ pub fn main(
             allocator,
             filepath,
         );
-        defer tl_ref.recursively_deinit(allocator);
+        defer tl_ref.deinit(allocator);
 
         read_prog.end();
 
