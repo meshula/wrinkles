@@ -23,44 +23,10 @@ pub const Topology = struct {
         .mappings = &.{ .identity_infinite, }
     };
 
-    pub fn init(
-        allocator: std.mem.Allocator,
-        in_mappings: []const mapping.Mapping,
-    ) !Topology
-    {
-        if (in_mappings.len == 0)
-        {
-            return .empty;
-        }
-
-        return .{
-            // @TODO: should clone() mappings as well
-            .mappings = try allocator.dupe(
-                mapping.Mapping,
-                in_mappings
-            ),
-        };
-    }
-
-    pub fn init_from_linear_monotonic(
-        allocator: std.mem.Allocator,
-        crv: curve.Linear.Monotonic,
-    ) !Topology
-    {
-        return try Topology.init(
-            allocator,
-            &.{ 
-                (
-                 mapping.MappingCurveLinearMonotonic {
-                     .input_to_output_curve = try crv.clone(
-                         allocator,
-                     ),
-                 }
-                ).mapping(),
-            }
-        );
-    }
-
+    /// Initializes a Topology from a `curve.Linear`. Will split the curve on
+    /// critical points and wrap the monotonic segments in mappings.
+    ///
+    /// Caller owns the memory.
     pub fn init_from_linear(
         allocator: std.mem.Allocator,
         crv: curve.Linear,
@@ -99,6 +65,23 @@ pub const Topology = struct {
                 allocator,
             ),
         };
+    }
+
+    /// Initialize a Topology from a list of knots that form a linear curve.
+    ///
+    /// Will turn the knots into a linear curve and split on critical points to
+    /// form mappings.
+    ///
+    /// Caller owns the returned memory.
+    pub fn init_linear_knots(
+        allocator: std.mem.Allocator,
+        knots: []const curve.ControlPoint,
+    ) !Topology
+    {
+        return try .init_from_linear(
+            allocator,
+            .{ .knots = knots },
+        );
     }
 
     /// Construct a topology from a cubic Bezier `curve.Bezier`.
@@ -510,10 +493,11 @@ pub const Topology = struct {
              }
          }
 
-         return try Topology.init(
-             allocator,
-             trimmed_mappings.items,
-         );
+         return .{
+             .mappings = (
+                 try trimmed_mappings.toOwnedSlice(allocator)
+             ),
+         };
     }
 
     /// trims the mappings, inserting empty mappings where child mappings have
@@ -893,10 +877,11 @@ pub const Topology = struct {
             }
         }
 
-        return try Topology.init(
-            allocator,
-            result_mappings.items,
-        );
+        return .{
+            .mappings = (
+                try result_mappings.toOwnedSlice(allocator)
+            ),
+        };
     }
 
     pub fn project_instantaneous_cc(
@@ -1430,8 +1415,8 @@ fn build_test_topo_from_slides(
         mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = .{
                 .knots = &.{
-                    curve.ControlPoint.init(.{ .in = 0, .out = 0, }),
-                    curve.ControlPoint.init(.{ .in = 2, .out = 4, }),
+                    .init(.{ .in = 0, .out = 0, }),
+                    .init(.{ .in = 2, .out = 4, }),
                 },
             }
         }
@@ -1441,8 +1426,8 @@ fn build_test_topo_from_slides(
         mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = .{
                 .knots = &.{
-                    curve.ControlPoint.init(.{ .in = 2, .out = 2, }),
-                    curve.ControlPoint.init(.{ .in = 4, .out = 2, }),
+                    .init(.{ .in = 2, .out = 2, }),
+                    .init(.{ .in = 4, .out = 2, }),
                 },
             }
         }
@@ -1452,21 +1437,22 @@ fn build_test_topo_from_slides(
         mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = .{
                 .knots = &.{
-                    curve.ControlPoint.init(.{ .in = 4, .out = 2, }),
-                    curve.ControlPoint.init(.{ .in = 6, .out = 0, }),
+                    .init(.{ .in = 4, .out = 2, }),
+                    .init(.{ .in = 6, .out = 0, }),
                 },
             }
         }
     ).mapping();
 
-    const topo_b2c = try Topology.init(
-        allocator,
-        &.{
-            try m_b2c_left.clone(allocator),
-            try m_b2c_middle.clone(allocator),
-            try m_b2c_right.clone(allocator), 
-        },
-    );
+    const topo_b2c = try (
+        Topology{
+            .mappings = &.{
+                m_b2c_left,
+                m_b2c_middle,
+                m_b2c_right, 
+            },
+        }
+    ).clone(allocator);
 
     return .{
         .a2b = topo_a2b,
@@ -1528,17 +1514,13 @@ test "Topology: LEFT/RIGHT -> EMPTY"
 {
     const allocator = std.testing.allocator;
 
-    const tm_left = try Topology.init(
-        allocator,
-         &.{ mapping.LEFT.AFF.mapping(),}
-    );
-    defer tm_left.deinit(allocator);
+    const tm_left = Topology {
+        .mappings = &.{ mapping.LEFT.AFF.mapping()},
+    };
 
-    const tm_right = try Topology.init(
-        allocator,
-        &.{ mapping.RIGHT.AFF.mapping(),}
-    );
-    defer tm_right.deinit(allocator);
+    const tm_right = Topology {
+        .mappings = &.{ mapping.RIGHT.AFF.mapping()},
+    };
 
     const should_be_empty = try join(
         allocator,
@@ -1845,16 +1827,20 @@ test "Topology: trim_in_output_space (trim to multiple split bug)"
 {
     const allocator = std.testing.allocator;
 
-    const a2b = try Topology.init_from_linear_monotonic(
-        allocator,
-        .{
-            .knots = &.{
-                curve.ControlPoint.init(.{ .in = 0, .out = 0}),
-                curve.ControlPoint.init(.{ .in = 2, .out = 2}),
-            }
+    const a2b = Topology {
+        .mappings = &.{
+            (
+             mapping.MappingCurveLinearMonotonic {
+                 .input_to_output_curve = .{
+                     .knots = &.{
+                         curve.ControlPoint.init(.{ .in = 0, .out = 0}),
+                         curve.ControlPoint.init(.{ .in = 2, .out = 2}),
+                     }
+                 }
+             }
+            ).mapping()
         }
-    );
-    defer a2b.deinit(allocator);
+    };
 
     const a2b_trimmed = try a2b.trim_in_output_space(
         allocator, 
@@ -1914,8 +1900,8 @@ test "Topology: split_at_output_points"
         mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = curve.Linear.Monotonic {
                 .knots = &.{
-                    curve.ControlPoint.init(.{ .in = 0, .out = 0, }),
-                    curve.ControlPoint.init(.{ .in =10, .out = 10, }),
+                    .init(.{ .in = 0, .out = 0, }),
+                    .init(.{ .in =10, .out = 10, }),
                 },
             },
         }
@@ -1924,29 +1910,27 @@ test "Topology: split_at_output_points"
         mapping.MappingCurveLinearMonotonic{
             .input_to_output_curve = curve.Linear.Monotonic {
                 .knots = &.{
-                    curve.ControlPoint.init(.{ .in = 10, .out = 10, }),
-                    curve.ControlPoint.init(.{ .in = 20, .out = 0, }),
+                    .init(.{ .in = 10, .out = 10, }),
+                    .init(.{ .in = 20, .out = 0, }),
                 },
             },
         }
     ).mapping();
 
-    const rf_topo = try Topology.init(
-        allocator,
-        &.{ 
-            try rising.clone(allocator),
-            try falling.clone(allocator),
+    const rf_topo = Topology {
+        .mappings = &.{ 
+            rising,
+            falling,
         }
-    );
-    defer rf_topo.deinit(allocator);
+    };
 
     const split_topo = try rf_topo.split_at_output_points(
         allocator,
         &.{ 
-            opentime.Ordinate.init(0), 
-            opentime.Ordinate.init(3), 
-            opentime.Ordinate.init(7), 
-            opentime.Ordinate.init(11),
+            .init(0), 
+            .init(3), 
+            .init(7), 
+            .init(11),
         }
     );
     defer split_topo.deinit(allocator);

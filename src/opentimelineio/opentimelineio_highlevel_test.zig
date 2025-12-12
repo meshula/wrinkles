@@ -810,19 +810,17 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     // reverse the first 6 seconds of the target
     var wp_reverse: otio.Warp = .{
         .child = cl_ptr,
-        .transform = try topology.Topology.init_from_linear_monotonic(
+        .transform = try topology.Topology.init_linear_knots(
             allocator,
-            .{
-                .knots = &.{
-                    .{
-                        .in = .zero,
-                        .out = T_ORD_SIGNAL_DURATION, 
-                    },
-                    .{
-                        .in = T_ORD_SIGNAL_DURATION,
-                        .out = .zero 
-                    },   
+            &.{
+                .{
+                    .in = .zero,
+                    .out = T_ORD_SIGNAL_DURATION, 
                 },
+                .{
+                    .in = T_ORD_SIGNAL_DURATION,
+                    .out = .zero 
+                },   
             },
         )
     };
@@ -946,18 +944,16 @@ test "timeline w/ warp that holds the tenth frame"
     // new for this test - add in an warp on the clip, which holds the frame
     var wp = otio.Warp {
         .child = cl_ptr,
-        .transform = try topology.Topology.init_from_linear_monotonic(
+        .transform = try topology.Topology.init_linear_knots(
             allocator,
-            .{
-                .knots = &.{
-                    .{
-                        .in = .zero,
-                        .out = ord_10f24hz,
-                    },
-                    .{
-                        .in = opentime.Ordinate.init(5),
-                        .out = ord_10f24hz,
-                    },
+            &.{
+                .{
+                    .in = .zero,
+                    .out = ord_10f24hz,
+                },
+                .{
+                    .in = opentime.Ordinate.init(5),
+                    .out = ord_10f24hz,
                 },
             },
         )

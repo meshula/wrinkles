@@ -1912,13 +1912,11 @@ test "Single clip, schema.Warp bulk"
         };
 
         const xform = (
-            try topology_m.Topology.init_from_linear_monotonic(
+            try topology_m.Topology.init_linear_knots(
                 allocator,
-                .{
-                    .knots = &.{
-                        start,
-                        end,
-                    },
+                &.{
+                    start,
+                    end,
                 },
             )
         );
