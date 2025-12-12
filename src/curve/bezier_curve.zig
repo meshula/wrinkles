@@ -1302,7 +1302,7 @@ pub const Bezier = struct {
     ///
     /// note: if the ordinate causes no split (IE is on an endpoint), the
     ///       return will a strict copy of self.
-    pub fn split_at_input_ordinate(
+    pub fn split_at_input_ord(
         self:@This(),
         allocator: std.mem.Allocator,
         ordinate:opentime.Ordinate,
@@ -2393,7 +2393,7 @@ test "Bezier: split_at_each_input_ordinate linear"
     try std.testing.expectEqual(@as(usize, 3), result.segments.len);
 }
 
-test "Bezier: split_at_input_ordinate" 
+test "Bezier: split_at_input_ord" 
 {
     const allocator = std.testing.allocator;
 
@@ -2435,7 +2435,7 @@ test "Bezier: split_at_input_ordinate"
                     loop, extents, split_loc, ident.debug_json_str(allocator)
                 }
             );
-            const split_ident = try ident.split_at_input_ordinate(
+            const split_ident = try ident.split_at_input_ord(
                 allocator,
                 opentime.Ordinate.init(split_loc),
             );
