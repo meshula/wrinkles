@@ -1,20 +1,11 @@
 # Wrinkles app - Robust Temporal Math V3 Prototype Project
 
-@TODO: next step is to use the work on Ordinates to define how ranges, and
-        times are used to define where a clip sits in the timeline.  IE does a
-        media reference describe its media range in integer sample indices?
-        Does the clip cut in continuous time?  How does a track describe its
-        metric or is that per clip?
-        Is the "does the clip cut in continuous time" question analogous to the
-        LoD over continuous time in the sampling framework that AAA mentioned?
-
 ## Contents
 
 * `treecode`: library for encoding paths through graphs and a `BinaryTree` for
   which uses the treecodes to encode node locations
 * `opentime`: low level points, intervals and affine transforms, and
-  `Dual` for doing dual arithmetic/implicit differentiation.  Also includes the
-  likely-to-be-deleted `PhaseOrdinate` [^1].
+  `Dual` for doing dual arithmetic/implicit differentiation.
 * `curve`: structures and functions for making and manipulating linear and
   bezier splines
 * `sampling`: tools for dealing with discrete spaces, particularly sets of either
@@ -29,13 +20,10 @@
   space to another discrete space with a continuous transformation in the
   middle.
 * `OpenTimelineIO`: structures to represent an editorial timeline document and
-  construct `SpaceReferences`
-* `TemporalTree`: A specialization of the `treecode.BinaryTree` over
-  `SpaceReference`
-* `TemporalProjectionBuilder`: An acceleration structure that allows quickly
-  building projections from a complex graph
+  construct a `TemporalProjectionBuilder`, An acceleration structure that
+  allows quickly building projections from a complex graph.
 
-Structure:
+### Structure:
 
 ```
                   `opentime`
@@ -109,39 +97,13 @@ didn't impact the deisgn or problems we were specifically solving.
 
 ## Todo List 11/14/25
 
-* [x] leak pass
-    * [x] write program that loads and then deinits otio files to check for
-          leaks
-* [ ] Consistent-ify the terminology
-    * [ ] difference between `RANGE` and `BOUNDS` -- when to use each
-    * [ ] `string.latin_s8` vs `[]const u8`
-* [x] Basic warp schema
-    * [x] affine transforms
-    * [x] negative scale bug
-    * [x] curve based transformation
-        * [x] linear curve
-        * [x] single segment bezier
-    * [x] test warping a track or other structure
-    * [x] warp on a warp
 * [ ] Transition Schema
     * [x] Add type
     * [ ] Animated parameter for amount [0, 1)
     * [ ] add a boundary to the transition
-* [ ] Separate the concept of a presentation discrete space (which requires an
-      additional domain to resolve) from a media presentation space (in which
-      the domain is implicitly encoded on the container reference)
-* [ ] Currently references.CompositionItemHandle.recursively_deinit is doing a lot
-      of heavy lifting.  This should probably be pushed into schema and made
-      consistent -- Just have deinit() and that be the recursive deinit thing.
-      Children can be copied out and removed using dupe() so simplifying the
-      code would be good
-* [ ] Mapping/Topology inits unnecessarily copy memory (they always dupe
-      argument lists in)
 * [ ] discrete space description
     * [x] Clip specification
     * [ ] description of bounds in either Continuous or Discrete space
-* [ ] build out domain modelling from sketch into serialization
-* [ ] clip.presentation bounds are currently the same for media and presentation space, this is incorrect.  The presentation space should _always_ be [0,duration)
 * [ ] OTIO 2.0 file format
     * [ ] translator python script
     * [ ] don't need a rational time based format anymore
@@ -162,25 +124,12 @@ didn't impact the deisgn or problems we were specifically solving.
       * [ ] allow controlling visibility from intermediate (non-plotted) scopes
       * [ ] optionally plot intermediate scopes
     * [ ] add visibility controls over the hierarchy
-    * [x] Options pane
-    * [x] rearrange based on a table of all the children to control visibility
-    * [x] visualize discrete spaces (stairstep plot in implot?)
-    * [x] struct data visualizer/editor
-    * [x] vertical bars to see cuts
-    * [x] highlight overlapped item and show in graph
-    * [x] add "s" suffix to continuous times
-    * [x] add hover behavior to otio_space_visualizer that lists active media
-          per cut point, index, etc.
-      * [x] continuous time
-      * [x] draw points on plot
-      * [x] show discrete time too (? draw discrete point?)
 * [ ] code cleanup pass on projection_builder
 * [ ] C++ test API
 * [ ] Python test API (ziggy-pydust)
 * [ ] project_*_cd should return an optional instead of an error?
 * [ ] building a projection operator should not require allocation from a
       builder
-* [ ] OTIO 1.0 missing vs omitted features list
 * [ ] look for tests that are manually comparing interval endpoints and just
       compare the entire (optional) interval
 * [x] remove defaults for prescribed initializers 

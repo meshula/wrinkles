@@ -191,11 +191,9 @@ pub fn ProjectionBuilder(
                 proj_args.destination = current_index;
 
                 const source_to_current_proj_op = (
-                    try build_projection_operator_indices(
+                    try self.build_projection_operator_indices(
                         allocator_parent,
-                        tree,
                         proj_args,
-                        cache,
                     )
                 );
 
@@ -530,9 +528,8 @@ pub fn ProjectionBuilder(
             destination_space: SpaceReferenceType,
         ) !ProjectionOperatorType
         {
-            return try build_projection_operator_assume_sorted(
+            return try self.build_projection_operator_assume_sorted(
                 allocator,
-                self.tree,
                 .{
                     .source = SOURCE_INDEX,
                     .destination = (
@@ -542,7 +539,6 @@ pub fn ProjectionBuilder(
                         orelse return error.DestinationSpaceNotChildOfSource
                     ),
                 },
-                self.cache,
             );
         }
 
@@ -554,9 +550,8 @@ pub fn ProjectionBuilder(
         ) !ProjectionOperatorType
         {
             var result = (
-                try build_projection_operator_assume_sorted(
+                try self.build_projection_operator_assume_sorted(
                     allocator,
-                    self.tree,
                     .{
                         .source = SOURCE_INDEX,
                         .destination = (
@@ -564,7 +559,6 @@ pub fn ProjectionBuilder(
                             orelse return error.DestinationSpaceNotUnderSource
                         ),
                     },
-                    self.cache,
                 )
             );
 
@@ -605,14 +599,12 @@ pub fn ProjectionBuilder(
             destination_space_index: NodeIndex,
         ) !ProjectionOperatorType
         {
-            return try build_projection_operator_indices(
+            return try self.build_projection_operator_indices(
                 allocator,
-                self.tree,
                 .{
-                    .source = 0,
+                    .source = SOURCE_INDEX,
                     .destination = destination_space_index,
                 },
-                self.cache,
             );
         }
 
@@ -704,25 +696,24 @@ pub fn ProjectionBuilder(
             }
         }
 
-        pub fn build_projection_operator_indices(
+        fn build_projection_operator_indices(
+            self: @This(),
             parent_allocator: std.mem.Allocator,
-            tree: TreeType,
             endpoints: TreeType.PathEndPointIndices,
-            operator_cache: SingleSourceTopologyCache,
         ) !ProjectionOperatorType
         {
             // sort endpoints so that the higher node is always the source
             var sorted_endpoints = endpoints;
-            const endpoints_were_swapped = try tree.sort_endpoint_indices(
+            const endpoints_were_swapped = try self.tree.sort_endpoint_indices(
                 &sorted_endpoints
             );
 
             // var result = try build_projection_operator_assume_sorted(
-            var result = try build_projection_operator_assume_sorted(
-                parent_allocator,
-                tree,
-                sorted_endpoints,
-                operator_cache
+            var result = (
+                try self.build_projection_operator_assume_sorted(
+                    parent_allocator,
+                    sorted_endpoints,
+                )
             );
 
             // check to see if end points were inverted
@@ -759,17 +750,16 @@ pub fn ProjectionBuilder(
             return result;
         }
 
-        pub fn build_projection_operator_assume_sorted(
+        fn build_projection_operator_assume_sorted(
+            self: @This(),
             parent_allocator: std.mem.Allocator,
-            tree: TreeType,
             sorted_endpoints: TreeType.PathEndPointIndices,
-            operator_cache: SingleSourceTopologyCache,
         ) !ProjectionOperatorType
         {
-            const space_nodes = tree.nodes.slice();
+            const space_nodes = self.tree.nodes.slice();
 
             // if destination is already present in the cache
-            if (operator_cache.items[sorted_endpoints.destination])
+            if (self.cache.items[sorted_endpoints.destination])
                 |cached_topology|
             {
                 return .{
@@ -783,7 +773,9 @@ pub fn ProjectionBuilder(
                 };
             }
 
-            var arena = std.heap.ArenaAllocator.init(parent_allocator);
+            var arena = std.heap.ArenaAllocator.init(
+                parent_allocator,
+            );
             defer arena.deinit();
             const allocator_arena = arena.allocator();
 
@@ -799,11 +791,11 @@ pub fn ProjectionBuilder(
 
             const source_index = sorted_endpoints.source;
 
-            const path_nodes = tree.tree_data.slice();
+            const path_nodes = self.tree.tree_data.slice();
             const codes = path_nodes.items(.code);
 
             // compute the path length
-            const path = try tree.path(
+            const path = try self.tree.path(
                 allocator_arena,
                 .{ 
                     .source = source_index,
@@ -850,7 +842,7 @@ pub fn ProjectionBuilder(
             {
                 path_step.destination = @intCast(next);
 
-                if (operator_cache.items[next])
+                if (self.cache.items[next])
                     |cached_topology|
                 {
                     root_to_current = cached_topology;
@@ -927,7 +919,7 @@ pub fn ProjectionBuilder(
                 }
 
                 root_to_current = root_to_next;
-                operator_cache.items[next] = root_to_current;
+                self.cache.items[next] = root_to_current;
             }
 
             return .{
@@ -948,7 +940,7 @@ pub fn ProjectionBuilder(
             return self.tree.nodes.get(destination_ind);
         }
 
-        pub const SingleSourceTopologyCache = struct { 
+        const SingleSourceTopologyCache = struct { 
             items: []?topology_m.Topology,
 
             pub fn init(
