@@ -192,14 +192,13 @@ fn read_transform(
                 }
             }
 
-            const result = try topology.Topology.init(
-                allocator,
-                &.{ 
+            const result = topology.Topology {
+                .mappings = &.{ 
                     topology.MappingCurveLinearMonotonic.init_knots(
                         try buffer.toOwnedSlice(allocator)
                     ).mapping(),
                 }
-            );
+            };
 
             return result;
         },
