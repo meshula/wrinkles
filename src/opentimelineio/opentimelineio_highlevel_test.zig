@@ -8,6 +8,8 @@ const opentime = @import("opentime");
 const topology = @import("topology");
 const sampling = @import("sampling");
 
+const string_stuff = @import("string_stuff");
+
 // for verbose print of test
 const PRINT_DEMO_OUTPUT = false;
 
@@ -1159,7 +1161,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     ////////////////////////////////////
 
     const TestCase = struct {
-        maybe_name: []const u8,
+        maybe_name: string_stuff.latin_s8,
         tl_pres_index: sampling.sample_index_t,
         cl_media_indices: []const sampling.sample_index_t,
     };
