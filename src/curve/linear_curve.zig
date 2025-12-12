@@ -51,7 +51,7 @@ pub fn LinearOf(
                 return .{ 
                     .knots = try allocator.dupe(
                         ControlPointType,
-                        self.knots
+                        self.knots,
                     ),
                 };
             }

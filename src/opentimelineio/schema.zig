@@ -545,11 +545,11 @@ pub const Track = struct {
             .{
                 .input_bounds_val = .{
                     .start = current_child_duration,
-                    .end = opentime.Ordinate.inf,
+                    .end = .inf,
                 },
                 .input_to_output_xform = .{
                     .offset = current_child_duration.neg(),
-                    .scale = opentime.Ordinate.one,
+                    .scale = .one,
                 }
             }
         );

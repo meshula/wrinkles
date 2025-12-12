@@ -39,6 +39,7 @@ pub const Mapping = union (enum) {
     ) void
     {
         return switch (self) {
+            // these do not have allocations, and do not need to be deinited
             .empty, .affine => {},
             inline else => |m| m.deinit(allocator),
         };
@@ -117,6 +118,10 @@ pub const Mapping = union (enum) {
     ) !Mapping
     {
         return switch (self) {
+            // do not need an allocator
+            inline .affine, .empty => |m| (
+                m.clone().mapping()
+            ),
             inline else => |contained| (
                 try contained.clone(allocator)
             ).mapping(),
@@ -261,7 +266,7 @@ pub const Mapping = union (enum) {
     {
         switch (self) {
             .empty => |empty| return (
-                try empty.clone(allocator)
+                empty.clone()
             ).mapping(),
             .affine => |aff| return .{
                 .affine = .{

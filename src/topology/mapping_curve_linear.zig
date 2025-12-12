@@ -21,16 +21,6 @@ pub const MappingCurveLinearMonotonic = struct {
         };
     }
 
-    pub fn init_curve(
-        allocator: std.mem.Allocator,
-        crv: curve.Linear.Monotonic,
-    ) !MappingCurveLinearMonotonic
-    {
-        return .{
-            .input_to_output_curve = try crv.clone(allocator),
-        };
-    }
-
     pub fn deinit(
         self: @This(),
         allocator: std.mem.Allocator,

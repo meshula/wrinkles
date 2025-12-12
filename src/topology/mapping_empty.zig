@@ -67,8 +67,7 @@ pub const MappingEmpty = struct {
 
     pub fn clone(
         self: @This(),
-        _: std.mem.Allocator,
-    ) !MappingEmpty
+    ) MappingEmpty
     {
         return .{
             .defined_range = .{

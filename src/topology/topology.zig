@@ -131,7 +131,7 @@ pub const Topology = struct {
             .mappings = try allocator.dupe(
                 mapping.Mapping,
                 &.{ aff.mapping() }
-            )
+            ),
         };
     }
 
@@ -176,7 +176,7 @@ pub const Topology = struct {
                 try writer.print(", ", .{});
             }
             try writer.print(
-                "({s}, {f})",
+                "({s}, {?f})",
                 .{
                     @tagName(m),
                     m.input_bounds(),
@@ -186,7 +186,7 @@ pub const Topology = struct {
 
         if (self.mappings.len > 0) {
             try writer.print(
-                "] -> output space: {f} }}",
+                "] -> output space: {?f} }}",
                 .{ self.output_bounds() }
             );
         }
@@ -200,23 +200,19 @@ pub const Topology = struct {
         allocator: std.mem.Allocator,
     ) !Topology
     {
-        var new_mappings: std.ArrayList(mapping.Mapping,) = .{};
-        try new_mappings.ensureTotalCapacity(
-            allocator,
+        const dst_mappigns = try allocator.alloc(
+            mapping.Mapping,
             self.mappings.len
         );
-        for (self.mappings)
-            |m|
+
+        for (self.mappings, dst_mappigns)
+            |src_m, *dst_m|
         {
-            new_mappings.appendAssumeCapacity(
-                try m.clone(allocator),
-            );
+            dst_m.* = try src_m.clone(allocator);
         }
 
         return .{
-            .mappings = (
-                try new_mappings.toOwnedSlice(allocator)
-            ),
+            .mappings = dst_mappigns,
         };
     }
 
@@ -2142,13 +2138,11 @@ test "Topology output_bounds are sorted after negative scale"
             allocator,
             .{
                 .input_bounds_val = (
-                    opentime.ContinuousInterval.init(
-                        .{ .start = 0, .end = 8, }
-                    )
+                    .init( .{ .start = 0, .end = 8, })
                 ),
                 .input_to_output_xform = .{
-                    .offset = opentime.Ordinate.zero,
-                    .scale = opentime.Ordinate.init(-1),
+                    .offset = .zero,
+                    .scale = .init(-1),
                 },
             },
         );
@@ -2158,7 +2152,7 @@ test "Topology output_bounds are sorted after negative scale"
 
         try std.testing.expectEqual(
             opentime.ContinuousInterval{
-                .start = opentime.Ordinate.init(-8),
+                .start = .init(-8),
                 .end = .zero,
             }, 
             output_bounds,
@@ -2171,13 +2165,11 @@ test "Topology output_bounds are sorted after negative scale"
             allocator,
             .{
                 .input_bounds_val = (
-                    opentime.ContinuousInterval.init(
-                        .{ .start = 0, .end = 8, }
-                    )
+                    .init( .{ .start = 0, .end = 8, })
                 ),
                 .input_to_output_xform = .{
-                    .offset = opentime.Ordinate.init(1),
-                    .scale = opentime.Ordinate.init(-1),
+                    .offset = .init(1),
+                    .scale = .init(-1),
                 },
             },
         );
