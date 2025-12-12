@@ -117,8 +117,7 @@ pub const MappingAffine = struct {
 
     pub fn clone(
         self: @This(),
-        _: std.mem.Allocator,
-    ) !MappingAffine
+    ) MappingAffine
     {
         return .{
             .input_bounds_val = self.input_bounds_val,
@@ -298,10 +297,41 @@ test "MappingAffine: non-identity"
         }
     ).mapping();
 
-   try opentime.expectOrdinateEqual(
-       14,
-       ma.project_instantaneous_cc(
-           opentime.Ordinate.init(3)
+    try opentime.expectOrdinateEqual(
+        14,
+        ma.project_instantaneous_cc(
+            opentime.Ordinate.init(3)
         ).ordinate(),
+    );
+}
+
+test "MappingAffine: clone"
+{
+    const allocator = std.testing.allocator;
+
+    const ma = (
+        MappingAffine{
+            .input_bounds_val = .init(
+                .{ .start = 3, .end = 6, }
+            ),
+            .input_to_output_xform = .{
+                .offset = .init(2),
+                .scale = .init(4),
+            },
+        }
+    ).mapping();
+
+    try opentime.expectOrdinateEqual(
+        14,
+        ma.project_instantaneous_cc(
+            opentime.Ordinate.init(3)
+        ).ordinate(),
+    );
+
+    const ma_2 = try ma.clone(allocator);
+
+    try std.testing.expectEqual(
+        ma.affine.input_bounds_val.start,
+        ma_2.affine.input_bounds_val.start,
     );
 }

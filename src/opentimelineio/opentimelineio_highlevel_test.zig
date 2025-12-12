@@ -43,7 +43,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         .maybe_name = "Spaghetti.mov",
         .maybe_bounds_s = .{
             .start = .one,
-            .end = opentime.Ordinate.init(3),
+            .end = .init(3),
         },
         .media = .{
             .data_reference = .null,
@@ -64,8 +64,8 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             .data_reference = .null,
             .domain = .picture,
             .maybe_bounds_s = .{
-                .start = opentime.Ordinate.init(10),
-                .end = opentime.Ordinate.init(11), 
+                .start = .init(10),
+                .end = .init(11), 
             },
             .maybe_discrete_partition = .{
                 .sample_rate_hz = .{ .Int = 30 },
@@ -108,16 +108,16 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
 
     // build the temporal map
     ///////////////////////////////////////////////////////////////////////////
-    var proj_topo = (
+    var builder = (
         try otio.TemporalProjectionBuilder.init_from(
             allocator, 
             tl_ptr.space(.presentation)
         )
     );
-    defer proj_topo.deinit(allocator);
+    defer builder.deinit(allocator);
 
     const timeline_to_clip2 = (
-        try proj_topo.projection_operator_to(
+        try builder.projection_operator_to(
             allocator,
             tr.children[2].space(.media)
         )
@@ -142,7 +142,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     );
 
     const src_discrete_info = (
-        proj_topo.source.item.discrete_partition_for_space(
+        builder.source.item.discrete_partition_for_space(
             .presentation,
             .picture,
             )
@@ -167,8 +167,8 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         opentime.dbg_print(@src(),
             "    interval: [{d}, {d})\n",
             .{
-                proj_topo.input_bounds().start,
-                proj_topo.input_bounds().end,
+                builder.input_bounds().start,
+                builder.input_bounds().end,
             },
         );
     }
@@ -201,8 +201,8 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     // walk across the general projection operator map
     ///////////////////////////////////////////////////////////////////////////
     for (
-        proj_topo.intervals.items(.input_bounds),
-        proj_topo.intervals.items(.mapping_index),
+        builder.intervals.items(.input_bounds),
+        builder.intervals.items(.mapping_index),
         0..
     ) |interval, mappings, ind|
     {
@@ -217,7 +217,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         for (mappings)
             |map_ind|
         {
-            const op = proj_topo.mappings.get(map_ind);
+            const op = builder.mappings.get(map_ind);
 
             if (PRINT_DEMO_OUTPUT)
             {
@@ -231,7 +231,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
                     },
                 );
             }
-            const destination = proj_topo.tree.nodes.get(
+            const destination = builder.tree.nodes.get(
                 op.destination
             );
 
@@ -261,7 +261,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             }
 
             const po = otio.ProjectionOperator{
-                .source = proj_topo.source,
+                .source = builder.source,
                 .destination = destination,
                 .src_to_dst_topo = .{
                     .mappings = &.{ op.mapping },

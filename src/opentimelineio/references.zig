@@ -413,6 +413,8 @@ pub const CompositionItemHandle = union(enum) {
                         );
 
                         const intrinsic_to_media_topo = (
+                            // allocating memory here to make sure that the
+                            // mapping slice leaves the function scope
                             try topology_m.Topology.init_affine(
                                 allocator,
                                 intrinsic_to_media_mapping,
@@ -496,7 +498,7 @@ pub const CompositionItemHandle = union(enum) {
 
                     const presentation_to_intrinsic = (
                         try topology_m.Topology.init_affine(
-                            allocator, 
+                            allocator,
                             .{
                                 .input_to_output_xform = .{
                                     .offset = intrinsic_bounds.start,
