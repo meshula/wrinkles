@@ -1845,7 +1845,7 @@ test "Single clip, schema.Warp bulk"
     const cl_media = cl_ptr.space(.media);
 
     const TestCase = struct {
-        label: []const u8,
+        label: string_stuff.latin_s8,
         presentation_range : [2]opentime.Ordinate.InnerType, 
         warp_child_range : [2]opentime.Ordinate.InnerType,
         presentation_test : opentime.Ordinate.InnerType,

@@ -16,6 +16,8 @@ const domain_mod = @import("domain.zig");
 const schema = @import("schema.zig");
 const projection = @import("projection.zig");
 
+const string_stuff = @import("string_stuff");
+
 const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
     build_options.debug_graph_construction_trace_messages
 );
@@ -203,7 +205,7 @@ pub const CompositionItemHandle = union(enum) {
     /// The (optional) name of the referred item.
     pub fn maybe_name(
         self: @This(),
-    ) ?[]const u8
+    ) ?string_stuff.latin_s8
     {
         return switch (self) {
             inline else => |t| t.maybe_name

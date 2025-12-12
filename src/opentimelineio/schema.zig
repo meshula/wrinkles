@@ -38,6 +38,7 @@ const string = @import("string_stuff");
 const topology_m = @import("topology");
 const curve = @import("curve");
 const domain = @import("domain.zig");
+const string_stuff = @import("string_stuff");
 
 const references = @import("references.zig");
 const test_data = @import("test_structures.zig");
@@ -55,7 +56,7 @@ const ResamplingBehavior = enum {
 /// A reference described by a URI that is interpreted by clients in some way.
 pub const URIReference = struct {
     /// URI encoded in a string for locating the data for referenced media.
-    target_uri : []const u8,
+    target_uri : string_stuff.latin_s8,
 };
 
 /// A procedurally described Signal.
