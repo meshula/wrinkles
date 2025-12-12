@@ -448,21 +448,22 @@ fn fill_topdown_point_buffers(
                             }
 
                             discrete_indices.?[1] = points.len;
+
+                            try label_writer.print("{f}" ++ .{0}, .{ dst });
+                            try slice_indices.append(
+                                allocator,
+                                .{
+                                    .start = start,
+                                    .end = end,
+                                    .discrete_indedx_range = discrete_indices,
+                                    .label = @ptrCast(
+                                        try allocating_label_writer.toOwnedSlice()
+                                    ),
+                                    .domain = domain,
+                                },
+                            );
                         }
 
-                        try label_writer.print("{f}" ++ .{0}, .{ dst });
-                        try slice_indices.append(
-                            allocator,
-                            .{
-                                .start = start,
-                                .end = end,
-                                .discrete_indedx_range = discrete_indices,
-                                .label = @ptrCast(
-                                    try allocating_label_writer.toOwnedSlice()
-                                ),
-                                .domain = domain,
-                            },
-                        );
                     }
                 },
                 else => {
@@ -1400,14 +1401,20 @@ fn draw(
                             }
 
                             // plot each child space
-                            const slices = STATE.slices.slice();
                             zplot.pushStyleVar1f(
                                 .{
                                     .idx = .fill_alpha,
                                     .v = 0.2,
                                 },
                             );
+                            zplot.pushStyleVar1f(
+                                .{
+                                    .idx = .minor_alpha,
+                                    .v = 0.2,
+                                },
+                            );
 
+                            const slices = STATE.slices.slice();
                             for (
                                 slices.items(.xs),
                                 slices.items(.ys),
@@ -1426,6 +1433,12 @@ fn draw(
                                         .{
                                             .idx = .line_weight,
                                             .v = 4,
+                                        }
+                                    );
+                                    zplot.pushStyleVar1f(
+                                        .{
+                                            .idx = .fill_alpha,
+                                            .v = 0.1,
                                         }
                                     );
                                 }
@@ -1472,10 +1485,12 @@ fn draw(
                                 }
                                 if (hovered_interval)
                                 {
-                                    zplot.popStyleVar(.{ .count = 1 });
+                                    zplot.popStyleVar(.{ .count = 2 });
                                 }
                             }
-                            zplot.popStyleVar(.{ .count = 1 });
+
+                            // fill alpha, minor alpha
+                            zplot.popStyleVar(.{ .count = 2 });
 
                             if (STATE.maybe_cut_points)
                                 |cut_points|

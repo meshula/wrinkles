@@ -667,7 +667,6 @@ fn read_otio_object(
             return .{ .timeline = tl };
         },
         .Stack => {
-            // @TODO: add stack init that takes a name string and copies it in 
             var st = try allocator.create(otio.Stack);
             st.maybe_name = maybe_name;
 
