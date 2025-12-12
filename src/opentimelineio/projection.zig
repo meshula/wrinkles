@@ -482,14 +482,9 @@ test "ProjectionBuilder: clip"
     );
 
     const known_presentation_to_media = (
-        try build_projection_operator(
+        try cl_pres_projection_builder.projection_operator_to(
             allocator,
-            cl_pres_projection_builder.tree,
-            .{
-                .source = cl_ptr.space(.presentation),
-                .destination = cl_ptr.space(.media),
-            },
-            cl_pres_projection_builder.cache,
+             cl_ptr.space(.media),
         )
     );
 
@@ -574,14 +569,11 @@ test "ProjectionBuilder: track with single clip"
             pb.intervals.len,
         );
 
-        const known_presentation_to_media = try build_projection_operator(
-            allocator,
-            pb.tree,
-            .{
-                .source = pb.source,
-                .destination = cl_ptr.space(.media),
-            },
-            pb.cache,
+        const known_presentation_to_media = (
+            try pb.projection_operator_to(
+                allocator,
+                cl_ptr.space(.media),
+            )
         );
         const known_input_bounds = (
             known_presentation_to_media.src_to_dst_topo.input_bounds().?
@@ -712,22 +704,15 @@ test "transform: track with two clips"
         );
         defer xform.deinit(allocator);
 
-        const cache = (
-            try TemporalProjectionBuilder.SingleSourceTopologyCache.init(
-                allocator,
-                map,
-            )
-        );
-        defer cache.deinit(allocator);
-
-        const po = try build_projection_operator(
+        var builder = try TemporalProjectionBuilder.init_from(
             allocator,
-            map,
-            .{
-                .source = cl2_ref.space(.presentation),
-                .destination = cl2_ref.space(.media),
-            },
-            cache,
+            track_presentation_space,
+        );
+        defer builder.deinit(allocator);
+
+        const po = try builder.projection_operator_to(
+            allocator,
+            cl2_ref.space(.media),
         );
         const result = try topology_m.join(
             allocator,
@@ -743,22 +728,16 @@ test "transform: track with two clips"
     }
 
     {
-        const cache = (
-            try TemporalProjectionBuilder.SingleSourceTopologyCache.init(
-                allocator,
-                map,
-            )
-        );
-        defer cache.deinit(allocator);
-
-        const xform = try build_projection_operator(
+        var builder = try TemporalProjectionBuilder.init_from(
             allocator,
-            map,
-            .{
-                .source = track_presentation_space,
-                .destination = cl2_ref.space(.media),
-            },
-            cache,
+            track_presentation_space,
+        );
+        defer builder.deinit(allocator);
+
+
+        const xform = try builder.projection_operator_to(
+            allocator,
+             cl2_ref.space(.media),
         );
         const b = xform.src_to_dst_topo.input_bounds().?;
 
@@ -827,14 +806,9 @@ test "ProjectionTopology: track with two clips"
     );
 
     const known_presentation_to_media = (
-        try build_projection_operator(
+        try cl_pres_projection_builder.projection_operator_to(
             allocator,
-            cl_pres_projection_builder.tree,
-            .{
-                .source = tr_ptr.space(.presentation),
-                .destination = cl_ptr.space(.media),
-            },
-            cl_pres_projection_builder.cache,
+            cl_ptr.space(.media),
         )
     );
 
@@ -939,35 +913,21 @@ test "Projection: schema.Track with single clip with identity transform and boun
     var tr: schema.Track = .{ .children = &tr_children };
     const root = references.CompositionItemHandle{ .track = &tr };
 
-    const map = try temporal_tree.build_temporal_tree(
-        allocator,
-        root.space(.presentation),
-    );
-    defer map.deinit(allocator);
-
-    try std.testing.expectEqual(5, map.tree_data.len);
-    try std.testing.expectEqual(5, map.nodes.len);
-    try std.testing.expectEqual(
-        5,
-        map.map_node_to_index.count()
-    );
-
-    const cache = (
-        try TemporalProjectionBuilder.SingleSourceTopologyCache.init(
+    var builder = (
+        try TemporalProjectionBuilder.init_from(
             allocator,
-            map,
+            root.space(.presentation),
         )
     );
-    defer cache.deinit(allocator);
+    defer builder.deinit(allocator);
 
-    const root_presentation_to_clip_media = try build_projection_operator(
+    try std.testing.expectEqual(
+        5,
+        builder.tree.map_node_to_index.count()
+    );
+    const root_presentation_to_clip_media = try builder.projection_operator_to(
         allocator,
-        map,
-        .{ 
-            .source = root.space(.presentation),
-            .destination = clip.space(.media),
-        },
-        cache,
+        clip.space(.media),
     );
 
     const expected_media_temporal_bounds = (
@@ -2264,33 +2224,6 @@ test "ReferenceTopology: init_from_reference"
     //     "~~**~~**~~** END:init_from_reference ~~**~~**~~**\n",
     //     .{},
     // );
-}
-
-/// Build a projection operator that projects from the `endpoints.source` to
-/// `endpoints.destination` spaces within `tree`.
-///
-/// Caches results in the `operator_cache`.
-///
-/// @TODO: remove this, merge into TemporalProjectionBuilder.
-pub fn build_projection_operator(
-    allocator_parent: std.mem.Allocator,
-    /// Tree of nodes that encodes the temporal space hierarchy.
-    tree: TemporalProjectionBuilder.TreeType,
-    /// Endpoints in the tree to project between.
-    endpoints: TemporalProjectionBuilder.TreeType.PathEndPoints,
-    /// Cache to update/use.
-    operator_cache: TemporalProjectionBuilder.SingleSourceTopologyCache,
-) !ProjectionOperator 
-{
-    return TemporalProjectionBuilder.build_projection_operator_indices(
-        allocator_parent,
-        tree,
-        .{
-            .source = tree.index_for_node(endpoints.source).?,
-            .destination = tree.index_for_node(endpoints.destination).?,
-        },
-        operator_cache,
-    );
 }
 
 test "projection builder over warp with negative scale"

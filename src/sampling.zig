@@ -401,20 +401,6 @@ pub const SampleIndexGenerator = struct {
     sample_rate_hz: RateSpecifier,
     start_index: sample_index_t = 0,
 
-    // pub fn make_phase_ordinate(
-    //     self: @This(),
-    //     ord: opentime.Ordinate,
-    // ) PhaseOrdinate
-    // {
-    // }
-    //
-    // pub fn make_ordinate(
-    //     self: @This(),
-    //     ord: opentime.Ordinate,
-    // ) Ordinate
-    // {
-    // }
-
     pub fn index_at_ordinate(
         self: @This(),
         continuous_ord: sample_ordinate_t,

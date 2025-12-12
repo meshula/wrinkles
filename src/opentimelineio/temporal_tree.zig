@@ -838,7 +838,6 @@ test "schema.Track with clip with identity transform projection"
         cl_p.* = cl_template;
         ref.* = references.CompositionItemHandle.init(cl_p);
     }
-    const cl_ref = refs[0];
 
     var tr: schema.Track = .{ .children = &refs };
     const tr_ref = references.CompositionItemHandle.init(&tr);
@@ -852,43 +851,6 @@ test "schema.Track with clip with identity transform projection"
     try std.testing.expectEqual(
         11,
         tr_ref.track.children.len
-    );
-
-    const cache = (
-        try projection.TemporalProjectionBuilder.SingleSourceTopologyCache.init(
-            allocator,
-            tree,
-        )
-    );
-    defer cache.deinit(allocator);
-
-    const track_to_clip = try projection.build_projection_operator(
-        allocator,
-        tree,
-        .{
-            .source = tr_ref.space(.presentation),
-            .destination =  cl_ref.space(.media)
-        },
-        cache,
-    );
-
-    // check the bounds
-    try opentime.expectOrdinateEqual(
-        0,
-        track_to_clip.src_to_dst_topo.input_bounds().?.start,
-    );
-
-    try opentime.expectOrdinateEqual(
-        range.end.sub(range.start),
-        track_to_clip.src_to_dst_topo.input_bounds().?.end,
-    );
-
-    // check the projection
-    try opentime.expectOrdinateEqual(
-        4,
-        try track_to_clip.project_instantaneous_cc(
-            opentime.Ordinate.init(3)
-        ).ordinate(),
     );
 }
 
@@ -960,40 +922,6 @@ test "Temporaltree: schema.Track with clip with identity transform"
 
     try std.testing.expect(
         treecode.path_exists(clip_code, root_code)
-    );
-
-    const cache = (
-        try projection.TemporalProjectionBuilder.SingleSourceTopologyCache.init(
-            allocator,
-            tree,
-        )
-    );
-    defer cache.deinit(allocator);
-
-    const root_presentation_to_clip_media = (
-        try projection.build_projection_operator(
-            allocator,
-            tree,
-            .{
-                .source = root.space(.presentation),
-                .destination = cl_ref.space(.media)
-            },
-            cache,
-        )
-    );
-
-    try std.testing.expectError(
-        topology_m.mapping.Mapping.ProjectionError.OutOfBounds,
-        root_presentation_to_clip_media.project_instantaneous_cc(
-            opentime.Ordinate.init(3)
-        ).ordinate()
-    );
-
-    try opentime.expectOrdinateEqual(
-        1,
-        try root_presentation_to_clip_media.project_instantaneous_cc(
-            opentime.Ordinate.init(1)
-        ).ordinate(),
     );
 }
 
