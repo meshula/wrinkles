@@ -134,6 +134,7 @@ didn't impact the deisgn or problems we were specifically solving.
       compare the entire (optional) interval
 * [x] remove defaults for prescribed initializers 
     * [x] ControlPoint
+* [ ] NTSC example
 
 ## Todo List (10/9/25)
 
