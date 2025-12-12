@@ -146,7 +146,7 @@ pub fn main(
         allocator,
         state.input_otio,
     );
-    defer tl_ref.recursively_deinit(allocator);
+    defer tl_ref.deinit(allocator);
 
     read_prog.end();
 

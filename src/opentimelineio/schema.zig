@@ -201,7 +201,7 @@ pub const Clip = struct {
     }
 
     /// Free memory owned by the Clip.
-    pub fn destroy(
+    pub fn deinit(
         self: *@This(),
         allocator: std.mem.Allocator,
     ) void
@@ -249,6 +249,18 @@ pub const Gap = struct {
     pub const internal_spaces: []const references.TemporalSpace = (
         &.{ .presentation, .intrinsic }
     );
+
+    pub fn deinit(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        if (self.maybe_name)
+            |name|
+        {
+            allocator.free(name);
+        }
+    }
 
     /// A Gap's topology is always an identity bounded by the duration of the
     /// gap.
@@ -309,12 +321,12 @@ pub const Transition = struct {
     }
 
     /// Clear the memory of self and any child objects.
-    pub fn recursively_deinit(
+    pub fn deinit(
         self: *@This(),
         allocator: std.mem.Allocator,
     ) void 
     {
-        self.container.recursively_deinit(allocator);
+        self.container.deinit(allocator);
         if (self.maybe_name)
             |n|
         {
@@ -342,6 +354,22 @@ pub const Warp = struct {
     pub const internal_spaces: []const references.TemporalSpace = (
         &.{ .presentation }
     );
+
+    pub fn deinit(
+        self: *@This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        self.child.deinit(allocator);
+        self.transform.deinit(allocator);
+
+        if (self.maybe_name)
+            |n|
+        {
+            allocator.free(n);
+            self.maybe_name = null;
+        }
+    }
 
     /// Build a reference to this Warp.
     pub fn reference(
@@ -437,7 +465,7 @@ pub const Track = struct {
     };
 
     /// Clear the memory of self and any child objects.
-    pub fn recursively_deinit(
+    pub fn deinit(
         self: *@This(),
         allocator: std.mem.Allocator,
     ) void 
@@ -445,18 +473,9 @@ pub const Track = struct {
         for (self.children)
             |*c|
         {
-            c.recursively_deinit(allocator);
+            c.deinit(allocator);
         }
 
-        self.deinit(allocator);
-    }
-
-    /// Clear the memory of this object but not of children.
-    pub fn deinit(
-        self: *@This(),
-        allocator: std.mem.Allocator,
-    ) void 
-    {
         if (self.maybe_name)
             |n|
         {
@@ -585,23 +604,8 @@ pub const Stack = struct {
         .children = &.{},
     };
 
-    /// Clear the memory of this object but not of children.
-    pub fn deinit(
-        self: *@This(),
-        allocator: std.mem.Allocator,
-    ) void 
-    {
-        if (self.maybe_name)
-            |n|
-        {
-            allocator.free(n);
-            self.maybe_name = null;
-        }
-        allocator.free(self.children);
-    }
-
     /// Clear the memory of self and any child objects.
-    pub fn recursively_deinit(
+    pub fn deinit(
         self: *@This(),
         allocator: std.mem.Allocator,
     ) void 
@@ -609,10 +613,16 @@ pub const Stack = struct {
         for (self.children)
             |*c|
         {
-            c.recursively_deinit(allocator);
+            c.deinit(allocator);
         }
 
-        self.deinit(allocator);
+        if (self.maybe_name)
+            |n|
+        {
+            allocator.free(n);
+            self.maybe_name = null;
+        }
+        allocator.free(self.children);
     }
 
     /// construct the topology mapping the output to the intrinsic space
@@ -714,7 +724,7 @@ pub const Timeline = struct {
     };
 
     /// Clear the memory of self and any child objects.
-    pub fn recursively_deinit(
+    pub fn deinit(
         self: *@This(),
         allocator: std.mem.Allocator,
     ) void 
@@ -725,7 +735,7 @@ pub const Timeline = struct {
             allocator.free(n);
             self.maybe_name = null;
         }
-        self.tracks.recursively_deinit(allocator);
+        self.tracks.deinit(allocator);
     }
 
     /// Presentation space of Timeline -> presentation space of `Tracks` stack.

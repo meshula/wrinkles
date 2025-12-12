@@ -152,52 +152,16 @@ pub const CompositionItemHandle = union(enum) {
     }
 
     /// Clear the memory of the item this is a handle of and any children.
-    pub fn recursively_deinit(
+    pub fn deinit(
         self: *@This(),
         allocator: std.mem.Allocator,
     ) void
     {
         switch (self.*) 
         {
-            inline .track, .stack, .transition => |ob| {
-                ob.recursively_deinit(allocator);
+            inline else => |ob| {
+                ob.deinit(allocator);
                 allocator.destroy(ob);
-            },
-            .clip => |cl| {
-                cl.destroy(allocator);
-                allocator.destroy(cl);
-            },
-            .warp => |wp| {
-                wp.child.recursively_deinit(allocator);
-                wp.transform.deinit(allocator);
-
-                if (wp.maybe_name)
-                    |n|
-                {
-                    allocator.free(n);
-                    wp.maybe_name = null;
-                }
-
-                allocator.destroy(wp);
-            },
-            .timeline => |tl| {
-                tl.*.tracks.recursively_deinit(allocator);
-                if (tl.maybe_name)
-                    |n|
-                {
-                    allocator.free(n);
-                    tl.maybe_name = null;
-                }
-                allocator.destroy(tl);
-            },
-            inline else => |o| {
-                if (o.maybe_name)
-                    |n|
-                {
-                    allocator.free(n);
-                    o.maybe_name = null;
-                }
-                allocator.destroy(o);
             },
         }
     }

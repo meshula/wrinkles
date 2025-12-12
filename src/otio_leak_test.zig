@@ -56,7 +56,7 @@ pub fn main(
                 inner_allocator,
                 fpath,
             );
-            otio_root.recursively_deinit(inner_allocator);
+            otio_root.deinit(inner_allocator);
 
 
             const did_leak = inner_debug_allocator.deinit();
