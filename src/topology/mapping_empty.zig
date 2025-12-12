@@ -113,15 +113,13 @@ pub const MappingEmpty = struct {
         return self.mapping();
     }
 
-    ///
-    pub fn split_at_input_point(
+    /// Empty always splits to more emptys.
+    pub fn split_at_input_ord(
         self: @This(),
-        allocator: std.mem.Allocator,
+        _: std.mem.Allocator,
         pt: opentime.Ordinate,
     ) ![2]mapping_mod.Mapping
     {
-        _ = allocator;
-
         return .{ 
             .{
                 .empty = .{

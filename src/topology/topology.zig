@@ -424,7 +424,7 @@ pub const Topology = struct {
             var mapping_to_trim = self.mappings[maybe_left_map_ind.?];
 
             var left_splits = (
-                try mapping_to_trim.split_at_input_point(
+                try mapping_to_trim.split_at_input_ord(
                     allocator,
                     new_bounds.start,
                 )
@@ -434,7 +434,7 @@ pub const Topology = struct {
             defer left_splits[1].deinit(allocator);
 
             var right_splits = (
-                try left_splits[1].split_at_input_point(
+                try left_splits[1].split_at_input_ord(
                     allocator,
                     new_bounds.end,
                 )
@@ -461,7 +461,7 @@ pub const Topology = struct {
             |left_ind|
         {
             const split_mapping_left = (
-                try self.mappings[left_ind].split_at_input_point(
+                try self.mappings[left_ind].split_at_input_ord(
                     allocator,
                     new_bounds.start,
                 )
@@ -496,7 +496,7 @@ pub const Topology = struct {
              |right_ind|
          {
              const split_mapping_right = (
-                 try self.mappings[right_ind].split_at_input_point(
+                 try self.mappings[right_ind].split_at_input_ord(
                      allocator,
                      new_bounds.end,
                  )
@@ -686,7 +686,7 @@ pub const Topology = struct {
         for (self.mappings)
             |m|
         {
-            const new_result = try m.split_at_input_points(
+            const new_result = try m.split_at_each_input_ord(
                 allocator,
                 input_points,
             );
@@ -867,7 +867,7 @@ pub const Topology = struct {
                         |pt|
                     {
                         const new_mappings = (
-                            try m_clone.split_at_input_point(
+                            try m_clone.split_at_input_ord(
                                 allocator,
                                 pt,
                             )

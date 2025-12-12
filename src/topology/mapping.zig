@@ -166,31 +166,31 @@ pub const Mapping = union (enum) {
     /// split the mapping at the point in its input space, assumes that a
     /// bounds check has already been made.  will return an error if the split
     /// point is invalid
-    pub fn split_at_input_point(
+    pub fn split_at_input_ord(
         self: @This(),
         allocator: std.mem.Allocator,
         pt_input: opentime.Ordinate,
     ) ![2]Mapping
     {
         return switch (self) {
-            inline else => |m| try m.split_at_input_point(allocator, pt_input),
+            inline else => |m| try m.split_at_input_ord(allocator, pt_input),
         };
     }
 
     /// split the mapping at the point in its input space, assumes that a
     /// bounds check has already been made.  will return an error if the split
     /// point is invalid
-    pub fn split_at_input_points(
+    pub fn split_at_each_input_ord(
         self: @This(),
         allocator: std.mem.Allocator,
-        input_points: []const opentime.Ordinate,
+        input_ordinates: []const opentime.Ordinate,
     ) ![]const Mapping
     {
         return switch (self) {
             .empty => try allocator.dupe(Mapping, &.{ self }),
-            inline else => |m| try m.split_at_input_points(
+            inline else => |m| try m.split_at_each_input_ord(
                 allocator, 
-                input_points
+                input_ordinates,
             ),
         };
     }
@@ -231,7 +231,7 @@ pub const Mapping = union (enum) {
             }
         }
 
-        return self.split_at_input_points(
+        return self.split_at_each_input_ord(
             allocator,
             input_points.items,
         );

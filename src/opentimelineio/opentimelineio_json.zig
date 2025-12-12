@@ -195,11 +195,8 @@ fn read_transform(
             const result = try topology.Topology.init(
                 allocator,
                 &.{ 
-                    (
-                     try topology.MappingCurveLinearMonotonic.init_knots(
-                         allocator,
-                         buffer.items
-                     )
+                    topology.MappingCurveLinearMonotonic.init_knots(
+                        try buffer.toOwnedSlice(allocator)
                     ).mapping(),
                 }
             );

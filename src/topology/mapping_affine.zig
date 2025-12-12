@@ -172,7 +172,7 @@ pub const MappingAffine = struct {
         ).mapping();
     }
 
-    pub fn split_at_input_point(
+    pub fn split_at_input_ord(
         self: @This(),
         _: std.mem.Allocator,
         pt_input: opentime.Ordinate,
@@ -201,7 +201,7 @@ pub const MappingAffine = struct {
     }
 
     /// split at any of the points that are within the bounds of the mapping
-    pub fn split_at_input_points(
+    pub fn split_at_each_input_ord(
         self: @This(),
         allocator: std.mem.Allocator,
         input_points: []const opentime.Ordinate,
