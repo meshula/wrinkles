@@ -248,14 +248,11 @@ pub const CompositionItemHandle = union(enum) {
         };
     }
 
-    /// Build a topology that projects a value `from_space` -> `to_space`
-    ///
-    /// * @TODO clarify that this function is used to take one step along the
-    ///   path and not do all the steps - need to use other functions for that.
-    /// * @TODO -> rename internal_transform.
+    /// Build the next topology that transforms `from_space_label` on `self`
+    /// towards `to_space`.
     ///
     /// Returend memory is owned by the caller.
-    pub fn build_transform(
+    pub fn transform_step_toward(
         self: @This(),
         allocator: std.mem.Allocator,
         /// Label of the starting space on the referred item.
@@ -265,7 +262,8 @@ pub const CompositionItemHandle = union(enum) {
         step: treecode.l_or_r,
     ) !topology_m.Topology 
     {
-        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
+        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
+        {
             std.debug.print(
                 "[{s}:{s}:{d}]    transform from space: {s}.{s}"
                 ++ " to space: {s}.{s}",
@@ -290,9 +288,11 @@ pub const CompositionItemHandle = union(enum) {
             std.debug.print("\n", .{});
         }
 
-        return switch (self) {
+        return switch (self) 
+        {
             .track => |*tr| {
-                switch (from_space_label) {
+                switch (from_space_label) 
+                {
                     // presentation -> intrinsic
                     .presentation => return .identity_infinite,
                     // intrinsic -> first child space
@@ -300,7 +300,8 @@ pub const CompositionItemHandle = union(enum) {
                     // child space to either the presentation space of that
                     // child (left step)  or to the next child
                     .child => |child_index| {
-                        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) {
+                        if (GRAPH_CONSTRUCTION_TRACE_MESSAGES) 
+                        {
                             opentime.dbg_print(
                                 @src(),
                                 "     CHILD STEP: {b} to index: {d}\n",
@@ -310,7 +311,8 @@ pub const CompositionItemHandle = union(enum) {
 
                         // from this child space down into the presentation
                         // space of the child (identity)
-                        if (step == .left) {
+                        if (step == .left) 
+                        {
                             return .identity_infinite;
                         } 
                         else 
@@ -416,7 +418,8 @@ pub const CompositionItemHandle = union(enum) {
                     }
                 };
             },
-            .warp => |wp_ptr| switch(from_space_label) {
+            .warp => |wp_ptr| switch(from_space_label) 
+            {
                 .presentation => {
                     const intrinsic_to_warp_unbounded = wp_ptr.transform;
 
@@ -494,7 +497,8 @@ pub const CompositionItemHandle = union(enum) {
                 },
                 else => .identity_infinite,
             },
-            .gap => |gap_ptr| switch (from_space_label) {
+            .gap => |gap_ptr| switch (from_space_label) 
+            {
                 .presentation => gap_ptr.topology(allocator),
                 else => .identity_infinite,
             },
