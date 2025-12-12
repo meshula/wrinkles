@@ -741,8 +741,6 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
 
     // because the warp is scaling the presentation space by 2, the
     // presentation space should have half the peak to peak of the media
-    // @TODO? ^ Nick is this correct?
-
     try std.testing.expectEqual(input_p2p / 2, result_p2p);
 
     try indices_tr_pres.write_file_prefix(

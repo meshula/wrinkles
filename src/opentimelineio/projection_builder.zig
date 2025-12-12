@@ -868,7 +868,7 @@ pub fn ProjectionBuilder(
                 }
 
                 const current_to_next = (
-                    try space_nodes.items(.item)[current].build_transform(
+                    try space_nodes.items(.item)[current].transform_step_toward(
                         allocator_arena,
                         space_nodes.items(.space)[current],
                         space_nodes.get(next),
