@@ -95,6 +95,90 @@ didn't impact the deisgn or problems we were specifically solving.
   graph of the temporal structural, decorated with the Transformation curves
   * select two nodes to see the projection operator from one to the other
 
+## Serializer
+
+### OTIO v1 
+
+* .otio - json
+*   `- can have any kind of object as its top object
+* ^
+* .otioz 
+* .otiod 
+
+### Proposal for v2
+
+```
+[]const schema.Timeline
+[]const CompositionItemHandle
+```
+
+* .ottl + [a, b, z] -- top level of these files is only ever a list of timelines
+* .otco + [a, b, z] -- top level is a collection
+* suffixes:
+    * a: ascii
+    * b: binary
+    * z: zip bundle
+
+## ZIG REFERENCES
+
+* [Zig Lang](https://github.com/ziglang/zig): The language homepage
+* [Zig Learn](https://ziglearn.org/chapter-0/): Good starting place for a language overview
+* [Language Reference](https://ziglang.org/documentation/master/): Full Language Reference
+* [Stdlib Reference](https://ziglang.org/documentation/master/std/#A;std)
+* [Stdlib Source](https://github.com/ziglang/zig/tree/master/lib/std): I hate to admit it but often times its faster to just look at the source of the standard lib rather than going through the docs
+
+## Places for demoing animated parameters on warped scopes
+
+* properties: one time configuration of information (IE, name, temporal
+  bounds, media_reference, discrete_info)
+* parameters: varying data over some domain (a mapping and an embedding
+  domain)
+
+* lens parameters on a clip (ie an animated rack focus or aperture or something)
+  * animated focus distance or aperture
+* parameter that drives a wipe in a transition
+* animating a 2d image space transform 
+* a color correct parameter
+* state of a gyroscope during capture
+* mocap data
+    * floats over time
+
+## Why Is This So Complicated
+
+* Editorial Time is Complicated
+    * Sometimes Continuous, sometimes discrete
+    * Even when its discrete its Complicated
+        * different rates/metrics (at the very least, audio vs video)
+        * audio rates can be huge, meaning even with not that much wall clock
+          time numbers get enormous (ie 192khz - 1 minute of audio is already
+          at index 11,520,000, 3.1 hours = max in32)
+        * NTSC rates (with a 1001 denominator) mean that mixing rates can be
+          difficult to represent with integer rationals
+    * Even when its continuous its Complicated
+        * Because typically pictures are not resampled, precision is important
+        * Audio rates mean that increments can be tiny but still go for large
+          ranges
+        * when dealing with the media a frame index integer is generally what
+          is desired
+    * Deformations can be non-linear
+        * Bezier curve-based transformations for speed ramps
+        * F,M,L type presentations in dailies
+        * pulldowns/pullups for going between NTSC and non-NTSC rates
+    * Animated parameters are often driven off of time, meaning that time warps
+      need to also warp 
+* What does OTIO do
+    * Uses "RationalTime" - a double value over a double rate.
+        * some smarts but used in a handwavvy "both continuous and discrete"
+          sort of way
+    * Doesn't deal with non-linear transformations
+    * Cannot project ranges or points under warp
+* What do we propose
+    * Join discrete and continuous math via sampling theory
+
+## References
+
+[^1]: [Ordinate Precision Research](https://github.com/ssteinbach/ordinate_precision_research)
+
 ## Todo List 11/14/25
 
 * [ ] Transition Schema
@@ -135,6 +219,8 @@ didn't impact the deisgn or problems we were specifically solving.
 * [x] remove defaults for prescribed initializers 
     * [x] ControlPoint
 * [ ] NTSC example
+* [ ]  what if not beziers internally but instead b-splines with bezier
+        interfaces
 
 ## Todo List (10/9/25)
 
@@ -193,239 +279,4 @@ didn't impact the deisgn or problems we were specifically solving.
 * [ ] do a scan to make sure that `opentime.Ordinate` is used in place of f32
   directly
 * [ ] integrate inside of raven
-
-## Serializer
-
-### OTIO v1 
-
-* .otio - json
-*   `- can have any kind of object as its top object
-* ^
-* .otioz 
-* .otiod 
-
-### Proposal for v2
-
-[]const schema.Timeline
-[]const CompositionItemHandle
-
-* .ottl + [a, b, z] -- top level of these files is only ever a list of timelines
-* .otco + [a, b, z] -- top level is a collection
-* suffixes:
-    * a: ascii
-    * b: binary
-    * z: zip bundle
-
-## Todo List (8/23/24)
-
-* build new gui app
-  * visual demonstration application for helping demo concepts
-* additional tests/functionality to show the library is capable of handling
-  * [ ] cleaning up existing high level tests
-  * [ ] arbitrarily held frames
-  * [ ] transitions
-    * what about NTSC times?
-* [x] demonstration c-api
-  * [ ] add metadata support
-  * [ ] what would a C++ layer look like on top of this?
-    * [ ] ...and then what would a Pybind layer on top of the C++/C?
-* refactoring core library pieces to clarify/simplify/improve the
-  implementation
-  * [ ] consistent names
-    * replacing `f32` with `opentime.Ordinate`
-
-        ```zig
-        pub const Ordinate = struct {
-          value : f32,
-
-          pub fn add(self: @This(), rhs: Ordinate) Ordinate{}
-          pub fn sub(self: @This(), rhs: Ordinate) Ordinate{}
-          pub fn mul(self: @This(), rhs: Ordinate) Ordinate{}
-          pub fn div(self: @This(), rhs: Ordinate) Ordinate{}
-        };
-        ```
-    * struct/union with add/mul/div/sub
-     * [ ] test_topology_projections.zig
- * [ ]  let brains cool off <- beers
-
-### Bigger, Later Questions/Todos
-
- * [ ]  what if not beziers internally but instead b-splines with bezier
-        interfaces
- * [ ]  rebuild in c?
- * [ ]  PR to OTIO?
-
-## Todo
-
-* domains (how do you handle that you want to evaluate the timeline at 30fps?)
-* transitions
-
-### later
-
-* schema design
-* `graphviz` viewer for otio files
-    * plain format (dot -Tplain) produces a parsable output
-    * visualize graph transformations over a topology with different targets
-* redesign the `opentimelineio` layer
-    * clean up mess of `Item` and `ItemPtr`
-    * Allocators should be exposed as parameters, not through `allocator.ALLOCATOR`
-    * project_curve and so on should be !TimeCurve, not use catch unreachable
-      everywhere
-* move to zig v0.11 and bump deps
-* topology->[]topology projection (for handling inversions)
-* time-varying parameters
-* time-varying metadata
-
-## ZIG REFERENCES
-
-* [Zig Lang](https://github.com/ziglang/zig): The language homepage
-* [Zig Learn](https://ziglearn.org/chapter-0/): Good starting place for a language overview
-* [Language Reference](https://ziglang.org/documentation/master/): Full Language Reference
-* [Stdlib Reference](https://ziglang.org/documentation/master/std/#A;std)
-* [Stdlib Source](https://github.com/ziglang/zig/tree/master/lib/std): I hate to admit it but often times its faster to just look at the source of the standard lib rather than going through the docs
-
-### DONE
-
-* sampling
-## Path System
-
-* support arbitrary path lengths
-    * use an array list of u128 to encode arbitrarily long paths
-* arbitrary `TopologicalPathHash` lengths
-* fix the simple_cut
-* JSON OTIO parsing
-    * can parse small OTIO files (but because of path length constraints, can't
-      build maps for large files)
-
-* Right now the topology has bounds, transform and curves.  This is
-  inconsistent because the curves _inside_ the topology also represent a
-  transformation, and implicitly define bounds (in that they're finite lists of
-  segments, which are bounded).  The math reflects this - the way that
-  transform and boundary are applied is pretty inconsistent.
-
-* Part of the reason why this is the case is that there are several special
-  cases of topology in play:
-    * infinite identity (could have a transform but no bounds)
-    * finite segments (do they have bounds?)
-    * empty
-
-Two options:
-
-* do what we did for the graph and define a set of operators that bundle up a
-  topology and work through the cases, providing clean constructors for those
-  useful special types
-* break these features up into things that the topology can contain and
-  localize the math, push the matrix into handling combinations of those child
-  types
-
-* Stacks
-* Timeline
-* Gap (fully)
-
-* how hard would parsing OTIO JSON be?  Would be cool to read in real
-  timeilines and do transformations there
-
-### Inversion
-
-* need to add inversion functions to the topologies
-* add error when a function isn't trivially invertible
-* if we do something with the mappings, when things aren't trivially
-  invertible, we still know how to invert them and how the mapping functions.
-  Can we exploit this? Or is the juice not worth the squeeze for this project
-
-### Optimization and Caching
-
-* MxN track related time stuff - the map should cache those kinds of intermediates
-* Can the map also cache optimizations like linearizing curves?
-
-### Ordinate Notes
-
-```zig
-const Ordinate = union(enum) {
-    f32: f32,
-    rational: rational,
-
-    // math
-    pub fn add() Ordinate {}
-    pub fn addWithOverflow() Ordinate {}
-    pub fn sub() Ordinate {}
-    pub fn subWithOverflow() Ordinate {}
-    pub fn mul() Ordinate {}
-    pub fn mulWithOverflow() Ordinate {}
-    pub fn divExact() Ordinate {}
-    pub fn divFloor() Ordinate {}
-    pub fn divTrunc() Ordinate {}
-
-    pub fn to_float() f32 {}
-};
-```
-
-# Memory Management Notes
-
-* The zig pattern has either:
-    * `init` and `deinit`: initialize and return a pointer to new memory
-    * `create` and `destroy` - create single values in memory and return an 
-      `undefined` pointer to the memory.  Equivalent to 
-      `var thing : Something = undefined;`, but on the heap.
-* we have value types that contain references to memory because they are of
-  unknown size - IE "name".  We could fix the size of the name slice, then 
-  they would also be fixed value types
-* ... but the array types (track, stack, etc) would still need allocations
-* if you want the lifetime to extend past the scope, you need to init/deinit
-* the `ItemPtr` is definitely a reference type
-* I think the questions are:
-    * should the containers contain value types?  or reference types?
-    * what should users expect from ownership?
-
-## Places for demoing animated parameters on warped scopes
-
-* properties: one time configuration of information (IE, name, temporal
-  bounds, media_reference, discrete_info)
-* parameters: varying data over some domain (a mapping and an embedding
-  domain)
-
-* lens parameters on a clip (ie an animated rack focus or aperture or something)
-  * animated focus distance or aperture
-* parameter that drives a wipe in a transition
-* animating a 2d image space transform 
-* a color correct parameter
-* state of a gyroscope during capture
-* mocap data
-    * floats over time
-
-## Why Is This So Complicated
-
-* Editorial Time is Complicated
-    * Sometimes Continuous, sometimes discrete
-    * Even when its discrete its Complicated
-        * different rates/metrics (at the very least, audio vs video)
-        * audio rates can be huge, meaning even with not that much wall clock
-          time numbers get enormous (ie 192khz - 1 minute of audio is already
-          at index 11,520,000, 3.1 hours = max in32)
-        * NTSC rates (with a 1001 denominator) mean that mixing rates can be
-          difficult to represent with integer rationals
-    * Even when its continuous its Complicated
-        * Because typically pictures are not resampled, precision is important
-        * Audio rates mean that increments can be tiny but still go for large
-          ranges
-        * when dealing with the media a frame index integer is generally what
-          is desired
-    * Deformations can be non-linear
-        * Bezier curve-based transformations for speed ramps
-        * F,M,L type presentations in dailies
-        * pulldowns/pullups for going between NTSC and non-NTSC rates
-    * Animated parameters are often driven off of time, meaning that time warps
-      need to also warp 
-* What does OTIO do
-    * Uses "RationalTime" - a double value over a double rate.
-        * some smarts but used in a handwavvy "both continuous and discrete"
-          sort of way
-    * Doesn't deal with non-linear transformations
-    * Cannot project ranges or points under warp
-* What do we propose
-    * Join discrete and continuous math via sampling theory
-
-## References
-
-[^1]: [Ordinate Precision Research](https://github.com/ssteinbach/ordinate_precision_research)
 
