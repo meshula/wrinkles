@@ -26,23 +26,59 @@
 ### Structure:
 
 ```
-                  `opentime`
-                      |       \
+                  `opentime`-.
+                     |        \
 `treecode`        `sampling`   `curve`
       |              |        /
-      |           `Topology`
+      |           `Topology`-'
       |              |
       |           `ProjectionOperator`
-      |              |
-      \           `OpenTimelineIO`
        \             |
         `---------`TemporalProjectionBuilder`
+                     |
+                  `OpenTimelineIO`
 ```
 
 Additionally there are tools for visualizing curves, transformations, and the
 temporal hierarchies of editorial documents.
 
 ![Screenshot of visualizer app](app.png)
+
+## Sample API
+
+Example code snippet:
+
+```zig
+pub fn main(
+) !void
+{
+    const otio_root = try otio.read_from_file(
+        allocator,
+        path_to_otio_file,
+    );
+    defer otio_root.deinit(allocator);
+
+    const builder = try otio.TemporalProjectionBuilder.init_from(
+        allocator,
+        otio_root,
+    );
+    defer builder.deinit(allocator);
+
+    const root_to_child = try builder.projection_operator_to(
+        allocator,
+        otio_root.tracks.children[0].space(.media)
+    );
+
+    const clip_indices = try root_to_child.project_range_cd(
+        allocator,
+        .{ .start = 0, .end = 10 },
+        .picture,
+    );
+    defer allocator.free(clip_indices);
+
+    // ...
+}
+```
 
 ## Lessons/Differences to OTIO V1
 
