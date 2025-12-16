@@ -84,18 +84,30 @@ pub fn main(
 
 * clarify that OTIO is modelling a temporally-oriented hierarchy, not a data
   model that necessarily resembles an NLE
-* Time is the domain that is handled, so model the structure around time
-* transform the data, don't provide a ton of flexibility in the algorithms
+    * in other words: Time is the domain that is handled, so model the
+                      structure around time
+* Transform the data, don't provide a ton of flexibility in the algorithms
   * makes the algorithms simpler and easier to use as templates for
     business-logic specific use cases
+  * Magical filter functions were really difficult to implement in a way that
+    covered everyone's needs.  Lets try and provide an API that makes it easy
+    to write loops closer to the applications rather than in the core.
 * use hierarchy rather than "has-a" to clarify temporal relationships
+    * in other words, previously effects were on clips, which made it ambiguous
+      how to apply their math to the math of the clip
+    * Transitions were also weird, in how they reached into neighbor objects.
+      Now they're explicitly wrappers around Stacks.
+* Use composition rather than inheritance to build objects and interfaces.
 * having hierarchy object schemas be runtime definable: juice seems not to have
   been worth the squeeze
 * explicitly modelling discrete/continuous means no need for rational time
-* implementing in a low level language (zig->C) to allow flatter higher level
-  language bindings
-* explicitly model references into the hierarchy
-* The in-memory model does not intend to 1:1 match the serialized format
+* implementing in a low level language from the ground up (zig->C) to allow
+  flatter higher level language bindings
+* The hierarchy is built over a handle object explicitly rather than over the
+  instances directly.
+* The in-memory model does not intend to 1:1 match the serialized format.
+    * The ascii serialized format is a user interface.
+    * The binary serialized format is there for performance and size.
 
 ### Unsupported/Unimplemented Features From OTIO v1
 
@@ -107,6 +119,9 @@ didn't impact the deisgn or problems we were specifically solving.
 * Spatial Coordinate Systems
 * Markers
 * Schema Versioning
+
+### Omitted from OTIO
+
 * User-defined runtime schemas
 * Metadata with arbitrary user defined schemas
 * Algorithms for filtering or iterating over all the children of a timeline.
