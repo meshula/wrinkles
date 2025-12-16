@@ -29,6 +29,7 @@ const STATE = struct {
 
     /// path to the otio file
     var target_otio_file: []const u8 = undefined;
+    var maybe_file_read_query: ?*app_wrapper.FetchQuery = null;
 
     /// copy of the OTIO json
     var otio_src_json:[]const u8 = undefined;
@@ -907,6 +908,30 @@ fn draw(
     {
         defer zgui.end();
 
+        if (STATE.maybe_file_read_query)
+            |query|
+        {
+            if (query.state != .loaded)
+            {
+                zgui.text(
+                    "not loaded...{s}\n",
+                    .{@tagName(query.state)},
+                );
+                // file hasn't been loaded yet, don't show the UI
+                return;
+            }
+        }
+        else {
+            // fire off the callback to load the file
+            STATE.maybe_file_read_query = (
+                try app_wrapper.fetch_resource_from_path(
+                    STATE.allocator,
+                    STATE.target_otio_file, 
+                    null,
+                )
+            );
+        }
+
         if (
             zgui.beginChild(
                 "TopChunk",
@@ -1174,7 +1199,7 @@ fn draw(
                 );
                 zgui.separator();
                 
-                zgui.textUnformatted(STATE.otio_src_json);
+                zgui.textUnformatted(STATE.maybe_file_read_query.?.data);
             }
         }
 
@@ -1686,6 +1711,12 @@ fn cleanup (
 ) void
 {
     const allocator = STATE.allocator;
+
+    if (STATE.maybe_file_read_query)
+        |query|
+    {
+        allocator.destroy(query);
+    }
 
     if (STATE.maybe_journal)
         |*definitely_journal|
