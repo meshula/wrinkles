@@ -847,15 +847,15 @@ test "track topology construction"
         }
     );
 
-        try std.testing.expectEqual(
-            expected_clip_input_bounds,
-            topo.input_bounds(),
-        );
+    try std.testing.expectEqual(
+        expected_clip_input_bounds,
+        topo.input_bounds(),
+    );
 
-        try std.testing.expectEqual(
-            expected_clip_input_bounds,
-            topo.output_bounds(),
-        );
+    try std.testing.expectEqual(
+        expected_clip_input_bounds,
+        topo.output_bounds(),
+    );
 }
 
 test "warp topology"

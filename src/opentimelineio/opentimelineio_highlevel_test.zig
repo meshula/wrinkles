@@ -113,7 +113,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     var builder = (
         try otio.TemporalProjectionBuilder.init_from(
             allocator, 
-            tl_ptr.space(.presentation)
+            tl_ptr.space(.presentation),
         )
     );
     defer builder.deinit(allocator);
@@ -147,7 +147,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         builder.source.item.discrete_partition_for_space(
             .presentation,
             .picture,
-            )
+        )
     );
 
     if (PRINT_DEMO_OUTPUT) 
