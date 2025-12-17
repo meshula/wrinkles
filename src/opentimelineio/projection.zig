@@ -636,7 +636,7 @@ test "ProjectionOperator: clone"
     defer aff1.deinit(allocator);
 
     var cl: schema.Clip = .null_picture;
-    const cl_ptr = cl.reference();
+    const cl_ptr = cl.handle();
 
     const po = ProjectionOperator{
         .source = cl_ptr.space(.presentation),
@@ -778,9 +778,9 @@ test "ProjectionTopology: track with two clips"
     const cl_ptr = references.CompositionItemHandle.init(&clips[1]);
 
     var tr_children = [_]references.CompositionItemHandle{
-        clips[0].reference(),
-        clips[1].reference(),
-        clips[2].reference(),
+        clips[0].handle(),
+        clips[1].handle(),
+        clips[2].handle(),
     };
     var tr: schema.Track = .{ .children = &tr_children };
     const tr_ptr = references.CompositionItemHandle.init(&tr);
@@ -855,10 +855,10 @@ test "ProjectionBuilder: track [c1][gap][c2]"
         .media = .null_picture,
         .maybe_bounds_s = test_data.T_INT_1_TO_9,
     };
-    const cl2_ptr = cl2.reference();
+    const cl2_ptr = cl2.handle();
 
     var tr_children = [_]references.CompositionItemHandle{ 
-        cl.reference(),
+        cl.handle(),
         references.CompositionItemHandle.init(&gp),
         cl2_ptr,
     };
@@ -980,7 +980,7 @@ test "Projection: schema.Track 3 bounded clips identity xform"
             .media = .null_picture,
             .maybe_bounds_s = test_data.T_INT_0_TO_2 
         };
-        ref.* = cl.*.reference();
+        ref.* = cl.*.handle();
     }
 
     var tr: schema.Track = .{
@@ -1364,7 +1364,7 @@ test "otio projection: track with single clip"
             .maybe_discrete_partition = media_discrete_info,
         },
     };
-    const cl_ptr = cl.reference();
+    const cl_ptr = cl.handle();
 
     var tr_children = [_]references.CompositionItemHandle{ cl_ptr, };
     var tr: schema.Track = .{ .children = &tr_children };
@@ -2030,7 +2030,7 @@ test "ReferenceTopology: init_from_reference"
             } 
         }
     };
-    const cl_ptr = cl.reference();
+    const cl_ptr = cl.handle();
 
     var cl2 = schema.Clip {
         .maybe_name = "clip2",
@@ -2045,7 +2045,7 @@ test "ReferenceTopology: init_from_reference"
             },
         },
     };
-    const cl2_ptr = cl2.reference();
+    const cl2_ptr = cl2.handle();
 
     var tr_children: [2]references.CompositionItemHandle = .{cl_ptr, cl2_ptr};
     var tr1 = schema.Track {
@@ -2062,7 +2062,7 @@ test "ReferenceTopology: init_from_reference"
         .sample_rate_hz = .{ .Int = 24 },
         .start_index = 0,
     };
-    const cl3_ptr = cl3.reference();
+    const cl3_ptr = cl3.handle();
     var wp1 = schema.Warp {
         .maybe_name = "Warp on Clip3",
         .child = cl3_ptr,
@@ -2241,7 +2241,7 @@ test "projection builder over warp with negative scale"
     };
 
     var wp = schema.Warp {
-        .child = cl.reference(),
+        .child = cl.handle(),
         .transform = try topology_m.Topology.init_affine(
             allocator, 
             .{

@@ -213,8 +213,8 @@ pub const Clip = struct {
         }
     }
 
-    /// Build a reference to this Clip.
-    pub fn reference(
+    /// Build a handle to this Clip.
+    pub fn handle(
         self: *@This(),
     ) references.CompositionItemHandle
     {
@@ -229,7 +229,7 @@ test "Clip: spaces list"
     try std.testing.expectEqualSlices(
         references.TemporalSpace,
         &.{ .presentation, .media },
-        cl.reference().spaces()
+        cl.handle().spaces()
     );
 }
 
@@ -303,8 +303,8 @@ pub const Transition = struct {
         &.{ .presentation }
     );
 
-    /// Build a reference to this Transition.
-    pub fn reference(
+    /// Build a handle to this Transition.
+    pub fn handle(
         self: *@This(),
     ) references.CompositionItemHandle
     {
@@ -371,8 +371,8 @@ pub const Warp = struct {
         }
     }
 
-    /// Build a reference to this Warp.
-    pub fn reference(
+    /// Build a handle to this Warp.
+    pub fn handle(
         self: *@This(),
     ) references.CompositionItemHandle
     {
@@ -575,8 +575,8 @@ pub const Track = struct {
         );
     }
 
-    /// Build a reference to this Track.
-    pub fn reference(
+    /// Build a handle to this Track.
+    pub fn handle(
         self: *@This(),
     ) references.CompositionItemHandle
     {
@@ -664,8 +664,8 @@ pub const Stack = struct {
         }
     }
 
-    /// Build a reference to this Stack.
-    pub fn reference(
+    /// Build a handle to this Stack.
+    pub fn handle(
         self: *@This(),
     ) references.CompositionItemHandle
     {
@@ -747,8 +747,8 @@ pub const Timeline = struct {
         return try self.tracks.topology(allocator);
     }
 
-    /// Build a reference to this Timeline.
-    pub fn reference(
+    /// Build a handle to this Timeline.
+    pub fn handle(
         self: *@This(),
     ) references.CompositionItemHandle
     {
@@ -831,7 +831,7 @@ test "track topology construction"
     };
 
     var tr_children = [_]references.CompositionItemHandle{
-        cl.reference()
+        cl.handle()
     };
     var tr: Track = .{
         .children = &tr_children,
@@ -875,7 +875,7 @@ test "warp topology"
         };
 
         const wp = Warp {
-            .child = cl.reference(),
+            .child = cl.handle(),
             .transform = try topology_m.Topology.init_affine(
                 allocator, 
                 .{
@@ -928,7 +928,7 @@ test "warp topology"
         };
 
         const wp = Warp {
-            .child = cl.reference(),
+            .child = cl.handle(),
             .transform = try topology_m.Topology.init_affine(
                 allocator, 
                 .{
@@ -981,7 +981,7 @@ test "warp topology"
         };
 
         const wp = Warp {
-            .child = cl.reference(),
+            .child = cl.handle(),
             .transform = try topology_m.Topology.init_affine(
                 allocator, 
                 .{
