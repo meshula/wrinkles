@@ -89,7 +89,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
 
     // top level timeline
     var tl_children = [_]otio.CompositionItemHandle{
-        tr.reference(),
+        tr.handle(),
     };
     var tl: otio.Timeline = .{
         .maybe_name = "Example Timeline - high level procedural test",
@@ -106,7 +106,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             .children = &tl_children, 
         },
     };
-    const tl_ptr = tl.reference();
+    const tl_ptr = tl.handle();
 
     // build the temporal map
     ///////////////////////////////////////////////////////////////////////////

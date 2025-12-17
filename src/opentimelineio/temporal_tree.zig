@@ -426,7 +426,7 @@ test "build_temporal_tree: leak sentinel test - single clip"
 
     const tree = try build_temporal_tree(
         allocator,
-        cl.reference().space(.presentation)
+        cl.handle().space(.presentation)
     );
     defer tree.deinit(allocator);
 }
@@ -1003,7 +1003,7 @@ test "test debug_print_time_hierarchy"
         },
         .tracks = .{ .children = &tl_children },
     };
-    const tl_ptr = tl.reference();
+    const tl_ptr = tl.handle();
 
     //////
 

@@ -986,7 +986,7 @@ test "Projection: schema.Track 3 bounded clips identity xform"
     var tr: schema.Track = .{
         .children = &refs,
     };
-    const track_ptr = tr.reference();
+    const track_ptr = tr.handle();
 
     var tr_pres_projection_builder = (
         try TemporalProjectionBuilder.init_from(
@@ -1368,7 +1368,7 @@ test "otio projection: track with single clip"
 
     var tr_children = [_]references.CompositionItemHandle{ cl_ptr, };
     var tr: schema.Track = .{ .children = &tr_children };
-    const tr_ptr = tr.reference();
+    const tr_ptr = tr.handle();
 
     var tr_pres_projection_builder = (
         try TemporalProjectionBuilder.init_from(
@@ -1579,7 +1579,7 @@ test "otio projection: track with single clip with transform"
         },
         .tracks = .{ .children = &tl_children },
     };
-    const tl_ptr = tl.reference();
+    const tl_ptr = tl.handle();
     const tr_ptr = tl.tracks.children[0];
 
     var tr_pres_projection_builder = (
@@ -2051,7 +2051,7 @@ test "ReferenceTopology: init_from_reference"
     var tr1 = schema.Track {
         .children = &tr_children,
     };
-    const tr1_ptr = tr1.reference();
+    const tr1_ptr = tr1.handle();
 
     var cl3 = schema.Clip {
         .media = .null_picture,
@@ -2080,12 +2080,12 @@ test "ReferenceTopology: init_from_reference"
             },
         },
     };
-    const wp_ref = wp1.reference();
+    const wp_ref = wp1.handle();
     var tr2_children: [1]references.CompositionItemHandle = .{wp_ref};
     var tr2 = schema.Track {
         .children = &tr2_children,
     };
-    const tr2_ptr = tr2.reference();
+    const tr2_ptr = tr2.handle();
 
     var st_children: [2]references.CompositionItemHandle = .{ tr1_ptr, tr2_ptr };
     var tl = schema.Timeline {
@@ -2102,7 +2102,7 @@ test "ReferenceTopology: init_from_reference"
             }
         }
     };
-    const tl_ref = tl.reference();
+    const tl_ref = tl.handle();
 
     // build ProjectionTopology
     //////////////////////////
@@ -2251,7 +2251,7 @@ test "projection builder over warp with negative scale"
         ),
     };
     defer wp.transform.deinit(allocator);
-    const wp_ptr = wp.reference();
+    const wp_ptr = wp.handle();
 
     var builder = (
         try TemporalProjectionBuilder.init_from(
