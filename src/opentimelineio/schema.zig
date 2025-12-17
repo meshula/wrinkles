@@ -242,8 +242,26 @@ pub const Gap = struct {
     /// Optional name, for labelling and human readability.
     maybe_name: ?string.latin_s8 = null,
 
-    /// A Gaps coordinate system is always 0->duration_seconds
-    duration_s: opentime.Ordinate,
+    /// @TODO: Gaps need a coordinate system so that folks can track markers on
+    ///        them as they trim from the front and the back, effects
+    /// @TODO: add markers and effects as examples, those live in the
+    ///        coordinate spaces
+
+    /// Define the bounds for gap.
+    ///
+    /// @TODO: confirm the assumption here that markers are defined over the
+    ///        presentation space of objects.
+    ///
+    /// NOTES: 
+    ///
+    /// * Unlike the other schema objects, the bounds for a gap is required and
+    ///   not optional.
+    /// * The bounds are present so that folks can "cut in" on the intrinsic
+    ///   space without shifting markers
+    ///
+    /// @TODO:.... implement a marker, see if it sits ok on the Presentation
+    ///        space and then see what happens if it gets cut around
+    bounds_s: opentime.Ordinate,
 
     /// The internal temporal coordinate systems of the Gap.
     pub const available_local_spaces: []const references.TemporalSpace = (
