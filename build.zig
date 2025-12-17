@@ -934,6 +934,29 @@ pub fn build(
 
     try executable(
         b,
+        "otio_dump_ziggy",
+        "src/otio_dump_ziggy.zig",
+        options,
+        &.{
+            .{ .name = "string_stuff", .module = string_stuff },
+            .{ .name = "opentimelineio", .module = opentimelineio },
+            .{ .name = "ziggy", .module = dep_ziggy.module("ziggy") },
+        },
+    );
+
+    try executable(
+        b,
+        "otio_dump_json",
+        "src/otio_dump_json.zig",
+        options,
+        &.{
+            .{ .name = "string_stuff", .module = string_stuff },
+            .{ .name = "opentimelineio", .module = opentimelineio },
+        },
+    );
+
+    try executable(
+        b,
         "otio_measure_timeline",
         "src/otio_measure_timeline.zig",
         options,
