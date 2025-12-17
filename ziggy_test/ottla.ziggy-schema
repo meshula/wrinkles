@@ -1,0 +1,51 @@
+$ = Timeline
+
+struct Timeline {
+    name: bytes,
+    bounds: ?RangeOverSpace,
+    presentation: ?struct {
+        picture: ?SampleIndexGenerator,
+        audio: ?SampleIndexGenerator,
+    },
+    children: []Track,
+}
+
+struct ContinuousInterval {
+    start: Float,
+    end: Float,
+}
+
+union RangeOverSpace {
+    discrete: DiscreteRange,
+    continuous: ContinuousInterval,
+}
+
+struct DiscreteRange {
+    space: enum { presentation, media },
+    range: []int,
+}
+
+struct Track {
+    name: ?bytes,
+    bounds: ContinuousInterval,
+    children: []Composable,
+}
+
+union Composable {
+    .track: Track,
+    .clip: Clip,
+}
+
+struct Clip {
+    name: ?bytes,
+    bounds: ?RangeOverSpace,
+    media: MediaReference,
+}
+
+struct MediaReference {
+    data_reference: MediaDataReference,
+    bounds: RangeOverSpace,
+    domain: Domain,
+    discrete: SampleIndexGenerator,
+    interpolating: MediaInterpolationType,
+}

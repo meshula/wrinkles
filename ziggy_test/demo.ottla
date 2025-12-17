@@ -1,0 +1,44 @@
+{
+    .name =  "test timeline",
+    .presentation = {
+        .picture = {
+            .rate = .Int(24),
+            .offset = 0,
+        },
+        .audio = {
+            .rate = .Int(192000),
+        }
+    },
+    .children = [
+        { 
+        .name = "Example Track",
+        .children = [
+            .clip(
+                {
+                    .name = "Example Clip",
+                    // akin to source range
+                    .bounds = .Discrete(
+                        {
+                            .space = .media,
+                            .range = .{ .start = 10, .end = 20 },
+                        }
+                    ),
+                    .media = {
+                        .data_reference = .uri("path/to/media.mov"),
+                        .bounds = .Discrete(
+                            { 
+                                .range = .{ .start = 0, .end = 100},
+                            }
+                        ),
+                        .domain = .picture,
+                        .discrete = {
+                            .rate = .Int(30),
+                        },
+                        .interpolating = .default_from_domain,
+                    },
+                }
+            )
+        ],
+        }
+    ]
+}

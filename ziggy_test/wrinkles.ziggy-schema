@@ -1,0 +1,26 @@
+$ = Package
+
+struct Package {
+  name: bytes,
+  version: bytes,
+  license: License,
+  description: bytes,
+  dependencies: {:}bytes,
+  repository: Repository,
+
+}
+
+union License {
+  /// Valid SPDX identifier 
+  spdx: bytes,
+  /// URL to license definition
+  custom: bytes
+} 
+
+union Repository {
+  git: Git,
+  npm: Npm,
+
+  struct Git { url: bytes, directory: ?bytes }
+  struct Npm { name: bytes }
+}
