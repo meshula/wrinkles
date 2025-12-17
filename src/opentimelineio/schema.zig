@@ -261,7 +261,7 @@ pub const Gap = struct {
     ///
     /// @TODO:.... implement a marker, see if it sits ok on the Presentation
     ///        space and then see what happens if it gets cut around
-    bounds_s: opentime.Ordinate,
+    bounds_s: opentime.ContinuousInterval,
 
     /// The internal temporal coordinate systems of the Gap.
     pub const available_local_spaces: []const references.TemporalSpace = (
@@ -289,10 +289,7 @@ pub const Gap = struct {
     {
         const result = try topology_m.Topology.init_identity(
             allocator,
-            .{
-                .start = opentime.Ordinate.zero,
-                .end = self.duration_s 
-            },
+            self.bounds_s,
         );
         return result;
     }

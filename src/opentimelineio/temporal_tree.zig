@@ -1019,7 +1019,10 @@ test "track child after gap - use presentation space to compute offset"
     const allocator = std.testing.allocator;
 
     var gp = schema.Gap{
-        .duration_s = opentime.Ordinate.init(3),
+        .bounds_s = .{
+            .start = .zero,
+            .end = opentime.Ordinate.init(3), 
+        },
     };
     var cl = schema.Clip {
         .maybe_name = "target_clip",
@@ -1030,7 +1033,10 @@ test "track child after gap - use presentation space to compute offset"
     };
     const cl_ref = references.CompositionItemHandle.init(&cl);
     var gp2 = schema.Gap{
-        .duration_s = opentime.Ordinate.init(4),
+        .bounds_s = .{
+            .start = .zero,
+            .end = opentime.Ordinate.init(4), 
+        },
     };
 
     var tr_children = [_]references.CompositionItemHandle{
@@ -1068,11 +1074,11 @@ test "track child after gap - use presentation space to compute offset"
     );
 
     try opentime.expectOrdinateEqual(
-        gp.duration_s, 
+        gp.bounds_s.duration(), 
         tr_pres_to_cl_media.source_bounds().?.start,
     );
     try opentime.expectOrdinateEqual(
-        gp.duration_s.add(cl.maybe_bounds_s.?.duration()), 
+        gp.bounds_s.duration().add(cl.maybe_bounds_s.?.duration()), 
         tr_pres_to_cl_media.source_bounds().?.end,
     );
 
