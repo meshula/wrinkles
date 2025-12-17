@@ -222,8 +222,8 @@ pub const CompositionItemHandle = union(enum) {
         };
     }
 
-    /// Fetches the `internal_spaces` field of the referenced item.  See
-    /// `schema.Clip.internal_spaces` for example.  
+    /// Fetches the `available_local_spaces` field of the referenced item.  See
+    /// `schema.Clip.available_local_spaces` for example.  
     ///
     /// Note that this memory is static and does not need to be freed.
     pub fn spaces(
@@ -231,7 +231,7 @@ pub const CompositionItemHandle = union(enum) {
     ) []const TemporalSpace 
     {
         return switch (self) {
-            inline else => |thing| @TypeOf(thing.*).internal_spaces,
+            inline else => |thing| @TypeOf(thing.*).available_local_spaces,
         };
     }
 

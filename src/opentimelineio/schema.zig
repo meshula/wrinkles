@@ -127,7 +127,7 @@ pub const Clip = struct {
     /// Clips provide a `media` space in addition to the `presentation` space.
     ///
     /// The media space is defined by the media reference.
-    pub const internal_spaces: []const references.TemporalSpace = &.{
+    pub const available_local_spaces: []const references.TemporalSpace = &.{
         .presentation,
         .media,
     };
@@ -246,7 +246,7 @@ pub const Gap = struct {
     duration_s: opentime.Ordinate,
 
     /// The internal temporal coordinate systems of the Gap.
-    pub const internal_spaces: []const references.TemporalSpace = (
+    pub const available_local_spaces: []const references.TemporalSpace = (
         &.{ .presentation, .intrinsic }
     );
 
@@ -298,8 +298,8 @@ pub const Transition = struct {
     /// Optional bound of the presentation space of the Transition.
     maybe_bounds_s: ?opentime.ContinuousInterval,
 
-    /// The internal temporal coordinate systems of the Timeline.
-    pub const internal_spaces: []const references.TemporalSpace = (
+    /// The internal temporal coordinate systems Timelines.
+    pub const available_local_spaces: []const references.TemporalSpace = (
         &.{ .presentation }
     );
 
@@ -351,7 +351,7 @@ pub const Warp = struct {
     transform: topology_m.Topology,
 
     /// The internal temporal coordinate systems of the Warp.
-    pub const internal_spaces: []const references.TemporalSpace = (
+    pub const available_local_spaces: []const references.TemporalSpace = (
         &.{ .presentation }
     );
 
@@ -454,7 +454,7 @@ pub const Track = struct {
     children: []references.CompositionItemHandle,
 
     /// The internal temporal coordinate systems of the Track.
-    pub const internal_spaces: []const references.TemporalSpace = (
+    pub const available_local_spaces: []const references.TemporalSpace = (
         &.{ .presentation, .intrinsic }
     );
 
@@ -595,7 +595,7 @@ pub const Stack = struct {
     children: []references.CompositionItemHandle,
 
     /// The internal temporal coordinate systems of the Track.
-    pub const internal_spaces: []const references.TemporalSpace = (
+    pub const available_local_spaces: []const references.TemporalSpace = (
         &.{ .presentation, .intrinsic }
     );
 
@@ -718,7 +718,7 @@ pub const Timeline = struct {
     } = .{},
 
     /// The internal temporal coordinate systems of the Timeline.
-    pub const internal_spaces: []const references.TemporalSpace = &.{
+    pub const available_local_spaces: []const references.TemporalSpace = &.{
         .presentation,
         .intrinsic,
     };
