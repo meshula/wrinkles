@@ -699,13 +699,13 @@ pub const DiscretePartitionDomainMap = struct {
     /// Non-picture/audio domain discretizations can be stored here, ie:
     ///   "Gyroscope"
     ///   "Fireworks"
-    other: ?std.StringHashMapUnmanaged(sampling.SampleIndexGenerator) = null,
+    // other: ?std.StringHashMapUnmanaged(sampling.SampleIndexGenerator) = null,
 
     /// no discrete partitions for any domains
     pub const no_discretizations : DiscretePartitionDomainMap = .{
         .picture = null,
         .audio = null,
-        .other = null,
+        // .other = null,
     };
 };
 

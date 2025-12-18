@@ -173,7 +173,7 @@ pub fn main(
         .{
             .emit_null_optional_fields = false,
             .whitespace = .indent_4,
-    },
+        },
     );
 
     try fmt.format(writer);
