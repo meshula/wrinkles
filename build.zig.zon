@@ -8,11 +8,6 @@
             .url = "git+https://github.com/inkryption/comath.git#502c5e65c3708e14f19e19fb78c18123e4cb752c",
             .hash = "comath-0.1.0-wKZ2n-ffAQD0U6AGU-dnus5nW1yRJP5SXtycwQDQoKNb",
         },
-        .zgui_cimgui_implot_sokol = .{
-            .path = "../zgui_cimgui_implot_sokol",
-            // .url = "git+https://github.com/ssteinbach/zgui_cimgui_implot_sokol.git#64142d6d12eafe616f6cdefeb88e70e3b10c2071",
-            // .hash = "zgui_cimgui_implot_sokol-1.91.8-17SdXoILCABX3DXW1XuSL3h7BBtvM8ObPD7xtdeCTAmQ",
-        },
         .kissfft = .{
             .url = "git+https://github.com/mborgerding/kissfft.git#febd4caeed32e33ad8b2e0bb5ea77542c40f18ec",
             .hash = "N-V-__8AAIXHAgBWq5C_xTeBUl0MLk9dOJJlUUQopZp2mpdH",
@@ -24,6 +19,10 @@
         .zig_wav_io = .{
             .url = "git+https://github.com/ssteinbach/zig-wav-io.git#a43ff48091165734d9ed38948a6b4dd3eae659c9",
             .hash = "zig_wav_io-0.1.0-PYygzNEMAQDo94KcwXYc99epSh1go4VSYgIdCmPB02Kr",
+        },
+        .zgui_cimgui_implot_sokol = .{
+            .url = "git+https://github.com/ssteinbach/zgui_cimgui_implot_sokol.git#68cbce413883e6d8806c5da304a4a6f3c93cf125",
+            .hash = "zgui_cimgui_implot_sokol-1.91.8-17SdXtkNCAAVNEezE-MaA8CWf_y3Ms9vWk_teKoXW-jG",
         },
     },
     .paths = .{

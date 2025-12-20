@@ -162,31 +162,7 @@ pub fn executable(
     exe.want_lto = false;
 
     // run and install the executable
-    if (!options.target.result.cpu.arch.isWasm())
-    {
-        b.installArtifact(exe);
-
-        // TODO: codesigning might require a different structure
-        // install.dependOn(codesign_exe_step);
-
-        const run_cmd = b.addRunArtifact(exe);
-        run_cmd.step.dependOn(b.getInstallStep());
-
-        // pass commandline arguments to the executable
-        // zig build blah-run -- arg1 arg2 etc
-        if (b.args) 
-            |args| 
-        {
-            run_cmd.addArgs(args);
-        }
-
-        const run_step = b.step(
-            name ++ "-run",
-            "Run '" ++ name ++ "' executable",
-        );
-        run_step.dependOn(&run_cmd.step);
-    }
-    else
+    if (options.target.result.cpu.arch.isWasm())
     {
         _ = try ziis.build_wasm(
             b,
@@ -199,6 +175,36 @@ pub fn executable(
                 .optimize = options.optimize,
             }
         );
+    }
+    else
+    {
+        // an install step specifically for the executable
+        const install_exe_step = b.addInstallArtifact(
+            exe,
+            .{},
+        );
+        var install_step = b.step(
+            "install-" ++ name,
+            "Install " ++ name,
+        );
+        install_step.dependOn(&install_exe_step.step);
+        b.getInstallStep().dependOn(install_step);
+
+        // a run step specifically for the executable
+        var run_step = b.step(
+            "run-" ++ name,
+            "Run " ++ name,
+        );
+        var run_cmd = b.addRunArtifact(exe);
+        run_step.dependOn(&run_cmd.step);
+
+        // pass commandline arguments to the executable
+        // zig build blah-run -- arg1 arg2 etc
+        if (b.args) 
+            |args| 
+        {
+            run_cmd.addArgs(args);
+        }
     }
 
     // docs
