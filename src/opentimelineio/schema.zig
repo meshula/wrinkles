@@ -143,13 +143,10 @@ pub const Clip = struct {
         target_space: references.TemporalSpace,
     ) !opentime.ContinuousInterval 
     {
-        const maybe_bounds_s = (
+        if (
             self.maybe_bounds_s 
             orelse self.media.maybe_bounds_s
-        );
-
-        if (maybe_bounds_s)
-            |bounds|
+        ) |bounds|
         {
             return switch (target_space) {
                 .presentation => .{
@@ -237,7 +234,7 @@ test "Clip: spaces list"
     );
 }
 
-test "Clip: presentation space"
+test "Clip: presentation space/media space bounds"
 {
     const allocator = std.testing.allocator;
 
@@ -269,6 +266,15 @@ test "Clip: presentation space"
             .end = cl.media.maybe_bounds_s.?.duration(),
         },
         cl.bounds_of(.presentation),
+    );
+    try std.testing.expectEqual(
+        cl.media.maybe_bounds_s.?,
+        cl_topo.output_bounds(),
+    );
+    try std.testing.expectEqual(
+        // should 0->duration
+        cl.media.maybe_bounds_s.?,
+        cl.bounds_of(.media),
     );
 }
 
