@@ -144,15 +144,19 @@ pub const Clip = struct {
     ) !opentime.ContinuousInterval 
     {
         const maybe_bounds_s = (
-            self.maybe_bounds_s orelse self.media.maybe_bounds_s
+            self.maybe_bounds_s 
+            orelse self.media.maybe_bounds_s
         );
 
         if (maybe_bounds_s)
             |bounds|
         {
-            // @TODO: the bounds of the presentation space should be 0->duration
             return switch (target_space) {
-                .presentation, .media => bounds,
+                .presentation => .{
+                    .start = .zero,
+                    .end = bounds.duration(),
+                },
+                .media => bounds,
                 else => error.UnsupportedSpaceError,
             };
         }
@@ -230,6 +234,41 @@ test "Clip: spaces list"
         references.TemporalSpace,
         &.{ .presentation, .media },
         cl.handle().spaces()
+    );
+}
+
+test "Clip: presentation space"
+{
+    const allocator = std.testing.allocator;
+
+    var cl: Clip = .{
+        .media = .{
+            .maybe_bounds_s = .init(
+                .{.start = 5, .end = 15},
+            ), 
+            .data_reference = .null,
+            .domain = .picture,
+        },
+    };
+
+    const cl_topo = try cl.topology(allocator);
+    defer cl_topo.deinit(allocator);
+
+    try std.testing.expectEqual(
+        // should 0->duration
+        opentime.ContinuousInterval{
+                .start = .zero,
+                .end = cl.media.maybe_bounds_s.?.duration(),
+        },
+        cl_topo.input_bounds(),
+    );
+    try std.testing.expectEqual(
+        // should 0->duration
+        opentime.ContinuousInterval{
+            .start = .zero,
+            .end = cl.media.maybe_bounds_s.?.duration(),
+        },
+        cl.bounds_of(.presentation),
     );
 }
 
