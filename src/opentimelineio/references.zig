@@ -176,8 +176,13 @@ pub const CompositionItemHandle = union(enum) {
         };
     }
 
-    /// Fetch the internal topology of the referred item.
-    pub fn topology(
+    /// Fetch the "spanning" topology of the referred item.  The "spanning"
+    /// topology is the topology that transforms from the presentation space to
+    /// the leaf-most space (for clips, the media space, for everything else,
+    /// media space).
+    ///
+    /// Note that this does not transform into child spaces.
+    pub fn spanning_topology(
         self: @This(),
         allocator: std.mem.Allocator,
     ) error{
@@ -193,7 +198,8 @@ pub const CompositionItemHandle = union(enum) {
     }!topology_m.Topology 
     {
         return  switch (self) {
-            inline else => |it_ptr| try it_ptr.topology(allocator),
+            .clip => |cl| try cl.topology_pres_to_media(allocator),
+            inline else => |thing| try thing.topology_pres_to_intrinsic(allocator),
         };
     }
 
@@ -205,7 +211,7 @@ pub const CompositionItemHandle = union(enum) {
     ) !opentime.ContinuousInterval 
     {
         const presentation_to_intrinsic_topo = (
-            try self.topology(allocator)
+            try self.spanning_topology(allocator)
         );
         defer presentation_to_intrinsic_topo.deinit(allocator);
 
@@ -251,7 +257,7 @@ pub const CompositionItemHandle = union(enum) {
     /// Build the next topology that transforms `from_space_label` on `self`
     /// towards `to_space`.
     ///
-    /// Returend memory is owned by the caller.
+    /// Returnend memory is owned by the caller.
     pub fn transform_step_toward(
         self: @This(),
         allocator: std.mem.Allocator,
@@ -499,7 +505,7 @@ pub const CompositionItemHandle = union(enum) {
             },
             .gap => |gap_ptr| switch (from_space_label) 
             {
-                .presentation => gap_ptr.topology(allocator),
+                .presentation => gap_ptr.topology_pres_to_intrinsic(allocator),
                 else => .identity_infinite,
             },
             // wrapped as identity
@@ -588,7 +594,7 @@ pub const CompositionItemHandle = union(enum) {
 
         const discrete_info = maybe_discrete_info.?;
 
-        const target_topo = try self.topology(allocator);
+        const target_topo = try self.spanning_topology(allocator);
         const extents = target_topo.input_bounds();
 
         return try topology_m.Topology.init_step_mapping(

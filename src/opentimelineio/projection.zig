@@ -2264,7 +2264,7 @@ test "projection builder over warp with negative scale"
     );
     defer builder.deinit(allocator);
 
-    const wp_pres_to_child = try wp.topology(allocator);
+    const wp_pres_to_child = try wp.topology_pres_to_intrinsic(allocator);
     defer wp_pres_to_child.deinit(allocator);
 
     try std.testing.expectEqual(

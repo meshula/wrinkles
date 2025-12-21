@@ -509,7 +509,7 @@ pub export fn otio_fetch_topology(
         return ERR_TOPO;
     };
 
-    result.* = ref.topology(allocator) catch return ERR_TOPO;
+    result.* = ref.spanning_topology(allocator) catch return ERR_TOPO;
 
     return .{ .ref = result };
 }

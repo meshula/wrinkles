@@ -163,7 +163,7 @@ pub const Clip = struct {
 
     /// Build a topology that maps from the presentation space to the media
     /// space of the clip.  Resulting memory is owned by the caller.
-    pub fn topology(
+    pub fn topology_pres_to_media(
         self: @This(),
         allocator: std.mem.Allocator,
     ) !topology_m.Topology 
@@ -248,7 +248,7 @@ test "Clip: presentation space/media space bounds"
         },
     };
 
-    const cl_topo = try cl.topology(allocator);
+    const cl_topo = try cl.topology_pres_to_media(allocator);
     defer cl_topo.deinit(allocator);
 
     try std.testing.expectEqual(
@@ -327,7 +327,7 @@ pub const Gap = struct {
 
     /// A Gap's topology is always an identity bounded by the duration of the
     /// gap.
-    pub fn topology(
+    pub fn topology_pres_to_intrinsic(
         self: @This(),
         allocator: std.mem.Allocator,
     ) !topology_m.Topology 
@@ -372,12 +372,12 @@ pub const Transition = struct {
     }
 
     /// The topology of the Transition is just the topology of the container.
-    pub fn topology(
+    pub fn topology_pres_to_intrinsic(
         self: @This(),
         allocator: std.mem.Allocator,
     ) !topology_m.Topology
     {
-        return self.container.topology(allocator);
+        return self.container.topology_pres_to_intrinsic(allocator);
     }
 
     /// Clear the memory of self and any child objects.
@@ -440,7 +440,7 @@ pub const Warp = struct {
     }
 
     /// Presentation space of warp -> presentation space of child
-    pub fn topology(
+    pub fn topology_pres_to_intrinsic(
         self: @This(),
         allocator: std.mem.Allocator,
     ) !topology_m.Topology
@@ -546,7 +546,7 @@ pub const Track = struct {
     }
 
     /// construct the topology mapping the output to the intrinsic space
-    pub fn topology(
+    pub fn topology_pres_to_intrinsic(
         self: @This(),
         allocator: std.mem.Allocator,
     ) !topology_m.Topology 
@@ -556,7 +556,7 @@ pub const Track = struct {
         for (self.children) 
             |it| 
         {
-            const topo = try it.topology(allocator);
+            const topo = try it.spanning_topology(allocator);
             defer topo.deinit(allocator);
             const it_bound = (
                 topo.input_bounds()
@@ -686,7 +686,7 @@ pub const Stack = struct {
     }
 
     /// construct the topology mapping the output to the intrinsic space
-    pub fn topology(
+    pub fn topology_pres_to_intrinsic(
         self: @This(),
         allocator: std.mem.Allocator,
     ) !topology_m.Topology 
@@ -697,7 +697,7 @@ pub const Stack = struct {
             |it| 
         {
             const it_bound = (
-                (try it.topology(allocator)).input_bounds()
+                (try it.spanning_topology(allocator)).input_bounds()
                 orelse return error.InvalidChildTopology
             );
             if (bounds) 
@@ -799,12 +799,12 @@ pub const Timeline = struct {
     }
 
     /// Presentation space of Timeline -> presentation space of `Tracks` stack.
-    pub fn topology(
+    pub fn topology_pres_to_intrinsic(
         self: @This(),
         allocator: std.mem.Allocator,
     ) !topology_m.Topology
     {
-        return try self.tracks.topology(allocator);
+        return try self.tracks.topology_pres_to_intrinsic(allocator);
     }
 
     /// Build a handle to this Timeline.
@@ -827,7 +827,7 @@ test "clip topology construction"
             .maybe_bounds_s = test_data.T_INT_1_TO_9,
         };
 
-        const topo = try cl.topology(allocator);
+        const topo = try cl.topology_pres_to_media(allocator);
         defer topo.deinit(allocator);
 
         const expected_input_bounds = (
@@ -859,7 +859,7 @@ test "clip topology construction"
             },
         };
 
-        const topo = try cl.topology(allocator);
+        const topo = try cl.topology_pres_to_media(allocator);
         defer topo.deinit(allocator);
 
         const expected_input_bounds = (
@@ -897,7 +897,7 @@ test "track topology construction"
         .children = &tr_children,
     };
 
-    const topo = try tr.topology(allocator);
+    const topo = try tr.topology_pres_to_intrinsic(allocator);
     defer topo.deinit(allocator);
 
     const expected_clip_input_bounds = (
@@ -946,7 +946,7 @@ test "warp topology"
         };
         defer wp.transform.deinit(allocator);
 
-        const topo = try wp.topology(allocator);
+        const topo = try wp.topology_pres_to_intrinsic(allocator);
         defer topo.deinit(allocator);
 
         const range = opentime.ContinuousInterval {
@@ -999,7 +999,7 @@ test "warp topology"
         };
         defer wp.transform.deinit(allocator);
 
-        const topo = try wp.topology(allocator);
+        const topo = try wp.topology_pres_to_intrinsic(allocator);
         defer topo.deinit(allocator);
 
         const range = opentime.ContinuousInterval {
@@ -1052,7 +1052,7 @@ test "warp topology"
         };
         defer wp.transform.deinit(allocator);
 
-        const wp_pres_to_child = try wp.topology(allocator);
+        const wp_pres_to_child = try wp.topology_pres_to_intrinsic(allocator);
         defer wp_pres_to_child.deinit(allocator);
 
         const range = opentime.ContinuousInterval {
