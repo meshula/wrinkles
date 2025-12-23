@@ -48,7 +48,7 @@ pub fn plot_mapping(
 
     try inputs.ensureTotalCapacity(allocator, PLOT_STEPS);
 
-    var outputs: std.ArrayList(f64) = .{};
+    var outputs: std.ArrayList(f64) = .empty;
     defer outputs.deinit(allocator);
 
     try outputs.ensureTotalCapacity(allocator, PLOT_STEPS);

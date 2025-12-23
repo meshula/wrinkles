@@ -919,7 +919,7 @@ test "Base Ordinate: sort"
         Ordinate.init(100),
     };
 
-    var test_arr: std.ArrayList(Ordinate) = .{};
+    var test_arr: std.ArrayList(Ordinate) = .empty;
     defer test_arr.deinit(allocator);
 
     try test_arr.appendSlice(allocator, &known);

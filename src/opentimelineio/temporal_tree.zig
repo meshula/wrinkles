@@ -253,7 +253,7 @@ pub fn build_temporal_tree(
         parent_index: ?usize,
     };
 
-    var otio_object_stack: std.ArrayList(StackNode) = .{};
+    var otio_object_stack: std.ArrayList(StackNode) = .empty;
     defer otio_object_stack.deinit(parent_allocator);
 
     const root_code_ptr = try treecode.Treecode.init(

@@ -44,7 +44,7 @@ pub const Topology = struct {
             allocator.free(mono_crvs);
         }
 
-        var result_mappings: std.ArrayList(mapping.Mapping) = .{};
+        var result_mappings: std.ArrayList(mapping.Mapping) = .empty;
         defer result_mappings.deinit(allocator);
 
         for (mono_crvs)
@@ -301,7 +301,7 @@ pub const Topology = struct {
             return &.{};
         }
 
-        var result: std.ArrayList(opentime.Ordinate) = .{};
+        var result: std.ArrayList(opentime.Ordinate) = .empty;
         defer result.deinit(allocator);
         try result.ensureTotalCapacity(
             allocator,
@@ -430,7 +430,7 @@ pub const Topology = struct {
 
         // either only one side is being trimmed, or different mappings are
         // being trimmed
-        var trimmed_mappings: std.ArrayList(mapping.Mapping) = .{};
+        var trimmed_mappings: std.ArrayList(mapping.Mapping) = .empty;
         defer trimmed_mappings.deinit(allocator);
 
         var middle_start:usize = 0;
@@ -655,7 +655,7 @@ pub const Topology = struct {
             return self.clone(allocator);
         }
 
-        var result_mappings: std.ArrayList(mapping.Mapping) = .{};
+        var result_mappings: std.ArrayList(mapping.Mapping) = .empty;
         defer result_mappings.deinit(allocator);
 
         try result_mappings.ensureTotalCapacity(
@@ -690,7 +690,7 @@ pub const Topology = struct {
         allocator: std.mem.Allocator,
     ) ![]opentime.Ordinate
     {
-        var result: std.ArrayList(opentime.Ordinate) = .{};
+        var result: std.ArrayList(opentime.Ordinate) = .empty;
 
         var set = (
             std.HashMap(
@@ -761,13 +761,13 @@ pub const Topology = struct {
             return self.clone(allocator);
         }
 
-        var result_endpoints: std.ArrayList(opentime.Ordinate) = .{};
+        var result_endpoints: std.ArrayList(opentime.Ordinate) = .empty;
         defer result_endpoints.deinit(allocator);
 
-        var result_mappings: std.ArrayList(mapping.Mapping) = .{};
+        var result_mappings: std.ArrayList(mapping.Mapping) = .empty;
         defer result_mappings.deinit(allocator);
 
-        var input_points_in_bounds: std.ArrayList(opentime.Ordinate) = .{};
+        var input_points_in_bounds: std.ArrayList(opentime.Ordinate) = .empty;
         try input_points_in_bounds.ensureTotalCapacity(
             allocator,
             output_points.len
@@ -937,7 +937,7 @@ pub const Topology = struct {
         output_ord: opentime.Ordinate
     ) ![]const opentime.Ordinate
     {
-        var input_ordinates: std.ArrayList(opentime.Ordinate) = .{};
+        var input_ordinates: std.ArrayList(opentime.Ordinate) = .empty;
         errdefer input_ordinates.deinit(allocator);
 
         for (self.mappings)

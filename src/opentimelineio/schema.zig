@@ -774,8 +774,12 @@ pub const Timeline = struct {
 
     /// Discrete space descriptions for the presentation space of the timeline.
     discrete_space_partitions: struct {
-        presentation: DiscretePartitionDomainMap = .no_discretizations,
-    } = .{},
+        presentation: DiscretePartitionDomainMap,
+
+        pub const no_discretizations: @This() = .{
+            .presentation = .no_discretizations,
+        };
+    } = .no_discretizations,
 
     /// The internal temporal coordinate systems of the Timeline.
     pub const available_local_spaces: []const references.TemporalSpace = &.{

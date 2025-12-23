@@ -48,7 +48,7 @@ pub const MappingEmpty = struct {
         _: @This()
     ) !MappingEmpty 
     {
-        return .{};
+        return .empty_infinite;
     }
 
     pub fn input_bounds(
