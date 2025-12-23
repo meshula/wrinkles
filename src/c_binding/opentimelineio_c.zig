@@ -241,7 +241,7 @@ pub export fn otio_fetch_cvr_type_str(
     len: usize,
 ) c_int
 {
-    const label: [:0]const u8 = switch (self.kind) {
+    const space: [:0]const u8 = switch (self.kind) {
         c.otio_ct_timeline => "timeline",
         c.otio_ct_stack => "stack",
         c.otio_ct_track => "track",
@@ -257,7 +257,7 @@ pub export fn otio_fetch_cvr_type_str(
     _ = std.fmt.bufPrintZ(
         buf_slice,
         "{s}",
-        .{ label },
+        .{ space },
     ) catch |err| {
         std.log.err("error printing to buffer: {any}\n", .{err});
         std.log.err("input buffer: '{s}'", .{buf_slice});
@@ -578,18 +578,18 @@ fn init_TemporalSpace(
 }
 
 fn otio_fetch_discrete_info_erroring(
-    ref_c: c.otio_CompositionItemHandle,
-    space: c.otio_TemporalSpace,
+    handle_c: c.otio_CompositionItemHandle,
+    space_c: c.otio_TemporalSpace,
     domain: c.otio_Domain,
     result: *c.otio_DiscreteDatasourceIndexGenerator,
 ) !c_int
 {
-    const ref = try init_CompositionItemHandle(ref_c);
-    const label = try init_TemporalSpace(space);
+    const cih = try init_CompositionItemHandle(handle_c);
+    const space = try init_TemporalSpace(space_c);
 
     const maybe_di = (
-        ref.discrete_partition_for_space(
-            label,
+        cih.discrete_partition_for_space(
+            space,
             domain_from_c(domain),
         )
     );

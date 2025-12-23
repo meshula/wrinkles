@@ -168,11 +168,11 @@ fn walk_internal_spaces(
     var last_index = parent_index;
 
     for (0.., spaces) 
-        |index, space_label| 
+        |index, space| 
     {
         const space_ref = references.TemporalSpaceNode{
             .item = parent_otio_object,
-            .space = space_label,
+            .space = space,
         };
         const space_code = (
             if (index > 0) (

@@ -1,7 +1,8 @@
-//! Reference Container Objects
+//! Reference Container Objects 
 //!
-//! - `CompositionItemHandle`: Points at an object in an OTIO composition.
-//! - `TemporalSpace`: Name of spaces on otio object.
+//! - `CompositionItemHandle`: Points at an composition item in an OTIO
+//!                            composition (track, clip, warp, etc).
+//! - `TemporalSpace`: Name of spaces on a composition item.
 //! - `TemporalSpaceNode`: A `TemporalSpace` on a `CompositionItemHandle`.
 
 const std = @import("std");
@@ -24,7 +25,7 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
 
 
 /// Scans haystack of enum tags for needle tag.  This is used by this library
-/// to determine if a space is in a given list of spaces.
+/// to determine if a tag is in a given enum.
 fn is_in_tag_list(
     comptime enum_type: type,
     haystack: []const enum_type,
@@ -138,35 +139,38 @@ pub const CompositionItemHandle = union(enum) {
     warp: *schema.Warp,
     transition: *schema.Transition,
 
-    /// construct a CompositionItemHandle from a ComposableValue or value type
+    /// Construct a CompositionItemHandle from a pointer to a composition item.
+    ///
+    /// Triggers a `@compileError` if the argument is not a pointer or an
+    /// invalid type.
     pub fn init(
-        input: anytype,
+        pointer_to_item: anytype,
     ) CompositionItemHandle
     {
         comptime {
-            const ti= @typeInfo(@TypeOf(input));
+            const ti= @typeInfo(@TypeOf(pointer_to_item));
             if (std.meta.activeTag(ti) != .pointer) 
             {
                 @compileError(
                     "CompositionItemHandle can only be constructed from "
                     ++ "pointers to previously allocated OTIO objects, not "
-                    ++ @typeName(@TypeOf(input))
+                    ++ @typeName(@TypeOf(pointer_to_item))
                 );
             }
         }
 
-        return switch (@TypeOf(input.*)) 
+        return switch (@TypeOf(pointer_to_item.*)) 
         {
-            schema.Clip => .{ .clip = input },
-            schema.Gap   => .{ .gap = input },
-            schema.Track => .{ .track = input },
-            schema.Stack => .{ .stack = input },
-            schema.Warp => .{ .warp = input },
-            schema.Timeline => .{ .timeline = input },
-            schema.Transition => .{ .transition = input },
+            schema.Clip => .{ .clip = pointer_to_item },
+            schema.Gap   => .{ .gap = pointer_to_item },
+            schema.Track => .{ .track = pointer_to_item },
+            schema.Stack => .{ .stack = pointer_to_item },
+            schema.Warp => .{ .warp = pointer_to_item },
+            schema.Timeline => .{ .timeline = pointer_to_item },
+            schema.Transition => .{ .transition = pointer_to_item },
             inline else => @compileError(
                 "CompositionItemHandle cannot reference to type: "
-                ++ @typeName(@TypeOf(input))
+                ++ @typeName(@TypeOf(pointer_to_item))
             ),
         };
     }
@@ -196,10 +200,10 @@ pub const CompositionItemHandle = union(enum) {
         };
     }
 
-    /// Fetch the "spanning" topology of the referred item.  The "spanning"
-    /// topology is the topology that transforms from the presentation space to
-    /// the leaf-most space (for clips, the media space, for everything else,
-    /// media space).
+    /// Fetch the "spanning" topology of the referred composition item.  The
+    /// "spanning" topology is the topology that transforms from the
+    /// presentation space to the leaf-most space (for clips, the media space,
+    /// for everything else, media space).
     ///
     /// Note that this does not transform into child spaces.
     pub fn spanning_topology(
@@ -230,12 +234,12 @@ pub const CompositionItemHandle = union(enum) {
         target_space: TemporalSpace,
     ) !opentime.ContinuousInterval 
     {
+        std.debug.assert(self.has_available_local_space(target_space));
+
         const presentation_to_intrinsic_topo = (
             try self.spanning_topology(allocator)
         );
         defer presentation_to_intrinsic_topo.deinit(allocator);
-
-        std.debug.assert(self.has_available_local_space(target_space));
 
         return switch (target_space) {
             .media, .intrinsic => (
@@ -263,7 +267,8 @@ pub const CompositionItemHandle = union(enum) {
         };
     }
 
-    /// Return true if `target_space` is in self.spaces()
+    /// Return true if `target_space` is an available_local_space of the
+    /// referred composition item.
     pub fn has_available_local_space(
         self: @This(),
         target_space: std.meta.Tag(TemporalSpace),
@@ -276,7 +281,8 @@ pub const CompositionItemHandle = union(enum) {
         );
     }
 
-    /// Build a TemporalSpaceReference from a space on the referred item.
+    /// Build a TemporalSpaceNode which refers to a specific local space on the
+    /// referred composition item.
     pub fn space_node(
         self: @This(),
         /// Target space
@@ -291,16 +297,17 @@ pub const CompositionItemHandle = union(enum) {
         };
     }
 
-    /// Build the next topology that transforms `from_space_label` on `self`
-    /// towards `to_space`.
+    /// Build the topology that transforms `from_space` on `self` towards
+    /// `to_space_node`.
     ///
-    /// Returnend memory is owned by the caller.
+    /// Returned memory is owned by the caller.
     pub fn transform_step_toward(
         self: @This(),
         allocator: std.mem.Allocator,
-        /// Label of the starting space on the referred item.
-        from_space_label: TemporalSpace,
-        to_space: TemporalSpaceNode,
+        /// Starting space on self.
+        from_space: TemporalSpace,
+        // Destination space node (either in self or in a child of self).
+        to_space_node: TemporalSpaceNode,
         /// Step taken from previous node.
         step: treecode.l_or_r,
     ) !topology_m.Topology 
@@ -315,17 +322,17 @@ pub const CompositionItemHandle = union(enum) {
                     @src().fn_name, 
                     @src().line, 
                     @tagName(self),
-                    @tagName(from_space_label),
-                    @tagName(to_space.item),
-                    @tagName(to_space.space),
+                    @tagName(from_space),
+                    @tagName(to_space_node.item),
+                    @tagName(to_space_node.space),
                 },
             );
 
-            if (to_space.space == .child)
+            if (to_space_node.space == .child)
             {
                 std.debug.print(
                     ".child.{d}",
-                    .{to_space.space.child}
+                    .{to_space_node.space.child}
                 );
             }
             std.debug.print("\n", .{});
@@ -334,7 +341,7 @@ pub const CompositionItemHandle = union(enum) {
         return switch (self) 
         {
             .track => |*tr| {
-                switch (from_space_label) 
+                switch (from_space) 
                 {
                     // presentation -> intrinsic
                     .presentation => return .identity_infinite,
@@ -391,7 +398,7 @@ pub const CompositionItemHandle = union(enum) {
                 // initially only exposing the MEDIA and presentation spaces
                 //
 
-                return switch (from_space_label) {
+                return switch (from_space) {
                     .presentation => {
                         // goes to media
 
@@ -461,7 +468,7 @@ pub const CompositionItemHandle = union(enum) {
                     }
                 };
             },
-            .warp => |wp_ptr| switch(from_space_label) 
+            .warp => |wp_ptr| switch(from_space) 
             {
                 .presentation => {
                     const intrinsic_to_warp_unbounded = wp_ptr.transform;
@@ -540,24 +547,18 @@ pub const CompositionItemHandle = union(enum) {
                 },
                 else => .identity_infinite,
             },
-            .gap => |gap_ptr| switch (from_space_label) 
+            .gap => |gap_ptr| switch (from_space) 
             {
                 .presentation => gap_ptr.topology_pres_to_intrinsic(allocator),
                 else => .identity_infinite,
             },
             // wrapped as identity
             .timeline, .stack, .transition => .identity_infinite,
-            // else => |case| { 
-            //     std.log.err("Not Implemented: {any}\n", .{ case });
-            //
-            //     // return error.NotImplemented;
-            //     return topology_m.Topology.init_identity_infinite();
-            // },
         };
     }
 
-    /// If the referred item has a discrete_partition, transform the discrete
-    /// index into a continuous interval in the target `in_space`.
+    /// If the referred composition item has a discrete_partition, transform
+    /// the discrete index into a continuous interval `in_space`.
     pub fn discrete_index_to_continuous_range(
         self: @This(),
         ind_discrete: sampling.sample_index_t,
@@ -565,23 +566,26 @@ pub const CompositionItemHandle = union(enum) {
         domain: domain_mod.Domain,
     ) !opentime.ContinuousInterval
     {
-        const maybe_di = (
-            self.discrete_partition_for_space(in_space, domain)
+        const maybe_discrete_partition = (
+            self.discrete_partition_for_space(
+                in_space,
+                domain,
+            )
         );
 
-        if (maybe_di) 
-            |di|
+        if (maybe_discrete_partition) 
+            |discrete_partition|
         {
             return sampling.project_index_dc(
-                di,
-                ind_discrete
+                discrete_partition,
+                ind_discrete,
             );
         }
 
         return error.NoDiscreteInfoForSpace;
     }
 
-    /// Transform the continuous ordinate to a discrete ordinate `in_space`.,
+    /// Transform the continuous ordinate to a discrete index `in_space`,
     /// if that space has a discrete space partition.
     pub fn continuous_ordinate_to_discrete_index(
         self: @This(),
@@ -590,21 +594,20 @@ pub const CompositionItemHandle = union(enum) {
         domain: domain_mod.Domain,
     ) !sampling.sample_index_t
     {
-        const maybe_di = (
+        const maybe_discrete_partition = (
             self.discrete_partition_for_space(in_space, domain)
         );
 
-        if (maybe_di) 
-            |di|
+        if (maybe_discrete_partition) 
+            |discrete_partition|
         {
             return sampling.project_instantaneous_cd(
-                di,
+                discrete_partition,
                 ord_continuous
             );
         }
 
         // @TODO: should this be an error?  or a null (no projection).
-
         return error.NoDiscreteInfoForSpace;
     }
    
@@ -649,17 +652,17 @@ pub const CompositionItemHandle = union(enum) {
         );
     }
 
-    /// Return the discrete partition for the specified space label on the
-    /// referred item in the specified domain.  Return null if no discrete
+    /// Return the discrete partition for the specified space on the referred
+    /// composition item in the specified domain.  Return null if no discrete
     /// partition exists.
     pub fn discrete_partition_for_space(
         self: @This(),
-        in_space: TemporalSpace,
+        space: TemporalSpace,
         domain: domain_mod.Domain,
     ) ?sampling.SampleIndexGenerator
     {
         return switch (self) {
-            .timeline => |tl| switch (in_space) {
+            .timeline => |tl| switch (space) {
                 .presentation => switch (domain) {
                     .picture => tl.discrete_space_partitions.presentation.picture,
                     .audio => tl.discrete_space_partitions.presentation.audio,
@@ -667,7 +670,7 @@ pub const CompositionItemHandle = union(enum) {
                 },
                 inline else => null,
             },
-            .clip => |cl| switch (in_space) {
+            .clip => |cl| switch (space) {
                 .media => if (
                     std.meta.activeTag(domain) 
                     == std.meta.activeTag(cl.media.domain)
@@ -729,16 +732,16 @@ pub const CompositionItemHandle = union(enum) {
 
 test "CompositionItemHandle init test"
 {
-    var clip: schema.Clip = .null_picture;
-    clip.maybe_name = "pasta";
+    var cl: schema.Clip = .null_picture;
+    cl.maybe_name = "pasta";
 
-    const cvr_clip = CompositionItemHandle.init(&clip);
+    const cl_h = CompositionItemHandle.init(&cl);
 
     try std.testing.expectEqualStrings(
-        clip.maybe_name.?,
-        cvr_clip.clip.maybe_name.?,
+        cl.maybe_name.?,
+        cl_h.clip.maybe_name.?,
     );
-    try std.testing.expectEqual(&clip, cvr_clip.clip);
+    try std.testing.expectEqual(&cl, cl_h.clip);
 }
 
 test "is_in_tag_list"
@@ -769,7 +772,7 @@ test "is_in_tag_list"
 
 test "CompositionItemHandle: has_space"
 {
-    var cl = schema.Clip.null_picture;
+    var cl: schema.Clip = .null_picture;
     const cl_h = cl.handle();
 
     try std.testing.expectEqual(
