@@ -159,7 +159,7 @@ pub fn main(
     const tree = (
         try otio.temporal_tree.build_temporal_tree(
             allocator,
-            tl_ref.space(.presentation),
+            tl_ref.space_node(.presentation),
         )
     );
     defer tree.deinit(allocator);

@@ -116,7 +116,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     var builder = (
         try otio.TemporalProjectionBuilder.init_from(
             allocator, 
-            tl_ptr.space(.presentation),
+            tl_ptr.space_node(.presentation),
         )
     );
     defer builder.deinit(allocator);
@@ -124,7 +124,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     const timeline_to_clip2 = (
         try builder.projection_operator_to(
             allocator,
-            tr.children[2].space(.media)
+            tr.children[2].space_node(.media)
         )
     );
 
@@ -372,7 +372,7 @@ test "libsamplerate w/ high level test -- resample only"
     var tr_pres_projection_builder = (
         try otio.TemporalProjectionBuilder.init_from(
             allocator,
-            tr_ptr.space(.presentation),
+            tr_ptr.space_node(.presentation),
         )
     );
     defer tr_pres_projection_builder.deinit(allocator);
@@ -380,7 +380,7 @@ test "libsamplerate w/ high level test -- resample only"
     const tr_pres_to_cl_media_po = (
         try tr_pres_projection_builder.projection_operator_to(
             allocator,
-            cl_ptr.space(.media),
+            cl_ptr.space_node(.media),
         )
     );
 
@@ -533,7 +533,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
     var proj_topo_from_tl_pres = (
         try otio.TemporalProjectionBuilder.init_from(
             allocator, 
-            tl_ptr.space(.presentation)
+            tl_ptr.space_node(.presentation)
         )
     );
     defer proj_topo_from_tl_pres.deinit(allocator);
@@ -548,7 +548,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
     const tl_pres_to_cl_media_po = (
         try proj_topo_from_tl_pres.projection_operator_to(
             allocator,
-            cl_ptr.space(.media),
+            cl_ptr.space_node(.media),
         )
     );
 
@@ -690,7 +690,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     var proj_topo_from_tr_pres = (
         try otio.TemporalProjectionBuilder.init_from(
             allocator, 
-            tr_ptr.space(.presentation)
+            tr_ptr.space_node(.presentation)
         )
     );
     defer proj_topo_from_tr_pres.deinit(allocator);
@@ -698,7 +698,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     const tr_pres_to_cl_media_po = (
         try proj_topo_from_tr_pres.projection_operator_to(
             allocator,
-            cl_ptr.space(.media),
+            cl_ptr.space_node(.media),
         )
     );
 
@@ -846,7 +846,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     var proj_topo_from_tr_pres = (
         try otio.TemporalProjectionBuilder.init_from(
             allocator, 
-            tr_ptr.space(.presentation)
+            tr_ptr.space_node(.presentation)
         )
     );
     defer proj_topo_from_tr_pres.deinit(allocator);
@@ -856,7 +856,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     const tr_pres_to_cl_media_po = (
         try proj_topo_from_tr_pres.projection_operator_to(
             allocator, 
-            cl_ptr.space(.media),
+            cl_ptr.space_node(.media),
         )
     );
 
@@ -998,7 +998,7 @@ test "timeline w/ warp that holds the tenth frame"
     var proj_topo_from_tr_pres = (
         try otio.TemporalProjectionBuilder.init_from(
             allocator, 
-            tr_ptr.space(.presentation)
+            tr_ptr.space_node(.presentation)
         )
     );
     defer proj_topo_from_tr_pres.deinit(allocator);
@@ -1007,7 +1007,7 @@ test "timeline w/ warp that holds the tenth frame"
     const tr_pres_to_cl_media_po = (
         try proj_topo_from_tr_pres.projection_operator_to(
             allocator,
-            cl_ptr.space(.media),
+            cl_ptr.space_node(.media),
         )
     );
 
@@ -1116,7 +1116,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     var proj_topo_from_tl_pres = (
         try otio.TemporalProjectionBuilder.init_from(
             allocator, 
-            tl_ptr.space(.presentation)
+            tl_ptr.space_node(.presentation)
         )
     );
     defer proj_topo_from_tl_pres.deinit(allocator);
@@ -1126,7 +1126,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     const tl_pres_to_cl_media_po = (
         try proj_topo_from_tl_pres.projection_operator_to(
             allocator,
-            cl_ptr.space(.media),
+            cl_ptr.space_node(.media),
         )
     );
 

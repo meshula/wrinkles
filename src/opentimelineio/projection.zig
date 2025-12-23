@@ -435,14 +435,14 @@ test "ReferenceTopology: leak test"
 
     var cl_pres_proj_topo = try TemporalProjectionBuilder.init_from(
         allocator,
-        cl_ptr.space(.presentation)
+        cl_ptr.space_node(.presentation)
     );
     defer cl_pres_proj_topo.deinit(allocator);
 
     const cl_pres_to_cl_media = (
         try cl_pres_proj_topo.projection_operator_to(
             allocator,
-            cl_ptr.space(.media),
+            cl_ptr.space_node(.media),
         )
     );
 
@@ -467,7 +467,7 @@ test "ProjectionBuilder: clip"
     var cl_pres_projection_builder = (
         try TemporalProjectionBuilder.init_from(
             allocator,
-            cl_ptr.space(.presentation),
+            cl_ptr.space_node(.presentation),
         )
     );
     defer cl_pres_projection_builder.deinit(allocator);
@@ -484,7 +484,7 @@ test "ProjectionBuilder: clip"
     const known_presentation_to_media = (
         try cl_pres_projection_builder.projection_operator_to(
             allocator,
-             cl_ptr.space(.media),
+             cl_ptr.space_node(.media),
         )
     );
 
@@ -542,12 +542,12 @@ test "ProjectionBuilder: track with single clip"
     var tr: schema.Track = .{ .children = &tr_children };
     const tr_ptr = references.CompositionItemHandle.init(&tr);
 
-    const source_space = tr_ptr.space(.presentation);
+    const source_space = tr_ptr.space_node(.presentation);
 
     var test_maps = [_]TemporalProjectionBuilder{
         try TemporalProjectionBuilder.init_from(
             allocator,
-            cl_ptr.space(.presentation),
+            cl_ptr.space_node(.presentation),
         ),
         try TemporalProjectionBuilder.init_from(
             allocator,
@@ -572,7 +572,7 @@ test "ProjectionBuilder: track with single clip"
         const known_presentation_to_media = (
             try pb.projection_operator_to(
                 allocator,
-                cl_ptr.space(.media),
+                cl_ptr.space_node(.media),
             )
         );
         const known_input_bounds = (
@@ -639,8 +639,8 @@ test "ProjectionOperator: clone"
     const cl_ptr = cl.handle();
 
     const po = ProjectionOperator{
-        .source = cl_ptr.space(.presentation),
-        .destination = cl_ptr.space(.media),
+        .source = cl_ptr.space_node(.presentation),
+        .destination = cl_ptr.space_node(.media),
         .src_to_dst_topo = aff1,
     };
 
@@ -682,11 +682,11 @@ test "transform: track with two clips"
 
     const map = try temporal_tree.build_temporal_tree(
         allocator,
-        tr_ptr.space(.presentation),
+        tr_ptr.space_node(.presentation),
     );
     defer map.deinit(allocator);
 
-    const track_presentation_space = tr_ptr.space(.presentation);
+    const track_presentation_space = tr_ptr.space_node(.presentation);
 
     {
         const xform = try topology_m.Topology.init_affine(
@@ -712,7 +712,7 @@ test "transform: track with two clips"
 
         const po = try builder.projection_operator_to(
             allocator,
-            cl2_ref.space(.media),
+            cl2_ref.space_node(.media),
         );
         const result = try topology_m.join(
             allocator,
@@ -737,7 +737,7 @@ test "transform: track with two clips"
 
         const xform = try builder.projection_operator_to(
             allocator,
-             cl2_ref.space(.media),
+             cl2_ref.space_node(.media),
         );
         const b = xform.src_to_dst_topo.input_bounds().?;
 
@@ -785,7 +785,7 @@ test "ProjectionTopology: track with two clips"
     var tr: schema.Track = .{ .children = &tr_children };
     const tr_ptr = references.CompositionItemHandle.init(&tr);
 
-    const source_space = tr_ptr.space(.presentation);
+    const source_space = tr_ptr.space_node(.presentation);
 
     var cl_pres_projection_builder = (
         try TemporalProjectionBuilder.init_from(
@@ -808,7 +808,7 @@ test "ProjectionTopology: track with two clips"
     const known_presentation_to_media = (
         try cl_pres_projection_builder.projection_operator_to(
             allocator,
-            cl_ptr.space(.media),
+            cl_ptr.space_node(.media),
         )
     );
 
@@ -871,7 +871,7 @@ test "ProjectionBuilder: track [c1][gap][c2]"
     var tr_pres_projection_builder = (
         try TemporalProjectionBuilder.init_from(
             allocator,
-            tr_ptr.space(.presentation),
+            tr_ptr.space_node(.presentation),
         )
     );
     defer tr_pres_projection_builder.deinit(allocator);
@@ -888,7 +888,7 @@ test "ProjectionBuilder: track [c1][gap][c2]"
 
     const tr_pres_to_cl_media = (
         try tr_pres_projection_builder.projection_operator_to(
-            allocator, cl2_ptr.space(.media)
+            allocator, cl2_ptr.space_node(.media)
         )
     );
 
@@ -919,7 +919,7 @@ test "Projection: schema.Track with single clip with identity transform and boun
     var builder = (
         try TemporalProjectionBuilder.init_from(
             allocator,
-            root.space(.presentation),
+            root.space_node(.presentation),
         )
     );
     defer builder.deinit(allocator);
@@ -930,7 +930,7 @@ test "Projection: schema.Track with single clip with identity transform and boun
     );
     const root_presentation_to_clip_media = try builder.projection_operator_to(
         allocator,
-        clip.space(.media),
+        clip.space_node(.media),
     );
 
     const expected_media_temporal_bounds = (
@@ -994,7 +994,7 @@ test "Projection: schema.Track 3 bounded clips identity xform"
     var tr_pres_projection_builder = (
         try TemporalProjectionBuilder.init_from(
             allocator,
-            track_ptr.space(.presentation),
+            track_ptr.space_node(.presentation),
         )
     );
     defer tr_pres_projection_builder.deinit(allocator);
@@ -1051,7 +1051,7 @@ test "Projection: schema.Track 3 bounded clips identity xform"
         const tr_presentation_to_child_media = (
             try tr_pres_projection_builder.projection_operator_to(
                 allocator,
-                child.space(.media),
+                child.space_node(.media),
             )
         );
 
@@ -1089,7 +1089,7 @@ test "Projection: schema.Track 3 bounded clips identity xform"
     const tr_pres_to_cl_media = (
         try tr_pres_projection_builder.projection_operator_to(
             allocator,
-            clip.space(.media),
+            clip.space_node(.media),
         )
     );
 
@@ -1212,7 +1212,7 @@ test "Single schema.Clip bezier transform"
     var wp_pres_projection_builder = (
         try TemporalProjectionBuilder.init_from(
             allocator,
-            wp_ptr.space(.presentation),
+            wp_ptr.space_node(.presentation),
         )
     );
     defer wp_pres_projection_builder.deinit(allocator);
@@ -1222,7 +1222,7 @@ test "Single schema.Clip bezier transform"
         const clip_presentation_to_media_proj = (
             try wp_pres_projection_builder.projection_operator_to(
                 allocator,
-                cl_ptr.space(.media),
+                cl_ptr.space_node(.media),
             )
         );
 
@@ -1331,7 +1331,7 @@ test "Single schema.Clip bezier transform"
         const clip_media_to_presentation = (
             try wp_pres_projection_builder.projection_operator_from_leaky(
                 allocator,
-                cl_ptr.space(.media),
+                cl_ptr.space_node(.media),
             )
         );
         defer clip_media_to_presentation.deinit(allocator);
@@ -1376,7 +1376,7 @@ test "otio projection: track with single clip"
     var tr_pres_projection_builder = (
         try TemporalProjectionBuilder.init_from(
             allocator,
-            tr_ptr.space(.presentation),
+            tr_ptr.space_node(.presentation),
         )
     );
     defer tr_pres_projection_builder.deinit(allocator);
@@ -1395,7 +1395,7 @@ test "otio projection: track with single clip"
     const tr_pres_to_cl_media = (
         try tr_pres_projection_builder.projection_operator_to(
             allocator,
-            cl_ptr.space(.media),
+            cl_ptr.space_node(.media),
         )
     );
 
@@ -1588,7 +1588,7 @@ test "otio projection: track with single clip with transform"
     var tr_pres_projection_builder = (
         try TemporalProjectionBuilder.init_from(
             allocator, 
-            tr_ptr.space(.presentation)
+            tr_ptr.space_node(.presentation)
         )
     );
     defer tr_pres_projection_builder.deinit(allocator);
@@ -1603,7 +1603,7 @@ test "otio projection: track with single clip with transform"
     const tr_pres_to_cl_media = (
         try tr_pres_projection_builder.projection_operator_to(
             allocator,
-            cl_ptr.space(.media),
+            cl_ptr.space_node(.media),
         )
     );
 
@@ -1709,7 +1709,7 @@ test "otio projection: track with single clip with transform"
             var tl_pres_projection_builder = (
                 try TemporalProjectionBuilder.init_from(
                     allocator, 
-                    tl_ptr.space(.presentation),
+                    tl_ptr.space_node(.presentation),
                 )
             );
             defer tl_pres_projection_builder.deinit(allocator);
@@ -1724,7 +1724,7 @@ test "otio projection: track with single clip with transform"
             const timeline_to_media = (
                 try tl_pres_projection_builder.projection_operator_to(
                     allocator,
-                    cl_ptr.space(.media),
+                    cl_ptr.space_node(.media),
                 )
             );
 
@@ -1805,7 +1805,7 @@ test "Single clip, schema.Warp bulk"
     defer cl.deinit(allocator);
     const cl_ptr = references.CompositionItemHandle.init(&cl);
 
-    const cl_media = cl_ptr.space(.media);
+    const cl_media = cl_ptr.space_node(.media);
 
     const TestCase = struct {
         label: []const u8,
@@ -1903,7 +1903,7 @@ test "Single clip, schema.Warp bulk"
         var wp_pres_projection_builder = (
             try TemporalProjectionBuilder.init_from(
                 allocator, 
-                wp_ptr.space(.presentation),
+                wp_ptr.space_node(.presentation),
             )
         );
         defer wp_pres_projection_builder.deinit(allocator);
@@ -2112,7 +2112,7 @@ test "ReferenceTopology: init_from_reference"
     var projection_topo = (
         try TemporalProjectionBuilder.init_from(
             allocator,
-            tl_ref.space(.presentation),
+            tl_ref.space_node(.presentation),
         )
     );
     defer projection_topo.deinit(allocator);
@@ -2259,7 +2259,7 @@ test "projection builder over warp with negative scale"
     var builder = (
         try TemporalProjectionBuilder.init_from(
             allocator,
-            wp_ptr.space(.presentation),
+            wp_ptr.space_node(.presentation),
         )
     );
     defer builder.deinit(allocator);

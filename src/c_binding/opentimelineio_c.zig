@@ -226,7 +226,7 @@ pub export fn otio_build_projection_op_map_to_media_tp_cvr(
 
     result.* = otio.TemporalProjectionBuilder.init_from(
         allocator,
-        src.space(.presentation),
+        src.space_node(.presentation),
     ) catch |err| {
         std.log.err("Couldn't build map: {any}\n", .{ err});
         return ERR_PO_MAP;

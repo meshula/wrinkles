@@ -855,7 +855,7 @@ test "read_from_file test (simple)"
     var tl_pres_projection_builder = (
         try otio.TemporalProjectionBuilder.init_from(
             allocator,
-            tl_ref.space(.presentation),
+            tl_ref.space_node(.presentation),
         )
     );
     defer tl_pres_projection_builder.deinit(allocator);
@@ -863,7 +863,7 @@ test "read_from_file test (simple)"
     const tl_output_to_clip_media = (
         try tl_pres_projection_builder.projection_operator_to(
             allocator,
-            target_clip_ptr.space(.media),
+            target_clip_ptr.space_node(.media),
         )
     );
     

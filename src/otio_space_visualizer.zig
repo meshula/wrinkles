@@ -1882,7 +1882,7 @@ pub fn main(
 
         try set_source(
             STATE.allocator,
-            STATE.otio_root.space(.presentation)
+            STATE.otio_root.space_node(.presentation)
         );
     }
 

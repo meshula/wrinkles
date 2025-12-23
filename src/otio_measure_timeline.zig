@@ -176,7 +176,7 @@ pub fn main(
         var projection_topo = (
             try otio.projection.TemporalProjectionBuilder.init_from(
                 allocator,
-                tl_ref.space(.presentation),
+                tl_ref.space_node(.presentation),
             )
         );
         defer projection_topo.deinit(allocator);

@@ -242,15 +242,17 @@ pub const CompositionItemHandle = union(enum) {
     }
 
     /// Build a TemporalSpaceReference from a space on the referred item.
-    pub fn space(
+    pub fn space_node(
         self: @This(),
         /// Target space
-        label: TemporalSpace
+        target_space: TemporalSpace
     ) TemporalSpaceNode 
     {
+        std.debug.assert(self.has_space(target_space));
+
         return .{
             .item = self,
-            .space = label,
+            .space = target_space,
         };
     }
 

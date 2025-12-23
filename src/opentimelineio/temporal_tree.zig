@@ -320,7 +320,7 @@ test "build_temporal_tree: leak sentinel test track w/ clip"
 
     const tree = try build_temporal_tree(
         allocator,
-        tr_ref.space(.presentation),
+        tr_ref.space_node(.presentation),
     );
     defer tree.deinit(allocator);
 }
@@ -359,12 +359,12 @@ test "build_temporal_tree check root node"
 
     const tree = try build_temporal_tree(
         allocator,
-        tr_ref.space(.presentation),
+        tr_ref.space_node(.presentation),
     );
     defer tree.deinit(allocator);
 
     try std.testing.expectEqual(
-        tr_ref.space(.presentation),
+        tr_ref.space_node(.presentation),
         tree.root_node(),
     );
 
@@ -426,7 +426,7 @@ test "build_temporal_tree: leak sentinel test - single clip"
 
     const tree = try build_temporal_tree(
         allocator,
-        cl.handle().space(.presentation)
+        cl.handle().space_node(.presentation)
     );
     defer tree.deinit(allocator);
 }
@@ -446,7 +446,7 @@ test "TestWalkingIterator: clip"
 
     const tree = try build_temporal_tree(
         allocator,
-        cl_ptr.space(.presentation),
+        cl_ptr.space_node(.presentation),
     );
     defer tree.deinit(allocator);
 
@@ -488,7 +488,7 @@ test "TestWalkingIterator: track with clip w/ destination"
 
     const tree = try build_temporal_tree(
         allocator,
-        tr_ptr.space(.presentation)
+        tr_ptr.space_node(.presentation)
     );
     defer tree.deinit(allocator);
 
@@ -505,10 +505,10 @@ test "TestWalkingIterator: track with clip w/ destination"
             allocator, 
             .{
                 .source = tree.index_for_node(
-                    tr_ptr.space(.presentation)
+                    tr_ptr.space_node(.presentation)
                 ).?,
                 .destination = tree.index_for_node(
-                    cl_ptr.space(.media)
+                    cl_ptr.space_node(.media)
                 ).?,
             },
         );
@@ -518,10 +518,10 @@ test "TestWalkingIterator: track with clip w/ destination"
             allocator, 
             .{
                 .source = tree.index_for_node(
-                    tr_ptr.space(.presentation)
+                    tr_ptr.space_node(.presentation)
                 ).?,
                 .destination = tree.index_for_node(
-                        cl_ptr.space(.media)
+                        cl_ptr.space_node(.media)
                     ).?,
                 },
         );
@@ -749,12 +749,12 @@ test "path_code: tree test"
 
     const tree = try build_temporal_tree(
         allocator,
-        tr_ref.space(.presentation),
+        tr_ref.space_node(.presentation),
     );
     defer tree.deinit(allocator);
 
     try std.testing.expectEqual(
-        tr_ref.space(.presentation),
+        tr_ref.space_node(.presentation),
         tree.root_node(),
     );
 
@@ -796,7 +796,7 @@ test "path_code: tree test"
         |t_i, t| 
     {
         const space = (
-            tr.children[t.ind].space(.presentation)
+            tr.children[t.ind].space_node(.presentation)
         );
         const result = (
             tree.code_from_node(space) 
@@ -844,7 +844,7 @@ test "schema.Track with clip with identity transform projection"
 
     const tree = try build_temporal_tree(
         allocator,
-        tr_ref.space(.presentation),
+        tr_ref.space_node(.presentation),
     );
     defer tree.deinit(allocator);
 
@@ -872,7 +872,7 @@ test "Temporaltree: schema.Track with clip with identity transform"
 
     const tree = try build_temporal_tree(
         allocator,
-        root.space(.presentation),
+        root.space_node(.presentation),
     );
     defer tree.deinit(allocator);
 
@@ -896,7 +896,7 @@ test "Temporaltree: schema.Track with clip with identity transform"
     }
 
     const maybe_clip_code = tree.code_from_node(
-        cl_ref.space(.media)
+        cl_ref.space_node(.media)
     );
     try std.testing.expect(maybe_clip_code != null);
     const clip_code = maybe_clip_code.?;
@@ -1009,7 +1009,7 @@ test "test debug_print_time_hierarchy"
 
     const tp = try build_temporal_tree(
         allocator,
-        tl_ptr.space(.presentation),
+        tl_ptr.space_node(.presentation),
     );
     defer tp.deinit(allocator);
 }
@@ -1053,7 +1053,7 @@ test "track child after gap - use presentation space to compute offset"
     var proj_topo = (
         try projection.TemporalProjectionBuilder.init_from(
             allocator,
-            tr_ref.space(.presentation),
+            tr_ref.space_node(.presentation),
         )
     );
     defer proj_topo.deinit(allocator);
@@ -1061,7 +1061,7 @@ test "track child after gap - use presentation space to compute offset"
     const tr_pres_to_cl_media = (
         try proj_topo.projection_operator_to(
             allocator,
-             cl_ref.space(.media),
+             cl_ref.space_node(.media),
         )
     );
 
