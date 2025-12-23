@@ -22,6 +22,26 @@ const GRAPH_CONSTRUCTION_TRACE_MESSAGES = (
     build_options.debug_graph_construction_trace_messages
 );
 
+
+/// Scans haystack of enum tags for needle tag.  This is used by this library
+/// to determine if a space is in a given list of spaces.
+fn is_in_tag_list(
+    comptime enum_type: type,
+    haystack: []const enum_type,
+    needle: std.meta.Tag(enum_type),
+) bool
+{
+    for (haystack) 
+        |v| 
+    {
+        if (v == needle) 
+        {
+            return true;
+        }
+    } else return false;
+}
+
+
 /// A Temporal Space on a `CompositionItemHandle`.
 pub const TemporalSpace = union (enum) {
     /// The presentation space is the "output" (from a rendering perspective)
@@ -215,6 +235,8 @@ pub const CompositionItemHandle = union(enum) {
         );
         defer presentation_to_intrinsic_topo.deinit(allocator);
 
+        std.debug.assert(self.has_available_local_space(target_space));
+
         return switch (target_space) {
             .media, .intrinsic => (
                 presentation_to_intrinsic_topo.output_bounds()
@@ -232,13 +254,26 @@ pub const CompositionItemHandle = union(enum) {
     /// `schema.Clip.available_local_spaces` for example.  
     ///
     /// Note that this memory is static and does not need to be freed.
-    pub fn spaces(
+    pub fn available_local_spaces(
         self: @This(),
     ) []const TemporalSpace 
     {
         return switch (self) {
             inline else => |thing| @TypeOf(thing.*).available_local_spaces,
         };
+    }
+
+    /// Return true if `target_space` is in self.spaces()
+    pub fn has_available_local_space(
+        self: @This(),
+        target_space: std.meta.Tag(TemporalSpace),
+    ) bool
+    {
+        return is_in_tag_list(
+            TemporalSpace,
+            self.available_local_spaces(),
+            target_space,
+        );
     }
 
     /// Build a TemporalSpaceReference from a space on the referred item.
@@ -248,7 +283,7 @@ pub const CompositionItemHandle = union(enum) {
         target_space: TemporalSpace
     ) TemporalSpaceNode 
     {
-        std.debug.assert(self.has_space(target_space));
+        std.debug.assert(self.has_available_local_space(target_space));
 
         return .{
             .item = self,
@@ -704,4 +739,46 @@ test "CompositionItemHandle init test"
         cvr_clip.clip.maybe_name.?,
     );
     try std.testing.expectEqual(&clip, cvr_clip.clip);
+}
+
+test "is_in_tag_list"
+{
+    const haystack: []const TemporalSpace = &.{
+        .presentation,
+        .intrinsic,
+    };
+
+    try std.testing.expectEqual(
+        true, 
+        is_in_tag_list(
+            TemporalSpace,
+            haystack,
+            .presentation,
+        )
+    );
+
+    try std.testing.expectEqual(
+        false, 
+        is_in_tag_list(
+            TemporalSpace,
+            haystack,
+            .media,
+        )
+    );
+}
+
+test "CompositionItemHandle: has_space"
+{
+    var cl = schema.Clip.null_picture;
+    const cl_h = cl.handle();
+
+    try std.testing.expectEqual(
+        true, 
+        cl_h.has_available_local_space(.media),
+    );
+
+    try std.testing.expectEqual(
+        false, 
+        cl_h.has_available_local_space(.intrinsic),
+    );
 }

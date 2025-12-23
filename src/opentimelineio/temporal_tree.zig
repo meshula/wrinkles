@@ -162,7 +162,7 @@ fn walk_internal_spaces(
     tree: *TemporalTree,
 ) !struct{ treecode.Treecode, ?usize }
 {
-    const spaces = parent_otio_object.spaces();
+    const spaces = parent_otio_object.available_local_spaces();
 
     var last_space_code = parent_code;
     var last_index = parent_index;

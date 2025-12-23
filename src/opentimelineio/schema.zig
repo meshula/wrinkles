@@ -230,7 +230,7 @@ test "Clip: spaces list"
     try std.testing.expectEqualSlices(
         references.TemporalSpace,
         &.{ .presentation, .media },
-        cl.handle().spaces()
+        cl.handle().available_local_spaces()
     );
 }
 
