@@ -4,13 +4,13 @@
 
 * `treecode`: library for encoding paths through graphs and a `BinaryTree` for
   which uses the treecodes to encode node locations
-* `opentime`: low level points, intervals and affine transforms, and
-  `Dual` for doing dual arithmetic/implicit differentiation.
+* `opentime`: low level points, intervals and affine transforms, and `Dual` for
+  doing dual arithmetic/implicit differentiation.
 * `curve`: structures and functions for making and manipulating linear and
   bezier splines
-* `sampling`: tools for dealing with discrete spaces, particularly sets of either
-  samples or sample indices.  Includes tools for transforming and resampling
-  such arrays.
+* `sampling`: tools for dealing with discrete spaces, particularly sets of
+  either samples or sample indices.  Includes tools for transforming and
+  resampling such arrays.
 * `Mapping`: linear, monontonic, composable transformation functions for
   continuous transformation
 * `Topology`: monotonic over their input spaces, use sets of Mappings to
@@ -49,6 +49,8 @@ temporal hierarchies of editorial documents.
 Example code snippet:
 
 ```zig
+const otio = @import("wrinkles").opentimelineio;
+
 pub fn main(
 ) !void
 {
@@ -66,7 +68,7 @@ pub fn main(
 
     const root_to_child = try builder.projection_operator_to(
         allocator,
-        otio_root.tracks.children[0].space(.media)
+        otio_root.tracks.children[0].space_node(.media)
     );
 
     const clip_indices = try root_to_child.project_range_cd(
@@ -176,14 +178,13 @@ didn't impact the deisgn or problems we were specifically solving.
 * [Zig Learn](https://ziglearn.org/chapter-0/): Good starting place for a language overview
 * [Language Reference](https://ziglang.org/documentation/master/): Full Language Reference
 * [Stdlib Reference](https://ziglang.org/documentation/master/std/#A;std)
-* [Stdlib Source](https://github.com/ziglang/zig/tree/master/lib/std): I hate to admit it but often times its faster to just look at the source of the standard lib rather than going through the docs
+* [Stdlib Source](https://github.com/ziglang/zig/tree/master/lib/std): Zig stdlib is surprisingly readable and informative
 
 ## Places for demoing animated parameters on warped scopes
 
-* properties: one time configuration of information (IE, name, temporal
-  bounds, media_reference, discrete_info)
-* parameters: varying data over some domain (a mapping and an embedding
-  domain)
+* properties: one time configuration of information (IE, name, temporal bounds,
+  media_reference, discrete_info)
+* parameters: varying data over some domain (a mapping and an embedding domain)
 
 * lens parameters on a clip (ie an animated rack focus or aperture or something)
   * animated focus distance or aperture
