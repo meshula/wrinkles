@@ -233,26 +233,40 @@ didn't impact the deisgn or problems we were specifically solving.
 
 ## Todo List 11/14/25
 
-* [ ] Transition Schema
+* Big items
+    * Visualizer second pass (better handling of discrete spaces, organization,
+      muting/the full hierarchy
+        * curve visualizer program 2.0
+    * Serialization/interop with v1
+    * python test
+
+* [x] Transition Schema
     * [x] Add type
-    * [ ] Animated parameter for amount [0, 1)
-    * [ ] add a boundary to the transition
-* [ ] discrete space description
+    * **HOLD**
+        * [ ] Animated parameter for amount [0, 1)
+        * [ ] add a boundary to the transition
+* [x] discrete space description
     * [x] Clip specification
-    * [ ] description of bounds in either Continuous or Discrete space
+    * [x] description of bounds in either Continuous or Discrete space
 * [ ] OTIO 2.0 file format
-    * [ ] translator python script
-    * [ ] don't need a rational time based format anymore
-    * [ ] expressing points/ranges discrete/continuously
-    * [ ] describing discrete spaces
+    * [ ] Serialization schema
+    * [ ] .serializable() methods on `schema` structs
+    * [ ] Schema updating
+    * [ ] v1 -> v2 translator python script
+    * [x] don't need a rational time based format anymore
+    * [x] expressing points/ranges discrete/continuously
+    * [x] describing discrete spaces
     * [ ] Warp Schema: multi segment bezier / pt-tangent form
-* [ ] Serializer 
-* [ ] visualizer
+* [ ] visualizer second pass
+    * [ ] top down rewrite based on which kind of projection to present (rather
+          than all at once)
+    * [ ] Allow using regular file reads when building natively for large input
+          files
     * [ ] Normalized view that sorts by track and normalizes output range 0-1
           for each leaf
     * [ ] performance pass
-        * [ ] option to only show discrete space under mouse
-        * [ ] detect large timelines and default ^ to on for large timelines
+        * [x] option to only show discrete space under mouse
+        * [x] detect large timelines and default ^ to on for large timelines
     * [ ] UI to represent tracks?
         * [ ] raven-lite. would be nice to confirm the view for the feature
               timeline (feels like there is an offset in there?)
@@ -261,18 +275,25 @@ didn't impact the deisgn or problems we were specifically solving.
       * [ ] optionally plot intermediate scopes
     * [ ] add visibility controls over the hierarchy
 * [ ] code cleanup pass on projection_builder
-* [ ] C++ test API
-* [ ] Python test API (ziggy-pydust)
+* [x] C++ test API
+* [x] Python test API (ziggy-pydust)
 * [ ] project_*_cd should return an optional instead of an error?
-* [ ] building a projection operator should not require allocation from a
-      builder
-* [ ] look for tests that are manually comparing interval endpoints and just
-      compare the entire (optional) interval
+* [ ] ProjectionBuilder second pass
+    * [ ] building a projection operator should not require allocation from a
+          builder -- see projection_operator_to_index_cached
+    * [ ] mark construction as being done (or separate construction into a
+          function?) so that slices can be stored explicitly rather than MAL
+    * [ ] Arena-ify the lifetime of the cache?
+    * [ ] note that lifetimes of topologies from the cache (and in general,
+          from the builder) are owned by the builder, not the caller
+    * [ ] ...maybe add _leaky functions to return memory owned by the caller?
 * [x] remove defaults for prescribed initializers 
     * [x] ControlPoint
 * [ ] NTSC example
 * [ ]  what if not beziers internally but instead b-splines with bezier
         interfaces
+* [ ] look for tests that are manually comparing interval endpoints and just
+      compare the entire (optional) interval
 
 ## Todo List (10/9/25)
 
