@@ -750,6 +750,31 @@ pub fn ProjectionBuilder(
             return result;
         }
 
+        pub fn projection_operator_to_index_cached(
+            self: @This(),
+            destination: NodeIndex,
+        ) ?ProjectionOperatorType
+        {
+            const space_nodes = self.tree.nodes.slice();
+
+            // if destination is already present in the cache
+            if (self.cache.items[destination])
+                |cached_topology|
+            {
+                return .{
+                    .source = (
+                        space_nodes.get(SOURCE_INDEX)
+                    ),
+                    .destination = space_nodes.get(
+                        destination
+                    ),
+                    .src_to_dst_topo = cached_topology,
+                };
+            }
+
+            return null;
+        }
+
         fn build_projection_operator_assume_sorted(
             self: @This(),
             parent_allocator: std.mem.Allocator,
