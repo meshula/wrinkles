@@ -1,0 +1,57 @@
+{
+    .children = [
+        {
+            .track = {
+                .name = "Track-001",
+                .children = [
+                    {
+                        .gap = {
+                            .name = "Linear Accel",
+                            .bounds_s = {
+                                .start = {
+                                    .v = 0.0,
+                                },
+                                .end = {
+                                    .v = 1.0,
+                                },
+                            },
+                        },
+                    },
+                    {
+                        .clip = {
+                            .media = {
+                                .data_reference = {
+                                    .uri = {
+                                        .target_uri = "file:///folder/wind-up.mov",
+                                    },
+                                },
+                                .domain = "picture",
+                                .discrete_partition = {
+                                    .sample_rate_hz = {
+                                        .Int = 24,
+                                    },
+                                    .start_index = 0,
+                                },
+                                .bounds_s = {
+                                    .discrete = [
+                                        0,
+                                        8,
+                                    ],
+                                },
+                            },
+                            .name = "Clip-002",
+                            .bounds_s = {
+                                .discrete = [
+                                    2,
+                                    8,
+                                ],
+                            },
+                        },
+                    },
+                ],
+            },
+        },
+    ],
+    .presentation_space_discrete_partitions = {},
+    .name = "Track-001",
+}

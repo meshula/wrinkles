@@ -1,0 +1,5 @@
+{
+    .children = [],
+    .presentation_space_discrete_partitions = {},
+    .name = "Linear Curve",
+}
