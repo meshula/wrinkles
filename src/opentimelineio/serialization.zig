@@ -124,10 +124,10 @@ pub const SerializableTopology = struct {
 pub const SerializableComposable = union(enum) {
     clip: SerializableClip,
     gap: SerializableGap,
-    track: *SerializableTrack,
-    stack: *SerializableStack,
-    warp: *SerializableWarp,
-    transition: *SerializableTransition,
+    track: SerializableTrack,
+    stack: SerializableStack,
+    warp: SerializableWarp,
+    transition: SerializableTransition,
 };
 
 /// Serializable variant of Warp
@@ -165,8 +165,8 @@ pub const SerializableDiscretePartitionDomainMap = struct {
 /// Serializable variant of Timeline (root type)
 pub const SerializableTimeline = struct {
     pub const schema_name: []const u8 = "Timeline";
-    pub const schema_version: u32 = versioning.current_version("Timeline");
 
+    schema_version: u32 = versioning.current_version("Timeline"),
     name: ?[]const u8,
     children: []SerializableComposable,
     presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
@@ -225,8 +225,8 @@ fn bounds_to_serializable(
 {
     if (maybe_discrete_partition) |sig| {
         // Convert to discrete indices
-        const start_index = sig.project_instantaneous_cd(interval.start);
-        const end_index = sig.project_instantaneous_cd(interval.end);
+        const start_index = sampling.project_instantaneous_cd(sig, interval.start);
+        const end_index = sampling.project_instantaneous_cd(sig, interval.end);
         return .{ .discrete = .{ @intCast(start_index), @intCast(end_index) } };
     } else {
         // Keep as continuous
@@ -375,9 +375,9 @@ pub fn signal_generator_to_serializable(
     gen: sampling.SignalGenerator,
 ) !SerializableSignalGenerator {
     _ = allocator;
-    return switch (gen) {
-        .sine => |sine| .{ .sine = .{ .frequency_hz = sine.frequency_hz } },
-        .linear_ramp => .linear_ramp,
+    return switch (gen.signal) {
+        .sine => .{ .sine = .{ .frequency_hz = gen.frequency_hz } },
+        .ramp => .linear_ramp,
     };
 }
 
@@ -626,8 +626,18 @@ pub fn serializable_to_signal_generator(
 ) !sampling.SignalGenerator {
     _ = allocator;
     return switch (ser_gen) {
-        .sine => |sine| .{ .sine = .{ .frequency_hz = sine.frequency_hz } },
-        .linear_ramp => .linear_ramp,
+        .sine => |sine| .{
+            .frequency_hz = sine.frequency_hz,
+            .amplitude = 1.0,
+            .duration_s = opentime.Ordinate.init(1.0),
+            .signal = .sine,
+        },
+        .linear_ramp => .{
+            .frequency_hz = 1,
+            .amplitude = 1.0,
+            .duration_s = opentime.Ordinate.init(1.0),
+            .signal = .ramp,
+        },
     };
 }
 
@@ -986,7 +996,7 @@ pub fn serialize_timeline(
                     "Serializing Timeline at version {} instead of {}.",
                     .{ err, current_ver, target_version }
                 );
-                try ziggy.serialize(
+                try ziggy.stringify(
                     ser_timeline,
                     .{
                         .whitespace = .space_4,
@@ -1016,7 +1026,7 @@ pub fn serialize_timeline(
     }
 
     // Use ziggy to serialize
-    try ziggy.serialize(
+    try ziggy.stringify(
         ser_timeline,
         .{
             .whitespace = .space_4,
@@ -1036,12 +1046,10 @@ pub fn deserialize_timeline(
 ) !*schema.Timeline
 {
     // Use ziggy to deserialize
-    var meta: ziggy.Deserializer.Meta = undefined;
-    var ser_timeline = try ziggy.deserializeLeaky(
+    var ser_timeline = try ziggy.parseLeaky(
         SerializableTimeline,
         allocator,
         source,
-        &meta,
         .{},
     );
 
@@ -1091,7 +1099,7 @@ pub fn serialize_bezier_curve(
     const ser_bezier = try bezier_curve_to_serializable(allocator, bezier);
 
     // Use ziggy to serialize
-    try ziggy.serialize(ser_bezier, .{
+    try ziggy.stringify(ser_bezier, .{
         .whitespace = .space_4,
         .emit_null_fields = false,
     }, writer);
@@ -1103,12 +1111,10 @@ pub fn deserialize_bezier_curve(
     source: [:0]const u8,
 ) !curve.Bezier {
     // Use ziggy to deserialize
-    var meta: ziggy.Deserializer.Meta = undefined;
-    const ser_bezier = try ziggy.deserializeLeaky(
+    const ser_bezier = try ziggy.parseLeaky(
         SerializableBezierCurve,
         allocator,
         source,
-        &meta,
         .{},
     );
 
@@ -1126,7 +1132,7 @@ pub fn serialize_linear_curve(
     const ser_linear = try linear_curve_to_serializable(allocator, linear);
 
     // Use ziggy to serialize
-    try ziggy.serialize(ser_linear, .{
+    try ziggy.stringify(ser_linear, .{
         .whitespace = .space_4,
         .emit_null_fields = false,
     }, writer);
@@ -1138,12 +1144,10 @@ pub fn deserialize_linear_curve(
     source: [:0]const u8,
 ) !curve.Linear {
     // Use ziggy to deserialize
-    var meta: ziggy.Deserializer.Meta = undefined;
-    const ser_linear = try ziggy.deserializeLeaky(
+    const ser_linear = try ziggy.parseLeaky(
         SerializableLinearCurve,
         allocator,
         source,
-        &meta,
         .{},
     );
 

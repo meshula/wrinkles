@@ -225,7 +225,7 @@ pub const VersionManifest = struct {
 };
 
 /// Current schema versions for this build
-pub const CURRENT_VERSIONS = std.ComptimeStringMap(u32, .{
+pub const CURRENT_VERSIONS = std.StaticStringMap(u32).initComptime(.{
     .{ "Timeline", 1 },
     .{ "Stack", 1 },
     .{ "Track", 1 },

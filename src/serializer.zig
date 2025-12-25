@@ -61,4 +61,6 @@ test "ziggy schemas"
     );
 
     std.debug.print("result: {s}\n", .{out.written()});
+
+    return error.Barf;
 }

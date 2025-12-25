@@ -40,14 +40,14 @@ const curve = @import("curve");
 const domain = @import("domain.zig");
 const string_stuff = @import("string_stuff");
 
-const references = @import("references.zig");
+pub const references = @import("references.zig");
 const test_data = @import("test_structures.zig");
 
 
 /// Indicates whether samples should be interpolated when the parameter space
 /// (usually time) is warped.  Examples include audio (interpolated) vs picture
 /// (snapped, typically)
-const ResamplingBehavior = enum {
+pub const ResamplingBehavior = enum {
     interpolate,
     snap,
     default_from_domain,

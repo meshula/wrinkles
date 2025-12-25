@@ -14,6 +14,7 @@ const cimgui = ziis.cimgui;
 
 const opentime = @import("opentime");
 const otio = @import("opentimelineio");
+const otio_serialization = @import("opentimelineio").serialization;
 const topology = @import("topology");
 const treecode = @import("treecode");
 
@@ -1861,10 +1862,39 @@ pub fn main(
                 .{STATE.target_otio_file},
             );
         }
-        STATE.otio_root = try otio.read_from_file(
-            STATE.allocator,
-            STATE.target_otio_file,
-        );
+
+        // Check file extension to determine format
+        const is_ziggy = std.mem.endsWith(u8, STATE.target_otio_file, ".ziggy");
+
+        if (is_ziggy) {
+            // Read ziggy file
+            const file = try std.fs.cwd().openFile(
+                STATE.target_otio_file,
+                .{},
+            );
+            defer file.close();
+
+            const ziggy_content_tmp = try file.readToEndAlloc(
+                STATE.allocator,
+                1024*1024*1024,
+            );
+
+            // Add null terminator for ziggy deserialization
+            const ziggy_content = try STATE.allocator.dupeZ(u8, ziggy_content_tmp);
+            STATE.allocator.free(ziggy_content_tmp);
+
+            const timeline = try otio_serialization.deserialize_timeline(
+                STATE.allocator,
+                ziggy_content,
+            );
+            STATE.otio_root = .{ .timeline = timeline };
+        } else {
+            // Read OTIO JSON file
+            STATE.otio_root = try otio.read_from_file(
+                STATE.allocator,
+                STATE.target_otio_file,
+            );
+        }
 
         // read the file contents
         {
@@ -1912,9 +1942,14 @@ pub fn usage(
         \\
         \\usage:
         \\  otio_space_visualizer path/to/somefile.otio
+        \\  otio_space_visualizer path/to/somefile.ziggy
         \\
         \\arguments:
         \\  -h --help: print this message and exit
+        \\
+        \\Supported formats:
+        \\  .otio  - OpenTimelineIO JSON format
+        \\  .ziggy - Ziggy serialization format
         \\
         \\{s}
         \\

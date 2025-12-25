@@ -24,6 +24,9 @@ pub const Timeline = schema.Timeline;
 pub const domain = @import("domain.zig");
 pub const Domain = domain.Domain;
 
+pub const serialization = @import("serialization.zig");
+pub const versioning = @import("versioning.zig");
+
 const otio_json = @import("opentimelineio_json.zig");
 
 pub const read_from_file = otio_json.read_from_file;
@@ -40,4 +43,6 @@ test {
     _ = references;
     _ = projection;
     _ = domain;
+    _ = serialization;
+    _ = versioning;
 }
