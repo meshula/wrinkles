@@ -698,13 +698,13 @@ pub fn LinearOf(
         }
 
         pub fn debug_json_str(
-            self:@This(), 
+            self: @This(),
             allocator: std.mem.Allocator,
         ) ![]const u8
         {
             var str = std.ArrayList(u8).init(allocator);
 
-            try std.json.stringify(self, .{}, str.writer()); 
+            try std.json.stringify(self, .{}, str.writer());
 
             return str.toOwnedSlice();
         }

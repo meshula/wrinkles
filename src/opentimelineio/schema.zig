@@ -330,7 +330,7 @@ pub const Gap = struct {
     pub fn topology_pres_to_intrinsic(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) !topology_m.Topology 
+    ) !topology_m.Topology
     {
         const result = try topology_m.Topology.init_identity(
             allocator,
@@ -384,7 +384,7 @@ pub const Transition = struct {
     pub fn deinit(
         self: *@This(),
         allocator: std.mem.Allocator,
-    ) void 
+    ) void
     {
         self.container.deinit(allocator);
         if (self.maybe_name)
@@ -481,7 +481,7 @@ pub const Warp = struct {
 
         const presentation_to_warped = try topology_m.Topology.init_affine(
             allocator,
-            .{ 
+            .{
                 .input_bounds_val = .{
                     .start = .zero,
                     .end = warped_range.duration(),
