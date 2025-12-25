@@ -87,9 +87,6 @@ pub const SerializableMediaReference = struct {
 
 /// Serializable variant of Clip
 pub const SerializableClip = struct {
-    pub const schema_name: []const u8 = "Clip";
-    pub const schema_version: u32 = versioning.current_version("Clip");
-
     name: ?[]const u8,
     bounds_s: ?SerializableBounds,
     media: SerializableMediaReference,
@@ -97,9 +94,6 @@ pub const SerializableClip = struct {
 
 /// Serializable variant of Gap
 pub const SerializableGap = struct {
-    pub const schema_name: []const u8 = "Gap";
-    pub const schema_version: u32 = versioning.current_version("Gap");
-
     name: ?[]const u8,
     bounds_s: SerializableContinuousInterval,
 };
@@ -138,9 +132,6 @@ pub const SerializableComposable = union(enum) {
 
 /// Serializable variant of Warp
 pub const SerializableWarp = struct {
-    pub const schema_name: []const u8 = "Warp";
-    pub const schema_version: u32 = versioning.current_version("Warp");
-
     name: ?[]const u8,
     child: SerializableComposable,
     transform: SerializableTopology,
@@ -148,27 +139,18 @@ pub const SerializableWarp = struct {
 
 /// Serializable variant of Stack
 pub const SerializableStack = struct {
-    pub const schema_name: []const u8 = "Stack";
-    pub const schema_version: u32 = versioning.current_version("Stack");
-
     name: ?[]const u8,
     children: []SerializableComposable,
 };
 
 /// Serializable variant of Track
 pub const SerializableTrack = struct {
-    pub const schema_name: []const u8 = "Track";
-    pub const schema_version: u32 = versioning.current_version("Track");
-
     name: ?[]const u8,
     children: []SerializableComposable,
 };
 
 /// Serializable variant of Transition
 pub const SerializableTransition = struct {
-    pub const schema_name: []const u8 = "Transition";
-    pub const schema_version: u32 = versioning.current_version("Transition");
-
     name: ?[]const u8,
     container: SerializableStack,
     kind: []const u8,
@@ -199,18 +181,12 @@ pub const SerializableTimeline = struct {
 /// Serializable variant of curve.Bezier
 /// Each segment is [4][2]f64 (4 control points of 2 floats each)
 pub const SerializableBezierCurve = struct {
-    pub const schema_name: []const u8 = "BezierCurve";
-    pub const schema_version: u32 = 1;
-
     segments: [][4][2]f64,  // Array of segments, each with 4 control points
 };
 
 /// Serializable variant of curve.Linear
 /// Knots are [][2]f64 (array of control points)
 pub const SerializableLinearCurve = struct {
-    pub const schema_name: []const u8 = "LinearCurve";
-    pub const schema_version: u32 = 1;
-
     knots: [][2]f64,  // Array of control points
 };
 
