@@ -33,6 +33,12 @@ const CurveControlPoint = curve.ControlPoint;
 /// Serializable variant of ContinuousInterval as [2]f64 = [start, end]
 pub const SerializableContinuousInterval = [2]f64;
 
+/// Bounds can be either continuous (time in seconds) or discrete (sample indices)
+pub const SerializableBounds = union(enum) {
+    continuous: [2]f64,  // [start_seconds, end_seconds]
+    discrete: [2]i64,    // [start_index, end_index]
+};
+
 /// Serializable variant of AffineTransform1D
 pub const SerializableAffineTransform1D = opentime.AffineTransform1D;
 
@@ -73,10 +79,10 @@ pub const SerializableSignalGenerator = union(enum) {
 /// Serializable variant of MediaReference
 pub const SerializableMediaReference = struct {
     data_reference: SerializableMediaDataReference,
-    bounds_s: ?SerializableContinuousInterval,
+    bounds_s: ?SerializableBounds,
     domain: SerializableDomain,
     discrete_partition: ?SerializableSampleIndexGenerator,
-    interpolating: schema.ResamplingBehavior,
+    interpolating: ?schema.ResamplingBehavior,
 };
 
 /// Serializable variant of Clip
@@ -85,7 +91,7 @@ pub const SerializableClip = struct {
     pub const schema_version: u32 = versioning.current_version("Clip");
 
     name: ?[]const u8,
-    bounds_s: ?SerializableContinuousInterval,
+    bounds_s: ?SerializableBounds,
     media: SerializableMediaReference,
 };
 
@@ -181,9 +187,7 @@ pub const SerializableTimeline = struct {
 
     name: ?[]const u8,
     children: []SerializableComposable,
-    discrete_space_partitions: struct {
-        presentation: SerializableDiscretePartitionDomainMap,
-    },
+    presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
 };
 
 // ----------------------------------------------------------------------------
@@ -229,6 +233,78 @@ fn copy_optional_string(
 {
     if (maybe_str) |str| {
         return try copy_string(allocator, str);
+    }
+    return null;
+}
+
+// ----------------------------------------------------------------------------
+// Helper Functions: Bounds Conversion
+// ----------------------------------------------------------------------------
+
+/// Convert ContinuousInterval to SerializableBounds (discrete if partition exists)
+fn bounds_to_serializable(
+    interval: opentime.ContinuousInterval,
+    maybe_discrete_partition: ?sampling.SampleIndexGenerator,
+) SerializableBounds
+{
+    if (maybe_discrete_partition) |sig| {
+        // Convert to discrete indices
+        const start_index = sig.project_instantaneous_cd(interval.start);
+        const end_index = sig.project_instantaneous_cd(interval.end);
+        return .{ .discrete = .{ @intCast(start_index), @intCast(end_index) } };
+    } else {
+        // Keep as continuous
+        return .{ .continuous = .{ interval.start.as(f64), interval.end.as(f64) } };
+    }
+}
+
+/// Convert SerializableBounds to ContinuousInterval
+fn serializable_to_bounds(
+    ser_bounds: SerializableBounds,
+    maybe_discrete_partition: ?sampling.SampleIndexGenerator,
+) !opentime.ContinuousInterval
+{
+    return switch (ser_bounds) {
+        .continuous => |cont| .{
+            .start = opentime.Ordinate.init(cont[0]),
+            .end = opentime.Ordinate.init(cont[1]),
+        },
+        .discrete => |disc| {
+            // Must have discrete partition to convert
+            const sig = maybe_discrete_partition orelse return error.MissingDiscretePartition;
+
+            // Convert discrete indices to continuous interval
+            const start_ord = sig.ordinate_at_index(@intCast(disc[0]));
+            const end_ord = sig.ordinate_at_index(@intCast(disc[1]));
+
+            return .{
+                .start = start_ord,
+                .end = end_ord,
+            };
+        },
+    };
+}
+
+/// Convert optional ContinuousInterval to optional SerializableBounds
+fn optional_bounds_to_serializable(
+    maybe_interval: ?opentime.ContinuousInterval,
+    maybe_discrete_partition: ?sampling.SampleIndexGenerator,
+) ?SerializableBounds
+{
+    if (maybe_interval) |interval| {
+        return bounds_to_serializable(interval, maybe_discrete_partition);
+    }
+    return null;
+}
+
+/// Convert optional SerializableBounds to optional ContinuousInterval
+fn serializable_to_optional_bounds(
+    maybe_ser: ?SerializableBounds,
+    maybe_discrete_partition: ?sampling.SampleIndexGenerator,
+) !?opentime.ContinuousInterval
+{
+    if (maybe_ser) |ser| {
+        return try serializable_to_bounds(ser, maybe_discrete_partition);
     }
     return null;
 }
@@ -338,10 +414,16 @@ pub fn media_reference_to_serializable(
             allocator,
             ref.data_reference,
         ),
-        .bounds_s = optional_interval_to_serializable(ref.maybe_bounds_s),
+        .bounds_s = optional_bounds_to_serializable(
+            ref.maybe_bounds_s,
+            ref.maybe_discrete_partition,
+        ),
         .domain = try domain_to_serializable(allocator, ref.domain),
         .discrete_partition = ref.maybe_discrete_partition,
-        .interpolating = ref.interpolating,
+        .interpolating = if (ref.interpolating == .default_from_domain)
+            null
+        else
+            ref.interpolating,
     };
 }
 
@@ -391,7 +473,10 @@ pub fn clip_to_serializable(
 ) !SerializableClip {
     return .{
         .name = try copy_optional_string(allocator, clip.maybe_name),
-        .bounds_s = optional_interval_to_serializable(clip.maybe_bounds_s),
+        .bounds_s = optional_bounds_to_serializable(
+            clip.maybe_bounds_s,
+            clip.media.maybe_discrete_partition,
+        ),
         .media = try media_reference_to_serializable(allocator, clip.media),
     };
 }
@@ -513,11 +598,9 @@ pub fn timeline_to_serializable(
     return .{
         .name = try copy_optional_string(allocator, timeline.maybe_name),
         .children = ser_children,
-        .discrete_space_partitions = .{
-            .presentation = .{
-                .picture = timeline.discrete_space_partitions.presentation.picture,
-                .audio = timeline.discrete_space_partitions.presentation.audio,
-            },
+        .presentation_space_discrete_partitions = .{
+            .picture = timeline.discrete_space_partitions.presentation.picture,
+            .audio = timeline.discrete_space_partitions.presentation.audio,
         },
     };
 }
@@ -581,10 +664,13 @@ pub fn serializable_to_media_reference(
             allocator,
             ser_ref.data_reference,
         ),
-        .maybe_bounds_s = serializable_to_optional_interval(ser_ref.bounds_s),
+        .maybe_bounds_s = try serializable_to_optional_bounds(
+            ser_ref.bounds_s,
+            ser_ref.discrete_partition,
+        ),
         .domain = try serializable_to_domain(allocator, ser_ref.domain),
         .maybe_discrete_partition = ser_ref.discrete_partition,
-        .interpolating = ser_ref.interpolating,
+        .interpolating = ser_ref.interpolating orelse .default_from_domain,
     };
 }
 
@@ -628,10 +714,14 @@ pub fn serializable_to_clip(
     ser_clip: SerializableClip,
 ) !*schema.Clip {
     const clip_ptr = try allocator.create(schema.Clip);
+    const media = try serializable_to_media_reference(allocator, ser_clip.media);
     clip_ptr.* = .{
         .maybe_name = try copy_optional_string(allocator, ser_clip.name),
-        .maybe_bounds_s = serializable_to_optional_interval(ser_clip.bounds_s),
-        .media = try serializable_to_media_reference(allocator, ser_clip.media),
+        .maybe_bounds_s = try serializable_to_optional_bounds(
+            ser_clip.bounds_s,
+            media.maybe_discrete_partition,
+        ),
+        .media = media,
     };
     return clip_ptr;
 }
@@ -772,10 +862,7 @@ pub fn serializable_to_timeline(
             .children = children,
         },
         .discrete_space_partitions = .{
-            .presentation = .{
-                .picture = ser_timeline.discrete_space_partitions.presentation.picture,
-                .audio = ser_timeline.discrete_space_partitions.presentation.audio,
-            },
+            .presentation = ser_timeline.presentation_space_discrete_partitions,
         },
     };
 
@@ -927,7 +1014,7 @@ pub fn serialize_timeline(
                     ser_timeline,
                     .{
                         .whitespace = .space_4,
-                        .emit_null_fields = true,
+                        .emit_null_fields = false,
                     },
                     writer
                 );
@@ -957,7 +1044,7 @@ pub fn serialize_timeline(
         ser_timeline,
         .{
             .whitespace = .space_4,
-            .emit_null_fields = true,
+            .emit_null_fields = false,
         },
         writer
     );
@@ -1030,7 +1117,7 @@ pub fn serialize_bezier_curve(
     // Use ziggy to serialize
     try ziggy.serialize(ser_bezier, .{
         .whitespace = .space_4,
-        .emit_null_fields = true,
+        .emit_null_fields = false,
     }, writer);
 }
 
@@ -1065,7 +1152,7 @@ pub fn serialize_linear_curve(
     // Use ziggy to serialize
     try ziggy.serialize(ser_linear, .{
         .whitespace = .space_4,
-        .emit_null_fields = true,
+        .emit_null_fields = false,
     }, writer);
 }
 

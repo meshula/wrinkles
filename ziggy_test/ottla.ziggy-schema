@@ -3,15 +3,19 @@ $ = Timeline
 struct Timeline {
     name: ?bytes,
     children: []Composable,
-    discrete_space_partitions: struct {
-        presentation: struct {
-            picture: ?SampleIndexGenerator,
-            audio: ?SampleIndexGenerator,
-        },
-    },
+    presentation_space_discrete_partitions: DiscretePartitionDomainMap,
 }
 
-// ContinuousInterval serialized as [2]Float = [start, end]
+struct DiscretePartitionDomainMap {
+    picture: ?SampleIndexGenerator,
+    audio: ?SampleIndexGenerator,
+}
+
+// Bounds can be either continuous (time in seconds) or discrete (sample indices)
+union Bounds {
+    .continuous: [2]Float,
+    .discrete: [2]Int,
+}
 
 struct Stack {
     name: ?bytes,
@@ -52,16 +56,16 @@ union Composable {
 
 struct Clip {
     name: ?bytes,
-    bounds_s: ?[2]Float,
+    bounds_s: ?Bounds,
     media: MediaReference,
 }
 
 struct MediaReference {
     data_reference: MediaDataReference,
-    bounds_s: ?[2]Float,
+    bounds_s: ?Bounds,
     domain: Domain,
     discrete_partition: ?SampleIndexGenerator,
-    interpolating: MediaInterpolationType,
+    interpolating: ?MediaInterpolationType,
 }
 
 union MediaDataReference {
