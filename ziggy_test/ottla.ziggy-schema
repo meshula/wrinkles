@@ -1,51 +1,150 @@
 $ = Timeline
 
 struct Timeline {
-    name: bytes,
-    bounds: ?RangeOverSpace,
-    presentation: ?struct {
-        picture: ?SampleIndexGenerator,
-        audio: ?SampleIndexGenerator,
+    name: ?bytes,
+    children: []Composable,
+    discrete_space_partitions: struct {
+        presentation: struct {
+            picture: ?SampleIndexGenerator,
+            audio: ?SampleIndexGenerator,
+        },
     },
-    children: []Track,
 }
 
-struct ContinuousInterval {
-    start: Float,
-    end: Float,
-}
+// ContinuousInterval serialized as [2]Float = [start, end]
 
-union RangeOverSpace {
-    discrete: DiscreteRange,
-    continuous: ContinuousInterval,
-}
-
-struct DiscreteRange {
-    space: enum { presentation, media },
-    range: []int,
+struct Stack {
+    name: ?bytes,
+    children: []Composable,
 }
 
 struct Track {
     name: ?bytes,
-    bounds: ContinuousInterval,
     children: []Composable,
+}
+
+struct Gap {
+    name: ?bytes,
+    bounds_s: [2]Float,
+}
+
+struct Warp {
+    name: ?bytes,
+    child: Composable,
+    transform: Topology,
+}
+
+struct Transition {
+    name: ?bytes,
+    container: Stack,
+    kind: bytes,
+    bounds_s: ?[2]Float,
 }
 
 union Composable {
     .track: Track,
     .clip: Clip,
+    .gap: Gap,
+    .warp: Warp,
+    .transition: Transition,
+    .stack: Stack,
 }
 
 struct Clip {
     name: ?bytes,
-    bounds: ?RangeOverSpace,
+    bounds_s: ?[2]Float,
     media: MediaReference,
 }
 
 struct MediaReference {
     data_reference: MediaDataReference,
-    bounds: RangeOverSpace,
+    bounds_s: ?[2]Float,
     domain: Domain,
-    discrete: SampleIndexGenerator,
+    discrete_partition: ?SampleIndexGenerator,
     interpolating: MediaInterpolationType,
+}
+
+union MediaDataReference {
+    .uri: URIReference,
+    .signal: SignalReference,
+    .null: void,
+}
+
+struct URIReference {
+    target_uri: bytes,
+}
+
+struct SignalReference {
+    signal_generator: SignalGenerator,
+}
+
+union SignalGenerator {
+    .sine: struct {
+        frequency_hz: Float,
+    },
+    .linear_ramp: void,
+}
+
+struct SampleIndexGenerator {
+    sample_rate_hz: RateSpecifier,
+    start_index: int,
+}
+
+union RateSpecifier {
+    .Int: int,
+    .Rational: struct {
+        num: int,
+        den: int,
+    },
+}
+
+union Domain {
+    .time: void,
+    .picture: void,
+    .audio: void,
+    .metadata: void,
+    .other: bytes,
+}
+
+struct Topology {
+    mappings: []Mapping,
+}
+
+union Mapping {
+    .affine: MappingAffine,
+    .linear: MappingLinear,
+    .empty: void,
+}
+
+struct MappingAffine {
+    input_bounds_val: [2]Float,
+    input_to_output_xform: AffineTransform1D,
+}
+
+struct MappingLinear {
+    input_bounds_val: [2]Float,
+    knots: [][2]Float,
+}
+
+struct AffineTransform1D {
+    offset: Float,
+    scale: Float,
+}
+
+enum MediaInterpolationType {
+    interpolate,
+    snap,
+    default_from_domain,
+}
+
+// Curve library types
+// ControlPoint = [2]Float = [in, out]
+// BezierSegment = [4]ControlPoint = [p0, p1, p2, p3]
+
+struct BezierCurve {
+    segments: [][4][2]Float,  // Array of segments, each segment is 4 control points
+}
+
+struct LinearCurve {
+    knots: [][2]Float,  // Array of control points
 }
