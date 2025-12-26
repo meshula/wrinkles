@@ -32,4 +32,17 @@ docs:
 	@echo "open: http://localhost:8000"
 	@python -m http.server --directory zig-out/docs
 
-.PHONY: all run-em docs run_c
+# Convert OTIO test files to Ziggy format with latest schema
+convert-test-files:
+	@echo "Converting OTIO files to Ziggy format..."
+	@mkdir -p test_files_ziggy
+	@for f in test_files/*.otio; do \
+		if [ -f "$$f" ]; then \
+			basename=$$(basename "$$f" .otio); \
+			echo "  Converting $$basename.otio -> $$basename.ziggy"; \
+			python3 otio_to_ziggy.py "$$f" "test_files_ziggy/$${basename}.ziggy"; \
+		fi \
+	done
+	@echo "All files converted successfully!"
+
+.PHONY: all run-em docs run_c convert-test-files
