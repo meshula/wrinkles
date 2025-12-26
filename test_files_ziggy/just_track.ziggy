@@ -1,4 +1,5 @@
 {
+    .schema_version = 1,
     .children = [
         {
             .track = {
@@ -25,26 +26,30 @@
                                         .target_uri = "file:///folder/wind-up.mov",
                                     },
                                 },
-                                .domain = "picture",
+                                .domain = {
+                                    .picture = {},
+                                },
                                 .discrete_partition = {
                                     .sample_rate_hz = {
-                                        .Int = 24,
+                                        .Int = {
+                                            .value = 24,
+                                        },
                                     },
                                     .start_index = 0,
                                 },
                                 .bounds_s = {
-                                    .discrete = [
-                                        0,
-                                        8,
-                                    ],
+                                    .discrete = {
+                                        .start = 0,
+                                        .end = 8,
+                                    },
                                 },
                             },
                             .name = "Clip-002",
                             .bounds_s = {
-                                .discrete = [
-                                    2,
-                                    8,
-                                ],
+                                .discrete = {
+                                    .start = 2,
+                                    .end = 8,
+                                },
                             },
                         },
                     },

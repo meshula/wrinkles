@@ -1,4 +1,5 @@
 {
+    .schema_version = 1,
     .children = [
         {
             .track = {
@@ -25,26 +26,30 @@
                                         .target_uri = "file:///folder/wind-up.mov",
                                     },
                                 },
-                                .domain = "picture",
+                                .domain = {
+                                    .picture = {},
+                                },
                                 .discrete_partition = {
                                     .sample_rate_hz = {
-                                        .Int = 24,
+                                        .Int = {
+                                            .value = 24,
+                                        },
                                     },
                                     .start_index = 0,
                                 },
                                 .bounds_s = {
-                                    .discrete = [
-                                        0,
-                                        8,
-                                    ],
+                                    .discrete = {
+                                        .start = 0,
+                                        .end = 8,
+                                    },
                                 },
                             },
                             .name = "Clip-002",
                             .bounds_s = {
-                                .discrete = [
-                                    2,
-                                    8,
-                                ],
+                                .discrete = {
+                                    .start = 2,
+                                    .end = 8,
+                                },
                             },
                         },
                     },
@@ -56,26 +61,30 @@
                                         .target_uri = "file:///folder/punchline.mov",
                                     },
                                 },
-                                .domain = "picture",
+                                .domain = {
+                                    .picture = {},
+                                },
                                 .discrete_partition = {
                                     .sample_rate_hz = {
-                                        .Int = 24,
+                                        .Int = {
+                                            .value = 24,
+                                        },
                                     },
                                     .start_index = 0,
                                 },
                                 .bounds_s = {
-                                    .discrete = [
-                                        0,
-                                        8,
-                                    ],
+                                    .discrete = {
+                                        .start = 0,
+                                        .end = 8,
+                                    },
                                 },
                             },
                             .name = "Clip-003",
                             .bounds_s = {
-                                .discrete = [
-                                    0,
-                                    4,
-                                ],
+                                .discrete = {
+                                    .start = 0,
+                                    .end = 4,
+                                },
                             },
                         },
                     },
@@ -87,12 +96,14 @@
                                         .target_uri = "file:///folder/credits.mov",
                                     },
                                 },
-                                .domain = "picture",
+                                .domain = {
+                                    .picture = {},
+                                },
                                 .bounds_s = {
-                                    .continuous = [
-                                        4.166666666666667,
-                                        4.416666666666667,
-                                    ],
+                                    .continuous = {
+                                        .start = 4.166666666666667,
+                                        .end = 4.416666666666667,
+                                    },
                                 },
                             },
                             .name = "Clip-004",
@@ -105,7 +116,9 @@
     .presentation_space_discrete_partitions = {
         .picture = {
             .sample_rate_hz = {
-                .Int = 24,
+                .Int = {
+                    .value = 24,
+                },
             },
             .start_index = 0,
         },
