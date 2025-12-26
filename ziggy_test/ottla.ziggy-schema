@@ -1,8 +1,9 @@
 $ = Timeline
 
 struct Timeline {
+    schema_version: int,
     name: ?bytes,
-    children: []Composable,
+    children: []*Composable,
     presentation_space_discrete_partitions: DiscretePartitionDomainMap,
 }
 
@@ -12,19 +13,26 @@ struct DiscretePartitionDomainMap {
 }
 
 // Bounds can be either continuous (time in seconds) or discrete (sample indices)
+// Ziggy requires union fields to be struct types
 union Bounds {
-    .continuous: [2]Float,
-    .discrete: [2]Int,
+    .continuous: struct {
+        start: Float,
+        end: Float,
+    },
+    .discrete: struct {
+        start: int,
+        end: int,
+    },
 }
 
 struct Stack {
     name: ?bytes,
-    children: []Composable,
+    children: []*Composable,
 }
 
 struct Track {
     name: ?bytes,
-    children: []Composable,
+    children: []*Composable,
 }
 
 struct Gap {
@@ -34,7 +42,7 @@ struct Gap {
 
 struct Warp {
     name: ?bytes,
-    child: Composable,
+    child: *Composable,
     transform: Topology,
 }
 
@@ -45,6 +53,8 @@ struct Transition {
     bounds_s: ?[2]Float,
 }
 
+// Composable union fields are structs (not pointers)
+// but children arrays contain pointers to break circular dependency
 union Composable {
     .track: Track,
     .clip: Clip,
@@ -68,10 +78,11 @@ struct MediaReference {
     interpolating: ?MediaInterpolationType,
 }
 
+// Ziggy requires union fields to be struct types (not void)
 union MediaDataReference {
     .uri: URIReference,
     .signal: SignalReference,
-    .null: void,
+    .null: struct {},
 }
 
 struct URIReference {
@@ -82,11 +93,12 @@ struct SignalReference {
     signal_generator: SignalGenerator,
 }
 
+// Ziggy requires union fields to be struct types
 union SignalGenerator {
     .sine: struct {
         frequency_hz: Float,
     },
-    .linear_ramp: void,
+    .linear_ramp: struct {},
 }
 
 struct SampleIndexGenerator {
@@ -94,30 +106,37 @@ struct SampleIndexGenerator {
     start_index: int,
 }
 
+// Ziggy requires union fields to be struct types (not primitives)
 union RateSpecifier {
-    .Int: int,
-    .Rational: struct {
+    .Int: struct {
+        value: int,
+    },
+    .Rat: struct {
         num: int,
         den: int,
     },
 }
 
+// Ziggy requires union fields to be struct types
 union Domain {
-    .time: void,
-    .picture: void,
-    .audio: void,
-    .metadata: void,
-    .other: bytes,
+    .time: struct {},
+    .picture: struct {},
+    .audio: struct {},
+    .metadata: struct {},
+    .other: struct {
+        name: bytes,
+    },
 }
 
 struct Topology {
     mappings: []Mapping,
 }
 
+// Ziggy requires union fields to be struct types
 union Mapping {
     .affine: MappingAffine,
     .linear: MappingLinear,
-    .empty: void,
+    .empty: struct {},
 }
 
 struct MappingAffine {

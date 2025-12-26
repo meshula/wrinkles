@@ -35,30 +35,39 @@ pub const SerializableContinuousInterval = [2]f64;
 
 /// Bounds can be either continuous (time in seconds) or discrete (sample indices)
 pub const SerializableBounds = union(enum) {
-    continuous: [2]f64,  // [start_seconds, end_seconds]
-    discrete: [2]i64,    // [start_index, end_index]
+    continuous: struct { start: f64, end: f64 },
+    discrete: struct { start: i64, end: i64 },
 };
 
 /// Serializable variant of AffineTransform1D
 pub const SerializableAffineTransform1D = opentime.AffineTransform1D;
 
+/// Serializable variant of RateSpecifier with struct-wrapped cases for ziggy
+pub const SerializableRateSpecifier = union(enum) {
+    Int: struct { value: u32 },
+    Rat: struct { num: u32, den: u32 },
+};
+
 /// Serializable variant of SampleIndexGenerator
-pub const SerializableSampleIndexGenerator = sampling.SampleIndexGenerator;
+pub const SerializableSampleIndexGenerator = struct {
+    sample_rate_hz: SerializableRateSpecifier,
+    start_index: usize = 0,
+};
 
 /// Serializable variant of Domain
 pub const SerializableDomain = union(enum) {
-    time: void,
-    picture: void,
-    audio: void,
-    metadata: void,
-    other: []const u8,
+    time: struct {},
+    picture: struct {},
+    audio: struct {},
+    metadata: struct {},
+    other: struct { name: []const u8 },
 };
 
 /// Serializable variant of MediaDataReference
 pub const SerializableMediaDataReference = union(enum) {
     uri: SerializableURIReference,
     signal: SerializableSignalReference,
-    null: void,
+    null: struct {},
 };
 
 pub const SerializableURIReference = struct {
@@ -73,7 +82,7 @@ pub const SerializableSignalGenerator = union(enum) {
     sine: struct {
         frequency_hz: f64,
     },
-    linear_ramp: void,
+    linear_ramp: struct {},
 };
 
 /// Serializable variant of MediaReference
@@ -102,7 +111,7 @@ pub const SerializableGap = struct {
 pub const SerializableMapping = union(enum) {
     affine: SerializableMappingAffine,
     linear: SerializableMappingLinear,
-    empty: void,
+    empty: struct {},
 };
 
 pub const SerializableMappingAffine = struct {
@@ -133,20 +142,20 @@ pub const SerializableComposable = union(enum) {
 /// Serializable variant of Warp
 pub const SerializableWarp = struct {
     name: ?[]const u8,
-    child: SerializableComposable,
+    child: *SerializableComposable,
     transform: SerializableTopology,
 };
 
 /// Serializable variant of Stack
 pub const SerializableStack = struct {
     name: ?[]const u8,
-    children: []SerializableComposable,
+    children: []*SerializableComposable,
 };
 
 /// Serializable variant of Track
 pub const SerializableTrack = struct {
     name: ?[]const u8,
-    children: []SerializableComposable,
+    children: []*SerializableComposable,
 };
 
 /// Serializable variant of Transition
@@ -157,6 +166,7 @@ pub const SerializableTransition = struct {
     bounds_s: ?SerializableContinuousInterval,
 };
 
+/// Serializable variant of DiscretePartitionDomainMap
 pub const SerializableDiscretePartitionDomainMap = struct {
     picture: ?SerializableSampleIndexGenerator,
     audio: ?SerializableSampleIndexGenerator,
@@ -168,7 +178,7 @@ pub const SerializableTimeline = struct {
 
     schema_version: u32 = versioning.current_version("Timeline"),
     name: ?[]const u8,
-    children: []SerializableComposable,
+    children: []*SerializableComposable,
     presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
 };
 
@@ -214,6 +224,70 @@ fn copy_optional_string(
 }
 
 // ----------------------------------------------------------------------------
+// Helper Functions: Rate Conversion
+// ----------------------------------------------------------------------------
+
+fn rate_to_serializable(
+    rate: sampling.RateSpecifier,
+) SerializableRateSpecifier
+{
+    return switch (rate) {
+        .Int => |val| .{ .Int = .{ .value = val } },
+        .Rat => |r| .{ .Rat = .{ .num = r.num, .den = r.den } },
+    };
+}
+
+fn serializable_to_rate(
+    ser_rate: SerializableRateSpecifier,
+) sampling.RateSpecifier
+{
+    return switch (ser_rate) {
+        .Int => |i| .{ .Int = i.value },
+        .Rat => |r| .{ .Rat = .{ .num = r.num, .den = r.den } },
+    };
+}
+
+fn sample_index_generator_to_serializable(
+    sig: sampling.SampleIndexGenerator,
+) SerializableSampleIndexGenerator
+{
+    return .{
+        .sample_rate_hz = rate_to_serializable(sig.sample_rate_hz),
+        .start_index = sig.start_index,
+    };
+}
+
+fn serializable_to_sample_index_generator(
+    ser_sig: SerializableSampleIndexGenerator,
+) sampling.SampleIndexGenerator
+{
+    return .{
+        .sample_rate_hz = serializable_to_rate(ser_sig.sample_rate_hz),
+        .start_index = ser_sig.start_index,
+    };
+}
+
+fn optional_sig_to_serializable(
+    maybe_sig: ?sampling.SampleIndexGenerator,
+) ?SerializableSampleIndexGenerator
+{
+    if (maybe_sig) |sig| {
+        return sample_index_generator_to_serializable(sig);
+    }
+    return null;
+}
+
+fn serializable_to_optional_sig(
+    maybe_ser: ?SerializableSampleIndexGenerator,
+) ?sampling.SampleIndexGenerator
+{
+    if (maybe_ser) |ser| {
+        return serializable_to_sample_index_generator(ser);
+    }
+    return null;
+}
+
+// ----------------------------------------------------------------------------
 // Helper Functions: Bounds Conversion
 // ----------------------------------------------------------------------------
 
@@ -227,10 +301,16 @@ fn bounds_to_serializable(
         // Convert to discrete indices
         const start_index = sampling.project_instantaneous_cd(sig, interval.start);
         const end_index = sampling.project_instantaneous_cd(sig, interval.end);
-        return .{ .discrete = .{ @intCast(start_index), @intCast(end_index) } };
+        return .{ .discrete = .{
+            .start = @intCast(start_index),
+            .end = @intCast(end_index),
+        } };
     } else {
         // Keep as continuous
-        return .{ .continuous = .{ interval.start.as(f64), interval.end.as(f64) } };
+        return .{ .continuous = .{
+            .start = interval.start.as(f64),
+            .end = interval.end.as(f64),
+        } };
     }
 }
 
@@ -242,16 +322,16 @@ fn serializable_to_bounds(
 {
     return switch (ser_bounds) {
         .continuous => |cont| .{
-            .start = opentime.Ordinate.init(cont[0]),
-            .end = opentime.Ordinate.init(cont[1]),
+            .start = opentime.Ordinate.init(cont.start),
+            .end = opentime.Ordinate.init(cont.end),
         },
         .discrete => |disc| {
             // Must have discrete partition to convert
             const sig = maybe_discrete_partition orelse return error.MissingDiscretePartition;
 
             // Convert discrete indices to continuous interval
-            const start_ord = sig.ordinate_at_index(@intCast(disc[0]));
-            const end_ord = sig.ordinate_at_index(@intCast(disc[1]));
+            const start_ord = sig.ordinate_at_index(@intCast(disc.start));
+            const end_ord = sig.ordinate_at_index(@intCast(disc.end));
 
             return .{
                 .start = start_ord,
@@ -340,18 +420,19 @@ pub fn domain_to_serializable(
 ) !SerializableDomain
 {
     return switch (dom) {
-        .time => .time,
-        .picture => .picture,
-        .audio => .audio,
-        .metadata => .metadata,
-        .other => |s| .{ .other = try copy_string(allocator, s) },
+        .time => .{ .time = .{} },
+        .picture => .{ .picture = .{} },
+        .audio => .{ .audio = .{} },
+        .metadata => .{ .metadata = .{} },
+        .other => |s| .{ .other = .{ .name = try copy_string(allocator, s) } },
     };
 }
 
 pub fn media_data_reference_to_serializable(
     allocator: Allocator,
     ref: schema.MediaDataReference,
-) !SerializableMediaDataReference {
+) !SerializableMediaDataReference
+{
     return switch (ref) {
         .uri => |uri_ref| .{
             .uri = .{
@@ -373,18 +454,20 @@ pub fn media_data_reference_to_serializable(
 pub fn signal_generator_to_serializable(
     allocator: Allocator,
     gen: sampling.SignalGenerator,
-) !SerializableSignalGenerator {
+) !SerializableSignalGenerator
+{
     _ = allocator;
     return switch (gen.signal) {
-        .sine => .{ .sine = .{ .frequency_hz = gen.frequency_hz } },
-        .ramp => .linear_ramp,
+        .sine => .{ .sine = .{ .frequency_hz = @floatFromInt(gen.frequency_hz) } },
+        .ramp => .{ .linear_ramp = .{} },
     };
 }
 
 pub fn media_reference_to_serializable(
     allocator: Allocator,
     ref: schema.MediaReference,
-) !SerializableMediaReference {
+) !SerializableMediaReference
+{
     return .{
         .data_reference = try media_data_reference_to_serializable(
             allocator,
@@ -395,7 +478,7 @@ pub fn media_reference_to_serializable(
             ref.maybe_discrete_partition,
         ),
         .domain = try domain_to_serializable(allocator, ref.domain),
-        .discrete_partition = ref.maybe_discrete_partition,
+        .discrete_partition = optional_sig_to_serializable(ref.maybe_discrete_partition),
         .interpolating = if (ref.interpolating == .default_from_domain)
             null
         else
@@ -406,7 +489,8 @@ pub fn media_reference_to_serializable(
 pub fn topology_to_serializable(
     allocator: Allocator,
     topo: topology_m.Topology,
-) !SerializableTopology {
+) !SerializableTopology
+{
     const ser_mappings = try allocator.alloc(SerializableMapping, topo.mappings.len);
 
     for (topo.mappings, 0..) |mapping, i| {
@@ -419,7 +503,8 @@ pub fn topology_to_serializable(
 pub fn mapping_to_serializable(
     allocator: Allocator,
     mapping: topology_m.mapping.Mapping,
-) !SerializableMapping {
+) !SerializableMapping
+{
     return switch (mapping) {
         .affine => |aff| .{
             .affine = .{
@@ -427,26 +512,36 @@ pub fn mapping_to_serializable(
                 .input_to_output_xform = aff.input_to_output_xform,
             },
         },
-        .linear_monotonic => |lin| {
+        .linear => |lin| {
             const knots = try allocator.dupe(
                 curve.ControlPoint,
                 lin.input_to_output_curve.knots,
             );
+            const input_extents = lin.input_to_output_curve.extents_input() orelse {
+                // Empty curve - use default bounds
+                return .{
+                    .linear = .{
+                        .input_bounds_val = .{ 0.0, 0.0 },
+                        .knots = knots,
+                    },
+                };
+            };
             return .{
                 .linear = .{
-                    .input_bounds_val = interval_to_serializable(lin.input_to_output_curve.extents()),
+                    .input_bounds_val = interval_to_serializable(input_extents),
                     .knots = knots,
                 },
             };
         },
-        .empty => .empty,
+        .empty => .{ .empty = .{} },
     };
 }
 
 pub fn clip_to_serializable(
     allocator: Allocator,
     clip: schema.Clip,
-) !SerializableClip {
+) !SerializableClip
+{
     return .{
         .name = try copy_optional_string(allocator, clip.maybe_name),
         .bounds_s = optional_bounds_to_serializable(
@@ -471,7 +566,8 @@ pub fn gap_to_serializable(
 pub fn warp_to_serializable(
     allocator: Allocator,
     warp: schema.Warp,
-) !SerializableWarp {
+) !SerializableWarp
+{
     const ser_warp_ptr = try allocator.create(SerializableWarp);
     ser_warp_ptr.* = .{
         .name = try copy_optional_string(allocator, warp.maybe_name),
@@ -484,8 +580,9 @@ pub fn warp_to_serializable(
 pub fn track_to_serializable(
     allocator: Allocator,
     track: schema.Track,
-) !SerializableTrack {
-    const ser_children = try allocator.alloc(SerializableComposable, track.children.len);
+) !SerializableTrack
+{
+    const ser_children = try allocator.alloc(*SerializableComposable, track.children.len);
 
     for (track.children, 0..) |child, i| {
         ser_children[i] = try composable_to_serializable(allocator, child);
@@ -500,8 +597,9 @@ pub fn track_to_serializable(
 pub fn stack_to_serializable(
     allocator: Allocator,
     stack: schema.Stack,
-) !SerializableStack {
-    const ser_children = try allocator.alloc(SerializableComposable, stack.children.len);
+) !SerializableStack
+{
+    const ser_children = try allocator.alloc(*SerializableComposable, stack.children.len);
 
     for (stack.children, 0..) |child, i| {
         ser_children[i] = try composable_to_serializable(allocator, child);
@@ -516,7 +614,8 @@ pub fn stack_to_serializable(
 pub fn transition_to_serializable(
     allocator: Allocator,
     transition: schema.Transition,
-) !SerializableTransition {
+) !SerializableTransition
+{
     return .{
         .name = try copy_optional_string(allocator, transition.maybe_name),
         .container = try stack_to_serializable(allocator, transition.container),
@@ -528,44 +627,40 @@ pub fn transition_to_serializable(
 pub fn composable_to_serializable(
     allocator: Allocator,
     handle: schema.references.CompositionItemHandle,
-) error{OutOfMemory}!SerializableComposable {
-    return switch (handle) {
+) error{OutOfMemory}!*SerializableComposable
+{
+    const result_ptr = try allocator.create(SerializableComposable);
+    result_ptr.* = switch (handle) {
         .clip => |clip_ptr| .{
             .clip = try clip_to_serializable(allocator, clip_ptr.*),
         },
         .gap => |gap_ptr| .{
             .gap = try gap_to_serializable(allocator, gap_ptr.*),
         },
-        .track => |track_ptr| blk: {
-            const ser_track_ptr = try allocator.create(SerializableTrack);
-            ser_track_ptr.* = try track_to_serializable(allocator, track_ptr.*);
-            break :blk .{ .track = ser_track_ptr };
+        .track => |track_ptr| .{
+            .track = try track_to_serializable(allocator, track_ptr.*),
         },
-        .stack => |stack_ptr| blk: {
-            const ser_stack_ptr = try allocator.create(SerializableStack);
-            ser_stack_ptr.* = try stack_to_serializable(allocator, stack_ptr.*);
-            break :blk .{ .stack = ser_stack_ptr };
+        .stack => |stack_ptr| .{
+            .stack = try stack_to_serializable(allocator, stack_ptr.*),
         },
-        .warp => |warp_ptr| blk: {
-            const ser_warp_ptr = try allocator.create(SerializableWarp);
-            ser_warp_ptr.* = try warp_to_serializable(allocator, warp_ptr.*);
-            break :blk .{ .warp = ser_warp_ptr };
+        .warp => |warp_ptr| .{
+            .warp = try warp_to_serializable(allocator, warp_ptr.*),
         },
-        .transition => |trans_ptr| blk: {
-            const ser_trans_ptr = try allocator.create(SerializableTransition);
-            ser_trans_ptr.* = try transition_to_serializable(allocator, trans_ptr.*);
-            break :blk .{ .transition = ser_trans_ptr };
+        .transition => |trans_ptr| .{
+            .transition = try transition_to_serializable(allocator, trans_ptr.*),
         },
         .timeline => unreachable, // Timeline is not a composable child
     };
+    return result_ptr;
 }
 
 pub fn timeline_to_serializable(
     allocator: Allocator,
     timeline: *schema.Timeline,
-) !SerializableTimeline {
+) !SerializableTimeline
+{
     // Convert tracks.children directly to timeline.children
-    const ser_children = try allocator.alloc(SerializableComposable, timeline.tracks.children.len);
+    const ser_children = try allocator.alloc(*SerializableComposable, timeline.tracks.children.len);
 
     for (timeline.tracks.children, 0..) |child, i| {
         ser_children[i] = try composable_to_serializable(allocator, child);
@@ -575,8 +670,8 @@ pub fn timeline_to_serializable(
         .name = try copy_optional_string(allocator, timeline.maybe_name),
         .children = ser_children,
         .presentation_space_discrete_partitions = .{
-            .picture = timeline.discrete_space_partitions.presentation.picture,
-            .audio = timeline.discrete_space_partitions.presentation.audio,
+            .picture = optional_sig_to_serializable(timeline.discrete_space_partitions.presentation.picture),
+            .audio = optional_sig_to_serializable(timeline.discrete_space_partitions.presentation.audio),
         },
     };
 }
@@ -588,20 +683,22 @@ pub fn timeline_to_serializable(
 pub fn serializable_to_domain(
     allocator: Allocator,
     ser_dom: SerializableDomain,
-) !domain.Domain {
+) !domain.Domain
+{
     return switch (ser_dom) {
         .time => .time,
         .picture => .picture,
         .audio => .audio,
         .metadata => .metadata,
-        .other => |s| .{ .other = try copy_string(allocator, s) },
+        .other => |o| .{ .other = try copy_string(allocator, o.name) },
     };
 }
 
 pub fn serializable_to_media_data_reference(
     allocator: Allocator,
     ser_ref: SerializableMediaDataReference,
-) !schema.MediaDataReference {
+) !schema.MediaDataReference
+{
     return switch (ser_ref) {
         .uri => |uri_ref| .{
             .uri = .{
@@ -623,11 +720,12 @@ pub fn serializable_to_media_data_reference(
 pub fn serializable_to_signal_generator(
     allocator: Allocator,
     ser_gen: SerializableSignalGenerator,
-) !sampling.SignalGenerator {
+) !sampling.SignalGenerator
+{
     _ = allocator;
     return switch (ser_gen) {
         .sine => |sine| .{
-            .frequency_hz = sine.frequency_hz,
+            .frequency_hz = @intFromFloat(sine.frequency_hz),
             .amplitude = 1.0,
             .duration_s = opentime.Ordinate.init(1.0),
             .signal = .sine,
@@ -644,7 +742,8 @@ pub fn serializable_to_signal_generator(
 pub fn serializable_to_media_reference(
     allocator: Allocator,
     ser_ref: SerializableMediaReference,
-) !schema.MediaReference {
+) !schema.MediaReference
+{
     return .{
         .data_reference = try serializable_to_media_data_reference(
             allocator,
@@ -652,10 +751,10 @@ pub fn serializable_to_media_reference(
         ),
         .maybe_bounds_s = try serializable_to_optional_bounds(
             ser_ref.bounds_s,
-            ser_ref.discrete_partition,
+            serializable_to_optional_sig(ser_ref.discrete_partition),
         ),
         .domain = try serializable_to_domain(allocator, ser_ref.domain),
-        .maybe_discrete_partition = ser_ref.discrete_partition,
+        .maybe_discrete_partition = serializable_to_optional_sig(ser_ref.discrete_partition),
         .interpolating = ser_ref.interpolating orelse .default_from_domain,
     };
 }
@@ -663,7 +762,8 @@ pub fn serializable_to_media_reference(
 pub fn serializable_to_topology(
     allocator: Allocator,
     ser_topo: SerializableTopology,
-) !topology_m.Topology {
+) !topology_m.Topology
+{
     const mappings = try allocator.alloc(
         topology_m.mapping.Mapping,
         ser_topo.mappings.len,
@@ -679,7 +779,8 @@ pub fn serializable_to_topology(
 pub fn serializable_to_mapping(
     allocator: Allocator,
     ser_mapping: SerializableMapping,
-) !topology_m.mapping.Mapping {
+) !topology_m.mapping.Mapping
+{
     return switch (ser_mapping) {
         .affine => |aff| (topology_m.mapping.MappingAffine{
             .input_bounds_val = serializable_to_interval(aff.input_bounds_val),
@@ -691,14 +792,15 @@ pub fn serializable_to_mapping(
                 .input_to_output_curve = .{ .knots = knots },
             }).mapping();
         },
-        .empty => topology_m.mapping.empty.mapping(),
+        .empty => topology_m.mapping.MappingEmpty.empty_infinite.mapping(),
     };
 }
 
 pub fn serializable_to_clip(
     allocator: Allocator,
     ser_clip: SerializableClip,
-) !*schema.Clip {
+) !*schema.Clip
+{
     const clip_ptr = try allocator.create(schema.Clip);
     const media = try serializable_to_media_reference(allocator, ser_clip.media);
     clip_ptr.* = .{
@@ -728,11 +830,12 @@ pub fn serializable_to_gap(
 pub fn serializable_to_warp(
     allocator: Allocator,
     ser_warp: SerializableWarp,
-) !*schema.Warp {
+) !*schema.Warp
+{
     const warp_ptr = try allocator.create(schema.Warp);
     warp_ptr.* = .{
         .maybe_name = try copy_optional_string(allocator, ser_warp.name),
-        .child = try serializable_to_composable(allocator, ser_warp.child),
+        .child = try serializable_to_composable(allocator, ser_warp.child.*),
         .transform = try serializable_to_topology(allocator, ser_warp.transform),
     };
     return warp_ptr;
@@ -741,14 +844,15 @@ pub fn serializable_to_warp(
 pub fn serializable_to_track(
     allocator: Allocator,
     ser_track: SerializableTrack,
-) !*schema.Track {
+) !*schema.Track
+{
     const children = try allocator.alloc(
         schema.references.CompositionItemHandle,
         ser_track.children.len,
     );
 
-    for (ser_track.children, 0..) |ser_child, i| {
-        children[i] = try serializable_to_composable(allocator, ser_child);
+    for (ser_track.children, 0..) |ser_child_ptr, i| {
+        children[i] = try serializable_to_composable(allocator, ser_child_ptr.*);
     }
 
     const track_ptr = try allocator.create(schema.Track);
@@ -762,14 +866,15 @@ pub fn serializable_to_track(
 pub fn serializable_to_stack(
     allocator: Allocator,
     ser_stack: SerializableStack,
-) !*schema.Stack {
+) !*schema.Stack
+{
     const children = try allocator.alloc(
         schema.references.CompositionItemHandle,
         ser_stack.children.len,
     );
 
-    for (ser_stack.children, 0..) |ser_child, i| {
-        children[i] = try serializable_to_composable(allocator, ser_child);
+    for (ser_stack.children, 0..) |ser_child_ptr, i| {
+        children[i] = try serializable_to_composable(allocator, ser_child_ptr.*);
     }
 
     const stack_ptr = try allocator.create(schema.Stack);
@@ -783,7 +888,8 @@ pub fn serializable_to_stack(
 pub fn serializable_to_transition(
     allocator: Allocator,
     ser_trans: SerializableTransition,
-) !*schema.Transition {
+) !*schema.Transition
+{
     const container_ptr = try serializable_to_stack(allocator, ser_trans.container);
 
     const trans_ptr = try allocator.create(schema.Transition);
@@ -803,25 +909,26 @@ pub fn serializable_to_transition(
 pub fn serializable_to_composable(
     allocator: Allocator,
     ser_comp: SerializableComposable,
-) error{OutOfMemory}!schema.references.CompositionItemHandle {
+) error{ OutOfMemory, MissingDiscretePartition }!schema.references.CompositionItemHandle
+{
     return switch (ser_comp) {
-        .clip => |ser_clip| .{
-            .clip = try serializable_to_clip(allocator, ser_clip),
+        .clip => |clip_val| .{
+            .clip = try serializable_to_clip(allocator, clip_val),
         },
-        .gap => |ser_gap| .{
-            .gap = try serializable_to_gap(allocator, ser_gap),
+        .gap => |gap_val| .{
+            .gap = try serializable_to_gap(allocator, gap_val),
         },
-        .track => |ser_track_ptr| .{
-            .track = try serializable_to_track(allocator, ser_track_ptr.*),
+        .track => |track_val| .{
+            .track = try serializable_to_track(allocator, track_val),
         },
-        .stack => |ser_stack_ptr| .{
-            .stack = try serializable_to_stack(allocator, ser_stack_ptr.*),
+        .stack => |stack_val| .{
+            .stack = try serializable_to_stack(allocator, stack_val),
         },
-        .warp => |ser_warp_ptr| .{
-            .warp = try serializable_to_warp(allocator, ser_warp_ptr.*),
+        .warp => |warp_val| .{
+            .warp = try serializable_to_warp(allocator, warp_val),
         },
-        .transition => |ser_trans_ptr| .{
-            .transition = try serializable_to_transition(allocator, ser_trans_ptr.*),
+        .transition => |trans_val| .{
+            .transition = try serializable_to_transition(allocator, trans_val),
         },
     };
 }
@@ -829,15 +936,16 @@ pub fn serializable_to_composable(
 pub fn serializable_to_timeline(
     allocator: Allocator,
     ser_timeline: SerializableTimeline,
-) !*schema.Timeline {
+) !*schema.Timeline
+{
     // Convert children back to tracks.children
     const children = try allocator.alloc(
         schema.references.CompositionItemHandle,
         ser_timeline.children.len,
     );
 
-    for (ser_timeline.children, 0..) |ser_child, i| {
-        children[i] = try serializable_to_composable(allocator, ser_child);
+    for (ser_timeline.children, 0..) |ser_child_ptr, i| {
+        children[i] = try serializable_to_composable(allocator, ser_child_ptr.*);
     }
 
     const timeline_ptr = try allocator.create(schema.Timeline);
@@ -848,7 +956,10 @@ pub fn serializable_to_timeline(
             .children = children,
         },
         .discrete_space_partitions = .{
-            .presentation = ser_timeline.presentation_space_discrete_partitions,
+            .presentation = .{
+                .picture = serializable_to_optional_sig(ser_timeline.presentation_space_discrete_partitions.picture),
+                .audio = serializable_to_optional_sig(ser_timeline.presentation_space_discrete_partitions.audio),
+            },
         },
     };
 
@@ -974,10 +1085,11 @@ pub fn serializable_to_linear_curve(
 pub fn serialize_timeline(
     timeline: *schema.Timeline,
     allocator: Allocator,
-    writer: anytype,
+    writer: *std.io.Writer,
     maybe_target_version: ?u32,
 ) !void
 {
+
     // Convert to serializable format
     var ser_timeline = try timeline_to_serializable(allocator, timeline);
 
@@ -1093,8 +1205,9 @@ pub fn deserialize_timeline(
 pub fn serialize_bezier_curve(
     bezier: curve.Bezier,
     allocator: Allocator,
-    writer: anytype,
-) !void {
+    writer: *std.io.Writer,
+) !void
+{
     // Convert to serializable format
     const ser_bezier = try bezier_curve_to_serializable(allocator, bezier);
 
@@ -1109,7 +1222,8 @@ pub fn serialize_bezier_curve(
 pub fn deserialize_bezier_curve(
     allocator: Allocator,
     source: [:0]const u8,
-) !curve.Bezier {
+) !curve.Bezier
+{
     // Use ziggy to deserialize
     const ser_bezier = try ziggy.parseLeaky(
         SerializableBezierCurve,
@@ -1126,8 +1240,9 @@ pub fn deserialize_bezier_curve(
 pub fn serialize_linear_curve(
     linear: curve.Linear,
     allocator: Allocator,
-    writer: anytype,
-) !void {
+    writer: *std.io.Writer,
+) !void
+{
     // Convert to serializable format
     const ser_linear = try linear_curve_to_serializable(allocator, linear);
 
@@ -1142,7 +1257,8 @@ pub fn serialize_linear_curve(
 pub fn deserialize_linear_curve(
     allocator: Allocator,
     source: [:0]const u8,
-) !curve.Linear {
+) !curve.Linear
+{
     // Use ziggy to deserialize
     const ser_linear = try ziggy.parseLeaky(
         SerializableLinearCurve,
@@ -1242,8 +1358,9 @@ test "clip serialization: round-trip"
 
     // Verify serialized values
     try std.testing.expectEqualStrings("TestClip", ser_clip.name.?);
-    try std.testing.expectEqual(@as(f64, 1.0), ser_clip.bounds_s.?[0]);
-    try std.testing.expectEqual(@as(f64, 5.0), ser_clip.bounds_s.?[1]);
+    try std.testing.expect(ser_clip.bounds_s.? == .continuous);
+    try std.testing.expectEqual(@as(f64, 1.0), ser_clip.bounds_s.?.continuous.start);
+    try std.testing.expectEqual(@as(f64, 5.0), ser_clip.bounds_s.?.continuous.end);
 
     // Convert back
     const clip_ptr = try serializable_to_clip(allocator, ser_clip);
@@ -1310,19 +1427,23 @@ test "timeline serialization: ziggy round-trip"
     };
 
     // Serialize to ziggy format
-    var buffer = std.ArrayList(u8).init(allocator);
+    var buffer: std.io.Writer.Allocating = .init(allocator);
     defer buffer.deinit();
 
     try serialize_timeline(
         &timeline,
         allocator,
-        buffer.writer(),
+        &buffer.writer,
         null,
     );
 
     // Add null terminator for ziggy
-    try buffer.append(0);
-    const source: [:0]const u8 = buffer.items[0 .. buffer.items.len - 1 :0];
+    const written = buffer.written();
+    const source_with_null = try allocator.alloc(u8, written.len + 1);
+    defer allocator.free(source_with_null);
+    @memcpy(source_with_null[0..written.len], written);
+    source_with_null[written.len] = 0;
+    const source: [:0]const u8 = source_with_null[0..written.len :0];
 
     // Deserialize back
     const loaded_timeline = try deserialize_timeline(
