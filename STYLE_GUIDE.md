@@ -472,6 +472,20 @@ for (items)
 return try results.toOwnedSlice(allocator);
 ```
 
+### ArrayList Initialization
+- **Always use the `.empty` form** to initialize ArrayLists
+- This is the correct pattern in modern Zig versions
+- Do NOT use `.init()` as it requires resolving comptime values
+
+```zig
+// ✅ Correct
+var buffer: std.ArrayList(u8) = .empty;
+defer buffer.deinit(allocator);
+
+// ❌ Incorrect
+var buffer = std.ArrayList(u8).init(allocator);  // Causes comptime errors
+```
+
 ## Comments and Annotations
 
 ### TODO Comments
