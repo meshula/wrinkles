@@ -69,14 +69,14 @@ def convert_media_reference(media_ref: Dict[str, Any], discrete_rate: Optional[i
                     "target_uri": target_url
                 }
             },
-            "domain": "picture",  # Default to picture
+            "domain": {"picture": {}},  # Domain as union
             # interpolating defaults to "default_from_domain" and is omitted
         }
 
         # Add discrete partition if we have a discrete rate
         if discrete_rate is not None:
             result["discrete_partition"] = {
-                "sample_rate_hz": {"Int": discrete_rate},
+                "sample_rate_hz": {"Int": {"value": discrete_rate}},
                 "start_index": 0
             }
 
@@ -100,25 +100,25 @@ def convert_media_reference(media_ref: Dict[str, Any], discrete_rate: Optional[i
                 start_index = int(start_time.get("value", 0))
                 end_index = start_index + int(duration.get("value", 0))
 
-                result["bounds_s"] = {"discrete": [start_index, end_index]}
+                result["bounds_s"] = {"discrete": {"start": start_index, "end": end_index}}
             else:
                 # Use continuous bounds (time in seconds)
-                bounds_s = time_range_to_continuous_interval(available_range)
-                result["bounds_s"] = {"continuous": bounds_s}
+                start_s, end_s = time_range_to_continuous_interval(available_range)
+                result["bounds_s"] = {"continuous": {"start": start_s, "end": end_s}}
 
         return result
     elif schema_type == "MissingReference.1":
         # Missing/null reference
         result = {
             "data_reference": {"null": {}},
-            "domain": "picture",
+            "domain": {"picture": {}},
             # interpolating defaults to "default_from_domain" and is omitted
         }
 
         # Add discrete partition if we have a discrete rate
         if discrete_rate is not None:
             result["discrete_partition"] = {
-                "sample_rate_hz": {"Int": discrete_rate},
+                "sample_rate_hz": {"Int": {"value": discrete_rate}},
                 "start_index": 0
             }
 
@@ -127,14 +127,14 @@ def convert_media_reference(media_ref: Dict[str, Any], discrete_rate: Optional[i
         # Default to null reference
         result = {
             "data_reference": {"null": {}},
-            "domain": "picture",
+            "domain": {"picture": {}},
             # interpolating defaults to "default_from_domain" and is omitted
         }
 
         # Add discrete partition if we have a discrete rate
         if discrete_rate is not None:
             result["discrete_partition"] = {
-                "sample_rate_hz": {"Int": discrete_rate},
+                "sample_rate_hz": {"Int": {"value": discrete_rate}},
                 "start_index": 0
             }
 
@@ -184,11 +184,11 @@ def convert_clip(clip: Dict[str, Any]) -> Dict[str, Any]:
             start_index = int(start_time["value"])
             end_index = start_index + int(duration["value"])
 
-            result["bounds_s"] = {"discrete": [start_index, end_index]}
+            result["bounds_s"] = {"discrete": {"start": start_index, "end": end_index}}
         else:
             # Use continuous bounds (time in seconds)
-            bounds_s = time_range_to_continuous_interval(source_range)
-            result["bounds_s"] = {"continuous": bounds_s}
+            start_s, end_s = time_range_to_continuous_interval(source_range)
+            result["bounds_s"] = {"continuous": {"start": start_s, "end": end_s}}
 
     return result
 
@@ -313,7 +313,7 @@ def convert_timeline(timeline: Dict[str, Any]) -> Dict[str, Any]:
         single_rate = next(iter(rates))
         if is_discrete_rate(single_rate):
             presentation_partition = {
-                "sample_rate_hz": {"Int": int(single_rate)},
+                "sample_rate_hz": {"Int": {"value": int(single_rate)}},
                 "start_index": 0
             }
 
@@ -324,6 +324,7 @@ def convert_timeline(timeline: Dict[str, Any]) -> Dict[str, Any]:
         converted_children.append(convert_composable(child))
 
     result = {
+        "schema_version": 1,
         "children": converted_children,
         "presentation_space_discrete_partitions": {}
     }
