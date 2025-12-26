@@ -142,20 +142,20 @@ pub const SerializableComposable = union(enum) {
 /// Serializable variant of Warp
 pub const SerializableWarp = struct {
     name: ?[]const u8,
-    child: *SerializableComposable,
+    child: *const SerializableComposable,
     transform: SerializableTopology,
 };
 
 /// Serializable variant of Stack
 pub const SerializableStack = struct {
     name: ?[]const u8,
-    children: []*SerializableComposable,
+    children: []const SerializableComposable,
 };
 
 /// Serializable variant of Track
 pub const SerializableTrack = struct {
     name: ?[]const u8,
-    children: []*SerializableComposable,
+    children: []const SerializableComposable,
 };
 
 /// Serializable variant of Transition
@@ -178,7 +178,7 @@ pub const SerializableTimeline = struct {
 
     schema_version: u32 = versioning.current_version("Timeline"),
     name: ?[]const u8,
-    children: []*SerializableComposable,
+    children: []const SerializableComposable,
     presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
 };
 
@@ -582,10 +582,10 @@ pub fn track_to_serializable(
     track: schema.Track,
 ) !SerializableTrack
 {
-    const ser_children = try allocator.alloc(*SerializableComposable, track.children.len);
+    const ser_children = try allocator.alloc(SerializableComposable, track.children.len);
 
     for (track.children, 0..) |child, i| {
-        ser_children[i] = try composable_to_serializable(allocator, child);
+        ser_children[i] = (try composable_to_serializable(allocator, child)).*;
     }
 
     return .{
@@ -599,10 +599,10 @@ pub fn stack_to_serializable(
     stack: schema.Stack,
 ) !SerializableStack
 {
-    const ser_children = try allocator.alloc(*SerializableComposable, stack.children.len);
+    const ser_children = try allocator.alloc(SerializableComposable, stack.children.len);
 
     for (stack.children, 0..) |child, i| {
-        ser_children[i] = try composable_to_serializable(allocator, child);
+        ser_children[i] = (try composable_to_serializable(allocator, child)).*;
     }
 
     return .{
@@ -660,10 +660,10 @@ pub fn timeline_to_serializable(
 ) !SerializableTimeline
 {
     // Convert tracks.children directly to timeline.children
-    const ser_children = try allocator.alloc(*SerializableComposable, timeline.tracks.children.len);
+    const ser_children = try allocator.alloc(SerializableComposable, timeline.tracks.children.len);
 
     for (timeline.tracks.children, 0..) |child, i| {
-        ser_children[i] = try composable_to_serializable(allocator, child);
+        ser_children[i] = (try composable_to_serializable(allocator, child)).*;
     }
 
     return .{
@@ -851,8 +851,8 @@ pub fn serializable_to_track(
         ser_track.children.len,
     );
 
-    for (ser_track.children, 0..) |ser_child_ptr, i| {
-        children[i] = try serializable_to_composable(allocator, ser_child_ptr.*);
+    for (ser_track.children, 0..) |ser_child, i| {
+        children[i] = try serializable_to_composable(allocator, ser_child);
     }
 
     const track_ptr = try allocator.create(schema.Track);
@@ -873,8 +873,8 @@ pub fn serializable_to_stack(
         ser_stack.children.len,
     );
 
-    for (ser_stack.children, 0..) |ser_child_ptr, i| {
-        children[i] = try serializable_to_composable(allocator, ser_child_ptr.*);
+    for (ser_stack.children, 0..) |ser_child, i| {
+        children[i] = try serializable_to_composable(allocator, ser_child);
     }
 
     const stack_ptr = try allocator.create(schema.Stack);
@@ -944,8 +944,8 @@ pub fn serializable_to_timeline(
         ser_timeline.children.len,
     );
 
-    for (ser_timeline.children, 0..) |ser_child_ptr, i| {
-        children[i] = try serializable_to_composable(allocator, ser_child_ptr.*);
+    for (ser_timeline.children, 0..) |ser_child, i| {
+        children[i] = try serializable_to_composable(allocator, ser_child);
     }
 
     const timeline_ptr = try allocator.create(schema.Timeline);
