@@ -3,7 +3,7 @@ $ = Timeline
 struct Timeline {
     schema_version: int,
     name: ?bytes,
-    children: []*Composable,
+    children: []Composable,
     presentation_space_discrete_partitions: DiscretePartitionDomainMap,
 }
 
@@ -27,12 +27,12 @@ union Bounds {
 
 struct Stack {
     name: ?bytes,
-    children: []*Composable,
+    children: []Composable,
 }
 
 struct Track {
     name: ?bytes,
-    children: []*Composable,
+    children: []Composable,
 }
 
 struct Gap {
