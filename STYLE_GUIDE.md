@@ -127,8 +127,14 @@ pub const StructName = struct {
 ```
 
 ### Control Flow
+
+**IMPORTANT: Captures must always be on their own line**
+- Captures (code between `|..|`) must appear on a separate line after the condition
+- Never place captures inline with the for/if statement
+- This applies to all for loops and if statements with captures
+
 ```zig
-// If statements
+// If statements - simple condition
 if (condition)
 {
     // body
@@ -142,16 +148,44 @@ else
     // body
 }
 
-// For loops - single item per line
+// If statements with capture - capture on separate line
+// ✅ Correct: capture on separate line
+if (maybe_value)
+    |value|
+{
+    // use value
+}
+
+// ❌ Incorrect: capture inline
+// if (maybe_value) |value| {
+//     // use value
+// }
+
+// For loops - single item
+// ✅ Correct: capture on separate line
 for (items)
     |item|
 {
     // body
 }
 
+// ❌ Incorrect: capture inline
+// for (items) |item| {
+//     // body
+// }
+
 // Multiple iteration variables
 for (items, 0..)
     |item, index|
+{
+    // body
+}
+
+// Multi-parameter for loops - capture can be on line after closing paren
+for (
+    things,
+    other_things,
+) |thing|
 {
     // body
 }
