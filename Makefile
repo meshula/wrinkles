@@ -45,4 +45,35 @@ convert-test-files:
 	done
 	@echo "All files converted successfully!"
 
-.PHONY: all run-em docs run_c convert-test-files
+# Convert OpenTimelineIO sample files to Ziggy format using otio_dump_ziggy
+convert-otio-samples: zig-out/bin/otio_dump_ziggy
+	@echo "Converting OpenTimelineIO sample files..."
+	@if [ ! -d "../OpenTimelineIO/tests/sample_data" ]; then \
+		echo "Error: ../OpenTimelineIO/tests/sample_data not found"; \
+		echo "Please clone OpenTimelineIO to ../OpenTimelineIO"; \
+		exit 1; \
+	fi
+	@mkdir -p otio_sample_data
+	@success=0; failed=0; \
+	for f in ../OpenTimelineIO/tests/sample_data/*.otio; do \
+		if [ -f "$$f" ]; then \
+			basename=$$(basename "$$f" .otio); \
+			echo "  Converting $$basename.otio -> $$basename.ziggy"; \
+			if ./zig-out/bin/otio_dump_ziggy "$$f" "otio_sample_data/$${basename}.ziggy" 2>&1 | grep -q "Wrote:"; then \
+				success=$$((success + 1)); \
+			else \
+				echo "    FAILED"; \
+				failed=$$((failed + 1)); \
+			fi \
+		fi \
+	done; \
+	echo ""; \
+	echo "Conversion complete: $$success succeeded, $$failed failed"; \
+	ls -lh otio_sample_data
+
+convert-to-latest-schema: \
+	convert-otio-samples \
+	convert-test-files
+	@echo "Converted all test files to latest schema."
+
+.PHONY: all run-em docs run_c convert-test-files convert-otio-samples
