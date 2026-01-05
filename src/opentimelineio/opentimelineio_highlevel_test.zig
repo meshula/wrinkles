@@ -1210,3 +1210,65 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
         );
     }
 }
+
+test "otio_measure_timeline executable on just_clip.ziggy" 
+{
+    const allocator = std.testing.allocator;
+
+    const result = std.process.Child.run(
+        .{
+            .allocator = allocator,
+            .argv = &.{
+                "zig-out/bin/otio_measure_timeline",
+                "test_files_ziggy/just_clip.ziggy",
+            },
+        }
+    ) catch |err| 
+    {
+        std.debug.print(
+            "Failed to run otio_measure_timeline: {s}\n"
+            ++ "Make sure to build it first with: zig build "
+            ++ "install-otio_measure_timeline\n",
+            .{@errorName(err)},
+        );
+        return err;
+    };
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+
+    // Check the process exited successfully
+    try std.testing.expectEqual(
+        std.process.Child.Term{ .Exited = 0 },
+        result.term,
+    );
+
+    // Verify expected output content (debug.print goes to stderr)
+    try std.testing.expect(
+        std.mem.indexOf(
+            u8,
+            result.stderr,
+            "Timeline Clip-001 has 1 tracks",
+        ) != null
+    );
+    try std.testing.expect(
+        std.mem.indexOf(
+            u8,
+            result.stderr,
+            "Track: 0:Track-001 has 1 children",
+        ) != null,
+    );
+    try std.testing.expect(
+        std.mem.indexOf(
+            u8,
+            result.stderr,
+            "Child 0:clip.Clip-001",
+        ) != null,
+    );
+    try std.testing.expect(
+        std.mem.indexOf(
+            u8,
+            result.stderr,
+            "Total items: 1",
+        ) != null,
+    );
+}
