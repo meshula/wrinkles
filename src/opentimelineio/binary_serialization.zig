@@ -994,15 +994,29 @@ fn binary_to_sig(
 
 fn binary_to_interval(
     bounds: BinaryBounds,
+    maybe_discrete_partition: ?sampling.SampleIndexGenerator,
 ) opentime.ContinuousInterval {
-    // Extract the values - discrete bounds are converted to continuous
-    const vals = switch (bounds) {
-        .continuous => |c| c,
-        .discrete => |d| [2]f64{ @floatFromInt(d[0]), @floatFromInt(d[1]) },
-    };
-    return .{
-        .start = opentime.Ordinate.init(vals[0]),
-        .end = opentime.Ordinate.init(vals[1]),
+    return switch (bounds) {
+        .continuous => |c| .{
+            .start = opentime.Ordinate.init(c[0]),
+            .end = opentime.Ordinate.init(c[1]),
+        },
+        .discrete => |d| blk: {
+            // Discrete bounds require a discrete partition to convert to continuous
+            if (maybe_discrete_partition) |sig| {
+                // Convert discrete indices to continuous ordinates using the sample rate
+                break :blk .{
+                    .start = sig.ordinate_at_index(@intCast(d[0])),
+                    .end = sig.ordinate_at_index(@intCast(d[1])),
+                };
+            } else {
+                // Fallback: treat as raw values (this shouldn't happen with well-formed data)
+                break :blk .{
+                    .start = opentime.Ordinate.init(@as(f64, @floatFromInt(d[0]))),
+                    .end = opentime.Ordinate.init(@as(f64, @floatFromInt(d[1]))),
+                };
+            }
+        },
     };
 }
 
@@ -1057,11 +1071,12 @@ fn binary_to_media_ref(
     ref: BinaryMediaReference,
 ) !schema.MediaReference
 {
+    const maybe_discrete_partition = if (ref.discrete_partition) |dp| binary_to_sig(dp) else null;
     return .{
         .data_reference = try binary_to_media_data_ref(allocator, ref.data_reference),
-        .maybe_bounds_s = if (ref.bounds_s) |b| binary_to_interval(b) else null,
+        .maybe_bounds_s = if (ref.bounds_s) |b| binary_to_interval(b, maybe_discrete_partition) else null,
         .domain = try binary_to_domain(allocator, ref.domain),
-        .maybe_discrete_partition = if (ref.discrete_partition) |dp| binary_to_sig(dp) else null,
+        .maybe_discrete_partition = maybe_discrete_partition,
     };
 }
 
@@ -1071,10 +1086,12 @@ fn binary_to_clip(
 ) !*schema.Clip
 {
     const clip_ptr = try allocator.create(schema.Clip);
+    // Convert media first to get the discrete partition
+    const media = try binary_to_media_ref(allocator, clip.media);
     clip_ptr.* = .{
         .maybe_name = if (clip.name) |n| try allocator.dupe(u8, n) else null,
-        .maybe_bounds_s = if (clip.bounds_s) |b| binary_to_interval(b) else null,
-        .media = try binary_to_media_ref(allocator, clip.media),
+        .maybe_bounds_s = if (clip.bounds_s) |b| binary_to_interval(b, media.maybe_discrete_partition) else null,
+        .media = media,
     };
     return clip_ptr;
 }
@@ -1122,7 +1139,8 @@ fn binary_to_track(
     }
     track_ptr.* = .{
         .maybe_name = if (track.name) |n| try allocator.dupe(u8, n) else null,
-        .maybe_bounds_s = if (track.bounds_s) |b| binary_to_interval(b) else null,
+        // Tracks don't have discrete partitions, so pass null
+        .maybe_bounds_s = if (track.bounds_s) |b| binary_to_interval(b, null) else null,
         .children = children,
     };
     return track_ptr;
@@ -1143,7 +1161,8 @@ fn binary_to_stack(
     }
     stack_ptr.* = .{
         .maybe_name = if (stack.name) |n| try allocator.dupe(u8, n) else null,
-        .maybe_bounds_s = if (stack.bounds_s) |b| binary_to_interval(b) else null,
+        // Stacks don't have discrete partitions, so pass null
+        .maybe_bounds_s = if (stack.bounds_s) |b| binary_to_interval(b, null) else null,
         .children = children,
     };
     return stack_ptr;
@@ -1561,13 +1580,14 @@ pub fn deserialize_timeline_binary(
     // Use different types based on whether we want metadata
     if (options.file_contents_to_read == .all_except_metadata) {
         // Use metadata offset to truncate CBOR data, skipping expensive metadata parsing
-        const effective_len = if (header.metadata_offset > 0 and header.metadata_offset < cbor_data.len)
+        const has_metadata = header.metadata_offset > 0 and header.metadata_offset < cbor_data.len;
+        const effective_len = if (has_metadata)
             header.metadata_offset
         else
             cbor_data.len;
 
         const truncated_cbor = cbor_data[0..effective_len];
-        return try deserialize_timeline_skip_metadata(allocator, truncated_cbor);
+        return try deserialize_timeline_skip_metadata(allocator, truncated_cbor, has_metadata);
     } else {
         // Parse CBOR into DataItem
         const data_item = try zbor.DataItem.new(cbor_data);
@@ -1587,15 +1607,19 @@ pub fn deserialize_timeline_binary(
 /// Deserialize timeline from truncated CBOR data (metadata already stripped).
 /// Uses BinaryTimelineNoMetadata to skip any remaining metadata references.
 /// The truncation may leave an incomplete CBOR map, so we patch the header.
+/// @param has_metadata: if true, the original data had metadata that was truncated,
+///                      so we need to decrement the map count in the header.
 fn deserialize_timeline_skip_metadata(
     allocator: Allocator,
     cbor_data: []const u8,
+    has_metadata: bool,
 ) !*schema.Timeline {
     if (cbor_data.len == 0) return error.MalformedData;
 
     // The top-level CBOR structure is a map. If we truncated before metadata_map,
     // the map header still says it has N entries but we've cut off the last one.
     // We need to patch the map count to be N-1.
+    // However, if there was no metadata to truncate, the count is already correct.
     //
     // CBOR map header format:
     //   0xa0-0xb7: map with 0-23 entries (count in lower 5 bits)
@@ -1611,21 +1635,24 @@ fn deserialize_timeline_skip_metadata(
     const major_type = header_byte >> 5;
     if (major_type != 5) return error.MalformedData; // Not a map
 
-    const additional = header_byte & 0x1f;
+    // Only patch the map count if we truncated metadata
+    if (has_metadata) {
+        const additional = header_byte & 0x1f;
 
-    if (additional <= 23) {
-        // Small map - decrement count in lower 5 bits
-        if (additional > 0) {
-            patched[0] = (5 << 5) | (additional - 1);
+        if (additional <= 23) {
+            // Small map - decrement count in lower 5 bits
+            if (additional > 0) {
+                patched[0] = (5 << 5) | (additional - 1);
+            }
+        } else if (additional == 24 and patched.len >= 2) {
+            // 1-byte count
+            if (patched[1] > 0) {
+                patched[1] -= 1;
+            }
         }
-    } else if (additional == 24 and patched.len >= 2) {
-        // 1-byte count
-        if (patched[1] > 0) {
-            patched[1] -= 1;
-        }
+        // For larger counts (2+ bytes), the original count is likely already
+        // correct because metadata_map would have been the last field
     }
-    // For larger counts (2+ bytes), the original count is likely already
-    // correct because metadata_map would have been the last field
 
     // Create DataItem from patched CBOR data
     const data_item = try zbor.DataItem.new(patched);
