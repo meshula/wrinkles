@@ -29,6 +29,10 @@
             // See libs/ziggy/PATCHES.md for details
             .path = "libs/ziggy",
         },
+        .zbor = .{
+            // CBOR library for binary serialization
+            .path = "libs/zbor",
+        },
     },
     .paths = .{
         "build.zig",
