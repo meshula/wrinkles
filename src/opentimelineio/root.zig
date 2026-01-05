@@ -25,6 +25,7 @@ pub const domain = @import("domain.zig");
 pub const Domain = domain.Domain;
 
 pub const serialization = @import("serialization.zig");
+pub const binary_serialization = @import("binary_serialization.zig");
 pub const versioning = @import("versioning.zig");
 
 const otio_json = @import("opentimelineio_json.zig");
@@ -44,5 +45,6 @@ test {
     _ = projection;
     _ = domain;
     _ = serialization;
+    _ = binary_serialization;
     _ = versioning;
 }

@@ -114,7 +114,7 @@ pub const SerializableClip = struct {
     name: ?[]const u8 = null,
     bounds_s: ?SerializableBounds = null,
     media: SerializableMediaReference,
-    /// MD5 hash key referencing an entry in the Timeline's metadata_map
+    /// Wyhash key referencing an entry in the Timeline's metadata_map
     metadata_hash: ?[]const u8 = null,
 };
 
@@ -391,7 +391,7 @@ pub const SerializableLinearCurve = struct {
 // ----------------------------------------------------------------------------
 
 /// Context for accumulating metadata during serialization.
-/// Clips reference their metadata by MD5 hash key, and the actual data is stored
+/// Clips reference their metadata by Wyhash key, and the actual data is stored
 /// in the Timeline's metadata_map.
 pub const MetadataContext = struct {
     allocator: Allocator,
@@ -1927,6 +1927,179 @@ pub fn convert_otio_json_to_ziggy(
         },
         writer,
     );
+}
+
+/// Convert OTIO JSON to SerializableTimeline, preserving metadata.
+///
+/// This function converts OTIO JSON to SerializableTimeline without going through
+/// the runtime Schema, which would lose metadata. Use this for file conversion
+/// tools that need to preserve metadata (e.g., otiocat).
+///
+/// Non-Timeline root objects (Clip, Track, Warp, etc.) are automatically
+/// wrapped in a synthetic Timeline/Track structure for a complete schema.
+pub fn otio_json_to_serializable_timeline(
+    allocator: Allocator,
+    json_source: []const u8,
+) !SerializableTimeline 
+{
+    // Parse OTIO JSON to runtime Schema (clips contain metadata)
+    var composition_handle = try otio_json.read_from_string(
+        allocator,
+        json_source,
+        .{},
+    );
+    defer composition_handle.deinit(allocator);
+
+    // Create metadata map and context for accumulating clip metadata
+    var metadata_map: MetadataMap = .{};
+    var meta_ctx = MetadataContext{
+        .allocator = allocator,
+        .metadata_map = &metadata_map,
+    };
+
+    // Convert to SerializableTimeline based on root object type
+    var ser_timeline: SerializableTimeline = switch (composition_handle) {
+        .timeline => |tl| try timeline_to_serializable(
+            allocator,
+            tl,
+        ),
+        .clip => |clip_ptr| blk: {
+            // Wrap clip in a Track and Timeline
+            const ser_clip = try clip_to_serializable(
+                allocator,
+                clip_ptr.*,
+                &meta_ctx,
+            );
+            const ser_composable = try allocator.create(SerializableComposable);
+            ser_composable.* = .{ .clip = ser_clip };
+
+            const track_children = try allocator.alloc(SerializableComposable, 1);
+            track_children[0] = ser_composable.*;
+
+            const ser_track = SerializableTrack{
+                .name = try copy_optional_string(allocator, "Track-001"),
+                .children = track_children,
+            };
+
+            const timeline_children = try allocator.alloc(SerializableComposable, 1);
+            timeline_children[0] = .{ .track = ser_track };
+
+            break :blk SerializableTimeline{
+                .name = try copy_optional_string(allocator, clip_ptr.maybe_name),
+                .children = timeline_children,
+                .presentation_space_discrete_partitions = .{},
+                .metadata_map = if (metadata_map.fields.count() > 0) metadata_map else null,
+            };
+        },
+
+        .gap => |gap_ptr| blk: {
+            // Wrap gap in a Track and Timeline
+            const ser_gap = try gap_to_serializable(allocator, gap_ptr.*);
+            const ser_composable = try allocator.create(SerializableComposable);
+            ser_composable.* = .{ .gap = ser_gap };
+
+            const track_children = try allocator.alloc(SerializableComposable, 1);
+            track_children[0] = ser_composable.*;
+
+            const ser_track = SerializableTrack{
+                .name = try copy_optional_string(allocator, "Track-001"),
+                .children = track_children,
+            };
+
+            const timeline_children = try allocator.alloc(SerializableComposable, 1);
+            timeline_children[0] = .{ .track = ser_track };
+
+            break :blk SerializableTimeline{
+                .name = try copy_optional_string(allocator, gap_ptr.maybe_name),
+                .children = timeline_children,
+                .presentation_space_discrete_partitions = .{},
+            };
+        },
+
+        .track => |track_ptr| blk: {
+            // Wrap track in a Timeline
+            const ser_track = try track_to_serializable(allocator, track_ptr.*, &meta_ctx);
+
+            const timeline_children = try allocator.alloc(SerializableComposable, 1);
+            timeline_children[0] = .{ .track = ser_track };
+
+            break :blk SerializableTimeline{
+                .name = try copy_optional_string(allocator, track_ptr.maybe_name),
+                .children = timeline_children,
+                .presentation_space_discrete_partitions = .{},
+                .metadata_map = if (metadata_map.fields.count() > 0) metadata_map else null,
+            };
+        },
+
+        .stack => |stack_ptr| blk: {
+            // Wrap stack in a Timeline (use stack children as timeline children)
+            const ser_stack = try stack_to_serializable(allocator, stack_ptr.*, &meta_ctx);
+
+            // Use the stack's children directly as the timeline's children
+            break :blk SerializableTimeline{
+                .name = try copy_optional_string(allocator, stack_ptr.maybe_name),
+                .children = ser_stack.children,
+                .presentation_space_discrete_partitions = .{},
+                .metadata_map = if (metadata_map.fields.count() > 0) metadata_map else null,
+            };
+        },
+
+        .warp => |warp_ptr| blk: {
+            // Wrap warp in a Track and Timeline
+            const ser_warp = try warp_to_serializable(allocator, warp_ptr.*, &meta_ctx);
+            const ser_composable = try allocator.create(SerializableComposable);
+            ser_composable.* = .{ .warp = ser_warp };
+
+            const track_children = try allocator.alloc(SerializableComposable, 1);
+            track_children[0] = ser_composable.*;
+
+            const ser_track = SerializableTrack{
+                .name = try copy_optional_string(allocator, "Track-001"),
+                .children = track_children,
+            };
+
+            const timeline_children = try allocator.alloc(SerializableComposable, 1);
+            timeline_children[0] = .{ .track = ser_track };
+
+            break :blk SerializableTimeline{
+                .name = try copy_optional_string(allocator, warp_ptr.maybe_name),
+                .children = timeline_children,
+                .presentation_space_discrete_partitions = .{},
+                .metadata_map = if (metadata_map.fields.count() > 0) metadata_map else null,
+            };
+        },
+
+        .transition => |trans_ptr| blk: {
+            // Wrap transition in a Track and Timeline
+            const ser_trans = try transition_to_serializable(allocator, trans_ptr.*, &meta_ctx);
+            const ser_composable = try allocator.create(SerializableComposable);
+            ser_composable.* = .{ .transition = ser_trans };
+
+            const track_children = try allocator.alloc(SerializableComposable, 1);
+            track_children[0] = ser_composable.*;
+
+            const ser_track = SerializableTrack{
+                .name = try copy_optional_string(allocator, "Track-001"),
+                .children = track_children,
+            };
+
+            const timeline_children = try allocator.alloc(SerializableComposable, 1);
+            timeline_children[0] = .{ .track = ser_track };
+
+            break :blk SerializableTimeline{
+                .name = try copy_optional_string(allocator, trans_ptr.maybe_name),
+                .children = timeline_children,
+                .presentation_space_discrete_partitions = .{},
+                .metadata_map = if (metadata_map.fields.count() > 0) metadata_map else null,
+            };
+        },
+    };
+
+    // Mark as version 0 (OTIO JSON source) then upgrade
+    ser_timeline.schema_version = OTIO_JSON_VERSION;
+    try upgrade_timeline_v0_to_v1(allocator, &ser_timeline);
+
+    return ser_timeline;
 }
 
 /// Serialize a Bezier curve to Ziggy format and write to the provided writer.

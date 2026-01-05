@@ -839,7 +839,7 @@ fn read_otio_object(
     return error.NotImplemented;
 }
 
-/// Read a timeline from either a .otio (JSON) or .ziggy file.
+/// Read a timeline from .otio (JSON), .ziggy, or .tlb (binary) file.
 /// The file format is determined by the file extension.
 pub fn read_from_file(
     in_allocator: std.mem.Allocator,
@@ -869,6 +869,29 @@ pub fn read_from_file(
         defer in_allocator.free(source);
 
         const timeline = try serialization.deserialize_timeline(
+            in_allocator,
+            source,
+            options,
+        );
+
+        return .{ .timeline = timeline };
+    }
+
+    if (std.mem.eql(u8, extension, ".tlb"))
+    {
+        // Read binary format
+        const binary_serialization = @import("binary_serialization.zig");
+
+        const file = try std.fs.cwd().openFile(file_path, .{});
+        defer file.close();
+
+        const source = try file.readToEndAlloc(
+            in_allocator,
+            std.math.maxInt(u32),
+        );
+        defer in_allocator.free(source);
+
+        const timeline = try binary_serialization.deserialize_timeline_binary(
             in_allocator,
             source,
             options,

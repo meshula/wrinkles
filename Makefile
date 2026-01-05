@@ -86,4 +86,87 @@ convert-to-latest-schema: \
 	convert-test-files
 	@echo "Converted all test files to latest schema."
 
-.PHONY: all run-em docs run_c convert-test-files convert-otio-samples
+# Convert Ziggy files to binary (.tlb) format
+convert-to-binary: zig-out/bin/otiocat
+	@echo "Converting Ziggy files to binary format..."
+	@mkdir -p otio_sample_data_binary
+	@mkdir -p test_files_binary
+	@success=0; failed=0; \
+	for f in otio_sample_data/*.ziggy; do \
+		if [ -f "$$f" ]; then \
+			basename=$$(basename "$$f" .ziggy); \
+			echo "  Converting $$basename.ziggy -> $$basename.tlb"; \
+			if ./zig-out/bin/otiocat "$$f" "otio_sample_data_binary/$${basename}.tlb" 2>&1 | grep -q "Wrote:"; then \
+				success=$$((success + 1)); \
+			else \
+				echo "    FAILED"; \
+				failed=$$((failed + 1)); \
+			fi \
+		fi \
+	done; \
+	for f in test_files_ziggy/*.ziggy; do \
+		if [ -f "$$f" ]; then \
+			basename=$$(basename "$$f" .ziggy); \
+			echo "  Converting $$basename.ziggy -> $$basename.tlb"; \
+			if ./zig-out/bin/otiocat "$$f" "test_files_binary/$${basename}.tlb" 2>&1 | grep -q "Wrote:"; then \
+				success=$$((success + 1)); \
+			else \
+				echo "    FAILED"; \
+				failed=$$((failed + 1)); \
+			fi \
+		fi \
+	done; \
+	echo ""; \
+	echo "Binary conversion complete: $$success succeeded, $$failed failed"
+
+# Full conversion pipeline: OTIO -> Ziggy -> Binary
+convert-all: convert-to-latest-schema convert-to-binary
+	@echo "Full conversion pipeline complete."
+
+# Verify round-trip consistency: ziggy -> binary -> ziggy
+# The output of otiocat should be the same whether reading from ziggy or tlb
+verify-roundtrip: zig-out/bin/otiocat
+	@echo "Verifying round-trip consistency (ziggy -> binary -> ziggy)..."
+	@mkdir -p /tmp/otio_roundtrip
+	@success=0; failed=0; \
+	for f in test_files_ziggy/*.ziggy; do \
+		if [ -f "$$f" ]; then \
+			basename=$$(basename "$$f" .ziggy); \
+			tlb_file="test_files_binary/$${basename}.tlb"; \
+			if [ -f "$$tlb_file" ]; then \
+				echo -n "  Checking $$basename... "; \
+				./zig-out/bin/otiocat "$$f" "/tmp/otio_roundtrip/from_ziggy.ziggy" 2>/dev/null; \
+				./zig-out/bin/otiocat "$$tlb_file" "/tmp/otio_roundtrip/from_tlb.ziggy" 2>/dev/null; \
+				if diff -q "/tmp/otio_roundtrip/from_ziggy.ziggy" "/tmp/otio_roundtrip/from_tlb.ziggy" >/dev/null 2>&1; then \
+					echo "OK"; \
+					success=$$((success + 1)); \
+				else \
+					echo "MISMATCH"; \
+					failed=$$((failed + 1)); \
+				fi \
+			fi \
+		fi \
+	done; \
+	for f in otio_sample_data/*.ziggy; do \
+		if [ -f "$$f" ]; then \
+			basename=$$(basename "$$f" .ziggy); \
+			tlb_file="otio_sample_data_binary/$${basename}.tlb"; \
+			if [ -f "$$tlb_file" ]; then \
+				echo -n "  Checking $$basename... "; \
+				./zig-out/bin/otiocat "$$f" "/tmp/otio_roundtrip/from_ziggy.ziggy" 2>/dev/null; \
+				./zig-out/bin/otiocat "$$tlb_file" "/tmp/otio_roundtrip/from_tlb.ziggy" 2>/dev/null; \
+				if diff -q "/tmp/otio_roundtrip/from_ziggy.ziggy" "/tmp/otio_roundtrip/from_tlb.ziggy" >/dev/null 2>&1; then \
+					echo "OK"; \
+					success=$$((success + 1)); \
+				else \
+					echo "MISMATCH"; \
+					failed=$$((failed + 1)); \
+				fi \
+			fi \
+		fi \
+	done; \
+	rm -rf /tmp/otio_roundtrip; \
+	echo ""; \
+	echo "Round-trip verification: $$success matched, $$failed mismatched"
+
+.PHONY: all run-em docs run_c convert-test-files convert-otio-samples convert-to-binary convert-all verify-roundtrip
