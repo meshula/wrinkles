@@ -993,6 +993,19 @@ pub fn build(
 
     try executable(
         b,
+        "otio_hierarchy_view",
+        "src/otio_hierarchy_view.zig",
+        options,
+        &.{
+            .{ .name = "string_stuff", .module = string_stuff },
+            .{ .name = "opentimelineio", .module = opentimelineio },
+            .{ .name = "opentime", .module = opentime },
+            .{ .name = "sampling", .module = sampling },
+        },
+    );
+
+    try executable(
+        b,
         "otiocat",
         "src/otiocat.zig",
         options,
