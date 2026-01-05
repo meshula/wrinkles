@@ -509,6 +509,9 @@ pub const Track = struct {
     /// Optional name, for labelling and human readability.
     maybe_name: ?string.latin_s8 = null,
 
+    /// Optional bounds in seconds. If present, overrides bounds computed from children.
+    maybe_bounds_s: ?opentime.ContinuousInterval = null,
+
     /// Child objects of the track, listed from first to last in temporal
     /// order. A sequence of right met segments.
     children: []references.CompositionItemHandle,
@@ -549,12 +552,22 @@ pub const Track = struct {
     pub fn topology_pres_to_intrinsic(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) !topology_m.Topology 
+    ) !topology_m.Topology
     {
-        // build the maybe_bounds
+        // If explicit bounds are provided, use them
+        if (self.maybe_bounds_s) 
+            |explicit_bounds| 
+        {
+            return try topology_m.Topology.init_identity(
+                allocator,
+                explicit_bounds,
+            );
+        }
+
+        // Otherwise, build the maybe_bounds from children
         var maybe_bounds: ?opentime.ContinuousInterval = null;
-        for (self.children) 
-            |it| 
+        for (self.children)
+            |it|
         {
             const topo = try it.spanning_topology(allocator);
             defer topo.deinit(allocator);
@@ -562,8 +575,8 @@ pub const Track = struct {
                 topo.input_bounds()
                 orelse return error.InvalidChildTopology
             );
-            if (maybe_bounds) 
-                |b| 
+            if (maybe_bounds)
+                |b|
             {
                 maybe_bounds = opentime.interval.extend(b, it_bound);
             } else {
@@ -573,7 +586,7 @@ pub const Track = struct {
 
         // unpack the optional
         const result_bound:opentime.ContinuousInterval = (
-            maybe_bounds 
+            maybe_bounds
             orelse return .empty
         );
 
@@ -649,6 +662,10 @@ pub const Stack = struct {
     /// Optional name, for labelling and human readability.
     maybe_name: ?string.latin_s8 = null,
 
+    /// Optional bounds in seconds. If present, overrides bounds computed from
+    /// children.
+    maybe_bounds_s: ?opentime.ContinuousInterval = null,
+
     /// Child objects of the Stack (for example, tracks).  Children are listed
     /// in compositing order, with later children coming "above" earlier
     /// entries.
@@ -689,19 +706,32 @@ pub const Stack = struct {
     pub fn topology_pres_to_intrinsic(
         self: @This(),
         allocator: std.mem.Allocator,
-    ) !topology_m.Topology 
+    ) !topology_m.Topology
     {
-        // build the bounds
+        // If explicit bounds are provided, use them
+        if (self.maybe_bounds_s) 
+            |explicit_bounds| 
+        {
+            return try topology_m.Topology.init_affine(
+                allocator,
+                .{
+                    .input_bounds_val = explicit_bounds,
+                    .input_to_output_xform = .identity,
+                }
+            );
+        }
+
+        // Otherwise, build the bounds from children
         var bounds: ?opentime.ContinuousInterval = null;
-        for (self.children) 
-            |it| 
+        for (self.children)
+            |it|
         {
             const it_bound = (
                 (try it.spanning_topology(allocator)).input_bounds()
                 orelse return error.InvalidChildTopology
             );
-            if (bounds) 
-                |b| 
+            if (bounds)
+                |b|
             {
                 bounds = opentime.interval.extend(b, it_bound);
             } else {
@@ -709,12 +739,12 @@ pub const Stack = struct {
             }
         }
 
-        if (bounds) 
-            |b| 
+        if (bounds)
+            |b|
         {
             return try topology_m.Topology.init_affine(
                 allocator,
-                .{ 
+                .{
                     .input_bounds_val = b,
                     .input_to_output_xform = .identity,
                 }
