@@ -1,6 +1,42 @@
-{
-    .schema_version = 1,
-    .children = [],
-    .presentation_space_discrete_partitions = {},
-    .name = "Linear Accel",
-}
+.schema_version = 1,
+.name = "Linear Accel",
+.children = [
+    track {
+        .name = "Track-001",
+        .children = [
+            warp {
+                .name = "Linear Accel",
+                .child = clip {
+                    .name = "Clip-001",
+                    .bounds_s = discrete [
+                        0,
+                        3,
+                    ],
+                    .media = {
+                        .data_reference = null {},
+                        .domain = picture {},
+                        .discrete_partition = {
+                            .sample_rate_hz = Int 24,
+                            .start_index = 0,
+                        },
+                    },
+                },
+                .transform = {
+                    .mappings = [
+                        affine {
+                            .input_bounds_val = [
+                                -inf,
+                                inf,
+                            ],
+                            .input_to_output_xform = {
+                                .offset = 0.0,
+                                .scale = -2.0,
+                            },
+                        },
+                    ],
+                },
+            },
+        ],
+    },
+],
+.presentation_space_discrete_partitions = {},

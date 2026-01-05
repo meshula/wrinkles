@@ -1,6 +1,56 @@
-{
-    .schema_version = 1,
-    .children = [],
-    .presentation_space_discrete_partitions = {},
-    .name = "Linear Curve",
-}
+.schema_version = 1,
+.name = "Linear Curve",
+.children = [
+    track {
+        .name = "Track-001",
+        .children = [
+            warp {
+                .name = "Linear Curve",
+                .child = clip {
+                    .name = "Clip-001",
+                    .bounds_s = discrete [
+                        0,
+                        10,
+                    ],
+                    .media = {
+                        .data_reference = null {},
+                        .domain = picture {},
+                        .discrete_partition = {
+                            .sample_rate_hz = Int 1,
+                            .start_index = 0,
+                        },
+                    },
+                },
+                .transform = {
+                    .mappings = [
+                        linear {
+                            .input_bounds_val = [
+                                0.0,
+                                2.0,
+                            ],
+                            .knots = [
+                                [
+                                    0.0,
+                                    0.0,
+                                ],
+                                [
+                                    1.0,
+                                    1.0,
+                                ],
+                                [
+                                    1.25,
+                                    1.6,
+                                ],
+                                [
+                                    2.0,
+                                    4.0,
+                                ],
+                            ],
+                        },
+                    ],
+                },
+            },
+        ],
+    },
+],
+.presentation_space_discrete_partitions = {},
