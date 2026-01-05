@@ -124,6 +124,10 @@ pub const Clip = struct {
     /// Information about the media this clip cuts into the track.
     media: MediaReference,
 
+    /// Optional metadata as raw JSON value (from OTIO JSON parsing).
+    /// Will be serialized to ziggy format and stored in Timeline's metadata_map.
+    maybe_metadata_json: ?std.json.Value = null,
+
     /// Clips provide a `media` space in addition to the `presentation` space.
     ///
     /// The media space is defined by the media reference.
@@ -377,7 +381,32 @@ pub const Transition = struct {
         allocator: std.mem.Allocator,
     ) !topology_m.Topology
     {
-        return self.container.topology_pres_to_intrinsic(allocator);
+        // If explicit bounds are provided, use them
+        if (self.maybe_bounds_s)
+            |explicit_bounds|
+        {
+            return try topology_m.Topology.init_affine(
+                allocator,
+                .{
+                    .input_bounds_val = explicit_bounds,
+                    .input_to_output_xform = .identity,
+                }
+            );
+        }
+        // Try to get topology from container
+        const container_topo = try self.container.topology_pres_to_intrinsic(allocator);
+        // If container topology is empty (no children and no bounds),
+        // return a zero-duration identity topology
+        if (container_topo.input_bounds() == null) {
+            return try topology_m.Topology.init_identity(
+                allocator,
+                opentime.ContinuousInterval.from_start_duration(
+                    .zero,
+                    .zero,
+                ),
+            );
+        }
+        return container_topo;
     }
 
     /// Clear the memory of self and any child objects.
@@ -750,7 +779,16 @@ pub const Stack = struct {
                 }
             );
         } else {
-            return .empty;
+            // No children and no explicit bounds - return zero-duration identity
+            // instead of empty topology to avoid InvalidChildTopology errors
+            // when this stack is used as a child of another container
+            return try topology_m.Topology.init_identity(
+                allocator,
+                opentime.ContinuousInterval.from_start_duration(
+                    .zero,
+                    .zero,
+                ),
+            );
         }
     }
 

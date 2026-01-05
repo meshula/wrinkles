@@ -5,6 +5,7 @@ struct Timeline {
     name: ?bytes,
     children: []Composable,
     presentation_space_discrete_partitions: DiscretePartitionDomainMap,
+    metadata_map: map[any],
 }
 
 struct DiscretePartitionDomainMap {
@@ -63,6 +64,7 @@ struct Clip {
     name: ?bytes,
     bounds_s: ?Bounds,
     media: MediaReference,
+    metadata_hash: ?bytes,
 }
 
 struct MediaReference {

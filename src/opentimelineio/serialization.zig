@@ -110,6 +110,8 @@ pub const SerializableClip = struct {
     name: ?[]const u8 = null,
     bounds_s: ?SerializableBounds = null,
     media: SerializableMediaReference,
+    /// MD5 hash key referencing an entry in the Timeline's metadata_map
+    metadata_hash: ?[]const u8 = null,
 };
 
 /// Serializable variant of Gap
@@ -161,6 +163,10 @@ pub const SerializableComposable = union(enum) {
                     |name|
                 {
                     allocator.free(name);
+                }
+                // Free metadata hash key (the value is in Timeline's metadata_map)
+                if (clip.metadata_hash) |hash_key| {
+                    allocator.free(hash_key);
                 }
             },
             .gap => |gap| {
@@ -263,6 +269,12 @@ pub const SerializableDiscretePartitionDomainMap = struct {
     audio: ?SerializableSampleIndexGenerator = null,
 };
 
+/// Metadata value type using ziggy's dynamic system for flexible nested data
+pub const MetadataValue = ziggy.dynamic.Value;
+
+/// Metadata map type - maps string keys to dynamic values
+pub const MetadataMap = ziggy.dynamic.Map(MetadataValue);
+
 /// Serializable variant of Timeline (root type)
 pub const SerializableTimeline = struct {
     pub const schema_name: []const u8 = "Timeline";
@@ -271,6 +283,9 @@ pub const SerializableTimeline = struct {
     name: ?[]const u8 = null,
     children: []SerializableComposable,
     presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
+    /// Maps metadata hash keys to their metadata dictionaries.
+    /// Optional so empty maps can be omitted from serialization.
+    metadata_map: ?MetadataMap = null,
 
     pub fn deinit(
         self: *@This(),
@@ -289,6 +304,11 @@ pub const SerializableTimeline = struct {
             child.deinit(allocator);
         }
         allocator.free(self.children);
+
+        // Metadata map keys and values are managed by ziggy's arena
+        if (self.metadata_map) |*mm| {
+            mm.fields.deinit(allocator);
+        }
     }
 };
 
@@ -308,6 +328,130 @@ pub const SerializableBezierCurve = struct {
 /// Knots are [][2]f64 (array of control points)
 pub const SerializableLinearCurve = struct {
     knots: [][2]f64,  // Array of control points
+};
+
+// ----------------------------------------------------------------------------
+// Metadata Conversion Context
+// ----------------------------------------------------------------------------
+
+/// Context for accumulating metadata during serialization.
+/// Clips reference their metadata by MD5 hash key, and the actual data is stored
+/// in the Timeline's metadata_map.
+pub const MetadataContext = struct {
+    allocator: Allocator,
+    metadata_map: *MetadataMap,
+
+    /// Convert std.json.Value to MetadataValue (ziggy dynamic value)
+    pub fn jsonToMetadataValue(
+        self: *MetadataContext,
+        json_val: std.json.Value,
+    ) !MetadataValue {
+        return switch (json_val) {
+            .null => .null,
+            .bool => |b| .{ .bool = b },
+            .integer => |i| .{ .integer = i },
+            .float => |f| .{ .float = f },
+            .string => |s| .{ .bytes = try self.allocator.dupe(u8, s) },
+            .array => |arr| {
+                var result = try self.allocator.alloc(MetadataValue, arr.items.len);
+                for (arr.items, 0..) |item, i| {
+                    result[i] = try self.jsonToMetadataValue(item);
+                }
+                return .{ .array = result };
+            },
+            .object => |obj| {
+                var result_map: MetadataMap = .{};
+                var iter = obj.iterator();
+                while (iter.next()) |entry| {
+                    const key = try self.allocator.dupe(u8, entry.key_ptr.*);
+                    const val = try self.jsonToMetadataValue(entry.value_ptr.*);
+                    try result_map.fields.put(self.allocator, key, val);
+                }
+                return .{ .kv = result_map };
+            },
+            .number_string => |s| .{ .bytes = try self.allocator.dupe(u8, s) },
+        };
+    }
+
+    /// Recursively serialize JSON to bytes for hashing (simple format).
+    fn serializeJsonForHash(
+        self: *MetadataContext,
+        json_val: std.json.Value,
+        writer: anytype,
+    ) void {
+        switch (json_val) {
+            .null => writer.writeAll("null") catch {},
+            .bool => |b| writer.print("{}", .{b}) catch {},
+            .integer => |i| writer.print("{}", .{i}) catch {},
+            .float => |f| writer.print("{d}", .{f}) catch {},
+            .string => |s| {
+                writer.writeAll("\"") catch {};
+                writer.writeAll(s) catch {};
+                writer.writeAll("\"") catch {};
+            },
+            .number_string => |s| writer.writeAll(s) catch {},
+            .array => |arr| {
+                writer.writeAll("[") catch {};
+                for (arr.items, 0..) |item, i| {
+                    if (i > 0) writer.writeAll(",") catch {};
+                    self.serializeJsonForHash(item, writer);
+                }
+                writer.writeAll("]") catch {};
+            },
+            .object => |obj| {
+                writer.writeAll("{") catch {};
+                var iter = obj.iterator();
+                var first = true;
+                while (iter.next()) |entry| {
+                    if (!first) writer.writeAll(",") catch {};
+                    first = false;
+                    writer.writeAll("\"") catch {};
+                    writer.writeAll(entry.key_ptr.*) catch {};
+                    writer.writeAll("\":") catch {};
+                    self.serializeJsonForHash(entry.value_ptr.*, writer);
+                }
+                writer.writeAll("}") catch {};
+            },
+        }
+    }
+
+    /// Add metadata to the map and return its MD5 hash key.
+    /// If metadata with the same hash already exists, just returns the existing key.
+    pub fn addMetadata(
+        self: *MetadataContext,
+        json_val: std.json.Value,
+    ) ![]const u8 {
+        // Serialize JSON to string for hashing
+        var hash_buffer: [32 * 1024]u8 = undefined;
+        var stream = std.io.fixedBufferStream(&hash_buffer);
+        self.serializeJsonForHash(json_val, stream.writer());
+        const json_bytes = stream.getWritten();
+
+        // Compute hash using std.hash (Wyhash)
+        const hash = std.hash.Wyhash.hash(0, json_bytes);
+
+        // Convert to hex string (16 chars for u64)
+        const hash_str = try self.allocator.alloc(u8, 16);
+        const hex_chars = "0123456789abcdef";
+        inline for (0..8) |i| {
+            const byte: u8 = @truncate(hash >> @intCast((7 - i) * 8));
+            hash_str[i * 2] = hex_chars[byte >> 4];
+            hash_str[i * 2 + 1] = hex_chars[byte & 0x0f];
+        }
+
+        // Check if this metadata already exists
+        if (self.metadata_map.fields.getKey(hash_str)) |existing_key| {
+            // Already exists, free the duplicate key and return existing
+            self.allocator.free(hash_str);
+            return try self.allocator.dupe(u8, existing_key);
+        }
+
+        // Convert and store metadata
+        const meta_val = try self.jsonToMetadataValue(json_val);
+        try self.metadata_map.fields.put(self.allocator, hash_str, meta_val);
+
+        return hash_str;
+    }
 };
 
 // ----------------------------------------------------------------------------
@@ -678,8 +822,17 @@ pub fn mapping_to_serializable(
 pub fn clip_to_serializable(
     allocator: Allocator,
     clip: schema.Clip,
+    maybe_meta_ctx: ?*MetadataContext,
 ) !SerializableClip
 {
+    // Handle metadata if present and context provided
+    const metadata_hash: ?[]const u8 = if (clip.maybe_metadata_json) |json_meta| blk: {
+        if (maybe_meta_ctx) |meta_ctx| {
+            break :blk try meta_ctx.addMetadata(json_meta);
+        }
+        break :blk null;
+    } else null;
+
     return .{
         .name = try copy_optional_string(allocator, clip.maybe_name),
         .bounds_s = optional_bounds_to_serializable(
@@ -687,6 +840,7 @@ pub fn clip_to_serializable(
             clip.media.maybe_discrete_partition,
         ),
         .media = try media_reference_to_serializable(allocator, clip.media),
+        .metadata_hash = metadata_hash,
     };
 }
 
@@ -704,12 +858,13 @@ pub fn gap_to_serializable(
 pub fn warp_to_serializable(
     allocator: Allocator,
     warp: schema.Warp,
+    maybe_meta_ctx: ?*MetadataContext,
 ) !SerializableWarp
 {
     const ser_warp_ptr = try allocator.create(SerializableWarp);
     ser_warp_ptr.* = .{
         .name = try copy_optional_string(allocator, warp.maybe_name),
-        .child = try composable_to_serializable(allocator, warp.child),
+        .child = try composable_to_serializable(allocator, warp.child, maybe_meta_ctx),
         .transform = try topology_to_serializable(allocator, warp.transform),
     };
     return ser_warp_ptr.*;
@@ -718,6 +873,7 @@ pub fn warp_to_serializable(
 pub fn track_to_serializable(
     allocator: Allocator,
     track: schema.Track,
+    maybe_meta_ctx: ?*MetadataContext,
 ) !SerializableTrack
 {
     const ser_children = try allocator.alloc(SerializableComposable, track.children.len);
@@ -725,7 +881,7 @@ pub fn track_to_serializable(
     for (track.children, 0..)
         |child, i|
     {
-        ser_children[i] = (try composable_to_serializable(allocator, child)).*;
+        ser_children[i] = (try composable_to_serializable(allocator, child, maybe_meta_ctx)).*;
     }
 
     return .{
@@ -737,6 +893,7 @@ pub fn track_to_serializable(
 pub fn stack_to_serializable(
     allocator: Allocator,
     stack: schema.Stack,
+    maybe_meta_ctx: ?*MetadataContext,
 ) !SerializableStack
 {
     const ser_children = try allocator.alloc(SerializableComposable, stack.children.len);
@@ -744,7 +901,7 @@ pub fn stack_to_serializable(
     for (stack.children, 0..)
         |child, i|
     {
-        ser_children[i] = (try composable_to_serializable(allocator, child)).*;
+        ser_children[i] = (try composable_to_serializable(allocator, child, maybe_meta_ctx)).*;
     }
 
     return .{
@@ -756,11 +913,12 @@ pub fn stack_to_serializable(
 pub fn transition_to_serializable(
     allocator: Allocator,
     transition: schema.Transition,
+    maybe_meta_ctx: ?*MetadataContext,
 ) !SerializableTransition
 {
     return .{
         .name = try copy_optional_string(allocator, transition.maybe_name),
-        .container = try stack_to_serializable(allocator, transition.container),
+        .container = try stack_to_serializable(allocator, transition.container, maybe_meta_ctx),
         .kind = try copy_string(allocator, transition.kind),
         .bounds_s = optional_interval_to_serializable(transition.maybe_bounds_s),
     };
@@ -769,27 +927,28 @@ pub fn transition_to_serializable(
 pub fn composable_to_serializable(
     allocator: Allocator,
     handle: schema.references.CompositionItemHandle,
+    maybe_meta_ctx: ?*MetadataContext,
 ) error{OutOfMemory}!*SerializableComposable
 {
     const result_ptr = try allocator.create(SerializableComposable);
     result_ptr.* = switch (handle) {
         .clip => |clip_ptr| .{
-            .clip = try clip_to_serializable(allocator, clip_ptr.*),
+            .clip = try clip_to_serializable(allocator, clip_ptr.*, maybe_meta_ctx),
         },
         .gap => |gap_ptr| .{
             .gap = try gap_to_serializable(allocator, gap_ptr.*),
         },
         .track => |track_ptr| .{
-            .track = try track_to_serializable(allocator, track_ptr.*),
+            .track = try track_to_serializable(allocator, track_ptr.*, maybe_meta_ctx),
         },
         .stack => |stack_ptr| .{
-            .stack = try stack_to_serializable(allocator, stack_ptr.*),
+            .stack = try stack_to_serializable(allocator, stack_ptr.*, maybe_meta_ctx),
         },
         .warp => |warp_ptr| .{
-            .warp = try warp_to_serializable(allocator, warp_ptr.*),
+            .warp = try warp_to_serializable(allocator, warp_ptr.*, maybe_meta_ctx),
         },
         .transition => |trans_ptr| .{
-            .transition = try transition_to_serializable(allocator, trans_ptr.*),
+            .transition = try transition_to_serializable(allocator, trans_ptr.*, maybe_meta_ctx),
         },
         .timeline => unreachable, // Timeline is not a composable child
     };
@@ -801,13 +960,20 @@ pub fn timeline_to_serializable(
     timeline: *schema.Timeline,
 ) !SerializableTimeline
 {
+    // Create metadata map and context for accumulating clip metadata
+    var metadata_map: MetadataMap = .{};
+    var meta_ctx = MetadataContext{
+        .allocator = allocator,
+        .metadata_map = &metadata_map,
+    };
+
     // Convert tracks.children directly to timeline.children
     const ser_children = try allocator.alloc(SerializableComposable, timeline.tracks.children.len);
 
     for (timeline.tracks.children, 0..)
         |child, i|
     {
-        ser_children[i] = (try composable_to_serializable(allocator, child)).*;
+        ser_children[i] = (try composable_to_serializable(allocator, child, &meta_ctx)).*;
     }
 
     return .{
@@ -817,6 +983,8 @@ pub fn timeline_to_serializable(
             .picture = optional_sig_to_serializable(timeline.discrete_space_partitions.presentation.picture),
             .audio = optional_sig_to_serializable(timeline.discrete_space_partitions.presentation.audio),
         },
+        // Only include metadata_map if it has entries
+        .metadata_map = if (metadata_map.fields.count() > 0) metadata_map else null,
     };
 }
 
@@ -1444,6 +1612,9 @@ pub fn deserialize_timeline(
 /// 2. Converts to SerializableTimeline with schema_version = 0
 /// 3. Upgrades from version 0 to current version
 /// 4. Converts to runtime Schema Timeline
+///
+/// Note: This loses metadata since runtime Schema doesn't store metadata_map.
+/// Use convert_otio_json_to_ziggy() to preserve metadata during conversion.
 pub fn deserialize_timeline_from_otio_json(
     allocator: Allocator,
     json_source: []const u8,
@@ -1479,6 +1650,54 @@ pub fn deserialize_timeline_from_otio_json(
 
     // Convert to runtime Timeline schema
     return try serializable_to_timeline(allocator, ser_timeline);
+}
+
+/// Convert OTIO JSON directly to Ziggy format, preserving metadata.
+///
+/// This function converts OTIO JSON to Ziggy format without going through
+/// the runtime Schema, which would lose metadata. Use this for file conversion
+/// tools like otio_dump_ziggy.
+pub fn convert_otio_json_to_ziggy(
+    allocator: Allocator,
+    json_source: []const u8,
+    writer: anytype,
+) !void
+{
+    // Import the JSON parser module
+    const otio_json = @import("opentimelineio_json.zig");
+
+    // Parse OTIO JSON to runtime Schema (clips contain metadata)
+    var composition_handle = try otio_json.read_from_string(
+        allocator,
+        json_source,
+    );
+    defer composition_handle.deinit(allocator);
+
+    // Ensure it's a Timeline
+    if (composition_handle != .timeline) {
+        return error.NotATimeline;
+    }
+
+    // Convert to SerializableTimeline (metadata is captured here)
+    var ser_timeline = try timeline_to_serializable(
+        allocator,
+        composition_handle.timeline,
+    );
+    defer ser_timeline.deinit(allocator);
+
+    // Mark as version 0 (OTIO JSON source) then upgrade
+    ser_timeline.schema_version = OTIO_JSON_VERSION;
+    try upgrade_timeline_v0_to_v1(allocator, &ser_timeline);
+
+    // Serialize directly to ziggy format
+    try ziggy.stringify(
+        ser_timeline,
+        .{
+            .whitespace = .space_4,
+            .emit_null_fields = false,
+        },
+        writer,
+    );
 }
 
 /// Serialize a Bezier curve to Ziggy format and write to the provided writer.
@@ -1631,8 +1850,8 @@ test "clip serialization: round-trip"
         },
     };
 
-    // Convert to serializable
-    const ser_clip = try clip_to_serializable(allocator, clip);
+    // Convert to serializable (no metadata context for this test)
+    const ser_clip = try clip_to_serializable(allocator, clip, null);
     defer allocator.free(ser_clip.name.?);
     defer allocator.free(ser_clip.media.data_reference.uri.target_uri);
 

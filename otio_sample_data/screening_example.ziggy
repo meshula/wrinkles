@@ -18,6 +18,7 @@
                         .start_index = 0,
                     },
                 },
+                .metadata_hash = "237ac2668ea9b2e8",
             },
             clip {
                 .name = "ZZ100_502A (LAY3)",
@@ -33,6 +34,7 @@
                         .start_index = 0,
                     },
                 },
+                .metadata_hash = "dc063a93ce78b477",
             },
             clip {
                 .name = "ZZ100_503A (LAY1)",
@@ -48,6 +50,7 @@
                         .start_index = 0,
                     },
                 },
+                .metadata_hash = "3e4ee969266f497b",
             },
             clip {
                 .name = "ZZ100_504C (LAY1)",
@@ -63,6 +66,7 @@
                         .start_index = 0,
                     },
                 },
+                .metadata_hash = "ca17ed50b7383c72",
             },
             clip {
                 .name = "ZZ100_504B (LAY1)",
@@ -78,6 +82,7 @@
                         .start_index = 0,
                     },
                 },
+                .metadata_hash = "1564e67f952700e4",
             },
             clip {
                 .name = "ZZ100_507C (LAY2)",
@@ -93,6 +98,7 @@
                         .start_index = 0,
                     },
                 },
+                .metadata_hash = "11b85d60b18e6322",
             },
             clip {
                 .name = "ZZ100_508 (LAY2)",
@@ -108,6 +114,7 @@
                         .start_index = 0,
                     },
                 },
+                .metadata_hash = "c6841c074839bf97",
             },
             clip {
                 .name = "ZZ100_510 (LAY1)",
@@ -123,6 +130,7 @@
                         .start_index = 0,
                     },
                 },
+                .metadata_hash = "695af6814d8f047b",
             },
             clip {
                 .name = "ZZ100_510B (LAY1)",
@@ -138,8 +146,65 @@
                         .start_index = 0,
                     },
                 },
+                .metadata_hash = "2fe52b7e89ad4ebb",
             },
         ],
     },
 ],
 .presentation_space_discrete_partitions = {},
+.metadata_map = {
+    "237ac2668ea9b2e8": {
+        "cmx_3600": {
+            "comments": ["SOURCE FILE: ZZ100_501.LAY3.01"],
+            "reel": "ZZ100_50",
+        },
+    },
+    "dc063a93ce78b477": {
+        "cmx_3600": {
+            "comments": ["SOURCE FILE: ZZ100_502A.LAY3.02"],
+            "reel": "ZZ100_50",
+        },
+    },
+    "3e4ee969266f497b": {
+        "cmx_3600": {
+            "comments": ["SOURCE FILE: ZZ100_503A.LAY1.01"],
+            "reel": "ZZ100_50",
+        },
+    },
+    "ca17ed50b7383c72": {
+        "cmx_3600": {
+            "comments": ["SOURCE FILE: ZZ100_504C.LAY1.02"],
+            "reel": "ZZ100_50",
+        },
+    },
+    "1564e67f952700e4": {
+        "cmx_3600": {
+            "comments": ["SOURCE FILE: ZZ100_504B.LAY1.02"],
+            "reel": "ZZ100_50",
+        },
+    },
+    "11b85d60b18e6322": {
+        "cmx_3600": {
+            "comments": ["SOURCE FILE: ZZ100_507C.LAY2.01"],
+            "reel": "ZZ100_50",
+        },
+    },
+    "c6841c074839bf97": {
+        "cmx_3600": {
+            "comments": ["SOURCE FILE: ZZ100_508.LAY2.02"],
+            "reel": "ZZ100_50",
+        },
+    },
+    "695af6814d8f047b": {
+        "cmx_3600": {
+            "comments": ["SOURCE FILE: ZZ100_510.LAY1.02"],
+            "reel": "ZZ100_51",
+        },
+    },
+    "2fe52b7e89ad4ebb": {
+        "cmx_3600": {
+            "comments": ["AVX2 EFFECT, RESIZE", "SOURCE FILE: ZZ100_510B.LAY1.02"],
+            "reel": "ZZ100_51",
+        },
+    },
+},

@@ -164,14 +164,6 @@ pub fn main(
     );
     defer allocator.free(json_source);
 
-    // Deserialize from OTIO JSON (version 0) and upgrade to current version
-    var timeline_ptr = try serialization.deserialize_timeline_from_otio_json(
-        allocator,
-        json_source,
-    );
-    defer timeline_ptr.deinit(allocator);
-    defer allocator.destroy(timeline_ptr);
-
     read_prog.end();
 
     const build_tree = parent_prog.start(
@@ -189,12 +181,11 @@ pub fn main(
     var file_writer = out_file.writer(&file_writer_buffer);
     const writer = &file_writer.interface;
 
-    // Serialize the timeline using the serialization module
-    try serialization.serialize_timeline(
-        timeline_ptr,
+    // Convert OTIO JSON directly to Ziggy, preserving metadata
+    try serialization.convert_otio_json_to_ziggy(
         allocator,
+        json_source,
         writer,
-        null, // No target version downgrade
     );
 
     _ = try writer.write("\n");

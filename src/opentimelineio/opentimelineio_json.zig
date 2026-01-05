@@ -706,15 +706,24 @@ fn read_otio_object(
 
             const maybe_rate = _read_rate(obj);
 
+            // Read metadata if present (store raw JSON value)
+            const maybe_metadata: ?std.json.Value = if (obj.get("metadata")) |meta_val| blk: {
+                // Only store non-empty metadata objects
+                if (std.meta.activeTag(meta_val) == .object and meta_val.object.count() > 0) {
+                    break :blk meta_val;
+                }
+                break :blk null;
+            } else null;
+
             var cl = try allocator.create(otio.Clip);
             cl.* = .{
                 .maybe_name = maybe_name,
                 .maybe_bounds_s  = range,
                 .media = .null_picture,
+                .maybe_metadata_json = maybe_metadata,
             };
 
             // @TODO: read more of the media reference
-            // @TODO: read metadata
 
             if (maybe_rate)
                 |rate|

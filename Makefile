@@ -33,17 +33,27 @@ docs:
 	@python -m http.server --directory zig-out/docs
 
 # Convert OTIO test files to Ziggy format with latest schema
-convert-test-files:
+# Uses Zig converter for full Timelines, Python converter as fallback for non-Timelines
+convert-test-files: zig-out/bin/otio_dump_ziggy
 	@echo "Converting OTIO files to Ziggy format..."
 	@mkdir -p test_files_ziggy
-	@for f in test_files/*.otio; do \
+	@success=0; failed=0; \
+	for f in test_files/*.otio; do \
 		if [ -f "$$f" ]; then \
 			basename=$$(basename "$$f" .otio); \
 			echo "  Converting $$basename.otio -> $$basename.ziggy"; \
-			python3 otio_to_ziggy.py "$$f" "test_files_ziggy/$${basename}.ziggy"; \
+			if ./zig-out/bin/otio_dump_ziggy "$$f" "test_files_ziggy/$${basename}.ziggy" 2>&1 | grep -q "Wrote:"; then \
+				success=$$((success + 1)); \
+			elif python3 otio_to_ziggy.py "$$f" "test_files_ziggy/$${basename}.ziggy" 2>&1 | grep -q "Converted"; then \
+				echo "    (using Python fallback - no metadata support)"; \
+				success=$$((success + 1)); \
+			else \
+				echo "    FAILED"; \
+				failed=$$((failed + 1)); \
+			fi \
 		fi \
-	done
-	@echo "All files converted successfully!"
+	done; \
+	echo "Conversion complete: $$success succeeded, $$failed failed"
 
 # Convert OpenTimelineIO sample files to Ziggy format using otio_dump_ziggy
 convert-otio-samples: zig-out/bin/otio_dump_ziggy
