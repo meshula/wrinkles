@@ -171,19 +171,27 @@ pub fn ProjectionBuilder(
             const maybe_child_indices = (
                 tree_nodes.items(.child_indices)
             );
+            const space_items = tree.nodes.items(.item);
 
             // for each terminal space, build the topology to transform to that
             // space.  For each mapping in each topology, add the end points
             // for the mapping to the unsorted_vertices list
-            for (codes, maybe_child_indices, 0..)
-                |current_code, maybe_children, current_index|
+            for (codes, maybe_child_indices, space_items, 0..)
+                |current_code, maybe_children, current_item, current_index|
             {
+                // skip terminal spaces that are containers. Containers are
+                // unlikely to contain temporal information.
+                switch (current_item) {
+                    .gap, .clip => {},
+                    else => continue,
+                }
+
                 if (
-                    // only looking for terminal scopes (gaps, clips, etc)
+                    // only looking for terminal scopes (gaps, clips)
                     (maybe_children[0] != null or maybe_children[1] != null)
                     // skip all media spaces that don't have a path to source
                     or source_code.is_prefix_of(current_code) == false
-                ) 
+                )
                 {
                     continue;
                 }
