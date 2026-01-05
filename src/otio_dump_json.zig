@@ -145,6 +145,7 @@ pub fn main(
     var tl_ref = try otio.read_from_file(
         allocator,
         state.input_otio,
+        .{},
     );
     defer tl_ref.deinit(allocator);
 

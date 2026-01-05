@@ -1886,13 +1886,15 @@ pub fn main(
             const timeline = try otio_serialization.deserialize_timeline(
                 STATE.allocator,
                 ziggy_content,
+                .{ .file_contents_to_read = .all_except_metadata },
             );
             STATE.otio_root = .{ .timeline = timeline };
         } else {
-            // Read OTIO JSON file
+            // Read OTIO JSON file - skip metadata for faster visualization
             STATE.otio_root = try otio.read_from_file(
                 STATE.allocator,
                 STATE.target_otio_file,
+                .{ .file_contents_to_read = .all_except_metadata },
             );
         }
 

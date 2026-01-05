@@ -25,6 +25,25 @@ const SerializableObjectTypes = enum {
     Transition,
 };
 
+/// Options for controlling what content is read from OTIO files.
+/// Files are split into two chunks: the temporal hierarchy and the
+/// metadata. This enum controls which parts of the file are read.
+/// For operations that only need temporal data, this can speed up file
+/// reads because production files can contain significant amounts of
+/// metadata.
+pub const FileContentsToRead = enum {
+    /// Read everything (current behavior)
+    all,
+    /// Read everything except the metadata_map field of the top level
+    /// timeline, setting it to null, but skipping the bits.
+    all_except_metadata,
+};
+
+/// Read options for file parsing
+pub const ReadOptions = struct {
+    file_contents_to_read: FileContentsToRead = .all,
+};
+
 const TransformTypes = enum {
     AffineTransform1D,
     LinearCurve1D,
@@ -484,6 +503,7 @@ fn _read_rate(
 inline fn read_children(
     allocator: std.mem.Allocator,
     children: std.json.Value,
+    options: ReadOptions,
 ) error{
     OutOfMemory,
     NotAnOtioSchemaObject,
@@ -520,21 +540,22 @@ inline fn read_children(
     );
 
     var current_index: usize = 0;
-    for (children.array.items) 
-        |track| 
+    for (children.array.items)
+        |track|
     {
         const new_value = read_otio_object(
             allocator,
             track.object,
-        ) catch |err| 
+            options,
+        ) catch |err|
         {
             switch (err) {
                 error.NoSuchSchema => {
                     std.log.err(
                         "Skipping: {s}\n",
-                        .{ 
+                        .{
                             (
-                             track.object.get("OTIO_SCHEMA") 
+                             track.object.get("OTIO_SCHEMA")
                              orelse std.json.Value{.string = ""}
                             ).string
                         }
@@ -552,7 +573,7 @@ inline fn read_children(
 
     // true the allocated size of the slice to the number of children that were
     // readable -- schemas that aren't readable by the zig system get skipped
-    if (current_index != new_children.len) 
+    if (current_index != new_children.len)
     {
         new_children = try allocator.realloc(
             new_children,
@@ -565,7 +586,8 @@ inline fn read_children(
 
 fn read_otio_object(
     allocator: std.mem.Allocator,
-    obj:std.json.ObjectMap
+    obj: std.json.ObjectMap,
+    options: ReadOptions,
 ) error{
     OutOfMemory,
     NoSuchSchema,
@@ -587,7 +609,7 @@ fn read_otio_object(
     MissingField,
     LengthMismatch,
     DuplicateField,
-} !otio.CompositionItemHandle 
+} !otio.CompositionItemHandle
 {
     const schema_enum = try read_schema(
         SerializableObjectTypes,
@@ -597,11 +619,12 @@ fn read_otio_object(
     const maybe_name = try maybe_string(allocator, obj, "name");
 
     switch (schema_enum) {
-        .Timeline => { 
+        .Timeline => {
             const so_stack = (
                 try read_otio_object(
                     allocator,
-                    obj.get("tracks").?.object
+                    obj.get("tracks").?.object,
+                    options,
                 )
             );
             const st = otio.Stack{
@@ -677,6 +700,7 @@ fn read_otio_object(
                 st.children = try read_children(
                     allocator,
                     children,
+                    options,
                 );
             }
 
@@ -695,6 +719,7 @@ fn read_otio_object(
                     tr.children = try read_children(
                         allocator,
                         children,
+                        options,
                     );
                 }
             }
@@ -707,7 +732,10 @@ fn read_otio_object(
             const maybe_rate = _read_rate(obj);
 
             // Read metadata if present (store raw JSON value)
-            const maybe_metadata: ?std.json.Value = if (obj.get("metadata")) |meta_val| blk: {
+            // Skip if options specify all_except_metadata
+            const maybe_metadata: ?std.json.Value = if (options.file_contents_to_read == .all_except_metadata)
+                null
+            else if (obj.get("metadata")) |meta_val| blk: {
                 // Only store non-empty metadata objects
                 if (std.meta.activeTag(meta_val) == .object and meta_val.object.count() > 0) {
                     break :blk meta_val;
@@ -751,7 +779,8 @@ fn read_otio_object(
                 .maybe_name = maybe_name,
                 .child = try read_otio_object(
                     allocator,
-                    obj.get("child").?.object
+                    obj.get("child").?.object,
+                    options,
                 ),
                 .transform = try read_transform(
                     allocator,
@@ -763,9 +792,9 @@ fn read_otio_object(
 
             return .{ .warp = wp };
         },
-        // else => { 
+        // else => {
         //     errdefer std.log.err("Not implemented yet: {s}\n", .{ schema_str });
-        //     return error.NotImplemented; 
+        //     return error.NotImplemented;
         // }
         .Transition => {
             const tx = try allocator.create(otio.Transition);
@@ -775,6 +804,7 @@ fn read_otio_object(
                 const container_json = try read_otio_object(
                     allocator,
                     container_value.object,
+                    options,
                 );
                 const result = otio.Stack {
                     .maybe_name = container_json.stack.maybe_name,
@@ -814,6 +844,7 @@ fn read_otio_object(
 pub fn read_from_file(
     in_allocator: std.mem.Allocator,
     file_path: string.latin_s8,
+    options: ReadOptions,
 ) !otio.CompositionItemHandle
 {
     // Check file extension to determine format
@@ -840,6 +871,7 @@ pub fn read_from_file(
         const timeline = try serialization.deserialize_timeline(
             in_allocator,
             source,
+            options,
         );
 
         return .{ .timeline = timeline };
@@ -868,6 +900,7 @@ pub fn read_from_file(
     return try read_otio_object(
         in_allocator,
         result.object,
+        options,
     );
 }
 
@@ -875,6 +908,7 @@ pub fn read_from_file(
 pub fn read_from_string(
     in_allocator: std.mem.Allocator,
     json_source: []const u8,
+    options: ReadOptions,
 ) !otio.CompositionItemHandle
 {
     var arena = std.heap.ArenaAllocator.init(in_allocator);
@@ -888,10 +922,10 @@ pub fn read_from_string(
         .{},
     );
 
-    return read_otio_object(in_allocator, result.object);
+    return read_otio_object(in_allocator, result.object, options);
 }
 
-test "read_from_file test (simple)" 
+test "read_from_file test (simple)"
 {
     const allocator = std.testing.allocator;
 
@@ -902,6 +936,7 @@ test "read_from_file test (simple)"
     var tl_ref = try read_from_file(
         std.testing.allocator,
         "sample_otio_files/"++otio_fpath,
+        .{},
     );
     defer  tl_ref.deinit(allocator); 
 
@@ -963,6 +998,87 @@ test "read_from_file test (multiple, smoke)"
     var tl = try read_from_file(
         std.testing.allocator,
         "sample_otio_files/"++otio_fpath,
+        .{},
     );
-    defer  tl.deinit(allocator); 
+    defer  tl.deinit(allocator);
+}
+
+test "read_from_file with all_except_metadata option"
+{
+    const allocator = std.testing.allocator;
+
+    // Test reading a ziggy file with metadata
+    const ziggy_file = "otio_sample_data/simple_cut.ziggy";
+
+    // Read with all content
+    var tl_all = try read_from_file(
+        allocator,
+        ziggy_file,
+        .{ .file_contents_to_read = .all },
+    );
+    defer tl_all.deinit(allocator);
+
+    // Read with metadata skipped
+    var tl_no_meta = try read_from_file(
+        allocator,
+        ziggy_file,
+        .{ .file_contents_to_read = .all_except_metadata },
+    );
+    defer tl_no_meta.deinit(allocator);
+
+    // Both should have the same structure
+    try expectEqual(
+        tl_all.timeline.tracks.children.len,
+        tl_no_meta.timeline.tracks.children.len,
+    );
+
+    // Both timelines should have the same name
+    if (tl_all.timeline.maybe_name) |name_all| {
+        try std.testing.expect(tl_no_meta.timeline.maybe_name != null);
+        try std.testing.expectEqualStrings(name_all, tl_no_meta.timeline.maybe_name.?);
+    }
+}
+
+test "read_from_file with all_except_metadata on OTIO JSON file"
+{
+    const allocator = std.testing.allocator;
+
+    const otio_file = "sample_otio_files/simple_cut.otio";
+
+    // Read with all content
+    var tl_all = try read_from_file(
+        allocator,
+        otio_file,
+        .{ .file_contents_to_read = .all },
+    );
+    defer tl_all.deinit(allocator);
+
+    // Read with metadata skipped
+    var tl_no_meta = try read_from_file(
+        allocator,
+        otio_file,
+        .{ .file_contents_to_read = .all_except_metadata },
+    );
+    defer tl_no_meta.deinit(allocator);
+
+    // Both should have the same structure
+    try expectEqual(
+        tl_all.timeline.tracks.children.len,
+        tl_no_meta.timeline.tracks.children.len,
+    );
+
+    // Check clips in both still have names
+    const track_all = tl_all.timeline.tracks.children[0].track;
+    const track_no_meta = tl_no_meta.timeline.tracks.children[0].track;
+
+    try expectEqual(track_all.children.len, track_no_meta.children.len);
+
+    // First clip should have the same name in both
+    if (track_all.children[0].clip.maybe_name) |name| {
+        try std.testing.expect(track_no_meta.children[0].clip.maybe_name != null);
+        try std.testing.expectEqualStrings(name, track_no_meta.children[0].clip.maybe_name.?);
+    }
+
+    // However, for JSON files, the clip's metadata should be null when skipped
+    // (Note: In this simple test file, clips may not have metadata anyway)
 }

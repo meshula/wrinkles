@@ -121,10 +121,11 @@ pub fn main(
             );
         }
 
-        // read the file
+        // read the file - skip metadata for faster reads
         var tl_ref = try otio.read_from_file(
             allocator,
             filepath,
+            .{ .file_contents_to_read = .all_except_metadata },
         );
         defer tl_ref.deinit(allocator);
 

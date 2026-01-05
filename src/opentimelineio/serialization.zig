@@ -20,8 +20,12 @@ const domain = @import("domain.zig");
 const string = @import("string_stuff");
 const ziggy = @import("ziggy");
 const versioning = @import("versioning.zig");
+const otio_json = @import("opentimelineio_json.zig");
 
 const Allocator = std.mem.Allocator;
+
+/// Re-export ReadOptions for convenience
+pub const ReadOptions = otio_json.ReadOptions;
 
 // Re-export curve control point for convenience
 const CurveControlPoint = curve.ControlPoint;
@@ -309,6 +313,58 @@ pub const SerializableTimeline = struct {
         if (self.metadata_map) |*mm| {
             mm.fields.deinit(allocator);
         }
+    }
+};
+
+/// Variant of SerializableTimeline that skips metadata_map during parsing.
+/// Used when ReadOptions.file_contents_to_read == .all_except_metadata.
+/// This uses ziggy's skip_fields feature to completely skip parsing the
+/// metadata_map field, providing significant performance gains for large files.
+pub const SerializableTimelineNoMetadata = struct {
+    pub const schema_name: []const u8 = "Timeline";
+
+    /// Tell ziggy parser to skip the metadata_map field entirely
+    pub const ziggy_options = .{
+        .skip_fields = &[_]std.meta.FieldEnum(@This()){ .metadata_map },
+    };
+
+    schema_version: u32 = versioning.current_version("Timeline"),
+    name: ?[]const u8 = null,
+    children: []SerializableComposable,
+    presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
+    /// This field will be skipped during parsing (always null when using this type)
+    metadata_map: ?MetadataMap = null,
+
+    pub fn deinit(
+        self: *@This(),
+        allocator: Allocator,
+    ) void
+    {
+        if (self.name)
+            |name|
+        {
+            allocator.free(name);
+        }
+
+        for (self.children)
+            |*child|
+        {
+            child.deinit(allocator);
+        }
+        allocator.free(self.children);
+
+        // metadata_map is always null when using this type
+    }
+
+    /// Convert to SerializableTimeline for use with existing code
+    pub fn toSerializableTimeline(self: @This()) SerializableTimeline {
+        return .{
+            .schema_version = self.schema_version,
+            .name = self.name,
+            .children = self.children,
+            .presentation_space_discrete_partitions = self.presentation_space_discrete_partitions,
+            .metadata_map = null, // Always null
+        };
     }
 };
 
@@ -1555,54 +1611,100 @@ pub fn serialize_timeline(
 ///
 /// Automatically detects the version in the file and upgrades to the current
 /// version if needed (requires registered upgrade functions).
+///
+/// If options.file_contents_to_read is .all_except_metadata, the metadata_map
+/// field will be completely skipped during parsing using ziggy's skip_fields
+/// feature. This provides significant performance gains for large files with
+/// extensive metadata.
 pub fn deserialize_timeline(
     allocator: Allocator,
     source: [:0]const u8,
+    options: ReadOptions,
 ) !*schema.Timeline
 {
-    // Use ziggy to deserialize
-    var ser_timeline = try ziggy.parseLeaky(
-        SerializableTimeline,
-        allocator,
-        source,
-        .{},
-    );
-    defer ser_timeline.deinit(allocator);
-
-    // Check version and upgrade if needed
-    const current_ver = versioning.current_version("Timeline");
-    if (ser_timeline.schema_version < current_ver)
-    {
-        // Try to get global registry and upgrade
-        const registry = versioning.get_global_registry(allocator) catch |err| {
-            // If registry doesn't exist or fails, log and continue with current version
-            std.log.warn(
-                "Failed to get version registry for upgrade: {}. " ++
-                "Loading Timeline at version {} without upgrading to {}.",
-                .{ err, ser_timeline.schema_version, current_ver }
-            );
-            return try serializable_to_timeline(allocator, ser_timeline);
-        };
-
-        // Attempt upgrade
-        registry.upgrade(
+    // Use different types based on whether we want metadata
+    if (options.file_contents_to_read == .all_except_metadata) {
+        // Use the no-metadata variant that skips parsing metadata_map entirely
+        var ser_timeline_no_meta = try ziggy.parseLeaky(
+            SerializableTimelineNoMetadata,
             allocator,
-            "Timeline",
-            &ser_timeline,
-            ser_timeline.schema_version,
-            current_ver,
-        ) catch |err| {
-            // If upgrade fails, log warning and continue
-            std.log.warn(
-                "Failed to upgrade Timeline from version {} to {}: {}. " ++
-                "Loading at original version.",
-                .{ ser_timeline.schema_version, current_ver, err }
-            );
-        };
-    }
+            source,
+            .{},
+        );
+        defer ser_timeline_no_meta.deinit(allocator);
 
-    // Convert to schema format
-    return try serializable_to_timeline(allocator, ser_timeline);
+        // Convert to regular SerializableTimeline for processing
+        var ser_timeline = ser_timeline_no_meta.toSerializableTimeline();
+
+        // Check version and upgrade if needed
+        const current_ver = versioning.current_version("Timeline");
+        if (ser_timeline.schema_version < current_ver)
+        {
+            const registry = versioning.get_global_registry(allocator) catch |err| {
+                std.log.warn(
+                    "Failed to get version registry for upgrade: {}. " ++
+                    "Loading Timeline at version {} without upgrading to {}.",
+                    .{ err, ser_timeline.schema_version, current_ver }
+                );
+                return try serializable_to_timeline(allocator, ser_timeline);
+            };
+
+            registry.upgrade(
+                allocator,
+                "Timeline",
+                &ser_timeline,
+                ser_timeline.schema_version,
+                current_ver,
+            ) catch |err| {
+                std.log.warn(
+                    "Failed to upgrade Timeline from version {} to {}: {}. " ++
+                    "Loading at original version.",
+                    .{ ser_timeline.schema_version, current_ver, err }
+                );
+            };
+        }
+
+        return try serializable_to_timeline(allocator, ser_timeline);
+    } else {
+        // Use regular SerializableTimeline that parses everything
+        var ser_timeline = try ziggy.parseLeaky(
+            SerializableTimeline,
+            allocator,
+            source,
+            .{},
+        );
+        defer ser_timeline.deinit(allocator);
+
+        // Check version and upgrade if needed
+        const current_ver = versioning.current_version("Timeline");
+        if (ser_timeline.schema_version < current_ver)
+        {
+            const registry = versioning.get_global_registry(allocator) catch |err| {
+                std.log.warn(
+                    "Failed to get version registry for upgrade: {}. " ++
+                    "Loading Timeline at version {} without upgrading to {}.",
+                    .{ err, ser_timeline.schema_version, current_ver }
+                );
+                return try serializable_to_timeline(allocator, ser_timeline);
+            };
+
+            registry.upgrade(
+                allocator,
+                "Timeline",
+                &ser_timeline,
+                ser_timeline.schema_version,
+                current_ver,
+            ) catch |err| {
+                std.log.warn(
+                    "Failed to upgrade Timeline from version {} to {}: {}. " ++
+                    "Loading at original version.",
+                    .{ ser_timeline.schema_version, current_ver, err }
+                );
+            };
+        }
+
+        return try serializable_to_timeline(allocator, ser_timeline);
+    }
 }
 
 /// Deserialize a Timeline from OTIO JSON format (.otio files)
@@ -1620,13 +1722,11 @@ pub fn deserialize_timeline_from_otio_json(
     json_source: []const u8,
 ) !*schema.Timeline
 {
-    // Import the JSON parser module
-    const otio_json = @import("opentimelineio_json.zig");
-
     // Parse OTIO JSON to runtime Schema
     var composition_handle = try otio_json.read_from_string(
         allocator,
         json_source,
+        .{},
     );
     defer composition_handle.deinit(allocator);
 
@@ -1666,13 +1766,11 @@ pub fn convert_otio_json_to_ziggy(
     writer: anytype,
 ) !void
 {
-    // Import the JSON parser module
-    const otio_json = @import("opentimelineio_json.zig");
-
     // Parse OTIO JSON to runtime Schema (clips contain metadata)
     var composition_handle = try otio_json.read_from_string(
         allocator,
         json_source,
+        .{},
     );
     defer composition_handle.deinit(allocator);
 
@@ -2079,6 +2177,7 @@ test "timeline serialization: ziggy round-trip"
     const loaded_timeline = try deserialize_timeline(
         allocator,
         source,
+        .{},
     );
     defer allocator.destroy(loaded_timeline);
     defer loaded_timeline.deinit(allocator);

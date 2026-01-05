@@ -95,6 +95,7 @@ pub export fn otio_read_from_file(
     const result = otio.read_from_file(
         allocator,
         filepath,
+        .{},
     ) catch |err| {
         std.log.err(
             "couldn't read file: '{s}', error: {any}\n",
