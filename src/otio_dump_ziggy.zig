@@ -4,6 +4,7 @@ const ziggy = @import("ziggy");
 
 const string = @import("string_stuff");
 const otio = @import("opentimelineio");
+const serialization = otio.serialization;
 
 const builtin = @import("builtin");
 
@@ -78,17 +79,24 @@ fn _parse_args(
 /// Usage message for argument parsing.
 pub fn usage(
     msg: []const u8,
-) void 
+) void
 {
     std.debug.print(
         \\
-        \\Parse the .otio file into the wrinkles and serialize it as ziggy
+        \\otio_dump_ziggy - Convert OTIO JSON files to Ziggy format
         \\
-        \\usage:
-        \\  otio_dump_ziggy path/to/somefile.otio path/to/output.ziggy
+        \\Converts OpenTimelineIO files from the original JSON format (.otio)
+        \\to wrinkles' native Ziggy serialization format (.ziggy).
         \\
-        \\arguments:
-        \\  -h --help: print this message and exit
+        \\Usage:
+        \\  otio_dump_ziggy <input.otio> <output.ziggy>
+        \\
+        \\Arguments:
+        \\  <input.otio>    Path to the source OTIO JSON file
+        \\  <output.ziggy>  Path for the converted Ziggy output file
+        \\
+        \\Options:
+        \\  -h, --help      Print this message and exit
         \\
         \\{s}
         , .{msg}
@@ -143,12 +151,26 @@ pub fn main(
         );
     }
 
-    // read the file
-    var tl_ref = try otio.read_from_file(
+    // Read the file content
+    const file = try std.fs.cwd().openFile(state.input_otio, .{});
+    defer file.close();
+
+    const json_source = try file.readToEndAllocOptions(
         allocator,
-        state.input_otio,
+        std.math.maxInt(u32),
+        null,
+        .@"1",
+        0,
     );
-    defer tl_ref.deinit(allocator);
+    defer allocator.free(json_source);
+
+    // Deserialize from OTIO JSON (version 0) and upgrade to current version
+    var timeline_ptr = try serialization.deserialize_timeline_from_otio_json(
+        allocator,
+        json_source,
+    );
+    defer timeline_ptr.deinit(allocator);
+    defer allocator.destroy(timeline_ptr);
 
     read_prog.end();
 
@@ -157,23 +179,22 @@ pub fn main(
         0,
     );
 
-    var out: std.Io.Writer.Allocating = .init(allocator);
-    defer out.deinit();
-
-    var file = try std.fs.cwd().createFile(
+    var out_file = try std.fs.cwd().createFile(
         state.output_ziggy,
         .{},
     );
-    defer file.close();
+    defer out_file.close();
 
     var file_writer_buffer: [16*1024]u8 = undefined;
-    var file_writer = file.writer(&file_writer_buffer);
+    var file_writer = out_file.writer(&file_writer_buffer);
     const writer = &file_writer.interface;
 
-    try ziggy.stringify(
-        tl_ref,
-        .{.whitespace = .space_4},
+    // Serialize the timeline using the serialization module
+    try serialization.serialize_timeline(
+        timeline_ptr,
+        allocator,
         writer,
+        null, // No target version downgrade
     );
 
     _ = try writer.write("\n");
