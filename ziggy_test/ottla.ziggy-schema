@@ -103,10 +103,10 @@ struct SampleIndexGenerator {
     start_index: int,
 }
 
-// RateSpecifier: Int holds a single integer, Rat holds { .num, .den }
+// RateSpecifier: Int holds a single integer, Rational holds { .num, .den }
 union RateSpecifier {
     .Int: int,
-    .Rat: struct {
+    .Rational: struct {
         num: int,
         den: int,
     },
