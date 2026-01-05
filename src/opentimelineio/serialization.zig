@@ -26,12 +26,19 @@ const Allocator = std.mem.Allocator;
 // Re-export curve control point for convenience
 const CurveControlPoint = curve.ControlPoint;
 
+/// Marker for OTIO JSON source (version 0)
+const OTIO_JSON_VERSION: u32 = 0;
+
 // ----------------------------------------------------------------------------
 // Serializable Type Definitions
 // ----------------------------------------------------------------------------
 
-/// Serializable variant of ContinuousInterval as [2]f64 = [start, end]
-pub const SerializableContinuousInterval = [2]f64;
+/// Serializable variant of ContinuousInterval
+/// TODO: After updating ziggy to latest version, change back to [2]f64
+pub const SerializableContinuousInterval = struct {
+    start: f64,
+    end: f64,
+};
 
 /// Bounds can be either continuous (time in seconds) or discrete (sample indices)
 pub const SerializableBounds = union(enum) {
@@ -39,8 +46,18 @@ pub const SerializableBounds = union(enum) {
     discrete: struct { start: i64, end: i64 },
 };
 
-/// Serializable variant of AffineTransform1D
-pub const SerializableAffineTransform1D = opentime.AffineTransform1D;
+/// Serializable variant of AffineTransform1D with unboxed ordinates
+pub const SerializableAffineTransform1D = struct {
+    offset: f64,
+    scale: f64,
+};
+
+/// Serializable variant of ControlPoint with unboxed ordinates
+/// TODO: After updating ziggy to latest version, change back to [2]f64 = [in, out]
+pub const SerializableControlPoint = struct {
+    in: f64,
+    out: f64,
+};
 
 /// Serializable variant of RateSpecifier with struct-wrapped cases for ziggy
 pub const SerializableRateSpecifier = union(enum) {
@@ -88,22 +105,22 @@ pub const SerializableSignalGenerator = union(enum) {
 /// Serializable variant of MediaReference
 pub const SerializableMediaReference = struct {
     data_reference: SerializableMediaDataReference,
-    bounds_s: ?SerializableBounds,
+    bounds_s: ?SerializableBounds = null,
     domain: SerializableDomain,
-    discrete_partition: ?SerializableSampleIndexGenerator,
-    interpolating: ?schema.ResamplingBehavior,
+    discrete_partition: ?SerializableSampleIndexGenerator = null,
+    interpolating: ?schema.ResamplingBehavior = null,
 };
 
 /// Serializable variant of Clip
 pub const SerializableClip = struct {
-    name: ?[]const u8,
-    bounds_s: ?SerializableBounds,
+    name: ?[]const u8 = null,
+    bounds_s: ?SerializableBounds = null,
     media: SerializableMediaReference,
 };
 
 /// Serializable variant of Gap
 pub const SerializableGap = struct {
-    name: ?[]const u8,
+    name: ?[]const u8 = null,
     bounds_s: SerializableContinuousInterval,
 };
 
@@ -121,7 +138,7 @@ pub const SerializableMappingAffine = struct {
 
 pub const SerializableMappingLinear = struct {
     input_bounds_val: SerializableContinuousInterval,
-    knots: []curve.ControlPoint,
+    knots: []SerializableControlPoint,
 };
 
 /// Serializable variant of Topology
@@ -137,39 +154,119 @@ pub const SerializableComposable = union(enum) {
     stack: SerializableStack,
     warp: SerializableWarp,
     transition: SerializableTransition,
+
+    pub fn deinit(
+        self: *const @This(),
+        allocator: Allocator,
+    ) void
+    {
+        // @TODO: use inline statements to combine identical cases
+        switch (self.*) {
+            .clip => |clip| {
+                if (clip.name)
+                    |name|
+                {
+                    allocator.free(name);
+                }
+            },
+            .gap => |gap| {
+                if (gap.name)
+                    |name|
+                {
+                    allocator.free(name);
+                }
+            },
+            .track => |track| {
+                if (track.name)
+                    |name|
+                {
+                    allocator.free(name);
+                }
+                for (track.children)
+                    |*child|
+                {
+                    child.deinit(allocator);
+                }
+                allocator.free(track.children);
+            },
+            .stack => |stack| {
+                if (stack.name)
+                    |name|
+                {
+                    allocator.free(name);
+                }
+                for (stack.children)
+                    |*child|
+                {
+                    child.deinit(allocator);
+                }
+                allocator.free(stack.children);
+            },
+            .warp => |warp| {
+                if (warp.name)
+                    |name|
+                {
+                    allocator.free(name);
+                }
+                warp.child.deinit(allocator);
+                allocator.destroy(warp.child);
+            },
+            .transition => |transition| {
+                if (transition.name)
+                    |name|
+                {
+                    allocator.free(name);
+                }
+                allocator.free(transition.kind);
+                if (transition.container.name)
+                    |name|
+                {
+                    allocator.free(name);
+                }
+                for (transition.container.children)
+                    |*child|
+                {
+                    child.deinit(allocator);
+                }
+                allocator.free(transition.container.children);
+            },
+        }
+    }
 };
 
 /// Serializable variant of Warp
 pub const SerializableWarp = struct {
-    name: ?[]const u8,
-    child: *const SerializableComposable,
+    name: ?[]const u8 = null,
+    child: *SerializableComposable,
     transform: SerializableTopology,
 };
 
 /// Serializable variant of Stack
 pub const SerializableStack = struct {
-    name: ?[]const u8,
-    children: []const SerializableComposable,
+    name: ?[]const u8 = null,
+    bounds_s: ?SerializableBounds = null,
+    children: []SerializableComposable,
 };
 
 /// Serializable variant of Track
 pub const SerializableTrack = struct {
-    name: ?[]const u8,
-    children: []const SerializableComposable,
+    name: ?[]const u8 = null,
+    bounds_s: ?SerializableBounds = null,
+    children: []SerializableComposable,
 };
 
 /// Serializable variant of Transition
 pub const SerializableTransition = struct {
-    name: ?[]const u8,
+    name: ?[]const u8 = null,
     container: SerializableStack,
     kind: []const u8,
-    bounds_s: ?SerializableContinuousInterval,
+    bounds_s: ?SerializableContinuousInterval = null,
 };
 
 /// Serializable variant of DiscretePartitionDomainMap
 pub const SerializableDiscretePartitionDomainMap = struct {
-    picture: ?SerializableSampleIndexGenerator,
-    audio: ?SerializableSampleIndexGenerator,
+    picture: ?SerializableSampleIndexGenerator = null,
+    audio: ?SerializableSampleIndexGenerator = null,
 };
 
 /// Serializable variant of Timeline (root type)
@@ -177,9 +274,28 @@ pub const SerializableTimeline = struct {
     pub const schema_name: []const u8 = "Timeline";
 
     schema_version: u32 = versioning.current_version("Timeline"),
-    name: ?[]const u8,
-    children: []const SerializableComposable,
+    name: ?[]const u8 = null,
+    children: []SerializableComposable,
     presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
+
+    pub fn deinit(
+        self: *@This(),
+        allocator: Allocator,
+    ) void
+    {
+        if (self.name)
+            |name|
+        {
+            allocator.free(name);
+        }
+
+        for (self.children)
+            |*child|
+        {
+            child.deinit(allocator);
+        }
+        allocator.free(self.children);
+    }
 };
 
 // ----------------------------------------------------------------------------
@@ -217,7 +333,9 @@ fn copy_optional_string(
     maybe_str: ?[]const u8,
 ) !?[]const u8
 {
-    if (maybe_str) |str| {
+    if (maybe_str)
+        |str|
+    {
         return try copy_string(allocator, str);
     }
     return null;
@@ -271,7 +389,9 @@ fn optional_sig_to_serializable(
     maybe_sig: ?sampling.SampleIndexGenerator,
 ) ?SerializableSampleIndexGenerator
 {
-    if (maybe_sig) |sig| {
+    if (maybe_sig)
+        |sig|
+    {
         return sample_index_generator_to_serializable(sig);
     }
     return null;
@@ -281,7 +401,9 @@ fn serializable_to_optional_sig(
     maybe_ser: ?SerializableSampleIndexGenerator,
 ) ?sampling.SampleIndexGenerator
 {
-    if (maybe_ser) |ser| {
+    if (maybe_ser)
+        |ser|
+    {
         return serializable_to_sample_index_generator(ser);
     }
     return null;
@@ -297,7 +419,9 @@ fn bounds_to_serializable(
     maybe_discrete_partition: ?sampling.SampleIndexGenerator,
 ) SerializableBounds
 {
-    if (maybe_discrete_partition) |sig| {
+    if (maybe_discrete_partition)
+        |sig|
+    {
         // Convert to discrete indices
         const start_index = sampling.project_instantaneous_cd(sig, interval.start);
         const end_index = sampling.project_instantaneous_cd(sig, interval.end);
@@ -305,7 +429,9 @@ fn bounds_to_serializable(
             .start = @intCast(start_index),
             .end = @intCast(end_index),
         } };
-    } else {
+    }
+    else
+    {
         // Keep as continuous
         return .{ .continuous = .{
             .start = interval.start.as(f64),
@@ -347,7 +473,9 @@ fn optional_bounds_to_serializable(
     maybe_discrete_partition: ?sampling.SampleIndexGenerator,
 ) ?SerializableBounds
 {
-    if (maybe_interval) |interval| {
+    if (maybe_interval)
+        |interval|
+    {
         return bounds_to_serializable(interval, maybe_discrete_partition);
     }
     return null;
@@ -359,7 +487,9 @@ fn serializable_to_optional_bounds(
     maybe_discrete_partition: ?sampling.SampleIndexGenerator,
 ) !?opentime.ContinuousInterval
 {
-    if (maybe_ser) |ser| {
+    if (maybe_ser)
+        |ser|
+    {
         return try serializable_to_bounds(ser, maybe_discrete_partition);
     }
     return null;
@@ -374,17 +504,20 @@ fn interval_to_serializable(
     interval: opentime.ContinuousInterval,
 ) SerializableContinuousInterval
 {
-    return .{ interval.start.as(f64), interval.end.as(f64) };
+    return .{
+        .start = interval.start.as(f64),
+        .end = interval.end.as(f64),
+    };
 }
 
-/// Convert serializable [2]f64 to ContinuousInterval
+/// Convert serializable struct to ContinuousInterval
 fn serializable_to_interval(
     ser: SerializableContinuousInterval,
 ) opentime.ContinuousInterval
 {
     return .{
-        .start = opentime.Ordinate.init(ser[0]),
-        .end = opentime.Ordinate.init(ser[1]),
+        .start = opentime.Ordinate.init(ser.start),
+        .end = opentime.Ordinate.init(ser.end),
     };
 }
 
@@ -393,7 +526,9 @@ fn optional_interval_to_serializable(
     maybe_interval: ?opentime.ContinuousInterval,
 ) ?SerializableContinuousInterval
 {
-    if (maybe_interval) |interval| {
+    if (maybe_interval)
+        |interval|
+    {
         return interval_to_serializable(interval);
     }
     return null;
@@ -404,7 +539,9 @@ fn serializable_to_optional_interval(
     maybe_ser: ?SerializableContinuousInterval,
 ) ?opentime.ContinuousInterval
 {
-    if (maybe_ser) |ser| {
+    if (maybe_ser)
+        |ser|
+    {
         return serializable_to_interval(ser);
     }
     return null;
@@ -493,7 +630,9 @@ pub fn topology_to_serializable(
 {
     const ser_mappings = try allocator.alloc(SerializableMapping, topo.mappings.len);
 
-    for (topo.mappings, 0..) |mapping, i| {
+    for (topo.mappings, 0..)
+        |mapping, i|
+    {
         ser_mappings[i] = try mapping_to_serializable(allocator, mapping);
     }
 
@@ -509,19 +648,30 @@ pub fn mapping_to_serializable(
         .affine => |aff| .{
             .affine = .{
                 .input_bounds_val = interval_to_serializable(aff.input_bounds_val),
-                .input_to_output_xform = aff.input_to_output_xform,
+                .input_to_output_xform = .{
+                    .offset = aff.input_to_output_xform.offset.as(f64),
+                    .scale = aff.input_to_output_xform.scale.as(f64),
+                },
             },
         },
         .linear => |lin| {
-            const knots = try allocator.dupe(
-                curve.ControlPoint,
-                lin.input_to_output_curve.knots,
+            const knots = try allocator.alloc(
+                SerializableControlPoint,
+                lin.input_to_output_curve.knots.len,
             );
+            for (lin.input_to_output_curve.knots, 0..)
+                |knot, i|
+            {
+                knots[i] = .{
+                    .in = knot.in.as(f64),
+                    .out = knot.out.as(f64),
+                };
+            }
             const input_extents = lin.input_to_output_curve.extents_input() orelse {
                 // Empty curve - use default bounds
                 return .{
                     .linear = .{
-                        .input_bounds_val = .{ 0.0, 0.0 },
+                        .input_bounds_val = .{ .start = 0.0, .end = 0.0 },
                         .knots = knots,
                     },
                 };
@@ -584,7 +734,9 @@ pub fn track_to_serializable(
 {
     const ser_children = try allocator.alloc(SerializableComposable, track.children.len);
 
-    for (track.children, 0..) |child, i| {
+    for (track.children, 0..)
+        |child, i|
+    {
         ser_children[i] = (try composable_to_serializable(allocator, child)).*;
     }
 
@@ -601,7 +753,9 @@ pub fn stack_to_serializable(
 {
     const ser_children = try allocator.alloc(SerializableComposable, stack.children.len);
 
-    for (stack.children, 0..) |child, i| {
+    for (stack.children, 0..)
+        |child, i|
+    {
         ser_children[i] = (try composable_to_serializable(allocator, child)).*;
     }
 
@@ -662,7 +816,9 @@ pub fn timeline_to_serializable(
     // Convert tracks.children directly to timeline.children
     const ser_children = try allocator.alloc(SerializableComposable, timeline.tracks.children.len);
 
-    for (timeline.tracks.children, 0..) |child, i| {
+    for (timeline.tracks.children, 0..)
+        |child, i|
+    {
         ser_children[i] = (try composable_to_serializable(allocator, child)).*;
     }
 
@@ -674,6 +830,74 @@ pub fn timeline_to_serializable(
             .audio = optional_sig_to_serializable(timeline.discrete_space_partitions.presentation.audio),
         },
     };
+}
+
+// ----------------------------------------------------------------------------
+// Version Upgrade Functions
+// ----------------------------------------------------------------------------
+
+/// Recursively fix transitions in a composable (add containers and kind fields)
+fn fix_transitions_in_composable(
+    allocator: Allocator,
+    composable: *SerializableComposable,
+) !void
+{
+    switch (composable.*) {
+        .transition => |*trans| {
+            // Ensure kind field is not empty (default to "SMPTE_Dissolve")
+            if (trans.kind.len == 0) {
+                trans.kind = try copy_string(allocator, "SMPTE_Dissolve");
+            }
+
+            // Fix transitions in container children recursively
+            for (trans.container.children) |*child| {
+                try fix_transitions_in_composable(allocator, child);
+            }
+        },
+        .track => |*track| {
+            // Recursively fix transitions in track children
+            for (track.children) |*child| {
+                try fix_transitions_in_composable(allocator, child);
+            }
+        },
+        .stack => |*stack| {
+            // Recursively fix transitions in stack children
+            for (stack.children) |*child| {
+                try fix_transitions_in_composable(allocator, child);
+            }
+        },
+        .warp => |*warp| {
+            // Recursively fix transitions in warp child
+            try fix_transitions_in_composable(allocator, warp.child);
+        },
+        .clip, .gap => {
+            // Clips and gaps have no children to recurse into
+        },
+    }
+}
+
+/// Upgrade SerializableTimeline from version 0 (OTIO JSON source) to version 1
+///
+/// Changes from v0 to v1:
+/// - Set schema_version field to 1
+/// - Fix transitions: ensure container and kind fields are present
+fn upgrade_timeline_v0_to_v1(
+    allocator: Allocator,
+    timeline: *SerializableTimeline,
+) !void
+{
+    if (timeline.schema_version != 0)
+    {
+        return error.InvalidVersionForUpgrade;
+    }
+
+    // Fix all transitions in the timeline recursively
+    for (timeline.children) |*child| {
+        try fix_transitions_in_composable(allocator, child);
+    }
+
+    // Update version number
+    timeline.schema_version = 1;
 }
 
 // ----------------------------------------------------------------------------
@@ -769,7 +993,9 @@ pub fn serializable_to_topology(
         ser_topo.mappings.len,
     );
 
-    for (ser_topo.mappings, 0..) |ser_mapping, i| {
+    for (ser_topo.mappings, 0..)
+        |ser_mapping, i|
+    {
         mappings[i] = try serializable_to_mapping(allocator, ser_mapping);
     }
 
@@ -784,10 +1010,21 @@ pub fn serializable_to_mapping(
     return switch (ser_mapping) {
         .affine => |aff| (topology_m.mapping.MappingAffine{
             .input_bounds_val = serializable_to_interval(aff.input_bounds_val),
-            .input_to_output_xform = aff.input_to_output_xform,
+            .input_to_output_xform = .{
+                .offset = opentime.Ordinate.init(aff.input_to_output_xform.offset),
+                .scale = opentime.Ordinate.init(aff.input_to_output_xform.scale),
+            },
         }).mapping(),
         .linear => |lin| {
-            const knots = try allocator.dupe(curve.ControlPoint, lin.knots);
+            const knots = try allocator.alloc(curve.ControlPoint, lin.knots.len);
+            for (lin.knots, 0..)
+                |ser_knot, i|
+            {
+                knots[i] = .{
+                    .in = opentime.Ordinate.init(ser_knot.in),
+                    .out = opentime.Ordinate.init(ser_knot.out),
+                };
+            }
             return (topology_m.mapping.MappingCurveLinearMonotonic{
                 .input_to_output_curve = .{ .knots = knots },
             }).mapping();
@@ -851,13 +1088,16 @@ pub fn serializable_to_track(
         ser_track.children.len,
     );
 
-    for (ser_track.children, 0..) |ser_child, i| {
+    for (ser_track.children, 0..)
+        |ser_child, i|
+    {
         children[i] = try serializable_to_composable(allocator, ser_child);
     }
 
     const track_ptr = try allocator.create(schema.Track);
     track_ptr.* = .{
         .maybe_name = try copy_optional_string(allocator, ser_track.name),
+        .maybe_bounds_s = try serializable_to_optional_bounds(ser_track.bounds_s, null),
         .children = children,
     };
     return track_ptr;
@@ -873,13 +1113,16 @@ pub fn serializable_to_stack(
         ser_stack.children.len,
     );
 
-    for (ser_stack.children, 0..) |ser_child, i| {
+    for (ser_stack.children, 0..)
+        |ser_child, i|
+    {
         children[i] = try serializable_to_composable(allocator, ser_child);
     }
 
     const stack_ptr = try allocator.create(schema.Stack);
     stack_ptr.* = .{
         .maybe_name = try copy_optional_string(allocator, ser_stack.name),
+        .maybe_bounds_s = try serializable_to_optional_bounds(ser_stack.bounds_s, null),
         .children = children,
     };
     return stack_ptr;
@@ -944,7 +1187,9 @@ pub fn serializable_to_timeline(
         ser_timeline.children.len,
     );
 
-    for (ser_timeline.children, 0..) |ser_child, i| {
+    for (ser_timeline.children, 0..)
+        |ser_child, i|
+    {
         children[i] = try serializable_to_composable(allocator, ser_child);
     }
 
@@ -1092,6 +1337,7 @@ pub fn serialize_timeline(
 
     // Convert to serializable format
     var ser_timeline = try timeline_to_serializable(allocator, timeline);
+    defer ser_timeline.deinit(allocator);
 
     // Downgrade if target version specified
     if (maybe_target_version)
@@ -1108,6 +1354,7 @@ pub fn serialize_timeline(
                     "Serializing Timeline at version {} instead of {}.",
                     .{ err, current_ver, target_version }
                 );
+                // Serialize directly - ziggy 0.1.0 CAN parse unions in arrays!
                 try ziggy.stringify(
                     ser_timeline,
                     .{
@@ -1137,7 +1384,7 @@ pub fn serialize_timeline(
         }
     }
 
-    // Use ziggy to serialize
+    // Serialize directly - ziggy 0.1.0 CAN parse unions in arrays!
     try ziggy.stringify(
         ser_timeline,
         .{
@@ -1164,6 +1411,7 @@ pub fn deserialize_timeline(
         source,
         .{},
     );
+    defer ser_timeline.deinit(allocator);
 
     // Check version and upgrade if needed
     const current_ver = versioning.current_version("Timeline");
@@ -1198,6 +1446,50 @@ pub fn deserialize_timeline(
     }
 
     // Convert to schema format
+    return try serializable_to_timeline(allocator, ser_timeline);
+}
+
+/// Deserialize a Timeline from OTIO JSON format (.otio files)
+///
+/// This function:
+/// 1. Parses the JSON using the existing OTIO parser
+/// 2. Converts to SerializableTimeline with schema_version = 0
+/// 3. Upgrades from version 0 to current version
+/// 4. Converts to runtime Schema Timeline
+pub fn deserialize_timeline_from_otio_json(
+    allocator: Allocator,
+    json_source: []const u8,
+) !*schema.Timeline
+{
+    // Import the JSON parser module
+    const otio_json = @import("opentimelineio_json.zig");
+
+    // Parse OTIO JSON to runtime Schema
+    var composition_handle = try otio_json.read_from_string(
+        allocator,
+        json_source,
+    );
+    defer composition_handle.deinit(allocator);
+
+    // Ensure it's a Timeline
+    if (composition_handle != .timeline) {
+        return error.NotATimeline;
+    }
+
+    // Convert to SerializableTimeline (version 0 initially)
+    var ser_timeline = try timeline_to_serializable(
+        allocator,
+        composition_handle.timeline,
+    );
+    defer ser_timeline.deinit(allocator);
+
+    // Mark as version 0 (OTIO JSON source)
+    ser_timeline.schema_version = OTIO_JSON_VERSION;
+
+    // Upgrade from v0 to current version (v1)
+    try upgrade_timeline_v0_to_v1(allocator, &ser_timeline);
+
+    // Convert to runtime Timeline schema
     return try serializable_to_timeline(allocator, ser_timeline);
 }
 
@@ -1284,13 +1576,13 @@ test "interval conversion: ContinuousInterval to [2]f64"
 
     const ser = interval_to_serializable(interval);
 
-    try std.testing.expectEqual(@as(f64, 1.5), ser[0]);
-    try std.testing.expectEqual(@as(f64, 3.75), ser[1]);
+    try std.testing.expectEqual(@as(f64, 1.5), ser.start);
+    try std.testing.expectEqual(@as(f64, 3.75), ser.end);
 }
 
-test "interval conversion: [2]f64 to ContinuousInterval"
+test "interval conversion: struct to ContinuousInterval"
 {
-    const ser: SerializableContinuousInterval = .{ 2.0, 5.5 };
+    const ser: SerializableContinuousInterval = .{ .start = 2.0, .end = 5.5 };
 
     const interval = serializable_to_interval(ser);
 
@@ -1307,8 +1599,8 @@ test "interval conversion: optional round-trip"
 
     const ser = optional_interval_to_serializable(maybe_interval);
     try std.testing.expect(ser != null);
-    try std.testing.expectEqual(@as(f64, 0.0), ser.?[0]);
-    try std.testing.expectEqual(@as(f64, 1.0), ser.?[1]);
+    try std.testing.expectEqual(@as(f64, 0.0), ser.?.start);
+    try std.testing.expectEqual(@as(f64, 1.0), ser.?.end);
 
     const back = serializable_to_optional_interval(ser);
     try std.testing.expect(back != null);
@@ -1393,8 +1685,8 @@ test "gap serialization: round-trip"
 
     // Verify serialized values
     try std.testing.expectEqualStrings("TestGap", ser_gap.name.?);
-    try std.testing.expectEqual(2.5, ser_gap.bounds_s[0]);
-    try std.testing.expectEqual(7.5, ser_gap.bounds_s[1]);
+    try std.testing.expectEqual(2.5, ser_gap.bounds_s.start);
+    try std.testing.expectEqual(7.5, ser_gap.bounds_s.end);
 
     // Convert back
     const gap_ptr = try serializable_to_gap(allocator, ser_gap);
@@ -1450,6 +1742,7 @@ test "timeline serialization: ziggy round-trip"
         allocator,
         source,
     );
+    defer allocator.destroy(loaded_timeline);
     defer loaded_timeline.deinit(allocator);
 
     // Verify

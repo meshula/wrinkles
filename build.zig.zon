@@ -25,8 +25,9 @@
             .hash = "zgui_cimgui_implot_sokol-1.91.8-17SdXtkNCAAVNEezE-MaA8CWf_y3Ms9vWk_teKoXW-jG",
         },
         .ziggy = .{
-            .url = "git+https://github.com/kristoff-it/ziggy.git#4353b20ef2ac750e35c6d68e4eb2a07c2d7cf901",
-            .hash = "ziggy-0.1.0-kTg8v5pABgDztlefWHceH-Sh8tVveguFC61QkmLkIRaA",
+            // Local patched copy - fixes parser bug with f64 fields + nested unions
+            // See libs/ziggy/PATCHES.md for details
+            .path = "libs/ziggy",
         },
     },
     .paths = .{

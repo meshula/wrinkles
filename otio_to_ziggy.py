@@ -36,15 +36,15 @@ def rational_time_to_float(rational_time: Dict[str, Any]) -> float:
     return float(value) / float(rate)
 
 
-def time_range_to_continuous_interval(time_range: Dict[str, Any]) -> List[float]:
-    """Convert OTIO TimeRange to Ziggy ContinuousInterval [start, end]."""
+def time_range_to_continuous_interval(time_range: Dict[str, Any]) -> Dict[str, float]:
+    """Convert OTIO TimeRange to Ziggy ContinuousInterval struct {start, end}."""
     if time_range.get("OTIO_SCHEMA") != "TimeRange.1":
         raise ValueError(f"Expected TimeRange.1, got {time_range.get('OTIO_SCHEMA')}")
 
     start = rational_time_to_float(time_range["start_time"])
     duration = rational_time_to_float(time_range["duration"])
 
-    return [start, start + duration]
+    return {"start": start, "end": start + duration}
 
 
 def convert_media_reference(media_ref: Dict[str, Any], discrete_rate: Optional[int] = None) -> Dict[str, Any]:
@@ -103,8 +103,8 @@ def convert_media_reference(media_ref: Dict[str, Any], discrete_rate: Optional[i
                 result["bounds_s"] = {"discrete": {"start": start_index, "end": end_index}}
             else:
                 # Use continuous bounds (time in seconds)
-                start_s, end_s = time_range_to_continuous_interval(available_range)
-                result["bounds_s"] = {"continuous": {"start": start_s, "end": end_s}}
+                interval = time_range_to_continuous_interval(available_range)
+                result["bounds_s"] = {"continuous": interval}
 
         return result
     elif schema_type == "MissingReference.1":
@@ -187,8 +187,8 @@ def convert_clip(clip: Dict[str, Any]) -> Dict[str, Any]:
             result["bounds_s"] = {"discrete": {"start": start_index, "end": end_index}}
         else:
             # Use continuous bounds (time in seconds)
-            start_s, end_s = time_range_to_continuous_interval(source_range)
-            result["bounds_s"] = {"continuous": {"start": start_s, "end": end_s}}
+            interval = time_range_to_continuous_interval(source_range)
+            result["bounds_s"] = {"continuous": interval}
 
     return result
 
@@ -200,7 +200,7 @@ def convert_gap(gap: Dict[str, Any]) -> Dict[str, Any]:
 
     if not source_range:
         # Default gap duration
-        bounds_s = {"start": {"v": 0.0}, "end": {"v": 1.0}}
+        bounds_s = {"start": 0.0, "end": 1.0}
     else:
         bounds_s = time_range_to_continuous_interval(source_range)
 
@@ -225,37 +225,55 @@ def convert_composable(item: Dict[str, Any]) -> Dict[str, Any]:
     else:
         # Unknown type, convert to gap
         print(f"Warning: Unknown composable type {schema_type}, converting to gap")
-        return {"gap": {"name": item.get("name"), "bounds_s": {"start": {"v": 0.0}, "end": {"v": 1.0}}}}
+        return {"gap": {"name": item.get("name"), "bounds_s": {"start": 0.0, "end": 1.0}}}
 
 
 def convert_track(track: Dict[str, Any]) -> Dict[str, Any]:
     """Convert OTIO Track to Ziggy format."""
     name = track.get("name")
     children = track.get("children", [])
+    source_range = track.get("source_range")
 
     converted_children = []
     for child in children:
         converted_children.append(convert_composable(child))
 
-    return {
+    result = {
         "name": name,
         "children": converted_children
     }
+
+    # Add bounds if source_range exists
+    # Always use continuous bounds for Track (no discrete partition context)
+    if source_range:
+        interval = time_range_to_continuous_interval(source_range)
+        result["bounds_s"] = {"continuous": interval}
+
+    return result
 
 
 def convert_stack(stack: Dict[str, Any]) -> Dict[str, Any]:
     """Convert OTIO Stack to Ziggy format."""
     name = stack.get("name")
     children = stack.get("children", [])
+    source_range = stack.get("source_range")
 
     converted_children = []
     for child in children:
         converted_children.append(convert_composable(child))
 
-    return {
+    result = {
         "name": name,
         "children": converted_children
     }
+
+    # Add bounds if source_range exists
+    # Always use continuous bounds for Stack (no discrete partition context)
+    if source_range:
+        interval = time_range_to_continuous_interval(source_range)
+        result["bounds_s"] = {"continuous": interval}
+
+    return result
 
 
 def collect_rates_from_time_range(time_range: Optional[Dict[str, Any]], rates: set):
@@ -340,8 +358,62 @@ def convert_timeline(timeline: Dict[str, Any]) -> Dict[str, Any]:
     return result
 
 
-def format_ziggy_value(value: Any, indent: int = 0) -> str:
-    """Format a Python value as Ziggy syntax, omitting null values."""
+def is_union_value(value: Any, parent_field_name: str = None) -> bool:
+    """Check if a dictionary represents a union value (single key with struct/empty dict value).
+
+    Union variants in ziggy 0.1.0 format look like:
+    - .variant = {} (empty struct)
+    - .variant = {.field = value, ...} (struct with fields)
+
+    NOT unions:
+    - {"target_uri": "..."} (regular struct with single field - field name isn't a variant)
+    - {"start": 0.0, "end": 1.0} (regular struct with multiple fields)
+    - {"picture": {...}} when parent is presentation_space_discrete_partitions (struct field, not union)
+    """
+    if not isinstance(value, dict):
+        return False
+    if len(value) != 1:
+        return False
+
+    key = next(iter(value))
+    val = value[key]
+
+    # Known union variant names from the schema
+    UNION_VARIANTS = {
+        # Composable union
+        "track", "clip", "gap", "warp", "transition", "stack",
+        # MediaDataReference union
+        "uri", "signal", "null",
+        # SignalGenerator union
+        "sine", "linear_ramp",
+        # Domain union
+        "time", "picture", "audio", "metadata", "other",
+        # Bounds union
+        "continuous", "discrete",
+        # RateSpecifier union
+        "Int", "Rat",
+        # Mapping union
+        "affine", "linear", "empty",
+    }
+
+    # Special case: "picture" and "audio" are struct fields in DiscretePartitionDomainMap,
+    # not union variants, when they appear in presentation_space_discrete_partitions
+    if parent_field_name == "presentation_space_discrete_partitions" and key in ("picture", "audio"):
+        return False
+
+    # If the key is a known union variant, it's a union
+    return key in UNION_VARIANTS
+
+
+def format_ziggy_value(value: Any, indent: int = 0, is_union: bool = False, parent_field: str = None) -> str:
+    """Format a Python value as Ziggy syntax, omitting null values.
+
+    Args:
+        value: The value to format
+        indent: Current indentation level
+        is_union: True if this value should be formatted as a union (without outer braces)
+        parent_field: Name of the parent struct field (for context-aware union detection)
+    """
     ind = "    " * indent
 
     if value is None:
@@ -354,6 +426,13 @@ def format_ziggy_value(value: Any, indent: int = 0) -> str:
                 return "inf"
             elif value == float('-inf'):
                 return "-inf"
+            # PATCHED: Always include decimal point for floats to ensure ziggy parser accepts them
+            # Integer-looking floats would otherwise be output as "1" which historically
+            # caused parsing failures with nested unions + f64 fields
+            s = str(value)
+            if '.' not in s and 'e' not in s.lower():
+                s = s + '.0'
+            return s
         return str(value)
     elif isinstance(value, str):
         return f'"{value}"'
@@ -361,12 +440,31 @@ def format_ziggy_value(value: Any, indent: int = 0) -> str:
         if not value:
             return "{}"
 
+        # Check if this is a union value (single key that's a known variant)
+        # Pass parent_field for context-aware detection
+        if is_union_value(value, parent_field_name=parent_field):
+            # Format as union: variant_name { fields }
+            # Ziggy union syntax is "variant_name { .field = value, ... }"
+            key = next(iter(value))
+            val = value[key]
+            formatted_val = format_ziggy_value(val, indent)
+            return f"{key} {formatted_val}"
+
+        # Regular struct
         lines = ["{"]
         for key, val in value.items():
-            formatted_val = format_ziggy_value(val, indent + 1)
-            # Skip null fields
-            if formatted_val is not None:
-                lines.append(f"{ind}    .{key} = {formatted_val},")
+            # Check if the value is a union (pass field name for context)
+            if is_union_value(val, parent_field_name=key):
+                # Union as struct field value: .field = variant_name { ... }
+                union_key = next(iter(val))
+                union_val = val[union_key]
+                formatted_union_val = format_ziggy_value(union_val, indent + 1)
+                lines.append(f"{ind}    .{key} = {union_key} {formatted_union_val},")
+            else:
+                formatted_val = format_ziggy_value(val, indent + 1, parent_field=key)
+                # Skip null fields
+                if formatted_val is not None:
+                    lines.append(f"{ind}    .{key} = {formatted_val},")
         lines.append(f"{ind}}}")
         return "\n".join(lines)
     elif isinstance(value, list):
@@ -375,7 +473,8 @@ def format_ziggy_value(value: Any, indent: int = 0) -> str:
 
         lines = ["["]
         for item in value:
-            formatted_item = format_ziggy_value(item, indent + 1)
+            # Check if list items are unions
+            formatted_item = format_ziggy_value(item, indent + 1, is_union=is_union_value(item))
             if formatted_item is not None:
                 lines.append(f"{ind}    {formatted_item},")
         lines.append(f"{ind}]")

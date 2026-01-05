@@ -1,146 +1,98 @@
 {
     .schema_version = 1,
     .children = [
-        {
-            .track = {
-                .name = "Track-001",
-                .children = [
-                    {
-                        .clip = {
-                            .media = {
-                                .data_reference = {
-                                    .uri = {
-                                        .target_uri = "file:///folder/titles.mov",
-                                    },
-                                },
-                                .domain = {
-                                    .picture = {},
-                                },
-                                .discrete_partition = {
-                                    .sample_rate_hz = {
-                                        .Int = {
-                                            .value = 24,
-                                        },
-                                    },
-                                    .start_index = 0,
-                                },
-                                .bounds_s = {
-                                    .discrete = {
-                                        .start = 0,
-                                        .end = 8,
-                                    },
-                                },
+        track {
+            .name = "Track-001",
+            .children = [
+                clip {
+                    .media = {
+                        .data_reference = uri {
+                            .target_uri = "file:///folder/titles.mov",
+                        },
+                        .domain = picture {},
+                        .discrete_partition = {
+                            .sample_rate_hz = Int {
+                                .value = 24,
                             },
-                            .name = "Clip-001",
-                            .bounds_s = {
-                                .discrete = {
-                                    .start = 3,
-                                    .end = 6,
-                                },
-                            },
+                            .start_index = 0,
+                        },
+                        .bounds_s = discrete {
+                            .start = 0,
+                            .end = 8,
                         },
                     },
-                    {
-                        .clip = {
-                            .media = {
-                                .data_reference = {
-                                    .uri = {
-                                        .target_uri = "file:///folder/wind-up.mov",
-                                    },
-                                },
-                                .domain = {
-                                    .picture = {},
-                                },
-                                .discrete_partition = {
-                                    .sample_rate_hz = {
-                                        .Int = {
-                                            .value = 24,
-                                        },
-                                    },
-                                    .start_index = 0,
-                                },
-                                .bounds_s = {
-                                    .discrete = {
-                                        .start = 0,
-                                        .end = 8,
-                                    },
-                                },
+                    .name = "Clip-001",
+                    .bounds_s = discrete {
+                        .start = 3,
+                        .end = 6,
+                    },
+                },
+                clip {
+                    .media = {
+                        .data_reference = uri {
+                            .target_uri = "file:///folder/wind-up.mov",
+                        },
+                        .domain = picture {},
+                        .discrete_partition = {
+                            .sample_rate_hz = Int {
+                                .value = 24,
                             },
-                            .name = "Clip-002",
-                            .bounds_s = {
-                                .discrete = {
-                                    .start = 2,
-                                    .end = 8,
-                                },
-                            },
+                            .start_index = 0,
+                        },
+                        .bounds_s = discrete {
+                            .start = 0,
+                            .end = 8,
                         },
                     },
-                    {
-                        .clip = {
-                            .media = {
-                                .data_reference = {
-                                    .uri = {
-                                        .target_uri = "file:///folder/punchline.mov",
-                                    },
-                                },
-                                .domain = {
-                                    .picture = {},
-                                },
-                                .discrete_partition = {
-                                    .sample_rate_hz = {
-                                        .Int = {
-                                            .value = 24,
-                                        },
-                                    },
-                                    .start_index = 0,
-                                },
-                                .bounds_s = {
-                                    .discrete = {
-                                        .start = 0,
-                                        .end = 8,
-                                    },
-                                },
+                    .name = "Clip-002",
+                    .bounds_s = discrete {
+                        .start = 2,
+                        .end = 8,
+                    },
+                },
+                clip {
+                    .media = {
+                        .data_reference = uri {
+                            .target_uri = "file:///folder/punchline.mov",
+                        },
+                        .domain = picture {},
+                        .discrete_partition = {
+                            .sample_rate_hz = Int {
+                                .value = 24,
                             },
-                            .name = "Clip-003",
-                            .bounds_s = {
-                                .discrete = {
-                                    .start = 0,
-                                    .end = 4,
-                                },
-                            },
+                            .start_index = 0,
+                        },
+                        .bounds_s = discrete {
+                            .start = 0,
+                            .end = 8,
                         },
                     },
-                    {
-                        .clip = {
-                            .media = {
-                                .data_reference = {
-                                    .uri = {
-                                        .target_uri = "file:///folder/credits.mov",
-                                    },
-                                },
-                                .domain = {
-                                    .picture = {},
-                                },
-                                .bounds_s = {
-                                    .continuous = {
-                                        .start = 4.166666666666667,
-                                        .end = 4.416666666666667,
-                                    },
-                                },
-                            },
-                            .name = "Clip-004",
+                    .name = "Clip-003",
+                    .bounds_s = discrete {
+                        .start = 0,
+                        .end = 4,
+                    },
+                },
+                clip {
+                    .media = {
+                        .data_reference = uri {
+                            .target_uri = "file:///folder/credits.mov",
+                        },
+                        .domain = picture {},
+                        .bounds_s = continuous {
+                            .start = 4.166666666666667,
+                            .end = 4.416666666666667,
                         },
                     },
-                ],
-            },
+                    .name = "Clip-004",
+                },
+            ],
         },
     ],
     .presentation_space_discrete_partitions = {
         .picture = {
-            .sample_rate_hz = {
-                .Int = {
-                    .value = 24,
-                },
+            .sample_rate_hz = Int {
+                .value = 24,
             },
             .start_index = 0,
         },

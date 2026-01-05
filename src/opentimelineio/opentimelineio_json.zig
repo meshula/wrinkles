@@ -6,13 +6,14 @@
 const std = @import("std");
 const expectEqual = std.testing.expectEqual;
 
-const otio  = @import("root.zig");
+const otio = @import("root.zig");
 const opentime = @import("opentime");
 const curve = @import("curve");
 const interval = opentime.interval;
 const string = @import("string_stuff");
 const topology = @import("topology");
 const sampling = @import("sampling");
+const serialization = @import("serialization.zig");
 
 const SerializableObjectTypes = enum {
     Timeline,
@@ -759,19 +760,36 @@ fn read_otio_object(
         // }
         .Transition => {
             const tx = try allocator.create(otio.Transition);
-            const container_json = try read_otio_object(
-                allocator,
-                obj.get("container").?.object,
-            );
-            const container = otio.Stack {
-                .maybe_name = container_json.stack.maybe_name,
-                .children = container_json.stack.children,
+
+            // Handle missing container field (v0 -> v1 upgrade)
+            const container = if (obj.get("container")) |container_value| blk: {
+                const container_json = try read_otio_object(
+                    allocator,
+                    container_value.object,
+                );
+                const result = otio.Stack {
+                    .maybe_name = container_json.stack.maybe_name,
+                    .children = container_json.stack.children,
+                };
+                allocator.destroy(container_json.stack);
+                break :blk result;
+            } else otio.Stack {
+                .maybe_name = null,
+                .children = &.{},
             };
-            allocator.destroy(container_json.stack);
+
+            // Handle missing kind field (use transition_type or default)
+            const kind = if (try maybe_string(allocator, obj, "kind")) |k|
+                k
+            else if (try maybe_string(allocator, obj, "transition_type")) |tt|
+                tt
+            else
+                try allocator.dupe(u8, "SMPTE_Dissolve");
+
             tx.* = .{
                 .maybe_name = maybe_name,
                 .container = container,
-                .kind = (try maybe_string(allocator, obj, "kind")) orelse "None",
+                .kind = kind,
                 .maybe_bounds_s = null,
             };
 
@@ -782,13 +800,43 @@ fn read_otio_object(
     return error.NotImplemented;
 }
 
-/// Deserialize the OTIO v1 JSON file at `file_path` to the in-memory wrinkles
-/// format.
+/// Read a timeline from either a .otio (JSON) or .ziggy file.
+/// The file format is determined by the file extension.
 pub fn read_from_file(
     in_allocator: std.mem.Allocator,
     file_path: string.latin_s8,
 ) !otio.CompositionItemHandle
 {
+    // Check file extension to determine format
+    const ext_start = std.mem.lastIndexOfScalar(u8, file_path, '.') orelse {
+        return error.NoFileExtension;
+    };
+    const extension = file_path[ext_start..];
+
+    if (std.mem.eql(u8, extension, ".ziggy"))
+    {
+        // Read ziggy format
+        const file = try std.fs.cwd().openFile(file_path, .{});
+        defer file.close();
+
+        const source = try file.readToEndAllocOptions(
+            in_allocator,
+            std.math.maxInt(u32),
+            null,
+            .@"1",
+            0,
+        );
+        defer in_allocator.free(source);
+
+        const timeline = try serialization.deserialize_timeline(
+            in_allocator,
+            source,
+        );
+
+        return .{ .timeline = timeline };
+    }
+
+    // Default to JSON format (.otio)
     const fi = try std.fs.cwd().openFile(file_path, .{});
     defer fi.close();
 
@@ -798,26 +846,40 @@ pub fn read_from_file(
 
     const source = try fi.readToEndAlloc(
         allocator,
-        std.math.maxInt(u32)
+        std.math.maxInt(u32),
     );
 
     const result = try std.json.parseFromSliceLeaky(
         std.json.Value,
         allocator,
         source,
-        .{}
+        .{},
     );
 
-    const hopefully_timeline = try read_otio_object(
+    return try read_otio_object(
         in_allocator,
-        result.object
+        result.object,
+    );
+}
+
+/// Read OTIO JSON from string
+pub fn read_from_string(
+    in_allocator: std.mem.Allocator,
+    json_source: []const u8,
+) !otio.CompositionItemHandle
+{
+    var arena = std.heap.ArenaAllocator.init(in_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const result = try std.json.parseFromSliceLeaky(
+        std.json.Value,
+        allocator,
+        json_source,
+        .{},
     );
 
-    if (hopefully_timeline == otio.CompositionItemHandle.timeline) {
-        return hopefully_timeline;
-    }
-
-    return hopefully_timeline;
+    return read_otio_object(in_allocator, result.object);
 }
 
 test "read_from_file test (simple)" 

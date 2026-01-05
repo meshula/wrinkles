@@ -1,0 +1,376 @@
+.schema_version = 1,
+.name = "sc01_sh010_layerA",
+.children = [
+    track {
+        .name = "",
+        .children = [
+            gap {
+                .name = "",
+                .bounds_s = {
+                    .start = 0.0,
+                    .end = 17.866666666666667,
+                },
+            },
+            clip {
+                .name = "sc01_sh010_anim.mov",
+                .bounds_s = discrete {
+                    .start = 0,
+                    .end = 50,
+                },
+                .media = {
+                    .data_reference = null {},
+                    .domain = picture {},
+                    .discrete_partition = {
+                        .sample_rate_hz = Int {
+                            .value = 15,
+                        },
+                        .start_index = 0,
+                    },
+                },
+            },
+        ],
+    },
+    track {
+        .name = "",
+        .children = [
+            gap {
+                .name = "",
+                .bounds_s = {
+                    .start = 0.0,
+                    .end = 0.43333333333333335,
+                },
+            },
+            clip {
+                .name = "sc01_sh010_anim.mov",
+                .bounds_s = discrete {
+                    .start = 0,
+                    .end = 100,
+                },
+                .media = {
+                    .data_reference = null {},
+                    .domain = picture {},
+                    .discrete_partition = {
+                        .sample_rate_hz = Int {
+                            .value = 30,
+                        },
+                        .start_index = 0,
+                    },
+                },
+            },
+            gap {
+                .name = "",
+                .bounds_s = {
+                    .start = 0.0,
+                    .end = 1.7333333333333334,
+                },
+            },
+            clip {
+                .name = "sc01_sh020_anim.mov",
+                .bounds_s = discrete {
+                    .start = 0,
+                    .end = 157,
+                },
+                .media = {
+                    .data_reference = null {},
+                    .domain = picture {},
+                    .discrete_partition = {
+                        .sample_rate_hz = Int {
+                            .value = 30,
+                        },
+                        .start_index = 0,
+                    },
+                },
+            },
+            clip {
+                .name = "sc01_sh030_anim.mov",
+                .bounds_s = discrete {
+                    .start = 0,
+                    .end = 235,
+                },
+                .media = {
+                    .data_reference = null {},
+                    .domain = picture {},
+                    .discrete_partition = {
+                        .sample_rate_hz = Int {
+                            .value = 30,
+                        },
+                        .start_index = 0,
+                    },
+                },
+            },
+            transition {
+                .name = "Cross Dissolve",
+                .container = {
+                    .children = [
+                    ],
+                },
+                .kind = "SMPTE_Dissolve",
+            },
+            gap {
+                .name = "",
+                .bounds_s = {
+                    .start = 0.0,
+                    .end = 2.6333333333333333,
+                },
+            },
+            stack {
+                .name = "sc01_sh010_anim",
+                .children = [
+                ],
+            },
+        ],
+    },
+    track {
+        .name = "",
+        .children = [
+            gap {
+                .name = "",
+                .bounds_s = {
+                    .start = 0.0,
+                    .end = 0.5,
+                },
+            },
+            clip {
+                .name = "test_title",
+                .bounds_s = discrete {
+                    .start = 108000,
+                    .end = 108941,
+                },
+                .media = {
+                    .data_reference = null {},
+                    .domain = picture {},
+                    .discrete_partition = {
+                        .sample_rate_hz = Int {
+                            .value = 30,
+                        },
+                        .start_index = 0,
+                    },
+                },
+            },
+        ],
+    },
+    track {
+        .name = "",
+        .children = [
+            gap {
+                .name = "",
+                .bounds_s = {
+                    .start = 0.0,
+                    .end = 31.866666666666667,
+                },
+            },
+            clip {
+                .name = "sc01_master_layerA_sh030_temp.mov",
+                .bounds_s = discrete {
+                    .start = 133,
+                    .end = 341,
+                },
+                .media = {
+                    .data_reference = null {},
+                    .domain = picture {},
+                    .discrete_partition = {
+                        .sample_rate_hz = Int {
+                            .value = 30,
+                        },
+                        .start_index = 0,
+                    },
+                },
+            },
+            transition {
+                .name = "Cross Dissolve",
+                .container = {
+                    .children = [
+                    ],
+                },
+                .kind = "SMPTE_Dissolve",
+            },
+            clip {
+                .name = "sc01_sh010_anim.mov",
+                .bounds_s = discrete {
+                    .start = 18,
+                    .end = 100,
+                },
+                .media = {
+                    .data_reference = null {},
+                    .domain = picture {},
+                    .discrete_partition = {
+                        .sample_rate_hz = Int {
+                            .value = 30,
+                        },
+                        .start_index = 0,
+                    },
+                },
+            },
+        ],
+    },
+    track {
+        .name = "",
+        .children = [
+            gap {
+                .name = "",
+                .bounds_s = {
+                    .start = 0.0,
+                    .end = 0.43333333333333335,
+                },
+            },
+            clip {
+                .name = "sc01_sh010_anim.mov",
+                .bounds_s = discrete {
+                    .start = 0,
+                    .end = 100,
+                },
+                .media = {
+                    .data_reference = null {},
+                    .domain = picture {},
+                    .discrete_partition = {
+                        .sample_rate_hz = Int {
+                            .value = 30,
+                        },
+                        .start_index = 0,
+                    },
+                },
+            },
+            gap {
+                .name = "",
+                .bounds_s = {
+                    .start = 0.0,
+                    .end = 14.1,
+                },
+            },
+            clip {
+                .name = "sc01_sh010_anim.mov",
+                .bounds_s = discrete {
+                    .start = 0,
+                    .end = 100,
+                },
+                .media = {
+                    .data_reference = null {},
+                    .domain = picture {},
+                    .discrete_partition = {
+                        .sample_rate_hz = Int {
+                            .value = 30,
+                        },
+                        .start_index = 0,
+                    },
+                },
+            },
+        ],
+    },
+    track {
+        .name = "",
+        .children = [
+            gap {
+                .name = "",
+                .bounds_s = {
+                    .start = 0.0,
+                    .end = 11.166666666666666,
+                },
+            },
+            clip {
+                .name = "sc01_placeholder.wav",
+                .bounds_s = discrete {
+                    .start = 8497,
+                    .end = 8667,
+                },
+                .media = {
+                    .data_reference = null {},
+                    .domain = picture {},
+                    .discrete_partition = {
+                        .sample_rate_hz = Int {
+                            .value = 30,
+                        },
+                        .start_index = 0,
+                    },
+                },
+            },
+            gap {
+                .name = "",
+                .bounds_s = {
+                    .start = 0.0,
+                    .end = 4.366666666666666,
+                },
+            },
+            stack {
+                .name = "sc01_sh010_anim",
+                .children = [
+                ],
+            },
+        ],
+    },
+    track {
+        .name = "",
+        .children = [
+            gap {
+                .name = "",
+                .bounds_s = {
+                    .start = 0.0,
+                    .end = 5.1,
+                },
+            },
+            clip {
+                .name = "track_08.wav",
+                .bounds_s = discrete {
+                    .start = 6896,
+                    .end = 7094,
+                },
+                .media = {
+                    .data_reference = null {},
+                    .domain = picture {},
+                    .discrete_partition = {
+                        .sample_rate_hz = Int {
+                            .value = 30,
+                        },
+                        .start_index = 0,
+                    },
+                },
+            },
+        ],
+    },
+    track {
+        .name = "",
+        .children = [
+            gap {
+                .name = "",
+                .bounds_s = {
+                    .start = 0.0,
+                    .end = 31.866666666666667,
+                },
+            },
+            clip {
+                .name = "sc01_master_layerA_sh030_temp.mov",
+                .bounds_s = discrete {
+                    .start = 133,
+                    .end = 354,
+                },
+                .media = {
+                    .data_reference = null {},
+                    .domain = picture {},
+                    .discrete_partition = {
+                        .sample_rate_hz = Int {
+                            .value = 30,
+                        },
+                        .start_index = 0,
+                    },
+                },
+            },
+            clip {
+                .name = "sc01_sh010_anim.mov",
+                .bounds_s = discrete {
+                    .start = 6,
+                    .end = 100,
+                },
+                .media = {
+                    .data_reference = null {},
+                    .domain = picture {},
+                    .discrete_partition = {
+                        .sample_rate_hz = Int {
+                            .value = 30,
+                        },
+                        .start_index = 0,
+                    },
+                },
+            },
+        ],
+    },
+],
+.presentation_space_discrete_partitions = {},

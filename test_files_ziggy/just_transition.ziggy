@@ -1,103 +1,69 @@
 {
     .schema_version = 1,
     .children = [
-        {
-            .track = {
-                .name = "tracks",
-                .children = [
-                    {
-                        .clip = {
-                            .media = {
-                                .data_reference = {
-                                    .uri = {
-                                        .target_uri = "file:///folder/titles.mov",
-                                    },
-                                },
-                                .domain = {
-                                    .picture = {},
-                                },
-                                .discrete_partition = {
-                                    .sample_rate_hz = {
-                                        .Int = {
-                                            .value = 24,
-                                        },
-                                    },
-                                    .start_index = 0,
-                                },
-                                .bounds_s = {
-                                    .discrete = {
-                                        .start = 0,
-                                        .end = 24,
-                                    },
-                                },
+        track {
+            .name = "tracks",
+            .children = [
+                clip {
+                    .media = {
+                        .data_reference = uri {
+                            .target_uri = "file:///folder/titles.mov",
+                        },
+                        .domain = picture {},
+                        .discrete_partition = {
+                            .sample_rate_hz = Int {
+                                .value = 24,
                             },
-                            .name = "Clip-001",
-                            .bounds_s = {
-                                .discrete = {
-                                    .start = 0,
-                                    .end = 24,
-                                },
-                            },
+                            .start_index = 0,
+                        },
+                        .bounds_s = discrete {
+                            .start = 0,
+                            .end = 24,
                         },
                     },
-                    {
-                        .gap = {
-                            .name = "A to B",
-                            .bounds_s = {
-                                .start = {
-                                    .v = 0.0,
-                                },
-                                .end = {
-                                    .v = 1.0,
-                                },
+                    .name = "Clip-001",
+                    .bounds_s = discrete {
+                        .start = 0,
+                        .end = 24,
+                    },
+                },
+                gap {
+                    .name = "A to B",
+                    .bounds_s = {
+                        .start = 0.0,
+                        .end = 1.0,
+                    },
+                },
+                clip {
+                    .media = {
+                        .data_reference = uri {
+                            .target_uri = "file:///folder/wind-up.mov",
+                        },
+                        .domain = picture {},
+                        .discrete_partition = {
+                            .sample_rate_hz = Int {
+                                .value = 24,
                             },
+                            .start_index = 0,
+                        },
+                        .bounds_s = discrete {
+                            .start = 24,
+                            .end = 48,
                         },
                     },
-                    {
-                        .clip = {
-                            .media = {
-                                .data_reference = {
-                                    .uri = {
-                                        .target_uri = "file:///folder/wind-up.mov",
-                                    },
-                                },
-                                .domain = {
-                                    .picture = {},
-                                },
-                                .discrete_partition = {
-                                    .sample_rate_hz = {
-                                        .Int = {
-                                            .value = 24,
-                                        },
-                                    },
-                                    .start_index = 0,
-                                },
-                                .bounds_s = {
-                                    .discrete = {
-                                        .start = 24,
-                                        .end = 48,
-                                    },
-                                },
-                            },
-                            .name = "Clip-002",
-                            .bounds_s = {
-                                .discrete = {
-                                    .start = 24,
-                                    .end = 48,
-                                },
-                            },
-                        },
+                    .name = "Clip-002",
+                    .bounds_s = discrete {
+                        .start = 24,
+                        .end = 48,
                     },
-                ],
-            },
+                },
+            ],
         },
     ],
     .presentation_space_discrete_partitions = {
         .picture = {
-            .sample_rate_hz = {
-                .Int = {
-                    .value = 24,
-                },
+            .sample_rate_hz = Int {
+                .value = 24,
             },
             .start_index = 0,
         },

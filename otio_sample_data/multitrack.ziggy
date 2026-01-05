@@ -1,0 +1,154 @@
+.schema_version = 1,
+.name = "OTIO TEST - multitrack.Exported.01",
+.children = [
+    track {
+        .name = "Sequence",
+        .children = [
+            clip {
+                .name = "tech.fux (loop)-HD.mp4",
+                .bounds_s = discrete {
+                    .start = 0,
+                    .end = 720,
+                },
+                .media = {
+                    .data_reference = null {},
+                    .domain = picture {},
+                    .discrete_partition = {
+                        .sample_rate_hz = Int {
+                            .value = 24,
+                        },
+                        .start_index = 0,
+                    },
+                },
+            },
+            gap {
+                .name = "Filler",
+                .bounds_s = {
+                    .start = 0.0,
+                    .end = 3.4583333333333335,
+                },
+            },
+            clip {
+                .name = "out-b (loop)-HD.mp4",
+                .bounds_s = discrete {
+                    .start = 0,
+                    .end = 722,
+                },
+                .media = {
+                    .data_reference = null {},
+                    .domain = picture {},
+                    .discrete_partition = {
+                        .sample_rate_hz = Int {
+                            .value = 24,
+                        },
+                        .start_index = 0,
+                    },
+                },
+            },
+            gap {
+                .name = "Filler 2",
+                .bounds_s = {
+                    .start = 0.0,
+                    .end = 18.0,
+                },
+            },
+            clip {
+                .name = "brokchrd (loop)-HD.mp4",
+                .bounds_s = discrete {
+                    .start = 0,
+                    .end = 720,
+                },
+                .media = {
+                    .data_reference = null {},
+                    .domain = picture {},
+                    .discrete_partition = {
+                        .sample_rate_hz = Int {
+                            .value = 24,
+                        },
+                        .start_index = 0,
+                    },
+                },
+            },
+            gap {
+                .name = "Filler 3",
+                .bounds_s = {
+                    .start = 0.0,
+                    .end = 25.208333333333332,
+                },
+            },
+        ],
+    },
+    track {
+        .name = "Sequence 2",
+        .children = [
+            gap {
+                .name = "ScopeReference",
+                .bounds_s = {
+                    .start = 0.0,
+                    .end = 20.083333333333332,
+                },
+            },
+            clip {
+                .name = "t-hawk (loop)-HD.mp4",
+                .bounds_s = discrete {
+                    .start = 0,
+                    .end = 480,
+                },
+                .media = {
+                    .data_reference = null {},
+                    .domain = picture {},
+                    .discrete_partition = {
+                        .sample_rate_hz = Int {
+                            .value = 24,
+                        },
+                        .start_index = 0,
+                    },
+                },
+            },
+            gap {
+                .name = "ScopeReference 2",
+                .bounds_s = {
+                    .start = 0.0,
+                    .end = 96.66666666666667,
+                },
+            },
+        ],
+    },
+    track {
+        .name = "Sequence 3",
+        .children = [
+            gap {
+                .name = "ScopeReference 3",
+                .bounds_s = {
+                    .start = 0.0,
+                    .end = 49.916666666666664,
+                },
+            },
+            clip {
+                .name = "KOLL-HD.mp4",
+                .bounds_s = discrete {
+                    .start = 0,
+                    .end = 640,
+                },
+                .media = {
+                    .data_reference = null {},
+                    .domain = picture {},
+                    .discrete_partition = {
+                        .sample_rate_hz = Int {
+                            .value = 24,
+                        },
+                        .start_index = 0,
+                    },
+                },
+            },
+            gap {
+                .name = "ScopeReference 4",
+                .bounds_s = {
+                    .start = 0.0,
+                    .end = 60.166666666666664,
+                },
+            },
+        ],
+    },
+],
+.presentation_space_discrete_partitions = {},

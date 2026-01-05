@@ -1,55 +1,39 @@
 {
     .schema_version = 1,
     .children = [
-        {
-            .track = {
-                .name = "Track-001",
-                .children = [
-                    {
-                        .clip = {
-                            .media = {
-                                .data_reference = {
-                                    .uri = {
-                                        .target_uri = "file:///folder/titles.mov",
-                                    },
-                                },
-                                .domain = {
-                                    .picture = {},
-                                },
-                                .discrete_partition = {
-                                    .sample_rate_hz = {
-                                        .Int = {
-                                            .value = 24,
-                                        },
-                                    },
-                                    .start_index = 0,
-                                },
-                                .bounds_s = {
-                                    .discrete = {
-                                        .start = 0,
-                                        .end = 8,
-                                    },
-                                },
+        track {
+            .name = "Track-001",
+            .children = [
+                clip {
+                    .media = {
+                        .data_reference = uri {
+                            .target_uri = "file:///folder/titles.mov",
+                        },
+                        .domain = picture {},
+                        .discrete_partition = {
+                            .sample_rate_hz = Int {
+                                .value = 24,
                             },
-                            .name = "Clip-001",
-                            .bounds_s = {
-                                .discrete = {
-                                    .start = 3,
-                                    .end = 6,
-                                },
-                            },
+                            .start_index = 0,
+                        },
+                        .bounds_s = discrete {
+                            .start = 0,
+                            .end = 8,
                         },
                     },
-                ],
-            },
+                    .name = "Clip-001",
+                    .bounds_s = discrete {
+                        .start = 3,
+                        .end = 6,
+                    },
+                },
+            ],
         },
     ],
     .presentation_space_discrete_partitions = {
         .picture = {
-            .sample_rate_hz = {
-                .Int = {
-                    .value = 24,
-                },
+            .sample_rate_hz = Int {
+                .value = 24,
             },
             .start_index = 0,
         },
