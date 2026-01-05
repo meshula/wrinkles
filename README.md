@@ -257,6 +257,7 @@ didn't impact the deisgn or problems we were specifically solving.
     * [x] expressing points/ranges discrete/continuously
     * [x] describing discrete spaces
     * [ ] Warp Schema: multi segment bezier / pt-tangent form
+    * [ ] curve library: b-spline
 * [ ] visualizer second pass
     * [ ] top down rewrite based on which kind of projection to present (rather
           than all at once)
