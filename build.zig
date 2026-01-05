@@ -981,4 +981,16 @@ pub fn build(
             .{ .name = "opentime", .module = opentime },
         },
     );
+
+    try executable(
+        b,
+        "otiocat",
+        "src/otiocat.zig",
+        options,
+        &.{
+            .{ .name = "string_stuff", .module = string_stuff },
+            .{ .name = "opentimelineio", .module = opentimelineio },
+            .{ .name = "ziggy", .module = dep_ziggy.module("ziggy") },
+        },
+    );
 }
