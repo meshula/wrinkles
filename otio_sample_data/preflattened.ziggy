@@ -6,102 +6,92 @@
         .children = [
             clip {
                 .name = "tech.fux (loop)-HD.mp4",
-                .bounds_s = discrete {
-                    .start = 0,
-                    .end = 482,
-                },
+                .bounds_s = discrete [
+                    0,
+                    482,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 24,
-                        },
+                        .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },
             },
             clip {
                 .name = "t-hawk (loop)-HD.mp4",
-                .bounds_s = discrete {
-                    .start = 0,
-                    .end = 480,
-                },
+                .bounds_s = discrete [
+                    0,
+                    480,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 24,
-                        },
+                        .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },
             },
             clip {
                 .name = "out-b (loop)-HD.mp4",
-                .bounds_s = discrete {
-                    .start = 159,
-                    .end = 395,
-                },
+                .bounds_s = discrete [
+                    159,
+                    395,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 24,
-                        },
+                        .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },
             },
             clip {
                 .name = "KOLL-HD.mp4",
-                .bounds_s = discrete {
-                    .start = 0,
-                    .end = 640,
-                },
+                .bounds_s = discrete [
+                    0,
+                    640,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 24,
-                        },
+                        .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },
             },
             gap {
                 .name = "Filler 2",
-                .bounds_s = {
-                    .start = 13.041666666666666,
-                    .end = 18.0,
-                },
+                .bounds_s = [
+                    13.041666666666666,
+                    18.0,
+                ],
             },
             clip {
                 .name = "brokchrd (loop)-HD.mp4",
-                .bounds_s = discrete {
-                    .start = 0,
-                    .end = 720,
-                },
+                .bounds_s = discrete [
+                    0,
+                    720,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 24,
-                        },
+                        .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },
             },
             gap {
                 .name = "Filler 3",
-                .bounds_s = {
-                    .start = 0.0,
-                    .end = 25.208333333333332,
-                },
+                .bounds_s = [
+                    0.0,
+                    25.208333333333332,
+                ],
             },
         ],
     },

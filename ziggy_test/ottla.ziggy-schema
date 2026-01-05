@@ -12,29 +12,12 @@ struct DiscretePartitionDomainMap {
     audio: ?SampleIndexGenerator,
 }
 
-// TODO: After updating to latest ziggy, change ContinuousInterval back to [2]Float
-struct ContinuousInterval {
-    start: Float,
-    end: Float,
-}
-
-// TODO: After updating to latest ziggy, change ControlPoint back to [2]Float = [in, out]
-struct ControlPoint {
-    in: Float,
-    out: Float,
-}
-
-// Bounds can be either continuous (time in seconds) or discrete (sample indices)
-// Ziggy requires union fields to be struct types
+// ContinuousInterval = [start, end] in seconds
+// ControlPoint = [in, out] for curve knots
+// Bounds union uses [2]Float for continuous, [2]int for discrete
 union Bounds {
-    .continuous: struct {
-        start: Float,
-        end: Float,
-    },
-    .discrete: struct {
-        start: int,
-        end: int,
-    },
+    .continuous: [2]Float,
+    .discrete: [2]int,
 }
 
 struct Stack {
@@ -49,7 +32,7 @@ struct Track {
 
 struct Gap {
     name: ?bytes,
-    bounds_s: ContinuousInterval,
+    bounds_s: [2]Float,
 }
 
 struct Warp {
@@ -62,7 +45,7 @@ struct Transition {
     name: ?bytes,
     container: Stack,
     kind: bytes,
-    bounds_s: ?ContinuousInterval,
+    bounds_s: ?[2]Float,
 }
 
 // Composable union fields are structs (not pointers)
@@ -118,11 +101,9 @@ struct SampleIndexGenerator {
     start_index: int,
 }
 
-// Ziggy requires union fields to be struct types (not primitives)
+// RateSpecifier: Int holds a single integer, Rat holds { .num, .den }
 union RateSpecifier {
-    .Int: struct {
-        value: int,
-    },
+    .Int: int,
     .Rat: struct {
         num: int,
         den: int,
@@ -152,13 +133,13 @@ union Mapping {
 }
 
 struct MappingAffine {
-    input_bounds_val: ContinuousInterval,
+    input_bounds_val: [2]Float,
     input_to_output_xform: AffineTransform1D,
 }
 
 struct MappingLinear {
-    input_bounds_val: ContinuousInterval,
-    knots: []ControlPoint,
+    input_bounds_val: [2]Float,
+    knots: [][2]Float,
 }
 
 struct AffineTransform1D {
@@ -173,13 +154,11 @@ enum MediaInterpolationType {
 }
 
 // Curve library types
-// BezierSegment = [4]ControlPoint = [p0, p1, p2, p3]
-// TODO: After updating to latest ziggy, change back to [][4][2]Float and [][2]Float
-
+// BezierSegment = [4][2]Float = [p0, p1, p2, p3] where each point is [in, out]
 struct BezierCurve {
-    segments: [][4]ControlPoint,  // Array of segments, each segment is 4 control points
+    segments: [][4][2]Float,
 }
 
 struct LinearCurve {
-    knots: []ControlPoint,  // Array of control points
+    knots: [][2]Float,
 }

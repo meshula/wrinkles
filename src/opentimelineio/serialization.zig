@@ -33,17 +33,14 @@ const OTIO_JSON_VERSION: u32 = 0;
 // Serializable Type Definitions
 // ----------------------------------------------------------------------------
 
-/// Serializable variant of ContinuousInterval
-/// TODO: After updating ziggy to latest version, change back to [2]f64
-pub const SerializableContinuousInterval = struct {
-    start: f64,
-    end: f64,
-};
+/// Serializable variant of ContinuousInterval as [start, end]
+pub const SerializableContinuousInterval = [2]f64;
+pub const SerializableDiscreteInterval = [2]i64;
 
 /// Bounds can be either continuous (time in seconds) or discrete (sample indices)
 pub const SerializableBounds = union(enum) {
-    continuous: struct { start: f64, end: f64 },
-    discrete: struct { start: i64, end: i64 },
+    continuous: SerializableContinuousInterval,
+    discrete: SerializableDiscreteInterval,
 };
 
 /// Serializable variant of AffineTransform1D with unboxed ordinates
@@ -52,16 +49,13 @@ pub const SerializableAffineTransform1D = struct {
     scale: f64,
 };
 
-/// Serializable variant of ControlPoint with unboxed ordinates
-/// TODO: After updating ziggy to latest version, change back to [2]f64 = [in, out]
-pub const SerializableControlPoint = struct {
-    in: f64,
-    out: f64,
-};
+/// Serializable variant of ControlPoint as [in, out]
+pub const SerializableControlPoint = [2]f64;
 
-/// Serializable variant of RateSpecifier with struct-wrapped cases for ziggy
+/// Serializable variant of RateSpecifier
+/// Int holds a single integer, Rat holds { .num, .den }
 pub const SerializableRateSpecifier = union(enum) {
-    Int: struct { value: u32 },
+    Int: u32,
     Rat: struct { num: u32, den: u32 },
 };
 
@@ -307,7 +301,7 @@ pub const SerializableTimeline = struct {
 /// Serializable variant of curve.Bezier
 /// Each segment is [4][2]f64 (4 control points of 2 floats each)
 pub const SerializableBezierCurve = struct {
-    segments: [][4][2]f64,  // Array of segments, each with 4 control points
+    segments: [][4]SerializableControlPoint,  // Array of segments, each with 4 control points
 };
 
 /// Serializable variant of curve.Linear
@@ -350,7 +344,7 @@ fn rate_to_serializable(
 ) SerializableRateSpecifier
 {
     return switch (rate) {
-        .Int => |val| .{ .Int = .{ .value = val } },
+        .Int => |val| .{ .Int = val },
         .Rat => |r| .{ .Rat = .{ .num = r.num, .den = r.den } },
     };
 }
@@ -360,7 +354,7 @@ fn serializable_to_rate(
 ) sampling.RateSpecifier
 {
     return switch (ser_rate) {
-        .Int => |i| .{ .Int = i.value },
+        .Int => |val| .{ .Int = val },
         .Rat => |r| .{ .Rat = .{ .num = r.num, .den = r.den } },
     };
 }
@@ -426,16 +420,16 @@ fn bounds_to_serializable(
         const start_index = sampling.project_instantaneous_cd(sig, interval.start);
         const end_index = sampling.project_instantaneous_cd(sig, interval.end);
         return .{ .discrete = .{
-            .start = @intCast(start_index),
-            .end = @intCast(end_index),
+            @intCast(start_index),
+            @intCast(end_index),
         } };
     }
     else
     {
         // Keep as continuous
         return .{ .continuous = .{
-            .start = interval.start.as(f64),
-            .end = interval.end.as(f64),
+            interval.start.as(f64),
+            interval.end.as(f64),
         } };
     }
 }
@@ -448,16 +442,16 @@ fn serializable_to_bounds(
 {
     return switch (ser_bounds) {
         .continuous => |cont| .{
-            .start = opentime.Ordinate.init(cont.start),
-            .end = opentime.Ordinate.init(cont.end),
+            .start = opentime.Ordinate.init(cont[0]),
+            .end = opentime.Ordinate.init(cont[1]),
         },
         .discrete => |disc| {
             // Must have discrete partition to convert
             const sig = maybe_discrete_partition orelse return error.MissingDiscretePartition;
 
             // Convert discrete indices to continuous interval
-            const start_ord = sig.ordinate_at_index(@intCast(disc.start));
-            const end_ord = sig.ordinate_at_index(@intCast(disc.end));
+            const start_ord = sig.ordinate_at_index(@intCast(disc[0]));
+            const end_ord = sig.ordinate_at_index(@intCast(disc[1]));
 
             return .{
                 .start = start_ord,
@@ -504,20 +498,17 @@ fn interval_to_serializable(
     interval: opentime.ContinuousInterval,
 ) SerializableContinuousInterval
 {
-    return .{
-        .start = interval.start.as(f64),
-        .end = interval.end.as(f64),
-    };
+    return .{ interval.start.as(f64), interval.end.as(f64) };
 }
 
-/// Convert serializable struct to ContinuousInterval
+/// Convert serializable [2]f64 to ContinuousInterval
 fn serializable_to_interval(
     ser: SerializableContinuousInterval,
 ) opentime.ContinuousInterval
 {
     return .{
-        .start = opentime.Ordinate.init(ser.start),
-        .end = opentime.Ordinate.init(ser.end),
+        .start = opentime.Ordinate.init(ser[0]),
+        .end = opentime.Ordinate.init(ser[1]),
     };
 }
 
@@ -662,16 +653,13 @@ pub fn mapping_to_serializable(
             for (lin.input_to_output_curve.knots, 0..)
                 |knot, i|
             {
-                knots[i] = .{
-                    .in = knot.in.as(f64),
-                    .out = knot.out.as(f64),
-                };
+                knots[i] = .{ knot.in.as(f64), knot.out.as(f64) };
             }
             const input_extents = lin.input_to_output_curve.extents_input() orelse {
                 // Empty curve - use default bounds
                 return .{
                     .linear = .{
-                        .input_bounds_val = .{ .start = 0.0, .end = 0.0 },
+                        .input_bounds_val = .{ 0.0, 0.0 },
                         .knots = knots,
                     },
                 };
@@ -1021,8 +1009,8 @@ pub fn serializable_to_mapping(
                 |ser_knot, i|
             {
                 knots[i] = .{
-                    .in = opentime.Ordinate.init(ser_knot.in),
-                    .out = opentime.Ordinate.init(ser_knot.out),
+                    .in = opentime.Ordinate.init(ser_knot[0]),
+                    .out = opentime.Ordinate.init(ser_knot[1]),
                 };
             }
             return (topology_m.mapping.MappingCurveLinearMonotonic{
@@ -1221,7 +1209,7 @@ pub fn bezier_curve_to_serializable(
     bezier: curve.Bezier,
 ) !SerializableBezierCurve
 {
-    const ser_segments = try allocator.alloc([4][2]f64, bezier.segments.len);
+    const ser_segments = try allocator.alloc([4]SerializableControlPoint, bezier.segments.len);
 
     for (bezier.segments, 0..)
         |segment, i|
@@ -1283,7 +1271,7 @@ pub fn linear_curve_to_serializable(
     linear: curve.Linear,
 ) !SerializableLinearCurve
 {
-    const ser_knots = try allocator.alloc([2]f64, linear.knots.len);
+    const ser_knots = try allocator.alloc(SerializableControlPoint, linear.knots.len);
 
     for (linear.knots, 0..)
         |knot, i|
@@ -1576,13 +1564,13 @@ test "interval conversion: ContinuousInterval to [2]f64"
 
     const ser = interval_to_serializable(interval);
 
-    try std.testing.expectEqual(@as(f64, 1.5), ser.start);
-    try std.testing.expectEqual(@as(f64, 3.75), ser.end);
+    try std.testing.expectEqual(@as(f64, 1.5), ser[0]);
+    try std.testing.expectEqual(@as(f64, 3.75), ser[1]);
 }
 
-test "interval conversion: struct to ContinuousInterval"
+test "interval conversion: [2]f64 to ContinuousInterval"
 {
-    const ser: SerializableContinuousInterval = .{ .start = 2.0, .end = 5.5 };
+    const ser: SerializableContinuousInterval = .{ 2.0, 5.5 };
 
     const interval = serializable_to_interval(ser);
 
@@ -1599,8 +1587,8 @@ test "interval conversion: optional round-trip"
 
     const ser = optional_interval_to_serializable(maybe_interval);
     try std.testing.expect(ser != null);
-    try std.testing.expectEqual(@as(f64, 0.0), ser.?.start);
-    try std.testing.expectEqual(@as(f64, 1.0), ser.?.end);
+    try std.testing.expectEqual(@as(f64, 0.0), ser.?[0]);
+    try std.testing.expectEqual(@as(f64, 1.0), ser.?[1]);
 
     const back = serializable_to_optional_interval(ser);
     try std.testing.expect(back != null);
@@ -1651,8 +1639,8 @@ test "clip serialization: round-trip"
     // Verify serialized values
     try std.testing.expectEqualStrings("TestClip", ser_clip.name.?);
     try std.testing.expect(ser_clip.bounds_s.? == .continuous);
-    try std.testing.expectEqual(@as(f64, 1.0), ser_clip.bounds_s.?.continuous.start);
-    try std.testing.expectEqual(@as(f64, 5.0), ser_clip.bounds_s.?.continuous.end);
+    try std.testing.expectEqual(@as(f64, 1.0), ser_clip.bounds_s.?.continuous[0]);
+    try std.testing.expectEqual(@as(f64, 5.0), ser_clip.bounds_s.?.continuous[1]);
 
     // Convert back
     const clip_ptr = try serializable_to_clip(allocator, ser_clip);
@@ -1685,8 +1673,8 @@ test "gap serialization: round-trip"
 
     // Verify serialized values
     try std.testing.expectEqualStrings("TestGap", ser_gap.name.?);
-    try std.testing.expectEqual(2.5, ser_gap.bounds_s.start);
-    try std.testing.expectEqual(7.5, ser_gap.bounds_s.end);
+    try std.testing.expectEqual(2.5, ser_gap.bounds_s[0]);
+    try std.testing.expectEqual(7.5, ser_gap.bounds_s[1]);
 
     // Convert back
     const gap_ptr = try serializable_to_gap(allocator, ser_gap);

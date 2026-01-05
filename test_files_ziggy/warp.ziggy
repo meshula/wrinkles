@@ -6,10 +6,10 @@
             .children = [
                 gap {
                     .name = "Linear Accel",
-                    .bounds_s = {
-                        .start = 0.0,
-                        .end = 1.0,
-                    },
+                    .bounds_s = [
+                        0.0,
+                        1.0,
+                    ],
                 },
                 clip {
                     .media = {
@@ -18,21 +18,19 @@
                         },
                         .domain = picture {},
                         .discrete_partition = {
-                            .sample_rate_hz = Int {
-                                .value = 24,
-                            },
+                            .sample_rate_hz = Int 24,
                             .start_index = 0,
                         },
-                        .bounds_s = discrete {
-                            .start = 0,
-                            .end = 8,
-                        },
+                        .bounds_s = discrete [
+                            0,
+                            8,
+                        ],
                     },
                     .name = "Clip-002",
-                    .bounds_s = discrete {
-                        .start = 2,
-                        .end = 8,
-                    },
+                    .bounds_s = discrete [
+                        2,
+                        8,
+                    ],
                 },
                 clip {
                     .media = {
@@ -41,21 +39,19 @@
                         },
                         .domain = picture {},
                         .discrete_partition = {
-                            .sample_rate_hz = Int {
-                                .value = 24,
-                            },
+                            .sample_rate_hz = Int 24,
                             .start_index = 0,
                         },
-                        .bounds_s = discrete {
-                            .start = 0,
-                            .end = 8,
-                        },
+                        .bounds_s = discrete [
+                            0,
+                            8,
+                        ],
                     },
                     .name = "Clip-003",
-                    .bounds_s = discrete {
-                        .start = 0,
-                        .end = 4,
-                    },
+                    .bounds_s = discrete [
+                        0,
+                        4,
+                    ],
                 },
                 clip {
                     .media = {
@@ -63,10 +59,10 @@
                             .target_uri = "file:///folder/credits.mov",
                         },
                         .domain = picture {},
-                        .bounds_s = continuous {
-                            .start = 4.166666666666667,
-                            .end = 4.416666666666667,
-                        },
+                        .bounds_s = continuous [
+                            4.166666666666667,
+                            4.416666666666667,
+                        ],
                     },
                     .name = "Clip-004",
                 },
@@ -75,9 +71,7 @@
     ],
     .presentation_space_discrete_partitions = {
         .picture = {
-            .sample_rate_hz = Int {
-                .value = 24,
-            },
+            .sample_rate_hz = Int 24,
             .start_index = 0,
         },
     },

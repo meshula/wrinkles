@@ -6,58 +6,52 @@
         .children = [
             clip {
                 .name = "Clip-001",
-                .bounds_s = discrete {
-                    .start = 3,
-                    .end = 6,
-                },
+                .bounds_s = discrete [
+                    3,
+                    6,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 24,
-                        },
+                        .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },
             },
             clip {
                 .name = "Clip-002",
-                .bounds_s = discrete {
-                    .start = 2,
-                    .end = 8,
-                },
+                .bounds_s = discrete [
+                    2,
+                    8,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 24,
-                        },
+                        .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },
             },
             gap {
                 .name = "",
-                .bounds_s = {
-                    .start = 0.0,
-                    .end = 0.16666666666666666,
-                },
+                .bounds_s = [
+                    0.0,
+                    0.16666666666666666,
+                ],
             },
             clip {
                 .name = "Clip-004",
-                .bounds_s = discrete {
-                    .start = 100,
-                    .end = 106,
-                },
+                .bounds_s = discrete [
+                    100,
+                    106,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 24,
-                        },
+                        .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },
@@ -69,24 +63,22 @@
         .children = [
             gap {
                 .name = "",
-                .bounds_s = {
-                    .start = 0.0,
-                    .end = 0.2916666666666667,
-                },
+                .bounds_s = [
+                    0.0,
+                    0.2916666666666667,
+                ],
             },
             clip {
                 .name = "Clip-003",
-                .bounds_s = discrete {
-                    .start = 100,
-                    .end = 109,
-                },
+                .bounds_s = discrete [
+                    100,
+                    109,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 24,
-                        },
+                        .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },
@@ -98,17 +90,15 @@
         .children = [
             clip {
                 .name = "Clip-005",
-                .bounds_s = discrete {
-                    .start = 100,
-                    .end = 109,
-                },
+                .bounds_s = discrete [
+                    100,
+                    109,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 24,
-                        },
+                        .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },

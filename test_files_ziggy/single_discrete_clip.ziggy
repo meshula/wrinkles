@@ -11,30 +11,26 @@
                         },
                         .domain = picture {},
                         .discrete_partition = {
-                            .sample_rate_hz = Int {
-                                .value = 24,
-                            },
+                            .sample_rate_hz = Int 24,
                             .start_index = 0,
                         },
-                        .bounds_s = discrete {
-                            .start = 0,
-                            .end = 8,
-                        },
+                        .bounds_s = discrete [
+                            0,
+                            8,
+                        ],
                     },
                     .name = "Clip-001",
-                    .bounds_s = discrete {
-                        .start = 3,
-                        .end = 6,
-                    },
+                    .bounds_s = discrete [
+                        3,
+                        6,
+                    ],
                 },
             ],
         },
     ],
     .presentation_space_discrete_partitions = {
         .picture = {
-            .sample_rate_hz = Int {
-                .value = 24,
-            },
+            .sample_rate_hz = Int 24,
             .start_index = 0,
         },
     },

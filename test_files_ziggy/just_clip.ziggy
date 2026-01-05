@@ -11,21 +11,19 @@
                         },
                         .domain = picture {},
                         .discrete_partition = {
-                            .sample_rate_hz = Int {
-                                .value = 24,
-                            },
+                            .sample_rate_hz = Int 24,
                             .start_index = 0,
                         },
-                        .bounds_s = continuous {
-                            .start = 0.5,
-                            .end = 0.8333333333333333,
-                        },
+                        .bounds_s = continuous [
+                            0.5,
+                            0.8333333333333333,
+                        ],
                     },
                     .name = "Clip-001",
-                    .bounds_s = discrete {
-                        .start = 0,
-                        .end = 3,
-                    },
+                    .bounds_s = discrete [
+                        0,
+                        3,
+                    ],
                 },
             ],
         },

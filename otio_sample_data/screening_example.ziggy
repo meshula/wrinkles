@@ -6,153 +6,135 @@
         .children = [
             clip {
                 .name = "ZZ100_501 (LAY3)",
-                .bounds_s = discrete {
-                    .start = 86501,
-                    .end = 86532,
-                },
+                .bounds_s = discrete [
+                    86501,
+                    86532,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 24,
-                        },
+                        .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },
             },
             clip {
                 .name = "ZZ100_502A (LAY3)",
-                .bounds_s = discrete {
-                    .start = 86557,
-                    .end = 86607,
-                },
+                .bounds_s = discrete [
+                    86557,
+                    86607,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 24,
-                        },
+                        .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },
             },
             clip {
                 .name = "ZZ100_503A (LAY1)",
-                .bounds_s = discrete {
-                    .start = 86601,
-                    .end = 86629,
-                },
+                .bounds_s = discrete [
+                    86601,
+                    86629,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 24,
-                        },
+                        .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },
             },
             clip {
                 .name = "ZZ100_504C (LAY1)",
-                .bounds_s = discrete {
-                    .start = 86641,
-                    .end = 86756,
-                },
+                .bounds_s = discrete [
+                    86641,
+                    86756,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 24,
-                        },
+                        .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },
             },
             clip {
                 .name = "ZZ100_504B (LAY1)",
-                .bounds_s = discrete {
-                    .start = 86753,
-                    .end = 86854,
-                },
+                .bounds_s = discrete [
+                    86753,
+                    86854,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 24,
-                        },
+                        .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },
             },
             clip {
                 .name = "ZZ100_507C (LAY2)",
-                .bounds_s = discrete {
-                    .start = 86501,
-                    .end = 86662,
-                },
+                .bounds_s = discrete [
+                    86501,
+                    86662,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 24,
-                        },
+                        .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },
             },
             clip {
                 .name = "ZZ100_508 (LAY2)",
-                .bounds_s = discrete {
-                    .start = 86628,
-                    .end = 86798,
-                },
+                .bounds_s = discrete [
+                    86628,
+                    86798,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 24,
-                        },
+                        .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },
             },
             clip {
                 .name = "ZZ100_510 (LAY1)",
-                .bounds_s = discrete {
-                    .start = 86722,
-                    .end = 86858,
-                },
+                .bounds_s = discrete [
+                    86722,
+                    86858,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 24,
-                        },
+                        .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },
             },
             clip {
                 .name = "ZZ100_510B (LAY1)",
-                .bounds_s = discrete {
-                    .start = 86501,
-                    .end = 86758,
-                },
+                .bounds_s = discrete [
+                    86501,
+                    86758,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 24,
-                        },
+                        .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },

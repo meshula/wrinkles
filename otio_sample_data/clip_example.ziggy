@@ -6,24 +6,22 @@
         .children = [
             gap {
                 .name = "Gap A",
-                .bounds_s = {
-                    .start = 0.0,
-                    .end = 0.3333333333333333,
-                },
+                .bounds_s = [
+                    0.0,
+                    0.3333333333333333,
+                ],
             },
             clip {
                 .name = "Clip-001",
-                .bounds_s = discrete {
-                    .start = 3,
-                    .end = 6,
-                },
+                .bounds_s = discrete [
+                    3,
+                    6,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 24,
-                        },
+                        .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },
@@ -38,10 +36,10 @@
             },
             gap {
                 .name = "Gap B",
-                .bounds_s = {
-                    .start = 0.0,
-                    .end = 0.3333333333333333,
-                },
+                .bounds_s = [
+                    0.0,
+                    0.3333333333333333,
+                ],
             },
         ],
     },

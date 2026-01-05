@@ -6,24 +6,22 @@
         .children = [
             gap {
                 .name = "",
-                .bounds_s = {
-                    .start = 0.0,
-                    .end = 17.866666666666667,
-                },
+                .bounds_s = [
+                    0.0,
+                    17.866666666666667,
+                ],
             },
             clip {
                 .name = "sc01_sh010_anim.mov",
-                .bounds_s = discrete {
-                    .start = 0,
-                    .end = 50,
-                },
+                .bounds_s = discrete [
+                    0,
+                    50,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 15,
-                        },
+                        .sample_rate_hz = Int 15,
                         .start_index = 0,
                     },
                 },
@@ -35,65 +33,59 @@
         .children = [
             gap {
                 .name = "",
-                .bounds_s = {
-                    .start = 0.0,
-                    .end = 0.43333333333333335,
-                },
+                .bounds_s = [
+                    0.0,
+                    0.43333333333333335,
+                ],
             },
             clip {
                 .name = "sc01_sh010_anim.mov",
-                .bounds_s = discrete {
-                    .start = 0,
-                    .end = 100,
-                },
+                .bounds_s = discrete [
+                    0,
+                    100,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 30,
-                        },
+                        .sample_rate_hz = Int 30,
                         .start_index = 0,
                     },
                 },
             },
             gap {
                 .name = "",
-                .bounds_s = {
-                    .start = 0.0,
-                    .end = 1.7333333333333334,
-                },
+                .bounds_s = [
+                    0.0,
+                    1.7333333333333334,
+                ],
             },
             clip {
                 .name = "sc01_sh020_anim.mov",
-                .bounds_s = discrete {
-                    .start = 0,
-                    .end = 157,
-                },
+                .bounds_s = discrete [
+                    0,
+                    157,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 30,
-                        },
+                        .sample_rate_hz = Int 30,
                         .start_index = 0,
                     },
                 },
             },
             clip {
                 .name = "sc01_sh030_anim.mov",
-                .bounds_s = discrete {
-                    .start = 0,
-                    .end = 235,
-                },
+                .bounds_s = discrete [
+                    0,
+                    235,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 30,
-                        },
+                        .sample_rate_hz = Int 30,
                         .start_index = 0,
                     },
                 },
@@ -108,10 +100,10 @@
             },
             gap {
                 .name = "",
-                .bounds_s = {
-                    .start = 0.0,
-                    .end = 2.6333333333333333,
-                },
+                .bounds_s = [
+                    0.0,
+                    2.6333333333333333,
+                ],
             },
             stack {
                 .name = "sc01_sh010_anim",
@@ -125,24 +117,22 @@
         .children = [
             gap {
                 .name = "",
-                .bounds_s = {
-                    .start = 0.0,
-                    .end = 0.5,
-                },
+                .bounds_s = [
+                    0.0,
+                    0.5,
+                ],
             },
             clip {
                 .name = "test_title",
-                .bounds_s = discrete {
-                    .start = 108000,
-                    .end = 108941,
-                },
+                .bounds_s = discrete [
+                    108000,
+                    108941,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 30,
-                        },
+                        .sample_rate_hz = Int 30,
                         .start_index = 0,
                     },
                 },
@@ -154,24 +144,22 @@
         .children = [
             gap {
                 .name = "",
-                .bounds_s = {
-                    .start = 0.0,
-                    .end = 31.866666666666667,
-                },
+                .bounds_s = [
+                    0.0,
+                    31.866666666666667,
+                ],
             },
             clip {
                 .name = "sc01_master_layerA_sh030_temp.mov",
-                .bounds_s = discrete {
-                    .start = 133,
-                    .end = 341,
-                },
+                .bounds_s = discrete [
+                    133,
+                    341,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 30,
-                        },
+                        .sample_rate_hz = Int 30,
                         .start_index = 0,
                     },
                 },
@@ -186,17 +174,15 @@
             },
             clip {
                 .name = "sc01_sh010_anim.mov",
-                .bounds_s = discrete {
-                    .start = 18,
-                    .end = 100,
-                },
+                .bounds_s = discrete [
+                    18,
+                    100,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 30,
-                        },
+                        .sample_rate_hz = Int 30,
                         .start_index = 0,
                     },
                 },
@@ -208,48 +194,44 @@
         .children = [
             gap {
                 .name = "",
-                .bounds_s = {
-                    .start = 0.0,
-                    .end = 0.43333333333333335,
-                },
+                .bounds_s = [
+                    0.0,
+                    0.43333333333333335,
+                ],
             },
             clip {
                 .name = "sc01_sh010_anim.mov",
-                .bounds_s = discrete {
-                    .start = 0,
-                    .end = 100,
-                },
+                .bounds_s = discrete [
+                    0,
+                    100,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 30,
-                        },
+                        .sample_rate_hz = Int 30,
                         .start_index = 0,
                     },
                 },
             },
             gap {
                 .name = "",
-                .bounds_s = {
-                    .start = 0.0,
-                    .end = 14.1,
-                },
+                .bounds_s = [
+                    0.0,
+                    14.1,
+                ],
             },
             clip {
                 .name = "sc01_sh010_anim.mov",
-                .bounds_s = discrete {
-                    .start = 0,
-                    .end = 100,
-                },
+                .bounds_s = discrete [
+                    0,
+                    100,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 30,
-                        },
+                        .sample_rate_hz = Int 30,
                         .start_index = 0,
                     },
                 },
@@ -261,34 +243,32 @@
         .children = [
             gap {
                 .name = "",
-                .bounds_s = {
-                    .start = 0.0,
-                    .end = 11.166666666666666,
-                },
+                .bounds_s = [
+                    0.0,
+                    11.166666666666666,
+                ],
             },
             clip {
                 .name = "sc01_placeholder.wav",
-                .bounds_s = discrete {
-                    .start = 8497,
-                    .end = 8667,
-                },
+                .bounds_s = discrete [
+                    8497,
+                    8667,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 30,
-                        },
+                        .sample_rate_hz = Int 30,
                         .start_index = 0,
                     },
                 },
             },
             gap {
                 .name = "",
-                .bounds_s = {
-                    .start = 0.0,
-                    .end = 4.366666666666666,
-                },
+                .bounds_s = [
+                    0.0,
+                    4.366666666666666,
+                ],
             },
             stack {
                 .name = "sc01_sh010_anim",
@@ -302,24 +282,22 @@
         .children = [
             gap {
                 .name = "",
-                .bounds_s = {
-                    .start = 0.0,
-                    .end = 5.1,
-                },
+                .bounds_s = [
+                    0.0,
+                    5.1,
+                ],
             },
             clip {
                 .name = "track_08.wav",
-                .bounds_s = discrete {
-                    .start = 6896,
-                    .end = 7094,
-                },
+                .bounds_s = discrete [
+                    6896,
+                    7094,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 30,
-                        },
+                        .sample_rate_hz = Int 30,
                         .start_index = 0,
                     },
                 },
@@ -331,41 +309,37 @@
         .children = [
             gap {
                 .name = "",
-                .bounds_s = {
-                    .start = 0.0,
-                    .end = 31.866666666666667,
-                },
+                .bounds_s = [
+                    0.0,
+                    31.866666666666667,
+                ],
             },
             clip {
                 .name = "sc01_master_layerA_sh030_temp.mov",
-                .bounds_s = discrete {
-                    .start = 133,
-                    .end = 354,
-                },
+                .bounds_s = discrete [
+                    133,
+                    354,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 30,
-                        },
+                        .sample_rate_hz = Int 30,
                         .start_index = 0,
                     },
                 },
             },
             clip {
                 .name = "sc01_sh010_anim.mov",
-                .bounds_s = discrete {
-                    .start = 6,
-                    .end = 100,
-                },
+                .bounds_s = discrete [
+                    6,
+                    100,
+                ],
                 .media = {
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int {
-                            .value = 30,
-                        },
+                        .sample_rate_hz = Int 30,
                         .start_index = 0,
                     },
                 },

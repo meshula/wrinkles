@@ -11,28 +11,26 @@
                         },
                         .domain = picture {},
                         .discrete_partition = {
-                            .sample_rate_hz = Int {
-                                .value = 24,
-                            },
+                            .sample_rate_hz = Int 24,
                             .start_index = 0,
                         },
-                        .bounds_s = discrete {
-                            .start = 0,
-                            .end = 24,
-                        },
+                        .bounds_s = discrete [
+                            0,
+                            24,
+                        ],
                     },
                     .name = "Clip-001",
-                    .bounds_s = discrete {
-                        .start = 0,
-                        .end = 24,
-                    },
+                    .bounds_s = discrete [
+                        0,
+                        24,
+                    ],
                 },
                 gap {
                     .name = "A to B",
-                    .bounds_s = {
-                        .start = 0.0,
-                        .end = 1.0,
-                    },
+                    .bounds_s = [
+                        0.0,
+                        1.0,
+                    ],
                 },
                 clip {
                     .media = {
@@ -41,30 +39,26 @@
                         },
                         .domain = picture {},
                         .discrete_partition = {
-                            .sample_rate_hz = Int {
-                                .value = 24,
-                            },
+                            .sample_rate_hz = Int 24,
                             .start_index = 0,
                         },
-                        .bounds_s = discrete {
-                            .start = 24,
-                            .end = 48,
-                        },
+                        .bounds_s = discrete [
+                            24,
+                            48,
+                        ],
                     },
                     .name = "Clip-002",
-                    .bounds_s = discrete {
-                        .start = 24,
-                        .end = 48,
-                    },
+                    .bounds_s = discrete [
+                        24,
+                        48,
+                    ],
                 },
             ],
         },
     ],
     .presentation_space_discrete_partitions = {
         .picture = {
-            .sample_rate_hz = Int {
-                .value = 24,
-            },
+            .sample_rate_hz = Int 24,
             .start_index = 0,
         },
     },

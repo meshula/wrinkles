@@ -36,15 +36,15 @@ def rational_time_to_float(rational_time: Dict[str, Any]) -> float:
     return float(value) / float(rate)
 
 
-def time_range_to_continuous_interval(time_range: Dict[str, Any]) -> Dict[str, float]:
-    """Convert OTIO TimeRange to Ziggy ContinuousInterval struct {start, end}."""
+def time_range_to_continuous_interval(time_range: Dict[str, Any]) -> List[float]:
+    """Convert OTIO TimeRange to Ziggy ContinuousInterval [start, end]."""
     if time_range.get("OTIO_SCHEMA") != "TimeRange.1":
         raise ValueError(f"Expected TimeRange.1, got {time_range.get('OTIO_SCHEMA')}")
 
     start = rational_time_to_float(time_range["start_time"])
     duration = rational_time_to_float(time_range["duration"])
 
-    return {"start": start, "end": start + duration}
+    return [start, start + duration]
 
 
 def convert_media_reference(media_ref: Dict[str, Any], discrete_rate: Optional[int] = None) -> Dict[str, Any]:
@@ -76,7 +76,7 @@ def convert_media_reference(media_ref: Dict[str, Any], discrete_rate: Optional[i
         # Add discrete partition if we have a discrete rate
         if discrete_rate is not None:
             result["discrete_partition"] = {
-                "sample_rate_hz": {"Int": {"value": discrete_rate}},
+                "sample_rate_hz": {"Int": discrete_rate},
                 "start_index": 0
             }
 
@@ -100,7 +100,7 @@ def convert_media_reference(media_ref: Dict[str, Any], discrete_rate: Optional[i
                 start_index = int(start_time.get("value", 0))
                 end_index = start_index + int(duration.get("value", 0))
 
-                result["bounds_s"] = {"discrete": {"start": start_index, "end": end_index}}
+                result["bounds_s"] = {"discrete": [start_index, end_index]}
             else:
                 # Use continuous bounds (time in seconds)
                 interval = time_range_to_continuous_interval(available_range)
@@ -118,7 +118,7 @@ def convert_media_reference(media_ref: Dict[str, Any], discrete_rate: Optional[i
         # Add discrete partition if we have a discrete rate
         if discrete_rate is not None:
             result["discrete_partition"] = {
-                "sample_rate_hz": {"Int": {"value": discrete_rate}},
+                "sample_rate_hz": {"Int": discrete_rate},
                 "start_index": 0
             }
 
@@ -134,7 +134,7 @@ def convert_media_reference(media_ref: Dict[str, Any], discrete_rate: Optional[i
         # Add discrete partition if we have a discrete rate
         if discrete_rate is not None:
             result["discrete_partition"] = {
-                "sample_rate_hz": {"Int": {"value": discrete_rate}},
+                "sample_rate_hz": {"Int": discrete_rate},
                 "start_index": 0
             }
 
@@ -184,7 +184,7 @@ def convert_clip(clip: Dict[str, Any]) -> Dict[str, Any]:
             start_index = int(start_time["value"])
             end_index = start_index + int(duration["value"])
 
-            result["bounds_s"] = {"discrete": {"start": start_index, "end": end_index}}
+            result["bounds_s"] = {"discrete": [start_index, end_index]}
         else:
             # Use continuous bounds (time in seconds)
             interval = time_range_to_continuous_interval(source_range)
@@ -199,8 +199,8 @@ def convert_gap(gap: Dict[str, Any]) -> Dict[str, Any]:
     source_range = gap.get("source_range")
 
     if not source_range:
-        # Default gap duration
-        bounds_s = {"start": 0.0, "end": 1.0}
+        # Default gap duration - Gap uses [2]Float directly, not Bounds union
+        bounds_s = [0.0, 1.0]
     else:
         bounds_s = time_range_to_continuous_interval(source_range)
 
@@ -225,7 +225,7 @@ def convert_composable(item: Dict[str, Any]) -> Dict[str, Any]:
     else:
         # Unknown type, convert to gap
         print(f"Warning: Unknown composable type {schema_type}, converting to gap")
-        return {"gap": {"name": item.get("name"), "bounds_s": {"start": 0.0, "end": 1.0}}}
+        return {"gap": {"name": item.get("name"), "bounds_s": [0.0, 1.0]}}
 
 
 def convert_track(track: Dict[str, Any]) -> Dict[str, Any]:
@@ -331,7 +331,7 @@ def convert_timeline(timeline: Dict[str, Any]) -> Dict[str, Any]:
         single_rate = next(iter(rates))
         if is_discrete_rate(single_rate):
             presentation_partition = {
-                "sample_rate_hz": {"Int": {"value": int(single_rate)}},
+                "sample_rate_hz": {"Int": int(single_rate)},
                 "start_index": 0
             }
 
