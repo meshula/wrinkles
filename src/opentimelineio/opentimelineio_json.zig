@@ -692,7 +692,10 @@ fn read_otio_object(
         },
         .Stack => {
             var st = try allocator.create(otio.Stack);
-            st.maybe_name = maybe_name;
+            st.* = otio.Stack{
+                .maybe_name = maybe_name,
+                .children = &.{},
+            };
 
             if (obj.get("children"))
                 |children|
@@ -708,7 +711,10 @@ fn read_otio_object(
         },
         .Track => {
             var tr = try allocator.create(otio.Track);
-            tr.maybe_name = maybe_name;
+            tr.* = otio.Track{
+                .maybe_name = maybe_name,
+                .children = &.{},
+            };
 
             if (obj.get("children"))
                 |children|

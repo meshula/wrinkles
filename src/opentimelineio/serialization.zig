@@ -76,6 +76,18 @@ pub const SerializableDomain = union(enum) {
     audio: struct {},
     metadata: struct {},
     other: struct { name: []const u8 },
+
+    /// Free memory owned by the SerializableDomain.
+    pub fn deinit(
+        self: @This(),
+        allocator: Allocator,
+    ) void
+    {
+        switch (self) {
+            .other => |o| allocator.free(o.name),
+            else => {},
+        }
+    }
 };
 
 /// Serializable variant of MediaDataReference
@@ -83,6 +95,18 @@ pub const SerializableMediaDataReference = union(enum) {
     uri: SerializableURIReference,
     signal: SerializableSignalReference,
     null: struct {},
+
+    /// Free memory owned by the SerializableMediaDataReference.
+    pub fn deinit(
+        self: @This(),
+        allocator: Allocator,
+    ) void
+    {
+        switch (self) {
+            .uri => |uri_ref| allocator.free(uri_ref.target_uri),
+            .signal, .null => {},
+        }
+    }
 };
 
 pub const SerializableURIReference = struct {
@@ -107,6 +131,16 @@ pub const SerializableMediaReference = struct {
     domain: SerializableDomain,
     discrete_partition: ?SerializableSampleIndexGenerator = null,
     interpolating: ?schema.ResamplingBehavior = null,
+
+    /// Free memory owned by the SerializableMediaReference.
+    pub fn deinit(
+        self: @This(),
+        allocator: Allocator,
+    ) void
+    {
+        self.data_reference.deinit(allocator);
+        self.domain.deinit(allocator);
+    }
 };
 
 /// Serializable variant of Clip
@@ -184,6 +218,8 @@ pub const SerializableComposable = union(enum) {
                 {
                     allocator.free(name);
                 }
+                // Free media reference (URI and domain strings)
+                clip.media.deinit(allocator);
                 // Free metadata hash key (the value is in Timeline's metadata_map)
                 if (clip.metadata_hash) |hash_key| {
                     allocator.free(hash_key);
@@ -295,6 +331,57 @@ pub const MetadataValue = ziggy.dynamic.Value;
 /// Metadata map type - maps string keys to dynamic values
 pub const MetadataMap = ziggy.dynamic.Map(MetadataValue);
 
+/// Recursively free all strings and arrays in a MetadataValue.
+/// ziggy's parser allocates strings during parsing, and this function
+/// ensures they are properly freed.
+fn deinit_metadata_value(
+    allocator: Allocator,
+    value: MetadataValue,
+) void {
+    switch (value) {
+        .kv => |kv| {
+            // Copy the kv to mutable to deinit its fields
+            var mutable_kv = kv;
+            deinit_metadata_map_contents(allocator, &mutable_kv);
+        },
+        .array => |arr| {
+            for (arr) |item| {
+                deinit_metadata_value(allocator, item);
+            }
+            allocator.free(arr);
+        },
+        .bytes => |b| allocator.free(b),
+        .tag => |t| {
+            // Tag name is not allocated (it's a slice into source), but bytes might be
+            allocator.free(t.bytes);
+        },
+        .integer, .float, .bool, .null => {}, // No allocations
+    }
+}
+
+/// Free contents of a MetadataMap (keys, values, and nested structures).
+fn deinit_metadata_map_contents(
+    allocator: Allocator,
+    mm: *MetadataMap,
+) void {
+    var iter = mm.fields.iterator();
+    while (iter.next()) |entry| {
+        // Free the key string
+        allocator.free(entry.key_ptr.*);
+        // Recursively free the value
+        deinit_metadata_value(allocator, entry.value_ptr.*);
+    }
+    mm.fields.deinit(allocator);
+}
+
+/// Free a MetadataMap and all its contents.
+fn deinit_metadata_map(
+    allocator: Allocator,
+    mm: *MetadataMap,
+) void {
+    deinit_metadata_map_contents(allocator, mm);
+}
+
 /// Serializable variant of Timeline (root type)
 pub const SerializableTimeline = struct {
     pub const schema_name: []const u8 = "Timeline";
@@ -325,9 +412,9 @@ pub const SerializableTimeline = struct {
         }
         allocator.free(self.children);
 
-        // Metadata map keys and values are managed by ziggy's arena
+        // Free metadata map including all nested keys and values
         if (self.metadata_map) |*mm| {
-            mm.fields.deinit(allocator);
+            deinit_metadata_map(allocator, mm);
         }
     }
 };
@@ -895,6 +982,12 @@ pub fn media_data_reference_to_serializable(
                     allocator,
                     sig_ref.signal_generator,
                 ),
+            },
+        },
+        .image_sequence => |img_seq| .{
+            // For now, serialize image_sequence as a URI with the base path
+            .uri = .{
+                .target_uri = try copy_string(allocator, img_seq.target_url_base),
             },
         },
         .null => .null,

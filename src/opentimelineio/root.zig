@@ -21,6 +21,10 @@ pub const Track = schema.Track;
 pub const Stack = schema.Stack;
 pub const Timeline = schema.Timeline;
 
+pub const marker = @import("marker.zig");
+pub const Marker = marker.Marker;
+pub const MarkerColor = marker.MarkerColor;
+
 pub const domain = @import("domain.zig");
 pub const Domain = domain.Domain;
 
@@ -42,6 +46,7 @@ test {
     _ = otio_highlevel_tests;
     _ = temporal_tree;
     _ = schema;
+    _ = marker;
     _ = references;
     _ = projection;
     _ = domain;

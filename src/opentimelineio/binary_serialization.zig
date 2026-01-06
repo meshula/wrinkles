@@ -195,6 +195,55 @@ pub const BinaryTimelineNoMetadata = struct {
     // No metadata_map field - zbor will skip it with ignore_unknown_fields
 };
 
+/// Free memory allocated by zbor.parse for BinaryTimeline.
+/// Call this after converting to schema.Timeline to avoid leaks.
+fn deinit_binary_timeline(
+    allocator: std.mem.Allocator,
+    bin_timeline: BinaryTimeline,
+) void
+{
+    deinit_binary_composable_slice(allocator, bin_timeline.children);
+}
+
+/// Free memory allocated by zbor.parse for BinaryTimelineNoMetadata.
+fn deinit_binary_timeline_no_metadata(
+    allocator: std.mem.Allocator,
+    bin_timeline: BinaryTimelineNoMetadata,
+) void
+{
+    deinit_binary_composable_slice(allocator, bin_timeline.children);
+}
+
+/// Recursively free a single BinaryComposable item.
+fn deinit_binary_composable(
+    allocator: std.mem.Allocator,
+    child: BinaryComposable,
+) void
+{
+    switch (child) {
+        .track => |t| deinit_binary_composable_slice(allocator, t.children),
+        .stack => |s| deinit_binary_composable_slice(allocator, s.children),
+        .transition => |tr| deinit_binary_composable_slice(allocator, tr.container.children),
+        .warp => |w| {
+            deinit_binary_composable(allocator, w.child.*);
+            allocator.destroy(w.child);
+        },
+        .clip, .gap => {},
+    }
+}
+
+/// Recursively free a slice of BinaryComposable items.
+fn deinit_binary_composable_slice(
+    allocator: std.mem.Allocator,
+    children: []BinaryComposable,
+) void
+{
+    for (children) |child| {
+        deinit_binary_composable(allocator, child);
+    }
+    allocator.free(children);
+}
+
 // ----------------------------------------------------------------------------
 // Header Functions
 // ----------------------------------------------------------------------------
@@ -333,6 +382,10 @@ fn media_data_ref_to_binary(
         },
         .signal => |sig_ref| .{
             .signal = .{ .frequency_hz = @floatFromInt(sig_ref.signal_generator.frequency_hz) },
+        },
+        .image_sequence => |img_seq| .{
+            // For now, serialize image_sequence as a URI with the base path
+            .uri = .{ .target_uri = try copy_string(allocator, img_seq.target_url_base) },
         },
         .null => .{ .null = .{} },
     };
@@ -894,6 +947,7 @@ pub fn serialize_timeline_binary(
 ) !void {
     // Convert to binary format (no metadata in this path)
     const bin_timeline = try timeline_to_binary(allocator, timeline);
+    defer deinit_binary_timeline(allocator, bin_timeline);
 
     // Serialize with zbor - use Allocating writer
     var zbor_writer = std.Io.Writer.Allocating.init(allocator);
@@ -919,6 +973,7 @@ pub fn serialize_from_serializable_timeline(
 ) !void {
     // Convert to binary format preserving metadata
     const bin_timeline = try serializable_timeline_to_binary(allocator, ser_timeline);
+    defer deinit_binary_timeline(allocator, bin_timeline);
 
     // Serialize with zbor
     var zbor_writer = std.Io.Writer.Allocating.init(allocator);
@@ -1598,6 +1653,7 @@ pub fn deserialize_timeline_binary(
             .ignore_unknown_fields = true,
             .duplicate_field_behavior = .UseFirst,
         });
+        defer deinit_binary_timeline(allocator, bin_timeline);
 
         // Convert to schema.Timeline
         return try binary_to_timeline(allocator, bin_timeline);
@@ -1663,6 +1719,7 @@ fn deserialize_timeline_skip_metadata(
         .ignore_unknown_fields = true,
         .duplicate_field_behavior = .UseFirst,
     });
+    defer deinit_binary_timeline_no_metadata(allocator, bin_timeline);
 
     allocator.free(patched);
 
