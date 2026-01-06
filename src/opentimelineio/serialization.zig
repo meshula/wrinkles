@@ -118,6 +118,22 @@ pub const SerializableClip = struct {
     metadata_hash: ?[]const u8 = null,
 };
 
+/// Serializable variant of Clip with inline metadata (for --inline-metadata output)
+pub const SerializableClipInlineMetadata = struct {
+    name: ?[]const u8 = null,
+    bounds_s: ?SerializableBounds = null,
+    media: SerializableMediaReference,
+    /// Metadata stored inline instead of by hash reference
+    metadata: ?MetadataValue = null,
+};
+
+/// Serializable variant of Clip with no metadata (for --no-metadata output)
+pub const SerializableClipNoMetadata = struct {
+    name: ?[]const u8 = null,
+    bounds_s: ?SerializableBounds = null,
+    media: SerializableMediaReference,
+};
+
 /// Serializable variant of Gap
 pub const SerializableGap = struct {
     name: ?[]const u8 = null,
@@ -366,6 +382,112 @@ pub const SerializableTimelineNoMetadata = struct {
             .metadata_map = null, // Always null
         };
     }
+};
+
+// ----------------------------------------------------------------------------
+// Output-only types for metadata mode variants
+// ----------------------------------------------------------------------------
+// These types are used only for serialization output with --no-metadata
+// and --inline-metadata options. They are NOT used for parsing.
+
+/// Composable union for inline metadata output
+pub const SerializableComposableInlineMetadata = union(enum) {
+    clip: SerializableClipInlineMetadata,
+    gap: SerializableGap,
+    track: SerializableTrackInlineMetadata,
+    stack: SerializableStackInlineMetadata,
+    warp: SerializableWarpInlineMetadata,
+    transition: SerializableTransitionInlineMetadata,
+};
+
+/// Composable union for no metadata output
+pub const SerializableComposableNoMetadata = union(enum) {
+    clip: SerializableClipNoMetadata,
+    gap: SerializableGap,
+    track: SerializableTrackNoMetadata,
+    stack: SerializableStackNoMetadata,
+    warp: SerializableWarpNoMetadata,
+    transition: SerializableTransitionNoMetadata,
+};
+
+/// Track variant for inline metadata output
+pub const SerializableTrackInlineMetadata = struct {
+    name: ?[]const u8 = null,
+    bounds_s: ?SerializableBounds = null,
+    children: []SerializableComposableInlineMetadata,
+};
+
+/// Track variant for no metadata output
+pub const SerializableTrackNoMetadata = struct {
+    name: ?[]const u8 = null,
+    bounds_s: ?SerializableBounds = null,
+    children: []SerializableComposableNoMetadata,
+};
+
+/// Stack variant for inline metadata output
+pub const SerializableStackInlineMetadata = struct {
+    name: ?[]const u8 = null,
+    bounds_s: ?SerializableBounds = null,
+    children: []SerializableComposableInlineMetadata,
+};
+
+/// Stack variant for no metadata output
+pub const SerializableStackNoMetadata = struct {
+    name: ?[]const u8 = null,
+    bounds_s: ?SerializableBounds = null,
+    children: []SerializableComposableNoMetadata,
+};
+
+/// Warp variant for inline metadata output
+pub const SerializableWarpInlineMetadata = struct {
+    name: ?[]const u8 = null,
+    child: *SerializableComposableInlineMetadata,
+    transform: SerializableTopology,
+};
+
+/// Warp variant for no metadata output
+pub const SerializableWarpNoMetadata = struct {
+    name: ?[]const u8 = null,
+    child: *SerializableComposableNoMetadata,
+    transform: SerializableTopology,
+};
+
+/// Transition variant for inline metadata output
+pub const SerializableTransitionInlineMetadata = struct {
+    name: ?[]const u8 = null,
+    container: SerializableStackInlineMetadata,
+    kind: []const u8,
+    bounds_s: ?SerializableContinuousInterval = null,
+};
+
+/// Transition variant for no metadata output
+pub const SerializableTransitionNoMetadata = struct {
+    name: ?[]const u8 = null,
+    container: SerializableStackNoMetadata,
+    kind: []const u8,
+    bounds_s: ?SerializableContinuousInterval = null,
+};
+
+/// Timeline variant for inline metadata output (no metadata_map, metadata inline on clips)
+pub const SerializableTimelineInlineMetadata = struct {
+    pub const schema_name: []const u8 = "Timeline";
+
+    schema_version: u32 = versioning.current_version("Timeline"),
+    name: ?[]const u8 = null,
+    children: []SerializableComposableInlineMetadata,
+    presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
+    // No metadata_map field - metadata is inline on clips
+};
+
+/// Timeline variant for output without any metadata
+pub const SerializableTimelineStrippedMetadata = struct {
+    pub const schema_name: []const u8 = "Timeline";
+
+    schema_version: u32 = versioning.current_version("Timeline"),
+    name: ?[]const u8 = null,
+    children: []SerializableComposableNoMetadata,
+    presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
+    // No metadata_map field
 };
 
 // ----------------------------------------------------------------------------
@@ -2170,6 +2292,258 @@ pub fn deserialize_linear_curve(
 
     // Convert to curve format
     return try serializable_to_linear_curve(allocator, ser_linear);
+}
+
+// ----------------------------------------------------------------------------
+// Metadata Mode Conversion Functions
+// ----------------------------------------------------------------------------
+
+/// Convert a SerializableTimeline to inline metadata format.
+/// Looks up metadata_hash values in metadata_map and stores them inline on clips.
+pub fn convert_to_inline_metadata(
+    allocator: Allocator,
+    timeline: SerializableTimeline,
+) !SerializableTimelineInlineMetadata
+{
+    const inline_children = try allocator.alloc(
+        SerializableComposableInlineMetadata,
+        timeline.children.len,
+    );
+
+    for (timeline.children, 0..)
+        |child, i|
+    {
+        inline_children[i] = try convert_composable_to_inline_metadata(
+            allocator,
+            child,
+            timeline.metadata_map,
+        );
+    }
+
+    return .{
+        .schema_version = timeline.schema_version,
+        .name = timeline.name,
+        .children = inline_children,
+        .presentation_space_discrete_partitions = timeline.presentation_space_discrete_partitions,
+    };
+}
+
+/// Convert a SerializableComposable to inline metadata format.
+fn convert_composable_to_inline_metadata(
+    allocator: Allocator,
+    composable: SerializableComposable,
+    metadata_map: ?MetadataMap,
+) !SerializableComposableInlineMetadata
+{
+    return switch (composable) {
+        .clip => |clip| .{
+            .clip = .{
+                .name = clip.name,
+                .bounds_s = clip.bounds_s,
+                .media = clip.media,
+                .metadata = if (clip.metadata_hash) |hash|
+                    if (metadata_map) |mm|
+                        mm.fields.get(hash)
+                    else
+                        null
+                else
+                    null,
+            },
+        },
+        .gap => |gap| .{ .gap = gap },
+        .track => |track| blk: {
+            const inline_children = try allocator.alloc(
+                SerializableComposableInlineMetadata,
+                track.children.len,
+            );
+            for (track.children, 0..) |child, i| {
+                inline_children[i] = try convert_composable_to_inline_metadata(
+                    allocator,
+                    child,
+                    metadata_map,
+                );
+            }
+            break :blk .{
+                .track = .{
+                    .name = track.name,
+                    .bounds_s = track.bounds_s,
+                    .children = inline_children,
+                },
+            };
+        },
+        .stack => |stack| blk: {
+            const inline_children = try allocator.alloc(
+                SerializableComposableInlineMetadata,
+                stack.children.len,
+            );
+            for (stack.children, 0..) |child, i| {
+                inline_children[i] = try convert_composable_to_inline_metadata(
+                    allocator,
+                    child,
+                    metadata_map,
+                );
+            }
+            break :blk .{
+                .stack = .{
+                    .name = stack.name,
+                    .bounds_s = stack.bounds_s,
+                    .children = inline_children,
+                },
+            };
+        },
+        .warp => |warp| blk: {
+            const inline_child = try allocator.create(SerializableComposableInlineMetadata);
+            inline_child.* = try convert_composable_to_inline_metadata(
+                allocator,
+                warp.child.*,
+                metadata_map,
+            );
+            break :blk .{
+                .warp = .{
+                    .name = warp.name,
+                    .child = inline_child,
+                    .transform = warp.transform,
+                },
+            };
+        },
+        .transition => |trans| blk: {
+            const inline_container_children = try allocator.alloc(
+                SerializableComposableInlineMetadata,
+                trans.container.children.len,
+            );
+            for (trans.container.children, 0..) |child, i| {
+                inline_container_children[i] = try convert_composable_to_inline_metadata(
+                    allocator,
+                    child,
+                    metadata_map,
+                );
+            }
+            break :blk .{
+                .transition = .{
+                    .name = trans.name,
+                    .container = .{
+                        .name = trans.container.name,
+                        .bounds_s = trans.container.bounds_s,
+                        .children = inline_container_children,
+                    },
+                    .kind = trans.kind,
+                    .bounds_s = trans.bounds_s,
+                },
+            };
+        },
+    };
+}
+
+/// Strip all metadata from a SerializableTimeline.
+/// Removes metadata_hash from clips and metadata_map from timeline.
+pub fn strip_metadata(
+    allocator: Allocator,
+    timeline: SerializableTimeline,
+) !SerializableTimelineStrippedMetadata
+{
+    const stripped_children = try allocator.alloc(
+        SerializableComposableNoMetadata,
+        timeline.children.len,
+    );
+
+    for (timeline.children, 0..)
+        |child, i|
+    {
+        stripped_children[i] = try convert_composable_to_no_metadata(allocator, child);
+    }
+
+    return .{
+        .schema_version = timeline.schema_version,
+        .name = timeline.name,
+        .children = stripped_children,
+        .presentation_space_discrete_partitions = timeline.presentation_space_discrete_partitions,
+    };
+}
+
+/// Convert a SerializableComposable to no metadata format.
+fn convert_composable_to_no_metadata(
+    allocator: Allocator,
+    composable: SerializableComposable,
+) !SerializableComposableNoMetadata
+{
+    return switch (composable) {
+        .clip => |clip| .{
+            .clip = .{
+                .name = clip.name,
+                .bounds_s = clip.bounds_s,
+                .media = clip.media,
+                // No metadata_hash field
+            },
+        },
+        .gap => |gap| .{ .gap = gap },
+        .track => |track| blk: {
+            const stripped_children = try allocator.alloc(
+                SerializableComposableNoMetadata,
+                track.children.len,
+            );
+            for (track.children, 0..) |child, i| {
+                stripped_children[i] = try convert_composable_to_no_metadata(allocator, child);
+            }
+            break :blk .{
+                .track = .{
+                    .name = track.name,
+                    .bounds_s = track.bounds_s,
+                    .children = stripped_children,
+                },
+            };
+        },
+        .stack => |stack| blk: {
+            const stripped_children = try allocator.alloc(
+                SerializableComposableNoMetadata,
+                stack.children.len,
+            );
+            for (stack.children, 0..) |child, i| {
+                stripped_children[i] = try convert_composable_to_no_metadata(allocator, child);
+            }
+            break :blk .{
+                .stack = .{
+                    .name = stack.name,
+                    .bounds_s = stack.bounds_s,
+                    .children = stripped_children,
+                },
+            };
+        },
+        .warp => |warp| blk: {
+            const stripped_child = try allocator.create(SerializableComposableNoMetadata);
+            stripped_child.* = try convert_composable_to_no_metadata(allocator, warp.child.*);
+            break :blk .{
+                .warp = .{
+                    .name = warp.name,
+                    .child = stripped_child,
+                    .transform = warp.transform,
+                },
+            };
+        },
+        .transition => |trans| blk: {
+            const stripped_container_children = try allocator.alloc(
+                SerializableComposableNoMetadata,
+                trans.container.children.len,
+            );
+            for (trans.container.children, 0..) |child, i| {
+                stripped_container_children[i] = try convert_composable_to_no_metadata(
+                    allocator,
+                    child,
+                );
+            }
+            break :blk .{
+                .transition = .{
+                    .name = trans.name,
+                    .container = .{
+                        .name = trans.container.name,
+                        .bounds_s = trans.container.bounds_s,
+                        .children = stripped_container_children,
+                    },
+                    .kind = trans.kind,
+                    .bounds_s = trans.bounds_s,
+                },
+            };
+        },
+    };
 }
 
 // ----------------------------------------------------------------------------

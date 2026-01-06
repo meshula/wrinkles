@@ -1,0 +1,2566 @@
+//! Binary serialization for OTIO schema types using FlatBuffers format.
+//!
+//! File format (version 1):
+//!   Bytes 0-3:   Magic number "OTFB" (0x4F544642)
+//!   Bytes 4-7:   Format version (u32 big-endian) - version 1
+//!   Bytes 8-15:  Metadata offset (u64 big-endian) - byte offset where metadata starts
+//!                Set to 0 if no metadata, or file size if metadata at end
+//!   Bytes 16+:   FlatBuffers data
+//!
+//! The metadata offset allows readers to skip parsing metadata by truncating
+//! the data at that position. This provides significant performance gains
+//! for large files with extensive metadata (e.g., AAF imports).
+
+const std = @import("std");
+const flatbuffers = @import("flatbuffers");
+const ottla = @import("ottla_schema").ottla;
+const schema = @import("schema.zig");
+const references = @import("references.zig");
+const opentime = @import("opentime");
+const otio_json = @import("opentimelineio_json.zig");
+const sampling = @import("sampling");
+const curve = @import("curve");
+const domain_mod = @import("domain.zig");
+const topology_mod = @import("topology");
+const serialization = @import("serialization.zig");
+const ziggy = @import("ziggy");
+
+/// Alias for the composable union type used by schema types
+const CompositionItemHandle = references.CompositionItemHandle;
+
+/// Metadata types from serialization module
+const MetadataValue = serialization.MetadataValue;
+const MetadataMap = serialization.MetadataMap;
+
+const Allocator = std.mem.Allocator;
+
+pub const ReadOptions = otio_json.ReadOptions;
+
+/// Error type for conversion operations
+pub const ConvertError = error{
+    OutOfMemory,
+    InvalidData,
+    UnsupportedVersion,
+};
+
+// ----------------------------------------------------------------------------
+// File Format Constants
+// ----------------------------------------------------------------------------
+
+pub const TLFB_MAGIC: [4]u8 = .{ 'O', 'T', 'F', 'B' };
+pub const TLFB_FORMAT_VERSION: u32 = 1;
+pub const TLFB_HEADER_SIZE: usize = 16; // Magic(4) + Version(4) + MetadataOffset(8)
+
+// ----------------------------------------------------------------------------
+// Header Functions
+// ----------------------------------------------------------------------------
+
+pub fn write_header(
+    writer: anytype,
+    metadata_offset: u64,
+) !void
+{
+    try writer.writeAll(&TLFB_MAGIC);
+    // Version (u32 big-endian)
+    try writer.writeByte(@intCast((TLFB_FORMAT_VERSION >> 24) & 0xFF));
+    try writer.writeByte(@intCast((TLFB_FORMAT_VERSION >> 16) & 0xFF));
+    try writer.writeByte(@intCast((TLFB_FORMAT_VERSION >> 8) & 0xFF));
+    try writer.writeByte(@intCast(TLFB_FORMAT_VERSION & 0xFF));
+    // Metadata offset (u64 big-endian)
+    try writer.writeByte(@intCast((metadata_offset >> 56) & 0xFF));
+    try writer.writeByte(@intCast((metadata_offset >> 48) & 0xFF));
+    try writer.writeByte(@intCast((metadata_offset >> 40) & 0xFF));
+    try writer.writeByte(@intCast((metadata_offset >> 32) & 0xFF));
+    try writer.writeByte(@intCast((metadata_offset >> 24) & 0xFF));
+    try writer.writeByte(@intCast((metadata_offset >> 16) & 0xFF));
+    try writer.writeByte(@intCast((metadata_offset >> 8) & 0xFF));
+    try writer.writeByte(@intCast(metadata_offset & 0xFF));
+}
+
+pub const HeaderInfo = struct {
+    version: u32,
+    metadata_offset: u64,
+};
+
+pub fn read_header(
+    data: []const u8,
+) !HeaderInfo
+{
+    if (data.len < TLFB_HEADER_SIZE) return error.InvalidData;
+    if (!std.mem.eql(u8, data[0..4], &TLFB_MAGIC)) return error.InvalidData;
+
+    const version: u32 = (@as(u32, data[4]) << 24) |
+        (@as(u32, data[5]) << 16) |
+        (@as(u32, data[6]) << 8) |
+        @as(u32, data[7]);
+
+    if (version > TLFB_FORMAT_VERSION) return error.UnsupportedVersion;
+
+    // Read metadata offset (u64 big-endian)
+    const metadata_offset: u64 = (@as(u64, data[8]) << 56) |
+        (@as(u64, data[9]) << 48) |
+        (@as(u64, data[10]) << 40) |
+        (@as(u64, data[11]) << 32) |
+        (@as(u64, data[12]) << 24) |
+        (@as(u64, data[13]) << 16) |
+        (@as(u64, data[14]) << 8) |
+        @as(u64, data[15]);
+
+    return .{ .version = version, .metadata_offset = metadata_offset };
+}
+
+// ----------------------------------------------------------------------------
+// Conversion Helpers: schema -> FlatBuffers
+// ----------------------------------------------------------------------------
+
+/// Convert schema.Gap to FlatBuffers Gap constructor
+fn gap_to_fb(
+    gap: schema.Gap,
+) ottla.Gap.@"#constructor"
+{
+    return .{
+        .name = gap.maybe_name,
+        .bounds_start = gap.bounds_s.start.as(f64),
+        .bounds_end = gap.bounds_s.end.as(f64),
+    };
+}
+
+/// Convert RateSpecifier to FlatBuffers
+fn rate_to_fb(
+    builder: *flatbuffers.Builder,
+    rate: sampling.RateSpecifier,
+) !ottla.RateSpecifier
+{
+    return switch (rate) {
+        .Int => |val| .{
+            .IntRate = try builder.writeTable(ottla.IntRate, .{ .value = val }),
+        },
+        .Rat => |r| .{
+            .RationalRate = try builder.writeTable(
+                ottla.RationalRate,
+                .{ .num = r.num, .den = r.den },
+            ),
+        },
+    };
+}
+
+/// Convert SampleIndexGenerator to FlatBuffers
+fn sig_to_fb(
+    builder: *flatbuffers.Builder,
+    sig: sampling.SampleIndexGenerator,
+) !ottla.SampleIndexGenerator
+{
+    return try builder.writeTable(ottla.SampleIndexGenerator, .{
+        .sample_rate_hz_type = try rate_to_fb(builder, sig.sample_rate_hz),
+        .start_index = sig.start_index,
+    });
+}
+
+/// Convert Domain to FlatBuffers
+fn domain_to_fb(
+    builder: *flatbuffers.Builder,
+    dom: domain_mod.Domain,
+) !ottla.Domain
+{
+    return try builder.writeTable(ottla.Domain, .{
+        .domain_type = switch (dom) {
+            .time => .Time,
+            .picture => .Picture,
+            .audio => .Audio,
+            .metadata => .Metadata,
+            .other => .Other,
+        },
+        .other_name = switch (dom) {
+            .other => |name| name,
+            else => null,
+        },
+    });
+}
+
+/// Convert Bounds to FlatBuffers
+fn bounds_to_fb(
+    builder: *flatbuffers.Builder,
+    interval: opentime.ContinuousInterval,
+) !ottla.Bounds
+{
+    return try builder.writeTable(ottla.Bounds, .{
+        .bounds_type = .Continuous,
+        .continuous = .{
+            .start = interval.start.as(f64),
+            .end = interval.end.as(f64),
+        },
+    });
+}
+
+/// Convert MediaDataReference to FlatBuffers
+fn media_data_ref_to_fb(
+    builder: *flatbuffers.Builder,
+    ref: schema.MediaDataReference,
+) !ottla.MediaDataReference
+{
+    return switch (ref) {
+        .uri => |uri_ref| .{
+            .URIReference = try builder.writeTable(
+                ottla.URIReference,
+                .{ .target_uri = uri_ref.target_uri },
+            ),
+        },
+        .signal => |sig_ref| .{
+            .SignalReference = try builder.writeTable(ottla.SignalReference, .{
+                .signal_generator_type = .{
+                    .SineSignal = try builder.writeTable(ottla.SineSignal, .{
+                        .frequency_hz = @floatFromInt(sig_ref.signal_generator.frequency_hz),
+                    }),
+                },
+            }),
+        },
+        .null => .{
+            .NullReference = try builder.writeTable(ottla.NullReference, .{}),
+        },
+    };
+}
+
+/// Convert MediaReference to FlatBuffers
+fn media_ref_to_fb(
+    builder: *flatbuffers.Builder,
+    ref: schema.MediaReference,
+) !ottla.MediaReference
+{
+    return try builder.writeTable(ottla.MediaReference, .{
+        .data_reference_type = try media_data_ref_to_fb(builder, ref.data_reference),
+        .bounds = if (ref.maybe_bounds_s)
+            |b|
+            try bounds_to_fb(builder, b)
+        else
+            null,
+        .domain = try domain_to_fb(builder, ref.domain),
+        .discrete_partition = if (ref.maybe_discrete_partition)
+            |dp|
+            try sig_to_fb(builder, dp)
+        else
+            null,
+    });
+}
+
+// ----------------------------------------------------------------------------
+// Metadata Conversion: schema -> FlatBuffers (High-Performance Columnar Format)
+// ----------------------------------------------------------------------------
+//
+// The columnar format stores metadata in parallel arrays:
+// - keys: [string] - all keys in one vector
+// - types: [byte] - type of each value
+// - scalars: [PackedScalar] - packed bool/int/float values (inline, no vtable!)
+// - string_values/indices: strings stored separately with index mapping
+// - nested_blocks/indices: nested objects stored as sub-blocks
+//
+// This reduces tables from O(n) to O(1) for flat metadata objects!
+
+/// Convert a KV metadata value to a columnar MetadataBlock
+/// This is the high-performance path that batches all entries into vectors
+fn metadata_kv_to_block(
+    builder: *flatbuffers.Builder,
+    allocator: Allocator,
+    kv: MetadataMap,
+) !ottla.MetadataBlock
+{
+    const count = kv.fields.count();
+    if (count == 0) {
+        return try builder.writeTable(ottla.MetadataBlock, .{});
+    }
+
+    // Pre-allocate all arrays
+    const keys = try allocator.alloc([]const u8, count);
+    const types = try allocator.alloc(i8, count);
+    const scalars = try allocator.alloc(ottla.PackedScalar, count);
+
+    // Track string and nested values separately
+    var string_values_list: std.ArrayList([]const u8) = .empty;
+    var string_indices_list: std.ArrayList(u32) = .empty;
+    var nested_blocks_list: std.ArrayList(ottla.MetadataBlock) = .empty;
+    var nested_indices_list: std.ArrayList(u32) = .empty;
+
+    var i: usize = 0;
+    for (kv.fields.keys(), kv.fields.values()) |key, value| {
+        keys[i] = key;
+
+        switch (value) {
+            .null => {
+                types[i] = @intFromEnum(ottla.MetadataType.Null);
+                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+            },
+            .bool => |b| {
+                types[i] = @intFromEnum(ottla.MetadataType.Bool);
+                scalars[i] = .{ .bool_val = b, .int_val = 0, .float_val = 0.0 };
+            },
+            .integer => |v| {
+                types[i] = @intFromEnum(ottla.MetadataType.Int);
+                scalars[i] = .{ .bool_val = false, .int_val = v, .float_val = 0.0 };
+            },
+            .float => |f| {
+                types[i] = @intFromEnum(ottla.MetadataType.Float);
+                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = f };
+            },
+            .bytes => |s| {
+                types[i] = @intFromEnum(ottla.MetadataType.String);
+                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+                try string_indices_list.append(allocator, @intCast(string_values_list.items.len));
+                try string_values_list.append(allocator, s);
+            },
+            .tag => |t| {
+                types[i] = @intFromEnum(ottla.MetadataType.String);
+                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+                try string_indices_list.append(allocator, @intCast(string_values_list.items.len));
+                try string_values_list.append(allocator, t.bytes);
+            },
+            .kv => |nested_kv| {
+                types[i] = @intFromEnum(ottla.MetadataType.KV);
+                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+                try nested_indices_list.append(allocator, @intCast(nested_blocks_list.items.len));
+                const nested_block = try metadata_kv_to_block(builder, allocator, nested_kv);
+                try nested_blocks_list.append(allocator, nested_block);
+            },
+            .array => {
+                // Arrays are rare in OTIO metadata, use simple encoding
+                types[i] = @intFromEnum(ottla.MetadataType.Array);
+                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+            },
+        }
+        i += 1;
+    }
+
+    return try builder.writeTable(ottla.MetadataBlock, .{
+        .keys = keys,
+        .types = types,
+        .scalars = scalars,
+        .string_values = if (string_values_list.items.len > 0) string_values_list.items else null,
+        .string_indices = if (string_indices_list.items.len > 0) string_indices_list.items else null,
+        .nested_blocks = if (nested_blocks_list.items.len > 0) nested_blocks_list.items else null,
+        .nested_indices = if (nested_indices_list.items.len > 0) nested_indices_list.items else null,
+    });
+}
+
+/// Convert a MetadataMap to single-table columnar format (MetadataMap)
+/// This format eliminates vtable overhead by storing all metadata in one table
+/// with parallel arrays, instead of one table per hash entry.
+fn metadata_map_to_fb(
+    builder: *flatbuffers.Builder,
+    allocator: Allocator,
+    metadata_map: MetadataMap,
+) !?ottla.MetadataMap
+{
+    const hash_count = metadata_map.fields.count();
+    if (hash_count == 0) {
+        return null;
+    }
+
+    // First pass: count total entries across all hashes
+    var total_entries: usize = 0;
+    for (metadata_map.fields.values())
+        |value|
+    {
+        switch (value) {
+            .kv => |kv| total_entries += kv.fields.count(),
+            else => {},
+        }
+    }
+
+    // Allocate all parallel arrays
+    const hashes = try allocator.alloc([]const u8, hash_count);
+    const block_offsets = try allocator.alloc(u32, hash_count);
+    const block_lengths = try allocator.alloc(u32, hash_count);
+
+    const all_keys = try allocator.alloc([]const u8, total_entries);
+    const all_types = try allocator.alloc(u8, total_entries);
+    const all_scalars = try allocator.alloc(ottla.PackedScalar, total_entries);
+
+    // Track string and nested values
+    var string_values_list: std.ArrayList([]const u8) = .empty;
+    var string_key_indices_list: std.ArrayList(u32) = .empty;
+    var string_value_indices_list: std.ArrayList(u32) = .empty;
+    var nested_blocks_list: std.ArrayList(ottla.MetadataBlock) = .empty;
+    var nested_key_indices_list: std.ArrayList(u32) = .empty;
+    var nested_block_indices_list: std.ArrayList(u32) = .empty;
+
+    // Fill the arrays
+    var hash_idx: usize = 0;
+    var flat_idx: usize = 0;
+
+    for (metadata_map.fields.keys(), metadata_map.fields.values())
+        |hash, value|
+    {
+        hashes[hash_idx] = hash;
+        block_offsets[hash_idx] = @intCast(flat_idx);
+
+        const entry_count: usize = switch (value) {
+            .kv => |kv| blk: {
+                const count = kv.fields.count();
+
+                for (kv.fields.keys(), kv.fields.values())
+                    |key, val|
+                {
+                    all_keys[flat_idx] = key;
+
+                    switch (val) {
+                        .null => {
+                            all_types[flat_idx] = @intFromEnum(ottla.MetadataType.Null);
+                            all_scalars[flat_idx] = .{
+                                .bool_val = false,
+                                .int_val = 0,
+                                .float_val = 0.0,
+                            };
+                        },
+                        .bool => |b| {
+                            all_types[flat_idx] = @intFromEnum(ottla.MetadataType.Bool);
+                            all_scalars[flat_idx] = .{
+                                .bool_val = b,
+                                .int_val = 0,
+                                .float_val = 0.0,
+                            };
+                        },
+                        .integer => |v| {
+                            all_types[flat_idx] = @intFromEnum(ottla.MetadataType.Int);
+                            all_scalars[flat_idx] = .{
+                                .bool_val = false,
+                                .int_val = v,
+                                .float_val = 0.0,
+                            };
+                        },
+                        .float => |f| {
+                            all_types[flat_idx] = @intFromEnum(ottla.MetadataType.Float);
+                            all_scalars[flat_idx] = .{
+                                .bool_val = false,
+                                .int_val = 0,
+                                .float_val = f,
+                            };
+                        },
+                        .bytes => |s| {
+                            all_types[flat_idx] = @intFromEnum(ottla.MetadataType.String);
+                            all_scalars[flat_idx] = .{
+                                .bool_val = false,
+                                .int_val = 0,
+                                .float_val = 0.0,
+                            };
+                            try string_key_indices_list.append(allocator, @intCast(flat_idx));
+                            try string_value_indices_list.append(
+                                allocator,
+                                @intCast(string_values_list.items.len),
+                            );
+                            try string_values_list.append(allocator, s);
+                        },
+                        .tag => |t| {
+                            all_types[flat_idx] = @intFromEnum(ottla.MetadataType.String);
+                            all_scalars[flat_idx] = .{
+                                .bool_val = false,
+                                .int_val = 0,
+                                .float_val = 0.0,
+                            };
+                            try string_key_indices_list.append(allocator, @intCast(flat_idx));
+                            try string_value_indices_list.append(
+                                allocator,
+                                @intCast(string_values_list.items.len),
+                            );
+                            try string_values_list.append(allocator, t.bytes);
+                        },
+                        .kv => |nested_kv| {
+                            all_types[flat_idx] = @intFromEnum(ottla.MetadataType.KV);
+                            all_scalars[flat_idx] = .{
+                                .bool_val = false,
+                                .int_val = 0,
+                                .float_val = 0.0,
+                            };
+                            try nested_key_indices_list.append(allocator, @intCast(flat_idx));
+                            try nested_block_indices_list.append(
+                                allocator,
+                                @intCast(nested_blocks_list.items.len),
+                            );
+                            const nested_block = try metadata_kv_to_block(builder, allocator, nested_kv);
+                            try nested_blocks_list.append(allocator, nested_block);
+                        },
+                        .array => {
+                            all_types[flat_idx] = @intFromEnum(ottla.MetadataType.Array);
+                            all_scalars[flat_idx] = .{
+                                .bool_val = false,
+                                .int_val = 0,
+                                .float_val = 0.0,
+                            };
+                        },
+                    }
+                    flat_idx += 1;
+                }
+                break :blk count;
+            },
+            else => 0,
+        };
+
+        block_lengths[hash_idx] = @intCast(entry_count);
+        hash_idx += 1;
+    }
+
+    return try builder.writeTable(ottla.MetadataMap, .{
+        .hashes = hashes,
+        .block_offsets = block_offsets,
+        .block_lengths = block_lengths,
+        .all_keys = all_keys,
+        .all_types = all_types,
+        .all_scalars = all_scalars,
+        .string_values = if (string_values_list.items.len > 0) string_values_list.items else null,
+        .string_key_indices = if (string_key_indices_list.items.len > 0)
+            string_key_indices_list.items
+        else
+            null,
+        .string_value_indices = if (string_value_indices_list.items.len > 0)
+            string_value_indices_list.items
+        else
+            null,
+        .nested_blocks = if (nested_blocks_list.items.len > 0) nested_blocks_list.items else null,
+        .nested_key_indices = if (nested_key_indices_list.items.len > 0)
+            nested_key_indices_list.items
+        else
+            null,
+        .nested_block_indices = if (nested_block_indices_list.items.len > 0)
+            nested_block_indices_list.items
+        else
+            null,
+    });
+}
+
+// Legacy format support (kept for reference)
+
+/// Convert a metadata key-value pair to FlatBuffers MetadataEntry (compact format)
+/// For scalar values (null, bool, int, float), uses inline scalar struct
+/// For string values, uses string_val field
+/// For complex values (array, kv), creates MetadataNestedValue table
+fn metadata_entry_to_fb(
+    builder: *flatbuffers.Builder,
+    allocator: Allocator,
+    key: []const u8,
+    value: MetadataValue,
+) !ottla.MetadataEntry
+{
+    return switch (value) {
+        // Scalar types: use inline MetadataScalar struct (no extra table!)
+        .null => try builder.writeTable(ottla.MetadataEntry, .{
+            .key = key,
+            .scalar = .{
+                .value_type = @intFromEnum(ottla.MetadataType.Null),
+                .bool_val = false,
+                .int_val = 0,
+                .float_val = 0.0,
+                ._pad = 0,
+            },
+        }),
+        .bool => |b| try builder.writeTable(ottla.MetadataEntry, .{
+            .key = key,
+            .scalar = .{
+                .value_type = @intFromEnum(ottla.MetadataType.Bool),
+                .bool_val = b,
+                .int_val = 0,
+                .float_val = 0.0,
+                ._pad = 0,
+            },
+        }),
+        .integer => |i| try builder.writeTable(ottla.MetadataEntry, .{
+            .key = key,
+            .scalar = .{
+                .value_type = @intFromEnum(ottla.MetadataType.Int),
+                .bool_val = false,
+                .int_val = i,
+                .float_val = 0.0,
+                ._pad = 0,
+            },
+        }),
+        .float => |f| try builder.writeTable(ottla.MetadataEntry, .{
+            .key = key,
+            .scalar = .{
+                .value_type = @intFromEnum(ottla.MetadataType.Float),
+                .bool_val = false,
+                .int_val = 0,
+                .float_val = f,
+                ._pad = 0,
+            },
+        }),
+
+        // String type: use string_val field directly
+        .bytes => |s| try builder.writeTable(ottla.MetadataEntry, .{
+            .key = key,
+            .scalar = .{
+                .value_type = @intFromEnum(ottla.MetadataType.String),
+                .bool_val = false,
+                .int_val = 0,
+                .float_val = 0.0,
+                ._pad = 0,
+            },
+            .string_val = s,
+        }),
+        .tag => |t| try builder.writeTable(ottla.MetadataEntry, .{
+            .key = key,
+            .scalar = .{
+                .value_type = @intFromEnum(ottla.MetadataType.String),
+                .bool_val = false,
+                .int_val = 0,
+                .float_val = 0.0,
+                ._pad = 0,
+            },
+            .string_val = t.bytes,
+        }),
+
+        // Complex types: need MetadataNestedValue table
+        .array => |arr| blk: {
+            if (arr.len == 0) {
+                break :blk try builder.writeTable(ottla.MetadataEntry, .{
+                    .key = key,
+                    .scalar = .{
+                        .value_type = @intFromEnum(ottla.MetadataType.Array),
+                        .bool_val = false,
+                        .int_val = 0,
+                        .float_val = 0.0,
+                        ._pad = 0,
+                    },
+                });
+            }
+            // Convert array elements - use index as key
+            const fb_arr = try allocator.alloc(ottla.MetadataEntry, arr.len);
+            for (arr, 0..) |elem, i| {
+                // Use empty key for array elements (index implied by position)
+                fb_arr[i] = try metadata_entry_to_fb(builder, allocator, "", elem);
+            }
+            const nested = try builder.writeTable(ottla.MetadataNestedValue, .{
+                .array = fb_arr,
+            });
+            break :blk try builder.writeTable(ottla.MetadataEntry, .{
+                .key = key,
+                .scalar = .{
+                    .value_type = @intFromEnum(ottla.MetadataType.Array),
+                    .bool_val = false,
+                    .int_val = 0,
+                    .float_val = 0.0,
+                    ._pad = 0,
+                },
+                .nested_val = nested,
+            });
+        },
+        .kv => |kv| blk: {
+            const count = kv.fields.count();
+            if (count == 0) {
+                break :blk try builder.writeTable(ottla.MetadataEntry, .{
+                    .key = key,
+                    .scalar = .{
+                        .value_type = @intFromEnum(ottla.MetadataType.KV),
+                        .bool_val = false,
+                        .int_val = 0,
+                        .float_val = 0.0,
+                        ._pad = 0,
+                    },
+                });
+            }
+            // Convert nested object entries
+            const fb_entries = try allocator.alloc(ottla.MetadataEntry, count);
+            var i: usize = 0;
+            for (kv.fields.keys(), kv.fields.values()) |k, v| {
+                fb_entries[i] = try metadata_entry_to_fb(builder, allocator, k, v);
+                i += 1;
+            }
+            const nested = try builder.writeTable(ottla.MetadataNestedValue, .{
+                .entries = fb_entries,
+            });
+            break :blk try builder.writeTable(ottla.MetadataEntry, .{
+                .key = key,
+                .scalar = .{
+                    .value_type = @intFromEnum(ottla.MetadataType.KV),
+                    .bool_val = false,
+                    .int_val = 0,
+                    .float_val = 0.0,
+                    ._pad = 0,
+                },
+                .nested_val = nested,
+            });
+        },
+    };
+}
+
+/// Convert a MetadataMap to FlatBuffers MetadataEntry slice (legacy compact format)
+/// Kept for reference - use metadata_map_to_fb for the new single-table format.
+fn metadata_map_to_fb_legacy(
+    builder: *flatbuffers.Builder,
+    allocator: Allocator,
+    metadata_map: MetadataMap,
+) ![]const ottla.MetadataEntry
+{
+    _ = builder;
+
+    const count = metadata_map.fields.count();
+    if (count == 0) {
+        return &.{};
+    }
+
+    // Pre-allocate exact size needed
+    const entries = try allocator.alloc(ottla.MetadataEntry, count);
+    _ = entries;
+    // Legacy code - no longer used
+    return &.{};
+}
+
+// ----------------------------------------------------------------------------
+// SerializableComposable -> FlatBuffers Conversion
+// ----------------------------------------------------------------------------
+
+/// Alias for SerializableTimeline types
+const SerializableTimeline = serialization.SerializableTimeline;
+const SerializableComposable = serialization.SerializableComposable;
+const SerializableBounds = serialization.SerializableBounds;
+
+/// Convert SerializableBounds to FlatBuffers Bounds
+fn serializable_bounds_to_fb(
+    builder: *flatbuffers.Builder,
+    bounds: SerializableBounds,
+) !ottla.Bounds
+{
+    return switch (bounds) {
+        .continuous => |c| try builder.writeTable(ottla.Bounds, .{
+            .bounds_type = .Continuous,
+            .continuous = .{ .start = c[0], .end = c[1] },
+        }),
+        .discrete => |d| try builder.writeTable(ottla.Bounds, .{
+            .bounds_type = .Discrete,
+            .discrete = .{ .start = d[0], .end = d[1] },
+        }),
+    };
+}
+
+/// Convert SerializableComposable to FlatBuffers ComposableWrapper
+fn serializable_composable_to_fb(
+    builder: *flatbuffers.Builder,
+    allocator: Allocator,
+    composable: SerializableComposable,
+) anyerror!ottla.ComposableWrapper
+{
+    return switch (composable) {
+        .clip => |clip| try builder.writeTable(ottla.ComposableWrapper, .{
+            .comp_type = .Clip,
+            .clip = try serializable_clip_to_fb(builder, allocator, clip),
+        }),
+        .gap => |gap| try builder.writeTable(ottla.ComposableWrapper, .{
+            .comp_type = .Gap,
+            .gap = try builder.writeTable(ottla.Gap, .{
+                .name = gap.name,
+                .bounds_start = gap.bounds_s[0],
+                .bounds_end = gap.bounds_s[1],
+            }),
+        }),
+        .track => |track| try builder.writeTable(ottla.ComposableWrapper, .{
+            .comp_type = .Track,
+            .track = try serializable_track_to_fb(builder, allocator, track),
+        }),
+        .stack => |stack| try builder.writeTable(ottla.ComposableWrapper, .{
+            .comp_type = .Stack,
+            .stack = try serializable_stack_to_fb(builder, allocator, stack),
+        }),
+        .warp => |warp| try builder.writeTable(ottla.ComposableWrapper, .{
+            .comp_type = .Warp,
+            .warp = try serializable_warp_to_fb(builder, allocator, warp),
+        }),
+        .transition => |trans| try builder.writeTable(ottla.ComposableWrapper, .{
+            .comp_type = .Transition,
+            .transition = try serializable_transition_to_fb(builder, allocator, trans),
+        }),
+    };
+}
+
+/// Convert SerializableClip to FlatBuffers Clip
+fn serializable_clip_to_fb(
+    builder: *flatbuffers.Builder,
+    allocator: Allocator,
+    clip: serialization.SerializableClip,
+) !ottla.Clip
+{
+    return try builder.writeTable(ottla.Clip, .{
+        .name = clip.name,
+        .bounds = if (clip.bounds_s) |b| try serializable_bounds_to_fb(builder, b) else null,
+        .media = try serializable_media_ref_to_fb(builder, allocator, clip.media),
+        .metadata_hash = clip.metadata_hash,
+    });
+}
+
+/// Convert SerializableMediaReference to FlatBuffers MediaReference
+fn serializable_media_ref_to_fb(
+    builder: *flatbuffers.Builder,
+    allocator: Allocator,
+    ref: serialization.SerializableMediaReference,
+) !ottla.MediaReference
+{
+    _ = allocator;
+    return try builder.writeTable(ottla.MediaReference, .{
+        .data_reference_type = try serializable_data_ref_to_fb(builder, ref.data_reference),
+        .bounds = if (ref.bounds_s) |b| try serializable_bounds_to_fb(builder, b) else null,
+        .domain = try builder.writeTable(ottla.Domain, .{
+            .domain_type = switch (ref.domain) {
+                .time => .Time,
+                .picture => .Picture,
+                .audio => .Audio,
+                .metadata => .Metadata,
+                .other => .Other,
+            },
+            .other_name = if (ref.domain == .other) ref.domain.other.name else null,
+        }),
+        .discrete_partition = if (ref.discrete_partition) |dp|
+            try builder.writeTable(ottla.SampleIndexGenerator, .{
+                .sample_rate_hz_type = switch (dp.sample_rate_hz) {
+                    .Int => |v| .{ .IntRate = try builder.writeTable(ottla.IntRate, .{ .value = v }) },
+                    .Rational => |r| .{ .RationalRate = try builder.writeTable(ottla.RationalRate, .{ .num = r.num, .den = r.den }) },
+                },
+                .start_index = dp.start_index,
+            })
+        else
+            null,
+    });
+}
+
+/// Convert SerializableMediaDataReference to FlatBuffers
+fn serializable_data_ref_to_fb(
+    builder: *flatbuffers.Builder,
+    ref: serialization.SerializableMediaDataReference,
+) !ottla.MediaDataReference
+{
+    return switch (ref) {
+        .uri => |u| .{ .URIReference = try builder.writeTable(ottla.URIReference, .{ .target_uri = u.target_uri }) },
+        .signal => |s| blk: {
+            const sig_gen = switch (s.signal_generator) {
+                .sine => |sine| ottla.SignalGenerator{
+                    .SineSignal = try builder.writeTable(ottla.SineSignal, .{
+                        .frequency_hz = sine.frequency_hz,
+                    }),
+                },
+                .linear_ramp => ottla.SignalGenerator{
+                    .LinearRampSignal = try builder.writeTable(ottla.LinearRampSignal, .{}),
+                },
+            };
+            break :blk .{
+                .SignalReference = try builder.writeTable(ottla.SignalReference, .{
+                    .signal_generator_type = sig_gen,
+                }),
+            };
+        },
+        .null => .{ .NullReference = try builder.writeTable(ottla.NullReference, .{}) },
+    };
+}
+
+/// Convert SerializableTrack to FlatBuffers Track
+fn serializable_track_to_fb(
+    builder: *flatbuffers.Builder,
+    allocator: Allocator,
+    track: serialization.SerializableTrack,
+) !ottla.Track
+{
+    if (track.children.len == 0) {
+        return try builder.writeTable(ottla.Track, .{
+            .name = track.name,
+            .children = null,
+        });
+    }
+
+    // Pre-allocate exact capacity needed
+    const children = try allocator.alloc(ottla.ComposableWrapper, track.children.len);
+    defer allocator.free(children);
+
+    for (track.children, 0..) |child, i| {
+        children[i] = try serializable_composable_to_fb(builder, allocator, child);
+    }
+
+    return try builder.writeTable(ottla.Track, .{
+        .name = track.name,
+        .children = children,
+    });
+}
+
+/// Convert SerializableStack to FlatBuffers Stack
+fn serializable_stack_to_fb(
+    builder: *flatbuffers.Builder,
+    allocator: Allocator,
+    stack: serialization.SerializableStack,
+) !ottla.Stack
+{
+    if (stack.children.len == 0) {
+        return try builder.writeTable(ottla.Stack, .{
+            .name = stack.name,
+            .children = null,
+        });
+    }
+
+    // Pre-allocate exact capacity needed
+    const children = try allocator.alloc(ottla.ComposableWrapper, stack.children.len);
+    defer allocator.free(children);
+
+    for (stack.children, 0..) |child, i| {
+        children[i] = try serializable_composable_to_fb(builder, allocator, child);
+    }
+
+    return try builder.writeTable(ottla.Stack, .{
+        .name = stack.name,
+        .children = children,
+    });
+}
+
+/// Convert SerializableWarp to FlatBuffers Warp
+fn serializable_warp_to_fb(
+    builder: *flatbuffers.Builder,
+    allocator: Allocator,
+    warp: serialization.SerializableWarp,
+) !ottla.Warp
+{
+    const child_wrapper = try serializable_composable_to_fb(builder, allocator, warp.child.*);
+    const topology = try serializable_topology_to_fb(builder, allocator, warp.transform);
+    return try builder.writeTable(ottla.Warp, .{
+        .name = warp.name,
+        .child = child_wrapper,
+        .transform = topology,
+    });
+}
+
+/// Convert SerializableTopology to FlatBuffers Topology
+fn serializable_topology_to_fb(
+    builder: *flatbuffers.Builder,
+    allocator: Allocator,
+    topo: serialization.SerializableTopology,
+) !ottla.Topology
+{
+    var mapping_wrappers: std.ArrayList(ottla.MappingWrapper) = .empty;
+    defer mapping_wrappers.deinit(allocator);
+
+    for (topo.mappings) |mapping| {
+        try mapping_wrappers.append(allocator, try serializable_mapping_to_fb(builder, mapping));
+    }
+
+    return try builder.writeTable(ottla.Topology, .{
+        .mappings = mapping_wrappers.items,
+    });
+}
+
+/// Convert SerializableMapping to FlatBuffers MappingWrapper
+fn serializable_mapping_to_fb(
+    builder: *flatbuffers.Builder,
+    mapping: serialization.SerializableMapping,
+) !ottla.MappingWrapper
+{
+    return switch (mapping) {
+        .affine => |aff| try builder.writeTable(ottla.MappingWrapper, .{
+            .mapping_type = .Affine,
+            .affine = try builder.writeTable(ottla.MappingAffine, .{
+                .input_bounds_start = aff.input_bounds_val[0],
+                .input_bounds_end = aff.input_bounds_val[1],
+                .transform = .{
+                    .offset = aff.input_to_output_xform.offset,
+                    .scale = aff.input_to_output_xform.scale,
+                },
+            }),
+        }),
+        .linear => |lin| blk: {
+            var knots: std.ArrayList(ottla.ControlPoint) = .empty;
+            defer knots.deinit(builder.allocator);
+            for (lin.knots) |knot| {
+                try knots.append(builder.allocator, .{ .in_val = knot[0], .out_val = knot[1] });
+            }
+            break :blk try builder.writeTable(ottla.MappingWrapper, .{
+                .mapping_type = .Linear,
+                .linear = try builder.writeTable(ottla.MappingLinear, .{
+                    .input_bounds_start = lin.input_bounds_val[0],
+                    .input_bounds_end = lin.input_bounds_val[1],
+                    .knots = knots.items,
+                }),
+            });
+        },
+        .empty => try builder.writeTable(ottla.MappingWrapper, .{
+            .mapping_type = .Empty,
+        }),
+    };
+}
+
+/// Convert SerializableTransition to FlatBuffers Transition
+fn serializable_transition_to_fb(
+    builder: *flatbuffers.Builder,
+    allocator: Allocator,
+    trans: serialization.SerializableTransition,
+) !ottla.Transition
+{
+    const has_bounds = trans.bounds_s != null;
+
+    // Serialize container children if present
+    const container = try serializable_stack_to_fb(builder, allocator, trans.container);
+
+    return try builder.writeTable(ottla.Transition, .{
+        .name = trans.name,
+        .kind = trans.kind,
+        .has_bounds = has_bounds,
+        .bounds_start = if (trans.bounds_s) |b| b[0] else 0.0,
+        .bounds_end = if (trans.bounds_s) |b| b[1] else 0.0,
+        .container = container,
+    });
+}
+
+/// Convert SerializableRateSpecifier to FlatBuffers RateSpecifier
+fn serializable_rate_to_fb(
+    builder: *flatbuffers.Builder,
+    rate: serialization.SerializableRateSpecifier,
+) !ottla.RateSpecifier
+{
+    return switch (rate) {
+        .Int => |val| .{
+            .IntRate = try builder.writeTable(ottla.IntRate, .{ .value = val }),
+        },
+        .Rational => |r| .{
+            .RationalRate = try builder.writeTable(
+                ottla.RationalRate,
+                .{ .num = r.num, .den = r.den },
+            ),
+        },
+    };
+}
+
+/// Convert SerializableSampleIndexGenerator to FlatBuffers SampleIndexGenerator
+fn serializable_sig_to_fb(
+    builder: *flatbuffers.Builder,
+    sig: serialization.SerializableSampleIndexGenerator,
+) !ottla.SampleIndexGenerator
+{
+    return try builder.writeTable(ottla.SampleIndexGenerator, .{
+        .sample_rate_hz_type = try serializable_rate_to_fb(builder, sig.sample_rate_hz),
+        .start_index = sig.start_index,
+    });
+}
+
+/// Convert SerializableDiscretePartitionDomainMap to FlatBuffers DiscretePartitionDomainMap
+fn serializable_discrete_partitions_to_fb(
+    builder: *flatbuffers.Builder,
+    partitions: serialization.SerializableDiscretePartitionDomainMap,
+) !?ottla.DiscretePartitionDomainMap
+{
+    // Only create the table if at least one partition is set
+    if (partitions.picture == null and partitions.audio == null) {
+        return null;
+    }
+
+    return try builder.writeTable(ottla.DiscretePartitionDomainMap, .{
+        .picture = if (partitions.picture) |p| try serializable_sig_to_fb(builder, p) else null,
+        .audio = if (partitions.audio) |a| try serializable_sig_to_fb(builder, a) else null,
+    });
+}
+
+/// Convert schema.Clip to FlatBuffers Clip
+fn clip_to_fb(
+    builder: *flatbuffers.Builder,
+    clip: schema.Clip,
+) !ottla.Clip
+{
+    return try builder.writeTable(ottla.Clip, .{
+        .name = clip.maybe_name,
+        .bounds = if (clip.maybe_bounds_s)
+            |b|
+            try bounds_to_fb(builder, b)
+        else
+            null,
+        .media = try media_ref_to_fb(builder, clip.media),
+        .metadata_hash = null, // TODO: handle metadata
+    });
+}
+
+/// Convert schema.Track to FlatBuffers Track
+fn track_to_fb(
+    builder: *flatbuffers.Builder,
+    allocator: Allocator,
+    track: schema.Track,
+) !ottla.Track
+{
+    // Convert children slice
+    var children: std.ArrayList(ottla.ComposableWrapper) = .empty;
+    defer children.deinit(allocator);
+
+    for (track.children)
+        |child|
+    {
+        try children.append(allocator, try composable_handle_to_fb(builder, allocator, child));
+    }
+
+    return try builder.writeTable(ottla.Track, .{
+        .name = track.maybe_name,
+        .bounds = null, // Track computes bounds dynamically
+        .children = children.items,
+    });
+}
+
+/// Convert schema.Stack to FlatBuffers Stack
+fn stack_to_fb(
+    builder: *flatbuffers.Builder,
+    allocator: Allocator,
+    stack: schema.Stack,
+) !ottla.Stack
+{
+    // Convert children slice
+    var children: std.ArrayList(ottla.ComposableWrapper) = .empty;
+    defer children.deinit(allocator);
+
+    for (stack.children)
+        |child|
+    {
+        try children.append(allocator, try composable_handle_to_fb(builder, allocator, child));
+    }
+
+    return try builder.writeTable(ottla.Stack, .{
+        .name = stack.maybe_name,
+        .bounds = null, // Stack computes bounds dynamically
+        .children = children.items,
+    });
+}
+
+/// Convert CompositionItemHandle to FlatBuffers ComposableWrapper
+fn composable_handle_to_fb(
+    builder: *flatbuffers.Builder,
+    allocator: Allocator,
+    handle: CompositionItemHandle,
+) anyerror!ottla.ComposableWrapper
+{
+    return switch (handle) {
+        .clip => |clip| try builder.writeTable(ottla.ComposableWrapper, .{
+            .comp_type = .Clip,
+            .clip = try clip_to_fb(builder, clip.*),
+        }),
+        .gap => |gap| try builder.writeTable(ottla.ComposableWrapper, .{
+            .comp_type = .Gap,
+            .gap = try builder.writeTable(ottla.Gap, gap_to_fb(gap.*)),
+        }),
+        .track => |track| try builder.writeTable(ottla.ComposableWrapper, .{
+            .comp_type = .Track,
+            .track = try track_to_fb(builder, allocator, track.*),
+        }),
+        .stack => |stack| try builder.writeTable(ottla.ComposableWrapper, .{
+            .comp_type = .Stack,
+            .stack = try stack_to_fb(builder, allocator, stack.*),
+        }),
+        .warp => |warp| try builder.writeTable(ottla.ComposableWrapper, .{
+            .comp_type = .Warp,
+            .warp = try warp_to_fb(builder, allocator, warp.*),
+        }),
+        .transition => |trans| try builder.writeTable(ottla.ComposableWrapper, .{
+            .comp_type = .Transition,
+            .transition = try transition_to_fb(builder, allocator, trans.*),
+        }),
+        .timeline => return error.InvalidData, // Timeline not a composable child
+    };
+}
+
+/// Convert schema.Warp to FlatBuffers Warp (stub - will be filled in next phase)
+fn warp_to_fb(
+    builder: *flatbuffers.Builder,
+    allocator: Allocator,
+    warp: schema.Warp,
+) !ottla.Warp
+{
+    _ = allocator;
+    return try builder.writeTable(ottla.Warp, .{
+        .name = warp.maybe_name,
+        .child = null, // TODO: implement child conversion
+        .transform = null, // TODO: implement transform conversion
+    });
+}
+
+/// Convert schema.Transition to FlatBuffers Transition (stub)
+fn transition_to_fb(
+    builder: *flatbuffers.Builder,
+    allocator: Allocator,
+    trans: schema.Transition,
+) !ottla.Transition
+{
+    _ = allocator;
+    return try builder.writeTable(ottla.Transition, .{
+        .name = trans.maybe_name,
+        .container = null, // TODO: implement container conversion
+        .kind = trans.kind, // Already a string
+        .bounds_start = if (trans.maybe_bounds_s)
+            |b|
+            b.start.as(f64)
+        else
+            0,
+        .bounds_end = if (trans.maybe_bounds_s)
+            |b|
+            b.end.as(f64)
+        else
+            0,
+        .has_bounds = trans.maybe_bounds_s != null,
+    });
+}
+
+// ----------------------------------------------------------------------------
+// Conversion Helpers: FlatBuffers -> schema
+// ----------------------------------------------------------------------------
+
+/// Convert FlatBuffers Gap to schema.Gap
+fn fb_to_gap(
+    allocator: Allocator,
+    fb_gap: ottla.Gap,
+) !*schema.Gap
+{
+    const gap_ptr = try allocator.create(schema.Gap);
+    gap_ptr.* = .{
+        .maybe_name = if (fb_gap.name())
+            |name|
+        blk: {
+            break :blk try allocator.dupe(u8, name);
+        }
+        else
+            null,
+        .bounds_s = .{
+            .start = opentime.Ordinate.init(fb_gap.bounds_start()),
+            .end = opentime.Ordinate.init(fb_gap.bounds_end()),
+        },
+    };
+    return gap_ptr;
+}
+
+/// Convert FlatBuffers RateSpecifier to sampling.RateSpecifier
+fn fb_to_rate(
+    fb_rate: ottla.RateSpecifier,
+) sampling.RateSpecifier
+{
+    return switch (fb_rate) {
+        .IntRate => |rate| .{ .Int = rate.value() },
+        .RationalRate => |rate| .{ .Rat = .{ .num = rate.num(), .den = rate.den() } },
+        .NONE => .{ .Int = 1 }, // Default
+    };
+}
+
+/// Convert FlatBuffers SampleIndexGenerator
+fn fb_to_sig(
+    fb_sig: ottla.SampleIndexGenerator,
+) sampling.SampleIndexGenerator
+{
+    return .{
+        .sample_rate_hz = fb_to_rate(fb_sig.sample_rate_hz_type()),
+        .start_index = fb_sig.start_index(),
+    };
+}
+
+/// Convert FlatBuffers Domain to domain_mod.Domain
+fn fb_to_domain(
+    allocator: Allocator,
+    fb_dom: ottla.Domain,
+) !domain_mod.Domain
+{
+    return switch (fb_dom.domain_type()) {
+        .Time => .time,
+        .Picture => .picture,
+        .Audio => .audio,
+        .Metadata => .metadata,
+        .Other => blk: {
+            if (fb_dom.other_name())
+                |name|
+            {
+                break :blk .{ .other = try allocator.dupe(u8, name) };
+            }
+            break :blk .{ .other = "" };
+        },
+    };
+}
+
+/// Convert FlatBuffers Bounds to ContinuousInterval
+fn fb_to_bounds(
+    fb_bounds: ottla.Bounds,
+    maybe_discrete_partition: ?sampling.SampleIndexGenerator,
+) opentime.ContinuousInterval
+{
+    return switch (fb_bounds.bounds_type()) {
+        .Continuous => blk: {
+            if (fb_bounds.continuous())
+                |c|
+            {
+                break :blk .{
+                    .start = opentime.Ordinate.init(c.start),
+                    .end = opentime.Ordinate.init(c.end),
+                };
+            }
+            break :blk opentime.ContinuousInterval.zero_to_inf_pos;
+        },
+        .Discrete => blk: {
+            // Discrete bounds require a discrete partition to convert to continuous
+            if (fb_bounds.discrete())
+                |d|
+            {
+                if (maybe_discrete_partition)
+                    |sig|
+                {
+                    // Convert discrete indices to continuous ordinates using sample rate
+                    break :blk .{
+                        .start = sig.ordinate_at_index(@intCast(d.start)),
+                        .end = sig.ordinate_at_index(@intCast(d.end)),
+                    };
+                } else {
+                    // Fallback: treat as raw values (shouldn't happen with well-formed data)
+                    break :blk .{
+                        .start = opentime.Ordinate.init(@as(f64, @floatFromInt(d.start))),
+                        .end = opentime.Ordinate.init(@as(f64, @floatFromInt(d.end))),
+                    };
+                }
+            }
+            break :blk opentime.ContinuousInterval.zero_to_inf_pos;
+        },
+    };
+}
+
+/// Convert FlatBuffers MediaDataReference
+fn fb_to_media_data_ref(
+    allocator: Allocator,
+    fb_ref: ottla.MediaDataReference,
+) !schema.MediaDataReference
+{
+    return switch (fb_ref) {
+        .URIReference => |uri_ref| .{
+            .uri = .{ .target_uri = try allocator.dupe(u8, uri_ref.target_uri()) },
+        },
+        .SignalReference => |sig_ref| blk: {
+            const sg = sig_ref.signal_generator_type();
+            const freq: u32 = switch (sg) {
+                .SineSignal => |sine| @intFromFloat(sine.frequency_hz()),
+                .LinearRampSignal => 1000,
+                .NONE => 1000,
+            };
+            break :blk .{
+                .signal = .{
+                    .signal_generator = .{
+                        .frequency_hz = freq,
+                        .duration_s = sampling.sample_ordinate_t.init(1.0),
+                        .signal = .sine,
+                    },
+                },
+            };
+        },
+        .NullReference, .NONE => .{ .null = {} },
+    };
+}
+
+/// Convert FlatBuffers MediaReference
+fn fb_to_media_ref(
+    allocator: Allocator,
+    fb_ref: ottla.MediaReference,
+) !schema.MediaReference
+{
+    const maybe_discrete_partition = if (fb_ref.discrete_partition())
+        |dp|
+        fb_to_sig(dp)
+    else
+        null;
+
+    return .{
+        .data_reference = try fb_to_media_data_ref(allocator, fb_ref.data_reference_type()),
+        .maybe_bounds_s = if (fb_ref.bounds())
+            |b|
+            fb_to_bounds(b, maybe_discrete_partition)
+        else
+            null,
+        .domain = if (fb_ref.domain())
+            |d|
+            try fb_to_domain(allocator, d)
+        else
+            .time,
+        .maybe_discrete_partition = maybe_discrete_partition,
+    };
+}
+
+// ----------------------------------------------------------------------------
+// Metadata Conversion: FlatBuffers -> schema (High-Performance Columnar Format)
+// ----------------------------------------------------------------------------
+
+/// Convert a columnar MetadataBlock back to a KV MetadataValue
+fn fb_block_to_metadata_kv(
+    allocator: Allocator,
+    block: ottla.MetadataBlock,
+) !MetadataMap
+{
+    const keys_vec = block.keys() orelse return .{};
+    const types_vec = block.types() orelse return .{};
+    const scalars_vec = block.scalars() orelse return .{};
+
+    const count = keys_vec.len();
+    if (count == 0) return .{};
+
+    var map: MetadataMap = .{};
+    try map.fields.ensureTotalCapacity(allocator, count);
+
+    // Track indices for string and nested lookups
+    var string_idx: usize = 0;
+    var nested_idx: usize = 0;
+
+    for (0..count) |i| {
+        const key = try allocator.dupe(u8, keys_vec.get(i));
+        const value_type: ottla.MetadataType = @enumFromInt(types_vec.get(i));
+        const scalar = scalars_vec.get(i);
+
+        const value: MetadataValue = switch (value_type) {
+            .Null => .null,
+            .Bool => .{ .bool = scalar.bool_val },
+            .Int => .{ .integer = scalar.int_val },
+            .Float => .{ .float = scalar.float_val },
+            .String => blk: {
+                if (block.string_values()) |sv| {
+                    if (block.string_indices()) |si| {
+                        if (string_idx < si.len()) {
+                            const str_idx = si.get(string_idx);
+                            string_idx += 1;
+                            if (str_idx < sv.len()) {
+                                break :blk .{ .bytes = try allocator.dupe(u8, sv.get(str_idx)) };
+                            }
+                        }
+                    }
+                }
+                break :blk .{ .bytes = "" };
+            },
+            .KV => blk: {
+                if (block.nested_blocks()) |nb| {
+                    if (block.nested_indices()) |ni| {
+                        if (nested_idx < ni.len()) {
+                            const blk_idx = ni.get(nested_idx);
+                            nested_idx += 1;
+                            if (blk_idx < nb.len()) {
+                                const nested_map = try fb_block_to_metadata_kv(allocator, nb.get(blk_idx));
+                                break :blk .{ .kv = nested_map };
+                            }
+                        }
+                    }
+                }
+                break :blk .{ .kv = .{} };
+            },
+            .Array => .{ .array = &.{} }, // Arrays rare in OTIO
+        };
+
+        map.fields.putAssumeCapacity(key, value);
+    }
+
+    return map;
+}
+
+/// Convert single-table columnar MetadataMap to MetadataMap
+fn fb_to_metadata_map_single_table(
+    allocator: Allocator,
+    fb_map: ottla.MetadataMap,
+) !MetadataMap
+{
+    const hashes_vec = fb_map.hashes() orelse return .{};
+    const offsets_vec = fb_map.block_offsets() orelse return .{};
+    const lengths_vec = fb_map.block_lengths() orelse return .{};
+    const all_keys_vec = fb_map.all_keys() orelse return .{};
+    const all_types_vec = fb_map.all_types() orelse return .{};
+    const all_scalars_vec = fb_map.all_scalars() orelse return .{};
+
+    const hash_count = hashes_vec.len();
+    if (hash_count == 0) return .{};
+
+    // Get optional string and nested vectors
+    const string_values_vec = fb_map.string_values();
+    const string_key_indices_vec = fb_map.string_key_indices();
+    const string_value_indices_vec = fb_map.string_value_indices();
+    const nested_blocks_vec = fb_map.nested_blocks();
+    const nested_key_indices_vec = fb_map.nested_key_indices();
+    const nested_block_indices_vec = fb_map.nested_block_indices();
+
+    // Build lookup tables for string and nested indices
+    // These map flat_idx -> string_values index or nested_blocks index
+    var string_lookup = std.AutoHashMap(u32, u32).init(allocator);
+    defer string_lookup.deinit();
+
+    if (string_key_indices_vec)
+        |ski|
+    {
+        if (string_value_indices_vec)
+            |svi|
+        {
+            const len = @min(ski.len(), svi.len());
+            for (0..len)
+                |i|
+            {
+                try string_lookup.put(ski.get(i), svi.get(i));
+            }
+        }
+    }
+
+    var nested_lookup = std.AutoHashMap(u32, u32).init(allocator);
+    defer nested_lookup.deinit();
+
+    if (nested_key_indices_vec)
+        |nki|
+    {
+        if (nested_block_indices_vec)
+            |nbi|
+        {
+            const len = @min(nki.len(), nbi.len());
+            for (0..len)
+                |i|
+            {
+                try nested_lookup.put(nki.get(i), nbi.get(i));
+            }
+        }
+    }
+
+    var map: MetadataMap = .{};
+    try map.fields.ensureTotalCapacity(allocator, hash_count);
+
+    for (0..hash_count)
+        |hash_idx|
+    {
+        const hash = try allocator.dupe(u8, hashes_vec.get(hash_idx));
+        const offset = offsets_vec.get(hash_idx);
+        const length = lengths_vec.get(hash_idx);
+
+        // Build the KV map for this hash
+        var kv: MetadataMap = .{};
+        try kv.fields.ensureTotalCapacity(allocator, length);
+
+        for (0..length)
+            |i|
+        {
+            const flat_idx = offset + @as(u32, @intCast(i));
+            const key = try allocator.dupe(u8, all_keys_vec.get(flat_idx));
+            const value_type: ottla.MetadataType = @enumFromInt(all_types_vec.get(flat_idx));
+            const scalar = all_scalars_vec.get(flat_idx);
+
+            const value: MetadataValue = switch (value_type) {
+                .Null => .null,
+                .Bool => .{ .bool = scalar.bool_val },
+                .Int => .{ .integer = scalar.int_val },
+                .Float => .{ .float = scalar.float_val },
+                .String => blk: {
+                    if (string_lookup.get(flat_idx))
+                        |str_idx|
+                    {
+                        if (string_values_vec)
+                            |sv|
+                        {
+                            if (str_idx < sv.len()) {
+                                break :blk .{ .bytes = try allocator.dupe(u8, sv.get(str_idx)) };
+                            }
+                        }
+                    }
+                    break :blk .{ .bytes = "" };
+                },
+                .KV => blk: {
+                    if (nested_lookup.get(flat_idx))
+                        |blk_idx|
+                    {
+                        if (nested_blocks_vec)
+                            |nb|
+                        {
+                            if (blk_idx < nb.len()) {
+                                break :blk .{
+                                    .kv = try fb_block_to_metadata_kv(allocator, nb.get(blk_idx)),
+                                };
+                            }
+                        }
+                    }
+                    break :blk .{ .kv = .{} };
+                },
+                .Array => .{ .array = &.{} }, // Arrays rarely used
+            };
+
+            kv.fields.putAssumeCapacity(key, value);
+        }
+
+        map.fields.putAssumeCapacity(hash, .{ .kv = kv });
+    }
+
+    return map;
+}
+
+// Legacy deserialization (kept for reference)
+
+/// Convert FlatBuffers MetadataEntry to MetadataValue (compact format)
+/// Reads the scalar struct for type and scalar values,
+/// string_val for strings, and nested_val for complex types.
+fn fb_entry_to_metadata_value(
+    allocator: Allocator,
+    entry: ottla.MetadataEntry,
+) !MetadataValue
+{
+    // Get scalar struct to determine type
+    const scalar = entry.scalar() orelse return .null;
+    const value_type: ottla.MetadataType = @enumFromInt(scalar.value_type);
+
+    return switch (value_type) {
+        .Null => .null,
+        .Bool => .{ .bool = scalar.bool_val },
+        .Int => .{ .integer = scalar.int_val },
+        .Float => .{ .float = scalar.float_val },
+        .String => blk: {
+            if (entry.string_val()) |s| {
+                break :blk .{ .bytes = try allocator.dupe(u8, s) };
+            }
+            break :blk .{ .bytes = "" };
+        },
+        .Array => blk: {
+            if (entry.nested_val()) |nested| {
+                if (nested.array()) |arr| {
+                    var result: std.ArrayList(MetadataValue) = .empty;
+                    try result.ensureTotalCapacity(allocator, arr.len());
+                    for (0..arr.len()) |i| {
+                        result.appendAssumeCapacity(try fb_entry_to_metadata_value(allocator, arr.get(i)));
+                    }
+                    break :blk .{ .array = try result.toOwnedSlice(allocator) };
+                }
+            }
+            break :blk .{ .array = &.{} };
+        },
+        .KV => blk: {
+            if (entry.nested_val()) |nested| {
+                if (nested.entries()) |entries| {
+                    var map: MetadataMap = .{};
+                    try map.fields.ensureTotalCapacity(allocator, @intCast(entries.len()));
+                    for (0..entries.len()) |i| {
+                        const e = entries.get(i);
+                        const key = try allocator.dupe(u8, e.key());
+                        const value = try fb_entry_to_metadata_value(allocator, e);
+                        map.fields.putAssumeCapacity(key, value);
+                    }
+                    break :blk .{ .kv = map };
+                }
+            }
+            break :blk .{ .kv = .{} };
+        },
+    };
+}
+
+/// Convert FlatBuffers MetadataEntry slice to MetadataMap (compact format)
+fn fb_to_metadata_map(
+    allocator: Allocator,
+    fb_entries: flatbuffers.Vector(ottla.MetadataEntry),
+) !MetadataMap
+{
+    var map: MetadataMap = .{};
+    try map.fields.ensureTotalCapacity(allocator, @intCast(fb_entries.len()));
+
+    for (0..fb_entries.len()) |i| {
+        const entry = fb_entries.get(i);
+        const key = try allocator.dupe(u8, entry.key());
+        const value = try fb_entry_to_metadata_value(allocator, entry);
+        map.fields.putAssumeCapacity(key, value);
+    }
+
+    return map;
+}
+
+// ----------------------------------------------------------------------------
+// FlatBuffers -> SerializableComposable Conversion
+// ----------------------------------------------------------------------------
+
+/// Convert FlatBuffers Bounds to SerializableBounds
+fn fb_to_serializable_bounds(
+    fb_bounds: ottla.Bounds,
+) SerializableBounds
+{
+    return switch (fb_bounds.bounds_type()) {
+        .Continuous => blk: {
+            if (fb_bounds.continuous()) |c| {
+                break :blk .{ .continuous = .{ c.start, c.end } };
+            }
+            break :blk .{ .continuous = .{ 0.0, 0.0 } };
+        },
+        .Discrete => blk: {
+            if (fb_bounds.discrete()) |d| {
+                break :blk .{ .discrete = .{ d.start, d.end } };
+            }
+            break :blk .{ .discrete = .{ 0, 0 } };
+        },
+    };
+}
+
+/// Convert FlatBuffers MediaDataReference to SerializableMediaDataReference
+fn fb_to_serializable_data_ref(
+    allocator: Allocator,
+    fb_ref: ottla.MediaDataReference,
+) !serialization.SerializableMediaDataReference
+{
+    _ = allocator;
+    return switch (fb_ref) {
+        .URIReference => |uri_ref| .{
+            .uri = .{ .target_uri = uri_ref.target_uri() },
+        },
+        .SignalReference => |sig_ref| blk: {
+            const sg = sig_ref.signal_generator_type();
+            const signal_gen: serialization.SerializableSignalGenerator = switch (sg) {
+                .SineSignal => |sine| .{ .sine = .{ .frequency_hz = sine.frequency_hz() } },
+                .LinearRampSignal => .{ .linear_ramp = .{} },
+                .NONE => .{ .sine = .{ .frequency_hz = 1000.0 } },
+            };
+            break :blk .{
+                .signal = .{ .signal_generator = signal_gen },
+            };
+        },
+        .NullReference, .NONE => .{ .null = .{} },
+    };
+}
+
+/// Convert FlatBuffers Domain to serialization.SerializableDomain
+fn fb_to_serializable_domain(
+    allocator: Allocator,
+    fb_dom: ottla.Domain,
+) !serialization.SerializableDomain
+{
+    return switch (fb_dom.domain_type()) {
+        .Time => .time,
+        .Picture => .picture,
+        .Audio => .audio,
+        .Metadata => .metadata,
+        .Other => .{ .other = .{ .name = try allocator.dupe(u8, fb_dom.other_name() orelse "") } },
+    };
+}
+
+/// Convert FlatBuffers RateSpecifier to SerializableRateSpecifier
+fn fb_to_serializable_rate(
+    fb_rate: ottla.RateSpecifier,
+) serialization.SerializableRateSpecifier
+{
+    return switch (fb_rate) {
+        .IntRate => |rate| .{ .Int = rate.value() },
+        .RationalRate => |rate| .{ .Rational = .{ .num = rate.num(), .den = rate.den() } },
+        .NONE => .{ .Int = 1 },
+    };
+}
+
+/// Convert FlatBuffers MediaReference to SerializableMediaReference
+fn fb_to_serializable_media_ref(
+    allocator: Allocator,
+    fb_ref: ottla.MediaReference,
+) !serialization.SerializableMediaReference
+{
+    return .{
+        .data_reference = try fb_to_serializable_data_ref(allocator, fb_ref.data_reference_type()),
+        .bounds_s = if (fb_ref.bounds()) |b| fb_to_serializable_bounds(b) else null,
+        .domain = if (fb_ref.domain()) |d| try fb_to_serializable_domain(allocator, d) else .time,
+        .discrete_partition = if (fb_ref.discrete_partition()) |dp|
+            .{
+                .sample_rate_hz = fb_to_serializable_rate(dp.sample_rate_hz_type()),
+                .start_index = dp.start_index(),
+            }
+        else
+            null,
+    };
+}
+
+/// Convert FlatBuffers Clip to SerializableClip
+fn fb_to_serializable_clip(
+    allocator: Allocator,
+    fb_clip: ottla.Clip,
+) !serialization.SerializableClip
+{
+    return .{
+        .name = if (fb_clip.name()) |n| try allocator.dupe(u8, n) else null,
+        .bounds_s = if (fb_clip.bounds()) |b| fb_to_serializable_bounds(b) else null,
+        .media = if (fb_clip.media()) |m| try fb_to_serializable_media_ref(allocator, m) else .{
+            .data_reference = .{ .null = .{} },
+            .bounds_s = null,
+            .domain = .time,
+            .discrete_partition = null,
+        },
+        .metadata_hash = if (fb_clip.metadata_hash()) |h| try allocator.dupe(u8, h) else null,
+    };
+}
+
+/// Convert FlatBuffers Gap to SerializableGap
+fn fb_to_serializable_gap(
+    allocator: Allocator,
+    fb_gap: ottla.Gap,
+) !serialization.SerializableGap
+{
+    return .{
+        .name = if (fb_gap.name()) |n| try allocator.dupe(u8, n) else null,
+        .bounds_s = .{ fb_gap.bounds_start(), fb_gap.bounds_end() },
+    };
+}
+
+/// Convert FlatBuffers Track to SerializableTrack
+fn fb_to_serializable_track(
+    allocator: Allocator,
+    fb_track: ottla.Track,
+) !serialization.SerializableTrack
+{
+    var children: std.ArrayList(SerializableComposable) = .empty;
+    if (fb_track.children()) |fb_children| {
+        try children.ensureTotalCapacity(allocator, fb_children.len());
+        for (0..fb_children.len()) |i| {
+            children.appendAssumeCapacity(try fb_to_serializable_composable(allocator, fb_children.get(i)));
+        }
+    }
+    return .{
+        .name = if (fb_track.name()) |n| try allocator.dupe(u8, n) else null,
+        .children = try children.toOwnedSlice(allocator),
+    };
+}
+
+/// Convert FlatBuffers Stack to SerializableStack
+fn fb_to_serializable_stack(
+    allocator: Allocator,
+    fb_stack: ottla.Stack,
+) !serialization.SerializableStack
+{
+    var children: std.ArrayList(SerializableComposable) = .empty;
+    if (fb_stack.children()) |fb_children| {
+        try children.ensureTotalCapacity(allocator, fb_children.len());
+        for (0..fb_children.len()) |i| {
+            children.appendAssumeCapacity(try fb_to_serializable_composable(allocator, fb_children.get(i)));
+        }
+    }
+    return .{
+        .name = if (fb_stack.name()) |n| try allocator.dupe(u8, n) else null,
+        .children = try children.toOwnedSlice(allocator),
+    };
+}
+
+/// Convert FlatBuffers Warp to SerializableWarp
+fn fb_to_serializable_warp(
+    allocator: Allocator,
+    fb_warp: ottla.Warp,
+) !serialization.SerializableWarp
+{
+    const child_ptr = try allocator.create(SerializableComposable);
+    child_ptr.* = if (fb_warp.child()) |c|
+        try fb_to_serializable_composable(allocator, c)
+    else
+        .{ .gap = .{ .name = null, .bounds_s = .{ 0.0, 0.0 } } };
+
+    const transform = if (fb_warp.transform()) |t|
+        try fb_to_serializable_topology(allocator, t)
+    else
+        serialization.SerializableTopology{ .mappings = &.{} };
+
+    return .{
+        .name = if (fb_warp.name()) |n| try allocator.dupe(u8, n) else null,
+        .child = child_ptr,
+        .transform = transform,
+    };
+}
+
+/// Convert FlatBuffers Topology to SerializableTopology
+fn fb_to_serializable_topology(
+    allocator: Allocator,
+    fb_topo: ottla.Topology,
+) !serialization.SerializableTopology
+{
+    if (fb_topo.mappings()) |fb_mappings| {
+        var mappings = try allocator.alloc(serialization.SerializableMapping, fb_mappings.len());
+        for (0..fb_mappings.len()) |i| {
+            mappings[i] = try fb_to_serializable_mapping(allocator, fb_mappings.get(i));
+        }
+        return .{ .mappings = mappings };
+    }
+    return .{ .mappings = &.{} };
+}
+
+/// Convert FlatBuffers MappingWrapper to SerializableMapping
+fn fb_to_serializable_mapping(
+    allocator: Allocator,
+    fb_wrapper: ottla.MappingWrapper,
+) !serialization.SerializableMapping
+{
+    return switch (fb_wrapper.mapping_type()) {
+        .Affine => blk: {
+            if (fb_wrapper.affine()) |aff| {
+                if (aff.transform()) |xform| {
+                    break :blk serialization.SerializableMapping{
+                        .affine = .{
+                            .input_bounds_val = .{ aff.input_bounds_start(), aff.input_bounds_end() },
+                            .input_to_output_xform = .{
+                                .offset = xform.offset,
+                                .scale = xform.scale,
+                            },
+                        },
+                    };
+                }
+            }
+            break :blk .{ .empty = .{} };
+        },
+        .Linear => blk: {
+            if (fb_wrapper.linear()) |lin| {
+                if (lin.knots()) |fb_knots| {
+                    const knots = try allocator.alloc(serialization.SerializableControlPoint, fb_knots.len());
+                    for (0..fb_knots.len()) |i| {
+                        const k = fb_knots.get(i);
+                        knots[i] = .{ k.in_val, k.out_val };
+                    }
+                    break :blk serialization.SerializableMapping{
+                        .linear = .{
+                            .input_bounds_val = .{ lin.input_bounds_start(), lin.input_bounds_end() },
+                            .knots = knots,
+                        },
+                    };
+                }
+            }
+            break :blk .{ .empty = .{} };
+        },
+        .Empty => .{ .empty = .{} },
+    };
+}
+
+/// Convert FlatBuffers Transition to SerializableTransition
+fn fb_to_serializable_transition(
+    allocator: Allocator,
+    fb_trans: ottla.Transition,
+) !serialization.SerializableTransition
+{
+    // Deserialize container children if present
+    const container = if (fb_trans.container()) |c|
+        try fb_to_serializable_stack(allocator, c)
+    else
+        serialization.SerializableStack{ .name = null, .children = &.{} };
+
+    return .{
+        .name = if (fb_trans.name()) |n| try allocator.dupe(u8, n) else null,
+        .container = container,
+        .kind = try allocator.dupe(u8, fb_trans.kind()),
+        .bounds_s = if (fb_trans.has_bounds())
+            .{ fb_trans.bounds_start(), fb_trans.bounds_end() }
+        else
+            null,
+    };
+}
+
+/// Convert FlatBuffers SampleIndexGenerator to SerializableSampleIndexGenerator
+fn fb_to_serializable_sig(
+    fb_sig: ottla.SampleIndexGenerator,
+) serialization.SerializableSampleIndexGenerator
+{
+    return .{
+        .sample_rate_hz = fb_to_serializable_rate(fb_sig.sample_rate_hz_type()),
+        .start_index = fb_sig.start_index(),
+    };
+}
+
+/// Convert FlatBuffers DiscretePartitionDomainMap to SerializableDiscretePartitionDomainMap
+fn fb_to_serializable_discrete_partitions(
+    fb_partitions: ottla.DiscretePartitionDomainMap,
+) serialization.SerializableDiscretePartitionDomainMap
+{
+    return .{
+        .picture = if (fb_partitions.picture()) |p| fb_to_serializable_sig(p) else null,
+        .audio = if (fb_partitions.audio()) |a| fb_to_serializable_sig(a) else null,
+    };
+}
+
+/// Convert FlatBuffers ComposableWrapper to SerializableComposable
+fn fb_to_serializable_composable(
+    allocator: Allocator,
+    fb_wrapper: ottla.ComposableWrapper,
+) anyerror!SerializableComposable
+{
+    return switch (fb_wrapper.comp_type()) {
+        .Clip => .{ .clip = if (fb_wrapper.clip()) |c| try fb_to_serializable_clip(allocator, c) else .{
+            .name = null,
+            .bounds_s = null,
+            .media = .{ .data_reference = .{ .null = .{} }, .bounds_s = null, .domain = .time, .discrete_partition = null },
+            .metadata_hash = null,
+        } },
+        .Gap => .{ .gap = if (fb_wrapper.gap()) |g| try fb_to_serializable_gap(allocator, g) else .{
+            .name = null,
+            .bounds_s = .{ 0.0, 0.0 },
+        } },
+        .Track => .{ .track = if (fb_wrapper.track()) |t| try fb_to_serializable_track(allocator, t) else .{
+            .name = null,
+            .children = &.{},
+        } },
+        .Stack => .{ .stack = if (fb_wrapper.stack()) |s| try fb_to_serializable_stack(allocator, s) else .{
+            .name = null,
+            .children = &.{},
+        } },
+        .Warp => .{ .warp = if (fb_wrapper.warp()) |w| try fb_to_serializable_warp(allocator, w) else .{
+            .name = null,
+            .child = undefined,
+            .transform = .{ .mappings = &.{} },
+        } },
+        .Transition => .{ .transition = if (fb_wrapper.transition()) |t| try fb_to_serializable_transition(allocator, t) else .{
+            .name = null,
+            .container = .{ .name = null, .children = &.{} },
+            .kind = "",
+            .bounds_s = null,
+        } },
+    };
+}
+
+/// Convert FlatBuffers Clip to schema.Clip
+fn fb_to_clip(
+    allocator: Allocator,
+    fb_clip: ottla.Clip,
+) !*schema.Clip
+{
+    // Get media reference first so we can use its discrete partition for clip bounds
+    const media = if (fb_clip.media())
+        |m|
+        try fb_to_media_ref(allocator, m)
+    else
+        schema.MediaReference{
+            .data_reference = .{ .null = {} },
+            .maybe_bounds_s = null,
+            .domain = .time,
+        };
+
+    const clip_ptr = try allocator.create(schema.Clip);
+    clip_ptr.* = .{
+        .maybe_name = if (fb_clip.name())
+            |name|
+            try allocator.dupe(u8, name)
+        else
+            null,
+        .maybe_bounds_s = if (fb_clip.bounds())
+            |b|
+            fb_to_bounds(b, media.maybe_discrete_partition)
+        else
+            null,
+        .media = media,
+    };
+    return clip_ptr;
+}
+
+/// Convert FlatBuffers ComposableWrapper to CompositionItemHandle
+fn fb_to_composable(
+    allocator: Allocator,
+    fb_wrapper: ottla.ComposableWrapper,
+) anyerror!CompositionItemHandle
+{
+    return switch (fb_wrapper.comp_type()) {
+        .Clip => blk: {
+            if (fb_wrapper.clip())
+                |c|
+            {
+                break :blk .{ .clip = try fb_to_clip(allocator, c) };
+            }
+            const gap_ptr = try allocator.create(schema.Gap);
+            gap_ptr.* = .{
+                .bounds_s = opentime.ContinuousInterval.zero_to_inf_pos,
+            };
+            break :blk .{ .gap = gap_ptr };
+        },
+        .Gap => blk: {
+            if (fb_wrapper.gap())
+                |g|
+            {
+                break :blk .{ .gap = try fb_to_gap(allocator, g) };
+            }
+            const gap_ptr = try allocator.create(schema.Gap);
+            gap_ptr.* = .{
+                .bounds_s = opentime.ContinuousInterval.zero_to_inf_pos,
+            };
+            break :blk .{ .gap = gap_ptr };
+        },
+        .Track => blk: {
+            if (fb_wrapper.track())
+                |t|
+            {
+                break :blk .{ .track = try fb_to_track(allocator, t) };
+            }
+            const track_ptr = try allocator.create(schema.Track);
+            track_ptr.* = schema.Track.empty;
+            break :blk .{ .track = track_ptr };
+        },
+        .Stack => blk: {
+            if (fb_wrapper.stack())
+                |s|
+            {
+                break :blk .{ .stack = try fb_to_stack(allocator, s) };
+            }
+            const stack_ptr = try allocator.create(schema.Stack);
+            stack_ptr.* = schema.Stack.empty;
+            break :blk .{ .stack = stack_ptr };
+        },
+        .Warp => blk: {
+            if (fb_wrapper.warp())
+                |w|
+            {
+                break :blk .{ .warp = try fb_to_warp(allocator, w) };
+            }
+            // Create default warp with dummy gap as child
+            const gap_ptr = try allocator.create(schema.Gap);
+            gap_ptr.* = .{
+                .bounds_s = opentime.ContinuousInterval.zero_to_inf_pos,
+            };
+            const warp_ptr = try allocator.create(schema.Warp);
+            warp_ptr.* = .{
+                .child = .{ .gap = gap_ptr },
+                .transform = try topology_mod.Topology.init_identity(
+                    allocator,
+                    opentime.ContinuousInterval.zero_to_inf_pos,
+                ),
+            };
+            break :blk .{ .warp = warp_ptr };
+        },
+        .Transition => blk: {
+            if (fb_wrapper.transition())
+                |t|
+            {
+                break :blk .{ .transition = try fb_to_transition(allocator, t) };
+            }
+            const trans_ptr = try allocator.create(schema.Transition);
+            trans_ptr.* = .{
+                .maybe_name = null,
+                .container = schema.Stack.empty,
+                .kind = "SMPTE_Dissolve",
+                .maybe_bounds_s = null,
+            };
+            break :blk .{ .transition = trans_ptr };
+        },
+    };
+}
+
+/// Convert FlatBuffers Track to schema.Track
+fn fb_to_track(
+    allocator: Allocator,
+    fb_track: ottla.Track,
+) !*schema.Track
+{
+    const track_ptr = try allocator.create(schema.Track);
+
+    // Convert children to slice
+    var children_list: std.ArrayList(CompositionItemHandle) = .empty;
+    if (fb_track.children())
+        |children|
+    {
+        try children_list.ensureTotalCapacity(allocator, children.len());
+        for (0..children.len())
+            |i|
+        {
+            const child = try fb_to_composable(allocator, children.get(i));
+            children_list.appendAssumeCapacity(child);
+        }
+    }
+
+    track_ptr.* = .{
+        .maybe_name = if (fb_track.name())
+            |name|
+            try allocator.dupe(u8, name)
+        else
+            null,
+        .children = try children_list.toOwnedSlice(allocator),
+    };
+
+    return track_ptr;
+}
+
+/// Convert FlatBuffers Stack to schema.Stack
+fn fb_to_stack(
+    allocator: Allocator,
+    fb_stack: ottla.Stack,
+) !*schema.Stack
+{
+    const stack_ptr = try allocator.create(schema.Stack);
+
+    // Convert children to slice
+    var children_list: std.ArrayList(CompositionItemHandle) = .empty;
+    if (fb_stack.children())
+        |children|
+    {
+        try children_list.ensureTotalCapacity(allocator, children.len());
+        for (0..children.len())
+            |i|
+        {
+            const child = try fb_to_composable(allocator, children.get(i));
+            children_list.appendAssumeCapacity(child);
+        }
+    }
+
+    stack_ptr.* = .{
+        .maybe_name = if (fb_stack.name())
+            |name|
+            try allocator.dupe(u8, name)
+        else
+            null,
+        .children = try children_list.toOwnedSlice(allocator),
+    };
+
+    return stack_ptr;
+}
+
+/// Convert FlatBuffers Warp to schema.Warp
+fn fb_to_warp(
+    allocator: Allocator,
+    fb_warp: ottla.Warp,
+) !*schema.Warp
+{
+    const warp_ptr = try allocator.create(schema.Warp);
+
+    // Get child (or create dummy gap if missing)
+    const child: CompositionItemHandle = if (fb_warp.child())
+        |c|
+        try fb_to_composable(allocator, c)
+    else blk: {
+        const gap_ptr = try allocator.create(schema.Gap);
+        gap_ptr.* = .{
+            .bounds_s = opentime.ContinuousInterval.zero_to_inf_pos,
+        };
+        break :blk .{ .gap = gap_ptr };
+    };
+
+    warp_ptr.* = .{
+        .maybe_name = if (fb_warp.name())
+            |name|
+            try allocator.dupe(u8, name)
+        else
+            null,
+        .child = child,
+        .transform = try topology_mod.Topology.init_identity(
+            allocator,
+            opentime.ContinuousInterval.zero_to_inf_pos,
+        ),
+    };
+    return warp_ptr;
+}
+
+/// Convert FlatBuffers Transition to schema.Transition (stub)
+fn fb_to_transition(
+    allocator: Allocator,
+    fb_trans: ottla.Transition,
+) !*schema.Transition
+{
+    const trans_ptr = try allocator.create(schema.Transition);
+    trans_ptr.* = .{
+        .maybe_name = if (fb_trans.name())
+            |name|
+            try allocator.dupe(u8, name)
+        else
+            null,
+        .container = schema.Stack.empty,
+        .kind = try allocator.dupe(u8, fb_trans.kind()),
+        .maybe_bounds_s = if (fb_trans.has_bounds()) .{
+            .start = opentime.Ordinate.init(fb_trans.bounds_start()),
+            .end = opentime.Ordinate.init(fb_trans.bounds_end()),
+        } else null,
+    };
+    return trans_ptr;
+}
+
+// ----------------------------------------------------------------------------
+// Serialization (schema.Timeline -> FlatBuffers)
+// ----------------------------------------------------------------------------
+
+/// Serialize a Timeline to FlatBuffers format.
+pub fn serialize_timeline(
+    timeline: *schema.Timeline,
+    allocator: Allocator,
+    writer: anytype,
+) !void
+{
+    var builder = try flatbuffers.Builder.init(allocator);
+    defer builder.deinit();
+
+    // Convert tracks (Timeline.tracks is a Stack containing tracks)
+    var children: std.ArrayList(ottla.ComposableWrapper) = .empty;
+    defer children.deinit(allocator);
+
+    for (timeline.tracks.children)
+        |child|
+    {
+        try children.append(allocator, try composable_handle_to_fb(&builder, allocator, child));
+    }
+
+    // Build Timeline root
+    const timeline_ref = try builder.writeTable(ottla.Timeline, .{
+        .schema_version = 1,
+        .name = timeline.maybe_name,
+        .children = children.items,
+        .presentation_space_discrete_partitions = null, // TODO
+        .metadata_map = null, // TODO
+    });
+
+    try builder.writeRoot(ottla.Timeline, timeline_ref);
+
+    // Write header (metadata_offset = 0 for now)
+    try write_header(writer, 0);
+
+    // Get FlatBuffers data and write
+    const fb_bytes = try builder.writeAlloc(allocator);
+    defer allocator.free(fb_bytes);
+    try writer.writeAll(fb_bytes);
+}
+
+/// Serialize a SerializableTimeline to FlatBuffers format, preserving metadata.
+/// This is the preferred method when you need to preserve metadata through
+/// the binary format.
+pub fn serialize_from_serializable_timeline(
+    ser_timeline: SerializableTimeline,
+    allocator: Allocator,
+    writer: anytype,
+) !void
+{
+    const enable_timing = true; // Set to true for profiling
+    var timer = std.time.Timer.start() catch unreachable;
+
+    // Use arena allocator for all temporary allocations during serialization
+    // This dramatically reduces allocation overhead
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const arena_alloc = arena.allocator();
+
+    var builder = try flatbuffers.Builder.init(arena_alloc);
+    // No need to deinit builder - arena will free everything
+
+    if (enable_timing) {
+        std.debug.print("  [TLFB] Builder init: {d:.3}ms\n", .{@as(f64, @floatFromInt(timer.lap())) / 1_000_000.0});
+    }
+
+    // Convert children - pre-allocate exact capacity
+    const children: ?[]ottla.ComposableWrapper = if (ser_timeline.children.len > 0) blk: {
+        const c = try arena_alloc.alloc(ottla.ComposableWrapper, ser_timeline.children.len);
+        for (ser_timeline.children, 0..) |child, i| {
+            c[i] = try serializable_composable_to_fb(&builder, arena_alloc, child);
+        }
+        break :blk c;
+    } else null;
+
+    if (enable_timing) {
+        std.debug.print("  [TLFB] Children conversion: {d:.3}ms\n", .{@as(f64, @floatFromInt(timer.lap())) / 1_000_000.0});
+    }
+
+    // Convert metadata if present (using new single-table columnar format)
+    var metadata_fb: ?ottla.MetadataMap = null;
+    if (ser_timeline.metadata_map)
+        |mm|
+    {
+        metadata_fb = try metadata_map_to_fb(&builder, arena_alloc, mm);
+    }
+
+    if (enable_timing) {
+        std.debug.print("  [TLFB] Metadata conversion: {d:.3}ms\n", .{@as(f64, @floatFromInt(timer.lap())) / 1_000_000.0});
+    }
+
+    // Convert discrete partitions
+    const discrete_partitions = try serializable_discrete_partitions_to_fb(
+        &builder,
+        ser_timeline.presentation_space_discrete_partitions,
+    );
+
+    // Build Timeline root
+    const timeline_ref = try builder.writeTable(ottla.Timeline, .{
+        .schema_version = ser_timeline.schema_version,
+        .name = ser_timeline.name,
+        .children = children,
+        .presentation_space_discrete_partitions = discrete_partitions,
+        .metadata_map = metadata_fb,
+    });
+
+    try builder.writeRoot(ottla.Timeline, timeline_ref);
+
+    if (enable_timing) {
+        std.debug.print("  [TLFB] Timeline build: {d:.3}ms\n", .{@as(f64, @floatFromInt(timer.lap())) / 1_000_000.0});
+    }
+
+    // Write header
+    try write_header(writer, 0);
+
+    // Get FlatBuffers data and write
+    const fb_bytes = try builder.writeAlloc(arena_alloc);
+    try writer.writeAll(fb_bytes);
+}
+
+// ----------------------------------------------------------------------------
+// Deserialization (FlatBuffers -> schema.Timeline)
+// ----------------------------------------------------------------------------
+
+/// Deserialize FlatBuffers data to a Timeline.
+pub fn deserialize_timeline(
+    allocator: Allocator,
+    data: []const u8,
+    options: ReadOptions,
+) !*schema.Timeline
+{
+    _ = options;
+
+    _ = try read_header(data);
+
+    // Get FlatBuffers data after header
+    const fb_data = data[TLFB_HEADER_SIZE..];
+
+    // FlatBuffers requires 8-byte alignment. Copy to aligned buffer if needed.
+    const aligned_data: []align(8) const u8 = if (@intFromPtr(fb_data.ptr) % 8 == 0)
+        @alignCast(fb_data)
+    else blk: {
+        // Need to copy to aligned memory
+        const aligned_copy = try allocator.alignedAlloc(u8, .@"8", fb_data.len);
+        @memcpy(aligned_copy, fb_data);
+        break :blk aligned_copy;
+    };
+    // Note: aligned_copy is leaked if allocated - this is intentional for now
+    // as the allocator is typically an arena that will be freed later
+
+    // Decode root Timeline
+    const fb_timeline = try flatbuffers.decodeRoot(ottla.Timeline, aligned_data);
+
+    // Convert children to tracks (as a slice)
+    var tracks_children: std.ArrayList(CompositionItemHandle) = .empty;
+    if (fb_timeline.children())
+        |children|
+    {
+        try tracks_children.ensureTotalCapacity(allocator, children.len());
+        for (0..children.len())
+            |i|
+        {
+            const child = try fb_to_composable(allocator, children.get(i));
+            tracks_children.appendAssumeCapacity(child);
+        }
+    }
+
+    // Create Timeline
+    const timeline = try allocator.create(schema.Timeline);
+    timeline.* = .{
+        .maybe_name = if (fb_timeline.name())
+            |name|
+            try allocator.dupe(u8, name)
+        else
+            null,
+        .tracks = .{
+            .children = try tracks_children.toOwnedSlice(allocator),
+        },
+    };
+
+    return timeline;
+}
+
+/// Deserialize FlatBuffers data directly to SerializableTimeline, preserving metadata.
+/// This is useful when you need to output to ziggy format while preserving metadata.
+///
+/// When options.file_contents_to_read == .all_except_metadata, the metadata_map
+/// field in the FlatBuffers data is not parsed, providing significant performance
+/// gains for large files with extensive metadata. The resulting SerializableTimeline
+/// will have metadata_map = null.
+pub fn deserialize_to_serializable_timeline(
+    allocator: Allocator,
+    data: []const u8,
+    options: ReadOptions,
+) !SerializableTimeline
+{
+    _ = try read_header(data);
+
+    // Get FlatBuffers data after header
+    const fb_data = data[TLFB_HEADER_SIZE..];
+
+    // FlatBuffers requires 8-byte alignment. Copy to aligned buffer if needed.
+    const aligned_data: []align(8) const u8 = if (@intFromPtr(fb_data.ptr) % 8 == 0)
+        @alignCast(fb_data)
+    else blk: {
+        const aligned_copy = try allocator.alignedAlloc(u8, .@"8", fb_data.len);
+        @memcpy(aligned_copy, fb_data);
+        break :blk aligned_copy;
+    };
+
+    // Decode root Timeline
+    const fb_timeline = try flatbuffers.decodeRoot(ottla.Timeline, aligned_data);
+
+    // Convert children to SerializableComposable
+    var children: std.ArrayList(SerializableComposable) = .empty;
+    if (fb_timeline.children()) |fb_children| {
+        try children.ensureTotalCapacity(allocator, fb_children.len());
+        for (0..fb_children.len()) |i| {
+            children.appendAssumeCapacity(try fb_to_serializable_composable(allocator, fb_children.get(i)));
+        }
+    }
+
+    // Convert metadata if present and requested
+    // When skip_metadata is true, we don't parse the metadata_map at all
+    var metadata_map: ?MetadataMap = null;
+    const skip_metadata = options.file_contents_to_read == .all_except_metadata;
+    if (!skip_metadata) {
+        if (fb_timeline.metadata_map())
+            |fb_metadata|
+        {
+            metadata_map = try fb_to_metadata_map_single_table(allocator, fb_metadata);
+        }
+    }
+
+    // Convert discrete partitions if present
+    const discrete_partitions = if (fb_timeline.presentation_space_discrete_partitions()) |p|
+        fb_to_serializable_discrete_partitions(p)
+    else
+        serialization.SerializableDiscretePartitionDomainMap{};
+
+    return .{
+        .schema_version = fb_timeline.schema_version(),
+        .name = if (fb_timeline.name()) |n| try allocator.dupe(u8, n) else null,
+        .children = try children.toOwnedSlice(allocator),
+        .presentation_space_discrete_partitions = discrete_partitions,
+        .metadata_map = metadata_map,
+    };
+}
+
+// ----------------------------------------------------------------------------
+// Tests
+// ----------------------------------------------------------------------------
+
+test "header: write and read round-trip"
+{
+    var buffer: [TLFB_HEADER_SIZE]u8 = undefined;
+    var stream = std.io.fixedBufferStream(&buffer);
+    const test_offset: u64 = 12345;
+    try write_header(stream.writer(), test_offset);
+    const header = try read_header(&buffer);
+    try std.testing.expectEqual(TLFB_FORMAT_VERSION, header.version);
+    try std.testing.expectEqual(test_offset, header.metadata_offset);
+}
+
+test "header: invalid magic number"
+{
+    const bad_data = [_]u8{ 'B', 'A', 'D', '!', 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0 };
+    try std.testing.expectError(error.InvalidData, read_header(&bad_data));
+}
+
+test "flatbufs: direct flatbuffers roundtrip"
+{
+    const allocator = std.testing.allocator;
+
+    // Build FlatBuffers data directly
+    var builder = try flatbuffers.Builder.init(allocator);
+    defer builder.deinit();
+
+    // Create a gap wrapper
+    const gap_ref = try builder.writeTable(ottla.Gap, .{
+        .name = "Test Gap",
+        .bounds_start = 0.0,
+        .bounds_end = 5.0,
+    });
+
+    const gap_wrapper = try builder.writeTable(ottla.ComposableWrapper, .{
+        .comp_type = .Gap,
+        .gap = gap_ref,
+    });
+
+    // Create timeline with the gap as a child
+    const timeline_ref = try builder.writeTable(ottla.Timeline, .{
+        .schema_version = 1,
+        .name = "Test Timeline",
+        .children = &[_]ottla.ComposableWrapper{gap_wrapper},
+    });
+
+    try builder.writeRoot(ottla.Timeline, timeline_ref);
+
+    // Get FlatBuffers data
+    const fb_bytes = try builder.writeAlloc(allocator);
+    defer allocator.free(fb_bytes);
+
+    // Write header + FlatBuffers data to buffer
+    var buffer: std.ArrayList(u8) = .empty;
+    defer buffer.deinit(allocator);
+    try write_header(buffer.writer(allocator), 0);
+    try buffer.appendSlice(allocator, fb_bytes);
+
+    // Verify header
+    const header = try read_header(buffer.items);
+    try std.testing.expectEqual(TLFB_FORMAT_VERSION, header.version);
+
+    // Decode
+    const fb_data = buffer.items[TLFB_HEADER_SIZE..];
+    const aligned_data: []align(8) const u8 = @alignCast(fb_data);
+    const fb_timeline = try flatbuffers.decodeRoot(ottla.Timeline, aligned_data);
+
+    // Verify timeline
+    try std.testing.expectEqualStrings("Test Timeline", fb_timeline.name().?);
+    try std.testing.expectEqual(@as(u32, 1), fb_timeline.schema_version());
+
+    // Verify children
+    const children = fb_timeline.children().?;
+    try std.testing.expectEqual(@as(usize, 1), children.len());
+
+    // Verify gap
+    const child = children.get(0);
+    try std.testing.expectEqual(ottla.ComposableType.Gap, child.comp_type());
+    const gap_val = child.gap().?;
+    try std.testing.expectEqualStrings("Test Gap", gap_val.name().?);
+    try std.testing.expectApproxEqAbs(@as(f64, 0.0), gap_val.bounds_start(), 0.001);
+    try std.testing.expectApproxEqAbs(@as(f64, 5.0), gap_val.bounds_end(), 0.001);
+}
