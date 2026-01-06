@@ -1023,6 +1023,7 @@ pub fn build(
             .{ .name = "opentimelineio", .module = opentimelineio },
             .{ .name = "opentime", .module = opentime },
             .{ .name = "sampling", .module = sampling },
+            .{ .name = "ziggy", .module = dep_ziggy.module("ziggy") },
         },
     );
 
