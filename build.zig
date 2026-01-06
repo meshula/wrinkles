@@ -110,6 +110,7 @@ pub fn rev_HEAD(
 pub fn executable(
     b: *std.Build,
     comptime name: []const u8,
+    comptime description: []const u8,
     comptime main_file_name: []const u8,
     options: Options,
     module_deps: []const std.Build.Module.Import,
@@ -185,7 +186,7 @@ pub fn executable(
         );
         var install_step = b.step(
             "install-" ++ name,
-            "Install " ++ name,
+            "Install " ++ name ++ ": " ++ description,
         );
         install_step.dependOn(&install_exe_step.step);
         b.getInstallStep().dependOn(install_step);
@@ -193,7 +194,7 @@ pub fn executable(
         // a run step specifically for the executable
         var run_step = b.step(
             "run-" ++ name,
-            "Run " ++ name,
+            "Run " ++ name ++ ": " ++ description,
         );
         var run_cmd = b.addRunArtifact(exe);
         run_step.dependOn(&run_cmd.step);
@@ -219,7 +220,10 @@ pub fn executable(
 
         const docs_step = b.step(
             "docs_exe_" ++ name,
-            "Copy documentation artifacts to prefix path",
+            (
+                  "Copy documentation artifacts to prefix path for " 
+                  ++ name
+            ),
         );
         docs_step.dependOn(&install_docs.step);
     }
@@ -922,6 +926,7 @@ pub fn build(
     try executable(
         b,
         "curvet",
+        "Interactive curve editor and visualizer",
         "src/curvet.zig",
         options,
         common_deps,
@@ -930,6 +935,7 @@ pub fn build(
     try executable(
         b,
         "sokol_test",
+        "Sokol graphics backend test",
         "src/sokol_test.zig",
         options,
         common_deps,
@@ -938,6 +944,7 @@ pub fn build(
     try executable(
         b,
         "transformation_visualizer",
+        "Visualize time transformations between spaces",
         "src/transformation_visualizer.zig",
         options,
         common_deps,
@@ -946,6 +953,7 @@ pub fn build(
     try executable(
         b,
         "wrinkles_visual_debugger",
+        "Visual debugger for wrinkles data structures",
         "src/wrinkles_visual_debugger.zig",
         options,
         common_deps,
@@ -954,6 +962,7 @@ pub fn build(
     try executable(
         b,
         "otio_space_visualizer",
+        "Visualize OTIO timeline coordinate spaces",
         "src/otio_space_visualizer.zig",
         options,
         common_deps,
@@ -962,6 +971,7 @@ pub fn build(
     try executable(
         b,
         "otio_leak_test",
+        "Memory leak detection test for OTIO parsing",
         "src/otio_leak_test.zig",
         options,
         common_deps,
@@ -970,6 +980,7 @@ pub fn build(
     try executable(
         b,
         "otio_dump_graph",
+        "Dump OTIO file as a graphviz dot graph",
         "src/otio_dump_graph.zig",
         options,
         &.{
@@ -981,6 +992,7 @@ pub fn build(
     try executable(
         b,
         "otio_dump_json",
+        "Dump OTIO file as JSON",
         "src/otio_dump_json.zig",
         options,
         &.{
@@ -992,6 +1004,7 @@ pub fn build(
     try executable(
         b,
         "otio_dump_ziggy",
+        "Dump OTIO file as Ziggy format",
         "src/otio_dump_ziggy.zig",
         options,
         &.{
@@ -1004,6 +1017,7 @@ pub fn build(
     try executable(
         b,
         "otio_measure_timeline",
+        "Measure and display OTIO timeline durations",
         "src/otio_measure_timeline.zig",
         options,
         &.{
@@ -1016,6 +1030,7 @@ pub fn build(
     try executable(
         b,
         "otio_hierarchy_view",
+        "Display OTIO file structure as a tree",
         "src/otio_hierarchy_view.zig",
         options,
         &.{
@@ -1030,6 +1045,7 @@ pub fn build(
     try executable(
         b,
         "otiocat",
+        "Convert OTIO files between formats (ziggy/tlb/tlfb)",
         "src/otiocat.zig",
         options,
         &.{
