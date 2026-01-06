@@ -28,9 +28,20 @@ const ziggy = @import("ziggy");
 
 const builtin = @import("builtin");
 
+/// Controls how metadata is output in Ziggy format
+const MetadataMode = enum {
+    /// Default behavior: use hash references with metadata_map
+    hash_reference,
+    /// Omit all metadata from output
+    no_metadata,
+    /// Print metadata inline on each clip
+    inline_metadata,
+};
+
 const State = struct {
     input_path: []const u8,
     output_path: ?[]const u8,
+    metadata_mode: MetadataMode = .hash_reference,
 
     pub fn deinit(
         self: @This(),
@@ -52,39 +63,57 @@ fn parse_args(
 
     var input_path: ?[]const u8 = null;
     var output_path: ?[]const u8 = null;
+    var metadata_mode: MetadataMode = .hash_reference;
 
     // Ignore the app name, always first in args
     _ = args.skip();
 
-    var arg_count: usize = 0;
+    var positional_count: usize = 0;
 
-    // Read all the filepaths from the commandline
+    // Read all the arguments from the commandline
     while (args.next())
         |nextarg|
     {
-        arg_count += 1;
-        const fpath: [:0]const u8 = nextarg;
+        const arg: [:0]const u8 = nextarg;
 
-        if (string.eql_latin_s8(fpath, "--help") or
-            string.eql_latin_s8(fpath, "-h"))
+        // Handle options (flags starting with -)
+        if (string.eql_latin_s8(arg, "--help") or
+            string.eql_latin_s8(arg, "-h"))
         {
             usage("");
         }
-
-        switch (arg_count) {
-            1 => {
-                input_path = try allocator.dupe(u8, fpath);
-            },
-            2 => {
-                output_path = try allocator.dupe(u8, fpath);
-            },
-            else => {
-                usage("Too many arguments.");
-            },
+        else if (string.eql_latin_s8(arg, "--no-metadata"))
+        {
+            metadata_mode = .no_metadata;
+        }
+        else if (string.eql_latin_s8(arg, "--inline-metadata"))
+        {
+            metadata_mode = .inline_metadata;
+        }
+        else if (arg.len > 0 and arg[0] == '-')
+        {
+            // Unknown flag
+            usage("Unknown option.");
+        }
+        else
+        {
+            // Positional argument (file path)
+            positional_count += 1;
+            switch (positional_count) {
+                1 => {
+                    input_path = try allocator.dupe(u8, arg);
+                },
+                2 => {
+                    output_path = try allocator.dupe(u8, arg);
+                },
+                else => {
+                    usage("Too many arguments.");
+                },
+            }
         }
     }
 
-    if (arg_count < 1)
+    if (positional_count < 1)
     {
         usage("Not enough arguments.");
     }
@@ -92,6 +121,7 @@ fn parse_args(
     return .{
         .input_path = input_path.?,
         .output_path = output_path,
+        .metadata_mode = metadata_mode,
     };
 }
 
@@ -118,7 +148,7 @@ pub fn usage(
         \\  .tlfb   Binary FlatBuffers format
         \\
         \\Usage:
-        \\  otiocat <input> [output]
+        \\  otiocat [options] <input> [output]
         \\
         \\Arguments:
         \\  <input>   Path to the source timeline file
@@ -126,7 +156,10 @@ pub fn usage(
         \\            If omitted, prints Ziggy format to stdout.
         \\
         \\Options:
-        \\  -h, --help  Print this message and exit
+        \\  -h, --help         Print this message and exit
+        \\  --no-metadata      Omit all metadata from Ziggy output
+        \\  --inline-metadata  Print metadata inline on each clip instead of
+        \\                     using hash references (Ziggy output only)
         \\
         \\Examples:
         \\  otiocat timeline.otio                   # JSON to Ziggy (stdout)
@@ -136,6 +169,10 @@ pub fn usage(
         \\  otiocat timeline.ziggy timeline.tlb     # Ziggy to Binary
         \\  otiocat timeline.tlb timeline.ziggy     # Binary to Ziggy
         \\  otiocat timeline.tlfb timeline.ziggy    # FlatBuffers to Ziggy
+        \\
+        \\  # Metadata options (Ziggy output only):
+        \\  otiocat --no-metadata timeline.otio     # No metadata in output
+        \\  otiocat --inline-metadata timeline.otio # Metadata inline on clips
         \\
         \\{s}
         , .{msg}
@@ -150,6 +187,57 @@ fn get_extension(
 {
     const ext_start = std.mem.lastIndexOfScalar(u8, path, '.') orelse return null;
     return path[ext_start..];
+}
+
+/// Write SerializableTimeline to Ziggy format with the specified metadata mode.
+fn write_ziggy_with_metadata_mode(
+    allocator: std.mem.Allocator,
+    ser_timeline: serialization.SerializableTimeline,
+    metadata_mode: MetadataMode,
+    writer: anytype,
+) !void
+{
+    switch (metadata_mode) {
+        .hash_reference => {
+            // Default behavior - output SerializableTimeline directly
+            try ziggy.stringify(
+                ser_timeline,
+                .{
+                    .whitespace = .space_4,
+                    .emit_null_fields = false,
+                },
+                writer,
+            );
+        },
+        .no_metadata => {
+            // Strip all metadata
+            const stripped = try serialization.strip_metadata(allocator, ser_timeline);
+            try ziggy.stringify(
+                stripped,
+                .{
+                    .whitespace = .space_4,
+                    .emit_null_fields = false,
+                },
+                writer,
+            );
+        },
+        .inline_metadata => {
+            // Convert to inline metadata format
+            const inline_timeline = try serialization.convert_to_inline_metadata(
+                allocator,
+                ser_timeline,
+            );
+            try ziggy.stringify(
+                inline_timeline,
+                .{
+                    .whitespace = .space_4,
+                    .emit_null_fields = false,
+                },
+                writer,
+            );
+        },
+    }
+    _ = try writer.write("\n");
 }
 
 pub fn main() !void
@@ -252,12 +340,17 @@ pub fn main() !void
         // OTIO JSON input - convert directly to output format
         if (std.mem.eql(u8, output_ext, ".ziggy"))
         {
-            try serialization.convert_otio_json_to_ziggy(
+            // Convert to SerializableTimeline first to apply metadata mode
+            const ser_timeline = try serialization.otio_json_to_serializable_timeline(
                 allocator,
                 source,
+            );
+            try write_ziggy_with_metadata_mode(
+                allocator,
+                ser_timeline,
+                state.metadata_mode,
                 writer,
             );
-            _ = try writer.write("\n");
         }
         else if (std.mem.eql(u8, output_ext, ".tlb"))
         {
@@ -299,16 +392,13 @@ pub fn main() !void
 
         if (std.mem.eql(u8, output_ext, ".ziggy"))
         {
-            // Ziggy to Ziggy (normalize/re-serialize)
-            try ziggy.stringify(
+            // Ziggy to Ziggy (normalize/re-serialize with metadata mode)
+            try write_ziggy_with_metadata_mode(
+                allocator,
                 ser_timeline,
-                .{
-                    .whitespace = .space_4,
-                    .emit_null_fields = false,
-                },
+                state.metadata_mode,
                 writer,
             );
-            _ = try writer.write("\n");
         }
         else if (std.mem.eql(u8, output_ext, ".tlb"))
         {
@@ -339,16 +429,13 @@ pub fn main() !void
 
         if (std.mem.eql(u8, output_ext, ".ziggy"))
         {
-            // Binary to Ziggy - preserves metadata
-            try ziggy.stringify(
+            // Binary to Ziggy with metadata mode
+            try write_ziggy_with_metadata_mode(
+                allocator,
                 ser_timeline,
-                .{
-                    .whitespace = .space_4,
-                    .emit_null_fields = false,
-                },
+                state.metadata_mode,
                 writer,
             );
-            _ = try writer.write("\n");
         }
         else if (std.mem.eql(u8, output_ext, ".tlb"))
         {
@@ -375,20 +462,18 @@ pub fn main() !void
         const ser_timeline = try binary_serialization_flatbufs.deserialize_to_serializable_timeline(
             allocator,
             source,
+            .{}, // ReadOptions: .all by default
         );
 
         if (std.mem.eql(u8, output_ext, ".ziggy"))
         {
-            // FlatBuffers to Ziggy - preserves metadata
-            try ziggy.stringify(
+            // FlatBuffers to Ziggy with metadata mode
+            try write_ziggy_with_metadata_mode(
+                allocator,
                 ser_timeline,
-                .{
-                    .whitespace = .space_4,
-                    .emit_null_fields = false,
-                },
+                state.metadata_mode,
                 writer,
             );
-            _ = try writer.write("\n");
         }
         else if (std.mem.eql(u8, output_ext, ".tlb"))
         {
