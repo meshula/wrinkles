@@ -32,6 +32,8 @@ pub const serialization = @import("serialization.zig");
 pub const binary_serialization = @import("binary_serialization.zig");
 pub const binary_serialization_flatbufs = @import("binary_serialization_flatbufs.zig");
 pub const versioning = @import("versioning.zig");
+pub const tlz_bundle = @import("tlz_bundle.zig");
+pub const tlz_bundle_utils = @import("tlz_bundle_utils.zig");
 
 const otio_json = @import("opentimelineio_json.zig");
 
@@ -54,4 +56,6 @@ test {
     _ = binary_serialization;
     _ = binary_serialization_flatbufs;
     _ = versioning;
+    _ = tlz_bundle;
+    _ = tlz_bundle_utils;
 }
