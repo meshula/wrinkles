@@ -53,6 +53,34 @@ pub const ResamplingBehavior = enum {
     default_from_domain,
 };
 
+/// Policy for handling missing frames in an image sequence.
+pub const MissingFramePolicy = enum {
+    @"error",  // Raise error (quoted because 'error' is Zig keyword)
+    hold,      // Hold last frame
+    black,     // Show black/transparent
+
+    pub fn to_string(
+        self: MissingFramePolicy
+    ) []const u8
+    {
+        return switch (self) {
+            .@"error" => "error",
+            .hold => "hold",
+            .black => "black",
+        };
+    }
+
+    pub fn from_string(
+        s: []const u8
+    ) ?MissingFramePolicy
+    {
+        if (std.mem.eql(u8, s, "error")) return .@"error";
+        if (std.mem.eql(u8, s, "hold")) return .hold;
+        if (std.mem.eql(u8, s, "black")) return .black;
+        return null;
+    }
+};
+
 /// A reference described by a URI that is interpreted by clients in some way.
 pub const URIReference = struct {
     /// URI encoded in a string for locating the data for referenced media.
@@ -65,6 +93,124 @@ pub const SignalReference = struct {
     signal_generator: sampling.SignalGenerator,
 };
 
+/// A reference to an image sequence represented by a URL pattern with frame
+/// numbering.
+pub const ImageSequenceReference = struct {
+    /// Base URL or file path before the frame number.
+    target_url_base: string_stuff.latin_s8,
+
+    /// Prefix to insert before the frame number (e.g., "frame_").
+    name_prefix: string_stuff.latin_s8 = "",
+
+    /// Suffix to insert after the frame number (e.g., ".exr").
+    name_suffix: string_stuff.latin_s8 = "",
+
+    /// First frame number in the sequence.
+    start_frame: i32 = 1,
+
+    /// Frame increment (e.g., 2 for every other frame).
+    frame_step: i32 = 1,
+
+    /// Zero padding width for frame numbers (e.g., 4 for "0001").
+    frame_zero_padding: u8 = 0,
+
+    /// Frame rate of the sequence in frames per second.
+    rate: f64 = 24.0,
+
+    /// Policy for handling missing frames.
+    missing_frame_policy: MissingFramePolicy = .@"error",
+
+    /// Generate the URL for a specific image number in the sequence.
+    pub fn target_url_for_image_number(
+        self: @This(),
+        allocator: std.mem.Allocator,
+        image_number: i32,
+    ) ![]const u8
+    {
+        // Format frame number with zero padding
+        const frame_str = if (self.frame_zero_padding > 0)
+            try std.fmt.allocPrint(
+                allocator,
+                "{d:0>[1]}",
+                .{ image_number, self.frame_zero_padding },
+            )
+        else
+            try std.fmt.allocPrint(
+                allocator,
+                "{d}",
+                .{image_number},
+            );
+        defer allocator.free(frame_str);
+
+        // Concatenate all parts
+        return try std.fmt.allocPrint(
+            allocator,
+            "{s}{s}{s}{s}",
+            .{
+                self.target_url_base,
+                self.name_prefix,
+                frame_str,
+                self.name_suffix,
+            },
+        );
+    }
+
+    /// Get the frame number for a given time ordinate.
+    pub fn frame_for_time(
+        self: @This(),
+        time: opentime.Ordinate,
+    ) i32
+    {
+        const frame_offset = @as(
+            i32,
+            @intFromFloat(@floor(time.v * self.rate))
+        );
+        return self.start_frame + (frame_offset * self.frame_step);
+    }
+
+    /// Calculate the total number of images in the sequence given an
+    /// available range.
+    pub fn number_of_images_in_sequence(
+        self: @This(),
+        available_range: opentime.ContinuousInterval,
+    ) i32
+    {
+        const duration_seconds = available_range.duration().v;
+        const total_frames = @as(
+            i32,
+            @intFromFloat(@ceil(duration_seconds * self.rate))
+        );
+        return @divFloor(total_frames, self.frame_step);
+    }
+
+    /// Get the last frame number in the sequence given an available range.
+    pub fn end_frame(
+        self: @This(),
+        available_range: opentime.ContinuousInterval,
+    ) i32
+    {
+        const num_images = self.number_of_images_in_sequence(
+            available_range
+        );
+        return self.start_frame + ((num_images - 1) * self.frame_step);
+    }
+
+    /// Free memory owned by the ImageSequenceReference.
+    pub fn deinit(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        allocator.free(self.target_url_base);
+        if (self.name_prefix.len > 0) {
+            allocator.free(self.name_prefix);
+        }
+        if (self.name_suffix.len > 0) {
+            allocator.free(self.name_suffix);
+        }
+    }
+};
+
 /// Data that assists consumers of this library in finding the data for
 /// referenced media.
 pub const MediaDataReference = union(enum) {
@@ -73,6 +219,9 @@ pub const MediaDataReference = union(enum) {
 
     /// A Procedurally defined signal (A tone, a color, etc.)
     signal: SignalReference,
+
+    /// An image sequence with frame numbering
+    image_sequence: ImageSequenceReference,
 
     /// No data to reference this media.
     null: void,
@@ -1243,4 +1392,326 @@ test "ziggy schemas"
     );
 
     std.debug.print("result: {s}\n", .{out.written()});
+}
+
+test "MissingFramePolicy: string conversions"
+{
+    // Test to_string
+    try std.testing.expectEqualStrings(
+        "error",
+        MissingFramePolicy.@"error".to_string()
+    );
+    try std.testing.expectEqualStrings(
+        "hold",
+        MissingFramePolicy.hold.to_string()
+    );
+    try std.testing.expectEqualStrings(
+        "black",
+        MissingFramePolicy.black.to_string()
+    );
+
+    // Test from_string
+    try std.testing.expectEqual(
+        MissingFramePolicy.@"error",
+        MissingFramePolicy.from_string("error").?
+    );
+    try std.testing.expectEqual(
+        MissingFramePolicy.hold,
+        MissingFramePolicy.from_string("hold").?
+    );
+    try std.testing.expectEqual(
+        MissingFramePolicy.black,
+        MissingFramePolicy.from_string("black").?
+    );
+
+    // Test invalid string
+    try std.testing.expectEqual(
+        null,
+        MissingFramePolicy.from_string("invalid")
+    );
+}
+
+test "ImageSequenceReference: URL generation with no padding"
+{
+    const allocator = std.testing.allocator;
+
+    const img_seq = ImageSequenceReference{
+        .target_url_base = "/path/to/frames/",
+        .name_prefix = "frame_",
+        .name_suffix = ".exr",
+        .start_frame = 1,
+        .frame_zero_padding = 0,
+    };
+
+    const url = try img_seq.target_url_for_image_number(allocator, 42);
+    defer allocator.free(url);
+
+    try std.testing.expectEqualStrings(
+        "/path/to/frames/frame_42.exr",
+        url
+    );
+}
+
+test "ImageSequenceReference: URL generation with 4-digit padding"
+{
+    const allocator = std.testing.allocator;
+
+    const img_seq = ImageSequenceReference{
+        .target_url_base = "/render/",
+        .name_prefix = "img_",
+        .name_suffix = ".png",
+        .start_frame = 1,
+        .frame_zero_padding = 4,
+    };
+
+    const url1 = try img_seq.target_url_for_image_number(allocator, 1);
+    defer allocator.free(url1);
+    try std.testing.expectEqualStrings("/render/img_0001.png", url1);
+
+    const url42 = try img_seq.target_url_for_image_number(allocator, 42);
+    defer allocator.free(url42);
+    try std.testing.expectEqualStrings("/render/img_0042.png", url42);
+
+    const url1000 = try img_seq.target_url_for_image_number(allocator, 1000);
+    defer allocator.free(url1000);
+    try std.testing.expectEqualStrings("/render/img_1000.png", url1000);
+}
+
+test "ImageSequenceReference: URL generation with 6-digit padding"
+{
+    const allocator = std.testing.allocator;
+
+    const img_seq = ImageSequenceReference{
+        .target_url_base = "/vfx/",
+        .name_prefix = "",
+        .name_suffix = ".dpx",
+        .start_frame = 1,
+        .frame_zero_padding = 6,
+    };
+
+    const url = try img_seq.target_url_for_image_number(allocator, 123);
+    defer allocator.free(url);
+    try std.testing.expectEqualStrings("/vfx/000123.dpx", url);
+}
+
+test "ImageSequenceReference: negative start frame"
+{
+    const allocator = std.testing.allocator;
+
+    const img_seq = ImageSequenceReference{
+        .target_url_base = "/frames/",
+        .name_prefix = "frame.",
+        .name_suffix = ".jpg",
+        .start_frame = -10,
+        .frame_zero_padding = 0,
+    };
+
+    const url = try img_seq.target_url_for_image_number(allocator, -5);
+    defer allocator.free(url);
+    try std.testing.expectEqualStrings("/frames/frame.-5.jpg", url);
+}
+
+test "ImageSequenceReference: frame stepping"
+{
+    const allocator = std.testing.allocator;
+
+    const img_seq = ImageSequenceReference{
+        .target_url_base = "/seq/",
+        .name_prefix = "f",
+        .name_suffix = ".tif",
+        .start_frame = 10,
+        .frame_step = 2,  // Every other frame
+        .frame_zero_padding = 3,
+    };
+
+    // Frame at time 0
+    const url1 = try img_seq.target_url_for_image_number(allocator, 10);
+    defer allocator.free(url1);
+    try std.testing.expectEqualStrings("/seq/f010.tif", url1);
+
+    // Frame at time that would be frame 2 (step of 2)
+    const url2 = try img_seq.target_url_for_image_number(allocator, 12);
+    defer allocator.free(url2);
+    try std.testing.expectEqualStrings("/seq/f012.tif", url2);
+}
+
+test "ImageSequenceReference: frame_for_time calculations"
+{
+    const img_seq = ImageSequenceReference{
+        .target_url_base = "/frames/",
+        .start_frame = 100,
+        .frame_step = 1,
+        .rate = 24.0,
+    };
+
+    // At time 0, should be start_frame
+    try std.testing.expectEqual(
+        @as(i32, 100),
+        img_seq.frame_for_time(opentime.Ordinate.init(0.0))
+    );
+
+    // At 1 second (24 frames at 24fps)
+    try std.testing.expectEqual(
+        @as(i32, 124),
+        img_seq.frame_for_time(opentime.Ordinate.init(1.0))
+    );
+
+    // At 0.5 seconds (12 frames at 24fps)
+    try std.testing.expectEqual(
+        @as(i32, 112),
+        img_seq.frame_for_time(opentime.Ordinate.init(0.5))
+    );
+}
+
+test "ImageSequenceReference: frame_for_time with step"
+{
+    const img_seq = ImageSequenceReference{
+        .target_url_base = "/frames/",
+        .start_frame = 1,
+        .frame_step = 2,
+        .rate = 24.0,
+    };
+
+    // At time 0
+    try std.testing.expectEqual(
+        @as(i32, 1),
+        img_seq.frame_for_time(opentime.Ordinate.init(0.0))
+    );
+
+    // At 1 second (24 frames, but stepping by 2)
+    try std.testing.expectEqual(
+        @as(i32, 49),  // 1 + (24 * 2)
+        img_seq.frame_for_time(opentime.Ordinate.init(1.0))
+    );
+}
+
+test "ImageSequenceReference: number_of_images_in_sequence"
+{
+    const img_seq = ImageSequenceReference{
+        .target_url_base = "/frames/",
+        .start_frame = 1,
+        .frame_step = 1,
+        .rate = 24.0,
+    };
+
+    const range = opentime.ContinuousInterval.init(
+        .{ .start = 0.0, .end = 1.0 }
+    );
+
+    // 1 second at 24fps = 24 frames
+    try std.testing.expectEqual(
+        @as(i32, 24),
+        img_seq.number_of_images_in_sequence(range)
+    );
+}
+
+test "ImageSequenceReference: number_of_images with step"
+{
+    const img_seq = ImageSequenceReference{
+        .target_url_base = "/frames/",
+        .start_frame = 1,
+        .frame_step = 2,
+        .rate = 24.0,
+    };
+
+    const range = opentime.ContinuousInterval.init(
+        .{ .start = 0.0, .end = 1.0 }
+    );
+
+    // 1 second at 24fps, stepping by 2 = 12 images
+    try std.testing.expectEqual(
+        @as(i32, 12),
+        img_seq.number_of_images_in_sequence(range)
+    );
+}
+
+test "ImageSequenceReference: end_frame calculation"
+{
+    const img_seq = ImageSequenceReference{
+        .target_url_base = "/frames/",
+        .start_frame = 100,
+        .frame_step = 1,
+        .rate = 24.0,
+    };
+
+    const range = opentime.ContinuousInterval.init(
+        .{ .start = 0.0, .end = 1.0 }
+    );
+
+    // Start at 100, 24 frames, so end at 123
+    try std.testing.expectEqual(
+        @as(i32, 123),
+        img_seq.end_frame(range)
+    );
+}
+
+test "ImageSequenceReference: end_frame with step"
+{
+    const img_seq = ImageSequenceReference{
+        .target_url_base = "/frames/",
+        .start_frame = 1,
+        .frame_step = 5,
+        .rate = 30.0,
+    };
+
+    const range = opentime.ContinuousInterval.init(
+        .{ .start = 0.0, .end = 2.0 }
+    );
+
+    // 2 seconds at 30fps = 60 frames
+    // Stepping by 5 = 12 images
+    // Start at 1, so end at 1 + (11 * 5) = 56
+    try std.testing.expectEqual(
+        @as(i32, 56),
+        img_seq.end_frame(range)
+    );
+}
+
+test "ImageSequenceReference: complete workflow"
+{
+    const allocator = std.testing.allocator;
+
+    const img_seq = ImageSequenceReference{
+        .target_url_base = "/project/renders/",
+        .name_prefix = "shot_010_",
+        .name_suffix = ".exr",
+        .start_frame = 1001,
+        .frame_step = 1,
+        .frame_zero_padding = 4,
+        .rate = 24.0,
+        .missing_frame_policy = .hold,
+    };
+
+    // Test policy
+    try std.testing.expectEqual(
+        MissingFramePolicy.hold,
+        img_seq.missing_frame_policy
+    );
+
+    // Test frame at specific time
+    const frame_at_1sec = img_seq.frame_for_time(
+        opentime.Ordinate.init(1.0)
+    );
+    try std.testing.expectEqual(@as(i32, 1025), frame_at_1sec);
+
+    // Test URL generation for that frame
+    const url = try img_seq.target_url_for_image_number(
+        allocator,
+        frame_at_1sec
+    );
+    defer allocator.free(url);
+    try std.testing.expectEqualStrings(
+        "/project/renders/shot_010_1025.exr",
+        url
+    );
+
+    // Test sequence calculations
+    const range = opentime.ContinuousInterval.init(
+        .{ .start = 0.0, .end = 5.0 }
+    );
+    const num_images = img_seq.number_of_images_in_sequence(range);
+    try std.testing.expectEqual(@as(i32, 120), num_images);
+
+    const last_frame = img_seq.end_frame(range);
+    try std.testing.expectEqual(@as(i32, 1120), last_frame);
 }
