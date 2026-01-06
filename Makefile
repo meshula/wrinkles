@@ -119,8 +119,95 @@ convert-to-binary: zig-out/bin/otiocat
 	echo ""; \
 	echo "Binary conversion complete: $$success succeeded, $$failed failed"
 
-# Full conversion pipeline: OTIO -> Ziggy -> Binary
-convert-all: convert-to-latest-schema convert-to-binary
+# Convert Ziggy files to FlatBuffers (.tlfb) format
+convert-to-tlfb: zig-out/bin/otiocat
+	@echo "Converting Ziggy files to FlatBuffers format..."
+	@mkdir -p otio_sample_data_tlfb
+	@mkdir -p test_files_tlfb
+	@success=0; failed=0; \
+	for f in otio_sample_data/*.ziggy; do \
+		if [ -f "$$f" ]; then \
+			basename=$$(basename "$$f" .ziggy); \
+			echo "  Converting $$basename.ziggy -> $$basename.tlfb"; \
+			if ./zig-out/bin/otiocat "$$f" "otio_sample_data_tlfb/$${basename}.tlfb" 2>&1 | grep -q "Wrote:"; then \
+				success=$$((success + 1)); \
+			else \
+				echo "    FAILED"; \
+				failed=$$((failed + 1)); \
+			fi \
+		fi \
+	done; \
+	for f in test_files_ziggy/*.ziggy; do \
+		if [ -f "$$f" ]; then \
+			basename=$$(basename "$$f" .ziggy); \
+			echo "  Converting $$basename.ziggy -> $$basename.tlfb"; \
+			if ./zig-out/bin/otiocat "$$f" "test_files_tlfb/$${basename}.tlfb" 2>&1 | grep -q "Wrote:"; then \
+				success=$$((success + 1)); \
+			else \
+				echo "    FAILED"; \
+				failed=$$((failed + 1)); \
+			fi \
+		fi \
+	done; \
+	echo ""; \
+	echo "FlatBuffers conversion complete: $$success succeeded, $$failed failed"
+
+# Verify tlfb round-trip: ziggy -> tlfb -> ziggy (compare output)
+verify-tlfb-roundtrip: zig-out/bin/otiocat
+	@echo "Verifying tlfb round-trip consistency (ziggy -> tlfb -> ziggy)..."
+	@mkdir -p /tmp/otio_tlfb_roundtrip
+	@success=0; failed=0; \
+	for f in test_files_ziggy/*.ziggy; do \
+		if [ -f "$$f" ]; then \
+			basename=$$(basename "$$f" .ziggy); \
+			tlfb_file="test_files_tlfb/$${basename}.tlfb"; \
+			if [ -f "$$tlfb_file" ]; then \
+				echo -n "  Checking $$basename... "; \
+				./zig-out/bin/otiocat "$$f" "/tmp/otio_tlfb_roundtrip/from_ziggy.ziggy" 2>/dev/null; \
+				./zig-out/bin/otiocat "$$tlfb_file" "/tmp/otio_tlfb_roundtrip/from_tlfb.ziggy" 2>/dev/null; \
+				if diff -q "/tmp/otio_tlfb_roundtrip/from_ziggy.ziggy" "/tmp/otio_tlfb_roundtrip/from_tlfb.ziggy" >/dev/null 2>&1; then \
+					echo "OK"; \
+					success=$$((success + 1)); \
+				else \
+					echo "MISMATCH"; \
+					failed=$$((failed + 1)); \
+				fi \
+			fi \
+		fi \
+	done; \
+	rm -rf /tmp/otio_tlfb_roundtrip; \
+	echo ""; \
+	echo "TLFB round-trip verification: $$success matched, $$failed mismatched"
+
+# Verify tlfb files produce same hierarchy as ziggy source
+verify-tlfb-hierarchy: zig-out/bin/otio_hierarchy_view
+	@echo "Verifying tlfb hierarchy matches ziggy source..."
+	@mkdir -p /tmp/otio_tlfb_hierarchy
+	@success=0; failed=0; \
+	for f in test_files_ziggy/*.ziggy; do \
+		if [ -f "$$f" ]; then \
+			basename=$$(basename "$$f" .ziggy); \
+			tlfb_file="test_files_tlfb/$${basename}.tlfb"; \
+			if [ -f "$$tlfb_file" ]; then \
+				echo -n "  Checking $$basename hierarchy... "; \
+				./zig-out/bin/otio_hierarchy_view "$$f" > "/tmp/otio_tlfb_hierarchy/from_ziggy.txt" 2>/dev/null; \
+				./zig-out/bin/otio_hierarchy_view "$$tlfb_file" > "/tmp/otio_tlfb_hierarchy/from_tlfb.txt" 2>/dev/null; \
+				if diff -q "/tmp/otio_tlfb_hierarchy/from_ziggy.txt" "/tmp/otio_tlfb_hierarchy/from_tlfb.txt" >/dev/null 2>&1; then \
+					echo "OK"; \
+					success=$$((success + 1)); \
+				else \
+					echo "MISMATCH"; \
+					failed=$$((failed + 1)); \
+				fi \
+			fi \
+		fi \
+	done; \
+	rm -rf /tmp/otio_tlfb_hierarchy; \
+	echo ""; \
+	echo "TLFB hierarchy verification: $$success matched, $$failed mismatched"
+
+# Full conversion pipeline: OTIO -> Ziggy -> Binary -> FlatBuffers
+convert-all: convert-to-latest-schema convert-to-binary convert-to-tlfb
 	@echo "Full conversion pipeline complete."
 
 # Verify round-trip consistency: ziggy -> binary -> ziggy
@@ -169,4 +256,4 @@ verify-roundtrip: zig-out/bin/otiocat
 	echo ""; \
 	echo "Round-trip verification: $$success matched, $$failed mismatched"
 
-.PHONY: all run-em docs run_c convert-test-files convert-otio-samples convert-to-binary convert-all verify-roundtrip
+.PHONY: all run-em docs run_c convert-test-files convert-otio-samples convert-to-binary convert-to-tlfb convert-all verify-roundtrip verify-tlfb-roundtrip verify-tlfb-hierarchy

@@ -493,6 +493,26 @@ pub fn build(
         }
     );
 
+    const dep_flatbuffers = b.dependency(
+        "flatbuffers",
+        .{
+            .target = options.target,
+            .optimize = options.optimize,
+        }
+    );
+
+    // FlatBuffers-generated schema module for OTTLA
+    const ottla_schema = b.createModule(
+        .{
+            .root_source_file = b.path("flatbuf_schema/ottla.zig"),
+            .target = options.target,
+            .optimize = options.optimize,
+            .imports = &.{
+                .{ .name = "flatbuffers", .module = dep_flatbuffers.module("flatbuffers") },
+            },
+        }
+    );
+
     const string_stuff = module_with_tests_and_artifact(
         "string_stuff",
         .{
@@ -732,6 +752,8 @@ pub fn build(
                 .{ .name = "build_options", .module = build_options_mod},
                 .{ .name = "ziggy", .module = dep_ziggy.module("ziggy") },
                 .{ .name = "zbor", .module = dep_zbor.module("zbor") },
+                .{ .name = "flatbuffers", .module = dep_flatbuffers.module("flatbuffers") },
+                .{ .name = "ottla_schema", .module = ottla_schema },
             },
         },
     );

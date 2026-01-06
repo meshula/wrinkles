@@ -26,6 +26,7 @@ pub const Domain = domain.Domain;
 
 pub const serialization = @import("serialization.zig");
 pub const binary_serialization = @import("binary_serialization.zig");
+pub const binary_serialization_flatbufs = @import("binary_serialization_flatbufs.zig");
 pub const versioning = @import("versioning.zig");
 
 const otio_json = @import("opentimelineio_json.zig");
@@ -46,5 +47,6 @@ test {
     _ = domain;
     _ = serialization;
     _ = binary_serialization;
+    _ = binary_serialization_flatbufs;
     _ = versioning;
 }

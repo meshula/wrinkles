@@ -33,6 +33,10 @@
             // CBOR library for binary serialization
             .path = "libs/zbor",
         },
+        .flatbuffers = .{
+            // FlatBuffers runtime library for binary serialization
+            .path = "libs/zig-flatbuffers",
+        },
     },
     .paths = .{
         "build.zig",
