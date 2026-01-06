@@ -102,30 +102,68 @@
                 .minalign = 4,
             } } },
         } },
-        .{ .name = "ottla.MetadataEntry", .fields = .{
-            .{
-                .name = "key",
-                .type = .string,
-                .required = true,
-            },
-            .{ .name = "scalar", .type = .{ .@"struct" = .{ .name = "ottla.MetadataScalarLegacy" } } },
-            .{ .name = "string_val", .type = .string },
-            .{ .name = "nested_val", .type = .{ .table = .{ .name = "ottla.MetadataNestedValue" } } },
+        .{ .name = "ottla.MetadataMap", .fields = .{
+            .{ .name = "hashes", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .string,
+                .minalign = 4,
+            } } },
+            .{ .name = "block_offsets", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .int = .u32 },
+                .minalign = 4,
+            } } },
+            .{ .name = "block_lengths", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .int = .u32 },
+                .minalign = 4,
+            } } },
+            .{ .name = "all_keys", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .string,
+                .minalign = 4,
+            } } },
+            .{ .name = "all_types", .type = .{ .vector = .{
+                .element_size = 1,
+                .element = .{ .int = .u8 },
+                .minalign = 4,
+            } } },
+            .{ .name = "all_scalars", .type = .{ .vector = .{
+                .element_size = 24,
+                .element = .{ .@"struct" = .{ .name = "ottla.PackedScalar" } },
+                .minalign = 8,
+            } } },
+            .{ .name = "string_values", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .string,
+                .minalign = 4,
+            } } },
+            .{ .name = "string_key_indices", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .int = .u32 },
+                .minalign = 4,
+            } } },
+            .{ .name = "string_value_indices", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .int = .u32 },
+                .minalign = 4,
+            } } },
+            .{ .name = "nested_blocks", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .table = .{ .name = "ottla.MetadataBlock" } },
+                .minalign = 4,
+            } } },
+            .{ .name = "nested_key_indices", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .int = .u32 },
+                .minalign = 4,
+            } } },
+            .{ .name = "nested_block_indices", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .int = .u32 },
+                .minalign = 4,
+            } } },
         } },
-        .{ .name = "ottla.MetadataMapEntry", .fields = .{ .{
-            .name = "hash",
-            .type = .string,
-            .required = true,
-        }, .{ .name = "block", .type = .{ .table = .{ .name = "ottla.MetadataBlock" } } } } },
-        .{ .name = "ottla.MetadataNestedValue", .fields = .{ .{ .name = "entries", .type = .{ .vector = .{
-            .element_size = 4,
-            .element = .{ .table = .{ .name = "ottla.MetadataEntry" } },
-            .minalign = 4,
-        } } }, .{ .name = "array", .type = .{ .vector = .{
-            .element_size = 4,
-            .element = .{ .table = .{ .name = "ottla.MetadataEntry" } },
-            .minalign = 4,
-        } } } } },
         .{ .name = "ottla.NullReference", .fields = .{} },
         .{ .name = "ottla.RationalRate", .fields = .{ .{ .name = "num", .type = .{ .int = .u32 } }, .{ .name = "den", .type = .{ .int = .u32 } } } },
         .{ .name = "ottla.SampleIndexGenerator", .fields = .{ .{ .name = "sample_rate_hz_type", .type = .{ .@"union" = .{ .name = "ottla.RateSpecifier" } } }, .{ .name = "start_index", .type = .{ .int = .u64 } } } },
@@ -153,11 +191,7 @@
                 .minalign = 4,
             } } },
             .{ .name = "presentation_space_discrete_partitions", .type = .{ .table = .{ .name = "ottla.DiscretePartitionDomainMap" } } },
-            .{ .name = "metadata_map_v2", .type = .{ .vector = .{
-                .element_size = 4,
-                .element = .{ .table = .{ .name = "ottla.MetadataMapEntry" } },
-                .minalign = 4,
-            } } },
+            .{ .name = "metadata_map", .type = .{ .table = .{ .name = "ottla.MetadataMap" } } },
         } },
         .{ .name = "ottla.Topology", .fields = .{.{ .name = "mappings", .type = .{ .vector = .{
             .element_size = 4,
@@ -321,38 +355,6 @@
                 .offset = 0,
             } },
             .bytesize = 16,
-            .minalign = 8,
-        },
-        .{
-            .name = "ottla.MetadataScalarLegacy",
-            .fields = .{
-                .{
-                    .name = "_pad",
-                    .type = .{ .int = .u16 },
-                    .offset = 2,
-                },
-                .{
-                    .name = "bool_val",
-                    .type = .bool,
-                    .offset = 1,
-                },
-                .{
-                    .name = "float_val",
-                    .type = .{ .float = .f64 },
-                    .offset = 16,
-                },
-                .{
-                    .name = "int_val",
-                    .type = .{ .int = .i64 },
-                    .offset = 8,
-                },
-                .{
-                    .name = "value_type",
-                    .type = .{ .int = .i8 },
-                    .offset = 0,
-                },
-            },
-            .bytesize = 24,
             .minalign = 8,
         },
         .{

@@ -310,32 +310,44 @@ table MetadataBlock {
     array_indices: [uint32];         // Maps key index -> array_blocks index
 }
 
-// Top-level metadata map entry (hash -> block)
-// Only one table per metadata hash!
-table MetadataMapEntry {
-    hash: string (required);    // Metadata hash key
-    block: MetadataBlock;       // All metadata for this hash
-}
+// =============================================================================
+// MetadataMap - Ultra-compact single-table columnar format
+// =============================================================================
+//
+// This format stores ALL metadata in a single table with parallel arrays,
+// eliminating vtable overhead from thousands of individual tables.
+//
+// For Incredibles-2 with 24,323 metadata entries:
+//   - Per-entry tables: ~48,646 tables × ~15 bytes vtable = ~730KB overhead
+//   - Single table: 1 table × ~50 bytes vtable = ~50 bytes overhead
+//
+// The flattened format uses block_offsets/block_lengths to demarcate where
+// each hash's data begins and ends in the flat arrays.
 
-// Legacy entry format for compatibility
-table MetadataEntry {
-    key: string (required);
-    scalar: MetadataScalarLegacy;
-    string_val: string;
-    nested_val: MetadataNestedValue;
-}
+table MetadataMap {
+    // Hash keys - one per metadata block
+    hashes: [string];
 
-struct MetadataScalarLegacy {
-    value_type: MetadataType;
-    bool_val: bool;
-    _pad: uint16;
-    int_val: int64;
-    float_val: double;
-}
+    // Block boundaries: for hash[i], data spans from block_offsets[i]
+    // to block_offsets[i] + block_lengths[i] in the flat arrays below
+    block_offsets: [uint32];
+    block_lengths: [uint32];
 
-table MetadataNestedValue {
-    entries: [MetadataEntry];
-    array: [MetadataEntry];
+    // Flattened columnar data for ALL blocks combined
+    // Total length = sum of all block_lengths
+    all_keys: [string];
+    all_types: [ubyte];          // MetadataType as raw bytes for compactness
+    all_scalars: [PackedScalar]; // Inline scalars (bool/int/float)
+
+    // String values with mapping (only for String type entries)
+    string_values: [string];
+    string_key_indices: [uint32];  // Which flat key index has this string
+    string_value_indices: [uint32]; // Index into string_values for that key
+
+    // Nested KV objects (rare) - stored as separate MetadataBlock
+    nested_blocks: [MetadataBlock];
+    nested_key_indices: [uint32];  // Which flat key index has nested data
+    nested_block_indices: [uint32]; // Index into nested_blocks
 }
 
 // =============================================================================
@@ -347,8 +359,8 @@ table Timeline {
     name: string;
     children: [ComposableWrapper];
     presentation_space_discrete_partitions: DiscretePartitionDomainMap;
-    // New columnar metadata format - much faster than per-entry tables
-    metadata_map_v2: [MetadataMapEntry];
+    // Single-table columnar metadata format (minimal vtable overhead)
+    metadata_map: MetadataMap;
 }
 
 // Root type declaration (must be after Timeline definition)

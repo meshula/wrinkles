@@ -105,21 +105,10 @@ pub const @"DiscreteBounds" = struct {
     @"start": i64,
 };
 
-pub const @"MetadataScalarLegacy" = struct {
-    pub const @"#kind" = flatbuffers.Kind.Struct;
-    pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".structs[4];
-    @"_pad": u16,
-    @"bool_val": bool,
-    @"float_val": f64,
-    @"int_val": i64,
-    @"value_type": i8,
-};
-
 pub const @"PackedScalar" = struct {
     pub const @"#kind" = flatbuffers.Kind.Struct;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".structs[5];
+    pub const @"#type" = &@"#schema".structs[4];
     @"bool_val": bool,
     @"float_val": f64,
     @"int_val": i64,
@@ -479,69 +468,61 @@ pub const @"MetadataBlock" = struct {
 
 };
 
-pub const @"MetadataEntry" = struct {
+pub const @"MetadataMap" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
     pub const @"#type" = &@"#schema".tables[13];
     pub const @"#constructor" = struct {
-@"key": []const u8, @"scalar": ?@"ottla".@"MetadataScalarLegacy" = null, @"string_val": ?[]const u8 = null, @"nested_val": ?@"ottla".@"MetadataNestedValue" = null, };
+@"hashes": ?[]const []const u8 = null, @"block_offsets": ?[]const u32 = null, @"block_lengths": ?[]const u32 = null, @"all_keys": ?[]const []const u8 = null, @"all_types": ?[]const u8 = null, @"all_scalars": ?[]const @"ottla".@"PackedScalar" = null, @"string_values": ?[]const []const u8 = null, @"string_key_indices": ?[]const u32 = null, @"string_value_indices": ?[]const u32 = null, @"nested_blocks": ?[]const @"ottla".@"MetadataBlock" = null, @"nested_key_indices": ?[]const u32 = null, @"nested_block_indices": ?[]const u32 = null, };
 
     @"#ref": flatbuffers.Ref,
 
-    pub fn @"key"(@"#self": @"MetadataEntry") flatbuffers.String {
-        return flatbuffers.decodeStringField(0, @"#self".@"#ref") orelse
-            @panic("missing ottla.MetadataEntry.key field");
+    pub fn @"hashes"(@"#self": @"MetadataMap") ?flatbuffers.Vector(flatbuffers.String) {
+        return flatbuffers.decodeVectorField(flatbuffers.String, 0, @"#self".@"#ref");
     }
 
-    pub fn @"scalar"(@"#self": @"MetadataEntry") ?@"ottla".@"MetadataScalarLegacy" {
-        return flatbuffers.decodeStructField(@"ottla".@"MetadataScalarLegacy", 1, @"#self".@"#ref");
+    pub fn @"block_offsets"(@"#self": @"MetadataMap") ?flatbuffers.Vector(u32) {
+        return flatbuffers.decodeVectorField(u32, 1, @"#self".@"#ref");
     }
 
-    pub fn @"string_val"(@"#self": @"MetadataEntry") ?flatbuffers.String {
-        return flatbuffers.decodeStringField(2, @"#self".@"#ref");
+    pub fn @"block_lengths"(@"#self": @"MetadataMap") ?flatbuffers.Vector(u32) {
+        return flatbuffers.decodeVectorField(u32, 2, @"#self".@"#ref");
     }
 
-    pub fn @"nested_val"(@"#self": @"MetadataEntry") ?@"ottla".@"MetadataNestedValue" {
-        return flatbuffers.decodeTableField(@"ottla".@"MetadataNestedValue", 3, @"#self".@"#ref");
+    pub fn @"all_keys"(@"#self": @"MetadataMap") ?flatbuffers.Vector(flatbuffers.String) {
+        return flatbuffers.decodeVectorField(flatbuffers.String, 3, @"#self".@"#ref");
     }
 
-};
-
-pub const @"MetadataMapEntry" = struct {
-    pub const @"#kind" = flatbuffers.Kind.Table;
-    pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[14];
-    pub const @"#constructor" = struct {
-@"hash": []const u8, @"block": ?@"ottla".@"MetadataBlock" = null, };
-
-    @"#ref": flatbuffers.Ref,
-
-    pub fn @"hash"(@"#self": @"MetadataMapEntry") flatbuffers.String {
-        return flatbuffers.decodeStringField(0, @"#self".@"#ref") orelse
-            @panic("missing ottla.MetadataMapEntry.hash field");
+    pub fn @"all_types"(@"#self": @"MetadataMap") ?flatbuffers.Vector(u8) {
+        return flatbuffers.decodeVectorField(u8, 4, @"#self".@"#ref");
     }
 
-    pub fn @"block"(@"#self": @"MetadataMapEntry") ?@"ottla".@"MetadataBlock" {
-        return flatbuffers.decodeTableField(@"ottla".@"MetadataBlock", 1, @"#self".@"#ref");
+    pub fn @"all_scalars"(@"#self": @"MetadataMap") ?flatbuffers.Vector(@"ottla".@"PackedScalar") {
+        return flatbuffers.decodeVectorField(@"ottla".@"PackedScalar", 5, @"#self".@"#ref");
     }
 
-};
-
-pub const @"MetadataNestedValue" = struct {
-    pub const @"#kind" = flatbuffers.Kind.Table;
-    pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[15];
-    pub const @"#constructor" = struct {
-@"entries": ?[]const @"ottla".@"MetadataEntry" = null, @"array": ?[]const @"ottla".@"MetadataEntry" = null, };
-
-    @"#ref": flatbuffers.Ref,
-
-    pub fn @"entries"(@"#self": @"MetadataNestedValue") ?flatbuffers.Vector(@"ottla".@"MetadataEntry") {
-        return flatbuffers.decodeVectorField(@"ottla".@"MetadataEntry", 0, @"#self".@"#ref");
+    pub fn @"string_values"(@"#self": @"MetadataMap") ?flatbuffers.Vector(flatbuffers.String) {
+        return flatbuffers.decodeVectorField(flatbuffers.String, 6, @"#self".@"#ref");
     }
 
-    pub fn @"array"(@"#self": @"MetadataNestedValue") ?flatbuffers.Vector(@"ottla".@"MetadataEntry") {
-        return flatbuffers.decodeVectorField(@"ottla".@"MetadataEntry", 1, @"#self".@"#ref");
+    pub fn @"string_key_indices"(@"#self": @"MetadataMap") ?flatbuffers.Vector(u32) {
+        return flatbuffers.decodeVectorField(u32, 7, @"#self".@"#ref");
+    }
+
+    pub fn @"string_value_indices"(@"#self": @"MetadataMap") ?flatbuffers.Vector(u32) {
+        return flatbuffers.decodeVectorField(u32, 8, @"#self".@"#ref");
+    }
+
+    pub fn @"nested_blocks"(@"#self": @"MetadataMap") ?flatbuffers.Vector(@"ottla".@"MetadataBlock") {
+        return flatbuffers.decodeVectorField(@"ottla".@"MetadataBlock", 9, @"#self".@"#ref");
+    }
+
+    pub fn @"nested_key_indices"(@"#self": @"MetadataMap") ?flatbuffers.Vector(u32) {
+        return flatbuffers.decodeVectorField(u32, 10, @"#self".@"#ref");
+    }
+
+    pub fn @"nested_block_indices"(@"#self": @"MetadataMap") ?flatbuffers.Vector(u32) {
+        return flatbuffers.decodeVectorField(u32, 11, @"#self".@"#ref");
     }
 
 };
@@ -549,7 +530,7 @@ pub const @"MetadataNestedValue" = struct {
 pub const @"NullReference" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[16];
+    pub const @"#type" = &@"#schema".tables[14];
     pub const @"#constructor" = struct {
 };
 
@@ -560,7 +541,7 @@ pub const @"NullReference" = struct {
 pub const @"RationalRate" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[17];
+    pub const @"#type" = &@"#schema".tables[15];
     pub const @"#constructor" = struct {
 @"num": u32 = 0, @"den": u32 = 0, };
 
@@ -568,7 +549,9 @@ pub const @"RationalRate" = struct {
 
     pub fn @"num"(@"#self": @"RationalRate") u32 {
         return flatbuffers.decodeScalarField(u32, 0, @"#self".@"#ref", 0);
-    }    pub fn @"den"(@"#self": @"RationalRate") u32 {
+    }
+
+    pub fn @"den"(@"#self": @"RationalRate") u32 {
         return flatbuffers.decodeScalarField(u32, 1, @"#self".@"#ref", 0);
     }
 
@@ -577,7 +560,7 @@ pub const @"RationalRate" = struct {
 pub const @"SampleIndexGenerator" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[18];
+    pub const @"#type" = &@"#schema".tables[16];
     pub const @"#constructor" = struct {
 @"sample_rate_hz_type": @"ottla".@"RateSpecifier" = .NONE, @"start_index": u64 = 0, };
 
@@ -596,7 +579,7 @@ pub const @"SampleIndexGenerator" = struct {
 pub const @"SignalReference" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[19];
+    pub const @"#type" = &@"#schema".tables[17];
     pub const @"#constructor" = struct {
 @"signal_generator_type": @"ottla".@"SignalGenerator" = .NONE, };
 
@@ -611,7 +594,7 @@ pub const @"SignalReference" = struct {
 pub const @"SineSignal" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[20];
+    pub const @"#type" = &@"#schema".tables[18];
     pub const @"#constructor" = struct {
 @"frequency_hz": f64 = 0, };
 
@@ -626,7 +609,7 @@ pub const @"SineSignal" = struct {
 pub const @"Stack" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[21];
+    pub const @"#type" = &@"#schema".tables[19];
     pub const @"#constructor" = struct {
 @"name": ?[]const u8 = null, @"bounds": ?@"ottla".@"Bounds" = null, @"children": ?[]const @"ottla".@"ComposableWrapper" = null, };
 
@@ -649,9 +632,9 @@ pub const @"Stack" = struct {
 pub const @"Timeline" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[22];
+    pub const @"#type" = &@"#schema".tables[20];
     pub const @"#constructor" = struct {
-@"schema_version": u32 = 1, @"name": ?[]const u8 = null, @"children": ?[]const @"ottla".@"ComposableWrapper" = null, @"presentation_space_discrete_partitions": ?@"ottla".@"DiscretePartitionDomainMap" = null, @"metadata_map_v2": ?[]const @"ottla".@"MetadataMapEntry" = null, };
+@"schema_version": u32 = 1, @"name": ?[]const u8 = null, @"children": ?[]const @"ottla".@"ComposableWrapper" = null, @"presentation_space_discrete_partitions": ?@"ottla".@"DiscretePartitionDomainMap" = null, @"metadata_map": ?@"ottla".@"MetadataMap" = null, };
 
     @"#ref": flatbuffers.Ref,
 
@@ -671,8 +654,8 @@ pub const @"Timeline" = struct {
         return flatbuffers.decodeTableField(@"ottla".@"DiscretePartitionDomainMap", 3, @"#self".@"#ref");
     }
 
-    pub fn @"metadata_map_v2"(@"#self": @"Timeline") ?flatbuffers.Vector(@"ottla".@"MetadataMapEntry") {
-        return flatbuffers.decodeVectorField(@"ottla".@"MetadataMapEntry", 4, @"#self".@"#ref");
+    pub fn @"metadata_map"(@"#self": @"Timeline") ?@"ottla".@"MetadataMap" {
+        return flatbuffers.decodeTableField(@"ottla".@"MetadataMap", 4, @"#self".@"#ref");
     }
 
 };
@@ -680,7 +663,7 @@ pub const @"Timeline" = struct {
 pub const @"Topology" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[23];
+    pub const @"#type" = &@"#schema".tables[21];
     pub const @"#constructor" = struct {
 @"mappings": ?[]const @"ottla".@"MappingWrapper" = null, };
 
@@ -695,7 +678,7 @@ pub const @"Topology" = struct {
 pub const @"Track" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[24];
+    pub const @"#type" = &@"#schema".tables[22];
     pub const @"#constructor" = struct {
 @"name": ?[]const u8 = null, @"bounds": ?@"ottla".@"Bounds" = null, @"children": ?[]const @"ottla".@"ComposableWrapper" = null, };
 
@@ -718,7 +701,7 @@ pub const @"Track" = struct {
 pub const @"Transition" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[25];
+    pub const @"#type" = &@"#schema".tables[23];
     pub const @"#constructor" = struct {
 @"name": ?[]const u8 = null, @"container": ?@"ottla".@"Stack" = null, @"kind": []const u8, @"bounds_start": f64 = 0, @"bounds_end": f64 = 0, @"has_bounds": bool = false, };
 
@@ -754,7 +737,7 @@ pub const @"Transition" = struct {
 pub const @"URIReference" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[26];
+    pub const @"#type" = &@"#schema".tables[24];
     pub const @"#constructor" = struct {
 @"target_uri": []const u8, };
 
@@ -770,7 +753,7 @@ pub const @"URIReference" = struct {
 pub const @"Warp" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[27];
+    pub const @"#type" = &@"#schema".tables[25];
     pub const @"#constructor" = struct {
 @"name": ?[]const u8 = null, @"child": ?@"ottla".@"ComposableWrapper" = null, @"transform": ?@"ottla".@"Topology" = null, };
 
