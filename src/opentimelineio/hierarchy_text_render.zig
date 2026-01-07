@@ -193,14 +193,14 @@ pub fn render_item(
             // Display markers if present - Stack has children, so always show vertical
             if (st.markers.len > 0) {
                 std.debug.print(
-                    "{s}{s}    markers: {} marker(s)\n",
-                    .{ prefix, chars.vertical(), st.markers.len },
+                    "{s}{s}       markers: {} marker(s)\n",
+                    .{ child_prefix, chars.vertical_single(), st.markers.len },
                 );
                 for (st.markers, 0..) |marker, idx| {
                     const marker_name = marker.maybe_name orelse "(unnamed)";
                     std.debug.print(
-                        "{s}{s}      [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ prefix, chars.vertical(), idx + 1, marker_name, marker.color.to_string(),
+                        "{s}{s}         [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
+                        .{ child_prefix, chars.vertical_single(), idx + 1, marker_name, marker.color.to_string(),
                            marker.marked_range.start.as(f64), marker.marked_range.end.as(f64) },
                     );
                 }
@@ -221,14 +221,14 @@ pub fn render_item(
             // Display markers if present - Track has children, so always show vertical
             if (tr.markers.len > 0) {
                 std.debug.print(
-                    "{s}{s}    markers: {} marker(s)\n",
-                    .{ prefix, chars.vertical(), tr.markers.len },
+                    "{s}{s}       markers: {} marker(s)\n",
+                    .{ child_prefix, chars.vertical_single(), tr.markers.len },
                 );
                 for (tr.markers, 0..) |marker, idx| {
                     const marker_name = marker.maybe_name orelse "(unnamed)";
                     std.debug.print(
-                        "{s}{s}      [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ prefix, chars.vertical(), idx + 1, marker_name, marker.color.to_string(),
+                        "{s}{s}         [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
+                        .{ child_prefix, chars.vertical_single(), idx + 1, marker_name, marker.color.to_string(),
                            marker.marked_range.start.as(f64), marker.marked_range.end.as(f64) },
                     );
                 }
@@ -453,14 +453,14 @@ pub fn render_serializable_item(
             // Display markers if present - Track has children, so always show vertical
             if (tr.markers.len > 0) {
                 std.debug.print(
-                    "{s}{s}    markers: {} marker(s)\n",
-                    .{ prefix, chars.vertical(), tr.markers.len },
+                    "{s}{s}       markers: {} marker(s)\n",
+                    .{ child_prefix, chars.vertical_single(), tr.markers.len },
                 );
                 for (tr.markers, 0..) |marker, idx| {
                     const marker_name = marker.name orelse "(unnamed)";
                     std.debug.print(
-                        "{s}{s}      [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ prefix, chars.vertical(), idx + 1, marker_name, marker.color,
+                        "{s}{s}         [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
+                        .{ child_prefix, chars.vertical_single(), idx + 1, marker_name, marker.color,
                            marker.marked_range[0], marker.marked_range[1] },
                     );
                 }
@@ -481,14 +481,14 @@ pub fn render_serializable_item(
             // Display markers if present - Stack has children, so always show vertical
             if (st.markers.len > 0) {
                 std.debug.print(
-                    "{s}{s}    markers: {} marker(s)\n",
-                    .{ prefix, chars.vertical(), st.markers.len },
+                    "{s}{s}       markers: {} marker(s)\n",
+                    .{ child_prefix, chars.vertical_single(), st.markers.len },
                 );
                 for (st.markers, 0..) |marker, idx| {
                     const marker_name = marker.name orelse "(unnamed)";
                     std.debug.print(
-                        "{s}{s}      [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ prefix, chars.vertical(), idx + 1, marker_name, marker.color,
+                        "{s}{s}         [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
+                        .{ child_prefix, chars.vertical_single(), idx + 1, marker_name, marker.color,
                            marker.marked_range[0], marker.marked_range[1] },
                     );
                 }
