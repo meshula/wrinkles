@@ -83,13 +83,13 @@ pub fn usage(
 {
     std.debug.print(
         \\
-        \\otio_dump_ziggy - Convert OTIO JSON files to TLA format
+        \\otio_dump_tla - Convert OTIO JSON files to TLA format
         \\
         \\Converts OpenTimelineIO files from the original JSON format (.otio)
         \\to wrinkles' native TLA serialization format (.tla).
         \\
         \\Usage:
-        \\  otio_dump_ziggy <input.otio> <output.tla>
+        \\  otio_dump_tla <input.otio> <output.tla>
         \\
         \\Arguments:
         \\  <input.otio>    Path to the source OTIO JSON file

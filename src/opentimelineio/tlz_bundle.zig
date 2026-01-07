@@ -797,7 +797,7 @@ test "tlz_bundle: media bundling with app.png"
     const allocator = arena.allocator();
 
     // Load the test timeline that references app.png
-    const timeline_path = "test_files_tla/simple_cut_with_media.tla";
+    const timeline_path = "test_files/simple_cut_with_media.tla";
     const timeline_file = std.fs.cwd().openFile(timeline_path, .{}) catch |err| {
         std.debug.print("Skipping test: could not open {s}: {}\n", .{ timeline_path, err });
         return;
@@ -824,7 +824,7 @@ test "tlz_bundle: media bundling with app.png"
     try writeToFile(allocator, timeline, test_path, .{
         .bundle_format = .tla,
         .media_policy = .MissingIfNotFile,  // Don't error on missing files
-        .media_base_dir = "test_files_tla",  // Resolve relative paths from tla file location
+        .media_base_dir = "test_files",  // Resolve relative paths from tla file location
     });
 
     defer std.fs.cwd().deleteFile(test_path) catch {};

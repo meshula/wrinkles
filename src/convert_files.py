@@ -48,7 +48,7 @@ def main():
         )
 
         # Run conversion command
-        cmd = f"zig-out/bin/otio_dump_ziggy {fname} {new_name}"
+        cmd = f"zig-out/bin/otio_dump_tla {fname} {new_name}"
         print(cmd)
 
         subprocess.run(cmd.split(" "))

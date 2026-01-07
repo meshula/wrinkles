@@ -76,17 +76,17 @@ OTIOCAT = PROJECT_ROOT / "zig-out" / "bin" / "otiocat"
 HIERARCHY_VIEW = PROJECT_ROOT / "zig-out" / "bin" / "otio_hierarchy_view"
 MEASURE_TIMELINE = PROJECT_ROOT / "zig-out" / "bin" / "otio_measure_timeline"
 
-# Format directories
+# Format directories - all formats now in same directory
 FORMAT_DIRS = {
-    "ziggy": PROJECT_ROOT / "test_files_ziggy",
-    "tlb": PROJECT_ROOT / "test_files_binary",
-    "tlfb": PROJECT_ROOT / "test_files_tlfb",
+    "tla": PROJECT_ROOT / "test_files",
+    "tlb": PROJECT_ROOT / "test_files",
+    "tlfb": PROJECT_ROOT / "test_files",
     "otio": PROJECT_ROOT / "test_files",
 }
 
 # Format extensions
 FORMAT_EXT = {
-    "ziggy": ".ziggy",
+    "tla": ".tla",
     "tlb": ".tlb",
     "tlfb": ".tlfb",
     "otio": ".otio",

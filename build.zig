@@ -1003,9 +1003,9 @@ pub fn build(
 
     try executable(
         b,
-        "otio_dump_ziggy",
-        "Dump OTIO file as Ziggy format",
-        "src/otio_dump_ziggy.zig",
+        "otio_dump_tla",
+        "Convert OTIO JSON to TLA format",
+        "src/otio_dump_tla.zig",
         options,
         &.{
             .{ .name = "string_stuff", .module = string_stuff },

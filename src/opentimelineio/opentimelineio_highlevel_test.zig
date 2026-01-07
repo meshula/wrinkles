@@ -1220,7 +1220,7 @@ test "otio_measure_timeline executable on just_clip.tla"
             .allocator = allocator,
             .argv = &.{
                 "zig-out/bin/otio_measure_timeline",
-                "test_files_tla/just_clip.tla",
+                "test_files/just_clip.tla",
             },
         }
     ) catch |err| 

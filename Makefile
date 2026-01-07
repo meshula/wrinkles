@@ -34,17 +34,16 @@ docs:
 
 # Convert OTIO test files to TLA format with latest schema
 # Uses Zig converter for full Timelines, Python converter as fallback for non-Timelines
-convert-test-files: zig-out/bin/otio_dump_ziggy
-	@echo "Converting OTIO files to TLA format..."
-	@mkdir -p test_files_tla
+convert-test-files: zig-out/bin/otio_dump_tla
+	@echo "Converting OTIO files to TLA format in test_files/..."
 	@success=0; failed=0; \
 	for f in test_files/*.otio; do \
 		if [ -f "$$f" ]; then \
 			basename=$$(basename "$$f" .otio); \
 			echo "  Converting $$basename.otio -> $$basename.tla"; \
-			if ./zig-out/bin/otio_dump_ziggy "$$f" "test_files_tla/$${basename}.tla" 2>&1 | grep -q "Wrote:"; then \
+			if ./zig-out/bin/otio_dump_tla "$$f" "test_files/$${basename}.tla" 2>&1 | grep -q "Wrote:"; then \
 				success=$$((success + 1)); \
-			elif python3 otio_to_ziggy.py "$$f" "test_files_tla/$${basename}.tla" 2>&1 | grep -q "Converted"; then \
+			elif python3 otio_to_ziggy.py "$$f" "test_files/$${basename}.tla" 2>&1 | grep -q "Converted"; then \
 				echo "    (using Python fallback - no metadata support)"; \
 				success=$$((success + 1)); \
 			else \
@@ -55,9 +54,10 @@ convert-test-files: zig-out/bin/otio_dump_ziggy
 	done; \
 	echo "Conversion complete: $$success succeeded, $$failed failed"
 
-# Convert OpenTimelineIO sample files to TLA format using otio_dump_ziggy
-convert-otio-samples: zig-out/bin/otio_dump_ziggy
-	@echo "Converting OpenTimelineIO sample files..."
+# Convert OpenTimelineIO sample files to TLA format using otio_dump_tla
+# Output goes to otio_sample_data/ alongside source files
+convert-otio-samples: zig-out/bin/otio_dump_tla
+	@echo "Converting OpenTimelineIO sample files to TLA format..."
 	@if [ ! -d "../OpenTimelineIO/tests/sample_data" ]; then \
 		echo "Error: ../OpenTimelineIO/tests/sample_data not found"; \
 		echo "Please clone OpenTimelineIO to ../OpenTimelineIO"; \
@@ -69,7 +69,7 @@ convert-otio-samples: zig-out/bin/otio_dump_ziggy
 		if [ -f "$$f" ]; then \
 			basename=$$(basename "$$f" .otio); \
 			echo "  Converting $$basename.otio -> $$basename.tla"; \
-			if ./zig-out/bin/otio_dump_ziggy "$$f" "otio_sample_data/$${basename}.tla" 2>&1 | grep -q "Wrote:"; then \
+			if ./zig-out/bin/otio_dump_tla "$$f" "otio_sample_data/$${basename}.tla" 2>&1 | grep -q "Wrote:"; then \
 				success=$$((success + 1)); \
 			else \
 				echo "    FAILED"; \
@@ -79,7 +79,7 @@ convert-otio-samples: zig-out/bin/otio_dump_ziggy
 	done; \
 	echo ""; \
 	echo "Conversion complete: $$success succeeded, $$failed failed"; \
-	ls -lh otio_sample_data
+	ls -lh otio_sample_data/*.tla 2>/dev/null || true
 
 convert-to-latest-schema: \
 	convert-otio-samples \
@@ -87,16 +87,15 @@ convert-to-latest-schema: \
 	@echo "Converted all test files to latest schema."
 
 # Convert TLA files to binary (.tlb) format
+# Output goes alongside source files in the same directory
 convert-to-binary: zig-out/bin/otiocat
 	@echo "Converting TLA files to binary format..."
-	@mkdir -p otio_sample_data_binary
-	@mkdir -p test_files_binary
 	@success=0; failed=0; \
 	for f in otio_sample_data/*.tla; do \
 		if [ -f "$$f" ]; then \
 			basename=$$(basename "$$f" .tla); \
 			echo "  Converting $$basename.tla -> $$basename.tlb"; \
-			if ./zig-out/bin/otiocat "$$f" "otio_sample_data_binary/$${basename}.tlb" 2>&1 | grep -q "Wrote:"; then \
+			if ./zig-out/bin/otiocat "$$f" "otio_sample_data/$${basename}.tlb" 2>&1 | grep -q "Wrote:"; then \
 				success=$$((success + 1)); \
 			else \
 				echo "    FAILED"; \
@@ -104,11 +103,11 @@ convert-to-binary: zig-out/bin/otiocat
 			fi \
 		fi \
 	done; \
-	for f in test_files_tla/*.tla; do \
+	for f in test_files/*.tla; do \
 		if [ -f "$$f" ]; then \
 			basename=$$(basename "$$f" .tla); \
 			echo "  Converting $$basename.tla -> $$basename.tlb"; \
-			if ./zig-out/bin/otiocat "$$f" "test_files_binary/$${basename}.tlb" 2>&1 | grep -q "Wrote:"; then \
+			if ./zig-out/bin/otiocat "$$f" "test_files/$${basename}.tlb" 2>&1 | grep -q "Wrote:"; then \
 				success=$$((success + 1)); \
 			else \
 				echo "    FAILED"; \
@@ -120,16 +119,15 @@ convert-to-binary: zig-out/bin/otiocat
 	echo "Binary conversion complete: $$success succeeded, $$failed failed"
 
 # Convert TLA files to FlatBuffers (.tlfb) format
+# Output goes alongside source files in the same directory
 convert-to-tlfb: zig-out/bin/otiocat
 	@echo "Converting TLA files to FlatBuffers format..."
-	@mkdir -p otio_sample_data_tlfb
-	@mkdir -p test_files_tlfb
 	@success=0; failed=0; \
 	for f in otio_sample_data/*.tla; do \
 		if [ -f "$$f" ]; then \
 			basename=$$(basename "$$f" .tla); \
 			echo "  Converting $$basename.tla -> $$basename.tlfb"; \
-			if ./zig-out/bin/otiocat "$$f" "otio_sample_data_tlfb/$${basename}.tlfb" 2>&1 | grep -q "Wrote:"; then \
+			if ./zig-out/bin/otiocat "$$f" "otio_sample_data/$${basename}.tlfb" 2>&1 | grep -q "Wrote:"; then \
 				success=$$((success + 1)); \
 			else \
 				echo "    FAILED"; \
@@ -137,11 +135,11 @@ convert-to-tlfb: zig-out/bin/otiocat
 			fi \
 		fi \
 	done; \
-	for f in test_files_tla/*.tla; do \
+	for f in test_files/*.tla; do \
 		if [ -f "$$f" ]; then \
 			basename=$$(basename "$$f" .tla); \
 			echo "  Converting $$basename.tla -> $$basename.tlfb"; \
-			if ./zig-out/bin/otiocat "$$f" "test_files_tlfb/$${basename}.tlfb" 2>&1 | grep -q "Wrote:"; then \
+			if ./zig-out/bin/otiocat "$$f" "test_files/$${basename}.tlfb" 2>&1 | grep -q "Wrote:"; then \
 				success=$$((success + 1)); \
 			else \
 				echo "    FAILED"; \
@@ -157,10 +155,28 @@ verify-tlfb-roundtrip: zig-out/bin/otiocat
 	@echo "Verifying tlfb round-trip consistency (tla -> tlfb -> tla)..."
 	@mkdir -p /tmp/otio_tlfb_roundtrip
 	@success=0; failed=0; \
-	for f in test_files_tla/*.tla; do \
+	for f in test_files/*.tla; do \
 		if [ -f "$$f" ]; then \
 			basename=$$(basename "$$f" .tla); \
-			tlfb_file="test_files_tlfb/$${basename}.tlfb"; \
+			tlfb_file="test_files/$${basename}.tlfb"; \
+			if [ -f "$$tlfb_file" ]; then \
+				echo -n "  Checking $$basename... "; \
+				./zig-out/bin/otiocat "$$f" "/tmp/otio_tlfb_roundtrip/from_tla.tla" 2>/dev/null; \
+				./zig-out/bin/otiocat "$$tlfb_file" "/tmp/otio_tlfb_roundtrip/from_tlfb.tla" 2>/dev/null; \
+				if diff -q "/tmp/otio_tlfb_roundtrip/from_tla.tla" "/tmp/otio_tlfb_roundtrip/from_tlfb.tla" >/dev/null 2>&1; then \
+					echo "OK"; \
+					success=$$((success + 1)); \
+				else \
+					echo "MISMATCH"; \
+					failed=$$((failed + 1)); \
+				fi \
+			fi \
+		fi \
+	done; \
+	for f in otio_sample_data/*.tla; do \
+		if [ -f "$$f" ]; then \
+			basename=$$(basename "$$f" .tla); \
+			tlfb_file="otio_sample_data/$${basename}.tlfb"; \
 			if [ -f "$$tlfb_file" ]; then \
 				echo -n "  Checking $$basename... "; \
 				./zig-out/bin/otiocat "$$f" "/tmp/otio_tlfb_roundtrip/from_tla.tla" 2>/dev/null; \
@@ -184,10 +200,28 @@ verify-tlfb-hierarchy: zig-out/bin/otio_hierarchy_view
 	@echo "Verifying tlfb hierarchy matches tla source..."
 	@mkdir -p /tmp/otio_tlfb_hierarchy
 	@success=0; failed=0; \
-	for f in test_files_tla/*.tla; do \
+	for f in test_files/*.tla; do \
 		if [ -f "$$f" ]; then \
 			basename=$$(basename "$$f" .tla); \
-			tlfb_file="test_files_tlfb/$${basename}.tlfb"; \
+			tlfb_file="test_files/$${basename}.tlfb"; \
+			if [ -f "$$tlfb_file" ]; then \
+				echo -n "  Checking $$basename hierarchy... "; \
+				./zig-out/bin/otio_hierarchy_view "$$f" > "/tmp/otio_tlfb_hierarchy/from_tla.txt" 2>/dev/null; \
+				./zig-out/bin/otio_hierarchy_view "$$tlfb_file" > "/tmp/otio_tlfb_hierarchy/from_tlfb.txt" 2>/dev/null; \
+				if diff -q "/tmp/otio_tlfb_hierarchy/from_tla.txt" "/tmp/otio_tlfb_hierarchy/from_tlfb.txt" >/dev/null 2>&1; then \
+					echo "OK"; \
+					success=$$((success + 1)); \
+				else \
+					echo "MISMATCH"; \
+					failed=$$((failed + 1)); \
+				fi \
+			fi \
+		fi \
+	done; \
+	for f in otio_sample_data/*.tla; do \
+		if [ -f "$$f" ]; then \
+			basename=$$(basename "$$f" .tla); \
+			tlfb_file="otio_sample_data/$${basename}.tlfb"; \
 			if [ -f "$$tlfb_file" ]; then \
 				echo -n "  Checking $$basename hierarchy... "; \
 				./zig-out/bin/otio_hierarchy_view "$$f" > "/tmp/otio_tlfb_hierarchy/from_tla.txt" 2>/dev/null; \
@@ -216,10 +250,10 @@ verify-roundtrip: zig-out/bin/otiocat
 	@echo "Verifying round-trip consistency (tla -> binary -> tla)..."
 	@mkdir -p /tmp/otio_roundtrip
 	@success=0; failed=0; \
-	for f in test_files_tla/*.tla; do \
+	for f in test_files/*.tla; do \
 		if [ -f "$$f" ]; then \
 			basename=$$(basename "$$f" .tla); \
-			tlb_file="test_files_binary/$${basename}.tlb"; \
+			tlb_file="test_files/$${basename}.tlb"; \
 			if [ -f "$$tlb_file" ]; then \
 				echo -n "  Checking $$basename... "; \
 				./zig-out/bin/otiocat "$$f" "/tmp/otio_roundtrip/from_tla.tla" 2>/dev/null; \
@@ -237,7 +271,7 @@ verify-roundtrip: zig-out/bin/otiocat
 	for f in otio_sample_data/*.tla; do \
 		if [ -f "$$f" ]; then \
 			basename=$$(basename "$$f" .tla); \
-			tlb_file="otio_sample_data_binary/$${basename}.tlb"; \
+			tlb_file="otio_sample_data/$${basename}.tlb"; \
 			if [ -f "$$tlb_file" ]; then \
 				echo -n "  Checking $$basename... "; \
 				./zig-out/bin/otiocat "$$f" "/tmp/otio_roundtrip/from_tla.tla" 2>/dev/null; \
@@ -256,4 +290,107 @@ verify-roundtrip: zig-out/bin/otiocat
 	echo ""; \
 	echo "Round-trip verification: $$success matched, $$failed mismatched"
 
-.PHONY: all run-em docs run_c convert-test-files convert-otio-samples convert-to-binary convert-to-tlfb convert-all verify-roundtrip verify-tlfb-roundtrip verify-tlfb-hierarchy
+# Convert production test files (OTIO -> TLA -> TLB -> TLFB)
+# Results stay in production_test_files/ directory
+convert-production-files: zig-out/bin/otio_dump_tla zig-out/bin/otiocat
+	@echo "Converting production test files..."
+	@if [ ! -d "production_test_files" ]; then \
+		echo "Warning: production_test_files/ not found (this is expected if you don't have the large test files)"; \
+		exit 0; \
+	fi
+	@success=0; failed=0; \
+	echo "Step 1: OTIO -> TLA"; \
+	for f in production_test_files/*.otio; do \
+		if [ -f "$$f" ]; then \
+			basename=$$(basename "$$f" .otio); \
+			echo "  Converting $$basename.otio -> $$basename.tla"; \
+			if ./zig-out/bin/otio_dump_tla "$$f" "production_test_files/$${basename}.tla" 2>&1 | grep -q "Wrote:"; then \
+				success=$$((success + 1)); \
+			else \
+				echo "    FAILED"; \
+				failed=$$((failed + 1)); \
+			fi \
+		fi \
+	done; \
+	echo "Step 2: TLA -> TLB"; \
+	for f in production_test_files/*.tla; do \
+		if [ -f "$$f" ]; then \
+			basename=$$(basename "$$f" .tla); \
+			echo "  Converting $$basename.tla -> $$basename.tlb"; \
+			if ./zig-out/bin/otiocat "$$f" "production_test_files/$${basename}.tlb" 2>&1 | grep -q "Wrote:"; then \
+				success=$$((success + 1)); \
+			else \
+				echo "    FAILED"; \
+				failed=$$((failed + 1)); \
+			fi \
+		fi \
+	done; \
+	echo "Step 3: TLA -> TLFB"; \
+	for f in production_test_files/*.tla; do \
+		if [ -f "$$f" ]; then \
+			basename=$$(basename "$$f" .tla); \
+			echo "  Converting $$basename.tla -> $$basename.tlfb"; \
+			if ./zig-out/bin/otiocat "$$f" "production_test_files/$${basename}.tlfb" 2>&1 | grep -q "Wrote:"; then \
+				success=$$((success + 1)); \
+			else \
+				echo "    FAILED"; \
+				failed=$$((failed + 1)); \
+			fi \
+		fi \
+	done; \
+	echo ""; \
+	echo "Production file conversion complete: $$success succeeded, $$failed failed"; \
+	ls -lh production_test_files/ 2>/dev/null || true
+
+# Verify production file round-trips
+verify-production-roundtrip: zig-out/bin/otiocat
+	@echo "Verifying production file round-trip consistency..."
+	@if [ ! -d "production_test_files" ]; then \
+		echo "Warning: production_test_files/ not found"; \
+		exit 0; \
+	fi
+	@mkdir -p /tmp/otio_prod_roundtrip
+	@success=0; failed=0; \
+	echo "Checking TLA vs TLB:"; \
+	for f in production_test_files/*.tla; do \
+		if [ -f "$$f" ]; then \
+			basename=$$(basename "$$f" .tla); \
+			tlb_file="production_test_files/$${basename}.tlb"; \
+			if [ -f "$$tlb_file" ]; then \
+				echo -n "  Checking $$basename (tlb)... "; \
+				./zig-out/bin/otiocat "$$f" "/tmp/otio_prod_roundtrip/from_tla.tla" 2>/dev/null; \
+				./zig-out/bin/otiocat "$$tlb_file" "/tmp/otio_prod_roundtrip/from_tlb.tla" 2>/dev/null; \
+				if diff -q "/tmp/otio_prod_roundtrip/from_tla.tla" "/tmp/otio_prod_roundtrip/from_tlb.tla" >/dev/null 2>&1; then \
+					echo "OK"; \
+					success=$$((success + 1)); \
+				else \
+					echo "MISMATCH"; \
+					failed=$$((failed + 1)); \
+				fi \
+			fi \
+		fi \
+	done; \
+	echo "Checking TLA vs TLFB:"; \
+	for f in production_test_files/*.tla; do \
+		if [ -f "$$f" ]; then \
+			basename=$$(basename "$$f" .tla); \
+			tlfb_file="production_test_files/$${basename}.tlfb"; \
+			if [ -f "$$tlfb_file" ]; then \
+				echo -n "  Checking $$basename (tlfb)... "; \
+				./zig-out/bin/otiocat "$$f" "/tmp/otio_prod_roundtrip/from_tla.tla" 2>/dev/null; \
+				./zig-out/bin/otiocat "$$tlfb_file" "/tmp/otio_prod_roundtrip/from_tlfb.tla" 2>/dev/null; \
+				if diff -q "/tmp/otio_prod_roundtrip/from_tla.tla" "/tmp/otio_prod_roundtrip/from_tlfb.tla" >/dev/null 2>&1; then \
+					echo "OK"; \
+					success=$$((success + 1)); \
+				else \
+					echo "MISMATCH"; \
+					failed=$$((failed + 1)); \
+				fi \
+			fi \
+		fi \
+	done; \
+	rm -rf /tmp/otio_prod_roundtrip; \
+	echo ""; \
+	echo "Production round-trip verification: $$success matched, $$failed mismatched"
+
+.PHONY: all run-em docs run_c convert-test-files convert-otio-samples convert-to-binary convert-to-tlfb convert-all verify-roundtrip verify-tlfb-roundtrip verify-tlfb-hierarchy convert-production-files verify-production-roundtrip

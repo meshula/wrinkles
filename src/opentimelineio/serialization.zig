@@ -2119,7 +2119,7 @@ pub fn deserialize_timeline_from_otio_json(
 ///
 /// This function converts OTIO JSON to Ziggy format without going through
 /// the runtime Schema, which would lose metadata. Use this for file conversion
-/// tools like otio_dump_ziggy.
+/// tools like otio_dump_tla.
 ///
 /// Non-Timeline root objects (Clip, Track, Warp, etc.) are automatically
 /// wrapped in a synthetic Timeline/Track structure for a complete schema.
