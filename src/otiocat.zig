@@ -326,7 +326,7 @@ pub fn main() !void
         try serialization.write_to_writer(
             allocator,
             ser_timeline,
-            output_ext,
+            output_format,
             write_options,
             writer,
         );
@@ -340,4 +340,183 @@ pub fn main() !void
     {
         std.log.info("Wrote: {s}", .{path});
     }
+}
+
+// ----------------------------------------------------------------------------
+// Tests
+// ----------------------------------------------------------------------------
+
+test "get_extension returns correct extension" {
+    try std.testing.expectEqualStrings(".ziggy", get_extension("foo.ziggy").?);
+    try std.testing.expectEqualStrings(".tlb", get_extension("path/to/file.tlb").?);
+    try std.testing.expectEqualStrings(".tlfb", get_extension("timeline.tlfb").?);
+    try std.testing.expectEqualStrings(".tlz", get_extension("/abs/path/bundle.tlz").?);
+    try std.testing.expectEqualStrings(".otio", get_extension("test.otio").?);
+    try std.testing.expect(get_extension("no_extension") == null);
+}
+
+test "FileFormat stringToEnum parses extensions correctly" {
+    // Test that we can parse all supported output formats
+    try std.testing.expectEqual(
+        serialization.FileFormat.ziggy,
+        std.meta.stringToEnum(serialization.FileFormat, "ziggy").?,
+    );
+    try std.testing.expectEqual(
+        serialization.FileFormat.tlb,
+        std.meta.stringToEnum(serialization.FileFormat, "tlb").?,
+    );
+    try std.testing.expectEqual(
+        serialization.FileFormat.tlfb,
+        std.meta.stringToEnum(serialization.FileFormat, "tlfb").?,
+    );
+    try std.testing.expectEqual(
+        serialization.FileFormat.tlz,
+        std.meta.stringToEnum(serialization.FileFormat, "tlz").?,
+    );
+    try std.testing.expectEqual(
+        serialization.FileFormat.otio,
+        std.meta.stringToEnum(serialization.FileFormat, "otio").?,
+    );
+}
+
+test "roundtrip ziggy format via read_from_buffer and write_to_buffer" {
+    const allocator = std.testing.allocator;
+
+    // Read a test file
+    const ser_timeline = try serialization.read_from_file(
+        allocator,
+        "otio_sample_data/simple_cut.ziggy",
+    );
+
+    // Write to buffer as ziggy
+    const buffer = try serialization.write_to_buffer(
+        allocator,
+        ser_timeline,
+        .ziggy,
+        .{},
+    );
+    defer allocator.free(buffer);
+
+    // Read back from buffer
+    const roundtrip_timeline = try serialization.read_from_buffer(
+        allocator,
+        buffer,
+        .ziggy,
+    );
+
+    // Verify basic structure matches
+    try std.testing.expectEqualStrings(
+        ser_timeline.name orelse "",
+        roundtrip_timeline.name orelse "",
+    );
+    try std.testing.expectEqual(
+        ser_timeline.tracks.children.len,
+        roundtrip_timeline.tracks.children.len,
+    );
+}
+
+test "roundtrip tlb format via read_from_buffer and write_to_buffer" {
+    const allocator = std.testing.allocator;
+
+    // Read a test file
+    const ser_timeline = try serialization.read_from_file(
+        allocator,
+        "otio_sample_data/simple_cut.ziggy",
+    );
+
+    // Write to buffer as tlb (CBOR binary)
+    const buffer = try serialization.write_to_buffer(
+        allocator,
+        ser_timeline,
+        .tlb,
+        .{},
+    );
+    defer allocator.free(buffer);
+
+    // Read back from buffer
+    const roundtrip_timeline = try serialization.read_from_buffer(
+        allocator,
+        buffer,
+        .tlb,
+    );
+
+    // Verify basic structure matches
+    try std.testing.expectEqualStrings(
+        ser_timeline.name orelse "",
+        roundtrip_timeline.name orelse "",
+    );
+    try std.testing.expectEqual(
+        ser_timeline.tracks.children.len,
+        roundtrip_timeline.tracks.children.len,
+    );
+}
+
+test "roundtrip tlfb format via read_from_buffer and write_to_buffer" {
+    const allocator = std.testing.allocator;
+
+    // Read a test file
+    const ser_timeline = try serialization.read_from_file(
+        allocator,
+        "otio_sample_data/simple_cut.ziggy",
+    );
+
+    // Write to buffer as tlfb (FlatBuffers binary)
+    const buffer = try serialization.write_to_buffer(
+        allocator,
+        ser_timeline,
+        .tlfb,
+        .{},
+    );
+    defer allocator.free(buffer);
+
+    // Read back from buffer
+    const roundtrip_timeline = try serialization.read_from_buffer(
+        allocator,
+        buffer,
+        .tlfb,
+    );
+
+    // Verify basic structure matches
+    try std.testing.expectEqualStrings(
+        ser_timeline.name orelse "",
+        roundtrip_timeline.name orelse "",
+    );
+    try std.testing.expectEqual(
+        ser_timeline.tracks.children.len,
+        roundtrip_timeline.tracks.children.len,
+    );
+}
+
+test "convert otio to ziggy via buffer" {
+    const allocator = std.testing.allocator;
+
+    // Read OTIO JSON file
+    const ser_timeline = try serialization.read_from_file(
+        allocator,
+        "sample_otio_files/simple_cut.otio",
+    );
+
+    // Write to buffer as ziggy
+    const buffer = try serialization.write_to_buffer(
+        allocator,
+        ser_timeline,
+        .ziggy,
+        .{},
+    );
+    defer allocator.free(buffer);
+
+    // Verify we got some output
+    try std.testing.expect(buffer.len > 0);
+
+    // Read back and verify
+    const roundtrip = try serialization.read_from_buffer(
+        allocator,
+        buffer,
+        .ziggy,
+    );
+
+    try std.testing.expectEqual(
+        ser_timeline.tracks.children.len,
+        roundtrip.tracks.children.len,
+    );
 }

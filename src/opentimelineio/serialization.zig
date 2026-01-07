@@ -3075,7 +3075,7 @@ pub fn read_from_file(
     const ext_start = std.mem.lastIndexOfScalar(u8, file_path, '.') orelse {
         return error.NoFileExtension;
     };
-    const extension = file_path[ext_start..];
+    const extension = file_path[ext_start + 1 ..];  // Skip the leading dot
 
     const format = std.meta.stringToEnum(FileFormat, extension) orelse {
         return error.UnsupportedFileFormat;
@@ -3163,7 +3163,7 @@ pub fn write_to_buffer(
     var buffer = std.Io.Writer.Allocating.init(allocator);
     errdefer buffer.deinit();
 
-    try write_to_writer_with_format(
+    try write_to_writer(
         allocator,
         ser_timeline,
         format,
@@ -3188,7 +3188,7 @@ pub fn write_to_file(
     const ext_start = std.mem.lastIndexOfScalar(u8, file_path, '.') orelse {
         return error.NoFileExtension;
     };
-    const extension = file_path[ext_start..];
+    const extension = file_path[ext_start + 1 ..];  // Skip the leading dot
 
     const format = std.meta.stringToEnum(FileFormat, extension) orelse {
         return error.UnsupportedFileFormat;
@@ -3218,13 +3218,13 @@ pub fn write_to_file(
     var file_writer = file.writer(&file_writer_buffer);
     const writer = &file_writer.interface;
 
-    try write_to_writer_with_format(allocator, ser_timeline, format, options, writer);
+    try write_to_writer(allocator, ser_timeline, format, options, writer);
 
     try writer.flush();
 }
 
 /// Write a SerializableTimeline to a writer in the specified format.
-pub fn write_to_writer_with_format(
+pub fn write_to_writer(
     allocator: Allocator,
     ser_timeline: SerializableTimeline,
     format: FileFormat,
