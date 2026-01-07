@@ -824,7 +824,7 @@ test "tlz_bundle: media bundling with app.png"
     try writeToFile(allocator, timeline, test_path, .{
         .bundle_format = .ziggy,
         .media_policy = .MissingIfNotFile,  // Don't error on missing files
-        .media_base_dir = ".",  // Look for app.png in current directory
+        .media_base_dir = "test_files_ziggy",  // Resolve relative paths from ziggy file location
     });
 
     defer std.fs.cwd().deleteFile(test_path) catch {};
@@ -854,8 +854,6 @@ test "tlz_bundle: media bundling with app.png"
     if (std.mem.indexOf(u8, result.stdout, "media/app.png"))
         |_|
     {
-        std.debug.print("SUCCESS: app.png was bundled into media/app.png\n", .{});
-
         // Verify the media content is correct by extracting to a temp file
         const extract_dir = "/var/tmp/tlz_extract_test";
         std.fs.cwd().deleteTree(extract_dir) catch {};
@@ -885,10 +883,5 @@ test "tlz_bundle: media bundling with app.png"
 
         // Compare
         try std.testing.expectEqualSlices(u8, original_data, extracted_data);
-        std.debug.print("SUCCESS: Extracted app.png matches original ({d} bytes)\n", .{original_data.len});
-    }
-    else
-    {
-        std.debug.print("Note: app.png was not bundled (file may not exist)\n", .{});
     }
 }
