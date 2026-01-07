@@ -3056,3 +3056,174 @@ pub fn read_from_file(
 
     return error.UnsupportedFileFormat;
 }
+
+// ----------------------------------------------------------------------------
+// Universal File Writing
+// ----------------------------------------------------------------------------
+
+const tlz_bundle_utils = @import("tlz_bundle_utils.zig");
+
+/// Options for writing timeline files
+pub const WriteOptions = struct {
+    /// Controls how metadata is output in Ziggy format
+    metadata_mode: MetadataMode = .hash_reference,
+
+    /// TLZ bundle format (ziggy or tlfb inside the bundle)
+    bundle_format: tlz_bundle_utils.BundleFormat = .ziggy,
+
+    /// TLZ media handling policy
+    media_policy: tlz_bundle_utils.MediaReferencePolicy = .MissingIfNotFile,
+
+    /// Base directory for resolving media paths (for TLZ bundles)
+    media_base_dir: ?[]const u8 = null,
+};
+
+/// Controls how metadata is output in Ziggy format
+pub const MetadataMode = enum {
+    /// Default behavior: use hash references with metadata_map
+    hash_reference,
+    /// Omit all metadata from output
+    no_metadata,
+    /// Print metadata inline on each clip
+    inline_metadata,
+};
+
+/// Write a SerializableTimeline to any supported file format.
+/// Supports: .ziggy, .tlb (CBOR), .tlfb (FlatBuffers), .tlz (bundle)
+/// The file format is determined by the file extension.
+pub fn write_to_file(
+    allocator: Allocator,
+    ser_timeline: SerializableTimeline,
+    file_path: []const u8,
+    options: WriteOptions,
+) !void
+{
+    // Check file extension to determine format
+    const ext_start = std.mem.lastIndexOfScalar(u8, file_path, '.') orelse {
+        return error.NoFileExtension;
+    };
+    const extension = file_path[ext_start..];
+
+    // Handle .tlz separately since it manages its own file writing
+    if (std.mem.eql(u8, extension, ".tlz"))
+    {
+        try tlz_bundle.writeToFile(
+            allocator,
+            ser_timeline,
+            file_path,
+            .{
+                .bundle_format = options.bundle_format,
+                .media_policy = options.media_policy,
+                .media_base_dir = options.media_base_dir,
+            },
+        );
+        return;
+    }
+
+    // For other formats, open file and write
+    const file = try std.fs.cwd().createFile(file_path, .{});
+    defer file.close();
+
+    var file_writer_buffer: [16 * 1024]u8 = undefined;
+    var file_writer = file.writer(&file_writer_buffer);
+    const writer = &file_writer.interface;
+
+    try write_to_writer(allocator, ser_timeline, extension, options, writer);
+
+    try writer.flush();
+}
+
+/// Write a SerializableTimeline to a writer in the specified format.
+/// extension should include the dot (e.g., ".ziggy", ".tlb", ".tlfb")
+pub fn write_to_writer(
+    allocator: Allocator,
+    ser_timeline: SerializableTimeline,
+    extension: []const u8,
+    options: WriteOptions,
+    writer: anytype,
+) !void
+{
+    if (std.mem.eql(u8, extension, ".ziggy"))
+    {
+        try write_ziggy_with_metadata_mode(
+            allocator,
+            ser_timeline,
+            options.metadata_mode,
+            writer,
+        );
+        return;
+    }
+
+    if (std.mem.eql(u8, extension, ".tlb"))
+    {
+        try binary_serialization.serialize_from_serializable_timeline(
+            ser_timeline,
+            allocator,
+            writer,
+        );
+        return;
+    }
+
+    if (std.mem.eql(u8, extension, ".tlfb"))
+    {
+        try binary_serialization_flatbufs.serialize_from_serializable_timeline(
+            ser_timeline,
+            allocator,
+            writer,
+        );
+        return;
+    }
+
+    return error.UnsupportedFileFormat;
+}
+
+/// Write SerializableTimeline to Ziggy format with the specified metadata mode.
+fn write_ziggy_with_metadata_mode(
+    allocator: Allocator,
+    ser_timeline: SerializableTimeline,
+    metadata_mode: MetadataMode,
+    writer: anytype,
+) !void
+{
+    switch (metadata_mode) {
+        .hash_reference => {
+            // Default behavior - output SerializableTimeline directly
+            try ziggy.stringify(
+                ser_timeline,
+                .{
+                    .whitespace = .space_4,
+                    .emit_null_fields = false,
+                },
+                writer,
+            );
+        },
+        .no_metadata => {
+            // Strip all metadata
+            const stripped = try strip_metadata(allocator, ser_timeline);
+            try ziggy.stringify(
+                stripped,
+                .{
+                    .whitespace = .space_4,
+                    .emit_null_fields = false,
+                },
+                writer,
+            );
+        },
+        .inline_metadata => {
+            // Convert to inline metadata format
+            const inline_timeline = try convert_to_inline_metadata(
+                allocator,
+                ser_timeline,
+            );
+            try ziggy.stringify(
+                inline_timeline,
+                .{
+                    .whitespace = .space_4,
+                    .emit_null_fields = false,
+                },
+                writer,
+            );
+        },
+    }
+    _ = try writer.write("\n");
+}

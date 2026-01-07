@@ -24,23 +24,12 @@ const std = @import("std");
 const string = @import("string_stuff");
 const otio = @import("opentimelineio");
 const serialization = otio.serialization;
-const binary_serialization = otio.binary_serialization;
-const binary_serialization_flatbufs = otio.binary_serialization_flatbufs;
-const tlz_bundle = otio.tlz_bundle;
 const tlz_bundle_utils = otio.tlz_bundle_utils;
-const ziggy = @import("ziggy");
 
 const builtin = @import("builtin");
 
-/// Controls how metadata is output in Ziggy format
-const MetadataMode = enum {
-    /// Default behavior: use hash references with metadata_map
-    hash_reference,
-    /// Omit all metadata from output
-    no_metadata,
-    /// Print metadata inline on each clip
-    inline_metadata,
-};
+/// Re-export MetadataMode from serialization for argument parsing
+const MetadataMode = serialization.MetadataMode;
 
 const State = struct {
     input_path: []const u8,
@@ -238,56 +227,6 @@ fn get_extension(
     return path[ext_start..];
 }
 
-/// Write SerializableTimeline to Ziggy format with the specified metadata mode.
-fn write_ziggy_with_metadata_mode(
-    allocator: std.mem.Allocator,
-    ser_timeline: serialization.SerializableTimeline,
-    metadata_mode: MetadataMode,
-    writer: anytype,
-) !void
-{
-    switch (metadata_mode) {
-        .hash_reference => {
-            // Default behavior - output SerializableTimeline directly
-            try ziggy.stringify(
-                ser_timeline,
-                .{
-                    .whitespace = .space_4,
-                    .emit_null_fields = false,
-                },
-                writer,
-            );
-        },
-        .no_metadata => {
-            // Strip all metadata
-            const stripped = try serialization.strip_metadata(allocator, ser_timeline);
-            try ziggy.stringify(
-                stripped,
-                .{
-                    .whitespace = .space_4,
-                    .emit_null_fields = false,
-                },
-                writer,
-            );
-        },
-        .inline_metadata => {
-            // Convert to inline metadata format
-            const inline_timeline = try serialization.convert_to_inline_metadata(
-                allocator,
-                ser_timeline,
-            );
-            try ziggy.stringify(
-                inline_timeline,
-                .{
-                    .whitespace = .space_4,
-                    .emit_null_fields = false,
-                },
-                writer,
-            );
-        },
-    }
-    _ = try writer.write("\n");
-}
 
 pub fn main() !void
 {
@@ -362,68 +301,39 @@ pub fn main() !void
 
     const convert_prog = parent_prog.start("Converting...", 0);
 
-    // Open output file or use stdout
-    const writing_to_stdout = state.output_path == null;
-    var out_file = if (state.output_path) |path|
-        try std.fs.cwd().createFile(path, .{})
-    else
-        std.fs.File.stdout();
-    defer if (!writing_to_stdout) out_file.close();
+    // Build write options from state
+    const input_dir = std.fs.path.dirname(state.input_path) orelse ".";
+    const write_options = serialization.WriteOptions{
+        .metadata_mode = state.metadata_mode,
+        .bundle_format = state.bundle_format,
+        .media_policy = state.media_policy,
+        .media_base_dir = input_dir,
+    };
 
-    var file_writer_buffer: [16 * 1024]u8 = undefined;
-    var file_writer = out_file.writer(&file_writer_buffer);
-    const writer = &file_writer.interface;
-
-    // Handle output conversion based on output format
-    if (std.mem.eql(u8, output_ext, ".ziggy"))
+    // Write output using centralized writer
+    if (state.output_path) |path|
     {
-        try write_ziggy_with_metadata_mode(
-            allocator,
-            ser_timeline,
-            state.metadata_mode,
-            writer,
-        );
-    }
-    else if (std.mem.eql(u8, output_ext, ".tlb"))
-    {
-        try binary_serialization.serialize_from_serializable_timeline(
-            ser_timeline,
-            allocator,
-            writer,
-        );
-    }
-    else if (std.mem.eql(u8, output_ext, ".tlfb"))
-    {
-        try binary_serialization_flatbufs.serialize_from_serializable_timeline(
-            ser_timeline,
-            allocator,
-            writer,
-        );
-    }
-    else if (std.mem.eql(u8, output_ext, ".tlz"))
-    {
-        const input_dir = std.fs.path.dirname(state.input_path) orelse ".";
-        try tlz_bundle.writeToFile(
-            allocator,
-            ser_timeline,
-            state.output_path.?,
-            .{
-                .bundle_format = state.bundle_format,
-                .media_policy = state.media_policy,
-                .media_base_dir = input_dir,
-            },
-        );
+        // Write to file using centralized function
+        try serialization.write_to_file(allocator, ser_timeline, path, write_options);
     }
     else
     {
-        std.log.err(
-            "Unsupported output format: {s}. Use .ziggy, .tlb, .tlfb, or .tlz",
-            .{output_ext}
-        );
-        std.process.exit(1);
-    }
+        // Write to stdout
+        var out_file = std.fs.File.stdout();
+        var file_writer_buffer: [16 * 1024]u8 = undefined;
+        var file_writer = out_file.writer(&file_writer_buffer);
+        const writer = &file_writer.interface;
 
-    try writer.flush();
+        try serialization.write_to_writer(
+            allocator,
+            ser_timeline,
+            output_ext,
+            write_options,
+            writer,
+        );
+
+        try writer.flush();
+    }
 
     convert_prog.end();
 
