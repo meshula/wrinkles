@@ -190,17 +190,17 @@ pub fn render_item(
                 .{ prefix, connector, name, bounds_str },
             );
 
-            // Display markers if present
+            // Display markers if present - Stack has children, so always show vertical
             if (st.markers.len > 0) {
                 std.debug.print(
-                    "{s}{s}markers: {} marker(s)\n",
-                    .{ child_prefix, chars.vertical_single(), st.markers.len },
+                    "{s}{s}    markers: {} marker(s)\n",
+                    .{ prefix, chars.vertical(), st.markers.len },
                 );
                 for (st.markers, 0..) |marker, idx| {
                     const marker_name = marker.maybe_name orelse "(unnamed)";
                     std.debug.print(
-                        "{s}{s}  [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ child_prefix, chars.vertical_single(), idx + 1, marker_name, marker.color.to_string(),
+                        "{s}{s}      [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
+                        .{ prefix, chars.vertical(), idx + 1, marker_name, marker.color.to_string(),
                            marker.marked_range.start.as(f64), marker.marked_range.end.as(f64) },
                     );
                 }
@@ -218,17 +218,17 @@ pub fn render_item(
                 .{ prefix, connector, name, bounds_str, tr.children.len },
             );
 
-            // Display markers if present
+            // Display markers if present - Track has children, so always show vertical
             if (tr.markers.len > 0) {
                 std.debug.print(
-                    "{s}{s}markers: {} marker(s)\n",
-                    .{ child_prefix, chars.vertical_single(), tr.markers.len },
+                    "{s}{s}    markers: {} marker(s)\n",
+                    .{ prefix, chars.vertical(), tr.markers.len },
                 );
                 for (tr.markers, 0..) |marker, idx| {
                     const marker_name = marker.maybe_name orelse "(unnamed)";
                     std.debug.print(
-                        "{s}{s}  [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ child_prefix, chars.vertical_single(), idx + 1, marker_name, marker.color.to_string(),
+                        "{s}{s}      [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
+                        .{ prefix, chars.vertical(), idx + 1, marker_name, marker.color.to_string(),
                            marker.marked_range.start.as(f64), marker.marked_range.end.as(f64) },
                     );
                 }
@@ -264,21 +264,21 @@ pub fn render_item(
                 .{ prefix, connector, name, bounds_str },
             );
             std.debug.print(
-                "{s}{s}media: {s}\n",
-                .{ child_prefix, chars.vertical_single(), media_info },
+                "{s}    media: {s}\n",
+                .{ child_prefix, media_info },
             );
 
-            // Display markers if present
+            // Display markers if present - Clip is a leaf, use child_prefix for vertical
             if (cl.markers.len > 0) {
                 std.debug.print(
-                    "{s}{s}markers: {} marker(s)\n",
-                    .{ child_prefix, chars.vertical_single(), cl.markers.len },
+                    "{s}    markers: {} marker(s)\n",
+                    .{ child_prefix, cl.markers.len },
                 );
                 for (cl.markers, 0..) |marker, idx| {
                     const marker_name = marker.maybe_name orelse "(unnamed)";
                     std.debug.print(
-                        "{s}{s}  [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ child_prefix, chars.vertical_single(), idx + 1, marker_name, marker.color.to_string(),
+                        "{s}      [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
+                        .{ child_prefix, idx + 1, marker_name, marker.color.to_string(),
                            marker.marked_range.start.as(f64), marker.marked_range.end.as(f64) },
                     );
                 }
@@ -296,16 +296,16 @@ pub fn render_item(
                 .{ prefix, connector, name, bounds_str },
             );
 
-            // Display markers if present
+            // Display markers if present - Gap is a leaf, use child_prefix for vertical
             if (gp.markers.len > 0) {
                 std.debug.print(
-                    "{s}markers: {} marker(s)\n",
+                    "{s}    markers: {} marker(s)\n",
                     .{ child_prefix, gp.markers.len },
                 );
                 for (gp.markers, 0..) |marker, idx| {
                     const marker_name = marker.maybe_name orelse "(unnamed)";
                     std.debug.print(
-                        "{s}  [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
+                        "{s}      [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
                         .{ child_prefix, idx + 1, marker_name, marker.color.to_string(),
                            marker.marked_range.start.as(f64), marker.marked_range.end.as(f64) },
                     );
@@ -450,17 +450,17 @@ pub fn render_serializable_item(
                 .{ prefix, connector, name, tr.children.len },
             );
 
-            // Display markers if present
+            // Display markers if present - Track has children, so always show vertical
             if (tr.markers.len > 0) {
                 std.debug.print(
-                    "{s}{s}markers: {} marker(s)\n",
-                    .{ child_prefix, chars.vertical_single(), tr.markers.len },
+                    "{s}{s}    markers: {} marker(s)\n",
+                    .{ prefix, chars.vertical(), tr.markers.len },
                 );
                 for (tr.markers, 0..) |marker, idx| {
                     const marker_name = marker.name orelse "(unnamed)";
                     std.debug.print(
-                        "{s}{s}  [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ child_prefix, chars.vertical_single(), idx + 1, marker_name, marker.color,
+                        "{s}{s}      [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
+                        .{ prefix, chars.vertical(), idx + 1, marker_name, marker.color,
                            marker.marked_range[0], marker.marked_range[1] },
                     );
                 }
@@ -478,17 +478,17 @@ pub fn render_serializable_item(
                 .{ prefix, connector, name, st.children.len },
             );
 
-            // Display markers if present
+            // Display markers if present - Stack has children, so always show vertical
             if (st.markers.len > 0) {
                 std.debug.print(
-                    "{s}{s}markers: {} marker(s)\n",
-                    .{ child_prefix, chars.vertical_single(), st.markers.len },
+                    "{s}{s}    markers: {} marker(s)\n",
+                    .{ prefix, chars.vertical(), st.markers.len },
                 );
                 for (st.markers, 0..) |marker, idx| {
                     const marker_name = marker.name orelse "(unnamed)";
                     std.debug.print(
-                        "{s}{s}  [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ child_prefix, chars.vertical_single(), idx + 1, marker_name, marker.color,
+                        "{s}{s}      [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
+                        .{ prefix, chars.vertical(), idx + 1, marker_name, marker.color,
                            marker.marked_range[0], marker.marked_range[1] },
                     );
                 }
@@ -517,21 +517,21 @@ pub fn render_serializable_item(
                 .{ prefix, connector, name, bounds_str },
             );
             std.debug.print(
-                "{s}{s}media: {s}\n",
-                .{ child_prefix, chars.vertical_single(), media_info },
+                "{s}    media: {s}\n",
+                .{ child_prefix, media_info },
             );
 
-            // Display markers if present
+            // Display markers if present - Clip is a leaf, use child_prefix for vertical
             if (cl.markers.len > 0) {
                 std.debug.print(
-                    "{s}{s}markers: {} marker(s)\n",
-                    .{ child_prefix, chars.vertical_single(), cl.markers.len },
+                    "{s}    markers: {} marker(s)\n",
+                    .{ child_prefix, cl.markers.len },
                 );
                 for (cl.markers, 0..) |marker, idx| {
                     const marker_name = marker.name orelse "(unnamed)";
                     std.debug.print(
-                        "{s}{s}  [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ child_prefix, chars.vertical_single(), idx + 1, marker_name, marker.color,
+                        "{s}      [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
+                        .{ child_prefix, idx + 1, marker_name, marker.color,
                            marker.marked_range[0], marker.marked_range[1] },
                     );
                 }
@@ -542,7 +542,7 @@ pub fn render_serializable_item(
                 if (cl.metadata_hash) |hash| {
                     if (maybe_metadata_map) |mm| {
                         if (mm.fields.get(hash)) |metadata_value| {
-                            std.debug.print("{s}{s}metadata:\n", .{ child_prefix, chars.vertical_single() });
+                            std.debug.print("{s}    metadata:\n", .{child_prefix});
                             render_metadata_value(allocator, metadata_value, child_prefix, 6);
                         }
                     }
@@ -563,16 +563,16 @@ pub fn render_serializable_item(
                 .{ prefix, connector, name, bounds_str },
             );
 
-            // Display markers if present
+            // Display markers if present - Gap is a leaf, use child_prefix for vertical
             if (gp.markers.len > 0) {
                 std.debug.print(
-                    "{s}markers: {} marker(s)\n",
+                    "{s}    markers: {} marker(s)\n",
                     .{ child_prefix, gp.markers.len },
                 );
                 for (gp.markers, 0..) |marker, idx| {
                     const marker_name = marker.name orelse "(unnamed)";
                     std.debug.print(
-                        "{s}  [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
+                        "{s}      [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
                         .{ child_prefix, idx + 1, marker_name, marker.color,
                            marker.marked_range[0], marker.marked_range[1] },
                     );
