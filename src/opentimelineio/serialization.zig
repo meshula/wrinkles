@@ -2980,3 +2980,79 @@ test "timeline serialization: ziggy round-trip"
         loaded_timeline.tracks.children.len,
     );
 }
+
+// ----------------------------------------------------------------------------
+// Universal File Reading
+// ----------------------------------------------------------------------------
+
+const binary_serialization = @import("binary_serialization.zig");
+const binary_serialization_flatbufs = @import("binary_serialization_flatbufs.zig");
+const tlz_bundle = @import("tlz_bundle.zig");
+
+/// Read a timeline from any supported file format into SerializableTimeline.
+/// Supports: .otio (JSON), .ziggy, .tlb (CBOR), .tlfb (FlatBuffers), .tlz (bundle)
+/// The file format is determined by the file extension.
+pub fn read_from_file(
+    allocator: Allocator,
+    file_path: []const u8,
+) !SerializableTimeline
+{
+    // Check file extension to determine format
+    const ext_start = std.mem.lastIndexOfScalar(u8, file_path, '.') orelse {
+        return error.NoFileExtension;
+    };
+    const extension = file_path[ext_start..];
+
+    // Handle .tlz separately since it manages its own file reading
+    if (std.mem.eql(u8, extension, ".tlz"))
+    {
+        return try tlz_bundle.readFromFile(allocator, file_path, .{});
+    }
+
+    // For other formats, read the file contents first
+    const file = try std.fs.cwd().openFile(file_path, .{});
+    defer file.close();
+
+    const source = try file.readToEndAllocOptions(
+        allocator,
+        std.math.maxInt(u32),
+        null,
+        .@"1",
+        0,
+    );
+    defer allocator.free(source);
+
+    if (std.mem.eql(u8, extension, ".ziggy"))
+    {
+        return try ziggy.parseLeaky(
+            SerializableTimeline,
+            allocator,
+            source,
+            .{},
+        );
+    }
+
+    if (std.mem.eql(u8, extension, ".tlb"))
+    {
+        return try binary_serialization.deserialize_to_serializable_timeline(
+            allocator,
+            source[0..source.len],
+        );
+    }
+
+    if (std.mem.eql(u8, extension, ".tlfb"))
+    {
+        return try binary_serialization_flatbufs.deserialize_to_serializable_timeline(
+            allocator,
+            source[0..source.len],
+            .{},
+        );
+    }
+
+    if (std.mem.eql(u8, extension, ".otio"))
+    {
+        return try otio_json_to_serializable_timeline(allocator, source[0..source.len]);
+    }
+
+    return error.UnsupportedFileFormat;
+}

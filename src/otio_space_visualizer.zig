@@ -1863,40 +1863,13 @@ pub fn main(
             );
         }
 
-        // Check file extension to determine format
-        const is_ziggy = std.mem.endsWith(u8, STATE.target_otio_file, ".ziggy");
-
-        if (is_ziggy) {
-            // Read ziggy file
-            const file = try std.fs.cwd().openFile(
-                STATE.target_otio_file,
-                .{},
-            );
-            defer file.close();
-
-            const ziggy_content_tmp = try file.readToEndAlloc(
-                STATE.allocator,
-                1024*1024*1024,
-            );
-
-            // Add null terminator for ziggy deserialization
-            const ziggy_content = try STATE.allocator.dupeZ(u8, ziggy_content_tmp);
-            STATE.allocator.free(ziggy_content_tmp);
-
-            const timeline = try otio_serialization.deserialize_timeline(
-                STATE.allocator,
-                ziggy_content,
-                .{ .file_contents_to_read = .all_except_metadata },
-            );
-            STATE.otio_root = .{ .timeline = timeline };
-        } else {
-            // Read OTIO JSON file - skip metadata for faster visualization
-            STATE.otio_root = try otio.read_from_file(
-                STATE.allocator,
-                STATE.target_otio_file,
-                .{ .file_contents_to_read = .all_except_metadata },
-            );
-        }
+        // Read timeline file - supports .otio, .ziggy, .tlb, .tlfb, .tlz
+        // Skip metadata for faster visualization
+        STATE.otio_root = try otio.read_from_file(
+            STATE.allocator,
+            STATE.target_otio_file,
+            .{ .file_contents_to_read = .all_except_metadata },
+        );
 
         // read the file contents
         {
@@ -1936,7 +1909,7 @@ pub fn main(
 /// Usage message for argument parsing.
 pub fn usage(
     msg: []const u8,
-) void 
+) void
 {
     std.debug.print(
         \\
@@ -1951,7 +1924,10 @@ pub fn usage(
         \\
         \\Supported formats:
         \\  .otio  - OpenTimelineIO JSON format
-        \\  .ziggy - Ziggy serialization format
+        \\  .ziggy - Ziggy text format
+        \\  .tlb   - Binary CBOR format
+        \\  .tlfb  - Binary FlatBuffers format
+        \\  .tlz   - TLZ bundle (ZIP archive)
         \\
         \\{s}
         \\

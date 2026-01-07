@@ -2,7 +2,6 @@ const std = @import("std");
 
 const string = @import("string_stuff");
 const otio = @import("opentimelineio");
-const ziggy = @import("ziggy");
 
 const hierarchy_render = @import("opentimelineio").hierarchy_text_render;
 const TreeChars = hierarchy_render.TreeChars;
@@ -96,72 +95,13 @@ pub fn usage(
 }
 
 /// Read a file to SerializableTimeline (preserves metadata)
+/// Supports: .otio, .ziggy, .tlb, .tlfb, .tlz
 fn read_to_serializable_timeline(
     allocator: std.mem.Allocator,
     filepath: []const u8,
 ) !otio.serialization.SerializableTimeline
 {
-    // Check file extension to determine format
-    const ext_start = std.mem.lastIndexOfScalar(u8, filepath, '.') orelse {
-        return error.NoFileExtension;
-    };
-    const extension = filepath[ext_start..];
-
-    const file = try std.fs.cwd().openFile(filepath, .{});
-    defer file.close();
-
-    const source = try file.readToEndAllocOptions(
-        allocator,
-        std.math.maxInt(u32),
-        null,
-        .@"1",
-        0,
-    );
-    defer allocator.free(source);
-
-    if (std.mem.eql(u8, extension, ".ziggy"))
-    {
-        return try ziggy.parseLeaky(
-            otio.serialization.SerializableTimeline,
-            allocator,
-            source,
-            .{},
-        );
-    }
-
-    if (std.mem.eql(u8, extension, ".tlb"))
-    {
-        return try otio.binary_serialization.deserialize_to_serializable_timeline(
-            allocator,
-            source[0..source.len],
-        );
-    }
-
-    if (std.mem.eql(u8, extension, ".tlfb"))
-    {
-        return try otio.binary_serialization_flatbufs.deserialize_to_serializable_timeline(
-            allocator,
-            source[0..source.len],
-            .{},
-        );
-    }
-
-    if (std.mem.eql(u8, extension, ".otio"))
-    {
-        // For OTIO JSON files with --show-metadata, the direct conversion path has issues.
-        // The OTIO JSON metadata serialization in otio_json_to_serializable_timeline has
-        // known issues. For metadata viewing, users should convert to .ziggy first:
-        //   otiocat file.otio file.ziggy
-        //   otio_hierarchy_view --show-metadata file.ziggy
-        std.log.err(
-            "OTIO JSON files are not supported with --show-metadata. " ++
-            "Convert to .ziggy first with: otiocat {s} output.ziggy",
-            .{filepath}
-        );
-        return error.UnsupportedFileFormatWithMetadata;
-    }
-
-    return error.UnsupportedFileFormat;
+    return try otio.serialization.read_from_file(allocator, filepath);
 }
 
 pub fn main() !void {

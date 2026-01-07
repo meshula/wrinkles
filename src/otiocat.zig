@@ -355,24 +355,8 @@ pub fn main() !void
         std.process.exit(1);
     }
 
-    // Check input extension
-    const input_ext = get_extension(state.input_path) orelse {
-        std.log.err("Input file must have an extension", .{});
-        std.process.exit(1);
-    };
-
-    // Read input file
-    const file = try std.fs.cwd().openFile(state.input_path, .{});
-    defer file.close();
-
-    const source = try file.readToEndAllocOptions(
-        allocator,
-        std.math.maxInt(u32),
-        null,
-        .@"1",
-        0,
-    );
-    defer allocator.free(source);
+    // Read input file using centralized reader (supports .otio, .ziggy, .tlb, .tlfb, .tlz)
+    const ser_timeline = try serialization.read_from_file(allocator, state.input_path);
 
     read_prog.end();
 
@@ -390,289 +374,51 @@ pub fn main() !void
     var file_writer = out_file.writer(&file_writer_buffer);
     const writer = &file_writer.interface;
 
-    // Handle conversion based on input and output formats
-    // All conversions go through SerializableTimeline to preserve metadata
-    if (std.mem.eql(u8, input_ext, ".otio"))
+    // Handle output conversion based on output format
+    if (std.mem.eql(u8, output_ext, ".ziggy"))
     {
-        // OTIO JSON input - convert directly to output format
-        if (std.mem.eql(u8, output_ext, ".ziggy"))
-        {
-            // Convert to SerializableTimeline first to apply metadata mode
-            const ser_timeline = try serialization.otio_json_to_serializable_timeline(
-                allocator,
-                source,
-            );
-            try write_ziggy_with_metadata_mode(
-                allocator,
-                ser_timeline,
-                state.metadata_mode,
-                writer,
-            );
-        }
-        else if (std.mem.eql(u8, output_ext, ".tlb"))
-        {
-            // Convert through SerializableTimeline to preserve metadata
-            const ser_timeline = try serialization.otio_json_to_serializable_timeline(
-                allocator,
-                source,
-            );
-
-            try binary_serialization.serialize_from_serializable_timeline(
-                ser_timeline,
-                allocator,
-                writer,
-            );
-        }
-        else if (std.mem.eql(u8, output_ext, ".tlfb"))
-        {
-            // OTIO JSON to FlatBuffers - convert through SerializableTimeline to preserve metadata
-            const ser_timeline = try serialization.otio_json_to_serializable_timeline(
-                allocator,
-                source,
-            );
-            try binary_serialization_flatbufs.serialize_from_serializable_timeline(
-                ser_timeline,
-                allocator,
-                writer,
-            );
-        }
-        else if (std.mem.eql(u8, output_ext, ".tlz"))
-        {
-            // OTIO JSON to TLZ bundle
-            const ser_timeline = try serialization.otio_json_to_serializable_timeline(
-                allocator,
-                source,
-            );
-            const input_dir = std.fs.path.dirname(state.input_path) orelse ".";
-            try tlz_bundle.writeToFile(
-                allocator,
-                ser_timeline,
-                state.output_path.?,
-                .{
-                    .bundle_format = state.bundle_format,
-                    .media_policy = state.media_policy,
-                    .media_base_dir = input_dir,
-                },
-            );
-        }
-    }
-    else if (std.mem.eql(u8, input_ext, ".ziggy"))
-    {
-        // Ziggy input - parse directly to SerializableTimeline to preserve metadata
-        const ser_timeline = try ziggy.parseLeaky(
-            serialization.SerializableTimeline,
+        try write_ziggy_with_metadata_mode(
             allocator,
-            source,
-            .{},
+            ser_timeline,
+            state.metadata_mode,
+            writer,
         );
-
-        if (std.mem.eql(u8, output_ext, ".ziggy"))
-        {
-            // Ziggy to Ziggy (normalize/re-serialize with metadata mode)
-            try write_ziggy_with_metadata_mode(
-                allocator,
-                ser_timeline,
-                state.metadata_mode,
-                writer,
-            );
-        }
-        else if (std.mem.eql(u8, output_ext, ".tlb"))
-        {
-            // Ziggy to Binary - preserves metadata
-            try binary_serialization.serialize_from_serializable_timeline(
-                ser_timeline,
-                allocator,
-                writer,
-            );
-        }
-        else if (std.mem.eql(u8, output_ext, ".tlfb"))
-        {
-            // Ziggy to FlatBuffers - preserves metadata
-            try binary_serialization_flatbufs.serialize_from_serializable_timeline(
-                ser_timeline,
-                allocator,
-                writer,
-            );
-        }
-        else if (std.mem.eql(u8, output_ext, ".tlz"))
-        {
-            // Ziggy to TLZ bundle
-            const input_dir = std.fs.path.dirname(state.input_path) orelse ".";
-            try tlz_bundle.writeToFile(
-                allocator,
-                ser_timeline,
-                state.output_path.?,
-                .{
-                    .bundle_format = state.bundle_format,
-                    .media_policy = state.media_policy,
-                    .media_base_dir = input_dir,
-                },
-            );
-        }
     }
-    else if (std.mem.eql(u8, input_ext, ".tlb"))
+    else if (std.mem.eql(u8, output_ext, ".tlb"))
     {
-        // Binary input - deserialize to SerializableTimeline to preserve metadata
-        const ser_timeline = try binary_serialization.deserialize_to_serializable_timeline(
+        try binary_serialization.serialize_from_serializable_timeline(
+            ser_timeline,
             allocator,
-            source,
+            writer,
         );
-
-        if (std.mem.eql(u8, output_ext, ".ziggy"))
-        {
-            // Binary to Ziggy with metadata mode
-            try write_ziggy_with_metadata_mode(
-                allocator,
-                ser_timeline,
-                state.metadata_mode,
-                writer,
-            );
-        }
-        else if (std.mem.eql(u8, output_ext, ".tlb"))
-        {
-            // Binary to Binary (normalize/re-serialize)
-            try binary_serialization.serialize_from_serializable_timeline(
-                ser_timeline,
-                allocator,
-                writer,
-            );
-        }
-        else if (std.mem.eql(u8, output_ext, ".tlfb"))
-        {
-            // CBOR Binary to FlatBuffers - preserves metadata
-            try binary_serialization_flatbufs.serialize_from_serializable_timeline(
-                ser_timeline,
-                allocator,
-                writer,
-            );
-        }
-        else if (std.mem.eql(u8, output_ext, ".tlz"))
-        {
-            // CBOR Binary to TLZ bundle
-            const input_dir = std.fs.path.dirname(state.input_path) orelse ".";
-            try tlz_bundle.writeToFile(
-                allocator,
-                ser_timeline,
-                state.output_path.?,
-                .{
-                    .bundle_format = state.bundle_format,
-                    .media_policy = state.media_policy,
-                    .media_base_dir = input_dir,
-                },
-            );
-        }
     }
-    else if (std.mem.eql(u8, input_ext, ".tlfb"))
+    else if (std.mem.eql(u8, output_ext, ".tlfb"))
     {
-        // FlatBuffers input - deserialize to SerializableTimeline to preserve metadata
-        const ser_timeline = try binary_serialization_flatbufs.deserialize_to_serializable_timeline(
+        try binary_serialization_flatbufs.serialize_from_serializable_timeline(
+            ser_timeline,
             allocator,
-            source,
-            .{}, // ReadOptions: .all by default
+            writer,
         );
-
-        if (std.mem.eql(u8, output_ext, ".ziggy"))
-        {
-            // FlatBuffers to Ziggy with metadata mode
-            try write_ziggy_with_metadata_mode(
-                allocator,
-                ser_timeline,
-                state.metadata_mode,
-                writer,
-            );
-        }
-        else if (std.mem.eql(u8, output_ext, ".tlb"))
-        {
-            // FlatBuffers to CBOR Binary - preserves metadata
-            try binary_serialization.serialize_from_serializable_timeline(
-                ser_timeline,
-                allocator,
-                writer,
-            );
-        }
-        else if (std.mem.eql(u8, output_ext, ".tlfb"))
-        {
-            // FlatBuffers to FlatBuffers (normalize/re-serialize with metadata)
-            try binary_serialization_flatbufs.serialize_from_serializable_timeline(
-                ser_timeline,
-                allocator,
-                writer,
-            );
-        }
-        else if (std.mem.eql(u8, output_ext, ".tlz"))
-        {
-            // FlatBuffers to TLZ bundle
-            const input_dir = std.fs.path.dirname(state.input_path) orelse ".";
-            try tlz_bundle.writeToFile(
-                allocator,
-                ser_timeline,
-                state.output_path.?,
-                .{
-                    .bundle_format = state.bundle_format,
-                    .media_policy = state.media_policy,
-                    .media_base_dir = input_dir,
-                },
-            );
-        }
     }
-    else if (std.mem.eql(u8, input_ext, ".tlz"))
+    else if (std.mem.eql(u8, output_ext, ".tlz"))
     {
-        // TLZ bundle input - extract timeline
-        const ser_timeline = try tlz_bundle.readFromFile(
+        const input_dir = std.fs.path.dirname(state.input_path) orelse ".";
+        try tlz_bundle.writeToFile(
             allocator,
-            state.input_path,
-            .{},
+            ser_timeline,
+            state.output_path.?,
+            .{
+                .bundle_format = state.bundle_format,
+                .media_policy = state.media_policy,
+                .media_base_dir = input_dir,
+            },
         );
-
-        if (std.mem.eql(u8, output_ext, ".ziggy"))
-        {
-            // TLZ to Ziggy with metadata mode
-            try write_ziggy_with_metadata_mode(
-                allocator,
-                ser_timeline,
-                state.metadata_mode,
-                writer,
-            );
-        }
-        else if (std.mem.eql(u8, output_ext, ".tlb"))
-        {
-            // TLZ to CBOR Binary
-            try binary_serialization.serialize_from_serializable_timeline(
-                ser_timeline,
-                allocator,
-                writer,
-            );
-        }
-        else if (std.mem.eql(u8, output_ext, ".tlfb"))
-        {
-            // TLZ to FlatBuffers
-            try binary_serialization_flatbufs.serialize_from_serializable_timeline(
-                ser_timeline,
-                allocator,
-                writer,
-            );
-        }
-        else if (std.mem.eql(u8, output_ext, ".tlz"))
-        {
-            // TLZ to TLZ (re-bundle with different options)
-            const input_dir = std.fs.path.dirname(state.input_path) orelse ".";
-            try tlz_bundle.writeToFile(
-                allocator,
-                ser_timeline,
-                state.output_path.?,
-                .{
-                    .bundle_format = state.bundle_format,
-                    .media_policy = state.media_policy,
-                    .media_base_dir = input_dir,
-                },
-            );
-        }
     }
     else
     {
         std.log.err(
-            "Unsupported input format: {s}. Use .otio, .ziggy, .tlb, .tlfb, or .tlz",
-            .{input_ext}
+            "Unsupported output format: {s}. Use .ziggy, .tlb, .tlfb, or .tlz",
+            .{output_ext}
         );
         std.process.exit(1);
     }
