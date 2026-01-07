@@ -340,10 +340,15 @@ pub fn main() !void
 
         const convert_prog = parent_prog.start("Converting collection...", 0);
 
+        // Build collection write options from state
+        const collection_write_options = serialization.CollectionWriteOptions{
+            .metadata_mode = state.metadata_mode,
+        };
+
         // Write collection output
         if (state.output_path) |path|
         {
-            try serialization.write_collection_to_file(allocator, ser_collection, path);
+            try serialization.write_collection_to_file(allocator, ser_collection, path, collection_write_options);
         }
         else
         {
@@ -357,6 +362,7 @@ pub fn main() !void
                 allocator,
                 ser_collection,
                 output_format,
+                collection_write_options,
                 writer,
             );
 

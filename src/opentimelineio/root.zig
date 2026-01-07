@@ -76,6 +76,9 @@ pub const write_collection_to_file = serialization.write_collection_to_file;
 /// Returns an allocated buffer that the caller must free.
 pub const write_collection_to_buffer = serialization.write_collection_to_buffer;
 
+/// Options for writing collection files
+pub const CollectionWriteOptions = serialization.CollectionWriteOptions;
+
 test {
     const otio_highlevel_tests = @import(
         "opentimelineio_highlevel_test.zig"

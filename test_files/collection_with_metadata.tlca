@@ -196,6 +196,7 @@
             ],
             .domain = picture {},
         },
+        .metadata_hash = "c3d4e5f6a7b80001",
         .markers = [
         ],
     },
@@ -215,7 +216,44 @@
             ],
             .domain = picture {},
         },
+        .metadata_hash = "c3d4e5f6a7b80002",
         .markers = [
         ],
     },
 ],
+.metadata_map = {
+    "c3d4e5f6a7b80001": {
+        "clip_info": {
+            "location": "Downtown Los Angeles",
+            "time_of_day": "Golden Hour",
+            "camera": "Sony FX6",
+            "lens": "24-70mm GM",
+        },
+        "licensing": {
+            "source": "Stock Library",
+            "license_type": "Royalty Free",
+            "expiration": "perpetual",
+        },
+        "notes": "Wide establishing shot - use for episode openers",
+    },
+    "c3d4e5f6a7b80002": {
+        "clip_info": {
+            "location": "Highway 101",
+            "time_of_day": "Day to Night",
+            "camera": "RED Komodo",
+            "lens": "50mm Sigma Art",
+            "interval_seconds": 2,
+            "total_frames": 1800,
+        },
+        "licensing": {
+            "source": "In-house Production",
+            "license_type": "Work for Hire",
+            "project": "City Series 2024",
+        },
+        "post_processing": {
+            "speed_ramp": true,
+            "color_grade": "cinematic_blue",
+        },
+        "notes": "Timelapse with speed ramp - good for transitions",
+    },
+},

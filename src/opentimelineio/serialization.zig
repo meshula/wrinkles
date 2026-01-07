@@ -739,6 +739,50 @@ pub const SerializableTimelineStrippedMetadata = struct {
     // No metadata_map field
 };
 
+/// Collection variant for inline metadata output (no metadata_map, metadata inline on clips)
+pub const SerializableCollectionInlineMetadata = struct {
+    pub const schema_name: []const u8 = "Collection";
+
+    schema_version: u32 = 1,
+    name: ?[]const u8 = null,
+    description: ?[]const u8 = null,
+    children: []SerializableCollectionItemInlineMetadata,
+    // No metadata_map field - metadata is inline on clips
+};
+
+/// Collection variant for output without any metadata
+pub const SerializableCollectionStrippedMetadata = struct {
+    pub const schema_name: []const u8 = "Collection";
+
+    schema_version: u32 = 1,
+    name: ?[]const u8 = null,
+    description: ?[]const u8 = null,
+    children: []SerializableCollectionItemNoMetadata,
+    // No metadata_map field
+};
+
+/// Collection item variant for inline metadata output
+pub const SerializableCollectionItemInlineMetadata = union(enum) {
+    timeline: SerializableTimelineInlineMetadata,
+    track: SerializableTrackInlineMetadata,
+    stack: SerializableStackInlineMetadata,
+    clip: SerializableClipInlineMetadata,
+    gap: SerializableGap,
+    warp: SerializableWarpInlineMetadata,
+    transition: SerializableTransitionInlineMetadata,
+};
+
+/// Collection item variant for stripped metadata output
+pub const SerializableCollectionItemNoMetadata = union(enum) {
+    timeline: SerializableTimelineStrippedMetadata,
+    track: SerializableTrackNoMetadata,
+    stack: SerializableStackNoMetadata,
+    clip: SerializableClipNoMetadata,
+    gap: SerializableGap,
+    warp: SerializableWarpNoMetadata,
+    transition: SerializableTransitionNoMetadata,
+};
+
 // ----------------------------------------------------------------------------
 // Curve Library Serializable Types
 // ----------------------------------------------------------------------------
@@ -3509,6 +3553,12 @@ pub fn read_collection_from_file(
     return try read_collection_from_buffer(allocator, source, format);
 }
 
+/// Options for writing collection files (subset of WriteOptions relevant to collections)
+pub const CollectionWriteOptions = struct {
+    /// Controls how metadata is output in TLCA format
+    metadata_mode: MetadataMode = .hash_reference,
+};
+
 /// Write a SerializableCollection to a buffer.
 /// Supports: .tlca (ASCII Ziggy), .tlcb (FlatBuffers binary)
 /// Returns an allocated buffer that the caller must free.
@@ -3516,13 +3566,14 @@ pub fn write_collection_to_buffer(
     allocator: Allocator,
     collection: SerializableCollection,
     format: FileFormat,
+    options: CollectionWriteOptions,
 ) ![]u8
 {
     // Use an allocating writer to build the buffer
     var buffer = std.Io.Writer.Allocating.init(allocator);
     errdefer buffer.deinit();
 
-    try write_collection_to_writer(allocator, collection, format, &buffer.writer);
+    try write_collection_to_writer(allocator, collection, format, options, &buffer.writer);
 
     return try buffer.toOwnedSlice();
 }
@@ -3534,6 +3585,7 @@ pub fn write_collection_to_file(
     allocator: Allocator,
     collection: SerializableCollection,
     file_path: []const u8,
+    options: CollectionWriteOptions,
 ) !void
 {
     // Check file extension to determine format
@@ -3554,7 +3606,7 @@ pub fn write_collection_to_file(
     var file_writer = file.writer(&file_writer_buffer);
     const writer = &file_writer.interface;
 
-    try write_collection_to_writer(allocator, collection, format, writer);
+    try write_collection_to_writer(allocator, collection, format, options, writer);
 
     try writer.flush();
 }
@@ -3564,22 +3616,21 @@ pub fn write_collection_to_writer(
     allocator: Allocator,
     collection: SerializableCollection,
     format: FileFormat,
+    options: CollectionWriteOptions,
     writer: anytype,
 ) !void
 {
     switch (format) {
         .tlca => {
-            try ziggy.stringify(
+            try write_tlca_with_metadata_mode(
+                allocator,
                 collection,
-                .{
-                    .whitespace = .space_4,
-                    .emit_null_fields = false,
-                },
+                options.metadata_mode,
                 writer,
             );
-            _ = try writer.write("\n");
         },
         .tlcb => {
+            // Binary format doesn't support inline metadata - always use hash references
             try binary_serialization_flatbufs.serialize_collection(
                 collection,
                 allocator,
@@ -3588,6 +3639,343 @@ pub fn write_collection_to_writer(
         },
         else => return error.NotACollectionFormat,
     }
+}
+
+/// Write SerializableCollection to TLCA format with the specified metadata mode.
+fn write_tlca_with_metadata_mode(
+    allocator: Allocator,
+    collection: SerializableCollection,
+    metadata_mode: MetadataMode,
+    writer: anytype,
+) !void
+{
+    switch (metadata_mode) {
+        .hash_reference => {
+            // Default behavior - output SerializableCollection directly
+            try ziggy.stringify(
+                collection,
+                .{
+                    .whitespace = .space_4,
+                    .emit_null_fields = false,
+                },
+                writer,
+            );
+        },
+        .no_metadata => {
+            // Strip all metadata from collection
+            const stripped = try strip_collection_metadata(allocator, collection);
+            try ziggy.stringify(
+                stripped,
+                .{
+                    .whitespace = .space_4,
+                    .emit_null_fields = false,
+                },
+                writer,
+            );
+        },
+        .inline_metadata => {
+            // Convert to inline metadata format
+            const inline_collection = try convert_collection_to_inline_metadata(
+                allocator,
+                collection,
+            );
+            try ziggy.stringify(
+                inline_collection,
+                .{
+                    .whitespace = .space_4,
+                    .emit_null_fields = false,
+                },
+                writer,
+            );
+        },
+    }
+    _ = try writer.write("\n");
+}
+
+/// Strip all metadata from a SerializableCollection.
+/// Removes metadata_hash from clips and metadata_map from collection and embedded timelines.
+fn strip_collection_metadata(
+    allocator: Allocator,
+    collection: SerializableCollection,
+) !SerializableCollectionStrippedMetadata
+{
+    const stripped_children = try allocator.alloc(
+        SerializableCollectionItemNoMetadata,
+        collection.children.len,
+    );
+
+    for (collection.children, 0..) |child, i| {
+        stripped_children[i] = try convert_collection_item_to_no_metadata(allocator, child);
+    }
+
+    return .{
+        .schema_version = collection.schema_version,
+        .name = collection.name,
+        .description = collection.description,
+        .children = stripped_children,
+        // No metadata_map field
+    };
+}
+
+/// Convert a SerializableCollectionItem to no metadata format.
+fn convert_collection_item_to_no_metadata(
+    allocator: Allocator,
+    item: SerializableCollectionItem,
+) !SerializableCollectionItemNoMetadata
+{
+    return switch (item) {
+        .timeline => |tl| blk: {
+            const stripped_children = try allocator.alloc(
+                SerializableComposableNoMetadata,
+                tl.children.len,
+            );
+            for (tl.children, 0..) |child, i| {
+                stripped_children[i] = try convert_composable_to_no_metadata(allocator, child);
+            }
+            break :blk .{
+                .timeline = .{
+                    .schema_version = tl.schema_version,
+                    .name = tl.name,
+                    .children = stripped_children,
+                    .presentation_space_discrete_partitions = tl.presentation_space_discrete_partitions,
+                    // No metadata_map field
+                },
+            };
+        },
+        .track => |track| blk: {
+            const stripped_children = try allocator.alloc(
+                SerializableComposableNoMetadata,
+                track.children.len,
+            );
+            for (track.children, 0..) |child, i| {
+                stripped_children[i] = try convert_composable_to_no_metadata(allocator, child);
+            }
+            break :blk .{
+                .track = .{
+                    .name = track.name,
+                    .bounds_s = track.bounds_s,
+                    .children = stripped_children,
+                },
+            };
+        },
+        .stack => |stack| blk: {
+            const stripped_children = try allocator.alloc(
+                SerializableComposableNoMetadata,
+                stack.children.len,
+            );
+            for (stack.children, 0..) |child, i| {
+                stripped_children[i] = try convert_composable_to_no_metadata(allocator, child);
+            }
+            break :blk .{
+                .stack = .{
+                    .name = stack.name,
+                    .bounds_s = stack.bounds_s,
+                    .children = stripped_children,
+                },
+            };
+        },
+        .clip => |clip| .{
+            .clip = .{
+                .name = clip.name,
+                .bounds_s = clip.bounds_s,
+                .media = clip.media,
+                // No metadata_hash field
+            },
+        },
+        .gap => |gap| .{ .gap = gap },
+        .warp => |warp| blk: {
+            const stripped_child = try allocator.create(SerializableComposableNoMetadata);
+            stripped_child.* = try convert_composable_to_no_metadata(allocator, warp.child.*);
+            break :blk .{
+                .warp = .{
+                    .name = warp.name,
+                    .child = stripped_child,
+                    .transform = warp.transform,
+                },
+            };
+        },
+        .transition => |trans| blk: {
+            const stripped_container_children = try allocator.alloc(
+                SerializableComposableNoMetadata,
+                trans.container.children.len,
+            );
+            for (trans.container.children, 0..) |child, i| {
+                stripped_container_children[i] = try convert_composable_to_no_metadata(
+                    allocator,
+                    child,
+                );
+            }
+            break :blk .{
+                .transition = .{
+                    .name = trans.name,
+                    .container = .{
+                        .name = trans.container.name,
+                        .bounds_s = trans.container.bounds_s,
+                        .children = stripped_container_children,
+                    },
+                    .bounds_s = trans.bounds_s,
+                    .kind = trans.kind,
+                },
+            };
+        },
+    };
+}
+
+/// Convert a SerializableCollection to inline metadata format.
+fn convert_collection_to_inline_metadata(
+    allocator: Allocator,
+    collection: SerializableCollection,
+) !SerializableCollectionInlineMetadata
+{
+    const inline_children = try allocator.alloc(
+        SerializableCollectionItemInlineMetadata,
+        collection.children.len,
+    );
+
+    for (collection.children, 0..) |child, i| {
+        inline_children[i] = try convert_collection_item_to_inline_metadata(
+            allocator,
+            child,
+            collection.metadata_map,
+        );
+    }
+
+    return .{
+        .schema_version = collection.schema_version,
+        .name = collection.name,
+        .description = collection.description,
+        .children = inline_children,
+        // No metadata_map field - metadata is inline
+    };
+}
+
+/// Convert a SerializableCollectionItem to inline metadata format.
+fn convert_collection_item_to_inline_metadata(
+    allocator: Allocator,
+    item: SerializableCollectionItem,
+    collection_metadata_map: ?MetadataMap,
+) !SerializableCollectionItemInlineMetadata
+{
+    return switch (item) {
+        .timeline => |tl| blk: {
+            // Timeline has its own metadata_map, use it for its children
+            const inline_children = try allocator.alloc(
+                SerializableComposableInlineMetadata,
+                tl.children.len,
+            );
+            for (tl.children, 0..) |child, i| {
+                inline_children[i] = try convert_composable_to_inline_metadata(
+                    allocator,
+                    child,
+                    tl.metadata_map,
+                );
+            }
+            break :blk .{
+                .timeline = .{
+                    .schema_version = tl.schema_version,
+                    .name = tl.name,
+                    .children = inline_children,
+                    .presentation_space_discrete_partitions = tl.presentation_space_discrete_partitions,
+                    // No metadata_map field - metadata is inline
+                },
+            };
+        },
+        .track => |track| blk: {
+            const inline_children = try allocator.alloc(
+                SerializableComposableInlineMetadata,
+                track.children.len,
+            );
+            for (track.children, 0..) |child, i| {
+                inline_children[i] = try convert_composable_to_inline_metadata(
+                    allocator,
+                    child,
+                    collection_metadata_map,
+                );
+            }
+            break :blk .{
+                .track = .{
+                    .name = track.name,
+                    .bounds_s = track.bounds_s,
+                    .children = inline_children,
+                },
+            };
+        },
+        .stack => |stack| blk: {
+            const inline_children = try allocator.alloc(
+                SerializableComposableInlineMetadata,
+                stack.children.len,
+            );
+            for (stack.children, 0..) |child, i| {
+                inline_children[i] = try convert_composable_to_inline_metadata(
+                    allocator,
+                    child,
+                    collection_metadata_map,
+                );
+            }
+            break :blk .{
+                .stack = .{
+                    .name = stack.name,
+                    .bounds_s = stack.bounds_s,
+                    .children = inline_children,
+                },
+            };
+        },
+        .clip => |clip| .{
+            .clip = .{
+                .name = clip.name,
+                .bounds_s = clip.bounds_s,
+                .media = clip.media,
+                .metadata = if (clip.metadata_hash) |hash|
+                    if (collection_metadata_map) |mm|
+                        mm.fields.get(hash)
+                    else
+                        null
+                else
+                    null,
+            },
+        },
+        .gap => |gap| .{ .gap = gap },
+        .warp => |warp| blk: {
+            const inline_child = try allocator.create(SerializableComposableInlineMetadata);
+            inline_child.* = try convert_composable_to_inline_metadata(
+                allocator,
+                warp.child.*,
+                collection_metadata_map,
+            );
+            break :blk .{
+                .warp = .{
+                    .name = warp.name,
+                    .child = inline_child,
+                    .transform = warp.transform,
+                },
+            };
+        },
+        .transition => |trans| blk: {
+            const inline_container_children = try allocator.alloc(
+                SerializableComposableInlineMetadata,
+                trans.container.children.len,
+            );
+            for (trans.container.children, 0..) |child, i| {
+                inline_container_children[i] = try convert_composable_to_inline_metadata(
+                    allocator,
+                    child,
+                    collection_metadata_map,
+                );
+            }
+            break :blk .{
+                .transition = .{
+                    .name = trans.name,
+                    .container = .{
+                        .name = trans.container.name,
+                        .bounds_s = trans.container.bounds_s,
+                        .children = inline_container_children,
+                    },
+                    .bounds_s = trans.bounds_s,
+                    .kind = trans.kind,
+                },
+            };
+        },
+    };
 }
 
 test "collection serialization: tlca round-trip" {
@@ -3617,7 +4005,7 @@ test "collection serialization: tlca round-trip" {
     };
 
     // Serialize to TLCA
-    const buffer = try write_collection_to_buffer(allocator, original, .tlca);
+    const buffer = try write_collection_to_buffer(allocator, original, .tlca, .{});
     defer allocator.free(buffer);
 
     // Deserialize back
@@ -3653,7 +4041,7 @@ test "collection serialization: tlcb round-trip" {
     };
 
     // Serialize to TLCB
-    const buffer = try write_collection_to_buffer(allocator, original, .tlcb);
+    const buffer = try write_collection_to_buffer(allocator, original, .tlcb, .{});
     defer allocator.free(buffer);
 
     // Deserialize back
@@ -3692,7 +4080,7 @@ test "collection serialization: tlca to tlcb cross-format" {
     };
 
     // Serialize to TLCA first
-    const tlca_buffer = try write_collection_to_buffer(allocator, original, .tlca);
+    const tlca_buffer = try write_collection_to_buffer(allocator, original, .tlca, .{});
     defer allocator.free(tlca_buffer);
 
     // Read TLCA back
@@ -3700,7 +4088,7 @@ test "collection serialization: tlca to tlcb cross-format" {
     defer from_tlca.deinit(allocator);
 
     // Convert to TLCB
-    const tlcb_buffer = try write_collection_to_buffer(allocator, from_tlca, .tlcb);
+    const tlcb_buffer = try write_collection_to_buffer(allocator, from_tlca, .tlcb, .{});
     defer allocator.free(tlcb_buffer);
 
     // Read TLCB back
