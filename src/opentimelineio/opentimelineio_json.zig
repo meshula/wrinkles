@@ -1194,6 +1194,25 @@ pub fn read_from_file(
         return .{ .timeline = timeline };
     }
 
+    if (std.mem.eql(u8, extension, ".tlz"))
+    {
+        // Read TLZ bundle format
+        const tlz_bundle = @import("tlz_bundle.zig");
+
+        const ser_timeline = try tlz_bundle.readFromFile(
+            in_allocator,
+            file_path,
+            .{},
+        );
+
+        const timeline = try serialization.serializable_to_timeline(
+            in_allocator,
+            ser_timeline,
+        );
+
+        return .{ .timeline = timeline };
+    }
+
     // Default to JSON format (.otio)
     const fi = try std.fs.cwd().openFile(file_path, .{});
     defer fi.close();
