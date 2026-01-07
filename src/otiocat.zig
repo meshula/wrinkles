@@ -85,11 +85,13 @@ fn parse_args(
         {
             usage("");
         }
-        else if (string.eql_latin_s8(arg, "--no-metadata"))
+        else if (string.eql_latin_s8(arg, "--no-metadata") or
+            string.eql_latin_s8(arg, "-M"))
         {
             metadata_mode = .no_metadata;
         }
-        else if (string.eql_latin_s8(arg, "--inline-metadata"))
+        else if (string.eql_latin_s8(arg, "--inline-metadata") or
+            string.eql_latin_s8(arg, "-m"))
         {
             metadata_mode = .inline_metadata;
         }
@@ -183,10 +185,10 @@ pub fn usage(
         \\            If omitted, prints TLA/TLCA format to stdout.
         \\
         \\Options:
-        \\  -h, --help         Print this message and exit
-        \\  --no-metadata      Omit all metadata from TLA output
-        \\  --inline-metadata  Print metadata inline on each clip instead of
-        \\                     using hash references (TLA output only)
+        \\  -h, --help            Print this message and exit
+        \\  -m, --inline-metadata Print metadata inline on each clip instead of
+        \\                        using hash references (TLA/TLCA output only)
+        \\  -M, --no-metadata     Omit all metadata from output
         \\
         \\TLZ Bundle Options (for .tlz output):
         \\  --bundle-format=tla     Use TLA text format inside bundle (default)
@@ -214,9 +216,9 @@ pub fn usage(
         \\  otiocat timeline.tla timeline.tlz --bundle-format=tlfb  # Binary inside
         \\  otiocat timeline.tla timeline.tlz --media-policy=error  # Require media
         \\
-        \\Metadata Options (TLA output only):
-        \\  otiocat --no-metadata timeline.otio     # No metadata in output
-        \\  otiocat --inline-metadata timeline.otio # Metadata inline on clips
+        \\Metadata Options (TLA/TLCA output only):
+        \\  otiocat -M timeline.otio              # No metadata in output
+        \\  otiocat -m timeline.otio              # Metadata inline on clips
         \\
         \\{s}
         , .{msg}

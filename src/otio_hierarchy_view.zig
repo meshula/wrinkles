@@ -86,10 +86,10 @@ pub fn usage(
         \\usage:
         \\  otio_hierarchy_view [options] path/to/somefile.otio
         \\
-        \\options:
-        \\  -h --help           print this message and exit
-        \\  -a --ascii          use ASCII characters (+, -, |) instead of Unicode box-drawing
-        \\  -m --show-metadata  display metadata present on clips (off by default)
+        \\Options:
+        \\  -h, --help           Print this message and exit
+        \\  -a, --ascii          Use ASCII characters (+, -, |) instead of Unicode box-drawing
+        \\  -m, --show-metadata  Display metadata present on clips (off by default)
         \\
         \\{s}
         , .{msg}
