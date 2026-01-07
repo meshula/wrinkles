@@ -379,7 +379,7 @@ table MetadataMap {
 }
 
 // =============================================================================
-// Timeline (Root Type)
+// Timeline (Root Type for .tlfb)
 // =============================================================================
 
 table Timeline {
@@ -392,5 +392,49 @@ table Timeline {
     markers: [Marker];
 }
 
-// Root type declaration (must be after Timeline definition)
+// =============================================================================
+// Collection (Root Type for .tlcb)
+// =============================================================================
+// A Collection groups related items (timelines, clips, etc.) without implying
+// any temporal relationship between them. Unlike a Timeline which arranges
+// children with defined timing, a Collection is purely organizational.
+
+// Type discriminator for CollectionItem
+enum CollectionItemType : byte {
+    TimelineItem = 0,
+    TrackItem = 1,
+    StackItem = 2,
+    ClipItem = 3,
+    GapItem = 4,
+    WarpItem = 5,
+    TransitionItem = 6,
+}
+
+// Wrapper table for CollectionItem (since vectors of unions aren't supported)
+// Collections can contain timelines and other composables as direct children.
+table CollectionItemWrapper {
+    item_type: CollectionItemType = TimelineItem;
+    timeline: Timeline;
+    track: Track;
+    stack: Stack;
+    clip: Clip;
+    gap: Gap;
+    warp: Warp;
+    transition: Transition;
+}
+
+table Collection {
+    schema_version: uint32 = 1;
+    name: string;
+    description: string;
+    children: [CollectionItemWrapper];
+    metadata_map: MetadataMap;
+}
+
+// Root type declaration - Timeline is the default root for .tlfb files
+// Collection uses file_identifier "TLCB" to distinguish .tlcb files
 root_type Timeline;
+
+// File identifier for Collection files (.tlcb)
+// Note: This is separate from the default Timeline root_type
+// Applications should check the file_identifier to determine which type to read

@@ -16,6 +16,31 @@
                 .minalign = 4,
             } } },
         } },
+        .{ .name = "ottla.Collection", .fields = .{
+            .{
+                .name = "schema_version",
+                .type = .{ .int = .u32 },
+                .default_integer = 1,
+            },
+            .{ .name = "name", .type = .string },
+            .{ .name = "description", .type = .string },
+            .{ .name = "children", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .table = .{ .name = "ottla.CollectionItemWrapper" } },
+                .minalign = 4,
+            } } },
+            .{ .name = "metadata_map", .type = .{ .table = .{ .name = "ottla.MetadataMap" } } },
+        } },
+        .{ .name = "ottla.CollectionItemWrapper", .fields = .{
+            .{ .name = "item_type", .type = .{ .@"enum" = .{ .name = "ottla.CollectionItemType" } } },
+            .{ .name = "timeline", .type = .{ .table = .{ .name = "ottla.Timeline" } } },
+            .{ .name = "track", .type = .{ .table = .{ .name = "ottla.Track" } } },
+            .{ .name = "stack", .type = .{ .table = .{ .name = "ottla.Stack" } } },
+            .{ .name = "clip", .type = .{ .table = .{ .name = "ottla.Clip" } } },
+            .{ .name = "gap", .type = .{ .table = .{ .name = "ottla.Gap" } } },
+            .{ .name = "warp", .type = .{ .table = .{ .name = "ottla.Warp" } } },
+            .{ .name = "transition", .type = .{ .table = .{ .name = "ottla.Transition" } } },
+        } },
         .{ .name = "ottla.ComposableWrapper", .fields = .{
             .{ .name = "comp_type", .type = .{ .@"enum" = .{ .name = "ottla.ComposableType" } } },
             .{ .name = "clip", .type = .{ .table = .{ .name = "ottla.Clip" } } },
@@ -297,6 +322,19 @@
             .name = "ottla.BoundsType",
             .backing_integer = .i8,
             .values = .{ .{ .name = "Continuous", .value = 0 }, .{ .name = "Discrete", .value = 1 } },
+        },
+        .{
+            .name = "ottla.CollectionItemType",
+            .backing_integer = .i8,
+            .values = .{
+                .{ .name = "TimelineItem", .value = 0 },
+                .{ .name = "TrackItem", .value = 1 },
+                .{ .name = "StackItem", .value = 2 },
+                .{ .name = "ClipItem", .value = 3 },
+                .{ .name = "GapItem", .value = 4 },
+                .{ .name = "WarpItem", .value = 5 },
+                .{ .name = "TransitionItem", .value = 6 },
+            },
         },
         .{
             .name = "ottla.ComposableType",

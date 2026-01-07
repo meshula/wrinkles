@@ -57,6 +57,25 @@ pub const read_from_buffer = serialization.read_from_buffer;
 /// Returns an allocated buffer that the caller must free.
 pub const write_to_buffer = serialization.write_to_buffer;
 
+// Collection format support (.tlca, .tlcb)
+
+/// Read collection from file to SerializableCollection.
+/// Supports: .tlca (ASCII Ziggy), .tlcb (FlatBuffers binary)
+pub const read_collection_from_file = serialization.read_collection_from_file;
+
+/// Read collection from buffer to SerializableCollection.
+/// Supports: .tlca (ASCII Ziggy), .tlcb (FlatBuffers binary)
+pub const read_collection_from_buffer = serialization.read_collection_from_buffer;
+
+/// Write collection from SerializableCollection to file.
+/// Supports: .tlca (ASCII Ziggy), .tlcb (FlatBuffers binary)
+pub const write_collection_to_file = serialization.write_collection_to_file;
+
+/// Write collection from SerializableCollection to buffer.
+/// Supports: .tlca (ASCII Ziggy), .tlcb (FlatBuffers binary)
+/// Returns an allocated buffer that the caller must free.
+pub const write_collection_to_buffer = serialization.write_collection_to_buffer;
+
 test {
     const otio_highlevel_tests = @import(
         "opentimelineio_highlevel_test.zig"

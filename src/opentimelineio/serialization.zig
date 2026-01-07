@@ -532,6 +532,108 @@ pub const SerializableTimelineNoMetadata = struct {
 };
 
 // ----------------------------------------------------------------------------
+// Collection Types
+// ----------------------------------------------------------------------------
+// A Collection groups related items (timelines, clips, etc.) without implying
+// any temporal relationship between them. Unlike a Timeline which arranges
+// children with defined timing, a Collection is purely organizational.
+
+/// Items that can be direct children of a Collection.
+/// Collections can contain timelines and other composables.
+pub const SerializableCollectionItem = union(enum) {
+    timeline: SerializableTimeline,
+    track: SerializableTrack,
+    stack: SerializableStack,
+    clip: SerializableClip,
+    gap: SerializableGap,
+    warp: SerializableWarp,
+    transition: SerializableTransition,
+
+    pub fn deinit(
+        self: *const @This(),
+        allocator: Allocator,
+    ) void
+    {
+        switch (self.*) {
+            .timeline => |*tl| {
+                // Need to cast away const for mutable deinit
+                var mutable_tl = @constCast(tl);
+                mutable_tl.deinit(allocator);
+            },
+            .track => |track| {
+                if (track.name) |name| allocator.free(name);
+                for (track.children) |*child| {
+                    child.deinit(allocator);
+                }
+                allocator.free(track.children);
+            },
+            .stack => |stack| {
+                if (stack.name) |name| allocator.free(name);
+                for (stack.children) |*child| {
+                    child.deinit(allocator);
+                }
+                allocator.free(stack.children);
+            },
+            .clip => |clip| {
+                if (clip.name) |name| allocator.free(name);
+                clip.media.deinit(allocator);
+                if (clip.metadata_hash) |hash| allocator.free(hash);
+            },
+            .gap => |gap| {
+                if (gap.name) |name| allocator.free(name);
+            },
+            .warp => |warp| {
+                if (warp.name) |name| allocator.free(name);
+                warp.child.deinit(allocator);
+                allocator.destroy(warp.child);
+            },
+            .transition => |trans| {
+                if (trans.name) |name| allocator.free(name);
+                allocator.free(trans.kind);
+                if (trans.container.name) |name| allocator.free(name);
+                for (trans.container.children) |*child| {
+                    child.deinit(allocator);
+                }
+                allocator.free(trans.container.children);
+            },
+        }
+    }
+};
+
+/// Serializable variant of Collection (root type for .tlca/.tlcb files)
+pub const SerializableCollection = struct {
+    pub const schema_name: []const u8 = "Collection";
+
+    schema_version: u32 = 1,
+    name: ?[]const u8 = null,
+    description: ?[]const u8 = null,
+    children: []SerializableCollectionItem,
+    metadata_map: ?MetadataMap = null,
+
+    pub fn deinit(
+        self: *@This(),
+        allocator: Allocator,
+    ) void
+    {
+        if (self.name) |name| {
+            allocator.free(name);
+        }
+        if (self.description) |desc| {
+            allocator.free(desc);
+        }
+
+        for (self.children) |*child| {
+            child.deinit(allocator);
+        }
+        allocator.free(self.children);
+
+        if (self.metadata_map) |*mm| {
+            deinit_metadata_map(allocator, mm);
+        }
+    }
+};
+
+// ----------------------------------------------------------------------------
 // Output-only types for metadata mode variants
 // ----------------------------------------------------------------------------
 // These types are used only for serialization output with --no-metadata
@@ -3001,6 +3103,10 @@ pub const FileFormat = enum {
     tlfb,
     /// TLZ bundle (ZIP archive)
     tlz,
+    /// TLCA (Timeline Collection ASCII) text format
+    tlca,
+    /// TLCB (Timeline Collection Binary) FlatBuffers format
+    tlcb,
 };
 
 /// Read a timeline from a buffer into SerializableTimeline.
@@ -3059,6 +3165,10 @@ pub fn read_from_buffer(
         .tlz => {
             // TLZ is a ZIP archive that requires file system access
             return error.TlzRequiresFileAccess;
+        },
+        .tlca, .tlcb => {
+            // Collection formats are not timelines
+            return error.NotATimelineFormat;
         },
     }
 }
@@ -3261,6 +3371,10 @@ pub fn write_to_writer(
         .tlz => {
             return error.TlzRequiresFileAccess;
         },
+        .tlca, .tlcb => {
+            // Collection formats are not timelines - use write_collection_to_writer instead
+            return error.NotATimelineFormat;
+        },
     }
 }
 
@@ -3313,4 +3427,288 @@ fn write_tla_with_metadata_mode(
         },
     }
     _ = try writer.write("\n");
+}
+
+// ----------------------------------------------------------------------------
+// Collection File Reading/Writing
+// ----------------------------------------------------------------------------
+
+/// Read a collection from a buffer into SerializableCollection.
+/// Supports: .tlca (ASCII Ziggy)
+/// Note: .tlcb (FlatBuffers) requires binary_serialization_flatbufs support.
+pub fn read_collection_from_buffer(
+    allocator: Allocator,
+    buffer: []const u8,
+    format: FileFormat,
+) !SerializableCollection
+{
+    switch (format) {
+        .tlca => {
+            // Ziggy requires null-terminated source
+            if (buffer.len > 0 and buffer[buffer.len - 1] == 0) {
+                return try ziggy.parseLeaky(
+                    SerializableCollection,
+                    allocator,
+                    buffer[0 .. buffer.len - 1 :0],
+                    .{},
+                );
+            }
+            // Need to add null terminator
+            const source_with_null = try allocator.alloc(u8, buffer.len + 1);
+            defer allocator.free(source_with_null);
+            @memcpy(source_with_null[0..buffer.len], buffer);
+            source_with_null[buffer.len] = 0;
+            return try ziggy.parseLeaky(
+                SerializableCollection,
+                allocator,
+                source_with_null[0..buffer.len :0],
+                .{},
+            );
+        },
+        .tlcb => {
+            return try binary_serialization_flatbufs.deserialize_collection(
+                allocator,
+                buffer,
+            );
+        },
+        else => return error.NotACollectionFormat,
+    }
+}
+
+/// Read a collection from any supported file format into SerializableCollection.
+/// Supports: .tlca (ASCII Ziggy), .tlcb (FlatBuffers binary)
+/// The file format is determined by the file extension.
+pub fn read_collection_from_file(
+    allocator: Allocator,
+    file_path: []const u8,
+) !SerializableCollection
+{
+    // Check file extension to determine format
+    const ext_start = std.mem.lastIndexOfScalar(u8, file_path, '.') orelse {
+        return error.NoFileExtension;
+    };
+    const extension = file_path[ext_start + 1 ..];  // Skip the leading dot
+
+    const format = std.meta.stringToEnum(FileFormat, extension) orelse {
+        return error.UnsupportedFileFormat;
+    };
+
+    // Read the file contents
+    const file = try std.fs.cwd().openFile(file_path, .{});
+    defer file.close();
+
+    const source = try file.readToEndAllocOptions(
+        allocator,
+        std.math.maxInt(u32),
+        null,
+        .@"1",
+        0,
+    );
+    defer allocator.free(source);
+
+    return try read_collection_from_buffer(allocator, source, format);
+}
+
+/// Write a SerializableCollection to a buffer.
+/// Supports: .tlca (ASCII Ziggy), .tlcb (FlatBuffers binary)
+/// Returns an allocated buffer that the caller must free.
+pub fn write_collection_to_buffer(
+    allocator: Allocator,
+    collection: SerializableCollection,
+    format: FileFormat,
+) ![]u8
+{
+    // Use an allocating writer to build the buffer
+    var buffer = std.Io.Writer.Allocating.init(allocator);
+    errdefer buffer.deinit();
+
+    try write_collection_to_writer(allocator, collection, format, &buffer.writer);
+
+    return try buffer.toOwnedSlice();
+}
+
+/// Write a SerializableCollection to a file.
+/// Supports: .tlca (ASCII Ziggy), .tlcb (FlatBuffers binary)
+/// The file format is determined by the file extension.
+pub fn write_collection_to_file(
+    allocator: Allocator,
+    collection: SerializableCollection,
+    file_path: []const u8,
+) !void
+{
+    // Check file extension to determine format
+    const ext_start = std.mem.lastIndexOfScalar(u8, file_path, '.') orelse {
+        return error.NoFileExtension;
+    };
+    const extension = file_path[ext_start + 1 ..];  // Skip the leading dot
+
+    const format = std.meta.stringToEnum(FileFormat, extension) orelse {
+        return error.UnsupportedFileFormat;
+    };
+
+    // Open file and write
+    const file = try std.fs.cwd().createFile(file_path, .{});
+    defer file.close();
+
+    var file_writer_buffer: [16 * 1024]u8 = undefined;
+    var file_writer = file.writer(&file_writer_buffer);
+    const writer = &file_writer.interface;
+
+    try write_collection_to_writer(allocator, collection, format, writer);
+
+    try writer.flush();
+}
+
+/// Write a SerializableCollection to a writer in the specified format.
+pub fn write_collection_to_writer(
+    allocator: Allocator,
+    collection: SerializableCollection,
+    format: FileFormat,
+    writer: anytype,
+) !void
+{
+    switch (format) {
+        .tlca => {
+            try ziggy.stringify(
+                collection,
+                .{
+                    .whitespace = .space_4,
+                    .emit_null_fields = false,
+                },
+                writer,
+            );
+            _ = try writer.write("\n");
+        },
+        .tlcb => {
+            try binary_serialization_flatbufs.serialize_collection(
+                collection,
+                allocator,
+                writer,
+            );
+        },
+        else => return error.NotACollectionFormat,
+    }
+}
+
+test "collection serialization: tlca round-trip" {
+    const allocator = std.testing.allocator;
+
+    // Create a test collection
+    var children = [_]SerializableCollectionItem{
+        .{
+            .clip = .{
+                .name = "Test Clip",
+                .bounds_s = .{ .continuous = .{ 0.0, 5.0 } },
+                .media = .{
+                    .data_reference = .{ .uri = .{ .target_uri = "file:///test.mov" } },
+                    .bounds_s = .{ .continuous = .{ 0.0, 10.0 } },
+                    .domain = .picture,
+                },
+                .markers = &[_]SerializableMarker{},
+            },
+        },
+    };
+    const original = SerializableCollection{
+        .schema_version = 1,
+        .name = "Test Collection",
+        .description = "A test collection",
+        .children = &children,
+        .metadata_map = null,
+    };
+
+    // Serialize to TLCA
+    const buffer = try write_collection_to_buffer(allocator, original, .tlca);
+    defer allocator.free(buffer);
+
+    // Deserialize back
+    var roundtrip = try read_collection_from_buffer(allocator, buffer, .tlca);
+    defer roundtrip.deinit(allocator);
+
+    // Verify
+    try std.testing.expectEqualStrings("Test Collection", roundtrip.name.?);
+    try std.testing.expectEqualStrings("A test collection", roundtrip.description.?);
+    try std.testing.expectEqual(@as(usize, 1), roundtrip.children.len);
+    try std.testing.expectEqualStrings("Test Clip", roundtrip.children[0].clip.name.?);
+}
+
+test "collection serialization: tlcb round-trip" {
+    const allocator = std.testing.allocator;
+
+    // Create a test collection
+    var children = [_]SerializableCollectionItem{
+        .{
+            .gap = .{
+                .name = "Test Gap",
+                .bounds_s = .{ 0.0, 2.0 },
+                .markers = &[_]SerializableMarker{},
+            },
+        },
+    };
+    const original = SerializableCollection{
+        .schema_version = 1,
+        .name = "Binary Test Collection",
+        .description = "A binary test collection",
+        .children = &children,
+        .metadata_map = null,
+    };
+
+    // Serialize to TLCB
+    const buffer = try write_collection_to_buffer(allocator, original, .tlcb);
+    defer allocator.free(buffer);
+
+    // Deserialize back
+    var roundtrip = try read_collection_from_buffer(allocator, buffer, .tlcb);
+    defer roundtrip.deinit(allocator);
+
+    // Verify
+    try std.testing.expectEqualStrings("Binary Test Collection", roundtrip.name.?);
+    try std.testing.expectEqualStrings("A binary test collection", roundtrip.description.?);
+    try std.testing.expectEqual(@as(usize, 1), roundtrip.children.len);
+    try std.testing.expectEqualStrings("Test Gap", roundtrip.children[0].gap.name.?);
+}
+
+test "collection serialization: tlca to tlcb cross-format" {
+    const allocator = std.testing.allocator;
+
+    // Create a test collection with timeline
+    var children = [_]SerializableCollectionItem{
+        .{
+            .timeline = .{
+                .schema_version = 1,
+                .name = "Embedded Timeline",
+                .children = &[_]SerializableComposable{},
+                .presentation_space_discrete_partitions = .{},
+                .markers = &[_]SerializableMarker{},
+                .metadata_map = null,
+            },
+        },
+    };
+    const original = SerializableCollection{
+        .schema_version = 1,
+        .name = "Cross-Format Collection",
+        .description = null,
+        .children = &children,
+        .metadata_map = null,
+    };
+
+    // Serialize to TLCA first
+    const tlca_buffer = try write_collection_to_buffer(allocator, original, .tlca);
+    defer allocator.free(tlca_buffer);
+
+    // Read TLCA back
+    var from_tlca = try read_collection_from_buffer(allocator, tlca_buffer, .tlca);
+    defer from_tlca.deinit(allocator);
+
+    // Convert to TLCB
+    const tlcb_buffer = try write_collection_to_buffer(allocator, from_tlca, .tlcb);
+    defer allocator.free(tlcb_buffer);
+
+    // Read TLCB back
+    var from_tlcb = try read_collection_from_buffer(allocator, tlcb_buffer, .tlcb);
+    defer from_tlcb.deinit(allocator);
+
+    // Verify
+    try std.testing.expectEqualStrings("Cross-Format Collection", from_tlcb.name.?);
+    try std.testing.expectEqual(@as(usize, 1), from_tlcb.children.len);
+    try std.testing.expectEqualStrings("Embedded Timeline", from_tlcb.children[0].timeline.name.?);
 }

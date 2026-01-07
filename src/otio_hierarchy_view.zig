@@ -80,6 +80,9 @@ pub fn usage(
         \\
         \\Display an ASCII diagram of the hierarchy of an OpenTimelineIO file.
         \\
+        \\Supports timeline files (.otio, .tla, .tlb, .tlfb, .tlz) and
+        \\collection files (.tlca, .tlcb).
+        \\
         \\usage:
         \\  otio_hierarchy_view [options] path/to/somefile.otio
         \\
@@ -102,6 +105,34 @@ fn read_to_serializable_timeline(
 ) !otio.serialization.SerializableTimeline
 {
     return try otio.serialization.read_from_file(allocator, filepath);
+}
+
+/// Read a collection file to SerializableCollection
+/// Supports: .tlca, .tlcb
+fn read_to_serializable_collection(
+    allocator: std.mem.Allocator,
+    filepath: []const u8,
+) !otio.serialization.SerializableCollection
+{
+    return try otio.serialization.read_collection_from_file(allocator, filepath);
+}
+
+/// Get file extension from path
+fn get_extension(
+    path: []const u8,
+) ?[]const u8
+{
+    const ext_start = std.mem.lastIndexOfScalar(u8, path, '.') orelse return null;
+    return path[ext_start..];
+}
+
+/// Check if file is a collection format based on extension
+fn is_collection_file(
+    filepath: []const u8,
+) bool
+{
+    const ext = get_extension(filepath) orelse return false;
+    return std.mem.eql(u8, ext, ".tlca") or std.mem.eql(u8, ext, ".tlcb");
 }
 
 pub fn main() !void {
@@ -138,52 +169,73 @@ pub fn main() !void {
             continue;
         }
 
-        // Print header
-        std.debug.print("\n", .{});
-        std.debug.print("{s}\n", .{chars.header_line()});
-        std.debug.print(" Timeline Hierarchy: {s}\n", .{filepath});
-        std.debug.print("{s}\n", .{chars.header_line()});
-        std.debug.print("\n", .{});
+        // Check if this is a collection file
+        if (is_collection_file(filepath)) {
+            // Print header for collection
+            std.debug.print("\n", .{});
+            std.debug.print("{s}\n", .{chars.header_line()});
+            std.debug.print(" Collection Hierarchy: {s}\n", .{filepath});
+            std.debug.print("{s}\n", .{chars.header_line()});
+            std.debug.print("\n", .{});
 
-        if (parsed_args.show_metadata) {
-            // Read as SerializableTimeline to access metadata
-            const ser_timeline = read_to_serializable_timeline(allocator, filepath) catch |err| {
+            // Read and render collection
+            const ser_collection = read_to_serializable_collection(allocator, filepath) catch |err| {
                 std.log.err(
-                    "Failed to read file '{s}': {s}",
+                    "Failed to read collection file '{s}': {s}",
                     .{ filepath, @errorName(err) }
                 );
                 continue;
             };
 
-            hierarchy_render.render_serializable_timeline(allocator, ser_timeline, chars, true);
+            hierarchy_render.render_serializable_collection(allocator, ser_collection, chars, parsed_args.show_metadata);
         } else {
-            // Read the file without metadata for faster reads
-            var tl_ref = otio.read_from_file(
-                allocator,
-                filepath,
-                .{ .file_contents_to_read = .all_except_metadata },
-            ) catch |err| {
-                std.log.err(
-                    "Failed to read file '{s}': {s}",
-                    .{ filepath, @errorName(err) }
-                );
-                continue;
-            };
-            defer tl_ref.deinit(allocator);
+            // Print header for timeline
+            std.debug.print("\n", .{});
+            std.debug.print("{s}\n", .{chars.header_line()});
+            std.debug.print(" Timeline Hierarchy: {s}\n", .{filepath});
+            std.debug.print("{s}\n", .{chars.header_line()});
+            std.debug.print("\n", .{});
 
-            // Render the timeline
-            const name = tl_ref.maybe_name() orelse "(unnamed)";
-            std.debug.print("Timeline: {s}\n", .{name});
-            std.debug.print("{s}\n", .{chars.vertical_single()});
+            if (parsed_args.show_metadata) {
+                // Read as SerializableTimeline to access metadata
+                const ser_timeline = read_to_serializable_timeline(allocator, filepath) catch |err| {
+                    std.log.err(
+                        "Failed to read file '{s}': {s}",
+                        .{ filepath, @errorName(err) }
+                    );
+                    continue;
+                };
 
-            // Render the tracks stack
-            const tracks = &tl_ref.timeline.tracks;
-            const tracks_name = tracks.maybe_name orelse "(tracks)";
-            std.debug.print("{s}Stack: {s}\n", .{ chars.last(), tracks_name });
+                hierarchy_render.render_serializable_timeline(allocator, ser_timeline, chars, true);
+            } else {
+                // Read the file without metadata for faster reads
+                var tl_ref = otio.read_from_file(
+                    allocator,
+                    filepath,
+                    .{ .file_contents_to_read = .all_except_metadata },
+                ) catch |err| {
+                    std.log.err(
+                        "Failed to read file '{s}': {s}",
+                        .{ filepath, @errorName(err) }
+                    );
+                    continue;
+                };
+                defer tl_ref.deinit(allocator);
 
-            for (tracks.children, 0..) |child, i| {
-                const is_last = (i == tracks.children.len - 1);
-                hierarchy_render.render_item(allocator, child, "    ", is_last, chars, false, null);
+                // Render the timeline
+                const name = tl_ref.maybe_name() orelse "(unnamed)";
+                std.debug.print("Timeline: {s}\n", .{name});
+                std.debug.print("{s}\n", .{chars.vertical_single()});
+
+                // Render the tracks stack
+                const tracks = &tl_ref.timeline.tracks;
+                const tracks_name = tracks.maybe_name orelse "(tracks)";
+                std.debug.print("{s}Stack: {s}\n", .{ chars.last(), tracks_name });
+
+                for (tracks.children, 0..) |child, i| {
+                    const is_last = (i == tracks.children.len - 1);
+                    hierarchy_render.render_item(allocator, child, "    ", is_last, chars, false, null);
+                }
             }
         }
 

@@ -14,10 +14,24 @@ pub const @"BoundsType" = enum(i8) {
     @"Discrete" = 1,
 };
 
-pub const @"ComposableType" = enum(i8) {
+pub const @"CollectionItemType" = enum(i8) {
     pub const @"#kind" = flatbuffers.Kind.Enum;
     pub const @"#root" = &@"#schema";
     pub const @"#type" = &@"#schema".enums[1];
+
+    @"TimelineItem" = 0,
+    @"TrackItem" = 1,
+    @"StackItem" = 2,
+    @"ClipItem" = 3,
+    @"GapItem" = 4,
+    @"WarpItem" = 5,
+    @"TransitionItem" = 6,
+};
+
+pub const @"ComposableType" = enum(i8) {
+    pub const @"#kind" = flatbuffers.Kind.Enum;
+    pub const @"#root" = &@"#schema";
+    pub const @"#type" = &@"#schema".enums[2];
 
     @"Clip" = 0,
     @"Gap" = 1,
@@ -30,7 +44,7 @@ pub const @"ComposableType" = enum(i8) {
 pub const @"DomainType" = enum(i8) {
     pub const @"#kind" = flatbuffers.Kind.Enum;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".enums[2];
+    pub const @"#type" = &@"#schema".enums[3];
 
     @"Time" = 0,
     @"Picture" = 1,
@@ -42,7 +56,7 @@ pub const @"DomainType" = enum(i8) {
 pub const @"MappingType" = enum(i8) {
     pub const @"#kind" = flatbuffers.Kind.Enum;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".enums[3];
+    pub const @"#type" = &@"#schema".enums[4];
 
     @"Affine" = 0,
     @"Linear" = 1,
@@ -52,7 +66,7 @@ pub const @"MappingType" = enum(i8) {
 pub const @"MediaInterpolationType" = enum(i8) {
     pub const @"#kind" = flatbuffers.Kind.Enum;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".enums[4];
+    pub const @"#type" = &@"#schema".enums[5];
 
     @"Interpolate" = 0,
     @"Snap" = 1,
@@ -62,7 +76,7 @@ pub const @"MediaInterpolationType" = enum(i8) {
 pub const @"MetadataType" = enum(i8) {
     pub const @"#kind" = flatbuffers.Kind.Enum;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".enums[5];
+    pub const @"#type" = &@"#schema".enums[6];
 
     @"Null" = 0,
     @"Bool" = 1,
@@ -200,10 +214,84 @@ pub const @"Clip" = struct {
 
 };
 
-pub const @"ComposableWrapper" = struct {
+pub const @"Collection" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
     pub const @"#type" = &@"#schema".tables[2];
+    pub const @"#constructor" = struct {
+@"schema_version": u32 = 1, @"name": ?[]const u8 = null, @"description": ?[]const u8 = null, @"children": ?[]const @"ottla".@"CollectionItemWrapper" = null, @"metadata_map": ?@"ottla".@"MetadataMap" = null, };
+
+    @"#ref": flatbuffers.Ref,
+
+    pub fn @"schema_version"(@"#self": @"Collection") u32 {
+        return flatbuffers.decodeScalarField(u32, 0, @"#self".@"#ref", 1);
+    }
+
+    pub fn @"name"(@"#self": @"Collection") ?flatbuffers.String {
+        return flatbuffers.decodeStringField(1, @"#self".@"#ref");
+    }
+
+    pub fn @"description"(@"#self": @"Collection") ?flatbuffers.String {
+        return flatbuffers.decodeStringField(2, @"#self".@"#ref");
+    }
+
+    pub fn @"children"(@"#self": @"Collection") ?flatbuffers.Vector(@"ottla".@"CollectionItemWrapper") {
+        return flatbuffers.decodeVectorField(@"ottla".@"CollectionItemWrapper", 3, @"#self".@"#ref");
+    }
+
+    pub fn @"metadata_map"(@"#self": @"Collection") ?@"ottla".@"MetadataMap" {
+        return flatbuffers.decodeTableField(@"ottla".@"MetadataMap", 4, @"#self".@"#ref");
+    }
+
+};
+
+pub const @"CollectionItemWrapper" = struct {
+    pub const @"#kind" = flatbuffers.Kind.Table;
+    pub const @"#root" = &@"#schema";
+    pub const @"#type" = &@"#schema".tables[3];
+    pub const @"#constructor" = struct {
+@"item_type": @"ottla".@"CollectionItemType" = @enumFromInt(0), @"timeline": ?@"ottla".@"Timeline" = null, @"track": ?@"ottla".@"Track" = null, @"stack": ?@"ottla".@"Stack" = null, @"clip": ?@"ottla".@"Clip" = null, @"gap": ?@"ottla".@"Gap" = null, @"warp": ?@"ottla".@"Warp" = null, @"transition": ?@"ottla".@"Transition" = null, };
+
+    @"#ref": flatbuffers.Ref,
+
+    pub fn @"item_type"(@"#self": @"CollectionItemWrapper") @"ottla".@"CollectionItemType" {
+        return flatbuffers.decodeEnumField(@"ottla".@"CollectionItemType", 0, @"#self".@"#ref", @enumFromInt(0));
+    }
+
+    pub fn @"timeline"(@"#self": @"CollectionItemWrapper") ?@"ottla".@"Timeline" {
+        return flatbuffers.decodeTableField(@"ottla".@"Timeline", 1, @"#self".@"#ref");
+    }
+
+    pub fn @"track"(@"#self": @"CollectionItemWrapper") ?@"ottla".@"Track" {
+        return flatbuffers.decodeTableField(@"ottla".@"Track", 2, @"#self".@"#ref");
+    }
+
+    pub fn @"stack"(@"#self": @"CollectionItemWrapper") ?@"ottla".@"Stack" {
+        return flatbuffers.decodeTableField(@"ottla".@"Stack", 3, @"#self".@"#ref");
+    }
+
+    pub fn @"clip"(@"#self": @"CollectionItemWrapper") ?@"ottla".@"Clip" {
+        return flatbuffers.decodeTableField(@"ottla".@"Clip", 4, @"#self".@"#ref");
+    }
+
+    pub fn @"gap"(@"#self": @"CollectionItemWrapper") ?@"ottla".@"Gap" {
+        return flatbuffers.decodeTableField(@"ottla".@"Gap", 5, @"#self".@"#ref");
+    }
+
+    pub fn @"warp"(@"#self": @"CollectionItemWrapper") ?@"ottla".@"Warp" {
+        return flatbuffers.decodeTableField(@"ottla".@"Warp", 6, @"#self".@"#ref");
+    }
+
+    pub fn @"transition"(@"#self": @"CollectionItemWrapper") ?@"ottla".@"Transition" {
+        return flatbuffers.decodeTableField(@"ottla".@"Transition", 7, @"#self".@"#ref");
+    }
+
+};
+
+pub const @"ComposableWrapper" = struct {
+    pub const @"#kind" = flatbuffers.Kind.Table;
+    pub const @"#root" = &@"#schema";
+    pub const @"#type" = &@"#schema".tables[4];
     pub const @"#constructor" = struct {
 @"comp_type": @"ottla".@"ComposableType" = @enumFromInt(0), @"clip": ?@"ottla".@"Clip" = null, @"gap": ?@"ottla".@"Gap" = null, @"track": ?@"ottla".@"Track" = null, @"stack": ?@"ottla".@"Stack" = null, @"warp": ?@"ottla".@"Warp" = null, @"transition": ?@"ottla".@"Transition" = null, };
 
@@ -242,7 +330,7 @@ pub const @"ComposableWrapper" = struct {
 pub const @"DiscretePartitionDomainMap" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[3];
+    pub const @"#type" = &@"#schema".tables[5];
     pub const @"#constructor" = struct {
 @"picture": ?@"ottla".@"SampleIndexGenerator" = null, @"audio": ?@"ottla".@"SampleIndexGenerator" = null, };
 
@@ -261,7 +349,7 @@ pub const @"DiscretePartitionDomainMap" = struct {
 pub const @"Domain" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[4];
+    pub const @"#type" = &@"#schema".tables[6];
     pub const @"#constructor" = struct {
 @"domain_type": @"ottla".@"DomainType" = @enumFromInt(0), @"other_name": ?[]const u8 = null, };
 
@@ -280,7 +368,7 @@ pub const @"Domain" = struct {
 pub const @"Gap" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[5];
+    pub const @"#type" = &@"#schema".tables[7];
     pub const @"#constructor" = struct {
 @"name": ?[]const u8 = null, @"bounds_start": f64 = 0, @"bounds_end": f64 = 0, @"markers": ?[]const @"ottla".@"Marker" = null, };
 
@@ -307,7 +395,7 @@ pub const @"Gap" = struct {
 pub const @"ImageSequenceReference" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[6];
+    pub const @"#type" = &@"#schema".tables[8];
     pub const @"#constructor" = struct {
 @"target_url_base": []const u8, @"name_prefix": ?[]const u8 = null, @"name_suffix": ?[]const u8 = null, @"start_frame": i32 = 1, @"frame_step": i32 = 1, @"frame_zero_padding": u8 = 0, @"rate": f64 = 24, @"missing_frame_policy": ?[]const u8 = null, };
 
@@ -351,7 +439,7 @@ pub const @"ImageSequenceReference" = struct {
 pub const @"IntRate" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[7];
+    pub const @"#type" = &@"#schema".tables[9];
     pub const @"#constructor" = struct {
 @"value": u32 = 0, };
 
@@ -366,7 +454,7 @@ pub const @"IntRate" = struct {
 pub const @"LinearRampSignal" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[8];
+    pub const @"#type" = &@"#schema".tables[10];
     pub const @"#constructor" = struct {
 };
 
@@ -377,7 +465,7 @@ pub const @"LinearRampSignal" = struct {
 pub const @"MappingAffine" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[9];
+    pub const @"#type" = &@"#schema".tables[11];
     pub const @"#constructor" = struct {
 @"input_bounds_start": f64 = 0, @"input_bounds_end": f64 = 0, @"transform": ?@"ottla".@"AffineTransform1D" = null, };
 
@@ -400,7 +488,7 @@ pub const @"MappingAffine" = struct {
 pub const @"MappingLinear" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[10];
+    pub const @"#type" = &@"#schema".tables[12];
     pub const @"#constructor" = struct {
 @"input_bounds_start": f64 = 0, @"input_bounds_end": f64 = 0, @"knots": ?[]const @"ottla".@"ControlPoint" = null, };
 
@@ -423,7 +511,7 @@ pub const @"MappingLinear" = struct {
 pub const @"MappingWrapper" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[11];
+    pub const @"#type" = &@"#schema".tables[13];
     pub const @"#constructor" = struct {
 @"mapping_type": @"ottla".@"MappingType" = @enumFromInt(0), @"affine": ?@"ottla".@"MappingAffine" = null, @"linear": ?@"ottla".@"MappingLinear" = null, };
 
@@ -446,7 +534,7 @@ pub const @"MappingWrapper" = struct {
 pub const @"Marker" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[12];
+    pub const @"#type" = &@"#schema".tables[14];
     pub const @"#constructor" = struct {
 @"name": ?[]const u8 = null, @"marked_range_start": f64 = 0, @"marked_range_end": f64 = 0, @"color": []const u8, @"comment": ?[]const u8 = null, };
 
@@ -478,7 +566,7 @@ pub const @"Marker" = struct {
 pub const @"MediaReference" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[13];
+    pub const @"#type" = &@"#schema".tables[15];
     pub const @"#constructor" = struct {
 @"data_reference_type": @"ottla".@"MediaDataReference" = .NONE, @"bounds": ?@"ottla".@"Bounds" = null, @"domain": ?@"ottla".@"Domain" = null, @"discrete_partition": ?@"ottla".@"SampleIndexGenerator" = null, @"interpolating": @"ottla".@"MediaInterpolationType" = @enumFromInt(0), };
 
@@ -509,7 +597,7 @@ pub const @"MediaReference" = struct {
 pub const @"MetadataBlock" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[14];
+    pub const @"#type" = &@"#schema".tables[16];
     pub const @"#constructor" = struct {
 @"keys": ?[]const []const u8 = null, @"types": ?[]const i8 = null, @"scalars": ?[]const @"ottla".@"PackedScalar" = null, @"string_values": ?[]const []const u8 = null, @"string_indices": ?[]const u32 = null, @"nested_blocks": ?[]const @"ottla".@"MetadataBlock" = null, @"nested_indices": ?[]const u32 = null, @"array_blocks": ?[]const @"ottla".@"MetadataBlock" = null, @"array_indices": ?[]const u32 = null, };
 
@@ -556,7 +644,7 @@ pub const @"MetadataBlock" = struct {
 pub const @"MetadataMap" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[15];
+    pub const @"#type" = &@"#schema".tables[17];
     pub const @"#constructor" = struct {
 @"hashes": ?[]const []const u8 = null, @"block_offsets": ?[]const u32 = null, @"block_lengths": ?[]const u32 = null, @"all_keys": ?[]const []const u8 = null, @"all_types": ?[]const u8 = null, @"all_scalars": ?[]const @"ottla".@"PackedScalar" = null, @"string_values": ?[]const []const u8 = null, @"string_key_indices": ?[]const u32 = null, @"string_value_indices": ?[]const u32 = null, @"nested_blocks": ?[]const @"ottla".@"MetadataBlock" = null, @"nested_key_indices": ?[]const u32 = null, @"nested_block_indices": ?[]const u32 = null, };
 
@@ -615,7 +703,7 @@ pub const @"MetadataMap" = struct {
 pub const @"NullReference" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[16];
+    pub const @"#type" = &@"#schema".tables[18];
     pub const @"#constructor" = struct {
 };
 
@@ -626,7 +714,7 @@ pub const @"NullReference" = struct {
 pub const @"RationalRate" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[17];
+    pub const @"#type" = &@"#schema".tables[19];
     pub const @"#constructor" = struct {
 @"num": u32 = 0, @"den": u32 = 0, };
 
@@ -645,7 +733,7 @@ pub const @"RationalRate" = struct {
 pub const @"SampleIndexGenerator" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[18];
+    pub const @"#type" = &@"#schema".tables[20];
     pub const @"#constructor" = struct {
 @"sample_rate_hz_type": @"ottla".@"RateSpecifier" = .NONE, @"start_index": u64 = 0, };
 
@@ -664,7 +752,7 @@ pub const @"SampleIndexGenerator" = struct {
 pub const @"SignalReference" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[19];
+    pub const @"#type" = &@"#schema".tables[21];
     pub const @"#constructor" = struct {
 @"signal_generator_type": @"ottla".@"SignalGenerator" = .NONE, };
 
@@ -679,7 +767,7 @@ pub const @"SignalReference" = struct {
 pub const @"SineSignal" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[20];
+    pub const @"#type" = &@"#schema".tables[22];
     pub const @"#constructor" = struct {
 @"frequency_hz": f64 = 0, };
 
@@ -694,7 +782,7 @@ pub const @"SineSignal" = struct {
 pub const @"Stack" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[21];
+    pub const @"#type" = &@"#schema".tables[23];
     pub const @"#constructor" = struct {
 @"name": ?[]const u8 = null, @"bounds": ?@"ottla".@"Bounds" = null, @"children": ?[]const @"ottla".@"ComposableWrapper" = null, @"markers": ?[]const @"ottla".@"Marker" = null, };
 
@@ -721,7 +809,7 @@ pub const @"Stack" = struct {
 pub const @"Timeline" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[22];
+    pub const @"#type" = &@"#schema".tables[24];
     pub const @"#constructor" = struct {
 @"schema_version": u32 = 1, @"name": ?[]const u8 = null, @"children": ?[]const @"ottla".@"ComposableWrapper" = null, @"presentation_space_discrete_partitions": ?@"ottla".@"DiscretePartitionDomainMap" = null, @"metadata_map": ?@"ottla".@"MetadataMap" = null, @"markers": ?[]const @"ottla".@"Marker" = null, };
 
@@ -756,7 +844,7 @@ pub const @"Timeline" = struct {
 pub const @"Topology" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[23];
+    pub const @"#type" = &@"#schema".tables[25];
     pub const @"#constructor" = struct {
 @"mappings": ?[]const @"ottla".@"MappingWrapper" = null, };
 
@@ -771,7 +859,7 @@ pub const @"Topology" = struct {
 pub const @"Track" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[24];
+    pub const @"#type" = &@"#schema".tables[26];
     pub const @"#constructor" = struct {
 @"name": ?[]const u8 = null, @"bounds": ?@"ottla".@"Bounds" = null, @"children": ?[]const @"ottla".@"ComposableWrapper" = null, @"markers": ?[]const @"ottla".@"Marker" = null, };
 
@@ -798,7 +886,7 @@ pub const @"Track" = struct {
 pub const @"Transition" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[25];
+    pub const @"#type" = &@"#schema".tables[27];
     pub const @"#constructor" = struct {
 @"name": ?[]const u8 = null, @"container": ?@"ottla".@"Stack" = null, @"kind": []const u8, @"bounds_start": f64 = 0, @"bounds_end": f64 = 0, @"has_bounds": bool = false, };
 
@@ -834,7 +922,7 @@ pub const @"Transition" = struct {
 pub const @"URIReference" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[26];
+    pub const @"#type" = &@"#schema".tables[28];
     pub const @"#constructor" = struct {
 @"target_uri": []const u8, };
 
@@ -850,7 +938,7 @@ pub const @"URIReference" = struct {
 pub const @"Warp" = struct {
     pub const @"#kind" = flatbuffers.Kind.Table;
     pub const @"#root" = &@"#schema";
-    pub const @"#type" = &@"#schema".tables[27];
+    pub const @"#type" = &@"#schema".tables[29];
     pub const @"#constructor" = struct {
 @"name": ?[]const u8 = null, @"child": ?@"ottla".@"ComposableWrapper" = null, @"transform": ?@"ottla".@"Topology" = null, };
 

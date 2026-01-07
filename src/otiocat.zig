@@ -1,15 +1,15 @@
-//! otiocat - Universal timeline format converter
+//! otiocat - Universal timeline/collection format converter
 //!
-//! Reads .otio (JSON), .tla (Timeline ASCII), .tlb (CBOR binary), .tlfb (FlatBuffers binary),
-//! or .tlz (ZIP bundle) files and writes to .tla, .tlb, .tlfb, or .tlz format
-//! based on the output file extension.
+//! Reads timeline files (.otio, .tla, .tlb, .tlfb, .tlz) and writes to various formats.
+//! Also supports collection files (.tlca, .tlcb) for grouped timeline containers.
 //!
 //! Usage:
 //!   otiocat <input> [output]
 //!
-//! If no output file is specified, prints TLA format to stdout.
+//! If no output file is specified, prints TLA/TLCA format to stdout.
 //!
 //! Examples:
+//!   # Timeline conversions
 //!   otiocat timeline.otio                   # JSON to TLA (stdout)
 //!   otiocat timeline.otio timeline.tla      # JSON to TLA (file)
 //!   otiocat timeline.otio timeline.tlb      # JSON to Binary (CBOR)
@@ -19,6 +19,10 @@
 //!   otiocat timeline.tla timeline.tlb       # TLA to Binary
 //!   otiocat timeline.tlb timeline.tla       # Binary to TLA
 //!   otiocat timeline.tlfb timeline.tla      # FlatBuffers to TLA
+//!
+//!   # Collection conversions
+//!   otiocat collection.tlca collection.tlcb # ASCII to FlatBuffers
+//!   otiocat collection.tlcb collection.tlca # FlatBuffers to ASCII
 
 const std = @import("std");
 const string = @import("string_stuff");
@@ -155,30 +159,28 @@ pub fn usage(
 {
     std.debug.print(
         \\
-        \\otiocat - Universal timeline format converter
+        \\otiocat - Universal timeline/collection format converter
         \\
-        \\Reads timeline files in various formats and converts them to other formats.
+        \\Reads timeline and collection files and converts them to other formats.
         \\
-        \\Supported input formats:
-        \\  .otio   OpenTimelineIO JSON format
+        \\Supported timeline formats:
+        \\  .otio   OpenTimelineIO JSON format (input only)
         \\  .tla    TLA (Timeline ASCII) text format
         \\  .tlb    Binary CBOR format
         \\  .tlfb   Binary FlatBuffers format
         \\  .tlz    TLZ bundle (ZIP archive with timeline + media)
         \\
-        \\Supported output formats:
-        \\  .tla    TLA (Timeline ASCII) text format
-        \\  .tlb    Binary CBOR format
-        \\  .tlfb   Binary FlatBuffers format
-        \\  .tlz    TLZ bundle (ZIP archive with timeline + media)
+        \\Supported collection formats:
+        \\  .tlca   TLCA (Timeline Collection ASCII) text format
+        \\  .tlcb   TLCB (Timeline Collection Binary) FlatBuffers format
         \\
         \\Usage:
         \\  otiocat [options] <input> [output]
         \\
         \\Arguments:
-        \\  <input>   Path to the source timeline file
+        \\  <input>   Path to the source file
         \\  [output]  Path for the converted output file (optional)
-        \\            If omitted, prints TLA format to stdout.
+        \\            If omitted, prints TLA/TLCA format to stdout.
         \\
         \\Options:
         \\  -h, --help         Print this message and exit
@@ -193,7 +195,7 @@ pub fn usage(
         \\  --media-policy=missing  Skip missing media files (default)
         \\  --media-policy=all-missing  Don't bundle any media files
         \\
-        \\Examples:
+        \\Timeline Examples:
         \\  otiocat timeline.otio                   # JSON to TLA (stdout)
         \\  otiocat timeline.otio timeline.tla      # JSON to TLA (file)
         \\  otiocat timeline.otio timeline.tlb      # JSON to Binary (CBOR)
@@ -202,13 +204,17 @@ pub fn usage(
         \\  otiocat timeline.tlb timeline.tla       # Binary to TLA
         \\  otiocat timeline.tlfb timeline.tla      # FlatBuffers to TLA
         \\
-        \\  # TLZ bundle examples:
+        \\Collection Examples:
+        \\  otiocat collection.tlca collection.tlcb # ASCII to FlatBuffers
+        \\  otiocat collection.tlcb collection.tlca # FlatBuffers to ASCII
+        \\
+        \\TLZ Bundle Examples:
         \\  otiocat timeline.tla timeline.tlz       # Create TLZ bundle
         \\  otiocat timeline.tlz timeline.tla       # Extract from TLZ bundle
         \\  otiocat timeline.tla timeline.tlz --bundle-format=tlfb  # Binary inside
         \\  otiocat timeline.tla timeline.tlz --media-policy=error  # Require media
         \\
-        \\  # Metadata options (TLA output only):
+        \\Metadata Options (TLA output only):
         \\  otiocat --no-metadata timeline.otio     # No metadata in output
         \\  otiocat --inline-metadata timeline.otio # Metadata inline on clips
         \\
@@ -266,25 +272,56 @@ pub fn main() !void
         std.process.exit(1);
     }
 
-    // Check output extension (default to .tla for stdout)
+    // Check input format to determine if this is a collection or timeline
+    const input_ext = get_extension(state.input_path) orelse {
+        std.log.err("Input file must have an extension", .{});
+        std.process.exit(1);
+    };
+
+    const input_format = std.meta.stringToEnum(
+        serialization.FileFormat,
+        input_ext[1..],  // Skip the leading dot
+    ) orelse {
+        std.log.err(
+            "Unsupported input format: {s}",
+            .{input_ext}
+        );
+        std.process.exit(1);
+    };
+
+    const is_collection = input_format == .tlca or input_format == .tlcb;
+
+    // Check output extension (default to .tla/.tlca for stdout based on input type)
+    const default_output_ext = if (is_collection) ".tlca" else ".tla";
     const output_ext = if (state.output_path) |path|
         get_extension(path) orelse {
-            std.log.err("Output file must have an extension (.tla, .tlb, .tlfb, or .tlz)", .{});
+            std.log.err("Output file must have an extension", .{});
             std.process.exit(1);
         }
     else
-        ".tla";
+        default_output_ext;
 
     const output_format = std.meta.stringToEnum(
         serialization.FileFormat,
         output_ext[1..],  // Skip the leading dot
     ) orelse {
         std.log.err(
-            "Unsupported output format: {s}. Use .tla, .tlb, .tlfb, or .tlz",
+            "Unsupported output format: {s}",
             .{output_ext}
         );
         std.process.exit(1);
     };
+
+    // Validate format compatibility
+    const output_is_collection = output_format == .tlca or output_format == .tlcb;
+    if (is_collection != output_is_collection) {
+        std.log.err(
+            "Cannot convert between timeline and collection formats. " ++
+            "Use timeline formats (.tla, .tlb, .tlfb, .tlz) or collection formats (.tlca, .tlcb).",
+            .{}
+        );
+        std.process.exit(1);
+    }
 
     // TLZ output requires an output file (can't write to stdout)
     if (output_format == .tlz and state.output_path == null)
@@ -293,48 +330,83 @@ pub fn main() !void
         std.process.exit(1);
     }
 
-    // Read input file using centralized reader (supports .otio, .tla, .tlb, .tlfb, .tlz)
-    const ser_timeline = try serialization.read_from_file(allocator, state.input_path);
+    if (is_collection) {
+        // Handle collection formats
+        const ser_collection = try serialization.read_collection_from_file(allocator, state.input_path);
 
-    read_prog.end();
+        read_prog.end();
 
-    const convert_prog = parent_prog.start("Converting...", 0);
+        const convert_prog = parent_prog.start("Converting collection...", 0);
 
-    // Build write options from state
-    const input_dir = std.fs.path.dirname(state.input_path) orelse ".";
-    const write_options = serialization.WriteOptions{
-        .metadata_mode = state.metadata_mode,
-        .bundle_format = state.bundle_format,
-        .media_policy = state.media_policy,
-        .media_base_dir = input_dir,
-    };
+        // Write collection output
+        if (state.output_path) |path|
+        {
+            try serialization.write_collection_to_file(allocator, ser_collection, path);
+        }
+        else
+        {
+            // Write to stdout
+            var out_file = std.fs.File.stdout();
+            var file_writer_buffer: [16 * 1024]u8 = undefined;
+            var file_writer = out_file.writer(&file_writer_buffer);
+            const writer = &file_writer.interface;
 
-    // Write output using centralized writer
-    if (state.output_path) |path|
-    {
-        // Write to file using centralized function
-        try serialization.write_to_file(allocator, ser_timeline, path, write_options);
+            try serialization.write_collection_to_writer(
+                allocator,
+                ser_collection,
+                output_format,
+                writer,
+            );
+
+            try writer.flush();
+        }
+
+        convert_prog.end();
+    } else {
+        // Handle timeline formats
+        // Read input file using centralized reader (supports .otio, .tla, .tlb, .tlfb, .tlz)
+        const ser_timeline = try serialization.read_from_file(allocator, state.input_path);
+
+        read_prog.end();
+
+        const convert_prog = parent_prog.start("Converting timeline...", 0);
+
+        // Build write options from state
+        const input_dir = std.fs.path.dirname(state.input_path) orelse ".";
+        const write_options = serialization.WriteOptions{
+            .metadata_mode = state.metadata_mode,
+            .bundle_format = state.bundle_format,
+            .media_policy = state.media_policy,
+            .media_base_dir = input_dir,
+        };
+
+        // Write output using centralized writer
+        if (state.output_path) |path|
+        {
+            // Write to file using centralized function
+            try serialization.write_to_file(allocator, ser_timeline, path, write_options);
+        }
+        else
+        {
+            // Write to stdout
+            var out_file = std.fs.File.stdout();
+            var file_writer_buffer: [16 * 1024]u8 = undefined;
+            var file_writer = out_file.writer(&file_writer_buffer);
+            const writer = &file_writer.interface;
+
+            try serialization.write_to_writer(
+                allocator,
+                ser_timeline,
+                output_format,
+                write_options,
+                writer,
+            );
+
+            try writer.flush();
+        }
+
+        convert_prog.end();
     }
-    else
-    {
-        // Write to stdout
-        var out_file = std.fs.File.stdout();
-        var file_writer_buffer: [16 * 1024]u8 = undefined;
-        var file_writer = out_file.writer(&file_writer_buffer);
-        const writer = &file_writer.interface;
-
-        try serialization.write_to_writer(
-            allocator,
-            ser_timeline,
-            output_format,
-            write_options,
-            writer,
-        );
-
-        try writer.flush();
-    }
-
-    convert_prog.end();
 
     if (state.output_path) |path|
     {

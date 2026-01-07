@@ -2923,6 +2923,488 @@ pub fn deserialize_to_serializable_timeline(
 }
 
 // ----------------------------------------------------------------------------
+// Collection Serialization/Deserialization
+// ----------------------------------------------------------------------------
+
+/// Collection file format constants - uses "TLCB" magic to distinguish from Timeline files
+pub const TLCB_MAGIC: [4]u8 = .{ 'T', 'L', 'C', 'B' };
+
+/// Write TLCB header (Collection binary format)
+fn write_collection_header(
+    writer: anytype,
+    metadata_offset: u64,
+) !void
+{
+    try writer.writeAll(&TLCB_MAGIC);
+    try writer.writeInt(u32, TLFB_FORMAT_VERSION, .big);
+    try writer.writeInt(u64, metadata_offset, .big);
+}
+
+/// Read and validate TLCB header
+fn read_collection_header(
+    data: []const u8,
+) !struct { version: u32, metadata_offset: u64 }
+{
+    if (data.len < TLFB_HEADER_SIZE)
+    {
+        return error.InvalidData;
+    }
+    if (!std.mem.eql(u8, data[0..4], &TLCB_MAGIC))
+    {
+        return error.InvalidData;
+    }
+    const version = std.mem.readInt(u32, data[4..8], .big);
+    const metadata_offset = std.mem.readInt(u64, data[8..16], .big);
+    return .{ .version = version, .metadata_offset = metadata_offset };
+}
+
+/// Convert SerializableCollectionItem to FlatBuffers CollectionItemWrapper
+fn serializable_collection_item_to_fb(
+    builder: *flatbuffers.Builder,
+    arena_alloc: Allocator,
+    item: serialization.SerializableCollectionItem,
+) !ottla.CollectionItemWrapper
+{
+    return switch (item) {
+        .timeline => |tl| blk: {
+            // Convert children
+            const children: ?[]ottla.ComposableWrapper = if (tl.children.len > 0) child_blk: {
+                const c = try arena_alloc.alloc(ottla.ComposableWrapper, tl.children.len);
+                for (tl.children, 0..) |child, i| {
+                    c[i] = try serializable_composable_to_fb(builder, arena_alloc, child);
+                }
+                break :child_blk c;
+            } else null;
+
+            // Convert metadata
+            var metadata_fb: ?ottla.MetadataMap = null;
+            if (tl.metadata_map) |mm| {
+                metadata_fb = try metadata_map_to_fb(builder, arena_alloc, mm);
+            }
+
+            // Convert discrete partitions
+            const discrete_partitions = try serializable_discrete_partitions_to_fb(
+                builder,
+                tl.presentation_space_discrete_partitions,
+            );
+
+            // Convert markers
+            const markers_fb = try serializable_markers_to_fb(builder, tl.markers);
+
+            const timeline_ref = try builder.writeTable(ottla.Timeline, .{
+                .schema_version = tl.schema_version,
+                .name = tl.name,
+                .children = children,
+                .presentation_space_discrete_partitions = discrete_partitions,
+                .metadata_map = metadata_fb,
+                .markers = markers_fb,
+            });
+
+            break :blk try builder.writeTable(ottla.CollectionItemWrapper, .{
+                .item_type = .TimelineItem,
+                .timeline = timeline_ref,
+            });
+        },
+        .track => |track| blk: {
+            const children: ?[]ottla.ComposableWrapper = if (track.children.len > 0) child_blk: {
+                const c = try arena_alloc.alloc(ottla.ComposableWrapper, track.children.len);
+                for (track.children, 0..) |child, i| {
+                    c[i] = try serializable_composable_to_fb(builder, arena_alloc, child);
+                }
+                break :child_blk c;
+            } else null;
+
+            const markers_fb = try serializable_markers_to_fb(builder, track.markers);
+            const bounds_fb = if (track.bounds_s) |b| try serializable_bounds_to_fb(builder, b) else null;
+
+            const track_ref = try builder.writeTable(ottla.Track, .{
+                .name = track.name,
+                .bounds = bounds_fb,
+                .children = children,
+                .markers = markers_fb,
+            });
+
+            break :blk try builder.writeTable(ottla.CollectionItemWrapper, .{
+                .item_type = .TrackItem,
+                .track = track_ref,
+            });
+        },
+        .stack => |stack| blk: {
+            const children: ?[]ottla.ComposableWrapper = if (stack.children.len > 0) child_blk: {
+                const c = try arena_alloc.alloc(ottla.ComposableWrapper, stack.children.len);
+                for (stack.children, 0..) |child, i| {
+                    c[i] = try serializable_composable_to_fb(builder, arena_alloc, child);
+                }
+                break :child_blk c;
+            } else null;
+
+            const markers_fb = try serializable_markers_to_fb(builder, stack.markers);
+            const bounds_fb = if (stack.bounds_s) |b| try serializable_bounds_to_fb(builder, b) else null;
+
+            const stack_ref = try builder.writeTable(ottla.Stack, .{
+                .name = stack.name,
+                .bounds = bounds_fb,
+                .children = children,
+                .markers = markers_fb,
+            });
+
+            break :blk try builder.writeTable(ottla.CollectionItemWrapper, .{
+                .item_type = .StackItem,
+                .stack = stack_ref,
+            });
+        },
+        .clip => |clip| blk: {
+            const media_fb = try serializable_media_ref_to_fb(builder, arena_alloc, clip.media);
+            const bounds_fb = if (clip.bounds_s) |b| try serializable_bounds_to_fb(builder, b) else null;
+            const markers_fb = try serializable_markers_to_fb(builder, clip.markers);
+
+            const clip_ref = try builder.writeTable(ottla.Clip, .{
+                .name = clip.name,
+                .bounds = bounds_fb,
+                .media = media_fb,
+                .metadata_hash = clip.metadata_hash,
+                .markers = markers_fb,
+            });
+
+            break :blk try builder.writeTable(ottla.CollectionItemWrapper, .{
+                .item_type = .ClipItem,
+                .clip = clip_ref,
+            });
+        },
+        .gap => |gap| blk: {
+            const markers_fb = try serializable_markers_to_fb(builder, gap.markers);
+
+            const gap_ref = try builder.writeTable(ottla.Gap, .{
+                .name = gap.name,
+                .bounds_start = gap.bounds_s[0],
+                .bounds_end = gap.bounds_s[1],
+                .markers = markers_fb,
+            });
+
+            break :blk try builder.writeTable(ottla.CollectionItemWrapper, .{
+                .item_type = .GapItem,
+                .gap = gap_ref,
+            });
+        },
+        .warp => |warp| blk: {
+            const child_wrapper = try serializable_composable_to_fb(builder, arena_alloc, warp.child.*);
+            const topology_fb = try serializable_topology_to_fb(builder, arena_alloc, warp.transform);
+
+            const warp_ref = try builder.writeTable(ottla.Warp, .{
+                .name = warp.name,
+                .child = child_wrapper,
+                .transform = topology_fb,
+            });
+
+            break :blk try builder.writeTable(ottla.CollectionItemWrapper, .{
+                .item_type = .WarpItem,
+                .warp = warp_ref,
+            });
+        },
+        .transition => |trans| blk: {
+            // Convert container stack
+            const container_children: ?[]ottla.ComposableWrapper = if (trans.container.children.len > 0) child_blk: {
+                const c = try arena_alloc.alloc(ottla.ComposableWrapper, trans.container.children.len);
+                for (trans.container.children, 0..) |child, i| {
+                    c[i] = try serializable_composable_to_fb(builder, arena_alloc, child);
+                }
+                break :child_blk c;
+            } else null;
+
+            const container_bounds_fb = if (trans.container.bounds_s) |b| try serializable_bounds_to_fb(builder, b) else null;
+            const container_markers_fb = try serializable_markers_to_fb(builder, trans.container.markers);
+
+            const container_ref = try builder.writeTable(ottla.Stack, .{
+                .name = trans.container.name,
+                .bounds = container_bounds_fb,
+                .children = container_children,
+                .markers = container_markers_fb,
+            });
+
+            const trans_ref = try builder.writeTable(ottla.Transition, .{
+                .name = trans.name,
+                .container = container_ref,
+                .kind = trans.kind,
+                .bounds_start = if (trans.bounds_s) |b| b[0] else 0.0,
+                .bounds_end = if (trans.bounds_s) |b| b[1] else 0.0,
+                .has_bounds = trans.bounds_s != null,
+            });
+
+            break :blk try builder.writeTable(ottla.CollectionItemWrapper, .{
+                .item_type = .TransitionItem,
+                .transition = trans_ref,
+            });
+        },
+    };
+}
+
+/// Convert FlatBuffers CollectionItemWrapper to SerializableCollectionItem
+fn fb_to_serializable_collection_item(
+    allocator: Allocator,
+    wrapper: ottla.CollectionItemWrapper,
+) !serialization.SerializableCollectionItem
+{
+    return switch (wrapper.item_type()) {
+        .TimelineItem => blk: {
+            const fb_tl = wrapper.timeline() orelse return error.InvalidData;
+
+            // Convert children
+            var children: std.ArrayList(serialization.SerializableComposable) = .empty;
+            if (fb_tl.children()) |fb_children| {
+                try children.ensureTotalCapacity(allocator, fb_children.len());
+                for (0..fb_children.len()) |i| {
+                    children.appendAssumeCapacity(try fb_to_serializable_composable(allocator, fb_children.get(i)));
+                }
+            }
+
+            // Convert metadata
+            var metadata_map: ?MetadataMap = null;
+            if (fb_tl.metadata_map()) |fb_metadata| {
+                metadata_map = try fb_to_metadata_map_single_table(allocator, fb_metadata);
+            }
+
+            // Convert discrete partitions
+            const discrete_partitions = if (fb_tl.presentation_space_discrete_partitions()) |p|
+                fb_to_serializable_discrete_partitions(p)
+            else
+                serialization.SerializableDiscretePartitionDomainMap{};
+
+            // Convert markers
+            const markers = try fb_to_serializable_markers(allocator, fb_tl.markers());
+
+            break :blk .{
+                .timeline = .{
+                    .schema_version = fb_tl.schema_version(),
+                    .name = if (fb_tl.name()) |n| try allocator.dupe(u8, n) else null,
+                    .children = try children.toOwnedSlice(allocator),
+                    .presentation_space_discrete_partitions = discrete_partitions,
+                    .metadata_map = metadata_map,
+                    .markers = markers,
+                },
+            };
+        },
+        .TrackItem => blk: {
+            const fb_track = wrapper.track() orelse return error.InvalidData;
+
+            var children: std.ArrayList(serialization.SerializableComposable) = .empty;
+            if (fb_track.children()) |fb_children| {
+                try children.ensureTotalCapacity(allocator, fb_children.len());
+                for (0..fb_children.len()) |i| {
+                    children.appendAssumeCapacity(try fb_to_serializable_composable(allocator, fb_children.get(i)));
+                }
+            }
+
+            const markers = try fb_to_serializable_markers(allocator, fb_track.markers());
+
+            break :blk .{
+                .track = .{
+                    .name = if (fb_track.name()) |n| try allocator.dupe(u8, n) else null,
+                    .bounds_s = if (fb_track.bounds()) |b| fb_to_serializable_bounds(b) else null,
+                    .children = try children.toOwnedSlice(allocator),
+                    .markers = markers,
+                },
+            };
+        },
+        .StackItem => blk: {
+            const fb_stack = wrapper.stack() orelse return error.InvalidData;
+
+            var children: std.ArrayList(serialization.SerializableComposable) = .empty;
+            if (fb_stack.children()) |fb_children| {
+                try children.ensureTotalCapacity(allocator, fb_children.len());
+                for (0..fb_children.len()) |i| {
+                    children.appendAssumeCapacity(try fb_to_serializable_composable(allocator, fb_children.get(i)));
+                }
+            }
+
+            const markers = try fb_to_serializable_markers(allocator, fb_stack.markers());
+
+            break :blk .{
+                .stack = .{
+                    .name = if (fb_stack.name()) |n| try allocator.dupe(u8, n) else null,
+                    .bounds_s = if (fb_stack.bounds()) |b| fb_to_serializable_bounds(b) else null,
+                    .children = try children.toOwnedSlice(allocator),
+                    .markers = markers,
+                },
+            };
+        },
+        .ClipItem => blk: {
+            const fb_clip = wrapper.clip() orelse return error.InvalidData;
+            const markers = try fb_to_serializable_markers(allocator, fb_clip.markers());
+            const fb_media = fb_clip.media() orelse return error.InvalidData;
+
+            break :blk .{
+                .clip = .{
+                    .name = if (fb_clip.name()) |n| try allocator.dupe(u8, n) else null,
+                    .bounds_s = if (fb_clip.bounds()) |b| fb_to_serializable_bounds(b) else null,
+                    .media = try fb_to_serializable_media_ref(allocator, fb_media),
+                    .metadata_hash = if (fb_clip.metadata_hash()) |h| try allocator.dupe(u8, h) else null,
+                    .markers = markers,
+                },
+            };
+        },
+        .GapItem => blk: {
+            const fb_gap = wrapper.gap() orelse return error.InvalidData;
+            const markers = try fb_to_serializable_markers(allocator, fb_gap.markers());
+
+            break :blk .{
+                .gap = .{
+                    .name = if (fb_gap.name()) |n| try allocator.dupe(u8, n) else null,
+                    .bounds_s = .{ fb_gap.bounds_start(), fb_gap.bounds_end() },
+                    .markers = markers,
+                },
+            };
+        },
+        .WarpItem => blk: {
+            const fb_warp = wrapper.warp() orelse return error.InvalidData;
+
+            // Convert child composable
+            const child_wrapper = fb_warp.child() orelse return error.InvalidData;
+            const child_composable = try allocator.create(serialization.SerializableComposable);
+            child_composable.* = try fb_to_serializable_composable(allocator, child_wrapper);
+
+            // Convert topology
+            const fb_topo = fb_warp.transform() orelse return error.InvalidData;
+
+            break :blk .{
+                .warp = .{
+                    .name = if (fb_warp.name()) |n| try allocator.dupe(u8, n) else null,
+                    .child = child_composable,
+                    .transform = try fb_to_serializable_topology(allocator, fb_topo),
+                },
+            };
+        },
+        .TransitionItem => blk: {
+            const fb_trans = wrapper.transition() orelse return error.InvalidData;
+
+            // Convert container
+            const fb_container = fb_trans.container() orelse return error.InvalidData;
+
+            var container_children: std.ArrayList(serialization.SerializableComposable) = .empty;
+            if (fb_container.children()) |fb_children| {
+                try container_children.ensureTotalCapacity(allocator, fb_children.len());
+                for (0..fb_children.len()) |i| {
+                    container_children.appendAssumeCapacity(try fb_to_serializable_composable(allocator, fb_children.get(i)));
+                }
+            }
+
+            const container_markers = try fb_to_serializable_markers(allocator, fb_container.markers());
+
+            break :blk .{
+                .transition = .{
+                    .name = if (fb_trans.name()) |n| try allocator.dupe(u8, n) else null,
+                    .container = .{
+                        .name = if (fb_container.name()) |n| try allocator.dupe(u8, n) else null,
+                        .bounds_s = if (fb_container.bounds()) |b| fb_to_serializable_bounds(b) else null,
+                        .children = try container_children.toOwnedSlice(allocator),
+                        .markers = container_markers,
+                    },
+                    .kind = try allocator.dupe(u8, fb_trans.kind()),
+                    .bounds_s = if (fb_trans.has_bounds())
+                        .{ fb_trans.bounds_start(), fb_trans.bounds_end() }
+                    else
+                        null,
+                },
+            };
+        },
+    };
+}
+
+/// Serialize a SerializableCollection to FlatBuffers format (.tlcb).
+pub fn serialize_collection(
+    collection: serialization.SerializableCollection,
+    allocator: Allocator,
+    writer: anytype,
+) !void
+{
+    // Use arena allocator for all temporary allocations during serialization
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const arena_alloc = arena.allocator();
+
+    var builder = try flatbuffers.Builder.init(arena_alloc);
+
+    // Convert children
+    const children: ?[]ottla.CollectionItemWrapper = if (collection.children.len > 0) blk: {
+        const c = try arena_alloc.alloc(ottla.CollectionItemWrapper, collection.children.len);
+        for (collection.children, 0..) |child, i| {
+            c[i] = try serializable_collection_item_to_fb(&builder, arena_alloc, child);
+        }
+        break :blk c;
+    } else null;
+
+    // Convert metadata if present
+    var metadata_fb: ?ottla.MetadataMap = null;
+    if (collection.metadata_map) |mm| {
+        metadata_fb = try metadata_map_to_fb(&builder, arena_alloc, mm);
+    }
+
+    // Build Collection root
+    const collection_ref = try builder.writeTable(ottla.Collection, .{
+        .schema_version = collection.schema_version,
+        .name = collection.name,
+        .description = collection.description,
+        .children = children,
+        .metadata_map = metadata_fb,
+    });
+
+    try builder.writeRoot(ottla.Collection, collection_ref);
+
+    // Write TLCB header
+    try write_collection_header(writer, 0);
+
+    // Get FlatBuffers data and write
+    const fb_bytes = try builder.writeAlloc(arena_alloc);
+    try writer.writeAll(fb_bytes);
+}
+
+/// Deserialize FlatBuffers data (.tlcb) to SerializableCollection.
+pub fn deserialize_collection(
+    allocator: Allocator,
+    data: []const u8,
+) !serialization.SerializableCollection
+{
+    _ = try read_collection_header(data);
+
+    // Get FlatBuffers data after header
+    const fb_data = data[TLFB_HEADER_SIZE..];
+
+    // FlatBuffers requires 8-byte alignment. Copy to aligned buffer if needed.
+    const aligned_data: []align(8) const u8 = if (@intFromPtr(fb_data.ptr) % 8 == 0)
+        @alignCast(fb_data)
+    else blk: {
+        const aligned_copy = try allocator.alignedAlloc(u8, .@"8", fb_data.len);
+        @memcpy(aligned_copy, fb_data);
+        break :blk aligned_copy;
+    };
+
+    // Decode root Collection
+    const fb_collection = try flatbuffers.decodeRoot(ottla.Collection, aligned_data);
+
+    // Convert children to SerializableCollectionItem
+    var children: std.ArrayList(serialization.SerializableCollectionItem) = .empty;
+    if (fb_collection.children()) |fb_children| {
+        try children.ensureTotalCapacity(allocator, fb_children.len());
+        for (0..fb_children.len()) |i| {
+            children.appendAssumeCapacity(try fb_to_serializable_collection_item(allocator, fb_children.get(i)));
+        }
+    }
+
+    // Convert metadata if present
+    var metadata_map: ?MetadataMap = null;
+    if (fb_collection.metadata_map()) |fb_metadata| {
+        metadata_map = try fb_to_metadata_map_single_table(allocator, fb_metadata);
+    }
+
+    return .{
+        .schema_version = fb_collection.schema_version(),
+        .name = if (fb_collection.name()) |n| try allocator.dupe(u8, n) else null,
+        .description = if (fb_collection.description()) |d| try allocator.dupe(u8, d) else null,
+        .children = try children.toOwnedSlice(allocator),
+        .metadata_map = metadata_map,
+    };
+}
+
+// ----------------------------------------------------------------------------
 // Tests
 // ----------------------------------------------------------------------------
 
