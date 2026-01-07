@@ -31,7 +31,8 @@
         },
         .zbor = .{
             // CBOR library for binary serialization
-            .path = "libs/zbor",
+            .url = "git+https://codeberg.org/r4gus/zbor.git#caa1696b2e6e241eaf2de67bd1dde72f0d43801c",
+            .hash = "zbor-0.20.1-kr-CoFVkAwDLvzgGCunlC9jDZNLSpsdarO2UmKJTpNYw",
         },
         .flatbuffers = .{
             // FlatBuffers runtime library for binary serialization
