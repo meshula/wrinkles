@@ -19,6 +19,8 @@
                     },
                 },
                 .metadata_hash = "237ac2668ea9b2e8",
+                .markers = [
+                ],
             },
             clip {
                 .name = "ZZ100_502A (LAY3)",
@@ -35,6 +37,8 @@
                     },
                 },
                 .metadata_hash = "dc063a93ce78b477",
+                .markers = [
+                ],
             },
             clip {
                 .name = "ZZ100_503A (LAY1)",
@@ -51,6 +55,8 @@
                     },
                 },
                 .metadata_hash = "3e4ee969266f497b",
+                .markers = [
+                ],
             },
             clip {
                 .name = "ZZ100_504C (LAY1)",
@@ -67,6 +73,24 @@
                     },
                 },
                 .metadata_hash = "ca17ed50b7383c72",
+                .markers = [
+                    {
+                        .name = "ANIM FIX NEEDED",
+                        .marked_range = [
+                            3601.5833333333335,
+                            3601.5833333333335,
+                        ],
+                        .color = "RED",
+                    },
+                    {
+                        .name = "ANIM FIX NEEDED",
+                        .marked_range = [
+                            3602.5833333333335,
+                            3602.5833333333335,
+                        ],
+                        .color = "PINK",
+                    },
+                ],
             },
             clip {
                 .name = "ZZ100_504B (LAY1)",
@@ -83,6 +107,8 @@
                     },
                 },
                 .metadata_hash = "1564e67f952700e4",
+                .markers = [
+                ],
             },
             clip {
                 .name = "ZZ100_507C (LAY2)",
@@ -99,6 +125,8 @@
                     },
                 },
                 .metadata_hash = "11b85d60b18e6322",
+                .markers = [
+                ],
             },
             clip {
                 .name = "ZZ100_508 (LAY2)",
@@ -115,6 +143,15 @@
                     },
                 },
                 .metadata_hash = "c6841c074839bf97",
+                .markers = [
+                    {
+                        .marked_range = [
+                            3615.5416666666665,
+                            3615.5416666666665,
+                        ],
+                        .color = "GREEN",
+                    },
+                ],
             },
             clip {
                 .name = "ZZ100_510 (LAY1)",
@@ -131,6 +168,8 @@
                     },
                 },
                 .metadata_hash = "695af6814d8f047b",
+                .markers = [
+                ],
             },
             clip {
                 .name = "ZZ100_510B (LAY1)",
@@ -147,7 +186,11 @@
                     },
                 },
                 .metadata_hash = "2fe52b7e89ad4ebb",
+                .markers = [
+                ],
             },
+        ],
+        .markers = [
         ],
     },
 ],
@@ -208,3 +251,5 @@
         },
     },
 },
+.markers = [
+],

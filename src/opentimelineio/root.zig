@@ -34,6 +34,7 @@ pub const binary_serialization_flatbufs = @import("binary_serialization_flatbufs
 pub const versioning = @import("versioning.zig");
 pub const tlz_bundle = @import("tlz_bundle.zig");
 pub const tlz_bundle_utils = @import("tlz_bundle_utils.zig");
+pub const hierarchy_text_render = @import("hierarchy_text_render.zig");
 
 const otio_json = @import("opentimelineio_json.zig");
 

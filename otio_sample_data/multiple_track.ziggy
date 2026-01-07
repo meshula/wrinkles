@@ -11,13 +11,21 @@
                     6,
                 ],
                 .media = {
-                    .data_reference = null {},
+                    .data_reference = uri {
+                        .target_uri = "file:///folder/titles.mov",
+                    },
+                    .bounds_s = discrete [
+                        0,
+                        8,
+                    ],
                     .domain = picture {},
                     .discrete_partition = {
                         .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },
+                .markers = [
+                ],
             },
             clip {
                 .name = "Clip-002",
@@ -26,19 +34,29 @@
                     8,
                 ],
                 .media = {
-                    .data_reference = null {},
+                    .data_reference = uri {
+                        .target_uri = "file:///folder/wind-up.mov",
+                    },
+                    .bounds_s = discrete [
+                        0,
+                        9,
+                    ],
                     .domain = picture {},
                     .discrete_partition = {
                         .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },
+                .markers = [
+                ],
             },
             gap {
                 .name = "",
                 .bounds_s = [
                     0.0,
                     0.16666666666666666,
+                ],
+                .markers = [
                 ],
             },
             clip {
@@ -48,14 +66,24 @@
                     106,
                 ],
                 .media = {
-                    .data_reference = null {},
+                    .data_reference = uri {
+                        .target_uri = "file:///folder/credits.mov",
+                    },
+                    .bounds_s = discrete [
+                        100,
+                        106,
+                    ],
                     .domain = picture {},
                     .discrete_partition = {
                         .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },
+                .markers = [
+                ],
             },
+        ],
+        .markers = [
         ],
     },
     track {
@@ -67,6 +95,8 @@
                     0.0,
                     0.2916666666666667,
                 ],
+                .markers = [
+                ],
             },
             clip {
                 .name = "Clip-003",
@@ -75,14 +105,24 @@
                     109,
                 ],
                 .media = {
-                    .data_reference = null {},
+                    .data_reference = uri {
+                        .target_uri = "file:///folder/punchline.mov",
+                    },
+                    .bounds_s = discrete [
+                        100,
+                        109,
+                    ],
                     .domain = picture {},
                     .discrete_partition = {
                         .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },
+                .markers = [
+                ],
             },
+        ],
+        .markers = [
         ],
     },
     track {
@@ -95,15 +135,27 @@
                     109,
                 ],
                 .media = {
-                    .data_reference = null {},
+                    .data_reference = uri {
+                        .target_uri = "file:///folder/punchline.mov",
+                    },
+                    .bounds_s = discrete [
+                        100,
+                        109,
+                    ],
                     .domain = picture {},
                     .discrete_partition = {
                         .sample_rate_hz = Int 24,
                         .start_index = 0,
                     },
                 },
+                .markers = [
+                ],
             },
+        ],
+        .markers = [
         ],
     },
 ],
 .presentation_space_discrete_partitions = {},
+.markers = [
+],

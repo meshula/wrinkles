@@ -11,7 +11,13 @@
                     6,
                 ],
                 .media = {
-                    .data_reference = null {},
+                    .data_reference = uri {
+                        .target_uri = "file:///folder/titles.mov",
+                    },
+                    .bounds_s = discrete [
+                        0,
+                        8,
+                    ],
                     .domain = picture {},
                     .discrete_partition = {
                         .sample_rate_hz = Int 24,
@@ -19,6 +25,8 @@
                     },
                 },
                 .metadata_hash = "b76b494dd822594b",
+                .markers = [
+                ],
             },
             clip {
                 .name = "Clip-002",
@@ -27,7 +35,13 @@
                     8,
                 ],
                 .media = {
-                    .data_reference = null {},
+                    .data_reference = uri {
+                        .target_uri = "file:///folder/wind-up.mov",
+                    },
+                    .bounds_s = discrete [
+                        0,
+                        8,
+                    ],
                     .domain = picture {},
                     .discrete_partition = {
                         .sample_rate_hz = Int 24,
@@ -35,6 +49,8 @@
                     },
                 },
                 .metadata_hash = "04a1ce6df4c0f425",
+                .markers = [
+                ],
             },
             clip {
                 .name = "Clip-003",
@@ -43,7 +59,13 @@
                     4,
                 ],
                 .media = {
-                    .data_reference = null {},
+                    .data_reference = uri {
+                        .target_uri = "file:///folder/punchline.mov",
+                    },
+                    .bounds_s = discrete [
+                        0,
+                        8,
+                    ],
                     .domain = picture {},
                     .discrete_partition = {
                         .sample_rate_hz = Int 24,
@@ -51,6 +73,8 @@
                     },
                 },
                 .metadata_hash = "13fc06cbbe3e2a3e",
+                .markers = [
+                ],
             },
             clip {
                 .name = "Clip-004",
@@ -59,11 +83,21 @@
                     4.416666666666667,
                 ],
                 .media = {
-                    .data_reference = null {},
+                    .data_reference = uri {
+                        .target_uri = "file:///folder/credits.mov",
+                    },
+                    .bounds_s = continuous [
+                        4.166666666666667,
+                        4.416666666666667,
+                    ],
                     .domain = picture {},
                 },
                 .metadata_hash = "d958f8c34514084d",
+                .markers = [
+                ],
             },
+        ],
+        .markers = [
         ],
     },
 ],
@@ -102,3 +136,5 @@
         "colorist_notes": "Use standard credits grade",
     },
 },
+.markers = [
+],

@@ -69,6 +69,16 @@ pub const BinaryDomain = struct {
 pub const BinaryMediaDataReference = union(enum) {
     uri: struct { target_uri: []const u8 },
     signal: struct { frequency_hz: f64 },
+    image_sequence: struct {
+        target_url_base: []const u8,
+        name_prefix: []const u8,
+        name_suffix: []const u8,
+        start_frame: i32,
+        frame_step: i32,
+        frame_zero_padding: u8,
+        rate: f64,
+        missing_frame_policy: []const u8,
+    },
     null: struct {},
 };
 
@@ -85,17 +95,26 @@ pub const BinaryMediaReference = struct {
     discrete_partition: ?BinarySampleIndexGenerator = null,
 };
 
+pub const BinaryMarker = struct {
+    name: ?[]const u8 = null,
+    marked_range: [2]f64,
+    color: []const u8,
+    comment: ?[]const u8 = null,
+};
+
 pub const BinaryClip = struct {
     name: ?[]const u8 = null,
     bounds_s: ?BinaryBounds = null,
     media: BinaryMediaReference,
     /// Wyhash key referencing an entry in the Timeline's metadata_map
     metadata_hash: ?[]const u8 = null,
+    markers: []BinaryMarker = &.{},
 };
 
 pub const BinaryGap = struct {
     name: ?[]const u8 = null,
     bounds_s: [2]f64,
+    markers: []BinaryMarker = &.{},
 };
 
 pub const BinaryMapping = union(enum) {
@@ -126,6 +145,7 @@ pub const BinaryStack = struct {
     name: ?[]const u8 = null,
     bounds_s: ?BinaryBounds = null,
     children: []BinaryComposable,
+    markers: []BinaryMarker = &.{},
 };
 
 pub const BinaryTrack = struct {
@@ -133,6 +153,7 @@ pub const BinaryTrack = struct {
     name: ?[]const u8 = null,
     bounds_s: ?BinaryBounds = null,
     children: []BinaryComposable,
+    markers: []BinaryMarker = &.{},
 };
 
 pub const BinaryTransition = struct {
@@ -181,6 +202,7 @@ pub const BinaryTimeline = struct {
     /// Maps metadata hash keys to their metadata dictionaries.
     /// Optional so empty maps can be omitted from serialization.
     metadata_map: ?BinaryMetadataMap = null,
+    markers: []BinaryMarker = &.{},
 };
 
 /// Variant of BinaryTimeline that skips metadata_map during parsing.
@@ -704,6 +726,7 @@ const SerializableMediaReference = serialization.SerializableMediaReference;
 const SerializableMediaDataReference = serialization.SerializableMediaDataReference;
 const SerializableDomain = serialization.SerializableDomain;
 const SerializableBounds = serialization.SerializableBounds;
+const SerializableMarker = serialization.SerializableMarker;
 
 fn ser_domain_to_binary(
     allocator: Allocator,
@@ -741,6 +764,18 @@ fn ser_media_data_ref_to_binary(
                 },
             },
         },
+        .image_sequence => |img_seq| .{
+            .image_sequence = .{
+                .target_url_base = try copy_string(allocator, img_seq.target_url_base),
+                .name_prefix = try copy_string(allocator, img_seq.name_prefix),
+                .name_suffix = try copy_string(allocator, img_seq.name_suffix),
+                .start_frame = img_seq.start_frame,
+                .frame_step = img_seq.frame_step,
+                .frame_zero_padding = img_seq.frame_zero_padding,
+                .rate = img_seq.rate,
+                .missing_frame_policy = try copy_string(allocator, img_seq.missing_frame_policy),
+            },
+        },
         .null => .{ .null = .{} },
     };
 }
@@ -763,6 +798,32 @@ fn ser_media_ref_to_binary(
     };
 }
 
+fn ser_marker_to_binary(
+    allocator: Allocator,
+    marker: SerializableMarker,
+) !BinaryMarker {
+    return .{
+        .name = try copy_optional_string(allocator, marker.name),
+        .marked_range = marker.marked_range,
+        .color = try copy_string(allocator, marker.color),
+        .comment = try copy_optional_string(allocator, marker.comment),
+    };
+}
+
+fn ser_markers_to_binary(
+    allocator: Allocator,
+    markers: []SerializableMarker,
+) ![]BinaryMarker {
+    if (markers.len == 0) {
+        return &.{};
+    }
+    var bin_markers = try allocator.alloc(BinaryMarker, markers.len);
+    for (markers, 0..) |marker, i| {
+        bin_markers[i] = try ser_marker_to_binary(allocator, marker);
+    }
+    return bin_markers;
+}
+
 fn ser_clip_to_binary(
     allocator: Allocator,
     clip: SerializableClip,
@@ -772,6 +833,7 @@ fn ser_clip_to_binary(
         .bounds_s = if (clip.bounds_s) |b| ser_bounds_to_binary(b) else null,
         .media = try ser_media_ref_to_binary(allocator, clip.media),
         .metadata_hash = try copy_optional_string(allocator, clip.metadata_hash),
+        .markers = try ser_markers_to_binary(allocator, clip.markers),
     };
 }
 
@@ -782,6 +844,7 @@ fn ser_gap_to_binary(
     return .{
         .name = try copy_optional_string(allocator, gap.name),
         .bounds_s = gap.bounds_s,
+        .markers = try ser_markers_to_binary(allocator, gap.markers),
     };
 }
 
@@ -812,6 +875,7 @@ fn ser_track_to_binary(
         .name = try copy_optional_string(allocator, track.name),
         .bounds_s = if (track.bounds_s) |b| ser_bounds_to_binary(b) else null,
         .children = children,
+        .markers = try ser_markers_to_binary(allocator, track.markers),
     };
 }
 
@@ -828,6 +892,7 @@ fn ser_stack_to_binary(
         .name = try copy_optional_string(allocator, stack.name),
         .bounds_s = if (stack.bounds_s) |b| ser_bounds_to_binary(b) else null,
         .children = children,
+        .markers = try ser_markers_to_binary(allocator, stack.markers),
     };
 }
 
@@ -933,6 +998,7 @@ pub fn serializable_timeline_to_binary(
             } else null,
         },
         .metadata_map = metadata_map,
+        .markers = try ser_markers_to_binary(allocator, ser_timeline.markers),
     };
 }
 
@@ -1115,6 +1181,20 @@ fn binary_to_media_data_ref(
                     .duration_s = sampling.sample_ordinate_t.init(1.0), // Default duration
                     .signal = .sine, // Default signal type
                 },
+            },
+        },
+        .image_sequence => |img_seq| .{
+            .image_sequence = .{
+                .target_url_base = try allocator.dupe(u8, img_seq.target_url_base),
+                .name_prefix = try allocator.dupe(u8, img_seq.name_prefix),
+                .name_suffix = try allocator.dupe(u8, img_seq.name_suffix),
+                .start_frame = img_seq.start_frame,
+                .frame_step = img_seq.frame_step,
+                .frame_zero_padding = img_seq.frame_zero_padding,
+                .rate = img_seq.rate,
+                .missing_frame_policy = schema.MissingFramePolicy.from_string(
+                    img_seq.missing_frame_policy
+                ) orelse .@"error",
             },
         },
         .null => .{ .null = {} },
@@ -1428,6 +1508,18 @@ fn binary_to_ser_media_data_ref(
                 .signal_generator = .{ .sine = .{ .frequency_hz = sig_ref.frequency_hz } },
             },
         },
+        .image_sequence => |img_seq| .{
+            .image_sequence = .{
+                .target_url_base = try allocator.dupe(u8, img_seq.target_url_base),
+                .name_prefix = try allocator.dupe(u8, img_seq.name_prefix),
+                .name_suffix = try allocator.dupe(u8, img_seq.name_suffix),
+                .start_frame = img_seq.start_frame,
+                .frame_step = img_seq.frame_step,
+                .frame_zero_padding = img_seq.frame_zero_padding,
+                .rate = img_seq.rate,
+                .missing_frame_policy = try allocator.dupe(u8, img_seq.missing_frame_policy),
+            },
+        },
         .null => .{ .null = .{} },
     };
 }
@@ -1451,6 +1543,32 @@ fn binary_to_ser_media_ref(
     };
 }
 
+fn binary_to_ser_marker(
+    allocator: Allocator,
+    marker: BinaryMarker,
+) !SerializableMarker {
+    return .{
+        .name = if (marker.name) |n| try allocator.dupe(u8, n) else null,
+        .marked_range = marker.marked_range,
+        .color = try allocator.dupe(u8, marker.color),
+        .comment = if (marker.comment) |c| try allocator.dupe(u8, c) else null,
+    };
+}
+
+fn binary_to_ser_markers(
+    allocator: Allocator,
+    markers: []BinaryMarker,
+) ![]SerializableMarker {
+    if (markers.len == 0) {
+        return &.{};
+    }
+    var ser_markers = try allocator.alloc(SerializableMarker, markers.len);
+    for (markers, 0..) |marker, i| {
+        ser_markers[i] = try binary_to_ser_marker(allocator, marker);
+    }
+    return ser_markers;
+}
+
 fn binary_to_ser_clip(
     allocator: Allocator,
     clip: BinaryClip,
@@ -1460,6 +1578,7 @@ fn binary_to_ser_clip(
         .bounds_s = if (clip.bounds_s) |b| binary_to_ser_bounds(b) else null,
         .media = try binary_to_ser_media_ref(allocator, clip.media),
         .metadata_hash = if (clip.metadata_hash) |h| try allocator.dupe(u8, h) else null,
+        .markers = try binary_to_ser_markers(allocator, clip.markers),
     };
 }
 
@@ -1470,6 +1589,7 @@ fn binary_to_ser_gap(
     return .{
         .name = if (gap.name) |n| try allocator.dupe(u8, n) else null,
         .bounds_s = gap.bounds_s,
+        .markers = try binary_to_ser_markers(allocator, gap.markers),
     };
 }
 
@@ -1499,6 +1619,7 @@ fn binary_to_ser_track(
         .name = if (track.name) |n| try allocator.dupe(u8, n) else null,
         .bounds_s = if (track.bounds_s) |b| binary_to_ser_bounds(b) else null,
         .children = children,
+        .markers = try binary_to_ser_markers(allocator, track.markers),
     };
 }
 
@@ -1514,6 +1635,7 @@ fn binary_to_ser_stack(
         .name = if (stack.name) |n| try allocator.dupe(u8, n) else null,
         .bounds_s = if (stack.bounds_s) |b| binary_to_ser_bounds(b) else null,
         .children = children,
+        .markers = try binary_to_ser_markers(allocator, stack.markers),
     };
 }
 
@@ -1615,6 +1737,7 @@ pub fn binary_to_serializable_timeline(
                 null,
         },
         .metadata_map = metadata_map,
+        .markers = try binary_to_ser_markers(allocator, bin_timeline.markers),
     };
 }
 

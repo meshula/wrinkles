@@ -9,6 +9,8 @@
                 .container = {
                     .children = [
                     ],
+                    .markers = [
+                    ],
                 },
                 .kind = "SMPTE_Dissolve",
             },
@@ -26,11 +28,15 @@
                         .start_index = 0,
                     },
                 },
+                .markers = [
+                ],
             },
             transition {
                 .name = "t1",
                 .container = {
                     .children = [
+                    ],
+                    .markers = [
                     ],
                 },
                 .kind = "SMPTE_Dissolve",
@@ -49,6 +55,8 @@
                         .start_index = 0,
                     },
                 },
+                .markers = [
+                ],
             },
             clip {
                 .name = "C",
@@ -64,16 +72,24 @@
                         .start_index = 0,
                     },
                 },
+                .markers = [
+                ],
             },
             transition {
                 .name = "t3",
                 .container = {
                     .children = [
                     ],
+                    .markers = [
+                    ],
                 },
                 .kind = "SMPTE_Dissolve",
             },
         ],
+        .markers = [
+        ],
     },
 ],
 .presentation_space_discrete_partitions = {},
+.markers = [
+],

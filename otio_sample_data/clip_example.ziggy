@@ -10,6 +10,8 @@
                     0.0,
                     0.3333333333333333,
                 ],
+                .markers = [
+                ],
             },
             clip {
                 .name = "Clip-001",
@@ -25,11 +27,15 @@
                         .start_index = 0,
                     },
                 },
+                .markers = [
+                ],
             },
             transition {
                 .name = "Dissolve",
                 .container = {
                     .children = [
+                    ],
+                    .markers = [
                     ],
                 },
                 .kind = "SMPTE_Dissolve",
@@ -40,8 +46,14 @@
                     0.0,
                     0.3333333333333333,
                 ],
+                .markers = [
+                ],
             },
+        ],
+        .markers = [
         ],
     },
 ],
 .presentation_space_discrete_partitions = {},
+.markers = [
+],

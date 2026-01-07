@@ -10,6 +10,11 @@
             .{ .name = "bounds", .type = .{ .table = .{ .name = "ottla.Bounds" } } },
             .{ .name = "media", .type = .{ .table = .{ .name = "ottla.MediaReference" } } },
             .{ .name = "metadata_hash", .type = .string },
+            .{ .name = "markers", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .table = .{ .name = "ottla.Marker" } },
+                .minalign = 4,
+            } } },
         } },
         .{ .name = "ottla.ComposableWrapper", .fields = .{
             .{ .name = "comp_type", .type = .{ .@"enum" = .{ .name = "ottla.ComposableType" } } },
@@ -26,6 +31,37 @@
             .{ .name = "name", .type = .string },
             .{ .name = "bounds_start", .type = .{ .float = .f64 } },
             .{ .name = "bounds_end", .type = .{ .float = .f64 } },
+            .{ .name = "markers", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .table = .{ .name = "ottla.Marker" } },
+                .minalign = 4,
+            } } },
+        } },
+        .{ .name = "ottla.ImageSequenceReference", .fields = .{
+            .{
+                .name = "target_url_base",
+                .type = .string,
+                .required = true,
+            },
+            .{ .name = "name_prefix", .type = .string },
+            .{ .name = "name_suffix", .type = .string },
+            .{
+                .name = "start_frame",
+                .type = .{ .int = .i32 },
+                .default_integer = 1,
+            },
+            .{
+                .name = "frame_step",
+                .type = .{ .int = .i32 },
+                .default_integer = 1,
+            },
+            .{ .name = "frame_zero_padding", .type = .{ .int = .u8 } },
+            .{
+                .name = "rate",
+                .type = .{ .float = .f64 },
+                .default_real = 24,
+            },
+            .{ .name = "missing_frame_policy", .type = .string },
         } },
         .{ .name = "ottla.IntRate", .fields = .{.{ .name = "value", .type = .{ .int = .u32 } }} },
         .{ .name = "ottla.LinearRampSignal", .fields = .{} },
@@ -47,6 +83,17 @@
             .{ .name = "mapping_type", .type = .{ .@"enum" = .{ .name = "ottla.MappingType" } } },
             .{ .name = "affine", .type = .{ .table = .{ .name = "ottla.MappingAffine" } } },
             .{ .name = "linear", .type = .{ .table = .{ .name = "ottla.MappingLinear" } } },
+        } },
+        .{ .name = "ottla.Marker", .fields = .{
+            .{ .name = "name", .type = .string },
+            .{ .name = "marked_range_start", .type = .{ .float = .f64 } },
+            .{ .name = "marked_range_end", .type = .{ .float = .f64 } },
+            .{
+                .name = "color",
+                .type = .string,
+                .required = true,
+            },
+            .{ .name = "comment", .type = .string },
         } },
         .{ .name = "ottla.MediaReference", .fields = .{
             .{ .name = "data_reference_type", .type = .{ .@"union" = .{ .name = "ottla.MediaDataReference" } } },
@@ -177,6 +224,11 @@
                 .element = .{ .table = .{ .name = "ottla.ComposableWrapper" } },
                 .minalign = 4,
             } } },
+            .{ .name = "markers", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .table = .{ .name = "ottla.Marker" } },
+                .minalign = 4,
+            } } },
         } },
         .{ .name = "ottla.Timeline", .fields = .{
             .{
@@ -192,6 +244,11 @@
             } } },
             .{ .name = "presentation_space_discrete_partitions", .type = .{ .table = .{ .name = "ottla.DiscretePartitionDomainMap" } } },
             .{ .name = "metadata_map", .type = .{ .table = .{ .name = "ottla.MetadataMap" } } },
+            .{ .name = "markers", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .table = .{ .name = "ottla.Marker" } },
+                .minalign = 4,
+            } } },
         } },
         .{ .name = "ottla.Topology", .fields = .{.{ .name = "mappings", .type = .{ .vector = .{
             .element_size = 4,
@@ -204,6 +261,11 @@
             .{ .name = "children", .type = .{ .vector = .{
                 .element_size = 4,
                 .element = .{ .table = .{ .name = "ottla.ComposableWrapper" } },
+                .minalign = 4,
+            } } },
+            .{ .name = "markers", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .table = .{ .name = "ottla.Marker" } },
                 .minalign = 4,
             } } },
         } },
@@ -295,6 +357,7 @@
         .{ .name = "ottla.MediaDataReference", .options = .{
             .{ .table = .{ .name = "ottla.URIReference" } },
             .{ .table = .{ .name = "ottla.SignalReference" } },
+            .{ .table = .{ .name = "ottla.ImageSequenceReference" } },
             .{ .table = .{ .name = "ottla.NullReference" } },
         } },
         .{ .name = "ottla.RateSpecifier", .options = .{ .{ .table = .{ .name = "ottla.IntRate" } }, .{ .table = .{ .name = "ottla.RationalRate" } } } },

@@ -96,11 +96,34 @@ table Bounds {
 }
 
 // =============================================================================
+// Markers
+// =============================================================================
+
+table Marker {
+    name: string;
+    marked_range_start: double;
+    marked_range_end: double;
+    color: string (required);
+    comment: string;
+}
+
+// =============================================================================
 // Media References
 // =============================================================================
 
 table URIReference {
     target_uri: string (required);
+}
+
+table ImageSequenceReference {
+    target_url_base: string (required);
+    name_prefix: string;
+    name_suffix: string;
+    start_frame: int32 = 1;
+    frame_step: int32 = 1;
+    frame_zero_padding: ubyte = 0;
+    rate: double = 24.0;
+    missing_frame_policy: string;
 }
 
 table SineSignal {
@@ -128,6 +151,7 @@ table NullReference {
 union MediaDataReference {
     URIReference,
     SignalReference,
+    ImageSequenceReference,
     NullReference,
 }
 
@@ -199,12 +223,14 @@ table Clip {
     bounds: Bounds;
     media: MediaReference;
     metadata_hash: string;
+    markers: [Marker];
 }
 
 table Gap {
     name: string;
     bounds_start: double;
     bounds_end: double;
+    markers: [Marker];
 }
 
 // Forward declare these as they reference Composable
@@ -212,12 +238,14 @@ table Track {
     name: string;
     bounds: Bounds;
     children: [ComposableWrapper];
+    markers: [Marker];
 }
 
 table Stack {
     name: string;
     bounds: Bounds;
     children: [ComposableWrapper];
+    markers: [Marker];
 }
 
 table Warp {
@@ -361,6 +389,7 @@ table Timeline {
     presentation_space_discrete_partitions: DiscretePartitionDomainMap;
     // Single-table columnar metadata format (minimal vtable overhead)
     metadata_map: MetadataMap;
+    markers: [Marker];
 }
 
 // Root type declaration (must be after Timeline definition)

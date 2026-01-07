@@ -94,6 +94,7 @@ pub const SerializableDomain = union(enum) {
 pub const SerializableMediaDataReference = union(enum) {
     uri: SerializableURIReference,
     signal: SerializableSignalReference,
+    image_sequence: SerializableImageSequenceReference,
     null: struct {},
 
     /// Free memory owned by the SerializableMediaDataReference.
@@ -104,6 +105,7 @@ pub const SerializableMediaDataReference = union(enum) {
     {
         switch (self) {
             .uri => |uri_ref| allocator.free(uri_ref.target_uri),
+            .image_sequence => |img_seq| img_seq.deinit(allocator),
             .signal, .null => {},
         }
     }
@@ -115,6 +117,32 @@ pub const SerializableURIReference = struct {
 
 pub const SerializableSignalReference = struct {
     signal_generator: SerializableSignalGenerator,
+};
+
+pub const SerializableImageSequenceReference = struct {
+    target_url_base: []const u8,
+    name_prefix: []const u8 = "",
+    name_suffix: []const u8 = "",
+    start_frame: i32 = 1,
+    frame_step: i32 = 1,
+    frame_zero_padding: u8 = 0,
+    rate: f64 = 24.0,
+    missing_frame_policy: []const u8 = "error",
+
+    pub fn deinit(
+        self: @This(),
+        allocator: Allocator,
+    ) void
+    {
+        allocator.free(self.target_url_base);
+        if (self.name_prefix.len > 0) {
+            allocator.free(self.name_prefix);
+        }
+        if (self.name_suffix.len > 0) {
+            allocator.free(self.name_suffix);
+        }
+        allocator.free(self.missing_frame_policy);
+    }
 };
 
 pub const SerializableSignalGenerator = union(enum) {
@@ -150,6 +178,7 @@ pub const SerializableClip = struct {
     media: SerializableMediaReference,
     /// Wyhash key referencing an entry in the Timeline's metadata_map
     metadata_hash: ?[]const u8 = null,
+    markers: []SerializableMarker = &.{},
 };
 
 /// Serializable variant of Clip with inline metadata (for --inline-metadata output)
@@ -172,6 +201,25 @@ pub const SerializableClipNoMetadata = struct {
 pub const SerializableGap = struct {
     name: ?[]const u8 = null,
     bounds_s: SerializableContinuousInterval,
+    markers: []SerializableMarker = &.{},
+};
+
+/// Serializable variant of Marker
+pub const SerializableMarker = struct {
+    name: ?[]const u8 = null,
+    marked_range: SerializableContinuousInterval,
+    color: []const u8,
+    comment: ?[]const u8 = null,
+
+    pub fn deinit(
+        self: @This(),
+        allocator: Allocator,
+    ) void
+    {
+        if (self.name) |n| allocator.free(n);
+        allocator.free(self.color);
+        if (self.comment) |c| allocator.free(c);
+    }
 };
 
 /// Serializable variant of Mapping
@@ -302,6 +350,7 @@ pub const SerializableStack = struct {
     name: ?[]const u8 = null,
     bounds_s: ?SerializableBounds = null,
     children: []SerializableComposable,
+    markers: []SerializableMarker = &.{},
 };
 
 /// Serializable variant of Track
@@ -309,6 +358,7 @@ pub const SerializableTrack = struct {
     name: ?[]const u8 = null,
     bounds_s: ?SerializableBounds = null,
     children: []SerializableComposable,
+    markers: []SerializableMarker = &.{},
 };
 
 /// Serializable variant of Transition
@@ -393,6 +443,7 @@ pub const SerializableTimeline = struct {
     /// Maps metadata hash keys to their metadata dictionaries.
     /// Optional so empty maps can be omitted from serialization.
     metadata_map: ?MetadataMap = null,
+    markers: []SerializableMarker = &.{},
 
     pub fn deinit(
         self: *@This(),
@@ -437,6 +488,7 @@ pub const SerializableTimelineNoMetadata = struct {
     presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
     /// This field will be skipped during parsing (always null when using this type)
     metadata_map: ?MetadataMap = null,
+    markers: []SerializableMarker = &.{},
 
     pub fn deinit(
         self: *@This(),
@@ -456,6 +508,13 @@ pub const SerializableTimelineNoMetadata = struct {
         }
         allocator.free(self.children);
 
+        for (self.markers)
+            |marker|
+        {
+            marker.deinit(allocator);
+        }
+        allocator.free(self.markers);
+
         // metadata_map is always null when using this type
     }
 
@@ -467,6 +526,7 @@ pub const SerializableTimelineNoMetadata = struct {
             .children = self.children,
             .presentation_space_discrete_partitions = self.presentation_space_discrete_partitions,
             .metadata_map = null, // Always null
+            .markers = self.markers,
         };
     }
 };
@@ -947,6 +1007,36 @@ fn serializable_to_optional_interval(
     return null;
 }
 
+/// Convert SerializableMarker to schema.Marker
+fn serializable_to_marker(
+    allocator: Allocator,
+    ser_marker: SerializableMarker,
+) !schema.Marker
+{
+    return .{
+        .maybe_name = try copy_optional_string(allocator, ser_marker.name),
+        .marked_range = serializable_to_interval(ser_marker.marked_range),
+        .color = schema.MarkerColor.from_string(ser_marker.color) orelse .red,
+        .maybe_comment = try copy_optional_string(allocator, ser_marker.comment),
+    };
+}
+
+/// Convert array of SerializableMarker to schema.Marker
+fn serializable_to_markers(
+    allocator: Allocator,
+    ser_markers: []SerializableMarker,
+) ![]schema.Marker
+{
+    if (ser_markers.len == 0) {
+        return try allocator.alloc(schema.Marker, 0);
+    }
+    var markers = try allocator.alloc(schema.Marker, ser_markers.len);
+    for (ser_markers, 0..) |ser_marker, i| {
+        markers[i] = try serializable_to_marker(allocator, ser_marker);
+    }
+    return markers;
+}
+
 // ----------------------------------------------------------------------------
 // Conversion Functions: Schema → Serializable
 // ----------------------------------------------------------------------------
@@ -985,9 +1075,15 @@ pub fn media_data_reference_to_serializable(
             },
         },
         .image_sequence => |img_seq| .{
-            // For now, serialize image_sequence as a URI with the base path
-            .uri = .{
-                .target_uri = try copy_string(allocator, img_seq.target_url_base),
+            .image_sequence = .{
+                .target_url_base = try copy_string(allocator, img_seq.target_url_base),
+                .name_prefix = try copy_string(allocator, img_seq.name_prefix),
+                .name_suffix = try copy_string(allocator, img_seq.name_suffix),
+                .start_frame = img_seq.start_frame,
+                .frame_step = img_seq.frame_step,
+                .frame_zero_padding = img_seq.frame_zero_padding,
+                .rate = img_seq.rate,
+                .missing_frame_policy = try copy_string(allocator, img_seq.missing_frame_policy.to_string()),
             },
         },
         .null => .null,
@@ -1090,6 +1186,35 @@ pub fn mapping_to_serializable(
     };
 }
 
+fn marker_to_serializable(
+    allocator: Allocator,
+    marker: schema.Marker,
+) !SerializableMarker
+{
+    return .{
+        .name = try copy_optional_string(allocator, marker.maybe_name),
+        .marked_range = interval_to_serializable(marker.marked_range),
+        .color = try copy_string(allocator, marker.color.to_string()),
+        .comment = try copy_optional_string(allocator, marker.maybe_comment),
+    };
+}
+
+fn markers_to_serializable(
+    allocator: Allocator,
+    markers: []schema.Marker,
+) ![]SerializableMarker
+{
+    if (markers.len == 0) {
+        return &.{};
+    }
+
+    var ser_markers = try allocator.alloc(SerializableMarker, markers.len);
+    for (markers, 0..) |marker, i| {
+        ser_markers[i] = try marker_to_serializable(allocator, marker);
+    }
+    return ser_markers;
+}
+
 pub fn clip_to_serializable(
     allocator: Allocator,
     clip: schema.Clip,
@@ -1112,6 +1237,7 @@ pub fn clip_to_serializable(
         ),
         .media = try media_reference_to_serializable(allocator, clip.media),
         .metadata_hash = metadata_hash,
+        .markers = try markers_to_serializable(allocator, clip.markers),
     };
 }
 
@@ -1123,6 +1249,7 @@ pub fn gap_to_serializable(
     return .{
         .name = try copy_optional_string(allocator, gap.maybe_name),
         .bounds_s = interval_to_serializable(gap.bounds_s),
+        .markers = try markers_to_serializable(allocator, gap.markers),
     };
 }
 
@@ -1158,6 +1285,7 @@ pub fn track_to_serializable(
     return .{
         .name = try copy_optional_string(allocator, track.maybe_name),
         .children = ser_children,
+        .markers = try markers_to_serializable(allocator, track.markers),
     };
 }
 
@@ -1178,6 +1306,7 @@ pub fn stack_to_serializable(
     return .{
         .name = try copy_optional_string(allocator, stack.maybe_name),
         .children = ser_children,
+        .markers = try markers_to_serializable(allocator, stack.markers),
     };
 }
 
@@ -1256,6 +1385,7 @@ pub fn timeline_to_serializable(
         },
         // Only include metadata_map if it has entries
         .metadata_map = if (metadata_map.fields.count() > 0) metadata_map else null,
+        .markers = try markers_to_serializable(allocator, timeline.markers),
     };
 }
 
@@ -1362,6 +1492,20 @@ pub fn serializable_to_media_data_reference(
                     allocator,
                     sig_ref.signal_generator,
                 ),
+            },
+        },
+        .image_sequence => |img_seq| .{
+            .image_sequence = .{
+                .target_url_base = try copy_string(allocator, img_seq.target_url_base),
+                .name_prefix = try copy_string(allocator, img_seq.name_prefix),
+                .name_suffix = try copy_string(allocator, img_seq.name_suffix),
+                .start_frame = img_seq.start_frame,
+                .frame_step = img_seq.frame_step,
+                .frame_zero_padding = img_seq.frame_zero_padding,
+                .rate = img_seq.rate,
+                .missing_frame_policy = schema.MissingFramePolicy.from_string(
+                    img_seq.missing_frame_policy
+                ) orelse .@"error",
             },
         },
         .null => .null,
@@ -1474,6 +1618,7 @@ pub fn serializable_to_clip(
             media.maybe_discrete_partition,
         ),
         .media = media,
+        .markers = try serializable_to_markers(allocator, ser_clip.markers),
     };
     return clip_ptr;
 }
@@ -1487,6 +1632,7 @@ pub fn serializable_to_gap(
     gap_ptr.* = .{
         .maybe_name = try copy_optional_string(allocator, ser_gap.name),
         .bounds_s = serializable_to_interval(ser_gap.bounds_s),
+        .markers = try serializable_to_markers(allocator, ser_gap.markers),
     };
     return gap_ptr;
 }
@@ -1526,6 +1672,7 @@ pub fn serializable_to_track(
         .maybe_name = try copy_optional_string(allocator, ser_track.name),
         .maybe_bounds_s = try serializable_to_optional_bounds(ser_track.bounds_s, null),
         .children = children,
+        .markers = try serializable_to_markers(allocator, ser_track.markers),
     };
     return track_ptr;
 }
@@ -1551,6 +1698,7 @@ pub fn serializable_to_stack(
         .maybe_name = try copy_optional_string(allocator, ser_stack.name),
         .maybe_bounds_s = try serializable_to_optional_bounds(ser_stack.bounds_s, null),
         .children = children,
+        .markers = try serializable_to_markers(allocator, ser_stack.markers),
     };
     return stack_ptr;
 }

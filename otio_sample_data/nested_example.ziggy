@@ -18,6 +18,8 @@
                         .start_index = 0,
                     },
                 },
+                .markers = [
+                ],
             },
             stack {
                 .name = "Nested Stack 1",
@@ -36,7 +38,11 @@
                                 .start_index = 0,
                             },
                         },
+                        .markers = [
+                        ],
                     },
+                ],
+                .markers = [
                 ],
             },
             clip {
@@ -53,6 +59,8 @@
                         .start_index = 0,
                     },
                 },
+                .markers = [
+                ],
             },
             stack {
                 .name = "Nested Stack 2 (with effects)",
@@ -71,7 +79,11 @@
                                 .start_index = 0,
                             },
                         },
+                        .markers = [
+                        ],
                     },
+                ],
+                .markers = [
                 ],
             },
             clip {
@@ -88,6 +100,8 @@
                         .start_index = 0,
                     },
                 },
+                .markers = [
+                ],
             },
             track {
                 .name = "Nested Track",
@@ -106,7 +120,11 @@
                                 .start_index = 0,
                             },
                         },
+                        .markers = [
+                        ],
                     },
+                ],
+                .markers = [
                 ],
             },
             clip {
@@ -123,8 +141,14 @@
                         .start_index = 0,
                     },
                 },
+                .markers = [
+                ],
             },
+        ],
+        .markers = [
         ],
     },
 ],
 .presentation_space_discrete_partitions = {},
+.markers = [
+],

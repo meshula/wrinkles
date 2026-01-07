@@ -113,16 +113,51 @@ pub fn read_header(
 // Conversion Helpers: schema -> FlatBuffers
 // ----------------------------------------------------------------------------
 
+/// Convert schema.Marker to FlatBuffers Marker
+fn marker_to_fb(
+    builder: *flatbuffers.Builder,
+    marker: schema.Marker,
+) !ottla.Marker
+{
+    return try builder.writeTable(ottla.Marker, .{
+        .name = marker.maybe_name,
+        .marked_range_start = marker.marked_range.start.as(f64),
+        .marked_range_end = marker.marked_range.end.as(f64),
+        .color = marker.color.to_string(),
+        .comment = marker.maybe_comment,
+    });
+}
+
+/// Convert array of schema.Marker to FlatBuffers Marker vector
+fn markers_to_fb(
+    builder: *flatbuffers.Builder,
+    markers: []schema.Marker,
+) !?[]ottla.Marker
+{
+    if (markers.len == 0) {
+        return null;
+    }
+    var fb_markers = try builder.allocator.alloc(ottla.Marker, markers.len);
+    // Don't defer free - ownership transferred to caller
+
+    for (markers, 0..) |marker, i| {
+        fb_markers[i] = try marker_to_fb(builder, marker);
+    }
+    return fb_markers;
+}
+
 /// Convert schema.Gap to FlatBuffers Gap constructor
 fn gap_to_fb(
+    builder: *flatbuffers.Builder,
     gap: schema.Gap,
-) ottla.Gap.@"#constructor"
+) !ottla.Gap
 {
-    return .{
+    return try builder.writeTable(ottla.Gap, .{
         .name = gap.maybe_name,
         .bounds_start = gap.bounds_s.start.as(f64),
         .bounds_end = gap.bounds_s.end.as(f64),
-    };
+        .markers = try markers_to_fb(builder, gap.markers),
+    });
 }
 
 /// Convert RateSpecifier to FlatBuffers
@@ -745,6 +780,7 @@ fn serializable_composable_to_fb(
                 .name = gap.name,
                 .bounds_start = gap.bounds_s[0],
                 .bounds_end = gap.bounds_s[1],
+                .markers = try serializable_markers_to_fb(builder, gap.markers),
             }),
         }),
         .track => |track| try builder.writeTable(ottla.ComposableWrapper, .{
@@ -766,6 +802,39 @@ fn serializable_composable_to_fb(
     };
 }
 
+/// Convert SerializableMarker to FlatBuffers Marker
+fn serializable_marker_to_fb(
+    builder: *flatbuffers.Builder,
+    marker: serialization.SerializableMarker,
+) !ottla.Marker
+{
+    return try builder.writeTable(ottla.Marker, .{
+        .name = marker.name,
+        .marked_range_start = marker.marked_range[0],
+        .marked_range_end = marker.marked_range[1],
+        .color = marker.color,
+        .comment = marker.comment,
+    });
+}
+
+/// Convert array of SerializableMarker to FlatBuffers Marker vector
+fn serializable_markers_to_fb(
+    builder: *flatbuffers.Builder,
+    markers: []serialization.SerializableMarker,
+) !?[]ottla.Marker
+{
+    if (markers.len == 0) {
+        return null;
+    }
+    var fb_markers = try builder.allocator.alloc(ottla.Marker, markers.len);
+    // Don't defer free - ownership transferred to caller
+
+    for (markers, 0..) |marker, i| {
+        fb_markers[i] = try serializable_marker_to_fb(builder, marker);
+    }
+    return fb_markers;
+}
+
 /// Convert SerializableClip to FlatBuffers Clip
 fn serializable_clip_to_fb(
     builder: *flatbuffers.Builder,
@@ -778,6 +847,7 @@ fn serializable_clip_to_fb(
         .bounds = if (clip.bounds_s) |b| try serializable_bounds_to_fb(builder, b) else null,
         .media = try serializable_media_ref_to_fb(builder, allocator, clip.media),
         .metadata_hash = clip.metadata_hash,
+        .markers = try serializable_markers_to_fb(builder, clip.markers),
     });
 }
 
@@ -840,6 +910,11 @@ fn serializable_data_ref_to_fb(
                 }),
             };
         },
+        .image_sequence => .{
+            // TODO: Add proper ImageSequenceReference flatbuffer support
+            // For now, stub as NullReference
+            .NullReference = try builder.writeTable(ottla.NullReference, .{}),
+        },
         .null => .{ .NullReference = try builder.writeTable(ottla.NullReference, .{}) },
     };
 }
@@ -855,6 +930,7 @@ fn serializable_track_to_fb(
         return try builder.writeTable(ottla.Track, .{
             .name = track.name,
             .children = null,
+            .markers = try serializable_markers_to_fb(builder, track.markers),
         });
     }
 
@@ -869,6 +945,7 @@ fn serializable_track_to_fb(
     return try builder.writeTable(ottla.Track, .{
         .name = track.name,
         .children = children,
+        .markers = try serializable_markers_to_fb(builder, track.markers),
     });
 }
 
@@ -883,6 +960,7 @@ fn serializable_stack_to_fb(
         return try builder.writeTable(ottla.Stack, .{
             .name = stack.name,
             .children = null,
+            .markers = try serializable_markers_to_fb(builder, stack.markers),
         });
     }
 
@@ -897,6 +975,7 @@ fn serializable_stack_to_fb(
     return try builder.writeTable(ottla.Stack, .{
         .name = stack.name,
         .children = children,
+        .markers = try serializable_markers_to_fb(builder, stack.markers),
     });
 }
 
@@ -1059,6 +1138,7 @@ fn clip_to_fb(
             null,
         .media = try media_ref_to_fb(builder, clip.media),
         .metadata_hash = null, // TODO: handle metadata
+        .markers = try markers_to_fb(builder, clip.markers),
     });
 }
 
@@ -1083,6 +1163,7 @@ fn track_to_fb(
         .name = track.maybe_name,
         .bounds = null, // Track computes bounds dynamically
         .children = children.items,
+        .markers = try markers_to_fb(builder, track.markers),
     });
 }
 
@@ -1107,6 +1188,7 @@ fn stack_to_fb(
         .name = stack.maybe_name,
         .bounds = null, // Stack computes bounds dynamically
         .children = children.items,
+        .markers = try markers_to_fb(builder, stack.markers),
     });
 }
 
@@ -1124,7 +1206,7 @@ fn composable_handle_to_fb(
         }),
         .gap => |gap| try builder.writeTable(ottla.ComposableWrapper, .{
             .comp_type = .Gap,
-            .gap = try builder.writeTable(ottla.Gap, gap_to_fb(gap.*)),
+            .gap = try gap_to_fb(builder, gap.*),
         }),
         .track => |track| try builder.writeTable(ottla.ComposableWrapper, .{
             .comp_type = .Track,
@@ -1210,6 +1292,7 @@ fn fb_to_gap(
             .start = opentime.Ordinate.init(fb_gap.bounds_start()),
             .end = opentime.Ordinate.init(fb_gap.bounds_end()),
         },
+        .markers = try fb_to_markers(allocator, fb_gap.markers()),
     };
     return gap_ptr;
 }
@@ -1329,6 +1412,20 @@ fn fb_to_media_data_ref(
                     },
                 },
             };
+        },
+        .ImageSequenceReference => |img_seq| .{
+            .image_sequence = .{
+                .target_url_base = try allocator.dupe(u8, img_seq.target_url_base()),
+                .name_prefix = if (img_seq.name_prefix()) |p| try allocator.dupe(u8, p) else "",
+                .name_suffix = if (img_seq.name_suffix()) |s| try allocator.dupe(u8, s) else "",
+                .start_frame = img_seq.start_frame(),
+                .frame_step = img_seq.frame_step(),
+                .frame_zero_padding = img_seq.frame_zero_padding(),
+                .rate = img_seq.rate(),
+                .missing_frame_policy = schema.MissingFramePolicy.from_string(
+                    if (img_seq.missing_frame_policy()) |p| p else "error"
+                ) orelse .@"error",
+            },
         },
         .NullReference, .NONE => .{ .null = {} },
     };
@@ -1688,6 +1785,18 @@ fn fb_to_serializable_data_ref(
                 .signal = .{ .signal_generator = signal_gen },
             };
         },
+        .ImageSequenceReference => |img_seq| .{
+            .image_sequence = .{
+                .target_url_base = img_seq.target_url_base(),
+                .name_prefix = if (img_seq.name_prefix()) |p| p else "",
+                .name_suffix = if (img_seq.name_suffix()) |s| s else "",
+                .start_frame = img_seq.start_frame(),
+                .frame_step = img_seq.frame_step(),
+                .frame_zero_padding = img_seq.frame_zero_padding(),
+                .rate = img_seq.rate(),
+                .missing_frame_policy = if (img_seq.missing_frame_policy()) |p| p else "error",
+            },
+        },
         .NullReference, .NONE => .{ .null = .{} },
     };
 }
@@ -1739,6 +1848,80 @@ fn fb_to_serializable_media_ref(
     };
 }
 
+/// Convert FlatBuffers Marker to SerializableMarker
+fn fb_to_serializable_marker(
+    allocator: Allocator,
+    fb_marker: ottla.Marker,
+) !serialization.SerializableMarker
+{
+    return .{
+        .name = if (fb_marker.name()) |n| try allocator.dupe(u8, n) else null,
+        .marked_range = [2]f64{
+            fb_marker.marked_range_start(),
+            fb_marker.marked_range_end(),
+        },
+        .color = try allocator.dupe(u8, fb_marker.color()),
+        .comment = if (fb_marker.comment()) |c| try allocator.dupe(u8, c) else null,
+    };
+}
+
+/// Convert FlatBuffers Marker vector to SerializableMarker array
+fn fb_to_serializable_markers(
+    allocator: Allocator,
+    fb_markers: ?flatbuffers.Vector(ottla.Marker),
+) ![]serialization.SerializableMarker
+{
+    if (fb_markers) |markers| {
+        const len = markers.len();
+        if (len == 0) {
+            return &.{};
+        }
+        var result = try allocator.alloc(serialization.SerializableMarker, len);
+        for (0..len) |i| {
+            result[i] = try fb_to_serializable_marker(allocator, markers.get(i));
+        }
+        return result;
+    }
+    return &.{};
+}
+
+/// Convert FlatBuffers Marker to schema.Marker
+fn fb_to_marker(
+    allocator: Allocator,
+    fb_marker: ottla.Marker,
+) !schema.Marker
+{
+    return .{
+        .maybe_name = if (fb_marker.name()) |n| try allocator.dupe(u8, n) else null,
+        .marked_range = .{
+            .start = opentime.Ordinate.init(fb_marker.marked_range_start()),
+            .end = opentime.Ordinate.init(fb_marker.marked_range_end()),
+        },
+        .color = schema.MarkerColor.from_string(fb_marker.color()) orelse .red,
+        .maybe_comment = if (fb_marker.comment()) |c| try allocator.dupe(u8, c) else null,
+    };
+}
+
+/// Convert FlatBuffers Marker vector to schema.Marker array
+fn fb_to_markers(
+    allocator: Allocator,
+    fb_markers: ?flatbuffers.Vector(ottla.Marker),
+) ![]schema.Marker
+{
+    if (fb_markers) |markers| {
+        const len = markers.len();
+        if (len == 0) {
+            return try allocator.alloc(schema.Marker, 0);
+        }
+        var result = try allocator.alloc(schema.Marker, len);
+        for (0..len) |i| {
+            result[i] = try fb_to_marker(allocator, markers.get(i));
+        }
+        return result;
+    }
+    return try allocator.alloc(schema.Marker, 0);
+}
+
 /// Convert FlatBuffers Clip to SerializableClip
 fn fb_to_serializable_clip(
     allocator: Allocator,
@@ -1755,6 +1938,7 @@ fn fb_to_serializable_clip(
             .discrete_partition = null,
         },
         .metadata_hash = if (fb_clip.metadata_hash()) |h| try allocator.dupe(u8, h) else null,
+        .markers = try fb_to_serializable_markers(allocator, fb_clip.markers()),
     };
 }
 
@@ -1767,6 +1951,7 @@ fn fb_to_serializable_gap(
     return .{
         .name = if (fb_gap.name()) |n| try allocator.dupe(u8, n) else null,
         .bounds_s = .{ fb_gap.bounds_start(), fb_gap.bounds_end() },
+        .markers = try fb_to_serializable_markers(allocator, fb_gap.markers()),
     };
 }
 
@@ -1786,6 +1971,7 @@ fn fb_to_serializable_track(
     return .{
         .name = if (fb_track.name()) |n| try allocator.dupe(u8, n) else null,
         .children = try children.toOwnedSlice(allocator),
+        .markers = try fb_to_serializable_markers(allocator, fb_track.markers()),
     };
 }
 
@@ -1805,6 +1991,7 @@ fn fb_to_serializable_stack(
     return .{
         .name = if (fb_stack.name()) |n| try allocator.dupe(u8, n) else null,
         .children = try children.toOwnedSlice(allocator),
+        .markers = try fb_to_serializable_markers(allocator, fb_stack.markers()),
     };
 }
 
@@ -2007,6 +2194,7 @@ fn fb_to_clip(
         else
             null,
         .media = media,
+        .markers = try fb_to_markers(allocator, fb_clip.markers()),
     };
     return clip_ptr;
 }
@@ -2130,6 +2318,7 @@ fn fb_to_track(
         else
             null,
         .children = try children_list.toOwnedSlice(allocator),
+        .markers = try fb_to_markers(allocator, fb_track.markers()),
     };
 
     return track_ptr;
@@ -2164,6 +2353,7 @@ fn fb_to_stack(
         else
             null,
         .children = try children_list.toOwnedSlice(allocator),
+        .markers = try fb_to_markers(allocator, fb_stack.markers()),
     };
 
     return stack_ptr;

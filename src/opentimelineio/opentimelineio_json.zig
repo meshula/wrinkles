@@ -584,6 +584,212 @@ inline fn read_children(
     return new_children;
 }
 
+fn read_media_reference(
+    allocator: std.mem.Allocator,
+    media_ref_obj: std.json.ObjectMap,
+) !otio.schema.MediaReference
+{
+    // Read OTIO_SCHEMA to determine reference type
+    const schema = if (media_ref_obj.get("OTIO_SCHEMA")) |schema_val|
+        switch (schema_val) {
+            .string => |s| s,
+            else => return otio.schema.MediaReference.null_picture,
+        }
+    else
+        return otio.schema.MediaReference.null_picture;
+
+    // Parse ImageSequenceReference
+    if (std.mem.startsWith(u8, schema, "ImageSequenceReference")) {
+        const target_url_base = if (media_ref_obj.get("target_url_prefix")) |val|
+            switch (val) {
+                .string => |s| try allocator.dupe(u8, s),
+                else => try allocator.dupe(u8, ""),
+            }
+        else
+            try allocator.dupe(u8, "");
+
+        const name_prefix = if (media_ref_obj.get("name_prefix")) |val|
+            switch (val) {
+                .string => |s| try allocator.dupe(u8, s),
+                else => try allocator.dupe(u8, ""),
+            }
+        else
+            try allocator.dupe(u8, "");
+
+        const name_suffix = if (media_ref_obj.get("name_suffix")) |val|
+            switch (val) {
+                .string => |s| try allocator.dupe(u8, s),
+                else => try allocator.dupe(u8, ""),
+            }
+        else
+            try allocator.dupe(u8, "");
+
+        const start_frame = if (media_ref_obj.get("start_frame")) |val|
+            switch (val) {
+                .integer => |i| @as(i32, @intCast(i)),
+                else => @as(i32, 1),
+            }
+        else
+            @as(i32, 1);
+
+        const frame_step = if (media_ref_obj.get("frame_step")) |val|
+            switch (val) {
+                .integer => |i| @as(i32, @intCast(i)),
+                else => @as(i32, 1),
+            }
+        else
+            @as(i32, 1);
+
+        const frame_zero_padding = if (media_ref_obj.get("frame_zero_padding")) |val|
+            switch (val) {
+                .integer => |i| @as(u8, @intCast(i)),
+                else => @as(u8, 0),
+            }
+        else
+            @as(u8, 0);
+
+        const rate = if (media_ref_obj.get("rate")) |val|
+            switch (val) {
+                .float => |f| f,
+                .integer => |i| @as(f64, @floatFromInt(i)),
+                else => 24.0,
+            }
+        else
+            24.0;
+
+        const missing_frame_policy_str = if (media_ref_obj.get("missing_frame_policy")) |val|
+            switch (val) {
+                .string => |s| s,
+                else => "error",
+            }
+        else
+            "error";
+
+        const missing_frame_policy = otio.schema.MissingFramePolicy.from_string(missing_frame_policy_str) orelse .@"error";
+
+        // Read available_range to get bounds
+        const maybe_bounds = if (media_ref_obj.get("available_range")) |ar_val|
+            switch (ar_val) {
+                .object => |ar_obj| read_time_range(ar_obj),
+                else => null,
+            }
+        else
+            null;
+
+        return .{
+            .data_reference = .{
+                .image_sequence = .{
+                    .target_url_base = target_url_base,
+                    .name_prefix = name_prefix,
+                    .name_suffix = name_suffix,
+                    .start_frame = start_frame,
+                    .frame_step = frame_step,
+                    .frame_zero_padding = frame_zero_padding,
+                    .rate = rate,
+                    .missing_frame_policy = missing_frame_policy,
+                },
+            },
+            .maybe_bounds_s = maybe_bounds,
+            .domain = .picture,
+        };
+    }
+
+    // Parse ExternalReference (URI)
+    if (std.mem.startsWith(u8, schema, "ExternalReference")) {
+        const target_url = if (media_ref_obj.get("target_url")) |val|
+            switch (val) {
+                .string => |s| try allocator.dupe(u8, s),
+                else => try allocator.dupe(u8, ""),
+            }
+        else
+            try allocator.dupe(u8, "");
+
+        const maybe_bounds = if (media_ref_obj.get("available_range")) |ar_val|
+            switch (ar_val) {
+                .object => |ar_obj| read_time_range(ar_obj),
+                else => null,
+            }
+        else
+            null;
+
+        return .{
+            .data_reference = .{ .uri = .{ .target_uri = target_url } },
+            .maybe_bounds_s = maybe_bounds,
+            .domain = .picture,
+        };
+    }
+
+    // Default to null reference
+    return otio.schema.MediaReference.null_picture;
+}
+
+fn read_markers(
+    allocator: std.mem.Allocator,
+    markers_array: std.json.Array,
+) ![]otio.Marker
+{
+    if (markers_array.items.len == 0) {
+        return try allocator.alloc(otio.Marker, 0);
+    }
+
+    var markers = try allocator.alloc(otio.Marker, markers_array.items.len);
+    errdefer allocator.free(markers);
+
+    for (markers_array.items, 0..) |marker_val, i| {
+        const marker_obj = switch (marker_val) {
+            .object => |o| o,
+            else => continue,
+        };
+
+        // Read marker name
+        const maybe_name = if (marker_obj.get("name")) |name_val|
+            switch (name_val) {
+                .string => |s| if (s.len > 0) try allocator.dupe(u8, s) else null,
+                .null => null,
+                else => null,
+            }
+        else
+            null;
+
+        // Read marked_range
+        const marked_range = if (marker_obj.get("marked_range")) |range_val|
+            switch (range_val) {
+                .object => |range_obj| read_time_range(range_obj) orelse opentime.ContinuousInterval.init(.{ .start = 0, .end = 0 }),
+                else => opentime.ContinuousInterval.init(.{ .start = 0, .end = 0 }),
+            }
+        else
+            opentime.ContinuousInterval.init(.{ .start = 0, .end = 0 });
+
+        // Read color
+        const color = if (marker_obj.get("color")) |color_val|
+            switch (color_val) {
+                .string => |s| otio.MarkerColor.from_string(s) orelse .red,
+                else => .red,
+            }
+        else
+            .red;
+
+        // Read comment (optional)
+        const maybe_comment = if (marker_obj.get("comment")) |comment_val|
+            switch (comment_val) {
+                .string => |s| if (s.len > 0) try allocator.dupe(u8, s) else null,
+                .null => null,
+                else => null,
+            }
+        else
+            null;
+
+        markers[i] = .{
+            .maybe_name = maybe_name,
+            .marked_range = marked_range,
+            .color = color,
+            .maybe_comment = maybe_comment,
+        };
+    }
+
+    return markers;
+}
+
 fn read_otio_object(
     allocator: std.mem.Allocator,
     obj: std.json.ObjectMap,
@@ -680,21 +886,41 @@ fn read_otio_object(
                 }
             }
 
+            // Read markers if present
+            const markers = if (obj.get("markers")) |markers_val|
+                switch (markers_val) {
+                    .array => |arr| try read_markers(allocator, arr),
+                    else => try allocator.alloc(otio.Marker, 0),
+                }
+            else
+                try allocator.alloc(otio.Marker, 0);
+
             tl.* = .{
                 .maybe_name = maybe_name,
                 .tracks = st,
                 .discrete_space_partitions = .{
                     .presentation = ddp,
                 },
+                .markers = markers,
             };
             allocator.destroy(so_stack.stack);
             return .{ .timeline = tl };
         },
         .Stack => {
+            // Read markers if present
+            const markers = if (obj.get("markers")) |markers_val|
+                switch (markers_val) {
+                    .array => |arr| try read_markers(allocator, arr),
+                    else => try allocator.alloc(otio.Marker, 0),
+                }
+            else
+                try allocator.alloc(otio.Marker, 0);
+
             var st = try allocator.create(otio.Stack);
             st.* = otio.Stack{
                 .maybe_name = maybe_name,
                 .children = &.{},
+                .markers = markers,
             };
 
             if (obj.get("children"))
@@ -710,10 +936,20 @@ fn read_otio_object(
             return .{ .stack = st };
         },
         .Track => {
+            // Read markers if present
+            const markers = if (obj.get("markers")) |markers_val|
+                switch (markers_val) {
+                    .array => |arr| try read_markers(allocator, arr),
+                    else => try allocator.alloc(otio.Marker, 0),
+                }
+            else
+                try allocator.alloc(otio.Marker, 0);
+
             var tr = try allocator.create(otio.Track);
             tr.* = otio.Track{
                 .maybe_name = maybe_name,
                 .children = &.{},
+                .markers = markers,
             };
 
             if (obj.get("children"))
@@ -749,32 +985,61 @@ fn read_otio_object(
                 break :blk null;
             } else null;
 
+            // Read markers if present
+            const markers = if (obj.get("markers")) |markers_val|
+                switch (markers_val) {
+                    .array => |arr| try read_markers(allocator, arr),
+                    else => try allocator.alloc(otio.Marker, 0),
+                }
+            else
+                try allocator.alloc(otio.Marker, 0);
+
+            // Read media reference if present
+            const media_ref = if (obj.get("media_reference")) |mr_val|
+                switch (mr_val) {
+                    .object => |mr_obj| try read_media_reference(allocator, mr_obj),
+                    else => otio.schema.MediaReference.null_picture,
+                }
+            else
+                otio.schema.MediaReference.null_picture;
+
             var cl = try allocator.create(otio.Clip);
             cl.* = .{
                 .maybe_name = maybe_name,
                 .maybe_bounds_s  = range,
-                .media = .null_picture,
+                .media = media_ref,
                 .maybe_metadata_json = maybe_metadata,
+                .markers = markers,
             };
 
-            // @TODO: read more of the media reference
-
-            if (maybe_rate)
-                |rate|
-            {
-                cl.media.maybe_discrete_partition = .{
-                    .sample_rate_hz = .{ .Int = rate },
-                };
+            // Set discrete partition from rate if available and not already set
+            if (maybe_rate) |rate| {
+                if (cl.media.maybe_discrete_partition == null) {
+                    cl.media.maybe_discrete_partition = .{
+                        .sample_rate_hz = .{ .Int = rate },
+                    };
+                }
             }
 
             return .{ .clip = cl };
         },
         .Gap => {
             const source_range = _read_range(obj);
+
+            // Read markers if present
+            const markers = if (obj.get("markers")) |markers_val|
+                switch (markers_val) {
+                    .array => |arr| try read_markers(allocator, arr),
+                    else => try allocator.alloc(otio.Marker, 0),
+                }
+            else
+                try allocator.alloc(otio.Marker, 0);
+
             const gp = try allocator.create(otio.Gap);
             gp.* = .{
                 .maybe_name= maybe_name,
                 .bounds_s = source_range.?,
+                .markers = markers,
             };
 
             return .{ .gap = gp };
