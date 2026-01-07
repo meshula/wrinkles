@@ -910,10 +910,20 @@ fn serializable_data_ref_to_fb(
                 }),
             };
         },
-        .image_sequence => .{
-            // TODO: Add proper ImageSequenceReference flatbuffer support
-            // For now, stub as NullReference
-            .NullReference = try builder.writeTable(ottla.NullReference, .{}),
+        .image_sequence => |img_seq| .{
+            .ImageSequenceReference = try builder.writeTable(ottla.ImageSequenceReference, .{
+                .target_url_base = img_seq.target_url_base,
+                .name_prefix = if (img_seq.name_prefix.len > 0) img_seq.name_prefix else null,
+                .name_suffix = if (img_seq.name_suffix.len > 0) img_seq.name_suffix else null,
+                .start_frame = img_seq.start_frame,
+                .frame_step = img_seq.frame_step,
+                .frame_zero_padding = img_seq.frame_zero_padding,
+                .rate = img_seq.rate,
+                .missing_frame_policy = if (img_seq.missing_frame_policy.len > 0)
+                    img_seq.missing_frame_policy
+                else
+                    null,
+            }),
         },
         .null => .{ .NullReference = try builder.writeTable(ottla.NullReference, .{}) },
     };
@@ -1769,10 +1779,12 @@ fn fb_to_serializable_data_ref(
     fb_ref: ottla.MediaDataReference,
 ) !serialization.SerializableMediaDataReference
 {
-    _ = allocator;
     return switch (fb_ref) {
         .URIReference => |uri_ref| .{
-            .uri = .{ .target_uri = uri_ref.target_uri() },
+            .uri = .{
+                // target_uri() returns non-optional flatbuffers.String
+                .target_uri = try allocator.dupe(u8, uri_ref.target_uri()),
+            },
         },
         .SignalReference => |sig_ref| blk: {
             const sg = sig_ref.signal_generator_type();
@@ -1787,14 +1799,27 @@ fn fb_to_serializable_data_ref(
         },
         .ImageSequenceReference => |img_seq| .{
             .image_sequence = .{
-                .target_url_base = img_seq.target_url_base(),
-                .name_prefix = if (img_seq.name_prefix()) |p| p else "",
-                .name_suffix = if (img_seq.name_suffix()) |s| s else "",
+                // target_url_base() returns non-optional flatbuffers.String
+                .target_url_base = try allocator.dupe(u8, img_seq.target_url_base()),
+                // name_prefix() returns optional ?flatbuffers.String
+                .name_prefix = if (img_seq.name_prefix()) |p|
+                    try allocator.dupe(u8, p)
+                else
+                    "",
+                // name_suffix() returns optional ?flatbuffers.String
+                .name_suffix = if (img_seq.name_suffix()) |s|
+                    try allocator.dupe(u8, s)
+                else
+                    "",
                 .start_frame = img_seq.start_frame(),
                 .frame_step = img_seq.frame_step(),
                 .frame_zero_padding = img_seq.frame_zero_padding(),
                 .rate = img_seq.rate(),
-                .missing_frame_policy = if (img_seq.missing_frame_policy()) |p| p else "error",
+                // missing_frame_policy() returns optional ?flatbuffers.String
+                .missing_frame_policy = if (img_seq.missing_frame_policy()) |p|
+                    try allocator.dupe(u8, p)
+                else
+                    "error",
             },
         },
         .NullReference, .NONE => .{ .null = .{} },

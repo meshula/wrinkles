@@ -1863,7 +1863,7 @@ pub fn main(
             );
         }
 
-        // Read timeline file - supports .otio, .ziggy, .tlb, .tlfb, .tlz
+        // Read timeline file - supports .otio, .tla, .tlb, .tlfb, .tlz
         // Skip metadata for faster visualization
         STATE.otio_root = try otio.read_from_file(
             STATE.allocator,
@@ -1917,14 +1917,14 @@ pub fn usage(
         \\
         \\usage:
         \\  otio_space_visualizer path/to/somefile.otio
-        \\  otio_space_visualizer path/to/somefile.ziggy
+        \\  otio_space_visualizer path/to/somefile.tla
         \\
         \\arguments:
         \\  -h --help: print this message and exit
         \\
         \\Supported formats:
         \\  .otio  - OpenTimelineIO JSON format
-        \\  .ziggy - Ziggy text format
+        \\  .tla   - TLA (Timeline ASCII) text format
         \\  .tlb   - Binary CBOR format
         \\  .tlfb  - Binary FlatBuffers format
         \\  .tlz   - TLZ bundle (ZIP archive)

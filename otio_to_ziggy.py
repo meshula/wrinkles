@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Convert OpenTimelineIO JSON files to Ziggy format.
+Convert OpenTimelineIO JSON files to TLA format.
 
 Usage:
-    python otio_to_ziggy.py input.otio output.ziggy
+    python otio_to_ziggy.py input.otio output.tla
 """
 
 import json
@@ -579,7 +579,7 @@ def convert_otio_to_ziggy(otio_data: Dict[str, Any]) -> str:
 
 def main():
     if len(sys.argv) != 3:
-        print("Usage: python otio_to_ziggy.py input.otio output.ziggy")
+        print("Usage: python otio_to_ziggy.py input.otio output.tla")
         sys.exit(1)
 
     input_file = sys.argv[1]
@@ -589,12 +589,12 @@ def main():
     with open(input_file, 'r') as f:
         otio_data = json.load(f)
 
-    # Convert to Ziggy format
-    ziggy_output = convert_otio_to_ziggy(otio_data)
+    # Convert to TLA format (using Ziggy syntax)
+    tla_output = convert_otio_to_ziggy(otio_data)
 
-    # Write Ziggy file
+    # Write TLA file
     with open(output_file, 'w') as f:
-        f.write(ziggy_output)
+        f.write(tla_output)
 
     print(f"Converted {input_file} to {output_file}")
 

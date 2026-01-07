@@ -1110,7 +1110,7 @@ fn read_otio_object(
     return error.NotImplemented;
 }
 
-/// Read a timeline from .otio (JSON), .ziggy, or .tlb (binary) file.
+/// Read a timeline from .otio (JSON), .tla, or .tlb (binary) file.
 /// The file format is determined by the file extension.
 pub fn read_from_file(
     in_allocator: std.mem.Allocator,
@@ -1124,9 +1124,9 @@ pub fn read_from_file(
     };
     const extension = file_path[ext_start..];
 
-    if (std.mem.eql(u8, extension, ".ziggy"))
+    if (std.mem.eql(u8, extension, ".tla"))
     {
-        // Read ziggy format
+        // Read tla format
         const file = try std.fs.cwd().openFile(file_path, .{});
         defer file.close();
 
@@ -1343,13 +1343,13 @@ test "read_from_file with all_except_metadata option"
 {
     const allocator = std.testing.allocator;
 
-    // Test reading a ziggy file with metadata
-    const ziggy_file = "otio_sample_data/simple_cut.ziggy";
+    // Test reading a tla file with metadata
+    const tla_file = "otio_sample_data/simple_cut.tla";
 
     // Read with all content
     var tl_all = try read_from_file(
         allocator,
-        ziggy_file,
+        tla_file,
         .{ .file_contents_to_read = .all },
     );
     defer tl_all.deinit(allocator);
@@ -1357,7 +1357,7 @@ test "read_from_file with all_except_metadata option"
     // Read with metadata skipped
     var tl_no_meta = try read_from_file(
         allocator,
-        ziggy_file,
+        tla_file,
         .{ .file_contents_to_read = .all_except_metadata },
     );
     defer tl_no_meta.deinit(allocator);

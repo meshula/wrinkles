@@ -1,24 +1,24 @@
 //! otiocat - Universal timeline format converter
 //!
-//! Reads .otio (JSON), .ziggy, .tlb (CBOR binary), .tlfb (FlatBuffers binary),
-//! or .tlz (ZIP bundle) files and writes to .ziggy, .tlb, .tlfb, or .tlz format
+//! Reads .otio (JSON), .tla (Timeline ASCII), .tlb (CBOR binary), .tlfb (FlatBuffers binary),
+//! or .tlz (ZIP bundle) files and writes to .tla, .tlb, .tlfb, or .tlz format
 //! based on the output file extension.
 //!
 //! Usage:
 //!   otiocat <input> [output]
 //!
-//! If no output file is specified, prints Ziggy format to stdout.
+//! If no output file is specified, prints TLA format to stdout.
 //!
 //! Examples:
-//!   otiocat timeline.otio                   # JSON to Ziggy (stdout)
-//!   otiocat timeline.otio timeline.ziggy    # JSON to Ziggy (file)
+//!   otiocat timeline.otio                   # JSON to TLA (stdout)
+//!   otiocat timeline.otio timeline.tla      # JSON to TLA (file)
 //!   otiocat timeline.otio timeline.tlb      # JSON to Binary (CBOR)
 //!   otiocat timeline.otio timeline.tlfb     # JSON to Binary (FlatBuffers)
-//!   otiocat timeline.ziggy timeline.tlz     # Ziggy to TLZ bundle
-//!   otiocat timeline.tlz timeline.ziggy     # TLZ bundle to Ziggy
-//!   otiocat timeline.ziggy timeline.tlb     # Ziggy to Binary
-//!   otiocat timeline.tlb timeline.ziggy     # Binary to Ziggy
-//!   otiocat timeline.tlfb timeline.ziggy    # FlatBuffers to Ziggy
+//!   otiocat timeline.tla timeline.tlz       # TLA to TLZ bundle
+//!   otiocat timeline.tlz timeline.tla       # TLZ bundle to TLA
+//!   otiocat timeline.tla timeline.tlb       # TLA to Binary
+//!   otiocat timeline.tlb timeline.tla       # Binary to TLA
+//!   otiocat timeline.tlfb timeline.tla      # FlatBuffers to TLA
 
 const std = @import("std");
 const string = @import("string_stuff");
@@ -37,7 +37,7 @@ const State = struct {
     metadata_mode: MetadataMode = .hash_reference,
 
     // TLZ bundle options
-    bundle_format: tlz_bundle_utils.BundleFormat = .ziggy,
+    bundle_format: tlz_bundle_utils.BundleFormat = .tla,
     media_policy: tlz_bundle_utils.MediaReferencePolicy = .MissingIfNotFile,
 
     pub fn deinit(
@@ -61,7 +61,7 @@ fn parse_args(
     var input_path: ?[]const u8 = null;
     var output_path: ?[]const u8 = null;
     var metadata_mode: MetadataMode = .hash_reference;
-    var bundle_format: tlz_bundle_utils.BundleFormat = .ziggy;
+    var bundle_format: tlz_bundle_utils.BundleFormat = .tla;
     var media_policy: tlz_bundle_utils.MediaReferencePolicy = .MissingIfNotFile;
 
     // Ignore the app name, always first in args
@@ -90,9 +90,9 @@ fn parse_args(
             metadata_mode = .inline_metadata;
         }
         // TLZ bundle format options
-        else if (string.eql_latin_s8(arg, "--bundle-format=ziggy"))
+        else if (string.eql_latin_s8(arg, "--bundle-format=tla"))
         {
-            bundle_format = .ziggy;
+            bundle_format = .tla;
         }
         else if (string.eql_latin_s8(arg, "--bundle-format=tlfb"))
         {
@@ -161,13 +161,13 @@ pub fn usage(
         \\
         \\Supported input formats:
         \\  .otio   OpenTimelineIO JSON format
-        \\  .ziggy  Ziggy text format
+        \\  .tla    TLA (Timeline ASCII) text format
         \\  .tlb    Binary CBOR format
         \\  .tlfb   Binary FlatBuffers format
         \\  .tlz    TLZ bundle (ZIP archive with timeline + media)
         \\
         \\Supported output formats:
-        \\  .ziggy  Ziggy text format
+        \\  .tla    TLA (Timeline ASCII) text format
         \\  .tlb    Binary CBOR format
         \\  .tlfb   Binary FlatBuffers format
         \\  .tlz    TLZ bundle (ZIP archive with timeline + media)
@@ -178,37 +178,37 @@ pub fn usage(
         \\Arguments:
         \\  <input>   Path to the source timeline file
         \\  [output]  Path for the converted output file (optional)
-        \\            If omitted, prints Ziggy format to stdout.
+        \\            If omitted, prints TLA format to stdout.
         \\
         \\Options:
         \\  -h, --help         Print this message and exit
-        \\  --no-metadata      Omit all metadata from Ziggy output
+        \\  --no-metadata      Omit all metadata from TLA output
         \\  --inline-metadata  Print metadata inline on each clip instead of
-        \\                     using hash references (Ziggy output only)
+        \\                     using hash references (TLA output only)
         \\
         \\TLZ Bundle Options (for .tlz output):
-        \\  --bundle-format=ziggy   Use Ziggy text format inside bundle (default)
+        \\  --bundle-format=tla     Use TLA text format inside bundle (default)
         \\  --bundle-format=tlfb    Use FlatBuffers binary format inside bundle
         \\  --media-policy=error    Error if any media file not found
         \\  --media-policy=missing  Skip missing media files (default)
         \\  --media-policy=all-missing  Don't bundle any media files
         \\
         \\Examples:
-        \\  otiocat timeline.otio                   # JSON to Ziggy (stdout)
-        \\  otiocat timeline.otio timeline.ziggy    # JSON to Ziggy (file)
+        \\  otiocat timeline.otio                   # JSON to TLA (stdout)
+        \\  otiocat timeline.otio timeline.tla      # JSON to TLA (file)
         \\  otiocat timeline.otio timeline.tlb      # JSON to Binary (CBOR)
         \\  otiocat timeline.otio timeline.tlfb     # JSON to FlatBuffers
-        \\  otiocat timeline.ziggy timeline.tlb     # Ziggy to Binary
-        \\  otiocat timeline.tlb timeline.ziggy     # Binary to Ziggy
-        \\  otiocat timeline.tlfb timeline.ziggy    # FlatBuffers to Ziggy
+        \\  otiocat timeline.tla timeline.tlb       # TLA to Binary
+        \\  otiocat timeline.tlb timeline.tla       # Binary to TLA
+        \\  otiocat timeline.tlfb timeline.tla      # FlatBuffers to TLA
         \\
         \\  # TLZ bundle examples:
-        \\  otiocat timeline.ziggy timeline.tlz     # Create TLZ bundle
-        \\  otiocat timeline.tlz timeline.ziggy     # Extract from TLZ bundle
-        \\  otiocat timeline.ziggy timeline.tlz --bundle-format=tlfb  # Binary inside
-        \\  otiocat timeline.ziggy timeline.tlz --media-policy=error  # Require media
+        \\  otiocat timeline.tla timeline.tlz       # Create TLZ bundle
+        \\  otiocat timeline.tlz timeline.tla       # Extract from TLZ bundle
+        \\  otiocat timeline.tla timeline.tlz --bundle-format=tlfb  # Binary inside
+        \\  otiocat timeline.tla timeline.tlz --media-policy=error  # Require media
         \\
-        \\  # Metadata options (Ziggy output only):
+        \\  # Metadata options (TLA output only):
         \\  otiocat --no-metadata timeline.otio     # No metadata in output
         \\  otiocat --inline-metadata timeline.otio # Metadata inline on clips
         \\
@@ -266,21 +266,21 @@ pub fn main() !void
         std.process.exit(1);
     }
 
-    // Check output extension (default to .ziggy for stdout)
+    // Check output extension (default to .tla for stdout)
     const output_ext = if (state.output_path) |path|
         get_extension(path) orelse {
-            std.log.err("Output file must have an extension (.ziggy, .tlb, .tlfb, or .tlz)", .{});
+            std.log.err("Output file must have an extension (.tla, .tlb, .tlfb, or .tlz)", .{});
             std.process.exit(1);
         }
     else
-        ".ziggy";
+        ".tla";
 
     const output_format = std.meta.stringToEnum(
         serialization.FileFormat,
         output_ext[1..],  // Skip the leading dot
     ) orelse {
         std.log.err(
-            "Unsupported output format: {s}. Use .ziggy, .tlb, .tlfb, or .tlz",
+            "Unsupported output format: {s}. Use .tla, .tlb, .tlfb, or .tlz",
             .{output_ext}
         );
         std.process.exit(1);
@@ -293,7 +293,7 @@ pub fn main() !void
         std.process.exit(1);
     }
 
-    // Read input file using centralized reader (supports .otio, .ziggy, .tlb, .tlfb, .tlz)
+    // Read input file using centralized reader (supports .otio, .tla, .tlb, .tlfb, .tlz)
     const ser_timeline = try serialization.read_from_file(allocator, state.input_path);
 
     read_prog.end();
@@ -347,7 +347,7 @@ pub fn main() !void
 // ----------------------------------------------------------------------------
 
 test "get_extension returns correct extension" {
-    try std.testing.expectEqualStrings(".ziggy", get_extension("foo.ziggy").?);
+    try std.testing.expectEqualStrings(".tla", get_extension("foo.tla").?);
     try std.testing.expectEqualStrings(".tlb", get_extension("path/to/file.tlb").?);
     try std.testing.expectEqualStrings(".tlfb", get_extension("timeline.tlfb").?);
     try std.testing.expectEqualStrings(".tlz", get_extension("/abs/path/bundle.tlz").?);
@@ -358,8 +358,8 @@ test "get_extension returns correct extension" {
 test "FileFormat stringToEnum parses extensions correctly" {
     // Test that we can parse all supported output formats
     try std.testing.expectEqual(
-        serialization.FileFormat.ziggy,
-        std.meta.stringToEnum(serialization.FileFormat, "ziggy").?,
+        serialization.FileFormat.tla,
+        std.meta.stringToEnum(serialization.FileFormat, "tla").?,
     );
     try std.testing.expectEqual(
         serialization.FileFormat.tlb,
@@ -379,20 +379,20 @@ test "FileFormat stringToEnum parses extensions correctly" {
     );
 }
 
-test "roundtrip ziggy format via read_from_buffer and write_to_buffer" {
+test "roundtrip tla format via read_from_buffer and write_to_buffer" {
     const allocator = std.testing.allocator;
 
     // Read a test file
     const ser_timeline = try serialization.read_from_file(
         allocator,
-        "otio_sample_data/simple_cut.ziggy",
+        "otio_sample_data/simple_cut.tla",
     );
 
-    // Write to buffer as ziggy
+    // Write to buffer as tla
     const buffer = try serialization.write_to_buffer(
         allocator,
         ser_timeline,
-        .ziggy,
+        .tla,
         .{},
     );
     defer allocator.free(buffer);
@@ -401,7 +401,7 @@ test "roundtrip ziggy format via read_from_buffer and write_to_buffer" {
     const roundtrip_timeline = try serialization.read_from_buffer(
         allocator,
         buffer,
-        .ziggy,
+        .tla,
     );
 
     // Verify basic structure matches
@@ -421,7 +421,7 @@ test "roundtrip tlb format via read_from_buffer and write_to_buffer" {
     // Read a test file
     const ser_timeline = try serialization.read_from_file(
         allocator,
-        "otio_sample_data/simple_cut.ziggy",
+        "otio_sample_data/simple_cut.tla",
     );
 
     // Write to buffer as tlb (CBOR binary)
@@ -457,7 +457,7 @@ test "roundtrip tlfb format via read_from_buffer and write_to_buffer" {
     // Read a test file
     const ser_timeline = try serialization.read_from_file(
         allocator,
-        "otio_sample_data/simple_cut.ziggy",
+        "otio_sample_data/simple_cut.tla",
     );
 
     // Write to buffer as tlfb (FlatBuffers binary)
@@ -487,7 +487,7 @@ test "roundtrip tlfb format via read_from_buffer and write_to_buffer" {
     );
 }
 
-test "convert otio to ziggy via buffer" {
+test "convert otio to tla via buffer" {
     const allocator = std.testing.allocator;
 
     // Read OTIO JSON file
@@ -496,11 +496,11 @@ test "convert otio to ziggy via buffer" {
         "sample_otio_files/simple_cut.otio",
     );
 
-    // Write to buffer as ziggy
+    // Write to buffer as tla
     const buffer = try serialization.write_to_buffer(
         allocator,
         ser_timeline,
-        .ziggy,
+        .tla,
         .{},
     );
     defer allocator.free(buffer);
@@ -512,7 +512,7 @@ test "convert otio to ziggy via buffer" {
     const roundtrip = try serialization.read_from_buffer(
         allocator,
         buffer,
-        .ziggy,
+        .tla,
     );
 
     try std.testing.expectEqual(

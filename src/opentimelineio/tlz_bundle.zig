@@ -2,7 +2,7 @@
 //!
 //! TLZ files are ZIP archives containing:
 //! - version.txt: Format version string
-//! - content.ziggy or content.tlfb: Timeline data
+//! - content.tla or content.tlfb: Timeline data
 //! - media/: Directory containing media files (optional)
 
 const std = @import("std");
@@ -26,7 +26,7 @@ pub const ReadOptions = struct {
 /// Options for writing TLZ files
 pub const WriteOptions = struct {
     /// Format for the timeline content inside the bundle
-    bundle_format: utils.BundleFormat = .ziggy,
+    bundle_format: utils.BundleFormat = .tla,
 
     /// Policy for handling media references
     media_policy: utils.MediaReferencePolicy = .ErrorIfNotFile,
@@ -143,9 +143,9 @@ pub fn readFromFile(
         {
             version_found = true;
         }
-        else if (std.mem.eql(u8, filename, utils.BUNDLE_CONTENT_ZIGGY))
+        else if (std.mem.eql(u8, filename, utils.BUNDLE_CONTENT_TLA))
         {
-            content_format = .ziggy;
+            content_format = .tla;
             content_data = try readEntryDataFromBuffer(
                 allocator,
                 file_data,
@@ -211,7 +211,7 @@ pub fn readFromFile(
     defer allocator.free(data);
 
     switch (content_format.?) {
-        .ziggy => {
+        .tla => {
             // ziggy.parseLeaky needs sentinel-terminated string
             const data_z = try allocator.dupeZ(u8, data);
             defer allocator.free(data_z);
@@ -327,12 +327,12 @@ pub fn writeToFile(
     defer content_writer.deinit();
 
     const content_name = switch (options.bundle_format) {
-        .ziggy => utils.BUNDLE_CONTENT_ZIGGY,
+        .tla => utils.BUNDLE_CONTENT_TLA,
         .tlfb => utils.BUNDLE_CONTENT_TLFB,
     };
 
     switch (options.bundle_format) {
-        .ziggy => {
+        .tla => {
             try ziggy.stringify(
                 modified_timeline,
                 .{
@@ -394,7 +394,7 @@ pub fn writeToFile(
     current_offset += 30 + @as(u32, @intCast(utils.BUNDLE_VERSION_FILE.len)) +
         @as(u32, @intCast(version_data.len));
 
-    // Entry 1: content.ziggy or content.tlfb (uncompressed for now)
+    // Entry 1: content.tla or content.tlfb (uncompressed for now)
     try entries.append(arena_alloc, .{
         .name = content_name,
         .data = content_bytes,
@@ -784,7 +784,7 @@ test "tlz_bundle: write and verify ZIP structure"
     _ = try file.read(&sig);
     try std.testing.expectEqualSlices(u8, &zip.local_file_header_sig, &sig);
 
-    // Verify file size is reasonable (should have version.txt + content.ziggy)
+    // Verify file size is reasonable (should have version.txt + content.tla)
     const stat = try file.stat();
     try std.testing.expect(stat.size > 100); // Should be more than just headers
 }
@@ -797,7 +797,7 @@ test "tlz_bundle: media bundling with app.png"
     const allocator = arena.allocator();
 
     // Load the test timeline that references app.png
-    const timeline_path = "test_files_ziggy/simple_cut_with_media.ziggy";
+    const timeline_path = "test_files_tla/simple_cut_with_media.tla";
     const timeline_file = std.fs.cwd().openFile(timeline_path, .{}) catch |err| {
         std.debug.print("Skipping test: could not open {s}: {}\n", .{ timeline_path, err });
         return;
@@ -822,9 +822,9 @@ test "tlz_bundle: media bundling with app.png"
     // Write to /var/tmp with media bundling
     const test_path = "/var/tmp/test_media_bundle.tlz";
     try writeToFile(allocator, timeline, test_path, .{
-        .bundle_format = .ziggy,
+        .bundle_format = .tla,
         .media_policy = .MissingIfNotFile,  // Don't error on missing files
-        .media_base_dir = "test_files_ziggy",  // Resolve relative paths from ziggy file location
+        .media_base_dir = "test_files_tla",  // Resolve relative paths from tla file location
     });
 
     defer std.fs.cwd().deleteFile(test_path) catch {};
@@ -846,9 +846,9 @@ test "tlz_bundle: media bundling with app.png"
     defer allocator.free(result.stdout);
     defer allocator.free(result.stderr);
 
-    // Check that version.txt and content.ziggy are present
+    // Check that version.txt and content.tla are present
     try std.testing.expect(std.mem.indexOf(u8, result.stdout, "version.txt") != null);
-    try std.testing.expect(std.mem.indexOf(u8, result.stdout, "content.ziggy") != null);
+    try std.testing.expect(std.mem.indexOf(u8, result.stdout, "content.tla") != null);
 
     // Check if app.png was bundled (only if it exists)
     if (std.mem.indexOf(u8, result.stdout, "media/app.png"))

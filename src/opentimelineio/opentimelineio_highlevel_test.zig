@@ -1211,7 +1211,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     }
 }
 
-test "otio_measure_timeline executable on just_clip.ziggy" 
+test "otio_measure_timeline executable on just_clip.tla"
 {
     const allocator = std.testing.allocator;
 
@@ -1220,7 +1220,7 @@ test "otio_measure_timeline executable on just_clip.ziggy"
             .allocator = allocator,
             .argv = &.{
                 "zig-out/bin/otio_measure_timeline",
-                "test_files_ziggy/just_clip.ziggy",
+                "test_files_tla/just_clip.tla",
             },
         }
     ) catch |err| 

@@ -15,8 +15,8 @@ pub const BUNDLE_VERSION_FILE = "version.txt";
 /// Name of the media directory in the bundle
 pub const BUNDLE_DIR_NAME = "media";
 
-/// Name of the Ziggy content file in the bundle
-pub const BUNDLE_CONTENT_ZIGGY = "content.ziggy";
+/// Name of the TLA (Timeline ASCII) content file in the bundle
+pub const BUNDLE_CONTENT_TLA = "content.tla";
 
 /// Name of the FlatBuffers content file in the bundle
 pub const BUNDLE_CONTENT_TLFB = "content.tlfb";
@@ -39,8 +39,8 @@ pub const MediaReferencePolicy = enum {
 
 /// Timeline format to use inside the TLZ bundle
 pub const BundleFormat = enum {
-    /// Human-readable Ziggy text format
-    ziggy,
+    /// Human-readable TLA (Timeline ASCII) text format
+    tla,
 
     /// Binary FlatBuffers format
     tlfb,

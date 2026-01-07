@@ -95,7 +95,7 @@ pub fn usage(
 }
 
 /// Read a file to SerializableTimeline (preserves metadata)
-/// Supports: .otio, .ziggy, .tlb, .tlfb, .tlz
+/// Supports: .otio, .tla, .tlb, .tlfb, .tlz
 fn read_to_serializable_timeline(
     allocator: std.mem.Allocator,
     filepath: []const u8,

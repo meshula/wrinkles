@@ -3,7 +3,7 @@
 # Copyright Contributors to the wrinkles project
 
 """
-Convert OTIO files to Ziggy format.
+Convert OTIO files to TLA format.
 
 Usage:
     python convert_files.py -d OUTPUT_DIR input1.otio input2.otio ...
@@ -43,7 +43,7 @@ def main():
         new_name = os.path.abspath(
             os.path.join(
                 args.output_dir,
-                os.path.basename(fname) + ".ziggy",
+                os.path.basename(fname) + ".tla",
             )
         )
 
