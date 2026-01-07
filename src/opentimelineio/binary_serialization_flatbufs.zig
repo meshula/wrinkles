@@ -290,13 +290,16 @@ fn media_ref_to_fb(
 //
 // This reduces tables from O(n) to O(1) for flat metadata objects!
 
+/// Error type for metadata block serialization
+const MetadataBlockSerializeError = error{OutOfMemory};
+
 /// Convert a KV metadata value to a columnar MetadataBlock
 /// This is the high-performance path that batches all entries into vectors
 fn metadata_kv_to_block(
     builder: *flatbuffers.Builder,
     allocator: Allocator,
     kv: MetadataMap,
-) !ottla.MetadataBlock
+) MetadataBlockSerializeError!ottla.MetadataBlock
 {
     const count = kv.fields.count();
     if (count == 0) {
@@ -308,11 +311,13 @@ fn metadata_kv_to_block(
     const types = try allocator.alloc(i8, count);
     const scalars = try allocator.alloc(ottla.PackedScalar, count);
 
-    // Track string and nested values separately
+    // Track string, nested, and array values separately
     var string_values_list: std.ArrayList([]const u8) = .empty;
     var string_indices_list: std.ArrayList(u32) = .empty;
     var nested_blocks_list: std.ArrayList(ottla.MetadataBlock) = .empty;
     var nested_indices_list: std.ArrayList(u32) = .empty;
+    var array_blocks_list: std.ArrayList(ottla.MetadataBlock) = .empty;
+    var array_indices_list: std.ArrayList(u32) = .empty;
 
     var i: usize = 0;
     for (kv.fields.keys(), kv.fields.values()) |key, value| {
@@ -338,26 +343,28 @@ fn metadata_kv_to_block(
             .bytes => |s| {
                 types[i] = @intFromEnum(ottla.MetadataType.String);
                 scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
-                try string_indices_list.append(allocator, @intCast(string_values_list.items.len));
+                try string_indices_list.append(allocator, @intCast(i));
                 try string_values_list.append(allocator, s);
             },
             .tag => |t| {
                 types[i] = @intFromEnum(ottla.MetadataType.String);
                 scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
-                try string_indices_list.append(allocator, @intCast(string_values_list.items.len));
+                try string_indices_list.append(allocator, @intCast(i));
                 try string_values_list.append(allocator, t.bytes);
             },
             .kv => |nested_kv| {
                 types[i] = @intFromEnum(ottla.MetadataType.KV);
                 scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
-                try nested_indices_list.append(allocator, @intCast(nested_blocks_list.items.len));
+                try nested_indices_list.append(allocator, @intCast(i));
                 const nested_block = try metadata_kv_to_block(builder, allocator, nested_kv);
                 try nested_blocks_list.append(allocator, nested_block);
             },
-            .array => {
-                // Arrays are rare in OTIO metadata, use simple encoding
+            .array => |arr| {
                 types[i] = @intFromEnum(ottla.MetadataType.Array);
                 scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+                try array_indices_list.append(allocator, @intCast(i));
+                const array_block = try metadata_array_to_block(builder, allocator, arr);
+                try array_blocks_list.append(allocator, array_block);
             },
         }
         i += 1;
@@ -371,6 +378,96 @@ fn metadata_kv_to_block(
         .string_indices = if (string_indices_list.items.len > 0) string_indices_list.items else null,
         .nested_blocks = if (nested_blocks_list.items.len > 0) nested_blocks_list.items else null,
         .nested_indices = if (nested_indices_list.items.len > 0) nested_indices_list.items else null,
+        .array_blocks = if (array_blocks_list.items.len > 0) array_blocks_list.items else null,
+        .array_indices = if (array_indices_list.items.len > 0) array_indices_list.items else null,
+    });
+}
+
+/// Convert an array of MetadataValues to a columnar MetadataBlock
+/// Array elements are stored with empty keys (position is implicit)
+fn metadata_array_to_block(
+    builder: *flatbuffers.Builder,
+    allocator: Allocator,
+    arr: []const MetadataValue,
+) MetadataBlockSerializeError!ottla.MetadataBlock
+{
+    const count = arr.len;
+    if (count == 0) {
+        return try builder.writeTable(ottla.MetadataBlock, .{});
+    }
+
+    // Pre-allocate all arrays
+    const keys = try allocator.alloc([]const u8, count);
+    const types = try allocator.alloc(i8, count);
+    const scalars = try allocator.alloc(ottla.PackedScalar, count);
+
+    // Track string, nested, and array values separately
+    var string_values_list: std.ArrayList([]const u8) = .empty;
+    var string_indices_list: std.ArrayList(u32) = .empty;
+    var nested_blocks_list: std.ArrayList(ottla.MetadataBlock) = .empty;
+    var nested_indices_list: std.ArrayList(u32) = .empty;
+    var array_blocks_list: std.ArrayList(ottla.MetadataBlock) = .empty;
+    var array_indices_list: std.ArrayList(u32) = .empty;
+
+    for (arr, 0..) |value, i| {
+        keys[i] = ""; // Empty key for array elements
+
+        switch (value) {
+            .null => {
+                types[i] = @intFromEnum(ottla.MetadataType.Null);
+                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+            },
+            .bool => |b| {
+                types[i] = @intFromEnum(ottla.MetadataType.Bool);
+                scalars[i] = .{ .bool_val = b, .int_val = 0, .float_val = 0.0 };
+            },
+            .integer => |v| {
+                types[i] = @intFromEnum(ottla.MetadataType.Int);
+                scalars[i] = .{ .bool_val = false, .int_val = v, .float_val = 0.0 };
+            },
+            .float => |f| {
+                types[i] = @intFromEnum(ottla.MetadataType.Float);
+                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = f };
+            },
+            .bytes => |s| {
+                types[i] = @intFromEnum(ottla.MetadataType.String);
+                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+                try string_indices_list.append(allocator, @intCast(i));
+                try string_values_list.append(allocator, s);
+            },
+            .tag => |t| {
+                types[i] = @intFromEnum(ottla.MetadataType.String);
+                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+                try string_indices_list.append(allocator, @intCast(i));
+                try string_values_list.append(allocator, t.bytes);
+            },
+            .kv => |nested_kv| {
+                types[i] = @intFromEnum(ottla.MetadataType.KV);
+                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+                try nested_indices_list.append(allocator, @intCast(i));
+                const nested_block = try metadata_kv_to_block(builder, allocator, nested_kv);
+                try nested_blocks_list.append(allocator, nested_block);
+            },
+            .array => |nested_arr| {
+                types[i] = @intFromEnum(ottla.MetadataType.Array);
+                scalars[i] = .{ .bool_val = false, .int_val = 0, .float_val = 0.0 };
+                try array_indices_list.append(allocator, @intCast(i));
+                const array_block = try metadata_array_to_block(builder, allocator, nested_arr);
+                try array_blocks_list.append(allocator, array_block);
+            },
+        }
+    }
+
+    return try builder.writeTable(ottla.MetadataBlock, .{
+        .keys = keys,
+        .types = types,
+        .scalars = scalars,
+        .string_values = if (string_values_list.items.len > 0) string_values_list.items else null,
+        .string_indices = if (string_indices_list.items.len > 0) string_indices_list.items else null,
+        .nested_blocks = if (nested_blocks_list.items.len > 0) nested_blocks_list.items else null,
+        .nested_indices = if (nested_indices_list.items.len > 0) nested_indices_list.items else null,
+        .array_blocks = if (array_blocks_list.items.len > 0) array_blocks_list.items else null,
+        .array_indices = if (array_indices_list.items.len > 0) array_indices_list.items else null,
     });
 }
 
@@ -511,13 +608,21 @@ fn metadata_map_to_fb(
                             const nested_block = try metadata_kv_to_block(builder, allocator, nested_kv);
                             try nested_blocks_list.append(allocator, nested_block);
                         },
-                        .array => {
+                        .array => |arr| {
                             all_types[flat_idx] = @intFromEnum(ottla.MetadataType.Array);
                             all_scalars[flat_idx] = .{
                                 .bool_val = false,
                                 .int_val = 0,
                                 .float_val = 0.0,
                             };
+                            // Store array as MetadataBlock using nested_blocks mechanism
+                            try nested_key_indices_list.append(allocator, @intCast(flat_idx));
+                            try nested_block_indices_list.append(
+                                allocator,
+                                @intCast(nested_blocks_list.items.len),
+                            );
+                            const array_block = try metadata_array_to_block(builder, allocator, arr);
+                            try nested_blocks_list.append(allocator, array_block);
                         },
                     }
                     flat_idx += 1;
@@ -1473,11 +1578,98 @@ fn fb_to_media_ref(
 // Metadata Conversion: FlatBuffers -> schema (High-Performance Columnar Format)
 // ----------------------------------------------------------------------------
 
-/// Convert a columnar MetadataBlock back to a KV MetadataValue
+/// Error type for metadata block conversion
+const MetadataBlockConvertError = error{OutOfMemory};
+
+/// Convert a MetadataBlock representing an array back to MetadataValue slice
+fn fb_block_to_metadata_array(
+    allocator: Allocator,
+    block: ottla.MetadataBlock,
+) MetadataBlockConvertError![]MetadataValue
+{
+    const keys_vec = block.keys() orelse return &.{};
+    const types_vec = block.types() orelse return &.{};
+    const scalars_vec = block.scalars() orelse return &.{};
+
+    const count = keys_vec.len();
+    if (count == 0) return &.{};
+
+    var result = try allocator.alloc(MetadataValue, count);
+
+    // Build lookup tables for strings, nested blocks, and arrays
+    var string_lookup = std.AutoHashMap(u32, u32).init(allocator);
+    defer string_lookup.deinit();
+    var nested_lookup = std.AutoHashMap(u32, u32).init(allocator);
+    defer nested_lookup.deinit();
+    var array_lookup = std.AutoHashMap(u32, u32).init(allocator);
+    defer array_lookup.deinit();
+
+    if (block.string_indices()) |si| {
+        for (0..si.len()) |j| {
+            try string_lookup.put(si.get(j), @intCast(j));
+        }
+    }
+    if (block.nested_indices()) |ni| {
+        for (0..ni.len()) |j| {
+            try nested_lookup.put(ni.get(j), @intCast(j));
+        }
+    }
+    if (block.array_indices()) |ai| {
+        for (0..ai.len()) |j| {
+            try array_lookup.put(ai.get(j), @intCast(j));
+        }
+    }
+
+    for (0..count) |i| {
+        const value_type: ottla.MetadataType = @enumFromInt(types_vec.get(i));
+        const scalar = scalars_vec.get(i);
+
+        result[i] = switch (value_type) {
+            .Null => .null,
+            .Bool => .{ .bool = scalar.bool_val },
+            .Int => .{ .integer = scalar.int_val },
+            .Float => .{ .float = scalar.float_val },
+            .String => blk: {
+                if (string_lookup.get(@intCast(i))) |str_list_idx| {
+                    if (block.string_values()) |sv| {
+                        if (str_list_idx < sv.len()) {
+                            break :blk .{ .bytes = try allocator.dupe(u8, sv.get(str_list_idx)) };
+                        }
+                    }
+                }
+                break :blk .{ .bytes = "" };
+            },
+            .KV => blk: {
+                if (nested_lookup.get(@intCast(i))) |blk_list_idx| {
+                    if (block.nested_blocks()) |nb| {
+                        if (blk_list_idx < nb.len()) {
+                            break :blk .{ .kv = try fb_block_to_metadata_kv(allocator, nb.get(blk_list_idx)) };
+                        }
+                    }
+                }
+                break :blk .{ .kv = .{} };
+            },
+            .Array => blk: {
+                if (array_lookup.get(@intCast(i))) |arr_list_idx| {
+                    if (block.array_blocks()) |ab| {
+                        if (arr_list_idx < ab.len()) {
+                            break :blk .{ .array = try fb_block_to_metadata_array(allocator, ab.get(arr_list_idx)) };
+                        }
+                    }
+                }
+                break :blk .{ .array = &.{} };
+            },
+        };
+    }
+
+    return result;
+}
+
+/// Convert a columnar MetadataBlock back to a MetadataMap
 fn fb_block_to_metadata_kv(
     allocator: Allocator,
     block: ottla.MetadataBlock,
-) !MetadataMap
+) MetadataBlockConvertError!MetadataMap
 {
     const keys_vec = block.keys() orelse return .{};
     const types_vec = block.types() orelse return .{};
@@ -1489,9 +1681,29 @@ fn fb_block_to_metadata_kv(
     var map: MetadataMap = .{};
     try map.fields.ensureTotalCapacity(allocator, count);
 
-    // Track indices for string and nested lookups
-    var string_idx: usize = 0;
-    var nested_idx: usize = 0;
+    // Build lookup tables for strings, nested blocks, and arrays
+    var string_lookup = std.AutoHashMap(u32, u32).init(allocator);
+    defer string_lookup.deinit();
+    var nested_lookup = std.AutoHashMap(u32, u32).init(allocator);
+    defer nested_lookup.deinit();
+    var array_lookup = std.AutoHashMap(u32, u32).init(allocator);
+    defer array_lookup.deinit();
+
+    if (block.string_indices()) |si| {
+        for (0..si.len()) |j| {
+            try string_lookup.put(si.get(j), @intCast(j));
+        }
+    }
+    if (block.nested_indices()) |ni| {
+        for (0..ni.len()) |j| {
+            try nested_lookup.put(ni.get(j), @intCast(j));
+        }
+    }
+    if (block.array_indices()) |ai| {
+        for (0..ai.len()) |j| {
+            try array_lookup.put(ai.get(j), @intCast(j));
+        }
+    }
 
     for (0..count) |i| {
         const key = try allocator.dupe(u8, keys_vec.get(i));
@@ -1504,35 +1716,35 @@ fn fb_block_to_metadata_kv(
             .Int => .{ .integer = scalar.int_val },
             .Float => .{ .float = scalar.float_val },
             .String => blk: {
-                if (block.string_values()) |sv| {
-                    if (block.string_indices()) |si| {
-                        if (string_idx < si.len()) {
-                            const str_idx = si.get(string_idx);
-                            string_idx += 1;
-                            if (str_idx < sv.len()) {
-                                break :blk .{ .bytes = try allocator.dupe(u8, sv.get(str_idx)) };
-                            }
+                if (string_lookup.get(@intCast(i))) |str_list_idx| {
+                    if (block.string_values()) |sv| {
+                        if (str_list_idx < sv.len()) {
+                            break :blk .{ .bytes = try allocator.dupe(u8, sv.get(str_list_idx)) };
                         }
                     }
                 }
                 break :blk .{ .bytes = "" };
             },
             .KV => blk: {
-                if (block.nested_blocks()) |nb| {
-                    if (block.nested_indices()) |ni| {
-                        if (nested_idx < ni.len()) {
-                            const blk_idx = ni.get(nested_idx);
-                            nested_idx += 1;
-                            if (blk_idx < nb.len()) {
-                                const nested_map = try fb_block_to_metadata_kv(allocator, nb.get(blk_idx));
-                                break :blk .{ .kv = nested_map };
-                            }
+                if (nested_lookup.get(@intCast(i))) |blk_list_idx| {
+                    if (block.nested_blocks()) |nb| {
+                        if (blk_list_idx < nb.len()) {
+                            break :blk .{ .kv = try fb_block_to_metadata_kv(allocator, nb.get(blk_list_idx)) };
                         }
                     }
                 }
                 break :blk .{ .kv = .{} };
             },
-            .Array => .{ .array = &.{} }, // Arrays rare in OTIO
+            .Array => blk: {
+                if (array_lookup.get(@intCast(i))) |arr_list_idx| {
+                    if (block.array_blocks()) |ab| {
+                        if (arr_list_idx < ab.len()) {
+                            break :blk .{ .array = try fb_block_to_metadata_array(allocator, ab.get(arr_list_idx)) };
+                        }
+                    }
+                }
+                break :blk .{ .array = &.{} };
+            },
         };
 
         map.fields.putAssumeCapacity(key, value);
@@ -1660,7 +1872,23 @@ fn fb_to_metadata_map_single_table(
                     }
                     break :blk .{ .kv = .{} };
                 },
-                .Array => .{ .array = &.{} }, // Arrays rarely used
+                .Array => blk: {
+                    // Arrays are stored as MetadataBlock in nested_blocks
+                    if (nested_lookup.get(flat_idx))
+                        |blk_idx|
+                    {
+                        if (nested_blocks_vec)
+                            |nb|
+                        {
+                            if (blk_idx < nb.len()) {
+                                break :blk .{
+                                    .array = try fb_block_to_metadata_array(allocator, nb.get(blk_idx)),
+                                };
+                            }
+                        }
+                    }
+                    break :blk .{ .array = &.{} };
+                },
             };
 
             kv.fields.putAssumeCapacity(key, value);

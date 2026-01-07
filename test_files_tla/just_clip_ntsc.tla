@@ -1,35 +1,48 @@
-{
-    .schema_version = 1,
-    .children = [
-        track {
-            .name = "Track-001",
-            .children = [
-                clip {
-                    .media = {
-                        .data_reference = uri {
-                            .target_uri = "file:///folder/titles.mov",
-                        },
-                        .domain = picture {},
-                        .discrete_partition = {
-                            .sample_rate_hz = Rational { .num = 24000, .den = 1001 },
-                            .start_index = 0,
-                        },
-                        .bounds_s = continuous [0.5, 0.8341666666666666],
+.schema_version = 1,
+.name = "Clip-001-NTSC",
+.children = [
+    track {
+        .name = "Track-001",
+        .children = [
+            clip {
+                .name = "Clip-001",
+                .bounds_s = discrete [
+                    0,
+                    3,
+                ],
+                .media = {
+                    .data_reference = uri {
+                        .target_uri = "file:///folder/titles.mov",
                     },
-                    .name = "Clip-001",
-                    .bounds_s = discrete [0, 3],
+                    .bounds_s = continuous [
+                        0.5,
+                        0.8341666666666666,
+                    ],
+                    .domain = picture {},
+                    .discrete_partition = {
+                        .sample_rate_hz = Rational {
+                            .num = 24000,
+                            .den = 1001,
+                        },
+                        .start_index = 0,
+                    },
                 },
-            ],
-        },
-    ],
-    .presentation_space_discrete_partitions = {
-        .picture = {
-            .sample_rate_hz = Rational {
-                .num = 24000,
-                .den = 1001,
+                .markers = [
+                ],
             },
-            .start_index = 0,
-        },
+        ],
+        .markers = [
+        ],
     },
-    .name = "Clip-001-NTSC",
-}
+],
+.presentation_space_discrete_partitions = {
+    .picture = {
+        .sample_rate_hz = Rational {
+            .num = 24000,
+            .den = 1001,
+        },
+        .start_index = 0,
+    },
+},
+.markers = [
+],

@@ -1,6 +1,7 @@
-{
-    .schema_version = 1,
-    .children = [],
-    .presentation_space_discrete_partitions = {},
-    .name = "Linear Curve",
-}
+.schema_version = 1,
+.name = "Linear Curve",
+.children = [
+],
+.presentation_space_discrete_partitions = {},
+.markers = [
+],
