@@ -1,3 +1,6 @@
 [submodule "libs/ziggy"]
 	path = libs/ziggy
 	url = git@github.com:ssteinbach/ziggy.git
+[submodule "libs/zig-flatbuffers"]
+	path = libs/zig-flatbuffers
+	url = git@github.com:ssteinbach/zig-flatbuffers.git
