@@ -2989,6 +2989,80 @@ const binary_serialization = @import("binary_serialization.zig");
 const binary_serialization_flatbufs = @import("binary_serialization_flatbufs.zig");
 const tlz_bundle = @import("tlz_bundle.zig");
 
+/// Supported file format types for read/write operations
+pub const FileFormat = enum {
+    /// OpenTimelineIO JSON format
+    otio,   
+    /// Ziggy text format
+    ziggy,  
+    /// Binary CBOR format
+    tlb,    
+    /// Binary FlatBuffers format
+    tlfb,   
+    /// TLZ bundle (ZIP archive)
+    tlz,    
+};
+
+/// Read a timeline from a buffer into SerializableTimeline.
+/// Supports: .otio (JSON), .ziggy, .tlb (CBOR), .tlfb (FlatBuffers)
+/// Note: .tlz format is not supported for buffer reading as it requires
+/// file system access for the ZIP archive. Use read_from_file for .tlz.
+///
+/// This is useful for cases where data is already in memory, such as
+/// from sokol_fetch callbacks or network transfers.
+pub fn read_from_buffer(
+    allocator: Allocator,
+    buffer: []const u8,
+    format: FileFormat,
+) !SerializableTimeline
+{
+    switch (format) {
+        .ziggy => {
+            // Ziggy requires null-terminated source
+            // Check if already null-terminated
+            if (buffer.len > 0 and buffer[buffer.len - 1] == 0) {
+                return try ziggy.parseLeaky(
+                    SerializableTimeline,
+                    allocator,
+                    buffer[0 .. buffer.len - 1 :0],
+                    .{},
+                );
+            }
+            // Need to add null terminator
+            const source_with_null = try allocator.alloc(u8, buffer.len + 1);
+            defer allocator.free(source_with_null);
+            @memcpy(source_with_null[0..buffer.len], buffer);
+            source_with_null[buffer.len] = 0;
+            return try ziggy.parseLeaky(
+                SerializableTimeline,
+                allocator,
+                source_with_null[0..buffer.len :0],
+                .{},
+            );
+        },
+        .tlb => {
+            return try binary_serialization.deserialize_to_serializable_timeline(
+                allocator,
+                buffer,
+            );
+        },
+        .tlfb => {
+            return try binary_serialization_flatbufs.deserialize_to_serializable_timeline(
+                allocator,
+                buffer,
+                .{},
+            );
+        },
+        .otio => {
+            return try otio_json_to_serializable_timeline(allocator, buffer);
+        },
+        .tlz => {
+            // TLZ is a ZIP archive that requires file system access
+            return error.TlzRequiresFileAccess;
+        },
+    }
+}
+
 /// Read a timeline from any supported file format into SerializableTimeline.
 /// Supports: .otio (JSON), .ziggy, .tlb (CBOR), .tlfb (FlatBuffers), .tlz (bundle)
 /// The file format is determined by the file extension.
@@ -3003,8 +3077,12 @@ pub fn read_from_file(
     };
     const extension = file_path[ext_start..];
 
+    const format = std.meta.stringToEnum(FileFormat, extension) orelse {
+        return error.UnsupportedFileFormat;
+    };
+
     // Handle .tlz separately since it manages its own file reading
-    if (std.mem.eql(u8, extension, ".tlz"))
+    if (format == .tlz)
     {
         return try tlz_bundle.readFromFile(allocator, file_path, .{});
     }
@@ -3022,39 +3100,7 @@ pub fn read_from_file(
     );
     defer allocator.free(source);
 
-    if (std.mem.eql(u8, extension, ".ziggy"))
-    {
-        return try ziggy.parseLeaky(
-            SerializableTimeline,
-            allocator,
-            source,
-            .{},
-        );
-    }
-
-    if (std.mem.eql(u8, extension, ".tlb"))
-    {
-        return try binary_serialization.deserialize_to_serializable_timeline(
-            allocator,
-            source[0..source.len],
-        );
-    }
-
-    if (std.mem.eql(u8, extension, ".tlfb"))
-    {
-        return try binary_serialization_flatbufs.deserialize_to_serializable_timeline(
-            allocator,
-            source[0..source.len],
-            .{},
-        );
-    }
-
-    if (std.mem.eql(u8, extension, ".otio"))
-    {
-        return try otio_json_to_serializable_timeline(allocator, source[0..source.len]);
-    }
-
-    return error.UnsupportedFileFormat;
+    return try read_from_buffer(allocator, source, format);
 }
 
 // ----------------------------------------------------------------------------
@@ -3088,6 +3134,46 @@ pub const MetadataMode = enum {
     inline_metadata,
 };
 
+/// Write a SerializableTimeline to an allocated buffer.
+/// Supports: .ziggy, .tlb (CBOR), .tlfb (FlatBuffers)
+/// Note: .tlz format is not supported for buffer writing as it requires
+/// file system access for the ZIP archive. Use write_to_file for .tlz.
+///
+/// Returns an allocated buffer that the caller must free.
+/// This is useful for cases where you need the serialized data in memory,
+/// such as for network transfers or in-memory processing.
+pub fn write_to_buffer(
+    allocator: Allocator,
+    ser_timeline: SerializableTimeline,
+    format: FileFormat,
+    options: WriteOptions,
+) ![]u8
+{
+    if (format == .tlz) {
+        // TLZ is a ZIP archive that requires file system access
+        return error.TlzRequiresFileAccess;
+    }
+
+    if (format == .otio) {
+        // OTIO JSON output is not currently supported
+        return error.OtioJsonWriteNotSupported;
+    }
+
+    // Use an allocating writer to build the buffer
+    var buffer = std.Io.Writer.Allocating.init(allocator);
+    errdefer buffer.deinit();
+
+    try write_to_writer_with_format(
+        allocator,
+        ser_timeline,
+        format,
+        options,
+        &buffer.writer,
+    );
+
+    return try buffer.toOwnedSlice();
+}
+
 /// Write a SerializableTimeline to any supported file format.
 /// Supports: .ziggy, .tlb (CBOR), .tlfb (FlatBuffers), .tlz (bundle)
 /// The file format is determined by the file extension.
@@ -3104,8 +3190,12 @@ pub fn write_to_file(
     };
     const extension = file_path[ext_start..];
 
+    const format = std.meta.stringToEnum(FileFormat, extension) orelse {
+        return error.UnsupportedFileFormat;
+    };
+
     // Handle .tlz separately since it manages its own file writing
-    if (std.mem.eql(u8, extension, ".tlz"))
+    if (format == .tlz)
     {
         try tlz_bundle.writeToFile(
             allocator,
@@ -3128,53 +3218,50 @@ pub fn write_to_file(
     var file_writer = file.writer(&file_writer_buffer);
     const writer = &file_writer.interface;
 
-    try write_to_writer(allocator, ser_timeline, extension, options, writer);
+    try write_to_writer_with_format(allocator, ser_timeline, format, options, writer);
 
     try writer.flush();
 }
 
 /// Write a SerializableTimeline to a writer in the specified format.
-/// extension should include the dot (e.g., ".ziggy", ".tlb", ".tlfb")
-pub fn write_to_writer(
+pub fn write_to_writer_with_format(
     allocator: Allocator,
     ser_timeline: SerializableTimeline,
-    extension: []const u8,
+    format: FileFormat,
     options: WriteOptions,
     writer: anytype,
 ) !void
 {
-    if (std.mem.eql(u8, extension, ".ziggy"))
-    {
-        try write_ziggy_with_metadata_mode(
-            allocator,
-            ser_timeline,
-            options.metadata_mode,
-            writer,
-        );
-        return;
+    switch (format) {
+        .ziggy => {
+            try write_ziggy_with_metadata_mode(
+                allocator,
+                ser_timeline,
+                options.metadata_mode,
+                writer,
+            );
+        },
+        .tlb => {
+            try binary_serialization.serialize_from_serializable_timeline(
+                ser_timeline,
+                allocator,
+                writer,
+            );
+        },
+        .tlfb => {
+            try binary_serialization_flatbufs.serialize_from_serializable_timeline(
+                ser_timeline,
+                allocator,
+                writer,
+            );
+        },
+        .otio => {
+            return error.OtioJsonWriteNotSupported;
+        },
+        .tlz => {
+            return error.TlzRequiresFileAccess;
+        },
     }
-
-    if (std.mem.eql(u8, extension, ".tlb"))
-    {
-        try binary_serialization.serialize_from_serializable_timeline(
-            ser_timeline,
-            allocator,
-            writer,
-        );
-        return;
-    }
-
-    if (std.mem.eql(u8, extension, ".tlfb"))
-    {
-        try binary_serialization_flatbufs.serialize_from_serializable_timeline(
-            ser_timeline,
-            allocator,
-            writer,
-        );
-        return;
-    }
-
-    return error.UnsupportedFileFormat;
 }
 
 /// Write SerializableTimeline to Ziggy format with the specified metadata mode.

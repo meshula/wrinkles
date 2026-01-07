@@ -38,7 +38,24 @@ pub const hierarchy_text_render = @import("hierarchy_text_render.zig");
 
 const otio_json = @import("opentimelineio_json.zig");
 
+/// Read timeline from file to CompositionItemHandle (runtime schema).
+/// Supports: .otio (JSON), .ziggy, .tlb (CBOR), .tlfb (FlatBuffers), .tlz (bundle)
 pub const read_from_file = otio_json.read_from_file;
+
+/// File format types for serialization operations
+pub const FileFormat = serialization.FileFormat;
+
+/// Read timeline from buffer to SerializableTimeline.
+/// Supports: .otio (JSON), .ziggy, .tlb (CBOR), .tlfb (FlatBuffers)
+/// Note: .tlz format requires file access; use read_from_file instead.
+/// Useful for sokol_fetch callbacks or network transfers.
+pub const read_from_buffer = serialization.read_from_buffer;
+
+/// Write timeline from SerializableTimeline to buffer.
+/// Supports: .ziggy, .tlb (CBOR), .tlfb (FlatBuffers)
+/// Note: .tlz format requires file access; use write_to_file instead.
+/// Returns an allocated buffer that the caller must free.
+pub const write_to_buffer = serialization.write_to_buffer;
 
 test {
     const otio_highlevel_tests = @import(

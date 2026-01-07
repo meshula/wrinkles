@@ -275,20 +275,19 @@ pub fn main() !void
     else
         ".ziggy";
 
-    if (!std.mem.eql(u8, output_ext, ".ziggy") and
-        !std.mem.eql(u8, output_ext, ".tlb") and
-        !std.mem.eql(u8, output_ext, ".tlfb") and
-        !std.mem.eql(u8, output_ext, ".tlz"))
-    {
+    const output_format = std.meta.stringToEnum(
+        serialization.FileFormat,
+        output_ext[1..],  // Skip the leading dot
+    ) orelse {
         std.log.err(
             "Unsupported output format: {s}. Use .ziggy, .tlb, .tlfb, or .tlz",
             .{output_ext}
         );
         std.process.exit(1);
-    }
+    };
 
     // TLZ output requires an output file (can't write to stdout)
-    if (std.mem.eql(u8, output_ext, ".tlz") and state.output_path == null)
+    if (output_format == .tlz and state.output_path == null)
     {
         std.log.err("TLZ output requires an output file path", .{});
         std.process.exit(1);
