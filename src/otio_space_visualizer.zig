@@ -1075,7 +1075,9 @@ fn draw_timeline_item(
 {
     if (duration_seconds <= 0) return;
 
-    const x = origin[0] + time_to_pixel(start_time, scale);
+    // start_time is relative to track start (not absolute timeline time)
+    // so we just multiply by scale directly, don't use time_to_pixel
+    const x = origin[0] + (start_time * scale);
     const width = duration_seconds * scale;
 
     if (width < 1) return;
@@ -1084,16 +1086,13 @@ fn draw_timeline_item(
     const p0 = [2]f32{ x, origin[1] };
     const p1 = [2]f32{ x + width, origin[1] + height };
 
-    // Get the underlying pointer for pushPtrId
-    const item_ptr: *const anyopaque = switch (item) {
-        inline else => |p| p,
-    };
-    zgui.pushPtrId(item_ptr);
-    defer zgui.popId();
-
-    // Use invisible button for interaction, positioned at the item location
-    zgui.setCursorScreenPos(p0);
-    _ = zgui.invisibleButton("##Item", .{ .w = width, .h = height });
+    // Use manual hit-testing instead of invisible buttons to avoid coordinate issues
+    const mouse_pos = zgui.getMousePos();
+    const is_hovered = (
+        mouse_pos[0] >= p0[0] and mouse_pos[0] < p1[0] and
+        mouse_pos[1] >= p0[1] and mouse_pos[1] < p1[1]
+    );
+    const is_clicked = is_hovered and zgui.isMouseClicked(.left);
 
     // Determine colors based on item type and state
     var fill_color: u32 = undefined;
@@ -1113,7 +1112,7 @@ fn draw_timeline_item(
         },
     }
 
-    if (zgui.isItemHovered(.{})) {
+    if (is_hovered) {
         fill_color = if (is_gap) TimelineColors.gap_hover else TimelineColors.item_hover;
     }
 
@@ -1124,7 +1123,7 @@ fn draw_timeline_item(
     }
 
     // Handle click
-    if (zgui.isItemClicked(.left)) {
+    if (is_clicked) {
         STATE.maybe_current_selected_object = item;
     }
 
@@ -1171,8 +1170,12 @@ fn draw_timeline_item(
         }
     }
 
-    // Tooltip on hover
-    if (zgui.isItemHovered(.{})) {
+    // Tooltip on hover (using manual hit-test result)
+    if (is_hovered) {
+        zgui.setNextWindowPos(.{
+            .x = mouse_pos[0] + 15,
+            .y = mouse_pos[1] + 15,
+        });
         if (zgui.beginTooltip()) {
             defer zgui.endTooltip();
 
@@ -1506,29 +1509,13 @@ fn draw_timeline_tab(
         // Draw playhead over everything
         draw_playhead(ruler_origin, total_height, scale, track_height);
 
-        // Make the entire timeline area clickable for playhead seeking
-        zgui.setCursorScreenPos(.{ ruler_origin[0], ruler_origin[1] + track_height });
-        _ = zgui.invisibleButton(
-            "##TimelineSeek",
-            .{ .w = timeline_content_width, .h = total_height - track_height },
-        );
-        if (zgui.isItemActive()) {
-            const mouse_pos = zgui.getMousePos();
-            STATE.timeline.playhead = pixel_to_time(
-                mouse_pos[0] - ruler_origin[0],
-                scale,
-            );
-            STATE.timeline.playhead = @max(
-                STATE.timeline.start,
-                @min(
-                    STATE.timeline.start + STATE.timeline.duration,
-                    STATE.timeline.playhead,
-                ),
-            );
-        }
-
         // Set content size to enable scrolling
-        zgui.dummy(.{ .w = track_label_width + timeline_content_width, .h = total_height });
+        // Position cursor at end of content to set scroll extent
+        zgui.setCursorScreenPos(.{
+            window_pos[0] + track_label_width + timeline_content_width,
+            window_pos[1] + total_height
+        });
+        zgui.dummy(.{ .w = 1, .h = 1 });
     }
 }
 
