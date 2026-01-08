@@ -2732,8 +2732,13 @@ pub fn serialize_from_serializable_timeline(
     defer arena.deinit();
     const arena_alloc = arena.allocator();
 
-    var builder = try flatbuffers.Builder.init(arena_alloc);
-    // No need to deinit builder - arena will free everything
+    // Check if we have non-empty metadata
+    const has_metadata = if (ser_timeline.metadata_map) |mm| mm.fields.count() > 0 else false;
+
+    // ========================================================================
+    // Phase 1: Build timeline structure FlatBuffer (without metadata_map)
+    // ========================================================================
+    var timeline_builder = try flatbuffers.Builder.init(arena_alloc);
 
     if (enable_timing) {
         std.debug.print("  [TLFB] Builder init: {d:.3}ms\n", .{@as(f64, @floatFromInt(timer.lap())) / 1_000_000.0});
@@ -2743,7 +2748,7 @@ pub fn serialize_from_serializable_timeline(
     const children: ?[]ottla.ComposableWrapper = if (ser_timeline.children.len > 0) blk: {
         const c = try arena_alloc.alloc(ottla.ComposableWrapper, ser_timeline.children.len);
         for (ser_timeline.children, 0..) |child, i| {
-            c[i] = try serializable_composable_to_fb(&builder, arena_alloc, child);
+            c[i] = try serializable_composable_to_fb(&timeline_builder, arena_alloc, child);
         }
         break :blk c;
     } else null;
@@ -2752,45 +2757,64 @@ pub fn serialize_from_serializable_timeline(
         std.debug.print("  [TLFB] Children conversion: {d:.3}ms\n", .{@as(f64, @floatFromInt(timer.lap())) / 1_000_000.0});
     }
 
-    // Convert metadata if present (using new single-table columnar format)
-    var metadata_fb: ?ottla.MetadataMap = null;
-    if (ser_timeline.metadata_map)
-        |mm|
-    {
-        metadata_fb = try metadata_map_to_fb(&builder, arena_alloc, mm);
+    // Convert discrete partitions
+    const discrete_partitions = try serializable_discrete_partitions_to_fb(
+        &timeline_builder,
+        ser_timeline.presentation_space_discrete_partitions,
+    );
+
+    // Build Timeline root WITHOUT metadata_map (it will be stored separately)
+    const timeline_ref = try timeline_builder.writeTable(ottla.Timeline, .{
+        .schema_version = ser_timeline.schema_version,
+        .name = ser_timeline.name,
+        .children = children,
+        .presentation_space_discrete_partitions = discrete_partitions,
+        .metadata_map = null, // Metadata stored separately for efficient skipping
+    });
+
+    try timeline_builder.writeRoot(ottla.Timeline, timeline_ref);
+    const timeline_bytes = try timeline_builder.writeAlloc(arena_alloc);
+
+    if (enable_timing) {
+        std.debug.print("  [TLFB] Timeline build: {d:.3}ms\n", .{@as(f64, @floatFromInt(timer.lap())) / 1_000_000.0});
+    }
+
+    // ========================================================================
+    // Phase 2: Build metadata FlatBuffer separately (if present)
+    // ========================================================================
+    var metadata_bytes: ?[]const u8 = null;
+    if (has_metadata) {
+        var metadata_builder = try flatbuffers.Builder.init(arena_alloc);
+        const metadata_fb = try metadata_map_to_fb(&metadata_builder, arena_alloc, ser_timeline.metadata_map.?);
+        if (metadata_fb) |mfb| {
+            try metadata_builder.writeRoot(ottla.MetadataMap, mfb);
+            metadata_bytes = try metadata_builder.writeAlloc(arena_alloc);
+        }
     }
 
     if (enable_timing) {
         std.debug.print("  [TLFB] Metadata conversion: {d:.3}ms\n", .{@as(f64, @floatFromInt(timer.lap())) / 1_000_000.0});
     }
 
-    // Convert discrete partitions
-    const discrete_partitions = try serializable_discrete_partitions_to_fb(
-        &builder,
-        ser_timeline.presentation_space_discrete_partitions,
-    );
+    // ========================================================================
+    // Phase 3: Write header + timeline data + metadata data
+    // ========================================================================
+    // Calculate metadata_offset: position where metadata starts (after header + timeline)
+    const metadata_offset: u64 = if (metadata_bytes != null)
+        TLFB_HEADER_SIZE + timeline_bytes.len
+    else
+        0; // No metadata
 
-    // Build Timeline root
-    const timeline_ref = try builder.writeTable(ottla.Timeline, .{
-        .schema_version = ser_timeline.schema_version,
-        .name = ser_timeline.name,
-        .children = children,
-        .presentation_space_discrete_partitions = discrete_partitions,
-        .metadata_map = metadata_fb,
-    });
+    // Write header with correct metadata_offset
+    try write_header(writer, metadata_offset);
 
-    try builder.writeRoot(ottla.Timeline, timeline_ref);
+    // Write timeline structure
+    try writer.writeAll(timeline_bytes);
 
-    if (enable_timing) {
-        std.debug.print("  [TLFB] Timeline build: {d:.3}ms\n", .{@as(f64, @floatFromInt(timer.lap())) / 1_000_000.0});
+    // Write metadata if present
+    if (metadata_bytes) |mb| {
+        try writer.writeAll(mb);
     }
-
-    // Write header
-    try write_header(writer, 0);
-
-    // Get FlatBuffers data and write
-    const fb_bytes = try builder.writeAlloc(arena_alloc);
-    try writer.writeAll(fb_bytes);
 }
 
 // ----------------------------------------------------------------------------
@@ -2860,28 +2884,46 @@ pub fn deserialize_timeline(
 /// This is useful when you need to output to ziggy format while preserving metadata.
 ///
 /// When options.file_contents_to_read == .all_except_metadata, the metadata_map
-/// field in the FlatBuffers data is not parsed, providing significant performance
-/// gains for large files with extensive metadata. The resulting SerializableTimeline
-/// will have metadata_map = null.
+/// is not parsed, providing significant performance gains for large files with
+/// extensive metadata. The resulting SerializableTimeline will have metadata_map = null.
+///
+/// The TLFB format stores timeline structure and metadata in separate FlatBuffer segments:
+/// - [0..16]: Header with metadata_offset
+/// - [16..metadata_offset]: Timeline structure (without metadata_map)
+/// - [metadata_offset..]: Metadata FlatBuffer (if metadata_offset > 0)
 pub fn deserialize_to_serializable_timeline(
     allocator: Allocator,
     data: []const u8,
     options: ReadOptions,
 ) !SerializableTimeline
 {
-    _ = try read_header(data);
+    const header = try read_header(data);
 
-    // Get FlatBuffers data after header
-    const fb_data = data[TLFB_HEADER_SIZE..];
+    const skip_metadata = options.file_contents_to_read == .all_except_metadata;
+
+    // Determine timeline data range based on metadata_offset
+    // If metadata_offset > TLFB_HEADER_SIZE, metadata is stored separately
+    const has_separate_metadata = header.metadata_offset > TLFB_HEADER_SIZE and
+        header.metadata_offset < data.len;
+
+    // Timeline data: from header end to metadata start (or end of file)
+    const timeline_end: usize = if (has_separate_metadata)
+        @intCast(header.metadata_offset)
+    else
+        data.len;
+
+    const fb_data = data[TLFB_HEADER_SIZE..timeline_end];
 
     // FlatBuffers requires 8-byte alignment. Copy to aligned buffer if needed.
-    const aligned_data: []align(8) const u8 = if (@intFromPtr(fb_data.ptr) % 8 == 0)
+    const needs_timeline_copy = @intFromPtr(fb_data.ptr) % 8 != 0;
+    const aligned_data: []align(8) const u8 = if (!needs_timeline_copy)
         @alignCast(fb_data)
     else blk: {
         const aligned_copy = try allocator.alignedAlloc(u8, .@"8", fb_data.len);
         @memcpy(aligned_copy, fb_data);
         break :blk aligned_copy;
     };
+    defer if (needs_timeline_copy) allocator.free(@constCast(aligned_data));
 
     // Decode root Timeline
     const fb_timeline = try flatbuffers.decodeRoot(ottla.Timeline, aligned_data);
@@ -2896,13 +2938,28 @@ pub fn deserialize_to_serializable_timeline(
     }
 
     // Convert metadata if present and requested
-    // When skip_metadata is true, we don't parse the metadata_map at all
     var metadata_map: ?MetadataMap = null;
-    const skip_metadata = options.file_contents_to_read == .all_except_metadata;
     if (!skip_metadata) {
-        if (fb_timeline.metadata_map())
-            |fb_metadata|
-        {
+        // First check if metadata is embedded in timeline (legacy/inline format)
+        if (fb_timeline.metadata_map()) |fb_metadata| {
+            metadata_map = try fb_to_metadata_map_single_table(allocator, fb_metadata);
+        }
+        // Then check for separated metadata
+        else if (has_separate_metadata) {
+            const metadata_data = data[header.metadata_offset..];
+
+            // FlatBuffers requires 8-byte alignment
+            const needs_copy = @intFromPtr(metadata_data.ptr) % 8 != 0;
+            const aligned_metadata: []align(8) const u8 = if (!needs_copy)
+                @alignCast(metadata_data)
+            else blk: {
+                const aligned_copy = try allocator.alignedAlloc(u8, .@"8", metadata_data.len);
+                @memcpy(aligned_copy, metadata_data);
+                break :blk aligned_copy;
+            };
+            defer if (needs_copy) allocator.free(@constCast(aligned_metadata));
+
+            const fb_metadata = try flatbuffers.decodeRoot(ottla.MetadataMap, aligned_metadata);
             metadata_map = try fb_to_metadata_map_single_table(allocator, fb_metadata);
         }
     }
@@ -3369,13 +3426,15 @@ pub fn deserialize_collection(
     const fb_data = data[TLFB_HEADER_SIZE..];
 
     // FlatBuffers requires 8-byte alignment. Copy to aligned buffer if needed.
-    const aligned_data: []align(8) const u8 = if (@intFromPtr(fb_data.ptr) % 8 == 0)
+    const needs_copy = @intFromPtr(fb_data.ptr) % 8 != 0;
+    const aligned_data: []align(8) const u8 = if (!needs_copy)
         @alignCast(fb_data)
     else blk: {
         const aligned_copy = try allocator.alignedAlloc(u8, .@"8", fb_data.len);
         @memcpy(aligned_copy, fb_data);
         break :blk aligned_copy;
     };
+    defer if (needs_copy) allocator.free(@constCast(aligned_data));
 
     // Decode root Collection
     const fb_collection = try flatbuffers.decodeRoot(ottla.Collection, aligned_data);
@@ -3488,4 +3547,336 @@ test "flatbufs: direct flatbuffers roundtrip"
     try std.testing.expectEqualStrings("Test Gap", gap_val.name().?);
     try std.testing.expectApproxEqAbs(@as(f64, 0.0), gap_val.bounds_start(), 0.001);
     try std.testing.expectApproxEqAbs(@as(f64, 5.0), gap_val.bounds_end(), 0.001);
+}
+
+// ============================================================================
+// Metadata Separation Tests
+// ============================================================================
+
+test "tlfb: metadata_offset written correctly when metadata present"
+{
+    const allocator = std.testing.allocator;
+
+    // Create a simple metadata map
+    var metadata: MetadataMap = .{};
+    defer metadata.fields.deinit(allocator);
+    var inner: MetadataMap = .{};
+    defer inner.fields.deinit(allocator);
+    try inner.fields.put(allocator, "test_key", .{ .bytes = "test_value" });
+    try inner.fields.put(allocator, "number", .{ .integer = 42 });
+    try metadata.fields.put(allocator, "test_hash", .{ .kv = inner });
+
+    // Create timeline with metadata
+    const timeline = SerializableTimeline{
+        .schema_version = 1,
+        .name = "Test Timeline",
+        .children = &.{},
+        .metadata_map = metadata,
+        .presentation_space_discrete_partitions = .{},
+    };
+
+    // Serialize
+    var buffer: std.ArrayList(u8) = .empty;
+    defer buffer.deinit(allocator);
+    try serialize_from_serializable_timeline(timeline, allocator, buffer.writer(allocator));
+
+    // Read header and verify metadata_offset is non-zero
+    const header = try read_header(buffer.items);
+    try std.testing.expect(header.metadata_offset > TLFB_HEADER_SIZE);
+    try std.testing.expect(header.metadata_offset < buffer.items.len);
+}
+
+test "tlfb: metadata_offset is 0 when no metadata"
+{
+    const allocator = std.testing.allocator;
+
+    // Create timeline without metadata
+    const timeline = SerializableTimeline{
+        .schema_version = 1,
+        .name = "No Metadata Timeline",
+        .children = &.{},
+        .metadata_map = null,
+        .presentation_space_discrete_partitions = .{},
+    };
+
+    // Serialize
+    var buffer: std.ArrayList(u8) = .empty;
+    defer buffer.deinit(allocator);
+    try serialize_from_serializable_timeline(timeline, allocator, buffer.writer(allocator));
+
+    // Read header and verify metadata_offset is 0
+    const header = try read_header(buffer.items);
+    try std.testing.expectEqual(@as(u64, 0), header.metadata_offset);
+}
+
+test "tlfb: round-trip with metadata preserved"
+{
+    const allocator = std.testing.allocator;
+
+    // Create metadata map with various types
+    var metadata: MetadataMap = .{};
+    defer metadata.fields.deinit(allocator);
+    var inner: MetadataMap = .{};
+    defer inner.fields.deinit(allocator);
+    try inner.fields.put(allocator, "string_val", .{ .bytes = "test string" });
+    try inner.fields.put(allocator, "int_val", .{ .integer = 42 });
+    try inner.fields.put(allocator, "float_val", .{ .float = 3.14159 });
+    try inner.fields.put(allocator, "bool_val", .{ .bool = true });
+    try metadata.fields.put(allocator, "test_hash", .{ .kv = inner });
+
+    // Create timeline with metadata
+    const timeline = SerializableTimeline{
+        .schema_version = 1,
+        .name = "Test Timeline",
+        .children = &.{},
+        .metadata_map = metadata,
+        .presentation_space_discrete_partitions = .{},
+    };
+
+    // Serialize
+    var buffer: std.ArrayList(u8) = .empty;
+    defer buffer.deinit(allocator);
+    try serialize_from_serializable_timeline(timeline, allocator, buffer.writer(allocator));
+
+    // Deserialize with metadata
+    var deserialized = try deserialize_to_serializable_timeline(
+        allocator,
+        buffer.items,
+        .{ .file_contents_to_read = .all },
+    );
+    defer deserialized.deinit(allocator);
+
+    // Verify metadata preserved
+    try std.testing.expect(deserialized.metadata_map != null);
+    const result_meta = deserialized.metadata_map.?;
+    const result_hash = result_meta.fields.get("test_hash").?;
+    try std.testing.expect(result_hash == .kv);
+    const result_kv = result_hash.kv;
+    try std.testing.expectEqualStrings("test string", result_kv.fields.get("string_val").?.bytes);
+    try std.testing.expectEqual(@as(i64, 42), result_kv.fields.get("int_val").?.integer);
+    try std.testing.expectApproxEqAbs(@as(f64, 3.14159), result_kv.fields.get("float_val").?.float, 0.00001);
+    try std.testing.expectEqual(true, result_kv.fields.get("bool_val").?.bool);
+}
+
+test "tlfb: round-trip without metadata (skip on read)"
+{
+    const allocator = std.testing.allocator;
+
+    // Create metadata map
+    var metadata: MetadataMap = .{};
+    defer metadata.fields.deinit(allocator);
+    var inner: MetadataMap = .{};
+    defer inner.fields.deinit(allocator);
+    try inner.fields.put(allocator, "key", .{ .bytes = "value" });
+    try metadata.fields.put(allocator, "test_hash", .{ .kv = inner });
+
+    // Create timeline with metadata
+    const timeline = SerializableTimeline{
+        .schema_version = 1,
+        .name = "Test Timeline",
+        .children = &.{},
+        .metadata_map = metadata,
+        .presentation_space_discrete_partitions = .{},
+    };
+
+    // Serialize with metadata
+    var buffer: std.ArrayList(u8) = .empty;
+    defer buffer.deinit(allocator);
+    try serialize_from_serializable_timeline(timeline, allocator, buffer.writer(allocator));
+
+    // Deserialize WITHOUT metadata
+    var deserialized = try deserialize_to_serializable_timeline(
+        allocator,
+        buffer.items,
+        .{ .file_contents_to_read = .all_except_metadata },
+    );
+    defer deserialized.deinit(allocator);
+
+    // Verify metadata is null but structure preserved
+    try std.testing.expect(deserialized.metadata_map == null);
+    try std.testing.expectEqualStrings("Test Timeline", deserialized.name.?);
+    try std.testing.expectEqual(@as(usize, 0), deserialized.children.len);
+}
+
+test "tlfb: empty metadata_map serialization"
+{
+    const allocator = std.testing.allocator;
+
+    // Create timeline with empty metadata map
+    const empty_map: MetadataMap = .{};
+
+    const timeline = SerializableTimeline{
+        .schema_version = 1,
+        .name = "Empty Metadata",
+        .children = &.{},
+        .metadata_map = empty_map,
+        .presentation_space_discrete_partitions = .{},
+    };
+
+    // Serialize
+    var buffer: std.ArrayList(u8) = .empty;
+    defer buffer.deinit(allocator);
+    try serialize_from_serializable_timeline(timeline, allocator, buffer.writer(allocator));
+
+    // Empty metadata map should result in metadata_offset = 0 (treated as no metadata)
+    const header = try read_header(buffer.items);
+    try std.testing.expectEqual(@as(u64, 0), header.metadata_offset);
+}
+
+test "tlfb: large metadata handling"
+{
+    const allocator = std.testing.allocator;
+
+    // Create metadata map with many entries
+    var metadata: MetadataMap = .{};
+    defer metadata.fields.deinit(allocator);
+    var inner: MetadataMap = .{};
+    // Note: We need to free the dynamically allocated keys as well as the hashmap
+    defer {
+        var iter = inner.fields.iterator();
+        while (iter.next()) |entry| {
+            allocator.free(entry.key_ptr.*);
+        }
+        inner.fields.deinit(allocator);
+    }
+
+    // Add 100 entries
+    var i: usize = 0;
+    while (i < 100) : (i += 1) {
+        var key_buf: [32]u8 = undefined;
+        const key_slice = std.fmt.bufPrint(&key_buf, "key_{d}", .{i}) catch unreachable;
+        const key = try allocator.dupe(u8, key_slice);
+        try inner.fields.put(allocator, key, .{ .integer = @intCast(i) });
+    }
+    try metadata.fields.put(allocator, "large_hash", .{ .kv = inner });
+
+    const timeline = SerializableTimeline{
+        .schema_version = 1,
+        .name = "Large Metadata",
+        .children = &.{},
+        .metadata_map = metadata,
+        .presentation_space_discrete_partitions = .{},
+    };
+
+    // Serialize
+    var buffer: std.ArrayList(u8) = .empty;
+    defer buffer.deinit(allocator);
+    try serialize_from_serializable_timeline(timeline, allocator, buffer.writer(allocator));
+
+    // Round-trip verification
+    var result = try deserialize_to_serializable_timeline(allocator, buffer.items, .{});
+    defer result.deinit(allocator);
+
+    try std.testing.expect(result.metadata_map != null);
+    const result_hash = result.metadata_map.?.fields.get("large_hash").?;
+    try std.testing.expectEqual(@as(usize, 100), result_hash.kv.fields.count());
+}
+
+test "tlfb: complex nested metadata round-trip"
+{
+    const allocator = std.testing.allocator;
+
+    // Create metadata with nested structures
+    var metadata: MetadataMap = .{};
+    defer metadata.fields.deinit(allocator);
+    var inner: MetadataMap = .{};
+    defer inner.fields.deinit(allocator);
+
+    // Add nested KV
+    var nested_kv: MetadataMap = .{};
+    defer nested_kv.fields.deinit(allocator);
+    try nested_kv.fields.put(allocator, "inner_key", .{ .bytes = "inner_value" });
+    try inner.fields.put(allocator, "nested_val", .{ .kv = nested_kv });
+
+    // Add array
+    const array_items = try allocator.alloc(MetadataValue, 3);
+    defer allocator.free(array_items);
+    array_items[0] = .{ .integer = 1 };
+    array_items[1] = .{ .integer = 2 };
+    array_items[2] = .{ .integer = 3 };
+    try inner.fields.put(allocator, "array_val", .{ .array = array_items });
+
+    try metadata.fields.put(allocator, "complex_hash", .{ .kv = inner });
+
+    const timeline = SerializableTimeline{
+        .schema_version = 1,
+        .name = "Complex Metadata",
+        .children = &.{},
+        .metadata_map = metadata,
+        .presentation_space_discrete_partitions = .{},
+    };
+
+    // Serialize and round-trip
+    var buffer: std.ArrayList(u8) = .empty;
+    defer buffer.deinit(allocator);
+    try serialize_from_serializable_timeline(timeline, allocator, buffer.writer(allocator));
+
+    var result = try deserialize_to_serializable_timeline(allocator, buffer.items, .{});
+    defer result.deinit(allocator);
+
+    // Verify nested structure
+    const rm = result.metadata_map.?;
+    const result_hash = rm.fields.get("complex_hash").?.kv;
+
+    // Check nested KV
+    const nested = result_hash.fields.get("nested_val").?.kv;
+    try std.testing.expectEqualStrings("inner_value", nested.fields.get("inner_key").?.bytes);
+
+    // Check array
+    const arr = result_hash.fields.get("array_val").?.array;
+    try std.testing.expectEqual(@as(usize, 3), arr.len);
+    try std.testing.expectEqual(@as(i64, 1), arr[0].integer);
+    try std.testing.expectEqual(@as(i64, 2), arr[1].integer);
+    try std.testing.expectEqual(@as(i64, 3), arr[2].integer);
+}
+
+test "tlfb: metadata offset points to correct boundary"
+{
+    const allocator = std.testing.allocator;
+
+    // Create timeline with metadata
+    var metadata: MetadataMap = .{};
+    defer metadata.fields.deinit(allocator);
+    var inner: MetadataMap = .{};
+    defer inner.fields.deinit(allocator);
+    try inner.fields.put(allocator, "key", .{ .bytes = "value" });
+    try metadata.fields.put(allocator, "hash", .{ .kv = inner });
+
+    const timeline = SerializableTimeline{
+        .schema_version = 1,
+        .name = "Test",
+        .children = &.{},
+        .metadata_map = metadata,
+        .presentation_space_discrete_partitions = .{},
+    };
+
+    // Serialize
+    var buffer: std.ArrayList(u8) = .empty;
+    defer buffer.deinit(allocator);
+    try serialize_from_serializable_timeline(timeline, allocator, buffer.writer(allocator));
+
+    const header = try read_header(buffer.items);
+
+    // Verify: timeline data ends at metadata_offset, metadata starts there
+    // metadata_offset should be > TLFB_HEADER_SIZE (16) and < total buffer length
+    try std.testing.expect(header.metadata_offset > TLFB_HEADER_SIZE);
+    try std.testing.expect(header.metadata_offset < buffer.items.len);
+
+    // The data at metadata_offset should be valid FlatBuffers metadata
+    // We can verify by attempting to decode the timeline portion only
+    const timeline_data = buffer.items[TLFB_HEADER_SIZE..header.metadata_offset];
+    const aligned_timeline: []align(8) const u8 = if (@intFromPtr(timeline_data.ptr) % 8 == 0)
+        @alignCast(timeline_data)
+    else blk: {
+        const aligned_copy = try allocator.alignedAlloc(u8, .@"8", timeline_data.len);
+        @memcpy(aligned_copy, timeline_data);
+        break :blk aligned_copy;
+    };
+    defer if (@intFromPtr(timeline_data.ptr) % 8 != 0) allocator.free(@constCast(aligned_timeline));
+
+    // Should be able to decode timeline without metadata
+    const fb_timeline = try flatbuffers.decodeRoot(ottla.Timeline, aligned_timeline);
+    try std.testing.expectEqualStrings("Test", fb_timeline.name().?);
+    // Timeline portion should have null metadata_map (it's stored separately)
+    try std.testing.expect(fb_timeline.metadata_map() == null);
 }
