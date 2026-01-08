@@ -98,6 +98,7 @@ typedef struct otio_ProjectionOperator {
     void* ref;
 } otio_ProjectionOperator;
 int otio_po_map_fetch_op(
+        otio_Allocator allocator,
         otio_ProjectionTopology,
         size_t segment,
         size_t po_index,
@@ -106,6 +107,21 @@ int otio_po_map_fetch_op(
 int otio_po_fetch_topology(otio_ProjectionOperator, otio_Topology*);
 otio_CompositionItemHandle otio_po_fetch_source(otio_ProjectionOperator);
 otio_CompositionItemHandle otio_po_fetch_destination(otio_ProjectionOperator);
+
+// Projection operations (continuous-to-continuous)
+int otio_po_project_ordinate_cc(
+        otio_ProjectionOperator po,
+        double input,
+        double* output
+);
+int otio_po_project_range_cc(
+        otio_Allocator allocator,
+        otio_ProjectionOperator po,
+        double input_start,
+        double input_end,
+        double* output_start,
+        double* output_end
+);
 
 void otio_write_map_to_png(
         otio_Allocator allocator,
@@ -149,3 +165,54 @@ size_t otio_fetch_continuous_ordinate_to_discrete_index(
         float,
         otio_TemporalSpace,
         otio_Domain);
+
+// Extended C API for C++ binding
+///////////////////////////////////////////////////////////////////////////////
+
+// Bounds access - returns 0 on success, -1 if no bounds
+int otio_composable_bounds(
+        otio_CompositionItemHandle handle,
+        otio_ContinuousInterval* result
+);
+
+// Media reference types
+typedef enum otio_MediaDataType {
+    otio_mdt_uri,
+    otio_mdt_signal,
+    otio_mdt_null
+} otio_MediaDataType;
+
+// Media reference structure
+typedef struct otio_MediaReference {
+    otio_MediaDataType data_type;
+    const char* target_uri;  // NULL if not uri type
+    otio_Domain domain;
+    int has_bounds;
+    otio_ContinuousInterval bounds;
+    int has_discrete_info;
+    otio_DiscreteDatasourceIndexGenerator discrete_info;
+} otio_MediaReference;
+
+// Clip media access - returns 0 on success
+int otio_clip_media(
+        otio_CompositionItemHandle clip,
+        otio_MediaReference* result
+);
+
+// Transition kind string - returns string length, fills buffer
+int otio_transition_kind(
+        otio_CompositionItemHandle transition,
+        char* result,
+        size_t len
+);
+
+// Warp child access
+otio_CompositionItemHandle otio_warp_child(otio_CompositionItemHandle warp);
+
+// Projection topology segment info
+size_t otio_po_map_fetch_num_segments(otio_ProjectionTopology in_map);
+int otio_po_map_fetch_segment_bounds(
+        otio_ProjectionTopology in_map,
+        size_t segment_index,
+        otio_ContinuousInterval* result
+);

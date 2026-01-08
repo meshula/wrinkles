@@ -259,7 +259,8 @@ main(
             otio_ContinuousInterval tr;
 
             if (
-                    !otio_po_map_fetch_op( 
+                    !otio_po_map_fetch_op(
+                        arena.allocator,
                         tl_pres_proj_builder,
                         i,
                         o,

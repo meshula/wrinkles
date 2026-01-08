@@ -33,28 +33,28 @@ pub export fn otio_fetch_allocator_gpa() c.otio_Allocator
 pub export fn otio_fetch_allocator_new_arena(
 ) c.otio_Arena
 {
-    // set up the allocator
-    var arena = std.heap.ArenaAllocator.init(
-        std.heap.page_allocator
-    );
-    const allocator = arena.allocator();
+    // Use page_allocator to allocate the arena struct itself first.
+    // This avoids the bug where we create an arena on the stack and then
+    // try to copy it - the internal state becomes inconsistent.
+    const page_alloc = std.heap.page_allocator;
 
-    // build the longer lifetime pointers
-    const arena_ptr = (
-        allocator.create(std.heap.ArenaAllocator) catch return ERR_ARENA
-    );
-    const alloc_ptr = (
-        allocator.create(std.mem.Allocator) catch return ERR_ARENA
-    );
-    const vtable = (
-        allocator.create(std.mem.Allocator.VTable) catch return ERR_ARENA
-    );
-    vtable.alloc = allocator.vtable.alloc;
-    vtable.resize = allocator.vtable.resize;
-    vtable.free = allocator.vtable.free;
+    // Allocate the arena struct on the heap
+    const arena_ptr = page_alloc.create(std.heap.ArenaAllocator) catch return ERR_ARENA;
 
-    // build out the result
-    arena_ptr.* = arena;
+    // Initialize the arena in-place on the heap
+    arena_ptr.* = std.heap.ArenaAllocator.init(page_alloc);
+
+    // Now get the allocator from the heap-allocated arena
+    const allocator = arena_ptr.allocator();
+
+    // Allocate the Allocator wrapper and vtable using the arena
+    const alloc_ptr = allocator.create(std.mem.Allocator) catch return ERR_ARENA;
+    const vtable = allocator.create(std.mem.Allocator.VTable) catch return ERR_ARENA;
+
+    // Copy the vtable (these are function pointers to static code)
+    vtable.* = allocator.vtable.*;
+
+    // Build the allocator wrapper pointing to our heap-allocated arena
     alloc_ptr.* = .{
         .ptr = arena_ptr,
         .vtable = vtable,
@@ -79,7 +79,11 @@ pub export fn otio_arena_deinit(
         ref_c.arena.?
     );
 
+    // First deinit the arena (frees all arena-allocated memory)
     ref.*.deinit();
+
+    // Then free the arena struct itself (allocated with page_allocator)
+    std.heap.page_allocator.destroy(ref);
 }
 
 pub export fn otio_read_from_file(
@@ -455,6 +459,80 @@ pub export fn otio_po_fetch_destination(
     };
 }
 
+fn otio_po_fetch_source_erroring(
+    in_po_c: c.otio_ProjectionOperator,
+) !c.otio_CompositionItemHandle
+{
+    const po = try init_ProjectionOperator(in_po_c);
+
+    // note - returns a SpaceReference, not a CompositionItemHandle
+    return to_c_ref(po.source.item);
+}
+
+pub export fn otio_po_fetch_source(
+    in_po_c: c.otio_ProjectionOperator,
+) c.otio_CompositionItemHandle
+{
+    return otio_po_fetch_source_erroring(in_po_c) catch {
+        return ERR_REF;
+    };
+}
+
+pub export fn otio_po_project_ordinate_cc(
+    in_po_c: c.otio_ProjectionOperator,
+    input: f64,
+    output: *f64,
+) c_int
+{
+    const po = init_ProjectionOperator(in_po_c) catch return -1;
+
+    const input_f32: f32 = @floatCast(input);
+    const result = po.project_instantaneous_cc(
+        opentime.Ordinate.init(input_f32),
+    );
+
+    switch (result) {
+        .success_ordinate => |val| {
+            output.* = val.as(f64);
+            return 0;
+        },
+        .success_interval => |interval| {
+            // For instantaneous projection, take the start of the interval
+            output.* = interval.start.as(f64);
+            return 0;
+        },
+        .out_of_bounds => return 1,
+    }
+}
+
+pub export fn otio_po_project_range_cc(
+    allocator_c: c.otio_Allocator,
+    in_po_c: c.otio_ProjectionOperator,
+    input_start: f64,
+    input_end: f64,
+    output_start: *f64,
+    output_end: *f64,
+) c_int
+{
+    const allocator = fetch_allocator(allocator_c) catch return -1;
+    const po = init_ProjectionOperator(in_po_c) catch return -1;
+
+    const start_f32: f32 = @floatCast(input_start);
+    const end_f32: f32 = @floatCast(input_end);
+    const input_range = opentime.ContinuousInterval{
+        .start = opentime.Ordinate.init(start_f32),
+        .end = opentime.Ordinate.init(end_f32),
+    };
+
+    const result_topo = po.project_range_cc(allocator, input_range) catch return -1;
+    const bounds = result_topo.output_bounds() orelse return -1;
+
+    output_start.* = bounds.start.as(f64);
+    output_end.* = bounds.end.as(f64);
+
+    return 0;
+}
+
 /// attempt to clean up the timeline/object
 pub export fn otio_timeline_deinit(
     allocator_c: c.otio_Allocator,
@@ -681,4 +759,180 @@ pub export fn otio_fetch_continuous_ordinate_to_discrete_index(
         );
         return 0;
     };
+}
+
+// Extended C API for C++ binding
+///////////////////////////////////////////////////////////////////////////////
+
+pub export fn otio_composable_bounds(
+    handle_c: c.otio_CompositionItemHandle,
+    result: *c.otio_ContinuousInterval,
+) c_int
+{
+    const cih = init_CompositionItemHandle(handle_c) catch return -1;
+
+    // Get bounds based on type - each type stores bounds differently
+    const maybe_bounds: ?opentime.ContinuousInterval = switch (cih) {
+        .clip => |cl| cl.maybe_bounds_s orelse cl.media.maybe_bounds_s,
+        .gap => |g| g.bounds_s,
+        .track => |t| t.maybe_bounds_s,
+        .stack => |s| s.maybe_bounds_s,
+        .timeline => null, // Timeline bounds are derived from tracks
+        .warp => null,     // Warp bounds depend on child
+        .transition => |tr| tr.maybe_bounds_s,
+    };
+
+    if (maybe_bounds)
+        |bounds|
+    {
+        result.*.start = bounds.start.as(f32);
+        result.*.end = bounds.end.as(f32);
+        return 0;
+    }
+
+    return -1;
+}
+
+pub export fn otio_clip_media(
+    clip_c: c.otio_CompositionItemHandle,
+    result: *c.otio_MediaReference,
+) c_int
+{
+    if (clip_c.kind != c.otio_ct_clip) {
+        return -1;
+    }
+
+    const clip = ptrCast(otio.Clip, clip_c.ref orelse return -1);
+
+    // Initialize result with defaults
+    result.*.data_type = c.otio_mdt_null;
+    result.*.target_uri = null;
+    result.*.domain = c.otio_dm_time;
+    result.*.has_bounds = 0;
+    result.*.has_discrete_info = 0;
+
+    const media_ref = clip.media;
+
+    // Determine data type and URI
+    switch (media_ref.data_reference) {
+        .uri => |uri_data| {
+            result.*.data_type = c.otio_mdt_uri;
+            result.*.target_uri = uri_data.target_uri.ptr;
+        },
+        .signal => {
+            result.*.data_type = c.otio_mdt_signal;
+        },
+        .null => {
+            result.*.data_type = c.otio_mdt_null;
+        },
+        .image_sequence => |img_seq| {
+            // Treat image sequence as a URI type, using the base URL
+            result.*.data_type = c.otio_mdt_uri;
+            result.*.target_uri = img_seq.target_url_base.ptr;
+        },
+    }
+
+    // Domain
+    result.*.domain = switch (media_ref.domain) {
+        .time => c.otio_dm_time,
+        .picture => c.otio_dm_picture,
+        .audio => c.otio_dm_audio,
+        .metadata => c.otio_dm_metadata,
+        .other => c.otio_dm_other,
+    };
+
+    // Bounds
+    if (media_ref.maybe_bounds_s)
+        |bounds|
+    {
+        result.*.has_bounds = 1;
+        result.*.bounds.start = bounds.start.as(f32);
+        result.*.bounds.end = bounds.end.as(f32);
+    }
+
+    // Discrete info
+    if (media_ref.maybe_discrete_partition)
+        |di|
+    {
+        result.*.has_discrete_info = 1;
+        result.*.discrete_info.start_index = di.start_index;
+        result.*.discrete_info.sample_rate_hz = switch (di.sample_rate_hz) {
+            .Int => |i| .{ .num = i, .den = 1 },
+            .Rat => |r| .{ .num = r.num, .den = r.den },
+        };
+    }
+
+    return 0;
+}
+
+pub export fn otio_transition_kind(
+    transition_c: c.otio_CompositionItemHandle,
+    buf: [*]u8,
+    len: usize,
+) c_int
+{
+    if (transition_c.kind != c.otio_ct_transition) {
+        return -1;
+    }
+
+    const transition = ptrCast(otio.Transition, transition_c.ref orelse return -1);
+
+    const buf_slice = buf[0..len];
+    const kind_str = transition.kind;
+
+    _ = std.fmt.bufPrintZ(
+        buf_slice,
+        "{s}",
+        .{ kind_str },
+    ) catch return -1;
+
+    return @intCast(kind_str.len);
+}
+
+pub export fn otio_warp_child(
+    warp_c: c.otio_CompositionItemHandle,
+) c.otio_CompositionItemHandle
+{
+    if (warp_c.kind != c.otio_ct_warp) {
+        return ERR_REF;
+    }
+
+    const warp = ptrCast(otio.Warp, warp_c.ref orelse return ERR_REF);
+
+    return to_c_ref(warp.child);
+}
+
+pub export fn otio_po_map_fetch_num_segments(
+    in_po_map: c.otio_ProjectionTopology,
+) usize
+{
+    const po_map = ptrCast(
+        otio.TemporalProjectionBuilder,
+        in_po_map.ref orelse return 0,
+    );
+
+    // Number of segments is number of intervals
+    return po_map.intervals.len;
+}
+
+pub export fn otio_po_map_fetch_segment_bounds(
+    in_po_map_c: c.otio_ProjectionTopology,
+    segment_ind: usize,
+    result: *c.otio_ContinuousInterval,
+) c_int
+{
+    const po_map = ptrCast(
+        otio.TemporalProjectionBuilder,
+        in_po_map_c.ref orelse return -1,
+    );
+
+    if (segment_ind >= po_map.intervals.len) {
+        return -1;
+    }
+
+    const bounds = po_map.intervals.items(.input_bounds)[segment_ind];
+    result.*.start = bounds.start.as(f32);
+    result.*.end = bounds.end.as(f32);
+
+    return 0;
 }
