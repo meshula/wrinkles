@@ -56,6 +56,7 @@ convert-test-files: zig-out/bin/otio_dump_tla
 
 # Convert OpenTimelineIO sample files to TLA format using otio_dump_tla
 # Output goes to otio_sample_data/ alongside source files
+# Also copies the original .otio files for reference
 convert-otio-samples: zig-out/bin/otio_dump_tla
 	@echo "Converting OpenTimelineIO sample files to TLA format..."
 	@if [ ! -d "../OpenTimelineIO/tests/sample_data" ]; then \
@@ -64,6 +65,15 @@ convert-otio-samples: zig-out/bin/otio_dump_tla
 		exit 1; \
 	fi
 	@mkdir -p otio_sample_data
+	@echo "Copying original .otio files..."
+	@copied=0; \
+	for f in ../OpenTimelineIO/tests/sample_data/*.otio; do \
+		if [ -f "$$f" ]; then \
+			cp "$$f" otio_sample_data/; \
+			copied=$$((copied + 1)); \
+		fi \
+	done; \
+	echo "  Copied $$copied .otio files"
 	@success=0; failed=0; \
 	for f in ../OpenTimelineIO/tests/sample_data/*.otio; do \
 		if [ -f "$$f" ]; then \
