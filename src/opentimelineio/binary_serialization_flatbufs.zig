@@ -12,6 +12,7 @@
 //! for large files with extensive metadata (e.g., AAF imports).
 
 const std = @import("std");
+const build_options = @import("build_options");
 const flatbuffers = @import("flatbuffers");
 const ottla = @import("ottla_schema").ottla;
 const schema = @import("schema.zig");
@@ -2723,7 +2724,7 @@ pub fn serialize_from_serializable_timeline(
     writer: anytype,
 ) !void
 {
-    const enable_timing = true; // Set to true for profiling
+    const enable_timing = build_options.enable_tlfb_timing;
     var timer = std.time.Timer.start() catch unreachable;
 
     // Use arena allocator for all temporary allocations during serialization

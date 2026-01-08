@@ -423,6 +423,18 @@ pub fn build(
             debug_print_messages,
         );
 
+        const enable_tlfb_timing = b.option(
+            bool,
+            "enable_tlfb_timing",
+            "Enable TLFB serialization timing output (default: false)",
+        ) orelse false;
+
+        build_options.addOption(
+            bool,
+            "enable_tlfb_timing",
+            enable_tlfb_timing,
+        );
+
         const write_test_wavs = b.option(
             bool,
             "write_sampling_test_wave_files",
@@ -446,11 +458,17 @@ pub fn build(
         ) orelse "/var/tmp";
 
         build_options.addOption(
-            []const u8, 
+            []const u8,
             "test_data_out_dir",
             test_data_out_dir,
         );
     }
+
+    const cpp_test_output = b.option(
+        bool,
+        "cpp_test_output",
+        "Show C++ test output (default: false, tests run silently)",
+    ) orelse false;
 
     // create module turns the options into a module that can be linked into
     // stuff.  Bafflingly, without this you get "this is in multiple files"
@@ -1245,6 +1263,12 @@ pub fn build(
             // Run the C++ tests with a sample file
             const run_cpp_tests = b.addRunArtifact(cpp_test_exe);
             run_cpp_tests.addArg("sample_otio_files/multiple_track.otio");
+
+            // Suppress C++ test output unless -Dcpp_test_output=true
+            if (!cpp_test_output) 
+            {
+                run_cpp_tests.expectExitCode(0);
+            }
 
             const cpp_test_step = b.step(
                 "test_cpp",
