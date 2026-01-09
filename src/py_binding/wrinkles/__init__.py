@@ -18,6 +18,9 @@ Example usage:
         for item in track:
             print(f"  {type(item).__name__}: {item.name}")
 
+    # Write a timeline to a different format
+    wrinkles.write_to_file(timeline, "project.tla")
+
     # Build projection operators
     projections = wrinkles.build_projection_map(timeline)
     for proj in projections:
@@ -40,6 +43,7 @@ from ._wrinkles import (
     ProjectionOperator,
     # Functions
     read_from_file,
+    write_to_file,
     build_projection_map,
     # Domain constants
     DOMAIN_TIME,
@@ -65,6 +69,7 @@ __all__ = [
     "ProjectionOperator",
     # Functions
     "read_from_file",
+    "write_to_file",
     "build_projection_map",
     # Domain constants
     "DOMAIN_TIME",

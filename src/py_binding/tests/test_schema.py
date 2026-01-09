@@ -1,5 +1,6 @@
 """Tests for wrinkles schema types."""
 
+import os
 import pytest
 import wrinkles
 
@@ -163,3 +164,119 @@ class TestProjection:
             # Destination should be a clip
             dest = proj.destination
             assert dest is not None
+
+
+class TestWriteTimeline:
+    """Tests for writing timeline files."""
+
+    def test_write_tla_format(self, multiple_track_otio, tmp_path):
+        """Test writing a timeline to TLA (ASCII) format."""
+        tl = wrinkles.read_from_file(multiple_track_otio)
+        output_path = str(tmp_path / "output.tla")
+        wrinkles.write_to_file(tl, output_path)
+        assert os.path.exists(output_path)
+        # Verify file has content
+        with open(output_path, 'r') as f:
+            content = f.read()
+        assert len(content) > 0
+        # TLA format includes schema_version and track definitions
+        assert ".schema_version" in content
+        assert "track" in content.lower()
+
+    def test_write_tlb_format(self, multiple_track_otio, tmp_path):
+        """Test writing a timeline to TLB (binary) format."""
+        tl = wrinkles.read_from_file(multiple_track_otio)
+        output_path = str(tmp_path / "output.tlb")
+        wrinkles.write_to_file(tl, output_path)
+        assert os.path.exists(output_path)
+        # Verify file has content
+        file_size = os.path.getsize(output_path)
+        assert file_size > 0
+
+    def test_write_tlfb_format(self, multiple_track_otio, tmp_path):
+        """Test writing a timeline to TLFB (FlatBuffers) format."""
+        tl = wrinkles.read_from_file(multiple_track_otio)
+        output_path = str(tmp_path / "output.tlfb")
+        wrinkles.write_to_file(tl, output_path)
+        assert os.path.exists(output_path)
+        # Verify file has content
+        file_size = os.path.getsize(output_path)
+        assert file_size > 0
+
+    def test_roundtrip_tla(self, multiple_track_otio, tmp_path):
+        """Test round-trip: read OTIO -> write TLA -> read TLA."""
+        # Read original
+        tl1 = wrinkles.read_from_file(multiple_track_otio)
+        original_name = tl1.name
+        original_track_count = len(list(tl1.tracks))
+
+        # Write to TLA
+        output_path = str(tmp_path / "roundtrip.tla")
+        wrinkles.write_to_file(tl1, output_path)
+
+        # Read back
+        tl2 = wrinkles.read_from_file(output_path)
+        assert tl2.name == original_name
+        assert len(list(tl2.tracks)) == original_track_count
+
+    def test_roundtrip_tlb(self, multiple_track_otio, tmp_path):
+        """Test round-trip: read OTIO -> write TLB -> read TLB."""
+        # Read original
+        tl1 = wrinkles.read_from_file(multiple_track_otio)
+        original_name = tl1.name
+        original_track_count = len(list(tl1.tracks))
+
+        # Write to TLB
+        output_path = str(tmp_path / "roundtrip.tlb")
+        wrinkles.write_to_file(tl1, output_path)
+
+        # Read back
+        tl2 = wrinkles.read_from_file(output_path)
+        assert tl2.name == original_name
+        assert len(list(tl2.tracks)) == original_track_count
+
+    def test_roundtrip_preserves_clip_names(self, multiple_track_otio, tmp_path):
+        """Test that round-trip preserves clip names."""
+        # Read original and get clip names
+        tl1 = wrinkles.read_from_file(multiple_track_otio)
+        original_clips = []
+        for track in tl1.tracks:
+            for item in track:
+                if isinstance(item, wrinkles.Clip) and item.name:
+                    original_clips.append(item.name)
+
+        # Write and read back
+        output_path = str(tmp_path / "clips_test.tla")
+        wrinkles.write_to_file(tl1, output_path)
+        tl2 = wrinkles.read_from_file(output_path)
+
+        # Verify clip names preserved
+        roundtrip_clips = []
+        for track in tl2.tracks:
+            for item in track:
+                if isinstance(item, wrinkles.Clip) and item.name:
+                    roundtrip_clips.append(item.name)
+
+        assert len(roundtrip_clips) == len(original_clips)
+        for orig, rt in zip(original_clips, roundtrip_clips):
+            assert orig == rt
+
+    def test_write_requires_timeline(self, multiple_track_otio, tmp_path):
+        """Test that write_to_file requires a Timeline object."""
+        tl = wrinkles.read_from_file(multiple_track_otio)
+        track = tl.tracks[0]  # Get a track (not a timeline)
+
+        with pytest.raises(TypeError):
+            wrinkles.write_to_file(track, str(tmp_path / "output.tla"))
+
+    def test_write_invalid_extension(self, multiple_track_otio, tmp_path):
+        """Test that unsupported file extension raises error."""
+        tl = wrinkles.read_from_file(multiple_track_otio)
+        with pytest.raises(IOError):
+            wrinkles.write_to_file(tl, str(tmp_path / "output.xyz"))
+
+    def test_write_otio_format_fails(self, multiple_track_otio, tmp_path):
+        """Test that writing to .otio format fails (read-only format)."""
+        tl = wrinkles.read_from_file(multiple_track_otio)
+        with pytest.raises(IOError):
+            wrinkles.write_to_file(tl, str(tmp_path / "output.otio"))

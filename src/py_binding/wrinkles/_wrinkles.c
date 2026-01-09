@@ -553,6 +553,25 @@ static PyObject *wrinkles_read_from_file(PyObject *self, PyObject *args) {
     return create_composition_item(tl, NULL, arena, 1);
 }
 
+static PyObject *wrinkles_write_to_file(PyObject *self, PyObject *args) {
+    PyObject *timeline_obj;
+    const char *filepath;
+
+    if (!PyArg_ParseTuple(args, "O!s", &WrinklesTimelineType, &timeline_obj, &filepath))
+        return NULL;
+
+    WrinklesCompositionItem *timeline = (WrinklesCompositionItem *)timeline_obj;
+
+    /* Write the file using the C API */
+    int result = otio_write_to_file(timeline->arena.allocator, timeline->handle, filepath);
+    if (result != 0) {
+        PyErr_Format(PyExc_IOError, "Failed to write file: %s", filepath);
+        return NULL;
+    }
+
+    Py_RETURN_NONE;
+}
+
 static PyObject *wrinkles_build_projection_map(PyObject *self, PyObject *args) {
     PyObject *timeline_obj;
     if (!PyArg_ParseTuple(args, "O!", &WrinklesTimelineType, &timeline_obj))
@@ -606,6 +625,8 @@ static PyObject *wrinkles_build_projection_map(PyObject *self, PyObject *args) {
 static PyMethodDef wrinkles_methods[] = {
     {"read_from_file", wrinkles_read_from_file, METH_VARARGS,
      "Read a timeline from an OTIO/TLA/TLB file"},
+    {"write_to_file", wrinkles_write_to_file, METH_VARARGS,
+     "Write a timeline to a TLA/TLB/TLFB/TLZ file. Format is auto-detected from extension."},
     {"build_projection_map", wrinkles_build_projection_map, METH_VARARGS,
      "Build a projection operator map from a timeline"},
     {NULL, NULL, 0, NULL}
