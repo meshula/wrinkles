@@ -142,4 +142,23 @@ verify-roundtrip: zig-out/bin/otiocat
 	rm -rf /tmp/otio_roundtrip; \
 	echo "Round-trip: $$success matched, $$failed mismatched"
 
-.PHONY: all run-em docs run_c convert-to-tla convert-to-tlb convert-otio-to-tlb copy-otio-samples convert-all verify-roundtrip
+# use git-of-theseus to analyze the repo
+analyze:
+	git-of-theseus-analyze . --ignore-whitespace --cohortfm "%Y-%m" --only "src/*"
+	git-of-theseus-stack-plot cohorts.json
+	git-of-theseus-survival-plot survival.json
+	git-of-theseus-line-plot authors.json
+
+
+.PHONY: \
+	all \
+	run-em \
+	docs \
+	run_c \
+	convert-to-tla \
+	convert-to-tlb \
+	convert-otio-to-tlb \
+	copy-otio-samples \
+	convert-all \
+	verify-roundtrip \
+	analyze
