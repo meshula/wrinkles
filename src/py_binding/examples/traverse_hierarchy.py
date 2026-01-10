@@ -1,19 +1,48 @@
-#!/usr/bin/env python3
-"""
-Traverse Hierarchy - Wrinkles Python Bindings Example
+#!/usr/bin/env python
+#
+# SPDX-License-Identifier: Apache-2.0
+# Copyright Contributors to the wrinkles project
 
-This example demonstrates traversing the entire timeline hierarchy,
+"""Example script that traverses the entire timeline hierarchy,
 printing indented structure similar to the C test output.
 
-Usage:
-    python traverse_hierarchy.py <path_to_otio_file>
+Demo:
+
+% traverse_hierarchy.py -i timeline.otio
+timeline 'My Timeline'
+  stack 'tracks'
+    track 'Video'
+      clip 'shot_001'
+      gap
+      clip 'shot_002'
 """
 
+from __future__ import annotations
+
+import argparse
 import sys
-import wrinkles
+from typing import Any
+
+import wrinkles as otio2
 
 
-def print_item(item, indent=0):
+def parse_args() -> argparse.Namespace:
+    """Parse arguments out of sys.argv."""
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument(
+        '-i',
+        '--input',
+        type=str,
+        required=True,
+        help='Timeline file to read (supports .otio, .tla, .tlb, .tlfb, .tlz)'
+    )
+    return parser.parse_args()
+
+
+def _print_item(item: Any, indent: int = 0) -> None:
     """Recursively print a composition item and its children."""
     prefix = "  " * indent
 
@@ -31,34 +60,19 @@ def print_item(item, indent=0):
         child_count = len(item)
         for i in range(child_count):
             child = item[i]
-            print_item(child, indent + 1)
+            _print_item(child, indent + 1)
     except TypeError:
         # Item doesn't support len() - it's a leaf node
         pass
 
 
-def traverse_timeline(filepath):
-    """Read a timeline and traverse its entire hierarchy."""
-
-    print(f"Reading: {filepath}")
-    print()
-
-    # Read with context manager for automatic cleanup
-    with wrinkles.read_from_file(filepath) as timeline:
-        print_item(timeline)
-
-
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python traverse_hierarchy.py <path_to_otio_file>")
-        print("\nExample:")
-        print("  python traverse_hierarchy.py ../../sample_otio_files/multiple_track.otio")
-        sys.exit(1)
-
-    filepath = sys.argv[1]
+def main() -> None:
+    args = parse_args()
 
     try:
-        traverse_timeline(filepath)
+        # Read with context manager for automatic cleanup
+        with otio2.read_from_file(args.input) as timeline:
+            _print_item(timeline)
     except IOError as e:
         print(f"Error reading file: {e}", file=sys.stderr)
         sys.exit(1)
@@ -69,5 +83,5 @@ def main():
         sys.exit(1)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
