@@ -1,3 +1,0 @@
-[submodule "libs/zig-flatbuffers"]
-	path = libs/zig-flatbuffers
-	url = git@github.com:ssteinbach/zig-flatbuffers.git

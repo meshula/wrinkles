@@ -29,13 +29,13 @@
             .url = "git+https://codeberg.org/r4gus/zbor.git#caa1696b2e6e241eaf2de67bd1dde72f0d43801c",
             .hash = "zbor-0.20.1-kr-CoFVkAwDLvzgGCunlC9jDZNLSpsdarO2UmKJTpNYw",
         },
-        .flatbuffers = .{
-            // FlatBuffers runtime library for binary serialization
-            .path = "libs/zig-flatbuffers",
-        },
         .ziggy = .{
             .url = "git+https://github.com/ssteinbach/ziggy#ddeed2f372f2fbd9db74fdf7ac12a62e3826abf0",
             .hash = "ziggy-0.1.0-kTg8v6xfBgAoHwFLhSFnmwpTc7_qO3rQ3ixqqyKHwSq0",
+        },
+        .flatbuffers = .{
+            .url = "git+https://github.com/ssteinbach/zig-flatbuffers.git#b67833b4886b4864f3fe62bb6bfba1b5d2cf4fee",
+            .hash = "flatbuffers-0.1.2-Ntd6Di8pAgB0hYjVEbQ2k0-MBotZRGHb3MP-gJgw9t0v",
         },
     },
     .paths = .{
