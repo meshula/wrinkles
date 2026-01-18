@@ -46,7 +46,7 @@ otio_CompositionItemHandle otio_read_from_file(
         const char* filepath
  );
 
-// Write timeline to file (supports .tla, .tlb, .tlfb, .tlz formats)
+// Write timeline to file (supports .tl* formats)
 // Returns 0 on success, -1 on error
 int otio_write_to_file(
         otio_Allocator allocator,

@@ -82,7 +82,7 @@ On macOS, use `DYLD_LIBRARY_PATH` instead of `LD_LIBRARY_PATH`.
 #include "opentimelineio.hpp"
 
 int main(int argc, char* argv[]) {
-    // Read a timeline (supports .otio, .tla, .tlb, .tlfb, .tlz)
+    // Read a timeline (supports .otio, .tla, .tlb, .tlz)
     auto timeline = otio::read_from_file("project.otio");
 
     std::cout << "Timeline: " << timeline.name().value_or("(unnamed)") << "\n";
@@ -250,8 +250,7 @@ cpp_binding/
 |-----------|-------------|
 | `.otio` | OpenTimelineIO v1 JSON (read-only) |
 | `.tla` | Human-readable text format (Ziggy) |
-| `.tlb` | Binary CBOR format |
-| `.tlfb` | FlatBuffers binary format |
+| `.tlb` | FlatBuffers based Binary format |
 | `.tlz` | ZIP bundle with media references |
 
 ## Requirements

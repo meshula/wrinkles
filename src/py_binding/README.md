@@ -61,7 +61,7 @@ pip install .
 ```python
 import wrinkles as otio2
 
-# Read a timeline (supports .otio, .tla, .tlb, .tlfb, .tlz)
+# Read a timeline (supports .otio, .tl*)
 timeline = otio2.read_from_file("project.otio")
 
 # Access structure
@@ -167,8 +167,7 @@ python examples/find_clips.py --help
 |-----------|-------------|
 | `.otio` | OpenTimelineIO v1 JSON (read-only) |
 | `.tla` | Human-readable text format (Ziggy) |
-| `.tlb` | Binary CBOR format |
-| `.tlfb` | FlatBuffers binary format |
+| `.tlb` | Binary FlatBuffers based format |
 | `.tlz` | ZIP bundle with media references |
 
 ## Troubleshooting

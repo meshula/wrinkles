@@ -7,7 +7,7 @@
 namespace ottla;
 
 // File extension for this schema
-file_extension "tlfb";
+file_extension "tlb";
 
 // =============================================================================
 // Core Types
@@ -379,7 +379,7 @@ table MetadataMap {
 }
 
 // =============================================================================
-// Timeline (Root Type for .tlfb)
+// Timeline (Root Type for .tlb)
 // =============================================================================
 
 table Timeline {
@@ -431,7 +431,7 @@ table Collection {
     metadata_map: MetadataMap;
 }
 
-// Root type declaration - Timeline is the default root for .tlfb files
+// Root type declaration - Timeline is the default root for .tlb files
 // Collection uses file_identifier "TLCB" to distinguish .tlcb files
 root_type Timeline;
 

@@ -32,12 +32,13 @@ def parse_args() -> argparse.Namespace:
         description=__doc__,
         formatter_class=argparse.RawTextHelpFormatter
     )
+    # @TODO: should this reference .tlc/tlcb as well?
     parser.add_argument(
         '-i',
         '--input',
         type=str,
         required=True,
-        help='Timeline file to read (supports .otio, .tla, .tlb, .tlfb, .tlz)'
+        help='Timeline file to read (supports .otio, .tla, .tlb, .tlz)'
     )
     return parser.parse_args()
 

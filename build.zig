@@ -423,16 +423,16 @@ pub fn build(
             debug_print_messages,
         );
 
-        const enable_tlfb_timing = b.option(
+        const enable_tlb_timing = b.option(
             bool,
-            "enable_tlfb_timing",
-            "Enable TLFB serialization timing output (default: false)",
+            "enable_tlb_timing",
+            "Enable TLB serialization timing output (default: false)",
         ) orelse false;
 
         build_options.addOption(
             bool,
-            "enable_tlfb_timing",
-            enable_tlfb_timing,
+            "enable_tlb_timing",
+            enable_tlb_timing,
         );
 
         const write_test_wavs = b.option(
@@ -1057,7 +1057,7 @@ pub fn build(
     try executable(
         b,
         "otiocat",
-        "Convert OTIO files between formats (ziggy/tlb/tlfb)",
+        "Convert files between formats (.otio, .tl*)",
         "src/otiocat.zig",
         options,
         &.{

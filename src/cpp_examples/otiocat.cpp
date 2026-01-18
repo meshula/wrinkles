@@ -17,8 +17,7 @@ Reads timeline files in various formats and displays information about them.
 Supported input formats:
   .otio   OpenTimelineIO JSON format
   .ziggy  Ziggy text format
-  .tlb    Binary CBOR format
-  .tlfb   Binary FlatBuffers format
+  .tlb    Binary FlatBuffers based format
 
 Usage:
   otiocat_cpp [options] <input>
@@ -151,13 +150,19 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    // @TODO: add .tlc support?
+
     // Validate extension
     std::string input_ext = get_extension(input_path);
-    if (input_ext != ".otio" && input_ext != ".ziggy" &&
-        input_ext != ".tlb" && input_ext != ".tlfb" &&
-        input_ext != ".tla") {
+    if (
+            input_ext != ".otio" 
+            && input_ext != ".tlb" 
+            && input_ext != ".tla"
+            && input_ext != ".tlz"
+    ) 
+    {
         std::cerr << "Error: Unsupported input format: " << input_ext << "\n";
-        std::cerr << "Use .otio, .ziggy/.tla, .tlb, or .tlfb\n";
+        std::cerr << "Use .otio, .tla, .tlb, or .tlz \n";
         return 1;
     }
 

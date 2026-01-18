@@ -2,7 +2,7 @@
 """
 wrinkles_format_comparisons.py - Compare performance and correctness across timeline file formats.
 
-Compares .otio, .ziggy, .tlb, and .tlfb formats using hyperfine benchmarks.
+Compares .otio, .tla, and .tlb, formats using hyperfine benchmarks.
 """
 
 import subprocess
@@ -39,8 +39,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--test-files-dir",
         type=Path,
-        default=Path("test_files_ziggy"),
-        help="Directory containing test files (default: test_files_ziggy)",
+        default=Path("test_files_tla"),
+        help="Directory containing test files (default: test_files_tla)",
     )
     parser.add_argument(
         "--output",
@@ -80,7 +80,6 @@ MEASURE_TIMELINE = PROJECT_ROOT / "zig-out" / "bin" / "otio_measure_timeline"
 FORMAT_DIRS = {
     "tla": PROJECT_ROOT / "test_files",
     "tlb": PROJECT_ROOT / "test_files",
-    "tlfb": PROJECT_ROOT / "test_files",
     "otio": PROJECT_ROOT / "test_files",
 }
 
@@ -88,7 +87,6 @@ FORMAT_DIRS = {
 FORMAT_EXT = {
     "tla": ".tla",
     "tlb": ".tlb",
-    "tlfb": ".tlfb",
     "otio": ".otio",
 }
 
@@ -123,23 +121,23 @@ def discover_test_files(base_dir: Path) -> dict[str, dict[str, Path]]:
     Find matching files across formats.
 
     Returns dict mapping basename to dict of format -> path.
-    Example: {"good_dino": {"ziggy": Path(...), "tlb": Path(...), ...}}
+    Example: {"good_dino": {"tla": Path(...), "tlb": Path(...), ...}}
     """
     test_files = {}
 
-    # Start with ziggy files as the base
-    ziggy_dir = FORMAT_DIRS["ziggy"]
-    if not ziggy_dir.exists():
-        log(f"Ziggy directory not found: {ziggy_dir}")
+    # Start with tla files as the base
+    tla_dir = FORMAT_DIRS["tla"]
+    if not tla_dir.exists():
+        log(f"TLA directory not found: {tla_dir}")
         return test_files
 
-    for ziggy_file in ziggy_dir.glob("*.ziggy"):
-        basename = ziggy_file.stem
-        test_files[basename] = {"ziggy": ziggy_file}
+    for tla_file in tla_dir.glob("*.tla"):
+        basename = tla_file.stem
+        test_files[basename] = {"tla": tla_file}
 
         # Look for corresponding files in other formats
         for fmt, ext in FORMAT_EXT.items():
-            if fmt == "ziggy":
+            if fmt == "tla":
                 continue
             fmt_dir = FORMAT_DIRS[fmt]
             fmt_file = fmt_dir / f"{basename}{ext}"
@@ -215,7 +213,7 @@ def benchmark_read_performance(
     """
     Benchmark read performance for each format.
 
-    Measures time to read and convert each format to ziggy output.
+    Measures time to read and convert each format to tla output.
     Returns dict mapping file name to format timing results.
     """
     log("Benchmarking read performance...")
@@ -229,7 +227,7 @@ def benchmark_read_performance(
             commands = {}
 
             for fmt, path in formats.items():
-                out_file = tmpdir / f"{name}_{fmt}.ziggy"
+                out_file = tmpdir / f"{name}_{fmt}.tla"
                 commands[fmt] = f"{OTIOCAT} {path} {out_file}"
 
             if len(commands) < 2:
@@ -248,9 +246,9 @@ def benchmark_write_performance(
     runs: int,
 ) -> dict[str, dict[str, dict]]:
     """
-    Benchmark write performance (ziggy -> binary formats).
+    Benchmark write performance (TLA -> binary formats).
 
-    Measures time to convert ziggy to TLB and TLFB.
+    Measures time to convert TLA to TLB
     Returns dict mapping file name to format timing results.
     """
     log("Benchmarking write performance...")
@@ -260,20 +258,16 @@ def benchmark_write_performance(
         tmpdir = Path(tmpdir)
 
         for name, formats in test_files.items():
-            if "ziggy" not in formats:
+            if "tla" not in formats:
                 continue
 
             log(f"  Benchmarking {name}...")
-            ziggy_path = formats["ziggy"]
+            tla_path = formats["tla"]
             commands = {}
 
-            # Ziggy -> TLB
+            # TLA -> TLB
             tlb_out = tmpdir / f"{name}.tlb"
-            commands["ziggy→tlb"] = f"{OTIOCAT} {ziggy_path} {tlb_out}"
-
-            # Ziggy -> TLFB
-            tlfb_out = tmpdir / f"{name}.tlfb"
-            commands["ziggy→tlfb"] = f"{OTIOCAT} {ziggy_path} {tlfb_out}"
+            commands["tla→tlb"] = f"{OTIOCAT} {tla_path} {tlb_out}"
 
             json_out = tmpdir / f"{name}_write.json"
             results[name] = run_hyperfine(commands, warmup, runs, json_out)
@@ -318,9 +312,9 @@ def compare_otiocat_output(
     test_files: dict[str, dict[str, Path]],
 ) -> dict[str, dict]:
     """
-    Verify identical ziggy output from all formats.
+    Verify identical tla output from all formats.
 
-    Converts each format to ziggy and compares file contents.
+    Converts each format to tla and compares file contents.
     Returns dict with pass/fail status and any differences.
     """
     log("Comparing otiocat output across formats...")
@@ -333,9 +327,9 @@ def compare_otiocat_output(
             log(f"  Comparing {name}...")
             outputs = {}
 
-            # Convert each format to ziggy
+            # Convert each format to tla
             for fmt, path in formats.items():
-                out_file = tmpdir / f"{name}_{fmt}.ziggy"
+                out_file = tmpdir / f"{name}_{fmt}.tla"
                 try:
                     run_cmd([str(OTIOCAT), str(path), str(out_file)])
                     outputs[fmt] = out_file
@@ -430,9 +424,7 @@ def verify_roundtrip(
     Verify format roundtrip integrity.
 
     Tests:
-    - ziggy -> tlfb -> ziggy
-    - ziggy -> tlb -> ziggy
-    - Cross-format: tlfb -> tlb -> tlfb -> ziggy
+    - tla -> tlb -> tla
 
     Returns dict with pass/fail status for each test.
     """
@@ -443,55 +435,25 @@ def verify_roundtrip(
         tmpdir = Path(tmpdir)
 
         for name, formats in test_files.items():
-            if "ziggy" not in formats:
+            if "tla" not in formats:
                 continue
 
             log(f"  Testing {name}...")
-            ziggy_path = formats["ziggy"]
-            original_content = ziggy_path.read_text()
+            tla_path = formats["tla"]
+            original_content = tla_path.read_text()
             tests = {}
 
-            # Test: ziggy -> tlfb -> ziggy
-            try:
-                tlfb_temp = tmpdir / f"{name}_rt.tlfb"
-                ziggy_from_tlfb = tmpdir / f"{name}_from_tlfb.ziggy"
-                run_cmd([str(OTIOCAT), str(ziggy_path), str(tlfb_temp)])
-                run_cmd([str(OTIOCAT), str(tlfb_temp), str(ziggy_from_tlfb)])
-                tests["ziggy→tlfb→ziggy"] = (
-                    "PASS" if ziggy_from_tlfb.read_text() == original_content else "FAIL"
-                )
-            except subprocess.CalledProcessError:
-                tests["ziggy→tlfb→ziggy"] = "ERROR"
-
-            # Test: ziggy -> tlb -> ziggy
+            # Test: tla -> tlb -> tla
             try:
                 tlb_temp = tmpdir / f"{name}_rt.tlb"
-                ziggy_from_tlb = tmpdir / f"{name}_from_tlb.ziggy"
-                run_cmd([str(OTIOCAT), str(ziggy_path), str(tlb_temp)])
-                run_cmd([str(OTIOCAT), str(tlb_temp), str(ziggy_from_tlb)])
-                tests["ziggy→tlb→ziggy"] = (
-                    "PASS" if ziggy_from_tlb.read_text() == original_content else "FAIL"
+                tla_from_tlb = tmpdir / f"{name}_from_tlb.tla"
+                run_cmd([str(OTIOCAT), str(tla_path), str(tlb_temp)])
+                run_cmd([str(OTIOCAT), str(tlb_temp), str(tla_from_tlb)])
+                tests["tla→tlb→tla"] = (
+                    "PASS" if tla_from_tlb.read_text() == original_content else "FAIL"
                 )
             except subprocess.CalledProcessError:
-                tests["ziggy→tlb→ziggy"] = "ERROR"
-
-            # Cross-format test: tlfb -> tlb -> tlfb -> ziggy
-            try:
-                tlfb1 = tmpdir / f"{name}_cross.tlfb"
-                tlb_cross = tmpdir / f"{name}_cross.tlb"
-                tlfb2 = tmpdir / f"{name}_cross2.tlfb"
-                ziggy_cross = tmpdir / f"{name}_cross.ziggy"
-
-                run_cmd([str(OTIOCAT), str(ziggy_path), str(tlfb1)])
-                run_cmd([str(OTIOCAT), str(tlfb1), str(tlb_cross)])
-                run_cmd([str(OTIOCAT), str(tlb_cross), str(tlfb2)])
-                run_cmd([str(OTIOCAT), str(tlfb2), str(ziggy_cross)])
-
-                tests["cross-format"] = (
-                    "PASS" if ziggy_cross.read_text() == original_content else "FAIL"
-                )
-            except subprocess.CalledProcessError:
-                tests["cross-format"] = "ERROR"
+                tests["tla→tlb→tla"] = "ERROR"
 
             all_pass = all(v == "PASS" for v in tests.values())
             results[name] = {
@@ -544,29 +506,28 @@ def generate_report(
     # File Sizes
     lines.append("## File Sizes")
     lines.append("")
-    lines.append("| File | OTIO | Ziggy | TLB | TLFB |")
-    lines.append("|------|------|-------|-----|------|")
+    lines.append("| File | OTIO | TLA | TLB |")
+    lines.append("|------|------|-------|-----|")
     for name, sizes in sorted(file_sizes.items()):
         otio = format_size(sizes.get("otio", 0)) if "otio" in sizes else "-"
-        ziggy = format_size(sizes.get("ziggy", 0)) if "ziggy" in sizes else "-"
+        tla = format_size(sizes.get("tla", 0)) if "tla" in sizes else "-"
         tlb = format_size(sizes.get("tlb", 0)) if "tlb" in sizes else "-"
-        tlfb = format_size(sizes.get("tlfb", 0)) if "tlfb" in sizes else "-"
-        lines.append(f"| {name} | {otio} | {ziggy} | {tlb} | {tlfb} |")
+        lines.append(f"| {name} | {otio} | {tla} | {tlb} |")
     lines.append("")
 
     # Read Performance
     lines.append("## Read Performance")
     lines.append("")
-    lines.append("| File | OTIO | Ziggy | TLB | TLFB | Fastest |")
+    lines.append("| File | OTIO | TLA | TLB | Fastest |")
     lines.append("|------|------|-------|-----|------|---------|")
     for name, results in sorted(read_perf.items()):
         times = {}
-        for fmt in ["otio", "ziggy", "tlb", "tlfb"]:
+        for fmt in ["otio", "tla", "tlb"]:
             if fmt in results:
                 times[fmt] = results[fmt]["mean"]
 
         row = [name]
-        for fmt in ["otio", "ziggy", "tlb", "tlfb"]:
+        for fmt in ["otio", "tla", "tlb"]:
             if fmt in times:
                 row.append(format_time(times[fmt]))
             else:
@@ -584,37 +545,30 @@ def generate_report(
     # Write Performance
     lines.append("## Write Performance")
     lines.append("")
-    lines.append("| File | Ziggy→TLB | Ziggy→TLFB | Ratio |")
-    lines.append("|------|-----------|------------|-------|")
+    lines.append("| File | TLA→TLB |")
+    lines.append("|------|-----------|")
     for name, results in sorted(write_perf.items()):
-        tlb_time = results.get("ziggy→tlb", {}).get("mean")
-        tlfb_time = results.get("ziggy→tlfb", {}).get("mean")
+        tlb_time = results.get("tla→tlb", {}).get("mean")
 
         tlb_str = format_time(tlb_time) if tlb_time else "-"
-        tlfb_str = format_time(tlfb_time) if tlfb_time else "-"
 
-        if tlb_time and tlfb_time:
-            ratio = f"{tlb_time / tlfb_time:.2f}x"
-        else:
-            ratio = "-"
-
-        lines.append(f"| {name} | {tlb_str} | {tlfb_str} | {ratio} |")
+        lines.append(f"| {name} | {tlb_str} |")
     lines.append("")
 
     # Tool Performance
     if tool_perf:
         lines.append("## Tool Performance (hierarchy_view)")
         lines.append("")
-        lines.append("| File | OTIO | Ziggy | TLB | TLFB | Fastest |")
-        lines.append("|------|------|-------|-----|------|---------|")
+        lines.append("| File | OTIO | TLA | TLB | Fastest |")
+        lines.append("|------|------|-------|-----|---------|")
         for name, results in sorted(tool_perf.items()):
             times = {}
-            for fmt in ["otio", "ziggy", "tlb", "tlfb"]:
+            for fmt in ["otio", "tla", "tlb"]:
                 if fmt in results:
                     times[fmt] = results[fmt]["mean"]
 
             row = [name]
-            for fmt in ["otio", "ziggy", "tlb", "tlfb"]:
+            for fmt in ["otio", "tla", "tlb"]:
                 if fmt in times:
                     row.append(format_time(times[fmt]))
                 else:

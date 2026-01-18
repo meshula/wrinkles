@@ -3039,7 +3039,7 @@ pub fn main(
             );
         }
 
-        // Read timeline file - supports .otio, .tla, .tlb, .tlfb, .tlz
+        // Read timeline file - supports .otio, .tla, .tlb, .tlz
         // Skip metadata for faster visualization
         STATE.otio_root = try otio.read_from_file(
             STATE.allocator,
@@ -3101,9 +3101,11 @@ pub fn usage(
         \\Supported formats:
         \\  .otio  - OpenTimelineIO JSON format
         \\  .tla   - TLA (Timeline ASCII) text format
-        \\  .tlb   - Binary CBOR format
-        \\  .tlfb  - Binary FlatBuffers format
+        \\  .tlb   - Binary FlatBuffers based format
         \\  .tlz   - TLZ bundle (ZIP archive)
+        \\
+        \\Note:
+        \\  .tlc   - (Container) formats are not supported presently (TODO)
         \\
         \\{s}
         \\

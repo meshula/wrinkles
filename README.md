@@ -363,9 +363,9 @@ didn't impact the deisgn or problems we were specifically solving.
     * Etc.
 * Serialization
     * Ascii: .tla, .tlca
-    * Binary: .tlb, .tlfb
+    * Binary: .tlb, tlcb
     * Converter from latest .otio (read, not write)
-    * Z file: .TLZ (has variants where the playlist is in TLA or TLFB,
+    * Z file: .TLZ (has variants where the playlist is in TLA or TLB,
       analogous to .otioz
 * Tooling
     * otiocat
@@ -411,6 +411,8 @@ didn't impact the deisgn or problems we were specifically solving.
     * [x] check in current in flight stuff
     * [ ] remove CBORS tlb implementation
         * [ ] rename .tlfb to .tlb
+    * [ ] verify that .tlc\[b] is also correctly referenced, IE in 
+          traverse_hierarchy.py
     * [ ] clean up gitignore
     * [ ] rearrange
         * [ ] remove .ziggy files

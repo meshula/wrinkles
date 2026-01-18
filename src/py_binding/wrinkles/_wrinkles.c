@@ -623,12 +623,25 @@ static PyObject *wrinkles_build_projection_map(PyObject *self, PyObject *args) {
 }
 
 static PyMethodDef wrinkles_methods[] = {
-    {"read_from_file", wrinkles_read_from_file, METH_VARARGS,
-     "Read a timeline from an OTIO/TLA/TLB file"},
-    {"write_to_file", wrinkles_write_to_file, METH_VARARGS,
-     "Write a timeline to a TLA/TLB/TLFB/TLZ file. Format is auto-detected from extension."},
-    {"build_projection_map", wrinkles_build_projection_map, METH_VARARGS,
-     "Build a projection operator map from a timeline"},
+    {
+        "read_from_file",
+        wrinkles_read_from_file,
+        METH_VARARGS,
+        "Read a timeline from an OTIO/TLA/TLB file",
+    },
+    {
+        "write_to_file",
+        wrinkles_write_to_file,
+        METH_VARARGS,
+        "Write a timeline to a TLA/TLB/TLZ file. Format is auto-detected from"
+            " extension.",
+    },
+    {
+        "build_projection_map",
+        wrinkles_build_projection_map,
+        METH_VARARGS,
+        "Build a projection operator map from a timeline",
+    },
     {NULL, NULL, 0, NULL}
 };
 

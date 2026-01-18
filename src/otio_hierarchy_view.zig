@@ -80,8 +80,8 @@ pub fn usage(
         \\
         \\Display an ASCII diagram of the hierarchy of an OpenTimelineIO file.
         \\
-        \\Supports timeline files (.otio, .tla, .tlb, .tlfb, .tlz) and
-        \\collection files (.tlca, .tlcb).
+        \\Supports timeline files (.otio, .tla, .tlb, .tlz) and collection
+        \\ files (.tlca, .tlcb).
         \\
         \\usage:
         \\  otio_hierarchy_view [options] path/to/somefile.otio
@@ -98,7 +98,7 @@ pub fn usage(
 }
 
 /// Read a file to SerializableTimeline (preserves metadata)
-/// Supports: .otio, .tla, .tlb, .tlfb, .tlz
+/// Supports: .otio, .tla, .tlb, .tlz
 fn read_to_serializable_timeline(
     allocator: std.mem.Allocator,
     filepath: []const u8,

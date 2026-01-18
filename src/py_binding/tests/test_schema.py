@@ -193,16 +193,6 @@ class TestWriteTimeline:
         file_size = os.path.getsize(output_path)
         assert file_size > 0
 
-    def test_write_tlfb_format(self, multiple_track_otio, tmp_path):
-        """Test writing a timeline to TLFB (FlatBuffers) format."""
-        tl = wrinkles.read_from_file(multiple_track_otio)
-        output_path = str(tmp_path / "output.tlfb")
-        wrinkles.write_to_file(tl, output_path)
-        assert os.path.exists(output_path)
-        # Verify file has content
-        file_size = os.path.getsize(output_path)
-        assert file_size > 0
-
     def test_roundtrip_tla(self, multiple_track_otio, tmp_path):
         """Test round-trip: read OTIO -> write TLA -> read TLA."""
         # Read original

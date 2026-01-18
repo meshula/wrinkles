@@ -48,9 +48,9 @@ pub const ConvertError = error{
 // File Format Constants
 // ----------------------------------------------------------------------------
 
-pub const TLFB_MAGIC: [4]u8 = .{ 'O', 'T', 'F', 'B' };
-pub const TLFB_FORMAT_VERSION: u32 = 1;
-pub const TLFB_HEADER_SIZE: usize = 16; // Magic(4) + Version(4) + MetadataOffset(8)
+pub const TLB_MAGIC: [4]u8 = .{ 'O', 'T', 'F', 'B' };
+pub const TLB_FORMAT_VERSION: u32 = 1;
+pub const TLB_HEADER_SIZE: usize = 16; // Magic(4) + Version(4) + MetadataOffset(8)
 
 // ----------------------------------------------------------------------------
 // Header Functions
@@ -61,12 +61,12 @@ pub fn write_header(
     metadata_offset: u64,
 ) !void
 {
-    try writer.writeAll(&TLFB_MAGIC);
+    try writer.writeAll(&TLB_MAGIC);
     // Version (u32 big-endian)
-    try writer.writeByte(@intCast((TLFB_FORMAT_VERSION >> 24) & 0xFF));
-    try writer.writeByte(@intCast((TLFB_FORMAT_VERSION >> 16) & 0xFF));
-    try writer.writeByte(@intCast((TLFB_FORMAT_VERSION >> 8) & 0xFF));
-    try writer.writeByte(@intCast(TLFB_FORMAT_VERSION & 0xFF));
+    try writer.writeByte(@intCast((TLB_FORMAT_VERSION >> 24) & 0xFF));
+    try writer.writeByte(@intCast((TLB_FORMAT_VERSION >> 16) & 0xFF));
+    try writer.writeByte(@intCast((TLB_FORMAT_VERSION >> 8) & 0xFF));
+    try writer.writeByte(@intCast(TLB_FORMAT_VERSION & 0xFF));
     // Metadata offset (u64 big-endian)
     try writer.writeByte(@intCast((metadata_offset >> 56) & 0xFF));
     try writer.writeByte(@intCast((metadata_offset >> 48) & 0xFF));
@@ -87,15 +87,15 @@ pub fn read_header(
     data: []const u8,
 ) !HeaderInfo
 {
-    if (data.len < TLFB_HEADER_SIZE) return error.InvalidData;
-    if (!std.mem.eql(u8, data[0..4], &TLFB_MAGIC)) return error.InvalidData;
+    if (data.len < TLB_HEADER_SIZE) return error.InvalidData;
+    if (!std.mem.eql(u8, data[0..4], &TLB_MAGIC)) return error.InvalidData;
 
     const version: u32 = (@as(u32, data[4]) << 24) |
         (@as(u32, data[5]) << 16) |
         (@as(u32, data[6]) << 8) |
         @as(u32, data[7]);
 
-    if (version > TLFB_FORMAT_VERSION) return error.UnsupportedVersion;
+    if (version > TLB_FORMAT_VERSION) return error.UnsupportedVersion;
 
     // Read metadata offset (u64 big-endian)
     const metadata_offset: u64 = (@as(u64, data[8]) << 56) |
@@ -2761,7 +2761,7 @@ pub fn serialize_from_serializable_timeline(
     writer: anytype,
 ) !void
 {
-    const enable_timing = build_options.enable_tlfb_timing;
+    const enable_timing = build_options.enable_tlb_timing;
     var timer = std.time.Timer.start() catch unreachable;
 
     // Use arena allocator for all temporary allocations during serialization
@@ -2779,7 +2779,7 @@ pub fn serialize_from_serializable_timeline(
     var timeline_builder = try flatbuffers.Builder.init(arena_alloc);
 
     if (enable_timing) {
-        std.debug.print("  [TLFB] Builder init: {d:.3}ms\n", .{@as(f64, @floatFromInt(timer.lap())) / 1_000_000.0});
+        std.debug.print("  [TLB] Builder init: {d:.3}ms\n", .{@as(f64, @floatFromInt(timer.lap())) / 1_000_000.0});
     }
 
     // Convert children - pre-allocate exact capacity
@@ -2792,7 +2792,7 @@ pub fn serialize_from_serializable_timeline(
     } else null;
 
     if (enable_timing) {
-        std.debug.print("  [TLFB] Children conversion: {d:.3}ms\n", .{@as(f64, @floatFromInt(timer.lap())) / 1_000_000.0});
+        std.debug.print("  [TLB] Children conversion: {d:.3}ms\n", .{@as(f64, @floatFromInt(timer.lap())) / 1_000_000.0});
     }
 
     // Convert discrete partitions
@@ -2814,7 +2814,7 @@ pub fn serialize_from_serializable_timeline(
     const timeline_bytes = try timeline_builder.writeAlloc(arena_alloc);
 
     if (enable_timing) {
-        std.debug.print("  [TLFB] Timeline build: {d:.3}ms\n", .{@as(f64, @floatFromInt(timer.lap())) / 1_000_000.0});
+        std.debug.print("  [TLB] Timeline build: {d:.3}ms\n", .{@as(f64, @floatFromInt(timer.lap())) / 1_000_000.0});
     }
 
     // ========================================================================
@@ -2831,7 +2831,7 @@ pub fn serialize_from_serializable_timeline(
     }
 
     if (enable_timing) {
-        std.debug.print("  [TLFB] Metadata conversion: {d:.3}ms\n", .{@as(f64, @floatFromInt(timer.lap())) / 1_000_000.0});
+        std.debug.print("  [TLB] Metadata conversion: {d:.3}ms\n", .{@as(f64, @floatFromInt(timer.lap())) / 1_000_000.0});
     }
 
     // ========================================================================
@@ -2839,7 +2839,7 @@ pub fn serialize_from_serializable_timeline(
     // ========================================================================
     // Calculate metadata_offset: position where metadata starts (after header + timeline)
     const metadata_offset: u64 = if (metadata_bytes != null)
-        TLFB_HEADER_SIZE + timeline_bytes.len
+        TLB_HEADER_SIZE + timeline_bytes.len
     else
         0; // No metadata
 
@@ -2871,7 +2871,7 @@ pub fn deserialize_timeline(
     _ = try read_header(data);
 
     // Get FlatBuffers data after header
-    const fb_data = data[TLFB_HEADER_SIZE..];
+    const fb_data = data[TLB_HEADER_SIZE..];
 
     // FlatBuffers requires 8-byte alignment. Copy to aligned buffer if needed.
     const aligned_data: []align(8) const u8 = if (@intFromPtr(fb_data.ptr) % 8 == 0)
@@ -2925,7 +2925,7 @@ pub fn deserialize_timeline(
 /// is not parsed, providing significant performance gains for large files with
 /// extensive metadata. The resulting SerializableTimeline will have metadata_map = null.
 ///
-/// The TLFB format stores timeline structure and metadata in separate FlatBuffer segments:
+/// The TLB format stores timeline structure and metadata in separate FlatBuffer segments:
 /// - [0..16]: Header with metadata_offset
 /// - [16..metadata_offset]: Timeline structure (without metadata_map)
 /// - [metadata_offset..]: Metadata FlatBuffer (if metadata_offset > 0)
@@ -2940,8 +2940,8 @@ pub fn deserialize_to_serializable_timeline(
     const skip_metadata = options.file_contents_to_read == .all_except_metadata;
 
     // Determine timeline data range based on metadata_offset
-    // If metadata_offset > TLFB_HEADER_SIZE, metadata is stored separately
-    const has_separate_metadata = header.metadata_offset > TLFB_HEADER_SIZE and
+    // If metadata_offset > TLB_HEADER_SIZE, metadata is stored separately
+    const has_separate_metadata = header.metadata_offset > TLB_HEADER_SIZE and
         header.metadata_offset < data.len;
 
     // Timeline data: from header end to metadata start (or end of file)
@@ -2950,7 +2950,7 @@ pub fn deserialize_to_serializable_timeline(
     else
         data.len;
 
-    const fb_data = data[TLFB_HEADER_SIZE..timeline_end];
+    const fb_data = data[TLB_HEADER_SIZE..timeline_end];
 
     // FlatBuffers requires 8-byte alignment. Copy to aligned buffer if needed.
     const needs_timeline_copy = @intFromPtr(fb_data.ptr) % 8 != 0;
@@ -3031,7 +3031,7 @@ fn write_collection_header(
 ) !void
 {
     try writer.writeAll(&TLCB_MAGIC);
-    try writer.writeInt(u32, TLFB_FORMAT_VERSION, .big);
+    try writer.writeInt(u32, TLB_FORMAT_VERSION, .big);
     try writer.writeInt(u64, metadata_offset, .big);
 }
 
@@ -3040,7 +3040,7 @@ fn read_collection_header(
     data: []const u8,
 ) !struct { version: u32, metadata_offset: u64 }
 {
-    if (data.len < TLFB_HEADER_SIZE)
+    if (data.len < TLB_HEADER_SIZE)
     {
         return error.InvalidData;
     }
@@ -3461,7 +3461,7 @@ pub fn deserialize_collection(
     _ = try read_collection_header(data);
 
     // Get FlatBuffers data after header
-    const fb_data = data[TLFB_HEADER_SIZE..];
+    const fb_data = data[TLB_HEADER_SIZE..];
 
     // FlatBuffers requires 8-byte alignment. Copy to aligned buffer if needed.
     const needs_copy = @intFromPtr(fb_data.ptr) % 8 != 0;
@@ -3507,12 +3507,12 @@ pub fn deserialize_collection(
 
 test "header: write and read round-trip"
 {
-    var buffer: [TLFB_HEADER_SIZE]u8 = undefined;
+    var buffer: [TLB_HEADER_SIZE]u8 = undefined;
     var stream = std.io.fixedBufferStream(&buffer);
     const test_offset: u64 = 12345;
     try write_header(stream.writer(), test_offset);
     const header = try read_header(&buffer);
-    try std.testing.expectEqual(TLFB_FORMAT_VERSION, header.version);
+    try std.testing.expectEqual(TLB_FORMAT_VERSION, header.version);
     try std.testing.expectEqual(test_offset, header.metadata_offset);
 }
 
@@ -3563,10 +3563,10 @@ test "flatbufs: direct flatbuffers roundtrip"
 
     // Verify header
     const header = try read_header(buffer.items);
-    try std.testing.expectEqual(TLFB_FORMAT_VERSION, header.version);
+    try std.testing.expectEqual(TLB_FORMAT_VERSION, header.version);
 
     // Decode
-    const fb_data = buffer.items[TLFB_HEADER_SIZE..];
+    const fb_data = buffer.items[TLB_HEADER_SIZE..];
     const aligned_data: []align(8) const u8 = @alignCast(fb_data);
     const fb_timeline = try flatbuffers.decodeRoot(ottla.Timeline, aligned_data);
 
@@ -3591,7 +3591,7 @@ test "flatbufs: direct flatbuffers roundtrip"
 // Metadata Separation Tests
 // ============================================================================
 
-test "tlfb: metadata_offset written correctly when metadata present"
+test "tlb: metadata_offset written correctly when metadata present"
 {
     const allocator = std.testing.allocator;
 
@@ -3620,11 +3620,11 @@ test "tlfb: metadata_offset written correctly when metadata present"
 
     // Read header and verify metadata_offset is non-zero
     const header = try read_header(buffer.items);
-    try std.testing.expect(header.metadata_offset > TLFB_HEADER_SIZE);
+    try std.testing.expect(header.metadata_offset > TLB_HEADER_SIZE);
     try std.testing.expect(header.metadata_offset < buffer.items.len);
 }
 
-test "tlfb: metadata_offset is 0 when no metadata"
+test "tlb: metadata_offset is 0 when no metadata"
 {
     const allocator = std.testing.allocator;
 
@@ -3647,7 +3647,7 @@ test "tlfb: metadata_offset is 0 when no metadata"
     try std.testing.expectEqual(@as(u64, 0), header.metadata_offset);
 }
 
-test "tlfb: round-trip with metadata preserved"
+test "tlb: round-trip with metadata preserved"
 {
     const allocator = std.testing.allocator;
 
@@ -3696,7 +3696,7 @@ test "tlfb: round-trip with metadata preserved"
     try std.testing.expectEqual(true, result_kv.fields.get("bool_val").?.bool);
 }
 
-test "tlfb: round-trip without metadata (skip on read)"
+test "tlb: round-trip without metadata (skip on read)"
 {
     const allocator = std.testing.allocator;
 
@@ -3736,7 +3736,7 @@ test "tlfb: round-trip without metadata (skip on read)"
     try std.testing.expectEqual(@as(usize, 0), deserialized.children.len);
 }
 
-test "tlfb: empty metadata_map serialization"
+test "tlb: empty metadata_map serialization"
 {
     const allocator = std.testing.allocator;
 
@@ -3761,7 +3761,7 @@ test "tlfb: empty metadata_map serialization"
     try std.testing.expectEqual(@as(u64, 0), header.metadata_offset);
 }
 
-test "tlfb: large metadata handling"
+test "tlb: large metadata handling"
 {
     const allocator = std.testing.allocator;
 
@@ -3810,7 +3810,7 @@ test "tlfb: large metadata handling"
     try std.testing.expectEqual(@as(usize, 100), result_hash.kv.fields.count());
 }
 
-test "tlfb: complex nested metadata round-trip"
+test "tlb: complex nested metadata round-trip"
 {
     const allocator = std.testing.allocator;
 
@@ -3868,7 +3868,7 @@ test "tlfb: complex nested metadata round-trip"
     try std.testing.expectEqual(@as(i64, 3), arr[2].integer);
 }
 
-test "tlfb: metadata offset points to correct boundary"
+test "tlb: metadata offset points to correct boundary"
 {
     const allocator = std.testing.allocator;
 
@@ -3896,13 +3896,13 @@ test "tlfb: metadata offset points to correct boundary"
     const header = try read_header(buffer.items);
 
     // Verify: timeline data ends at metadata_offset, metadata starts there
-    // metadata_offset should be > TLFB_HEADER_SIZE (16) and < total buffer length
-    try std.testing.expect(header.metadata_offset > TLFB_HEADER_SIZE);
+    // metadata_offset should be > TLB_HEADER_SIZE (16) and < total buffer length
+    try std.testing.expect(header.metadata_offset > TLB_HEADER_SIZE);
     try std.testing.expect(header.metadata_offset < buffer.items.len);
 
     // The data at metadata_offset should be valid FlatBuffers metadata
     // We can verify by attempting to decode the timeline portion only
-    const timeline_data = buffer.items[TLFB_HEADER_SIZE..header.metadata_offset];
+    const timeline_data = buffer.items[TLB_HEADER_SIZE..header.metadata_offset];
     const aligned_timeline: []align(8) const u8 = if (@intFromPtr(timeline_data.ptr) % 8 == 0)
         @alignCast(timeline_data)
     else blk: {

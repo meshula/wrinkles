@@ -40,7 +40,7 @@ def parse_args() -> argparse.Namespace:
         '--input',
         type=str,
         required=True,
-        help='Timeline file to read (supports .otio, .tla, .tlb, .tlfb, .tlz)'
+        help='Timeline file to read (supports .otio, .tla, .tlb, .tlz)'
     )
     return parser.parse_args()
 
