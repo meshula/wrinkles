@@ -1192,9 +1192,11 @@ fn binary_to_media_data_ref(
                 .frame_step = img_seq.frame_step,
                 .frame_zero_padding = img_seq.frame_zero_padding,
                 .rate = img_seq.rate,
-                .missing_frame_policy = schema.MissingFramePolicy.from_string(
-                    img_seq.missing_frame_policy
-                ) orelse .@"error",
+                .missing_frame_policy = (
+                    schema.MissingFramePolicy.from_maybe_string(
+                        img_seq.missing_frame_policy
+                    )
+                ),
             },
         },
         .null => .{ .null = {} },

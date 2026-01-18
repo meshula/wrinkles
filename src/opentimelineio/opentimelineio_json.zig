@@ -665,7 +665,11 @@ fn read_media_reference(
         else
             "error";
 
-        const missing_frame_policy = otio.schema.MissingFramePolicy.from_string(missing_frame_policy_str) orelse .@"error";
+        const missing_frame_policy = (
+            otio.schema.MissingFramePolicy.from_maybe_string(
+                missing_frame_policy_str
+            )
+        );
 
         // Read available_range to get bounds
         const maybe_bounds = if (media_ref_obj.get("available_range")) |ar_val|

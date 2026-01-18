@@ -1025,10 +1025,11 @@ fn serializable_data_ref_to_fb(
                 .frame_step = img_seq.frame_step,
                 .frame_zero_padding = img_seq.frame_zero_padding,
                 .rate = img_seq.rate,
-                .missing_frame_policy = if (img_seq.missing_frame_policy.len > 0)
-                    img_seq.missing_frame_policy
-                else
-                    null,
+                .missing_frame_policy = (
+                    if (img_seq.missing_frame_policy.len > 0)
+                        img_seq.missing_frame_policy
+                    else null
+                ),
             }),
         },
         .null => .{ .NullReference = try builder.writeTable(ottla.NullReference, .{}) },
@@ -1538,9 +1539,11 @@ fn fb_to_media_data_ref(
                 .frame_step = img_seq.frame_step(),
                 .frame_zero_padding = img_seq.frame_zero_padding(),
                 .rate = img_seq.rate(),
-                .missing_frame_policy = schema.MissingFramePolicy.from_string(
-                    if (img_seq.missing_frame_policy()) |p| p else "error"
-                ) orelse .@"error",
+                .missing_frame_policy = (
+                    schema.MissingFramePolicy.from_maybe_string(
+                        img_seq.missing_frame_policy(),
+                    )
+                ),
             },
         },
         .NullReference, .NONE => .{ .null = {} },

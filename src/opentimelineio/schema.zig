@@ -61,6 +61,21 @@ pub const MissingFramePolicy = enum {
     @"error",  // Raise error (quoted because 'error' is Zig keyword)
     hold,      // Hold last frame
     black,     // Show black/transparent
+    
+    pub fn from_maybe_string(
+        maybe_str: ?[]const u8,
+    ) MissingFramePolicy
+    {
+        return (
+            if (maybe_str)
+            |str|
+            std.meta.stringToEnum(
+                MissingFramePolicy,
+                str
+            ) orelse .@"error"
+            else .@"error" 
+        );
+    }
 
     pub fn to_string(
         self: MissingFramePolicy
@@ -71,16 +86,6 @@ pub const MissingFramePolicy = enum {
             .hold => "hold",
             .black => "black",
         };
-    }
-
-    pub fn from_string(
-        s: []const u8
-    ) ?MissingFramePolicy
-    {
-        if (std.mem.eql(u8, s, "error")) return .@"error";
-        if (std.mem.eql(u8, s, "hold")) return .hold;
-        if (std.mem.eql(u8, s, "black")) return .black;
-        return null;
     }
 };
 
@@ -1496,24 +1501,24 @@ test "MissingFramePolicy: string conversions"
         MissingFramePolicy.black.to_string()
     );
 
-    // Test from_string
+    // Test from_maybe_string
     try std.testing.expectEqual(
         MissingFramePolicy.@"error",
-        MissingFramePolicy.from_string("error").?
+        MissingFramePolicy.from_maybe_string("error"),
     );
     try std.testing.expectEqual(
         MissingFramePolicy.hold,
-        MissingFramePolicy.from_string("hold").?
+        MissingFramePolicy.from_maybe_string("hold"),
     );
     try std.testing.expectEqual(
         MissingFramePolicy.black,
-        MissingFramePolicy.from_string("black").?
+        MissingFramePolicy.from_maybe_string("black"),
     );
 
     // Test invalid string
     try std.testing.expectEqual(
-        null,
-        MissingFramePolicy.from_string("invalid")
+        MissingFramePolicy.@"error",
+        MissingFramePolicy.from_maybe_string("invalid"),
     );
 }
 
