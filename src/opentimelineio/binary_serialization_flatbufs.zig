@@ -1511,12 +1511,19 @@ fn fb_to_media_data_ref(
 {
     return switch (fb_ref) {
         .URIReference => |uri_ref| .{
-            .uri = .{ .target_uri = try allocator.dupe(u8, uri_ref.target_uri()) },
+            .uri = .{
+                .target_uri = try allocator.dupe(
+                    u8,
+                    uri_ref.target_uri(),
+                ),
+            },
         },
         .SignalReference => |sig_ref| blk: {
             const sg = sig_ref.signal_generator_type();
             const freq: u32 = switch (sg) {
-                .SineSignal => |sine| @intFromFloat(sine.frequency_hz()),
+                .SineSignal => |sine| @intFromFloat(
+                    sine.frequency_hz(),
+                ),
                 .LinearRampSignal => 1000,
                 .NONE => 1000,
             };
@@ -1524,7 +1531,7 @@ fn fb_to_media_data_ref(
                 .signal = .{
                     .signal_generator = .{
                         .frequency_hz = freq,
-                        .duration_s = sampling.sample_ordinate_t.init(1.0),
+                        .duration_s = .one,
                         .signal = .sine,
                     },
                 },
@@ -1532,9 +1539,22 @@ fn fb_to_media_data_ref(
         },
         .ImageSequenceReference => |img_seq| .{
             .image_sequence = .{
-                .target_url_base = try allocator.dupe(u8, img_seq.target_url_base()),
-                .name_prefix = if (img_seq.name_prefix()) |p| try allocator.dupe(u8, p) else "",
-                .name_suffix = if (img_seq.name_suffix()) |s| try allocator.dupe(u8, s) else "",
+                .target_url_base = try allocator.dupe(
+                    u8,
+                    img_seq.target_url_base(),
+                ),
+                .name_prefix = (
+                    if (img_seq.name_prefix()) 
+                        |p| 
+                        try allocator.dupe(u8, p) 
+                    else ""
+                ),
+                .name_suffix = (
+                    if (img_seq.name_suffix()) 
+                        |s| 
+                        try allocator.dupe(u8, s)
+                    else ""
+                ),
                 .start_frame = img_seq.start_frame(),
                 .frame_step = img_seq.frame_step(),
                 .frame_zero_padding = img_seq.frame_zero_padding(),
@@ -1556,24 +1576,38 @@ fn fb_to_media_ref(
     fb_ref: ottla.MediaReference,
 ) !schema.MediaReference
 {
-    const maybe_discrete_partition = if (fb_ref.discrete_partition())
-        |dp|
-        fb_to_sig(dp)
-    else
-        null;
+    const maybe_discrete_partition = (
+        if (fb_ref.discrete_partition())
+            |dp|
+            fb_to_sig(dp)
+        else null
+    );
 
     return .{
-        .data_reference = try fb_to_media_data_ref(allocator, fb_ref.data_reference_type()),
-        .maybe_bounds_s = if (fb_ref.bounds())
-            |b|
-            fb_to_bounds(b, maybe_discrete_partition)
-        else
-            null,
-        .domain = if (fb_ref.domain())
-            |d|
-            try fb_to_domain(allocator, d)
-        else
-            .time,
+        .data_reference = (
+            try fb_to_media_data_ref(
+                allocator,
+                fb_ref.data_reference_type(),
+            )
+        ),
+        .maybe_bounds_s = (
+            if (fb_ref.bounds()) 
+                |b| 
+                fb_to_bounds(
+                    b,
+                    maybe_discrete_partition,
+                )
+            else null
+        ),
+        .domain = (
+            if (fb_ref.domain()) 
+                |d| 
+                try fb_to_domain(
+                    allocator,
+                    d
+                )
+            else .time
+        ),
         .maybe_discrete_partition = maybe_discrete_partition,
     };
 }

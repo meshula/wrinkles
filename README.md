@@ -117,10 +117,7 @@ There are some features that we didn't include in this prototype, because they
 didn't impact the deisgn or problems we were specifically solving.
 
 * Multiple media references (left eye/right eye)
-* Metadata
 * Spatial Coordinate Systems
-* Markers
-* Schema Versioning
 
 ### Omitted from OTIO
 
@@ -353,4 +350,82 @@ didn't impact the deisgn or problems we were specifically solving.
 * [ ] do a scan to make sure that `opentime.Ordinate` is used in place of f32
   directly
 * [ ] integrate inside of raven
+
+## OTIO V2 Features Present
+
+* Including all the stuff
+    * Topologies
+    * Curves
+    * Binary tree
+    * Treecode
+    * Markers
+    * Metadata
+    * Etc.
+* Serialization
+    * Ascii: .tla, .tlca
+    * Binary: .tlb, .tlfb
+    * Converter from latest .otio (read, not write)
+    * Z file: .TLZ (has variants where the playlist is in TLA or TLFB,
+      analogous to .otioz
+* Tooling
+    * otiocat
+    * otio_space_visualizer
+    * otio_hierarchy_view
+    * Raven hacked up port that runs against the c++ binding (~/workspace/raven_wrinkles)
+* Language Bindings
+    * C
+    * C++ (real shaky)
+    * Python
+    * OTIO V1 Adapter Plugin (to and from .tl* and .tlc* files)
+        * **S** could streamline the build so that pip install gives you a
+          whole wrinkles installation in your python environment including
+          the adapter plugin. ( ~/workspace/otio_wrinkles_adapter/ )
+* Omissions
+    * Metadata is not reified into a type
+    * No algorithms.  No flattening, no filtering, no searching, no
+      iterating.
+        * **S** For this I think what I would do is include the simplest,
+          dumbest possible version of these algorithms rather that try and
+          be super batteries included.  The batteries cloud the simplicity
+          of the algorithm and make it harder for someone to make the right
+          loop for THEM.
+    * Multiple media references
+    * Muting or activation for gaps
+    * Spatial Coordinate Systems
+* Big decisions
+    * Serialization
+        * versioned at the root instead of at the leaf (IE no
+          `CORE_SCHEMA_MAP`)
+        * Formats explicitly specify either a collection (.tlc) or a
+          timeline (.tla) as a root object of the serialization
+        * Metadata is serialized separated from the objects for performance
+    * No runtime definable schemas in the hierarchy, explicit types
+    * No plugins
+    * Compiled language first (IE zig first, not python first)
+
+## TODO 1/17/2026
+
+* [ ] land serialization in main (IE review and land all the code that is in
+      flight on that branch)
+    * [x] fix build errors
+    * [ ] remove CBORS tlb implementation
+        * [ ] rename .tlfb to .tlb
+    * [x] check in current in flight stuff
+    * [ ] clean up gitignore
+    * [ ] rearrange
+        * [ ] remove .ziggy files
+        * [ ] serialization schemas -> one directory
+        * [ ] language bindings -> bindings directory
+    * [ ] style pass
+    * [ ] figure out where the ERROR CONVERTING messages come from
+    * [ ] add a FileFormat struct that maps formats to extensions and
+          serializers/deserializers
+    * [ ] specifically look for string matching to convert to enums and clean
+          that up
+* [ ] Joshs' composition objects (generic stack/track thingy)
+* [ ] Update the adapter to make sure its Read and Write, integrate into
+      project
+
+* USD + OTIO (where clips point at USD files, render out a playblast)
+* Wrinkles MCP
 

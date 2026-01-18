@@ -1128,6 +1128,9 @@ pub fn read_from_file(
     };
     const extension = file_path[ext_start..];
 
+    // TODO: should have a SUPPORTED_EXTENSIONS enum that maps it to the right
+    //       deserializer... and the same in the serialization code
+
     if (std.mem.eql(u8, extension, ".tla"))
     {
         // Read tla format

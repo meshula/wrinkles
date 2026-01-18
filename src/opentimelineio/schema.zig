@@ -139,36 +139,59 @@ pub const ImageSequenceReference = struct {
         var frame_buf: [32]u8 = undefined;
         var padded_buf: [32]u8 = undefined;
 
-        const frame_str: []const u8 = if (self.frame_zero_padding > 0) blk: {
-            // Manual zero-padding for positive numbers
-            const abs_num: u32 = if (image_number < 0)
-                @intCast(-image_number)
-            else
-                @intCast(image_number);
-            const base_str = std.fmt.bufPrint(&frame_buf, "{d}", .{abs_num}) catch
-                unreachable;
-            const base_len = base_str.len;
-            const pad_len: usize = @as(usize, self.frame_zero_padding);
+        const frame_str: []const u8 = blk: {
+            if (self.frame_zero_padding > 0) 
+            {
+                // @TODO: this needs to be cleaned up... frame_zero_padding
+                //        should use format string methods to add 0s, not this
+                //        mess
 
-            if (base_len >= pad_len) {
-                break :blk base_str;
+                // Manual zero-padding for positive numbers
+                const abs_num: u32 = (
+                    if (image_number < 0) @intCast(-image_number)
+                    else @intCast(image_number)
+                );
+
+                const base_str = std.fmt.bufPrint(
+                    &frame_buf,
+                    "{d}",
+                    .{abs_num},
+                ) catch unreachable;
+                const base_len = base_str.len;
+                const pad_len: usize = @as(usize, self.frame_zero_padding);
+
+                if (base_len >= pad_len) 
+                {
+                    break :blk base_str;
+                }
+
+                // Add leading zeros
+                const zeros_needed = pad_len - base_len;
+
+                @memset(
+                    padded_buf[0..zeros_needed],
+                    '0'
+                );
+
+                @memcpy(
+                    padded_buf[zeros_needed..][0..base_len],
+                    base_str,
+                );
+
+                break :blk padded_buf[0..pad_len];
+            } 
+            else 
+            {
+                break :blk std.fmt.bufPrint(&frame_buf, "{d}", .{image_number}) catch
+                    unreachable;
             }
-
-            // Add leading zeros
-            const zeros_needed = pad_len - base_len;
-            @memset(padded_buf[0..zeros_needed], '0');
-            @memcpy(padded_buf[zeros_needed..][0..base_len], base_str);
-            break :blk padded_buf[0..pad_len];
-        } else blk: {
-            break :blk std.fmt.bufPrint(&frame_buf, "{d}", .{image_number}) catch
-                unreachable;
         };
 
         // Handle negative sign for padded numbers
-        const sign_prefix: []const u8 = if (image_number < 0 and self.frame_zero_padding > 0)
-            "-"
-        else
-            "";
+        const sign_prefix: []const u8 = (
+            if (image_number < 0 and self.frame_zero_padding > 0) "-"
+            else ""
+        );
 
         // Concatenate all parts
         return try std.fmt.allocPrint(
@@ -231,10 +254,12 @@ pub const ImageSequenceReference = struct {
     ) void
     {
         allocator.free(self.target_url_base);
-        if (self.name_prefix.len > 0) {
+        if (self.name_prefix.len > 0) 
+        {
             allocator.free(self.name_prefix);
         }
-        if (self.name_suffix.len > 0) {
+        if (self.name_suffix.len > 0) 
+        {
             allocator.free(self.name_suffix);
         }
     }
@@ -425,8 +450,11 @@ pub const Clip = struct {
             allocator.free(n);
         }
         self.media.deinit(allocator);
-        if (self.markers.len > 0) {
-            for (self.markers) |*m| {
+        if (self.markers.len > 0) 
+        {
+            for (self.markers) 
+                |*m| 
+            {
                 m.deinit(allocator);
             }
             allocator.free(self.markers);
@@ -534,8 +562,11 @@ pub const Gap = struct {
         {
             allocator.free(name);
         }
-        if (self.markers.len > 0) {
-            for (self.markers) |*m| {
+        if (self.markers.len > 0) 
+        {
+            for (self.markers) 
+                |*m| 
+            {
                 @constCast(m).deinit(allocator);
             }
             allocator.free(self.markers);
@@ -610,7 +641,8 @@ pub const Transition = struct {
         const container_topo = try self.container.topology_pres_to_intrinsic(allocator);
         // If container topology is empty (no children and no bounds),
         // return a zero-duration identity topology
-        if (container_topo.input_bounds() == null) {
+        if (container_topo.input_bounds() == null) 
+        {
             return try topology_m.Topology.init_identity(
                 allocator,
                 opentime.ContinuousInterval.from_start_duration(
@@ -791,8 +823,11 @@ pub const Track = struct {
             self.maybe_name = null;
         }
         allocator.free(self.children);
-        if (self.markers.len > 0) {
-            for (self.markers) |*m| {
+        if (self.markers.len > 0) 
+        {
+            for (self.markers) 
+                |*m| 
+            {
                 m.deinit(allocator);
             }
             allocator.free(self.markers);
@@ -954,8 +989,11 @@ pub const Stack = struct {
             self.maybe_name = null;
         }
         allocator.free(self.children);
-        if (self.markers.len > 0) {
-            for (self.markers) |*m| {
+        if (self.markers.len > 0) 
+        {
+            for (self.markers) 
+                |*m| 
+            {
                 m.deinit(allocator);
             }
             allocator.free(self.markers);
@@ -1102,8 +1140,11 @@ pub const Timeline = struct {
             self.maybe_name = null;
         }
         self.tracks.deinit(allocator);
-        if (self.markers.len > 0) {
-            for (self.markers) |*m| {
+        if (self.markers.len > 0) 
+        {
+            for (self.markers) 
+                |*m| 
+            {
                 m.deinit(allocator);
             }
             allocator.free(self.markers);
@@ -1420,69 +1461,6 @@ test "warp topology"
             ).ordinate(),
         );
     }
-}
-
-const ziggy = @import("ziggy");
-
-test "ziggy schemas"
-{
-    if (true)
-    {
-        // ziggy can't directly serialize the schema types. They need to be
-        // translated to a serializable variant and then serialized.
-        return error.SkipZigTest;
-    }
-
-    const allocator = std.testing.allocator;
-
-    var out: std.Io.Writer.Allocating = .init(allocator);
-    defer out.deinit();
-
-    var cl: Clip = .{
-        .maybe_name = "Clip-01",
-        .maybe_bounds_s = opentime.ContinuousInterval.init(
-            .{ .start = 0, .end = 12 }
-        ),
-        .media = .{
-            .domain = .picture,
-            .maybe_bounds_s = opentime.ContinuousInterval.init(
-                .{ .start = 0, .end = 18 }
-            ),
-            .maybe_discrete_partition = .{
-                .sample_rate_hz = .{ .Int = 24 },
-                .start_index = 0,
-            },
-            .data_reference = .{
-                .uri = .{
-                    .target_uri = "pasta.wav", 
-                },
-            }
-        },
-    };
-
-    const cl_ptr = cl.handle();
-    var track_children = (
-        [_]references.CompositionItemHandle{ 
-            cl_ptr 
-        }
-    );
-
-    const tr = Track{
-        .children = &track_children,
-        .maybe_name = "DemoTrack",
-    };
-
-    if (true) {
-        return error.SkipZigTest;
-    }
-
-    try ziggy.stringify(
-        tr,
-        .{.whitespace = .space_4},
-        &out.writer,
-    );
-
-    std.debug.print("result: {s}\n", .{out.written()});
 }
 
 test "MissingFramePolicy: string conversions"
