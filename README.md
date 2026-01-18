@@ -408,9 +408,9 @@ didn't impact the deisgn or problems we were specifically solving.
 * [ ] land serialization in main (IE review and land all the code that is in
       flight on that branch)
     * [x] fix build errors
+    * [x] check in current in flight stuff
     * [ ] remove CBORS tlb implementation
         * [ ] rename .tlfb to .tlb
-    * [x] check in current in flight stuff
     * [ ] clean up gitignore
     * [ ] rearrange
         * [ ] remove .ziggy files

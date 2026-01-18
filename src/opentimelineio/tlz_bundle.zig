@@ -2,7 +2,7 @@
 //!
 //! TLZ files are ZIP archives containing:
 //! - version.txt: Format version string
-//! - content.tla or content.tlfb: Timeline data
+//! - content.tla or content.tlb: Timeline data
 //! - media/: Directory containing media files (optional)
 
 const std = @import("std");
@@ -152,9 +152,9 @@ pub fn readFromFile(
                 header.local_file_header_offset,
             );
         }
-        else if (std.mem.eql(u8, filename, utils.BUNDLE_CONTENT_TLFB))
+        else if (std.mem.eql(u8, filename, utils.BUNDLE_CONTENT_TLB))
         {
-            content_format = .tlfb;
+            content_format = .tlb;
             content_data = try readEntryDataFromBuffer(
                 allocator,
                 file_data,
@@ -222,7 +222,7 @@ pub fn readFromFile(
                 .{},
             );
         },
-        .tlfb => {
+        .tlb => {
             return try binary_serialization_flatbufs.deserialize_to_serializable_timeline(
                 allocator,
                 data,
@@ -328,7 +328,7 @@ pub fn writeToFile(
 
     const content_name = switch (options.bundle_format) {
         .tla => utils.BUNDLE_CONTENT_TLA,
-        .tlfb => utils.BUNDLE_CONTENT_TLFB,
+        .tlb => utils.BUNDLE_CONTENT_TLB,
     };
 
     switch (options.bundle_format) {
@@ -342,7 +342,7 @@ pub fn writeToFile(
                 &content_writer.writer,
             );
         },
-        .tlfb => {
+        .tlb => {
             try binary_serialization_flatbufs.serialize_from_serializable_timeline(
                 modified_timeline,
                 arena_alloc,
@@ -394,7 +394,7 @@ pub fn writeToFile(
     current_offset += 30 + @as(u32, @intCast(utils.BUNDLE_VERSION_FILE.len)) +
         @as(u32, @intCast(version_data.len));
 
-    // Entry 1: content.tla or content.tlfb (uncompressed for now)
+    // Entry 1: content.tla or content.tlb (uncompressed for now)
     try entries.append(arena_alloc, .{
         .name = content_name,
         .data = content_bytes,

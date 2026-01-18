@@ -24,11 +24,6 @@
             .url = "git+https://github.com/ssteinbach/zgui_cimgui_implot_sokol#68cbce413883e6d8806c5da304a4a6f3c93cf125",
             .hash = "zgui_cimgui_implot_sokol-1.91.8-17SdXtkNCAAVNEezE-MaA8CWf_y3Ms9vWk_teKoXW-jG",
         },
-        .zbor = .{
-            // CBOR library for binary serialization
-            .url = "git+https://codeberg.org/r4gus/zbor.git#caa1696b2e6e241eaf2de67bd1dde72f0d43801c",
-            .hash = "zbor-0.20.1-kr-CoFVkAwDLvzgGCunlC9jDZNLSpsdarO2UmKJTpNYw",
-        },
         .ziggy = .{
             .url = "git+https://github.com/ssteinbach/ziggy#ddeed2f372f2fbd9db74fdf7ac12a62e3826abf0",
             .hash = "ziggy-0.1.0-kTg8v6xfBgAoHwFLhSFnmwpTc7_qO3rQ3ixqqyKHwSq0",

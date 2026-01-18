@@ -3133,7 +3133,6 @@ test "timeline serialization: ziggy round-trip"
 // Universal File Reading
 // ----------------------------------------------------------------------------
 
-const binary_serialization = @import("binary_serialization.zig");
 const binary_serialization_flatbufs = @import("binary_serialization_flatbufs.zig");
 const tlz_bundle = @import("tlz_bundle.zig");
 
@@ -3143,10 +3142,8 @@ pub const FileFormat = enum {
     otio,
     /// TLA (Timeline ASCII) text format
     tla,
-    /// Binary CBOR format
-    tlb,
     /// Binary FlatBuffers format
-    tlfb,
+    tlb,
     /// TLZ bundle (ZIP archive)
     tlz,
     /// TLCA (Timeline Collection ASCII) text format
@@ -3156,7 +3153,7 @@ pub const FileFormat = enum {
 };
 
 /// Read a timeline from a buffer into SerializableTimeline.
-/// Supports: .otio (JSON), .tla, .tlb (CBOR), .tlfb (FlatBuffers)
+/// Supports: .otio (JSON), .tla, .tlb (FlatBuffers)
 /// Note: .tlz format is not supported for buffer reading as it requires
 /// file system access for the ZIP archive. Use read_from_file for .tlz.
 ///
@@ -3193,12 +3190,6 @@ pub fn read_from_buffer(
             );
         },
         .tlb => {
-            return try binary_serialization.deserialize_to_serializable_timeline(
-                allocator,
-                buffer,
-            );
-        },
-        .tlfb => {
             return try binary_serialization_flatbufs.deserialize_to_serializable_timeline(
                 allocator,
                 buffer,
@@ -3220,7 +3211,7 @@ pub fn read_from_buffer(
 }
 
 /// Read a timeline from any supported file format into SerializableTimeline.
-/// Supports: .otio (JSON), .tla, .tlb (CBOR), .tlfb (FlatBuffers), .tlz (bundle)
+/// Supports: .otio (JSON), .tla, .tlb (FlatBuffers), .tlz (bundle)
 /// The file format is determined by the file extension.
 pub fn read_from_file(
     allocator: Allocator,
@@ -3270,7 +3261,7 @@ pub const WriteOptions = struct {
     /// Controls how metadata is output in TLA format
     metadata_mode: MetadataMode = .hash_reference,
 
-    /// TLZ bundle format (tla or tlfb inside the bundle)
+    /// TLZ bundle format (tla or tlb inside the bundle)
     bundle_format: tlz_bundle_utils.BundleFormat = .tla,
 
     /// TLZ media handling policy
@@ -3291,7 +3282,7 @@ pub const MetadataMode = enum {
 };
 
 /// Write a SerializableTimeline to an allocated buffer.
-/// Supports: .tla, .tlb (CBOR), .tlfb (FlatBuffers)
+/// Supports: .tla, .tlb (FlatBuffers)
 /// Note: .tlz format is not supported for buffer writing as it requires
 /// file system access for the ZIP archive. Use write_to_file for .tlz.
 ///
@@ -3331,7 +3322,7 @@ pub fn write_to_buffer(
 }
 
 /// Write a SerializableTimeline to any supported file format.
-/// Supports: .tla, .tlb (CBOR), .tlfb (FlatBuffers), .tlz (bundle)
+/// Supports: .tla, .tlb (FlatBuffers), .tlz (bundle)
 /// The file format is determined by the file extension.
 pub fn write_to_file(
     allocator: Allocator,
@@ -3398,13 +3389,6 @@ pub fn write_to_writer(
             );
         },
         .tlb => {
-            try binary_serialization.serialize_from_serializable_timeline(
-                ser_timeline,
-                allocator,
-                writer,
-            );
-        },
-        .tlfb => {
             try binary_serialization_flatbufs.serialize_from_serializable_timeline(
                 ser_timeline,
                 allocator,

@@ -1,6 +1,6 @@
 //! otiocat - Universal timeline/collection format converter
 //!
-//! Reads timeline files (.otio, .tla, .tlb, .tlfb, .tlz) and writes to various formats.
+//! Reads timeline files (.otio, .tla, .tlb, .tlz) and writes to various formats.
 //! Also supports collection files (.tlca, .tlcb) for grouped timeline containers.
 //!
 //! Usage:
@@ -12,13 +12,11 @@
 //!   # Timeline conversions
 //!   otiocat timeline.otio                   # JSON to TLA (stdout)
 //!   otiocat timeline.otio timeline.tla      # JSON to TLA (file)
-//!   otiocat timeline.otio timeline.tlb      # JSON to Binary (CBOR)
-//!   otiocat timeline.otio timeline.tlfb     # JSON to Binary (FlatBuffers)
+//!   otiocat timeline.otio timeline.tlb      # JSON to Binary (FlatBuffers)
 //!   otiocat timeline.tla timeline.tlz       # TLA to TLZ bundle
 //!   otiocat timeline.tlz timeline.tla       # TLZ bundle to TLA
 //!   otiocat timeline.tla timeline.tlb       # TLA to Binary
 //!   otiocat timeline.tlb timeline.tla       # Binary to TLA
-//!   otiocat timeline.tlfb timeline.tla      # FlatBuffers to TLA
 //!
 //!   # Collection conversions
 //!   otiocat collection.tlca collection.tlcb # ASCII to FlatBuffers
@@ -100,9 +98,9 @@ fn parse_args(
         {
             bundle_format = .tla;
         }
-        else if (string.eql_latin_s8(arg, "--bundle-format=tlfb"))
+        else if (string.eql_latin_s8(arg, "--bundle-format=tlb"))
         {
-            bundle_format = .tlfb;
+            bundle_format = .tlb;
         }
         // TLZ media policy options
         else if (string.eql_latin_s8(arg, "--media-policy=error"))
@@ -168,8 +166,7 @@ pub fn usage(
         \\Supported timeline formats:
         \\  .otio   OpenTimelineIO JSON format (input only)
         \\  .tla    TLA (Timeline ASCII) text format
-        \\  .tlb    Binary CBOR format
-        \\  .tlfb   Binary FlatBuffers format
+        \\  .tlb    Binary FlatBuffers format
         \\  .tlz    TLZ bundle (ZIP archive with timeline + media)
         \\
         \\Supported collection formats:
@@ -192,7 +189,7 @@ pub fn usage(
         \\
         \\TLZ Bundle Options (for .tlz output):
         \\  --bundle-format=tla     Use TLA text format inside bundle (default)
-        \\  --bundle-format=tlfb    Use FlatBuffers binary format inside bundle
+        \\  --bundle-format=tlb     Use FlatBuffers binary format inside bundle
         \\  --media-policy=error    Error if any media file not found
         \\  --media-policy=missing  Skip missing media files (default)
         \\  --media-policy=all-missing  Don't bundle any media files
@@ -200,11 +197,9 @@ pub fn usage(
         \\Timeline Examples:
         \\  otiocat timeline.otio                   # JSON to TLA (stdout)
         \\  otiocat timeline.otio timeline.tla      # JSON to TLA (file)
-        \\  otiocat timeline.otio timeline.tlb      # JSON to Binary (CBOR)
-        \\  otiocat timeline.otio timeline.tlfb     # JSON to FlatBuffers
+        \\  otiocat timeline.otio timeline.tlb      # JSON to FlatBuffers
         \\  otiocat timeline.tla timeline.tlb       # TLA to Binary
         \\  otiocat timeline.tlb timeline.tla       # Binary to TLA
-        \\  otiocat timeline.tlfb timeline.tla      # FlatBuffers to TLA
         \\
         \\Collection Examples:
         \\  otiocat collection.tlca collection.tlcb # ASCII to FlatBuffers
@@ -213,7 +208,7 @@ pub fn usage(
         \\TLZ Bundle Examples:
         \\  otiocat timeline.tla timeline.tlz       # Create TLZ bundle
         \\  otiocat timeline.tlz timeline.tla       # Extract from TLZ bundle
-        \\  otiocat timeline.tla timeline.tlz --bundle-format=tlfb  # Binary inside
+        \\  otiocat timeline.tla timeline.tlz --bundle-format=tlb  # Binary inside
         \\  otiocat timeline.tla timeline.tlz --media-policy=error  # Require media
         \\
         \\Metadata Options (TLA/TLCA output only):
@@ -319,7 +314,7 @@ pub fn main() !void
     if (is_collection != output_is_collection) {
         std.log.err(
             "Cannot convert between timeline and collection formats. " ++
-            "Use timeline formats (.tla, .tlb, .tlfb, .tlz) or collection formats (.tlca, .tlcb).",
+            "Use timeline formats (.tla, .tlb, .tlz) or collection formats (.tlca, .tlcb).",
             .{}
         );
         std.process.exit(1);
@@ -372,7 +367,7 @@ pub fn main() !void
         convert_prog.end();
     } else {
         // Handle timeline formats
-        // Read input file using centralized reader (supports .otio, .tla, .tlb, .tlfb, .tlz)
+        // Read input file using centralized reader (supports .otio, .tla, .tlb, .tlz)
         const ser_timeline = try serialization.read_from_file(allocator, state.input_path);
 
         read_prog.end();
@@ -429,7 +424,6 @@ pub fn main() !void
 test "get_extension returns correct extension" {
     try std.testing.expectEqualStrings(".tla", get_extension("foo.tla").?);
     try std.testing.expectEqualStrings(".tlb", get_extension("path/to/file.tlb").?);
-    try std.testing.expectEqualStrings(".tlfb", get_extension("timeline.tlfb").?);
     try std.testing.expectEqualStrings(".tlz", get_extension("/abs/path/bundle.tlz").?);
     try std.testing.expectEqualStrings(".otio", get_extension("test.otio").?);
     try std.testing.expect(get_extension("no_extension") == null);
@@ -444,10 +438,6 @@ test "FileFormat stringToEnum parses extensions correctly" {
     try std.testing.expectEqual(
         serialization.FileFormat.tlb,
         std.meta.stringToEnum(serialization.FileFormat, "tlb").?,
-    );
-    try std.testing.expectEqual(
-        serialization.FileFormat.tlfb,
-        std.meta.stringToEnum(serialization.FileFormat, "tlfb").?,
     );
     try std.testing.expectEqual(
         serialization.FileFormat.tlz,
@@ -504,7 +494,7 @@ test "roundtrip tlb format via read_from_buffer and write_to_buffer" {
         "otio_sample_data/simple_cut.tla",
     );
 
-    // Write to buffer as tlb (CBOR binary)
+    // Write to buffer as tlb (FlatBuffers binary)
     const buffer = try serialization.write_to_buffer(
         allocator,
         ser_timeline,
@@ -518,42 +508,6 @@ test "roundtrip tlb format via read_from_buffer and write_to_buffer" {
         allocator,
         buffer,
         .tlb,
-    );
-
-    // Verify basic structure matches
-    try std.testing.expectEqualStrings(
-        ser_timeline.name orelse "",
-        roundtrip_timeline.name orelse "",
-    );
-    try std.testing.expectEqual(
-        ser_timeline.tracks.children.len,
-        roundtrip_timeline.tracks.children.len,
-    );
-}
-
-test "roundtrip tlfb format via read_from_buffer and write_to_buffer" {
-    const allocator = std.testing.allocator;
-
-    // Read a test file
-    const ser_timeline = try serialization.read_from_file(
-        allocator,
-        "otio_sample_data/simple_cut.tla",
-    );
-
-    // Write to buffer as tlfb (FlatBuffers binary)
-    const buffer = try serialization.write_to_buffer(
-        allocator,
-        ser_timeline,
-        .tlfb,
-        .{},
-    );
-    defer allocator.free(buffer);
-
-    // Read back from buffer
-    const roundtrip_timeline = try serialization.read_from_buffer(
-        allocator,
-        buffer,
-        .tlfb,
     );
 
     // Verify basic structure matches

@@ -1157,29 +1157,6 @@ pub fn read_from_file(
 
     if (std.mem.eql(u8, extension, ".tlb"))
     {
-        // Read binary CBOR format
-        const binary_serialization = @import("binary_serialization.zig");
-
-        const file = try std.fs.cwd().openFile(file_path, .{});
-        defer file.close();
-
-        const source = try file.readToEndAlloc(
-            in_allocator,
-            std.math.maxInt(u32),
-        );
-        defer in_allocator.free(source);
-
-        const timeline = try binary_serialization.deserialize_timeline_binary(
-            in_allocator,
-            source,
-            options,
-        );
-
-        return .{ .timeline = timeline };
-    }
-
-    if (std.mem.eql(u8, extension, ".tlfb"))
-    {
         // Read binary FlatBuffers format
         const flatbufs = @import("binary_serialization_flatbufs.zig");
 

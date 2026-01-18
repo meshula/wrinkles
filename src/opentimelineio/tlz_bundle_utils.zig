@@ -18,8 +18,8 @@ pub const BUNDLE_DIR_NAME = "media";
 /// Name of the TLA (Timeline ASCII) content file in the bundle
 pub const BUNDLE_CONTENT_TLA = "content.tla";
 
-/// Name of the FlatBuffers content file in the bundle
-pub const BUNDLE_CONTENT_TLFB = "content.tlfb";
+/// Name of the FlatBuffers binary content file in the bundle
+pub const BUNDLE_CONTENT_TLB = "content.tlb";
 
 // ----------------------------------------------------------------------------
 // Types
@@ -43,7 +43,7 @@ pub const BundleFormat = enum {
     tla,
 
     /// Binary FlatBuffers format
-    tlfb,
+    tlb,
 };
 
 // ----------------------------------------------------------------------------

@@ -29,7 +29,6 @@ pub const domain = @import("domain.zig");
 pub const Domain = domain.Domain;
 
 pub const serialization = @import("serialization.zig");
-pub const binary_serialization = @import("binary_serialization.zig");
 pub const binary_serialization_flatbufs = @import("binary_serialization_flatbufs.zig");
 pub const versioning = @import("versioning.zig");
 pub const tlz_bundle = @import("tlz_bundle.zig");
@@ -39,20 +38,20 @@ pub const hierarchy_text_render = @import("hierarchy_text_render.zig");
 const otio_json = @import("opentimelineio_json.zig");
 
 /// Read timeline from file to CompositionItemHandle (runtime schema).
-/// Supports: .otio (JSON), .tla, .tlb (CBOR), .tlfb (FlatBuffers), .tlz (bundle)
+/// Supports: .otio (JSON), .tla, .tlb (FlatBuffers), .tlz (bundle)
 pub const read_from_file = otio_json.read_from_file;
 
 /// File format types for serialization operations
 pub const FileFormat = serialization.FileFormat;
 
 /// Read timeline from buffer to SerializableTimeline.
-/// Supports: .otio (JSON), .tla, .tlb (CBOR), .tlfb (FlatBuffers)
+/// Supports: .otio (JSON), .tla, .tlb (FlatBuffers)
 /// Note: .tlz format requires file access; use read_from_file instead.
 /// Useful for sokol_fetch callbacks or network transfers.
 pub const read_from_buffer = serialization.read_from_buffer;
 
 /// Write timeline from SerializableTimeline to buffer.
-/// Supports: .tla, .tlb (CBOR), .tlfb (FlatBuffers)
+/// Supports: .tla, .tlb (FlatBuffers)
 /// Note: .tlz format requires file access; use write_to_file instead.
 /// Returns an allocated buffer that the caller must free.
 pub const write_to_buffer = serialization.write_to_buffer;
@@ -93,7 +92,6 @@ test {
     _ = projection;
     _ = domain;
     _ = serialization;
-    _ = binary_serialization;
     _ = binary_serialization_flatbufs;
     _ = versioning;
     _ = tlz_bundle;

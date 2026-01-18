@@ -507,14 +507,6 @@ pub fn build(
         }
     );
 
-    const dep_zbor = b.dependency(
-        "zbor",
-        .{
-            .target = options.target,
-            .optimize = options.optimize,
-        }
-    );
-
     const dep_flatbuffers = b.dependency(
         "flatbuffers",
         .{
@@ -773,7 +765,6 @@ pub fn build(
                 .{ .name = "sampling", .module = sampling },
                 .{ .name = "build_options", .module = build_options_mod},
                 .{ .name = "ziggy", .module = dep_ziggy.module("ziggy") },
-                .{ .name = "zbor", .module = dep_zbor.module("zbor") },
                 .{ .name = "flatbuffers", .module = dep_flatbuffers.module("flatbuffers") },
                 .{ .name = "ottla_schema", .module = ottla_schema },
             },
