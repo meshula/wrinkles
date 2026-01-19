@@ -395,18 +395,6 @@ pub const ProjectionOperator = struct {
         self.src_to_dst_topo.deinit(allocator);
     }
 
-    /// Return true if lhs starts before rhs starts.
-    pub fn less_than_input_space_start_point(
-        lhs: @This(),
-        rhs: @This(),
-    ) bool
-    {
-        return (
-            lhs.src_to_dst_topo.input_bounds().start_time 
-            < rhs.src_to_dst_topo.input_bounds().start_time
-        );
-    }
-
     /// Create a caller-owned copy of this `ProjectionOperator`.
     pub fn clone(
         self: @This(),

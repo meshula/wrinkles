@@ -712,11 +712,12 @@ pub fn ProjectionBuilder(
         {
             // sort endpoints so that the higher node is always the source
             var sorted_endpoints = endpoints;
-            const endpoints_were_swapped = try self.tree.sort_endpoint_indices(
-                &sorted_endpoints
+            const endpoints_were_swapped = (
+                try self.tree.sort_endpoint_indices(
+                    &sorted_endpoints,
+                )
             );
 
-            // var result = try build_projection_operator_assume_sorted(
             var result = (
                 try self.build_projection_operator_assume_sorted(
                     parent_allocator,
@@ -725,7 +726,10 @@ pub fn ProjectionBuilder(
             );
 
             // check to see if end points were inverted
-            if (endpoints_were_swapped and result.src_to_dst_topo.mappings.len > 0) 
+            if (
+                endpoints_were_swapped 
+                and result.src_to_dst_topo.mappings.len > 0
+            ) 
             {
                 const inverted_topologies = (
                     try result.src_to_dst_topo.inverted(parent_allocator)
@@ -733,7 +737,7 @@ pub fn ProjectionBuilder(
                 errdefer opentime.deinit_slice(
                     parent_allocator,
                     topology_m.Topology,
-                    inverted_topologies
+                    inverted_topologies,
                 );
 
                 if (inverted_topologies.len > 1) 
@@ -756,31 +760,6 @@ pub fn ProjectionBuilder(
             }
 
             return result;
-        }
-
-        pub fn projection_operator_to_index_cached(
-            self: @This(),
-            destination: NodeIndex,
-        ) ?ProjectionOperatorType
-        {
-            const space_nodes = self.tree.nodes.slice();
-
-            // if destination is already present in the cache
-            if (self.cache.items[destination])
-                |cached_topology|
-            {
-                return .{
-                    .source = (
-                        space_nodes.get(SOURCE_INDEX)
-                    ),
-                    .destination = space_nodes.get(
-                        destination
-                    ),
-                    .src_to_dst_topo = cached_topology,
-                };
-            }
-
-            return null;
         }
 
         fn build_projection_operator_assume_sorted(

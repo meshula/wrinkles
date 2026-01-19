@@ -6,72 +6,35 @@ const schema = @import("schema.zig");
 const references = @import("references.zig");
 const serialization = @import("serialization.zig");
 
-/// Tree drawing characters - Unicode (fancy) version
-pub const TreeCharsUnicode = struct {
-    pub const branch: []const u8 = "├── ";
-    pub const last: []const u8 = "└── ";
-    pub const vertical: []const u8 = "│   ";
-    pub const space: []const u8 = "    ";
-    pub const header_line: []const u8 = "═══════════════════════════════════════════════════════════════";
-    pub const vertical_single: []const u8 = "│";
-};
+/// Tree drawing character set - holds string constants for tree rendering.
+/// Use `unicode` or `ascii` constants for the appropriate character set.
+pub const TreeChars = struct {
+    branch: []const u8,
+    last: []const u8,
+    vertical: []const u8,
+    space: []const u8,
+    header_line: []const u8,
+    vertical_single: []const u8,
 
-/// Tree drawing characters - ASCII version
-pub const TreeCharsAscii = struct {
-    pub const branch: []const u8 = "+-- ";
-    pub const last: []const u8 = "+-- ";
-    pub const vertical: []const u8 = "|   ";
-    pub const space: []const u8 = "    ";
-    pub const header_line: []const u8 = "===================================================================";
-    pub const vertical_single: []const u8 = "|";
-};
+    /// Unicode (fancy) tree characters
+    pub const unicode = TreeChars{
+        .branch = "├── ",
+        .last = "└── ",
+        .vertical = "│   ",
+        .space = "    ",
+        .header_line = "═══════════════════════════════════════════════════════════════",
+        .vertical_single = "│",
+    };
 
-/// Tree character set selection
-pub const TreeChars = union(enum) {
-    unicode: void,
-    ascii: void,
-
-    pub fn branch(self: @This()) []const u8 {
-        return switch (self) {
-            .unicode => TreeCharsUnicode.branch,
-            .ascii => TreeCharsAscii.branch,
-        };
-    }
-
-    pub fn last(self: @This()) []const u8 {
-        return switch (self) {
-            .unicode => TreeCharsUnicode.last,
-            .ascii => TreeCharsAscii.last,
-        };
-    }
-
-    pub fn vertical(self: @This()) []const u8 {
-        return switch (self) {
-            .unicode => TreeCharsUnicode.vertical,
-            .ascii => TreeCharsAscii.vertical,
-        };
-    }
-
-    pub fn space(self: @This()) []const u8 {
-        return switch (self) {
-            .unicode => TreeCharsUnicode.space,
-            .ascii => TreeCharsAscii.space,
-        };
-    }
-
-    pub fn header_line(self: @This()) []const u8 {
-        return switch (self) {
-            .unicode => TreeCharsUnicode.header_line,
-            .ascii => TreeCharsAscii.header_line,
-        };
-    }
-
-    pub fn vertical_single(self: @This()) []const u8 {
-        return switch (self) {
-            .unicode => TreeCharsUnicode.vertical_single,
-            .ascii => TreeCharsAscii.vertical_single,
-        };
-    }
+    /// ASCII tree characters
+    pub const ascii = TreeChars{
+        .branch = "+-- ",
+        .last = "+-- ",
+        .vertical = "|   ",
+        .space = "    ",
+        .header_line = "===================================================================",
+        .vertical_single = "|",
+    };
 };
 
 /// Format bounds info if present, with optional discrete info
@@ -159,8 +122,8 @@ pub fn render_item(
     maybe_metadata_map: ?serialization.MetadataMap,
 ) void
 {
-    const connector = if (is_last) chars.last() else chars.branch();
-    const child_prefix_add = if (is_last) chars.space() else chars.vertical();
+    const connector = if (is_last) chars.last else chars.branch;
+    const child_prefix_add = if (is_last) chars.space else chars.vertical;
 
     const child_prefix = std.fmt.allocPrint(
         allocator,
@@ -194,13 +157,13 @@ pub fn render_item(
             if (st.markers.len > 0) {
                 std.debug.print(
                     "{s}{s}       markers: {} marker(s)\n",
-                    .{ child_prefix, chars.vertical_single(), st.markers.len },
+                    .{ child_prefix, chars.vertical_single, st.markers.len },
                 );
                 for (st.markers, 0..) |marker, idx| {
                     const marker_name = marker.maybe_name orelse "(unnamed)";
                     std.debug.print(
                         "{s}{s}         [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ child_prefix, chars.vertical_single(), idx + 1, marker_name, marker.color.to_string(),
+                        .{ child_prefix, chars.vertical_single, idx + 1, marker_name, marker.color.to_string(),
                            marker.marked_range.start.as(f64), marker.marked_range.end.as(f64) },
                     );
                 }
@@ -222,13 +185,13 @@ pub fn render_item(
             if (tr.markers.len > 0) {
                 std.debug.print(
                     "{s}{s}       markers: {} marker(s)\n",
-                    .{ child_prefix, chars.vertical_single(), tr.markers.len },
+                    .{ child_prefix, chars.vertical_single, tr.markers.len },
                 );
                 for (tr.markers, 0..) |marker, idx| {
                     const marker_name = marker.maybe_name orelse "(unnamed)";
                     std.debug.print(
                         "{s}{s}         [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ child_prefix, chars.vertical_single(), idx + 1, marker_name, marker.color.to_string(),
+                        .{ child_prefix, chars.vertical_single, idx + 1, marker_name, marker.color.to_string(),
                            marker.marked_range.start.as(f64), marker.marked_range.end.as(f64) },
                     );
                 }
@@ -411,9 +374,9 @@ pub fn render_serializable_timeline(
 {
     const name = ser_timeline.name orelse "(unnamed)";
     std.debug.print("Timeline: {s}\n", .{name});
-    std.debug.print("{s}\n", .{chars.vertical_single()});
+    std.debug.print("{s}\n", .{chars.vertical_single});
 
-    std.debug.print("{s}Stack: (tracks)\n", .{chars.last()});
+    std.debug.print("{s}Stack: (tracks)\n", .{chars.last});
 
     for (ser_timeline.children, 0..) |child, i| {
         const is_last = (i == ser_timeline.children.len - 1);
@@ -432,8 +395,8 @@ pub fn render_serializable_item(
     maybe_metadata_map: ?serialization.MetadataMap,
 ) void
 {
-    const connector = if (is_last) chars.last() else chars.branch();
-    const child_prefix_add = if (is_last) chars.space() else chars.vertical();
+    const connector = if (is_last) chars.last else chars.branch;
+    const child_prefix_add = if (is_last) chars.space else chars.vertical;
 
     const child_prefix = std.fmt.allocPrint(
         allocator,
@@ -454,13 +417,13 @@ pub fn render_serializable_item(
             if (tr.markers.len > 0) {
                 std.debug.print(
                     "{s}{s}       markers: {} marker(s)\n",
-                    .{ child_prefix, chars.vertical_single(), tr.markers.len },
+                    .{ child_prefix, chars.vertical_single, tr.markers.len },
                 );
                 for (tr.markers, 0..) |marker, idx| {
                     const marker_name = marker.name orelse "(unnamed)";
                     std.debug.print(
                         "{s}{s}         [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ child_prefix, chars.vertical_single(), idx + 1, marker_name, marker.color,
+                        .{ child_prefix, chars.vertical_single, idx + 1, marker_name, marker.color,
                            marker.marked_range[0], marker.marked_range[1] },
                     );
                 }
@@ -482,13 +445,13 @@ pub fn render_serializable_item(
             if (st.markers.len > 0) {
                 std.debug.print(
                     "{s}{s}       markers: {} marker(s)\n",
-                    .{ child_prefix, chars.vertical_single(), st.markers.len },
+                    .{ child_prefix, chars.vertical_single, st.markers.len },
                 );
                 for (st.markers, 0..) |marker, idx| {
                     const marker_name = marker.name orelse "(unnamed)";
                     std.debug.print(
                         "{s}{s}         [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ child_prefix, chars.vertical_single(), idx + 1, marker_name, marker.color,
+                        .{ child_prefix, chars.vertical_single, idx + 1, marker_name, marker.color,
                            marker.marked_range[0], marker.marked_range[1] },
                     );
                 }
@@ -642,7 +605,7 @@ pub fn render_serializable_collection(
         std.debug.print("  description: {s}\n", .{desc});
     }
 
-    std.debug.print("{s}\n", .{chars.vertical_single()});
+    std.debug.print("{s}\n", .{chars.vertical_single});
 
     for (collection.children, 0..) |child, i| {
         const is_last = (i == collection.children.len - 1);
@@ -661,8 +624,8 @@ pub fn render_serializable_collection_item(
     maybe_metadata_map: ?serialization.MetadataMap,
 ) void
 {
-    const connector = if (is_last) chars.last() else chars.branch();
-    const child_prefix_add = if (is_last) chars.space() else chars.vertical();
+    const connector = if (is_last) chars.last else chars.branch;
+    const child_prefix_add = if (is_last) chars.space else chars.vertical;
 
     const child_prefix = std.fmt.allocPrint(
         allocator,
@@ -683,7 +646,7 @@ pub fn render_serializable_collection_item(
             if (tl.markers.len > 0) {
                 std.debug.print(
                     "{s}{s}          markers: {} marker(s)\n",
-                    .{ child_prefix, chars.vertical_single(), tl.markers.len },
+                    .{ child_prefix, chars.vertical_single, tl.markers.len },
                 );
             }
 
@@ -704,7 +667,7 @@ pub fn render_serializable_collection_item(
             if (tr.markers.len > 0) {
                 std.debug.print(
                     "{s}{s}       markers: {} marker(s)\n",
-                    .{ child_prefix, chars.vertical_single(), tr.markers.len },
+                    .{ child_prefix, chars.vertical_single, tr.markers.len },
                 );
             }
 
@@ -724,7 +687,7 @@ pub fn render_serializable_collection_item(
             if (st.markers.len > 0) {
                 std.debug.print(
                     "{s}{s}       markers: {} marker(s)\n",
-                    .{ child_prefix, chars.vertical_single(), st.markers.len },
+                    .{ child_prefix, chars.vertical_single, st.markers.len },
                 );
             }
 

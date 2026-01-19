@@ -162,7 +162,10 @@ pub fn main() !void {
         usage("Error: No input files specified.");
     }
 
-    const chars: otio.hierarchy_text_render.TreeChars = if (parsed_args.use_ascii) .ascii else .unicode;
+    const chars: otio.hierarchy_text_render.TreeChars = (
+        if (parsed_args.use_ascii) .ascii 
+        else .unicode
+    );
 
     for (parsed_args.files) |filepath| {
         // Check file exists
@@ -184,9 +187,9 @@ pub fn main() !void {
         if (is_collection_file(filepath)) {
             // Print header for collection
             std.debug.print("\n", .{});
-            std.debug.print("{s}\n", .{chars.header_line()});
+            std.debug.print("{s}\n", .{chars.header_line});
             std.debug.print(" Collection Hierarchy: {s}\n", .{filepath});
-            std.debug.print("{s}\n", .{chars.header_line()});
+            std.debug.print("{s}\n", .{chars.header_line});
             std.debug.print("\n", .{});
 
             // Read and render collection
@@ -202,9 +205,9 @@ pub fn main() !void {
         } else {
             // Print header for timeline
             std.debug.print("\n", .{});
-            std.debug.print("{s}\n", .{chars.header_line()});
+            std.debug.print("{s}\n", .{chars.header_line});
             std.debug.print(" Timeline Hierarchy: {s}\n", .{filepath});
-            std.debug.print("{s}\n", .{chars.header_line()});
+            std.debug.print("{s}\n", .{chars.header_line});
             std.debug.print("\n", .{});
 
             if (parsed_args.show_metadata) {
@@ -236,12 +239,12 @@ pub fn main() !void {
                 // Render the timeline
                 const name = tl_ref.maybe_name() orelse "(unnamed)";
                 std.debug.print("Timeline: {s}\n", .{name});
-                std.debug.print("{s}\n", .{chars.vertical_single()});
+                std.debug.print("{s}\n", .{chars.vertical_single});
 
                 // Render the tracks stack
                 const tracks = &tl_ref.timeline.tracks;
                 const tracks_name = tracks.maybe_name orelse "(tracks)";
-                std.debug.print("{s}Stack: {s}\n", .{ chars.last(), tracks_name });
+                std.debug.print("{s}Stack: {s}\n", .{ chars.last, tracks_name });
 
                 for (tracks.children, 0..) |child, i| {
                     const is_last = (i == tracks.children.len - 1);
