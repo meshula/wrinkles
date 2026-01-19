@@ -76,17 +76,6 @@ pub const MissingFramePolicy = enum {
             else .@"error" 
         );
     }
-
-    pub fn to_string(
-        self: MissingFramePolicy
-    ) []const u8
-    {
-        return switch (self) {
-            .@"error" => "error",
-            .hold => "hold",
-            .black => "black",
-        };
-    }
 };
 
 /// A reference described by a URI that is interpreted by clients in some way.
@@ -1465,20 +1454,6 @@ test "warp topology"
 
 test "MissingFramePolicy: string conversions"
 {
-    // Test to_string
-    try std.testing.expectEqualStrings(
-        "error",
-        MissingFramePolicy.@"error".to_string()
-    );
-    try std.testing.expectEqualStrings(
-        "hold",
-        MissingFramePolicy.hold.to_string()
-    );
-    try std.testing.expectEqualStrings(
-        "black",
-        MissingFramePolicy.black.to_string()
-    );
-
     // Test from_maybe_string
     try std.testing.expectEqual(
         MissingFramePolicy.@"error",

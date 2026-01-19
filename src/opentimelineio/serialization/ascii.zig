@@ -1223,7 +1223,12 @@ pub fn media_data_reference_to_serializable(
                 .frame_step = img_seq.frame_step,
                 .frame_zero_padding = img_seq.frame_zero_padding,
                 .rate = img_seq.rate,
-                .missing_frame_policy = try copy_string(allocator, img_seq.missing_frame_policy.to_string()),
+                .missing_frame_policy = (
+                    try copy_string(
+                        allocator,
+                        @tagName(img_seq.missing_frame_policy),
+                    )
+                ),
             },
         },
         .null => .null,
