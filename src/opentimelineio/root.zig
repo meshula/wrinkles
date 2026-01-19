@@ -28,18 +28,12 @@ pub const MarkerColor = marker.MarkerColor;
 pub const domain = @import("domain.zig");
 pub const Domain = domain.Domain;
 
-pub const serialization = @import("serialization.zig");
-pub const binary_serialization_flatbufs = @import("binary_serialization_flatbufs.zig");
-pub const versioning = @import("versioning.zig");
-pub const tlz_bundle = @import("tlz_bundle.zig");
-pub const tlz_bundle_utils = @import("tlz_bundle_utils.zig");
+pub const serialization = @import("serialization/root.zig");
 pub const hierarchy_text_render = @import("hierarchy_text_render.zig");
-
-const otio_json = @import("opentimelineio_json.zig");
 
 /// Read timeline from file to CompositionItemHandle (runtime schema).
 /// Supports: .otio (JSON), .tla, .tlb (FlatBuffers), .tlz (bundle)
-pub const read_from_file = otio_json.read_from_file;
+pub const read_from_file = serialization.read_from_file;
 
 /// File format types for serialization operations
 pub const FileFormat = serialization.FileFormat;
@@ -83,7 +77,6 @@ test {
         "opentimelineio_highlevel_test.zig"
     );
 
-    _ = otio_json;
     _ = otio_highlevel_tests;
     _ = temporal_tree;
     _ = schema;
@@ -92,8 +85,4 @@ test {
     _ = projection;
     _ = domain;
     _ = serialization;
-    _ = binary_serialization_flatbufs;
-    _ = versioning;
-    _ = tlz_bundle;
-    _ = tlz_bundle_utils;
 }

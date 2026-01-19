@@ -11,21 +11,28 @@
 //!   deserialize_timeline() - Read Ziggy format back to Timeline
 
 const std = @import("std");
-const schema = @import("schema.zig");
+
+const ziggy = @import("ziggy");
+
 const opentime = @import("opentime");
 const sampling = @import("sampling");
 const topology_m = @import("topology");
 const curve = @import("curve");
-const domain = @import("domain.zig");
 const string = @import("string_stuff");
-const ziggy = @import("ziggy");
+
+const schema = @import("../schema.zig");
+const domain = @import("../domain.zig");
+
 const versioning = @import("versioning.zig");
-const otio_json = @import("opentimelineio_json.zig");
+const legacy_json = @import("legacy_json.zig");
+const bundle_utils = @import("bundle_utils.zig");
+const binary = @import("binary.zig");
+const bundle = @import("bundle.zig");
 
 const Allocator = std.mem.Allocator;
 
 /// Re-export ReadOptions for convenience
-pub const ReadOptions = otio_json.ReadOptions;
+pub const ReadOptions = legacy_json.ReadOptions;
 
 // Re-export curve control point for convenience
 const CurveControlPoint = curve.ControlPoint;
@@ -273,38 +280,25 @@ pub const SerializableComposable = union(enum) {
                     allocator.free(hash_key);
                 }
             },
-            .gap => |gap| {
+            inline .gap => |gap| {
                 if (gap.name)
                     |name|
                 {
                     allocator.free(name);
                 }
             },
-            .track => |track| {
-                if (track.name)
+            .track, .stack, => |container| {
+                if (container.name)
                     |name|
                 {
                     allocator.free(name);
                 }
-                for (track.children)
+                for (container.children)
                     |*child|
                 {
                     child.deinit(allocator);
                 }
-                allocator.free(track.children);
-            },
-            .stack => |stack| {
-                if (stack.name)
-                    |name|
-                {
-                    allocator.free(name);
-                }
-                for (stack.children)
-                    |*child|
-                {
-                    child.deinit(allocator);
-                }
-                allocator.free(stack.children);
+                allocator.free(container.children);
             },
             .warp => |warp| {
                 if (warp.name)
@@ -2234,7 +2228,7 @@ pub fn deserialize_timeline_from_otio_json(
 ) !*schema.Timeline
 {
     // Parse OTIO JSON to runtime Schema
-    var composition_handle = try otio_json.read_from_string(
+    var composition_handle = try legacy_json.read_from_string(
         allocator,
         json_source,
         .{},
@@ -2278,7 +2272,7 @@ pub fn convert_otio_json_to_ziggy(
 ) !void
 {
     // Parse OTIO JSON to runtime Schema (clips contain metadata)
-    var composition_handle = try otio_json.read_from_string(
+    var composition_handle = try legacy_json.read_from_string(
         allocator,
         json_source,
         .{},
@@ -2454,7 +2448,7 @@ pub fn otio_json_to_serializable_timeline(
 ) !SerializableTimeline 
 {
     // Parse OTIO JSON to runtime Schema (clips contain metadata)
-    var composition_handle = try otio_json.read_from_string(
+    var composition_handle = try legacy_json.read_from_string(
         allocator,
         json_source,
         .{},
@@ -3133,8 +3127,6 @@ test "timeline serialization: ziggy round-trip"
 // Universal File Reading
 // ----------------------------------------------------------------------------
 
-const binary_serialization_flatbufs = @import("binary_serialization_flatbufs.zig");
-const tlz_bundle = @import("tlz_bundle.zig");
 
 /// Supported file format types for read/write operations
 pub const FileFormat = enum {
@@ -3190,7 +3182,7 @@ pub fn read_from_buffer(
             );
         },
         .tlb => {
-            return try binary_serialization_flatbufs.deserialize_to_serializable_timeline(
+            return try binary.deserialize_to_serializable_timeline(
                 allocator,
                 buffer,
                 .{},
@@ -3231,7 +3223,7 @@ pub fn read_from_file(
     // Handle .tlz separately since it manages its own file reading
     if (format == .tlz)
     {
-        return try tlz_bundle.readFromFile(allocator, file_path, .{});
+        return try bundle.readFromFile(allocator, file_path, .{});
     }
 
     // For other formats, read the file contents first
@@ -3254,7 +3246,6 @@ pub fn read_from_file(
 // Universal File Writing
 // ----------------------------------------------------------------------------
 
-const tlz_bundle_utils = @import("tlz_bundle_utils.zig");
 
 /// Options for writing timeline files
 pub const WriteOptions = struct {
@@ -3262,10 +3253,10 @@ pub const WriteOptions = struct {
     metadata_mode: MetadataMode = .hash_reference,
 
     /// TLZ bundle format (tla or tlb inside the bundle)
-    bundle_format: tlz_bundle_utils.BundleFormat = .tla,
+    bundle_format: bundle_utils.BundleFormat = .tla,
 
     /// TLZ media handling policy
-    media_policy: tlz_bundle_utils.MediaReferencePolicy = .MissingIfNotFile,
+    media_policy: bundle_utils.MediaReferencePolicy = .MissingIfNotFile,
 
     /// Base directory for resolving media paths (for TLZ bundles)
     media_base_dir: ?[]const u8 = null,
@@ -3344,7 +3335,7 @@ pub fn write_to_file(
     // Handle .tlz separately since it manages its own file writing
     if (format == .tlz)
     {
-        try tlz_bundle.writeToFile(
+        try bundle.writeToFile(
             allocator,
             ser_timeline,
             file_path,
@@ -3389,7 +3380,7 @@ pub fn write_to_writer(
             );
         },
         .tlb => {
-            try binary_serialization_flatbufs.serialize_from_serializable_timeline(
+            try binary.serialize_from_serializable_timeline(
                 ser_timeline,
                 allocator,
                 writer,
@@ -3496,7 +3487,7 @@ pub fn read_collection_from_buffer(
             );
         },
         .tlcb => {
-            return try binary_serialization_flatbufs.deserialize_collection(
+            return try binary.deserialize_collection(
                 allocator,
                 buffer,
             );
@@ -3617,7 +3608,7 @@ pub fn write_collection_to_writer(
         },
         .tlcb => {
             // Binary format doesn't support inline metadata - always use hash references
-            try binary_serialization_flatbufs.serialize_collection(
+            try binary.serialize_collection(
                 collection,
                 allocator,
                 writer,

@@ -6,14 +6,17 @@
 const std = @import("std");
 const expectEqual = std.testing.expectEqual;
 
-const otio = @import("root.zig");
+const otio = @import("../root.zig");
 const opentime = @import("opentime");
 const curve = @import("curve");
 const interval = opentime.interval;
 const string = @import("string_stuff");
 const topology = @import("topology");
 const sampling = @import("sampling");
-const serialization = @import("serialization.zig");
+
+const ascii = @import("ascii.zig");
+const binary = @import("binary.zig");
+const bundle = @import("bundle.zig");
 
 const SerializableObjectTypes = enum {
     Timeline,
@@ -1122,6 +1125,8 @@ pub fn read_from_file(
     options: ReadOptions,
 ) !otio.CompositionItemHandle
 {
+    // @TODO: move this up into root.zig
+
     // Check file extension to determine format
     const ext_start = std.mem.lastIndexOfScalar(u8, file_path, '.') orelse {
         return error.NoFileExtension;
@@ -1146,7 +1151,7 @@ pub fn read_from_file(
         );
         defer in_allocator.free(source);
 
-        const timeline = try serialization.deserialize_timeline(
+        const timeline = try ascii.deserialize_timeline(
             in_allocator,
             source,
             options,
@@ -1157,9 +1162,6 @@ pub fn read_from_file(
 
     if (std.mem.eql(u8, extension, ".tlb"))
     {
-        // Read binary FlatBuffers format
-        const flatbufs = @import("binary_serialization_flatbufs.zig");
-
         const file = try std.fs.cwd().openFile(file_path, .{});
         defer file.close();
 
@@ -1169,7 +1171,7 @@ pub fn read_from_file(
         );
         defer in_allocator.free(source);
 
-        const timeline = try flatbufs.deserialize_timeline(
+        const timeline = try binary.deserialize_timeline(
             in_allocator,
             source,
             options,
@@ -1180,16 +1182,14 @@ pub fn read_from_file(
 
     if (std.mem.eql(u8, extension, ".tlz"))
     {
-        // Read TLZ bundle format
-        const tlz_bundle = @import("tlz_bundle.zig");
 
-        const ser_timeline = try tlz_bundle.readFromFile(
+        const ser_timeline = try bundle.readFromFile(
             in_allocator,
             file_path,
             .{},
         );
 
-        const timeline = try serialization.serializable_to_timeline(
+        const timeline = try ascii.serializable_to_timeline(
             in_allocator,
             ser_timeline,
         );

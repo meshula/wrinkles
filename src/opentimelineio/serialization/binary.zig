@@ -13,29 +13,35 @@
 
 const std = @import("std");
 const build_options = @import("build_options");
+
 const flatbuffers = @import("flatbuffers");
+
 const ottla = @import("ottla_schema").ottla;
-const schema = @import("schema.zig");
-const references = @import("references.zig");
+
 const opentime = @import("opentime");
-const otio_json = @import("opentimelineio_json.zig");
-const sampling = @import("sampling");
 const curve = @import("curve");
-const domain_mod = @import("domain.zig");
+const sampling = @import("sampling");
 const topology_mod = @import("topology");
-const serialization = @import("serialization.zig");
-const ziggy = @import("ziggy");
+
+// from parent
+const schema = @import("../schema.zig");
+const domain_mod = @import("../domain.zig");
+const references = @import("../references.zig");
+
+// local
+const legacy_json = @import("legacy_json.zig");
+const ascii = @import("ascii.zig");
 
 /// Alias for the composable union type used by schema types
 const CompositionItemHandle = references.CompositionItemHandle;
 
 /// Metadata types from serialization module
-const MetadataValue = serialization.MetadataValue;
-const MetadataMap = serialization.MetadataMap;
+const MetadataValue = ascii.MetadataValue;
+const MetadataMap = ascii.MetadataMap;
 
 const Allocator = std.mem.Allocator;
 
-pub const ReadOptions = otio_json.ReadOptions;
+pub const ReadOptions = legacy_json.ReadOptions;
 
 /// Error type for conversion operations
 pub const ConvertError = error{
@@ -846,9 +852,9 @@ fn metadata_map_to_fb_legacy(
 // ----------------------------------------------------------------------------
 
 /// Alias for SerializableTimeline types
-const SerializableTimeline = serialization.SerializableTimeline;
-const SerializableComposable = serialization.SerializableComposable;
-const SerializableBounds = serialization.SerializableBounds;
+const SerializableTimeline = ascii.SerializableTimeline;
+const SerializableComposable = ascii.SerializableComposable;
+const SerializableBounds = ascii.SerializableBounds;
 
 /// Convert SerializableBounds to FlatBuffers Bounds
 fn serializable_bounds_to_fb(
@@ -911,7 +917,7 @@ fn serializable_composable_to_fb(
 /// Convert SerializableMarker to FlatBuffers Marker
 fn serializable_marker_to_fb(
     builder: *flatbuffers.Builder,
-    marker: serialization.SerializableMarker,
+    marker: ascii.SerializableMarker,
 ) !ottla.Marker
 {
     return try builder.writeTable(ottla.Marker, .{
@@ -926,7 +932,7 @@ fn serializable_marker_to_fb(
 /// Convert array of SerializableMarker to FlatBuffers Marker vector
 fn serializable_markers_to_fb(
     builder: *flatbuffers.Builder,
-    markers: []serialization.SerializableMarker,
+    markers: []ascii.SerializableMarker,
 ) !?[]ottla.Marker
 {
     if (markers.len == 0) {
@@ -945,7 +951,7 @@ fn serializable_markers_to_fb(
 fn serializable_clip_to_fb(
     builder: *flatbuffers.Builder,
     allocator: Allocator,
-    clip: serialization.SerializableClip,
+    clip: ascii.SerializableClip,
 ) !ottla.Clip
 {
     return try builder.writeTable(ottla.Clip, .{
@@ -961,7 +967,7 @@ fn serializable_clip_to_fb(
 fn serializable_media_ref_to_fb(
     builder: *flatbuffers.Builder,
     allocator: Allocator,
-    ref: serialization.SerializableMediaReference,
+    ref: ascii.SerializableMediaReference,
 ) !ottla.MediaReference
 {
     _ = allocator;
@@ -994,7 +1000,7 @@ fn serializable_media_ref_to_fb(
 /// Convert SerializableMediaDataReference to FlatBuffers
 fn serializable_data_ref_to_fb(
     builder: *flatbuffers.Builder,
-    ref: serialization.SerializableMediaDataReference,
+    ref: ascii.SerializableMediaDataReference,
 ) !ottla.MediaDataReference
 {
     return switch (ref) {
@@ -1040,7 +1046,7 @@ fn serializable_data_ref_to_fb(
 fn serializable_track_to_fb(
     builder: *flatbuffers.Builder,
     allocator: Allocator,
-    track: serialization.SerializableTrack,
+    track: ascii.SerializableTrack,
 ) !ottla.Track
 {
     if (track.children.len == 0) {
@@ -1070,7 +1076,7 @@ fn serializable_track_to_fb(
 fn serializable_stack_to_fb(
     builder: *flatbuffers.Builder,
     allocator: Allocator,
-    stack: serialization.SerializableStack,
+    stack: ascii.SerializableStack,
 ) !ottla.Stack
 {
     if (stack.children.len == 0) {
@@ -1100,7 +1106,7 @@ fn serializable_stack_to_fb(
 fn serializable_warp_to_fb(
     builder: *flatbuffers.Builder,
     allocator: Allocator,
-    warp: serialization.SerializableWarp,
+    warp: ascii.SerializableWarp,
 ) !ottla.Warp
 {
     const child_wrapper = try serializable_composable_to_fb(builder, allocator, warp.child.*);
@@ -1116,7 +1122,7 @@ fn serializable_warp_to_fb(
 fn serializable_topology_to_fb(
     builder: *flatbuffers.Builder,
     allocator: Allocator,
-    topo: serialization.SerializableTopology,
+    topo: ascii.SerializableTopology,
 ) !ottla.Topology
 {
     var mapping_wrappers: std.ArrayList(ottla.MappingWrapper) = .empty;
@@ -1134,7 +1140,7 @@ fn serializable_topology_to_fb(
 /// Convert SerializableMapping to FlatBuffers MappingWrapper
 fn serializable_mapping_to_fb(
     builder: *flatbuffers.Builder,
-    mapping: serialization.SerializableMapping,
+    mapping: ascii.SerializableMapping,
 ) !ottla.MappingWrapper
 {
     return switch (mapping) {
@@ -1174,7 +1180,7 @@ fn serializable_mapping_to_fb(
 fn serializable_transition_to_fb(
     builder: *flatbuffers.Builder,
     allocator: Allocator,
-    trans: serialization.SerializableTransition,
+    trans: ascii.SerializableTransition,
 ) !ottla.Transition
 {
     const has_bounds = trans.bounds_s != null;
@@ -1195,7 +1201,7 @@ fn serializable_transition_to_fb(
 /// Convert SerializableRateSpecifier to FlatBuffers RateSpecifier
 fn serializable_rate_to_fb(
     builder: *flatbuffers.Builder,
-    rate: serialization.SerializableRateSpecifier,
+    rate: ascii.SerializableRateSpecifier,
 ) !ottla.RateSpecifier
 {
     return switch (rate) {
@@ -1214,7 +1220,7 @@ fn serializable_rate_to_fb(
 /// Convert SerializableSampleIndexGenerator to FlatBuffers SampleIndexGenerator
 fn serializable_sig_to_fb(
     builder: *flatbuffers.Builder,
-    sig: serialization.SerializableSampleIndexGenerator,
+    sig: ascii.SerializableSampleIndexGenerator,
 ) !ottla.SampleIndexGenerator
 {
     return try builder.writeTable(ottla.SampleIndexGenerator, .{
@@ -1226,7 +1232,7 @@ fn serializable_sig_to_fb(
 /// Convert SerializableDiscretePartitionDomainMap to FlatBuffers DiscretePartitionDomainMap
 fn serializable_discrete_partitions_to_fb(
     builder: *flatbuffers.Builder,
-    partitions: serialization.SerializableDiscretePartitionDomainMap,
+    partitions: ascii.SerializableDiscretePartitionDomainMap,
 ) !?ottla.DiscretePartitionDomainMap
 {
     // Only create the table if at least one partition is set
@@ -2043,7 +2049,7 @@ fn fb_to_serializable_bounds(
 fn fb_to_serializable_data_ref(
     allocator: Allocator,
     fb_ref: ottla.MediaDataReference,
-) !serialization.SerializableMediaDataReference
+) !ascii.SerializableMediaDataReference
 {
     return switch (fb_ref) {
         .URIReference => |uri_ref| .{
@@ -2054,7 +2060,7 @@ fn fb_to_serializable_data_ref(
         },
         .SignalReference => |sig_ref| blk: {
             const sg = sig_ref.signal_generator_type();
-            const signal_gen: serialization.SerializableSignalGenerator = switch (sg) {
+            const signal_gen: ascii.SerializableSignalGenerator = switch (sg) {
                 .SineSignal => |sine| .{ .sine = .{ .frequency_hz = sine.frequency_hz() } },
                 .LinearRampSignal => .{ .linear_ramp = .{} },
                 .NONE => .{ .sine = .{ .frequency_hz = 1000.0 } },
@@ -2096,7 +2102,7 @@ fn fb_to_serializable_data_ref(
 fn fb_to_serializable_domain(
     allocator: Allocator,
     fb_dom: ottla.Domain,
-) !serialization.SerializableDomain
+) !ascii.SerializableDomain
 {
     return switch (fb_dom.domain_type()) {
         .Time => .time,
@@ -2110,7 +2116,7 @@ fn fb_to_serializable_domain(
 /// Convert FlatBuffers RateSpecifier to SerializableRateSpecifier
 fn fb_to_serializable_rate(
     fb_rate: ottla.RateSpecifier,
-) serialization.SerializableRateSpecifier
+) ascii.SerializableRateSpecifier
 {
     return switch (fb_rate) {
         .IntRate => |rate| .{ .Int = rate.value() },
@@ -2123,7 +2129,7 @@ fn fb_to_serializable_rate(
 fn fb_to_serializable_media_ref(
     allocator: Allocator,
     fb_ref: ottla.MediaReference,
-) !serialization.SerializableMediaReference
+) !ascii.SerializableMediaReference
 {
     return .{
         .data_reference = try fb_to_serializable_data_ref(allocator, fb_ref.data_reference_type()),
@@ -2143,7 +2149,7 @@ fn fb_to_serializable_media_ref(
 fn fb_to_serializable_marker(
     allocator: Allocator,
     fb_marker: ottla.Marker,
-) !serialization.SerializableMarker
+) !ascii.SerializableMarker
 {
     return .{
         .name = if (fb_marker.name()) |n| try allocator.dupe(u8, n) else null,
@@ -2160,14 +2166,14 @@ fn fb_to_serializable_marker(
 fn fb_to_serializable_markers(
     allocator: Allocator,
     fb_markers: ?flatbuffers.Vector(ottla.Marker),
-) ![]serialization.SerializableMarker
+) ![]ascii.SerializableMarker
 {
     if (fb_markers) |markers| {
         const len = markers.len();
         if (len == 0) {
             return &.{};
         }
-        var result = try allocator.alloc(serialization.SerializableMarker, len);
+        var result = try allocator.alloc(ascii.SerializableMarker, len);
         for (0..len) |i| {
             result[i] = try fb_to_serializable_marker(allocator, markers.get(i));
         }
@@ -2217,7 +2223,7 @@ fn fb_to_markers(
 fn fb_to_serializable_clip(
     allocator: Allocator,
     fb_clip: ottla.Clip,
-) !serialization.SerializableClip
+) !ascii.SerializableClip
 {
     return .{
         .name = if (fb_clip.name()) |n| try allocator.dupe(u8, n) else null,
@@ -2237,7 +2243,7 @@ fn fb_to_serializable_clip(
 fn fb_to_serializable_gap(
     allocator: Allocator,
     fb_gap: ottla.Gap,
-) !serialization.SerializableGap
+) !ascii.SerializableGap
 {
     return .{
         .name = if (fb_gap.name()) |n| try allocator.dupe(u8, n) else null,
@@ -2250,7 +2256,7 @@ fn fb_to_serializable_gap(
 fn fb_to_serializable_track(
     allocator: Allocator,
     fb_track: ottla.Track,
-) !serialization.SerializableTrack
+) !ascii.SerializableTrack
 {
     var children: std.ArrayList(SerializableComposable) = .empty;
     if (fb_track.children()) |fb_children| {
@@ -2270,7 +2276,7 @@ fn fb_to_serializable_track(
 fn fb_to_serializable_stack(
     allocator: Allocator,
     fb_stack: ottla.Stack,
-) !serialization.SerializableStack
+) !ascii.SerializableStack
 {
     var children: std.ArrayList(SerializableComposable) = .empty;
     if (fb_stack.children()) |fb_children| {
@@ -2290,7 +2296,7 @@ fn fb_to_serializable_stack(
 fn fb_to_serializable_warp(
     allocator: Allocator,
     fb_warp: ottla.Warp,
-) !serialization.SerializableWarp
+) !ascii.SerializableWarp
 {
     const child_ptr = try allocator.create(SerializableComposable);
     child_ptr.* = if (fb_warp.child()) |c|
@@ -2301,7 +2307,7 @@ fn fb_to_serializable_warp(
     const transform = if (fb_warp.transform()) |t|
         try fb_to_serializable_topology(allocator, t)
     else
-        serialization.SerializableTopology{ .mappings = &.{} };
+        ascii.SerializableTopology{ .mappings = &.{} };
 
     return .{
         .name = if (fb_warp.name()) |n| try allocator.dupe(u8, n) else null,
@@ -2314,10 +2320,10 @@ fn fb_to_serializable_warp(
 fn fb_to_serializable_topology(
     allocator: Allocator,
     fb_topo: ottla.Topology,
-) !serialization.SerializableTopology
+) !ascii.SerializableTopology
 {
     if (fb_topo.mappings()) |fb_mappings| {
-        var mappings = try allocator.alloc(serialization.SerializableMapping, fb_mappings.len());
+        var mappings = try allocator.alloc(ascii.SerializableMapping, fb_mappings.len());
         for (0..fb_mappings.len()) |i| {
             mappings[i] = try fb_to_serializable_mapping(allocator, fb_mappings.get(i));
         }
@@ -2330,13 +2336,13 @@ fn fb_to_serializable_topology(
 fn fb_to_serializable_mapping(
     allocator: Allocator,
     fb_wrapper: ottla.MappingWrapper,
-) !serialization.SerializableMapping
+) !ascii.SerializableMapping
 {
     return switch (fb_wrapper.mapping_type()) {
         .Affine => blk: {
             if (fb_wrapper.affine()) |aff| {
                 if (aff.transform()) |xform| {
-                    break :blk serialization.SerializableMapping{
+                    break :blk ascii.SerializableMapping{
                         .affine = .{
                             .input_bounds_val = .{ aff.input_bounds_start(), aff.input_bounds_end() },
                             .input_to_output_xform = .{
@@ -2352,12 +2358,12 @@ fn fb_to_serializable_mapping(
         .Linear => blk: {
             if (fb_wrapper.linear()) |lin| {
                 if (lin.knots()) |fb_knots| {
-                    const knots = try allocator.alloc(serialization.SerializableControlPoint, fb_knots.len());
+                    const knots = try allocator.alloc(ascii.SerializableControlPoint, fb_knots.len());
                     for (0..fb_knots.len()) |i| {
                         const k = fb_knots.get(i);
                         knots[i] = .{ k.in_val, k.out_val };
                     }
-                    break :blk serialization.SerializableMapping{
+                    break :blk ascii.SerializableMapping{
                         .linear = .{
                             .input_bounds_val = .{ lin.input_bounds_start(), lin.input_bounds_end() },
                             .knots = knots,
@@ -2375,13 +2381,13 @@ fn fb_to_serializable_mapping(
 fn fb_to_serializable_transition(
     allocator: Allocator,
     fb_trans: ottla.Transition,
-) !serialization.SerializableTransition
+) !ascii.SerializableTransition
 {
     // Deserialize container children if present
     const container = if (fb_trans.container()) |c|
         try fb_to_serializable_stack(allocator, c)
     else
-        serialization.SerializableStack{ .name = null, .children = &.{} };
+        ascii.SerializableStack{ .name = null, .children = &.{} };
 
     return .{
         .name = if (fb_trans.name()) |n| try allocator.dupe(u8, n) else null,
@@ -2397,7 +2403,7 @@ fn fb_to_serializable_transition(
 /// Convert FlatBuffers SampleIndexGenerator to SerializableSampleIndexGenerator
 fn fb_to_serializable_sig(
     fb_sig: ottla.SampleIndexGenerator,
-) serialization.SerializableSampleIndexGenerator
+) ascii.SerializableSampleIndexGenerator
 {
     return .{
         .sample_rate_hz = fb_to_serializable_rate(fb_sig.sample_rate_hz_type()),
@@ -2408,7 +2414,7 @@ fn fb_to_serializable_sig(
 /// Convert FlatBuffers DiscretePartitionDomainMap to SerializableDiscretePartitionDomainMap
 fn fb_to_serializable_discrete_partitions(
     fb_partitions: ottla.DiscretePartitionDomainMap,
-) serialization.SerializableDiscretePartitionDomainMap
+) ascii.SerializableDiscretePartitionDomainMap
 {
     return .{
         .picture = if (fb_partitions.picture()) |p| fb_to_serializable_sig(p) else null,
@@ -2677,7 +2683,7 @@ fn fb_to_warp(
         else
             null,
         .child = child,
-        .transform = try topology_mod.Topology.init_identity(
+        .transform = try .init_identity(
             allocator,
             opentime.ContinuousInterval.zero_to_inf_pos,
         ),
@@ -3006,7 +3012,7 @@ pub fn deserialize_to_serializable_timeline(
     const discrete_partitions = if (fb_timeline.presentation_space_discrete_partitions()) |p|
         fb_to_serializable_discrete_partitions(p)
     else
-        serialization.SerializableDiscretePartitionDomainMap{};
+        ascii.SerializableDiscretePartitionDomainMap{};
 
     return .{
         .schema_version = fb_timeline.schema_version(),
@@ -3057,7 +3063,7 @@ fn read_collection_header(
 fn serializable_collection_item_to_fb(
     builder: *flatbuffers.Builder,
     arena_alloc: Allocator,
-    item: serialization.SerializableCollectionItem,
+    item: ascii.SerializableCollectionItem,
 ) !ottla.CollectionItemWrapper
 {
     return switch (item) {
@@ -3237,14 +3243,14 @@ fn serializable_collection_item_to_fb(
 fn fb_to_serializable_collection_item(
     allocator: Allocator,
     wrapper: ottla.CollectionItemWrapper,
-) !serialization.SerializableCollectionItem
+) !ascii.SerializableCollectionItem
 {
     return switch (wrapper.item_type()) {
         .TimelineItem => blk: {
             const fb_tl = wrapper.timeline() orelse return error.InvalidData;
 
             // Convert children
-            var children: std.ArrayList(serialization.SerializableComposable) = .empty;
+            var children: std.ArrayList(ascii.SerializableComposable) = .empty;
             if (fb_tl.children()) |fb_children| {
                 try children.ensureTotalCapacity(allocator, fb_children.len());
                 for (0..fb_children.len()) |i| {
@@ -3262,7 +3268,7 @@ fn fb_to_serializable_collection_item(
             const discrete_partitions = if (fb_tl.presentation_space_discrete_partitions()) |p|
                 fb_to_serializable_discrete_partitions(p)
             else
-                serialization.SerializableDiscretePartitionDomainMap{};
+                ascii.SerializableDiscretePartitionDomainMap{};
 
             // Convert markers
             const markers = try fb_to_serializable_markers(allocator, fb_tl.markers());
@@ -3281,7 +3287,7 @@ fn fb_to_serializable_collection_item(
         .TrackItem => blk: {
             const fb_track = wrapper.track() orelse return error.InvalidData;
 
-            var children: std.ArrayList(serialization.SerializableComposable) = .empty;
+            var children: std.ArrayList(ascii.SerializableComposable) = .empty;
             if (fb_track.children()) |fb_children| {
                 try children.ensureTotalCapacity(allocator, fb_children.len());
                 for (0..fb_children.len()) |i| {
@@ -3303,7 +3309,7 @@ fn fb_to_serializable_collection_item(
         .StackItem => blk: {
             const fb_stack = wrapper.stack() orelse return error.InvalidData;
 
-            var children: std.ArrayList(serialization.SerializableComposable) = .empty;
+            var children: std.ArrayList(ascii.SerializableComposable) = .empty;
             if (fb_stack.children()) |fb_children| {
                 try children.ensureTotalCapacity(allocator, fb_children.len());
                 for (0..fb_children.len()) |i| {
@@ -3354,7 +3360,7 @@ fn fb_to_serializable_collection_item(
 
             // Convert child composable
             const child_wrapper = fb_warp.child() orelse return error.InvalidData;
-            const child_composable = try allocator.create(serialization.SerializableComposable);
+            const child_composable = try allocator.create(ascii.SerializableComposable);
             child_composable.* = try fb_to_serializable_composable(allocator, child_wrapper);
 
             // Convert topology
@@ -3374,7 +3380,7 @@ fn fb_to_serializable_collection_item(
             // Convert container
             const fb_container = fb_trans.container() orelse return error.InvalidData;
 
-            var container_children: std.ArrayList(serialization.SerializableComposable) = .empty;
+            var container_children: std.ArrayList(ascii.SerializableComposable) = .empty;
             if (fb_container.children()) |fb_children| {
                 try container_children.ensureTotalCapacity(allocator, fb_children.len());
                 for (0..fb_children.len()) |i| {
@@ -3406,7 +3412,7 @@ fn fb_to_serializable_collection_item(
 
 /// Serialize a SerializableCollection to FlatBuffers format (.tlcb).
 pub fn serialize_collection(
-    collection: serialization.SerializableCollection,
+    collection: ascii.SerializableCollection,
     allocator: Allocator,
     writer: anytype,
 ) !void
@@ -3456,7 +3462,7 @@ pub fn serialize_collection(
 pub fn deserialize_collection(
     allocator: Allocator,
     data: []const u8,
-) !serialization.SerializableCollection
+) !ascii.SerializableCollection
 {
     _ = try read_collection_header(data);
 
@@ -3478,7 +3484,7 @@ pub fn deserialize_collection(
     const fb_collection = try flatbuffers.decodeRoot(ottla.Collection, aligned_data);
 
     // Convert children to SerializableCollectionItem
-    var children: std.ArrayList(serialization.SerializableCollectionItem) = .empty;
+    var children: std.ArrayList(ascii.SerializableCollectionItem) = .empty;
     if (fb_collection.children()) |fb_children| {
         try children.ensureTotalCapacity(allocator, fb_children.len());
         for (0..fb_children.len()) |i| {

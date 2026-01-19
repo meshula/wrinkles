@@ -8,8 +8,8 @@
 
 const std = @import("std");
 
-const versioning = @import("versioning.zig");
-const serialization = @import("serialization.zig");
+const serialization = @import("serialization/root.zig");
+const versioning = serialization.versioning;
 const ziggy = @import("ziggy");
 
 /// Example schema: SimpleItem evolving through 3 versions

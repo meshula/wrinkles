@@ -412,6 +412,9 @@ didn't impact the deisgn or problems we were specifically solving.
     * [ ] remove unused binaries
     * [ ] update references to .ziggy files to refer to .tla
     * [ ] clean up gitignore
+    * [ ] Serialization gets wrapped up into a library
+        * [ ] serialization.zig -> serialization/ascii.zig
+        * [ ] binary_serialization_flatbufs.zig -> serialization/binary.zig
     * [ ] rearrange
         * [ ] remove .ziggy files
         * [ ] serialization schemas -> one directory

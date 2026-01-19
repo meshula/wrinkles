@@ -8,9 +8,9 @@
 const std = @import("std");
 const zip = std.zip;
 
-const utils = @import("tlz_bundle_utils.zig");
-const serialization = @import("serialization.zig");
-const binary_serialization_flatbufs = @import("binary_serialization_flatbufs.zig");
+const utils = @import("bundle_utils.zig");
+const serialization = @import("ascii.zig");
+const binary_serialization_flatbufs = @import("binary.zig");
 const ziggy = @import("ziggy");
 
 // ----------------------------------------------------------------------------

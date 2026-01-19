@@ -105,7 +105,7 @@ fn read_to_serializable_timeline(
     filepath: []const u8,
 ) !otio.serialization.SerializableTimeline
 {
-    return try otio.serialization.read_from_file(
+    return try otio.serialization.ascii.read_from_file(
         allocator,
         filepath,
     );

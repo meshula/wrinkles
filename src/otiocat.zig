@@ -26,7 +26,6 @@ const std = @import("std");
 const string = @import("string_stuff");
 const otio = @import("opentimelineio");
 const serialization = otio.serialization;
-const tlz_bundle_utils = otio.tlz_bundle_utils;
 
 const builtin = @import("builtin");
 
@@ -39,8 +38,8 @@ const State = struct {
     metadata_mode: MetadataMode = .hash_reference,
 
     // TLZ bundle options
-    bundle_format: tlz_bundle_utils.BundleFormat = .tla,
-    media_policy: tlz_bundle_utils.MediaReferencePolicy = .MissingIfNotFile,
+    bundle_format: serialization.bundle_utils.BundleFormat = .tla,
+    media_policy: serialization.bundle_utils.MediaReferencePolicy = .MissingIfNotFile,
 
     pub fn deinit(
         self: @This(),
@@ -63,8 +62,8 @@ fn parse_args(
     var input_path: ?[]const u8 = null;
     var output_path: ?[]const u8 = null;
     var metadata_mode: MetadataMode = .hash_reference;
-    var bundle_format: tlz_bundle_utils.BundleFormat = .tla;
-    var media_policy: tlz_bundle_utils.MediaReferencePolicy = .MissingIfNotFile;
+    var bundle_format: serialization.bundle_utils.BundleFormat = .tla;
+    var media_policy: serialization.bundle_utils.MediaReferencePolicy = .MissingIfNotFile;
 
     // Ignore the app name, always first in args
     _ = args.skip();
@@ -276,7 +275,7 @@ pub fn main() !void
     };
 
     const input_format = std.meta.stringToEnum(
-        serialization.FileFormat,
+        serialization.ascii.FileFormat,
         input_ext[1..],  // Skip the leading dot
     ) orelse {
         std.log.err(
@@ -299,7 +298,7 @@ pub fn main() !void
         default_output_ext;
 
     const output_format = std.meta.stringToEnum(
-        serialization.FileFormat,
+        serialization.ascii.FileFormat,
         output_ext[1..],  // Skip the leading dot
     ) orelse {
         std.log.err(
@@ -336,14 +335,16 @@ pub fn main() !void
         const convert_prog = parent_prog.start("Converting collection...", 0);
 
         // Build collection write options from state
-        const collection_write_options = serialization.CollectionWriteOptions{
-            .metadata_mode = state.metadata_mode,
-        };
+        const collection_write_options = (
+            serialization.ascii.CollectionWriteOptions{
+                .metadata_mode = state.metadata_mode,
+            }
+        );
 
         // Write collection output
         if (state.output_path) |path|
         {
-            try serialization.write_collection_to_file(allocator, ser_collection, path, collection_write_options);
+            try serialization.ascii.write_collection_to_file(allocator, ser_collection, path, collection_write_options);
         }
         else
         {
@@ -353,7 +354,7 @@ pub fn main() !void
             var file_writer = out_file.writer(&file_writer_buffer);
             const writer = &file_writer.interface;
 
-            try serialization.write_collection_to_writer(
+            try serialization.ascii.write_collection_to_writer(
                 allocator,
                 ser_collection,
                 output_format,
@@ -368,7 +369,7 @@ pub fn main() !void
     } else {
         // Handle timeline formats
         // Read input file using centralized reader (supports .otio, .tla, .tlb, .tlz)
-        const ser_timeline = try serialization.read_from_file(allocator, state.input_path);
+        const ser_timeline = try serialization.ascii.read_from_file(allocator, state.input_path);
 
         read_prog.end();
 
@@ -376,7 +377,7 @@ pub fn main() !void
 
         // Build write options from state
         const input_dir = std.fs.path.dirname(state.input_path) orelse ".";
-        const write_options = serialization.WriteOptions{
+        const write_options = serialization.ascii.WriteOptions{
             .metadata_mode = state.metadata_mode,
             .bundle_format = state.bundle_format,
             .media_policy = state.media_policy,
@@ -397,7 +398,7 @@ pub fn main() !void
             var file_writer = out_file.writer(&file_writer_buffer);
             const writer = &file_writer.interface;
 
-            try serialization.write_to_writer(
+            try serialization.ascii.write_to_writer(
                 allocator,
                 ser_timeline,
                 output_format,
