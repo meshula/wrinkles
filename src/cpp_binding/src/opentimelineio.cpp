@@ -15,7 +15,7 @@ Timeline::Timeline(otio_CompositionItemHandle h, otio_Arena arena)
 
 Timeline::~Timeline() {
     if (handle_.ref) {
-        otio_timeline_deinit(handle_);
+        otio_timeline_deinit(arena_.allocator, handle_);
     }
     if (arena_.arena) {
         otio_arena_deinit(arena_);
@@ -32,7 +32,7 @@ Timeline& Timeline::operator=(Timeline&& other) noexcept {
     if (this != &other) {
         // Clean up current
         if (handle_.ref) {
-            otio_timeline_deinit(handle_);
+            otio_timeline_deinit(arena_.allocator, handle_);
         }
         if (arena_.arena) {
             otio_arena_deinit(arena_);

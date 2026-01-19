@@ -590,7 +590,7 @@ pub export fn otio_timeline_deinit(
     const root = (
         init_CompositionItemHandle(root_c) catch |err| {
             std.log.err(
-                "Error converting to object: {any}\n",
+                " [C-API::deinit] Error converting to object: {any}\n",
                 .{ err} ,
             );
             return;

@@ -54,7 +54,7 @@ int otio_write_to_file(
         const char* filepath
 );
 
-void otio_timeline_deinit(otio_CompositionItemHandle root);
+void otio_timeline_deinit(otio_Allocator allocator, otio_CompositionItemHandle root);
 
 otio_CompositionItemHandle otio_fetch_child_cvr_ind(
         otio_CompositionItemHandle parent,
