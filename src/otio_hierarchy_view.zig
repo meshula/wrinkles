@@ -1,12 +1,10 @@
+//! Print a `tree` like ascii diagram of the structure of an OTIO document
+
 const std = @import("std");
+const builtin = @import("builtin");
 
 const string = @import("string_stuff");
 const otio = @import("opentimelineio");
-
-const hierarchy_render = @import("opentimelineio").hierarchy_text_render;
-const TreeChars = hierarchy_render.TreeChars;
-
-const builtin = @import("builtin");
 
 /// Parsed command line arguments
 const ParsedArgs = struct {
@@ -41,14 +39,16 @@ fn _parse_args(
         if (
             string.eql_latin_s8(fpath, "--help")
             or (string.eql_latin_s8(fpath, "-h"))
-        ) {
+        ) 
+        {
             usage("");
         }
 
         if (
             string.eql_latin_s8(fpath, "--ascii")
             or (string.eql_latin_s8(fpath, "-a"))
-        ) {
+        ) 
+        {
             use_ascii = true;
             continue;
         }
@@ -94,6 +94,7 @@ pub fn usage(
         \\{s}
         , .{msg}
     );
+
     std.process.exit(1);
 }
 
@@ -104,7 +105,10 @@ fn read_to_serializable_timeline(
     filepath: []const u8,
 ) !otio.serialization.SerializableTimeline
 {
-    return try otio.serialization.read_from_file(allocator, filepath);
+    return try otio.serialization.read_from_file(
+        allocator,
+        filepath,
+    );
 }
 
 /// Read a collection file to SerializableCollection
@@ -114,7 +118,10 @@ fn read_to_serializable_collection(
     filepath: []const u8,
 ) !otio.serialization.SerializableCollection
 {
-    return try otio.serialization.read_collection_from_file(allocator, filepath);
+    return try otio.serialization.read_collection_from_file(
+        allocator,
+        filepath,
+    );
 }
 
 /// Get file extension from path
@@ -122,7 +129,11 @@ fn get_extension(
     path: []const u8,
 ) ?[]const u8
 {
-    const ext_start = std.mem.lastIndexOfScalar(u8, path, '.') orelse return null;
+    const ext_start = (
+        std.mem.lastIndexOfScalar(u8, path, '.') 
+        orelse return null
+    );
+
     return path[ext_start..];
 }
 
@@ -151,7 +162,7 @@ pub fn main() !void {
         usage("Error: No input files specified.");
     }
 
-    const chars: TreeChars = if (parsed_args.use_ascii) .ascii else .unicode;
+    const chars: otio.hierarchy_text_render.TreeChars = if (parsed_args.use_ascii) .ascii else .unicode;
 
     for (parsed_args.files) |filepath| {
         // Check file exists
@@ -187,7 +198,7 @@ pub fn main() !void {
                 continue;
             };
 
-            hierarchy_render.render_serializable_collection(allocator, ser_collection, chars, parsed_args.show_metadata);
+            otio.hierarchy_text_render.render_serializable_collection(allocator, ser_collection, chars, parsed_args.show_metadata);
         } else {
             // Print header for timeline
             std.debug.print("\n", .{});
@@ -206,7 +217,7 @@ pub fn main() !void {
                     continue;
                 };
 
-                hierarchy_render.render_serializable_timeline(allocator, ser_timeline, chars, true);
+                otio.hierarchy_text_render.render_serializable_timeline(allocator, ser_timeline, chars, true);
             } else {
                 // Read the file without metadata for faster reads
                 var tl_ref = otio.read_from_file(
@@ -234,7 +245,7 @@ pub fn main() !void {
 
                 for (tracks.children, 0..) |child, i| {
                     const is_last = (i == tracks.children.len - 1);
-                    hierarchy_render.render_item(allocator, child, "    ", is_last, chars, false, null);
+                    otio.hierarchy_text_render.render_item(allocator, child, "    ", is_last, chars, false, null);
                 }
             }
         }

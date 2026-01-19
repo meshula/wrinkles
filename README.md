@@ -407,6 +407,7 @@ didn't impact the deisgn or problems we were specifically solving.
 
 * [ ] land serialization in main (IE review and land all the code that is in
       flight on that branch serialization)
+    * [ ] add metadata_map to runtime types (not just serializable types)
     * [ ] removed unused functions
     * [ ] remove unused binaries
     * [ ] update references to .ziggy files to refer to .tla
