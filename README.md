@@ -409,10 +409,11 @@ didn't impact the deisgn or problems we were specifically solving.
       flight on that branch)
     * [x] fix build errors
     * [x] check in current in flight stuff
-    * [ ] remove CBORS tlb implementation
-        * [ ] rename .tlfb to .tlb
+    * [x] remove CBORS tlb implementation
+        * [x] rename .tlfb to .tlb
     * [ ] verify that .tlc\[b] is also correctly referenced, IE in 
           traverse_hierarchy.py
+    * [ ] update references to .ziggy files to refer to .tla
     * [ ] clean up gitignore
     * [ ] rearrange
         * [ ] remove .ziggy files
