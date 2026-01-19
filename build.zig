@@ -1003,31 +1003,6 @@ pub fn build(
 
     try executable(
         b,
-        "otio_dump_json",
-        "Dump OTIO file as JSON",
-        "src/otio_dump_json.zig",
-        options,
-        &.{
-            .{ .name = "string_stuff", .module = string_stuff },
-            .{ .name = "opentimelineio", .module = opentimelineio },
-        },
-    );
-
-    try executable(
-        b,
-        "otio_dump_tla",
-        "Convert OTIO JSON to TLA format",
-        "src/otio_dump_tla.zig",
-        options,
-        &.{
-            .{ .name = "string_stuff", .module = string_stuff },
-            .{ .name = "opentimelineio", .module = opentimelineio },
-            .{ .name = "ziggy", .module = dep_ziggy.module("ziggy") },
-        },
-    );
-
-    try executable(
-        b,
         "otio_measure_timeline",
         "Measure and display OTIO timeline durations",
         "src/otio_measure_timeline.zig",
@@ -1070,7 +1045,8 @@ pub fn build(
     //
     // C++ binding library and examples
     //
-    if (!options.target.result.cpu.arch.isWasm()) {
+    if (options.target.result.cpu.arch.isWasm() == false) 
+    {
         // C++ binding library
         const opentimelineio_cpp = b.addLibrary(
             .{
@@ -1115,7 +1091,9 @@ pub fn build(
 
             exe.addCSourceFile(
                 .{
-                    .file = b.path("src/cpp_examples/otio_hierarchy_view.cpp"),
+                    .file = b.path(
+                        "src/cpp_examples/otio_hierarchy_view.cpp",
+                    ),
                     .flags = &.{"-std=c++17"},
                 },
             );
@@ -1125,7 +1103,10 @@ pub fn build(
             exe.linkLibrary(opentimelineio_cpp);
             exe.linkLibCpp();
 
-            const install_exe_step = b.addInstallArtifact(exe, .{});
+            const install_exe_step = b.addInstallArtifact(
+                exe,
+                .{},
+            );
             b.getInstallStep().dependOn(&install_exe_step.step);
 
             var run_step = b.step(
@@ -1207,7 +1188,10 @@ pub fn build(
             exe.linkLibrary(opentimelineio_cpp);
             exe.linkLibCpp();
 
-            const install_exe_step = b.addInstallArtifact(exe, .{});
+            const install_exe_step = b.addInstallArtifact(
+                exe,
+                .{},
+            );
             b.getInstallStep().dependOn(&install_exe_step.step);
 
             var run_step = b.step(
@@ -1216,7 +1200,9 @@ pub fn build(
             );
             var run_cmd = b.addRunArtifact(exe);
             run_step.dependOn(&run_cmd.step);
-            if (b.args) |args| {
+            if (b.args) 
+                |args| 
+            {
                 run_cmd.addArgs(args);
             }
         }

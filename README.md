@@ -406,13 +406,9 @@ didn't impact the deisgn or problems we were specifically solving.
 ## TODO 1/17/2026
 
 * [ ] land serialization in main (IE review and land all the code that is in
-      flight on that branch)
-    * [x] fix build errors
-    * [x] check in current in flight stuff
-    * [x] remove CBORS tlb implementation
-        * [x] rename .tlfb to .tlb
-    * [ ] verify that .tlc\[b] is also correctly referenced, IE in 
-          traverse_hierarchy.py
+      flight on that branch serialization)
+    * [ ] removed unused functions
+    * [ ] remove unused binaries
     * [ ] update references to .ziggy files to refer to .tla
     * [ ] clean up gitignore
     * [ ] rearrange
@@ -428,6 +424,8 @@ didn't impact the deisgn or problems we were specifically solving.
 * [ ] Joshs' composition objects (generic stack/track thingy)
 * [ ] Update the adapter to make sure its Read and Write, integrate into
       project
+* [ ] a treecode (treecode.clone) test fails on --release=fast but no other
+      mode?
 
 * USD + OTIO (where clips point at USD files, render out a playblast)
 * Wrinkles MCP
