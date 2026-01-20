@@ -109,7 +109,8 @@ pub const ImageSequenceReference = struct {
     /// Frame increment (e.g., 2 for every other frame).
     frame_step: i32 = 1,
 
-    /// Zero padding width for frame numbers (e.g., 4 for "0001").
+    /// Zero padding width for frame numbers (e.g., 4 for "0001").  The total
+    /// width of the number in characters.
     frame_zero_padding: u8 = 0,
 
     /// Frame rate of the sequence in frames per second.
