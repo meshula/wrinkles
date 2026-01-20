@@ -43,9 +43,10 @@ const string_stuff = @import("string_stuff");
 pub const references = @import("references.zig");
 const test_data = @import("test_structures.zig");
 pub const marker = @import("marker.zig");
+
+// forwards for imports
 pub const Marker = marker.Marker;
 pub const MarkerColor = marker.MarkerColor;
-
 
 /// Indicates whether samples should be interpolated when the parameter space
 /// (usually time) is warped.  Examples include audio (interpolated) vs picture
@@ -158,6 +159,8 @@ pub const ImageSequenceReference = struct {
         available_range: opentime.ContinuousInterval,
     ) i32
     {
+        // @TODO: this is incorrect for the current model of discrete space
+        //        information
         const duration_seconds = available_range.duration().v;
         const total_frames = @as(
             i32,
@@ -284,7 +287,7 @@ pub const Clip = struct {
     maybe_metadata_json: ?std.json.Value = null,
 
     /// Markers attached to this clip.
-    markers: []Marker = &.{},
+    markers: []marker.Marker = &.{},
 
     /// Clips provide a `media` space in addition to the `presentation` space.
     ///
@@ -470,7 +473,7 @@ pub const Gap = struct {
     bounds_s: opentime.ContinuousInterval,
 
     /// Markers attached to this gap.
-    markers: []Marker = &.{},
+    markers: []marker.Marker = &.{},
 
     /// The internal temporal coordinate systems of the Gap.
     pub const available_local_spaces: []const references.TemporalSpace = (
@@ -716,7 +719,7 @@ pub const Track = struct {
     children: []references.CompositionItemHandle,
 
     /// Markers attached to this track.
-    markers: []Marker = &.{},
+    markers: []marker.Marker = &.{},
 
     /// The internal temporal coordinate systems of the Track.
     pub const available_local_spaces: []const references.TemporalSpace = (
@@ -883,7 +886,7 @@ pub const Stack = struct {
     children: []references.CompositionItemHandle,
 
     /// Markers attached to this stack.
-    markers: []Marker = &.{},
+    markers: []marker.Marker = &.{},
 
     /// The internal temporal coordinate systems of the Track.
     pub const available_local_spaces: []const references.TemporalSpace = (
@@ -1044,7 +1047,7 @@ pub const Timeline = struct {
     } = .no_discretizations,
 
     /// Markers attached to this timeline.
-    markers: []Marker = &.{},
+    markers: []marker.Marker = &.{},
 
     /// The internal temporal coordinate systems of the Timeline.
     pub const available_local_spaces: []const references.TemporalSpace = &.{

@@ -280,14 +280,14 @@ pub const SerializableComposable = union(enum) {
                     allocator.free(hash_key);
                 }
             },
-            inline .gap => |gap| {
+            .gap => |gap| {
                 if (gap.name)
                     |name|
                 {
                     allocator.free(name);
                 }
             },
-            .track, .stack, => |container| {
+            inline .track, .stack, => |container| {
                 if (container.name)
                     |name|
                 {
