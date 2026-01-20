@@ -124,74 +124,16 @@ pub const ImageSequenceReference = struct {
         image_number: i32,
     ) ![]const u8
     {
-        // Build the frame number string with optional zero padding
-        var frame_buf: [32]u8 = undefined;
-        var padded_buf: [32]u8 = undefined;
-
-        const frame_str: []const u8 = blk: {
-            if (self.frame_zero_padding > 0) 
-            {
-                // @TODO: this needs to be cleaned up... frame_zero_padding
-                //        should use format string methods to add 0s, not this
-                //        mess
-
-                // Manual zero-padding for positive numbers
-                const abs_num: u32 = (
-                    if (image_number < 0) @intCast(-image_number)
-                    else @intCast(image_number)
-                );
-
-                const base_str = std.fmt.bufPrint(
-                    &frame_buf,
-                    "{d}",
-                    .{abs_num},
-                ) catch unreachable;
-                const base_len = base_str.len;
-                const pad_len: usize = @as(usize, self.frame_zero_padding);
-
-                if (base_len >= pad_len) 
-                {
-                    break :blk base_str;
-                }
-
-                // Add leading zeros
-                const zeros_needed = pad_len - base_len;
-
-                @memset(
-                    padded_buf[0..zeros_needed],
-                    '0'
-                );
-
-                @memcpy(
-                    padded_buf[zeros_needed..][0..base_len],
-                    base_str,
-                );
-
-                break :blk padded_buf[0..pad_len];
-            } 
-            else 
-            {
-                break :blk std.fmt.bufPrint(&frame_buf, "{d}", .{image_number}) catch
-                    unreachable;
-            }
-        };
-
-        // Handle negative sign for padded numbers
-        const sign_prefix: []const u8 = (
-            if (image_number < 0 and self.frame_zero_padding > 0) "-"
-            else ""
-        );
-
-        // Concatenate all parts
         return try std.fmt.allocPrint(
             allocator,
-            "{s}{s}{s}{s}{s}",
+            "{[url]s}{[prefix]s}{[sign]s}{[value]d:0>[width]}{[suffix]s}",
             .{
-                self.target_url_base,
-                self.name_prefix,
-                sign_prefix,
-                frame_str,
-                self.name_suffix,
+                .url = self.target_url_base,
+                .prefix = self.name_prefix,
+                .sign = if (image_number < 0) "-" else "",
+                .value = @abs(image_number),
+                .width = self.frame_zero_padding,
+                .suffix = self.name_suffix,
             },
         );
     }
@@ -243,14 +185,8 @@ pub const ImageSequenceReference = struct {
     ) void
     {
         allocator.free(self.target_url_base);
-        if (self.name_prefix.len > 0) 
-        {
-            allocator.free(self.name_prefix);
-        }
-        if (self.name_suffix.len > 0) 
-        {
-            allocator.free(self.name_suffix);
-        }
+        allocator.free(self.name_prefix);
+        allocator.free(self.name_suffix);
     }
 };
 
