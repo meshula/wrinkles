@@ -330,15 +330,12 @@ pub const Clip = struct {
             allocator.free(n);
         }
         self.media.deinit(allocator);
-        if (self.markers.len > 0) 
+        for (self.markers) 
+            |*m| 
         {
-            for (self.markers) 
-                |*m| 
-            {
-                m.deinit(allocator);
-            }
-            allocator.free(self.markers);
+            m.deinit(allocator);
         }
+        allocator.free(self.markers);
     }
 
     /// Build a handle to this Clip.
@@ -442,15 +439,12 @@ pub const Gap = struct {
         {
             allocator.free(name);
         }
-        if (self.markers.len > 0) 
+        for (self.markers) 
+            |*m| 
         {
-            for (self.markers) 
-                |*m| 
-            {
-                @constCast(m).deinit(allocator);
-            }
-            allocator.free(self.markers);
+            @constCast(m).deinit(allocator);
         }
+        allocator.free(self.markers);
     }
 
     /// A Gap's topology is always an identity bounded by the duration of the
@@ -703,15 +697,12 @@ pub const Track = struct {
             self.maybe_name = null;
         }
         allocator.free(self.children);
-        if (self.markers.len > 0) 
+        for (self.markers) 
+            |*m| 
         {
-            for (self.markers) 
-                |*m| 
-            {
-                m.deinit(allocator);
-            }
-            allocator.free(self.markers);
+            m.deinit(allocator);
         }
+        allocator.free(self.markers);
     }
 
     /// construct the topology mapping the output to the intrinsic space
@@ -869,15 +860,12 @@ pub const Stack = struct {
             self.maybe_name = null;
         }
         allocator.free(self.children);
-        if (self.markers.len > 0) 
+        for (self.markers) 
+            |*m| 
         {
-            for (self.markers) 
-                |*m| 
-            {
-                m.deinit(allocator);
-            }
-            allocator.free(self.markers);
+            m.deinit(allocator);
         }
+        allocator.free(self.markers);
     }
 
     /// construct the topology mapping the output to the intrinsic space
@@ -1020,15 +1008,12 @@ pub const Timeline = struct {
             self.maybe_name = null;
         }
         self.tracks.deinit(allocator);
-        if (self.markers.len > 0) 
+        for (self.markers) 
+            |*m| 
         {
-            for (self.markers) 
-                |*m| 
-            {
-                m.deinit(allocator);
-            }
-            allocator.free(self.markers);
+            m.deinit(allocator);
         }
+        allocator.free(self.markers);
     }
 
     /// Presentation space of Timeline -> presentation space of `Tracks` stack.
