@@ -130,10 +130,7 @@ pub const SerializableImageSequenceReference = struct {
     target_url_base: []const u8,
     name_prefix: []const u8 = "",
     name_suffix: []const u8 = "",
-    start_frame: i32 = 1,
-    frame_step: i32 = 1,
     frame_zero_padding: u8 = 0,
-    rate: f64 = 24.0,
     missing_frame_policy: []const u8 = "error",
 
     pub fn deinit(
@@ -1219,10 +1216,7 @@ pub fn media_data_reference_to_serializable(
                 .target_url_base = try copy_string(allocator, img_seq.target_url_base),
                 .name_prefix = try copy_string(allocator, img_seq.name_prefix),
                 .name_suffix = try copy_string(allocator, img_seq.name_suffix),
-                .start_frame = img_seq.start_frame,
-                .frame_step = img_seq.frame_step,
                 .frame_zero_padding = img_seq.frame_zero_padding,
-                .rate = img_seq.rate,
                 .missing_frame_policy = (
                     try copy_string(
                         allocator,
@@ -1644,10 +1638,7 @@ pub fn serializable_to_media_data_reference(
                 .target_url_base = try copy_string(allocator, img_seq.target_url_base),
                 .name_prefix = try copy_string(allocator, img_seq.name_prefix),
                 .name_suffix = try copy_string(allocator, img_seq.name_suffix),
-                .start_frame = img_seq.start_frame,
-                .frame_step = img_seq.frame_step,
                 .frame_zero_padding = img_seq.frame_zero_padding,
-                .rate = img_seq.rate,
                 .missing_frame_policy = (
                     schema.MissingFramePolicy.from_maybe_string(
                         img_seq.missing_frame_policy,

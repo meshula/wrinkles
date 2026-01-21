@@ -1272,3 +1272,95 @@ test "otio_measure_timeline executable on just_clip.tla"
         ) != null,
     );
 }
+
+
+test "ImageSequenceReference: Test w/ projection"
+{
+    const allocator = std.testing.allocator;
+
+    const img_seq = otio.schema.ImageSequenceReference{
+        .target_url_base = "/project/renders/",
+        .name_prefix = "shot_010_",
+        .name_suffix = ".exr",
+        .frame_zero_padding = 4,
+        .missing_frame_policy = .hold,
+    };
+
+    const mr = otio.schema.MediaReference {
+        .data_reference = .{
+            .image_sequence = img_seq 
+        },
+        .domain = .picture,
+        .interpolating = .default_from_domain,
+        .maybe_bounds_s = .{
+            .start = .zero,
+            .end = .init(5),
+        },
+        .maybe_discrete_partition = .{
+            .sample_rate_hz = .{ .Int = 24 },
+            .start_index = 1001,
+        }
+    };
+
+    var cl = otio.schema.Clip {
+        .media = mr,
+    };
+    const cl_h = cl.handle();
+
+    // Test policy
+    try std.testing.expectEqual(
+        otio.schema.MissingFramePolicy.hold,
+        img_seq.missing_frame_policy
+    );
+
+    var builder = (
+        try otio.TemporalProjectionBuilder.init_from(
+            allocator,
+            cl_h.space_node(.presentation),
+        )
+    );
+    defer builder.deinit(allocator);
+
+    const pres_to_media = try builder.projection_operator_to(
+        allocator,
+        cl_h.space_node(.media)
+    );
+
+    const frame_at_1sec = try pres_to_media.project_instantaneous_cd(
+        .one,
+        .picture,
+    );
+
+    // Test URL generation for that frame
+    const url = try img_seq.target_url_for_image_number(
+        allocator,
+        @intCast(frame_at_1sec)
+    );
+    defer allocator.free(url);
+    try std.testing.expectEqualStrings(
+        "/project/renders/shot_010_1025.exr",
+        url
+    );
+
+    // Test sequence calculations
+    const range = opentime.ContinuousInterval.init(
+        .{ .start = 0.0, .end = 5.0 }
+    );
+
+    const media_range = try pres_to_media.project_range_cd(
+        allocator,
+        range,
+        .picture,
+    );
+    defer allocator.free(media_range);
+
+    try std.testing.expectEqual(
+        120,
+        media_range.len,
+    );
+
+    try std.testing.expectEqual(
+        1120,
+        media_range[media_range.len - 1],
+    );
+}

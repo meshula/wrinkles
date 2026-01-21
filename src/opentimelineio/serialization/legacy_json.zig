@@ -528,6 +528,7 @@ inline fn read_children(
     MissingField,
     LengthMismatch,
     DuplicateField,
+    OnlyFrameStepOfOneIsSupportedForImageSequences,
 }![]otio.CompositionItemHandle
 {
     const child_count = children.array.items.len;
@@ -587,86 +588,125 @@ inline fn read_children(
     return new_children;
 }
 
+fn _read_maybe(
+    comptime ValueType: type,
+    obj: std.json.ObjectMap,
+    key: []const u8,
+) ?ValueType
+{
+    const type_key: std.meta.Tag(std.json.Value) = switch (ValueType) {
+        []const u8 => .string,
+        usize, i32, i64, u8, u32 => .integer,
+        f64 => .float,
+        opentime.ContinuousInterval => .object,
+        else => @compileError("Unsupported JSON Type"),
+    };
+
+    return (
+        if (obj.get(key)) 
+            |val| 
+            switch (val) {
+                type_key => |typed_val| return 
+                    switch (type_key) {
+                        .integer => @intCast(typed_val),
+                        .float => @floatCast(typed_val),
+                        .string => typed_val,
+                        .object => read_time_range(typed_val),
+                        else => {},
+                    },
+                else => return null,
+            }
+        else null
+    );
+}
+
 fn read_media_reference(
     allocator: std.mem.Allocator,
     media_ref_obj: std.json.ObjectMap,
 ) !otio.schema.MediaReference
 {
     // Read OTIO_SCHEMA to determine reference type
-    const schema = if (media_ref_obj.get("OTIO_SCHEMA")) |schema_val|
-        switch (schema_val) {
-            .string => |s| s,
-            else => return otio.schema.MediaReference.null_picture,
-        }
-    else
-        return otio.schema.MediaReference.null_picture;
+    const schema = (
+        _read_maybe(
+            []const u8,
+            media_ref_obj,
+            "OTIO_SCHEMA",
+        ) 
+        orelse return .null_picture
+    );
 
     // Parse ImageSequenceReference
-    if (std.mem.startsWith(u8, schema, "ImageSequenceReference")) {
-        const target_url_base = if (media_ref_obj.get("target_url_prefix")) |val|
-            switch (val) {
-                .string => |s| try allocator.dupe(u8, s),
-                else => try allocator.dupe(u8, ""),
-            }
-        else
-            try allocator.dupe(u8, "");
+    if (
+        std.mem.startsWith(
+            u8,
+            schema,
+            "ImageSequenceReference",
+        )
+    ) 
+    {
+        const target_url_base = try allocator.dupe(
+            u8,
+            _read_maybe(
+                []const u8,
+                media_ref_obj,
+                "target_url_prefix",
+            ) orelse "",
+        );
 
-        const name_prefix = if (media_ref_obj.get("name_prefix")) |val|
-            switch (val) {
-                .string => |s| try allocator.dupe(u8, s),
-                else => try allocator.dupe(u8, ""),
-            }
-        else
-            try allocator.dupe(u8, "");
+        const name_prefix = try allocator.dupe(
+            u8,
+            _read_maybe(
+                []const u8,
+                media_ref_obj,
+                "name_prefix",
+            ) orelse "",
+        );
 
-        const name_suffix = if (media_ref_obj.get("name_suffix")) |val|
-            switch (val) {
-                .string => |s| try allocator.dupe(u8, s),
-                else => try allocator.dupe(u8, ""),
-            }
-        else
-            try allocator.dupe(u8, "");
+        const name_suffix = try allocator.dupe(
+            u8,
+            _read_maybe(
+                []const u8,
+                media_ref_obj,
+                "name_suffix",
+            ) orelse "",
+        );
 
-        const start_frame = if (media_ref_obj.get("start_frame")) |val|
-            switch (val) {
-                .integer => |i| @as(i32, @intCast(i)),
-                else => @as(i32, 1),
-            }
-        else
-            @as(i32, 1);
+        // @TODO: start_frame should be an i64
+        const start_frame = _read_maybe(
+            usize,
+            media_ref_obj,
+            "start_frame",
+        ) orelse 1;
 
-        const frame_step = if (media_ref_obj.get("frame_step")) |val|
-            switch (val) {
-                .integer => |i| @as(i32, @intCast(i)),
-                else => @as(i32, 1),
-            }
-        else
-            @as(i32, 1);
+        const frame_step = _read_maybe(
+            i32, 
+            media_ref_obj, 
+            "frame_step",
+        ) orelse 1;
+        if (frame_step != 1)
+        {
+            // @TODO: support frame step of not one for image sequences
+            return error.OnlyFrameStepOfOneIsSupportedForImageSequences;
+        }
 
-        const frame_zero_padding = if (media_ref_obj.get("frame_zero_padding")) |val|
-            switch (val) {
-                .integer => |i| @as(u8, @intCast(i)),
-                else => @as(u8, 0),
-            }
-        else
-            @as(u8, 0);
+        const frame_zero_padding = _read_maybe(
+            u8,
+            media_ref_obj,
+            "frame_zero_padding",
+        ) orelse 0;
 
-        const rate = if (media_ref_obj.get("rate")) |val|
-            switch (val) {
-                .float => |f| f,
-                .integer => |i| @as(f64, @floatFromInt(i)),
-                else => 24.0,
-            }
-        else
-            24.0;
+        // @TODO: only reads integer rates for image sequences
+        const rate = _read_maybe(
+            u32,
+            media_ref_obj,
+            "rate",
+        ) orelse 24;
 
-        const missing_frame_policy_str = if (media_ref_obj.get("missing_frame_policy")) |val|
-            switch (val) {
-                .string => |s| s,
-                else => "error",
-            }
-        else
-            "error";
+        const missing_frame_policy_str = _read_maybe(
+            []const u8,
+            media_ref_obj,
+            "missing_frame_policy",
+        ) orelse "error";
 
         const missing_frame_policy = (
             otio.schema.MissingFramePolicy.from_maybe_string(
@@ -675,13 +715,11 @@ fn read_media_reference(
         );
 
         // Read available_range to get bounds
-        const maybe_bounds = if (media_ref_obj.get("available_range")) |ar_val|
-            switch (ar_val) {
-                .object => |ar_obj| read_time_range(ar_obj),
-                else => null,
-            }
-        else
-            null;
+        const maybe_bounds = _read_maybe(
+            opentime.ContinuousInterval,
+            media_ref_obj,
+            "available_range",
+        );
 
         return .{
             .data_reference = .{
@@ -689,45 +727,52 @@ fn read_media_reference(
                     .target_url_base = target_url_base,
                     .name_prefix = name_prefix,
                     .name_suffix = name_suffix,
-                    .start_frame = start_frame,
-                    .frame_step = frame_step,
                     .frame_zero_padding = frame_zero_padding,
-                    .rate = rate,
                     .missing_frame_policy = missing_frame_policy,
                 },
+            },
+            .maybe_bounds_s = maybe_bounds,
+            .domain = .picture,
+            .maybe_discrete_partition = .{
+                .sample_rate_hz = .{
+                    .Int = rate,
+                },
+                .start_index = start_frame,
+            },
+        };
+    }
+
+    // Parse ExternalReference (URI)
+    if (std.mem.startsWith(u8, schema, "ExternalReference")) 
+    {
+        const target_url = try allocator.dupe(
+            u8,
+            _read_maybe(
+                []const u8, 
+                media_ref_obj, 
+                "target_url"
+            ) orelse ""
+        );
+
+        const maybe_bounds = _read_maybe(
+            opentime.ContinuousInterval, 
+            media_ref_obj,
+            "available_range",
+        );
+        
+        return .{
+            .data_reference = .{ 
+                .uri = .{ 
+                    .target_uri = target_url 
+                } 
             },
             .maybe_bounds_s = maybe_bounds,
             .domain = .picture,
         };
     }
 
-    // Parse ExternalReference (URI)
-    if (std.mem.startsWith(u8, schema, "ExternalReference")) {
-        const target_url = if (media_ref_obj.get("target_url")) |val|
-            switch (val) {
-                .string => |s| try allocator.dupe(u8, s),
-                else => try allocator.dupe(u8, ""),
-            }
-        else
-            try allocator.dupe(u8, "");
-
-        const maybe_bounds = if (media_ref_obj.get("available_range")) |ar_val|
-            switch (ar_val) {
-                .object => |ar_obj| read_time_range(ar_obj),
-                else => null,
-            }
-        else
-            null;
-
-        return .{
-            .data_reference = .{ .uri = .{ .target_uri = target_url } },
-            .maybe_bounds_s = maybe_bounds,
-            .domain = .picture,
-        };
-    }
-
     // Default to null reference
-    return otio.schema.MediaReference.null_picture;
+    return .null_picture;
 }
 
 fn read_markers(
@@ -822,6 +867,7 @@ fn read_otio_object(
     MissingField,
     LengthMismatch,
     DuplicateField,
+    OnlyFrameStepOfOneIsSupportedForImageSequences,
 } !otio.CompositionItemHandle
 {
     const schema_enum = try read_schema(

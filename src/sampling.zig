@@ -399,6 +399,7 @@ pub const RateSpecifier = union (enum) {
 /// generate indices based on a sample rate
 pub const SampleIndexGenerator = struct {
     sample_rate_hz: RateSpecifier,
+    // @TODO: should be an i64 to handle negative sample indices
     start_index: sample_index_t = 0,
 
     pub fn index_at_ordinate(

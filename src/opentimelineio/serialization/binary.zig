@@ -1027,10 +1027,7 @@ fn serializable_data_ref_to_fb(
                 .target_url_base = img_seq.target_url_base,
                 .name_prefix = if (img_seq.name_prefix.len > 0) img_seq.name_prefix else null,
                 .name_suffix = if (img_seq.name_suffix.len > 0) img_seq.name_suffix else null,
-                .start_frame = img_seq.start_frame,
-                .frame_step = img_seq.frame_step,
                 .frame_zero_padding = img_seq.frame_zero_padding,
-                .rate = img_seq.rate,
                 .missing_frame_policy = (
                     if (img_seq.missing_frame_policy.len > 0)
                         img_seq.missing_frame_policy
@@ -1561,10 +1558,7 @@ fn fb_to_media_data_ref(
                         try allocator.dupe(u8, s)
                     else ""
                 ),
-                .start_frame = img_seq.start_frame(),
-                .frame_step = img_seq.frame_step(),
                 .frame_zero_padding = img_seq.frame_zero_padding(),
-                .rate = img_seq.rate(),
                 .missing_frame_policy = (
                     schema.MissingFramePolicy.from_maybe_string(
                         img_seq.missing_frame_policy(),
@@ -2083,10 +2077,7 @@ fn fb_to_serializable_data_ref(
                     try allocator.dupe(u8, s)
                 else
                     "",
-                .start_frame = img_seq.start_frame(),
-                .frame_step = img_seq.frame_step(),
                 .frame_zero_padding = img_seq.frame_zero_padding(),
-                .rate = img_seq.rate(),
                 // missing_frame_policy() returns optional ?flatbuffers.String
                 .missing_frame_policy = if (img_seq.missing_frame_policy()) |p|
                     try allocator.dupe(u8, p)
