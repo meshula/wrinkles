@@ -430,6 +430,10 @@ didn't impact the deisgn or problems we were specifically solving.
       project
 * [ ] a treecode (treecode.clone) test fails on --release=fast but no other
       mode?
+* [ ] ImageSequenceReference: currently only a frame step of 1 is supported
+* [ ] SampleIndex should be a signed integer, not a usize. -> check to make
+      sure if this feature is necessary or desired, or should be handled by a
+      higher level thing (the discrete space partition)
 
 * USD + OTIO (where clips point at USD files, render out a playblast)
 * Wrinkles MCP
