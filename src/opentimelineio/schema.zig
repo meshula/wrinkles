@@ -512,7 +512,10 @@ pub const Transition = struct {
             );
         }
         // Try to get topology from container
-        const container_topo = try self.container.topology_pres_to_intrinsic(allocator);
+        const container_topo = (
+            try self.container.topology_pres_to_intrinsic(allocator)
+        );
+
         // If container topology is empty (no children and no bounds),
         // return a zero-duration identity topology
         if (container_topo.input_bounds() == null) 
@@ -525,6 +528,7 @@ pub const Transition = struct {
                 ),
             );
         }
+
         return container_topo;
     }
 
