@@ -27,8 +27,11 @@ const TMPDIR = build_options.test_data_out_dir;
 
 /// type of a sample value, ie the amplitude in a sample in an audio buffer
 pub const sample_value_t  = f32;
-/// the type of an index of a sample in a sample buffer
-pub const sample_index_t  = usize;
+/// the type of an index of a sample in a sample buffer.  Note that this is a
+/// signed integer.  In some cases, this can result in negative numbers, but in
+/// practice this allows for more flexibility in dealing with handles, offsets,
+/// etc. without further casting.
+pub const sample_index_t  = i64;
 /// type of an ordinate in a continuous space that spans a sampling
 pub const sample_ordinate_t  = opentime.Ordinate;
 
@@ -164,7 +167,7 @@ pub const Sampling = struct {
             &writer.interface,
             .i16,
             self.index_generator.sample_rate_hz.as_ordinate().as(
-                sample_index_t
+                usize
             ),
             1,
             sample_value_t,
@@ -252,7 +255,9 @@ pub const Sampling = struct {
             input_interval,
         );
 
-        return self.buffer[index_bounds[0]..index_bounds[1]];
+        return self.buffer[
+            @intCast(index_bounds[0])
+            .. @intCast(index_bounds[1])];
     }
 
     /// assuming a time-0 start, build the range of continuous time
@@ -264,7 +269,7 @@ pub const Sampling = struct {
         return .{
             .start = opentime.Ordinate.init(0),
             .end = self.index_generator.ordinate_at_index(
-                self.buffer.len
+                @intCast(self.buffer.len)
             ),
         };
     }
@@ -314,7 +319,7 @@ test "sampling: samples_overlapping_interval"
     );
 
     try std.testing.expectEqual(
-        index_generator.sample_rate_hz.as_ordinate().div(2.0).as(sample_index_t),
+        index_generator.sample_rate_hz.as_ordinate().div(2.0).as(usize),
         first_half_samples.len,
     );
 }
@@ -437,7 +442,7 @@ pub const SampleIndexGenerator = struct {
     pub fn buffer_size_for_length(
         self: @This(),
         length: sample_ordinate_t,
-    ) sample_index_t
+    ) usize
     {
         // @TODO: ceil?  Floor?
         return @intFromFloat(
@@ -576,7 +581,7 @@ test "sampling: rasterizing the sine"
 /// returns the peak to peak distance in indices of the samples in the buffer
 pub fn peak_to_peak_distance(
     samples: []const sample_value_t,
-) !sample_index_t 
+) !usize 
 {
     var maybe_last_peak_index:?sample_index_t = null;
     var maybe_distance_in_indices:?sample_index_t = null;
@@ -586,6 +591,8 @@ pub fn peak_to_peak_distance(
     for (width..samples.len-width)
         |current_index|
     {
+        const current_index_si: sample_index_t = @intCast(current_index);
+
         if (
             samples[current_index] > samples[current_index - width] 
             and samples[current_index] > samples[current_index + width]
@@ -598,17 +605,20 @@ pub fn peak_to_peak_distance(
             if (maybe_last_peak_index)
                |last_peak_index| 
             {
-                maybe_distance_in_indices = current_index - last_peak_index;
+                maybe_distance_in_indices = (
+                    current_index_si 
+                    - last_peak_index
+                );
                 break;
             }
-            maybe_last_peak_index = current_index;
+            maybe_last_peak_index = @intCast(current_index);
         }
     }
 
     if (maybe_distance_in_indices)
         |distance_in_indices|
     {
-        return distance_in_indices;
+        return @intCast(distance_in_indices);
     }
 
     return error.CouldNotFindTwoPeaks;
@@ -719,7 +729,7 @@ pub fn resampled_dd(
 
     const result = try Sampling.init(
         allocator,
-        num_output_samples,
+        @intCast(num_output_samples),
         output_d_sampling_info,
         input_d_samples.interpolating,
     );
@@ -796,7 +806,7 @@ pub fn transform_resample_dd(
 
                 const empty_sampling = try Sampling.init(
                     allocator,
-                    output_buffer_size,
+                    @intCast(output_buffer_size),
                     output_d_sampling_info,
                     false,
                 );
@@ -1018,7 +1028,9 @@ pub fn transform_resample_linear_non_interpolating_dd(
         |*output_sample, output_index|
     {
         const output_sample_interval = (
-            output_d_sampling_info.ord_interval_for_index(output_index)
+            output_d_sampling_info.ord_interval_for_index(
+                @intCast(output_index)
+            )
         );
 
         const output_sample_ord = (
@@ -1045,7 +1057,7 @@ pub fn transform_resample_linear_non_interpolating_dd(
         );
 
         // input ordinate -> input index (continuous -> discrete)
-        const input_sample_index = (
+        const input_sample_index: usize = @intCast(
             input_d_samples.index_generator.index_at_ordinate(input_ord)
         );
 
@@ -1089,12 +1101,12 @@ pub fn transform_resample_linear_interpolating_dd(
             )
         );
         const relevant_input_samples = input_d_samples.buffer[
-            relevant_sample_indices[0]..
+            @intCast(relevant_sample_indices[0]) ..
         ];
         if (relevant_input_samples.len == 0) {
             return error.NoRelevantSamples;
         }
-        const input_samples = (
+        const input_samples: usize = @intCast(
             relevant_sample_indices[1] - relevant_sample_indices[0]
         );
 
@@ -1105,7 +1117,7 @@ pub fn transform_resample_linear_interpolating_dd(
             output_sampling_info.sample_rate_hz.inv_as_ordinate()
         );
 
-        const output_samples:sample_index_t = @intFromFloat(
+        const output_samples:usize = @intFromFloat(
             @floor(
                 opentime.eval(
                     "(r - l) * rate + inv_rate * 0.5",
@@ -1177,7 +1189,7 @@ pub fn transform_resample_linear_interpolating_dd(
 
     // walk across each transform spec to compute the output samples
     // XXX: not a for loop because the condition that advances this counter 
-    var transform_index:sample_index_t = 0;
+    var transform_index:usize = 0;
     while (transform_index < transform_specs.items.len)
     {
         // setup this chunk

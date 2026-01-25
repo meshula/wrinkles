@@ -73,7 +73,7 @@ pub const SerializableRateSpecifier = union(enum) {
 /// Serializable variant of SampleIndexGenerator
 pub const SerializableSampleIndexGenerator = struct {
     sample_rate_hz: SerializableRateSpecifier,
-    start_index: usize = 0,
+    start_index: i64 = 0,
 };
 
 /// Serializable variant of Domain

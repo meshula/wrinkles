@@ -673,7 +673,7 @@ fn read_media_reference(
 
         // @TODO: start_frame should be an i64
         const start_frame = _read_maybe(
-            usize,
+            i64,
             media_ref_obj,
             "start_frame",
         ) orelse 1;

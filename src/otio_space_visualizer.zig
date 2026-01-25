@@ -760,13 +760,17 @@ fn fill_topdown_point_buffers(
             try result.*.?.ensureTotalCapacity(
                 allocator, 
                 // two points per index to create horizontal line
-                2 * buffer_length,
+                @intCast(2 * buffer_length),
             );
 
-            for (discrete_info.start_index.. (discrete_info.start_index + buffer_length))
+            const start_ind: usize = @intCast(discrete_info.start_index);
+
+            for (start_ind .. start_ind + buffer_length)
                 |index|
             {
-                const ord = discrete_info.ord_interval_for_index(index);
+                const ord = (
+                    discrete_info.ord_interval_for_index(@intCast(index))
+                );
 
                 result.*.?.appendAssumeCapacity(
                     .{

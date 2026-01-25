@@ -2125,7 +2125,7 @@ test "ReferenceTopology: init_from_reference"
     );
     try std.testing.expectEqual(
         @as(
-            usize,
+            sampling.sample_index_t,
             @intFromFloat(
                 @as(
                     opentime.Ordinate.InnerType,

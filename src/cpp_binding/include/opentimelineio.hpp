@@ -218,7 +218,7 @@ inline std::ostream& operator<<(std::ostream& os, const Rational& r) {
 /// Describes discrete sampling (frame rate, audio sample rate)
 struct SampleIndexGenerator {
     Rational sample_rate_hz;
-    size_t start_index;
+    int64_t start_index;
 
     // Construction
     SampleIndexGenerator() : sample_rate_hz(), start_index(0) {}

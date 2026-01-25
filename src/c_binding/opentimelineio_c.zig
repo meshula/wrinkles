@@ -777,7 +777,7 @@ fn otio_fetch_continuous_ordinate_to_discrete_index_erroring(
     val: f32,
     space_c: c.otio_TemporalSpace,
     domain: c.otio_Domain,
-) !usize
+) !i64
 {
     const ref = try init_CompositionItemHandle(ref_c);
     const space = try init_TemporalSpace(space_c);
@@ -793,7 +793,7 @@ pub export fn otio_fetch_continuous_ordinate_to_discrete_index(
     val: f32,
     space_c: c.otio_TemporalSpace,
     domain: c.otio_Domain,
-) usize
+) i64
 {
     return otio_fetch_continuous_ordinate_to_discrete_index_erroring(
         ref_c,

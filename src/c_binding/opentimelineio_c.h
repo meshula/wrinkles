@@ -161,7 +161,7 @@ typedef struct otio_Rational {
 } otio_Rational;
 typedef struct otio_DiscreteDatasourceIndexGenerator {
     otio_Rational sample_rate_hz;
-    size_t start_index;
+    int64_t start_index;
 } otio_DiscreteDatasourceIndexGenerator;
 
 int otio_fetch_discrete_info(
