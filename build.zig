@@ -331,6 +331,117 @@ pub fn module_with_tests_and_artifact(
     return mod;
 }
 
+/// Schema update step: regenerate tlb.zig from tlb.fbs (Schema)
+/// Usage: zig build update_tlb_schema
+/// Requires: flatc (FlatBuffers compiler) to be installed and on PATH
+fn update_tlb_schema(
+    b: *std.Build,
+    dep_flatbuffers: *std.Build.Dependency,
+    options: Options,
+) void
+{
+    const update_schema_step = b.step(
+        "update_tlb_schema",
+        (
+            "Regenerate FlatBuffers schema (tlb.fbs -> tlb.bfbs "
+            ++ "-> tlb.zon -> tlb.zig)"
+        ),
+    );
+
+    // Step 1: Run flatc to generate .bfbs from .fbs
+    const flatc_cmd = b.addSystemCommand(&.{"flatc"});
+    flatc_cmd.addArgs(
+        &.{
+            "-b",
+            "--schema",
+            "--bfbs-comments",
+            "--bfbs-builtins",
+            "-o",
+            "flatbuf_schema",
+            "flatbuf_schema/tlb.fbs",
+        }
+    );
+
+    // Step 2: Run zfbs-parse to generate .zon from .bfbs
+    const zfbs_parse = b.addExecutable(
+        .{
+            .name = "zfbs-parse-runner",
+            .root_module = b.createModule(
+                .{
+                    .root_source_file = dep_flatbuffers.path(
+                        "src/parse.zig"
+                    ),
+                    .target = options.target,
+                    .optimize = options.optimize,
+                    .imports = &.{
+                        .{
+                            .name = "flatbuffers",
+                            .module = dep_flatbuffers.module(
+                                "flatbuffers"
+                            ),
+                        },
+                    },
+                }
+            ),
+        }
+    );
+    const parse_cmd = b.addRunArtifact(zfbs_parse);
+    parse_cmd.addFileArg(b.path("flatbuf_schema/tlb.bfbs"));
+    parse_cmd.step.dependOn(&flatc_cmd.step);
+    const zon_output = parse_cmd.captureStdOut();
+
+    // Write the .zon file to the source tree
+    const install_zon = b.addUpdateSourceFiles();
+    install_zon.step.dependOn(&parse_cmd.step);
+    install_zon.addCopyFileToSource(
+        zon_output,
+        "flatbuf_schema/tlb.zon",
+    );
+
+    // @TODO: don't need to install the intermediate files.  In fact,
+    //        probably better not to
+
+    // Step 3: Run zfbs-generate to generate .zig from .zon
+    // Note: zfbs-generate reads from filesystem, so we need the .zon
+    // written first
+    const zfbs_generate = b.addExecutable(
+        .{
+            .name = "zfbs-generate-runner",
+            .root_module = b.createModule(
+                .{
+                    .root_source_file = dep_flatbuffers.path(
+                        "src/generate.zig"
+                    ),
+                    .target = options.target,
+                    .optimize = options.optimize,
+                    .imports = &.{
+                        .{
+                            .name = "flatbuffers",
+                            .module = dep_flatbuffers.module(
+                                "flatbuffers"
+                            ),
+                        },
+                    },
+                },
+            ),
+        },
+    );
+    const generate_cmd = b.addRunArtifact(zfbs_generate);
+    generate_cmd.addFileArg(b.path("flatbuf_schema/tlb.zon"));
+    generate_cmd.step.dependOn(&install_zon.step);
+    const zig_output = generate_cmd.captureStdOut();
+
+    // Write the .zig file to the source tree
+    const install_zig = b.addUpdateSourceFiles();
+    install_zig.step.dependOn(&generate_cmd.step);
+    install_zig.addCopyFileToSource(
+        zig_output,
+        "flatbuf_schema/tlb.zig",
+    );
+
+    update_schema_step.dependOn(&install_zig.step);
+}
+
 /// main entry point for building wrinkles
 pub fn build(
     b: *std.Build,
@@ -515,10 +626,16 @@ pub fn build(
         }
     );
 
-    // FlatBuffers-generated schema module for OTTLA
-    const ottla_schema = b.createModule(
+    update_tlb_schema(
+        b,
+        dep_flatbuffers,
+        options,
+    );
+
+    // FlatBuffers-generated schema module for TLA
+    const tlb_schema = b.createModule(
         .{
-            .root_source_file = b.path("flatbuf_schema/ottla.zig"),
+            .root_source_file = b.path("flatbuf_schema/tlb.zig"),
             .target = options.target,
             .optimize = options.optimize,
             .imports = &.{
@@ -766,7 +883,7 @@ pub fn build(
                 .{ .name = "build_options", .module = build_options_mod},
                 .{ .name = "ziggy", .module = dep_ziggy.module("ziggy") },
                 .{ .name = "flatbuffers", .module = dep_flatbuffers.module("flatbuffers") },
-                .{ .name = "ottla_schema", .module = ottla_schema },
+                .{ .name = "tlb_schema", .module = tlb_schema },
             },
         },
     );

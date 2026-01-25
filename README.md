@@ -405,6 +405,10 @@ didn't impact the deisgn or problems we were specifically solving.
 
 ## TODO 1/17/2026
 
+* [ ] SampleIndex should be a signed integer, not a usize. -> check to make
+      sure if this feature is necessary or desired, or should be handled by a
+      higher level thing (the discrete space partition)
+* [ ] Joshs' composition objects (generic stack/track thingy)
 * [ ] land serialization in main (IE review and land all the code that is in
       flight on that branch serialization)
     * [ ] add metadata_map to runtime types (not just serializable types)
@@ -425,15 +429,12 @@ didn't impact the deisgn or problems we were specifically solving.
           serializers/deserializers
     * [ ] specifically look for string matching to convert to enums and clean
           that up
-* [ ] Joshs' composition objects (generic stack/track thingy)
 * [ ] Update the adapter to make sure its Read and Write, integrate into
       project
 * [ ] a treecode (treecode.clone) test fails on --release=fast but no other
       mode?
 * [ ] ImageSequenceReference: currently only a frame step of 1 is supported
-* [ ] SampleIndex should be a signed integer, not a usize. -> check to make
-      sure if this feature is necessary or desired, or should be handled by a
-      higher level thing (the discrete space partition)
+* [ ] a second pass over sampling index type - when can it be signed vs. unsigned?
 
 * USD + OTIO (where clips point at USD files, render out a playblast)
 * Wrinkles MCP
