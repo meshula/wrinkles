@@ -332,23 +332,32 @@ pub fn module_with_tests_and_artifact(
 }
 
 /// Schema update step: regenerate tlb.zig from tlb.fbs (Schema)
-/// Usage: zig build update_tlb_schema
 /// Requires: flatc (FlatBuffers compiler) to be installed and on PATH
+/// Note that both the tlb.fbs and the resulting tlb.zig are checked into the
+/// tree.
+///
+/// Other intermediates are NOT copied to the source tree and versioned,
+/// although they could be.
+///
+/// Note that this means that unless the .fbs file is changed, flatc does not
+/// need to be installed on a development system.
 fn update_tlb_schema(
     b: *std.Build,
     dep_flatbuffers: *std.Build.Dependency,
     options: Options,
-) void
+) *std.Build.Module
 {
     const update_schema_step = b.step(
         "update_tlb_schema",
         (
             "Regenerate FlatBuffers schema (tlb.fbs -> tlb.bfbs "
-            ++ "-> tlb.zon -> tlb.zig)"
+            ++ "-> tlb.zon -> tlb.zig).  Only needs to be run when the "
+            ++ ".fbs file (schema) has been changed."
         ),
     );
 
     // Step 1: Run flatc to generate .bfbs from .fbs
+    ///////////////////////////////////////////////////////////////////////////
     const flatc_cmd = b.addSystemCommand(&.{"flatc"});
     flatc_cmd.addArgs(
         &.{
@@ -357,12 +366,22 @@ fn update_tlb_schema(
             "--bfbs-comments",
             "--bfbs-builtins",
             "-o",
-            "flatbuf_schema",
-            "flatbuf_schema/tlb.fbs",
         }
     );
+    flatc_cmd.setName("Run flatc (tlb.fbs -> tlb.bfbs)");
+
+    const bfbs_dir = flatc_cmd.addOutputDirectoryArg("flatbuf_files");
+
+    // input file (the source tlb.fbs schema file to convert)
+    flatc_cmd.addFileArg(b.path("tlb_schema/tlb.fbs"));
+
+    // output (bfbs)
+    const tlb_bfbs_path = bfbs_dir.path( b, "tlb.bfbs");
 
     // Step 2: Run zfbs-parse to generate .zon from .bfbs
+    ///////////////////////////////////////////////////////////////////////////
+
+    // Step 2.1: first compilte zfbs-parse
     const zfbs_parse = b.addExecutable(
         .{
             .name = "zfbs-parse-runner",
@@ -385,25 +404,24 @@ fn update_tlb_schema(
             ),
         }
     );
+    zfbs_parse.step.name = "compile exe zfbs-parse-runner (program that will convert .bfbs -> zon)";
+
+    // Step 2.2: ...then use it to convert the bfbs to zon
     const parse_cmd = b.addRunArtifact(zfbs_parse);
-    parse_cmd.addFileArg(b.path("flatbuf_schema/tlb.bfbs"));
+    parse_cmd.step.name = "run exe zfbs-parse-runner (tlb.bfbs -> tlb.zon)";
+    parse_cmd.addFileArg(tlb_bfbs_path);
     parse_cmd.step.dependOn(&flatc_cmd.step);
     const zon_output = parse_cmd.captureStdOut();
 
-    // Write the .zon file to the source tree
-    const install_zon = b.addUpdateSourceFiles();
-    install_zon.step.dependOn(&parse_cmd.step);
-    install_zon.addCopyFileToSource(
-        zon_output,
-        "flatbuf_schema/tlb.zon",
-    );
-
-    // @TODO: don't need to install the intermediate files.  In fact,
-    //        probably better not to
+    // XXX: zig 0.15.2: in 0.16 captureStdOut has a second argument which
+    //      allows you to specify the name of the captured output, until then
+    //      this is needed
+    parse_cmd.captured_stdout.?.basename = "stdout.zon";
 
     // Step 3: Run zfbs-generate to generate .zig from .zon
-    // Note: zfbs-generate reads from filesystem, so we need the .zon
-    // written first
+    ///////////////////////////////////////////////////////////////////////////
+
+    // Step 3.1: compile the zfbs-generate program
     const zfbs_generate = b.addExecutable(
         .{
             .name = "zfbs-generate-runner",
@@ -426,20 +444,54 @@ fn update_tlb_schema(
             ),
         },
     );
+    zfbs_generate.step.name = "zfbs-generate-runner (tlb.zon -> tlb.zig)";
+
+    // Step 3.2: run the generator and produce the .zig file
     const generate_cmd = b.addRunArtifact(zfbs_generate);
-    generate_cmd.addFileArg(b.path("flatbuf_schema/tlb.zon"));
-    generate_cmd.step.dependOn(&install_zon.step);
+    // generate_cmd.addFileArg(bfbs_dir.path(b, "tlb.zon"));
+    generate_cmd.addFileArg(zon_output);
+    generate_cmd.step.dependOn(&parse_cmd.step);
     const zig_output = generate_cmd.captureStdOut();
 
-    // Write the .zig file to the source tree
+    // Step 3.3: copy the result to the source tree with the correct name
+    const tlb_zig_source_path = "tlb_schema/tlb.zig";
     const install_zig = b.addUpdateSourceFiles();
+    install_zig.step.name = (
+        "UpdateSourceFiles (copy tlb.zig -> src/tlb_schema/tlb.zig)"
+    );
     install_zig.step.dependOn(&generate_cmd.step);
     install_zig.addCopyFileToSource(
         zig_output,
-        "flatbuf_schema/tlb.zig",
+        tlb_zig_source_path,
     );
 
     update_schema_step.dependOn(&install_zig.step);
+
+    // Step 4: build a module using the source tree tlb.zig file
+    ///////////////////////////////////////////////////////////////////////////
+
+    // Note that the return module depends on the source file, which is
+    // installed to the source tree.  This means that most users who aren't
+    // updating the TLB Schema won't need flatc installed to compile the
+    // project.
+    //
+    // In other words, when the tlb schema is updated, update tlb walks through
+    // the steps of generating a fresh zig file that gets checked into the repo
+    // and distributed.
+    return b.addModule(
+        "tlb_parser", 
+        .{
+            .root_source_file = b.path(tlb_zig_source_path),
+            .target = options.target,
+            .optimize = options.optimize,
+            .imports = &.{
+                .{
+                    .name = "flatbuffers",
+                    .module = dep_flatbuffers.module("flatbuffers") 
+                },
+            },
+        },
+    );
 }
 
 /// main entry point for building wrinkles
@@ -626,22 +678,10 @@ pub fn build(
         }
     );
 
-    update_tlb_schema(
+    const tlb_schema = update_tlb_schema(
         b,
         dep_flatbuffers,
         options,
-    );
-
-    // FlatBuffers-generated schema module for TLA
-    const tlb_schema = b.createModule(
-        .{
-            .root_source_file = b.path("flatbuf_schema/tlb.zig"),
-            .target = options.target,
-            .optimize = options.optimize,
-            .imports = &.{
-                .{ .name = "flatbuffers", .module = dep_flatbuffers.module("flatbuffers") },
-            },
-        }
     );
 
     const string_stuff = module_with_tests_and_artifact(
