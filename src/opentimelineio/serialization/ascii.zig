@@ -262,34 +262,30 @@ pub const SerializableComposable = union(enum) {
         allocator: Allocator,
     ) void
     {
-        // @TODO: use inline statements to combine identical cases
         switch (self.*) {
-            .clip => |clip| {
-                if (clip.name)
+            inline else => |thing| {
+                if (thing.name)
                     |name|
                 {
                     allocator.free(name);
                 }
+            },
+        }
+
+        switch (self.*) {
+            .clip => |clip| {
                 // Free media reference (URI and domain strings)
                 clip.media.deinit(allocator);
-                // Free metadata hash key (the value is in Timeline's metadata_map)
-                if (clip.metadata_hash) |hash_key| {
+
+                // Free metadata hash key (the value is in Timeline's
+                // metadata_map)
+                if (clip.metadata_hash) 
+                    |hash_key| 
+                {
                     allocator.free(hash_key);
                 }
             },
-            .gap => |gap| {
-                if (gap.name)
-                    |name|
-                {
-                    allocator.free(name);
-                }
-            },
             inline .track, .stack, => |container| {
-                if (container.name)
-                    |name|
-                {
-                    allocator.free(name);
-                }
                 for (container.children)
                     |*child|
                 {
@@ -298,20 +294,10 @@ pub const SerializableComposable = union(enum) {
                 allocator.free(container.children);
             },
             .warp => |warp| {
-                if (warp.name)
-                    |name|
-                {
-                    allocator.free(name);
-                }
                 warp.child.deinit(allocator);
                 allocator.destroy(warp.child);
             },
             .transition => |transition| {
-                if (transition.name)
-                    |name|
-                {
-                    allocator.free(name);
-                }
                 allocator.free(transition.kind);
                 if (transition.container.name)
                     |name|
@@ -325,6 +311,7 @@ pub const SerializableComposable = union(enum) {
                 }
                 allocator.free(transition.container.children);
             },
+            else => {},
         }
     }
 };
