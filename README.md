@@ -414,14 +414,14 @@ didn't impact the deisgn or problems we were specifically solving.
     * [ ] add metadata_map to runtime types (not just serializable types)
     * [ ] removed unused functions
     * [ ] remove unused binaries
-    * [ ] update references to .ziggy files to refer to .tla
+    * [x] update references to .ziggy files to refer to .tla
     * [ ] clean up gitignore
-    * [ ] Serialization gets wrapped up into a library
-        * [ ] serialization.zig -> serialization/ascii.zig
-        * [ ] binary_serialization_flatbufs.zig -> serialization/binary.zig
+    * [x] Serialization gets wrapped up into a library
+        * [x] serialization.zig -> serialization/ascii.zig
+        * [x] binary_serialization_flatbufs.zig -> serialization/binary.zig
+        * [x] serialization schemas -> source tree
     * [ ] rearrange
-        * [ ] remove .ziggy files
-        * [ ] serialization schemas -> one directory
+        * [x] remove .ziggy files
         * [ ] language bindings -> bindings directory
     * [ ] style pass
     * [ ] figure out where the ERROR CONVERTING messages come from
