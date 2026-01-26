@@ -373,7 +373,9 @@ fn update_tlb_schema(
     const bfbs_dir = flatc_cmd.addOutputDirectoryArg("flatbuf_files");
 
     // input file (the source tlb.fbs schema file to convert)
-    flatc_cmd.addFileArg(b.path("tlb_schema/tlb.fbs"));
+    flatc_cmd.addFileArg(
+        b.path("src/opentimelineio/serialization/tlb_schema/tlb.fbs")
+    );
 
     // output (bfbs)
     const tlb_bfbs_path = bfbs_dir.path( b, "tlb.bfbs");
@@ -404,7 +406,9 @@ fn update_tlb_schema(
             ),
         }
     );
-    zfbs_parse.step.name = "compile exe zfbs-parse-runner (program that will convert .bfbs -> zon)";
+    zfbs_parse.step.name = (
+        "compile exe zfbs-parse-runner (program that will convert .bfbs -> zon)"
+    );
 
     // Step 2.2: ...then use it to convert the bfbs to zon
     const parse_cmd = b.addRunArtifact(zfbs_parse);
@@ -417,6 +421,19 @@ fn update_tlb_schema(
     //      allows you to specify the name of the captured output, until then
     //      this is needed
     parse_cmd.captured_stdout.?.basename = "stdout.zon";
+
+    // Step 2.3: copy to the source tree
+    const install_zon = b.addUpdateSourceFiles();
+    install_zon.step.name = (
+        "UpdateSourceFiles (copy tlb.zon -> "
+        ++ "src/opentimelineio/serialization/tlb_schema/tlb.zon)"
+    );
+    install_zon.step.dependOn(&parse_cmd.step);
+    install_zon.addCopyFileToSource(
+        zon_output,
+        "src/opentimelineio/serialization/tlb_schema/tlb.zon",
+    );
+    update_schema_step.dependOn(&install_zon.step);
 
     // Step 3: Run zfbs-generate to generate .zig from .zon
     ///////////////////////////////////////////////////////////////////////////
@@ -448,16 +465,20 @@ fn update_tlb_schema(
 
     // Step 3.2: run the generator and produce the .zig file
     const generate_cmd = b.addRunArtifact(zfbs_generate);
-    // generate_cmd.addFileArg(bfbs_dir.path(b, "tlb.zon"));
-    generate_cmd.addFileArg(zon_output);
-    generate_cmd.step.dependOn(&parse_cmd.step);
+    generate_cmd.addFileArg(
+        b.path("src/opentimelineio/serialization/tlb_schema/tlb.zon")
+    );
+    generate_cmd.step.dependOn(&install_zon.step);
     const zig_output = generate_cmd.captureStdOut();
 
     // Step 3.3: copy the result to the source tree with the correct name
-    const tlb_zig_source_path = "tlb_schema/tlb.zig";
+    const tlb_zig_source_path = (
+        "src/opentimelineio/serialization/tlb_schema/tlb.zig"
+    );
     const install_zig = b.addUpdateSourceFiles();
     install_zig.step.name = (
-        "UpdateSourceFiles (copy tlb.zig -> src/tlb_schema/tlb.zig)"
+        "UpdateSourceFiles (copy tlb.zig -> "
+        ++ "src/opentimelineio/serialization/tlb_schema/tlb.zig)"
     );
     install_zig.step.dependOn(&generate_cmd.step);
     install_zig.addCopyFileToSource(

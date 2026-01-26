@@ -1,0 +1,486 @@
+.{
+    .tables = .{
+        .{ .name = "tlb.Bounds", .fields = .{
+            .{ .name = "bounds_type", .type = .{ .@"enum" = .{ .name = "tlb.BoundsType" } } },
+            .{ .name = "continuous", .type = .{ .@"struct" = .{ .name = "tlb.ContinuousBounds" } } },
+            .{ .name = "discrete", .type = .{ .@"struct" = .{ .name = "tlb.DiscreteBounds" } } },
+        } },
+        .{ .name = "tlb.Clip", .fields = .{
+            .{ .name = "name", .type = .string },
+            .{ .name = "bounds", .type = .{ .table = .{ .name = "tlb.Bounds" } } },
+            .{ .name = "media", .type = .{ .table = .{ .name = "tlb.MediaReference" } } },
+            .{ .name = "metadata_hash", .type = .string },
+            .{ .name = "markers", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .table = .{ .name = "tlb.Marker" } },
+                .minalign = 4,
+            } } },
+        } },
+        .{ .name = "tlb.Collection", .fields = .{
+            .{
+                .name = "schema_version",
+                .type = .{ .int = .u32 },
+                .default_integer = 1,
+            },
+            .{ .name = "name", .type = .string },
+            .{ .name = "description", .type = .string },
+            .{ .name = "children", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .table = .{ .name = "tlb.CollectionItemWrapper" } },
+                .minalign = 4,
+            } } },
+            .{ .name = "metadata_map", .type = .{ .table = .{ .name = "tlb.MetadataMap" } } },
+        } },
+        .{ .name = "tlb.CollectionItemWrapper", .fields = .{
+            .{ .name = "item_type", .type = .{ .@"enum" = .{ .name = "tlb.CollectionItemType" } } },
+            .{ .name = "timeline", .type = .{ .table = .{ .name = "tlb.Timeline" } } },
+            .{ .name = "track", .type = .{ .table = .{ .name = "tlb.Track" } } },
+            .{ .name = "stack", .type = .{ .table = .{ .name = "tlb.Stack" } } },
+            .{ .name = "clip", .type = .{ .table = .{ .name = "tlb.Clip" } } },
+            .{ .name = "gap", .type = .{ .table = .{ .name = "tlb.Gap" } } },
+            .{ .name = "warp", .type = .{ .table = .{ .name = "tlb.Warp" } } },
+            .{ .name = "transition", .type = .{ .table = .{ .name = "tlb.Transition" } } },
+        } },
+        .{ .name = "tlb.ComposableWrapper", .fields = .{
+            .{ .name = "comp_type", .type = .{ .@"enum" = .{ .name = "tlb.ComposableType" } } },
+            .{ .name = "clip", .type = .{ .table = .{ .name = "tlb.Clip" } } },
+            .{ .name = "gap", .type = .{ .table = .{ .name = "tlb.Gap" } } },
+            .{ .name = "track", .type = .{ .table = .{ .name = "tlb.Track" } } },
+            .{ .name = "stack", .type = .{ .table = .{ .name = "tlb.Stack" } } },
+            .{ .name = "warp", .type = .{ .table = .{ .name = "tlb.Warp" } } },
+            .{ .name = "transition", .type = .{ .table = .{ .name = "tlb.Transition" } } },
+        } },
+        .{ .name = "tlb.DiscretePartitionDomainMap", .fields = .{ .{ .name = "picture", .type = .{ .table = .{ .name = "tlb.SampleIndexGenerator" } } }, .{ .name = "audio", .type = .{ .table = .{ .name = "tlb.SampleIndexGenerator" } } } } },
+        .{ .name = "tlb.Domain", .fields = .{ .{ .name = "domain_type", .type = .{ .@"enum" = .{ .name = "tlb.DomainType" } } }, .{ .name = "other_name", .type = .string } } },
+        .{ .name = "tlb.Gap", .fields = .{
+            .{ .name = "name", .type = .string },
+            .{ .name = "bounds_start", .type = .{ .float = .f64 } },
+            .{ .name = "bounds_end", .type = .{ .float = .f64 } },
+            .{ .name = "markers", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .table = .{ .name = "tlb.Marker" } },
+                .minalign = 4,
+            } } },
+        } },
+        .{ .name = "tlb.ImageSequenceReference", .fields = .{
+            .{
+                .name = "target_url_base",
+                .type = .string,
+                .required = true,
+            },
+            .{ .name = "name_prefix", .type = .string },
+            .{ .name = "name_suffix", .type = .string },
+            .{
+                .name = "start_frame",
+                .type = .{ .int = .i32 },
+                .default_integer = 1,
+            },
+            .{
+                .name = "frame_step",
+                .type = .{ .int = .i32 },
+                .default_integer = 1,
+            },
+            .{ .name = "frame_zero_padding", .type = .{ .int = .u8 } },
+            .{
+                .name = "rate",
+                .type = .{ .float = .f64 },
+                .default_real = 24,
+            },
+            .{ .name = "missing_frame_policy", .type = .string },
+        } },
+        .{ .name = "tlb.IntRate", .fields = .{.{ .name = "value", .type = .{ .int = .u32 } }} },
+        .{ .name = "tlb.LinearRampSignal", .fields = .{} },
+        .{ .name = "tlb.MappingAffine", .fields = .{
+            .{ .name = "input_bounds_start", .type = .{ .float = .f64 } },
+            .{ .name = "input_bounds_end", .type = .{ .float = .f64 } },
+            .{ .name = "transform", .type = .{ .@"struct" = .{ .name = "tlb.AffineTransform1D" } } },
+        } },
+        .{ .name = "tlb.MappingLinear", .fields = .{
+            .{ .name = "input_bounds_start", .type = .{ .float = .f64 } },
+            .{ .name = "input_bounds_end", .type = .{ .float = .f64 } },
+            .{ .name = "knots", .type = .{ .vector = .{
+                .element_size = 16,
+                .element = .{ .@"struct" = .{ .name = "tlb.ControlPoint" } },
+                .minalign = 8,
+            } } },
+        } },
+        .{ .name = "tlb.MappingWrapper", .fields = .{
+            .{ .name = "mapping_type", .type = .{ .@"enum" = .{ .name = "tlb.MappingType" } } },
+            .{ .name = "affine", .type = .{ .table = .{ .name = "tlb.MappingAffine" } } },
+            .{ .name = "linear", .type = .{ .table = .{ .name = "tlb.MappingLinear" } } },
+        } },
+        .{ .name = "tlb.Marker", .fields = .{
+            .{ .name = "name", .type = .string },
+            .{ .name = "marked_range_start", .type = .{ .float = .f64 } },
+            .{ .name = "marked_range_end", .type = .{ .float = .f64 } },
+            .{
+                .name = "color",
+                .type = .string,
+                .required = true,
+            },
+            .{ .name = "comment", .type = .string },
+        } },
+        .{ .name = "tlb.MediaReference", .fields = .{
+            .{ .name = "data_reference_type", .type = .{ .@"union" = .{ .name = "tlb.MediaDataReference" } } },
+            .{ .name = "bounds", .type = .{ .table = .{ .name = "tlb.Bounds" } } },
+            .{ .name = "domain", .type = .{ .table = .{ .name = "tlb.Domain" } } },
+            .{ .name = "discrete_partition", .type = .{ .table = .{ .name = "tlb.SampleIndexGenerator" } } },
+            .{ .name = "interpolating", .type = .{ .@"enum" = .{ .name = "tlb.MediaInterpolationType" } } },
+        } },
+        .{ .name = "tlb.MetadataBlock", .fields = .{
+            .{ .name = "keys", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .string,
+                .minalign = 4,
+            } } },
+            .{ .name = "types", .type = .{ .vector = .{
+                .element_size = 1,
+                .element = .{ .int = .i8 },
+                .minalign = 4,
+            } } },
+            .{ .name = "scalars", .type = .{ .vector = .{
+                .element_size = 24,
+                .element = .{ .@"struct" = .{ .name = "tlb.PackedScalar" } },
+                .minalign = 8,
+            } } },
+            .{ .name = "string_values", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .string,
+                .minalign = 4,
+            } } },
+            .{ .name = "string_indices", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .int = .u32 },
+                .minalign = 4,
+            } } },
+            .{ .name = "nested_blocks", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .table = .{ .name = "tlb.MetadataBlock" } },
+                .minalign = 4,
+            } } },
+            .{ .name = "nested_indices", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .int = .u32 },
+                .minalign = 4,
+            } } },
+            .{ .name = "array_blocks", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .table = .{ .name = "tlb.MetadataBlock" } },
+                .minalign = 4,
+            } } },
+            .{ .name = "array_indices", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .int = .u32 },
+                .minalign = 4,
+            } } },
+        } },
+        .{ .name = "tlb.MetadataMap", .fields = .{
+            .{ .name = "hashes", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .string,
+                .minalign = 4,
+            } } },
+            .{ .name = "block_offsets", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .int = .u32 },
+                .minalign = 4,
+            } } },
+            .{ .name = "block_lengths", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .int = .u32 },
+                .minalign = 4,
+            } } },
+            .{ .name = "all_keys", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .string,
+                .minalign = 4,
+            } } },
+            .{ .name = "all_types", .type = .{ .vector = .{
+                .element_size = 1,
+                .element = .{ .int = .u8 },
+                .minalign = 4,
+            } } },
+            .{ .name = "all_scalars", .type = .{ .vector = .{
+                .element_size = 24,
+                .element = .{ .@"struct" = .{ .name = "tlb.PackedScalar" } },
+                .minalign = 8,
+            } } },
+            .{ .name = "string_values", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .string,
+                .minalign = 4,
+            } } },
+            .{ .name = "string_key_indices", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .int = .u32 },
+                .minalign = 4,
+            } } },
+            .{ .name = "string_value_indices", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .int = .u32 },
+                .minalign = 4,
+            } } },
+            .{ .name = "nested_blocks", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .table = .{ .name = "tlb.MetadataBlock" } },
+                .minalign = 4,
+            } } },
+            .{ .name = "nested_key_indices", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .int = .u32 },
+                .minalign = 4,
+            } } },
+            .{ .name = "nested_block_indices", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .int = .u32 },
+                .minalign = 4,
+            } } },
+        } },
+        .{ .name = "tlb.NullReference", .fields = .{} },
+        .{ .name = "tlb.RationalRate", .fields = .{ .{ .name = "num", .type = .{ .int = .u32 } }, .{ .name = "den", .type = .{ .int = .u32 } } } },
+        .{ .name = "tlb.SampleIndexGenerator", .fields = .{ .{ .name = "sample_rate_hz_type", .type = .{ .@"union" = .{ .name = "tlb.RateSpecifier" } } }, .{ .name = "start_index", .type = .{ .int = .i64 } } } },
+        .{ .name = "tlb.SignalReference", .fields = .{.{ .name = "signal_generator_type", .type = .{ .@"union" = .{ .name = "tlb.SignalGenerator" } } }} },
+        .{ .name = "tlb.SineSignal", .fields = .{.{ .name = "frequency_hz", .type = .{ .float = .f64 } }} },
+        .{ .name = "tlb.Stack", .fields = .{
+            .{ .name = "name", .type = .string },
+            .{ .name = "bounds", .type = .{ .table = .{ .name = "tlb.Bounds" } } },
+            .{ .name = "children", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .table = .{ .name = "tlb.ComposableWrapper" } },
+                .minalign = 4,
+            } } },
+            .{ .name = "markers", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .table = .{ .name = "tlb.Marker" } },
+                .minalign = 4,
+            } } },
+        } },
+        .{ .name = "tlb.Timeline", .fields = .{
+            .{
+                .name = "schema_version",
+                .type = .{ .int = .u32 },
+                .default_integer = 1,
+            },
+            .{ .name = "name", .type = .string },
+            .{ .name = "children", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .table = .{ .name = "tlb.ComposableWrapper" } },
+                .minalign = 4,
+            } } },
+            .{ .name = "presentation_space_discrete_partitions", .type = .{ .table = .{ .name = "tlb.DiscretePartitionDomainMap" } } },
+            .{ .name = "metadata_map", .type = .{ .table = .{ .name = "tlb.MetadataMap" } } },
+            .{ .name = "markers", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .table = .{ .name = "tlb.Marker" } },
+                .minalign = 4,
+            } } },
+        } },
+        .{ .name = "tlb.Topology", .fields = .{.{ .name = "mappings", .type = .{ .vector = .{
+            .element_size = 4,
+            .element = .{ .table = .{ .name = "tlb.MappingWrapper" } },
+            .minalign = 4,
+        } } }} },
+        .{ .name = "tlb.Track", .fields = .{
+            .{ .name = "name", .type = .string },
+            .{ .name = "bounds", .type = .{ .table = .{ .name = "tlb.Bounds" } } },
+            .{ .name = "children", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .table = .{ .name = "tlb.ComposableWrapper" } },
+                .minalign = 4,
+            } } },
+            .{ .name = "markers", .type = .{ .vector = .{
+                .element_size = 4,
+                .element = .{ .table = .{ .name = "tlb.Marker" } },
+                .minalign = 4,
+            } } },
+        } },
+        .{ .name = "tlb.Transition", .fields = .{
+            .{ .name = "name", .type = .string },
+            .{ .name = "container", .type = .{ .table = .{ .name = "tlb.Stack" } } },
+            .{
+                .name = "kind",
+                .type = .string,
+                .required = true,
+            },
+            .{ .name = "bounds_start", .type = .{ .float = .f64 } },
+            .{ .name = "bounds_end", .type = .{ .float = .f64 } },
+            .{ .name = "has_bounds", .type = .bool },
+        } },
+        .{ .name = "tlb.URIReference", .fields = .{.{
+            .name = "target_uri",
+            .type = .string,
+            .required = true,
+        }} },
+        .{ .name = "tlb.Warp", .fields = .{
+            .{ .name = "name", .type = .string },
+            .{ .name = "child", .type = .{ .table = .{ .name = "tlb.ComposableWrapper" } } },
+            .{ .name = "transform", .type = .{ .table = .{ .name = "tlb.Topology" } } },
+        } },
+    },
+    .enums = .{
+        .{
+            .name = "tlb.BoundsType",
+            .backing_integer = .i8,
+            .values = .{ .{ .name = "Continuous", .value = 0 }, .{ .name = "Discrete", .value = 1 } },
+        },
+        .{
+            .name = "tlb.CollectionItemType",
+            .backing_integer = .i8,
+            .values = .{
+                .{ .name = "TimelineItem", .value = 0 },
+                .{ .name = "TrackItem", .value = 1 },
+                .{ .name = "StackItem", .value = 2 },
+                .{ .name = "ClipItem", .value = 3 },
+                .{ .name = "GapItem", .value = 4 },
+                .{ .name = "WarpItem", .value = 5 },
+                .{ .name = "TransitionItem", .value = 6 },
+            },
+        },
+        .{
+            .name = "tlb.ComposableType",
+            .backing_integer = .i8,
+            .values = .{
+                .{ .name = "Clip", .value = 0 },
+                .{ .name = "Gap", .value = 1 },
+                .{ .name = "Track", .value = 2 },
+                .{ .name = "Stack", .value = 3 },
+                .{ .name = "Warp", .value = 4 },
+                .{ .name = "Transition", .value = 5 },
+            },
+        },
+        .{
+            .name = "tlb.DomainType",
+            .backing_integer = .i8,
+            .values = .{
+                .{ .name = "Time", .value = 0 },
+                .{ .name = "Picture", .value = 1 },
+                .{ .name = "Audio", .value = 2 },
+                .{ .name = "Metadata", .value = 3 },
+                .{ .name = "Other", .value = 4 },
+            },
+        },
+        .{
+            .name = "tlb.MappingType",
+            .backing_integer = .i8,
+            .values = .{
+                .{ .name = "Affine", .value = 0 },
+                .{ .name = "Linear", .value = 1 },
+                .{ .name = "Empty", .value = 2 },
+            },
+        },
+        .{
+            .name = "tlb.MediaInterpolationType",
+            .backing_integer = .i8,
+            .values = .{
+                .{ .name = "Interpolate", .value = 0 },
+                .{ .name = "Snap", .value = 1 },
+                .{ .name = "DefaultFromDomain", .value = 2 },
+            },
+        },
+        .{
+            .name = "tlb.MetadataType",
+            .backing_integer = .i8,
+            .values = .{
+                .{ .name = "Null", .value = 0 },
+                .{ .name = "Bool", .value = 1 },
+                .{ .name = "Int", .value = 2 },
+                .{ .name = "Float", .value = 3 },
+                .{ .name = "String", .value = 4 },
+                .{ .name = "Array", .value = 5 },
+                .{ .name = "KV", .value = 6 },
+            },
+        },
+    },
+    .unions = .{
+        .{ .name = "tlb.MediaDataReference", .options = .{
+            .{ .table = .{ .name = "tlb.URIReference" } },
+            .{ .table = .{ .name = "tlb.SignalReference" } },
+            .{ .table = .{ .name = "tlb.ImageSequenceReference" } },
+            .{ .table = .{ .name = "tlb.NullReference" } },
+        } },
+        .{ .name = "tlb.RateSpecifier", .options = .{ .{ .table = .{ .name = "tlb.IntRate" } }, .{ .table = .{ .name = "tlb.RationalRate" } } } },
+        .{ .name = "tlb.SignalGenerator", .options = .{ .{ .table = .{ .name = "tlb.SineSignal" } }, .{ .table = .{ .name = "tlb.LinearRampSignal" } } } },
+    },
+    .structs = .{
+        .{
+            .name = "tlb.AffineTransform1D",
+            .fields = .{ .{
+                .name = "offset",
+                .type = .{ .float = .f64 },
+                .offset = 0,
+            }, .{
+                .name = "scale",
+                .type = .{ .float = .f64 },
+                .offset = 8,
+            } },
+            .bytesize = 16,
+            .minalign = 8,
+        },
+        .{
+            .name = "tlb.ContinuousBounds",
+            .fields = .{ .{
+                .name = "end",
+                .type = .{ .float = .f64 },
+                .offset = 8,
+            }, .{
+                .name = "start",
+                .type = .{ .float = .f64 },
+                .offset = 0,
+            } },
+            .bytesize = 16,
+            .minalign = 8,
+        },
+        .{
+            .name = "tlb.ControlPoint",
+            .fields = .{ .{
+                .name = "in_val",
+                .type = .{ .float = .f64 },
+                .offset = 0,
+            }, .{
+                .name = "out_val",
+                .type = .{ .float = .f64 },
+                .offset = 8,
+            } },
+            .bytesize = 16,
+            .minalign = 8,
+        },
+        .{
+            .name = "tlb.DiscreteBounds",
+            .fields = .{ .{
+                .name = "end",
+                .type = .{ .int = .i64 },
+                .offset = 8,
+            }, .{
+                .name = "start",
+                .type = .{ .int = .i64 },
+                .offset = 0,
+            } },
+            .bytesize = 16,
+            .minalign = 8,
+        },
+        .{
+            .name = "tlb.PackedScalar",
+            .fields = .{
+                .{
+                    .name = "bool_val",
+                    .type = .bool,
+                    .offset = 0,
+                },
+                .{
+                    .name = "float_val",
+                    .type = .{ .float = .f64 },
+                    .offset = 16,
+                },
+                .{
+                    .name = "int_val",
+                    .type = .{ .int = .i64 },
+                    .offset = 8,
+                },
+            },
+            .bytesize = 24,
+            .minalign = 8,
+        },
+    },
+    .bit_flags = .{},
+    .root_table = .{ .name = "tlb.Timeline" },
+}

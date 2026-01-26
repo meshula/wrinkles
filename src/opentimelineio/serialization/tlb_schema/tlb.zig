@@ -2,7 +2,7 @@ const std = @import("std");
 
 const flatbuffers = @import("flatbuffers");
 
-const @"#schema": flatbuffers.types.Schema = @import("stdout.zon");
+const @"#schema": flatbuffers.types.Schema = @import("tlb.zon");
 
 pub const tlb = struct {
 pub const @"BoundsType" = enum(i8) {
