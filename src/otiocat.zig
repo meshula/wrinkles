@@ -412,7 +412,8 @@ pub fn main() !void
         convert_prog.end();
     }
 
-    if (state.output_path) |path|
+    if (state.output_path) 
+        |path|
     {
         std.log.info("Wrote: {s}", .{path});
     }

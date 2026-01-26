@@ -424,7 +424,7 @@ didn't impact the deisgn or problems we were specifically solving.
         * [x] remove .ziggy files
         * [ ] language bindings -> bindings directory
     * [ ] style pass
-    * [ ] figure out where the ERROR CONVERTING messages come from
+    * [x] figure out where the ERROR CONVERTING messages come from
     * [ ] add a FileFormat struct that maps formats to extensions and
           serializers/deserializers
     * [ ] specifically look for string matching to convert to enums and clean

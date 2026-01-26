@@ -3126,17 +3126,17 @@ test "timeline serialization: ziggy round-trip"
 
 /// Supported file format types for read/write operations
 pub const FileFormat = enum {
-    /// OpenTimelineIO JSON format
+    /// OpenTimelineIO v1 legacy JSON format
     otio,
     /// TLA (Timeline ASCII) text format
     tla,
-    /// Binary FlatBuffers format
+    /// TLB (Timeline Binary) flatbuffers-based binary format
     tlb,
-    /// TLZ bundle (ZIP archive)
+    /// TLZ bundle (ZIP archive of playlist + media)
     tlz,
     /// TLCA (Timeline Collection ASCII) text format
     tlca,
-    /// TLCB (Timeline Collection Binary) FlatBuffers format
+    /// TLCB (Timeline Collection Binary) flatbuffers-based binary format
     tlcb,
 };
 
