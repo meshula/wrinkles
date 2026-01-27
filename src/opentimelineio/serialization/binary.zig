@@ -177,7 +177,7 @@ fn rate_to_fb(
         .Int => |val| .{
             .IntRate = try builder.writeTable(tlb.IntRate, .{ .value = val }),
         },
-        .Rat => |r| .{
+        .Rational => |r| .{
             .RationalRate = try builder.writeTable(
                 tlb.RationalRate,
                 .{ .num = r.num, .den = r.den },
@@ -1424,7 +1424,7 @@ fn fb_to_rate(
 {
     return switch (fb_rate) {
         .IntRate => |rate| .{ .Int = rate.value() },
-        .RationalRate => |rate| .{ .Rat = .{ .num = rate.num(), .den = rate.den() } },
+        .RationalRate => |rate| .{ .Rational = .{ .num = rate.num(), .den = rate.den() } },
         .NONE => .{ .Int = 1 }, // Default
     };
 }

@@ -726,7 +726,7 @@ fn otio_fetch_discrete_info_erroring(
     {
         const rate : c.otio_Rational = switch (di.sample_rate_hz) {
             .Int => |i| .{ .num = i, .den = 1 },
-            .Rat => |r| .{ .num = r.num, .den = r.den },
+            .Rational => |r| .{ .num = r.num, .den = r.den },
         };
 
         result.* = .{
@@ -906,7 +906,7 @@ pub export fn otio_clip_media(
         result.*.discrete_info.start_index = di.start_index;
         result.*.discrete_info.sample_rate_hz = switch (di.sample_rate_hz) {
             .Int => |i| .{ .num = i, .den = 1 },
-            .Rat => |r| .{ .num = r.num, .den = r.den },
+            .Rational => |r| .{ .num = r.num, .den = r.den },
         };
     }
 

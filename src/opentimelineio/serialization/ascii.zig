@@ -938,7 +938,12 @@ fn rate_to_serializable(
 {
     return switch (rate) {
         .Int => |val| .{ .Int = val },
-        .Rat => |r| .{ .Rational = .{ .num = r.num, .den = r.den } },
+        .Rational => |r| .{
+            .Rational = .{
+                .num = r.num,
+                .den = r.den,
+            },
+        },
     };
 }
 
@@ -948,7 +953,9 @@ fn serializable_to_rate(
 {
     return switch (ser_rate) {
         .Int => |val| .{ .Int = val },
-        .Rational => |r| .{ .Rat = .{ .num = r.num, .den = r.den } },
+        .Rational => |r| .{
+            .Rational = .{ .num = r.num, .den = r.den },
+        },
     };
 }
 

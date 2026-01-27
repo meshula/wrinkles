@@ -1095,12 +1095,12 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
         .discrete_space_partitions = .{ 
             .presentation = .{
                 .picture = .{
-                    .sample_rate_hz = .{ 
+                    .sample_rate_hz = .{
                         // matches the media rate
-                        .Rat = .{
+                        .Rational = .{
                             .num = 24 * 1000,
-                            .den = 1001 
-                        } 
+                            .den = 1001
+                        }
                     },
                     .start_index = 0,
                 },
@@ -1406,7 +1406,7 @@ test "ImageSequenceReference: read from TLA file and verify frame numbering"
     // Verify sample rate is 24
     const sample_rate: i64 = switch (discrete_partition.sample_rate_hz) {
         .Int => |i| i,
-        .Rat => |r| @intFromFloat(r.as_float()),
+        .Rational => |r| @intFromFloat(r.as_float()),
     };
     try std.testing.expectEqual(@as(i64, 24), sample_rate);
 

@@ -345,7 +345,7 @@ pub const URational = struct {
 
 pub const RateSpecifier = union (enum) {
     Int: sample_rate_base_t,
-    Rat: URational,
+    Rational: URational,
 
     pub fn as_ordinate(
         self: @This(),
@@ -356,7 +356,7 @@ pub const RateSpecifier = union (enum) {
                 sample_ordinate_t.InnerType,
                 switch (self) {
                     inline .Int => |b| @floatFromInt(b),
-                    inline .Rat => |r| r.as_float(),
+                    inline .Rational => |r| r.as_float(),
                 }
             )
         );
@@ -368,12 +368,12 @@ pub const RateSpecifier = union (enum) {
     ) sample_ordinate_t
     {
         return opentime.Ordinate.init(
-            1.0 / 
+            1.0 /
             @as(
                 sample_ordinate_t.InnerType,
                 switch (self) {
                     inline .Int => |b| @floatFromInt(b),
-                    inline .Rat => |r| r.as_float(),
+                    inline .Rational => |r| r.as_float(),
                 }
             )
         );
@@ -382,7 +382,7 @@ pub const RateSpecifier = union (enum) {
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
-    ) !void 
+    ) !void
     {
         try writer.print(
             "Rate{{ ",
@@ -391,7 +391,7 @@ pub const RateSpecifier = union (enum) {
 
         switch (self) {
             inline .Int => |b| try writer.print("{d}", .{ b }),
-            inline .Rat => |r| try writer.print("{d}/{d}", .{r.num, r.den}),
+            inline .Rational => |r| try writer.print("{d}/{d}", .{r.num, r.den}),
         }
 
         try writer.print(
