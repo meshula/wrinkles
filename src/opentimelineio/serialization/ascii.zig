@@ -183,6 +183,43 @@ pub const SerializableClip = struct {
     /// Wyhash key referencing an entry in the Timeline's metadata_map
     metadata_hash: ?[]const u8 = null,
     markers: []SerializableMarker = &.{},
+
+    pub fn from(
+        allocator: Allocator,
+        clip: schema.Clip,
+        maybe_meta_ctx: ?*MetadataContext,
+    ) !SerializableClip
+    {
+        // Handle metadata if present and context provided
+        const metadata_hash: ?[]const u8 = (
+            if (clip.maybe_metadata_json) |json_meta| blk: {
+                if (maybe_meta_ctx) |meta_ctx| {
+                    break :blk try meta_ctx.add_metadata(json_meta);
+                }
+                break :blk null;
+            } else null
+        );
+
+        return .{
+            .name = try copy_optional_string(
+                allocator,
+                clip.maybe_name,
+            ),
+            .bounds_s = optional_bounds_to_serializable(
+                clip.maybe_bounds_s,
+                clip.media.maybe_discrete_partition,
+            ),
+            .media = try media_reference_to_serializable(
+                allocator,
+                clip.media,
+            ),
+            .metadata_hash = metadata_hash,
+            .markers = try markers_to_serializable(
+                allocator,
+                clip.markers,
+            ),
+        };
+    }
 };
 
 /// Serializable variant of Clip with inline metadata (for --inline-metadata output)
@@ -1530,43 +1567,6 @@ fn markers_to_serializable(
     return ser_markers;
 }
 
-pub fn clip_to_serializable(
-    allocator: Allocator,
-    clip: schema.Clip,
-    maybe_meta_ctx: ?*MetadataContext,
-) !SerializableClip
-{
-    // Handle metadata if present and context provided
-    const metadata_hash: ?[]const u8 = (
-        if (clip.maybe_metadata_json) |json_meta| blk: {
-            if (maybe_meta_ctx) |meta_ctx| {
-                break :blk try meta_ctx.add_metadata(json_meta);
-            }
-            break :blk null;
-        } else null
-    );
-
-    return .{
-        .name = try copy_optional_string(
-            allocator,
-            clip.maybe_name,
-        ),
-        .bounds_s = optional_bounds_to_serializable(
-            clip.maybe_bounds_s,
-            clip.media.maybe_discrete_partition,
-        ),
-        .media = try media_reference_to_serializable(
-            allocator,
-            clip.media,
-        ),
-        .metadata_hash = metadata_hash,
-        .markers = try markers_to_serializable(
-            allocator,
-            clip.markers,
-        ),
-    };
-}
-
 pub fn gap_to_serializable(
     allocator: Allocator,
     gap: schema.Gap,
@@ -1718,7 +1718,7 @@ pub fn composable_to_serializable(
     );
     result_ptr.* = switch (handle) {
         .clip => |clip_ptr| .{
-            .clip = try clip_to_serializable(
+            .clip = try .from(
                 allocator,
                 clip_ptr.*,
                 maybe_meta_ctx,
@@ -2673,7 +2673,7 @@ pub fn otio_json_to_serializable_timeline(
 
         .clip => |clip_ptr| try wrap_in_timeline(
             allocator,
-            .{ .clip = try clip_to_serializable(allocator, clip_ptr.*, &meta_ctx) },
+            .{ .clip = try .from(allocator, clip_ptr.*, &meta_ctx) },
             clip_ptr.maybe_name,
             &metadata_map,
         ),
@@ -3162,7 +3162,7 @@ test "clip serialization: round-trip"
     };
 
     // Convert to serializable (no metadata context for this test)
-    const ser_clip = try clip_to_serializable(allocator, clip, null);
+    const ser_clip = try SerializableClip.from(allocator, clip, null);
     defer allocator.free(ser_clip.name.?);
     defer allocator.free(ser_clip.media.data_reference.uri.target_uri);
 
