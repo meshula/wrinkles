@@ -11,4 +11,3 @@ pub const MetadataMode = ascii.MetadataMode;
 pub const read_from_file = legacy_json.read_from_file;
 pub const read_collection_from_file = ascii.read_collection_from_file;
 pub const write_to_file = ascii.write_to_file;
-pub const timeline_to_serializable = ascii.timeline_to_serializable;

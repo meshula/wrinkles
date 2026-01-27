@@ -139,7 +139,7 @@ pub export fn otio_write_to_file(
     });
 
     // Convert to serializable format
-    var ser_timeline = otio.serialization.timeline_to_serializable(
+    var ser_timeline = otio.serialization.SerializableTimeline.from(
         allocator,
         timeline,
     ) catch |err| {

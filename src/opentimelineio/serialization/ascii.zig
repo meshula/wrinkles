@@ -52,6 +52,30 @@ pub const SerializableDiscreteInterval = [2]i64;
 pub const SerializableBounds = union(enum) {
     continuous: SerializableContinuousInterval,
     discrete: SerializableDiscreteInterval,
+
+    /// Convert ContinuousInterval to SerializableBounds (discrete if partition exists)
+    pub fn from(
+        interval: opentime.ContinuousInterval,
+        maybe_discrete_partition: ?sampling.SampleIndexGenerator,
+    ) SerializableBounds {
+        if (maybe_discrete_partition) |sig| {
+            const start_index = sampling.project_instantaneous_cd(sig, interval.start);
+            const end_index = sampling.project_instantaneous_cd(sig, interval.end);
+            return .{ .discrete = .{ @intCast(start_index), @intCast(end_index) } };
+        } else {
+            return .{ .continuous = .{ interval.start.as(f64), interval.end.as(f64) } };
+        }
+    }
+
+    pub fn from_optional(
+        maybe_interval: ?opentime.ContinuousInterval,
+        maybe_discrete_partition: ?sampling.SampleIndexGenerator,
+    ) ?SerializableBounds {
+        return if (maybe_interval) |interval|
+            SerializableBounds.from(interval, maybe_discrete_partition)
+        else
+            null;
+    }
 };
 
 /// Serializable variant of AffineTransform1D with unboxed ordinates
@@ -68,12 +92,30 @@ pub const SerializableControlPoint = [2]f64;
 pub const SerializableRateSpecifier = union(enum) {
     Integer: u32,
     Rational: struct { num: u32, den: u32 },
+
+    pub fn from(rate: sampling.RateSpecifier) SerializableRateSpecifier {
+        return switch (rate) {
+            .Integer => |val| .{ .Integer = val },
+            .Rational => |r| .{ .Rational = .{ .num = r.num, .den = r.den } },
+        };
+    }
 };
 
 /// Serializable variant of SampleIndexGenerator
 pub const SerializableSampleIndexGenerator = struct {
     sample_rate_hz: SerializableRateSpecifier,
     start_index: i64 = 0,
+
+    pub fn from(sig: sampling.SampleIndexGenerator) SerializableSampleIndexGenerator {
+        return .{
+            .sample_rate_hz = SerializableRateSpecifier.from(sig.sample_rate_hz),
+            .start_index = sig.start_index,
+        };
+    }
+
+    pub fn from_optional(maybe_sig: ?sampling.SampleIndexGenerator) ?SerializableSampleIndexGenerator {
+        return if (maybe_sig) |sig| SerializableSampleIndexGenerator.from(sig) else null;
+    }
 };
 
 /// Serializable variant of Domain
@@ -84,12 +126,18 @@ pub const SerializableDomain = union(enum) {
     metadata: struct {},
     other: struct { name: []const u8 },
 
+    pub fn from(allocator: Allocator, dom: domain.Domain) !SerializableDomain {
+        return switch (dom) {
+            .time => .{ .time = .{} },
+            .picture => .{ .picture = .{} },
+            .audio => .{ .audio = .{} },
+            .metadata => .{ .metadata = .{} },
+            .other => |s| .{ .other = .{ .name = try allocator.dupe(u8, s) } },
+        };
+    }
+
     /// Free memory owned by the SerializableDomain.
-    pub fn deinit(
-        self: @This(),
-        allocator: Allocator,
-    ) void
-    {
+    pub fn deinit(self: @This(), allocator: Allocator) void {
         switch (self) {
             .other => |o| allocator.free(o.name),
             else => {},
@@ -104,12 +152,29 @@ pub const SerializableMediaDataReference = union(enum) {
     image_sequence: SerializableImageSequenceReference,
     null: struct {},
 
+    pub fn from(allocator: Allocator, ref: schema.MediaDataReference) !SerializableMediaDataReference {
+        return switch (ref) {
+            .uri => |uri_ref| .{
+                .uri = .{ .target_uri = try allocator.dupe(u8, uri_ref.target_uri) },
+            },
+            .signal => |sig_ref| .{
+                .signal = .{ .signal_generator = SerializableSignalGenerator.from(sig_ref.signal_generator) },
+            },
+            .image_sequence => |img_seq| .{
+                .image_sequence = .{
+                    .target_url_base = try allocator.dupe(u8, img_seq.target_url_base),
+                    .name_prefix = try allocator.dupe(u8, img_seq.name_prefix),
+                    .name_suffix = try allocator.dupe(u8, img_seq.name_suffix),
+                    .frame_zero_padding = img_seq.frame_zero_padding,
+                    .missing_frame_policy = try allocator.dupe(u8, @tagName(img_seq.missing_frame_policy)),
+                },
+            },
+            .null => .null,
+        };
+    }
+
     /// Free memory owned by the SerializableMediaDataReference.
-    pub fn deinit(
-        self: @This(),
-        allocator: Allocator,
-    ) void
-    {
+    pub fn deinit(self: @This(), allocator: Allocator) void {
         switch (self) {
             .uri => |uri_ref| allocator.free(uri_ref.target_uri),
             .image_sequence => |img_seq| img_seq.deinit(allocator),
@@ -150,10 +215,15 @@ pub const SerializableImageSequenceReference = struct {
 };
 
 pub const SerializableSignalGenerator = union(enum) {
-    sine: struct {
-        frequency_hz: f64,
-    },
+    sine: struct { frequency_hz: f64 },
     linear_ramp: struct {},
+
+    pub fn from(gen: sampling.SignalGenerator) SerializableSignalGenerator {
+        return switch (gen.signal) {
+            .sine => .{ .sine = .{ .frequency_hz = @floatFromInt(gen.frequency_hz) } },
+            .ramp => .{ .linear_ramp = .{} },
+        };
+    }
 };
 
 /// Serializable variant of MediaReference
@@ -164,12 +234,18 @@ pub const SerializableMediaReference = struct {
     discrete_partition: ?SerializableSampleIndexGenerator = null,
     interpolating: ?schema.ResamplingBehavior = null,
 
+    pub fn from(allocator: Allocator, ref: schema.MediaReference) !SerializableMediaReference {
+        return .{
+            .data_reference = try SerializableMediaDataReference.from(allocator, ref.data_reference),
+            .bounds_s = SerializableBounds.from_optional(ref.maybe_bounds_s, ref.maybe_discrete_partition),
+            .domain = try SerializableDomain.from(allocator, ref.domain),
+            .discrete_partition = SerializableSampleIndexGenerator.from_optional(ref.maybe_discrete_partition),
+            .interpolating = if (ref.interpolating == .default_from_domain) null else ref.interpolating,
+        };
+    }
+
     /// Free memory owned by the SerializableMediaReference.
-    pub fn deinit(
-        self: @This(),
-        allocator: Allocator,
-    ) void
-    {
+    pub fn deinit(self: @This(), allocator: Allocator) void {
         self.data_reference.deinit(allocator);
         self.domain.deinit(allocator);
     }
@@ -188,36 +264,21 @@ pub const SerializableClip = struct {
         allocator: Allocator,
         clip: schema.Clip,
         maybe_meta_ctx: ?*MetadataContext,
-    ) !SerializableClip
-    {
+    ) !SerializableClip {
         // Handle metadata if present and context provided
-        const metadata_hash: ?[]const u8 = (
-            if (clip.maybe_metadata_json) |json_meta| blk: {
-                if (maybe_meta_ctx) |meta_ctx| {
-                    break :blk try meta_ctx.add_metadata(json_meta);
-                }
-                break :blk null;
-            } else null
-        );
+        const metadata_hash: ?[]const u8 = if (clip.maybe_metadata_json) |json_meta| blk: {
+            if (maybe_meta_ctx) |meta_ctx| {
+                break :blk try meta_ctx.add_metadata(json_meta);
+            }
+            break :blk null;
+        } else null;
 
         return .{
-            .name = try copy_optional_string(
-                allocator,
-                clip.maybe_name,
-            ),
-            .bounds_s = optional_bounds_to_serializable(
-                clip.maybe_bounds_s,
-                clip.media.maybe_discrete_partition,
-            ),
-            .media = try media_reference_to_serializable(
-                allocator,
-                clip.media,
-            ),
+            .name = try copy_optional_string(allocator, clip.maybe_name),
+            .bounds_s = SerializableBounds.from_optional(clip.maybe_bounds_s, clip.media.maybe_discrete_partition),
+            .media = try SerializableMediaReference.from(allocator, clip.media),
             .metadata_hash = metadata_hash,
-            .markers = try markers_to_serializable(
-                allocator,
-                clip.markers,
-            ),
+            .markers = try SerializableMarker.fromSlice(allocator, clip.markers),
         };
     }
 };
@@ -244,21 +305,11 @@ pub const SerializableGap = struct {
     bounds_s: SerializableContinuousInterval,
     markers: []SerializableMarker = &.{},
 
-    pub fn from(
-        allocator: Allocator,
-        gap: schema.Gap,
-    ) !SerializableGap
-    {
+    pub fn from(allocator: Allocator, gap: schema.Gap) !SerializableGap {
         return .{
-            .name = try copy_optional_string(
-                allocator,
-                gap.maybe_name,
-            ),
-            .bounds_s = interval_to_serializable(gap.bounds_s),
-            .markers = try markers_to_serializable(
-                allocator,
-                gap.markers,
-            ),
+            .name = try copy_optional_string(allocator, gap.maybe_name),
+            .bounds_s = .{ gap.bounds_s.start.as(f64), gap.bounds_s.end.as(f64) },
+            .markers = try SerializableMarker.fromSlice(allocator, gap.markers),
         };
     }
 };
@@ -270,11 +321,25 @@ pub const SerializableMarker = struct {
     color: []const u8,
     comment: ?[]const u8 = null,
 
-    pub fn deinit(
-        self: @This(),
-        allocator: Allocator,
-    ) void
-    {
+    pub fn from(allocator: Allocator, marker: schema.Marker) !SerializableMarker {
+        return .{
+            .name = try copy_optional_string(allocator, marker.maybe_name),
+            .marked_range = .{ marker.marked_range.start.as(f64), marker.marked_range.end.as(f64) },
+            .color = try allocator.dupe(u8, marker.color.to_string()),
+            .comment = try copy_optional_string(allocator, marker.maybe_comment),
+        };
+    }
+
+    pub fn fromSlice(allocator: Allocator, markers: []schema.Marker) ![]SerializableMarker {
+        if (markers.len == 0) return &.{};
+        var ser_markers = try allocator.alloc(SerializableMarker, markers.len);
+        for (markers, 0..) |marker, i| {
+            ser_markers[i] = try SerializableMarker.from(allocator, marker);
+        }
+        return ser_markers;
+    }
+
+    pub fn deinit(self: @This(), allocator: Allocator) void {
         if (self.name) |n| allocator.free(n);
         allocator.free(self.color);
         if (self.comment) |c| allocator.free(c);
@@ -286,6 +351,36 @@ pub const SerializableMapping = union(enum) {
     affine: SerializableMappingAffine,
     linear: SerializableMappingLinear,
     empty: struct {},
+
+    pub fn from(allocator: Allocator, mapping: topology_m.mapping.Mapping) !SerializableMapping {
+        return switch (mapping) {
+            .affine => |aff| .{
+                .affine = .{
+                    .input_bounds_val = .{ aff.input_bounds_val.start.as(f64), aff.input_bounds_val.end.as(f64) },
+                    .input_to_output_xform = .{
+                        .offset = aff.input_to_output_xform.offset.as(f64),
+                        .scale = aff.input_to_output_xform.scale.as(f64),
+                    },
+                },
+            },
+            .linear => |lin| blk: {
+                const knots = try allocator.alloc(SerializableControlPoint, lin.input_to_output_curve.knots.len);
+                for (lin.input_to_output_curve.knots, 0..) |knot, i| {
+                    knots[i] = .{ knot.in.as(f64), knot.out.as(f64) };
+                }
+                const input_extents = lin.input_to_output_curve.extents_input() orelse {
+                    break :blk .{ .linear = .{ .input_bounds_val = .{ 0.0, 0.0 }, .knots = knots } };
+                };
+                break :blk .{
+                    .linear = .{
+                        .input_bounds_val = .{ input_extents.start.as(f64), input_extents.end.as(f64) },
+                        .knots = knots,
+                    },
+                };
+            },
+            .empty => .{ .empty = .{} },
+        };
+    }
 };
 
 pub const SerializableMappingAffine = struct {
@@ -301,6 +396,14 @@ pub const SerializableMappingLinear = struct {
 /// Serializable variant of Topology
 pub const SerializableTopology = struct {
     mappings: []SerializableMapping,
+
+    pub fn from(allocator: Allocator, topo: topology_m.Topology) !SerializableTopology {
+        const ser_mappings = try allocator.alloc(SerializableMapping, topo.mappings.len);
+        for (topo.mappings, 0..) |mapping, i| {
+            ser_mappings[i] = try SerializableMapping.from(allocator, mapping);
+        }
+        return .{ .mappings = ser_mappings };
+    }
 };
 
 /// Forward declarations for recursive types
@@ -312,39 +415,42 @@ pub const SerializableComposable = union(enum) {
     warp: SerializableWarp,
     transition: SerializableTransition,
 
-    pub fn deinit(
-        self: *const @This(),
+    pub fn from(
         allocator: Allocator,
-    ) void
-    {
+        handle: schema.references.CompositionItemHandle,
+        maybe_meta_ctx: ?*MetadataContext,
+    ) error{OutOfMemory}!*SerializableComposable {
+        const result_ptr = try allocator.create(SerializableComposable);
+        result_ptr.* = switch (handle) {
+            .clip => |clip_ptr| .{ .clip = try SerializableClip.from(allocator, clip_ptr.*, maybe_meta_ctx) },
+            .gap => |gap_ptr| .{ .gap = try SerializableGap.from(allocator, gap_ptr.*) },
+            .track => |track_ptr| .{ .track = try SerializableTrack.from(allocator, track_ptr.*, maybe_meta_ctx) },
+            .stack => |stack_ptr| .{ .stack = try SerializableStack.from(allocator, stack_ptr.*, maybe_meta_ctx) },
+            .warp => |warp_ptr| .{ .warp = try SerializableWarp.from(allocator, warp_ptr.*, maybe_meta_ctx) },
+            .transition => |trans_ptr| .{ .transition = try SerializableTransition.from(allocator, trans_ptr.*, maybe_meta_ctx) },
+            .timeline => unreachable, // Timeline is not a composable child
+        };
+        return result_ptr;
+    }
+
+    pub fn deinit(self: *const @This(), allocator: Allocator) void {
         switch (self.*) {
             inline else => |thing| {
-                if (thing.name)
-                    |name|
-                {
+                if (thing.name) |name| {
                     allocator.free(name);
                 }
             },
         }
 
-        // @TODO: use inline statements to combine identical cases
         switch (self.*) {
             .clip => |clip| {
-                // Free media reference (URI and domain strings)
                 clip.media.deinit(allocator);
-
-                // Free metadata hash key (the value is in Timeline's
-                // metadata_map)
-                if (clip.metadata_hash) 
-                    |hash_key| 
-                {
+                if (clip.metadata_hash) |hash_key| {
                     allocator.free(hash_key);
                 }
             },
             inline .track, .stack, => |container| {
-                for (container.children)
-                    |*child|
-                {
+                for (container.children) |*child| {
                     child.deinit(allocator);
                 }
                 allocator.free(container.children);
@@ -355,14 +461,10 @@ pub const SerializableComposable = union(enum) {
             },
             .transition => |transition| {
                 allocator.free(transition.kind);
-                if (transition.container.name)
-                    |name|
-                {
+                if (transition.container.name) |name| {
                     allocator.free(name);
                 }
-                for (transition.container.children)
-                    |*child|
-                {
+                for (transition.container.children) |*child| {
                     child.deinit(allocator);
                 }
                 allocator.free(transition.container.children);
@@ -382,27 +484,12 @@ pub const SerializableWarp = struct {
         allocator: Allocator,
         warp: schema.Warp,
         maybe_meta_ctx: ?*MetadataContext,
-    ) !SerializableWarp
-    {
-        const ser_warp_ptr = (
-            try allocator.create(SerializableWarp)
-        );
-        ser_warp_ptr.* = .{
-            .name = try copy_optional_string(
-                allocator,
-                warp.maybe_name,
-            ),
-            .child = try composable_to_serializable(
-                allocator,
-                warp.child,
-                maybe_meta_ctx,
-            ),
-            .transform = try topology_to_serializable(
-                allocator,
-                warp.transform,
-            ),
+    ) !SerializableWarp {
+        return .{
+            .name = try copy_optional_string(allocator, warp.maybe_name),
+            .child = try SerializableComposable.from(allocator, warp.child, maybe_meta_ctx),
+            .transform = try SerializableTopology.from(allocator, warp.transform),
         };
-        return ser_warp_ptr.*;
     }
 };
 
@@ -412,6 +499,22 @@ pub const SerializableStack = struct {
     bounds_s: ?SerializableBounds = null,
     children: []SerializableComposable,
     markers: []SerializableMarker = &.{},
+
+    pub fn from(
+        allocator: Allocator,
+        stack: schema.Stack,
+        maybe_meta_ctx: ?*MetadataContext,
+    ) !SerializableStack {
+        const ser_children = try allocator.alloc(SerializableComposable, stack.children.len);
+        for (stack.children, 0..) |child, i| {
+            ser_children[i] = (try SerializableComposable.from(allocator, child, maybe_meta_ctx)).*;
+        }
+        return .{
+            .name = try copy_optional_string(allocator, stack.maybe_name),
+            .children = ser_children,
+            .markers = try SerializableMarker.fromSlice(allocator, stack.markers),
+        };
+    }
 };
 
 /// Serializable variant of Track
@@ -420,6 +523,22 @@ pub const SerializableTrack = struct {
     bounds_s: ?SerializableBounds = null,
     children: []SerializableComposable,
     markers: []SerializableMarker = &.{},
+
+    pub fn from(
+        allocator: Allocator,
+        track: schema.Track,
+        maybe_meta_ctx: ?*MetadataContext,
+    ) !SerializableTrack {
+        const ser_children = try allocator.alloc(SerializableComposable, track.children.len);
+        for (track.children, 0..) |child, i| {
+            ser_children[i] = (try SerializableComposable.from(allocator, child, maybe_meta_ctx)).*;
+        }
+        return .{
+            .name = try copy_optional_string(allocator, track.maybe_name),
+            .children = ser_children,
+            .markers = try SerializableMarker.fromSlice(allocator, track.markers),
+        };
+    }
 };
 
 /// Serializable variant of Transition
@@ -433,22 +552,17 @@ pub const SerializableTransition = struct {
         allocator: Allocator,
         transition: schema.Transition,
         maybe_meta_ctx: ?*MetadataContext,
-    ) !SerializableTransition
-    {
+    ) !SerializableTransition {
+        const bounds = if (transition.maybe_bounds_s) |b|
+            [2]f64{ b.start.as(f64), b.end.as(f64) }
+        else
+            null;
+
         return .{
-            .name = try copy_optional_string(
-                allocator,
-                transition.maybe_name,
-            ),
-            .container = try stack_to_serializable(
-                allocator,
-                transition.container,
-                maybe_meta_ctx,
-            ),
+            .name = try copy_optional_string(allocator, transition.maybe_name),
+            .container = try SerializableStack.from(allocator, transition.container, maybe_meta_ctx),
             .kind = try allocator.dupe(u8, transition.kind),
-            .bounds_s = optional_interval_to_serializable(
-                transition.maybe_bounds_s,
-            ),
+            .bounds_s = bounds,
         };
     }
 };
@@ -529,20 +643,38 @@ pub const SerializableTimeline = struct {
     metadata_map: ?MetadataMap = null,
     markers: []SerializableMarker = &.{},
 
-    pub fn deinit(
-        self: *@This(),
-        allocator: Allocator,
-    ) void
-    {
-        if (self.name)
-            |name|
-        {
+    pub fn from(allocator: Allocator, timeline: *schema.Timeline) !SerializableTimeline {
+        // Create metadata map and context for accumulating clip metadata
+        var metadata_map: MetadataMap = .{};
+        var meta_ctx = MetadataContext{
+            .allocator = allocator,
+            .metadata_map = &metadata_map,
+        };
+
+        // Convert tracks.children directly to timeline.children
+        const ser_children = try allocator.alloc(SerializableComposable, timeline.tracks.children.len);
+        for (timeline.tracks.children, 0..) |child, i| {
+            ser_children[i] = (try SerializableComposable.from(allocator, child, &meta_ctx)).*;
+        }
+
+        return .{
+            .name = try copy_optional_string(allocator, timeline.maybe_name),
+            .children = ser_children,
+            .presentation_space_discrete_partitions = .{
+                .picture = SerializableSampleIndexGenerator.from_optional(timeline.discrete_space_partitions.presentation.picture),
+                .audio = SerializableSampleIndexGenerator.from_optional(timeline.discrete_space_partitions.presentation.audio),
+            },
+            .metadata_map = if (metadata_map.fields.count() > 0) metadata_map else null,
+            .markers = try SerializableMarker.fromSlice(allocator, timeline.markers),
+        };
+    }
+
+    pub fn deinit(self: *@This(), allocator: Allocator) void {
+        if (self.name) |name| {
             allocator.free(name);
         }
 
-        for (self.children)
-            |*child|
-        {
+        for (self.children) |*child| {
             child.deinit(allocator);
         }
         allocator.free(self.children);
@@ -1111,123 +1243,25 @@ fn copy_optional_string(
 }
 
 // ----------------------------------------------------------------------------
-// Helper Functions: Rate Conversion
+// Helper Functions: Deserialization Conversion
 // ----------------------------------------------------------------------------
 
-fn rate_to_serializable(
-    rate: sampling.RateSpecifier,
-) SerializableRateSpecifier
-{
-    return switch (rate) {
-        .Integer => |val| .{ .Integer = val },
-        .Rational => |r| .{
-            .Rational = .{
-                .num = r.num,
-                .den = r.den,
-            },
-        },
-    };
-}
-
-fn serializable_to_rate(
-    ser_rate: SerializableRateSpecifier,
-) sampling.RateSpecifier
-{
+fn serializable_to_rate(ser_rate: SerializableRateSpecifier) sampling.RateSpecifier {
     return switch (ser_rate) {
         .Integer => |val| .{ .Integer = val },
-        .Rational => |r| .{
-            .Rational = .{ .num = r.num, .den = r.den },
-        },
+        .Rational => |r| .{ .Rational = .{ .num = r.num, .den = r.den } },
     };
 }
 
-fn sample_index_generator_to_serializable(
-    sig: sampling.SampleIndexGenerator,
-) SerializableSampleIndexGenerator
-{
+fn serializable_to_sample_index_generator(ser_sig: SerializableSampleIndexGenerator) sampling.SampleIndexGenerator {
     return .{
-        .sample_rate_hz = rate_to_serializable(
-            sig.sample_rate_hz,
-        ),
-        .start_index = sig.start_index,
-    };
-}
-
-fn serializable_to_sample_index_generator(
-    ser_sig: SerializableSampleIndexGenerator,
-) sampling.SampleIndexGenerator
-{
-    return .{
-        .sample_rate_hz = serializable_to_rate(
-            ser_sig.sample_rate_hz,
-        ),
+        .sample_rate_hz = serializable_to_rate(ser_sig.sample_rate_hz),
         .start_index = ser_sig.start_index,
     };
 }
 
-fn optional_sig_to_serializable(
-    maybe_sig: ?sampling.SampleIndexGenerator,
-) ?SerializableSampleIndexGenerator
-{
-    if (maybe_sig)
-        |sig|
-    {
-        return sample_index_generator_to_serializable(sig);
-    }
-    return null;
-}
-
-fn serializable_to_optional_sig(
-    maybe_ser: ?SerializableSampleIndexGenerator,
-) ?sampling.SampleIndexGenerator
-{
-    if (maybe_ser)
-        |ser|
-    {
-        return serializable_to_sample_index_generator(ser);
-    }
-    return null;
-}
-
-// ----------------------------------------------------------------------------
-// Helper Functions: Bounds Conversion
-// ----------------------------------------------------------------------------
-
-/// Convert ContinuousInterval to SerializableBounds (discrete if partition exists)
-fn bounds_to_serializable(
-    interval: opentime.ContinuousInterval,
-    maybe_discrete_partition: ?sampling.SampleIndexGenerator,
-) SerializableBounds
-{
-    if (maybe_discrete_partition)
-        |sig|
-    {
-        // Convert to discrete indices
-        const start_index = sampling.project_instantaneous_cd(
-            sig,
-            interval.start,
-        );
-        const end_index = sampling.project_instantaneous_cd(
-            sig,
-            interval.end,
-        );
-        return .{ 
-            .discrete = .{
-                @intCast(start_index),
-                @intCast(end_index),
-            } 
-        };
-    }
-    else
-    {
-        // Keep as continuous
-        return .{ 
-            .continuous = .{
-                interval.start.as(f64),
-                interval.end.as(f64),
-            } 
-        };
-    }
+fn serializable_to_optional_sig(maybe_ser: ?SerializableSampleIndexGenerator) ?sampling.SampleIndexGenerator {
+    return if (maybe_ser) |ser| serializable_to_sample_index_generator(ser) else null;
 }
 
 /// Convert SerializableBounds to ContinuousInterval
@@ -1244,7 +1278,7 @@ fn serializable_to_bounds(
         .discrete => |disc| {
             // Must have discrete partition to convert
             const sig = (
-                maybe_discrete_partition 
+                maybe_discrete_partition
                 orelse return error.MissingDiscretePartition
             );
 
@@ -1258,23 +1292,6 @@ fn serializable_to_bounds(
             };
         },
     };
-}
-
-/// Convert optional ContinuousInterval to optional SerializableBounds
-fn optional_bounds_to_serializable(
-    maybe_interval: ?opentime.ContinuousInterval,
-    maybe_discrete_partition: ?sampling.SampleIndexGenerator,
-) ?SerializableBounds
-{
-    if (maybe_interval)
-        |interval|
-    {
-        return bounds_to_serializable(
-            interval,
-            maybe_discrete_partition,
-        );
-    }
-    return null;
 }
 
 /// Convert optional SerializableBounds to optional ContinuousInterval
@@ -1294,21 +1311,6 @@ fn serializable_to_optional_bounds(
     return null;
 }
 
-// ----------------------------------------------------------------------------
-// Helper Functions: ContinuousInterval Conversion
-// ----------------------------------------------------------------------------
-
-/// Convert ContinuousInterval to serializable [2]f64 format
-fn interval_to_serializable(
-    interval: opentime.ContinuousInterval,
-) SerializableContinuousInterval
-{
-    return .{
-        interval.start.as(f64),
-        interval.end.as(f64) 
-    };
-}
-
 /// Convert serializable [2]f64 to ContinuousInterval
 fn serializable_to_interval(
     ser: SerializableContinuousInterval,
@@ -1318,19 +1320,6 @@ fn serializable_to_interval(
         .start = opentime.Ordinate.init(ser[0]),
         .end = opentime.Ordinate.init(ser[1]),
     };
-}
-
-/// Convert optional ContinuousInterval to serializable format
-fn optional_interval_to_serializable(
-    maybe_interval: ?opentime.ContinuousInterval,
-) ?SerializableContinuousInterval
-{
-    if (maybe_interval)
-        |interval|
-    {
-        return interval_to_serializable(interval);
-    }
-    return null;
 }
 
 /// Convert optional serializable interval to ContinuousInterval
@@ -1394,456 +1383,6 @@ fn serializable_to_markers(
         );
     }
     return markers;
-}
-
-// ----------------------------------------------------------------------------
-// Conversion Functions: Schema → Serializable
-// ----------------------------------------------------------------------------
-
-pub fn domain_to_serializable(
-    allocator: Allocator,
-    dom: domain.Domain,
-) !SerializableDomain
-{
-    return switch (dom) {
-        .time => .{ .time = .{} },
-        .picture => .{ .picture = .{} },
-        .audio => .{ .audio = .{} },
-        .metadata => .{ .metadata = .{} },
-        .other => |s| .{
-            .other = .{
-                .name = try allocator.dupe(u8, s) 
-            } 
-        },
-    };
-}
-
-pub fn media_data_reference_to_serializable(
-    allocator: Allocator,
-    ref: schema.MediaDataReference,
-) !SerializableMediaDataReference
-{
-    return switch (ref) {
-        .uri => |uri_ref| .{
-            .uri = .{
-                .target_uri = try allocator.dupe(
-                    u8,
-                    uri_ref.target_uri
-                ),
-            },
-        },
-        .signal => |sig_ref| .{
-            .signal = .{
-                .signal_generator = (
-                    try signal_generator_to_serializable(
-                        sig_ref.signal_generator,
-                    )
-                ),
-            },
-        },
-        .image_sequence => |img_seq| .{
-            .image_sequence = .{
-                .target_url_base = try allocator.dupe(
-                    u8,
-                    img_seq.target_url_base,
-                ),
-                .name_prefix = try allocator.dupe(
-                    u8,
-                    img_seq.name_prefix,
-                ),
-                .name_suffix = try allocator.dupe(
-                    u8,
-                    img_seq.name_suffix,
-                ),
-                .frame_zero_padding = img_seq.frame_zero_padding,
-                .missing_frame_policy = (
-                    try allocator.dupe(
-                        u8,
-                        @tagName(img_seq.missing_frame_policy),
-                    )
-                ),
-            },
-        },
-        .null => .null,
-    };
-}
-
-pub fn signal_generator_to_serializable(
-    gen: sampling.SignalGenerator,
-) !SerializableSignalGenerator
-{
-    return switch (gen.signal) {
-        .sine => .{
-            .sine = .{
-                .frequency_hz = @floatFromInt(gen.frequency_hz) 
-            }
-        },
-        .ramp => .{ .linear_ramp = .{} },
-    };
-}
-
-pub fn media_reference_to_serializable(
-    allocator: Allocator,
-    ref: schema.MediaReference,
-) !SerializableMediaReference
-{
-    return .{
-        .data_reference = (
-            try media_data_reference_to_serializable(
-                allocator,
-                ref.data_reference,
-            )
-        ),
-        .bounds_s = optional_bounds_to_serializable(
-            ref.maybe_bounds_s,
-            ref.maybe_discrete_partition,
-        ),
-        .domain = (
-            try domain_to_serializable(
-                allocator,
-                ref.domain,
-            )
-        ),
-        .discrete_partition = (
-            optional_sig_to_serializable(ref.maybe_discrete_partition)
-        ),
-        .interpolating = (
-            if (ref.interpolating == .default_from_domain) null
-            else ref.interpolating
-        ),
-    };
-}
-
-pub fn topology_to_serializable(
-    allocator: Allocator,
-    topo: topology_m.Topology,
-) !SerializableTopology
-{
-    const ser_mappings = try allocator.alloc(
-        SerializableMapping,
-        topo.mappings.len,
-    );
-
-    for (topo.mappings, 0..)
-        |mapping, i|
-    {
-        ser_mappings[i] = try mapping_to_serializable(
-            allocator,
-            mapping,
-        );
-    }
-
-    return .{ .mappings = ser_mappings };
-}
-
-pub fn mapping_to_serializable(
-    allocator: Allocator,
-    mapping: topology_m.mapping.Mapping,
-) !SerializableMapping
-{
-    return switch (mapping) {
-        .affine => |aff| .{
-            .affine = .{
-                .input_bounds_val = interval_to_serializable(
-                    aff.input_bounds_val,
-                ),
-                .input_to_output_xform = .{
-                    .offset = aff.input_to_output_xform.offset.as(f64),
-                    .scale = aff.input_to_output_xform.scale.as(f64),
-                },
-            },
-        },
-        .linear => |lin| {
-            const knots = try allocator.alloc(
-                SerializableControlPoint,
-                lin.input_to_output_curve.knots.len,
-            );
-            for (lin.input_to_output_curve.knots, 0..)
-                |knot, i|
-            {
-                knots[i] = .{ knot.in.as(f64), knot.out.as(f64) };
-            }
-            const input_extents = (
-                lin.input_to_output_curve.extents_input() 
-                orelse {
-                    // Empty curve - use default bounds
-                    return .{
-                        .linear = .{
-                            .input_bounds_val = .{ 0.0, 0.0 },
-                            .knots = knots,
-                        },
-                    };
-                }
-            );
-            return .{
-                .linear = .{
-                    .input_bounds_val = interval_to_serializable(input_extents),
-                    .knots = knots,
-                },
-            };
-        },
-        .empty => .{ .empty = .{} },
-    };
-}
-
-fn marker_to_serializable(
-    allocator: Allocator,
-    marker: schema.Marker,
-) !SerializableMarker
-{
-    return .{
-        .name = try copy_optional_string(
-            allocator,
-            marker.maybe_name,
-        ),
-        .marked_range = interval_to_serializable(
-            marker.marked_range,
-        ),
-        .color = try allocator.dupe(
-            u8,
-            marker.color.to_string(),
-        ),
-        .comment = try copy_optional_string(
-            allocator,
-            marker.maybe_comment,
-        ),
-    };
-}
-
-fn markers_to_serializable(
-    allocator: Allocator,
-    markers: []schema.Marker,
-) ![]SerializableMarker
-{
-    if (markers.len == 0) 
-    {
-        return &.{};
-    }
-
-    var ser_markers = try allocator.alloc(
-        SerializableMarker,
-        markers.len,
-    );
-    for (markers, 0..) 
-        |marker, i| 
-    {
-        ser_markers[i] = try marker_to_serializable(
-            allocator,
-            marker,
-        );
-    }
-    return ser_markers;
-}
-
-pub fn track_to_serializable(
-    allocator: Allocator,
-    track: schema.Track,
-    maybe_meta_ctx: ?*MetadataContext,
-) !SerializableTrack
-{
-    const ser_children = try allocator.alloc(
-        SerializableComposable,
-        track.children.len,
-    );
-
-    for (track.children, 0..)
-        |child, i|
-    {
-        ser_children[i] = (
-            try composable_to_serializable(
-                allocator,
-                child,
-                maybe_meta_ctx
-            )
-        ).*;
-    }
-
-    return .{
-        .name = try copy_optional_string(
-            allocator,
-            track.maybe_name,
-        ),
-        .children = ser_children,
-        .markers = try markers_to_serializable(
-            allocator,
-            track.markers,
-        ),
-    };
-}
-
-pub fn stack_to_serializable(
-    allocator: Allocator,
-    stack: schema.Stack,
-    maybe_meta_ctx: ?*MetadataContext,
-) !SerializableStack
-{
-    const ser_children = try allocator.alloc(
-        SerializableComposable,
-        stack.children.len,
-    );
-
-    for (stack.children, 0..)
-        |child, i|
-    {
-        ser_children[i] = (
-            try composable_to_serializable(
-                allocator,
-                child,
-                maybe_meta_ctx,
-            )
-        ).*;
-    }
-
-    return .{
-        .name = try copy_optional_string(
-            allocator,
-            stack.maybe_name,
-        ),
-        .children = ser_children,
-        .markers = try markers_to_serializable(
-            allocator,
-            stack.markers,
-        ),
-    };
-}
-
-pub fn transition_to_serializable(
-    allocator: Allocator,
-    transition: schema.Transition,
-    maybe_meta_ctx: ?*MetadataContext,
-) !SerializableTransition
-{
-    return .{
-        .name = try copy_optional_string(
-            allocator,
-            transition.maybe_name,
-        ),
-        .container = try stack_to_serializable(
-            allocator,
-            transition.container,
-            maybe_meta_ctx,
-        ),
-        .kind = try allocator.dupe(u8, transition.kind),
-        .bounds_s = optional_interval_to_serializable(
-            transition.maybe_bounds_s,
-        ),
-    };
-}
-
-pub fn composable_to_serializable(
-    allocator: Allocator,
-    handle: schema.references.CompositionItemHandle,
-    maybe_meta_ctx: ?*MetadataContext,
-) error{OutOfMemory}!*SerializableComposable
-{
-    const result_ptr = try allocator.create(
-        SerializableComposable
-    );
-    result_ptr.* = switch (handle) {
-        .clip => |clip_ptr| .{
-            .clip = try .from(
-                allocator,
-                clip_ptr.*,
-                maybe_meta_ctx,
-            ),
-        },
-        .gap => |gap_ptr| .{
-            .gap = try .from(
-                allocator,
-                gap_ptr.*,
-            )
-        },
-        .track => |track_ptr| .{
-            .track = try track_to_serializable(
-                allocator,
-                track_ptr.*,
-                maybe_meta_ctx,
-            ),
-        },
-        .stack => |stack_ptr| .{
-            .stack = try stack_to_serializable(
-                allocator,
-                stack_ptr.*,
-                maybe_meta_ctx,
-            ),
-        },
-        .warp => |warp_ptr| .{
-            .warp = try .from(
-                allocator,
-                warp_ptr.*,
-                maybe_meta_ctx,
-            ),
-        },
-        .transition => |trans_ptr| .{
-            .transition = try transition_to_serializable(
-                allocator,
-                trans_ptr.*,
-                maybe_meta_ctx,
-            ),
-        },
-        .timeline => unreachable, // Timeline is not a composable child
-    };
-    return result_ptr;
-}
-
-pub fn timeline_to_serializable(
-    allocator: Allocator,
-    timeline: *schema.Timeline,
-) !SerializableTimeline
-{
-    // Create metadata map and context for accumulating clip metadata
-    var metadata_map: MetadataMap = .{};
-    var meta_ctx = MetadataContext{
-        .allocator = allocator,
-        .metadata_map = &metadata_map,
-    };
-
-    // Convert tracks.children directly to timeline.children
-    const ser_children = try allocator.alloc(
-        SerializableComposable,
-        timeline.tracks.children.len,
-    );
-
-    for (timeline.tracks.children, 0..)
-        |child, i|
-    {
-        ser_children[i] = (
-            try composable_to_serializable(
-                allocator,
-                child,
-                &meta_ctx
-            )
-        ).*;
-    }
-
-    return .{
-        .name = try copy_optional_string(
-            allocator,
-            timeline.maybe_name
-        ),
-        .children = ser_children,
-        .presentation_space_discrete_partitions = .{
-            .picture = (
-                optional_sig_to_serializable(
-                    timeline.discrete_space_partitions.presentation.picture
-                )
-            ),
-            .audio = (
-                optional_sig_to_serializable(
-                    timeline.discrete_space_partitions.presentation.audio
-                )
-            ),
-        },
-        // Only include metadata_map if it has entries
-        .metadata_map = (
-            if (metadata_map.fields.count() > 0) metadata_map 
-            else null
-        ),
-        .markers = try markers_to_serializable(
-            allocator,
-            timeline.markers,
-        ),
-    };
 }
 
 // ----------------------------------------------------------------------------
@@ -2476,7 +2015,7 @@ pub fn serialize_timeline(
 {
 
     // Convert to serializable format
-    var intermediate_tl = try timeline_to_serializable(
+    var intermediate_tl = try SerializableTimeline.from(
         allocator,
         timeline,
     );
@@ -2689,28 +2228,28 @@ pub fn otio_json_to_serializable_timeline(
 
     // Convert to SerializableTimeline based on root object type
     var intermediate_tl: SerializableTimeline = switch (composition_handle) {
-        .timeline => |tl| try timeline_to_serializable(
+        .timeline => |tl| try SerializableTimeline.from(
             allocator,
             tl,
         ),
 
         .clip => |clip_ptr| try wrap_in_timeline(
             allocator,
-            .{ .clip = try .from(allocator, clip_ptr.*, &meta_ctx) },
+            .{ .clip = try SerializableClip.from(allocator, clip_ptr.*, &meta_ctx) },
             clip_ptr.maybe_name,
             &metadata_map,
         ),
 
         .gap => |gap_ptr| try wrap_in_timeline(
             allocator,
-            .{ .gap = try .from(allocator, gap_ptr.*) },
+            .{ .gap = try SerializableGap.from(allocator, gap_ptr.*) },
             gap_ptr.maybe_name,
             &metadata_map,
         ),
 
         .track => |track_ptr| blk: {
             // Track goes directly into timeline children (no wrapper track)
-            const ser_track = try track_to_serializable(allocator, track_ptr.*, &meta_ctx);
+            const ser_track = try SerializableTrack.from(allocator, track_ptr.*, &meta_ctx);
             const timeline_children = try allocator.alloc(SerializableComposable, 1);
             timeline_children[0] = .{ .track = ser_track };
 
@@ -2724,7 +2263,7 @@ pub fn otio_json_to_serializable_timeline(
 
         .stack => |stack_ptr| blk: {
             // Stack children become timeline children directly
-            const ser_stack = try stack_to_serializable(allocator, stack_ptr.*, &meta_ctx);
+            const ser_stack = try SerializableStack.from(allocator, stack_ptr.*, &meta_ctx);
 
             break :blk SerializableTimeline{
                 .name = try copy_optional_string(allocator, stack_ptr.maybe_name),
@@ -2736,14 +2275,14 @@ pub fn otio_json_to_serializable_timeline(
 
         .warp => |warp_ptr| try wrap_in_timeline(
             allocator,
-            .{ .warp = try .from(allocator, warp_ptr.*, &meta_ctx) },
+            .{ .warp = try SerializableWarp.from(allocator, warp_ptr.*, &meta_ctx) },
             warp_ptr.maybe_name,
             &metadata_map,
         ),
 
         .transition => |trans_ptr| try wrap_in_timeline(
             allocator,
-            .{ .transition = try transition_to_serializable(allocator, trans_ptr.*, &meta_ctx) },
+            .{ .transition = try SerializableTransition.from(allocator, trans_ptr.*, &meta_ctx) },
             trans_ptr.maybe_name,
             &metadata_map,
         ),
@@ -3115,7 +2654,10 @@ test "interval conversion: ContinuousInterval to [2]f64"
         .end = opentime.Ordinate.init(3.75),
     };
 
-    const ser = interval_to_serializable(interval);
+    const ser: SerializableContinuousInterval = .{
+        interval.start.as(f64),
+        interval.end.as(f64),
+    };
 
     try std.testing.expectEqual(@as(f64, 1.5), ser[0]);
     try std.testing.expectEqual(@as(f64, 3.75), ser[1]);
@@ -3138,7 +2680,10 @@ test "interval conversion: optional round-trip"
         .end = opentime.Ordinate.init(1.0),
     };
 
-    const ser = optional_interval_to_serializable(maybe_interval);
+    const ser: ?SerializableContinuousInterval = if (maybe_interval) |i|
+        .{ i.start.as(f64), i.end.as(f64) }
+    else
+        null;
     try std.testing.expect(ser != null);
     try std.testing.expectEqual(@as(f64, 0.0), ser.?[0]);
     try std.testing.expectEqual(@as(f64, 1.0), ser.?[1]);
@@ -3152,7 +2697,10 @@ test "interval conversion: optional round-trip"
 test "interval conversion: null optional"
 {
     const maybe_interval: ?opentime.ContinuousInterval = null;
-    const ser = optional_interval_to_serializable(maybe_interval);
+    const ser: ?SerializableContinuousInterval = if (maybe_interval) |i|
+        .{ i.start.as(f64), i.end.as(f64) }
+    else
+        null;
     try std.testing.expect(ser == null);
 
     const back = serializable_to_optional_interval(null);
