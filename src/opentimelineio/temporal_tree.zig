@@ -952,7 +952,7 @@ test "test debug_print_time_hierarchy"
             .domain = .picture,
             .maybe_bounds_s = null,
             .maybe_discrete_partition = .{
-                .sample_rate_hz = .{ .Int = 24 },
+                .sample_rate_hz = .{ .Integer = 24 },
                 .start_index = 0,
             },
             .data_reference = .{ 
@@ -995,7 +995,7 @@ test "test debug_print_time_hierarchy"
             .presentation = .{
                 .picture = .{ 
                     // matches the media rate
-                    .sample_rate_hz = .{ .Int = 24 },
+                    .sample_rate_hz = .{ .Integer = 24 },
                     .start_index = 0,
                 },
                 .audio = null,

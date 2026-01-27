@@ -69,7 +69,7 @@ pub fn format_bounds_with_discrete(
 
             // Format the rate string - use "/" for rationals like "24000/1001 hz"
             const rate_str = switch (discrete.sample_rate_hz) {
-                .Int => |r| try std.fmt.allocPrint(allocator, "{d} hz", .{r}),
+                .Integer => |r| try std.fmt.allocPrint(allocator, "{d} hz", .{r}),
                 .Rational => |r| try std.fmt.allocPrint(allocator, "{d}/{d} hz", .{r.num, r.den}),
             };
             defer allocator.free(rate_str);

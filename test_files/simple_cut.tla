@@ -20,7 +20,7 @@
                     ],
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int 24,
+                        .sample_rate_hz = Integer 24,
                         .start_index = 0,
                     },
                 },
@@ -43,7 +43,7 @@
                     ],
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int 24,
+                        .sample_rate_hz = Integer 24,
                         .start_index = 0,
                     },
                 },
@@ -66,7 +66,7 @@
                     ],
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int 24,
+                        .sample_rate_hz = Integer 24,
                         .start_index = 0,
                     },
                 },

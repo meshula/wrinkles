@@ -64,9 +64,9 @@ pub const SerializableAffineTransform1D = struct {
 pub const SerializableControlPoint = [2]f64;
 
 /// Serializable variant of RateSpecifier
-/// Int holds a single integer, Rational holds { .num, .den }
+/// Integer holds a single integer, Rational holds { .num, .den }
 pub const SerializableRateSpecifier = union(enum) {
-    Int: u32,
+    Integer: u32,
     Rational: struct { num: u32, den: u32 },
 };
 
@@ -937,7 +937,7 @@ fn rate_to_serializable(
 ) SerializableRateSpecifier
 {
     return switch (rate) {
-        .Int => |val| .{ .Int = val },
+        .Integer => |val| .{ .Integer = val },
         .Rational => |r| .{
             .Rational = .{
                 .num = r.num,
@@ -952,7 +952,7 @@ fn serializable_to_rate(
 ) sampling.RateSpecifier
 {
     return switch (ser_rate) {
-        .Int => |val| .{ .Int = val },
+        .Integer => |val| .{ .Integer = val },
         .Rational => |r| .{
             .Rational = .{ .num = r.num, .den = r.den },
         },

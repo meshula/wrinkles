@@ -174,7 +174,7 @@ fn rate_to_fb(
 ) !tlb.RateSpecifier
 {
     return switch (rate) {
-        .Int => |val| .{
+        .Integer => |val| .{
             .IntRate = try builder.writeTable(tlb.IntRate, .{ .value = val }),
         },
         .Rational => |r| .{
@@ -987,7 +987,7 @@ fn serializable_media_ref_to_fb(
         .discrete_partition = if (ref.discrete_partition) |dp|
             try builder.writeTable(tlb.SampleIndexGenerator, .{
                 .sample_rate_hz_type = switch (dp.sample_rate_hz) {
-                    .Int => |v| .{ .IntRate = try builder.writeTable(tlb.IntRate, .{ .value = v }) },
+                    .Integer => |v| .{ .IntRate = try builder.writeTable(tlb.IntRate, .{ .value = v }) },
                     .Rational => |r| .{ .RationalRate = try builder.writeTable(tlb.RationalRate, .{ .num = r.num, .den = r.den }) },
                 },
                 .start_index = dp.start_index,
@@ -1202,7 +1202,7 @@ fn serializable_rate_to_fb(
 ) !tlb.RateSpecifier
 {
     return switch (rate) {
-        .Int => |val| .{
+        .Integer => |val| .{
             .IntRate = try builder.writeTable(tlb.IntRate, .{ .value = val }),
         },
         .Rational => |r| .{
@@ -1423,9 +1423,9 @@ fn fb_to_rate(
 ) sampling.RateSpecifier
 {
     return switch (fb_rate) {
-        .IntRate => |rate| .{ .Int = rate.value() },
+        .IntRate => |rate| .{ .Integer = rate.value() },
         .RationalRate => |rate| .{ .Rational = .{ .num = rate.num(), .den = rate.den() } },
-        .NONE => .{ .Int = 1 }, // Default
+        .NONE => .{ .Integer = 1 }, // Default
     };
 }
 
@@ -2110,9 +2110,9 @@ fn fb_to_serializable_rate(
 ) ascii.SerializableRateSpecifier
 {
     return switch (fb_rate) {
-        .IntRate => |rate| .{ .Int = rate.value() },
+        .IntRate => |rate| .{ .Integer = rate.value() },
         .RationalRate => |rate| .{ .Rational = .{ .num = rate.num(), .den = rate.den() } },
-        .NONE => .{ .Int = 1 },
+        .NONE => .{ .Integer = 1 },
     };
 }
 

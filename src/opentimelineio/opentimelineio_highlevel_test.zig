@@ -52,7 +52,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
             .maybe_bounds_s = null,
             .domain = .picture,
             .maybe_discrete_partition = .{
-                .sample_rate_hz = .{ .Int = 24 },
+                .sample_rate_hz = .{ .Integer = 24 },
                 .start_index = 10,
             },
         },
@@ -73,7 +73,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
                 .end = .init(11), 
             },
             .maybe_discrete_partition = .{
-                .sample_rate_hz = .{ .Int = 30 },
+                .sample_rate_hz = .{ .Integer = 30 },
                 .start_index = 10,
             },
         },
@@ -99,7 +99,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         .discrete_space_partitions = .{ 
             .presentation = .{
                 .picture = .{
-                    .sample_rate_hz = .{ .Int = 24 },
+                    .sample_rate_hz = .{ .Integer = 24 },
                     .start_index = 86400,
                 },
                 .audio = null,
@@ -316,7 +316,7 @@ test "libsamplerate w/ high level test -- resample only"
             .domain = .picture,
             .maybe_bounds_s = T_INT_SIGNAL,
             .maybe_discrete_partition = .{
-                .sample_rate_hz = .{ .Int = 48000 },
+                .sample_rate_hz = .{ .Integer = 48000 },
                 .start_index = 0,
             },
             .data_reference = .{ 
@@ -347,7 +347,7 @@ test "libsamplerate w/ high level test -- resample only"
         .discrete_space_partitions = .{ 
             .presentation = .{
                 .audio = .{
-                    .sample_rate_hz = .{ .Int = 44100 },
+                    .sample_rate_hz = .{ .Integer = 44100 },
                     .start_index = 86400,
                 },
                 .picture = null,
@@ -467,7 +467,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
             .maybe_bounds_s = T_INT_SIGNAL,
             .domain = .audio,
             .maybe_discrete_partition = .{
-                .sample_rate_hz = .{ .Int = 48000 },
+                .sample_rate_hz = .{ .Integer = 48000 },
                 .start_index = 0,
             },
             .data_reference = .{ 
@@ -517,7 +517,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
                 .picture = null,
                 .audio = .{
                     // matches the media rate
-                    .sample_rate_hz = .{ .Int = 48000 },
+                    .sample_rate_hz = .{ .Integer = 48000 },
                     .start_index = 86400,
                 },
             },
@@ -624,7 +624,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
             .domain = .audio,
             .maybe_bounds_s = T_INT_SIGNAL,
             .maybe_discrete_partition = .{
-                .sample_rate_hz = .{ .Int = 48000 },
+                .sample_rate_hz = .{ .Integer = 48000 },
                 .start_index = 0,
             },
             .data_reference = .{
@@ -674,7 +674,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
             .presentation = .{
                 .audio = .{
                     // matches the media rate
-                    .sample_rate_hz = .{ .Int = 48000 },
+                    .sample_rate_hz = .{ .Integer = 48000 },
                     .start_index = 86400,
                 },
                 .picture = null,
@@ -794,7 +794,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
             .domain = .audio,
             .maybe_bounds_s = T_INT_SIGNAL,
             .maybe_discrete_partition = .{
-                .sample_rate_hz = .{ .Int = sample_rate },
+                .sample_rate_hz = .{ .Integer = sample_rate },
                 .start_index = 0,
             },
             .data_reference = .{
@@ -926,7 +926,7 @@ test "timeline w/ warp that holds the tenth frame"
             .domain = .picture,
             .maybe_bounds_s = T_INT_SIGNAL,
             .maybe_discrete_partition = .{
-                .sample_rate_hz = .{ .Int = 24 },
+                .sample_rate_hz = .{ .Integer = 24 },
                 .start_index = 0,
             },
             .data_reference = .{
@@ -1072,7 +1072,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
                 .end = opentime.Ordinate.init(24000),
             },
             .maybe_discrete_partition = .{
-                .sample_rate_hz = .{ .Int = 24 },
+                .sample_rate_hz = .{ .Integer = 24 },
                 .start_index = 0,
             },
         },
@@ -1297,7 +1297,7 @@ test "ImageSequenceReference: Test w/ projection"
             .end = .init(5),
         },
         .maybe_discrete_partition = .{
-            .sample_rate_hz = .{ .Int = 24 },
+            .sample_rate_hz = .{ .Integer = 24 },
             .start_index = 1001,
         }
     };
@@ -1405,7 +1405,7 @@ test "ImageSequenceReference: read from TLA file and verify frame numbering"
 
     // Verify sample rate is 24
     const sample_rate: i64 = switch (discrete_partition.sample_rate_hz) {
-        .Int => |i| i,
+        .Integer => |i| i,
         .Rational => |r| @intFromFloat(r.as_float()),
     };
     try std.testing.expectEqual(@as(i64, 24), sample_rate);

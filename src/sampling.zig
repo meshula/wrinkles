@@ -69,7 +69,7 @@ test "sampling: project_instantaneous_cd"
 {
     const result = project_instantaneous_cd(
         SampleIndexGenerator{
-            .sample_rate_hz = .{ .Int = 24 },
+            .sample_rate_hz = .{ .Integer = 24 },
             .start_index = 12,
         },
         opentime.Ordinate.init(12),
@@ -103,7 +103,7 @@ test "sampling: project_index_dc"
 {
     const result = project_index_dc(
         SampleIndexGenerator{
-            .sample_rate_hz = .{ .Int = 24},
+            .sample_rate_hz = .{ .Integer = 24},
             .start_index = 12,
         },
         300,
@@ -208,7 +208,7 @@ pub const Sampling = struct {
                 .{
                     dirname,
                     prefix,
-                    self.index_generator.sample_rate_hz.Int,
+                    self.index_generator.sample_rate_hz.Integer,
                 }
             )
         );
@@ -305,7 +305,7 @@ test "sampling: samples_overlapping_interval"
         .signal = .sine,
     };
     const index_generator = SampleIndexGenerator{
-        .sample_rate_hz = .{ .Int = 48000 }, 
+        .sample_rate_hz = .{ .Integer = 48000 }, 
     };
     const sine_100hz_samples_48khz = try sine_signal_100hz.rasterized(
         allocator,
@@ -344,7 +344,7 @@ pub const URational = struct {
 };
 
 pub const RateSpecifier = union (enum) {
-    Int: sample_rate_base_t,
+    Integer: sample_rate_base_t,
     Rational: URational,
 
     pub fn as_ordinate(
@@ -355,7 +355,7 @@ pub const RateSpecifier = union (enum) {
             @as(
                 sample_ordinate_t.InnerType,
                 switch (self) {
-                    inline .Int => |b| @floatFromInt(b),
+                    inline .Integer => |b| @floatFromInt(b),
                     inline .Rational => |r| r.as_float(),
                 }
             )
@@ -372,7 +372,7 @@ pub const RateSpecifier = union (enum) {
             @as(
                 sample_ordinate_t.InnerType,
                 switch (self) {
-                    inline .Int => |b| @floatFromInt(b),
+                    inline .Integer => |b| @floatFromInt(b),
                     inline .Rational => |r| r.as_float(),
                 }
             )
@@ -390,7 +390,7 @@ pub const RateSpecifier = union (enum) {
         );
 
         switch (self) {
-            inline .Int => |b| try writer.print("{d}", .{ b }),
+            inline .Integer => |b| try writer.print("{d}", .{ b }),
             inline .Rational => |r| try writer.print("{d}/{d}", .{r.num, r.den}),
         }
 
@@ -562,7 +562,7 @@ test "sampling: rasterizing the sine"
 
     const sine_100hz_samples_48khz = try sine_signal_100hz.rasterized(
         allocator,
-        .{ .sample_rate_hz = .{ .Int = 48000 } },
+        .{ .sample_rate_hz = .{ .Integer = 48000 } },
         true,
     );
     defer sine_100hz_samples_48khz.deinit(allocator);
@@ -636,7 +636,7 @@ test "sampling: peak_to_peak_distance: sine/48khz sample/100hz signal"
     };
     const sine_100_samples_48khz = try sine_signal_100hz.rasterized(
         allocator,
-        .{ .sample_rate_hz = .{ .Int = 48000 }, },
+        .{ .sample_rate_hz = .{ .Integer = 48000 }, },
         true,
     );
     defer sine_100_samples_48khz.deinit(allocator);
@@ -660,7 +660,7 @@ test "sampling: peak_to_peak_distance: sine/48khz sample/50hz signal"
     };
     const sine_samples_48_50 = try sine_signal_48khz_50.rasterized(
         allocator,
-        .{ .sample_rate_hz = .{ .Int = 48000 }, },
+        .{ .sample_rate_hz = .{ .Integer = 48000 }, },
         true,
     );
     defer sine_samples_48_50.deinit(allocator);
@@ -684,7 +684,7 @@ test "sampling: peak_to_peak_distance: sine/96khz sample/100hz signal"
     };
     const sine_samples_96_100 = try sine_signal_100.rasterized(
         allocator,
-        .{ .sample_rate_hz = .{ .Int = 96000 } , },
+        .{ .sample_rate_hz = .{ .Integer = 96000 } , },
         true,
     );
     defer sine_samples_96_100.deinit(allocator);
@@ -1283,7 +1283,7 @@ test "sampling: resample from 48khz to 44"
     const sine_samples_48khz_100 = (
         try sine_signal_48kz_100.rasterized(
             allocator,
-            .{ .sample_rate_hz = .{ .Int = 48000 } , },
+            .{ .sample_rate_hz = .{ .Integer = 48000 } , },
             true,
         )
     );
@@ -1301,7 +1301,7 @@ test "sampling: resample from 48khz to 44"
     const sine_samples_44khz = try resampled_dd(
         allocator,
         sine_samples_48khz_100,
-        .{ .sample_rate_hz = .{ .Int = 44100 } },
+        .{ .sample_rate_hz = .{ .Integer = 44100 } },
     );
     defer sine_samples_44khz.deinit(allocator);
 
@@ -1339,7 +1339,7 @@ test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1kh
 
     const s48 = try samples_48.rasterized(
         allocator,
-        .{ .sample_rate_hz = .{ .Int = 48000 } , },
+        .{ .sample_rate_hz = .{ .Integer = 48000 } , },
         true,
     );
     defer s48.deinit(allocator);
@@ -1426,7 +1426,7 @@ test "sampling: transform 48khz samples: ident-2x-ident, then resample to 44.1kh
         allocator,
         samples_48_transformd,
         .{
-            .sample_rate_hz = .{ .Int = 44100 } 
+            .sample_rate_hz = .{ .Integer = 44100 } 
         },
     );
     defer samples_44.deinit(allocator);
@@ -1477,7 +1477,7 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
     };
     const s48 = try samples_48.rasterized(
         allocator,
-        .{ .sample_rate_hz = .{ .Int = 48000 } , },
+        .{ .sample_rate_hz = .{ .Integer = 48000 } , },
         true,
     );
     defer s48.deinit(allocator);
@@ -1617,7 +1617,7 @@ test "sampling: transform 48khz samples with a nonlinear acceleration curve and 
         allocator,
         samples_48_transformd,
         .{
-            .sample_rate_hz = .{ .Int = 44100 } 
+            .sample_rate_hz = .{ .Integer = 44100 } 
         },
     );
     defer samples_44.deinit(allocator);
@@ -1663,7 +1663,7 @@ test "sampling: frame phase slide 1: (identity) 0,1,2,3->0,1,2,3"
     const ramp_samples = try ramp_signal.rasterized(
         allocator,
         .{
-            .sample_rate_hz = .{ .Int = 48000 }, 
+            .sample_rate_hz = .{ .Integer = 48000 }, 
         },
         false,
     );
@@ -1698,7 +1698,7 @@ test "sampling: serialize a 24hz ramp to disk, to visualize ramp output"
     const ramp_samples = try ramp_signal.rasterized(
         allocator,
         .{
-            .sample_rate_hz = .{ .Int = 48000 }, 
+            .sample_rate_hz = .{ .Integer = 48000 }, 
         },
         true,
     );
@@ -1726,7 +1726,7 @@ test "sampling: frame phase slide 1: (time*1 freq*1 phase+0) 0,1,2,3->0,1,2,3"
 
     const ramp_samples = try ramp_signal.rasterized(
         allocator,
-        .{ .sample_rate_hz = .{ .Int = 4 } , },
+        .{ .sample_rate_hz = .{ .Integer = 4 } , },
         false,
     );
 
@@ -1747,7 +1747,7 @@ test "sampling: frame phase slide 1: (time*1 freq*1 phase+0) 0,1,2,3->0,1,2,3"
     defer sample_to_output_crv.deinit(std.testing.allocator);
 
     const output_sampling_info:SampleIndexGenerator = .{
-        .sample_rate_hz = .{ .Int = 4 } ,
+        .sample_rate_hz = .{ .Integer = 4 } ,
     };
 
     const transformd_ramp_samples = try transform_resample_linear_dd(
@@ -1787,7 +1787,7 @@ test "sampling: frame phase slide 2: (time*2 bounds*1 freq*1 phase+0) 0,1,2,3->0
     const ramp_samples = try ramp_signal.rasterized(
         allocator,
         .{
-            .sample_rate_hz = .{ .Int = 4 },
+            .sample_rate_hz = .{ .Integer = 4 },
         },
         false,
     );
@@ -1830,7 +1830,7 @@ test "sampling: frame phase slide 2: (time*2 bounds*1 freq*1 phase+0) 0,1,2,3->0
     );
 
     const output_sampling_info : SampleIndexGenerator = .{
-        .sample_rate_hz = .{ .Int = 4 },
+        .sample_rate_hz = .{ .Integer = 4 },
     };
 
     const output_ramp_samples = try transform_resample_linear_dd(
@@ -1870,7 +1870,7 @@ test "sampling: frame phase slide 2.5: (time*2 bounds*2 freq*1 phase+0) 0,1,2,3-
     const ramp_samples = try ramp_signal.rasterized(
         allocator,
         .{
-            .sample_rate_hz = .{ .Int = 4 },
+            .sample_rate_hz = .{ .Integer = 4 },
         },
         false,
     );
@@ -1908,7 +1908,7 @@ test "sampling: frame phase slide 2.5: (time*2 bounds*2 freq*1 phase+0) 0,1,2,3-
     );
 
     const output_sampling_info : SampleIndexGenerator = .{
-        .sample_rate_hz = .{ .Int = 4 },
+        .sample_rate_hz = .{ .Integer = 4 },
     };
 
     const output_ramp_samples = try transform_resample_linear_dd(
@@ -1950,7 +1950,7 @@ test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(
     const ramp_samples = try ramp_signal.rasterized(
         allocator,
         .{
-            .sample_rate_hz = .{ .Int = 4 },
+            .sample_rate_hz = .{ .Integer = 4 },
         },
         false,
     );
@@ -1994,7 +1994,7 @@ test "sampling: frame phase slide 3: (time*1 freq*2 phase+0) 0,1,2,3->0,0,1,1..(
     );
 
     const output_sampling_info : SampleIndexGenerator = .{
-        .sample_rate_hz = .{ .Int = 8 },
+        .sample_rate_hz = .{ .Integer = 8 },
     };
 
     const output_ramp_samples = try transform_resample_linear_dd(
@@ -2041,7 +2041,7 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
     const ramp_samples = try ramp_signal.rasterized(
         allocator,
         .{
-            .sample_rate_hz = .{ .Int = 4 },
+            .sample_rate_hz = .{ .Integer = 4 },
         },
         false,
     );
@@ -2124,7 +2124,7 @@ test "sampling: frame phase slide 4: (time*2 freq*1 phase+0.5) 0,1,2,3->0,1,1,2"
     );
 
     const output_sampling_info : SampleIndexGenerator = .{
-        .sample_rate_hz = .{ .Int = 4 },
+        .sample_rate_hz = .{ .Integer = 4 },
     };
 
     const output_ramp_samples = try transform_resample_linear_dd(
@@ -2164,7 +2164,7 @@ test "sampling: frame phase slide 5: arbitrary held frames 0,1,2->0,0,0,0,1,1,2,
     const ramp_samples = try ramp_signal.rasterized(
         allocator,
         .{
-            .sample_rate_hz = .{ .Int = 4 },
+            .sample_rate_hz = .{ .Integer = 4 },
         },
         false,
     );
@@ -2251,7 +2251,7 @@ test "sampling: frame phase slide 5: arbitrary held frames 0,1,2->0,0,0,0,1,1,2,
     );
 
     const output_sampling_info : SampleIndexGenerator = .{
-        .sample_rate_hz = .{ .Int = 4 } ,
+        .sample_rate_hz = .{ .Integer = 4 } ,
     };
 
     const output_ramp_samples = try transform_resample_dd(
@@ -2295,7 +2295,7 @@ test "sampling: wav.zig generator test"
     const s48 = try samples_48.rasterized(
         allocator,
         .{
-            .sample_rate_hz = .{ .Int = 48000 },
+            .sample_rate_hz = .{ .Integer = 48000 },
         },
         true,
     );
@@ -2315,7 +2315,7 @@ test "sampling: transformed leak test"
     const ramp_samples = Sampling{
         .interpolating = false,
         .index_generator = .{
-            .sample_rate_hz = .{ .Int = 4 },
+            .sample_rate_hz = .{ .Integer = 4 },
         },
         .buffer = &buf,
     };
@@ -2335,7 +2335,7 @@ test "sampling: transformed leak test"
     );
 
     const output_sampling_info : SampleIndexGenerator = .{
-        .sample_rate_hz = .{ .Int = 8 },
+        .sample_rate_hz = .{ .Integer = 8 },
     };
 
     const output_ramp_samples = try transform_resample_linear_dd(

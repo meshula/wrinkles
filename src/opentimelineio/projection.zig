@@ -1341,7 +1341,7 @@ test "otio projection: track with single clip"
     const media_source_range = test_data.T_INT_1_TO_9;
     const media_discrete_info = (
         sampling.SampleIndexGenerator{
-            .sample_rate_hz = .{ .Int = 4 },
+            .sample_rate_hz = .{ .Integer = 4 },
             .start_index = 0,
         }
     );
@@ -1518,7 +1518,7 @@ test "otio projection: track with single clip with transform"
     const media_source_range = test_data.T_INT_1_TO_9;
     const media_discrete_info = (
         sampling.SampleIndexGenerator{
-            .sample_rate_hz = .{ .Int = 4 },
+            .sample_rate_hz = .{ .Integer = 4 },
             .start_index = 0,
         }
     );
@@ -1562,7 +1562,7 @@ test "otio projection: track with single clip with transform"
         .discrete_space_partitions = .{ 
             .presentation = .{
                 .picture = .{
-                    .sample_rate_hz = .{ .Int = 24 },
+                    .sample_rate_hz = .{ .Integer = 24 },
                     .start_index = 12,
                 },
                 .audio = null,
@@ -2016,7 +2016,7 @@ test "ReferenceTopology: init_from_reference"
             .domain = .picture,
             .maybe_bounds_s = null,
             .maybe_discrete_partition = .{
-                .sample_rate_hz = .{ .Int = 24 },
+                .sample_rate_hz = .{ .Integer = 24 },
                 .start_index = 86400,
             } 
         }
@@ -2031,7 +2031,7 @@ test "ReferenceTopology: init_from_reference"
             .domain = .picture,
             .maybe_bounds_s = null,
             .maybe_discrete_partition = .{
-                .sample_rate_hz = .{ .Int = 30 },
+                .sample_rate_hz = .{ .Integer = 30 },
                 .start_index = 0,
             },
         },
@@ -2050,7 +2050,7 @@ test "ReferenceTopology: init_from_reference"
         .maybe_bounds_s = test_data.T_INT_1_TO_9,
     };
     cl3.media.maybe_discrete_partition = .{
-        .sample_rate_hz = .{ .Int = 24 },
+        .sample_rate_hz = .{ .Integer = 24 },
         .start_index = 0,
     };
     const cl3_ptr = cl3.handle();
@@ -2086,7 +2086,7 @@ test "ReferenceTopology: init_from_reference"
         .discrete_space_partitions = .{ 
             .presentation = .{
                 .picture = .{
-                    .sample_rate_hz = .{ .Int = 24 },
+                    .sample_rate_hz = .{ .Integer = 24 },
                     .start_index = 86400,
                 },
                 .audio = null,
@@ -2135,7 +2135,7 @@ test "ReferenceTopology: init_from_reference"
                     interval.end.v 
                     * @as(
                         opentime.Ordinate.InnerType,
-                        @floatFromInt(tl.discrete_space_partitions.presentation.picture.?.sample_rate_hz.Int)
+                        @floatFromInt(tl.discrete_space_partitions.presentation.picture.?.sample_rate_hz.Integer)
                     )
                 )
             )

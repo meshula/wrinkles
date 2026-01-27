@@ -23,7 +23,7 @@
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int 15,
+                        .sample_rate_hz = Integer 15,
                         .start_index = 0,
                     },
                 },
@@ -57,7 +57,7 @@
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int 30,
+                        .sample_rate_hz = Integer 30,
                         .start_index = 0,
                     },
                 },
@@ -84,7 +84,7 @@
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int 30,
+                        .sample_rate_hz = Integer 30,
                         .start_index = 0,
                     },
                 },
@@ -102,7 +102,7 @@
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int 30,
+                        .sample_rate_hz = Integer 30,
                         .start_index = 0,
                     },
                 },
@@ -169,7 +169,7 @@
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int 30,
+                        .sample_rate_hz = Integer 30,
                         .start_index = 0,
                     },
                 },
@@ -203,7 +203,7 @@
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int 30,
+                        .sample_rate_hz = Integer 30,
                         .start_index = 0,
                     },
                 },
@@ -231,7 +231,7 @@
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int 30,
+                        .sample_rate_hz = Integer 30,
                         .start_index = 0,
                     },
                 },
@@ -265,7 +265,7 @@
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int 30,
+                        .sample_rate_hz = Integer 30,
                         .start_index = 0,
                     },
                 },
@@ -292,7 +292,7 @@
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int 30,
+                        .sample_rate_hz = Integer 30,
                         .start_index = 0,
                     },
                 },
@@ -326,7 +326,7 @@
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int 30,
+                        .sample_rate_hz = Integer 30,
                         .start_index = 0,
                     },
                 },
@@ -376,7 +376,7 @@
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int 30,
+                        .sample_rate_hz = Integer 30,
                         .start_index = 0,
                     },
                 },
@@ -410,7 +410,7 @@
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int 30,
+                        .sample_rate_hz = Integer 30,
                         .start_index = 0,
                     },
                 },
@@ -428,7 +428,7 @@
                     .data_reference = null {},
                     .domain = picture {},
                     .discrete_partition = {
-                        .sample_rate_hz = Int 30,
+                        .sample_rate_hz = Integer 30,
                         .start_index = 0,
                     },
                 },

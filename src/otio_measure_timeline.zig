@@ -200,7 +200,7 @@ pub fn main(
         }
 
         tl_ref.timeline.discrete_space_partitions.presentation.picture = .{
-            .sample_rate_hz = .{ .Int = 24 },
+            .sample_rate_hz = .{ .Integer = 24 },
             .start_index = 86400,
         };
 

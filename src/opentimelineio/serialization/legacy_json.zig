@@ -735,7 +735,7 @@ fn read_media_reference(
             .domain = .picture,
             .maybe_discrete_partition = .{
                 .sample_rate_hz = .{
-                    .Int = rate,
+                    .Integer = rate,
                 },
                 .start_index = start_frame,
             },
@@ -1069,7 +1069,7 @@ fn read_otio_object(
             if (maybe_rate) |rate| {
                 if (cl.media.maybe_discrete_partition == null) {
                     cl.media.maybe_discrete_partition = .{
-                        .sample_rate_hz = .{ .Int = rate },
+                        .sample_rate_hz = .{ .Integer = rate },
                     };
                 }
             }
