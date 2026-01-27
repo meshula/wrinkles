@@ -1364,3 +1364,82 @@ test "ImageSequenceReference: Test w/ projection"
         media_range[media_range.len - 1],
     );
 }
+
+test "ImageSequenceReference: read from TLA file and verify frame numbering"
+{
+    const allocator = std.testing.allocator;
+
+    // Read the test TLA file
+    var tl_handle = try otio.read_from_file(
+        allocator,
+        "test_files/simple_image_sequence.tla",
+        .{},
+    );
+    defer tl_handle.deinit(allocator);
+
+    // Get the timeline from the handle
+    const timeline = tl_handle.timeline;
+
+    // Get the first track from the timeline's tracks stack
+    try std.testing.expect(timeline.tracks.children.len > 0);
+    const track = timeline.tracks.children[0].track;
+
+    // Get the first clip from the track
+    try std.testing.expect(track.children.len > 0);
+    const clip = track.children[0].clip;
+
+    // Verify we have an image_sequence data reference
+    const media = clip.media;
+    const img_seq = switch (media.data_reference) {
+        .image_sequence => |is| is,
+        else => return error.NotAnImageSequence,
+    };
+
+    // Verify the discrete partition has start_index = 1001
+    const discrete_partition = media.maybe_discrete_partition orelse
+        return error.NoDiscretePartition;
+    try std.testing.expectEqual(
+        @as(i64, 1001),
+        discrete_partition.start_index,
+    );
+
+    // Verify sample rate is 24
+    const sample_rate: i64 = switch (discrete_partition.sample_rate_hz) {
+        .Int => |i| i,
+        .Rat => |r| @intFromFloat(r.as_float()),
+    };
+    try std.testing.expectEqual(@as(i64, 24), sample_rate);
+
+    // Test URL generation for the first frame (sample index 1001)
+    const url_first = try img_seq.target_url_for_image_number(
+        allocator,
+        @intCast(discrete_partition.start_index),
+    );
+    defer allocator.free(url_first);
+    try std.testing.expectEqualStrings(
+        "/renders/shot_010/frame_1001.exr",
+        url_first,
+    );
+
+    // Test URL generation for a frame in the middle (e.g., frame 1025)
+    const url_mid = try img_seq.target_url_for_image_number(
+        allocator,
+        1025,
+    );
+    defer allocator.free(url_mid);
+    try std.testing.expectEqualStrings(
+        "/renders/shot_010/frame_1025.exr",
+        url_mid,
+    );
+
+    // Test URL generation for frame 1100 (near end of sequence)
+    const url_late = try img_seq.target_url_for_image_number(
+        allocator,
+        1100,
+    );
+    defer allocator.free(url_late);
+    try std.testing.expectEqualStrings(
+        "/renders/shot_010/frame_1100.exr",
+        url_late,
+    );
+}

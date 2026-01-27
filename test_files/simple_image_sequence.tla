@@ -15,10 +15,7 @@
                         .target_url_base = "/renders/shot_010/",
                         .name_prefix = "frame_",
                         .name_suffix = ".exr",
-                        .start_frame = 1001,
-                        .frame_step = 1,
                         .frame_zero_padding = 4,
-                        .rate = 24.0,
                         .missing_frame_policy = "hold",
                     },
                     .bounds_s = discrete [
@@ -28,7 +25,7 @@
                     .domain = picture {},
                     .discrete_partition = {
                         .sample_rate_hz = Int 24,
-                        .start_index = 0,
+                        .start_index = 1001,
                     },
                 },
                 .markers = [
