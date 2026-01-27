@@ -377,6 +377,33 @@ pub const SerializableWarp = struct {
     name: ?[]const u8 = null,
     child: *SerializableComposable,
     transform: SerializableTopology,
+
+    pub fn from(
+        allocator: Allocator,
+        warp: schema.Warp,
+        maybe_meta_ctx: ?*MetadataContext,
+    ) !SerializableWarp
+    {
+        const ser_warp_ptr = (
+            try allocator.create(SerializableWarp)
+        );
+        ser_warp_ptr.* = .{
+            .name = try copy_optional_string(
+                allocator,
+                warp.maybe_name,
+            ),
+            .child = try composable_to_serializable(
+                allocator,
+                warp.child,
+                maybe_meta_ctx,
+            ),
+            .transform = try topology_to_serializable(
+                allocator,
+                warp.transform,
+            ),
+        };
+        return ser_warp_ptr.*;
+    }
 };
 
 /// Serializable variant of Stack
@@ -1585,33 +1612,6 @@ fn markers_to_serializable(
     return ser_markers;
 }
 
-pub fn warp_to_serializable(
-    allocator: Allocator,
-    warp: schema.Warp,
-    maybe_meta_ctx: ?*MetadataContext,
-) !SerializableWarp
-{
-    const ser_warp_ptr = (
-        try allocator.create(SerializableWarp)
-    );
-    ser_warp_ptr.* = .{
-        .name = try copy_optional_string(
-            allocator,
-            warp.maybe_name,
-        ),
-        .child = try composable_to_serializable(
-            allocator,
-            warp.child,
-            maybe_meta_ctx,
-        ),
-        .transform = try topology_to_serializable(
-            allocator,
-            warp.transform,
-        ),
-    };
-    return ser_warp_ptr.*;
-}
-
 pub fn track_to_serializable(
     allocator: Allocator,
     track: schema.Track,
@@ -1745,7 +1745,7 @@ pub fn composable_to_serializable(
             ),
         },
         .warp => |warp_ptr| .{
-            .warp = try warp_to_serializable(
+            .warp = try .from(
                 allocator,
                 warp_ptr.*,
                 maybe_meta_ctx,
@@ -2713,7 +2713,7 @@ pub fn otio_json_to_serializable_timeline(
 
         .warp => |warp_ptr| try wrap_in_timeline(
             allocator,
-            .{ .warp = try warp_to_serializable(allocator, warp_ptr.*, &meta_ctx) },
+            .{ .warp = try .from(allocator, warp_ptr.*, &meta_ctx) },
             warp_ptr.maybe_name,
             &metadata_map,
         ),
