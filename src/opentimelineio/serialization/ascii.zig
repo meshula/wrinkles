@@ -243,6 +243,24 @@ pub const SerializableGap = struct {
     name: ?[]const u8 = null,
     bounds_s: SerializableContinuousInterval,
     markers: []SerializableMarker = &.{},
+
+    pub fn from(
+        allocator: Allocator,
+        gap: schema.Gap,
+    ) !SerializableGap
+    {
+        return .{
+            .name = try copy_optional_string(
+                allocator,
+                gap.maybe_name,
+            ),
+            .bounds_s = interval_to_serializable(gap.bounds_s),
+            .markers = try markers_to_serializable(
+                allocator,
+                gap.markers,
+            ),
+        };
+    }
 };
 
 /// Serializable variant of Marker
