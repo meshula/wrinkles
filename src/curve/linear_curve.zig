@@ -279,7 +279,7 @@ pub fn LinearOf(
                 if (opentime.eql(input_ord, self.knots[0].in))
                 {
                     return .{
-                        .success_ordinate = last_knot.out,
+                        .success_ordinate = self.knots[0].out,
                     };
                 }
 

@@ -414,7 +414,7 @@ pub fn join_aff_lin(
 ) !mapping_curve_linear.MappingCurveLinearMonotonic
 {
     const a2b_input_bounds = args.a2b.input_bounds();
-    const a2b_output_bounds = args.a2b.input_bounds();
+    const a2b_output_bounds = args.a2b.output_bounds();
     const a2b_linearized = (
         mapping_curve_linear.MappingCurveLinearMonotonic{
             .input_to_output_curve = .{
