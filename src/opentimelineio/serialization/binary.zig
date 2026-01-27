@@ -1583,6 +1583,12 @@ fn fb_to_media_ref(
         else null
     );
 
+    // Determine bounds_write_policy based on what was in the file
+    const bounds_write_policy: schema.BoundsWritePolicy = if (fb_ref.bounds()) |b|
+        (if (b.bounds_type() == .Discrete) schema.BoundsWritePolicy.discrete else .continuous)
+    else
+        .automatic;
+
     return .{
         .data_reference = (
             try fb_to_media_data_ref(
@@ -1591,8 +1597,8 @@ fn fb_to_media_ref(
             )
         ),
         .maybe_bounds_s = (
-            if (fb_ref.bounds()) 
-                |b| 
+            if (fb_ref.bounds())
+                |b|
                 fb_to_bounds(
                     b,
                     maybe_discrete_partition,
@@ -1600,8 +1606,8 @@ fn fb_to_media_ref(
             else null
         ),
         .domain = (
-            if (fb_ref.domain()) 
-                |d| 
+            if (fb_ref.domain())
+                |d|
                 try fb_to_domain(
                     allocator,
                     d
@@ -1609,6 +1615,7 @@ fn fb_to_media_ref(
             else .time
         ),
         .maybe_discrete_partition = maybe_discrete_partition,
+        .bounds_write_policy = bounds_write_policy,
     };
 }
 
@@ -2469,6 +2476,12 @@ fn fb_to_clip(
             .domain = .time,
         };
 
+    // Determine bounds_write_policy based on what was in the file
+    const bounds_write_policy: schema.BoundsWritePolicy = if (fb_clip.bounds()) |b|
+        (if (b.bounds_type() == .Discrete) schema.BoundsWritePolicy.discrete else .continuous)
+    else
+        .automatic;
+
     const clip_ptr = try allocator.create(schema.Clip);
     clip_ptr.* = .{
         .maybe_name = if (fb_clip.name())
@@ -2481,6 +2494,7 @@ fn fb_to_clip(
             fb_to_bounds(b, media.maybe_discrete_partition)
         else
             null,
+        .bounds_write_policy = bounds_write_policy,
         .media = media,
         .markers = try fb_to_markers(allocator, fb_clip.markers()),
     };
@@ -2909,6 +2923,15 @@ pub fn deserialize_timeline(
             null,
         .tracks = .{
             .children = try tracks_children.toOwnedSlice(allocator),
+        },
+        .discrete_space_partitions = .{
+            .presentation = if (fb_timeline.presentation_space_discrete_partitions()) |p|
+                .{
+                    .picture = if (p.picture()) |pic| fb_to_sig(pic) else null,
+                    .audio = if (p.audio()) |aud| fb_to_sig(aud) else null,
+                }
+            else
+                .{ .picture = null, .audio = null },
         },
     };
 

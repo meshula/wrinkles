@@ -57,6 +57,19 @@ pub const ResamplingBehavior = enum {
     default_from_domain,
 };
 
+/// Policy for how bounds should be serialized when writing.
+/// Controls whether bounds are written as discrete sample indices or continuous time.
+pub const BoundsWritePolicy = enum {
+    /// Write bounds as discrete sample indices if a discrete partition exists,
+    /// otherwise write as continuous time values.
+    automatic,
+    /// Always write bounds as discrete sample indices.
+    /// Returns an error if no discrete partition is present.
+    discrete,
+    /// Always write bounds as continuous time values.
+    continuous,
+};
+
 /// Policy for handling missing frames in an image sequence.
 pub const MissingFramePolicy = enum {
     @"error",  // Raise error (quoted because 'error' is Zig keyword)
@@ -194,6 +207,9 @@ pub const MediaReference = struct {
     /// Media that is interpolating can be resampled when under time warps.
     interpolating: ResamplingBehavior = .default_from_domain,
 
+    /// Policy for how bounds should be serialized when writing.
+    bounds_write_policy: BoundsWritePolicy = .automatic,
+
     // @TODO: no way to support a frame step of not one for now
 
     /// Default Media Reference that is empty and specifies picture domain.
@@ -230,6 +246,9 @@ pub const Clip = struct {
 
     /// A trim on the media space, in the media coordinate system.
     maybe_bounds_s: ?opentime.ContinuousInterval = null,
+
+    /// Policy for how bounds should be serialized when writing.
+    bounds_write_policy: BoundsWritePolicy = .automatic,
 
     /// Information about the media this clip cuts into the track.
     media: MediaReference,

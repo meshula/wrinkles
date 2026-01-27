@@ -53,12 +53,23 @@ pub const SerializableBounds = union(enum) {
     continuous: SerializableContinuousInterval,
     discrete: SerializableDiscreteInterval,
 
-    /// Convert ContinuousInterval to SerializableBounds (discrete if partition exists)
+    /// Convert ContinuousInterval to SerializableBounds based on write policy.
+    /// - automatic: use discrete if partition exists, else continuous
+    /// - discrete: always use discrete (error if no partition)
+    /// - continuous: always use continuous
     pub fn from(
         interval: opentime.ContinuousInterval,
         maybe_discrete_partition: ?sampling.SampleIndexGenerator,
-    ) SerializableBounds {
-        if (maybe_discrete_partition) |sig| {
+        policy: schema.BoundsWritePolicy,
+    ) error{DiscretePartitionRequired}!SerializableBounds {
+        const use_discrete = switch (policy) {
+            .automatic => maybe_discrete_partition != null,
+            .discrete => true,
+            .continuous => false,
+        };
+
+        if (use_discrete) {
+            const sig = maybe_discrete_partition orelse return error.DiscretePartitionRequired;
             const start_index = sampling.project_instantaneous_cd(sig, interval.start);
             const end_index = sampling.project_instantaneous_cd(sig, interval.end);
             return .{ .discrete = .{ @intCast(start_index), @intCast(end_index) } };
@@ -70,9 +81,10 @@ pub const SerializableBounds = union(enum) {
     pub fn from_optional(
         maybe_interval: ?opentime.ContinuousInterval,
         maybe_discrete_partition: ?sampling.SampleIndexGenerator,
-    ) ?SerializableBounds {
+        policy: schema.BoundsWritePolicy,
+    ) error{DiscretePartitionRequired}!?SerializableBounds {
         return if (maybe_interval) |interval|
-            SerializableBounds.from(interval, maybe_discrete_partition)
+            try SerializableBounds.from(interval, maybe_discrete_partition, policy)
         else
             null;
     }
@@ -237,7 +249,7 @@ pub const SerializableMediaReference = struct {
     pub fn from(allocator: Allocator, ref: schema.MediaReference) !SerializableMediaReference {
         return .{
             .data_reference = try SerializableMediaDataReference.from(allocator, ref.data_reference),
-            .bounds_s = SerializableBounds.from_optional(ref.maybe_bounds_s, ref.maybe_discrete_partition),
+            .bounds_s = try SerializableBounds.from_optional(ref.maybe_bounds_s, ref.maybe_discrete_partition, ref.bounds_write_policy),
             .domain = try SerializableDomain.from(allocator, ref.domain),
             .discrete_partition = SerializableSampleIndexGenerator.from_optional(ref.maybe_discrete_partition),
             .interpolating = if (ref.interpolating == .default_from_domain) null else ref.interpolating,
@@ -275,7 +287,7 @@ pub const SerializableClip = struct {
 
         return .{
             .name = try copy_optional_string(allocator, clip.maybe_name),
-            .bounds_s = SerializableBounds.from_optional(clip.maybe_bounds_s, clip.media.maybe_discrete_partition),
+            .bounds_s = try SerializableBounds.from_optional(clip.maybe_bounds_s, clip.media.maybe_discrete_partition, clip.bounds_write_policy),
             .media = try SerializableMediaReference.from(allocator, clip.media),
             .metadata_hash = metadata_hash,
             .markers = try SerializableMarker.fromSlice(allocator, clip.markers),
@@ -419,7 +431,8 @@ pub const SerializableComposable = union(enum) {
         allocator: Allocator,
         handle: schema.references.CompositionItemHandle,
         maybe_meta_ctx: ?*MetadataContext,
-    ) error{OutOfMemory}!*SerializableComposable {
+    ) error{OutOfMemory, DiscretePartitionRequired}!*SerializableComposable 
+    {
         const result_ptr = try allocator.create(SerializableComposable);
         result_ptr.* = switch (handle) {
             .clip => |clip_ptr| .{ .clip = try SerializableClip.from(allocator, clip_ptr.*, maybe_meta_ctx) },
@@ -1552,6 +1565,12 @@ pub fn serializable_to_media_reference(
     ser_ref: SerializableMediaReference,
 ) !schema.MediaReference
 {
+    // Determine bounds_write_policy based on what was in the file
+    const bounds_write_policy: schema.BoundsWritePolicy = if (ser_ref.bounds_s) |bounds|
+        (if (bounds == .discrete) schema.BoundsWritePolicy.discrete else .continuous)
+    else
+        .automatic;
+
     return .{
         .data_reference = try serializable_to_media_data_reference(
             allocator,
@@ -1569,9 +1588,10 @@ pub fn serializable_to_media_reference(
             serializable_to_optional_sig(ser_ref.discrete_partition)
         ),
         .interpolating = (
-            ser_ref.interpolating 
+            ser_ref.interpolating
             orelse .default_from_domain
         ),
+        .bounds_write_policy = bounds_write_policy,
     };
 }
 
@@ -1652,6 +1672,13 @@ pub fn serializable_to_clip(
         allocator,
         ser_clip.media,
     );
+
+    // Determine bounds_write_policy based on what was in the file
+    const bounds_write_policy: schema.BoundsWritePolicy = if (ser_clip.bounds_s) |bounds|
+        (if (bounds == .discrete) schema.BoundsWritePolicy.discrete else .continuous)
+    else
+        .automatic;
+
     clip_ptr.* = .{
         .maybe_name = try copy_optional_string(
             allocator,
@@ -1663,6 +1690,7 @@ pub fn serializable_to_clip(
                 media.maybe_discrete_partition,
             )
         ),
+        .bounds_write_policy = bounds_write_policy,
         .media = media,
         .markers = try serializable_to_markers(
             allocator,
