@@ -428,6 +428,29 @@ pub const SerializableTransition = struct {
     container: SerializableStack,
     kind: []const u8,
     bounds_s: ?SerializableContinuousInterval = null,
+
+    pub fn from(
+        allocator: Allocator,
+        transition: schema.Transition,
+        maybe_meta_ctx: ?*MetadataContext,
+    ) !SerializableTransition
+    {
+        return .{
+            .name = try copy_optional_string(
+                allocator,
+                transition.maybe_name,
+            ),
+            .container = try stack_to_serializable(
+                allocator,
+                transition.container,
+                maybe_meta_ctx,
+            ),
+            .kind = try allocator.dupe(u8, transition.kind),
+            .bounds_s = optional_interval_to_serializable(
+                transition.maybe_bounds_s,
+            ),
+        };
+    }
 };
 
 /// Serializable variant of DiscretePartitionDomainMap
