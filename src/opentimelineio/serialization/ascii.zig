@@ -1585,24 +1585,6 @@ fn markers_to_serializable(
     return ser_markers;
 }
 
-pub fn gap_to_serializable(
-    allocator: Allocator,
-    gap: schema.Gap,
-) !SerializableGap
-{
-    return .{
-        .name = try copy_optional_string(
-            allocator,
-            gap.maybe_name,
-        ),
-        .bounds_s = interval_to_serializable(gap.bounds_s),
-        .markers = try markers_to_serializable(
-            allocator,
-            gap.markers,
-        ),
-    };
-}
-
 pub fn warp_to_serializable(
     allocator: Allocator,
     warp: schema.Warp,
@@ -1743,7 +1725,7 @@ pub fn composable_to_serializable(
             ),
         },
         .gap => |gap_ptr| .{
-            .gap = try gap_to_serializable(
+            .gap = try .from(
                 allocator,
                 gap_ptr.*,
             )
@@ -2698,7 +2680,7 @@ pub fn otio_json_to_serializable_timeline(
 
         .gap => |gap_ptr| try wrap_in_timeline(
             allocator,
-            .{ .gap = try gap_to_serializable(allocator, gap_ptr.*) },
+            .{ .gap = try .from(allocator, gap_ptr.*) },
             gap_ptr.maybe_name,
             &metadata_map,
         ),
@@ -3180,7 +3162,7 @@ test "clip serialization: round-trip"
     };
 
     // Convert to serializable (no metadata context for this test)
-    const ser_clip = try SerializableClip.from(allocator, clip, null);
+    const ser_clip: SerializableClip = try .from(allocator, clip, null);
     defer allocator.free(ser_clip.name.?);
     defer allocator.free(ser_clip.media.data_reference.uri.target_uri);
 
@@ -3216,7 +3198,7 @@ test "gap serialization: round-trip"
     };
 
     // Convert to serializable
-    const ser_gap = try gap_to_serializable(allocator, gap);
+    const ser_gap: SerializableGap = try .from(allocator, gap);
     defer allocator.free(ser_gap.name.?);
 
     // Verify serialized values
