@@ -138,20 +138,10 @@ pub export fn otio_write_to_file(
         return -1;
     });
 
-    // Convert to serializable format
-    var ser_timeline = otio.serialization.SerializableTimeline.from(
-        allocator,
-        timeline,
-    ) catch |err| {
-        std.log.err("otio_write_to_file: couldn't convert to serializable: {any}\n", .{err});
-        return -1;
-    };
-    defer ser_timeline.deinit(allocator);
-
-    // Write to file (format auto-detected from extension)
+    // Write to file (format auto-detected from extension, converts internally)
     otio.serialization.write_to_file(
         allocator,
-        ser_timeline,
+        timeline,
         filepath,
         .{}, // default options
     ) catch |err| {

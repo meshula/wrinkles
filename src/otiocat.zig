@@ -367,16 +367,27 @@ pub fn main() !void
 
         convert_prog.end();
     } else {
-        // Handle timeline formats
-        // Read input file using centralized reader (supports .otio, .tla, .tlb, .tlz)
-        const ser_timeline = try serialization.ascii.read_from_file(allocator, state.input_path);
+        // Read input file to schema.Timeline
+        var tl_ref = try serialization.read_from_file(
+            allocator,
+            state.input_path,
+            .{},
+        );
+        defer tl_ref.deinit(allocator);
 
         read_prog.end();
 
-        const convert_prog = parent_prog.start("Converting timeline...", 0);
+        const convert_prog = parent_prog.start(
+            "Converting timeline...",
+            0,
+        );
+
+        const input_dir = (
+            std.fs.path.dirname(state.input_path) 
+            orelse "."
+        );
 
         // Build write options from state
-        const input_dir = std.fs.path.dirname(state.input_path) orelse ".";
         const write_options = serialization.ascii.WriteOptions{
             .metadata_mode = state.metadata_mode,
             .bundle_format = state.bundle_format,
@@ -384,11 +395,15 @@ pub fn main() !void
             .media_base_dir = input_dir,
         };
 
-        // Write output using centralized writer
-        if (state.output_path) |path|
+        if (state.output_path) 
+            |path|
         {
-            // Write to file using centralized function
-            try serialization.write_to_file(allocator, ser_timeline, path, write_options);
+            try serialization.write_to_file(
+                allocator,
+                tl_ref.timeline,
+                path,
+                write_options,
+            );
         }
         else
         {
@@ -398,9 +413,9 @@ pub fn main() !void
             var file_writer = out_file.writer(&file_writer_buffer);
             const writer = &file_writer.interface;
 
-            try serialization.ascii.write_to_writer(
+            try serialization.ascii.write_timeline_to_writer(
                 allocator,
-                ser_timeline,
+                tl_ref.timeline,
                 output_format,
                 write_options,
                 writer,
@@ -435,19 +450,19 @@ test "FileFormat stringToEnum parses extensions correctly" {
     // Test that we can parse all supported output formats
     try std.testing.expectEqual(
         serialization.FileFormat.tla,
-        std.meta.stringToEnum(serialization.FileFormat, "tla").?,
+        std.meta.stringToEnum(serialization.FileFormat, "tla"),
     );
     try std.testing.expectEqual(
         serialization.FileFormat.tlb,
-        std.meta.stringToEnum(serialization.FileFormat, "tlb").?,
+        std.meta.stringToEnum(serialization.FileFormat, "tlb"),
     );
     try std.testing.expectEqual(
         serialization.FileFormat.tlz,
-        std.meta.stringToEnum(serialization.FileFormat, "tlz").?,
+        std.meta.stringToEnum(serialization.FileFormat, "tlz"),
     );
     try std.testing.expectEqual(
         serialization.FileFormat.otio,
-        std.meta.stringToEnum(serialization.FileFormat, "otio").?,
+        std.meta.stringToEnum(serialization.FileFormat, "otio"),
     );
 }
 

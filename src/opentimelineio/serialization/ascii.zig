@@ -3025,7 +3025,7 @@ pub fn write_to_buffer(
     var buffer = std.Io.Writer.Allocating.init(allocator);
     errdefer buffer.deinit();
 
-    try write_to_writer(
+    try write_serializable_to_writer(
         allocator,
         intermediate_tl,
         format,
@@ -3036,10 +3036,35 @@ pub fn write_to_buffer(
     return try buffer.toOwnedSlice();
 }
 
-/// Write a SerializableTimeline to any supported file format.
-/// Supports: .tla, .tlb (FlatBuffers), .tlz (bundle)
+/// Write a Timeline to any supported file format.
+/// Supports: .tla (ascii), .tlb (binary), .tlz (bundle)
 /// The file format is determined by the file extension.
-pub fn write_to_file(
+pub fn write_timeline_to_file(
+    allocator: Allocator,
+    timeline: *schema.Timeline,
+    file_path: []const u8,
+    options: WriteOptions,
+) !void
+{
+    var ser_timeline = try SerializableTimeline.from(
+        allocator,
+        timeline,
+    );
+    defer ser_timeline.deinit(allocator);
+
+    try write_serializable_to_file(
+        allocator,
+        ser_timeline,
+        file_path,
+        options,
+    );
+}
+
+/// Internal serializer, using the SerializableTimeline intermediate
+/// structures.
+/// Supports: .tla, .tlb (FlatBuffers), .tlz (bundle), based on the file
+/// extension.
+fn write_serializable_to_file(
     allocator: Allocator,
     intermediate_tl: SerializableTimeline,
     file_path: []const u8,
@@ -3047,14 +3072,19 @@ pub fn write_to_file(
 ) !void
 {
     // Check file extension to determine format
-    const ext_start = std.mem.lastIndexOfScalar(u8, file_path, '.') orelse {
-        return error.NoFileExtension;
-    };
-    const extension = file_path[ext_start + 1 ..];  // Skip the leading dot
+    const ext_start = std.mem.lastIndexOfScalar(
+        u8,
+        file_path,
+        '.',
+    ) orelse  return error.NoFileExtension;
 
-    const format = std.meta.stringToEnum(FileFormat, extension) orelse {
-        return error.UnsupportedFileFormat;
-    };
+    // Skip the leading dot
+    const extension = file_path[ext_start + 1 ..];  
+
+    const format = (
+        std.meta.stringToEnum(FileFormat, extension) 
+        orelse return error.UnsupportedFileFormat
+    );
 
     // Handle .tlz separately since it manages its own file writing
     if (format == .tlz)
@@ -3080,13 +3110,41 @@ pub fn write_to_file(
     var file_writer = file.writer(&file_writer_buffer);
     const writer = &file_writer.interface;
 
-    try write_to_writer(allocator, intermediate_tl, format, options, writer);
+    try write_serializable_to_writer(
+        allocator,
+        intermediate_tl,
+        format,
+        options,
+        writer,
+    );
 
     try writer.flush();
 }
 
+/// Write a Timeline to a writer in the specified format.
+/// Converts to serializable format internally.
+pub fn write_timeline_to_writer(
+    allocator: Allocator,
+    timeline: *schema.Timeline,
+    format: FileFormat,
+    options: WriteOptions,
+    writer: anytype,
+) !void
+{
+    var ser_timeline: SerializableTimeline = try .from(allocator, timeline);
+    defer ser_timeline.deinit(allocator);
+
+    try write_serializable_to_writer(
+        allocator,
+        ser_timeline,
+        format,
+        options,
+        writer,
+    );
+}
+
 /// Write a SerializableTimeline to a writer in the specified format.
-pub fn write_to_writer(
+fn write_serializable_to_writer(
     allocator: Allocator,
     intermediate_tl: SerializableTimeline,
     format: FileFormat,

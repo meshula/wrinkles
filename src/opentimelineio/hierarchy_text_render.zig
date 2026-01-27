@@ -368,7 +368,7 @@ pub fn render_metadata_value_inline(
 /// Render a SerializableTimeline hierarchy
 pub fn render_serializable_timeline(
     allocator: std.mem.Allocator,
-    ser_timeline: serialization.SerializableTimeline,
+    ser_timeline: serialization.ascii.SerializableTimeline,
     chars: TreeChars,
     show_metadata: bool,
 ) void
