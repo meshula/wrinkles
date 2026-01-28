@@ -321,12 +321,12 @@ pub export fn otio_fetch_cvr_name_str(
 
     const buf_slice = buf[0..len];
 
-    const maybe_name = ref.maybe_name();
+    const item_name = ref.name();
 
     _ = std.fmt.bufPrintZ(
         buf_slice,
         "{?s}",
-        .{ maybe_name },
+        .{ item_name },
     ) catch |err| {
         std.log.err("error printing to buffer: {any}\n", .{err});
         std.log.err("input buffer: '{s}'", .{buf_slice});

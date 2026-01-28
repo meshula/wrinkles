@@ -42,7 +42,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
     ///////////////////////////////////////////////////////////////////////////
     // clips
     var cl1:otio.Clip = .{
-        .maybe_name = "Spaghetti.mov",
+        .name = "Spaghetti.mov",
         .maybe_bounds_s = .{
             .start = .one,
             .end = .init(3),
@@ -64,7 +64,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         },
     };
     var cl2: otio.Clip = .{
-        .maybe_name = "Taco.mov",
+        .name = "Taco.mov",
         .media = .{
             .data_reference = .null,
             .domain = .picture,
@@ -86,7 +86,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
 
     // track
     var tr: otio.Track = .{
-        .maybe_name = "Example Parent Track",
+        .name = "Example Parent Track",
         .children = &track_children,
     };
 
@@ -95,7 +95,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         tr.handle(),
     };
     var tl: otio.Timeline = .{
-        .maybe_name = "Example Timeline - high level procedural test",
+        .name = "Example Timeline - high level procedural test",
         .discrete_space_partitions = .{ 
             .presentation = .{
                 .picture = .{
@@ -158,7 +158,7 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
         opentime.dbg_print(@src(),
             "Media Frames Needed to Render '{s}'\n",
             .{
-                tr.maybe_name orelse "pasta"
+                tr.name
             }
         );
         opentime.dbg_print(@src(),
@@ -296,8 +296,8 @@ test "otio: high level procedural test [clip][   gap    ][clip]"
                 opentime.dbg_print(@src(),
                     "    Source: \n      target: {?s}\n"
                     ++ "      frames: {any}\n",
-                    .{ 
-                        op.destination.ref.clip.maybe_name orelse "pasta",
+                    .{
+                        op.destination.ref.clip.name,
                         dest_frames,
                     }
                 );
@@ -311,7 +311,7 @@ test "libsamplerate w/ high level test -- resample only"
     const allocator = std.testing.allocator;
 
     var cl1 = otio.Clip {
-        .maybe_name = "Spaghetti.mov",
+        .name = "Spaghetti.mov",
         .media = .{
             .domain = .picture,
             .maybe_bounds_s = T_INT_SIGNAL,
@@ -319,7 +319,7 @@ test "libsamplerate w/ high level test -- resample only"
                 .sample_rate_hz = .{ .Integer = 48000 },
                 .start_index = 0,
             },
-            .data_reference = .{ 
+            .data_reference = .{
                 .signal = .{
                     .signal_generator = .{
                         .signal = .sine,
@@ -335,7 +335,7 @@ test "libsamplerate w/ high level test -- resample only"
     };
     const cl_ptr = track_children[0];
     var tr: otio.Track = .{
-        .maybe_name = "Example Parent Track",
+        .name = "Example Parent Track",
         .children = &track_children,
     };
     var stack_children = [_]otio.CompositionItemHandle{
@@ -343,7 +343,7 @@ test "libsamplerate w/ high level test -- resample only"
     };
     const tr_ptr = stack_children[0];
     const tl: otio.Timeline = .{
-        .maybe_name = "Example Timeline - resample only test",
+        .name = "Example Timeline - resample only test",
         .discrete_space_partitions = .{ 
             .presentation = .{
                 .audio = .{
@@ -462,7 +462,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
     const allocator = std.testing.allocator;
 
     var cl1 = otio.Clip {
-        .maybe_name = "Clip w/ media ref pointing at a Sine Signal",
+        .name = "Clip w/ media ref pointing at a Sine Signal",
         .media = .{
             .maybe_bounds_s = T_INT_SIGNAL,
             .domain = .audio,
@@ -470,7 +470,7 @@ test "libsamplerate w/ high level test.retime.interpolating"
                 .sample_rate_hz = .{ .Integer = 48000 },
                 .start_index = 0,
             },
-            .data_reference = .{ 
+            .data_reference = .{
                 .signal = .{
                     .signal_generator = .{
                         .signal = .sine,
@@ -481,14 +481,14 @@ test "libsamplerate w/ high level test.retime.interpolating"
             },
         },
     };
-    
+
     const cl_ptr = otio.CompositionItemHandle{
         .clip = &cl1,
     };
 
     // new for this test - add in an warp on the clip
     var wp: otio.Warp = .{
-        .maybe_name = "-1 offset 2 scale",
+        .name = "-1 offset 2 scale",
         .child = cl_ptr,
         .transform = try topology.Topology.init_affine(
             allocator,
@@ -504,14 +504,14 @@ test "libsamplerate w/ high level test.retime.interpolating"
         otio.CompositionItemHandle.init(&wp),
     };
     var tr: otio.Track = .{
-        .maybe_name ="Example Parent Track",
+        .name ="Example Parent Track",
         .children = &track_children,
     };
     const tr_ptr = otio.CompositionItemHandle.init(&tr);
 
     var stack_children = [_]otio.CompositionItemHandle{tr_ptr};
     var tl: otio.Timeline = .{
-        .maybe_name = "Example Timeline test.retime.interpolating",
+        .name = "Example Timeline test.retime.interpolating",
         .discrete_space_partitions = .{ 
             .presentation = .{
                 .picture = null,
@@ -619,7 +619,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
     const allocator = std.testing.allocator;
 
     var cl1 = otio.Clip {
-        .maybe_name = "Sine Wave",
+        .name = "Sine Wave",
         .media = .{
             .domain = .audio,
             .maybe_bounds_s = T_INT_SIGNAL,
@@ -656,7 +656,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
         .{ .warp = &warp },
     };
     var tr: otio.Track = .{
-        .maybe_name = "Example Parent Track",
+        .name = "Example Parent Track",
         .children = &track_children,
     };
     const tr_ptr = otio.CompositionItemHandle{
@@ -667,7 +667,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating"
         tr_ptr,
     };
     const tl: otio.Timeline = .{
-        .maybe_name = (
+        .name = (
             "Example Timeline - high level test.retime.non_interpolating"
         ),
         .discrete_space_partitions = .{ 
@@ -789,7 +789,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
     const sample_rate = 48000;
 
     var cl1 = otio.Clip {
-        .maybe_name = "Spaghetti.mov",
+        .name = "Spaghetti.mov",
         .media = .{
             .domain = .audio,
             .maybe_bounds_s = T_INT_SIGNAL,
@@ -818,12 +818,12 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
             &.{
                 .{
                     .in = .zero,
-                    .out = T_ORD_SIGNAL_DURATION, 
+                    .out = T_ORD_SIGNAL_DURATION,
                 },
                 .{
                     .in = T_ORD_SIGNAL_DURATION,
-                    .out = .zero 
-                },   
+                    .out = .zero
+                },
             },
         )
     };
@@ -833,7 +833,7 @@ test "libsamplerate w/ high level test.retime.non_interpolating_reverse"
         .{ .warp = &wp_reverse },
     };
     var tr: otio.Track = .{
-        .maybe_name = "Parent Track",
+        .name = "Parent Track",
         .children = &track_children,
     };
 
@@ -921,7 +921,7 @@ test "timeline w/ warp that holds the tenth frame"
 
     // clips
     var cl1 = otio.Clip {
-        .maybe_name = "Spaghetti.mov",
+        .name = "Spaghetti.mov",
         .media = .{
             .domain = .picture,
             .maybe_bounds_s = T_INT_SIGNAL,
@@ -931,7 +931,7 @@ test "timeline w/ warp that holds the tenth frame"
             },
             .data_reference = .{
                 .signal = .{
-                    .signal_generator = .{ 
+                    .signal_generator = .{
                         .signal = .sine,
                         .duration_s = T_ORD_SIGNAL_DURATION,
                         .frequency_hz = 24,
@@ -976,7 +976,7 @@ test "timeline w/ warp that holds the tenth frame"
         warp_ptr,
     };
     var tr: otio.Track = .{
-        .maybe_name = "Example Parent Track",
+        .name = "Example Parent Track",
         .children = &tr_children,
     };
     const tr_ptr = otio.CompositionItemHandle.init(&tr);
@@ -1063,7 +1063,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     ///////////////////////////////////////////////////////////////////////////
 
     var cl = otio.Clip {
-        .maybe_name = "Clip at 24",
+        .name = "Clip at 24",
         .media = .{
             .data_reference = .null,
             .domain = .picture,
@@ -1083,7 +1083,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
         cl_ptr
     };
     var tr: otio.Track = .{
-        .maybe_name = "Track for clip",
+        .name = "Track for clip",
         .children = &tr_children,
     };
 
@@ -1091,7 +1091,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
         otio.CompositionItemHandle.init(&tr),
     };
     var tl: otio.Timeline = .{
-        .maybe_name = "Timeline @ 24 * 1000/1001 with media showing skew",
+        .name = "Timeline @ 24 * 1000/1001 with media showing skew",
         .discrete_space_partitions = .{ 
             .presentation = .{
                 .picture = .{
@@ -1162,7 +1162,7 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     ////////////////////////////////////
 
     const TestCase = struct {
-        maybe_name: string_stuff.latin_s8,
+        name: string_stuff.latin_s8,
         tl_pres_index: sampling.sample_index_t,
         cl_media_indices: []const sampling.sample_index_t,
     };
@@ -1171,20 +1171,20 @@ test "timeline running at 24*1000/1001 with media at 24 showing skew"
     // samples per second) and the clip is 24 hz samples from the top level
     // timeline will always overlap multiple samples of the clip
     const tests = [_]TestCase{
-        .{ 
-            .maybe_name = "zero",
+        .{
+            .name = "zero",
             // 24 * 1000/1001
             .tl_pres_index = 0,
             // 24
             .cl_media_indices = &.{ 0, 1 },
         },
-        .{ 
-            .maybe_name = "one thousand",
+        .{
+            .name = "one thousand",
             .tl_pres_index = 1000,
             .cl_media_indices = &.{ 1001, 1002 },
         },
-        .{ 
-            .maybe_name = "24 thousand",
+        .{
+            .name = "24 thousand",
             .tl_pres_index = 24000,
             .cl_media_indices = &.{ 24024, 24025 },
         },

@@ -135,7 +135,7 @@ pub fn render_item(
 
     switch (item) {
         .timeline => |tl| {
-            const name = tl.maybe_name orelse "(unnamed)";
+            const name = if (tl.name.len > 0) tl.name else "(unnamed)";
             std.debug.print(
                 "{s}{s}Timeline: {s}\n",
                 .{ prefix, connector, name },
@@ -145,7 +145,7 @@ pub fn render_item(
             render_stack(allocator, &tl.tracks, child_prefix, chars, show_metadata, maybe_metadata_map);
         },
         .stack => |st| {
-            const name = st.maybe_name orelse "(unnamed)";
+            const name = if (st.name.len > 0) st.name else "(unnamed)";
             const bounds_str = format_bounds(allocator, st.maybe_bounds_s) catch "";
             defer if (bounds_str.len > 0) allocator.free(bounds_str);
 
@@ -161,10 +161,10 @@ pub fn render_item(
                     .{ child_prefix, chars.vertical_single, st.markers.len },
                 );
                 for (st.markers, 0..) |marker, idx| {
-                    const marker_name = marker.maybe_name orelse "(unnamed)";
+                    const marker_name = if (marker.name.len > 0) marker.name else "(unnamed)";
                     std.debug.print(
                         "{s}{s}         [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ child_prefix, chars.vertical_single, idx + 1, marker_name, marker.color.to_string(),
+                        .{ child_prefix, chars.vertical_single, idx + 1, marker_name, @tagName(marker.color),
                            marker.marked_range.start.as(f64), marker.marked_range.end.as(f64) },
                     );
                 }
@@ -173,7 +173,7 @@ pub fn render_item(
             render_stack(allocator, st, child_prefix, chars, show_metadata, maybe_metadata_map);
         },
         .track => |tr| {
-            const name = tr.maybe_name orelse "(unnamed)";
+            const name = if (tr.name.len > 0) tr.name else "(unnamed)";
             const bounds_str = format_bounds(allocator, tr.maybe_bounds_s) catch "";
             defer if (bounds_str.len > 0) allocator.free(bounds_str);
 
@@ -189,10 +189,10 @@ pub fn render_item(
                     .{ child_prefix, chars.vertical_single, tr.markers.len },
                 );
                 for (tr.markers, 0..) |marker, idx| {
-                    const marker_name = marker.maybe_name orelse "(unnamed)";
+                    const marker_name = if (marker.name.len > 0) marker.name else "(unnamed)";
                     std.debug.print(
                         "{s}{s}         [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ child_prefix, chars.vertical_single, idx + 1, marker_name, marker.color.to_string(),
+                        .{ child_prefix, chars.vertical_single, idx + 1, marker_name, @tagName(marker.color),
                            marker.marked_range.start.as(f64), marker.marked_range.end.as(f64) },
                     );
                 }
@@ -205,7 +205,7 @@ pub fn render_item(
             }
         },
         .clip => |cl| {
-            const name = cl.maybe_name orelse "(unnamed)";
+            const name = if (cl.name.len > 0) cl.name else "(unnamed)";
             // Use clip bounds if set, otherwise fall back to media bounds
             const bounds_to_show = cl.maybe_bounds_s orelse cl.media.maybe_bounds_s;
             const bounds_str = format_bounds_with_discrete(
@@ -239,10 +239,10 @@ pub fn render_item(
                     .{ child_prefix, cl.markers.len },
                 );
                 for (cl.markers, 0..) |marker, idx| {
-                    const marker_name = marker.maybe_name orelse "(unnamed)";
+                    const marker_name = if (marker.name.len > 0) marker.name else "(unnamed)";
                     std.debug.print(
                         "{s}      [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ child_prefix, idx + 1, marker_name, marker.color.to_string(),
+                        .{ child_prefix, idx + 1, marker_name, @tagName(marker.color),
                            marker.marked_range.start.as(f64), marker.marked_range.end.as(f64) },
                     );
                 }
@@ -251,7 +251,7 @@ pub fn render_item(
             // which uses render_serializable_item instead of this function
         },
         .gap => |gp| {
-            const name = gp.maybe_name orelse "(unnamed)";
+            const name = if (gp.name.len > 0) gp.name else "(unnamed)";
             const bounds_str = format_bounds(allocator, gp.bounds_s) catch "";
             defer if (bounds_str.len > 0) allocator.free(bounds_str);
 
@@ -267,17 +267,17 @@ pub fn render_item(
                     .{ child_prefix, gp.markers.len },
                 );
                 for (gp.markers, 0..) |marker, idx| {
-                    const marker_name = marker.maybe_name orelse "(unnamed)";
+                    const marker_name = if (marker.name.len > 0) marker.name else "(unnamed)";
                     std.debug.print(
                         "{s}      [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
-                        .{ child_prefix, idx + 1, marker_name, marker.color.to_string(),
+                        .{ child_prefix, idx + 1, marker_name, @tagName(marker.color),
                            marker.marked_range.start.as(f64), marker.marked_range.end.as(f64) },
                     );
                 }
             }
         },
         .warp => |wp| {
-            const name = wp.maybe_name orelse "(unnamed)";
+            const name = if (wp.name.len > 0) wp.name else "(unnamed)";
             std.debug.print(
                 "{s}{s}Warp: {s}\n",
                 .{ prefix, connector, name },
@@ -287,7 +287,7 @@ pub fn render_item(
             render_item(allocator, wp.child, child_prefix, true, chars, show_metadata, maybe_metadata_map);
         },
         .transition => |tr| {
-            const name = tr.maybe_name orelse "(unnamed)";
+            const name = if (tr.name.len > 0) tr.name else "(unnamed)";
             const bounds_str = format_bounds(allocator, tr.maybe_bounds_s) catch "";
             defer if (bounds_str.len > 0) allocator.free(bounds_str);
 
@@ -373,7 +373,7 @@ pub fn render_serializable_timeline(
     show_metadata: bool,
 ) void
 {
-    const name = ser_timeline.name orelse "(unnamed)";
+    const name = if (ser_timeline.name.len > 0) ser_timeline.name else "(unnamed)";
     std.debug.print("Timeline: {s}\n", .{name});
     std.debug.print("{s}\n", .{chars.vertical_single});
 
@@ -408,7 +408,7 @@ pub fn render_serializable_item(
 
     switch (item) {
         .track => |tr| {
-            const name = tr.name orelse "(unnamed)";
+            const name = if (tr.name.len > 0) tr.name else "(unnamed)";
             std.debug.print(
                 "{s}{s}Track: {s} ({d} children)\n",
                 .{ prefix, connector, name, tr.children.len },
@@ -421,7 +421,7 @@ pub fn render_serializable_item(
                     .{ child_prefix, chars.vertical_single, tr.markers.len },
                 );
                 for (tr.markers, 0..) |marker, idx| {
-                    const marker_name = marker.name orelse "(unnamed)";
+                    const marker_name = if (marker.name.len > 0) marker.name else "(unnamed)";
                     std.debug.print(
                         "{s}{s}         [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
                         .{ child_prefix, chars.vertical_single, idx + 1, marker_name, marker.color,
@@ -436,7 +436,7 @@ pub fn render_serializable_item(
             }
         },
         .stack => |st| {
-            const name = st.name orelse "(unnamed)";
+            const name = if (st.name.len > 0) st.name else "(unnamed)";
             std.debug.print(
                 "{s}{s}Stack: {s} ({d} children)\n",
                 .{ prefix, connector, name, st.children.len },
@@ -449,7 +449,7 @@ pub fn render_serializable_item(
                     .{ child_prefix, chars.vertical_single, st.markers.len },
                 );
                 for (st.markers, 0..) |marker, idx| {
-                    const marker_name = marker.name orelse "(unnamed)";
+                    const marker_name = if (marker.name.len > 0) marker.name else "(unnamed)";
                     std.debug.print(
                         "{s}{s}         [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
                         .{ child_prefix, chars.vertical_single, idx + 1, marker_name, marker.color,
@@ -464,7 +464,7 @@ pub fn render_serializable_item(
             }
         },
         .clip => |cl| {
-            const name = cl.name orelse "(unnamed)";
+            const name = if (cl.name.len > 0) cl.name else "(unnamed)";
             const bounds_str = format_serializable_bounds(allocator, cl.bounds_s) catch "";
             defer if (bounds_str.len > 0) allocator.free(bounds_str);
 
@@ -492,7 +492,7 @@ pub fn render_serializable_item(
                     .{ child_prefix, cl.markers.len },
                 );
                 for (cl.markers, 0..) |marker, idx| {
-                    const marker_name = marker.name orelse "(unnamed)";
+                    const marker_name = if (marker.name.len > 0) marker.name else "(unnamed)";
                     std.debug.print(
                         "{s}      [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
                         .{ child_prefix, idx + 1, marker_name, marker.color,
@@ -514,7 +514,7 @@ pub fn render_serializable_item(
             }
         },
         .gap => |gp| {
-            const name = gp.name orelse "(unnamed)";
+            const name = if (gp.name.len > 0) gp.name else "(unnamed)";
             const bounds_str = std.fmt.allocPrint(
                 allocator,
                 " [{d:.2}s - {d:.2}s]",
@@ -534,7 +534,7 @@ pub fn render_serializable_item(
                     .{ child_prefix, gp.markers.len },
                 );
                 for (gp.markers, 0..) |marker, idx| {
-                    const marker_name = marker.name orelse "(unnamed)";
+                    const marker_name = if (marker.name.len > 0) marker.name else "(unnamed)";
                     std.debug.print(
                         "{s}      [{d}] {s} ({s}) [{d:.2}s - {d:.2}s]\n",
                         .{ child_prefix, idx + 1, marker_name, marker.color,
@@ -544,7 +544,7 @@ pub fn render_serializable_item(
             }
         },
         .warp => |wp| {
-            const name = wp.name orelse "(unnamed)";
+            const name = if (wp.name.len > 0) wp.name else "(unnamed)";
             std.debug.print(
                 "{s}{s}Warp: {s}\n",
                 .{ prefix, connector, name },
@@ -553,7 +553,7 @@ pub fn render_serializable_item(
             render_serializable_item(allocator, wp.child.*, child_prefix, true, chars, show_metadata, maybe_metadata_map);
         },
         .transition => |tr| {
-            const name = tr.name orelse "(unnamed)";
+            const name = if (tr.name.len > 0) tr.name else "(unnamed)";
             std.debug.print(
                 "{s}{s}Transition: {s} (kind: {s})\n",
                 .{ prefix, connector, name, tr.kind },
@@ -599,11 +599,11 @@ pub fn render_serializable_collection(
     show_metadata: bool,
 ) void
 {
-    const name = collection.name orelse "(unnamed)";
+    const name = if (collection.name.len > 0) collection.name else "(unnamed)";
     std.debug.print("Collection: {s}\n", .{name});
 
-    if (collection.description) |desc| {
-        std.debug.print("  description: {s}\n", .{desc});
+    if (collection.description.len > 0) {
+        std.debug.print("  description: {s}\n", .{collection.description});
     }
 
     std.debug.print("{s}\n", .{chars.vertical_single});
@@ -635,9 +635,12 @@ pub fn render_serializable_collection_item(
     ) catch "(alloc error)";
     defer allocator.free(child_prefix);
 
+    const name = switch (item) {
+        inline else => |thing| if (thing.name.len > 0) thing.name else "(unnamed)",
+    };
+
     switch (item) {
         .timeline => |tl| {
-            const name = tl.name orelse "(unnamed)";
             std.debug.print(
                 "{s}{s}Timeline: {s} ({d} tracks)\n",
                 .{ prefix, connector, name, tl.children.len },
@@ -658,7 +661,6 @@ pub fn render_serializable_collection_item(
             }
         },
         .track => |tr| {
-            const name = tr.name orelse "(unnamed)";
             std.debug.print(
                 "{s}{s}Track: {s} ({d} children)\n",
                 .{ prefix, connector, name, tr.children.len },
@@ -678,7 +680,6 @@ pub fn render_serializable_collection_item(
             }
         },
         .stack => |st| {
-            const name = st.name orelse "(unnamed)";
             std.debug.print(
                 "{s}{s}Stack: {s} ({d} children)\n",
                 .{ prefix, connector, name, st.children.len },
@@ -698,7 +699,6 @@ pub fn render_serializable_collection_item(
             }
         },
         .clip => |cl| {
-            const name = cl.name orelse "(unnamed)";
             const bounds_str = format_serializable_bounds(allocator, cl.bounds_s) catch "";
             defer if (bounds_str.len > 0) allocator.free(bounds_str);
 
@@ -740,7 +740,6 @@ pub fn render_serializable_collection_item(
             }
         },
         .gap => |gp| {
-            const name = gp.name orelse "(unnamed)";
             const bounds_str = std.fmt.allocPrint(
                 allocator,
                 " [{d:.2}s - {d:.2}s]",
@@ -762,7 +761,6 @@ pub fn render_serializable_collection_item(
             }
         },
         .warp => |wp| {
-            const name = wp.name orelse "(unnamed)";
             std.debug.print(
                 "{s}{s}Warp: {s}\n",
                 .{ prefix, connector, name },
@@ -771,7 +769,6 @@ pub fn render_serializable_collection_item(
             render_serializable_item(allocator, wp.child.*, child_prefix, true, chars, show_metadata, maybe_metadata_map);
         },
         .transition => |tr| {
-            const name = tr.name orelse "(unnamed)";
             std.debug.print(
                 "{s}{s}Transition: {s} (kind: {s})\n",
                 .{ prefix, connector, name, tr.kind },
