@@ -48,7 +48,8 @@ const OTIO_JSON_VERSION: u32 = 0;
 pub const SerializableContinuousInterval = [2]f64;
 pub const SerializableDiscreteInterval = [2]i64;
 
-/// Bounds can be either continuous (time in seconds) or discrete (sample indices)
+/// Bounds can be either continuous (time in seconds) or discrete (sample
+/// indices)
 pub const SerializableBounds = union(enum) {
     continuous: SerializableContinuousInterval,
     discrete: SerializableDiscreteInterval,
@@ -139,7 +140,9 @@ pub const SerializableSampleIndexGenerator = struct {
     ) ?SerializableSampleIndexGenerator 
     {
         return (
-            if (maybe_sig) |sig| .{
+            if (maybe_sig) 
+                |sig| 
+            .{
                 .sample_rate_hz = .from(sig.sample_rate_hz),
                 .start_index = sig.start_index,
             }
@@ -175,7 +178,11 @@ pub const SerializableDomain = union(enum) {
     }
 
     /// Free memory owned by the SerializableDomain.
-    pub fn deinit(self: @This(), allocator: Allocator) void {
+    pub fn deinit(
+        self: @This(),
+        allocator: Allocator,
+    ) void
+    {
         switch (self) {
             .other => |o| allocator.free(o.name),
             else => {},
@@ -190,21 +197,46 @@ pub const SerializableMediaDataReference = union(enum) {
     image_sequence: SerializableImageSequenceReference,
     null: struct {},
 
-    pub fn from(allocator: Allocator, ref: schema.MediaDataReference) !SerializableMediaDataReference {
+    pub fn from(
+        allocator: Allocator,
+        ref: schema.MediaDataReference,
+    ) !SerializableMediaDataReference
+    {
         return switch (ref) {
             .uri => |uri_ref| .{
-                .uri = .{ .target_uri = try allocator.dupe(u8, uri_ref.target_uri) },
+                .uri = .{
+                    .target_uri = try allocator.dupe(
+                        u8,
+                        uri_ref.target_uri,
+                    ),
+                },
             },
             .signal => |sig_ref| .{
-                .signal = .{ .signal_generator = SerializableSignalGenerator.from(sig_ref.signal_generator) },
+                .signal = .{
+                    .signal_generator = SerializableSignalGenerator.from(
+                        sig_ref.signal_generator,
+                    ),
+                },
             },
             .image_sequence => |img_seq| .{
                 .image_sequence = .{
-                    .target_url_base = try allocator.dupe(u8, img_seq.target_url_base),
-                    .name_prefix = try allocator.dupe(u8, img_seq.name_prefix),
-                    .name_suffix = try allocator.dupe(u8, img_seq.name_suffix),
+                    .target_url_base = try allocator.dupe(
+                        u8,
+                        img_seq.target_url_base,
+                    ),
+                    .name_prefix = try allocator.dupe(
+                        u8,
+                        img_seq.name_prefix,
+                    ),
+                    .name_suffix = try allocator.dupe(
+                        u8,
+                        img_seq.name_suffix,
+                    ),
                     .frame_zero_padding = img_seq.frame_zero_padding,
-                    .missing_frame_policy = try allocator.dupe(u8, @tagName(img_seq.missing_frame_policy)),
+                    .missing_frame_policy = try allocator.dupe(
+                        u8,
+                        @tagName(img_seq.missing_frame_policy)
+                    ),
                 },
             },
             .null => .null,
@@ -212,10 +244,18 @@ pub const SerializableMediaDataReference = union(enum) {
     }
 
     /// Free memory owned by the SerializableMediaDataReference.
-    pub fn deinit(self: @This(), allocator: Allocator) void {
+    pub fn deinit(
+        self: @This(),
+        allocator: Allocator,
+    ) void
+    {
         switch (self) {
-            .uri => |uri_ref| allocator.free(uri_ref.target_uri),
-            .image_sequence => |img_seq| img_seq.deinit(allocator),
+            .uri => |uri_ref| allocator.free(
+                uri_ref.target_uri,
+            ),
+            .image_sequence => |img_seq| img_seq.deinit(
+                allocator,
+            ),
             .signal, .null => {},
         }
     }
@@ -242,10 +282,12 @@ pub const SerializableImageSequenceReference = struct {
     ) void
     {
         allocator.free(self.target_url_base);
-        if (self.name_prefix.len > 0) {
+        if (self.name_prefix.len > 0)
+        {
             allocator.free(self.name_prefix);
         }
-        if (self.name_suffix.len > 0) {
+        if (self.name_suffix.len > 0)
+        {
             allocator.free(self.name_suffix);
         }
         allocator.free(self.missing_frame_policy);
@@ -256,9 +298,16 @@ pub const SerializableSignalGenerator = union(enum) {
     sine: struct { frequency_hz: f64 },
     linear_ramp: struct {},
 
-    pub fn from(gen: sampling.SignalGenerator) SerializableSignalGenerator {
+    pub fn from(
+        gen: sampling.SignalGenerator,
+    ) SerializableSignalGenerator
+    {
         return switch (gen.signal) {
-            .sine => .{ .sine = .{ .frequency_hz = @floatFromInt(gen.frequency_hz) } },
+            .sine => .{
+                .sine = .{
+                    .frequency_hz = @floatFromInt(gen.frequency_hz),
+                }
+            },
             .ramp => .{ .linear_ramp = .{} },
         };
     }
@@ -272,18 +321,41 @@ pub const SerializableMediaReference = struct {
     discrete_partition: ?SerializableSampleIndexGenerator = null,
     interpolating: ?schema.ResamplingBehavior = null,
 
-    pub fn from(allocator: Allocator, ref: schema.MediaReference) !SerializableMediaReference {
+    pub fn from(
+        allocator: Allocator,
+        ref: schema.MediaReference,
+    ) !SerializableMediaReference
+    {
         return .{
-            .data_reference = try SerializableMediaDataReference.from(allocator, ref.data_reference),
-            .bounds_s = try SerializableBounds.from(ref.maybe_bounds_s, ref.maybe_discrete_partition, ref.bounds_write_policy),
-            .domain = try SerializableDomain.from(allocator, ref.domain),
-            .discrete_partition = SerializableSampleIndexGenerator.from(ref.maybe_discrete_partition),
-            .interpolating = if (ref.interpolating == .default_from_domain) null else ref.interpolating,
+            .data_reference = try SerializableMediaDataReference.from(
+                allocator,
+                ref.data_reference,
+            ),
+            .bounds_s = try SerializableBounds.from(
+                ref.maybe_bounds_s,
+                ref.maybe_discrete_partition,
+                ref.bounds_write_policy,
+            ),
+            .domain = try SerializableDomain.from(
+                allocator,
+                ref.domain,
+            ),
+            .discrete_partition = SerializableSampleIndexGenerator.from(
+                ref.maybe_discrete_partition,
+            ),
+            .interpolating = (
+                if (ref.interpolating == .default_from_domain) null 
+                else ref.interpolating
+            ),
         };
     }
 
     /// Free memory owned by the SerializableMediaReference.
-    pub fn deinit(self: @This(), allocator: Allocator) void {
+    pub fn deinit(
+        self: @This(),
+        allocator: Allocator,
+    ) void
+    {
         self.data_reference.deinit(allocator);
         self.domain.deinit(allocator);
     }
@@ -302,21 +374,36 @@ pub const SerializableClip = struct {
         allocator: Allocator,
         clip: schema.Clip,
         maybe_meta_ctx: ?*MetadataContext,
-    ) !SerializableClip {
+    ) !SerializableClip
+    {
         // Handle metadata if present and context provided
-        const metadata_hash: ?[]const u8 = if (clip.maybe_metadata_json) |json_meta| blk: {
-            if (maybe_meta_ctx) |meta_ctx| {
-                break :blk try meta_ctx.add_metadata(json_meta);
-            }
-            break :blk null;
-        } else null;
+        const metadata_hash: ?[]const u8 = (
+            if (clip.maybe_metadata_json) |json_meta| 
+                if (maybe_meta_ctx) |meta_ctx| 
+                    try meta_ctx.add_metadata(json_meta)
+                else null
+            else null
+        );
 
         return .{
-            .name = try copy_optional_string(allocator, clip.maybe_name),
-            .bounds_s = try SerializableBounds.from(clip.maybe_bounds_s, clip.media.maybe_discrete_partition, clip.bounds_write_policy),
-            .media = try SerializableMediaReference.from(allocator, clip.media),
+            .name = try copy_optional_string(
+                allocator,
+                clip.maybe_name,
+            ),
+            .bounds_s = try SerializableBounds.from(
+                clip.maybe_bounds_s,
+                clip.media.maybe_discrete_partition,
+                clip.bounds_write_policy,
+            ),
+            .media = try SerializableMediaReference.from(
+                allocator,
+                clip.media,
+            ),
             .metadata_hash = metadata_hash,
-            .markers = try SerializableMarker.fromSlice(allocator, clip.markers),
+            .markers = try SerializableMarker.from_slice(
+                allocator,
+                clip.markers,
+            ),
         };
     }
 };
@@ -343,11 +430,24 @@ pub const SerializableGap = struct {
     bounds_s: SerializableContinuousInterval,
     markers: []SerializableMarker = &.{},
 
-    pub fn from(allocator: Allocator, gap: schema.Gap) !SerializableGap {
+    pub fn from(
+        allocator: Allocator,
+        gap: schema.Gap,
+    ) !SerializableGap
+    {
         return .{
-            .name = try copy_optional_string(allocator, gap.maybe_name),
-            .bounds_s = .{ gap.bounds_s.start.as(f64), gap.bounds_s.end.as(f64) },
-            .markers = try SerializableMarker.fromSlice(allocator, gap.markers),
+            .name = try copy_optional_string(
+                allocator,
+                gap.maybe_name,
+            ),
+            .bounds_s = .{
+                gap.bounds_s.start.as(f64),
+                gap.bounds_s.end.as(f64),
+            },
+            .markers = try SerializableMarker.from_slice(
+                allocator,
+                gap.markers,
+            ),
         };
     }
 };
@@ -359,7 +459,11 @@ pub const SerializableMarker = struct {
     color: []const u8,
     comment: ?[]const u8 = null,
 
-    pub fn from(allocator: Allocator, marker: schema.Marker) !SerializableMarker {
+    pub fn from(
+        allocator: Allocator,
+        marker: schema.Marker,
+    ) !SerializableMarker
+    {
         return .{
             .name = try copy_optional_string(allocator, marker.maybe_name),
             .marked_range = .{ marker.marked_range.start.as(f64), marker.marked_range.end.as(f64) },
@@ -368,19 +472,37 @@ pub const SerializableMarker = struct {
         };
     }
 
-    pub fn fromSlice(allocator: Allocator, markers: []schema.Marker) ![]SerializableMarker {
+    pub fn from_slice(
+        allocator: Allocator,
+        markers: []schema.Marker,
+    ) ![]SerializableMarker
+    {
         if (markers.len == 0) return &.{};
         var ser_markers = try allocator.alloc(SerializableMarker, markers.len);
-        for (markers, 0..) |marker, i| {
-            ser_markers[i] = try SerializableMarker.from(allocator, marker);
+        for (markers, 0..)
+            |marker, i|
+        {
+            ser_markers[i] = try .from(allocator, marker);
         }
         return ser_markers;
     }
 
-    pub fn deinit(self: @This(), allocator: Allocator) void {
-        if (self.name) |n| allocator.free(n);
+    pub fn deinit(
+        self: @This(),
+        allocator: Allocator,
+    ) void
+    {
+        if (self.name)
+            |n|
+        {
+            allocator.free(n);
+        }
         allocator.free(self.color);
-        if (self.comment) |c| allocator.free(c);
+        if (self.comment)
+            |c|
+        {
+            allocator.free(c);
+        }
     }
 };
 
@@ -390,7 +512,11 @@ pub const SerializableMapping = union(enum) {
     linear: SerializableMappingLinear,
     empty: struct {},
 
-    pub fn from(allocator: Allocator, mapping: topology_m.mapping.Mapping) !SerializableMapping {
+    pub fn from(
+        allocator: Allocator,
+        mapping: topology_m.mapping.Mapping,
+    ) !SerializableMapping
+    {
         return switch (mapping) {
             .affine => |aff| .{
                 .affine = .{
@@ -403,7 +529,9 @@ pub const SerializableMapping = union(enum) {
             },
             .linear => |lin| blk: {
                 const knots = try allocator.alloc(SerializableControlPoint, lin.input_to_output_curve.knots.len);
-                for (lin.input_to_output_curve.knots, 0..) |knot, i| {
+                for (lin.input_to_output_curve.knots, 0..)
+                    |knot, i|
+                {
                     knots[i] = .{ knot.in.as(f64), knot.out.as(f64) };
                 }
                 const input_extents = lin.input_to_output_curve.extents_input() orelse {
@@ -435,9 +563,15 @@ pub const SerializableMappingLinear = struct {
 pub const SerializableTopology = struct {
     mappings: []SerializableMapping,
 
-    pub fn from(allocator: Allocator, topo: topology_m.Topology) !SerializableTopology {
+    pub fn from(
+        allocator: Allocator,
+        topo: topology_m.Topology,
+    ) !SerializableTopology
+    {
         const ser_mappings = try allocator.alloc(SerializableMapping, topo.mappings.len);
-        for (topo.mappings, 0..) |mapping, i| {
+        for (topo.mappings, 0..)
+            |mapping, i|
+        {
             ser_mappings[i] = try SerializableMapping.from(allocator, mapping);
         }
         return .{ .mappings = ser_mappings };
@@ -472,10 +606,16 @@ pub const SerializableComposable = union(enum) {
         return result_ptr;
     }
 
-    pub fn deinit(self: *const @This(), allocator: Allocator) void {
+    pub fn deinit(
+        self: *const @This(),
+        allocator: Allocator,
+    ) void
+    {
         switch (self.*) {
             inline else => |thing| {
-                if (thing.name) |name| {
+                if (thing.name)
+                    |name|
+                {
                     allocator.free(name);
                 }
             },
@@ -484,12 +624,16 @@ pub const SerializableComposable = union(enum) {
         switch (self.*) {
             .clip => |clip| {
                 clip.media.deinit(allocator);
-                if (clip.metadata_hash) |hash_key| {
+                if (clip.metadata_hash)
+                    |hash_key|
+                {
                     allocator.free(hash_key);
                 }
             },
             inline .track, .stack, => |container| {
-                for (container.children) |*child| {
+                for (container.children)
+                    |*child|
+                {
                     child.deinit(allocator);
                 }
                 allocator.free(container.children);
@@ -500,10 +644,14 @@ pub const SerializableComposable = union(enum) {
             },
             .transition => |transition| {
                 allocator.free(transition.kind);
-                if (transition.container.name) |name| {
+                if (transition.container.name)
+                    |name|
+                {
                     allocator.free(name);
                 }
-                for (transition.container.children) |*child| {
+                for (transition.container.children)
+                    |*child|
+                {
                     child.deinit(allocator);
                 }
                 allocator.free(transition.container.children);
@@ -523,7 +671,8 @@ pub const SerializableWarp = struct {
         allocator: Allocator,
         warp: schema.Warp,
         maybe_meta_ctx: ?*MetadataContext,
-    ) !SerializableWarp {
+    ) !SerializableWarp
+    {
         return .{
             .name = try copy_optional_string(allocator, warp.maybe_name),
             .child = try SerializableComposable.from(allocator, warp.child, maybe_meta_ctx),
@@ -543,15 +692,33 @@ pub const SerializableStack = struct {
         allocator: Allocator,
         stack: schema.Stack,
         maybe_meta_ctx: ?*MetadataContext,
-    ) !SerializableStack {
-        const ser_children = try allocator.alloc(SerializableComposable, stack.children.len);
-        for (stack.children, 0..) |child, i| {
-            ser_children[i] = (try SerializableComposable.from(allocator, child, maybe_meta_ctx)).*;
+    ) !SerializableStack
+    {
+        const ser_children = try allocator.alloc(
+            SerializableComposable,
+            stack.children.len,
+        );
+        for (stack.children, 0..)
+            |child, i|
+        {
+            ser_children[i] = (
+                try SerializableComposable.from(
+                    allocator,
+                    child,
+                    maybe_meta_ctx
+                )
+            ).*;
         }
         return .{
-            .name = try copy_optional_string(allocator, stack.maybe_name),
+            .name = try copy_optional_string(
+                allocator,
+                stack.maybe_name,
+            ),
             .children = ser_children,
-            .markers = try SerializableMarker.fromSlice(allocator, stack.markers),
+            .markers = try SerializableMarker.from_slice(
+                allocator,
+                stack.markers,
+            ),
         };
     }
 };
@@ -567,15 +734,18 @@ pub const SerializableTrack = struct {
         allocator: Allocator,
         track: schema.Track,
         maybe_meta_ctx: ?*MetadataContext,
-    ) !SerializableTrack {
+    ) !SerializableTrack
+    {
         const ser_children = try allocator.alloc(SerializableComposable, track.children.len);
-        for (track.children, 0..) |child, i| {
+        for (track.children, 0..)
+            |child, i|
+        {
             ser_children[i] = (try SerializableComposable.from(allocator, child, maybe_meta_ctx)).*;
         }
         return .{
             .name = try copy_optional_string(allocator, track.maybe_name),
             .children = ser_children,
-            .markers = try SerializableMarker.fromSlice(allocator, track.markers),
+            .markers = try SerializableMarker.from_slice(allocator, track.markers),
         };
     }
 };
@@ -591,8 +761,10 @@ pub const SerializableTransition = struct {
         allocator: Allocator,
         transition: schema.Transition,
         maybe_meta_ctx: ?*MetadataContext,
-    ) !SerializableTransition {
-        const bounds = if (transition.maybe_bounds_s) |b|
+    ) !SerializableTransition
+    {
+        const bounds = if (transition.maybe_bounds_s)
+            |b|
             [2]f64{ b.start.as(f64), b.end.as(f64) }
         else
             null;
@@ -624,7 +796,8 @@ pub const MetadataMap = ziggy.dynamic.Map(MetadataValue);
 fn deinit_metadata_value(
     allocator: Allocator,
     value: MetadataValue,
-) void {
+) void
+{
     switch (value) {
         .kv => |kv| {
             // Copy the kv to mutable to deinit its fields
@@ -632,7 +805,9 @@ fn deinit_metadata_value(
             deinit_metadata_map_contents(allocator, &mutable_kv);
         },
         .array => |arr| {
-            for (arr) |item| {
+            for (arr)
+                |item|
+            {
                 deinit_metadata_value(allocator, item);
             }
             allocator.free(arr);
@@ -650,9 +825,12 @@ fn deinit_metadata_value(
 fn deinit_metadata_map_contents(
     allocator: Allocator,
     mm: *MetadataMap,
-) void {
+) void
+{
     var iter = mm.fields.iterator();
-    while (iter.next()) |entry| {
+    while (iter.next())
+        |entry|
+    {
         // Free the key string
         allocator.free(entry.key_ptr.*);
         // Recursively free the value
@@ -665,7 +843,8 @@ fn deinit_metadata_map_contents(
 fn deinit_metadata_map(
     allocator: Allocator,
     mm: *MetadataMap,
-) void {
+) void
+{
     deinit_metadata_map_contents(allocator, mm);
 }
 
@@ -682,7 +861,11 @@ pub const SerializableTimeline = struct {
     metadata_map: ?MetadataMap = null,
     markers: []SerializableMarker = &.{},
 
-    pub fn from(allocator: Allocator, timeline: *schema.Timeline) !SerializableTimeline {
+    pub fn from(
+        allocator: Allocator,
+        timeline: *schema.Timeline,
+    ) !SerializableTimeline
+    {
         // Create metadata map and context for accumulating clip metadata
         var metadata_map: MetadataMap = .{};
         var meta_ctx = MetadataContext{
@@ -692,7 +875,9 @@ pub const SerializableTimeline = struct {
 
         // Convert tracks.children directly to timeline.children
         const ser_children = try allocator.alloc(SerializableComposable, timeline.tracks.children.len);
-        for (timeline.tracks.children, 0..) |child, i| {
+        for (timeline.tracks.children, 0..)
+            |child, i|
+        {
             ser_children[i] = (try SerializableComposable.from(allocator, child, &meta_ctx)).*;
         }
 
@@ -708,22 +893,32 @@ pub const SerializableTimeline = struct {
                 ),
             },
             .metadata_map = if (metadata_map.fields.count() > 0) metadata_map else null,
-            .markers = try SerializableMarker.fromSlice(allocator, timeline.markers),
+            .markers = try SerializableMarker.from_slice(allocator, timeline.markers),
         };
     }
 
-    pub fn deinit(self: *@This(), allocator: Allocator) void {
-        if (self.name) |name| {
+    pub fn deinit(
+        self: *@This(),
+        allocator: Allocator,
+    ) void
+    {
+        if (self.name)
+            |name|
+        {
             allocator.free(name);
         }
 
-        for (self.children) |*child| {
+        for (self.children)
+            |*child|
+        {
             child.deinit(allocator);
         }
         allocator.free(self.children);
 
         // Free metadata map including all nested keys and values
-        if (self.metadata_map) |*mm| {
+        if (self.metadata_map)
+            |*mm|
+        {
             deinit_metadata_map(allocator, mm);
         }
     }
@@ -1107,7 +1302,7 @@ pub const MetadataContext = struct {
     pub fn json_to_metadata_value(
         self: *MetadataContext,
         json_val: std.json.Value,
-    ) !MetadataValue 
+    ) !MetadataValue
     {
         return switch (json_val) {
             .null => .null,
@@ -1161,7 +1356,8 @@ pub const MetadataContext = struct {
         self: *MetadataContext,
         json_val: std.json.Value,
         writer: anytype,
-    ) void {
+    ) void
+    {
         switch (json_val) {
             .null => writer.writeAll("null") catch {},
             .bool => |b| writer.print("{}", .{b}) catch {},
@@ -1220,7 +1416,7 @@ pub const MetadataContext = struct {
     pub fn add_metadata(
         self: *MetadataContext,
         json_val: std.json.Value,
-    ) ![]const u8 
+    ) ![]const u8
     {
         // Serialize JSON to string for hashing
         var hash_buffer: [32 * 1024]u8 = undefined;
@@ -1289,22 +1485,35 @@ fn copy_optional_string(
 // Helper Functions: Deserialization Conversion
 // ----------------------------------------------------------------------------
 
-fn serializable_to_rate(ser_rate: SerializableRateSpecifier) sampling.RateSpecifier {
+fn serializable_to_rate(
+    ser_rate: SerializableRateSpecifier,
+) sampling.RateSpecifier
+{
     return switch (ser_rate) {
         .Integer => |val| .{ .Integer = val },
         .Rational => |r| .{ .Rational = .{ .num = r.num, .den = r.den } },
     };
 }
 
-fn serializable_to_sample_index_generator(ser_sig: SerializableSampleIndexGenerator) sampling.SampleIndexGenerator {
+fn serializable_to_sample_index_generator(
+    ser_sig: SerializableSampleIndexGenerator,
+) sampling.SampleIndexGenerator
+{
     return .{
         .sample_rate_hz = serializable_to_rate(ser_sig.sample_rate_hz),
         .start_index = ser_sig.start_index,
     };
 }
 
-fn serializable_to_optional_sig(maybe_ser: ?SerializableSampleIndexGenerator) ?sampling.SampleIndexGenerator {
-    return if (maybe_ser) |ser| serializable_to_sample_index_generator(ser) else null;
+fn serializable_to_optional_sig(
+    maybe_ser: ?SerializableSampleIndexGenerator,
+) ?sampling.SampleIndexGenerator
+{
+    return if (maybe_ser)
+        |ser|
+        serializable_to_sample_index_generator(ser)
+    else
+        null;
 }
 
 /// Convert SerializableBounds to ContinuousInterval
@@ -1441,24 +1650,31 @@ fn fix_transitions_in_composable(
     switch (composable.*) {
         .transition => |*trans| {
             // Ensure kind field is not empty (default to "SMPTE_Dissolve")
-            if (trans.kind.len == 0) {
+            if (trans.kind.len == 0)
+            {
                 trans.kind = try allocator.dupe(u8, "SMPTE_Dissolve");
             }
 
             // Fix transitions in container children recursively
-            for (trans.container.children) |*child| {
+            for (trans.container.children)
+                |*child|
+            {
                 try fix_transitions_in_composable(allocator, child);
             }
         },
         .track => |*track| {
             // Recursively fix transitions in track children
-            for (track.children) |*child| {
+            for (track.children)
+                |*child|
+            {
                 try fix_transitions_in_composable(allocator, child);
             }
         },
         .stack => |*stack| {
             // Recursively fix transitions in stack children
-            for (stack.children) |*child| {
+            for (stack.children)
+                |*child|
+            {
                 try fix_transitions_in_composable(allocator, child);
             }
         },
@@ -1594,7 +1810,8 @@ pub fn serializable_to_media_reference(
 ) !schema.MediaReference
 {
     // Determine bounds_write_policy based on what was in the file
-    const bounds_write_policy: schema.BoundsWritePolicy = if (ser_ref.bounds_s) |bounds|
+    const bounds_write_policy: schema.BoundsWritePolicy = if (ser_ref.bounds_s)
+        |bounds|
         (if (bounds == .discrete) schema.BoundsWritePolicy.discrete else .continuous)
     else
         .automatic;
@@ -1702,7 +1919,8 @@ pub fn serializable_to_clip(
     );
 
     // Determine bounds_write_policy based on what was in the file
-    const bounds_write_policy: schema.BoundsWritePolicy = if (ser_clip.bounds_s) |bounds|
+    const bounds_write_policy: schema.BoundsWritePolicy = if (ser_clip.bounds_s)
+        |bounds|
         (if (bounds == .discrete) schema.BoundsWritePolicy.discrete else .continuous)
     else
         .automatic;
@@ -2489,7 +2707,9 @@ fn convert_composable_to_inline_metadata(
                 SerializableComposableInlineMetadata,
                 track.children.len,
             );
-            for (track.children, 0..) |child, i| {
+            for (track.children, 0..)
+                |child, i|
+            {
                 inline_children[i] = try convert_composable_to_inline_metadata(
                     allocator,
                     child,
@@ -2642,7 +2862,9 @@ fn convert_composable_to_no_metadata(
                 SerializableComposableNoMetadata,
                 stack.children.len,
             );
-            for (stack.children, 0..) |child, i| {
+            for (stack.children, 0..)
+                |child, i|
+            {
                 stripped_children[i] = try convert_composable_to_no_metadata(
                     allocator,
                     child,
@@ -2677,7 +2899,9 @@ fn convert_composable_to_no_metadata(
                 SerializableComposableNoMetadata,
                 trans.container.children.len,
             );
-            for (trans.container.children, 0..) |child, i| {
+            for (trans.container.children, 0..)
+                |child, i|
+            {
                 stripped_container_children[i] = try convert_composable_to_no_metadata(
                     allocator,
                     child,
@@ -3519,7 +3743,9 @@ fn strip_collection_metadata(
         collection.children.len,
     );
 
-    for (collection.children, 0..) |child, i| {
+    for (collection.children, 0..)
+        |child, i|
+    {
         stripped_children[i] = try convert_collection_item_to_no_metadata(allocator, child);
     }
 
@@ -3544,7 +3770,9 @@ fn convert_collection_item_to_no_metadata(
                 SerializableComposableNoMetadata,
                 tl.children.len,
             );
-            for (tl.children, 0..) |child, i| {
+            for (tl.children, 0..)
+                |child, i|
+            {
                 stripped_children[i] = try convert_composable_to_no_metadata(allocator, child);
             }
             break :blk .{
@@ -3562,7 +3790,9 @@ fn convert_collection_item_to_no_metadata(
                 SerializableComposableNoMetadata,
                 track.children.len,
             );
-            for (track.children, 0..) |child, i| {
+            for (track.children, 0..)
+                |child, i|
+            {
                 stripped_children[i] = try convert_composable_to_no_metadata(allocator, child);
             }
             break :blk .{
@@ -3578,7 +3808,9 @@ fn convert_collection_item_to_no_metadata(
                 SerializableComposableNoMetadata,
                 stack.children.len,
             );
-            for (stack.children, 0..) |child, i| {
+            for (stack.children, 0..)
+                |child, i|
+            {
                 stripped_children[i] = try convert_composable_to_no_metadata(allocator, child);
             }
             break :blk .{
@@ -3614,7 +3846,9 @@ fn convert_collection_item_to_no_metadata(
                 SerializableComposableNoMetadata,
                 trans.container.children.len,
             );
-            for (trans.container.children, 0..) |child, i| {
+            for (trans.container.children, 0..)
+                |child, i|
+            {
                 stripped_container_children[i] = try convert_composable_to_no_metadata(
                     allocator,
                     child,
@@ -3647,7 +3881,9 @@ fn convert_collection_to_inline_metadata(
         collection.children.len,
     );
 
-    for (collection.children, 0..) |child, i| {
+    for (collection.children, 0..)
+        |child, i|
+    {
         inline_children[i] = try convert_collection_item_to_inline_metadata(
             allocator,
             child,
@@ -3678,7 +3914,9 @@ fn convert_collection_item_to_inline_metadata(
                 SerializableComposableInlineMetadata,
                 tl.children.len,
             );
-            for (tl.children, 0..) |child, i| {
+            for (tl.children, 0..)
+                |child, i|
+            {
                 inline_children[i] = try convert_composable_to_inline_metadata(
                     allocator,
                     child,
@@ -3700,7 +3938,9 @@ fn convert_collection_item_to_inline_metadata(
                 SerializableComposableInlineMetadata,
                 track.children.len,
             );
-            for (track.children, 0..) |child, i| {
+            for (track.children, 0..)
+                |child, i|
+            {
                 inline_children[i] = try convert_composable_to_inline_metadata(
                     allocator,
                     child,
@@ -3720,7 +3960,9 @@ fn convert_collection_item_to_inline_metadata(
                 SerializableComposableInlineMetadata,
                 stack.children.len,
             );
-            for (stack.children, 0..) |child, i| {
+            for (stack.children, 0..)
+                |child, i|
+            {
                 inline_children[i] = try convert_composable_to_inline_metadata(
                     allocator,
                     child,
@@ -3740,8 +3982,10 @@ fn convert_collection_item_to_inline_metadata(
                 .name = clip.name,
                 .bounds_s = clip.bounds_s,
                 .media = clip.media,
-                .metadata = if (clip.metadata_hash) |hash|
-                    if (collection_metadata_map) |mm|
+                .metadata = if (clip.metadata_hash)
+                    |hash|
+                    if (collection_metadata_map)
+                        |mm|
                         mm.fields.get(hash)
                     else
                         null
@@ -3770,7 +4014,9 @@ fn convert_collection_item_to_inline_metadata(
                 SerializableComposableInlineMetadata,
                 trans.container.children.len,
             );
-            for (trans.container.children, 0..) |child, i| {
+            for (trans.container.children, 0..)
+                |child, i|
+            {
                 inline_container_children[i] = try convert_composable_to_inline_metadata(
                     allocator,
                     child,
