@@ -429,6 +429,15 @@ didn't impact the deisgn or problems we were specifically solving.
           serializers/deserializers
     * [ ] specifically look for string matching to convert to enums and clean
           that up
+    * [ ] optional strings can just be empty strings unless there is a
+          meaningful difference.
+    * [ ] store metdata with a hash... doesn't need to be a hash string though (ascii.zig:963)
+    * [ ] preserve whether the user wants the bounds in continuous or discrete
+          bounds, not with the heuristic on whether there is a discrete 
+          partition or not
+    * [ ] serializer/optional/type conversion functions can probably be
+          collapsed
+    * [ ] double check v0 -> v1 translation in ascii.zig
 * [ ] Update the adapter to make sure its Read and Write, integrate into
       project
 * [ ] a treecode (treecode.clone) test fails on --release=fast but no other
