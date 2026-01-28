@@ -77,13 +77,16 @@ fn parse_args(
         const arg: [:0]const u8 = nextarg;
 
         // Handle options (flags starting with -)
-        if (string.eql_latin_s8(arg, "--help") or
-            string.eql_latin_s8(arg, "-h"))
+        if (
+            string.eql_latin_s8(arg, "--help") 
+            or string.eql_latin_s8(arg, "-h"))
         {
             usage("");
         }
-        else if (string.eql_latin_s8(arg, "--no-metadata") or
-            string.eql_latin_s8(arg, "-M"))
+        else if (
+            string.eql_latin_s8(arg, "--no-metadata") 
+            or string.eql_latin_s8(arg, "-M")
+            )
         {
             metadata_mode = .no_metadata;
         }
