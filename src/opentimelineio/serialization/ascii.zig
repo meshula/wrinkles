@@ -4037,7 +4037,8 @@ fn convert_collection_item_to_inline_metadata(
     };
 }
 
-test "collection serialization: tlca round-trip" {
+test "collection serialization: tlca round-trip" 
+{
     const allocator = std.testing.allocator;
 
     // Create a test collection
@@ -4078,7 +4079,8 @@ test "collection serialization: tlca round-trip" {
     try std.testing.expectEqualStrings("Test Clip", roundtrip.children[0].clip.name.?);
 }
 
-test "collection serialization: tlcb round-trip" {
+test "collection serialization: tlcb round-trip" 
+{
     const allocator = std.testing.allocator;
 
     // Create a test collection
@@ -4114,7 +4116,8 @@ test "collection serialization: tlcb round-trip" {
     try std.testing.expectEqualStrings("Test Gap", roundtrip.children[0].gap.name.?);
 }
 
-test "collection serialization: tlca to tlcb cross-format" {
+test "collection serialization: tlca to tlcb cross-format" 
+{
     const allocator = std.testing.allocator;
 
     // Create a test collection with timeline
