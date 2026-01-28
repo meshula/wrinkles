@@ -21,7 +21,7 @@ const curve = @import("curve");
 const string = @import("string_stuff");
 
 const schema = @import("../schema.zig");
-const domain = @import("../domain.zig");
+const domain_mod = @import("../domain.zig");
 
 const versioning = @import("versioning.zig");
 const legacy_json = @import("legacy_json.zig");
@@ -53,40 +53,48 @@ pub const SerializableBounds = union(enum) {
     continuous: SerializableContinuousInterval,
     discrete: SerializableDiscreteInterval,
 
-    /// Convert ContinuousInterval to SerializableBounds based on write policy.
-    /// - automatic: use discrete if partition exists, else continuous
-    /// - discrete: always use discrete (error if no partition)
-    /// - continuous: always use continuous
+    /// Convert ContinuousInterval to Serializble form `BoundsWritePolicy`.
+    /// Bounds can be serialized as either continuous or discrete, although the
+    /// API expresses everything in continuous intervals.
     pub fn from(
-        interval: opentime.ContinuousInterval,
+        maybe_interval: ?opentime.ContinuousInterval,
         maybe_discrete_partition: ?sampling.SampleIndexGenerator,
         policy: schema.BoundsWritePolicy,
-    ) error{DiscretePartitionRequired}!SerializableBounds {
+    ) error{DiscretePartitionRequired}!?SerializableBounds 
+    {
+        const interval = maybe_interval orelse return null;
+
         const use_discrete = switch (policy) {
             .automatic => maybe_discrete_partition != null,
             .discrete => true,
             .continuous => false,
         };
 
-        if (use_discrete) {
-            const sig = maybe_discrete_partition orelse return error.DiscretePartitionRequired;
-            const start_index = sampling.project_instantaneous_cd(sig, interval.start);
-            const end_index = sampling.project_instantaneous_cd(sig, interval.end);
-            return .{ .discrete = .{ @intCast(start_index), @intCast(end_index) } };
-        } else {
-            return .{ .continuous = .{ interval.start.as(f64), interval.end.as(f64) } };
+        if (use_discrete) 
+        {
+            const sig = (
+                maybe_discrete_partition 
+                orelse return error.DiscretePartitionRequired
+            );
+            const start_index = sampling.project_instantaneous_cd(
+                sig,
+                interval.start,
+            );
+            const end_index = sampling.project_instantaneous_cd(
+                sig,
+                interval.end,
+            );
+            return .{ .discrete = .{start_index, end_index} };
+        } 
+        else 
+        {
+            return .{
+                .continuous = .{
+                    interval.start.as(f64),
+                    interval.end.as(f64),
+                },
+            };
         }
-    }
-
-    pub fn from_optional(
-        maybe_interval: ?opentime.ContinuousInterval,
-        maybe_discrete_partition: ?sampling.SampleIndexGenerator,
-        policy: schema.BoundsWritePolicy,
-    ) error{DiscretePartitionRequired}!?SerializableBounds {
-        return if (maybe_interval) |interval|
-            try SerializableBounds.from(interval, maybe_discrete_partition, policy)
-        else
-            null;
     }
 };
 
@@ -126,15 +134,17 @@ pub const SerializableSampleIndexGenerator = struct {
     sample_rate_hz: SerializableRateSpecifier,
     start_index: i64 = 0,
 
-    pub fn from(sig: sampling.SampleIndexGenerator) SerializableSampleIndexGenerator {
-        return .{
-            .sample_rate_hz = SerializableRateSpecifier.from(sig.sample_rate_hz),
-            .start_index = sig.start_index,
-        };
-    }
-
-    pub fn from_optional(maybe_sig: ?sampling.SampleIndexGenerator) ?SerializableSampleIndexGenerator {
-        return if (maybe_sig) |sig| SerializableSampleIndexGenerator.from(sig) else null;
+    pub fn from(
+        maybe_sig: ?sampling.SampleIndexGenerator
+    ) ?SerializableSampleIndexGenerator 
+    {
+        return (
+            if (maybe_sig) |sig| .{
+                .sample_rate_hz = .from(sig.sample_rate_hz),
+                .start_index = sig.start_index,
+            }
+            else null
+        );
     }
 };
 
@@ -146,13 +156,21 @@ pub const SerializableDomain = union(enum) {
     metadata: struct {},
     other: struct { name: []const u8 },
 
-    pub fn from(allocator: Allocator, dom: domain.Domain) !SerializableDomain {
-        return switch (dom) {
+    pub fn from(
+        allocator: Allocator,
+        domain: domain_mod.Domain
+    ) !SerializableDomain 
+    {
+        return switch (domain) {
             .time => .{ .time = .{} },
             .picture => .{ .picture = .{} },
             .audio => .{ .audio = .{} },
             .metadata => .{ .metadata = .{} },
-            .other => |s| .{ .other = .{ .name = try allocator.dupe(u8, s) } },
+            .other => |s| .{
+                .other = .{
+                    .name = try allocator.dupe(u8, s),
+                },
+            },
         };
     }
 
@@ -257,9 +275,9 @@ pub const SerializableMediaReference = struct {
     pub fn from(allocator: Allocator, ref: schema.MediaReference) !SerializableMediaReference {
         return .{
             .data_reference = try SerializableMediaDataReference.from(allocator, ref.data_reference),
-            .bounds_s = try SerializableBounds.from_optional(ref.maybe_bounds_s, ref.maybe_discrete_partition, ref.bounds_write_policy),
+            .bounds_s = try SerializableBounds.from(ref.maybe_bounds_s, ref.maybe_discrete_partition, ref.bounds_write_policy),
             .domain = try SerializableDomain.from(allocator, ref.domain),
-            .discrete_partition = SerializableSampleIndexGenerator.from_optional(ref.maybe_discrete_partition),
+            .discrete_partition = SerializableSampleIndexGenerator.from(ref.maybe_discrete_partition),
             .interpolating = if (ref.interpolating == .default_from_domain) null else ref.interpolating,
         };
     }
@@ -295,7 +313,7 @@ pub const SerializableClip = struct {
 
         return .{
             .name = try copy_optional_string(allocator, clip.maybe_name),
-            .bounds_s = try SerializableBounds.from_optional(clip.maybe_bounds_s, clip.media.maybe_discrete_partition, clip.bounds_write_policy),
+            .bounds_s = try SerializableBounds.from(clip.maybe_bounds_s, clip.media.maybe_discrete_partition, clip.bounds_write_policy),
             .media = try SerializableMediaReference.from(allocator, clip.media),
             .metadata_hash = metadata_hash,
             .markers = try SerializableMarker.fromSlice(allocator, clip.markers),
@@ -682,8 +700,12 @@ pub const SerializableTimeline = struct {
             .name = try copy_optional_string(allocator, timeline.maybe_name),
             .children = ser_children,
             .presentation_space_discrete_partitions = .{
-                .picture = SerializableSampleIndexGenerator.from_optional(timeline.discrete_space_partitions.presentation.picture),
-                .audio = SerializableSampleIndexGenerator.from_optional(timeline.discrete_space_partitions.presentation.audio),
+                .picture = .from(
+                    timeline.discrete_space_partitions.presentation.picture
+                ),
+                .audio = .from(
+                    timeline.discrete_space_partitions.presentation.audio
+                ),
             },
             .metadata_map = if (metadata_map.fields.count() > 0) metadata_map else null,
             .markers = try SerializableMarker.fromSlice(allocator, timeline.markers),
@@ -1483,7 +1505,7 @@ fn upgrade_timeline_v0_to_v1(
 pub fn serializable_to_domain(
     allocator: Allocator,
     ser_dom: SerializableDomain,
-) !domain.Domain
+) !domain_mod.Domain
 {
     return switch (ser_dom) {
         .time => .time,
