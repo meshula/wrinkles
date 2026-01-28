@@ -708,8 +708,9 @@ fn read_media_reference(
             "missing_frame_policy",
         ) orelse "error";
 
-        const missing_frame_policy = (
-            otio.schema.MissingFramePolicy.from_maybe_string(
+        const missing_frame_policy: 
+            otio.schema.ImageSequenceReference.MissingFramePolicy = (
+            .from_maybe_string(
                 missing_frame_policy_str
             )
         );

@@ -105,10 +105,18 @@ pub const SerializableRateSpecifier = union(enum) {
     Integer: u32,
     Rational: struct { num: u32, den: u32 },
 
-    pub fn from(rate: sampling.RateSpecifier) SerializableRateSpecifier {
+    pub fn from(
+        rate: sampling.RateSpecifier,
+    ) SerializableRateSpecifier 
+    {
         return switch (rate) {
             .Integer => |val| .{ .Integer = val },
-            .Rational => |r| .{ .Rational = .{ .num = r.num, .den = r.den } },
+            .Rational => |r| .{
+                .Rational = .{
+                    .num = r.num,
+                    .den = r.den,
+                },
+            },
         };
     }
 };
@@ -1527,10 +1535,8 @@ pub fn serializable_to_media_data_reference(
                     img_seq.name_suffix,
                 ),
                 .frame_zero_padding = img_seq.frame_zero_padding,
-                .missing_frame_policy = (
-                    schema.MissingFramePolicy.from_maybe_string(
-                        img_seq.missing_frame_policy,
-                    )
+                .missing_frame_policy = .from_maybe_string(
+                    img_seq.missing_frame_policy,
                 ),
             },
         },

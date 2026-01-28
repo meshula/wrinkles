@@ -1309,7 +1309,7 @@ test "ImageSequenceReference: Test w/ projection"
 
     // Test policy
     try std.testing.expectEqual(
-        otio.schema.MissingFramePolicy.hold,
+        .hold,
         img_seq.missing_frame_policy
     );
 

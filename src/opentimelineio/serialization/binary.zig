@@ -1559,10 +1559,8 @@ fn fb_to_media_data_ref(
                     else ""
                 ),
                 .frame_zero_padding = img_seq.frame_zero_padding(),
-                .missing_frame_policy = (
-                    schema.MissingFramePolicy.from_maybe_string(
-                        img_seq.missing_frame_policy(),
-                    )
+                .missing_frame_policy = .from_maybe_string(
+                    img_seq.missing_frame_policy(),
                 ),
             },
         },

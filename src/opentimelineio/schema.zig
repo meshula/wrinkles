@@ -58,7 +58,9 @@ pub const ResamplingBehavior = enum {
 };
 
 /// Policy for how bounds should be serialized when writing.
-/// Controls whether bounds are written as discrete sample indices or continuous time.
+/// When deserializing a file, the reader will author this so that round
+/// tripping is preserved.  Users can also set this explicity.  The default
+/// value is "automatic", which picks based on a heuristic.
 pub const BoundsWritePolicy = enum {
     /// Write bounds as discrete sample indices if a discrete partition exists,
     /// otherwise write as continuous time values.
@@ -68,28 +70,6 @@ pub const BoundsWritePolicy = enum {
     discrete,
     /// Always write bounds as continuous time values.
     continuous,
-};
-
-/// Policy for handling missing frames in an image sequence.
-pub const MissingFramePolicy = enum {
-    @"error",  // Raise error (quoted because 'error' is Zig keyword)
-    hold,      // Hold last frame
-    black,     // Show black/transparent
-    
-    pub fn from_maybe_string(
-        maybe_str: ?[]const u8,
-    ) MissingFramePolicy
-    {
-        return (
-            if (maybe_str)
-            |str|
-            std.meta.stringToEnum(
-                MissingFramePolicy,
-                str
-            ) orelse .@"error"
-            else .@"error" 
-        );
-    }
 };
 
 /// A reference described by a URI that is interpreted by clients in some way.
@@ -154,6 +134,27 @@ pub const ImageSequenceReference = struct {
         allocator.free(self.name_prefix);
         allocator.free(self.name_suffix);
     }
+
+    /// Policy for handling missing frames in image sequences.
+    pub const MissingFramePolicy = enum {
+        // Raise error
+        @"error",  
+        hold,      // Hold last frame
+        black,     // Show black/transparent
+        
+        pub fn from_maybe_string(
+            maybe_str: ?[]const u8,
+        ) MissingFramePolicy
+        {
+            return (
+                if (maybe_str) |str| std.meta.stringToEnum(
+                    MissingFramePolicy,
+                    str
+                ) orelse .@"error"
+                else .@"error" 
+            );
+        }
+    };
 };
 
 /// Data that assists consumers of this library in finding the data for
@@ -1355,22 +1356,30 @@ test "MissingFramePolicy: string conversions"
 {
     // Test from_maybe_string
     try std.testing.expectEqual(
-        MissingFramePolicy.@"error",
-        MissingFramePolicy.from_maybe_string("error"),
+        .@"error",
+        ImageSequenceReference.MissingFramePolicy.from_maybe_string(
+            "error",
+        ),
     );
     try std.testing.expectEqual(
-        MissingFramePolicy.hold,
-        MissingFramePolicy.from_maybe_string("hold"),
+        .hold,
+        ImageSequenceReference.MissingFramePolicy.from_maybe_string(
+            "hold",
+        ),
     );
     try std.testing.expectEqual(
-        MissingFramePolicy.black,
-        MissingFramePolicy.from_maybe_string("black"),
+        .black,
+        ImageSequenceReference.MissingFramePolicy.from_maybe_string(
+            "black",
+        ),
     );
 
     // Test invalid string
     try std.testing.expectEqual(
-        MissingFramePolicy.@"error",
-        MissingFramePolicy.from_maybe_string("invalid"),
+        .@"error",
+        ImageSequenceReference.MissingFramePolicy.from_maybe_string(
+            "invalid",
+        ),
     );
 }
 
