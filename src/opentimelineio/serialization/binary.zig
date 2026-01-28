@@ -2641,6 +2641,79 @@ fn fb_to_stack(
     return stack_ptr;
 }
 
+/// Convert FlatBuffers Topology to schema Topology
+fn fb_to_topology(
+    allocator: Allocator,
+    fb_topo: tlb.Topology,
+) !topology_mod.Topology
+{
+    if (fb_topo.mappings()) 
+        |fb_mappings| 
+    {
+        var mappings = try allocator.alloc(
+            topology_mod.mapping.Mapping,
+            fb_mappings.len(),
+        );
+        for (0..fb_mappings.len()) 
+            |i| 
+        {
+            mappings[i] = try fb_to_mapping(
+                allocator,
+                fb_mappings.get(i),
+            );
+        }
+        return .{ .mappings = mappings };
+    }
+    return topology_mod.Topology.empty;
+}
+
+/// Convert FlatBuffers MappingWrapper to schema Mapping
+fn fb_to_mapping(allocator: Allocator, fb_wrapper: tlb.MappingWrapper) !topology_mod.mapping.Mapping {
+    return switch (fb_wrapper.mapping_type()) {
+        .Affine => blk: {
+            if (fb_wrapper.affine()) |aff| {
+                if (aff.transform()) |xform| {
+                    break :blk topology_mod.mapping.Mapping{
+                        .affine = .{
+                            .input_bounds_val = .{
+                                .start = opentime.Ordinate.init(aff.input_bounds_start()),
+                                .end = opentime.Ordinate.init(aff.input_bounds_end()),
+                            },
+                            .input_to_output_xform = .{
+                                .offset = opentime.Ordinate.init(xform.offset),
+                                .scale = opentime.Ordinate.init(xform.scale),
+                            },
+                        },
+                    };
+                }
+            }
+            break :blk .{ .empty = topology_mod.mapping.MappingEmpty.empty_infinite };
+        },
+        .Linear => blk: {
+            if (fb_wrapper.linear()) |lin| {
+                if (lin.knots()) |fb_knots| {
+                    // Allocate knots array
+                    const knots = try allocator.alloc(curve.ControlPoint, fb_knots.len());
+                    for (0..fb_knots.len()) |i| {
+                        const k = fb_knots.get(i);
+                        knots[i] = .{
+                            .in = opentime.Ordinate.init(k.in_val),
+                            .out = opentime.Ordinate.init(k.out_val),
+                        };
+                    }
+                    break :blk topology_mod.mapping.Mapping{
+                        .linear = .{
+                            .input_to_output_curve = .{ .knots = knots },
+                        },
+                    };
+                }
+            }
+            break :blk .{ .empty = topology_mod.mapping.MappingEmpty.empty_infinite };
+        },
+        .Empty => .{ .empty = topology_mod.mapping.MappingEmpty.empty_infinite },
+    };
+}
+
 /// Convert FlatBuffers Warp to schema.Warp
 fn fb_to_warp(
     allocator: Allocator,
@@ -2661,27 +2734,51 @@ fn fb_to_warp(
         break :blk .{ .gap = gap_ptr };
     };
 
+    // Convert topology transform
+    const transform = if (fb_warp.transform()) |fb_topo|
+        try fb_to_topology(allocator, fb_topo)
+    else
+        try topology_mod.Topology.init_identity(
+            allocator,
+            opentime.ContinuousInterval.zero_to_inf_pos,
+        );
+
     warp_ptr.* = .{
         .name = if (fb_warp.name()) |n| try allocator.dupe(u8, n) else "",
         .child = child,
-        .transform = try .init_identity(
-            allocator,
-            opentime.ContinuousInterval.zero_to_inf_pos,
-        ),
+        .transform = transform,
     };
     return warp_ptr;
 }
 
-/// Convert FlatBuffers Transition to schema.Transition (stub)
+/// Convert FlatBuffers Transition to schema.Transition
 fn fb_to_transition(
     allocator: Allocator,
     fb_trans: tlb.Transition,
 ) !*schema.Transition
 {
     const trans_ptr = try allocator.create(schema.Transition);
+
+    // Convert container (Stack)
+    const container: schema.Stack = if (fb_trans.container()) |fb_container| blk: {
+        var children_list: std.ArrayList(CompositionItemHandle) = .empty;
+        if (fb_container.children()) |children| {
+            try children_list.ensureTotalCapacity(allocator, children.len());
+            for (0..children.len()) |i| {
+                const child = try fb_to_composable(allocator, children.get(i));
+                children_list.appendAssumeCapacity(child);
+            }
+        }
+        break :blk .{
+            .name = if (fb_container.name()) |n| try allocator.dupe(u8, n) else "",
+            .children = try children_list.toOwnedSlice(allocator),
+            .markers = try fb_to_markers(allocator, fb_container.markers()),
+        };
+    } else schema.Stack.empty;
+
     trans_ptr.* = .{
         .name = if (fb_trans.name()) |n| try allocator.dupe(u8, n) else "",
-        .container = schema.Stack.empty,
+        .container = container,
         .kind = try allocator.dupe(u8, fb_trans.kind()),
         .maybe_bounds_s = if (fb_trans.has_bounds()) .{
             .start = opentime.Ordinate.init(fb_trans.bounds_start()),
