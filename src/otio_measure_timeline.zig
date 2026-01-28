@@ -139,7 +139,7 @@ pub fn main(
         std.debug.print(
             "Timeline {?s} has {d} tracks\nTracks:\n",
             .{
-                tl_ref.maybe_name(),
+                tl_ref.name(),
                 tl_ref.timeline.tracks.children.len 
             },
         );
@@ -154,7 +154,7 @@ pub fn main(
                 "  Track: {d}:{?s} has {d} children\n",
                 .{ 
                     track_ind,
-                    child.maybe_name(),
+                    child.name(),
                     children.len,
                 },
             );
@@ -168,7 +168,7 @@ pub fn main(
                     .{
                         ind,
                         @tagName(child_child),
-                        child_child.maybe_name(),
+                        child_child.name(),
                     }
                 );
             }

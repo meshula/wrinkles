@@ -947,7 +947,7 @@ test "test debug_print_time_hierarchy"
 
     // clips
     var cl1 = schema.Clip {
-        .maybe_name = "Spaghetti.wav",
+        .name = "Spaghetti.wav",
         .media = .{
             .domain = .picture,
             .maybe_bounds_s = null,
@@ -982,7 +982,7 @@ test "test debug_print_time_hierarchy"
         references.CompositionItemHandle.init(&wp),
     };
     var tr: schema.Track = .{
-        .maybe_name = "Example Parent schema.Track",
+        .name = "Example Parent schema.Track",
         .children = &tr_children,
     };
 
@@ -990,7 +990,7 @@ test "test debug_print_time_hierarchy"
         references.CompositionItemHandle.init(&tr),
     };
     var tl: schema.Timeline = .{
-        .maybe_name = "test debug_print_time_hierarchy",
+        .name = "test debug_print_time_hierarchy",
         .discrete_space_partitions = .{ 
             .presentation = .{
                 .picture = .{ 
@@ -1025,7 +1025,7 @@ test "track child after gap - use presentation space to compute offset"
         },
     };
     var cl = schema.Clip {
-        .maybe_name = "target_clip",
+        .name = "target_clip",
         .maybe_bounds_s = @import(
             "test_structures.zig"
         ).T_INT_1_TO_9, 
@@ -1045,7 +1045,7 @@ test "track child after gap - use presentation space to compute offset"
         references.CompositionItemHandle.init(&gp2),
     };
     var tr: schema.Track = .{
-        .maybe_name = "root",
+        .name = "root",
         .children = &tr_children,
     };
     const tr_ref = references.CompositionItemHandle.init(&tr);

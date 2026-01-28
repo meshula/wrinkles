@@ -3,7 +3,7 @@
 //! Data types that encode the structure of an editorial document in a temporal
 //! hierarchy.
 //!
-//! Objects typically have an optional `maybe_name` parameter and functions
+//! Objects typically have a `name` parameter and functions
 //! that allow querying their temporal state.  Generally they refer to other
 //! objects through the `references.CompositionItemHandle`.
 //!
@@ -242,8 +242,8 @@ pub const MediaReference = struct {
 /// Has a name and an  optional media space bound that can be imposed, intended
 /// to make it easier to swap out references.
 pub const Clip = struct {
-    /// Optional name, for labelling and human readability.
-    maybe_name: ?string.latin_s8 = null,
+    /// Name for labelling and human readability.
+    name:       string.latin_s8 = "",
 
     /// A trim on the media space, in the media coordinate system.
     maybe_bounds_s: ?opentime.ContinuousInterval = null,
@@ -344,11 +344,7 @@ pub const Clip = struct {
         allocator: std.mem.Allocator,
     ) void
     {
-        if (self.maybe_name)
-            |n|
-        {
-            allocator.free(n);
-        }
+        allocator.free(self.name);
         self.media.deinit(allocator);
         for (self.markers) 
             |*m| 
@@ -428,8 +424,8 @@ test "Clip: presentation space/media space bounds"
 /// Silent, Transparent.  Regions of the timeline for which there are no media
 /// mapped, ie only gaps are undefined as far as pixels/audio is concerned.
 pub const Gap = struct {
-    /// Optional name, for labelling and human readability.
-    maybe_name: ?string.latin_s8 = null,
+    /// Name for labelling and human readability.
+    name:       string.latin_s8 = "",
 
     /// Define the bounds for gap.
     ///
@@ -454,11 +450,7 @@ pub const Gap = struct {
         allocator: std.mem.Allocator,
     ) void
     {
-        if (self.maybe_name)
-            |name|
-        {
-            allocator.free(name);
-        }
+        allocator.free(self.name);
         for (self.markers) 
             |*m| 
         {
@@ -491,8 +483,8 @@ pub const Transition = struct {
     /// order.
     container: Stack,
 
-    /// Optional name, for labelling and human readability.
-    maybe_name: ?string.latin_s8,
+    /// Name for labelling and human readability.
+    name:      string.latin_s8 = "",
 
     /// The "kind" of the transition to use.  IE "wipe" "dissolve" etc.
     kind: string.latin_s8,
@@ -559,12 +551,7 @@ pub const Transition = struct {
     ) void
     {
         self.container.deinit(allocator);
-        if (self.maybe_name)
-            |n|
-        {
-            allocator.free(n);
-            self.maybe_name = null;
-        }
+        allocator.free(self.name);
         allocator.free(self.kind);
     }
 };
@@ -572,8 +559,8 @@ pub const Transition = struct {
 /// An explicit temporal transformation from the parent space of the warp to
 /// the child space of the warp.
 pub const Warp = struct {
-    /// Optional name, for labelling and human readability.
-    maybe_name: ?string.latin_s8 = null,
+    /// Name for labelling and human readability.
+    name:       string.latin_s8 = "",
 
     /// The child object of the warp.  Effectively warping the presentation
     /// space of the child.
@@ -595,12 +582,7 @@ pub const Warp = struct {
         self.child.deinit(allocator);
         self.transform.deinit(allocator);
 
-        if (self.maybe_name)
-            |n|
-        {
-            allocator.free(n);
-            self.maybe_name = null;
-        }
+        allocator.free(self.name);
     }
 
     /// Build a handle to this Warp.
@@ -678,8 +660,8 @@ pub const Warp = struct {
 
 /// a container in which each contained item is right-met over time
 pub const Track = struct {
-    /// Optional name, for labelling and human readability.
-    maybe_name: ?string.latin_s8 = null,
+    /// Name for labelling and human readability.
+    name:       string.latin_s8 = "",
 
     /// Optional bounds in seconds. If present, overrides bounds computed from children.
     maybe_bounds_s: ?opentime.ContinuousInterval = null,
@@ -698,7 +680,7 @@ pub const Track = struct {
 
     /// An empty track.
     pub const empty = Track{
-        .maybe_name = null,
+        .name = "",
         .children = &.{},
     };
 
@@ -713,16 +695,11 @@ pub const Track = struct {
         {
             c.deinit(allocator);
         }
-
-        if (self.maybe_name)
-            |n|
-        {
-            allocator.free(n);
-            self.maybe_name = null;
-        }
         allocator.free(self.children);
-        for (self.markers) 
-            |*m| 
+
+        allocator.free(self.name);
+        for (self.markers)
+            |*m|
         {
             m.deinit(allocator);
         }
@@ -840,8 +817,8 @@ pub const Track = struct {
 
 /// children of a stack are simultaneous in time
 pub const Stack = struct {
-    /// Optional name, for labelling and human readability.
-    maybe_name: ?string.latin_s8 = null,
+    /// Name for labelling and human readability.
+    name:       string.latin_s8 = "",
 
     /// Optional bounds in seconds. If present, overrides bounds computed from
     /// children.
@@ -861,7 +838,7 @@ pub const Stack = struct {
     );
 
     pub const empty: Stack = .{
-        .maybe_name = null,
+        .name = "",
         .children = &.{},
     };
 
@@ -876,16 +853,11 @@ pub const Stack = struct {
         {
             c.deinit(allocator);
         }
-
-        if (self.maybe_name)
-            |n|
-        {
-            allocator.free(n);
-            self.maybe_name = null;
-        }
         allocator.free(self.children);
-        for (self.markers) 
-            |*m| 
+
+        allocator.free(self.name);
+        for (self.markers)
+            |*m|
         {
             m.deinit(allocator);
         }
@@ -995,8 +967,8 @@ pub const DiscretePartitionDomainMap = struct {
 /// description.
 pub const Timeline = struct {
 
-    /// Optional name, for labelling and human readability.
-    maybe_name: ?string.latin_s8 = null,
+    /// Name for labelling and human readability.
+    name:       string.latin_s8 = "",
 
     /// Container for children of the Timeline.
     tracks: Stack = .empty,
@@ -1025,12 +997,7 @@ pub const Timeline = struct {
         allocator: std.mem.Allocator,
     ) void
     {
-        if (self.maybe_name)
-            |n|
-        {
-            allocator.free(n);
-            self.maybe_name = null;
-        }
+        allocator.free(self.name);
         self.tracks.deinit(allocator);
         for (self.markers) 
             |*m| 

@@ -795,14 +795,14 @@ fn read_markers(
         };
 
         // Read marker name
-        const maybe_name = if (marker_obj.get("name")) |name_val|
+        const marker_name = if (marker_obj.get("name")) |name_val|
             switch (name_val) {
-                .string => |s| if (s.len > 0) try allocator.dupe(u8, s) else null,
-                .null => null,
-                else => null,
+                .string => |s| try allocator.dupe(u8, s),
+                .null => try allocator.dupe(u8, ""),
+                else => try allocator.dupe(u8, ""),
             }
         else
-            null;
+            try allocator.dupe(u8, "");
 
         // Read marked_range
         const marked_range = if (marker_obj.get("marked_range")) |range_val|
@@ -822,21 +822,21 @@ fn read_markers(
         else
             .red;
 
-        // Read comment (optional)
-        const maybe_comment = if (marker_obj.get("comment")) |comment_val|
+        // Read comment
+        const comment = if (marker_obj.get("comment")) |comment_val|
             switch (comment_val) {
-                .string => |s| if (s.len > 0) try allocator.dupe(u8, s) else null,
-                .null => null,
-                else => null,
+                .string => |s| if (s.len > 0) try allocator.dupe(u8, s) else "",
+                .null => "",
+                else => "",
             }
         else
-            null;
+            "";
 
         markers[i] = .{
-            .maybe_name = maybe_name,
+            .name = marker_name,
             .marked_range = marked_range,
             .color = color,
-            .maybe_comment = maybe_comment,
+            .comment = comment,
         };
     }
 
@@ -876,7 +876,7 @@ fn read_otio_object(
         obj,
     );
 
-    const maybe_name = try maybe_string(allocator, obj, "name");
+    const name = try maybe_string(allocator, obj, "name") orelse try allocator.dupe(u8, "");
 
     switch (schema_enum) {
         .Timeline => {
@@ -888,7 +888,7 @@ fn read_otio_object(
                 )
             );
             const st = otio.Stack{
-                .maybe_name = so_stack.stack.maybe_name,
+                .name = so_stack.stack.name,
                 .children = so_stack.stack.children,
             };
             const tl = try allocator.create(otio.Timeline);
@@ -950,7 +950,7 @@ fn read_otio_object(
                 try allocator.alloc(otio.Marker, 0);
 
             tl.* = .{
-                .maybe_name = maybe_name,
+                .name = name,
                 .tracks = st,
                 .discrete_space_partitions = .{
                     .presentation = ddp,
@@ -972,7 +972,7 @@ fn read_otio_object(
 
             var st = try allocator.create(otio.Stack);
             st.* = otio.Stack{
-                .maybe_name = maybe_name,
+                .name = name,
                 .children = &.{},
                 .markers = markers,
             };
@@ -1001,7 +1001,7 @@ fn read_otio_object(
 
             var tr = try allocator.create(otio.Track);
             tr.* = otio.Track{
-                .maybe_name = maybe_name,
+                .name = name,
                 .children = &.{},
                 .markers = markers,
             };
@@ -1059,7 +1059,7 @@ fn read_otio_object(
 
             var cl = try allocator.create(otio.Clip);
             cl.* = .{
-                .maybe_name = maybe_name,
+                .name = name,
                 .maybe_bounds_s  = range,
                 .media = media_ref,
                 .maybe_metadata_json = maybe_metadata,
@@ -1091,7 +1091,7 @@ fn read_otio_object(
 
             const gp = try allocator.create(otio.Gap);
             gp.* = .{
-                .maybe_name= maybe_name,
+                .name = name,
                 .bounds_s = source_range.?,
                 .markers = markers,
             };
@@ -1101,7 +1101,7 @@ fn read_otio_object(
         .Warp => {
             const wp = try allocator.create(otio.Warp);
             wp.* = .{
-                .maybe_name = maybe_name,
+                .name = name,
                 .child = try read_otio_object(
                     allocator,
                     obj.get("child").?.object,
@@ -1132,13 +1132,13 @@ fn read_otio_object(
                     options,
                 );
                 const result = otio.Stack {
-                    .maybe_name = container_json.stack.maybe_name,
+                    .name = container_json.stack.name,
                     .children = container_json.stack.children,
                 };
                 allocator.destroy(container_json.stack);
                 break :blk result;
             } else otio.Stack {
-                .maybe_name = null,
+                .name = "",
                 .children = &.{},
             };
 
@@ -1151,7 +1151,7 @@ fn read_otio_object(
                 try allocator.dupe(u8, "SMPTE_Dissolve");
 
             tx.* = .{
-                .maybe_name = maybe_name,
+                .name = name,
                 .container = container,
                 .kind = kind,
                 .maybe_bounds_s = null,
@@ -1319,7 +1319,7 @@ test "read_from_file test (simple)"
         try expectEqual(@as(usize, 4), track0.children.len);
         try std.testing.expectEqualStrings(
             "Clip-001",
-            track0.children[0].clip.maybe_name.?
+            track0.children[0].clip.name
         );
     }
 
@@ -1400,9 +1400,8 @@ test "read_from_file with all_except_metadata option"
     );
 
     // Both timelines should have the same name
-    if (tl_all.timeline.maybe_name) |name_all| {
-        try std.testing.expect(tl_no_meta.timeline.maybe_name != null);
-        try std.testing.expectEqualStrings(name_all, tl_no_meta.timeline.maybe_name.?);
+    if (tl_all.timeline.name.len > 0) {
+        try std.testing.expectEqualStrings(tl_all.timeline.name, tl_no_meta.timeline.name);
     }
 }
 
@@ -1441,9 +1440,11 @@ test "read_from_file with all_except_metadata on OTIO JSON file"
     try expectEqual(track_all.children.len, track_no_meta.children.len);
 
     // First clip should have the same name in both
-    if (track_all.children[0].clip.maybe_name) |name| {
-        try std.testing.expect(track_no_meta.children[0].clip.maybe_name != null);
-        try std.testing.expectEqualStrings(name, track_no_meta.children[0].clip.maybe_name.?);
+    if (track_all.children[0].clip.name.len > 0) {
+        try std.testing.expectEqualStrings(
+            track_all.children[0].clip.name,
+            track_no_meta.children[0].clip.name,
+        );
     }
 
     // However, for JSON files, the clip's metadata should be null when skipped

@@ -237,13 +237,13 @@ pub fn main() !void {
                 defer tl_ref.deinit(allocator);
 
                 // Render the timeline
-                const name = tl_ref.maybe_name() orelse "(unnamed)";
+                const name = tl_ref.name() orelse "(unnamed)";
                 std.debug.print("Timeline: {s}\n", .{name});
                 std.debug.print("{s}\n", .{chars.vertical_single});
 
                 // Render the tracks stack
                 const tracks = &tl_ref.timeline.tracks;
-                const tracks_name = tracks.maybe_name orelse "(tracks)";
+                const tracks_name = if (tracks.name.len > 0) tracks.name else "(tracks)";
                 std.debug.print("{s}Stack: {s}\n", .{ chars.last, tracks_name });
 
                 for (tracks.children, 0..) |child, i| {

@@ -161,7 +161,7 @@ const TrackKind = enum {
         };
 
         // First check track name
-        if (from_name(track_ptr.maybe_name) == .audio) {
+        if (from_name(if (track_ptr.name.len > 0) track_ptr.name else null) == .audio) {
             return .audio;
         }
 
@@ -1404,7 +1404,7 @@ fn draw_timeline_item(
 
     // Draw label if there's room
     if (show_label and width > 20) {
-        const name = item.maybe_name() orelse "";
+        const name = item.name() orelse "";
         if (name.len > 0) {
             draw_list.addText(
                 .{ p0[0] + 5, p0[1] + 5 },
@@ -1475,7 +1475,7 @@ fn draw_timeline_item(
 
             zgui.text("{s}: {s}", .{
                 @tagName(item),
-                item.maybe_name() orelse "(unnamed)",
+                item.name() orelse "(unnamed)",
             });
             zgui.text("Duration: {d:.2}s", .{duration_seconds});
         }
@@ -1582,7 +1582,7 @@ fn draw_inspector_tab() void {
         // Name
         zgui.text("Name", .{});
         zgui.sameLine(.{ .offset_from_start_x = 100 });
-        zgui.text("{s}", .{selected.maybe_name() orelse "(unnamed)"});
+        zgui.text("{s}", .{selected.name() orelse "(unnamed)"});
 
         zgui.spacing();
 
@@ -1624,7 +1624,7 @@ fn draw_json_tab() void {
     if (STATE.maybe_current_selected_object) |selected| {
         // Show the tag name and item details
         zgui.text("{s}", .{@tagName(selected)});
-        if (selected.maybe_name()) |name| {
+        if (selected.name()) |name| {
             zgui.text("name: \"{s}\"", .{name});
         }
         // TODO: Add actual JSON serialization of the selected object
@@ -1859,7 +1859,7 @@ fn draw_timeline_tab(
                         const label = video_track_label(
                             total_video - 1 - vid_idx,  // visual row: 0 for top track
                             total_video,
-                            track_ptr.maybe_name,
+                            if (track_ptr.name.len > 0) track_ptr.name else null,
                         );
                         const track_label_str = label.format(&label_buf);
 
@@ -1910,7 +1910,7 @@ fn draw_timeline_tab(
                         );
 
                         var label_buf: [64]u8 = undefined;
-                        const label = audio_track_label(aud_idx, track_ptr.maybe_name);
+                        const label = audio_track_label(aud_idx, if (track_ptr.name.len > 0) track_ptr.name else null);
                         const track_label_str = label.format(&label_buf);
 
                         draw_list.addText(.{ label_p0[0] + 5, label_p0[1] + 8 }, TimelineColors.label, "{s}", .{track_label_str});
@@ -3270,7 +3270,7 @@ test "categorize_tracks: loads and categorizes multiple_track.tla" {
     // Video tracks are displayed with highest number at top
     const total_video = categorized.video_tracks.items.len;
     for (categorized.video_tracks.items, 0..) |track, row| {
-        const label = video_track_label(row, total_video, track.maybe_name());
+        const label = video_track_label(row, total_video, track.name());
         const expected_number = total_video - row; // 3, 2, 1
         try std.testing.expectEqual(expected_number, label.number);
     }

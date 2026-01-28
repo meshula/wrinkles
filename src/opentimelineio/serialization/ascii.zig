@@ -361,7 +361,7 @@ pub const SerializableMediaReference = struct {
 
 /// Serializable variant of Clip
 pub const SerializableClip = struct {
-    name: ?[]const u8 = null,
+    name: []const u8 = "",
     bounds_s: ?SerializableBounds = null,
     media: SerializableMediaReference,
     /// Wyhash key referencing an entry in the Timeline's metadata_map
@@ -376,18 +376,15 @@ pub const SerializableClip = struct {
     {
         // Handle metadata if present and context provided
         const metadata_hash: ?[]const u8 = (
-            if (clip.maybe_metadata_json) |json_meta| 
-                if (maybe_meta_ctx) |meta_ctx| 
+            if (clip.maybe_metadata_json) |json_meta|
+                if (maybe_meta_ctx) |meta_ctx|
                     try meta_ctx.add_metadata(json_meta)
                 else null
             else null
         );
 
         return .{
-            .name = try copy_optional_string(
-                allocator,
-                clip.maybe_name,
-            ),
+            .name = try allocator.dupe(u8, clip.name),
             .bounds_s = try SerializableBounds.from(
                 clip.maybe_bounds_s,
                 clip.media.maybe_discrete_partition,
@@ -408,7 +405,7 @@ pub const SerializableClip = struct {
 
 /// Serializable variant of Clip with inline metadata (for --inline-metadata output)
 pub const SerializableClipInlineMetadata = struct {
-    name: ?[]const u8 = null,
+    name: []const u8 = "",
     bounds_s: ?SerializableBounds = null,
     media: SerializableMediaReference,
     /// Metadata stored inline instead of by hash reference
@@ -417,14 +414,14 @@ pub const SerializableClipInlineMetadata = struct {
 
 /// Serializable variant of Clip with no metadata (for --no-metadata output)
 pub const SerializableClipNoMetadata = struct {
-    name: ?[]const u8 = null,
+    name: []const u8 = "",
     bounds_s: ?SerializableBounds = null,
     media: SerializableMediaReference,
 };
 
 /// Serializable variant of Gap
 pub const SerializableGap = struct {
-    name: ?[]const u8 = null,
+    name: []const u8 = "",
     bounds_s: SerializableContinuousInterval,
     markers: []SerializableMarker = &.{},
 
@@ -434,10 +431,7 @@ pub const SerializableGap = struct {
     ) !SerializableGap
     {
         return .{
-            .name = try copy_optional_string(
-                allocator,
-                gap.maybe_name,
-            ),
+            .name = try allocator.dupe(u8, gap.name),
             .bounds_s = .{
                 gap.bounds_s.start.as(f64),
                 gap.bounds_s.end.as(f64),
@@ -452,10 +446,10 @@ pub const SerializableGap = struct {
 
 /// Serializable variant of Marker
 pub const SerializableMarker = struct {
-    name: ?[]const u8 = null,
+    name: []const u8 = "",
     marked_range: SerializableContinuousInterval,
     color: []const u8,
-    comment: ?[]const u8 = null,
+    comment: []const u8 = "",
 
     pub fn from(
         allocator: std.mem.Allocator,
@@ -463,10 +457,10 @@ pub const SerializableMarker = struct {
     ) !SerializableMarker
     {
         return .{
-            .name = try copy_optional_string(allocator, marker.maybe_name),
+            .name = try allocator.dupe(u8, marker.name),
             .marked_range = .{ marker.marked_range.start.as(f64), marker.marked_range.end.as(f64) },
-            .color = try allocator.dupe(u8, marker.color.to_string()),
-            .comment = try copy_optional_string(allocator, marker.maybe_comment),
+            .color = try allocator.dupe(u8, @tagName(marker.color)),
+            .comment = try allocator.dupe(u8, marker.comment),
         };
     }
 
@@ -490,16 +484,14 @@ pub const SerializableMarker = struct {
         allocator: std.mem.Allocator,
     ) void
     {
-        if (self.name)
-            |n|
+        if (self.name.len > 0)
         {
-            allocator.free(n);
+            allocator.free(self.name);
         }
         allocator.free(self.color);
-        if (self.comment)
-            |c|
+        if (self.comment.len > 0)
         {
-            allocator.free(c);
+            allocator.free(self.comment);
         }
     }
 };
@@ -611,11 +603,7 @@ pub const SerializableComposable = union(enum) {
     {
         switch (self.*) {
             inline else => |thing| {
-                if (thing.name)
-                    |name|
-                {
-                    allocator.free(name);
-                }
+                allocator.free(thing.name);
             },
         }
 
@@ -642,11 +630,7 @@ pub const SerializableComposable = union(enum) {
             },
             .transition => |transition| {
                 allocator.free(transition.kind);
-                if (transition.container.name)
-                    |name|
-                {
-                    allocator.free(name);
-                }
+                allocator.free(transition.container.name);
                 for (transition.container.children)
                     |*child|
                 {
@@ -672,7 +656,7 @@ pub const SerializableWarp = struct {
     ) !SerializableWarp
     {
         return .{
-            .name = try copy_optional_string(allocator, warp.maybe_name),
+            .name = try allocator.dupe(u8, warp.name),
             .child = try SerializableComposable.from(allocator, warp.child, maybe_meta_ctx),
             .transform = try SerializableTopology.from(allocator, warp.transform),
         };
@@ -681,7 +665,7 @@ pub const SerializableWarp = struct {
 
 /// Serializable variant of Stack
 pub const SerializableStack = struct {
-    name: ?[]const u8 = null,
+    name: []const u8 = "",
     bounds_s: ?SerializableBounds = null,
     children: []SerializableComposable,
     markers: []SerializableMarker = &.{},
@@ -708,10 +692,7 @@ pub const SerializableStack = struct {
             ).*;
         }
         return .{
-            .name = try copy_optional_string(
-                allocator,
-                stack.maybe_name,
-            ),
+            .name = try allocator.dupe(u8, stack.name),
             .children = ser_children,
             .markers = try SerializableMarker.from_slice(
                 allocator,
@@ -723,7 +704,7 @@ pub const SerializableStack = struct {
 
 /// Serializable variant of Track
 pub const SerializableTrack = struct {
-    name: ?[]const u8 = null,
+    name: []const u8 = "",
     bounds_s: ?SerializableBounds = null,
     children: []SerializableComposable,
     markers: []SerializableMarker = &.{},
@@ -741,7 +722,7 @@ pub const SerializableTrack = struct {
             ser_children[i] = (try SerializableComposable.from(allocator, child, maybe_meta_ctx)).*;
         }
         return .{
-            .name = try copy_optional_string(allocator, track.maybe_name),
+            .name = try allocator.dupe(u8, track.name),
             .children = ser_children,
             .markers = try SerializableMarker.from_slice(allocator, track.markers),
         };
@@ -750,7 +731,7 @@ pub const SerializableTrack = struct {
 
 /// Serializable variant of Transition
 pub const SerializableTransition = struct {
-    name: ?[]const u8 = null,
+    name: []const u8 = "",
     container: SerializableStack,
     kind: []const u8,
     bounds_s: ?SerializableContinuousInterval = null,
@@ -768,7 +749,7 @@ pub const SerializableTransition = struct {
             null;
 
         return .{
-            .name = try copy_optional_string(allocator, transition.maybe_name),
+            .name = try allocator.dupe(u8, transition.name),
             .container = try SerializableStack.from(allocator, transition.container, maybe_meta_ctx),
             .kind = try allocator.dupe(u8, transition.kind),
             .bounds_s = bounds,
@@ -851,7 +832,7 @@ pub const SerializableTimeline = struct {
     pub const schema_name: []const u8 = "Timeline";
 
     schema_version: u32 = versioning.current_version("Timeline"),
-    name: ?[]const u8 = null,
+    name: []const u8 = "",
     children: []SerializableComposable,
     presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
     /// Maps metadata hash keys to their metadata dictionaries.
@@ -880,7 +861,7 @@ pub const SerializableTimeline = struct {
         }
 
         return .{
-            .name = try copy_optional_string(allocator, timeline.maybe_name),
+            .name = try allocator.dupe(u8, timeline.name),
             .children = ser_children,
             .presentation_space_discrete_partitions = .{
                 .picture = .from(
@@ -900,11 +881,7 @@ pub const SerializableTimeline = struct {
         allocator: std.mem.Allocator,
     ) void
     {
-        if (self.name)
-            |name|
-        {
-            allocator.free(name);
-        }
+        allocator.free(self.name);
 
         for (self.children)
             |*child|
@@ -935,7 +912,7 @@ pub const SerializableTimelineNoMetadata = struct {
     };
 
     schema_version: u32 = versioning.current_version("Timeline"),
-    name: ?[]const u8 = null,
+    name: []const u8 = "",
     children: []SerializableComposable,
     presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
     /// This field will be skipped during parsing (always null when using this
@@ -948,11 +925,7 @@ pub const SerializableTimelineNoMetadata = struct {
         allocator: std.mem.Allocator,
     ) void
     {
-        if (self.name)
-            |name|
-        {
-            allocator.free(name);
-        }
+        allocator.free(self.name);
 
         for (self.children)
             |*child|
@@ -1015,11 +988,7 @@ pub const SerializableCollectionItem = union(enum) {
         // clear the name field
         switch (self.*) {
             inline .track, .stack, .clip, .gap, .transition, .warp => |thing| {
-                if (thing.name)
-                    |name|
-                {
-                    allocator.free(name);
-                }
+                allocator.free(thing.name);
             },
             else => {},
         }
@@ -1077,8 +1046,8 @@ pub const SerializableCollection = struct {
     pub const schema_name: []const u8 = "Collection";
 
     schema_version: u32 = 1,
-    name: ?[]const u8 = null,
-    description: ?[]const u8 = null,
+    name: []const u8 = "",
+    description: []const u8 = "",
     children: []SerializableCollectionItem,
     metadata_map: ?MetadataMap = null,
 
@@ -1141,49 +1110,49 @@ pub const SerializableComposableNoMetadata = union(enum) {
 
 /// Track variant for inline metadata output
 pub const SerializableTrackInlineMetadata = struct {
-    name: ?[]const u8 = null,
+    name: []const u8 = "",
     bounds_s: ?SerializableBounds = null,
     children: []SerializableComposableInlineMetadata,
 };
 
 /// Track variant for no metadata output
 pub const SerializableTrackNoMetadata = struct {
-    name: ?[]const u8 = null,
+    name: []const u8 = "",
     bounds_s: ?SerializableBounds = null,
     children: []SerializableComposableNoMetadata,
 };
 
 /// Stack variant for inline metadata output
 pub const SerializableStackInlineMetadata = struct {
-    name: ?[]const u8 = null,
+    name: []const u8 = "",
     bounds_s: ?SerializableBounds = null,
     children: []SerializableComposableInlineMetadata,
 };
 
 /// Stack variant for no metadata output
 pub const SerializableStackNoMetadata = struct {
-    name: ?[]const u8 = null,
+    name: []const u8 = "",
     bounds_s: ?SerializableBounds = null,
     children: []SerializableComposableNoMetadata,
 };
 
 /// Warp variant for inline metadata output
 pub const SerializableWarpInlineMetadata = struct {
-    name: ?[]const u8 = null,
+    name: []const u8 = "",
     child: *SerializableComposableInlineMetadata,
     transform: SerializableTopology,
 };
 
 /// Warp variant for no metadata output
 pub const SerializableWarpNoMetadata = struct {
-    name: ?[]const u8 = null,
+    name: []const u8 = "",
     child: *SerializableComposableNoMetadata,
     transform: SerializableTopology,
 };
 
 /// Transition variant for inline metadata output
 pub const SerializableTransitionInlineMetadata = struct {
-    name: ?[]const u8 = null,
+    name: []const u8 = "",
     container: SerializableStackInlineMetadata,
     kind: []const u8,
     bounds_s: ?SerializableContinuousInterval = null,
@@ -1191,7 +1160,7 @@ pub const SerializableTransitionInlineMetadata = struct {
 
 /// Transition variant for no metadata output
 pub const SerializableTransitionNoMetadata = struct {
-    name: ?[]const u8 = null,
+    name: []const u8 = "",
     container: SerializableStackNoMetadata,
     kind: []const u8,
     bounds_s: ?SerializableContinuousInterval = null,
@@ -1203,7 +1172,7 @@ pub const SerializableTimelineInlineMetadata = struct {
     pub const schema_name: []const u8 = "Timeline";
 
     schema_version: u32 = versioning.current_version("Timeline"),
-    name: ?[]const u8 = null,
+    name: []const u8 = "",
     children: []SerializableComposableInlineMetadata,
     presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
     // No metadata_map field - metadata is inline on clips
@@ -1214,7 +1183,7 @@ pub const SerializableTimelineStrippedMetadata = struct {
     pub const schema_name: []const u8 = "Timeline";
 
     schema_version: u32 = versioning.current_version("Timeline"),
-    name: ?[]const u8 = null,
+    name: []const u8 = "",
     children: []SerializableComposableNoMetadata,
     presentation_space_discrete_partitions: SerializableDiscretePartitionDomainMap,
     // No metadata_map field
@@ -1226,8 +1195,8 @@ pub const SerializableCollectionInlineMetadata = struct {
     pub const schema_name: []const u8 = "Collection";
 
     schema_version: u32 = 1,
-    name: ?[]const u8 = null,
-    description: ?[]const u8 = null,
+    name: []const u8 = "",
+    description: []const u8 = "",
     children: []SerializableCollectionItemInlineMetadata,
     // No metadata_map field - metadata is inline on clips
 };
@@ -1237,8 +1206,8 @@ pub const SerializableCollectionStrippedMetadata = struct {
     pub const schema_name: []const u8 = "Collection";
 
     schema_version: u32 = 1,
-    name: ?[]const u8 = null,
-    description: ?[]const u8 = null,
+    name: []const u8 = "",
+    description: []const u8 = "",
     children: []SerializableCollectionItemNoMetadata,
     // No metadata_map field
 };
@@ -1466,6 +1435,39 @@ pub const MetadataContext = struct {
 // Helper Functions: String Copying
 // ----------------------------------------------------------------------------
 
+// @TODO: I don't think these are necessary (or should be anyway)
+
+/// Convert an optional string to a non-optional string.
+/// Returns "" if input is null, otherwise duplicates the string.
+fn copy_optional_to_nonoptional_string(
+    allocator: std.mem.Allocator,
+    maybe_str: ?[]const u8,
+) ![]const u8
+{
+    if (maybe_str)
+        |str|
+    {
+        if (str.len == 0) return "";
+        return try allocator.dupe(u8, str);
+    }
+    return "";
+}
+
+/// Convert a non-optional string to an optional string.
+/// Returns null if input is empty, otherwise duplicates the string.
+fn copy_nonoptional_to_optional_string(
+    allocator: std.mem.Allocator,
+    str: []const u8,
+) !?[]const u8
+{
+    if (str.len == 0)
+    {
+        return null;
+    }
+    return try allocator.dupe(u8, str);
+}
+
+/// Copy an optional string. Used for fields that are still optional.
 fn copy_optional_string(
     allocator: std.mem.Allocator,
     maybe_str: ?[]const u8,
@@ -1592,21 +1594,15 @@ fn serializable_to_marker(
 ) !schema.Marker
 {
     return .{
-        .maybe_name = try copy_optional_string(
-            allocator,
-            ser_marker.name,
-        ),
+        .name = try allocator.dupe(u8, ser_marker.name),
         .marked_range = serializable_to_interval(
             ser_marker.marked_range,
         ),
         .color = (
-            schema.MarkerColor.from_string(ser_marker.color) 
+            schema.MarkerColor.from_string(ser_marker.color)
             orelse .red
         ),
-        .maybe_comment = try copy_optional_string(
-            allocator,
-            ser_marker.comment,
-        ),
+        .comment = try allocator.dupe(u8, ser_marker.comment),
     };
 }
 
@@ -1924,10 +1920,7 @@ pub fn serializable_to_clip(
         .automatic;
 
     clip_ptr.* = .{
-        .maybe_name = try copy_optional_string(
-            allocator,
-            ser_clip.name,
-        ),
+        .name = try allocator.dupe(u8, ser_clip.name),
         .maybe_bounds_s = (
             try serializable_to_optional_bounds(
                 ser_clip.bounds_s,
@@ -1951,10 +1944,7 @@ pub fn serializable_to_gap(
 {
     const gap_ptr = try allocator.create(schema.Gap);
     gap_ptr.* = .{
-        .maybe_name = try copy_optional_string(
-            allocator,
-            ser_gap.name,
-        ),
+        .name = try allocator.dupe(u8, ser_gap.name),
         .bounds_s = serializable_to_interval(
             ser_gap.bounds_s,
         ),
@@ -1973,10 +1963,7 @@ pub fn serializable_to_warp(
 {
     const warp_ptr = try allocator.create(schema.Warp);
     warp_ptr.* = .{
-        .maybe_name = try copy_optional_string(
-            allocator,
-            ser_warp.name,
-        ),
+        .name = try allocator.dupe(u8, ser_warp.name),
         .child = try serializable_to_composable(
             allocator,
             ser_warp.child.*,
@@ -2010,10 +1997,7 @@ pub fn serializable_to_track(
 
     const track_ptr = try allocator.create(schema.Track);
     track_ptr.* = .{
-        .maybe_name = try copy_optional_string(
-            allocator,
-            ser_track.name,
-        ),
+        .name = try allocator.dupe(u8, ser_track.name),
         .maybe_bounds_s = try serializable_to_optional_bounds(
             ser_track.bounds_s,
             null,
@@ -2048,10 +2032,7 @@ pub fn serializable_to_stack(
 
     const stack_ptr = try allocator.create(schema.Stack);
     stack_ptr.* = .{
-        .maybe_name = try copy_optional_string(
-            allocator,
-            ser_stack.name,
-        ),
+        .name = try allocator.dupe(u8, ser_stack.name),
         .maybe_bounds_s = try serializable_to_optional_bounds(
             ser_stack.bounds_s,
             null,
@@ -2077,10 +2058,7 @@ pub fn serializable_to_transition(
 
     const trans_ptr = try allocator.create(schema.Transition);
     trans_ptr.* = .{
-        .maybe_name = try copy_optional_string(
-            allocator,
-            ser_trans.name,
-        ),
+        .name = try allocator.dupe(u8, ser_trans.name),
         .container = container_ptr.*,
         .kind = try allocator.dupe(u8, ser_trans.kind),
         .maybe_bounds_s = serializable_to_optional_interval(
@@ -2140,9 +2118,9 @@ pub fn serializable_to_timeline(
 
     const timeline_ptr = try allocator.create(schema.Timeline);
     timeline_ptr.* = .{
-        .maybe_name = try copy_optional_string(allocator, intermediate_tl.name),
+        .name = try allocator.dupe(u8, intermediate_tl.name),
         .tracks = .{
-            .maybe_name = null,  // Timeline's implicit tracks Stack has no name
+            .name = "",  // Timeline's implicit tracks Stack has no name
             .children = children,
         },
         .discrete_space_partitions = .{
@@ -2436,9 +2414,9 @@ pub fn deserialize_timeline(
 fn wrap_in_timeline(
     allocator: std.mem.Allocator,
     composable: SerializableComposable,
-    timeline_name: ?[]const u8,
+    timeline_name: []const u8,
     meta_map: *MetadataMap,
-) !SerializableTimeline 
+) !SerializableTimeline
 {
     const track_children = try allocator.alloc(
         SerializableComposable,
@@ -2456,14 +2434,11 @@ fn wrap_in_timeline(
     timeline_children[0] = .{ .track = ser_track };
 
     return SerializableTimeline{
-        .name = try copy_optional_string(
-            allocator,
-            timeline_name,
-        ),
+        .name = try allocator.dupe(u8, timeline_name),
         .children = timeline_children,
         .presentation_space_discrete_partitions = .{},
         .metadata_map = (
-            if (meta_map.fields.count() > 0) meta_map.* 
+            if (meta_map.fields.count() > 0) meta_map.*
             else null
         ),
     };
@@ -2508,14 +2483,14 @@ pub fn otio_json_to_serializable_timeline(
         .clip => |clip_ptr| try wrap_in_timeline(
             allocator,
             .{ .clip = try SerializableClip.from(allocator, clip_ptr.*, &meta_ctx) },
-            clip_ptr.maybe_name,
+            clip_ptr.name,
             &metadata_map,
         ),
 
         .gap => |gap_ptr| try wrap_in_timeline(
             allocator,
             .{ .gap = try SerializableGap.from(allocator, gap_ptr.*) },
-            gap_ptr.maybe_name,
+            gap_ptr.name,
             &metadata_map,
         ),
 
@@ -2526,7 +2501,7 @@ pub fn otio_json_to_serializable_timeline(
             timeline_children[0] = .{ .track = ser_track };
 
             break :blk SerializableTimeline{
-                .name = try copy_optional_string(allocator, track_ptr.maybe_name),
+                .name = try allocator.dupe(u8, track_ptr.name),
                 .children = timeline_children,
                 .presentation_space_discrete_partitions = .{},
                 .metadata_map = if (metadata_map.fields.count() > 0) metadata_map else null,
@@ -2538,7 +2513,7 @@ pub fn otio_json_to_serializable_timeline(
             const ser_stack = try SerializableStack.from(allocator, stack_ptr.*, &meta_ctx);
 
             break :blk SerializableTimeline{
-                .name = try copy_optional_string(allocator, stack_ptr.maybe_name),
+                .name = try allocator.dupe(u8, stack_ptr.name),
                 .children = ser_stack.children,
                 .presentation_space_discrete_partitions = .{},
                 .metadata_map = if (metadata_map.fields.count() > 0) metadata_map else null,
@@ -2548,14 +2523,14 @@ pub fn otio_json_to_serializable_timeline(
         .warp => |warp_ptr| try wrap_in_timeline(
             allocator,
             .{ .warp = try SerializableWarp.from(allocator, warp_ptr.*, &meta_ctx) },
-            warp_ptr.maybe_name,
+            warp_ptr.name,
             &metadata_map,
         ),
 
         .transition => |trans_ptr| try wrap_in_timeline(
             allocator,
             .{ .transition = try SerializableTransition.from(allocator, trans_ptr.*, &meta_ctx) },
-            trans_ptr.maybe_name,
+            trans_ptr.name,
             &metadata_map,
         ),
     };
@@ -2991,7 +2966,7 @@ test "clip serialization: round-trip"
 
     // Create a test clip
     const clip = schema.Clip{
-        .maybe_name = "TestClip",
+        .name = "TestClip",
         .maybe_bounds_s = .{
             .start = opentime.Ordinate.init(1.0),
             .end = opentime.Ordinate.init(5.0),
@@ -3012,11 +2987,11 @@ test "clip serialization: round-trip"
 
     // Convert to serializable (no metadata context for this test)
     const ser_clip: SerializableClip = try .from(allocator, clip, null);
-    defer allocator.free(ser_clip.name.?);
+    defer allocator.free(ser_clip.name);
     defer allocator.free(ser_clip.media.data_reference.uri.target_uri);
 
     // Verify serialized values
-    try std.testing.expectEqualStrings("TestClip", ser_clip.name.?);
+    try std.testing.expectEqualStrings("TestClip", ser_clip.name);
     try std.testing.expect(ser_clip.bounds_s.? == .continuous);
     try std.testing.expectEqual(@as(f64, 1.0), ser_clip.bounds_s.?.continuous[0]);
     try std.testing.expectEqual(@as(f64, 5.0), ser_clip.bounds_s.?.continuous[1]);
@@ -3024,11 +2999,11 @@ test "clip serialization: round-trip"
     // Convert back
     const clip_ptr = try serializable_to_clip(allocator, ser_clip);
     defer allocator.destroy(clip_ptr);
-    defer allocator.free(clip_ptr.maybe_name.?);
+    defer allocator.free(clip_ptr.name);
     defer allocator.free(clip_ptr.media.data_reference.uri.target_uri);
 
     // Verify round-trip
-    try std.testing.expectEqualStrings("TestClip", clip_ptr.maybe_name.?);
+    try std.testing.expectEqualStrings("TestClip", clip_ptr.name);
     try std.testing.expectEqual(@as(f64, 1.0), clip_ptr.maybe_bounds_s.?.start.as(f64));
     try std.testing.expectEqual(@as(f64, 5.0), clip_ptr.maybe_bounds_s.?.end.as(f64));
 }
@@ -3039,7 +3014,7 @@ test "gap serialization: round-trip"
 
     // Create a test gap
     const gap = schema.Gap{
-        .maybe_name = "TestGap",
+        .name = "TestGap",
         .bounds_s = .{
             .start = opentime.Ordinate.init(2.5),
             .end = opentime.Ordinate.init(7.5),
@@ -3048,20 +3023,20 @@ test "gap serialization: round-trip"
 
     // Convert to serializable
     const ser_gap: SerializableGap = try .from(allocator, gap);
-    defer allocator.free(ser_gap.name.?);
+    defer allocator.free(ser_gap.name);
 
     // Verify serialized values
-    try std.testing.expectEqualStrings("TestGap", ser_gap.name.?);
+    try std.testing.expectEqualStrings("TestGap", ser_gap.name);
     try std.testing.expectEqual(2.5, ser_gap.bounds_s[0]);
     try std.testing.expectEqual(7.5, ser_gap.bounds_s[1]);
 
     // Convert back
     const gap_ptr = try serializable_to_gap(allocator, ser_gap);
     defer allocator.destroy(gap_ptr);
-    defer allocator.free(gap_ptr.maybe_name.?);
+    defer allocator.free(gap_ptr.name);
 
     // Verify round-trip
-    try std.testing.expectEqualStrings("TestGap", gap_ptr.maybe_name.?);
+    try std.testing.expectEqualStrings("TestGap", gap_ptr.name);
     try std.testing.expectEqual(2.5, gap_ptr.bounds_s.start.as(f64));
     try std.testing.expectEqual(7.5, gap_ptr.bounds_s.end.as(f64));
 }
@@ -3072,9 +3047,9 @@ test "timeline serialization: tla round-trip"
 
     // Create test timeline with children
     var timeline = schema.Timeline{
-        .maybe_name = "TestTimeline",
+        .name = "TestTimeline",
         .tracks = .{
-            .maybe_name = null,
+            .name = "",
             .children = &.{},
         },
         .discrete_space_partitions = .{
@@ -3116,7 +3091,7 @@ test "timeline serialization: tla round-trip"
     // Verify
     try std.testing.expectEqualStrings(
         "TestTimeline",
-        loaded_timeline.maybe_name.?,
+        loaded_timeline.name,
     );
     try std.testing.expectEqual(
         @as(usize, 0),
@@ -4037,7 +4012,7 @@ fn convert_collection_item_to_inline_metadata(
     };
 }
 
-test "collection serialization: tlca round-trip" 
+test "collection serialization: tlca round-trip"
 {
     const allocator = std.testing.allocator;
 
@@ -4073,13 +4048,13 @@ test "collection serialization: tlca round-trip"
     defer roundtrip.deinit(allocator);
 
     // Verify
-    try std.testing.expectEqualStrings("Test Collection", roundtrip.name.?);
-    try std.testing.expectEqualStrings("A test collection", roundtrip.description.?);
+    try std.testing.expectEqualStrings("Test Collection", roundtrip.name);
+    try std.testing.expectEqualStrings("A test collection", roundtrip.description);
     try std.testing.expectEqual(@as(usize, 1), roundtrip.children.len);
-    try std.testing.expectEqualStrings("Test Clip", roundtrip.children[0].clip.name.?);
+    try std.testing.expectEqualStrings("Test Clip", roundtrip.children[0].clip.name);
 }
 
-test "collection serialization: tlcb round-trip" 
+test "collection serialization: tlcb round-trip"
 {
     const allocator = std.testing.allocator;
 
@@ -4110,13 +4085,13 @@ test "collection serialization: tlcb round-trip"
     defer roundtrip.deinit(allocator);
 
     // Verify
-    try std.testing.expectEqualStrings("Binary Test Collection", roundtrip.name.?);
-    try std.testing.expectEqualStrings("A binary test collection", roundtrip.description.?);
+    try std.testing.expectEqualStrings("Binary Test Collection", roundtrip.name);
+    try std.testing.expectEqualStrings("A binary test collection", roundtrip.description);
     try std.testing.expectEqual(@as(usize, 1), roundtrip.children.len);
-    try std.testing.expectEqualStrings("Test Gap", roundtrip.children[0].gap.name.?);
+    try std.testing.expectEqualStrings("Test Gap", roundtrip.children[0].gap.name);
 }
 
-test "collection serialization: tlca to tlcb cross-format" 
+test "collection serialization: tlca to tlcb cross-format"
 {
     const allocator = std.testing.allocator;
 
@@ -4136,7 +4111,7 @@ test "collection serialization: tlca to tlcb cross-format"
     const original = SerializableCollection{
         .schema_version = 1,
         .name = "Cross-Format Collection",
-        .description = null,
+        .description = "",
         .children = &children,
         .metadata_map = null,
     };
@@ -4158,7 +4133,7 @@ test "collection serialization: tlca to tlcb cross-format"
     defer from_tlcb.deinit(allocator);
 
     // Verify
-    try std.testing.expectEqualStrings("Cross-Format Collection", from_tlcb.name.?);
+    try std.testing.expectEqualStrings("Cross-Format Collection", from_tlcb.name);
     try std.testing.expectEqual(@as(usize, 1), from_tlcb.children.len);
-    try std.testing.expectEqualStrings("Embedded Timeline", from_tlcb.children[0].timeline.name.?);
+    try std.testing.expectEqualStrings("Embedded Timeline", from_tlcb.children[0].timeline.name);
 }

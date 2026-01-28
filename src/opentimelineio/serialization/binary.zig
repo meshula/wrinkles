@@ -127,11 +127,11 @@ fn marker_to_fb(
 ) !tlb.Marker
 {
     return try builder.writeTable(tlb.Marker, .{
-        .name = marker.maybe_name,
+        .name = if (marker.name.len == 0) null else marker.name,
         .marked_range_start = marker.marked_range.start.as(f64),
         .marked_range_end = marker.marked_range.end.as(f64),
         .color = marker.color.to_string(),
-        .comment = marker.maybe_comment,
+        .comment = marker.comment,
     });
 }
 
@@ -160,7 +160,7 @@ fn gap_to_fb(
 ) !tlb.Gap
 {
     return try builder.writeTable(tlb.Gap, .{
-        .name = gap.maybe_name,
+        .name = if (gap.name.len == 0) null else gap.name,
         .bounds_start = gap.bounds_s.start.as(f64),
         .bounds_end = gap.bounds_s.end.as(f64),
         .markers = try markers_to_fb(builder, gap.markers),
@@ -1250,7 +1250,7 @@ fn clip_to_fb(
 ) !tlb.Clip
 {
     return try builder.writeTable(tlb.Clip, .{
-        .name = clip.maybe_name,
+        .name = if (clip.name.len == 0) null else clip.name,
         .bounds = if (clip.maybe_bounds_s)
             |b|
             try bounds_to_fb(builder, b)
@@ -1280,7 +1280,7 @@ fn track_to_fb(
     }
 
     return try builder.writeTable(tlb.Track, .{
-        .name = track.maybe_name,
+        .name = if (track.name.len == 0) null else track.name,
         .bounds = null, // Track computes bounds dynamically
         .children = children.items,
         .markers = try markers_to_fb(builder, track.markers),
@@ -1305,7 +1305,7 @@ fn stack_to_fb(
     }
 
     return try builder.writeTable(tlb.Stack, .{
-        .name = stack.maybe_name,
+        .name = if (stack.name.len == 0) null else stack.name,
         .bounds = null, // Stack computes bounds dynamically
         .children = children.items,
         .markers = try markers_to_fb(builder, stack.markers),
@@ -1357,7 +1357,7 @@ fn warp_to_fb(
 {
     _ = allocator;
     return try builder.writeTable(tlb.Warp, .{
-        .name = warp.maybe_name,
+        .name = if (warp.name.len == 0) null else warp.name,
         .child = null, // TODO: implement child conversion
         .transform = null, // TODO: implement transform conversion
     });
@@ -1372,7 +1372,7 @@ fn transition_to_fb(
 {
     _ = allocator;
     return try builder.writeTable(tlb.Transition, .{
-        .name = trans.maybe_name,
+        .name = if (trans.name.len == 0) null else trans.name,
         .container = null, // TODO: implement container conversion
         .kind = trans.kind, // Already a string
         .bounds_start = if (trans.maybe_bounds_s)
@@ -1401,13 +1401,7 @@ fn fb_to_gap(
 {
     const gap_ptr = try allocator.create(schema.Gap);
     gap_ptr.* = .{
-        .maybe_name = if (fb_gap.name())
-            |name|
-        blk: {
-            break :blk try allocator.dupe(u8, name);
-        }
-        else
-            null,
+        .name = if (fb_gap.name()) |n| try allocator.dupe(u8, n) else "",
         .bounds_s = .{
             .start = opentime.Ordinate.init(fb_gap.bounds_start()),
             .end = opentime.Ordinate.init(fb_gap.bounds_end()),
@@ -2148,13 +2142,13 @@ fn fb_to_serializable_marker(
 ) !ascii.SerializableMarker
 {
     return .{
-        .name = if (fb_marker.name()) |n| try allocator.dupe(u8, n) else null,
+        .name = if (fb_marker.name()) |n| try allocator.dupe(u8, n) else "",
         .marked_range = [2]f64{
             fb_marker.marked_range_start(),
             fb_marker.marked_range_end(),
         },
         .color = try allocator.dupe(u8, fb_marker.color()),
-        .comment = if (fb_marker.comment()) |c| try allocator.dupe(u8, c) else null,
+        .comment = if (fb_marker.comment()) |c| try allocator.dupe(u8, c) else "",
     };
 }
 
@@ -2185,13 +2179,13 @@ fn fb_to_marker(
 ) !schema.Marker
 {
     return .{
-        .maybe_name = if (fb_marker.name()) |n| try allocator.dupe(u8, n) else null,
+        .name = if (fb_marker.name()) |n| try allocator.dupe(u8, n) else "",
         .marked_range = .{
             .start = opentime.Ordinate.init(fb_marker.marked_range_start()),
             .end = opentime.Ordinate.init(fb_marker.marked_range_end()),
         },
         .color = schema.MarkerColor.from_string(fb_marker.color()) orelse .red,
-        .maybe_comment = if (fb_marker.comment()) |c| try allocator.dupe(u8, c) else null,
+        .comment = if (fb_marker.comment()) |c| try allocator.dupe(u8, c) else "",
     };
 }
 
@@ -2222,7 +2216,7 @@ fn fb_to_serializable_clip(
 ) !ascii.SerializableClip
 {
     return .{
-        .name = if (fb_clip.name()) |n| try allocator.dupe(u8, n) else null,
+        .name = if (fb_clip.name()) |n| try allocator.dupe(u8, n) else "",
         .bounds_s = if (fb_clip.bounds()) |b| fb_to_serializable_bounds(b) else null,
         .media = if (fb_clip.media()) |m| try fb_to_serializable_media_ref(allocator, m) else .{
             .data_reference = .{ .null = .{} },
@@ -2242,7 +2236,7 @@ fn fb_to_serializable_gap(
 ) !ascii.SerializableGap
 {
     return .{
-        .name = if (fb_gap.name()) |n| try allocator.dupe(u8, n) else null,
+        .name = if (fb_gap.name()) |n| try allocator.dupe(u8, n) else "",
         .bounds_s = .{ fb_gap.bounds_start(), fb_gap.bounds_end() },
         .markers = try fb_to_serializable_markers(allocator, fb_gap.markers()),
     };
@@ -2262,7 +2256,7 @@ fn fb_to_serializable_track(
         }
     }
     return .{
-        .name = if (fb_track.name()) |n| try allocator.dupe(u8, n) else null,
+        .name = if (fb_track.name()) |n| try allocator.dupe(u8, n) else "",
         .children = try children.toOwnedSlice(allocator),
         .markers = try fb_to_serializable_markers(allocator, fb_track.markers()),
     };
@@ -2282,7 +2276,7 @@ fn fb_to_serializable_stack(
         }
     }
     return .{
-        .name = if (fb_stack.name()) |n| try allocator.dupe(u8, n) else null,
+        .name = if (fb_stack.name()) |n| try allocator.dupe(u8, n) else "",
         .children = try children.toOwnedSlice(allocator),
         .markers = try fb_to_serializable_markers(allocator, fb_stack.markers()),
     };
@@ -2298,7 +2292,7 @@ fn fb_to_serializable_warp(
     child_ptr.* = if (fb_warp.child()) |c|
         try fb_to_serializable_composable(allocator, c)
     else
-        .{ .gap = .{ .name = null, .bounds_s = .{ 0.0, 0.0 } } };
+        .{ .gap = .{ .name = "", .bounds_s = .{ 0.0, 0.0 } } };
 
     const transform = if (fb_warp.transform()) |t|
         try fb_to_serializable_topology(allocator, t)
@@ -2306,7 +2300,7 @@ fn fb_to_serializable_warp(
         ascii.SerializableTopology{ .mappings = &.{} };
 
     return .{
-        .name = if (fb_warp.name()) |n| try allocator.dupe(u8, n) else null,
+        .name = if (fb_warp.name()) |n| try allocator.dupe(u8, n) else "",
         .child = child_ptr,
         .transform = transform,
     };
@@ -2383,10 +2377,10 @@ fn fb_to_serializable_transition(
     const container = if (fb_trans.container()) |c|
         try fb_to_serializable_stack(allocator, c)
     else
-        ascii.SerializableStack{ .name = null, .children = &.{} };
+        ascii.SerializableStack{ .name = "", .children = &.{} };
 
     return .{
-        .name = if (fb_trans.name()) |n| try allocator.dupe(u8, n) else null,
+        .name = if (fb_trans.name()) |n| try allocator.dupe(u8, n) else "",
         .container = container,
         .kind = try allocator.dupe(u8, fb_trans.kind()),
         .bounds_s = if (fb_trans.has_bounds())
@@ -2426,31 +2420,31 @@ fn fb_to_serializable_composable(
 {
     return switch (fb_wrapper.comp_type()) {
         .Clip => .{ .clip = if (fb_wrapper.clip()) |c| try fb_to_serializable_clip(allocator, c) else .{
-            .name = null,
+            .name = "",
             .bounds_s = null,
             .media = .{ .data_reference = .{ .null = .{} }, .bounds_s = null, .domain = .time, .discrete_partition = null },
             .metadata_hash = null,
         } },
         .Gap => .{ .gap = if (fb_wrapper.gap()) |g| try fb_to_serializable_gap(allocator, g) else .{
-            .name = null,
+            .name = "",
             .bounds_s = .{ 0.0, 0.0 },
         } },
         .Track => .{ .track = if (fb_wrapper.track()) |t| try fb_to_serializable_track(allocator, t) else .{
-            .name = null,
+            .name = "",
             .children = &.{},
         } },
         .Stack => .{ .stack = if (fb_wrapper.stack()) |s| try fb_to_serializable_stack(allocator, s) else .{
-            .name = null,
+            .name = "",
             .children = &.{},
         } },
         .Warp => .{ .warp = if (fb_wrapper.warp()) |w| try fb_to_serializable_warp(allocator, w) else .{
-            .name = null,
+            .name = "",
             .child = undefined,
             .transform = .{ .mappings = &.{} },
         } },
         .Transition => .{ .transition = if (fb_wrapper.transition()) |t| try fb_to_serializable_transition(allocator, t) else .{
-            .name = null,
-            .container = .{ .name = null, .children = &.{} },
+            .name = "",
+            .container = .{ .name = "", .children = &.{} },
             .kind = "",
             .bounds_s = null,
         } },
@@ -2482,11 +2476,7 @@ fn fb_to_clip(
 
     const clip_ptr = try allocator.create(schema.Clip);
     clip_ptr.* = .{
-        .maybe_name = if (fb_clip.name())
-            |name|
-            try allocator.dupe(u8, name)
-        else
-            null,
+        .name = if (fb_clip.name()) |n| try allocator.dupe(u8, n) else "",
         .maybe_bounds_s = if (fb_clip.bounds())
             |b|
             fb_to_bounds(b, media.maybe_discrete_partition)
@@ -2579,7 +2569,7 @@ fn fb_to_composable(
             }
             const trans_ptr = try allocator.create(schema.Transition);
             trans_ptr.* = .{
-                .maybe_name = null,
+                .name = "",
                 .container = schema.Stack.empty,
                 .kind = "SMPTE_Dissolve",
                 .maybe_bounds_s = null,
@@ -2612,11 +2602,7 @@ fn fb_to_track(
     }
 
     track_ptr.* = .{
-        .maybe_name = if (fb_track.name())
-            |name|
-            try allocator.dupe(u8, name)
-        else
-            null,
+        .name = if (fb_track.name()) |n| try allocator.dupe(u8, n) else "",
         .children = try children_list.toOwnedSlice(allocator),
         .markers = try fb_to_markers(allocator, fb_track.markers()),
     };
@@ -2647,11 +2633,7 @@ fn fb_to_stack(
     }
 
     stack_ptr.* = .{
-        .maybe_name = if (fb_stack.name())
-            |name|
-            try allocator.dupe(u8, name)
-        else
-            null,
+        .name = if (fb_stack.name()) |n| try allocator.dupe(u8, n) else "",
         .children = try children_list.toOwnedSlice(allocator),
         .markers = try fb_to_markers(allocator, fb_stack.markers()),
     };
@@ -2680,11 +2662,7 @@ fn fb_to_warp(
     };
 
     warp_ptr.* = .{
-        .maybe_name = if (fb_warp.name())
-            |name|
-            try allocator.dupe(u8, name)
-        else
-            null,
+        .name = if (fb_warp.name()) |n| try allocator.dupe(u8, n) else "",
         .child = child,
         .transform = try .init_identity(
             allocator,
@@ -2702,11 +2680,7 @@ fn fb_to_transition(
 {
     const trans_ptr = try allocator.create(schema.Transition);
     trans_ptr.* = .{
-        .maybe_name = if (fb_trans.name())
-            |name|
-            try allocator.dupe(u8, name)
-        else
-            null,
+        .name = if (fb_trans.name()) |n| try allocator.dupe(u8, n) else "",
         .container = schema.Stack.empty,
         .kind = try allocator.dupe(u8, fb_trans.kind()),
         .maybe_bounds_s = if (fb_trans.has_bounds()) .{
@@ -2744,7 +2718,7 @@ pub fn serialize_timeline(
     // Build Timeline root
     const timeline_ref = try builder.writeTable(tlb.Timeline, .{
         .schema_version = 1,
-        .name = timeline.maybe_name,
+        .name = if (timeline.name.len == 0) null else timeline.name,
         .children = children.items,
         .presentation_space_discrete_partitions = null, // TODO
         .metadata_map = null, // TODO
@@ -2914,11 +2888,7 @@ pub fn deserialize_timeline(
     // Create Timeline
     const timeline = try allocator.create(schema.Timeline);
     timeline.* = .{
-        .maybe_name = if (fb_timeline.name())
-            |name|
-            try allocator.dupe(u8, name)
-        else
-            null,
+        .name = if (fb_timeline.name()) |n| try allocator.dupe(u8, n) else "",
         .tracks = .{
             .children = try tracks_children.toOwnedSlice(allocator),
         },
@@ -3028,7 +2998,7 @@ pub fn deserialize_to_serializable_timeline(
 
     return .{
         .schema_version = fb_timeline.schema_version(),
-        .name = if (fb_timeline.name()) |n| try allocator.dupe(u8, n) else null,
+        .name = if (fb_timeline.name()) |n| try allocator.dupe(u8, n) else "",
         .children = try children.toOwnedSlice(allocator),
         .presentation_space_discrete_partitions = discrete_partitions,
         .metadata_map = metadata_map,
@@ -3288,7 +3258,7 @@ fn fb_to_serializable_collection_item(
             break :blk .{
                 .timeline = .{
                     .schema_version = fb_tl.schema_version(),
-                    .name = if (fb_tl.name()) |n| try allocator.dupe(u8, n) else null,
+                    .name = if (fb_tl.name()) |n| try allocator.dupe(u8, n) else "",
                     .children = try children.toOwnedSlice(allocator),
                     .presentation_space_discrete_partitions = discrete_partitions,
                     .metadata_map = metadata_map,
@@ -3311,7 +3281,7 @@ fn fb_to_serializable_collection_item(
 
             break :blk .{
                 .track = .{
-                    .name = if (fb_track.name()) |n| try allocator.dupe(u8, n) else null,
+                    .name = if (fb_track.name()) |n| try allocator.dupe(u8, n) else "",
                     .bounds_s = if (fb_track.bounds()) |b| fb_to_serializable_bounds(b) else null,
                     .children = try children.toOwnedSlice(allocator),
                     .markers = markers,
@@ -3333,7 +3303,7 @@ fn fb_to_serializable_collection_item(
 
             break :blk .{
                 .stack = .{
-                    .name = if (fb_stack.name()) |n| try allocator.dupe(u8, n) else null,
+                    .name = if (fb_stack.name()) |n| try allocator.dupe(u8, n) else "",
                     .bounds_s = if (fb_stack.bounds()) |b| fb_to_serializable_bounds(b) else null,
                     .children = try children.toOwnedSlice(allocator),
                     .markers = markers,
@@ -3347,7 +3317,7 @@ fn fb_to_serializable_collection_item(
 
             break :blk .{
                 .clip = .{
-                    .name = if (fb_clip.name()) |n| try allocator.dupe(u8, n) else null,
+                    .name = if (fb_clip.name()) |n| try allocator.dupe(u8, n) else "",
                     .bounds_s = if (fb_clip.bounds()) |b| fb_to_serializable_bounds(b) else null,
                     .media = try fb_to_serializable_media_ref(allocator, fb_media),
                     .metadata_hash = if (fb_clip.metadata_hash()) |h| try allocator.dupe(u8, h) else null,
@@ -3361,7 +3331,7 @@ fn fb_to_serializable_collection_item(
 
             break :blk .{
                 .gap = .{
-                    .name = if (fb_gap.name()) |n| try allocator.dupe(u8, n) else null,
+                    .name = if (fb_gap.name()) |n| try allocator.dupe(u8, n) else "",
                     .bounds_s = .{ fb_gap.bounds_start(), fb_gap.bounds_end() },
                     .markers = markers,
                 },
@@ -3380,7 +3350,7 @@ fn fb_to_serializable_collection_item(
 
             break :blk .{
                 .warp = .{
-                    .name = if (fb_warp.name()) |n| try allocator.dupe(u8, n) else null,
+                    .name = if (fb_warp.name()) |n| try allocator.dupe(u8, n) else "",
                     .child = child_composable,
                     .transform = try fb_to_serializable_topology(allocator, fb_topo),
                 },
@@ -3404,9 +3374,9 @@ fn fb_to_serializable_collection_item(
 
             break :blk .{
                 .transition = .{
-                    .name = if (fb_trans.name()) |n| try allocator.dupe(u8, n) else null,
+                    .name = if (fb_trans.name()) |n| try allocator.dupe(u8, n) else "",
                     .container = .{
-                        .name = if (fb_container.name()) |n| try allocator.dupe(u8, n) else null,
+                        .name = if (fb_container.name()) |n| try allocator.dupe(u8, n) else "",
                         .bounds_s = if (fb_container.bounds()) |b| fb_to_serializable_bounds(b) else null,
                         .children = try container_children.toOwnedSlice(allocator),
                         .markers = container_markers,
@@ -3512,8 +3482,8 @@ pub fn deserialize_collection(
 
     return .{
         .schema_version = fb_collection.schema_version(),
-        .name = if (fb_collection.name()) |n| try allocator.dupe(u8, n) else null,
-        .description = if (fb_collection.description()) |d| try allocator.dupe(u8, d) else null,
+        .name = if (fb_collection.name()) |n| try allocator.dupe(u8, n) else "",
+        .description = if (fb_collection.description()) |d| try allocator.dupe(u8, d) else "",
         .children = try children.toOwnedSlice(allocator),
         .metadata_map = metadata_map,
     };
@@ -3750,7 +3720,7 @@ test "tlb: round-trip without metadata (skip on read)"
 
     // Verify metadata is null but structure preserved
     try std.testing.expect(deserialized.metadata_map == null);
-    try std.testing.expectEqualStrings("Test Timeline", deserialized.name.?);
+    try std.testing.expectEqualStrings("Test Timeline", deserialized.name);
     try std.testing.expectEqual(@as(usize, 0), deserialized.children.len);
 }
 

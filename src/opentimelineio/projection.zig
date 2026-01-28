@@ -2009,7 +2009,7 @@ test "ReferenceTopology: init_from_reference"
     // build timeline
     /////////////////////////////////////
     var cl = schema.Clip {
-        .maybe_name = "clip1",
+        .name = "clip1",
         .maybe_bounds_s = test_data.T_INT_1_TO_9,
         .media = .{
             .data_reference = .null,
@@ -2024,7 +2024,7 @@ test "ReferenceTopology: init_from_reference"
     const cl_ptr = cl.handle();
 
     var cl2 = schema.Clip {
-        .maybe_name = "clip2",
+        .name = "clip2",
         .maybe_bounds_s = test_data.T_INT_1_TO_9,
         .media = .{
             .data_reference = .null,
@@ -2046,7 +2046,7 @@ test "ReferenceTopology: init_from_reference"
 
     var cl3 = schema.Clip {
         .media = .null_picture,
-        .maybe_name = "clip3_warped",
+        .name = "clip3_warped",
         .maybe_bounds_s = test_data.T_INT_1_TO_9,
     };
     cl3.media.maybe_discrete_partition = .{
@@ -2055,7 +2055,7 @@ test "ReferenceTopology: init_from_reference"
     };
     const cl3_ptr = cl3.handle();
     var wp1 = schema.Warp {
-        .maybe_name = "Warp on Clip3",
+        .name = "Warp on Clip3",
         .child = cl3_ptr,
         .transform = .{
             .mappings = &.{ 

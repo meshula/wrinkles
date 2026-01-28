@@ -190,13 +190,14 @@ pub const CompositionItemHandle = union(enum) {
         }
     }
 
+    // @TODO: this shouldn't return an optional
     /// The (optional) name of the referred item.
-    pub fn maybe_name(
+    pub fn name(
         self: @This(),
-    ) ?string_stuff.latin_s8
+    ) ?[]const u8
     {
         return switch (self) {
-            inline else => |t| t.maybe_name
+            inline else => |t| if (t.name.len == 0) null else t.name,
         };
     }
 
@@ -690,7 +691,7 @@ pub const CompositionItemHandle = union(enum) {
         try writer.print(
             "{s}.{s}",
             .{
-                self.maybe_name() orelse "null",
+                self.name() orelse "null",
                 @tagName(self),
             }
         );
@@ -733,13 +734,13 @@ pub const CompositionItemHandle = union(enum) {
 test "CompositionItemHandle init test"
 {
     var cl: schema.Clip = .null_picture;
-    cl.maybe_name = "pasta";
+    cl.name = "pasta";
 
     const cl_h = CompositionItemHandle.init(&cl);
 
     try std.testing.expectEqualStrings(
-        cl.maybe_name.?,
-        cl_h.clip.maybe_name.?,
+        cl.name,
+        cl_h.clip.name,
     );
     try std.testing.expectEqual(&cl, cl_h.clip);
 }
