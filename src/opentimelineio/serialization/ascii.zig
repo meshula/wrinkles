@@ -29,8 +29,6 @@ const bundle_utils = @import("bundle_utils.zig");
 const binary = @import("binary.zig");
 const bundle = @import("bundle.zig");
 
-const Allocator = std.mem.Allocator;
-
 /// Re-export ReadOptions for convenience
 pub const ReadOptions = legacy_json.ReadOptions;
 
@@ -160,7 +158,7 @@ pub const SerializableDomain = union(enum) {
     other: struct { name: []const u8 },
 
     pub fn from(
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
         domain: domain_mod.Domain
     ) !SerializableDomain 
     {
@@ -180,7 +178,7 @@ pub const SerializableDomain = union(enum) {
     /// Free memory owned by the SerializableDomain.
     pub fn deinit(
         self: @This(),
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
     ) void
     {
         switch (self) {
@@ -198,7 +196,7 @@ pub const SerializableMediaDataReference = union(enum) {
     null: struct {},
 
     pub fn from(
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
         ref: schema.MediaDataReference,
     ) !SerializableMediaDataReference
     {
@@ -246,7 +244,7 @@ pub const SerializableMediaDataReference = union(enum) {
     /// Free memory owned by the SerializableMediaDataReference.
     pub fn deinit(
         self: @This(),
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
     ) void
     {
         switch (self) {
@@ -278,7 +276,7 @@ pub const SerializableImageSequenceReference = struct {
 
     pub fn deinit(
         self: @This(),
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
     ) void
     {
         allocator.free(self.target_url_base);
@@ -322,7 +320,7 @@ pub const SerializableMediaReference = struct {
     interpolating: ?schema.ResamplingBehavior = null,
 
     pub fn from(
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
         ref: schema.MediaReference,
     ) !SerializableMediaReference
     {
@@ -353,7 +351,7 @@ pub const SerializableMediaReference = struct {
     /// Free memory owned by the SerializableMediaReference.
     pub fn deinit(
         self: @This(),
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
     ) void
     {
         self.data_reference.deinit(allocator);
@@ -371,7 +369,7 @@ pub const SerializableClip = struct {
     markers: []SerializableMarker = &.{},
 
     pub fn from(
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
         clip: schema.Clip,
         maybe_meta_ctx: ?*MetadataContext,
     ) !SerializableClip
@@ -431,7 +429,7 @@ pub const SerializableGap = struct {
     markers: []SerializableMarker = &.{},
 
     pub fn from(
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
         gap: schema.Gap,
     ) !SerializableGap
     {
@@ -460,7 +458,7 @@ pub const SerializableMarker = struct {
     comment: ?[]const u8 = null,
 
     pub fn from(
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
         marker: schema.Marker,
     ) !SerializableMarker
     {
@@ -473,7 +471,7 @@ pub const SerializableMarker = struct {
     }
 
     pub fn from_slice(
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
         markers: []schema.Marker,
     ) ![]SerializableMarker
     {
@@ -489,7 +487,7 @@ pub const SerializableMarker = struct {
 
     pub fn deinit(
         self: @This(),
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
     ) void
     {
         if (self.name)
@@ -513,7 +511,7 @@ pub const SerializableMapping = union(enum) {
     empty: struct {},
 
     pub fn from(
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
         mapping: topology_m.mapping.Mapping,
     ) !SerializableMapping
     {
@@ -564,7 +562,7 @@ pub const SerializableTopology = struct {
     mappings: []SerializableMapping,
 
     pub fn from(
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
         topo: topology_m.Topology,
     ) !SerializableTopology
     {
@@ -588,7 +586,7 @@ pub const SerializableComposable = union(enum) {
     transition: SerializableTransition,
 
     pub fn from(
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
         handle: schema.references.CompositionItemHandle,
         maybe_meta_ctx: ?*MetadataContext,
     ) error{OutOfMemory, DiscretePartitionRequired}!*SerializableComposable 
@@ -608,7 +606,7 @@ pub const SerializableComposable = union(enum) {
 
     pub fn deinit(
         self: *const @This(),
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
     ) void
     {
         switch (self.*) {
@@ -668,7 +666,7 @@ pub const SerializableWarp = struct {
     transform: SerializableTopology,
 
     pub fn from(
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
         warp: schema.Warp,
         maybe_meta_ctx: ?*MetadataContext,
     ) !SerializableWarp
@@ -689,7 +687,7 @@ pub const SerializableStack = struct {
     markers: []SerializableMarker = &.{},
 
     pub fn from(
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
         stack: schema.Stack,
         maybe_meta_ctx: ?*MetadataContext,
     ) !SerializableStack
@@ -731,7 +729,7 @@ pub const SerializableTrack = struct {
     markers: []SerializableMarker = &.{},
 
     pub fn from(
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
         track: schema.Track,
         maybe_meta_ctx: ?*MetadataContext,
     ) !SerializableTrack
@@ -758,7 +756,7 @@ pub const SerializableTransition = struct {
     bounds_s: ?SerializableContinuousInterval = null,
 
     pub fn from(
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
         transition: schema.Transition,
         maybe_meta_ctx: ?*MetadataContext,
     ) !SerializableTransition
@@ -794,7 +792,7 @@ pub const MetadataMap = ziggy.dynamic.Map(MetadataValue);
 /// ziggy's parser allocates strings during parsing, and this function
 /// ensures they are properly freed.
 fn deinit_metadata_value(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     value: MetadataValue,
 ) void
 {
@@ -823,7 +821,7 @@ fn deinit_metadata_value(
 
 /// Free contents of a MetadataMap (keys, values, and nested structures).
 fn deinit_metadata_map_contents(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     mm: *MetadataMap,
 ) void
 {
@@ -841,7 +839,7 @@ fn deinit_metadata_map_contents(
 
 /// Free a MetadataMap and all its contents.
 fn deinit_metadata_map(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     mm: *MetadataMap,
 ) void
 {
@@ -862,7 +860,7 @@ pub const SerializableTimeline = struct {
     markers: []SerializableMarker = &.{},
 
     pub fn from(
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
         timeline: *schema.Timeline,
     ) !SerializableTimeline
     {
@@ -899,7 +897,7 @@ pub const SerializableTimeline = struct {
 
     pub fn deinit(
         self: *@This(),
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
     ) void
     {
         if (self.name)
@@ -947,7 +945,7 @@ pub const SerializableTimelineNoMetadata = struct {
 
     pub fn deinit(
         self: *@This(),
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
     ) void
     {
         if (self.name)
@@ -1011,7 +1009,7 @@ pub const SerializableCollectionItem = union(enum) {
 
     pub fn deinit(
         self: *const @This(),
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
     ) void
     {
         // clear the name field
@@ -1086,7 +1084,7 @@ pub const SerializableCollection = struct {
 
     pub fn deinit(
         self: *@This(),
-        allocator: Allocator,
+        allocator: std.mem.Allocator,
     ) void
     {
         if (self.name) 
@@ -1295,7 +1293,7 @@ pub const SerializableLinearCurve = struct {
 /// Clips reference their metadata by Wyhash key, and the actual data is stored
 /// in the Timeline's metadata_map.
 pub const MetadataContext = struct {
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     metadata_map: *MetadataMap,
 
     /// Convert std.json.Value to MetadataValue (ziggy dynamic value)
@@ -1469,7 +1467,7 @@ pub const MetadataContext = struct {
 // ----------------------------------------------------------------------------
 
 fn copy_optional_string(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     maybe_str: ?[]const u8,
 ) !?[]const u8
 {
@@ -1589,7 +1587,7 @@ fn serializable_to_optional_interval(
 
 /// Convert SerializableMarker to schema.Marker
 fn serializable_to_marker(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     ser_marker: SerializableMarker,
 ) !schema.Marker
 {
@@ -1614,7 +1612,7 @@ fn serializable_to_marker(
 
 /// Convert array of SerializableMarker to schema.Marker
 fn serializable_to_markers(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     ser_markers: []SerializableMarker,
 ) ![]schema.Marker
 {
@@ -1643,7 +1641,7 @@ fn serializable_to_markers(
 
 /// Recursively fix transitions in a composable (add containers and kind fields)
 fn fix_transitions_in_composable(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     composable: *SerializableComposable,
 ) !void
 {
@@ -1694,7 +1692,7 @@ fn fix_transitions_in_composable(
 /// - Set schema_version field to 1
 /// - Fix transitions: ensure container and kind fields are present
 fn upgrade_timeline_v0_to_v1(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     timeline: *SerializableTimeline,
 ) !void
 {
@@ -1719,7 +1717,7 @@ fn upgrade_timeline_v0_to_v1(
 // ----------------------------------------------------------------------------
 
 pub fn serializable_to_domain(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     ser_dom: SerializableDomain,
 ) !domain_mod.Domain
 {
@@ -1735,7 +1733,7 @@ pub fn serializable_to_domain(
 }
 
 pub fn serializable_to_media_data_reference(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     ser_ref: SerializableMediaDataReference,
 ) !schema.MediaDataReference
 {
@@ -1783,7 +1781,7 @@ pub fn serializable_to_media_data_reference(
 }
 
 pub fn serializable_to_signal_generator(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     ser_gen: SerializableSignalGenerator,
 ) !sampling.SignalGenerator
 {
@@ -1805,7 +1803,7 @@ pub fn serializable_to_signal_generator(
 }
 
 pub fn serializable_to_media_reference(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     ser_ref: SerializableMediaReference,
 ) !schema.MediaReference
 {
@@ -1841,7 +1839,7 @@ pub fn serializable_to_media_reference(
 }
 
 pub fn serializable_to_topology(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     ser_topo: SerializableTopology,
 ) !topology_m.Topology
 {
@@ -1863,7 +1861,7 @@ pub fn serializable_to_topology(
 }
 
 pub fn serializable_to_mapping(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     ser_mapping: SerializableMapping,
 ) !topology_m.mapping.Mapping
 {
@@ -1908,7 +1906,7 @@ pub fn serializable_to_mapping(
 }
 
 pub fn serializable_to_clip(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     ser_clip: SerializableClip,
 ) !*schema.Clip
 {
@@ -1947,7 +1945,7 @@ pub fn serializable_to_clip(
 }
 
 pub fn serializable_to_gap(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     ser_gap: SerializableGap,
 ) !*schema.Gap
 {
@@ -1969,7 +1967,7 @@ pub fn serializable_to_gap(
 }
 
 pub fn serializable_to_warp(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     ser_warp: SerializableWarp,
 ) !*schema.Warp
 {
@@ -1992,7 +1990,7 @@ pub fn serializable_to_warp(
 }
 
 pub fn serializable_to_track(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     ser_track: SerializableTrack,
 ) !*schema.Track
 {
@@ -2030,7 +2028,7 @@ pub fn serializable_to_track(
 }
 
 pub fn serializable_to_stack(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     ser_stack: SerializableStack,
 ) !*schema.Stack
 {
@@ -2068,7 +2066,7 @@ pub fn serializable_to_stack(
 }
 
 pub fn serializable_to_transition(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     ser_trans: SerializableTransition,
 ) !*schema.Transition
 {
@@ -2097,7 +2095,7 @@ pub fn serializable_to_transition(
 }
 
 pub fn serializable_to_composable(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     ser_comp: SerializableComposable,
 ) error{ OutOfMemory, MissingDiscretePartition }!schema.references.CompositionItemHandle
 {
@@ -2124,7 +2122,7 @@ pub fn serializable_to_composable(
 }
 
 pub fn serializable_to_timeline(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     intermediate_tl: SerializableTimeline,
 ) !*schema.Timeline
 {
@@ -2164,7 +2162,7 @@ pub fn serializable_to_timeline(
 
 /// Convert curve.Bezier to serializable format
 pub fn bezier_curve_to_serializable(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     bezier: curve.Bezier,
 ) !SerializableBezierCurve
 {
@@ -2192,7 +2190,7 @@ pub fn bezier_curve_to_serializable(
 
 /// Convert serializable format to curve.Bezier
 pub fn serializable_to_bezier_curve(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     ser_bezier: SerializableBezierCurve,
 ) !curve.Bezier
 {
@@ -2229,7 +2227,7 @@ pub fn serializable_to_bezier_curve(
 
 /// Convert curve.Linear to serializable format
 pub fn linear_curve_to_serializable(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     linear: curve.Linear,
 ) !SerializableLinearCurve
 {
@@ -2251,7 +2249,7 @@ pub fn linear_curve_to_serializable(
 
 /// Convert serializable format to curve.Linear
 pub fn serializable_to_linear_curve(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     ser_linear: SerializableLinearCurve,
 ) !curve.Linear
 {
@@ -2282,7 +2280,7 @@ pub fn serializable_to_linear_curve(
 /// version before serialization (requires registered downgrade functions).
 pub fn serialize_timeline(
     timeline: *schema.Timeline,
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     writer: *std.io.Writer,
     maybe_target_version: ?u32,
 ) !void
@@ -2369,7 +2367,7 @@ pub fn serialize_timeline(
 /// feature. This provides significant performance gains for large files with
 /// extensive metadata.
 pub fn deserialize_timeline(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     source: [:0]const u8,
     options: ReadOptions,
 ) !*schema.Timeline
@@ -2481,7 +2479,7 @@ fn wrap_in_timeline(
 /// Non-Timeline root objects (Clip, Track, Warp, etc.) are automatically
 /// wrapped in a synthetic Timeline/Track structure for a complete schema.
 pub fn otio_json_to_serializable_timeline(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     json_source: []const u8,
 ) !SerializableTimeline 
 {
@@ -2575,7 +2573,7 @@ pub fn otio_json_to_serializable_timeline(
 /// Serialize a Bezier curve to tla format and write to the provided writer.
 pub fn serialize_bezier_curve(
     bezier: curve.Bezier,
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     writer: *std.io.Writer,
 ) !void
 {
@@ -2594,7 +2592,7 @@ pub fn serialize_bezier_curve(
 
 /// Deserialize a Bezier curve from tla format source string.
 pub fn deserialize_bezier_curve(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     source: [:0]const u8,
 ) !curve.Bezier
 {
@@ -2613,7 +2611,7 @@ pub fn deserialize_bezier_curve(
 /// Serialize a Linear curve to tla format and write to the provided writer.
 pub fn serialize_linear_curve(
     linear: curve.Linear,
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     writer: *std.io.Writer,
 ) !void
 {
@@ -2629,7 +2627,7 @@ pub fn serialize_linear_curve(
 
 /// Deserialize a Linear curve from tla format source string.
 pub fn deserialize_linear_curve(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     source: [:0]const u8,
 ) !curve.Linear
 {
@@ -2652,7 +2650,7 @@ pub fn deserialize_linear_curve(
 /// Convert a SerializableTimeline to inline metadata format.
 /// Looks up metadata_hash values in metadata_map and stores them inline on clips.
 pub fn convert_to_inline_metadata(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     timeline: SerializableTimeline,
 ) !SerializableTimelineInlineMetadata
 {
@@ -2681,7 +2679,7 @@ pub fn convert_to_inline_metadata(
 
 /// Convert a SerializableComposable to inline metadata format.
 fn convert_composable_to_inline_metadata(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     composable: SerializableComposable,
     metadata_map: ?MetadataMap,
 ) !SerializableComposableInlineMetadata
@@ -2794,7 +2792,7 @@ fn convert_composable_to_inline_metadata(
 /// Strip all metadata from a SerializableTimeline.
 /// Removes metadata_hash from clips and metadata_map from timeline.
 pub fn strip_metadata(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     timeline: SerializableTimeline,
 ) !SerializableTimelineStrippedMetadata
 {
@@ -2822,7 +2820,7 @@ pub fn strip_metadata(
 
 /// Convert a SerializableComposable to no metadata format.
 fn convert_composable_to_no_metadata(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     composable: SerializableComposable,
 ) !SerializableComposableNoMetadata
 {
@@ -3155,7 +3153,7 @@ pub const FileFormat = enum {
 /// This is useful for cases where data is already in memory, such as
 /// from sokol_fetch callbacks or network transfers.
 pub fn read_from_buffer(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     buffer: []const u8,
     format: FileFormat,
 ) !SerializableTimeline
@@ -3209,7 +3207,7 @@ pub fn read_from_buffer(
 /// Supports: .otio (JSON), .tla, .tlb (FlatBuffers), .tlz (bundle)
 /// The file format is determined by the file extension.
 pub fn read_from_file(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     file_path: []const u8,
 ) !SerializableTimeline
 {
@@ -3284,7 +3282,7 @@ pub const MetadataMode = enum {
 /// This is useful for cases where you need the serialized data in memory,
 /// such as for network transfers or in-memory processing.
 pub fn write_to_buffer(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     intermediate_tl: SerializableTimeline,
     format: FileFormat,
     options: WriteOptions,
@@ -3320,7 +3318,7 @@ pub fn write_to_buffer(
 /// Supports: .tla (ascii), .tlb (binary), .tlz (bundle)
 /// The file format is determined by the file extension.
 pub fn write_timeline_to_file(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     timeline: *schema.Timeline,
     file_path: []const u8,
     options: WriteOptions,
@@ -3345,7 +3343,7 @@ pub fn write_timeline_to_file(
 /// Supports: .tla, .tlb (FlatBuffers), .tlz (bundle), based on the file
 /// extension.
 fn write_serializable_to_file(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     intermediate_tl: SerializableTimeline,
     file_path: []const u8,
     options: WriteOptions,
@@ -3404,7 +3402,7 @@ fn write_serializable_to_file(
 /// Write a Timeline to a writer in the specified format.
 /// Converts to serializable format internally.
 pub fn write_timeline_to_writer(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     timeline: *schema.Timeline,
     format: FileFormat,
     options: WriteOptions,
@@ -3425,7 +3423,7 @@ pub fn write_timeline_to_writer(
 
 /// Write a SerializableTimeline to a writer in the specified format.
 fn write_serializable_to_writer(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     intermediate_tl: SerializableTimeline,
     format: FileFormat,
     options: WriteOptions,
@@ -3463,7 +3461,7 @@ fn write_serializable_to_writer(
 
 /// Write SerializableTimeline to TLA format with the specified metadata mode.
 fn write_tla_with_metadata_mode(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     intermediate_tl: SerializableTimeline,
     metadata_mode: MetadataMode,
     writer: anytype,
@@ -3520,7 +3518,7 @@ fn write_tla_with_metadata_mode(
 /// Supports: .tlca (ASCII tla)
 /// Note: .tlcb (FlatBuffers) requires binary_serialization_flatbufs support.
 pub fn read_collection_from_buffer(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     buffer: []const u8,
     format: FileFormat,
 ) !SerializableCollection
@@ -3562,7 +3560,7 @@ pub fn read_collection_from_buffer(
 /// Supports: .tlca (ASCII Ziggy), .tlcb (FlatBuffers binary)
 /// The file format is determined by the file extension.
 pub fn read_collection_from_file(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     file_path: []const u8,
 ) !SerializableCollection
 {
@@ -3602,7 +3600,7 @@ pub const CollectionWriteOptions = struct {
 /// Supports: .tlca (ASCII Ziggy), .tlcb (FlatBuffers binary)
 /// Returns an allocated buffer that the caller must free.
 pub fn write_collection_to_buffer(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     collection: SerializableCollection,
     format: FileFormat,
     options: CollectionWriteOptions,
@@ -3621,7 +3619,7 @@ pub fn write_collection_to_buffer(
 /// Supports: .tlca (ASCII Ziggy), .tlcb (FlatBuffers binary)
 /// The file format is determined by the file extension.
 pub fn write_collection_to_file(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     collection: SerializableCollection,
     file_path: []const u8,
     options: CollectionWriteOptions,
@@ -3652,7 +3650,7 @@ pub fn write_collection_to_file(
 
 /// Write a SerializableCollection to a writer in the specified format.
 pub fn write_collection_to_writer(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     collection: SerializableCollection,
     format: FileFormat,
     options: CollectionWriteOptions,
@@ -3682,7 +3680,7 @@ pub fn write_collection_to_writer(
 
 /// Write SerializableCollection to TLCA format with the specified metadata mode.
 fn write_tlca_with_metadata_mode(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     collection: SerializableCollection,
     metadata_mode: MetadataMode,
     writer: anytype,
@@ -3734,7 +3732,7 @@ fn write_tlca_with_metadata_mode(
 /// Strip all metadata from a SerializableCollection.
 /// Removes metadata_hash from clips and metadata_map from collection and embedded timelines.
 fn strip_collection_metadata(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     collection: SerializableCollection,
 ) !SerializableCollectionStrippedMetadata
 {
@@ -3760,7 +3758,7 @@ fn strip_collection_metadata(
 
 /// Convert a SerializableCollectionItem to no metadata format.
 fn convert_collection_item_to_no_metadata(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     item: SerializableCollectionItem,
 ) !SerializableCollectionItemNoMetadata
 {
@@ -3872,7 +3870,7 @@ fn convert_collection_item_to_no_metadata(
 
 /// Convert a SerializableCollection to inline metadata format.
 fn convert_collection_to_inline_metadata(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     collection: SerializableCollection,
 ) !SerializableCollectionInlineMetadata
 {
@@ -3902,7 +3900,7 @@ fn convert_collection_to_inline_metadata(
 
 /// Convert a SerializableCollectionItem to inline metadata format.
 fn convert_collection_item_to_inline_metadata(
-    allocator: Allocator,
+    allocator: std.mem.Allocator,
     item: SerializableCollectionItem,
     collection_metadata_map: ?MetadataMap,
 ) !SerializableCollectionItemInlineMetadata
