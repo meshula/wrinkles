@@ -645,7 +645,7 @@ pub const SerializableComposable = union(enum) {
 
 /// Serializable variant of Warp
 pub const SerializableWarp = struct {
-    name: ?[]const u8 = null,
+    name: []const u8 = "",
     child: *SerializableComposable,
     transform: SerializableTopology,
 
@@ -947,7 +947,7 @@ pub const SerializableTimelineNoMetadata = struct {
     /// Convert to SerializableTimeline for use with existing code
     pub fn to_serializable_timeline(
         self: @This(),
-    ) SerializableTimeline 
+    ) SerializableTimeline
     {
         return .{
             .schema_version = self.schema_version,
@@ -1000,16 +1000,16 @@ pub const SerializableCollectionItem = union(enum) {
                 mutable_tl.deinit(allocator);
             },
             .track => |track| {
-                for (track.children) 
-                    |*child| 
+                for (track.children)
+                    |*child|
                 {
                     child.deinit(allocator);
                 }
                 allocator.free(track.children);
             },
             .stack => |stack| {
-                for (stack.children) 
-                    |*child| 
+                for (stack.children)
+                    |*child|
                 {
                     child.deinit(allocator);
                 }
@@ -1017,8 +1017,8 @@ pub const SerializableCollectionItem = union(enum) {
             },
             .clip => |clip| {
                 clip.media.deinit(allocator);
-                if (clip.metadata_hash) 
-                    |hash| 
+                if (clip.metadata_hash)
+                    |hash|
                 {
                     allocator.free(hash);
                 }
@@ -1056,26 +1056,18 @@ pub const SerializableCollection = struct {
         allocator: std.mem.Allocator,
     ) void
     {
-        if (self.name) 
-            |name| 
-        {
-            allocator.free(name);
-        }
-        if (self.description) 
-            |desc| 
-        {
-            allocator.free(desc);
-        }
+        allocator.free(self.name);
+        allocator.free(self.description);
 
-        for (self.children) 
-            |*child| 
+        for (self.children)
+            |*child|
         {
             child.deinit(allocator);
         }
         allocator.free(self.children);
 
-        if (self.metadata_map) 
-            |*mm| 
+        if (self.metadata_map)
+            |*mm|
         {
             deinit_metadata_map(allocator, mm);
         }
@@ -1430,56 +1422,6 @@ pub const MetadataContext = struct {
         return hash_str;
     }
 };
-
-// ----------------------------------------------------------------------------
-// Helper Functions: String Copying
-// ----------------------------------------------------------------------------
-
-// @TODO: I don't think these are necessary (or should be anyway)
-
-/// Convert an optional string to a non-optional string.
-/// Returns "" if input is null, otherwise duplicates the string.
-fn copy_optional_to_nonoptional_string(
-    allocator: std.mem.Allocator,
-    maybe_str: ?[]const u8,
-) ![]const u8
-{
-    if (maybe_str)
-        |str|
-    {
-        if (str.len == 0) return "";
-        return try allocator.dupe(u8, str);
-    }
-    return "";
-}
-
-/// Convert a non-optional string to an optional string.
-/// Returns null if input is empty, otherwise duplicates the string.
-fn copy_nonoptional_to_optional_string(
-    allocator: std.mem.Allocator,
-    str: []const u8,
-) !?[]const u8
-{
-    if (str.len == 0)
-    {
-        return null;
-    }
-    return try allocator.dupe(u8, str);
-}
-
-/// Copy an optional string. Used for fields that are still optional.
-fn copy_optional_string(
-    allocator: std.mem.Allocator,
-    maybe_str: ?[]const u8,
-) !?[]const u8
-{
-    if (maybe_str)
-        |str|
-    {
-        return try allocator.dupe(u8, str);
-    }
-    return null;
-}
 
 // ----------------------------------------------------------------------------
 // Helper Functions: Deserialization Conversion
@@ -1913,11 +1855,12 @@ pub fn serializable_to_clip(
     );
 
     // Determine bounds_write_policy based on what was in the file
-    const bounds_write_policy: schema.BoundsWritePolicy = if (ser_clip.bounds_s)
-        |bounds|
-        (if (bounds == .discrete) schema.BoundsWritePolicy.discrete else .continuous)
+    const bounds_write_policy: schema.BoundsWritePolicy = (
+        if (ser_clip.bounds_s) |bounds| if (bounds == .discrete) .discrete 
+        else .continuous
     else
-        .automatic;
+        .automatic
+    );
 
     clip_ptr.* = .{
         .name = try allocator.dupe(u8, ser_clip.name),
