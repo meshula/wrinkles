@@ -978,14 +978,14 @@ pub fn build(
                     .target = options.target,
                     .optimize = options.optimize,
                     .root_source_file = b.path(
-                        "src/c_binding/opentimelineio_c.zig",
+                        "src/language_bindings/c/opentimelineio_c.zig",
                     ),
                 },
             ),
         },
     );
     {
-        opentimelineio_c.addIncludePath(b.path("src/c_binding/"));
+        opentimelineio_c.addIncludePath(b.path("src/language_bindings/c/"));
         opentimelineio_c.root_module.addImport(
             "opentime",
             opentime,
@@ -1026,12 +1026,12 @@ pub fn build(
         exe.addCSourceFile(
             .{
                 .file = b.path(
-                    "src/c_binding/test_opentimelineio_c.c",
+                    "src/language_bindings/c/test_opentimelineio_c.c",
                 ),
                 .flags = &C_ARGS,
             },
         );
-        exe.addIncludePath(b.path("src/c_binding/"));
+        exe.addIncludePath(b.path("src/language_bindings/c/"));
         exe.linkLibC();
         // @TODO: fix WASM build
         // if (options.target.result.cpu.arch.isWasm())
@@ -1270,13 +1270,13 @@ pub fn build(
 
         opentimelineio_cpp.addCSourceFile(
             .{
-                .file = b.path("src/cpp_binding/src/opentimelineio.cpp"),
+                .file = b.path("src/language_bindings/cpp/src/opentimelineio.cpp"),
                 .flags = &.{"-std=c++17"},
             },
         );
 
-        opentimelineio_cpp.addIncludePath(b.path("src/cpp_binding/include"));
-        opentimelineio_cpp.addIncludePath(b.path("src/c_binding"));
+        opentimelineio_cpp.addIncludePath(b.path("src/language_bindings/cpp/include"));
+        opentimelineio_cpp.addIncludePath(b.path("src/language_bindings/c"));
         opentimelineio_cpp.linkLibrary(opentimelineio_c);
         opentimelineio_cpp.linkLibCpp();
 
@@ -1305,8 +1305,8 @@ pub fn build(
                 },
             );
 
-            exe.addIncludePath(b.path("src/cpp_binding/include"));
-            exe.addIncludePath(b.path("src/c_binding"));
+            exe.addIncludePath(b.path("src/language_bindings/cpp/include"));
+            exe.addIncludePath(b.path("src/language_bindings/c"));
             exe.linkLibrary(opentimelineio_cpp);
             exe.linkLibCpp();
 
@@ -1350,8 +1350,8 @@ pub fn build(
                 },
             );
 
-            exe.addIncludePath(b.path("src/cpp_binding/include"));
-            exe.addIncludePath(b.path("src/c_binding"));
+            exe.addIncludePath(b.path("src/language_bindings/cpp/include"));
+            exe.addIncludePath(b.path("src/language_bindings/c"));
             exe.linkLibrary(opentimelineio_cpp);
             exe.linkLibCpp();
 
@@ -1390,8 +1390,8 @@ pub fn build(
                 },
             );
 
-            exe.addIncludePath(b.path("src/cpp_binding/include"));
-            exe.addIncludePath(b.path("src/c_binding"));
+            exe.addIncludePath(b.path("src/language_bindings/cpp/include"));
+            exe.addIncludePath(b.path("src/language_bindings/c"));
             exe.linkLibrary(opentimelineio_cpp);
             exe.linkLibCpp();
 
@@ -1431,14 +1431,14 @@ pub fn build(
             cpp_test_exe.addCSourceFile(
                 .{
                     .file = b.path(
-                        "src/cpp_binding/test/test_opentimelineio.cpp"
+                        "src/language_bindings/cpp/test/test_opentimelineio.cpp"
                     ),
                     .flags = &.{"-std=c++17"},
                 },
             );
 
-            cpp_test_exe.addIncludePath(b.path("src/cpp_binding/include"));
-            cpp_test_exe.addIncludePath(b.path("src/c_binding"));
+            cpp_test_exe.addIncludePath(b.path("src/language_bindings/cpp/include"));
+            cpp_test_exe.addIncludePath(b.path("src/language_bindings/c"));
             cpp_test_exe.linkLibrary(opentimelineio_cpp);
             cpp_test_exe.linkLibCpp();
 

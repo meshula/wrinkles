@@ -7,12 +7,12 @@ from setuptools import setup, Extension
 # Get the directory containing this setup.py
 here = os.path.dirname(os.path.abspath(__file__))
 
-# Path to the wrinkles project root (two levels up from py_binding)
-project_root = os.path.dirname(os.path.dirname(here))
+# Path to the wrinkles project root (three levels up from language_bindings/python)
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(here)))
 
 # Include directories for C headers
 include_dirs = [
-    os.path.join(project_root, "src", "c_binding"),
+    os.path.join(project_root, "src", "language_bindings", "c"),
 ]
 
 # Library directories
@@ -27,7 +27,7 @@ extra_link_args = []
 if sys.platform == "darwin":
     # macOS: set rpath to find the library
     extra_link_args.extend([
-        "-Wl,-rpath,@loader_path/../../../zig-out/lib",
+        "-Wl,-rpath,@loader_path/../../../../zig-out/lib",
         f"-Wl,-rpath,{os.path.join(project_root, 'zig-out', 'lib')}",
     ])
 elif sys.platform.startswith("linux"):

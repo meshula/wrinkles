@@ -422,7 +422,7 @@ didn't impact the deisgn or problems we were specifically solving.
         * [x] serialization schemas -> source tree
     * [ ] rearrange
         * [x] remove .ziggy files
-        * [ ] language bindings -> bindings directory
+        * [x] language bindings -> bindings directory
     * [ ] style pass
     * [x] figure out where the ERROR CONVERTING messages come from
     * [ ] add a FileFormat struct that maps formats to extensions and
@@ -443,7 +443,7 @@ didn't impact the deisgn or problems we were specifically solving.
 * [ ] a treecode (treecode.clone) test fails on --release=fast but no other
       mode?
 * [ ] ImageSequenceReference: currently only a frame step of 1 is supported
-* [ ] a second pass over sampling index type - when can it be signed vs. unsigned?
+* [x] a second pass over sampling index type - when can it be signed vs. unsigned?
 
 * USD + OTIO (where clips point at USD files, render out a playblast)
 * Wrinkles MCP
