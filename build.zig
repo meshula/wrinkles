@@ -660,11 +660,17 @@ pub fn build(
         );
     }
 
-    const cpp_test_output = b.option(
+    const test_output = b.option(
         bool,
-        "cpp_test_output",
-        "Show C++ test output (default: false, tests run silently)",
+        "test_output",
+        "Show test output including roundtrip tests (default: false, tests run silently)",
     ) orelse false;
+
+    build_options.addOption(
+        bool,
+        "test_output",
+        test_output,
+    );
 
     // create module turns the options into a module that can be linked into
     // stuff.  Bafflingly, without this you get "this is in multiple files"
@@ -1442,8 +1448,8 @@ pub fn build(
             const run_cpp_tests = b.addRunArtifact(cpp_test_exe);
             run_cpp_tests.addArg("sample_otio_files/multiple_track.otio");
 
-            // Suppress C++ test output unless -Dcpp_test_output=true
-            if (!cpp_test_output) 
+            // Suppress C++ test output unless -Dtest_output=true
+            if (!test_output)
             {
                 run_cpp_tests.expectExitCode(0);
             }

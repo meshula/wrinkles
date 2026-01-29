@@ -280,14 +280,8 @@ pub const SerializableImageSequenceReference = struct {
     ) void
     {
         allocator.free(self.target_url_base);
-        if (self.name_prefix.len > 0)
-        {
-            allocator.free(self.name_prefix);
-        }
-        if (self.name_suffix.len > 0)
-        {
-            allocator.free(self.name_suffix);
-        }
+        allocator.free(self.name_prefix);
+        allocator.free(self.name_suffix);
         allocator.free(self.missing_frame_policy);
     }
 };

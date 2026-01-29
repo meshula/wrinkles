@@ -41,6 +41,14 @@ const MetadataMap = ascii.MetadataMap;
 
 const Allocator = std.mem.Allocator;
 
+/// Conditionally print test output based on build option
+fn test_print(comptime fmt: []const u8, args: anytype) void
+{
+    if (build_options.test_output) {
+        std.debug.print(fmt, args);
+    }
+}
+
 pub const ReadOptions = legacy_json.ReadOptions;
 
 /// Error type for conversion operations
@@ -4070,7 +4078,7 @@ fn run_roundtrip_test_from_paths(
         tlb_path,
         std.math.maxInt(usize),
     ) catch |err| {
-        std.debug.print("Failed to read {s}: {}\n", .{ tlb_path, err });
+        test_print("Failed to read {s}: {}\n", .{ tlb_path, err });
         return err;
     };
     defer allocator.free(tlb_content);
@@ -4105,7 +4113,7 @@ fn run_roundtrip_tests_from_dir(
 {
     var dir = std.fs.cwd().openDir(dir_path, .{ .iterate = true }) catch |err| {
         if (err == error.FileNotFound) {
-            std.debug.print("  Directory not found: {s}\n", .{dir_path});
+            test_print("  Directory not found: {s}\n", .{dir_path});
             return;
         }
         return err;
@@ -4155,28 +4163,33 @@ fn run_roundtrip_tests_from_dir(
         defer allocator.free(tlb_path);
 
         // Run the test
-        const test_passed = run_roundtrip_test_from_paths(allocator, tla_path, tlb_path) catch |err| {
-            std.debug.print("  {s}... ERROR: {}\n", .{ basename, err });
+        const test_passed = run_roundtrip_test_from_paths(
+            allocator,
+            tla_path,
+            tlb_path,
+        ) catch |err| {
+            test_print("  {s}... ERROR: {}\n", .{ basename, err });
             failed.* += 1;
             continue;
         };
 
         if (test_passed) {
-            std.debug.print("  {s}... OK\n", .{basename});
+            test_print("  {s}... OK\n", .{basename});
             passed.* += 1;
         } else {
-            std.debug.print("  {s}... MISMATCH\n", .{basename});
+            test_print("  {s}... MISMATCH\n", .{basename});
             failed.* += 1;
         }
     }
 }
 
-test "ascii: parse just_clip.tla and deinit (leak test)" {
+test "ascii: parse just_clip.tla and deinit (leak test)"
+{
     const allocator = std.testing.allocator;
 
     // Skip if file doesn't exist
     std.fs.cwd().access("test_files/just_clip.tla", .{}) catch {
-        std.debug.print("Skipping: test_files/just_clip.tla not found\n", .{});
+        test_print("Skipping: test_files/just_clip.tla not found\n", .{});
         return;
     };
 
@@ -4191,12 +4204,13 @@ test "ascii: parse just_clip.tla and deinit (leak test)" {
     try std.testing.expectEqualStrings("Clip-001", timeline.name);
 }
 
-test "binary: deserialize just_warp.tlb and deinit (leak test)" {
+test "binary: deserialize just_warp.tlb and deinit (leak test)"
+{
     const allocator = std.testing.allocator;
 
     // Skip if file doesn't exist
     std.fs.cwd().access("test_files/just_warp.tlb", .{}) catch {
-        std.debug.print("Skipping: test_files/just_warp.tlb not found\n", .{});
+        test_print("Skipping: test_files/just_warp.tlb not found\n", .{});
         return;
     };
 
@@ -4220,16 +4234,17 @@ test "binary: deserialize just_warp.tlb and deinit (leak test)" {
     try std.testing.expectEqualStrings("Linear Accel", timeline.name);
 }
 
-test "roundtrip: warp with affine transform" {
+test "roundtrip: warp with affine transform"
+{
     const allocator = std.testing.allocator;
 
     // Skip if files don't exist
     std.fs.cwd().access("test_files/just_warp.tla", .{}) catch {
-        std.debug.print("Skipping: test_files/just_warp.tla not found\n", .{});
+        test_print("Skipping: test_files/just_warp.tla not found\n", .{});
         return;
     };
     std.fs.cwd().access("test_files/just_warp.tlb", .{}) catch {
-        std.debug.print("Skipping: test_files/just_warp.tlb not found\n", .{});
+        test_print("Skipping: test_files/just_warp.tlb not found\n", .{});
         return;
     };
 
@@ -4241,16 +4256,17 @@ test "roundtrip: warp with affine transform" {
     try std.testing.expect(passed);
 }
 
-test "roundtrip: warp with bezier transform (linearized)" {
+test "roundtrip: warp with bezier transform (linearized)"
+{
     const allocator = std.testing.allocator;
 
     // Skip if files don't exist
     std.fs.cwd().access("test_files/just_warp_bez.tla", .{}) catch {
-        std.debug.print("Skipping: test_files/just_warp_bez.tla not found\n", .{});
+        test_print("Skipping: test_files/just_warp_bez.tla not found\n", .{});
         return;
     };
     std.fs.cwd().access("test_files/just_warp_bez.tlb", .{}) catch {
-        std.debug.print("Skipping: test_files/just_warp_bez.tlb not found\n", .{});
+        test_print("Skipping: test_files/just_warp_bez.tlb not found\n", .{});
         return;
     };
 
@@ -4262,16 +4278,17 @@ test "roundtrip: warp with bezier transform (linearized)" {
     try std.testing.expect(passed);
 }
 
-test "roundtrip: transition with container children" {
+test "roundtrip: transition with container children"
+{
     const allocator = std.testing.allocator;
 
     // Skip if files don't exist
     std.fs.cwd().access("test_files/just_transition.tla", .{}) catch {
-        std.debug.print("Skipping: test_files/just_transition.tla not found\n", .{});
+        test_print("Skipping: test_files/just_transition.tla not found\n", .{});
         return;
     };
     std.fs.cwd().access("test_files/just_transition.tlb", .{}) catch {
-        std.debug.print("Skipping: test_files/just_transition.tlb not found\n", .{});
+        test_print("Skipping: test_files/just_transition.tlb not found\n", .{});
         return;
     };
 
@@ -4283,50 +4300,56 @@ test "roundtrip: transition with container children" {
     try std.testing.expect(passed);
 }
 
-test "roundtrip: all test_files" {
+test "roundtrip: all test_files"
+{
     const allocator = std.testing.allocator;
 
-    std.debug.print("\nRunning roundtrip tests from test_files/...\n", .{});
+    test_print("\nRunning roundtrip tests from test_files/...\n", .{});
 
     var passed: usize = 0;
     var failed: usize = 0;
 
     try run_roundtrip_tests_from_dir(allocator, "test_files", &passed, &failed);
 
-    std.debug.print("test_files: {d} passed, {d} failed\n", .{ passed, failed });
+    test_print("test_files: {d} passed, {d} failed\n", .{ passed, failed });
     try std.testing.expect(failed == 0);
 }
 
-test "roundtrip: all otio_sample_data" {
+test "roundtrip: all otio_sample_data"
+{
     const allocator = std.testing.allocator;
 
-    std.debug.print("\nRunning roundtrip tests from otio_sample_data/...\n", .{});
+    test_print("\nRunning roundtrip tests from otio_sample_data/...\n", .{});
 
     var passed: usize = 0;
     var failed: usize = 0;
 
     try run_roundtrip_tests_from_dir(allocator, "otio_sample_data", &passed, &failed);
 
-    std.debug.print("otio_sample_data: {d} passed, {d} failed\n", .{ passed, failed });
+    test_print("otio_sample_data: {d} passed, {d} failed\n", .{ passed, failed });
     try std.testing.expect(failed == 0);
 }
 
-test "roundtrip: production_test_files (optional)" {
+test "roundtrip: production_test_files (optional)"
+{
     // Only run if build option is enabled
     if (!build_options.include_production_tests) {
-        std.debug.print("\nSkipping production_test_files (use -Dinclude_production_tests=true to enable)\n", .{});
+        test_print(
+            "\nSkipping production_test_files (use -Dinclude_production_tests=true to enable)\n",
+            .{},
+        );
         return error.SkipZigTest;
     }
 
     const allocator = std.testing.allocator;
 
-    std.debug.print("\nRunning roundtrip tests from production_test_files/...\n", .{});
+    test_print("\nRunning roundtrip tests from production_test_files/...\n", .{});
 
     var passed: usize = 0;
     var failed: usize = 0;
 
     try run_roundtrip_tests_from_dir(allocator, "production_test_files", &passed, &failed);
 
-    std.debug.print("production_test_files: {d} passed, {d} failed\n", .{ passed, failed });
+    test_print("production_test_files: {d} passed, {d} failed\n", .{ passed, failed });
     try std.testing.expect(failed == 0);
 }
