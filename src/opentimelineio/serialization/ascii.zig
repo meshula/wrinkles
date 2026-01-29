@@ -408,6 +408,7 @@ pub const SerializableClip = struct {
     ) void
     {
         allocator.free(self.name);
+        if (self.metadata_hash) |hash| allocator.free(hash);
         self.media.deinit(allocator);
         SerializableMarker.deinit_slice(self.markers, allocator);
     }
