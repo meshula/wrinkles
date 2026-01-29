@@ -188,7 +188,7 @@ pub const @"Clip" = struct {
     pub const @"#root" = &@"#schema";
     pub const @"#type" = &@"#schema".tables[1];
     pub const @"#constructor" = struct {
-@"name": ?[]const u8 = null, @"bounds": ?@"tlb".@"Bounds" = null, @"media": ?@"tlb".@"MediaReference" = null, @"metadata_hash": ?[]const u8 = null, @"markers": ?[]const @"tlb".@"Marker" = null, };
+@"name": ?[]const u8 = null, @"bounds": ?@"tlb".@"Bounds" = null, @"media": ?@"tlb".@"MediaReference" = null, @"metadata_hash": u64 = 0, @"markers": ?[]const @"tlb".@"Marker" = null, };
 
     @"#ref": flatbuffers.Ref,
 
@@ -204,8 +204,8 @@ pub const @"Clip" = struct {
         return flatbuffers.decodeTableField(@"tlb".@"MediaReference", 2, @"#self".@"#ref");
     }
 
-    pub fn @"metadata_hash"(@"#self": @"Clip") ?flatbuffers.String {
-        return flatbuffers.decodeStringField(3, @"#self".@"#ref");
+    pub fn @"metadata_hash"(@"#self": @"Clip") u64 {
+        return flatbuffers.decodeScalarField(u64, 3, @"#self".@"#ref", 0);
     }
 
     pub fn @"markers"(@"#self": @"Clip") ?flatbuffers.Vector(@"tlb".@"Marker") {

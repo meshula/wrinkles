@@ -364,7 +364,7 @@ pub const SerializableClip = struct {
     name: []const u8 = "",
     bounds_s: ?SerializableBounds = null,
     media: SerializableMediaReference,
-    /// Wyhash key referencing an entry in the Timeline's metadata_map
+    /// Wyhash key referencing an entry in the Timeline's metadata_map (16-char hex string)
     metadata_hash: ?[]const u8 = null,
     markers: []SerializableMarker = &.{},
 
@@ -409,11 +409,6 @@ pub const SerializableClip = struct {
     {
         allocator.free(self.name);
         self.media.deinit(allocator);
-        if (self.metadata_hash)
-            |hash_key|
-        {
-            allocator.free(hash_key);
-        }
         SerializableMarker.deinit_slice(self.markers, allocator);
     }
 };
@@ -1397,7 +1392,7 @@ pub const MetadataContext = struct {
         }
     }
 
-    /// Add metadata to the map and return its MD5 hash key.
+    /// Add metadata to the map and return its Blake3 hash key as a hex string.
     /// If metadata with the same hash already exists, just returns the
     /// existing key.
     pub fn add_metadata(
@@ -1416,14 +1411,19 @@ pub const MetadataContext = struct {
         );
         const json_bytes = stream.getWritten();
 
-        // Compute hash using std.hash (Wyhash)
-        const hash = std.hash.Wyhash.hash(0, json_bytes);
+        // Compute hash using Blake3 (first 8 bytes = u64)
+        var hasher = std.crypto.hash.Blake3.init(.{});
+        hasher.update(json_bytes);
+        var hash_bytes: [8]u8 = undefined;
+        hasher.final(hash_bytes[0..8]);
+
+        // Convert first 8 bytes to u64 for consistent representation
+        const hash: u64 = std.mem.readInt(u64, &hash_bytes, .big);
 
         // Convert to hex string (16 chars for u64)
         const hash_str = try self.allocator.alloc(u8, 16);
         const hex_chars = "0123456789abcdef";
-        inline for (0..8) 
-            |i| 
+        inline for (0..8) |i|
         {
             const byte: u8 = @truncate(hash >> @intCast((7 - i) * 8));
             hash_str[i * 2] = hex_chars[byte >> 4];
@@ -1431,8 +1431,7 @@ pub const MetadataContext = struct {
         }
 
         // Check if this metadata already exists
-        if (self.metadata_map.fields.getKey(hash_str)) 
-            |existing_key| 
+        if (self.metadata_map.fields.getKey(hash_str)) |existing_key|
         {
             // Already exists, free the duplicate key and return existing
             self.allocator.free(hash_str);
@@ -1450,6 +1449,50 @@ pub const MetadataContext = struct {
         return hash_str;
     }
 };
+
+// ----------------------------------------------------------------------------
+// Hash Conversion Utilities
+// ----------------------------------------------------------------------------
+
+/// Convert a u64 hash value to a 16-character hex string.
+/// Used when deserializing from TLB binary format (which stores u64) back to
+/// the SerializableClip (which uses string for TLA compatibility).
+pub fn hash_to_hex_string(
+    allocator: std.mem.Allocator,
+    hash: u64,
+) ![]const u8
+{
+    const hex_chars = "0123456789abcdef";
+    const result = try allocator.alloc(u8, 16);
+    inline for (0..8) |i|
+    {
+        const byte: u8 = @truncate(hash >> @intCast((7 - i) * 8));
+        result[i * 2] = hex_chars[byte >> 4];
+        result[i * 2 + 1] = hex_chars[byte & 0x0f];
+    }
+    return result;
+}
+
+/// Convert a 16-character hex string to a u64 hash value.
+/// Used when serializing to TLB binary format.
+/// Returns null if the string is not a valid 16-character hex string.
+pub fn hex_string_to_hash(hex_str: []const u8) ?u64
+{
+    if (hex_str.len != 16) return null;
+
+    var result: u64 = 0;
+    for (hex_str) |c|
+    {
+        const digit: u64 = switch (c) {
+            '0'...'9' => c - '0',
+            'a'...'f' => c - 'a' + 10,
+            'A'...'F' => c - 'A' + 10,
+            else => return null,
+        };
+        result = (result << 4) | digit;
+    }
+    return result;
+}
 
 // ----------------------------------------------------------------------------
 // Helper Functions: Deserialization Conversion
@@ -2871,6 +2914,70 @@ fn convert_composable_to_no_metadata(
 // Tests
 // ----------------------------------------------------------------------------
 
+test "hash conversion: u64 to hex string round-trip"
+{
+    const allocator = std.testing.allocator;
+
+    // Test with the hash value from just_clip_with_metadata.tla
+    // "46ce2bb4fbd1c246" corresponds to u64: 0x46ce2bb4fbd1c246
+    const expected_hash: u64 = 0x46ce2bb4fbd1c246;
+    const expected_str = "46ce2bb4fbd1c246";
+
+    // Test hex_string_to_hash
+    const parsed_hash = hex_string_to_hash(expected_str);
+    try std.testing.expect(parsed_hash != null);
+    try std.testing.expectEqual(expected_hash, parsed_hash.?);
+
+    // Test hash_to_hex_string
+    const generated_str = try hash_to_hex_string(allocator, expected_hash);
+    defer allocator.free(generated_str);
+    try std.testing.expectEqualStrings(expected_str, generated_str);
+
+    // Test round-trip
+    const round_trip_hash = hex_string_to_hash(generated_str);
+    try std.testing.expect(round_trip_hash != null);
+    try std.testing.expectEqual(expected_hash, round_trip_hash.?);
+}
+
+test "hash conversion: invalid hex strings"
+{
+    // Wrong length
+    try std.testing.expect(hex_string_to_hash("abc") == null);
+    try std.testing.expect(hex_string_to_hash("abcdef0123456789ab") == null);
+
+    // Invalid characters
+    try std.testing.expect(hex_string_to_hash("46ce2bb4fbd1c24g") == null);
+    try std.testing.expect(hex_string_to_hash("46ce2bb4fbd1c24!") == null);
+}
+
+test "hash conversion: edge cases"
+{
+    const allocator = std.testing.allocator;
+
+    // Zero hash
+    const zero_str = try hash_to_hex_string(allocator, 0);
+    defer allocator.free(zero_str);
+    try std.testing.expectEqualStrings("0000000000000000", zero_str);
+
+    const zero_hash = hex_string_to_hash("0000000000000000");
+    try std.testing.expect(zero_hash != null);
+    try std.testing.expectEqual(@as(u64, 0), zero_hash.?);
+
+    // Max u64
+    const max_str = try hash_to_hex_string(allocator, std.math.maxInt(u64));
+    defer allocator.free(max_str);
+    try std.testing.expectEqualStrings("ffffffffffffffff", max_str);
+
+    const max_hash = hex_string_to_hash("ffffffffffffffff");
+    try std.testing.expect(max_hash != null);
+    try std.testing.expectEqual(std.math.maxInt(u64), max_hash.?);
+
+    // Uppercase should also work
+    const upper_hash = hex_string_to_hash("FFFFFFFFFFFFFFFF");
+    try std.testing.expect(upper_hash != null);
+    try std.testing.expectEqual(std.math.maxInt(u64), upper_hash.?);
+}
+
 test "interval conversion: ContinuousInterval to [2]f64"
 {
     const interval = opentime.ContinuousInterval{
@@ -3284,11 +3391,13 @@ pub fn write_timeline_to_file(
     );
 }
 
-/// Internal serializer, using the SerializableTimeline intermediate
-/// structures.
+/// Write a SerializableTimeline to any supported file format.
 /// Supports: .tla, .tlb (FlatBuffers), .tlz (bundle), based on the file
 /// extension.
-fn write_serializable_to_file(
+///
+/// Use this function when you have a SerializableTimeline and want to
+/// preserve all fields including metadata_hash and metadata_map.
+pub fn write_serializable_to_file(
     allocator: std.mem.Allocator,
     intermediate_tl: SerializableTimeline,
     file_path: []const u8,
@@ -3368,7 +3477,10 @@ pub fn write_timeline_to_writer(
 }
 
 /// Write a SerializableTimeline to a writer in the specified format.
-fn write_serializable_to_writer(
+///
+/// Use this function when you have a SerializableTimeline and want to
+/// preserve all fields including metadata_hash and metadata_map.
+pub fn write_serializable_to_writer(
     allocator: std.mem.Allocator,
     intermediate_tl: SerializableTimeline,
     format: FileFormat,

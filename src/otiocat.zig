@@ -370,23 +370,9 @@ pub fn main() !void
 
         convert_prog.end();
     } else {
-        // Read input file to schema.Timeline
-        var tl_ref = try serialization.read_from_file(
-            allocator,
-            state.input_path,
-            .{},
-        );
-        defer tl_ref.deinit(allocator);
-
-        read_prog.end();
-
-        const convert_prog = parent_prog.start(
-            "Converting timeline...",
-            0,
-        );
-
+        // Determine input directory for media references
         const input_dir = (
-            std.fs.path.dirname(state.input_path) 
+            std.fs.path.dirname(state.input_path)
             orelse "."
         );
 
@@ -398,36 +384,102 @@ pub fn main() !void
             .media_base_dir = input_dir,
         };
 
-        if (state.output_path) 
-            |path|
+        // For TLA/TLB/TLZ formats, use SerializableTimeline directly to preserve
+        // metadata_hash and metadata_map. Only go through schema.Timeline for
+        // OTIO JSON input which requires the JSON parsing infrastructure.
+        if (input_format == .tla or input_format == .tlb or input_format == .tlz)
         {
-            try serialization.write_to_file(
+            // Read directly to SerializableTimeline (preserves metadata)
+            var ser_timeline = try serialization.ascii.read_from_file(
                 allocator,
-                tl_ref.timeline,
-                path,
-                write_options,
+                state.input_path,
             );
+            defer ser_timeline.deinit(allocator);
+
+            read_prog.end();
+
+            const convert_prog = parent_prog.start(
+                "Converting timeline...",
+                0,
+            );
+
+            if (state.output_path) |path|
+            {
+                try serialization.ascii.write_serializable_to_file(
+                    allocator,
+                    ser_timeline,
+                    path,
+                    write_options,
+                );
+            }
+            else
+            {
+                // Write to stdout
+                var out_file = std.fs.File.stdout();
+                var file_writer_buffer: [16 * 1024]u8 = undefined;
+                var file_writer = out_file.writer(&file_writer_buffer);
+                const writer = &file_writer.interface;
+
+                try serialization.ascii.write_serializable_to_writer(
+                    allocator,
+                    ser_timeline,
+                    output_format,
+                    write_options,
+                    writer,
+                );
+
+                try writer.flush();
+            }
+
+            convert_prog.end();
         }
         else
         {
-            // Write to stdout
-            var out_file = std.fs.File.stdout();
-            var file_writer_buffer: [16 * 1024]u8 = undefined;
-            var file_writer = out_file.writer(&file_writer_buffer);
-            const writer = &file_writer.interface;
-
-            try serialization.ascii.write_timeline_to_writer(
+            // OTIO JSON input - must go through schema.Timeline
+            var tl_ref = try serialization.read_from_file(
                 allocator,
-                tl_ref.timeline,
-                output_format,
-                write_options,
-                writer,
+                state.input_path,
+                .{},
+            );
+            defer tl_ref.deinit(allocator);
+
+            read_prog.end();
+
+            const convert_prog = parent_prog.start(
+                "Converting timeline...",
+                0,
             );
 
-            try writer.flush();
-        }
+            if (state.output_path) |path|
+            {
+                try serialization.write_to_file(
+                    allocator,
+                    tl_ref.timeline,
+                    path,
+                    write_options,
+                );
+            }
+            else
+            {
+                // Write to stdout
+                var out_file = std.fs.File.stdout();
+                var file_writer_buffer: [16 * 1024]u8 = undefined;
+                var file_writer = out_file.writer(&file_writer_buffer);
+                const writer = &file_writer.interface;
 
-        convert_prog.end();
+                try serialization.ascii.write_timeline_to_writer(
+                    allocator,
+                    tl_ref.timeline,
+                    output_format,
+                    write_options,
+                    writer,
+                );
+
+                try writer.flush();
+            }
+
+            convert_prog.end();
+        }
     }
 
     if (state.output_path) 

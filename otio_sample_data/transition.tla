@@ -53,6 +53,7 @@
             transition {
                 .name = "Transition",
                 .container = {
+                    .name = "",
                     .children = [
                     ],
                     .markers = [

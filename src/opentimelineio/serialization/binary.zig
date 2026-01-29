@@ -954,11 +954,17 @@ fn serializable_clip_to_fb(
     clip: ascii.SerializableClip,
 ) !tlb.Clip
 {
+    // Convert hex string to u64 for binary storage
+    const hash_val: u64 = if (clip.metadata_hash) |h|
+        ascii.hex_string_to_hash(h) orelse 0
+    else
+        0;
+
     return try builder.writeTable(tlb.Clip, .{
         .name = clip.name,
         .bounds = if (clip.bounds_s) |b| try serializable_bounds_to_fb(builder, b) else null,
         .media = try serializable_media_ref_to_fb(builder, allocator, clip.media),
-        .metadata_hash = clip.metadata_hash,
+        .metadata_hash = hash_val,
         .markers = try serializable_markers_to_fb(builder, clip.markers),
     });
 }
@@ -2215,6 +2221,13 @@ fn fb_to_serializable_clip(
     fb_clip: tlb.Clip,
 ) !ascii.SerializableClip
 {
+    const hash_val = fb_clip.metadata_hash();
+    // Convert u64 back to hex string for SerializableClip
+    const hash_str: ?[]const u8 = if (hash_val != 0)
+        try ascii.hash_to_hex_string(allocator, hash_val)
+    else
+        null;
+
     return .{
         .name = if (fb_clip.name()) |n| try allocator.dupe(u8, n) else "",
         .bounds_s = if (fb_clip.bounds()) |b| fb_to_serializable_bounds(b) else null,
@@ -2224,7 +2237,7 @@ fn fb_to_serializable_clip(
             .domain = .time,
             .discrete_partition = null,
         },
-        .metadata_hash = if (fb_clip.metadata_hash()) |h| try allocator.dupe(u8, h) else null,
+        .metadata_hash = hash_str,
         .markers = try fb_to_serializable_markers(allocator, fb_clip.markers()),
     };
 }
@@ -3242,11 +3255,17 @@ fn serializable_collection_item_to_fb(
             const bounds_fb = if (clip.bounds_s) |b| try serializable_bounds_to_fb(builder, b) else null;
             const markers_fb = try serializable_markers_to_fb(builder, clip.markers);
 
+            // Convert hex string to u64 for binary storage
+            const hash_val: u64 = if (clip.metadata_hash) |h|
+                ascii.hex_string_to_hash(h) orelse 0
+            else
+                0;
+
             const clip_ref = try builder.writeTable(tlb.Clip, .{
                 .name = clip.name,
                 .bounds = bounds_fb,
                 .media = media_fb,
-                .metadata_hash = clip.metadata_hash,
+                .metadata_hash = hash_val,
                 .markers = markers_fb,
             });
 
@@ -3415,13 +3434,19 @@ fn fb_to_serializable_collection_item(
             const fb_clip = wrapper.clip() orelse return error.InvalidData;
             const markers = try fb_to_serializable_markers(allocator, fb_clip.markers());
             const fb_media = fb_clip.media() orelse return error.InvalidData;
+            const hash_val = fb_clip.metadata_hash();
+            // Convert u64 back to hex string
+            const hash_str: ?[]const u8 = if (hash_val != 0)
+                try ascii.hash_to_hex_string(allocator, hash_val)
+            else
+                null;
 
             break :blk .{
                 .clip = .{
                     .name = if (fb_clip.name()) |n| try allocator.dupe(u8, n) else "",
                     .bounds_s = if (fb_clip.bounds()) |b| fb_to_serializable_bounds(b) else null,
                     .media = try fb_to_serializable_media_ref(allocator, fb_media),
-                    .metadata_hash = if (fb_clip.metadata_hash()) |h| try allocator.dupe(u8, h) else null,
+                    .metadata_hash = hash_str,
                     .markers = markers,
                 },
             };

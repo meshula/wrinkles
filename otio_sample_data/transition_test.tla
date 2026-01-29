@@ -7,6 +7,7 @@
             transition {
                 .name = "t0",
                 .container = {
+                    .name = "",
                     .children = [
                     ],
                     .markers = [
@@ -34,6 +35,7 @@
             transition {
                 .name = "t1",
                 .container = {
+                    .name = "",
                     .children = [
                     ],
                     .markers = [
@@ -78,6 +80,7 @@
             transition {
                 .name = "t3",
                 .container = {
+                    .name = "",
                     .children = [
                     ],
                     .markers = [

@@ -9,7 +9,7 @@
             .{ .name = "name", .type = .string },
             .{ .name = "bounds", .type = .{ .table = .{ .name = "tlb.Bounds" } } },
             .{ .name = "media", .type = .{ .table = .{ .name = "tlb.MediaReference" } } },
-            .{ .name = "metadata_hash", .type = .string },
+            .{ .name = "metadata_hash", .type = .{ .int = .u64 } },
             .{ .name = "markers", .type = .{ .vector = .{
                 .element_size = 4,
                 .element = .{ .table = .{ .name = "tlb.Marker" } },

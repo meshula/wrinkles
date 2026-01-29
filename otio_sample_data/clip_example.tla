@@ -33,6 +33,7 @@
             transition {
                 .name = "Dissolve",
                 .container = {
+                    .name = "",
                     .children = [
                     ],
                     .markers = [

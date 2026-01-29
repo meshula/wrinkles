@@ -27,7 +27,7 @@
                         .start_index = 0,
                     },
                 },
-                .metadata_hash = "9ccaaa865055f452",
+                .metadata_hash = "0479a26907f53d90",
                 .markers = [
                 ],
             },
@@ -61,7 +61,7 @@
                         .start_index = 0,
                     },
                 },
-                .metadata_hash = "012d89d9af844920",
+                .metadata_hash = "608a2c58e080db71",
                 .markers = [
                 ],
             },
@@ -88,7 +88,7 @@
                         .start_index = 0,
                     },
                 },
-                .metadata_hash = "e009635d094bffb8",
+                .metadata_hash = "8b60e805d8c31407",
                 .markers = [
                 ],
             },
@@ -106,20 +106,23 @@
                         .start_index = 0,
                     },
                 },
-                .metadata_hash = "f19c6afa0e1435ca",
+                .metadata_hash = "47f1fbb104e3a9ac",
                 .markers = [
                     {
+                        .name = "",
                         .marked_range = [
                             2.433333333333333,
                             2.433333333333333,
                         ],
-                        .color = "RED",
+                        .color = "red",
+                        .comment = "",
                     },
                 ],
             },
             transition {
                 .name = "Cross Dissolve",
                 .container = {
+                    .name = "",
                     .children = [
                     ],
                     .markers = [
@@ -173,7 +176,7 @@
                         .start_index = 0,
                     },
                 },
-                .metadata_hash = "c699b70747e78b07",
+                .metadata_hash = "e7790436a85d2786",
                 .markers = [
                 ],
             },
@@ -207,13 +210,14 @@
                         .start_index = 0,
                     },
                 },
-                .metadata_hash = "30e990962d02be4d",
+                .metadata_hash = "97f533c2d177051b",
                 .markers = [
                 ],
             },
             transition {
                 .name = "Cross Dissolve",
                 .container = {
+                    .name = "",
                     .children = [
                     ],
                     .markers = [
@@ -235,7 +239,7 @@
                         .start_index = 0,
                     },
                 },
-                .metadata_hash = "3d779f780a4a2327",
+                .metadata_hash = "71e9d8822537e397",
                 .markers = [
                 ],
             },
@@ -269,7 +273,7 @@
                         .start_index = 0,
                     },
                 },
-                .metadata_hash = "0a36806cd39ddbb7",
+                .metadata_hash = "425eb017951b32dc",
                 .markers = [
                 ],
             },
@@ -296,7 +300,7 @@
                         .start_index = 0,
                     },
                 },
-                .metadata_hash = "2afc4e2b1441e66d",
+                .metadata_hash = "819eb4e81109dead",
                 .markers = [
                 ],
             },
@@ -330,7 +334,7 @@
                         .start_index = 0,
                     },
                 },
-                .metadata_hash = "1171c7bb2505bab3",
+                .metadata_hash = "1541a35ffe7f083d",
                 .markers = [
                 ],
             },
@@ -380,7 +384,7 @@
                         .start_index = 0,
                     },
                 },
-                .metadata_hash = "d57871b892d30442",
+                .metadata_hash = "60cd32df17802097",
                 .markers = [
                 ],
             },
@@ -414,7 +418,7 @@
                         .start_index = 0,
                     },
                 },
-                .metadata_hash = "6b7fca0aeba0d277",
+                .metadata_hash = "8fe06f51a61e54cc",
                 .markers = [
                 ],
             },
@@ -432,7 +436,7 @@
                         .start_index = 0,
                     },
                 },
-                .metadata_hash = "ff3e8ad6a4784524",
+                .metadata_hash = "c6bac7797491f8d0",
                 .markers = [
                 ],
             },
@@ -443,7 +447,7 @@
 ],
 .presentation_space_discrete_partitions = {},
 .metadata_map = {
-    "9ccaaa865055f452": {
+    "0479a26907f53d90": {
         "fcp_xml": {
             "@frameBlend": "FALSE",
             "@id": "clipitem-1",
@@ -484,7 +488,7 @@
         },
         "my_hook_function_was_here": true,
     },
-    "012d89d9af844920": {
+    "608a2c58e080db71": {
         "fcp_xml": {
             "@frameBlend": "FALSE",
             "@id": "clipitem-2",
@@ -523,7 +527,7 @@
         },
         "my_hook_function_was_here": true,
     },
-    "e009635d094bffb8": {
+    "8b60e805d8c31407": {
         "fcp_xml": {
             "@frameBlend": "FALSE",
             "@id": "clipitem-3",
@@ -546,7 +550,7 @@
         },
         "my_hook_function_was_here": true,
     },
-    "f19c6afa0e1435ca": {
+    "47f1fbb104e3a9ac": {
         "fcp_xml": {
             "@frameBlend": "FALSE",
             "@id": "clipitem-4",
@@ -569,7 +573,7 @@
         },
         "my_hook_function_was_here": true,
     },
-    "c699b70747e78b07": {
+    "e7790436a85d2786": {
         "fcp_xml": {
             "@frameBlend": "FALSE",
             "@id": "clipitem-10",
@@ -592,7 +596,7 @@
         },
         "my_hook_function_was_here": true,
     },
-    "30e990962d02be4d": {
+    "97f533c2d177051b": {
         "fcp_xml": {
             "@frameBlend": "FALSE",
             "@id": "clipitem-11",
@@ -633,7 +637,7 @@
         },
         "my_hook_function_was_here": true,
     },
-    "3d779f780a4a2327": {
+    "71e9d8822537e397": {
         "fcp_xml": {
             "@frameBlend": "FALSE",
             "@id": "clipitem-12",
@@ -672,7 +676,7 @@
         },
         "my_hook_function_was_here": true,
     },
-    "0a36806cd39ddbb7": {
+    "425eb017951b32dc": {
         "fcp_xml": {
             "@frameBlend": "FALSE",
             "@id": "clipitem-13",
@@ -715,7 +719,7 @@
         },
         "my_hook_function_was_here": true,
     },
-    "2afc4e2b1441e66d": {
+    "819eb4e81109dead": {
         "fcp_xml": {
             "@frameBlend": "FALSE",
             "@id": "clipitem-14",
@@ -758,7 +762,7 @@
         },
         "my_hook_function_was_here": true,
     },
-    "1171c7bb2505bab3": {
+    "1541a35ffe7f083d": {
         "fcp_xml": {
             "@frameBlend": "FALSE",
             "@id": "clipitem-17",
@@ -796,7 +800,7 @@
         },
         "my_hook_function_was_here": true,
     },
-    "d57871b892d30442": {
+    "60cd32df17802097": {
         "fcp_xml": {
             "@frameBlend": "FALSE",
             "@id": "clipitem-21",
@@ -834,7 +838,7 @@
         },
         "my_hook_function_was_here": true,
     },
-    "6b7fca0aeba0d277": {
+    "8fe06f51a61e54cc": {
         "fcp_xml": {
             "@frameBlend": "FALSE",
             "@id": "clipitem-23",
@@ -877,7 +881,7 @@
         },
         "my_hook_function_was_here": true,
     },
-    "ff3e8ad6a4784524": {
+    "c6bac7797491f8d0": {
         "fcp_xml": {
             "@frameBlend": "FALSE",
             "@id": "clipitem-24",

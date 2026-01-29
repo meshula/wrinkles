@@ -20,7 +20,7 @@
                     ],
                     .domain = picture {},
                 },
-                .metadata_hash = "6af6072e677d9019829a3d4daa5e3833",
+                .metadata_hash = "6af6072e677d9019",
                 .markers = [
                 ],
             },
@@ -31,7 +31,7 @@
 ],
 .presentation_space_discrete_partitions = {},
 .metadata_map = {
-    "6af6072e677d9019829a3d4daa5e3833": {
+    "6af6072e677d9019": {
         "metadata_key_000000": "This is a longer string value for metadata key number 0 with some extra padding to make it larger",
         "metadata_key_000001": 12345,
         "metadata_key_000002": 6.28318,

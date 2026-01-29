@@ -7,8 +7,8 @@
             clip {
                 .name = "Image Sequence Clip",
                 .bounds_s = discrete [
-                    0,
-                    48,
+                    1001,
+                    1049,
                 ],
                 .media = {
                     .data_reference = image_sequence {
@@ -19,8 +19,8 @@
                         .missing_frame_policy = "hold",
                     },
                     .bounds_s = discrete [
-                        1001,
-                        1101,
+                        2002,
+                        2102,
                     ],
                     .domain = picture {},
                     .discrete_partition = {
