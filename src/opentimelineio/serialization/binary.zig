@@ -2668,7 +2668,11 @@ fn fb_to_topology(
 }
 
 /// Convert FlatBuffers MappingWrapper to schema Mapping
-fn fb_to_mapping(allocator: Allocator, fb_wrapper: tlb.MappingWrapper) !topology_mod.mapping.Mapping {
+fn fb_to_mapping(
+    allocator: Allocator,
+    fb_wrapper: tlb.MappingWrapper,
+) !topology_mod.mapping.Mapping
+{
     return switch (fb_wrapper.mapping_type()) {
         .Affine => blk: {
             if (fb_wrapper.affine()) |aff| {
@@ -4002,4 +4006,302 @@ test "tlb: metadata offset points to correct boundary"
     try std.testing.expectEqualStrings("Test", fb_timeline.name().?);
     // Timeline portion should have null metadata_map (it's stored separately)
     try std.testing.expect(fb_timeline.metadata_map() == null);
+}
+
+// ============================================================================
+// Roundtrip Tests - verify TLA -> TLB -> TLA preserves all data
+// ============================================================================
+
+/// Helper to run a single roundtrip test given file paths
+fn run_roundtrip_test_from_paths(
+    allocator: Allocator,
+    tla_path: []const u8,
+    tlb_path: []const u8,
+) !bool
+{
+    // Read and parse the TLA file using ascii.read_from_file -> SerializableTimeline
+    // Note: We use an ArenaAllocator for TLA parsing because ziggy.parseLeaky
+    // allocates strings that cannot be freed individually with the general purpose allocator.
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const timeline_from_tla = try ascii.read_from_file(
+        arena.allocator(),
+        tla_path,
+    );
+    // No deinit needed - arena handles all TLA allocations
+
+    // Serialize TLA timeline to TLA string (normalized)
+    const tla_output = try ascii.write_to_buffer(
+        allocator,
+        timeline_from_tla,
+        .tla,
+        .{},
+    );
+    defer allocator.free(tla_output);
+
+    // Read the TLB file and deserialize to SerializableTimeline
+    const tlb_content = std.fs.cwd().readFileAlloc(
+        allocator,
+        tlb_path,
+        std.math.maxInt(usize),
+    ) catch |err| {
+        std.debug.print("Failed to read {s}: {}\n", .{ tlb_path, err });
+        return err;
+    };
+    defer allocator.free(tlb_content);
+
+    var timeline_from_tlb = try deserialize_to_serializable_timeline(
+        allocator,
+        tlb_content,
+        .{},
+    );
+    defer timeline_from_tlb.deinit(allocator);
+
+    // Serialize TLB timeline to TLA string
+    const tlb_output = try ascii.write_to_buffer(
+        allocator,
+        timeline_from_tlb,
+        .tla,
+        .{},
+    );
+    defer allocator.free(tlb_output);
+
+    // Compare the outputs
+    return std.mem.eql(u8, tla_output, tlb_output);
+}
+
+/// Collect and run all roundtrip tests from a directory
+fn run_roundtrip_tests_from_dir(
+    allocator: Allocator,
+    dir_path: []const u8,
+    passed: *usize,
+    failed: *usize,
+) !void
+{
+    var dir = std.fs.cwd().openDir(dir_path, .{ .iterate = true }) catch |err| {
+        if (err == error.FileNotFound) {
+            std.debug.print("  Directory not found: {s}\n", .{dir_path});
+            return;
+        }
+        return err;
+    };
+    defer dir.close();
+
+    // Collect .tla files
+    var tla_files: std.ArrayList([]const u8) = .empty;
+    defer {
+        for (tla_files.items) |f| allocator.free(f);
+        tla_files.deinit(allocator);
+    }
+
+    var iter = dir.iterate();
+    while (try iter.next()) |entry| {
+        if (entry.kind != .file) continue;
+        if (std.mem.endsWith(u8, entry.name, ".tla")) {
+            try tla_files.append(allocator, try allocator.dupe(u8, entry.name));
+        }
+    }
+
+    // Sort for consistent ordering
+    std.mem.sort([]const u8, tla_files.items, {}, struct {
+        fn less_than(
+            _: void,
+            a: []const u8,
+            b: []const u8,
+        ) bool
+        {
+            return std.mem.lessThan(u8, a, b);
+        }
+    }.less_than);
+
+    // Run tests
+    for (tla_files.items) |tla_name| {
+        const basename = tla_name[0 .. tla_name.len - 4];
+        const tlb_name = try std.fmt.allocPrint(allocator, "{s}.tlb", .{basename});
+        defer allocator.free(tlb_name);
+
+        // Check if corresponding .tlb exists
+        dir.access(tlb_name, .{}) catch continue;
+
+        // Build full paths
+        const tla_path = try std.fs.path.join(allocator, &.{ dir_path, tla_name });
+        defer allocator.free(tla_path);
+        const tlb_path = try std.fs.path.join(allocator, &.{ dir_path, tlb_name });
+        defer allocator.free(tlb_path);
+
+        // Run the test
+        const test_passed = run_roundtrip_test_from_paths(allocator, tla_path, tlb_path) catch |err| {
+            std.debug.print("  {s}... ERROR: {}\n", .{ basename, err });
+            failed.* += 1;
+            continue;
+        };
+
+        if (test_passed) {
+            std.debug.print("  {s}... OK\n", .{basename});
+            passed.* += 1;
+        } else {
+            std.debug.print("  {s}... MISMATCH\n", .{basename});
+            failed.* += 1;
+        }
+    }
+}
+
+test "ascii: parse just_clip.tla and deinit (leak test)" {
+    const allocator = std.testing.allocator;
+
+    // Skip if file doesn't exist
+    std.fs.cwd().access("test_files/just_clip.tla", .{}) catch {
+        std.debug.print("Skipping: test_files/just_clip.tla not found\n", .{});
+        return;
+    };
+
+    // Read and parse TLA file
+    var timeline = try ascii.read_from_file(
+        allocator,
+        "test_files/just_clip.tla",
+    );
+    defer timeline.deinit(allocator);
+
+    // Basic sanity check
+    try std.testing.expectEqualStrings("Clip-001", timeline.name);
+}
+
+test "binary: deserialize just_warp.tlb and deinit (leak test)" {
+    const allocator = std.testing.allocator;
+
+    // Skip if file doesn't exist
+    std.fs.cwd().access("test_files/just_warp.tlb", .{}) catch {
+        std.debug.print("Skipping: test_files/just_warp.tlb not found\n", .{});
+        return;
+    };
+
+    // Read TLB file
+    const tlb_content = try std.fs.cwd().readFileAlloc(
+        allocator,
+        "test_files/just_warp.tlb",
+        std.math.maxInt(usize),
+    );
+    defer allocator.free(tlb_content);
+
+    // Deserialize to SerializableTimeline
+    var timeline = try deserialize_to_serializable_timeline(
+        allocator,
+        tlb_content,
+        .{},
+    );
+    defer timeline.deinit(allocator);
+
+    // Basic sanity check
+    try std.testing.expectEqualStrings("Linear Accel", timeline.name);
+}
+
+test "roundtrip: warp with affine transform" {
+    const allocator = std.testing.allocator;
+
+    // Skip if files don't exist
+    std.fs.cwd().access("test_files/just_warp.tla", .{}) catch {
+        std.debug.print("Skipping: test_files/just_warp.tla not found\n", .{});
+        return;
+    };
+    std.fs.cwd().access("test_files/just_warp.tlb", .{}) catch {
+        std.debug.print("Skipping: test_files/just_warp.tlb not found\n", .{});
+        return;
+    };
+
+    const passed = try run_roundtrip_test_from_paths(
+        allocator,
+        "test_files/just_warp.tla",
+        "test_files/just_warp.tlb",
+    );
+    try std.testing.expect(passed);
+}
+
+test "roundtrip: warp with bezier transform (linearized)" {
+    const allocator = std.testing.allocator;
+
+    // Skip if files don't exist
+    std.fs.cwd().access("test_files/just_warp_bez.tla", .{}) catch {
+        std.debug.print("Skipping: test_files/just_warp_bez.tla not found\n", .{});
+        return;
+    };
+    std.fs.cwd().access("test_files/just_warp_bez.tlb", .{}) catch {
+        std.debug.print("Skipping: test_files/just_warp_bez.tlb not found\n", .{});
+        return;
+    };
+
+    const passed = try run_roundtrip_test_from_paths(
+        allocator,
+        "test_files/just_warp_bez.tla",
+        "test_files/just_warp_bez.tlb",
+    );
+    try std.testing.expect(passed);
+}
+
+test "roundtrip: transition with container children" {
+    const allocator = std.testing.allocator;
+
+    // Skip if files don't exist
+    std.fs.cwd().access("test_files/just_transition.tla", .{}) catch {
+        std.debug.print("Skipping: test_files/just_transition.tla not found\n", .{});
+        return;
+    };
+    std.fs.cwd().access("test_files/just_transition.tlb", .{}) catch {
+        std.debug.print("Skipping: test_files/just_transition.tlb not found\n", .{});
+        return;
+    };
+
+    const passed = try run_roundtrip_test_from_paths(
+        allocator,
+        "test_files/just_transition.tla",
+        "test_files/just_transition.tlb",
+    );
+    try std.testing.expect(passed);
+}
+
+test "roundtrip: all test_files" {
+    const allocator = std.testing.allocator;
+
+    std.debug.print("\nRunning roundtrip tests from test_files/...\n", .{});
+
+    var passed: usize = 0;
+    var failed: usize = 0;
+
+    try run_roundtrip_tests_from_dir(allocator, "test_files", &passed, &failed);
+
+    std.debug.print("test_files: {d} passed, {d} failed\n", .{ passed, failed });
+    try std.testing.expect(failed == 0);
+}
+
+test "roundtrip: all otio_sample_data" {
+    const allocator = std.testing.allocator;
+
+    std.debug.print("\nRunning roundtrip tests from otio_sample_data/...\n", .{});
+
+    var passed: usize = 0;
+    var failed: usize = 0;
+
+    try run_roundtrip_tests_from_dir(allocator, "otio_sample_data", &passed, &failed);
+
+    std.debug.print("otio_sample_data: {d} passed, {d} failed\n", .{ passed, failed });
+    try std.testing.expect(failed == 0);
+}
+
+test "roundtrip: production_test_files (optional)" {
+    // Only run if build option is enabled
+    if (!build_options.include_production_tests) {
+        std.debug.print("\nSkipping production_test_files (use -Dinclude_production_tests=true to enable)\n", .{});
+        return error.SkipZigTest;
+    }
+
+    const allocator = std.testing.allocator;
+
+    std.debug.print("\nRunning roundtrip tests from production_test_files/...\n", .{});
+
+    var passed: usize = 0;
+    var failed: usize = 0;
+
+    try run_roundtrip_tests_from_dir(allocator, "production_test_files", &passed, &failed);
+
+    std.debug.print("production_test_files: {d} passed, {d} failed\n", .{ passed, failed });
+    try std.testing.expect(failed == 0);
 }

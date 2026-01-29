@@ -401,6 +401,21 @@ pub const SerializableClip = struct {
             ),
         };
     }
+
+    pub fn deinit(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        allocator.free(self.name);
+        self.media.deinit(allocator);
+        if (self.metadata_hash)
+            |hash_key|
+        {
+            allocator.free(hash_key);
+        }
+        SerializableMarker.deinit_slice(self.markers, allocator);
+    }
 };
 
 /// Serializable variant of Clip with inline metadata (for --inline-metadata output)
@@ -441,6 +456,15 @@ pub const SerializableGap = struct {
                 gap.markers,
             ),
         };
+    }
+
+    pub fn deinit(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        allocator.free(self.name);
+        SerializableMarker.deinit_slice(self.markers, allocator);
     }
 };
 
@@ -494,6 +518,20 @@ pub const SerializableMarker = struct {
             allocator.free(self.comment);
         }
     }
+
+    /// Deinitialize a slice of markers and free the slice itself.
+    pub fn deinit_slice(
+        markers: []SerializableMarker,
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        for (markers) 
+            |marker| 
+        {
+            marker.deinit(allocator);
+        }
+        allocator.free(markers);
+    }
 };
 
 /// Serializable variant of Mapping
@@ -537,6 +575,15 @@ pub const SerializableMapping = union(enum) {
             .empty => .{ .empty = .{} },
         };
     }
+
+    pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
+        switch (self) {
+            .linear => |lin| {
+                allocator.free(lin.knots);
+            },
+            .affine, .empty => {},
+        }
+    }
 };
 
 pub const SerializableMappingAffine = struct {
@@ -566,6 +613,15 @@ pub const SerializableTopology = struct {
         }
         return .{ .mappings = ser_mappings };
     }
+
+    pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
+        for (self.mappings) 
+            |mapping| 
+        {
+            mapping.deinit(allocator);
+        }
+        allocator.free(self.mappings);
+    }
 };
 
 /// Forward declarations for recursive types
@@ -581,7 +637,7 @@ pub const SerializableComposable = union(enum) {
         allocator: std.mem.Allocator,
         handle: schema.references.CompositionItemHandle,
         maybe_meta_ctx: ?*MetadataContext,
-    ) error{OutOfMemory, DiscretePartitionRequired}!*SerializableComposable 
+    ) error{OutOfMemory, DiscretePartitionRequired}!*SerializableComposable
     {
         const result_ptr = try allocator.create(SerializableComposable);
         result_ptr.* = switch (handle) {
@@ -602,43 +658,7 @@ pub const SerializableComposable = union(enum) {
     ) void
     {
         switch (self.*) {
-            inline else => |thing| {
-                allocator.free(thing.name);
-            },
-        }
-
-        switch (self.*) {
-            .clip => |clip| {
-                clip.media.deinit(allocator);
-                if (clip.metadata_hash)
-                    |hash_key|
-                {
-                    allocator.free(hash_key);
-                }
-            },
-            inline .track, .stack, => |container| {
-                for (container.children)
-                    |*child|
-                {
-                    child.deinit(allocator);
-                }
-                allocator.free(container.children);
-            },
-            .warp => |warp| {
-                warp.child.deinit(allocator);
-                allocator.destroy(warp.child);
-            },
-            .transition => |transition| {
-                allocator.free(transition.kind);
-                allocator.free(transition.container.name);
-                for (transition.container.children)
-                    |*child|
-                {
-                    child.deinit(allocator);
-                }
-                allocator.free(transition.container.children);
-            },
-            else => {},
+            inline else => |thing| thing.deinit(allocator),
         }
     }
 };
@@ -660,6 +680,17 @@ pub const SerializableWarp = struct {
             .child = try SerializableComposable.from(allocator, warp.child, maybe_meta_ctx),
             .transform = try SerializableTopology.from(allocator, warp.transform),
         };
+    }
+
+    pub fn deinit(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        allocator.free(self.name);
+        self.child.deinit(allocator);
+        allocator.destroy(self.child);
+        self.transform.deinit(allocator);
     }
 };
 
@@ -700,6 +731,21 @@ pub const SerializableStack = struct {
             ),
         };
     }
+
+    pub fn deinit(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        allocator.free(self.name);
+        for (self.children)
+            |*child|
+        {
+            child.deinit(allocator);
+        }
+        allocator.free(self.children);
+        SerializableMarker.deinit_slice(self.markers, allocator);
+    }
 };
 
 /// Serializable variant of Track
@@ -726,6 +772,21 @@ pub const SerializableTrack = struct {
             .children = ser_children,
             .markers = try SerializableMarker.from_slice(allocator, track.markers),
         };
+    }
+
+    pub fn deinit(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        allocator.free(self.name);
+        for (self.children)
+            |*child|
+        {
+            child.deinit(allocator);
+        }
+        allocator.free(self.children);
+        SerializableMarker.deinit_slice(self.markers, allocator);
     }
 };
 
@@ -754,6 +815,16 @@ pub const SerializableTransition = struct {
             .kind = try allocator.dupe(u8, transition.kind),
             .bounds_s = bounds,
         };
+    }
+
+    pub fn deinit(
+        self: @This(),
+        allocator: std.mem.Allocator,
+    ) void
+    {
+        allocator.free(self.name);
+        allocator.free(self.kind);
+        self.container.deinit(allocator);
     }
 };
 
@@ -896,6 +967,9 @@ pub const SerializableTimeline = struct {
         {
             deinit_metadata_map(allocator, mm);
         }
+
+        // Free markers
+        SerializableMarker.deinit_slice(self.markers, allocator);
     }
 };
 
@@ -985,58 +1059,12 @@ pub const SerializableCollectionItem = union(enum) {
         allocator: std.mem.Allocator,
     ) void
     {
-        // clear the name field
-        switch (self.*) {
-            inline .track, .stack, .clip, .gap, .transition, .warp => |thing| {
-                allocator.free(thing.name);
-            },
-            else => {},
-        }
-
         switch (self.*) {
             .timeline => |*tl| {
-                // Need to cast away const for mutable deinit
                 var mutable_tl = @constCast(tl);
                 mutable_tl.deinit(allocator);
             },
-            .track => |track| {
-                for (track.children)
-                    |*child|
-                {
-                    child.deinit(allocator);
-                }
-                allocator.free(track.children);
-            },
-            .stack => |stack| {
-                for (stack.children)
-                    |*child|
-                {
-                    child.deinit(allocator);
-                }
-                allocator.free(stack.children);
-            },
-            .clip => |clip| {
-                clip.media.deinit(allocator);
-                if (clip.metadata_hash)
-                    |hash|
-                {
-                    allocator.free(hash);
-                }
-            },
-            .warp => |warp| {
-                warp.child.deinit(allocator);
-                allocator.destroy(warp.child);
-            },
-            .transition => |trans| {
-                allocator.free(trans.kind);
-                for (trans.container.children)
-                    |*child|
-                {
-                    child.deinit(allocator);
-                }
-                allocator.free(trans.container.children);
-            },
-            .gap => {},
+            inline else => |thing| thing.deinit(allocator),
         }
     }
 };

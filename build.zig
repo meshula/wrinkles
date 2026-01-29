@@ -646,6 +646,18 @@ pub fn build(
             "test_data_out_dir",
             test_data_out_dir,
         );
+
+        const include_production_tests = b.option(
+            bool,
+            "include_production_tests",
+            "Include production_test_files in roundtrip tests (large files, default: false)",
+        ) orelse false;
+
+        build_options.addOption(
+            bool,
+            "include_production_tests",
+            include_production_tests,
+        );
     }
 
     const cpp_test_output = b.option(
@@ -1217,6 +1229,17 @@ pub fn build(
             .{ .name = "string_stuff", .module = string_stuff },
             .{ .name = "opentimelineio", .module = opentimelineio },
             .{ .name = "ziggy", .module = dep_ziggy.module("ziggy") },
+        },
+    );
+
+    try executable(
+        b,
+        "test_roundtrip_leak",
+        "Test roundtrip for memory leaks",
+        "src/tools/test_roundtrip_leak.zig",
+        options,
+        &.{
+            .{ .name = "opentimelineio", .module = opentimelineio },
         },
     );
 
