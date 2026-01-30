@@ -967,11 +967,30 @@ pub fn build(
         },
     );
 
+    // Helper to configure a C binding library module
+    const CLibraryConfig = struct {
+        lib: *std.Build.Step.Compile,
+
+        fn configure(
+            self: @This(),
+            b_inner: *std.Build,
+            opentime_mod: *std.Build.Module,
+            opentimelineio_mod: *std.Build.Module,
+            topology_mod: *std.Build.Module,
+        ) void
+        {
+            self.lib.addIncludePath(b_inner.path("src/language_bindings/c/"));
+            self.lib.root_module.addImport("opentime", opentime_mod);
+            self.lib.root_module.addImport("opentimelineio", opentimelineio_mod);
+            self.lib.root_module.addImport("topology", topology_mod);
+            self.lib.linkLibCpp();
+        }
+    };
+
+    // Dynamic library (for C/C++ executables)
     const opentimelineio_c = b.addLibrary(
         .{
             .name = "opentimelineio_c",
-            // Use dynamic linkage for Python bindings 
-            // (static has __divtf3 symbol issues)
             .linkage = .dynamic,
             .root_module = b.createModule(
                 .{
@@ -985,33 +1004,36 @@ pub fn build(
         },
     );
     {
-        opentimelineio_c.addIncludePath(b.path("src/language_bindings/c/"));
-        opentimelineio_c.root_module.addImport(
-            "opentime",
-            opentime,
-        );
-        opentimelineio_c.root_module.addImport(
-            "opentimelineio",
-            opentimelineio
-        );
-        opentimelineio_c.root_module.addImport(
-            "topology",
-            topology
-        );
-        opentimelineio_c.linkLibCpp();
-        // @TODO: restore WASM build
-        // if (options.target.result.cpu.arch.isWasm())
-        // {
-        //     opentimelineio_c.addSystemIncludePath(
-        //         ziis.fetchEmSdkIncludePath(
-        //             options.dep_ziis.?,
-        //             options.optimize,
-        //             options.target,
-        //         )
-        //     );
-        // }
+        const cfg = CLibraryConfig{ .lib = opentimelineio_c };
+        cfg.configure(b, opentime, opentimelineio, topology);
         b.installArtifact(opentimelineio_c);
+    }
 
+    // Static library (for Python bindings and static linking)
+    const opentimelineio_c_static = b.addLibrary(
+        .{
+            .name = "opentimelineio_c_static",
+            .linkage = .static,
+            .root_module = b.createModule(
+                .{
+                    .target = options.target,
+                    .optimize = options.optimize,
+                    .root_source_file = b.path(
+                        "src/language_bindings/c/opentimelineio_c.zig",
+                    ),
+                },
+            ),
+        },
+    );
+    {
+        const cfg = CLibraryConfig{ .lib = opentimelineio_c_static };
+        cfg.configure(b, opentime, opentimelineio, topology);
+        // Bundle compiler-rt so consumers get __divtf3 and other soft-float symbols
+        opentimelineio_c_static.bundle_compiler_rt = true;
+        b.installArtifact(opentimelineio_c_static);
+    }
+
+    {
         const exe = b.addExecutable(
             .{
                 .name = "test_opentimelineio_c",
@@ -1031,21 +1053,10 @@ pub fn build(
                 .flags = &C_ARGS,
             },
         );
-        exe.addIncludePath(b.path("src/language_bindings/c/"));
+        exe.addIncludePath(b.path("src/language_bindings/c"));
         exe.linkLibC();
-        // @TODO: fix WASM build
-        // if (options.target.result.cpu.arch.isWasm())
-        // {
-        //     exe.addSystemIncludePath(
-        //         ziis.fetchEmSdkIncludePath(
-        //             options.dep_ziis.?,
-        //             options.optimize,
-        //             options.target,
-        //         )
-        //     );
-        // }
+        exe.linkLibrary(opentimelineio_c_static);
 
-        exe.linkLibrary(opentimelineio_c);
         b.installArtifact(exe);
 
         const run_exe = b.addRunArtifact(exe);
@@ -1250,7 +1261,7 @@ pub fn build(
     );
 
     //
-    // C++ binding library and examples
+    // C++ binding library and examples - only build if not in Wasm mode
     //
     if (options.target.result.cpu.arch.isWasm() == false) 
     {
@@ -1270,14 +1281,16 @@ pub fn build(
 
         opentimelineio_cpp.addCSourceFile(
             .{
-                .file = b.path("src/language_bindings/cpp/src/opentimelineio.cpp"),
+                .file = b.path(
+                    "src/language_bindings/cpp/src/opentimelineio.cpp"
+                ),
                 .flags = &.{"-std=c++17"},
             },
         );
 
         opentimelineio_cpp.addIncludePath(b.path("src/language_bindings/cpp/include"));
         opentimelineio_cpp.addIncludePath(b.path("src/language_bindings/c"));
-        opentimelineio_cpp.linkLibrary(opentimelineio_c);
+        opentimelineio_cpp.linkLibrary(opentimelineio_c_static);
         opentimelineio_cpp.linkLibCpp();
 
         b.installArtifact(opentimelineio_cpp);
@@ -1322,7 +1335,9 @@ pub fn build(
             );
             var run_cmd = b.addRunArtifact(exe);
             run_step.dependOn(&run_cmd.step);
-            if (b.args) |args| {
+            if (b.args) 
+                |args| 
+            {
                 run_cmd.addArgs(args);
             }
         }
@@ -1355,7 +1370,9 @@ pub fn build(
             exe.linkLibrary(opentimelineio_cpp);
             exe.linkLibCpp();
 
-            const install_exe_step = b.addInstallArtifact(exe, .{});
+            const install_exe_step = (
+                b.addInstallArtifact(exe, .{})
+            );
             b.getInstallStep().dependOn(&install_exe_step.step);
 
             var run_step = b.step(
@@ -1364,7 +1381,9 @@ pub fn build(
             );
             var run_cmd = b.addRunArtifact(exe);
             run_step.dependOn(&run_cmd.step);
-            if (b.args) |args| {
+            if (b.args) 
+                |args| 
+            {
                 run_cmd.addArgs(args);
             }
         }
@@ -1437,8 +1456,12 @@ pub fn build(
                 },
             );
 
-            cpp_test_exe.addIncludePath(b.path("src/language_bindings/cpp/include"));
-            cpp_test_exe.addIncludePath(b.path("src/language_bindings/c"));
+            cpp_test_exe.addIncludePath(
+                b.path("src/language_bindings/cpp/include")
+            );
+            cpp_test_exe.addIncludePath(
+                b.path("src/language_bindings/c")
+            );
             cpp_test_exe.linkLibrary(opentimelineio_cpp);
             cpp_test_exe.linkLibCpp();
 
@@ -1448,7 +1471,7 @@ pub fn build(
             const run_cpp_tests = b.addRunArtifact(cpp_test_exe);
             run_cpp_tests.addArg("sample_otio_files/multiple_track.otio");
 
-            // Suppress C++ test output unless -Dtest_output=true
+            // expectExitCode(0) hides the output and just checks the exit code
             if (!test_output)
             {
                 run_cpp_tests.expectExitCode(0);
@@ -1460,8 +1483,9 @@ pub fn build(
             );
             cpp_test_step.dependOn(&run_cpp_tests.step);
 
-            // Add to main test step if no filter is set
-            if (options.test_filter == null) {
+            // @TODO: add a filter that can catch the CPP Tests
+            if (options.test_filter == null) 
+            {
                 options.test_step.dependOn(cpp_test_step);
             }
         }

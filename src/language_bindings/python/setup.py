@@ -24,23 +24,16 @@ library_dirs = [
 extra_compile_args = ["-std=c11"]
 extra_link_args = []
 
-if sys.platform == "darwin":
-    # macOS: set rpath to find the library
-    extra_link_args.extend([
-        "-Wl,-rpath,@loader_path/../../../../zig-out/lib",
-        f"-Wl,-rpath,{os.path.join(project_root, 'zig-out', 'lib')}",
-    ])
-elif sys.platform.startswith("linux"):
-    extra_link_args.extend([
-        f"-Wl,-rpath,{os.path.join(project_root, 'zig-out', 'lib')}",
-    ])
+# Use static library for relocatable builds (no rpath needed)
+# The static library bundles compiler-rt for soft-float symbols like __divtf3
+libraries = ["opentimelineio_c_static"]
 
-# Define the C extension module
-libraries = ["opentimelineio_c"]
-
-# Add compiler-rt for ARM64 macOS
 if sys.platform == "darwin":
+    # macOS: link against libc++ for C++ standard library support
     libraries.append("c++")
+elif sys.platform.startswith("linux"):
+    # Linux: link against libstdc++
+    libraries.append("stdc++")
 
 wrinkles_ext = Extension(
     "wrinkles._wrinkles",
