@@ -405,13 +405,15 @@ didn't impact the deisgn or problems we were specifically solving.
 
 ## TODO 1/17/2026
 
-* [ ] SampleIndex should be a signed integer, not a usize. -> check to make
+* [x] SampleIndex should be a signed integer, not a usize. -> check to make
       sure if this feature is necessary or desired, or should be handled by a
       higher level thing (the discrete space partition)
 * [ ] Joshs' composition objects (generic stack/track thingy)
 * [ ] land serialization in main (IE review and land all the code that is in
       flight on that branch serialization)
     * [ ] add metadata_map to runtime types (not just serializable types)
+        * [x] otio.schema.Clip
+        * [ ] other types?
     * [ ] removed unused functions
     * [ ] remove unused binaries
     * [x] update references to .ziggy files to refer to .tla
@@ -420,16 +422,25 @@ didn't impact the deisgn or problems we were specifically solving.
         * [x] serialization.zig -> serialization/ascii.zig
         * [x] binary_serialization_flatbufs.zig -> serialization/binary.zig
         * [x] serialization schemas -> source tree
-    * [ ] rearrange
+    * [x] rearrange
         * [x] remove .ziggy files
         * [x] language bindings -> bindings directory
     * [ ] style pass
     * [x] figure out where the ERROR CONVERTING messages come from
+    * [x] C++ binaries need to be portable - fix the rpath issue
+    * [ ] refactor C++ build portion of build.zig into a cleaner state
+    * [x] confirm that the python bindings are not impacted by the relocatable
+          issue
+    * [ ] update the raven-wrinkles project
     * [ ] add a FileFormat struct that maps formats to extensions and
-          serializers/deserializers
+          serializers/deserializers.
+        * [ ] Maybe another way to put this is to reorganize the Serializer
+              library to have a clearer top down structure.  An Adapter[] which 
+              has a number of structs that know what the features of each
+              supported format is.
     * [ ] specifically look for string matching to convert to enums and clean
           that up
-    * [ ] optional strings can just be empty strings unless there is a
+    * [x] optional strings can just be empty strings unless there is a
           meaningful difference.
     * [ ] store metdata with a hash... doesn't need to be a hash string though (ascii.zig:963)
     * [ ] preserve whether the user wants the bounds in continuous or discrete

@@ -28,9 +28,36 @@ const legacy_json = @import("legacy_json.zig");
 const bundle_utils = @import("bundle_utils.zig");
 const binary = @import("binary.zig");
 const bundle = @import("bundle.zig");
+const adapter = @import("adapter.zig");
 
 /// Re-export ReadOptions for convenience
 pub const ReadOptions = legacy_json.ReadOptions;
+
+// Re-export adapter functions for backwards compatibility
+pub const write_timeline_to_file = adapter.write_timeline_to_file;
+pub const write_serializable_to_file = adapter.write_serializable_timeline_to_file;
+
+/// Write a Timeline to a writer in the specified format.
+/// Converts to serializable format internally.
+pub fn write_timeline_to_writer(
+    allocator: std.mem.Allocator,
+    timeline: *schema.Timeline,
+    format: FileFormat,
+    options: WriteOptions,
+    writer: anytype,
+) !void
+{
+    var ser_timeline: SerializableTimeline = try .from(allocator, timeline);
+    defer ser_timeline.deinit(allocator);
+
+    try write_serializable_to_writer(
+        allocator,
+        ser_timeline,
+        format,
+        options,
+        writer,
+    );
+}
 
 // Re-export curve control point for convenience
 const CurveControlPoint = curve.ControlPoint;
@@ -3336,15 +3363,14 @@ pub fn write_to_buffer(
     options: WriteOptions,
 ) ![]u8
 {
-    if (format == .tlz) 
+    switch (format)
     {
         // TLZ is a ZIP archive that requires file system access
-        return error.TlzRequiresFileAccess;
-    }
+        .tlz => return error.TlzRequiresFileAccess,
 
-    if (format == .otio) {
         // OTIO JSON output is not currently supported
-        return error.OtioJsonWriteNotSupported;
+        .otio => return error.OtioJsonWriteNotSupported,
+        else => {},
     }
 
     // Use an allocating writer to build the buffer
@@ -3362,115 +3388,6 @@ pub fn write_to_buffer(
     return try buffer.toOwnedSlice();
 }
 
-/// Write a Timeline to any supported file format.
-/// Supports: .tla (ascii), .tlb (binary), .tlz (bundle)
-/// The file format is determined by the file extension.
-pub fn write_timeline_to_file(
-    allocator: std.mem.Allocator,
-    timeline: *schema.Timeline,
-    file_path: []const u8,
-    options: WriteOptions,
-) !void
-{
-    var ser_timeline = try SerializableTimeline.from(
-        allocator,
-        timeline,
-    );
-    defer ser_timeline.deinit(allocator);
-
-    try write_serializable_to_file(
-        allocator,
-        ser_timeline,
-        file_path,
-        options,
-    );
-}
-
-/// Write a SerializableTimeline to any supported file format.
-/// Supports: .tla, .tlb (FlatBuffers), .tlz (bundle), based on the file
-/// extension.
-///
-/// Use this function when you have a SerializableTimeline and want to
-/// preserve all fields including metadata_hash and metadata_map.
-pub fn write_serializable_to_file(
-    allocator: std.mem.Allocator,
-    intermediate_tl: SerializableTimeline,
-    file_path: []const u8,
-    options: WriteOptions,
-) !void
-{
-    // Check file extension to determine format
-    const ext_start = std.mem.lastIndexOfScalar(
-        u8,
-        file_path,
-        '.',
-    ) orelse  return error.NoFileExtension;
-
-    // Skip the leading dot
-    const extension = file_path[ext_start + 1 ..];  
-
-    const format = (
-        std.meta.stringToEnum(FileFormat, extension) 
-        orelse return error.UnsupportedFileFormat
-    );
-
-    // Handle .tlz separately since it manages its own file writing
-    if (format == .tlz)
-    {
-        try bundle.writeToFile(
-            allocator,
-            intermediate_tl,
-            file_path,
-            .{
-                .bundle_format = options.bundle_format,
-                .media_policy = options.media_policy,
-                .media_base_dir = options.media_base_dir,
-            },
-        );
-        return;
-    }
-
-    // For other formats, open file and write
-    const file = try std.fs.cwd().createFile(file_path, .{});
-    defer file.close();
-
-    var file_writer_buffer: [16 * 1024]u8 = undefined;
-    var file_writer = file.writer(&file_writer_buffer);
-    const writer = &file_writer.interface;
-
-    try write_serializable_to_writer(
-        allocator,
-        intermediate_tl,
-        format,
-        options,
-        writer,
-    );
-
-    try writer.flush();
-}
-
-/// Write a Timeline to a writer in the specified format.
-/// Converts to serializable format internally.
-pub fn write_timeline_to_writer(
-    allocator: std.mem.Allocator,
-    timeline: *schema.Timeline,
-    format: FileFormat,
-    options: WriteOptions,
-    writer: anytype,
-) !void
-{
-    var ser_timeline: SerializableTimeline = try .from(allocator, timeline);
-    defer ser_timeline.deinit(allocator);
-
-    try write_serializable_to_writer(
-        allocator,
-        ser_timeline,
-        format,
-        options,
-        writer,
-    );
-}
-
 /// Write a SerializableTimeline to a writer in the specified format.
 ///
 /// Use this function when you have a SerializableTimeline and want to
@@ -3481,7 +3398,7 @@ pub fn write_serializable_to_writer(
     format: FileFormat,
     options: WriteOptions,
     writer: anytype,
-) !void
+) anyerror!void
 {
     switch (format) {
         .tla => {
@@ -4214,4 +4131,33 @@ test "collection serialization: tlca to tlcb cross-format"
     try std.testing.expectEqualStrings("Cross-Format Collection", from_tlcb.name);
     try std.testing.expectEqual(@as(usize, 1), from_tlcb.children.len);
     try std.testing.expectEqualStrings("Embedded Timeline", from_tlcb.children[0].timeline.name);
+}
+
+pub fn read_timeline_from_reader(
+    allocator: std.mem.Allocator,
+    reader: *std.Io.Reader,
+) anyerror!SerializableTimeline
+{
+    const buffer = try reader.readAlloc(
+        allocator,
+        std.math.maxInt(u32),
+    );
+
+    return try read_from_buffer(allocator, buffer, .tla);
+}
+
+pub fn write_ascii_serializable_to_writer(
+    allocator: std.mem.Allocator,
+    intermediate_tl: SerializableTimeline,
+    writer: *std.Io.Writer,
+    options: anytype,
+) anyerror!void
+{
+    return write_serializable_to_writer(
+        allocator,
+        intermediate_tl,
+        .tla,
+        options,
+        writer,
+    );
 }
