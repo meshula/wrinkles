@@ -4189,7 +4189,7 @@ pub fn write_ascii_collection_to_writer(
     options: anytype,
 ) anyerror!void
 {
-    return ascii.write_collection_to_writer(
+    return write_collection_to_writer(
         allocator,
         collection,
         .tlca,

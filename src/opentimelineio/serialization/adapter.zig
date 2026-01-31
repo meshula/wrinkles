@@ -19,6 +19,8 @@
 //! adapters.write_collection_to_file
 //! adapters.write_collection_to_writer
 //!
+//! @TODO: pull TLZ into this structure as well
+//!
 //! Supports TLA, TLAC, TLB, TLBC, TLZ, TLCZ, and (read only) .otio.
 
 const std = @import("std");
@@ -56,6 +58,10 @@ pub const read_collection_from_reader_fn = fn (
     reader: *std.Io.Reader,
 ) anyerror!ascii.SerializableCollection;
 
+// ----------------------------------------------------------------------------
+// Format Definitions
+// ----------------------------------------------------------------------------
+
 /// Bundles up interface functions to a given file format
 pub const SerializableFormat = struct {
     description: []const u8,
@@ -68,10 +74,6 @@ pub const SerializableFormat = struct {
     _write_collection_to_writer: ?*const write_collection_to_writer_fn = null,
     _read_collection_from_reader: ?*const read_collection_from_reader_fn = null,
 };
-
-// ----------------------------------------------------------------------------
-// Format Definitions
-// ----------------------------------------------------------------------------
 
 pub const TLA_Adapter: SerializableFormat = .{
     .description = "Native ascii format with a timeline root",
