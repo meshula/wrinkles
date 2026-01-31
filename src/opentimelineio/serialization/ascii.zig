@@ -4161,3 +4161,40 @@ pub fn write_ascii_serializable_to_writer(
         writer,
     );
 }
+
+/// Bridge function for reading ASCII collection (TLAC) format from a reader.
+pub fn read_ascii_collection_from_reader(
+    allocator: std.mem.Allocator,
+    reader: *std.Io.Reader,
+) anyerror!SerializableCollection
+{
+    const buffer = try reader.readAlloc(
+        allocator,
+        std.math.maxInt(u32),
+    );
+    defer allocator.free(buffer);
+
+    return try read_collection_from_buffer(
+        allocator,
+        buffer,
+        .tlca,
+    );
+}
+
+/// Bridge function for writing ASCII collection (TLAC) format to a writer.
+pub fn write_ascii_collection_to_writer(
+    allocator: std.mem.Allocator,
+    collection: SerializableCollection,
+    writer: *std.Io.Writer,
+    options: anytype,
+) anyerror!void
+{
+    return ascii.write_collection_to_writer(
+        allocator,
+        collection,
+        .tlca,
+        .{ .metadata_mode = options.metadata_mode },
+        writer,
+    );
+}
+

@@ -4391,3 +4391,76 @@ test "roundtrip: production_test_files (optional)"
     test_print("production_test_files: {d} passed, {d} failed\n", .{ passed, failed });
     try std.testing.expect(failed == 0);
 }
+
+// Bridge fucntions to Adapter API
+///////////////////////////////////////////////////////////////////////////////
+
+/// Bridge function for reading binary collection (TLCB) format from a reader.
+pub fn read_binary_collection_from_reader(
+    allocator: std.mem.Allocator,
+    reader: *std.Io.Reader,
+) anyerror!ascii.SerializableCollection
+{
+    const buffer = try reader.readAlloc(
+        allocator,
+        std.math.maxInt(u32),
+    );
+    defer allocator.free(buffer);
+
+    return try deserialize_collection(
+        allocator,
+        buffer,
+    );
+}
+
+/// Bridge function for writing binary collection (TLCB) format to a writer.
+pub fn write_binary_collection_to_writer(
+    allocator: std.mem.Allocator,
+    collection: ascii.SerializableCollection,
+    writer: *std.Io.Writer,
+    options: anytype,
+) anyerror!void
+{
+    _ = options;
+    return serialize_collection(
+        collection,
+        allocator,
+        writer,
+    );
+}
+
+/// Bridge function for writing binary (TLB) format to a writer.
+pub fn write_binary_serializable_to_writer(
+    allocator: std.mem.Allocator,
+    intermediate_tl: ascii.SerializableTimeline,
+    writer: *std.Io.Writer,
+    options: anytype,
+) anyerror!void
+{
+    _ = options;
+    return serialize_from_serializable_timeline(
+        intermediate_tl,
+        allocator,
+        writer,
+    );
+}
+
+/// Bridge function for reading binary (TLB) format from a reader.
+pub fn read_binary_timeline_from_reader(
+    allocator: std.mem.Allocator,
+    reader: *std.Io.Reader,
+) anyerror!ascii.SerializableTimeline
+{
+    const buffer = try reader.readAlloc(
+        allocator,
+        std.math.maxInt(u32),
+    );
+    defer allocator.free(buffer);
+
+    return try deserialize_to_serializable_timeline(
+        allocator,
+        buffer,
+        .{},
+    );
+}
+

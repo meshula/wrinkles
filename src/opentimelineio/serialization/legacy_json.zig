@@ -1450,3 +1450,29 @@ test "read_from_file with all_except_metadata on OTIO JSON file"
     // However, for JSON files, the clip's metadata should be null when skipped
     // (Note: In this simple test file, clips may not have metadata anyway)
 }
+
+/// Bridge function for reading OTIO JSON format from a reader.
+/// Note: OTIO format is read-only; writing is not supported.
+pub fn read_otio_timeline_from_reader(
+    allocator: std.mem.Allocator,
+    reader: *std.Io.Reader,
+) anyerror!ascii.SerializableTimeline
+{
+    const buffer = try reader.readAlloc(
+        allocator,
+        std.math.maxInt(u32),
+    );
+    defer allocator.free(buffer);
+
+    // Parse OTIO JSON to get a CompositionItemHandle
+    const item = try read_from_string(
+        allocator,
+        buffer,
+        .{},
+    );
+
+    // Convert the timeline to SerializableTimeline
+    const timeline = item.timeline;
+    return try ascii.SerializableTimeline.from(allocator, timeline);
+}
+
