@@ -4111,8 +4111,13 @@ fn run_roundtrip_tests_from_dir(
     failed: *usize,
 ) !void
 {
-    var dir = std.fs.cwd().openDir(dir_path, .{ .iterate = true }) catch |err| {
-        if (err == error.FileNotFound) {
+    var dir = std.fs.cwd().openDir(
+        dir_path,
+        .{ .iterate = true },
+    ) catch |err| 
+    {
+        if (err == error.FileNotFound) 
+        {
             test_print("  Directory not found: {s}\n", .{dir_path});
             return;
         }
@@ -4128,38 +4133,66 @@ fn run_roundtrip_tests_from_dir(
     }
 
     var iter = dir.iterate();
-    while (try iter.next()) |entry| {
-        if (entry.kind != .file) continue;
-        if (std.mem.endsWith(u8, entry.name, ".tla")) {
-            try tla_files.append(allocator, try allocator.dupe(u8, entry.name));
+    while (try iter.next()) 
+        |entry| 
+    {
+        if (entry.kind != .file) 
+        {
+            continue;
+        }
+
+        if (std.mem.endsWith(u8, entry.name, ".tla")) 
+        {
+            try tla_files.append(
+                allocator,
+                try allocator.dupe(u8, entry.name),
+            );
         }
     }
 
     // Sort for consistent ordering
-    std.mem.sort([]const u8, tla_files.items, {}, struct {
-        fn less_than(
-            _: void,
-            a: []const u8,
-            b: []const u8,
-        ) bool
-        {
-            return std.mem.lessThan(u8, a, b);
-        }
-    }.less_than);
+    std.mem.sort(
+        []const u8,
+        tla_files.items,
+        {},
+        struct {
+            fn less_than(
+                _: void,
+                a: []const u8,
+                b: []const u8,
+            ) bool
+            {
+                return std.mem.lessThan(u8, a, b);
+            }
+        }.less_than,
+    );
 
     // Run tests
-    for (tla_files.items) |tla_name| {
+    for (tla_files.items) 
+        |tla_name| 
+    {
+        errdefer std.log.err("Error with file: {s}", .{tla_name});
         const basename = tla_name[0 .. tla_name.len - 4];
-        const tlb_name = try std.fmt.allocPrint(allocator, "{s}.tlb", .{basename});
+        const tlb_name = try std.fmt.allocPrint(
+            allocator,
+            "{s}.tlb",
+            .{basename},
+        );
         defer allocator.free(tlb_name);
 
         // Check if corresponding .tlb exists
         dir.access(tlb_name, .{}) catch continue;
 
         // Build full paths
-        const tla_path = try std.fs.path.join(allocator, &.{ dir_path, tla_name });
+        const tla_path = try std.fs.path.join(
+            allocator,
+            &.{ dir_path, tla_name },
+        );
         defer allocator.free(tla_path);
-        const tlb_path = try std.fs.path.join(allocator, &.{ dir_path, tlb_name });
+        const tlb_path = try std.fs.path.join(
+            allocator,
+            &.{ dir_path, tlb_name },
+        );
         defer allocator.free(tlb_path);
 
         // Run the test
@@ -4324,7 +4357,12 @@ test "roundtrip: all otio_sample_data"
     var passed: usize = 0;
     var failed: usize = 0;
 
-    try run_roundtrip_tests_from_dir(allocator, "otio_sample_data", &passed, &failed);
+    try run_roundtrip_tests_from_dir(
+        allocator,
+        "otio_sample_data",
+        &passed,
+        &failed,
+    );
 
     test_print("otio_sample_data: {d} passed, {d} failed\n", .{ passed, failed });
     try std.testing.expect(failed == 0);
