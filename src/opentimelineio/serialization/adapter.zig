@@ -1,6 +1,24 @@
 //! High level adapter interface which interprets file types and dispatches to
 //! format implementations.
 //!
+//! Public interface:
+//!
+//! // Timeline Root
+//!
+//! adapters.read_timeline_from_file
+//! adapters.read_timeline_from_reader
+//!
+//! adapters.write_timeline_to_file
+//! adapters.write_timeline_to_writer
+//!
+//! // Collection Root
+//!
+//! adapters.read_collection_from_file
+//! adapters.read_collection_from_reader
+//!
+//! adapters.write_collection_to_file
+//! adapters.write_collection_to_writer
+//!
 //! Supports TLA, TLAC, TLB, TLBC, TLZ, TLCZ, and (read only) .otio.
 
 const std = @import("std");
